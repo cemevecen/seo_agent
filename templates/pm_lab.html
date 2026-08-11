@@ -92,6 +92,12 @@
   .pml-sum{min-width:0}
   .pml-updated{font-size:11px;font-variant-numeric:tabular-nums;color:#64748b;white-space:nowrap;letter-spacing:.01em}
   html.dark .pml-updated{color:#a1a1aa}
+  .pml-refresh{flex:0 0 auto;border:0;border-radius:999px;padding:.28rem .7rem;font-size:11px;font-weight:650;line-height:1.2;background:#f4f4f5;color:#334155;cursor:pointer}
+  html.dark .pml-refresh{background:#27272a;color:#e4e4e7}
+  .pml-refresh:hover{background:#e4e4e7}
+  html.dark .pml-refresh:hover{background:#3f3f46}
+  .pml-refresh:disabled,.pml-refresh.is-busy{opacity:.55;cursor:wait}
+  .pml-card-actions{display:flex;align-items:center;gap:.45rem;flex:0 0 auto;margin-left:auto}
   .pml-store-split{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:.75rem;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .pml-store-col{min-width:260px}
   .pml-store-col .pml-shell{max-height:min(68vh,640px);margin-top:.5rem}
@@ -143,9 +149,14 @@
       <div class="pml-sum min-w-0 flex-1">
         <h3 class="text-sm font-semibold leading-snug text-slate-900 dark:text-zinc-200">{{ card.title }}</h3>
       </div>
-      {% if card.scraped_at_label %}
-      <time class="pml-updated mt-0.5 shrink-0" datetime="{{ card.scraped_at or '' }}">{{ card.scraped_at_label }}</time>
-      {% endif %}
+      <span class="pml-card-actions" data-pml-actions="{{ card.id }}">
+        <button type="button" class="pml-refresh" data-pml-refresh="{{ card.id }}" title="Bu alanı şimdi tara">Yenile</button>
+        {% if card.scraped_at_label %}
+        <time class="pml-updated" data-pml-when="{{ card.id }}" datetime="{{ card.scraped_at or '' }}">{{ card.scraped_at_label }}</time>
+        {% else %}
+        <time class="pml-updated" data-pml-when="{{ card.id }}" datetime="" hidden></time>
+        {% endif %}
+      </span>
     </summary>
     <div class="border-t border-slate-100 px-3 py-3 sm:px-5 sm:py-4 dark:border-zinc-800">
       <div class="pml-body" data-pml="{{ card.id }}"></div>
@@ -155,5 +166,5 @@
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=24"></script>
+<script src="/static/js/pm_lab.js?v=25"></script>
 {% endblock %}

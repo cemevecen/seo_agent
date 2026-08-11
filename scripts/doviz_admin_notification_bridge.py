@@ -26,6 +26,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-gsc-cwv → GSC Core Web Vitals + AMP (03:00 + 15:00 TR)
   POST /sync-market → doviz.com piyasa tablo taraması (00:05 TR)
   POST /open-noads  → noAds sayfasını aç, textarea'ya URL yaz (policy «Ekle»)
+  POST /sync-pm-lab → PM lab (3 saatte bir; ?jobs=serp|competitors|store_charts|google_news)
   POST /sync-all   → notification + news
 """
 
@@ -1198,7 +1199,10 @@ def _run_pm_lab_script(*, jobs: str = "", label: str = "PM lab") -> dict[str, An
     cmd = [sys.executable, str(script)]
     if jobs:
         cmd.extend(["--jobs", jobs, "--ingest"])
-        timeout_sec = int(os.environ.get("PM_LAB_COMPETITORS_TIMEOUT_SEC") or "540")
+        if jobs == "competitors":
+            timeout_sec = int(os.environ.get("PM_LAB_COMPETITORS_TIMEOUT_SEC") or "540")
+        else:
+            timeout_sec = int(os.environ.get("PM_LAB_JOB_TIMEOUT_SEC") or "1200")
     else:
         cmd.extend(["--sync", "--ingest"])
         timeout_sec = int(os.environ.get("PM_LAB_BRIDGE_TIMEOUT_SEC") or "1800")
@@ -1235,13 +1239,28 @@ def _run_pm_lab_script(*, jobs: str = "", label: str = "PM lab") -> dict[str, An
 
 
 def run_pm_lab_bridge_once() -> dict[str, Any]:
-    """SERP / rakip / şikayet / store / news — 3 saatte bir."""
+    """SERP / rakip / store / news — 3 saatte bir."""
     return _run_pm_lab_script(jobs="", label="PM lab")
 
 
 def run_pm_lab_competitors_once() -> dict[str, Any]:
     """Rakip fiyat linkleri — 10 dakikada bir."""
     return _run_pm_lab_script(jobs="competitors", label="PM lab fiyat")
+
+
+PM_LAB_JOB_IDS = ("serp", "competitors", "store_charts", "google_news")
+
+
+def run_pm_lab_jobs_once(jobs: str = "") -> dict[str, Any]:
+    """Tek veya virgüllü PM lab işi (manuel Yenile)."""
+    raw = (jobs or "").strip()
+    if not raw:
+        return run_pm_lab_bridge_once()
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    if parts == ["competitors"]:
+        return run_pm_lab_competitors_once()
+    label = "PM lab " + " · ".join(parts)
+    return _run_pm_lab_script(jobs=",".join(parts), label=label)
 
 
 def run_market_tarama_bridge_once() -> dict[str, Any]:
@@ -2029,11 +2048,43 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 run_firebase_bridge_once,
             )
         elif path in ("/sync-pm-lab", "/pm-lab", "/sync-pmlab"):
-            lock, busy, runner = (
-                _pm_lab_lock,
-                "PM lab tarama zaten çalışıyor, bekleyin.",
-                run_pm_lab_bridge_once,
+            raw_jobs = (qs.get("jobs") or [""])[0].strip()
+            job_parts = [p.strip() for p in raw_jobs.split(",") if p.strip()]
+            if job_parts and any(p not in PM_LAB_JOB_IDS for p in job_parts):
+                self._send(400, {"ok": False, "message": "bilinmeyen PM lab işi"})
+                return
+            jobs_arg = ",".join(job_parts)
+            if not _pm_lab_lock.acquire(blocking=False):
+                self._send(
+                    409,
+                    {
+                        "ok": False,
+                        "running": True,
+                        "message": "PM lab tarama zaten çalışıyor, bekleyin.",
+                    },
+                )
+                return
+
+            def _pm_lab_bg() -> None:
+                try:
+                    run_pm_lab_jobs_once(jobs_arg)
+                except Exception:
+                    traceback.print_exc()
+                finally:
+                    _pm_lab_lock.release()
+
+            threading.Thread(target=_pm_lab_bg, name="pm-lab-bridge", daemon=True).start()
+            self._send(
+                200,
+                {
+                    "ok": True,
+                    "started": True,
+                    "kind": "pm_lab",
+                    "jobs": jobs_arg or "all",
+                    "message": "PM lab tarama arka planda başladı",
+                },
             )
+            return
         elif path in ("/sync-pagespeed", "/pagespeed", "/sync-speed"):
             lock, busy, runner = (
                 _pagespeed_lock,

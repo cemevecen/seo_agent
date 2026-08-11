@@ -777,20 +777,162 @@
     store_charts: renderStore,
     google_news: renderNews,
   };
+  var BRIDGE = "http://127.0.0.1:18765";
+  var JOB_WAIT_MS = {
+    serp: 20 * 60 * 1000,
+    competitors: 12 * 60 * 1000,
+    store_charts: 15 * 60 * 1000,
+    google_news: 10 * 60 * 1000,
+  };
+  var refreshing = {};
+
+  function fmtWhenFull(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso).slice(0, 16).replace("T", " ");
+    return d
+      .toLocaleString("tr-TR", {
+        timeZone: "Europe/Istanbul",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+      .replace(",", "")
+      .replace(/\s+/g, " ");
+  }
+
+  function paintCard(id, data) {
+    sections[id] = data || {};
+    var node = document.querySelector('.pml-body[data-pml="' + id + '"]');
+    if (!node) return;
+    node.innerHTML = "";
+    var fn = renderers[id];
+    if (!fn) {
+      node.textContent = (data && data.message) || "Bu blok henüz yok.";
+      return;
+    }
+    try {
+      fn(node, data || {});
+    } catch (err) {
+      node.textContent = "Çizim hatası: " + err;
+    }
+    var timeEl = document.querySelector('time[data-pml-when="' + id + '"]');
+    if (timeEl && data && data.scraped_at) {
+      timeEl.hidden = false;
+      timeEl.setAttribute("datetime", data.scraped_at);
+      timeEl.textContent = fmtWhenFull(data.scraped_at);
+    }
+  }
+
+  function sleep(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+
+  function setRefreshBtn(btn, busy, label) {
+    if (!btn) return;
+    btn.disabled = !!busy;
+    btn.classList.toggle("is-busy", !!busy);
+    btn.textContent = label;
+  }
+
+  function pollSection(id, prevAt, timeoutMs) {
+    var started = Date.now();
+    function tick() {
+      if (Date.now() - started > timeoutMs) {
+        return Promise.reject(new Error("Tarama zaman aşımı"));
+      }
+      return fetch("/api/pm-lab/state", { credentials: "same-origin", headers: { Accept: "application/json" } })
+        .then(function (resp) {
+          if (!resp.ok) throw new Error("Durum alınamadı");
+          return resp.json();
+        })
+        .then(function (state) {
+          var block = ((state || {}).sections || {})[id] || {};
+          var at = String(block.scraped_at || "");
+          if (at && at !== prevAt) return state;
+          return sleep(4000).then(tick);
+        });
+    }
+    return tick();
+  }
+
+  function refreshSection(id, btn) {
+    if (!id || refreshing[id]) return;
+    refreshing[id] = true;
+    var prevAt = String((sections[id] || {}).scraped_at || "");
+    setRefreshBtn(btn, true, "Taranıyor…");
+    fetch(BRIDGE + "/sync-pm-lab?jobs=" + encodeURIComponent(id), {
+      method: "POST",
+      mode: "cors",
+      headers: { Accept: "application/json" },
+    })
+      .then(function (resp) {
+        return resp.json().then(function (data) {
+          return { resp: resp, data: data || {} };
+        }).catch(function () {
+          return { resp: resp, data: {} };
+        });
+      })
+      .then(function (out) {
+        if (out.resp.status === 409) {
+          throw new Error((out.data && out.data.message) || "Başka bir tarama sürüyor");
+        }
+        if (!out.resp.ok || out.data.ok === false) {
+          throw new Error((out.data && out.data.message) || "Tarama başlatılamadı");
+        }
+        setRefreshBtn(btn, true, "Bekleniyor…");
+        return pollSection(id, prevAt, JOB_WAIT_MS[id] || 12 * 60 * 1000);
+      })
+      .then(function (state) {
+        var block = ((state || {}).sections || {})[id] || {};
+        paintCard(id, block);
+        renderStatus();
+        setRefreshBtn(btn, false, "Yenile");
+      })
+      .catch(function (err) {
+        var msg = String((err && err.message) || err || "");
+        if (/Failed to fetch|NetworkError|Load failed|fetch/i.test(msg)) {
+          msg = "Mac köprü kapalı (127.0.0.1:18765)";
+        }
+        setRefreshBtn(btn, false, "Yenile");
+        window.alert(msg);
+      })
+      .then(function () {
+        refreshing[id] = false;
+      });
+  }
+
+  function bindRefreshButtons() {
+    document.querySelectorAll("[data-pml-refresh]").forEach(function (btn) {
+      function stopToggle(e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      ["pointerdown", "mousedown"].forEach(function (ev) {
+        btn.addEventListener(ev, stopToggle);
+      });
+      btn.addEventListener("click", function (e) {
+        stopToggle(e);
+        refreshSection(btn.getAttribute("data-pml-refresh"), btn);
+      });
+    });
+    document.querySelectorAll("[data-pml-actions]").forEach(function (el) {
+      ["click", "pointerdown", "mousedown"].forEach(function (ev) {
+        el.addEventListener(ev, function (e) {
+          e.stopPropagation();
+        });
+      });
+    });
+  }
 
   renderStatus();
   document.querySelectorAll(".pml-body[data-pml]").forEach(function (node) {
     var id = node.getAttribute("data-pml");
-    var fn = renderers[id];
-    var data = sections[id] || {};
-    if (!fn) {
-      node.textContent = data.message || "Bu blok henüz yok.";
-      return;
-    }
-    try {
-      fn(node, data);
-    } catch (err) {
-      node.textContent = "Çizim hatası: " + err;
-    }
+    paintCard(id, sections[id] || {});
   });
+  bindRefreshButtons();
 })();

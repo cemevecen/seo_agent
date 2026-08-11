@@ -145,6 +145,9 @@ def test_template_has_no_photos_and_js_shell():
     assert "Fotoğraf yok" not in html
     assert "card.hint" not in html
     assert "pml-updated" in html
+    assert "pml-refresh" in html
+    assert "data-pml-refresh" in html
+    assert "sync-pm-lab?jobs=" in js
     assert format_pm_lab_when("2026-08-11T15:26:00+00:00") == "11.08.2026 18:26"
 
 
@@ -507,7 +510,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=24" in html
+    assert "pm_lab.js?v=25" in html
     assert COMPETITORS_INTERVAL_MIN == 10
     assert "fiyat " not in js
     assert "Fotoğraf yok" not in html
@@ -515,6 +518,8 @@ def test_pm_lab_doviz_rank_chip_labels():
     bridge = Path("scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
     assert 'PM_LAB_COMPETITORS_INTERVAL_SEC") or "600"' in bridge
     assert "run_pm_lab_competitors_once" in bridge
+    assert "run_pm_lab_jobs_once" in bridge
+    assert "PM_LAB_JOB_IDS" in bridge
     assert 'enuygun: "Enuygun"' in js
     assert 'bloomberght: "Bloomberg"' in js
     assert 'tradingview: "Trading"' in js
