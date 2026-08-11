@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import threading
+import time
+import urllib.error
+import urllib.request
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -288,6 +294,170 @@ def _apply_store_icon_map(charts: list[Any] | None, icon_map: dict[str, str]) ->
                 app["icon"] = remembered
 
 
+def _itunes_artwork(ids: list[str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    clean = [str(i).strip() for i in ids if str(i or "").strip().isdigit()]
+    for i in range(0, len(clean), 50):
+        chunk = clean[i : i + 50]
+        url = f"https://itunes.apple.com/lookup?id={','.join(chunk)}&country=tr"
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=18) as resp:
+                info = json.loads(resp.read().decode("utf-8", errors="replace") or "{}")
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+            continue
+        for row in info.get("results") or []:
+            if not isinstance(row, dict):
+                continue
+            aid = str(row.get("trackId") or "").strip()
+            icon = str(row.get("artworkUrl100") or row.get("artworkUrl60") or "").strip()
+            if aid and icon:
+                out[aid] = icon.replace("100x100bb", "128x128bb")
+    return out
+
+
+def _play_icon_one(pkg: str) -> tuple[str, str]:
+    try:
+        from google_play_scraper import app as gp_app
+
+        meta = gp_app(pkg, lang="tr", country="tr")
+        icon = str((meta or {}).get("icon") or "").strip()
+        return pkg, icon
+    except Exception:
+        return pkg, ""
+
+
+def _play_artwork(packages: list[str], *, budget_s: float = 8.0) -> dict[str, str]:
+    out: dict[str, str] = {}
+    pkgs = [str(p).strip() for p in packages if str(p or "").strip()]
+    if not pkgs:
+        return out
+    deadline = time.monotonic() + max(1.5, budget_s)
+    pool = ThreadPoolExecutor(max_workers=8)
+    try:
+        futs = [pool.submit(_play_icon_one, p) for p in pkgs]
+        for fut in as_completed(futs):
+            if time.monotonic() > deadline:
+                break
+            try:
+                pkg, icon = fut.result()
+            except Exception:
+                continue
+            if pkg and icon:
+                out[pkg] = icon
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    return out
+
+
+def _hydrate_store_icons(
+    store: dict[str, Any],
+    *,
+    fetch: bool | None = None,
+    platforms: tuple[str, ...] = ("ios", "android"),
+    android_budget_s: float = 10.0,
+) -> int:
+    """Eksik mağaza ikonlarını bir kez doldur (iTunes / Play) ve icon_map'e yaz."""
+    if not isinstance(store, dict):
+        return 0
+    icon_map = _collect_store_icon_map(store)
+    _apply_store_icon_map(store.get("charts") if isinstance(store.get("charts"), list) else [], icon_map)
+    if fetch is None:
+        fetch = not bool(os.environ.get("PYTEST_CURRENT_TEST"))
+    missing_ios: list[str] = []
+    missing_and: list[str] = []
+    want = {str(p) for p in platforms}
+    for chart in store.get("charts") or []:
+        if not isinstance(chart, dict):
+            continue
+        plat = _store_plat(chart)
+        for app in chart.get("apps") or []:
+            if not isinstance(app, dict) or str(app.get("icon") or "").strip():
+                continue
+            aid = str(app.get("id") or "").strip()
+            if not aid:
+                continue
+            if plat == "ios":
+                missing_ios.append(aid)
+            else:
+                missing_and.append(aid)
+    added = 0
+    if fetch and missing_ios and "ios" in want:
+        for aid, icon in _itunes_artwork(missing_ios).items():
+            key = f"ios:{aid}"
+            if icon and key not in icon_map:
+                icon_map[key] = icon
+                added += 1
+    if fetch and missing_and and "android" in want:
+        for pkg, icon in _play_artwork(missing_and, budget_s=android_budget_s).items():
+            key = f"android:{pkg}"
+            if icon and key not in icon_map:
+                icon_map[key] = icon
+                added += 1
+    if added:
+        _apply_store_icon_map(store.get("charts") if isinstance(store.get("charts"), list) else [], icon_map)
+        store["icon_map"] = icon_map
+    return added
+
+
+_HYDRATE_BG_LOCK = threading.Lock()
+_HYDRATE_BG_RUNNING = False
+
+
+def _android_icons_missing(store: dict[str, Any]) -> int:
+    n = 0
+    for chart in store.get("charts") or []:
+        if not isinstance(chart, dict) or _store_plat(chart) != "android":
+            continue
+        for app in chart.get("apps") or []:
+            if isinstance(app, dict) and not str(app.get("icon") or "").strip() and str(app.get("id") or "").strip():
+                n += 1
+    return n
+
+
+def _bg_hydrate_android_icons() -> None:
+    global _HYDRATE_BG_RUNNING
+    try:
+        from backend.database import SessionLocal
+
+        with SessionLocal() as db:
+            payload = load_payload(db)
+            store = (payload.get("sections") or {}).get("store_charts")
+            if not isinstance(store, dict):
+                return
+            n = _hydrate_store_icons(store, platforms=("android",), android_budget_s=22.0)
+            if n:
+                _persist_payload(db, payload)
+                LOGGER.info("pm-lab store android icons hydrated: %s", n)
+    except Exception:
+        LOGGER.exception("pm-lab store android icon hydrate")
+    finally:
+        with _HYDRATE_BG_LOCK:
+            _HYDRATE_BG_RUNNING = False
+
+
+def _kick_android_icon_hydrate(store: dict[str, Any]) -> None:
+    global _HYDRATE_BG_RUNNING
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return
+    if not _android_icons_missing(store):
+        return
+    with _HYDRATE_BG_LOCK:
+        if _HYDRATE_BG_RUNNING:
+            return
+        _HYDRATE_BG_RUNNING = True
+    threading.Thread(target=_bg_hydrate_android_icons, name="pml-android-icons", daemon=True).start()
+
+
+def _persist_payload(db: Session, payload: dict[str, Any]) -> None:
+    row = _get_or_create(db)
+    row.payload_json = json.dumps(payload, ensure_ascii=False)
+    db.commit()
+
+
 def _store_chart_comparable(old_apps: list[Any], new_apps: list[Any]) -> bool:
     """Skip Δ when the previous snapshot is a different slice (e.g. missing first 25)."""
     old_ids = [
@@ -540,6 +710,15 @@ def format_pm_lab_when(iso: str | None) -> str:
 def page_context(db: Session) -> dict[str, Any]:
     payload = load_payload(db)
     raw_sections = payload.get("sections") if isinstance(payload.get("sections"), dict) else {}
+    store = raw_sections.get("store_charts")
+    if isinstance(store, dict):
+        try:
+            n = _hydrate_store_icons(store)
+            if n:
+                _persist_payload(db, payload)
+        except Exception:
+            LOGGER.exception("pm-lab store icon hydrate")
+        _kick_android_icon_hydrate(store)
     cards: list[dict[str, Any]] = []
     boot_sections: dict[str, Any] = {}
     for spec in SECTION_DEFS:

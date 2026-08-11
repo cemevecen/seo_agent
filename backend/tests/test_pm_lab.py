@@ -320,6 +320,37 @@ def test_store_split_layout_in_js():
     assert "appNameHtml" in js
     assert "pml-app-icon" in js
     assert "referrerpolicy" in js
+    assert "platIconHtml" in js
+    assert "pml-plat-icon-android" in js
+    assert "pml-plat-icon-ios" in js
+    assert "pml-col-title" in html
+
+
+def test_hydrate_store_icons_fills_missing(monkeypatch):
+    from backend.services import pm_lab_store
+
+    store = {
+        "charts": [
+            {"id": "android", "apps": [{"id": "com.doviz.android", "name": "Döviz"}]},
+            {"id": "ios", "apps": [{"id": "465599322", "name": "Döviz"}]},
+        ]
+    }
+    monkeypatch.setattr(
+        pm_lab_store,
+        "_itunes_artwork",
+        lambda ids: {"465599322": "https://is1.mzstatic.com/doviz.png"},
+    )
+    monkeypatch.setattr(
+        pm_lab_store,
+        "_play_artwork",
+        lambda pkgs, budget_s=10.0: {"com.doviz.android": "https://play-lh.googleusercontent.com/doviz.png"},
+    )
+    n = pm_lab_store._hydrate_store_icons(store, fetch=True)
+    assert n == 2
+    by_plat = {c["id"]: c for c in store["charts"]}
+    assert by_plat["ios"]["apps"][0]["icon"].endswith("doviz.png")
+    assert "play-lh.googleusercontent.com" in by_plat["android"]["apps"][0]["icon"]
+    assert store["icon_map"]["ios:465599322"].endswith("doviz.png")
 
 
 def test_ios_lockup_id_uses_adam_id():
@@ -500,7 +531,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=22" in html
+    assert "pm_lab.js?v=23" in html
     assert COMPETITORS_INTERVAL_MIN == 10
     assert "fiyat " not in js
     assert "Fotoğraf yok" not in html

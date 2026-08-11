@@ -701,25 +701,45 @@
     return null;
   }
 
+  function appLetter(a) {
+    return String(a.name || "?").trim().charAt(0).toUpperCase() || "?";
+  }
+
   function appNameHtml(a) {
     var name = esc(a.name || a.id || "");
     var icon = String(a.icon || "").trim();
+    var letter = esc(appLetter(a));
     if (icon) {
       return (
         '<span class="pml-app"><img class="pml-app-icon" src="' +
         esc(icon) +
-        '" alt="" width="22" height="22" loading="lazy" decoding="async" referrerpolicy="no-referrer"><span class="pml-app-name">' +
+        '" alt="" width="22" height="22" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.hidden=true;var f=this.nextElementSibling;if(f)f.hidden=false"><span class="pml-app-icon pml-app-icon-fallback" hidden aria-hidden="true">' +
+        letter +
+        '</span><span class="pml-app-name">' +
         name +
         "</span></span>"
       );
     }
-    var letter = String(a.name || "?").trim().charAt(0).toUpperCase() || "?";
     return (
       '<span class="pml-app"><span class="pml-app-icon pml-app-icon-fallback" aria-hidden="true">' +
-      esc(letter) +
+      letter +
       '</span><span class="pml-app-name">' +
       name +
       "</span></span>"
+    );
+  }
+
+  function platIconHtml(ch) {
+    var id = String((ch && ch.id) || "").toLowerCase();
+    if (id === "ios" || id.indexOf("ios") >= 0 || id.indexOf("appstore") >= 0) {
+      return (
+        '<svg class="pml-plat-icon pml-plat-icon-ios" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">' +
+        '<path fill="currentColor" d="M16.365 12.83c-.018-1.977 1.614-2.927 1.687-2.973-.92-1.346-2.35-1.531-2.857-1.55-1.217-.123-2.376.715-2.993.715-.632 0-1.566-.698-2.577-.68-1.326.02-2.547.77-3.23 1.958-1.377 2.387-.352 5.92.99 7.855.656.95 1.44 2.013 2.467 1.974 1-.04 1.377-.64 2.584-.64 1.2 0 1.54.64 2.59.62 1.07-.018 1.75-.97 2.4-1.924.754-1.1 1.064-2.167 1.082-2.222-.024-.01-2.066-.793-2.084-3.143zm-2.215-5.97c.54-.655.91-1.566.81-2.473-.783.032-1.73.522-2.292 1.18-.504.583-.945 1.51-.827 2.4.874.068 1.77-.444 2.31-1.107z"/></svg>'
+      );
+    }
+    return (
+      '<svg class="pml-plat-icon pml-plat-icon-android" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">' +
+      '<path fill="#3DDC84" d="M17.523 9.433l1.675-2.9a.478.478 0 10-.828-.478l-1.697 2.94A8.04 8.04 0 0012 8.1c-1.57 0-3.04.4-4.673.895L5.63 6.055a.478.478 0 10-.828.478l1.675 2.9C3.97 10.96 2.25 13.64 2.25 16.8h19.5c0-3.16-1.72-5.84-4.227-7.367zM8.1 14.55a1.2 1.2 0 110-2.4 1.2 1.2 0 010 2.4zm7.8 0a1.2 1.2 0 110-2.4 1.2 1.2 0 010 2.4z"/></svg>'
     );
   }
 
@@ -732,7 +752,12 @@
     var mv = ch.moves || {};
     var head = document.createElement("div");
     head.className = "mb-1.5";
-    head.innerHTML = "<h4 class=\"text-sm font-bold text-slate-800 dark:text-zinc-100\">" + esc(ch.title || "") + "</h4>";
+    head.innerHTML =
+      '<h4 class="pml-col-title text-sm font-bold text-slate-800 dark:text-zinc-100">' +
+      platIconHtml(ch) +
+      "<span>" +
+      esc(ch.title || "") +
+      "</span></h4>";
     var meta = document.createElement("div");
     meta.className = "flex flex-wrap gap-1.5 mb-2";
     meta.innerHTML = mv.reset

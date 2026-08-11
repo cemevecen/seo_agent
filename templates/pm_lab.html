@@ -107,6 +107,10 @@
   html.dark .pml-app-icon{background:#27272a}
   .pml-app-icon-fallback{display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#52525b;width:22px;height:22px;border-radius:5px;background:#f4f4f5;flex:0 0 22px}
   html.dark .pml-app-icon-fallback{background:#27272a;color:#a1a1aa}
+  .pml-col-title{display:flex;align-items:center;gap:.45rem;margin:0}
+  .pml-plat-icon{flex:0 0 18px;display:block}
+  .pml-plat-icon-ios{color:#18181b}
+  html.dark .pml-plat-icon-ios{color:#fafafa}
   @media (max-width: 639px) {
     .pml-tabs,.pml-subtabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.15rem;scrollbar-width:thin}
     .pml-tab{flex:0 0 auto;font-size:11px;padding:.4rem .75rem}
@@ -157,5 +161,5 @@
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=22"></script>
+<script src="/static/js/pm_lab.js?v=23"></script>
 {% endblock %}
