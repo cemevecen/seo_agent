@@ -72,8 +72,21 @@ def test_js_uses_railway_queue_on_remote():
     assert "/api/page-tarama/start" in js
     assert "/api/page-tarama/progress" in js
     assert "Load failed" in js
+    assert "skipBridge" in js
+    assert "useQueue" in js
+    assert "runSequential(jobs, steps, 0, { skipBridge: true })" in js
     for key in PAGES:
         assert f"{key}:" in js or f'"{key}":' in js, key
+
+
+def test_js_remote_does_not_fall_back_to_localhost_bridge():
+    """Canlı panel kullanıcıları kuyruk sonrası 127.0.0.1 köprüye düşmemeli."""
+    js = (ROOT / "static/js/page_tarama.js").read_text(encoding="utf-8")
+    start_idx = js.find("function start(")
+    assert start_idx > 0
+    chunk = js[start_idx : start_idx + 1800]
+    assert "skipBridge: true" in chunk
+    assert "chain.then" not in chunk
 
 
 def test_android_queue_claim_result():
@@ -121,3 +134,27 @@ def test_stale_queue_fails_without_bridge():
     assert out is not None
     assert out["jobs"][0]["status"] == "fail"
     assert "daemon" in (out["jobs"][0]["detail"] or "").lower()
+
+
+def test_queue_persists_for_other_workers():
+    """start bir worker’da, claim başka worker belleğinde boş olsa da DB’den görünür."""
+    from backend.database import SessionLocal, init_db
+    from backend.models import PageTaramaState
+
+    init_db()
+    with SessionLocal() as db:
+        db.query(PageTaramaState).delete()
+        db.commit()
+    store._memory_only = False
+    store._runs.clear()
+    store._bridge_seen_at = None
+    run = store.start_run("news")
+    run_id = run["id"]
+    store._runs.clear()
+    out = store.get_run(run_id)
+    assert out is not None
+    assert out["jobs"][0]["id"] == "news"
+    claimed = store.claim_next()
+    assert claimed is not None
+    assert claimed["run_id"] == run_id
+    store.reset_for_tests()

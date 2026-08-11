@@ -1,11 +1,14 @@
-"""Sayfa tarama kuyruğu — mobilde Mac köprü 127.0.0.1’e ulaşamaz; Railway kuyruğu daemon çeker."""
+"""Sayfa tarama kuyruğu — canlı panel 127.0.0.1’e ulaşamaz; Railway kuyruğunu Mac daemon çeker."""
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 import uuid
-from typing import Any
+from contextlib import contextmanager
+from datetime import datetime
+from typing import Any, Iterator
 
 JOBS: dict[str, dict[str, Any]] = {
     "play": {"id": "play", "label": "Play Console", "kind": "bridge", "path": "/sync-play"},
@@ -54,17 +57,19 @@ PAGES: dict[str, list[str]] = {
     "errors": ["errors"],
 }
 
-BRIDGE_STALE_SEC = 25.0
+BRIDGE_STALE_SEC = 90.0
 CLAIM_STALE_SEC = 2 * 60 * 60
 RUN_TTL_SEC = 3 * 60 * 60
 
 _lock = threading.Lock()
 _runs: dict[str, dict[str, Any]] = {}
 _bridge_seen_at: float | None = None
+_memory_only = False
 
 
 def reset_for_tests() -> None:
-    global _bridge_seen_at
+    global _bridge_seen_at, _memory_only
+    _memory_only = True
     with _lock:
         _runs.clear()
         _bridge_seen_at = None
@@ -80,6 +85,64 @@ def jobs_for(page: str) -> list[dict[str, Any]]:
     return out
 
 
+@contextmanager
+def _state() -> Iterator[None]:
+    """Kuyruk durumunu Postgres’te kilitle; tablo yoksa süreç-içi belleğe düş."""
+    global _runs, _bridge_seen_at
+    with _lock:
+        if _memory_only:
+            yield
+            return
+        db = None
+        row = None
+        try:
+            from backend.database import SessionLocal
+            from backend.models import PageTaramaState
+
+            db = SessionLocal()
+            row = (
+                db.query(PageTaramaState)
+                .filter(PageTaramaState.id == 1)
+                .with_for_update()
+                .first()
+            )
+            if row is None:
+                row = PageTaramaState(id=1, runs_json="{}", bridge_seen_at=None)
+                db.add(row)
+                db.flush()
+            loaded = json.loads(row.runs_json or "{}")
+            if not isinstance(loaded, dict):
+                loaded = {}
+            _runs = loaded
+            _bridge_seen_at = row.bridge_seen_at
+        except Exception:
+            if db is not None:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                try:
+                    db.close()
+                except Exception:
+                    pass
+            yield
+            return
+        try:
+            yield
+            row.runs_json = json.dumps(_runs)
+            row.bridge_seen_at = _bridge_seen_at
+            row.updated_at = datetime.utcnow()
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            raise
+        finally:
+            db.close()
+
+
 def _prune_locked(now: float) -> None:
     dead = [rid for rid, run in _runs.items() if now - float(run.get("started_at") or 0) > RUN_TTL_SEC]
     for rid in dead:
@@ -88,12 +151,15 @@ def _prune_locked(now: float) -> None:
 
 def touch_bridge() -> None:
     global _bridge_seen_at
-    with _lock:
+    with _state():
         _bridge_seen_at = time.time()
 
 
 def bridge_age_sec(now: float | None = None) -> float | None:
     ts = _bridge_seen_at
+    if not ts:
+        with _state():
+            ts = _bridge_seen_at
     if not ts:
         return None
     return max(0.0, (now or time.time()) - ts)
@@ -125,7 +191,7 @@ def start_run(page: str) -> dict[str, Any]:
         "jobs": jobs,
         "local_kicked": False,
     }
-    with _lock:
+    with _state():
         _prune_locked(now)
         _runs[run_id] = run
         return _public_run_locked(run, now)
@@ -133,7 +199,7 @@ def start_run(page: str) -> dict[str, Any]:
 
 def get_run(run_id: str) -> dict[str, Any] | None:
     now = time.time()
-    with _lock:
+    with _state():
         run = _runs.get(run_id)
         if not run:
             return None
@@ -145,7 +211,7 @@ def claim_next() -> dict[str, Any] | None:
     """Mac daemon bir sonraki köprü işini alır. Aynı anda tek claimed/running."""
     global _bridge_seen_at
     now = time.time()
-    with _lock:
+    with _state():
         _bridge_seen_at = now
         _prune_locked(now)
         for run in _runs.values():
@@ -177,7 +243,7 @@ def claim_next() -> dict[str, Any] | None:
 
 def record_result(run_id: str, job_id: str, *, ok: bool, message: str = "") -> bool:
     now = time.time()
-    with _lock:
+    with _state():
         run = _runs.get(run_id)
         if not run:
             return False
@@ -192,7 +258,7 @@ def record_result(run_id: str, job_id: str, *, ok: bool, message: str = "") -> b
 
 
 def mark_running(run_id: str, job_id: str, detail: str = "") -> None:
-    with _lock:
+    with _state():
         run = _runs.get(run_id)
         if not run:
             return

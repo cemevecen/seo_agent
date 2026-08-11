@@ -1302,3 +1302,14 @@ class ScrapeIngestLog(Base):
     )
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     received_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class PageTaramaState(Base):
+    """Sayfayı güncelle kuyruğu — worker'lar ve panel kullanıcıları aynı satırı paylaşır."""
+
+    __tablename__ = "page_tarama_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    runs_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    bridge_seen_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

@@ -264,6 +264,14 @@
     renderSteps(steps, current);
   }
 
+  function errDetail(data, fallback) {
+    var d = data && data.detail;
+    if (Array.isArray(d)) {
+      d = (d[0] && (d[0].msg || d[0].message)) || fallback;
+    }
+    return d || (data && (data.message || data.status)) || fallback;
+  }
+
   function runViaQueue(key, jobs, steps) {
     return fetchJson("/api/page-tarama/start", {
       method: "POST",
@@ -272,16 +280,29 @@
       body: JSON.stringify({ page: key }),
     }, 20000).then(function (out) {
       if (!out.resp.ok) {
-        throw new Error((out.data && out.data.detail) || "Kuyruk başlatılamadı");
+        throw new Error(errDetail(out.data, "Kuyruk başlatılamadı"));
       }
       var runId = out.data.id;
+      if (!runId) throw new Error("Kuyruk kimliği yok");
       applyServerJobs(out.data.jobs, steps, jobs);
       setStatus(out.data.message || "Mac köprü bekleniyor…");
       setBar(out.data.pct || 4);
+      var started = Date.now();
       function poll() {
+        if (Date.now() - started > 3 * 60 * 60 * 1000) {
+          throw new Error("Tarama zaman aşımı");
+        }
         return fetchJson("/api/page-tarama/progress?run_id=" + encodeURIComponent(runId), {
           credentials: "same-origin",
         }, 20000).then(function (p) {
+          if (!p.resp.ok) {
+            if ((p.resp.status === 404 || p.resp.status === 502 || p.resp.status === 503)
+                && Date.now() - started < 90000) {
+              setStatus("Kuyruk bekleniyor…");
+              return sleep(1500).then(poll);
+            }
+            throw new Error(errDetail(p.data, "Kuyruk okunamadı (HTTP " + p.resp.status + ")"));
+          }
           var d = p.data || {};
           applyServerJobs(d.jobs, steps, jobs);
           setBar(typeof d.pct === "number" ? d.pct : 10);
@@ -294,8 +315,9 @@
     });
   }
 
-  function runSequential(jobs, steps, fromIndex) {
+  function runSequential(jobs, steps, fromIndex, opts) {
     var i = fromIndex || 0;
+    var skipBridge = !!(opts && opts.skipBridge);
     var failed = 0;
     steps.forEach(function (s) {
       if (s.status === "fail") failed += 1;
@@ -308,10 +330,17 @@
           : failed + " tarama hata verdi" + (someOk ? " — başarılı olanlar yükleniyor…" : ". Mac’te bridge --daemon açık olmalı."));
         return;
       }
-      if (jobs[i].kind === "bridge" && (steps[i].status === "ok" || steps[i].status === "fail")) {
-        i += 1;
-        next();
-        return;
+      if (jobs[i].kind === "bridge") {
+        if (skipBridge && steps[i].status !== "ok" && steps[i].status !== "fail") {
+          failed += 1;
+          steps[i].status = "fail";
+          steps[i].detail = steps[i].detail || "Mac kuyruk tamamlanmadı";
+        }
+        if (skipBridge || steps[i].status === "ok" || steps[i].status === "fail") {
+          i += 1;
+          next();
+          return;
+        }
       }
       var job = jobs[i];
       steps[i].status = "run";
@@ -361,21 +390,24 @@
     setStatus("Başlatılıyor…");
 
     var bridgeJobs = jobs.filter(function (j) { return j.kind === "bridge"; });
+    // Canlı panelde asla 127.0.0.1 köprüye düşme — diğer kullanıcıların tarayıcısı Mac’e ulaşamaz.
     var useQueue = !isLocalHost() && bridgeJobs.length > 0;
-    var chain = Promise.resolve();
     if (useQueue) {
-      chain = runViaQueue(key, jobs, steps).catch(function (err) {
-        jobs.forEach(function (job, i) {
-          if (job.kind !== "bridge" || steps[i].status === "ok") return;
-          steps[i].status = "fail";
-          steps[i].detail = ((err && err.message) || "Kuyruk hatası").slice(0, 90);
+      runViaQueue(key, jobs, steps)
+        .catch(function (err) {
+          jobs.forEach(function (job, i) {
+            if (job.kind !== "bridge" || steps[i].status === "ok") return;
+            steps[i].status = "fail";
+            steps[i].detail = ((err && err.message) || "Kuyruk hatası").slice(0, 90);
+          });
+          renderSteps(steps, 0);
+        })
+        .then(function () {
+          runSequential(jobs, steps, 0, { skipBridge: true });
         });
-        renderSteps(steps, 0);
-      });
+      return;
     }
-    chain.then(function () {
-      runSequential(jobs, steps, 0);
-    });
+    runSequential(jobs, steps, 0);
   }
 
   function ensureButton(root) {
