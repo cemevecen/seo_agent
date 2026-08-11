@@ -482,6 +482,8 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert pq["value"] == "47.7403"
     gumus = '<div class="price" data-code="XSLV" data-type="ask">99.1292</div> AL 99.0371 SAT 99.1292'
     assert mod._paratic_quote_from_html(gumus, "gram_gumus")["value"] == "99.1292"
+    nested = '<div class="price" data-code="XGLD" data-type="ask"><span>5432.10</span></div>'
+    assert mod._paratic_quote_from_html(nested, "gram_altin")["value"] == "5432.10"
     bist = "BIST 100 XU100 13704.52 %-0,78"
     assert mod._paratic_quote_from_html(bist, "bist100")["value"] == "13704.52"
     btc = mod._parse_assets_from_text("BITCOIN $63.590 %-0,62 ( -$399 )")
@@ -498,7 +500,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=21" in html
+    assert "pm_lab.js?v=22" in html
     assert COMPETITORS_INTERVAL_MIN == 10
     assert "fiyat " not in js
     assert "Fotoğraf yok" not in html
@@ -576,6 +578,8 @@ def test_competitor_sapma_vs_peer_average():
     js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
     html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
     assert 'label: "ort. sapma"' in js
+    assert "ensureSiteColumns" in js
+    assert "ids.paratic" in js
     assert 'label: "Foreks sapma"' in js
     assert "c.id === \"doviz\"" in js
     assert "pml-sapma-hot" in html

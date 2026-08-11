@@ -421,6 +421,18 @@
     cnnturk: "CNN",
   };
 
+  function ensureSiteColumns(cols) {
+    var out = (cols || []).slice();
+    var ids = {};
+    out.forEach(function (c) {
+      ids[c.id] = true;
+    });
+    if (!ids.paratic) {
+      out.push({ id: "paratic", label: "Paratic", url: "https://piyasa.paratic.com/" });
+    }
+    return out;
+  }
+
   function withSapmaColumn(cols) {
     var out = [];
     var inserted = false;
@@ -472,7 +484,7 @@
   }
 
   function renderCompetitors(root, data) {
-    var cols = withSapmaColumn(data.columns || []);
+    var cols = withSapmaColumn(ensureSiteColumns(data.columns || []));
     var matrix = sortAssetRows(data.matrix || []);
     if (!matrix.length) {
       root.textContent = "Fiyat matrisi henüz yok.";
