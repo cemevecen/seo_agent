@@ -439,13 +439,13 @@
         synthetic: c.synthetic,
       });
       if (!inserted && c.id === "doviz") {
-        out.push({ id: "sapma", label: "Sapma", synthetic: true });
+        out.push({ id: "sapma", label: "ort. sapma", synthetic: true });
         out.push({ id: "foreks_sapma", label: "Foreks sapma", synthetic: true });
         inserted = true;
       }
     });
     if (!inserted && out.length) {
-      out.splice(1, 0, { id: "sapma", label: "Sapma", synthetic: true });
+      out.splice(1, 0, { id: "sapma", label: "ort. sapma", synthetic: true });
       out.splice(2, 0, { id: "foreks_sapma", label: "Foreks sapma", synthetic: true });
     }
     return out;
@@ -542,7 +542,7 @@
     var legend = document.createElement("p");
     legend.className = "pml-note";
     legend.textContent =
-      "Sapma = Döviz vs diğer sitelerin ortalaması. Foreks sapma = Döviz vs Foreks. Eşik hacme göre: USD/EUR ±0,08%, gram/ons altın ±0,12%, BIST ±0,15%, Brent ±0,20%, Bitcoin ±0,25%, gümüş ±0,35%, çeyrek ±0,50%. Yeşil eşik içi, sarı uyarı, kırmızı sapma. Sarı/kırmızı alarm maili: Doviz - Sapma - varlık - değer.";
+      "ort. sapma = Döviz vs diğer sitelerin ortalaması. Foreks sapma = Döviz vs Foreks. Eşik hacme göre: USD/EUR ±0,08%, gram/ons altın ±0,12%, BIST ±0,15%, Brent ±0,20%, Bitcoin ±0,25%, gümüş ±0,35%, çeyrek ±0,50%. Yeşil eşik içi, sarı uyarı, kırmızı sapma. Sarı/kırmızı alarm maili: Doviz - Sapma - varlık - değer.";
     root.appendChild(legend);
     root.appendChild(sortableTable(headers, rows));
   }

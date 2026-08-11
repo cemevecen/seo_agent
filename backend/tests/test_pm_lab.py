@@ -416,7 +416,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=18" in html
+    assert "pm_lab.js?v=19" in html
     assert COMPETITORS_INTERVAL_MIN == 10
     assert "fiyat " in js
     assert "10 dk" in Path("templates/pm_lab.html").read_text(encoding="utf-8")
@@ -481,7 +481,7 @@ def test_competitor_sapma_vs_peer_average():
     assert any(s.startswith("Doviz - Foreks sapma - Dolar - ") for s in subjects)
     js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
     html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
-    assert 'label: "Sapma"' in js
+    assert 'label: "ort. sapma"' in js
     assert 'label: "Foreks sapma"' in js
     assert "c.id === \"doviz\"" in js
     assert "pml-sapma-hot" in html
