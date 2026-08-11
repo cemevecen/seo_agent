@@ -1441,6 +1441,10 @@
         <p id="pa-compare-note" class="hidden px-3 pb-2 pt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500"></p>
       </div>
 
+      {% with market_overlay_control_id='pa-market-overlay-root', market_overlay_storage_key='pa', market_plot_id='pa-market-plot', market_start_input='pa-start', market_end_input='pa-end' %}
+      {% include 'partials/market_standalone_chart.html' %}
+      {% endwith %}
+
       <div id="pa-table-shell" class="rdl-shell mt-4 w-full min-w-0 rounded-xl border border-slate-200 dark:border-zinc-700" data-rdl-max-rows="20" data-rdl-max-h="4000" data-rdl-storage-key="pa-table-h-v2">
         <div id="pa-table-wrap" class="rdl-scroll w-full min-w-0">
           <table class="pa-data-table text-left text-xs">

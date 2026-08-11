@@ -1,4 +1,4 @@
-"""Google Sheets'ten günlük açılış/kapanış — DB'ye upsert."""
+"""Piyasa günlük açılış/kapanış — tarama ingest + overlay sorgusu."""
 
 from __future__ import annotations
 
@@ -13,10 +13,15 @@ from typing import Any, Iterable
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from backend.database import SessionLocal, engine
+from backend.database import engine
 from backend.models import MarketDailyQuote
 from backend.services.backlink_csv import fetch_public_sheet_csv
-from backend.services.market_sheets_config import MARKET_SHEET_SERIES, MarketSheetSeries, SERIES_BY_KEY
+from backend.services.market_sheets_config import (
+    MARKET_SHEET_SERIES,
+    MarketSheetSeries,
+    SERIES_BY_KEY,
+    TARAMA_SOURCE_ID,
+)
 
 LOGGER = logging.getLogger(__name__)
 _IS_PG = "postgresql" in str(engine.url)
@@ -58,7 +63,8 @@ _TR_MONTHS: dict[str, int] = {
 
 
 def _norm_header(cell: str) -> str:
-    s = unicodedata.normalize("NFKD", (cell or "").strip().lower())
+    s = (cell or "").strip().lower().replace("ı", "i").replace("İ", "i")
+    s = unicodedata.normalize("NFKD", s)
     s = "".join(ch for ch in s if not unicodedata.combining(ch))
     return s
 
@@ -70,10 +76,14 @@ def _parse_tr_number(raw: str | None) -> float | None:
     if not s or s in ("-", "—", "N/A"):
         return None
     s = s.replace("\u00a0", "").replace(" ", "")
+    s = re.sub(r"^[%$€£₺]+", "", s)
+    s = s.replace("₺", "").replace("$", "").replace("€", "")
     if "," in s and "." in s:
         s = s.replace(".", "").replace(",", ".")
     elif "," in s:
         s = s.replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(\.\d{3})+", s):
+        s = s.replace(".", "")
     try:
         return float(s)
     except ValueError:
@@ -126,6 +136,8 @@ def _locate_header_row(rows: list[list[str]]) -> tuple[int, dict[str, int]] | No
                 idx["acilis"] = j
             elif h.startswith("kapan"):
                 idx["kapanis"] = j
+            elif "son" in h and "deger" in h:
+                idx.setdefault("kapanis", j)
         if "tarih" in idx and "kapanis" in idx:
             return i, idx
     return None
@@ -210,6 +222,170 @@ def _upsert_rows(db: Session, series_key: str, sheet_id: str, rows: Iterable[dic
     return n
 
 
+def parse_archive_payload(payload: Any) -> list[dict[str, Any]]:
+    """doviz.com /assets/{key}/archive JSON → report_date / open / close."""
+    if not isinstance(payload, dict):
+        return []
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    archive = data.get("archive") if isinstance(data, dict) else None
+    if archive is None:
+        return []
+    if isinstance(archive, dict):
+        points: Iterable[Any] = archive.values()
+    elif isinstance(archive, list):
+        points = archive
+    else:
+        return []
+    out: list[dict[str, Any]] = []
+    try:
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("Europe/Istanbul")
+    except Exception:
+        tz = timezone.utc
+    for point in points:
+        if not isinstance(point, dict):
+            continue
+        close = point.get("close")
+        if close is None:
+            close = point.get("value") or point.get("last") or point.get("price")
+        try:
+            close_f = float(close) if close is not None else None
+        except (TypeError, ValueError):
+            close_f = None
+        if close_f is None:
+            continue
+        open_raw = point.get("open")
+        try:
+            open_f = float(open_raw) if open_raw is not None else None
+        except (TypeError, ValueError):
+            open_f = None
+        d: date | None = None
+        ts = point.get("update_date") or point.get("date") or point.get("time")
+        if isinstance(ts, (int, float)) and ts > 0:
+            d = datetime.fromtimestamp(int(ts), tz=tz).date()
+        elif isinstance(ts, str):
+            d = _parse_tr_date_cell(ts[:10] if len(ts) >= 10 else ts)
+        if not d:
+            continue
+        out.append({"report_date": d, "open_price": open_f, "close_price": close_f})
+    out.sort(key=lambda r: r["report_date"])
+    return out
+
+
+def parse_historical_table_matrix(
+    headers: list[str],
+    body_rows: list[list[str]],
+) -> list[dict[str, Any]]:
+    """Tablo başlık + satırlar (Tarih / Açılış / Kapanış veya Son Değer)."""
+    if not headers or not body_rows:
+        return []
+    norm = [_norm_header(h) for h in headers]
+    col: dict[str, int] = {}
+    for j, h in enumerate(norm):
+        if h == "tarih" or h.startswith("tarih"):
+            col["tarih"] = j
+        elif h.startswith("acil"):
+            col["acilis"] = j
+        elif h.startswith("kapan"):
+            col["kapanis"] = j
+        elif "son" in h and "deger" in h:
+            col.setdefault("kapanis", j)
+        elif h in ("son", "kapanis", "close", "fiyat"):
+            col.setdefault("kapanis", j)
+    if "tarih" not in col or "kapanis" not in col:
+        # 2 kolon: Tarih + değer
+        if len(norm) >= 2 and "tarih" in col:
+            col["kapanis"] = 1 if col["tarih"] == 0 else 0
+        else:
+            return []
+    out: list[dict[str, Any]] = []
+    for row in body_rows:
+        if not row or not any(str(c or "").strip() for c in row):
+            continue
+        di = col["tarih"]
+        ci = col["kapanis"]
+        d = _parse_tr_date_cell(row[di] if di < len(row) else "")
+        close = _parse_tr_number(row[ci] if ci < len(row) else None)
+        if not d or close is None:
+            continue
+        oi = col.get("acilis")
+        open_p = _parse_tr_number(row[oi]) if oi is not None and oi < len(row) else None
+        out.append({"report_date": d, "open_price": open_p, "close_price": close})
+    return out
+
+
+def ingest_market_tarama_payload(
+    db: Session,
+    series_items: list[dict[str, Any]],
+    *,
+    commit: bool = True,
+) -> dict[str, Any]:
+    """Mac köprüsü tarama gövdesini MarketDailyQuote'a yazar."""
+    results: list[dict[str, Any]] = []
+    total = 0
+    for item in series_items or []:
+        key = str(item.get("key") or item.get("series_key") or "").strip()
+        if key not in SERIES_BY_KEY:
+            results.append({"series_key": key, "ok": False, "error": "Bilinmeyen seri"})
+            continue
+        raw_rows = item.get("rows") or []
+        parsed: list[dict[str, Any]] = []
+        for row in raw_rows:
+            if not isinstance(row, dict):
+                continue
+            d = row.get("report_date") or row.get("date")
+            if isinstance(d, datetime):
+                d = d.date()
+            elif isinstance(d, str):
+                d = _parse_tr_date_cell(d) or (
+                    date.fromisoformat(d[:10]) if len(d) >= 10 else None
+                )
+            if not isinstance(d, date):
+                continue
+            close = row.get("close_price", row.get("close"))
+            try:
+                close_f = float(close) if close is not None else None
+            except (TypeError, ValueError):
+                close_f = None
+            if close_f is None:
+                continue
+            open_raw = row.get("open_price", row.get("open"))
+            try:
+                open_f = float(open_raw) if open_raw is not None else None
+            except (TypeError, ValueError):
+                open_f = None
+            parsed.append({"report_date": d, "open_price": open_f, "close_price": close_f})
+        if not parsed:
+            results.append({"series_key": key, "ok": False, "error": "Satır yok", "parsed": 0, "upserted": 0})
+            continue
+        upserted = _upsert_rows(db, key, TARAMA_SOURCE_ID, parsed)
+        dates = [p["report_date"] for p in parsed]
+        total += upserted
+        results.append(
+            {
+                "series_key": key,
+                "ok": True,
+                "parsed": len(parsed),
+                "upserted": upserted,
+                "min_date": min(dates).isoformat(),
+                "max_date": max(dates).isoformat(),
+            }
+        )
+    if commit:
+        db.commit()
+    ok_count = sum(1 for r in results if r.get("ok"))
+    return {
+        "ok": ok_count == len(series_items) and bool(series_items),
+        "series_count": len(series_items),
+        "ok_count": ok_count,
+        "rows_upserted": total,
+        "results": results,
+        "synced_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+        "source": TARAMA_SOURCE_ID,
+    }
+
+
 def _sheet_id_from_url(url: str) -> str:
     m = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", url or "")
     return m.group(1) if m else ""
@@ -241,28 +417,16 @@ def sync_series_from_sheet(db: Session, spec: MarketSheetSeries) -> dict[str, An
 
 
 def sync_all_market_sheets(*, commit: bool = True) -> dict[str, Any]:
-    results: list[dict[str, Any]] = []
-    total = 0
-    with SessionLocal() as db:
-        for spec in MARKET_SHEET_SERIES:
-            try:
-                out = sync_series_from_sheet(db, spec)
-                results.append(out)
-                if out.get("ok"):
-                    total += int(out.get("upserted") or 0)
-            except Exception as exc:  # noqa: BLE001
-                db.rollback()
-                LOGGER.warning("Market sheet sync failed %s: %s", spec.key, exc)
-                results.append({"series_key": spec.key, "ok": False, "error": str(exc)})
-        if commit:
-            db.commit()
-    ok_count = sum(1 for r in results if r.get("ok"))
+    """Google Sheets çekimi kapatıldı — seri güncellemesi tarama ingest ile yapılır."""
+    del commit  # API uyumu
     return {
-        "ok": ok_count == len(MARKET_SHEET_SERIES),
+        "ok": False,
+        "disabled": True,
+        "message": "Piyasa serileri tarama ile güncellenir (tablo kaynağı kapalı).",
         "series_count": len(MARKET_SHEET_SERIES),
-        "ok_count": ok_count,
-        "rows_upserted": total,
-        "results": results,
+        "ok_count": 0,
+        "rows_upserted": 0,
+        "results": [],
         "synced_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
     }
 

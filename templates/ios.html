@@ -1198,6 +1198,9 @@
           </div>
         </div>
       </div>
+      {% with market_overlay_control_id='ia-market-overlay-root', market_overlay_storage_key='ia', market_plot_id='ia-market-plot', market_start_input='ia-start', market_end_input='ia-end' %}
+      {% include 'partials/market_standalone_chart.html' %}
+      {% endwith %}
       <div id="ia-table-shell" class="rdl-shell mt-4 min-w-0 rounded-xl border border-slate-200 dark:border-zinc-700" data-rdl-max-rows="20" data-rdl-max-h="4000" data-rdl-storage-key="ia-table-h-v2">
         <div id="ia-table-wrap" class="rdl-scroll overflow-auto">
           <table class="pa-data-table text-left">

@@ -1,5 +1,5 @@
 /**
- * Google Sheets piyasa kapanış — Plotly trend grafiklerine ikinci eksen overlay (çoklu seçim).
+ * Piyasa kapanış (doviz.com tarama) — Plotly overlay + bağımsız çizgi grafik.
  */
 (function (global) {
   "use strict";
@@ -15,16 +15,29 @@
     "#14b8a6",
     "#1e40af",
     "#047857",
+    "#0e7490",
+    "#4338ca",
   ];
   var LINE_COLOR = SERIES_COLORS[0];
-  var INDEXED_KEYS = ["gram_altin", "usd_try", "eur_try", "bist100", "gram_gumus", "brent"];
+  var INDEXED_KEYS = [
+    "gram_altin",
+    "ceyrek_altin",
+    "usd_try",
+    "eur_try",
+    "bist100",
+    "gram_gumus",
+    "brent",
+    "bitcoin",
+  ];
   var OPTION_LABELS = {
     usd_try: "USD/TRY",
     eur_try: "EUR/TRY",
     gram_altin: "Gram altın",
+    ceyrek_altin: "Çeyrek altın",
     gram_gumus: "Gram gümüş",
     bist100: "BIST 100",
     brent: "Brent",
+    bitcoin: "Bitcoin",
     all_indexed: "Tümü (%)",
   };
 
@@ -813,11 +826,187 @@
     return null;
   }
 
+  function isDarkUi() {
+    var html = document.documentElement;
+    return html.classList.contains("dark") || html.classList.contains("midnight");
+  }
+
+  function standaloneDateKeys(series, keys, startIso, endIso) {
+    var set = {};
+    (keys || []).forEach(function (sk) {
+      var block = series && series[sk];
+      ((block && block.by_date) || []).forEach(function (pt) {
+        if (!pt || !pt.date) return;
+        var d = String(pt.date).slice(0, 10);
+        if (startIso && d < startIso) return;
+        if (endIso && d > endIso) return;
+        set[d] = true;
+      });
+    });
+    return Object.keys(set).sort();
+  }
+
+  function renderStandalone(plotEl, overlayMode, startIso, endIso, opts) {
+    var el = typeof plotEl === "string" ? document.getElementById(plotEl) : plotEl;
+    if (!el || !global.Plotly) return Promise.resolve(false);
+    opts = opts || {};
+    var keys = resolveSeriesKeys(overlayMode);
+    var emptyEl = opts.emptyEl || null;
+    if (!keys.length) {
+      try {
+        Plotly.purge(el);
+      } catch (e) {
+        el.innerHTML = "";
+      }
+      if (emptyEl) emptyEl.classList.remove("hidden");
+      el.classList.add("hidden");
+      return Promise.resolve(false);
+    }
+    el.classList.remove("hidden");
+    if (emptyEl) emptyEl.classList.add("hidden");
+    var indexed = useIndexedScale(keys, overlayMode);
+    return ensureOverlay(startIso, endIso)
+      .then(function (payload) {
+        var series = (payload && payload.series) || {};
+        var dateKeys = standaloneDateKeys(series, keys, startIso, endIso);
+        if (!dateKeys.length) {
+          if (emptyEl) {
+            emptyEl.classList.remove("hidden");
+            emptyEl.textContent = "Seçilen aralıkta piyasa verisi yok.";
+          }
+          el.classList.add("hidden");
+          return false;
+        }
+        var traces = [];
+        var colorIdx = 0;
+        keys.forEach(function (sk) {
+          var block = series[sk];
+          if (!block) return;
+          var clos = closeMap(block);
+          var ys = dateKeys.map(function (d) {
+            return clos[d] != null ? clos[d] : null;
+          });
+          if (indexed) {
+            var indexedYs = indexSeries(ys);
+            if (!indexedYs) return;
+            ys = indexedYs;
+          }
+          if (
+            !ys.some(function (v) {
+              return v != null;
+            })
+          )
+            return;
+          var lineColor =
+            keys.length === 1 && !indexed
+              ? LINE_COLOR
+              : SERIES_COLORS[colorIdx % SERIES_COLORS.length];
+          colorIdx += 1;
+          var legendName = (block.label || sk) + (indexed ? " %" : "");
+          var legendGroup = "seo_mkt_" + sk + (indexed ? "_i" : "");
+          traces.push({
+            x: dateKeys,
+            y: ys,
+            type: "scatter",
+            mode: "lines",
+            name: legendName,
+            legendgroup: legendGroup,
+            visible: true,
+            line: { color: lineColor, width: 2 },
+            connectgaps: false,
+            hovertemplate: "%{x}<br>%{y}<extra>" + legendName + "</extra>",
+          });
+          marketGapBridgeTraces(dateKeys, ys, lineColor, "y", legendGroup, legendName).forEach(
+            function (bt) {
+              traces.push(bt);
+            }
+          );
+        });
+        if (!traces.length) {
+          if (emptyEl) emptyEl.classList.remove("hidden");
+          el.classList.add("hidden");
+          return false;
+        }
+        var dark = isDarkUi();
+        var layout = {
+          paper_bgcolor: "rgba(0,0,0,0)",
+          plot_bgcolor: "rgba(0,0,0,0)",
+          font: { color: dark ? "#d4d4d8" : "#334155", size: 11 },
+          margin: { l: 48, r: 16, t: 28, b: 40 },
+          showlegend: true,
+          legend: { orientation: "h", y: 1.12, x: 0, font: { size: 10 } },
+          xaxis: {
+            type: "date",
+            gridcolor: dark ? "rgba(255,255,255,0.06)" : "rgba(15,23,42,0.06)",
+            zeroline: false,
+          },
+          yaxis: {
+            title: indexed ? "Endeks (100)" : keys.length > 1 ? "Piyasa" : "",
+            gridcolor: dark ? "rgba(255,255,255,0.06)" : "rgba(15,23,42,0.06)",
+            zeroline: false,
+            automargin: true,
+          },
+          hovermode: "x unified",
+        };
+        Plotly.react(el, traces, layout, {
+          displayModeBar: false,
+          responsive: true,
+        });
+        bindMarketLegendGroupSync(el);
+        return true;
+      })
+      .catch(function () {
+        if (emptyEl) emptyEl.classList.remove("hidden");
+        return false;
+      });
+  }
+
+  function bindStandaloneCard(card) {
+    if (!card || card.dataset.marketStandaloneBound === "1") return;
+    card.dataset.marketStandaloneBound = "1";
+    var controlId = card.getAttribute("data-control-id");
+    var plotId = card.getAttribute("data-plot-id");
+    var startId = card.getAttribute("data-start-input");
+    var endId = card.getAttribute("data-end-input");
+    var emptyEl = card.querySelector("[data-market-standalone-empty]");
+    function redraw() {
+      var startEl = startId ? document.getElementById(startId) : null;
+      var endEl = endId ? document.getElementById(endId) : null;
+      var startIso = startEl && startEl.value ? startEl.value : "";
+      var endIso = endEl && endEl.value ? endEl.value : "";
+      renderStandalone(plotId, modes(controlId), startIso, endIso, { emptyEl: emptyEl });
+    }
+    ensureBound(controlId, redraw);
+    [startId, endId].forEach(function (id) {
+      var el = id ? document.getElementById(id) : null;
+      if (!el) return;
+      el.addEventListener("change", redraw);
+      el.addEventListener("input", redraw);
+    });
+    var runBtn = document.getElementById(startId && startId.indexOf("ia-") === 0 ? "ia-run" : "pa-run");
+    if (runBtn) runBtn.addEventListener("click", function () {
+      global.setTimeout(redraw, 80);
+    });
+    var preset = document.getElementById(startId && startId.indexOf("ia-") === 0 ? "ia-preset" : "pa-preset");
+    if (preset) preset.addEventListener("change", function () {
+      global.setTimeout(redraw, 80);
+    });
+    redraw();
+    global.setTimeout(redraw, 400);
+    global.setTimeout(redraw, 1400);
+  }
+
+  function autoBindStandalones() {
+    document.querySelectorAll("[data-market-standalone]").forEach(bindStandaloneCard);
+  }
+
   function autoBindMarketOverlays() {
     document.querySelectorAll("[data-market-overlay-root]").forEach(function (root) {
+      if (root.closest("[data-market-standalone]")) return;
       if (root.dataset.marketOverlayBound === "1") return;
       bindPanel(root, resolveMarketOverlayOnChange(root));
     });
+    autoBindStandalones();
   }
 
   function installMarketOverlayAutoBind() {
@@ -857,6 +1046,8 @@
     ensureBound: ensureBound,
     ensureClosed: ensureClosed,
     autoBindMarketOverlays: autoBindMarketOverlays,
+    autoBindStandalones: autoBindStandalones,
+    renderStandalone: renderStandalone,
     bindPanel: bindPanel,
     bindLegendGroupSync: bindMarketLegendGroupSync,
     pickFreeYaxisId: pickFreeYaxisId,

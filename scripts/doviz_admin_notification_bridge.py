@@ -23,6 +23,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-pagespeed → pagespeed.web.dev (01:10 + 13:10 TR)
   POST /sync-seo-audit → SEO meta audit scrape (02:45 + 14:45 TR, GA4 top 500)
   POST /sync-gsc-cwv → GSC Core Web Vitals + AMP (03:00 + 15:00 TR)
+  POST /sync-market → doviz.com piyasa tablo taraması (00:05 TR)
   POST /open-noads  → noAds sayfasını aç, textarea'ya URL yaz (policy «Ekle»)
   POST /sync-all   → notification + news
 """
@@ -111,6 +112,9 @@ SEO_AUDIT_SLOT_MINUTE = int(os.environ.get("SEO_AUDIT_BRIDGE_MINUTE") or "45")
 # GSC CWV + AMP — SEO scrape sonrası — 03:00 + 15:00 TR
 GSC_CWV_SLOT_HOURS = (3, 15)
 GSC_CWV_SLOT_MINUTE = int(os.environ.get("GSC_CWV_BRIDGE_MINUTE") or "0")
+# Piyasa tablo taraması — günde bir, 00:05 TR
+MARKET_SLOT_HOURS = (0,)
+MARKET_SLOT_MINUTE = int(os.environ.get("MARKET_TARAMA_BRIDGE_MINUTE") or "5")
 SLOT_WINDOW_MIN = int(os.environ.get("BRIDGE_SLOT_WINDOW_MIN") or "20")
 # Başarısız otomatik tur → en fazla 3 yeniden deneme, 10'ar dk arayla
 BRIDGE_RETRY_MAX = int(os.environ.get("BRIDGE_RETRY_MAX") or "3")
@@ -175,6 +179,7 @@ _noads_lock = threading.Lock()
 _pagespeed_lock = threading.Lock()
 _seo_audit_lock = threading.Lock()
 _gsc_cwv_lock = threading.Lock()
+_market_lock = threading.Lock()
 _noads_open_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -188,6 +193,7 @@ _last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışma
 _last_pagespeed_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_seo_audit_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_gsc_cwv_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_market_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_nt_auto_at = 0.0
 _last_news_auto_at = 0.0
 _last_virgul_auto_slot = ""
@@ -200,6 +206,7 @@ _last_noads_auto_slot = ""
 _last_pagespeed_auto_slot = ""
 _last_seo_audit_auto_slot = ""
 _last_gsc_cwv_auto_slot = ""
+_last_market_auto_slot = ""
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -1145,6 +1152,70 @@ def run_pagespeed_bridge_once() -> dict[str, Any]:
     return out
 
 
+def run_market_tarama_bridge_once() -> dict[str, Any]:
+    """doviz.com piyasa tablo taraması (01.01.2025+) → Railway ingest."""
+    global _last_market_result
+    if not _ingest_token():
+        err = {"ok": False, "kind": "market", "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_market_result = err
+        return err
+
+    import subprocess
+
+    script = ROOT / "scripts" / "doviz_market_tarama.py"
+    if not script.is_file():
+        err = {"ok": False, "kind": "market", "message": "Piyasa tarama betiği yok"}
+        _last_market_result = err
+        return err
+
+    print("Piyasa tarama başlıyor…", flush=True)
+    cmd = [sys.executable, str(script), "--ingest"]
+    env = os.environ.copy()
+    env.setdefault(
+        "MARKET_TARAMA_INGEST_URL",
+        (
+            os.environ.get("MARKET_TARAMA_INGEST_URL")
+            or "https://projectcontrol.up.railway.app/api/market-quotes/ingest"
+        ).strip(),
+    )
+    timeout_sec = int(os.environ.get("MARKET_TARAMA_BRIDGE_TIMEOUT_SEC") or "900")
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=max(120, timeout_sec),
+        )
+    except subprocess.TimeoutExpired:
+        out = {
+            "ok": False,
+            "kind": "market",
+            "message": f"Piyasa tarama zaman aşımı ({timeout_sec}s)",
+        }
+        _last_market_result = out
+        return out
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "market", "message": f"Piyasa tarama subprocess: {exc}"}
+        _last_market_result = out
+        return out
+
+    combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+    if combined:
+        for line in combined.splitlines()[-40:]:
+            print(line, flush=True)
+
+    if proc.returncode == 0:
+        out = {"ok": True, "kind": "market", "message": "Piyasa tarama OK"}
+    else:
+        tail = (combined[-300:] if combined else f"exit {proc.returncode}")[:300]
+        out = {"ok": False, "kind": "market", "message": tail}
+    _last_market_result = out
+    print(f"Piyasa tarama · {out['message']}", flush=True)
+    return out
+
+
 def run_seo_audit_bridge_once(site_id: int | None = None) -> dict[str, Any]:
     """GA4 top URL SEO meta scrape → Railway ingest (Playwright)."""
     global _last_seo_audit_result
@@ -1737,6 +1808,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_pagespeed": _last_pagespeed_result,
                     "last_seo_audit": _last_seo_audit_result,
                     "last_gsc_cwv": _last_gsc_cwv_result,
+                    "last_market": _last_market_result,
                     "gsc_cwv_progress": dict(_gsc_cwv_progress),
                     "last_gsc_links": _last_gsc_links_result,
                     "last_policy": _last_policy_result,
@@ -1759,6 +1831,9 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         ],
                         "gsc_cwv_slots_tr": [
                             f"{h:02d}:{GSC_CWV_SLOT_MINUTE:02d}" for h in GSC_CWV_SLOT_HOURS
+                        ],
+                        "market_slots_tr": [
+                            f"{h:02d}:{MARKET_SLOT_MINUTE:02d}" for h in MARKET_SLOT_HOURS
                         ],
                         "retry_max": BRIDGE_RETRY_MAX,
                         "retry_gap_sec": BRIDGE_RETRY_GAP_SEC,
@@ -1861,6 +1936,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 _pagespeed_lock,
                 "PageSpeed sync zaten çalışıyor, bekleyin.",
                 run_pagespeed_bridge_once,
+            )
+        elif path in ("/sync-market", "/market", "/sync-piyasa", "/piyasa"):
+            lock, busy, runner = (
+                _market_lock,
+                "Piyasa tarama zaten çalışıyor, bekleyin.",
+                run_market_tarama_bridge_once,
             )
         elif path in ("/sync-seo-audit", "/seo-audit", "/sync-seo"):
             # Uzun süren scrape — HTTP hemen döner; arka planda çalışır (Tara timeout olmasın)
@@ -2151,6 +2232,11 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
             "lock": _gsc_cwv_lock,
             "runner": run_gsc_cwv_bridge_once,
         },
+        "market": {
+            "name": "Piyasa",
+            "lock": _market_lock,
+            "runner": run_market_tarama_bridge_once,
+        },
         "sinemalar_noads": {
             "name": "noAds",
             "lock": _noads_lock,
@@ -2229,7 +2315,7 @@ def _auto_loop() -> None:
     global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
     global _last_gsc_links_auto_slot, _last_policy_auto_slot
     global _last_noads_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
-    global _last_gsc_cwv_auto_slot
+    global _last_gsc_cwv_auto_slot, _last_market_auto_slot
 
     while True:
         _auto_cycle += 1
@@ -2348,6 +2434,10 @@ def _auto_loop() -> None:
             "gsc_cwv", "GSC CWV", _gsc_cwv_lock, run_gsc_cwv_bridge_once,
             "_last_gsc_cwv_auto_slot", GSC_CWV_SLOT_HOURS, GSC_CWV_SLOT_MINUTE,
         )
+        _slot_job(
+            "market", "Piyasa", _market_lock, run_market_tarama_bridge_once,
+            "_last_market_auto_slot", MARKET_SLOT_HOURS, MARKET_SLOT_MINUTE,
+        )
 
         time.sleep(max(30, AUTO_POLL_SEC))
 
@@ -2365,6 +2455,7 @@ def run_daemon() -> int:
         f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d} "
         f"seo={list(SEO_AUDIT_SLOT_HOURS)}:{SEO_AUDIT_SLOT_MINUTE:02d} "
         f"cwv={list(GSC_CWV_SLOT_HOURS)}:{GSC_CWV_SLOT_MINUTE:02d} "
+        f"market={list(MARKET_SLOT_HOURS)}:{MARKET_SLOT_MINUTE:02d} "
         f"retry={BRIDGE_RETRY_MAX}x/{BRIDGE_RETRY_GAP_SEC}s",
         flush=True,
     )

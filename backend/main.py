@@ -850,15 +850,11 @@ def admin_run_daily_refresh_now():
 
 @app.get("/api/admin/run-market-sheets-sync-now")
 def admin_run_market_sheets_sync_now():
-    """Google Sheets piyasa serilerini MANUEL çekip DB'ye yazar (grafik overlay)."""
-    try:
-        from backend.services.market_sheets_sync import sync_all_market_sheets
-
-        out = sync_all_market_sheets()
-        return {"status": "ok" if out.get("ok") else "partial", "message": "Market sheets sync bitti.", **out}
-    except Exception as exc:
-        LOGGER.exception("admin run-market-sheets-sync-now")
-        return {"status": "error", "message": str(exc)}
+    """Eski tablo senkronu kapalı; piyasa serileri tarama ingest ile gelir."""
+    return {
+        "status": "disabled",
+        "message": "Piyasa serileri tarama ile güncellenir (00:05 TR).",
+    }
 
 
 @app.get("/api/admin/run-news-intelligence-now")

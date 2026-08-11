@@ -1019,7 +1019,7 @@ class AdReportRow(Base):
 
 
 class MarketDailyQuote(Base):
-    """Google Sheets — günlük piyasa açılış/kapanış (grafik overlay)."""
+    """Günlük piyasa açılış/kapanış (doviz.com tarama → grafik overlay)."""
 
     __tablename__ = "market_daily_quotes"
     __table_args__ = (

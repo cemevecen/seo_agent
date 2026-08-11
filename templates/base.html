@@ -859,6 +859,10 @@
       z-index: 120;
       isolation: isolate;
     }
+    .seo-market-standalone-plot.js-plotly-plot,
+    .seo-market-standalone-plot .plot-container.plotly {
+      width: 100% !important;
+    }
     [data-market-overlay-trigger] {
       background-color: #ffffff !important;
       background-image: none !important;
@@ -2241,11 +2245,11 @@
   </script>
   <!-- Plotly: önce yerel (Railway/CDN engeli); olmazsa CDN -->
   <script src="/static/vendor/plotly-2.35.2.min.js" defer onerror="this.onerror=null;this.src='https://cdn.plot.ly/plotly-2.35.2.min.js'"></script>
-  <script src="/static/js/seo_matte_chart_colors.js?v=3" defer></script>
+  <script src="/static/js/seo_matte_chart_colors.js?v=4" defer></script>
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
-  <script src="/static/js/market_chart_overlay.js?v=21" defer></script>
+  <script src="/static/js/market_chart_overlay.js?v=22" defer></script>
   <script src="/static/js/app_empower_overlay.js?v=9" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
   <script src="/static/js/analytics_date_compare.js?v=8" defer></script>
