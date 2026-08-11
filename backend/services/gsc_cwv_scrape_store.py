@@ -152,6 +152,108 @@ def _filter_plausible_dates(ser: dict[str, Any], year_now: int) -> dict[str, Any
     return out
 
 
+def _fill_interior_zeros(arr: list[int]) -> list[int]:
+    """SVG/tarama boşluklarındaki 0'ları komşu GSC noktalarıyla doğrusal doldur."""
+    out = [int(x or 0) for x in (arr or [])]
+    n = len(out)
+    i = 0
+    while i < n:
+        if out[i] != 0:
+            i += 1
+            continue
+        j = i
+        while j < n and out[j] == 0:
+            j += 1
+        left = out[i - 1] if i > 0 else None
+        right = out[j] if j < n else None
+        if left is not None and right is not None and (left >= 40 or right >= 40):
+            span = j - i + 1
+            for k, idx in enumerate(range(i, j)):
+                t = (k + 1) / span
+                out[idx] = int(round(left + t * (right - left)))
+        i = j
+    return out
+
+
+def _is_jagged(ser: dict[str, Any] | None) -> bool:
+    """Sıfır-tepe testere (SVG boşluğu) — GSC günlük eğrisi böyle salınmaz."""
+    if not isinstance(ser, dict):
+        return False
+    for metric in ("needs_improvement", "good", "poor"):
+        arr = [int(x or 0) for x in (ser.get(metric) or [])]
+        if len(arr) < 10:
+            continue
+        cross = 0
+        for a, b in zip(arr, arr[1:]):
+            if (a == 0) != (b == 0) and max(a, b) >= 100:
+                cross += 1
+        if cross >= 6:
+            return True
+    return False
+
+
+def _suppress_false_poor_spikes(arr: list[int]) -> list[int]:
+    """KPI 0 kötü iken SVG'nin kırmızı tepe-sıfır testeresini düzle."""
+    out = [int(x or 0) for x in (arr or [])]
+    if len(out) < 8:
+        return out
+    zeros = sum(1 for v in out if v == 0)
+    if zeros < 0.35 * len(out):
+        return out
+    nz = [v for v in out if v > 0]
+    if nz and sorted(nz)[len(nz) // 2] >= 80:
+        return [0] * len(out)
+    return out
+
+
+def _apply_kpis_to_series(ser: dict[str, Any], kpis: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(kpis, dict):
+        return ser
+    out = dict(ser)
+    for metric in ("poor", "needs_improvement", "good"):
+        arr = [int(x or 0) for x in (out.get(metric) or [])]
+        if not arr:
+            continue
+        try:
+            kpi = int(kpis.get(metric))
+        except (TypeError, ValueError):
+            continue
+        if kpi == 0:
+            med = sorted(arr)[len(arr) // 2]
+            if med <= 80 or sum(1 for v in arr if v == 0) >= 0.25 * len(arr):
+                out[metric] = [0] * len(arr)
+                continue
+        last = arr[-1]
+        if last > 0 and kpi > 0:
+            ratio = kpi / last
+            if 0.2 <= ratio <= 5.0 and abs(ratio - 1.0) >= 0.08:
+                out[metric] = [max(0, int(round(v * ratio))) for v in arr]
+            else:
+                arr[-1] = kpi
+                out[metric] = arr
+        else:
+            arr[-1] = kpi
+            out[metric] = arr
+    return out
+
+
+def _repair_gsc_values(ser: dict[str, Any] | None, kpis: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    if not isinstance(ser, dict):
+        return None
+    out = dict(ser)
+    out["needs_improvement"] = _fill_interior_zeros(list(out.get("needs_improvement") or []))
+    out["good"] = _fill_interior_zeros(list(out.get("good") or []))
+    poor = list(out.get("poor") or [])
+    if poor:
+        out["poor"] = _suppress_false_poor_spikes(poor)
+        if out["poor"] == poor:
+            out["poor"] = _fill_interior_zeros(poor)
+    out = _apply_kpis_to_series(out, kpis)
+    if _is_jagged(out):
+        return None
+    return out
+
+
 def _bind_series_to_dates(ser: dict[str, Any] | None, dates: list[str]) -> dict[str, Any] | None:
     """Yanlış yıl etiketli GSC Y değerlerini kardeş cihazın 2026 eksenine oturt."""
     n = len(dates)
@@ -161,6 +263,8 @@ def _bind_series_to_dates(ser: dict[str, Any] | None, dates: list[str]) -> dict[
     if m < 3:
         return None
     if abs(m - n) > max(8, int(0.12 * max(n, m))):
+        return None
+    if _is_jagged(ser):
         return None
     out = dict(ser)
     out["dates"] = list(dates)
@@ -172,10 +276,30 @@ def _bind_series_to_dates(ser: dict[str, Any] | None, dates: list[str]) -> dict[
     return out
 
 
+def _kpis_by_device(payload: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    if not isinstance(payload, dict):
+        return {}
+    ov = payload.get("overview") if isinstance(payload.get("overview"), dict) else {}
+    out: dict[str, dict[str, Any]] = {}
+    for key in ("mobile", "desktop"):
+        dev = payload.get(key) if isinstance(payload.get(key), dict) else {}
+        kpis = dev.get("kpis") if isinstance(dev.get("kpis"), dict) else None
+        if not kpis:
+            kpis = ov.get(key) if isinstance(ov.get(key), dict) else {}
+        out[key] = kpis if isinstance(kpis, dict) else {}
+    return out
+
+
 def _series_quality(ser: Any, year_now: int, *, peer_len: int = 0) -> int:
     """Uzun 2026 GSC eğrisi > kardeş uzunluğuna uyan sapmış seri > kısa tarama penceresi."""
     if not isinstance(ser, dict):
         return 0
+    if _is_jagged(ser):
+        ser = _repair_gsc_values(ser)
+        if not isinstance(ser, dict):
+            return 0
+    src = str(ser.get("source") or "")
+    bonus = 80 if "tooltip" in src else 0
     dates = [str(d or "")[:10] for d in (ser.get("dates") or [])]
     ok = [d for d in dates if _iso_year_ok(d, year_now)]
     if len(ok) >= 3:
@@ -183,20 +307,26 @@ def _series_quality(ser: Any, year_now: int, *, peer_len: int = 0) -> int:
             span = (date.fromisoformat(ok[-1]) - date.fromisoformat(ok[0])).days
         except ValueError:
             span = len(ok)
-        return max(span, 0) * 20 + len(ok)
+        return max(span, 0) * 20 + len(ok) + bonus
     n = _series_value_len(ser)
     if n < 3:
         return 0
     if peer_len >= 3 and abs(n - peer_len) <= max(8, int(0.12 * peer_len)):
-        return 200 + n
+        return 200 + n + bonus
     return 0
 
 
-def sanitize_chart_series(chart: dict[str, Any] | None, *, year_now: int | None = None) -> dict[str, Any]:
-    """Sapmış 2007 eksenini düşür; mümkünse kardeş cihazın 2026 tarihleriyle Y'yi koru."""
+def sanitize_chart_series(
+    chart: dict[str, Any] | None,
+    *,
+    year_now: int | None = None,
+    kpis_by_device: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Sapmış 2007 eksenini düşür; testere SVG'yi GSC eğrisine yaklaştır / at."""
     if not isinstance(chart, dict):
         return {}
     y_now = year_now or datetime.utcnow().year
+    kpis_by_device = kpis_by_device if isinstance(kpis_by_device, dict) else {}
     out = dict(chart)
     filtered: dict[str, dict[str, Any] | None] = {}
     for key in ("mobile", "desktop"):
@@ -218,12 +348,18 @@ def sanitize_chart_series(chart: dict[str, Any] | None, *, year_now: int | None 
             break
 
     for key in ("mobile", "desktop"):
+        kpis = kpis_by_device.get(key) if isinstance(kpis_by_device.get(key), dict) else {}
         ser = filtered.get(key)
         if isinstance(ser, dict) and len(ser.get("dates") or []) >= 3:
-            out[key] = ser
+            repaired = _repair_gsc_values(ser, kpis)
+            out[key] = repaired
             continue
         raw = out.get(key) if isinstance(out.get(key), dict) else None
-        bound = _bind_series_to_dates(raw, donor_dates) if donor_dates else None
+        if raw:
+            raw = _repair_gsc_values(raw, kpis)
+        bound = _bind_series_to_dates(raw, donor_dates) if donor_dates and raw else None
+        if bound:
+            bound = _repair_gsc_values(bound, kpis)
         out[key] = bound
     return out
 
@@ -233,6 +369,7 @@ def recover_chart_series(
     older: list[Any] | None = None,
     *,
     year_now: int | None = None,
+    kpis_by_device: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Eksik/kısa cihaz serisini önceki snapshot'tan tamamla, sonra sanitize et."""
     y_now = year_now or datetime.utcnow().year
@@ -259,7 +396,7 @@ def recover_chart_series(
         ):
             best_mob = cand
     picked["mobile"] = best_mob
-    return sanitize_chart_series(picked, year_now=y_now)
+    return sanitize_chart_series(picked, year_now=y_now, kpis_by_device=kpis_by_device)
 
 
 def sanitize_cwv_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -635,6 +772,7 @@ def ingest_gsc_cwv_payload(db: Session, payload: dict[str, Any]) -> dict[str, An
         snap["chart_series"] = recover_chart_series(
             snap.get("chart_series") if isinstance(snap.get("chart_series"), dict) else {},
             [prev_cs] if prev_cs else [],
+            kpis_by_device=_kpis_by_device(snap),
         )
 
         totals = snap.get("totals") or {}
@@ -726,6 +864,7 @@ def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
     payload["chart_series"] = recover_chart_series(
         payload.get("chart_series") if isinstance(payload.get("chart_series"), dict) else {},
         older,
+        kpis_by_device=_kpis_by_device(payload),
     )
     hist = history_points(db, site.id)
     rid = payload.get("resource_id") or (

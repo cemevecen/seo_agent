@@ -221,6 +221,44 @@ def test_recover_short_plausible_does_not_beat_rebindable_mobile():
     assert out["mobile"]["needs_improvement"][0] == 40
 
 
+def test_sanitize_fills_sawtooth_zeros_and_snaps_kpis():
+    from backend.services.gsc_cwv_scrape_store import sanitize_chart_series
+
+    dates = [f"2026-05-{d:02d}" for d in range(13, 32)]
+    n = len(dates)
+    ni = []
+    good = []
+    poor = []
+    for i in range(n):
+        ni.append(0 if i % 2 else 12000)
+        good.append(0 if i % 2 else 8000)
+        poor.append(4000 if i % 2 else 0)
+    chart = {
+        "mobile": {
+            "dates": dates,
+            "poor": poor,
+            "needs_improvement": ni,
+            "good": good,
+        },
+        "desktop": {
+            "dates": dates,
+            "poor": [0] * n,
+            "needs_improvement": [100] * n,
+            "good": [50] * n,
+        },
+    }
+    out = sanitize_chart_series(
+        chart,
+        year_now=2026,
+        kpis_by_device={"mobile": {"poor": 0, "needs_improvement": 6592, "good": 6592}},
+    )
+    assert out["mobile"]["dates"][0] == "2026-05-13"
+    assert 0 not in out["mobile"]["needs_improvement"][1:-1]
+    assert out["mobile"]["poor"] == [0] * n
+    assert out["mobile"]["needs_improvement"][-1] == 6592
+    assert out["mobile"]["good"][-1] == 6592
+
+
 def test_recover_prefers_longer_previous_mobile():
     from backend.services.gsc_cwv_scrape_store import recover_chart_series
 
