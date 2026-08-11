@@ -140,6 +140,7 @@ def test_mention_query_match_requires_brand_string():
     assert spec.loader is not None
     spec.loader.exec_module(mod)
     assert mod._matches_query("doviz.com uygulaması donuyor", "doviz.com")
+    assert mod._matches_query("Döviz.com 3 gündür manipülatif", "doviz.com")
     assert mod._matches_query("https://x.com/i/status/1 doviz com", "doviz.com")
     assert not mod._matches_query("ziraat döviz hesabım bloke", "doviz.com")
     assert not mod._matches_query("sinema bileti kampanyası", "sinemalar.com")

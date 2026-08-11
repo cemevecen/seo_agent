@@ -701,10 +701,35 @@ def _eksi_newest(page: Any, start_url: str, *, limit: int = 10) -> tuple[str, li
     return final_url, collected[:limit]
 
 
+_TR_FOLD = str.maketrans(
+    {
+        "ç": "c",
+        "ğ": "g",
+        "ı": "i",
+        "ö": "o",
+        "ş": "s",
+        "ü": "u",
+        "Ç": "c",
+        "Ğ": "g",
+        "İ": "i",
+        "Ö": "o",
+        "Ş": "s",
+        "Ü": "u",
+        "â": "a",
+        "î": "i",
+        "û": "u",
+    }
+)
+
+
+def _fold_tr(s: str) -> str:
+    return (s or "").translate(_TR_FOLD).lower().replace("www.", "")
+
+
 def _matches_query(blob: str, query: str) -> bool:
-    """True when the writing was entered as the brand string (e.g. doviz.com)."""
-    blob_l = (blob or "").lower().replace("www.", "")
-    q = (query or "").strip().lower().replace("www.", "")
+    """True when the writing was entered as the brand string (e.g. doviz.com / Döviz.com)."""
+    blob_l = _fold_tr(blob)
+    q = _fold_tr(query).strip()
     if not q:
         return True
     if q in blob_l:
@@ -751,7 +776,7 @@ def _harvest_host_results(page: Any, *, hosts: tuple[str, ...], limit: int = 10)
               };
               const out = [];
               const seen = new Set();
-              const engine = ['google.', 'bing.', 'duckduckgo.', 'microsoft.com'];
+              const engine = ['google.', 'bing.', 'duckduckgo.', 'brave.com', 'microsoft.com'];
               document.querySelectorAll('a[href]').forEach((a) => {
                 let href = unwrap((a.href || '').split('#')[0]);
                 if (!href || !href.startsWith('http')) return;
@@ -793,6 +818,7 @@ def _web_search_mentions(
     q = f'{site_query} "{query}"'
     engines = [
         f"https://www.google.com/search?q={quote(q)}&hl=tr&num=10",
+        f"https://search.brave.com/search?q={quote(q)}",
         f"https://www.bing.com/search?q={quote(q)}&setlang=tr-TR",
         f"https://duckduckgo.com/?q={quote(q)}&ia=web",
     ]
@@ -946,7 +972,9 @@ def _x_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict
 
 
 def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
+    compact = query.replace(".", "")
     urls = [
+        f"https://www.sikayetvar.com/{compact}",
         f"https://www.sikayetvar.com/search?q={quote(query)}",
         f"https://www.sikayetvar.com/sikayetler?search={quote(query)}",
     ]
@@ -986,6 +1014,9 @@ def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, lis
         if extra:
             final = web_url or final
     profiles: list[str] = []
+    compact = query.replace(".", "")
+    if compact:
+        profiles.append(f"https://www.sikayetvar.com/{compact}")
     for row in items:
         href = str(row.get("url") or "")
         try:
