@@ -116,6 +116,7 @@ def test_template_has_no_photos_and_js_shell():
     html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
     assert "<img" not in html
     assert "shot_grid" not in html
+    assert "{{ card.no }}" not in html
     assert "pm_lab.js" in html
     assert "data-pml" in html
     js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
