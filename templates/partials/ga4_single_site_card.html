@@ -44,7 +44,7 @@
       </div>
     {% elif not site.profiles %}
       <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-400">
-        Bu site için GA4 profilinde henüz oturum verisi yok. Yenile ile tekrar deneyin.
+        This site has no session data in the GA4 property yet. Try Refresh again.
       </div>
     {% else %}
       <div class="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800/60 dark:bg-slate-900/80 sm:p-5 sm:space-y-5">
@@ -80,9 +80,9 @@
               class="shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-bold text-slate-500 transition hover:bg-violet-100 dark:text-slate-400 dark:hover:bg-slate-700/50"
               data-ga4-period-toggle="12m"
               data-active="false"
-              title="Son 12 ay günlük trend (karşılaştırma yok)"
+              title="Last 12 months daily trend (no comparison)"
             >
-              12 ay
+              12 mo
             </button>
           </div>
           {% if site_count is defined and site_count > 1 %}
@@ -92,7 +92,7 @@
               type="button"
               data-ga4-focus-toggle="{{ site.id }}"
               class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-700/50"
-              title="Tam genişlikte göster"
+              title="Show full width"
             >
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
@@ -102,7 +102,7 @@
               type="button"
               data-ga4-split-reset
               class="hidden inline-flex h-8 items-center gap-1 rounded-xl border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-700/50"
-              title="İki sütunlu görünüme dön"
+              title="Back to two-column view"
             >
               <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
@@ -149,7 +149,7 @@
                   {% if _pr and _pr.ranges and (_pr.ranges.last_start or _pr.ranges.last_end) %}
                     {% if _pr.get('trend_only') %}
                       {{ _pr.ranges.last_start | ga4_iso_ddmmyyyy }}–{{ _pr.ranges.last_end | ga4_iso_ddmmyyyy }}
-                      <span class="ml-1 font-medium text-slate-400 dark:text-slate-500">· Karşılaştırma yok</span>
+                      <span class="ml-1 font-medium text-slate-400 dark:text-slate-500">· No comparison</span>
                     {% elif _pr.ranges.prev_start and _pr.ranges.prev_end %}
                       {{ _pr.ranges.prev_start | ga4_iso_ddmmyyyy }}–{{ _pr.ranges.prev_end | ga4_iso_ddmmyyyy }}
                       <span class="mx-1 text-slate-300 dark:text-slate-700">VS</span>
@@ -209,7 +209,7 @@
          id="err-widget-{{ site.id }}">
       <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Hata Sayfaları</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Error Pages</span>
           {% if error_summary.total_404 > 0 %}
           <span class="rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ error_summary.total_404 }}</span>
           {% endif %}
@@ -222,21 +222,21 @@
                     class="err-day-btn-{{ site.id }} rounded-md px-2 py-0.5 text-[10px] font-semibold transition
                            {% if error_summary.days == d %}bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900{% else %}text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700{% endif %}"
                     data-days="{{ d }}">
-              {{ d }}g
+              {{ d }}d
             </button>
             {% endfor %}
           </div>
           {# Çek butonu #}
           <button type="button" onclick="errWidgetRefresh({{ site.id }})"
                   class="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                  title="CSV / HTTP tarama çalıştır">
+                  title="Run CSV / HTTP scan">
             <svg id="err-spin-{{ site.id }}" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
-            Tara
+            Scan
           </button>
           <a href="/errors?site_id={{ site.id }}&days={{ error_summary.days }}"
-             class="text-[10px] font-semibold text-sky-600 hover:underline dark:text-sky-400">Tümü →</a>
+             class="text-[10px] font-semibold text-sky-600 hover:underline dark:text-sky-400">All →</a>
         </div>
       </div>
 
@@ -246,7 +246,7 @@
           <thead>
             <tr class="border-b border-slate-200 dark:border-slate-800">
               <th class="pb-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">URL</th>
-              <th class="pb-1.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400 w-16">Kullanıcı</th>
+              <th class="pb-1.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400 w-16">Users</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800/50">
@@ -267,7 +267,7 @@
         </table>
         {% else %}
         <p class="py-4 text-center text-[11px] text-slate-400 dark:text-slate-500">
-          Kayıt yok — otomatik tarama 03:00 ve 13:00.
+          No records — automatic scan at 03:00 and 13:00.
         </p>
         {% endif %}
       </div>
@@ -300,7 +300,7 @@ if (!window.errWidgetLoad) {
       .then(r => r.json())
       .then(d => {
         if (!d.errors || !d.errors.length) {
-          listEl.innerHTML = '<p class="py-6 text-center text-[11px] text-slate-400 dark:text-slate-500 italic">Bu dönem için kayıt yok.</p>';
+          listEl.innerHTML = '<p class="py-6 text-center text-[11px] text-slate-400 dark:text-slate-500 italic">No records for this period.</p>';
           return;
         }
         
@@ -324,14 +324,14 @@ if (!window.errWidgetLoad) {
           +   '<thead>'
           +     '<tr class="border-b border-slate-200 dark:border-slate-800">'
           +       '<th class="pb-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">URL</th>'
-          +       '<th class="pb-1.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400 w-16">Kullanıcı</th>'
+          +       '<th class="pb-1.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400 w-16">Users</th>'
           +     '</tr>'
           +   '</thead>'
           +   '<tbody class="divide-y divide-slate-100 dark:divide-slate-800/50">' + rows + '</tbody>'
           + '</table>';
       })
       .catch(() => {
-        listEl.innerHTML = '<p class="py-6 text-center text-[11px] text-rose-500">Yüklenemedi.</p>';
+        listEl.innerHTML = '<p class="py-6 text-center text-[11px] text-rose-500">Failed to load.</p>';
       });
   }
 

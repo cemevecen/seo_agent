@@ -86,7 +86,7 @@
       position: relative;
     }
     .sc-table-scroll-hint::after {
-      content: "Kaydır →";
+      content: "Scroll →";
       pointer-events: none;
       position: absolute;
       top: 0.35rem;
@@ -427,28 +427,28 @@
 <div id="search-console-page" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-sc-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
     <div class="sc-analytics-toolbar mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Search Console özeti</p>
+      <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Search Console summary</p>
       <button
         id="refresh-search-console-sites-button"
         type="button"
         class="w-full shrink-0 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 dark:border-slate-600 dark:text-slate-200 dark:hover:text-slate-100 sm:w-auto"
         onclick="refreshSearchConsoleSites(this)"
       >
-        Tüm Siteleri Yenile
+        Refresh All Sites
       </button>
     </div>
 
     <div
       class="sc-global-filter-mobile-dock sc-card-filter-bar mb-4 rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-0 sm:hidden"
       data-sc-global-filter-slot-mobile
-      aria-label="Piyasa ve tarih karşılaştırması"
+      aria-label="Market and date comparison"
     ></div>
 
     {# Split görünümde ortak filtre şeridi — kart içine gömülünce KPI/spark/grafik hizasız kalıyordu #}
     <div
       class="sc-global-filter-desktop-dock sc-card-filter-bar mb-4 hidden rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-4"
       data-sc-global-filter-slot-desktop
-      aria-label="Piyasa ve tarih karşılaştırması"
+      aria-label="Market and date comparison"
     ></div>
 
     <div id="sc-global-filter-chrome-holder" class="sr-only" aria-hidden="true">
@@ -458,13 +458,13 @@
     <div id="search-console-page-load-panel" class="mb-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-100/95 p-4 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-slate-200/80 backdrop-blur-sm dark:border-slate-600 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 dark:shadow-[0_20px_50px_-38px_rgba(0,0,0,0.55)] dark:ring-slate-600/70 sm:rounded-[1.6rem] sm:p-5">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 dark:text-slate-300">Sayfa yükleniyor</p>
-          <p id="search-console-page-load-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Kabuk hazırlanıyor</p>
-          <p id="search-console-page-load-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Search Console site listesi için istek gönderiliyor.</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 dark:text-slate-300">Loading page</p>
+          <p id="search-console-page-load-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Preparing shell</p>
+          <p id="search-console-page-load-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Requesting the Search Console site list.</p>
         </div>
         <div class="text-left sm:text-right">
           <p id="search-console-page-load-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">8%</p>
-          <p id="search-console-page-load-elapsed" class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">0.0 sn</p>
+          <p id="search-console-page-load-elapsed" class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">0.0 s</p>
         </div>
       </div>
       <div class="mt-4 h-3 overflow-hidden rounded-full bg-slate-200/90 dark:bg-slate-800/90 ring-1 ring-slate-300/80 dark:ring-slate-600 shadow-inner">
@@ -478,7 +478,7 @@
       aria-live="polite"
     >
       <div class="flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300">
-        <span id="search-console-htmx-activity-label">Kart ve veri istekleri sürüyor</span>
+        <span id="search-console-htmx-activity-label">Card and data requests in progress</span>
         <span id="search-console-htmx-activity-count" class="font-semibold tabular-nums text-sky-800 dark:text-sky-300">0</span>
       </div>
       <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-200/90 dark:bg-slate-800/90 ring-1 ring-slate-300/60 dark:ring-slate-600/80">
@@ -489,9 +489,9 @@
     <div id="search-console-progress-panel" class="mb-4 hidden rounded-[1.6rem] border border-sky-200/90 bg-gradient-to-br from-sky-50 via-white to-cyan-50/90 p-4 shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)] ring-1 ring-sky-200/70 backdrop-blur-sm dark:border-slate-600 dark:bg-none dark:bg-slate-900 dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.5)] dark:ring-slate-600/70">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80 dark:text-sky-300/90">Yaklaşık İlerleme</p>
-          <p id="search-console-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Hazırlanıyor</p>
-          <p id="search-console-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Dış kaynaktan veri çekme akışı başlatılıyor.</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80 dark:text-sky-300/90">Estimated progress</p>
+          <p id="search-console-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Preparing</p>
+          <p id="search-console-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Starting the external data fetch.</p>
         </div>
         <div class="flex shrink-0 flex-col items-end gap-2">
           <p id="search-console-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">0%</p>
@@ -500,7 +500,7 @@
             id="search-console-progress-dismiss"
             class="hidden rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
-            Kapat
+            Close
           </button>
         </div>
       </div>
@@ -512,7 +512,7 @@
     <section id="sc-performance" class="sc-extra-section scroll-mt-28">
       <div class="mb-3 border-b border-slate-200 pb-2 dark:border-slate-700">
         <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Performans</p>
-        <h2 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">1. Arama sonuçları</h2>
+        <h2 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">1. Search results</h2>
       </div>
     <div id="search-console-site-list" hx-get="/search-console/site-list?mode={{ site_list_mode or 'lazy' }}" hx-trigger="load" hx-swap="innerHTML">
       <div class="grid gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" aria-hidden="true">
@@ -526,14 +526,14 @@
     {% include "partials/sc_extras_stack.html" %}
 
     <dialog id="sc-cwv-lightbox" class="rounded-2xl bg-slate-950 p-3 text-slate-100 shadow-2xl ring-1 ring-white/15" aria-labelledby="sc-cwv-lightbox-title">
-      <p id="sc-cwv-lightbox-title" class="sr-only">Core Web Vitals ekran görüntüsü</p>
+      <p id="sc-cwv-lightbox-title" class="sr-only">Core Web Vitals screenshot</p>
       <form method="dialog" class="mb-2 flex justify-end">
         <button type="submit" class="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
-          Kapat
+          Close
         </button>
       </form>
       <img id="sc-cwv-lightbox-img" src="" alt="" class="mx-auto block max-h-[min(85vh,920px)] max-w-[min(96vw,1400px)] rounded-xl object-contain" width="1200" height="800" decoding="async">
-      <p class="mt-2 text-center text-[11px] text-slate-400">Tam çözünürlük için bağlantıya sağ tıklayıp yeni sekmede açabilirsiniz.</p>
+      <p class="mt-2 text-center text-[11px] text-slate-400">Right-click the link and open it in a new tab for full resolution.</p>
     </dialog>
   </div>
 </div>
@@ -553,8 +553,8 @@
     let timer = null;
     let elapsedTick = null;
     let xhrFloor = 8;
-    let lastTitle = 'Kabuk hazırlanıyor';
-    let lastDetail = 'Search Console sayfası açılıyor, site listesi isteniyor.';
+    let lastTitle = 'Preparing shell';
+    let lastDetail = 'Opening Search Console and requesting the site list.';
 
     function secondsText(from) {
       return ((performance.now() - from) / 1000).toFixed(1) + ' sn';
@@ -606,24 +606,24 @@
         xhrFloor = next;
         render({
           percent: next,
-          title: 'Liste bekleniyor',
-          detail: 'Sunucu yanıtı bekleniyor; indirme tamamlanınca kartlar yerleşecek.',
+          title: 'Waiting for the list',
+          detail: 'Waiting for the server; cards will appear when the download finishes.',
         });
       }, 450);
     }
 
     render({
       percent: 8,
-      title: 'Kabuk hazırlanıyor',
-      detail: 'Search Console sayfası açılıyor, site listesi isteniyor.',
+      title: 'Preparing shell',
+      detail: 'Opening Search Console and requesting the site list.',
     });
 
     return {
       domReady: function () {
         render({
           percent: 22,
-          title: 'DOM hazır',
-          detail: 'Liste isteği için altyapı hazır.',
+          title: 'DOM ready',
+          detail: 'Ready to request the list.',
         });
       },
       requestStarted: function () {
@@ -632,8 +632,8 @@
         startElapsedTick();
         render({
           percent: 44,
-          title: 'İstek gönderildi',
-          detail: 'Sunucuya /search-console/site-list çağrısı yapıldı; yanıt indiriliyor.',
+          title: 'Request sent',
+          detail: 'Called /search-console/site-list; downloading the response.',
         });
         startPendingLoop();
       },
@@ -654,8 +654,8 @@
         xhrFloor = Math.max(xhrFloor, 78);
         render({
           percent: 82,
-          title: 'Yanıt alındı',
-          detail: 'HTML tamamlandı, kartlar yerleştiriliyor.',
+          title: 'Response received',
+          detail: 'HTML complete, placing cards.',
         });
       },
       swapped: function () {
@@ -667,8 +667,8 @@
         xhrFloor = 100;
         render({
           percent: 100,
-          title: 'Hazır',
-          detail: 'Search Console kartları yüklendi.',
+          title: 'Ready',
+          detail: 'Search Console cards loaded.',
         });
         window.setTimeout(function () {
           if (panel) {
@@ -704,8 +704,8 @@
         }
         render({
           percent: Math.max(parseInt((bar && bar.style.width) || '18', 10) || 18, 18),
-          title: 'Liste yüklenemedi',
-          detail: 'İlk Search Console liste isteği tamamlanamadı. Sayfayı yenileyip tekrar dene.',
+          title: 'List failed to load',
+          detail: 'The first Search Console list request did not finish. Refresh the page and try again.',
         });
       },
     };
@@ -753,7 +753,7 @@
     let hideInnerTimer = null;
     let clockTimer = null;
     const startTime = Date.now();
-    let lastBaseDetail = config.detail || 'İşlem sürüyor.';
+    let lastBaseDetail = config.detail || 'In progress.';
 
     function formatElapsed() {
       var ms = Date.now() - startTime;
@@ -777,9 +777,9 @@
       panel.classList.remove('hidden');
       panel.style.opacity = '';
       panel.style.transition = '';
-      title.textContent = step.title || config.title || 'Yenileniyor';
-      lastBaseDetail = step.detail || config.detail || 'İşlem sürüyor.';
-      detail.textContent = lastBaseDetail + ' — Geçen süre: ' + formatElapsed();
+      title.textContent = step.title || config.title || 'Refreshing';
+      lastBaseDetail = step.detail || config.detail || 'In progress.';
+      detail.textContent = lastBaseDetail + ' — Elapsed: ' + formatElapsed();
       percent.textContent = String(step.percent || 0) + '%';
       bar.style.width = String(step.percent || 0) + '%';
     }
@@ -792,7 +792,7 @@
 
     clockTimer = window.setInterval(function () {
       if (detail) {
-        detail.textContent = lastBaseDetail + ' — Geçen süre: ' + formatElapsed();
+        detail.textContent = lastBaseDetail + ' — Elapsed: ' + formatElapsed();
       }
     }, 1000);
 
@@ -812,8 +812,8 @@
             if (percent) { percent.classList.add('animate-pulse'); }
             render({
               percent: next,
-              title: config.pendingTitle || 'Son adımlar tamamlanıyor',
-              detail: config.pendingDetail || 'Yanıt bekleniyor, işlem sürüyor.',
+              title: config.pendingTitle || 'Finishing last steps',
+              detail: config.pendingDetail || 'Waiting for a response; still in progress.',
             });
           }, config.tailInterval || 700);
           return;
@@ -857,10 +857,10 @@
         if (clockTimer) { window.clearInterval(clockTimer); }
         if (percent) { percent.classList.remove('animate-pulse'); }
         var totalTime = formatElapsed();
-        lastBaseDetail = (doneDetail || 'Kartlar güncellendi.') + ' (' + totalTime + ')';
+        lastBaseDetail = (doneDetail || 'Cards updated.') + ' (' + totalTime + ')';
         render({
           percent: 100,
-          title: doneTitle || 'Tamamlandı',
+          title: doneTitle || 'Done',
           detail: lastBaseDetail,
         });
         hideTimer = setTimeout(function () {
@@ -923,8 +923,8 @@
         }
         render({
           percent: Math.max(parseInt((bar && bar.style.width) || '12', 10) || 12, 12),
-          title: errorTitle || 'Yenileme başarısız',
-          detail: errorDetail || 'Dış kaynaktan veri çekilirken bir hata oluştu.',
+          title: errorTitle || 'Refresh failed',
+          detail: errorDetail || 'An error occurred while fetching external data.',
         });
         if (dismissBtn) {
           dismissBtn.classList.remove('hidden');
@@ -1019,8 +1019,8 @@
     function tick() {
       if (Date.now() - startTs > maxMs) {
         progress.fail(
-          'Tüm siteler yenilenemedi',
-          'Zaman aşımı (45 dk). Sunucuda işlem sürüyor olabilir; birkaç dakika sonra sayfayı yenileyin.'
+          'Could not refresh all sites',
+          'Timed out (45 min). The server may still be working; reload in a few minutes.'
         );
         return;
       }
@@ -1040,11 +1040,11 @@
           try {
             data = JSON.parse(pack.text);
           } catch (e) {
-            throw new Error('Durum JSON okunamadı.');
+            throw new Error('Could not read status JSON.');
           }
           if (pack.response.status === 404) {
             var err404 = new Error('not_found');
-            err404.detail = (data && data.detail) || 'İşlem bulunamadı (sunucu yeniden başlamış olabilir). Sayfayı yenileyip tekrar deneyin.';
+            err404.detail = (data && data.detail) || 'Job not found (the server may have restarted). Refresh the page and try again.';
             throw err404;
           }
           if (!data.done) {
@@ -1054,7 +1054,7 @@
               progress.renderLive(
                 pct,
                 'Siteler yenileniyor (' + pg.done + '/' + pg.total + ')',
-                (pg.label ? pg.label + ' tamamlandı. ' : '') + 'Arka planda Search Console API çağrıları sürüyor.'
+                (pg.label ? pg.label + ' done. ' : '') + 'Search Console API calls are still running in the background.'
               );
             }
             window.setTimeout(tick, pollMs);
@@ -1062,12 +1062,12 @@
           }
           if (!data.ok) {
             var bad = new Error('job_failed');
-            bad.detail = (data && data.detail) || 'İşlem başarısız.';
+            bad.detail = (data && data.detail) || 'The job failed.';
             throw bad;
           }
           progress.complete(
-            data.title || 'İşlem tamamlandı',
-            data.detail || 'Search Console toplu yenileme tamamlandı.'
+            data.title || 'Job complete',
+            data.detail || 'Search Console bulk refresh finished.'
           );
           reloadSearchConsolePage(450);
         })
@@ -1084,11 +1084,11 @@
           var d =
             (error && error.detail) ||
             (error && error.message) ||
-            'Yenileme durumu alınamadı.';
+            'Could not read refresh status.';
           if (isNetwork) {
-            d += ' Sunucuda işlem arka planda sürebilir; 1–2 dk bekleyip sayfayı yenileyin.';
+            d += ' The server may still be working in the background; wait 1–2 minutes and reload.';
           }
-          progress.fail('Tüm siteler yenilenemedi', d);
+          progress.fail('Could not refresh all sites', d);
         });
     }
     tick();
@@ -1098,30 +1098,30 @@
     const trigger = button || document.getElementById('refresh-search-console-sites-button');
     const original = trigger ? trigger.textContent : '';
     const progress = createSearchConsoleProgressController({
-      title: 'Tüm siteler yenileniyor',
-      detail: 'Bağlı siteler için Search Console API akışı başlatıldı.',
+      title: 'Refreshing all sites',
+      detail: 'Started the Search Console API flow for connected sites.',
       interval: 20000,
       tailInterval: 15000,
       maxPendingPercent: 97,
       steps: [
-        { percent: 8, title: 'Bağlantılar kontrol ediliyor', detail: 'OAuth bağlantıları ve property hedefleri kontrol ediliyor.' },
-        { percent: 15, title: 'OAuth doğrulaması yapılıyor', detail: 'Erişim tokenleri kontrol ediliyor ve yenileniyor.' },
-        { percent: 24, title: 'API çağrıları başladı', detail: 'Bağlı siteler sırayla Search Console API üzerinden yenileniyor.' },
-        { percent: 33, title: 'İlk site verileri çekiliyor', detail: 'İlk sitenin query ve performans verileri alınıyor.' },
-        { percent: 44, title: 'Query verileri işleniyor', detail: 'Arama sorguları ve tıklama verileri parse ediliyor.' },
-        { percent: 53, title: 'Trend hesaplamaları yapılıyor', detail: 'Haftalık ve aylık trend karşılaştırmaları hesaplanıyor.' },
-        { percent: 62, title: 'Kayıtlar veritabanına yazılıyor', detail: 'Yeni query, trend ve özet satırları veritabanına yazılıyor.' },
-        { percent: 71, title: 'Alert senkronu hesaplanıyor', detail: 'Yeni Search Console verisine göre ilişkili uyarılar güncelleniyor.' },
-        { percent: 79, title: 'Kartlar hazırlanıyor', detail: 'Ekrandaki tüm kartlar yeni verilerle yeniden oluşturuluyor.' },
-        { percent: 85, title: 'Son veriler doğrulanıyor', detail: 'Tüm veriler doğrulanıyor ve önbellek güncelleniyor.' },
+        { percent: 8, title: 'Checking connections', detail: 'Checking OAuth connections and property targets.' },
+        { percent: 15, title: 'Verifying OAuth', detail: 'Checking and refreshing access tokens.' },
+        { percent: 24, title: 'API calls started', detail: 'Connected sites are refreshing via the Search Console API.' },
+        { percent: 33, title: 'Fetching the first site', detail: 'Fetching query and performance data for the first site.' },
+        { percent: 44, title: 'Processing query data', detail: 'Parsing search queries and click data.' },
+        { percent: 53, title: 'Computing trends', detail: 'Computing weekly and monthly trend comparisons.' },
+        { percent: 62, title: 'Writing records to the database', detail: 'Writing new query, trend, and summary rows to the database.' },
+        { percent: 71, title: 'Syncing alerts', detail: 'Updating related alerts from the new Search Console data.' },
+        { percent: 79, title: 'Preparing cards', detail: 'Rebuilding all on-screen cards with the new data.' },
+        { percent: 85, title: 'Validating latest data', detail: 'Validating all data and updating the cache.' },
       ],
-      pendingTitle: 'Sunucu yanıtı bekleniyor',
-      pendingDetail: 'API işlemleri devam ediyor, lütfen bekleyin.',
+      pendingTitle: 'Waiting for the server',
+      pendingDetail: 'API work is still running, please wait.',
     });
     progress.resetTone();
     if (trigger) {
       trigger.disabled = true;
-      trigger.textContent = 'Yenileniyor...';
+      trigger.textContent = 'Refreshing...';
     }
 
     fetch('/search-console/refresh-all', {
@@ -1135,12 +1135,12 @@
             try {
               return JSON.parse(text);
             } catch (e) {
-              throw new Error('Sunucu JSON yanıtı okunamadı.');
+              throw new Error('Could not read the server JSON response.');
             }
           }
           var detail = 'HTTP ' + response.status;
           if (response.status === 401) {
-            detail = 'Oturum yok veya süresi doldu. Sayfayı yenileyip tekrar deneyin.';
+            detail = 'No session or it expired. Refresh the page and try again.';
           }
           try {
             var j = JSON.parse(text);
@@ -1164,12 +1164,12 @@
         }
         if (!data || !data.ok) {
           var bad = new Error('invalid response');
-          bad.detail = (data && data.detail) || 'Geçersiz sunucu yanıtı.';
+          bad.detail = (data && data.detail) || 'Invalid server response.';
           throw bad;
         }
         progress.complete(
-          data.title || 'İşlem tamamlandı',
-          data.detail || 'Search Console toplu yenileme yanıtı alındı.'
+          data.title || 'Job complete',
+          data.detail || 'Received the Search Console bulk refresh response.'
         );
         reloadSearchConsolePage(450);
       })
@@ -1178,8 +1178,8 @@
         var d =
           (error && error.detail) ||
           (error && error.message) ||
-          'Toplu yenileme tamamlanamadı. Oturum, ağ veya sunucu yanıtını kontrol edin.';
-        progress.fail('Tüm siteler yenilenemedi', d);
+          'Bulk refresh did not finish. Check the session, network, or server response.';
+        progress.fail('Could not refresh all sites', d);
       })
       .finally(function () {
         if (trigger) {
@@ -1296,7 +1296,7 @@
           const previousCtr         = isDailyTrend ? [] : (trend.previous_ctr || []);
           const previousPosition    = isDailyTrend ? [] : (trend.previous_position || []);
 
-          const periodLabel = isDailyTrend ? '' : ' (dönem)';
+          const periodLabel = isDailyTrend ? '' : ' (period)';
           const lc = scTrendLineColors();
           var chartW = Math.max(320, element.clientWidth || 640);
 
@@ -1338,14 +1338,14 @@
               {
                 x: xValues, y: previousClicks,
                 type: 'scatter', mode: 'lines',
-                name: 'Clicks (önceki)',
+                name: 'Clicks (previous)',
                 line: { color: lc.clicks, width: 1.5, dash: 'dash' },
                 yaxis: 'y1',
               },
               {
                 x: xValues, y: previousImpressions,
                 type: 'scatter', mode: 'lines',
-                name: 'Impressions (önceki)',
+                name: 'Impressions (previous)',
                 visible: 'legendonly',
                 line: { color: lc.impressions, width: 1.5, dash: 'dash' },
                 yaxis: 'y3',
@@ -1353,7 +1353,7 @@
               {
                 x: xValues, y: previousCtr,
                 type: 'scatter', mode: 'lines',
-                name: 'CTR % (önceki)',
+                name: 'CTR % (previous)',
                 visible: 'legendonly',
                 line: { color: lc.ctr, width: 1.5, dash: 'dash' },
                 yaxis: 'y4',
@@ -1361,7 +1361,7 @@
               {
                 x: xValues, y: previousPosition,
                 type: 'scatter', mode: 'lines',
-                name: 'Position (önceki)',
+                name: 'Position (previous)',
                 line: { color: lc.position, width: 1.5, dash: 'dash' },
                 yaxis: 'y2',
               }
@@ -2116,7 +2116,7 @@
         return;
       }
       im.src = src;
-      im.alt = a.getAttribute('aria-label') || a.getAttribute('title') || 'CWV ekran görüntüsü';
+      im.alt = a.getAttribute('aria-label') || a.getAttribute('title') || 'CWV screenshot';
       if (typeof dlg.showModal === 'function') {
         dlg.showModal();
       } else {
@@ -2182,14 +2182,14 @@
     }
     if (preview) {
       if (!n) {
-        preview.textContent = 'Henüz dosya seçilmedi.';
+        preview.textContent = 'No file selected yet.';
       } else if (n === 1) {
         var name = input.files[0] && input.files[0].name ? input.files[0].name : '';
         preview.textContent = name
-          ? '1 dosya seçildi (' + name + ') — Kaydet ile yüklenir.'
-          : '1 dosya seçildi — Kaydet ile yüklenir.';
+          ? '1 file selected (' + name + ') — click Save to upload.'
+          : '1 file selected — click Save to upload.';
       } else {
-        preview.textContent = n + ' dosya seçildi — Kaydet ile yüklenir.';
+        preview.textContent = n + ' files selected — click Save to upload.';
       }
     }
   }
@@ -2236,7 +2236,7 @@
         gscCwvSyncFileInput(input);
         if (!input || !input.files || input.files.length === 0) {
           if (errEl) {
-            errEl.textContent = 'Önce en az bir görsel seçin (Göz at…).';
+            errEl.textContent = 'Select at least one image first (Browse…).';
             errEl.classList.remove('hidden');
           }
           return;
@@ -2249,7 +2249,7 @@
         saveBtn.classList.add('opacity-45');
         saveBtn.setAttribute('aria-busy', 'true');
         var prevLabel = saveBtn.textContent;
-        saveBtn.textContent = 'Kaydediliyor…';
+        saveBtn.textContent = 'Saving…';
         if (wrap) {
           wrap.classList.remove('hidden');
         }
@@ -2283,14 +2283,14 @@
             gscCwvSyncFileInput(input);
             var preview = box ? box.querySelector('[data-gsc-upload-preview="' + siteId + '"]') : null;
             if (preview) {
-              preview.textContent = 'Yüklendi. Yeni görsel için tekrar dosya seçip Kaydet deyin.';
+              preview.textContent = 'Uploaded. Pick files again and click Save for new images.';
             }
             gscCwvReplaceSiteCard(siteId, xhr.responseText);
           } else if (errEl) {
             saveBtn.classList.remove('opacity-45');
             saveBtn.setAttribute('data-gsc-save-ready', '1');
             var msg = (xhr.responseText || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-            errEl.textContent = msg.slice(0, 500) || ('Kaydet başarısız (HTTP ' + xhr.status + ')');
+            errEl.textContent = msg.slice(0, 500) || ('Save failed (HTTP ' + xhr.status + ')');
             errEl.classList.remove('hidden');
           }
         };
@@ -2306,7 +2306,7 @@
           saveBtn.removeAttribute('aria-busy');
           saveBtn.textContent = prevLabel;
           if (errEl) {
-            errEl.textContent = 'Ağ hatası; bağlantıyı kontrol edin.';
+            errEl.textContent = 'Network error; check the connection.';
             errEl.classList.remove('hidden');
           }
         };
@@ -2320,7 +2320,7 @@
         e.stopPropagation();
         var sid = delBtn.getAttribute('data-gsc-cwv-delete');
         var variant = delBtn.getAttribute('data-gsc-cwv-variant') || 'full';
-        if (!sid || !window.confirm('Bu görseli kaldırmak istiyor musunuz?')) {
+        if (!sid || !window.confirm('Remove this image?')) {
           return;
         }
         delBtn.disabled = true;
@@ -2342,7 +2342,7 @@
           })
           .catch(function (err) {
             delBtn.disabled = false;
-            window.alert(err && err.message ? err.message : 'Silinemedi.');
+            window.alert(err && err.message ? err.message : 'Could not delete.');
           });
       }
     });
@@ -2378,22 +2378,22 @@
         const original = button ? button.textContent : '';
         const siteDomain = form.dataset.siteDomain || 'site';
         const progress = createSearchConsoleProgressController({
-          title: siteDomain + ' için Search Console yenileniyor',
-          detail: 'Google Search Console API üzerinden yeni veri çekiliyor.',
+          title: 'Refreshing Search Console for ' + siteDomain,
+          detail: 'Fetching new data from the Google Search Console API.',
           steps: [
-            { percent: 16, title: 'Bağlantı hazırlanıyor', detail: siteDomain + ' için OAuth ve property bilgisi doğrulanıyor.' },
-            { percent: 37, title: 'API verisi çekiliyor', detail: siteDomain + ' için Search Console özet ve query verisi alınıyor.' },
-            { percent: 59, title: 'Kayıt yazılıyor', detail: 'Yeni query, trend ve özet satırları kaydediliyor.' },
-            { percent: 79, title: 'Alert senkronu güncelleniyor', detail: 'Bu siteye ait Search Console uyarı verileri yeniden hesaplanıyor.' },
-            { percent: 93, title: 'Kart yenileniyor', detail: 'Kart yeni verilerle tekrar oluşturuluyor.' },
+            { percent: 16, title: 'Preparing connection', detail: 'Verifying OAuth and property info for ' + siteDomain + '.' },
+            { percent: 37, title: 'Fetching API data', detail: 'Fetching Search Console summary and query data for ' + siteDomain + '.' },
+            { percent: 59, title: 'Writing records', detail: 'Saving new query, trend, and summary rows.' },
+            { percent: 79, title: 'Updating alert sync', detail: 'Recalculating Search Console alerts for this site.' },
+            { percent: 93, title: 'Refreshing card', detail: 'Rebuilding the card with the new data.' },
           ],
-          pendingTitle: siteDomain + ' için son adımlar tamamlanıyor',
-          pendingDetail: 'Yanıt bekleniyor; kart güncellemesi tamamlanmak üzere.',
+          pendingTitle: 'Finishing last steps for ' + siteDomain,
+          pendingDetail: 'Waiting for the response; the card update is almost done.',
         });
         progress.resetTone();
         if (button) {
           button.disabled = true;
-          button.textContent = 'Yenileniyor...';
+          button.textContent = 'Refreshing...';
         }
 
         fetch(form.action, {
@@ -2408,7 +2408,7 @@
               }
               var detail = 'HTTP ' + response.status;
               if (response.status === 401) {
-                detail = 'Oturum yok veya süresi doldu. Sayfayı yenileyip (gerekirse) admin girişi yapın.';
+                detail = 'No session or it expired. Refresh the page and sign in as admin if needed.';
               }
               try {
                 var j = JSON.parse(text);
@@ -2426,7 +2426,7 @@
             });
           })
           .then(function () {
-            progress.complete(siteDomain + ' güncellendi', 'Search Console kartı yeni verilerle yenilendi.');
+            progress.complete(siteDomain + ' updated', 'Search Console card refreshed with new data.');
             reloadSearchConsolePage(450);
           })
           .catch(function (error) {
@@ -2434,8 +2434,8 @@
             var d =
               (error && error.detail) ||
               (error && error.message) ||
-              'İstek tamamlanamadı. Ağ, oturum veya sunucu loglarını kontrol edin.';
-            progress.fail(siteDomain + ' yenilenemedi', d);
+              'Request could not complete. Check the network, session, or server logs.';
+            progress.fail('Could not refresh ' + siteDomain, d);
           })
           .finally(function () {
             if (button) {
@@ -2606,7 +2606,7 @@
       return;
     }
     root.innerHTML =
-      '<p class="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400" data-sc-empty>Bu görünümde hiçbir sitede veri bulunamadı.</p>';
+      '<p class="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400" data-sc-empty>No data for any site in this view.</p>';
     scExtrasSyncSectionVisibility(root);
   }
   window.scExtrasSyncEmptyRoot = scExtrasSyncEmptyRoot;

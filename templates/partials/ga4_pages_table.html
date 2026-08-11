@@ -24,7 +24,7 @@
 {% set _sc_pos_supported = sc_position_period_supported | default(false) %}
 <div class="rounded-2xl border border-slate-200 dark:border-slate-700 w-full min-w-0 max-w-full">
   <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">{{ _table_heading }}</p>
-  <p class="px-2 pt-1.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:hidden">Sütunlar için tabloyu yatay kaydırın.</p>
+  <p class="px-2 pt-1.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:hidden">Scroll the table horizontally for columns.</p>
   <div class="ga4-table-scroll w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
     <table
       class="w-full min-w-0 table-fixed text-[10px] sm:text-xs"
@@ -73,13 +73,13 @@
             </button>
           </th>
           <th scope="col" class="px-1 py-1.5 text-right align-top sm:px-2 sm:py-2">
-            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="scPositionCurrent" data-sort-type="number" title="Search Console — seçili dönem ortalama pozisyon">
+            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="scPositionCurrent" data-sort-type="number" title="Search Console — average position for the selected period">
               <span>Position</span>
               <span class="text-[9px] font-normal tabular-nums opacity-90 sm:text-[10px]">{{ last_l }}</span>
             </button>
           </th>
           <th scope="col" class="px-1 py-1.5 text-right align-top sm:px-2 sm:py-2">
-            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="scPositionDiff" data-sort-type="number" title="Search Console — Position Change (aynı dönem karşılaştırması)">
+            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="scPositionDiff" data-sort-type="number" title="Search Console — Position Change (same-period comparison)">
               <span>Position</span>
               <span class="text-[9px] font-normal opacity-90 sm:text-[10px]">SC Change</span>
             </button>
@@ -116,18 +116,18 @@
               {% if row.sc_position_current is not none %}
                 {{ "{:.2f}".format(row.sc_position_current) }}
               {% elif not _sc_pos_supported %}
-                <span class="text-slate-400 dark:text-slate-500" title="Search Console page karşılaştırması yalnızca 1g / 7g / 30g / 60g / 90g için">—</span>
+                <span class="text-slate-400 dark:text-slate-500" title="Search Console page comparison is only available for 1d / 7d / 30d / 60d / 90d">—</span>
               {% else %}
-                <span class="text-slate-400 dark:text-slate-500" title="Bu URL için Search Console page verisi yok">—</span>
+                <span class="text-slate-400 dark:text-slate-500" title="No Search Console page data for this URL">—</span>
               {% endif %}
             </td>
             <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums font-semibold sm:px-2 sm:py-2 {% if row.sc_position_diff is not none %}{% if row.sc_position_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.sc_position_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %}{% else %}text-slate-400 dark:text-slate-500{% endif %}">
               {% if row.sc_position_diff is not none %}
                 {{ "{:+.2f}".format(row.sc_position_diff) }}
               {% elif not _sc_pos_supported %}
-                <span class="font-normal" title="Search Console page karşılaştırması yalnızca 1g / 7g / 30g / 60g / 90g için">—</span>
+                <span class="font-normal" title="Search Console page comparison is only available for 1d / 7d / 30d / 60d / 90d">—</span>
               {% else %}
-                <span class="font-normal" title="Bu URL için Search Console page verisi yok">—</span>
+                <span class="font-normal" title="No Search Console page data for this URL">—</span>
               {% endif %}
             </td>
           </tr>

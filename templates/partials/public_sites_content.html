@@ -1,7 +1,7 @@
 <div
   id="public-sites-view"
   class="space-y-6"
-  data-header-title="External Siteler"
+  data-header-title="External Sites"
   data-header-explorer-href="/external"
 >
   <section
@@ -10,9 +10,9 @@
     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div class="min-w-0 flex-1">
         <p class="text-xs font-semibold uppercase tracking-[0.24em] text-orange-700/80 dark:text-orange-400/90">External Zone</p>
-        <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100">External Siteler</h3>
+        <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100">External Sites</h3>
         <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
-          Search Console yetkisi olmayan domainler için PageSpeed, Crawler ve CrUX katmanları buradan yönetilir.
+          PageSpeed, Crawler, and CrUX layers for domains without Search Console access are managed here.
         </p>
       </div>
       <button
@@ -21,7 +21,7 @@
         class="w-full shrink-0 rounded-full bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-500 dark:bg-orange-700 dark:hover:bg-orange-600 sm:w-auto"
         onclick="refreshAllPublicSites(this)"
       >
-        Tüm External Siteleri Yenile
+        Refresh All External Sites
       </button>
     </div>
   </section>
@@ -30,15 +30,15 @@
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">External Onboarding</p>
-        <h4 class="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">Domain veya URL Ekle</h4>
-        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Girilen domain/url otomatik normalize edilir ve ilk PageSpeed, Crawler, CrUX verileri hemen çekilir.</p>
+        <h4 class="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">Add domain or URL</h4>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">The domain/URL is normalized automatically and the first PageSpeed, Crawler, and CrUX data is fetched immediately.</p>
       </div>
       <form id="external-site-form" class="grid w-full gap-3 lg:max-w-3xl lg:grid-cols-[2fr_1.2fr_auto]" onsubmit="submitExternalSite(event)">
         <input
           type="text"
           id="external-domain-input"
           name="domain"
-          placeholder="ornek.com veya https://ornek.com/urun"
+          placeholder="example.com or https://example.com/path"
           class="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
           required
         />
@@ -46,7 +46,7 @@
           type="text"
           id="external-display-name-input"
           name="display_name"
-          placeholder="Gorunen ad (opsiyonel)"
+          placeholder="Display name (optional)"
           class="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
         />
         <button
@@ -54,7 +54,7 @@
           id="external-site-submit"
           class="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
         >
-          Ekle ve Cek
+          Add and fetch
         </button>
       </form>
     </div>
@@ -63,8 +63,8 @@
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600 dark:text-sky-400">External Progress</p>
-          <p id="external-onboarding-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-50">Hazırlanıyor</p>
-          <p id="external-onboarding-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Ölçüm adımları başlatılıyor.</p>
+          <p id="external-onboarding-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-50">Preparing</p>
+          <p id="external-onboarding-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">Starting measurement steps.</p>
         </div>
         <p id="external-onboarding-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-50">0%</p>
       </div>
@@ -108,7 +108,7 @@
     }
 
     panel.classList.remove('hidden');
-    title.textContent = step.title || 'Hazırlanıyor';
+    title.textContent = step.title || 'Preparing';
     detail.textContent = step.detail || '';
     var percentValue = Math.max(0, Math.min(100, Number(step.percent || 0)));
     percent.textContent = String(percentValue) + '%';
@@ -215,7 +215,7 @@
     if (!jobId) {
       if (submitButton) {
         submitButton.disabled = false;
-        submitButton.textContent = originalText || 'Ekle ve Cek';
+        submitButton.textContent = originalText || 'Add and fetch';
       }
       return;
     }
@@ -223,8 +223,8 @@
     setExternalOnboardingTone(false);
     renderExternalOnboardingProgress({
       percent: 6,
-      title: 'External onboarding başladı',
-      detail: 'Canlı durum güncelleniyor...'
+      title: 'External onboarding started',
+      detail: 'Updating live status...'
     });
 
     var pollTimer = null;
@@ -235,7 +235,7 @@
         var response = await fetch('/external/jobs/' + encodeURIComponent(jobId), { cache: 'no-store' });
         var payload = await response.json();
         if (!response.ok || !payload.ok) {
-          throw new Error((payload && payload.error) || 'Job durumu okunamadi.');
+          throw new Error((payload && payload.error) || 'Could not read job status.');
         }
 
         setExternalOnboardingTone(payload.status === 'failed');
@@ -262,13 +262,13 @@
             swap: 'innerHTML'
           });
           if (payload.status === 'failed') {
-            setExternalFeedback(payload.detail || 'External onboarding kismen hata ile bitti.', true);
+            setExternalFeedback(payload.detail || 'External onboarding finished with partial errors.', true);
           } else {
-            setExternalFeedback(payload.detail || 'External onboarding tamamlandi.', false);
+            setExternalFeedback(payload.detail || 'External onboarding finished.', false);
           }
           if (submitButton) {
             submitButton.disabled = false;
-            submitButton.textContent = originalText || 'Ekle ve Cek';
+            submitButton.textContent = originalText || 'Add and fetch';
           }
           closeExternalOnboardingProgress(1500);
         }
@@ -279,13 +279,13 @@
         setExternalOnboardingTone(true);
         renderExternalOnboardingProgress({
           percent: 100,
-          title: 'Onboarding durumu okunamadi',
-          detail: 'Arka plan durumu alinamadigi icin izleme durduruldu.'
+          title: 'Could not read onboarding status',
+          detail: 'Stopped watching because background status could not be read.'
         });
-        setExternalFeedback('Onboarding durumu okunamadi. Sayfayi yenileyin.', true);
+        setExternalFeedback('Could not read onboarding status. Reload the page.', true);
         if (submitButton) {
           submitButton.disabled = false;
-          submitButton.textContent = originalText || 'Ekle ve Cek';
+          submitButton.textContent = originalText || 'Add and fetch';
         }
         closeExternalOnboardingProgress(1800);
       }
@@ -324,7 +324,7 @@
       try {
         payload = await response.json();
       } catch (_parseError) {
-        payload = { ok: false, error: 'Sunucu geçersiz cevap döndürdü.' };
+        payload = { ok: false, error: 'The server returned an invalid response.' };
       }
       if (!response.ok || !payload.ok) {
         setExternalFeedback((payload && payload.error) || 'External site eklenemedi.', true);
@@ -340,7 +340,7 @@
     } catch (error) {
       setExternalFeedback('Istek sirasinda bir hata olustu.', true);
       submitButton.disabled = false;
-      submitButton.textContent = originalText || 'Ekle ve Cek';
+      submitButton.textContent = originalText || 'Add and fetch';
     }
   }
 
@@ -348,7 +348,7 @@
     if (button) {
       button.disabled = true;
       button.dataset.originalText = button.textContent;
-      button.textContent = 'Kuyruğa alınıyor...';
+      button.textContent = 'Queuing...';
     }
 
     fetch('/external/refresh-all?format=json', {
@@ -359,7 +359,7 @@
       .then(function (response) {
         return response.json().then(function (payload) {
           if (!response.ok || !payload.ok) {
-            throw new Error((payload && payload.error) || 'Yenileme başlatılamadı.');
+            throw new Error((payload && payload.error) || 'Could not start refresh.');
           }
           return payload;
         });
@@ -378,16 +378,16 @@
         }
         if (button) {
           button.disabled = false;
-          button.textContent = button.dataset.originalText || 'Tüm External Siteleri Yenile';
+          button.textContent = button.dataset.originalText || 'Refresh All External Sites';
         }
       })
       .catch(function () {
-        setExternalFeedback('Toplu yenileme başlatılamadı.', true);
+        setExternalFeedback('Could not start bulk refresh.', true);
         if (!button) {
           return;
         }
         button.disabled = false;
-        button.textContent = button.dataset.originalText || 'Tüm External Siteleri Yenile';
+        button.textContent = button.dataset.originalText || 'Refresh All External Sites';
       });
   }
 </script>

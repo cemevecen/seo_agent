@@ -1,28 +1,28 @@
 {% if days | int == 1 %}
-  {% set last_l = 'Son gün' %}
+  {% set last_l = 'Last day' %}
 {% elif days | int == 7 %}
-  {% set last_l = 'Son 7 gün' %}
+  {% set last_l = 'Last 7 days' %}
 {% elif days | int == 30 %}
-  {% set last_l = 'Son 30 gün' %}
+  {% set last_l = 'Last 30 days' %}
 {% elif days | int == 60 %}
-  {% set last_l = 'Son 60 gün' %}
+  {% set last_l = 'Last 60 days' %}
 {% elif days | int == 90 %}
-  {% set last_l = 'Son 90 gün' %}
+  {% set last_l = 'Last 90 days' %}
 {% elif days | int >= 300 %}
-  {% set last_l = 'Son 12 ay' %}
+  {% set last_l = 'Last 12 months' %}
 {% else %}
-  {% set last_l = 'Son ' ~ (days | int) ~ ' gün' %}
+  {% set last_l = 'Last ' ~ (days | int) ~ ' days' %}
 {% endif %}
 
 <div class="w-full min-w-0 max-w-full space-y-4">
   <div class="rounded-xl border border-indigo-200 bg-indigo-50/60 px-2 py-2 text-xs text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200 sm:px-3">
     <p class="font-semibold leading-snug">{{ detail_title }}</p>
-    <p class="mt-0.5 text-[10px] leading-snug opacity-90 sm:text-[11px]">Event: <code class="font-mono">{{ event_name }}</code> · GA4 customEvent parametreleri · {{ last_l }} · URL indeksi: web/mweb son 90 gün (en çok görüntülenen haberler)</p>
+    <p class="mt-0.5 text-[10px] leading-snug opacity-90 sm:text-[11px]">Event: <code class="font-mono">{{ event_name }}</code> · GA4 customEvent parameters · {{ last_l }} · URL index: web/mweb last 90 days (most-viewed news)</p>
   </div>
 
   {% if not sections %}
     <p class="rounded-2xl border border-slate-200 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-      Bu profil için event detay yapılandırması yok.
+      No event-detail configuration for this profile.
     </p>
   {% endif %}
 
@@ -39,12 +39,12 @@
 
       {% if section.error %}
         <p class="px-3 py-4 text-xs text-amber-800 dark:text-amber-300">
-          Veri alınamadı: {{ section.error }}
+          Could not fetch data: {{ section.error }}
         </p>
       {% elif not section.rows %}
-        <p class="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">Satır yok veya parametre GA4’te tanımlı değil.</p>
+        <p class="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">No rows, or the parameter is not defined in GA4.</p>
       {% else %}
-        <p class="px-2 pt-1.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:hidden">Sütunlar için tabloyu yatay kaydırın.</p>
+        <p class="px-2 pt-1.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:hidden">Scroll the table horizontally for columns.</p>
         <div class="ga4-table-scroll w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
           <table class="w-full min-w-[18rem] table-fixed text-[10px] sm:text-xs" data-ga4-table data-ga4-metric-table data-ga4-breakdown-table data-ga4-app-event-table>
             <colgroup>
@@ -55,8 +55,8 @@
               <tr>
                 <th scope="col" class="sticky left-0 z-[1] bg-slate-50 px-1 py-1.5 text-left align-top font-semibold shadow-[4px_0_12px_-6px_rgba(15,23,42,0.25)] dark:bg-slate-900/50 sm:px-2 sm:py-2">
                   <span class="flex flex-col items-start gap-0.5 text-left leading-tight">
-                    <span>Sayfa</span>
-                    <span class="text-[9px] font-normal text-slate-500 dark:text-slate-400 sm:text-[10px]">URL / parametre</span>
+                    <span>Page</span>
+                    <span class="text-[9px] font-normal text-slate-500 dark:text-slate-400 sm:text-[10px]">URL / parameter</span>
                   </span>
                 </th>
                 <th scope="col" class="whitespace-nowrap px-1 py-1.5 text-right align-top font-semibold sm:px-2 sm:py-2">Event</th>

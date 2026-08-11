@@ -1,24 +1,24 @@
 <div class="space-y-6" data-site-domain="{{ domain }}" data-site-id="{{ site_id }}" data-site-profile="public" data-site-title="{{ site_name|e }}">
   {% set backlinks_href = backlinks_href | default('/backlinks') %}
   {% set ps_lab_benchmarks = {
-    'fcp': 'ideal: ≤1,8sn · hedef ≤3sn',
-    'lcp': 'ideal: ≤2,5sn · hedef ≤4sn',
-    'tbt': 'ideal: ≤200ms · hedef ≤600ms',
-    'cls': 'ideal: ≤0,10 · hedef ≤0,25',
-    'speed_index': 'ideal: ≤3,4sn · hedef ≤5,8sn',
+    'fcp': 'ideal: ≤1.8s · target ≤3s',
+    'lcp': 'ideal: ≤2.5s · target ≤4s',
+    'tbt': 'ideal: ≤200ms · target ≤600ms',
+    'cls': 'ideal: ≤0.10 · target ≤0.25',
+    'speed_index': 'ideal: ≤3.4s · target ≤5.8s',
   } %}
-  {% set ps_category_benchmark_tr = 'ideal ≥90 · hedef 50–89 · zayıf <50' %}
+  {% set ps_category_benchmark_tr = 'ideal ≥90 · target 50–89 · poor <50' %}
   <section class="rounded-[2rem] border border-cyan-200 bg-[linear-gradient(125deg,rgba(236,254,255,0.95),rgba(255,255,255,0.98)_48%,rgba(254,242,242,0.86))] p-6 shadow-[0_28px_70px_-46px_rgba(8,145,178,0.55)] ring-1 ring-white/70">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700/80" lang="en">External Explorer</p>
         <h2 class="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">{{ display_name }}</h2>
         <p class="mt-2 break-all text-sm text-slate-600 dark:text-slate-300">{{ domain }}</p>
-        <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">Search Console durumu: <span class="font-semibold text-slate-900 dark:text-slate-100">{{ search_console_label }}</span></p>
+        <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">Search Console status: <span class="font-semibold text-slate-900 dark:text-slate-100">{{ search_console_label }}</span></p>
         <p class="mt-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
-          PSI / Lighthouse skorları — Son güncelleme: <span class="font-medium text-slate-700 dark:text-slate-300">{{ psi_lighthouse_last_updated|e }}</span>
+          PSI / Lighthouse scores — Last updated: <span class="font-medium text-slate-700 dark:text-slate-300">{{ psi_lighthouse_last_updated|e }}</span>
           <span class="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
-          CrUX geçmişi — Son güncelleme: <span class="font-medium text-slate-700 dark:text-slate-300">{{ crux_history_last_updated|e }}</span>
+          CrUX history — Last updated: <span class="font-medium text-slate-700 dark:text-slate-300">{{ crux_history_last_updated|e }}</span>
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -35,9 +35,9 @@
           id="public-explorer-refresh"
           class="rounded-full bg-cyan-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-600"
           onclick="refreshPublicExplorer('{{ domain }}', this)"
-          title="PageSpeed (mobil+masaüstü), geniş crawler taraması ve CrUX geçmişi"
+          title="PageSpeed (mobile+desktop), deep crawler scan, and CrUX history"
         >
-          Derin yenileme
+          Deep refresh
         </button>
       </div>
     </div>
@@ -45,21 +45,21 @@
 
   {% if not is_public_only %}
     <div class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
-      Bu domain Search Console bağlantısına sahip. External Explorer sadece izin gerektirmeyen katmanları gösterir.
+      This domain has a Search Console connection. External Explorer only shows layers that do not need access.
     </div>
   {% endif %}
 
   {% set alerts = site_alerts if site_alerts is defined else {'total': 0, 'items': [], 'breakdown': {'rose': 0, 'amber': 0, 'sky': 0, 'emerald': 0, 'other': 0}} %}
   {% set cla = crawler_link_audit %}
 
-  <div class="flex flex-wrap gap-2" data-public-explorer-tabs role="tablist" aria-label="External explorer sekmeleri">
-    <button type="button" role="tab" class="public-explorer-tab rounded-full bg-cyan-800 px-4 py-2 text-sm font-semibold text-white" data-public-explorer-tab="overview" data-active="true">Özet</button>
+  <div class="flex flex-wrap gap-2" data-public-explorer-tabs role="tablist" aria-label="External explorer tabs">
+    <button type="button" role="tab" class="public-explorer-tab rounded-full bg-cyan-800 px-4 py-2 text-sm font-semibold text-white" data-public-explorer-tab="overview" data-active="true">Summary</button>
     <button type="button" role="tab" class="public-explorer-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" data-public-explorer-tab="pagespeed">PageSpeed</button>
     <button type="button" role="tab" class="public-explorer-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" data-public-explorer-tab="crux">CrUX</button>
     <button type="button" role="tab" class="public-explorer-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" data-public-explorer-tab="crawler">Crawler</button>
     <button type="button" role="tab" class="public-explorer-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" data-public-explorer-tab="keywords">Keywords</button>
-    <button type="button" role="tab" class="public-explorer-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" data-public-explorer-tab="alerts">Uyarılar ({{ alerts.total }})</button>
-    <button type="button" role="tab" class="public-explorer-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" data-public-explorer-tab="data">Veri &amp; limitler</button>
+    <button type="button" role="tab" class="public-explorer-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" data-public-explorer-tab="alerts">Alerts ({{ alerts.total }})</button>
+    <button type="button" role="tab" class="public-explorer-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" data-public-explorer-tab="data">Data &amp; limits</button>
   </div>
 
   <div data-public-explorer-panel="overview" class="space-y-6">
@@ -73,31 +73,31 @@
       <p class="mt-3 text-4xl font-black tracking-tight {% if pagespeed_desktop is not none %}text-slate-900 dark:text-slate-100{% else %}text-slate-400{% endif %}">{{ pagespeed_desktop if pagespeed_desktop is not none else 'N/A' }}</p>
     </article>
     <article class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
-      <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Crawler Kırık Link</p>
+      <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Crawler broken links</p>
       <p class="mt-3 text-4xl font-black tracking-tight {% if crawler_broken_links > 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">{{ crawler_broken_links }}</p>
     </article>
     <article class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
-      <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Redirect Zinciri</p>
+      <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Redirect chain</p>
       <p class="mt-3 text-4xl font-black tracking-tight {% if crawler_redirect_chains > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ crawler_redirect_chains }}</p>
     </article>
   </section>
 
   <section class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
-    <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Elimizdeki veri kaynakları (external)</h3>
-    <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">doviz.com gibi iç sitelerde GA4 / Search Console / Realtime vardır; external kayıtlar OAuth olmadan aşağıdaki katmanlarla sınırlıdır.</p>
+    <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Available data sources (external)</h3>
+    <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Internal sites like doviz.com have GA4 / Search Console / Realtime; external records are limited to the layers below without OAuth.</p>
     <div class="mt-4 overflow-x-auto">
       <table class="min-w-full text-left text-sm">
         <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300">
-          <tr><th class="px-3 py-2">Katman</th><th class="px-3 py-2">External</th><th class="px-3 py-2">Not</th></tr>
+          <tr><th class="px-3 py-2">Layer</th><th class="px-3 py-2">External</th><th class="px-3 py-2">Note</th></tr>
         </thead>
         <tbody class="text-slate-700 dark:text-slate-200">
-          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">PageSpeed + Lighthouse</td><td class="px-3 py-2 text-emerald-700">Var</td><td class="px-3 py-2 text-xs">PSI API, mobil + masaüstü</td></tr>
-          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">CrUX (28g alan verisi)</td><td class="px-3 py-2 text-emerald-700">Var</td><td class="px-3 py-2 text-xs">Chrome UX Report API</td></tr>
-          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">Crawler (robots, sitemap, link)</td><td class="px-3 py-2 text-emerald-700">Var</td><td class="px-3 py-2 text-xs">Derin yenileme ile geniş tarama</td></tr>
-          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">Keyword fallback</td><td class="px-3 py-2 text-amber-700">Kısmi</td><td class="px-3 py-2 text-xs">URL/path tokenları; SC sorgusu değil</td></tr>
-          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">Backlinks</td><td class="px-3 py-2 text-amber-700">Manuel</td><td class="px-3 py-2 text-xs">GSC CSV import — <a href="{{ backlinks_href }}" class="text-sky-600 underline">Backlinks</a></td></tr>
-          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">Search Console / GA4</td><td class="px-3 py-2 text-rose-600">Yok</td><td class="px-3 py-2 text-xs">Property OAuth gerekir</td></tr>
-          <tr><td class="px-3 py-2 font-medium">URL Inspection, Realtime, Karma</td><td class="px-3 py-2 text-rose-600">Yok</td><td class="px-3 py-2 text-xs">İç site menüsünde</td></tr>
+          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">PageSpeed + Lighthouse</td><td class="px-3 py-2 text-emerald-700">Yes</td><td class="px-3 py-2 text-xs">PSI API, mobile + desktop</td></tr>
+          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">CrUX (28g alan verisi)</td><td class="px-3 py-2 text-emerald-700">Yes</td><td class="px-3 py-2 text-xs">Chrome UX Report API</td></tr>
+          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">Crawler (robots, sitemap, link)</td><td class="px-3 py-2 text-emerald-700">Yes</td><td class="px-3 py-2 text-xs">Deep refresh runs a wide crawl</td></tr>
+          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">Keyword fallback</td><td class="px-3 py-2 text-amber-700">Partial</td><td class="px-3 py-2 text-xs">URL/path tokens; not SC queries</td></tr>
+          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">Backlinks</td><td class="px-3 py-2 text-amber-700">Manual</td><td class="px-3 py-2 text-xs">GSC CSV import — <a href="{{ backlinks_href }}" class="text-sky-600 underline">Backlinks</a></td></tr>
+          <tr class="border-b border-slate-100 dark:border-slate-800"><td class="px-3 py-2 font-medium">Search Console / GA4</td><td class="px-3 py-2 text-rose-600">No</td><td class="px-3 py-2 text-xs">Needs property OAuth</td></tr>
+          <tr><td class="px-3 py-2 font-medium">URL Inspection, Realtime, Karma</td><td class="px-3 py-2 text-rose-600">No</td><td class="px-3 py-2 text-xs">On the internal site menu</td></tr>
         </tbody>
       </table>
     </div>
@@ -113,7 +113,7 @@
       </span>
     </div>
     <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
-      Query bazlı Search Console verisi yoksa bu alan crawler URL/path/query sinyallerinden anahtar kelime fallback üretir. Boş kalmaması için domain fallback de uygulanır.
+      If there is no query-level Search Console data, this area builds a keyword fallback from crawler URL/path/query signals. A domain fallback is also applied so it is not empty.
     </p>
     {% if keyword_insights.note %}
       <p class="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">{{ keyword_insights.note }}</p>
@@ -123,9 +123,9 @@
         <article class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-base font-bold text-slate-900 dark:text-slate-100">{{ item.keyword }}</p>
-            <span class="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white">Skor {{ item.score }}</span>
+            <span class="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white">Score {{ item.score }}</span>
           </div>
-          <p class="mt-2 text-xs text-slate-600 dark:text-slate-300">{{ item.source_count }} farklı URL sinyalinde geçti</p>
+          <p class="mt-2 text-xs text-slate-600 dark:text-slate-300">{{ item.source_count }} distinct URL signals</p>
           {% if item.sample_sources %}
             <div class="mt-2 space-y-1">
               {% for sample_url in item.sample_sources %}
@@ -136,7 +136,7 @@
         </article>
       {% else %}
         <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 md:col-span-2 xl:col-span-3">
-          Henüz yeterli keyword sinyali üretilmedi. External veriyi yenileyip tekrar deneyin.
+          Not enough keyword signal yet. Refresh external data and try again.
         </div>
       {% endfor %}
     </div>
@@ -146,35 +146,35 @@
   <div data-public-explorer-panel="crawler" class="hidden space-y-6">
   <section class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
     <div class="flex items-center justify-between gap-3">
-      <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Crawler Teknik Kontroller</h3>
+      <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Crawler technical checks</h3>
       <span class="rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">{{ crawler_link_audit.audited_urls }} URL</span>
     </div>
     <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div class="rounded-xl border p-3 {% if crawler_robots %}border-emerald-200 bg-emerald-50{% else %}border-rose-200 bg-rose-50{% endif %}">
         <p class="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">robots.txt</p>
-        <p class="mt-2 text-sm font-semibold {% if crawler_robots %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ 'Erişilebilir' if crawler_robots else 'Eksik / Hata' }}</p>
+        <p class="mt-2 text-sm font-semibold {% if crawler_robots %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ 'Reachable' if crawler_robots else 'Missing / Error' }}</p>
       </div>
       <div class="rounded-xl border p-3 {% if crawler_sitemap %}border-emerald-200 bg-emerald-50{% else %}border-rose-200 bg-rose-50{% endif %}">
         <p class="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">sitemap.xml</p>
-        <p class="mt-2 text-sm font-semibold {% if crawler_sitemap %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ 'Erişilebilir' if crawler_sitemap else 'Eksik / Hata' }}</p>
+        <p class="mt-2 text-sm font-semibold {% if crawler_sitemap %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ 'Reachable' if crawler_sitemap else 'Missing / Error' }}</p>
       </div>
       <div class="rounded-xl border p-3 {% if crawler_schema %}border-emerald-200 bg-emerald-50{% else %}border-amber-200 bg-amber-50{% endif %}">
         <p class="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Schema</p>
-        <p class="mt-2 text-sm font-semibold {% if crawler_schema %}text-emerald-700{% else %}text-amber-700{% endif %}">{{ 'Bulundu' if crawler_schema else 'Bulunamadı' }}</p>
+        <p class="mt-2 text-sm font-semibold {% if crawler_schema %}text-emerald-700{% else %}text-amber-700{% endif %}">{{ 'Found' if crawler_schema else 'Not found' }}</p>
       </div>
       <div class="rounded-xl border p-3 {% if crawler_canonical %}border-emerald-200 bg-emerald-50{% else %}border-amber-200 bg-amber-50{% endif %}">
         <p class="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Canonical</p>
-        <p class="mt-2 text-sm font-semibold {% if crawler_canonical %}text-emerald-700{% else %}text-amber-700{% endif %}">{{ 'Bulundu' if crawler_canonical else 'Bulunamadı' }}</p>
+        <p class="mt-2 text-sm font-semibold {% if crawler_canonical %}text-emerald-700{% else %}text-amber-700{% endif %}">{{ 'Found' if crawler_canonical else 'Not found' }}</p>
       </div>
     </div>
-    <p class="mt-4 text-xs text-slate-500 dark:text-slate-400">Kaynak: {{ cla.source_strategy }} · {{ cla.source_pages }} sayfa · {{ cla.redirect_links }} yönlendirme (301: {{ cla.redirect_301_links }}, 302: {{ cla.redirect_302_links }})</p>
+    <p class="mt-4 text-xs text-slate-500 dark:text-slate-400">Source: {{ cla.source_strategy }} · {{ cla.source_pages }} pages · {{ cla.redirect_links }} redirects (301: {{ cla.redirect_301_links }}, 302: {{ cla.redirect_302_links }})</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
-    <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Kırık ve yönlendirme örnekleri</h3>
+    <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Broken and redirect examples</h3>
     <div class="mt-4 grid gap-4 xl:grid-cols-2">
       <div>
-        <p class="text-sm font-semibold text-rose-700">Kırık linkler ({{ cla.broken_links }})</p>
+        <p class="text-sm font-semibold text-rose-700">Broken links ({{ cla.broken_links }})</p>
         <ul class="mt-2 max-h-64 space-y-2 overflow-y-auto text-xs text-slate-600 dark:text-slate-300">
           {% for sample in cla.broken_samples %}
             <li class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-2">
@@ -182,7 +182,7 @@
               {% if sample.status_code %}<p class="mt-1">HTTP {{ sample.status_code }}</p>{% endif %}
             </li>
           {% else %}
-            <li class="text-slate-500">Örnek yok.</li>
+            <li class="text-slate-500">No examples.</li>
           {% endfor %}
         </ul>
       </div>
@@ -195,13 +195,13 @@
               {% if sample.final_url %}<p class="mt-1 text-slate-500">→ {{ sample.final_url }}</p>{% endif %}
             </li>
           {% else %}
-            <li class="text-slate-500">Örnek yok.</li>
+            <li class="text-slate-500">No examples.</li>
           {% endfor %}
         </ul>
       </div>
     </div>
     {% if cla.source_pages_sample %}
-      <p class="mt-4 text-sm font-semibold text-slate-800 dark:text-slate-100">Taranan kaynak sayfalar (örnek)</p>
+      <p class="mt-4 text-sm font-semibold text-slate-800 dark:text-slate-100">Crawled source pages (sample)</p>
       <ul class="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-300">
         {% for u in cla.source_pages_sample[:12] %}
           <li class="truncate">{{ u }}</li>
@@ -213,7 +213,7 @@
 
   <div data-public-explorer-panel="crux" class="hidden space-y-6">
   <section class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
-    <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">CrUX Özeti</h3>
+    <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">CrUX summary</h3>
     <div class="mt-4 overflow-x-auto">
       <table class="min-w-full text-left text-sm">
         <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300">
@@ -232,7 +232,7 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="3" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">CrUX verisi henüz hazır değil.</td>
+              <td colspan="3" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">CrUX data is not ready yet.</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -245,8 +245,8 @@
   <section class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">PageSpeed ve Lighthouse Detayları</h3>
-        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Bu alan son resmi PSI payload ve normalize Lighthouse audit kayıtlarından üretilir.</p>
+        <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">PageSpeed and Lighthouse details</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">This section is built from the latest official PSI payload and normalized Lighthouse audit records.</p>
       </div>
     </div>
     <div class="mt-4 grid gap-4 xl:grid-cols-2">
@@ -256,8 +256,8 @@
             <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ report.strategy_label }}</h4>
             <span class="rounded-full border px-2.5 py-1 text-[11px] font-semibold {{ report.cwv_badge_class }}">{{ report.cwv_label }}</span>
           </div>
-          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Rapor zamanı: {{ report.report_time }}</p>
-          <p class="mt-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">Hedef eşikleri: CWV (lab) ve Lighthouse; skorlar kategori puanı (iyi ≥90).</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Report time: {{ report.report_time }}</p>
+          <p class="mt-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">Target thresholds: CWV (lab) and Lighthouse; scores are category points (good ≥90).</p>
           <div class="mt-3 grid grid-cols-2 gap-2">
             {% for score in report.score_tiles %}
               <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5">
@@ -299,7 +299,7 @@
                           <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">{{ item.problem_en or item.problem }}</p>
                         {% endif %}
                         {% if item.display_value %}
-                          <p class="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Ölçüm: {{ item.display_value }}</p>
+                          <p class="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Measurement: {{ item.display_value }}</p>
                         {% endif %}
                       </div>
                     {% endfor %}
@@ -308,7 +308,7 @@
               </details>
             {% else %}
               <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
-                Bu strateji için normalize Lighthouse issue kaydı bulunamadı.
+                No normalized Lighthouse issue records for this strategy.
               </div>
             {% endfor %}
           </div>
@@ -320,8 +320,8 @@
 
   <div data-public-explorer-panel="alerts" class="hidden space-y-6">
   <section class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
-    <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Uyarılar</h3>
-    <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Çoğunlukla Search Console eşik alarmlarıdır; external sitede SC yoksa liste boş kalabilir.</p>
+    <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Alerts</h3>
+    <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Mostly Search Console threshold alerts; the list may be empty if the external site has no SC.</p>
     {% if alerts.items %}
       <div class="mt-4 max-h-[32rem] space-y-2 overflow-y-auto">
         {% for alert in alerts.items %}
@@ -333,14 +333,14 @@
         {% endfor %}
       </div>
     {% else %}
-      <p class="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">Kayıtlı uyarı yok.</p>
+      <p class="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">No saved alerts.</p>
     {% endif %}
   </section>
   </div>
 
   <div data-public-explorer-panel="data" class="hidden space-y-6">
   <section class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
-    <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Warehouse Kayıt Sayıları</h3>
+    <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Warehouse record counts</h3>
     <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3">
         <p class="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Collector Runs</p>
@@ -413,7 +413,7 @@
     if (button) {
       button.disabled = true;
       button.dataset.originalText = button.textContent;
-      button.textContent = 'Kuyruğa alınıyor...';
+      button.textContent = 'Queuing...';
     }
 
     fetch('/external/refresh/' + encodeURIComponent(siteId) + '?format=json', {
@@ -440,7 +440,7 @@
           return;
         }
         button.disabled = false;
-        button.textContent = button.dataset.originalText || 'Derin yenileme';
+        button.textContent = button.dataset.originalText || 'Deep refresh';
       });
   }
 
@@ -457,7 +457,7 @@
           })
           .then(function (payload) {
             if (!payload.ok) {
-              throw new Error(payload.error || 'Job okunamadı');
+              throw new Error(payload.error || 'Could not read job');
             }
             if (button && payload.title) {
               button.textContent = payload.title;

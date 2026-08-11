@@ -225,7 +225,7 @@
     {# ── Olay kayıtları: Başlık + Dönem + Filtre + Yenile ── #}
     <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
       <div class="flex min-w-0 flex-wrap items-center gap-3">
-        <h3 class="shrink-0 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Olay kayıtları</h3>
+        <h3 class="shrink-0 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Event log</h3>
         <div class="flex items-center gap-1 border-l border-slate-200 pl-3 dark:border-slate-700">
           <button type="button"
             class="alert-period-tab rounded-full px-3 py-1 text-xs font-semibold transition-colors"
@@ -238,13 +238,13 @@
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <select id="site-filter"
           class="rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-          <option value="">Tüm Siteler</option>
+          <option value="">All Sites</option>
           {% for site in sites %}
             <option value="{{ site.domain }}">{{ site.label }}</option>
           {% endfor %}
           {% if has_external_sites %}
             <option disabled>──────────</option>
-            <option value="__external__">External Siteler</option>
+            <option value="__external__">External Sites</option>
           {% endif %}
         </select>
       </div>
@@ -255,7 +255,7 @@
       <button type="button"
         class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
         data-alert-filter="all"
-        data-inactive-cls="bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">Tümü</button>
+        data-inactive-cls="bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">All</button>
       <button type="button"
         class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
         data-alert-filter="ctr"
@@ -263,7 +263,7 @@
       <button type="button"
         class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
         data-alert-filter="position"
-        data-inactive-cls="bg-sky-50 text-sky-700 dark:bg-sky-950/45 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/50">Pozisyon</button>
+        data-inactive-cls="bg-sky-50 text-sky-700 dark:bg-sky-950/45 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/50">Position</button>
       <button type="button"
         class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
         data-alert-filter="impression"
@@ -295,7 +295,7 @@
       <button type="button"
         class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
         data-alert-filter="broken_links"
-        data-inactive-cls="bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50">Kırık Link</button>
+        data-inactive-cls="bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50">Broken Link</button>
       <button type="button"
         class="alert-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
         data-alert-filter="redirect"
@@ -307,8 +307,8 @@
       class="hidden rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 via-white to-cyan-50/90 p-3 shadow-sm ring-1 ring-sky-200/70 dark:ring-zinc-700/70">
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0 flex-1">
-          <p id="alerts-progress-title" class="text-sm font-semibold text-slate-900 dark:text-slate-100">Hazırlanıyor</p>
-          <p id="alerts-progress-detail" class="mt-0.5 text-xs text-slate-600 dark:text-slate-300">Tüm siteler için Search Console alert verisi yeniden hesaplanacak.</p>
+          <p id="alerts-progress-title" class="text-sm font-semibold text-slate-900 dark:text-slate-100">Preparing</p>
+          <p id="alerts-progress-detail" class="mt-0.5 text-xs text-slate-600 dark:text-slate-300">Search Console alert data will be recomputed for all sites.</p>
         </div>
         <p id="alerts-progress-percent" class="shrink-0 text-lg font-bold tabular-nums tracking-tight text-slate-800 dark:text-slate-100">0%</p>
       </div>
@@ -329,15 +329,36 @@
           {% set _cat_map = {
             'CTR': 'ctr',
             'Impression': 'impression',
+            'Position': 'position',
             'Pozisyon': 'position',
             'Schema markup bulunamadı': 'schema',
+            'Schema markup not found': 'schema',
             'sitemap.xml bulunamadı': 'sitemap',
+            'sitemap.xml not found': 'sitemap',
             'Mobile PageSpeed düşük': 'ps_mobile',
+            'Mobile PageSpeed low': 'ps_mobile',
             'Desktop PageSpeed düşük': 'ps_desktop',
+            'Desktop PageSpeed low': 'ps_desktop',
             'robots.txt erişilemiyor': 'robots',
+            'robots.txt unreachable': 'robots',
             'Canonical etiketi bulunamadı': 'canonical',
+            'Canonical tag not found': 'canonical',
             'Kırık iç link sayısı yüksek': 'broken_links',
+            'High broken internal link count': 'broken_links',
             'Redirect zinciri sayısı yüksek': 'redirect',
+            'High redirect chain count': 'redirect',
+          } %}
+          {% set _metric_label = {
+            'Pozisyon': 'Position',
+            'Schema markup bulunamadı': 'Schema markup not found',
+            'sitemap.xml bulunamadı': 'sitemap.xml not found',
+            'Mobile PageSpeed düşük': 'Mobile PageSpeed low',
+            'Desktop PageSpeed düşük': 'Desktop PageSpeed low',
+            'robots.txt erişilemiyor': 'robots.txt unreachable',
+            'Canonical etiketi bulunamadı': 'Canonical tag not found',
+            'Kırık iç link sayısı yüksek': 'High broken internal link count',
+            'Redirect zinciri sayısı yüksek': 'High redirect chain count',
+            'Genel': 'General',
           } %}
           {% set cat = _cat_map.get(alert.metric_type, 'other') %}
           {% set domain_key = (alert.domain or '')|lower %}
@@ -376,8 +397,8 @@
                   {% elif cat == 'broken_links' %}bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300
                   {% elif cat == 'redirect' %}bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300
                   {% else %}bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300{% endif %}"
-                  title="{{ alert.metric_type if alert.metric_type else 'Diğer' }}">
-                  {{ alert.metric_type if alert.metric_type else 'Diğer' }}
+                  title="{{ _metric_label.get(alert.metric_type, alert.metric_type) if alert.metric_type else 'Other' }}">
+                  {{ _metric_label.get(alert.metric_type, alert.metric_type) if alert.metric_type else 'Other' }}
                 </span>
               </div>
 
@@ -395,13 +416,13 @@
                   <span class="hidden text-[10px] font-medium text-slate-400 sm:block dark:text-slate-500">{{ alert.domain }}</span>
                   <span class="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">{{ alert.triggered_at }}</span>
                   {% if alert.sent_mail %}
-                    <span class="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400" title="Mail gönderildi">✓</span>
+                    <span class="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400" title="Mail sent">✓</span>
                   {% else %}
-                    <span class="text-[10px] text-amber-500 dark:text-amber-400" title="Mail bekleniyor">⧗</span>
+                    <span class="text-[10px] text-amber-500 dark:text-amber-400" title="Mail pending">⧗</span>
                   {% endif %}
                 </div>
                 <button class="toggle-details rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700">
-                  Detayına Bak
+                  View details
                 </button>
               </div>
             </div>
@@ -410,10 +431,10 @@
               <div class="flex flex-col gap-3">
                 <div class="flex flex-wrap gap-2">
                   <button class="comparison-btn comp-active rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors" data-comparison="weekly">
-                    Geçen Hafta
+                    Last week
                   </button>
                   <button class="comparison-btn comp-inactive rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors" data-comparison="daily">
-                    Dünle
+                    Vs yesterday
                   </button>
                 </div>
                 <div id="comparison-info-{{ alert.id }}" class="text-sm text-slate-600 dark:text-slate-300 min-h-[2rem]"></div>
@@ -424,7 +445,7 @@
         {% endfor %}
         {% if not recent_alerts and not live_position_alert_rows %}
           <div class="alerts-empty-state rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
-            Henüz alarm kaydı oluşmadı.
+            No alert records yet.
           </div>
         {% endif %}
       </div>

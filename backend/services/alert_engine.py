@@ -726,16 +726,16 @@ def list_live_position_alert_rows(
                     "display_title": "",
                     "display_query": str(drop.get("query") or ""),
                     "display_metric": (
-                        f"Pozisyon {drop.get('pos_cur')} · "
+                        f"Position {drop.get('pos_cur')} · "
                         f"<span class=\"text-rose-600 dark:text-rose-400\">+{drop.get('diff_fmt')}</span>"
-                        f" · {drop.get('clicks_fmt') or '0'} · 7g"
+                        f" · {drop.get('clicks_fmt') or '0'} · 7d"
                     ),
                     "display_tone": "sky",
                     "display_device_code": "",
                     "triggered_at": triggered_display,
                     "triggered_at_iso": as_of_iso,
                     "sent_mail": None,
-                    "metric_type": "Pozisyon",
+                    "metric_type": "Position",
                     "is_external": False,
                     "delta_numeric": diff,
                     "sort_score": impact,
@@ -758,16 +758,16 @@ def list_live_position_alert_rows(
                     "display_title": "",
                     "display_query": str(rise.get("query") or ""),
                     "display_metric": (
-                        f"Pozisyon {rise.get('pos_cur')} · "
+                        f"Position {rise.get('pos_cur')} · "
                         f"<span class=\"text-emerald-600 dark:text-emerald-400\">−{rise.get('diff_fmt')}</span>"
-                        f" · {rise.get('clicks_fmt') or '0'} · 7g"
+                        f" · {rise.get('clicks_fmt') or '0'} · 7d"
                     ),
                     "display_tone": "sky",
                     "display_device_code": "",
                     "triggered_at": triggered_display,
                     "triggered_at_iso": as_of_iso,
                     "sent_mail": None,
-                    "metric_type": "Pozisyon",
+                    "metric_type": "Position",
                     "is_external": False,
                     "delta_numeric": -diff,
                     "sort_score": impact,
@@ -1166,26 +1166,26 @@ def _metric_type_for_alert_filter(presentation: dict[str, object], alert_type: s
     sc_map = {
         "search_console_ctr_drop": "CTR",
         "search_console_impressions_drop": "Impression",
-        "search_console_position_drop": "Pozisyon",
-        "search_console_biggest_drop": "Pozisyon",
+        "search_console_position_drop": "Position",
+        "search_console_biggest_drop": "Position",
     }
     if alert_type in sc_map:
         return sc_map[alert_type]
     # Eğer presentation'dan gelen mt zaten SC chip adı ise kullan
-    if mt in ("CTR", "Impression", "Pozisyon"):
-        return mt
+    if mt in ("CTR", "Impression", "Position", "Pozisyon"):
+        return "Position" if mt == "Pozisyon" else mt
     # Crawler / PageSpeed tipleri
     other_map = {
-        "crawler_schema_found": "Schema markup bulunamadı",
-        "crawler_sitemap_exists": "sitemap.xml bulunamadı",
-        "pagespeed_mobile_score": "Mobile PageSpeed düşük",
-        "pagespeed_desktop_score": "Desktop PageSpeed düşük",
-        "crawler_robots_accessible": "robots.txt erişilemiyor",
-        "crawler_canonical_found": "Canonical etiketi bulunamadı",
-        "crawler_broken_links_count": "Kırık iç link sayısı yüksek",
-        "crawler_redirect_chain_count": "Redirect zinciri sayısı yüksek",
+        "crawler_schema_found": "Schema markup not found",
+        "crawler_sitemap_exists": "sitemap.xml not found",
+        "pagespeed_mobile_score": "Mobile PageSpeed low",
+        "pagespeed_desktop_score": "Desktop PageSpeed low",
+        "crawler_robots_accessible": "robots.txt unreachable",
+        "crawler_canonical_found": "Canonical tag not found",
+        "crawler_broken_links_count": "High broken internal link count",
+        "crawler_redirect_chain_count": "High redirect chain count",
     }
-    return other_map.get(alert_type, mt or "Genel")
+    return other_map.get(alert_type, mt or "General")
 
 
 def get_recent_alerts(
@@ -1409,7 +1409,7 @@ def emit_custom_alert(
 
 
 def _device_label(device_code: str) -> str:
-    return {"M": "Mobil", "D": "Desktop"}.get(device_code or "", device_code or "-")
+    return {"M": "Mobile", "D": "Desktop"}.get(device_code or "", device_code or "-")
 
 
 def _safe_float(value) -> float | None:
@@ -1574,7 +1574,7 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
         return {
             "tone": "rose" if after_value is None or (before_value is not None and after_value is not None and after_value > before_value) else "emerald",
             "status_label": "Negatif" if after_value is None or (before_value is not None and after_value is not None and after_value > before_value) else "Pozitif",
-            "metric_type": "Pozisyon",
+            "metric_type": "Position",
             "query_or_area": position_match.group(1),
             "device_code": device_code,
             "before": _format_number(position_match.group(2), decimals=1),
@@ -1585,7 +1585,7 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             "delta_numeric": diff_val,
             "display_title": title,
             "display_query": position_match.group(1),
-            "display_metric": f"Pozisyon {position_match.group(2)} -> {position_match.group(3)} | Fark {diff_text}",
+            "display_metric": f"Position {position_match.group(2)} -> {position_match.group(3)} | Δ {diff_text}",
         }
 
     threshold_match = re.search(
@@ -1615,7 +1615,7 @@ def _parse_alert_message(message: str, *, alert_type: str = "", domain: str = ""
             "delta_numeric": delta_value,
             "display_title": threshold_title,
             "display_query": threshold_match.group(1),
-            "display_metric": f"Mevcut {_format_number(current_value, decimals=2)} | Eşik {_format_number(threshold_value, decimals=2)} | Fark {_format_delta(delta_value, decimals=2)}",
+            "display_metric": f"Current {_format_number(current_value, decimals=2)} | Threshold {_format_number(threshold_value, decimals=2)} | Δ {_format_delta(delta_value, decimals=2)}",
         }
 
     return {

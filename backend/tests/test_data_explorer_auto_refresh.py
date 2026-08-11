@@ -71,8 +71,8 @@ def test_auto_refresh_log_excludes_manual_runs():
         rows = _build_data_explorer_auto_refresh_log(db, site.id)
         assert len(rows) == 2
         assert all("Manuel" not in (r.get("trigger_label") or "") for r in rows)
-        assert any(r["label"] == "PSI · Mobil" and r["status_ok"] for r in rows)
-        assert any(r["label"] == "CrUX · Mobil" and r["status"] == "failed" for r in rows)
+        assert any(r["label"] == "PSI · Mobile" and r["status_ok"] for r in rows)
+        assert any(r["label"] == "CrUX · Mobile" and r["status"] == "failed" for r in rows)
         assert "14.06.2026" in _data_explorer_last_auto_refresh_label(db, site.id)
     finally:
         db.query(CollectorRun).delete()
@@ -114,7 +114,7 @@ def test_last_auto_refresh_finds_success_beyond_recent_manual_flood():
         label = _data_explorer_last_auto_refresh_label(db, site.id)
         assert "21.04.2026" in label
         log = _build_data_explorer_auto_refresh_log(db, site.id)
-        assert any(r["label"] == "PSI · Mobil" and r["status_ok"] for r in log)
+        assert any(r["label"] == "PSI · Mobile" and r["status_ok"] for r in log)
     finally:
         db.query(CollectorRun).delete()
         db.query(Site).delete()

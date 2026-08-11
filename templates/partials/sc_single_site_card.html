@@ -22,7 +22,7 @@
   </div>
   {% if site.connection.requires_reauth %}
     <div class="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/35 dark:text-rose-300">
-      Search Console OAuth tokeni gecersiz veya iptal olmus. Yeniden baglamak icin once "Baglantiyi Kaldir", sonra "Google ile Baglan" adimlarini uygulayin.
+      The Search Console OAuth token is invalid or revoked. To reconnect, first click “Disconnect”, then “Connect with Google”.
     </div>
   {% endif %}
 
@@ -41,7 +41,7 @@
           class="inline-flex max-w-full min-w-0 flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-violet-200 bg-violet-50 p-1 [-webkit-overflow-scrolling:touch] dark:border-slate-600 dark:bg-slate-800/95 w-max"
           data-sc-period-switch
           role="tablist"
-          aria-label="Search Console dönem karşılaştırması"
+          aria-label="Search Console period comparison"
         >
           <button
             type="button"
@@ -95,9 +95,9 @@
             class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
             data-sc-period-toggle="12m"
             data-active="false"
-            title="Son 12 ay günlük trend (karşılaştırma yok)"
+            title="Last 12 months daily trend (no comparison)"
           >
-            12 ay
+            12 mo
           </button>
           {% endif %}
         </div>
@@ -108,7 +108,7 @@
             type="button"
             data-sc-focus-toggle="{{ site.id }}"
             class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-100 hover:text-cyan-900 dark:border-cyan-900/40 dark:bg-cyan-950/50 dark:text-cyan-300 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/80 dark:hover:text-cyan-100"
-            title="Tam genişlikte göster"
+            title="Show full width"
           >
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
@@ -118,7 +118,7 @@
             type="button"
             data-sc-split-reset
             class="hidden inline-flex h-9 items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-2.5 text-xs font-semibold text-cyan-900 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-100 dark:border-cyan-900/40 dark:bg-cyan-950/50 dark:text-cyan-200 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/80"
-            title="İki sütunlu görünüme dön"
+            title="Back to two-column view"
           >
             <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
@@ -132,7 +132,7 @@
           class="inline-flex max-w-full min-w-0 flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1 [-webkit-overflow-scrolling:touch] w-max"
           data-search-console-device-switch
           role="tablist"
-          aria-label="Search Console cihazı"
+          aria-label="Search Console device"
         >
           <button
             type="button"
@@ -200,7 +200,7 @@
             ></div>
             </div>
             {% if not view.has_data %}
-            <p class="text-center text-sm text-slate-500 dark:text-slate-400">12 aylık trend için veri henüz yok. Search Console verisini yenileyin.</p>
+            <p class="text-center text-sm text-slate-500 dark:text-slate-400">No 12-month trend data yet. Refresh Search Console data.</p>
             {% endif %}
             {% else %}
             {% set cmp_na = view.get('compare_data_unavailable') %}
@@ -241,10 +241,10 @@
                     data-kpi-spark-key="clicks"
                     data-kpi-spark-tone="{{ clicks_tone }}"
                     role="img"
-                    aria-label="Clicks günlük trend"
+                    aria-label="Clicks daily trend"
                   ></div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
-                    <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg" title="{% if cmp_na %}Karşılaştırma verisi yok{% else %}{{ '{:,.0f}'.format(view.summary_previous.clicks or 0).replace(',', ',') }}{% endif %}">{% if cmp_na %}—{% else %}{{ "{:,.0f}".format(view.summary_previous.clicks or 0).replace(",", ",") }}{% endif %}</p>
+                    <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg" title="{% if cmp_na %}No comparison data{% else %}{{ '{:,.0f}'.format(view.summary_previous.clicks or 0).replace(',', ',') }}{% endif %}">{% if cmp_na %}—{% else %}{{ "{:,.0f}".format(view.summary_previous.clicks or 0).replace(",", ",") }}{% endif %}</p>
                     <p class="mt-1 line-clamp-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_previous }}</p>
                   </div>
                 </div>
@@ -264,7 +264,7 @@
                     data-kpi-spark-key="impressions"
                     data-kpi-spark-tone="{{ impressions_tone }}"
                     role="img"
-                    aria-label="Impressions günlük trend"
+                    aria-label="Impressions daily trend"
                   ></div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
                     <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">{% if cmp_na %}—{% else %}{{ "{:,.0f}".format(view.summary_previous.impressions or 0).replace(",", ",") }}{% endif %}</p>
@@ -287,7 +287,7 @@
                     data-kpi-spark-key="ctr"
                     data-kpi-spark-tone="{{ ctr_tone }}"
                     role="img"
-                    aria-label="CTR günlük trend"
+                    aria-label="CTR daily trend"
                   ></div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
                     <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">{% if cmp_na %}—{% else %}{{ "{:.2f}".format(view.summary_previous.ctr or 0) }}%{% endif %}</p>
@@ -310,7 +310,7 @@
                     data-kpi-spark-key="position"
                     data-kpi-spark-tone="{{ position_tone }}"
                     role="img"
-                    aria-label="Position günlük trend"
+                    aria-label="Position daily trend"
                   ></div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
                     <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">{% if cmp_na %}—{% else %}{{ "{:.2f}".format(view.summary_previous.position or 0) }}{% endif %}</p>
@@ -374,7 +374,7 @@
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {% if row.position_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.position_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-2 sm:py-2.5">{{ "{:+.2f}".format(row.position_diff) }}</td>
                       </tr>
                     {% else %}
-                      <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">{{ view.device_label }} için bu dönemde ilk 50 anahtar kelime verisi henüz yok.</td></tr>
+                      <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">{{ view.device_label }} has no top-50 keyword data for this period yet.</td></tr>
                     {% endfor %}
                   </tbody>
                 </table>
@@ -444,7 +444,7 @@
                             <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {% if row.position_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.position_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-2 sm:py-2.5">{{ "{:+.2f}".format(row.position_diff) }}</td>
                           </tr>
                         {% else %}
-                          <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">{{ view.device_label }} için bu dönemde page kırılımı yok.</td></tr>
+                          <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">{{ view.device_label }} has no page breakdown for this period.</td></tr>
                         {% endfor %}
                       </tbody>
                     </table>
@@ -453,16 +453,16 @@
               </div>
               {% if period_key in ('30', '60', '90') %}
               <div class="mt-1 space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Düşen içerikler (Son {{ period_key }} gün vs Önceki {{ period_key }} gün · tıklama)</p>
+                <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Declining content (Last {{ period_key }} days vs Previous {{ period_key }} days · clicks)</p>
                 <div class="sc-table-scroll-hint w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 dark:border-slate-700 [-webkit-overflow-scrolling:touch]">
                   <table class="w-full min-w-[36rem] table-fixed text-[10px] sm:text-xs" data-search-console-table data-sc-down-table>
                     <thead class="border-b border-slate-200 dark:border-slate-700">
                       <tr>
-                        <th class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-left text-slate-500 shadow-[4px_0_12px_-6px_rgba(15,23,42,0.2)] sm:px-3"><button type="button" class="text-left font-semibold hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="query" data-sort-type="string">Sayfa</button></th>
-                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-rose-600 dark:hover:text-rose-400" data-sort-key="dropPct" data-sort-type="number">Düşüş %</button></th>
-                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-rose-600 dark:hover:text-rose-400" data-sort-key="clicksDiff" data-sort-type="number">Tıklama fark</button></th>
-                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-blue-600 dark:hover:text-blue-400" data-sort-key="clicksCurrent" data-sort-type="number">Son {{ period_key }}g</button></th>
-                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-blue-600 dark:hover:text-blue-400" data-sort-key="clicksPrevious" data-sort-type="number">Önceki {{ period_key }}g</button></th>
+                        <th class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-left text-slate-500 shadow-[4px_0_12px_-6px_rgba(15,23,42,0.2)] sm:px-3"><button type="button" class="text-left font-semibold hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="query" data-sort-type="string">Page</button></th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-rose-600 dark:hover:text-rose-400" data-sort-key="dropPct" data-sort-type="number">Drop %</button></th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-rose-600 dark:hover:text-rose-400" data-sort-key="clicksDiff" data-sort-type="number">Clicks delta</button></th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-blue-600 dark:hover:text-blue-400" data-sort-key="clicksCurrent" data-sort-type="number">Last {{ period_key }}d</button></th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-blue-600 dark:hover:text-blue-400" data-sort-key="clicksPrevious" data-sort-type="number">Previous {{ period_key }}d</button></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -478,7 +478,7 @@
                       </tr>
                       {% else %}
                       <tr>
-                        <td colspan="5" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">Bu dönem için düşen içerik bulunamadı.</td>
+                        <td colspan="5" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">No declining content for this period.</td>
                       </tr>
                       {% endfor %}
                     </tbody>
@@ -496,20 +496,20 @@
     </div>
   {% elif site.report.has_data %}
     <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
-      Rapor yapısı güncelleniyor. Lütfen Search Console verisini yenileyin.
+      Report structure is updating. Please refresh Search Console data.
     </div>
   {% endif %}
 
   <div class="mt-5 grid gap-3 md:grid-cols-2 sm:mt-6">
     <div class="rounded-2xl bg-white dark:bg-slate-900 p-4">
-      <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Son veri</p>
+      <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Latest data</p>
       <p class="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{{ site.status.updated_at }}</p>
       
     </div>
     <div class="rounded-2xl bg-white dark:bg-slate-900 p-4">
-      <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Son yenileme</p>
+      <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Last refresh</p>
       <p class="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{{ site.last_run_at }}</p>
-      <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Durum: {{ site.last_run_status }}</p>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Status: {{ site.last_run_status }}</p>
     </div>
   </div>
 
@@ -519,7 +519,7 @@
     </div>
   {% elif site.connection.connected and not site.connection.requires_reauth and site.last_run_status == 'FAILED' %}
     <div class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-      OAuth bağlantısı güncellendi. Veriyi güncellemek için «Search Console Verisini Yenile»ye basın.
+      OAuth connection updated. Press «Refresh Search Console Data» to update.
     </div>
   {% endif %}
 
@@ -540,7 +540,7 @@
         rel="noopener noreferrer"
         class="w-full sm:w-auto rounded-full border border-slate-300 dark:border-slate-600 px-4 py-2 text-center text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-900 hover:text-slate-900"
       >
-        Search Console'da Aç
+        Open in Search Console
       </a>
       </div>
     </div>
@@ -552,9 +552,9 @@
     >
       <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div class="min-w-0 flex-1">
-          <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">Manuel görsel yükle</p>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">En fazla 4 dosya (mobile, desktop, full, extra). Dosya adında mobile/desktop ipucu kullanabilirsiniz.</p>
-          <p data-gsc-upload-preview="{{ site.id }}" class="mt-1 text-xs text-slate-600 dark:text-slate-300">Henüz dosya seçilmedi.</p>
+          <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">Manual image upload</p>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Up to 4 files (mobile, desktop, full, extra). You can put mobile/desktop in the filename.</p>
+          <p data-gsc-upload-preview="{{ site.id }}" class="mt-1 text-xs text-slate-600 dark:text-slate-300">No file selected yet.</p>
           <p id="gsc-upload-err-{{ site.id }}" class="mt-2 hidden whitespace-pre-wrap break-words text-xs font-medium text-rose-600 dark:text-rose-400" role="alert"></p>
         </div>
         <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
@@ -574,7 +574,7 @@
             data-gsc-save-ready="0"
             class="relative z-10 w-full shrink-0 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white opacity-45 hover:bg-slate-700 sm:w-auto dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
           >
-            Kaydet
+            Save
           </button>
         </div>
       </div>
@@ -590,10 +590,10 @@
     {% if _gsc.mobile_url or _gsc.desktop_url or _gsc.full_url or _gsc.extra_url %}
       {# Tüm slotlar birlikte gösterilir (önceden mobile+desktop varken full gizleniyordu). #}
       {% set _cwv_slots = [
-        ('mobile', _gsc.mobile_url, 'GSC CWV Mobile', 'Mobile CWV (büyütmek için tıkla)'),
-        ('desktop', _gsc.desktop_url, 'GSC CWV Desktop', 'Desktop CWV (büyütmek için tıkla)'),
-        ('full', _gsc.full_url, 'GSC CWV tam sayfa', 'Tam sayfa CWV (büyütmek için tıkla)'),
-        ('extra', _gsc.extra_url, 'GSC CWV Extra', 'Extra (büyütmek için tıkla)'),
+        ('mobile', _gsc.mobile_url, 'GSC CWV Mobile', 'Mobile CWV (click to enlarge)'),
+        ('desktop', _gsc.desktop_url, 'GSC CWV Desktop', 'Desktop CWV (click to enlarge)'),
+        ('full', _gsc.full_url, 'GSC CWV full page', 'Full-page CWV (click to enlarge)'),
+        ('extra', _gsc.extra_url, 'GSC CWV Extra', 'Extra (click to enlarge)'),
       ] %}
       <div class="mt-4 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 sm:gap-4 lg:gap-5">
         {% for variant, url, alt, title in _cwv_slots %}
@@ -625,7 +625,7 @@
                   data-gsc-cwv-variant="{{ variant }}"
                   class="rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-rose-700 shadow-sm ring-1 ring-rose-200 hover:bg-white dark:bg-slate-900/95 dark:text-rose-300 dark:ring-rose-800"
                 >
-                  Kaldır
+                  Remove
                 </button>
               </div>
             </div>
@@ -639,15 +639,15 @@
     {% if site.connection.method == 'oauth' %}
       <form hx-post="/search-console/disconnect/{{ site.id }}" hx-target="#sc-card-{{ site.id }}" hx-swap="outerHTML">
         <button type="submit" class="w-full rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 sm:w-auto">
-          Bağlantıyı Kaldır
+          Disconnect
         </button>
       </form>
     {% elif oauth_ready %}
       <a href="/api/search-console/oauth/start/{{ site.id }}?next=/search-console" class="w-full rounded-full border border-sky-200 px-4 py-2 text-center text-sm font-semibold text-sky-700 hover:bg-sky-50 sm:w-auto">
-        Google ile Bağlan
+        Connect with Google
       </a>
     {% else %}
-      <span class="w-full rounded-full border border-slate-200 dark:border-slate-700 px-4 py-2 text-center text-sm font-semibold text-slate-500 dark:text-slate-400 sm:w-auto">OAuth ayarı bekleniyor</span>
+      <span class="w-full rounded-full border border-slate-200 dark:border-slate-700 px-4 py-2 text-center text-sm font-semibold text-slate-500 dark:text-slate-400 sm:w-auto">Waiting for OAuth setup</span>
     {% endif %}
 
     {% if site.connection.connected %}
@@ -658,7 +658,7 @@
         data-site-domain="{{ site.domain }}"
       >
         <button type="submit" class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 sm:w-auto">
-          Search Console Verisini Yenile
+          Refresh Search Console Data
         </button>
       </form>
     {% endif %}

@@ -1,7 +1,7 @@
 <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
   <div class="flex min-w-0 flex-wrap items-center gap-3">
-    <h3 class="shrink-0 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Eşik Uyarıları</h3>
-    <span class="text-[11px] text-slate-500 dark:text-slate-400">Son {{ threshold_window_days }} gün · mail edilen tüm GA4 Realtime ve 404 alarmları</span>
+    <h3 class="shrink-0 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Threshold Alerts</h3>
+    <span class="text-[11px] text-slate-500 dark:text-slate-400">Last {{ threshold_window_days }} days · all mailed GA4 Realtime and 404 alerts</span>
   </div>
   <div class="flex items-center gap-2">
     <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
@@ -21,7 +21,7 @@
     <button type="button"
       class="threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-threshold-filter="all"
-      data-inactive-cls="bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">Tümü</button>
+      data-inactive-cls="bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">All</button>
     <button type="button"
       class="threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-threshold-filter="realtime"
@@ -29,19 +29,19 @@
     <button type="button"
       class="threshold-type-tab flex-none rounded-full px-3 py-1 text-xs font-semibold transition-colors"
       data-threshold-filter="404"
-      data-inactive-cls="bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50">404 Hata</button>
+      data-inactive-cls="bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50">404 Error</button>
   </div>
 
   <div class="ml-auto">
     <select id="threshold-domain-select"
       class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600">
-      <option value="all">Tüm siteler</option>
+      <option value="all">All sites</option>
       <option value="doviz-web">doviz.com · Web</option>
-      <option value="doviz-mweb">doviz.com · Mobil</option>
+      <option value="doviz-mweb">doviz.com · Mobile</option>
       <option value="doviz-ios">doviz.com · iOS</option>
       <option value="doviz-android">doviz.com · Android</option>
       <option value="sinemalar-web">sinemalar.com · Web</option>
-      <option value="sinemalar-mweb">sinemalar.com · Mobil</option>
+      <option value="sinemalar-mweb">sinemalar.com · Mobile</option>
     </select>
   </div>
 </div>
@@ -87,7 +87,7 @@
                 <span class="ml-1 text-slate-400 dark:text-slate-500 font-mono">· {{ a.metric }}</span>
               {% endif %}
               {% if a.profile %}
-                {% set _prof_label = {'web': 'Desktop', 'mweb': 'Mobil', 'android': 'Android', 'ios': 'iOS'} %}
+                {% set _prof_label = {'web': 'Desktop', 'mweb': 'Mobile', 'android': 'Android', 'ios': 'iOS'} %}
                 <span class="ml-1 rounded bg-slate-100 dark:bg-slate-700 px-1 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">{{ _prof_label.get(a.profile, a.profile) }}</span>
               {% endif %}
             </p>
@@ -130,7 +130,7 @@
                class="block truncate font-mono text-[12px] font-bold leading-5 text-slate-900 underline decoration-rose-300 underline-offset-2 transition hover:text-sky-700 hover:decoration-sky-400 dark:text-slate-100 dark:decoration-rose-700 dark:hover:text-sky-300"
                title="{{ e.public_url or ('https://' + e.domain + e.url) }}">{{ e.url_short }}</a>
             <p class="mt-0.5 text-[11px] font-medium leading-4 text-slate-600 dark:text-slate-400">
-              <span class="rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums {{ _hit_cls }}">{{ e.hit_count }} kullanıcı</span>
+              <span class="rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums {{ _hit_cls }}">{{ e.hit_count }} users</span>
               {% if e.source %}
                 <span class="ml-1 text-slate-500 dark:text-slate-400">· kaynak: {{ e.source }}</span>
               {% endif %}
@@ -149,14 +149,14 @@
 
     {% if not threshold_realtime_alerts and not threshold_error_alerts %}
       <div class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
-        Son {{ threshold_window_days }} gün içinde eşik uyarısı kaydı yok.
+        No threshold alerts in the last {{ threshold_window_days }} days.
       </div>
     {% endif %}
   </div>
 </div>
 
 <div id="threshold-no-results" class="hidden rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
-  Seçilen filtreye uyan kayıt yok.
+  No records match the selected filter.
 </div>
 
 <script>

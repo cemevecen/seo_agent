@@ -26,7 +26,7 @@ def test_sc_view_specs_has_performance_and_extras():
 
 def test_sc_view_groups_order():
     groups = sc_view_groups()
-    assert groups == ["Performans", "Analiz", "İndeks"]
+    assert groups == ["Performance", "Analysis", "Index"]
 
 
 def test_sc_views_for_nav_sorted():

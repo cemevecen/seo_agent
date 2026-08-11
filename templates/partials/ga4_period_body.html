@@ -31,7 +31,7 @@
 {% if not _has_period %}
   <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-400">
     {% if _trend_only %}
-      12 aylık trend için veri henüz yok. <strong>Refresh Data</strong> ile GA4 verisini yenileyin.
+      No 12-month trend data yet. Use <strong>Refresh Data</strong> to fetch GA4.
     {% elif pd == 1 %}
       No same-weekday KPI yet. Run <strong>Refresh GA4</strong> so a snapshot includes last full day vs same weekday last week.
     {% else %}
@@ -45,7 +45,7 @@
 {% set dt_spark = p.daily_trend_spark | default(dt) %}
 {% if _has_period and dt.dates and dt.dates|length > 0 %}
   <p class="text-sm font-medium leading-snug text-slate-700 dark:text-slate-200">
-    Günlük trend — oturum, kullanıcı{% if pk in ('web', 'mweb') %} ve Search Console ortalama pozisyon{% endif %} (engaged / engagement rate legend'den açılabilir)
+    Daily trend — sessions, users{% if pk in ('web', 'mweb') %} and Search Console average position{% endif %} (engaged / engagement rate can be enabled in the legend)
   </p>
   <div
     id="ga4-trend-{{ site.id }}-{{ period_key }}-{{ pk }}"
@@ -57,7 +57,7 @@
   ></div>
 {% elif _has_period %}
   <div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-    Günlük seri boş. <strong>Refresh Data</strong> ile tekrar deneyin.
+    Daily series is empty. Try <strong>Refresh Data</strong> again.
   </div>
 {% endif %}
 {% else %}
@@ -106,7 +106,7 @@
       data-ga4-kpi-spark-key="{{ spark_key }}"
       data-ga4-kpi-spark-tone="{{ spark_tone }}"
       role="img"
-      aria-label="{{ label }} günlük trend"
+      aria-label="{{ label }} daily trend"
     ></div>
     <div class="mt-1 shrink-0 border-t border-slate-100 pt-2 dark:border-slate-800">
       <p class="min-w-0 break-words text-center text-[10px] font-medium leading-snug text-slate-500 dark:text-slate-400 sm:text-left sm:text-[11px]">{{ prev_line }}</p>
@@ -185,11 +185,11 @@
   {# Dönem pill kopyası — header pill ile senkron çalışır #}
   <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
     <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-      Haber detay · Ekranlar · Eventler · Kaynak
+      News detail · Screens · Events · Source
     </p>
     <div class="ga4-period-proxy-wrap inline-flex shrink-0 items-stretch gap-0.5 rounded-full border border-violet-200 bg-violet-50 p-1 dark:border-slate-600 dark:bg-slate-800/95"
-         data-period-proxy-pk="{{ pk }}" role="group" aria-label="Dönem seç">
-      {% for label, dval in [('1g', '1'), ('7g', '7'), ('30g', '30'), ('60g', '60'), ('90g', '90')] %}
+         data-period-proxy-pk="{{ pk }}" role="group" aria-label="Select period">
+      {% for label, dval in [('1d', '1'), ('7d', '7'), ('30d', '30'), ('60d', '60'), ('90d', '90')] %}
         <button type="button"
           class="ga4-period-proxy-btn shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold transition"
           data-period-proxy-val="{{ dval }}"
@@ -247,19 +247,19 @@
   })();
   </script>
 
-  <div class="w-full min-w-0" data-ga4-pages-kind-switch data-ga4-default-pages-kind="event_detail" role="tablist" aria-label="Haber detay, ekranlar, eventler ve kaynak">
+  <div class="w-full min-w-0" data-ga4-pages-kind-switch data-ga4-default-pages-kind="event_detail" role="tablist" aria-label="News detail, screens, events, and source">
     <button type="button" role="tab"
       class="ga4-pages-kind-btn rounded-xl border border-slate-200 bg-slate-900 text-sm font-semibold text-white shadow-sm dark:border-slate-600 dark:bg-slate-600"
-      data-ga4-pages-kind="event_detail" data-active="true">Haber detay</button>
+      data-ga4-pages-kind="event_detail" data-active="true">News detail</button>
     <button type="button" role="tab"
       class="ga4-pages-kind-btn rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 shadow-sm transition dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-      data-ga4-pages-kind="content" data-active="false">Ekranlar</button>
+      data-ga4-pages-kind="content" data-active="false">Screens</button>
     <button type="button" role="tab"
       class="ga4-pages-kind-btn rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 shadow-sm transition dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-      data-ga4-pages-kind="news" data-active="false">Eventler</button>
+      data-ga4-pages-kind="news" data-active="false">Events</button>
     <button type="button" role="tab"
       class="ga4-pages-kind-btn rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 shadow-sm transition dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-      data-ga4-pages-kind="sources" data-active="false">Kaynak</button>
+      data-ga4-pages-kind="sources" data-active="false">Source</button>
   </div>
 
   {# Haber detay — varsayılan sekme #}
@@ -268,8 +268,8 @@
       hx-get="/ga4/app-detail/{{ site.id }}?kind=event_detail&days={{ period_days }}&profile={{ pk }}"
       hx-trigger="ga4-load" hx-swap="outerHTML" hx-timeout="120000"
       class="rounded-2xl border border-slate-200 dark:border-slate-700">
-      <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Haber detay</p>
-      <div class="px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+      <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">News detail</p>
+      <div class="px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Loading…</div>
     </div>
   </div>
 
@@ -279,8 +279,8 @@
       hx-get="/ga4/app-detail/{{ site.id }}?kind=screens&days={{ period_days }}&profile={{ pk }}"
       hx-trigger="ga4-load" hx-swap="outerHTML"
       class="rounded-2xl border border-slate-200 dark:border-slate-700">
-      <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Ekranlar (unifiedScreenName)</p>
-      <div class="px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+      <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Screens (unifiedScreenName)</p>
+      <div class="px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Loading…</div>
     </div>
   </div>
 
@@ -290,8 +290,8 @@
       hx-get="/ga4/app-detail/{{ site.id }}?kind=events&days={{ period_days }}&profile={{ pk }}"
       hx-trigger="ga4-load" hx-swap="outerHTML"
       class="rounded-2xl border border-slate-200 dark:border-slate-700">
-      <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Eventler (eventName)</p>
-      <div class="px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+      <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Events (eventName)</p>
+      <div class="px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Loading…</div>
     </div>
   </div>
 
@@ -302,20 +302,20 @@
       hx-trigger="ga4-load" hx-swap="outerHTML"
       class="rounded-2xl border border-slate-200 dark:border-slate-700">
       <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Session source / medium</p>
-      <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+      <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Loading…</div>
     </div>
   </div>
 
   {% else %}
   {# ─── Web / MWeb: Sayfalar · Haberler · Kaynak (dokunma) ─── #}
   <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-    Sayfalar · Haberler · Kaynak
+    Pages · News · Source
   </p>
   <div
     class="w-full min-w-0"
     data-ga4-pages-kind-switch
     role="tablist"
-    aria-label="GA4 sayfa ve kaynak tabloları"
+    aria-label="GA4 page and source tables"
   >
     <button
       type="button"
@@ -324,7 +324,7 @@
       data-ga4-pages-kind="content"
       data-active="true"
     >
-      Sayfalar
+      Pages
     </button>
     <button
       type="button"
@@ -333,7 +333,7 @@
       data-ga4-pages-kind="news"
       data-active="false"
     >
-      Haberler
+      News
     </button>
     <button
       type="button"
@@ -342,7 +342,7 @@
       data-ga4-pages-kind="sources"
       data-active="false"
     >
-      Kaynak
+      Source
     </button>
   </div>
   <div data-ga4-pages-kind-panel="content" class="min-w-0">
@@ -354,13 +354,13 @@
       class="rounded-2xl border border-slate-200 dark:border-slate-700"
     >
       <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Pages (excl. news)</p>
-      <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+      <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Loading…</div>
     </div>
   </div>
   <div data-ga4-pages-kind-panel="news" class="hidden min-w-0">
-    <div class="mb-3 flex flex-wrap items-center gap-2" role="tablist" aria-label="Haber trafiği dönemi">
+    <div class="mb-3 flex flex-wrap items-center gap-2" role="tablist" aria-label="News traffic period">
       <span class="mr-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-        Dönem
+        Period
       </span>
       <div class="inline-flex items-stretch gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900/40">
       <button
@@ -374,7 +374,7 @@
         hx-swap="innerHTML"
         hx-timeout="240000"
       >
-        Son 1 gün
+        Last 1 day
       </button>
       <button
         type="button"
@@ -387,7 +387,7 @@
         hx-swap="innerHTML"
         hx-timeout="240000"
       >
-        Son 7 gün
+        Last 7 days
       </button>
       </div>
     </div>
@@ -401,8 +401,8 @@
         hx-swap="innerHTML"
         hx-timeout="240000"
       >
-        <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Haberler — Görüntülenme (Son 7 gün)</p>
-        <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+        <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">News — Views (Last 7 days)</p>
+        <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Loading…</div>
       </div>
     </div>
   </div>
@@ -415,7 +415,7 @@
       class="rounded-2xl border border-slate-200 dark:border-slate-700"
     >
       <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Session source / medium</p>
-      <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+      <div class="overflow-x-auto px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Loading…</div>
     </div>
   </div>
   {% endif %}{# /ios-android vs web-mweb #}

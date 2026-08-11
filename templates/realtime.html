@@ -2688,7 +2688,7 @@
   <div class="rt-page-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
     <div class="flex items-center gap-3">
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Realtime</h1>
-      <span class="rt-live-countdown-only" id="rt-live-badge" title="Kart KPI ve sparkline için saniye geri sayımı; sıfırda otomatik yenileme.">
+      <span class="rt-live-countdown-only" id="rt-live-badge" title="Seconds countdown for card KPIs and sparklines; auto-refresh at zero.">
         <span class="rt-live-countdown-wrap">
           <svg class="rt-countdown-lottie" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <circle class="rt-cd-track" cx="20" cy="20" r="16"/>
@@ -2701,12 +2701,12 @@
     </div>
     <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
       <div class="flex items-center gap-2">
-        <span class="hidden text-xs font-bold text-slate-500 dark:text-slate-400 md:inline">Görünüm</span>
+        <span class="hidden text-xs font-bold text-slate-500 dark:text-slate-400 md:inline">View</span>
         <div
           id="rt-view-pills"
           class="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100/90 p-0.5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
           role="radiogroup"
-          aria-label="Kart görünümü"
+          aria-label="Card view"
         >
           <button
             type="button"
@@ -2714,25 +2714,25 @@
             aria-checked="false"
             data-rt-view-pill="full"
             onclick="rtSetViewMode('full')"
-            title="Top sayfalar, haberler ve uygulama etkinlik listeleri"
+            title="Top pages, news, and app event lists"
             class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
-          >Tam</button>
+          >Full</button>
           <button
             type="button"
             role="radio"
             aria-checked="true"
             data-rt-view-pill="compact"
             onclick="rtSetViewMode('compact')"
-            title="Masonry özet: döviz toplam + 4 profil + sinemalar toplam"
+            title="Masonry summary: Doviz total + 4 profiles + Sinemalar total"
             class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 rt-pill-on"
-          >Özet</button>
+          >Summary</button>
           <button
             type="button"
             role="radio"
             aria-checked="false"
             data-rt-view-pill="names"
             onclick="rtSetViewMode('names')"
-            title="Döviz + Sinemalar web/mweb — yalnızca sayfa adları (top 50, spark yok)"
+            title="Doviz + Sinemalar web/mweb — page names only (top 50, no spark)"
             class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >Linkler</button>
         </div>
@@ -2743,7 +2743,7 @@
         class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-bold text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
       >
         <svg id="rt-global-refresh-icon" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
-        Tümünü Kontrol Et
+        Check All
       </button>
     </div>
   </div>
@@ -2756,8 +2756,8 @@
   >
     <div class="rt-names-board-head">
       <div>
-        <h2>Canlı linkler</h2>
-        <p>Son ~15 dk · sayfa adı + anlık trafik · Döviz &amp; Sinemalar web/mweb · top 50</p>
+        <h2>Live links</h2>
+        <p>Last ~15 min · page name + live traffic · Doviz &amp; Sinemalar web/mweb · top 50</p>
       </div>
       <p class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-names-board-ts>—</p>
     </div>
@@ -2780,10 +2780,10 @@
                 >
                   <h3 class="rt-names-col-title">
                     <span class="rt-names-col-label">{{ label_prefix }} · {{ plabel }}</span>
-                    <span class="rt-names-col-au" data-rt-names-au title="Anlık aktif kullanıcı">—</span>
+                    <span class="rt-names-col-au" data-rt-names-au title="Live active users">—</span>
                   </h3>
                   <ol class="rt-names-list" data-rt-names-list>
-                    <li class="rt-empty text-sm italic text-slate-400">yükleniyor…</li>
+                    <li class="rt-empty text-sm italic text-slate-400">loading…</li>
                   </ol>
                   <p class="rt-names-col-ts" data-rt-names-ts></p>
                 </section>
@@ -2811,35 +2811,35 @@
         {{ site.display_name or site.domain }}
         <span class="text-sm font-normal text-slate-400">{{ site.domain }}</span>
       </h2>
-      <div class="rt-site-totals flex flex-wrap items-center justify-end gap-2" data-rt-site-totals="{{ site.id }}" title="Grafik metriğini değiştirmek için tıklayın">
-        <button type="button" class="rt-site-total-chip is-active" data-rt-site-metric-tab="au" aria-pressed="true" title="Toplam aktif · 24s spark">
-          <p class="rt-site-total-label">Toplam aktif</p>
+      <div class="rt-site-totals flex flex-wrap items-center justify-end gap-2" data-rt-site-totals="{{ site.id }}" title="Click to change the chart metric">
+        <button type="button" class="rt-site-total-chip is-active" data-rt-site-metric-tab="au" aria-pressed="true" title="Total active · 24h spark">
+          <p class="rt-site-total-label">Total active</p>
           <p class="rt-site-total-val" data-rt-site-total-au>—</p>
         </button>
-        <button type="button" class="rt-site-total-chip rt-site-total-chip--pv" data-rt-site-metric-tab="pv" aria-pressed="false" title="Toplam görüntüleme · 24s spark">
-          <p class="rt-site-total-label">Toplam görüntüleme</p>
+        <button type="button" class="rt-site-total-chip rt-site-total-chip--pv" data-rt-site-metric-tab="pv" aria-pressed="false" title="Total pageviews · 24h spark">
+          <p class="rt-site-total-label">Total pageviews</p>
           <p class="rt-site-total-val" data-rt-site-total-pv>—</p>
         </button>
       </div>
     </div>
-    <p class="rt-masonry-site-label">{{ site.display_name or site.domain }} · toplam aktif</p>
+    <p class="rt-masonry-site-label">{{ site.display_name or site.domain }} · total active</p>
     <div class="rt-masonry-total-row rt-site-sparks" data-rt-site-sparks="{{ site.id }}">
       <div class="rt-site-spark-row is-loading" data-rt-site-spark-row>
         <div class="rt-site-spark-meta">
           <div class="rt-site-spark-range flex flex-wrap gap-0.5" data-rt-site-yf-chrome>
-            <button type="button" class="rt-yf-tab" data-rt-site-yf-range="15m" title="Son 15 dakika">15dk</button>
-            <button type="button" class="rt-yf-tab" data-rt-site-yf-range="1h" title="Son 1 saat">1s</button>
-            <button type="button" class="rt-yf-tab is-active" data-rt-site-yf-range="24h" title="Son 24 saat · 15 dk dilimler">24s</button>
+            <button type="button" class="rt-yf-tab" data-rt-site-yf-range="15m" title="Last 15 minutes">15m</button>
+            <button type="button" class="rt-yf-tab" data-rt-site-yf-range="1h" title="Last 1 hour">1h</button>
+            <button type="button" class="rt-yf-tab is-active" data-rt-site-yf-range="24h" title="Last 24 hours · 15 min slices">24h</button>
           </div>
-          <button type="button" class="rt-spark-table-open-btn mt-1" data-rt-spark-table-open title="Site toplam spark — tablo">Tablo</button>
-          <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
-          <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · anlık toplam</p>
+          <button type="button" class="rt-spark-table-open-btn mt-1" data-rt-spark-table-open title="Site total spark — table">Table</button>
+          <p class="rt-site-spark-label" data-rt-site-spark-label>Total active</p>
+          <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 hours · live total</p>
           <div class="rt-site-spark-kpi-stack" data-rt-site-spark-kpi-stack>
-          <p class="rt-site-spark-last rt-slot-reel" data-rt-site-spark-last data-rt-slot-reel title="Anlık toplam aktif (tüm profiller)">—</p>
+          <p class="rt-site-spark-last rt-slot-reel" data-rt-site-spark-last data-rt-slot-reel title="Live total active (all profiles)">—</p>
           <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
           </div>
         </div>
-        <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
+        <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Click for table">
           <div class="rt-site-spark-y" data-rt-site-spark-y></div>
           <div class="rt-site-spark-main">
             <div class="rt-site-spark-load" data-rt-site-spark-load aria-hidden="true">
@@ -2852,7 +2852,7 @@
                 autoplay
               ></lottie-player>
             </div>
-            <div class="rt-site-spark-bars" data-rt-site-spark-bars role="img" aria-label="Site geneli 24 saat trend"></div>
+            <div class="rt-site-spark-bars" data-rt-site-spark-bars role="img" aria-label="Site-wide 24h trend"></div>
             <div class="rt-site-spark-tip hidden" data-rt-site-spark-tip role="tooltip"></div>
             <div class="rt-site-spark-x" data-rt-site-spark-x></div>
           </div>
@@ -2885,7 +2885,7 @@
               type="button"
               class="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               onclick="rtFetchProfile({{ site.id }}, '{{ profile }}')"
-              title="Kontrol"
+              title="Check"
             >
               <svg class="h-4 w-4 rt-refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
             </button>
@@ -2896,7 +2896,7 @@
         <div class="rt-split-panel">
           <div class="rt-split-kpis">
             <div class="min-w-0" data-rt-kpi="activeUsers">
-              <p class="rt-kpi-title text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif kullanıcı</p>
+              <p class="rt-kpi-title text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Active users</p>
               <p class="rt-kpi-val mt-0.5 text-[clamp(1.2rem,11.5cqi,2.05rem)] font-black leading-none tabular-nums text-slate-900 dark:text-zinc-50" data-rt-val>—</p>
               <div class="rt-kpi-delta-row">
                 <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves data-rt-slot-delta>—</span>
@@ -2904,7 +2904,7 @@
               </div>
             </div>
             <div class="min-w-0" data-rt-kpi="screenPageViews">
-              <p class="rt-kpi-title text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa görüntüleme</p>
+              <p class="rt-kpi-title text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pageviews</p>
               <p class="rt-kpi-val mt-1 font-black tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
               <div class="rt-kpi-delta-row">
                 <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves data-rt-slot-delta>—</span>
@@ -2918,21 +2918,21 @@
           <div class="rt-spark-inner rt-yf-surface">
             <div class="rt-spark-live-pulse" data-rt-spark-pulse aria-hidden="true"></div>
             <div class="rt-yf-chrome flex flex-wrap items-center gap-1 border-b border-slate-200/80 pb-1 dark:border-zinc-700/60" data-rt-yf-chrome>
-              <button type="button" class="rt-yf-tab" data-rt-yf-range="15m" title="Son 15 dakika">15dk</button>
-              <button type="button" class="rt-yf-tab" data-rt-yf-range="1h" title="Son 1 saat">1s</button>
-              <button type="button" class="rt-yf-tab is-active" data-rt-yf-range="24h" title="Son 24 saat · 15 dk dilimler">24s</button>
+              <button type="button" class="rt-yf-tab" data-rt-yf-range="15m" title="Last 15 minutes">15m</button>
+              <button type="button" class="rt-yf-tab" data-rt-yf-range="1h" title="Last 1 hour">1h</button>
+              <button type="button" class="rt-yf-tab is-active" data-rt-yf-range="24h" title="Last 24 hours · 15 min slices">24h</button>
             </div>
             <div class="rt-spark-head flex items-start justify-between gap-2 px-1.5 pt-2 pb-0.5">
               <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                <p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Aktif kullanıcı</p>
-                <button type="button" class="rt-spark-table-open-btn" data-rt-spark-table-open title="Spark dilimlerini tablo olarak aç">Tablo</button>
+                <p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Active users</p>
+                <button type="button" class="rt-spark-table-open-btn" data-rt-spark-table-open title="Open spark slices as a table">Table</button>
               </div>
               <div class="text-right leading-tight">
                 <p class="text-xl font-black tabular-nums text-slate-900 dark:text-zinc-50" data-rt-spark-last-val>—</p>
-                <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500" data-rt-spark-last-label>son ölçüm</p>
+                <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500" data-rt-spark-last-label>last reading</p>
               </div>
             </div>
-            <div class="rt-spark-plot w-full min-h-[4.5rem] px-1.5 pb-2 rt-spark-table-clickable" data-rt-chart aria-label="Aktif kullanıcı — dakikalık mini sütunlar" title="Tablo için tıklayın">
+            <div class="rt-spark-plot w-full min-h-[4.5rem] px-1.5 pb-2 rt-spark-table-clickable" data-rt-chart aria-label="Active users — per-minute mini bars" title="Click for table">
               <div class="rt-spark-chart-body">
                 <div class="rt-spark-y-axis" data-rt-spark-y-axis aria-hidden="true"></div>
                 <div class="rt-spark-plot-area">
@@ -2958,7 +2958,7 @@
               </span>
               <span class="text-xs font-bold text-amber-700 dark:text-amber-400">404 SPIKE</span>
               <span class="rt-404-badge rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white" data-rt-404-count>0</span>
-              <span class="text-[10px] text-amber-600 dark:text-amber-500">kullanıcı şu an 404 sayfasında</span>
+              <span class="text-[10px] text-amber-600 dark:text-amber-500">users currently on a 404 page</span>
               <span class="text-[10px] text-amber-600/80 dark:text-amber-500/80" data-rt-404-sub></span>
             </div>
             <div class="flex shrink-0 items-center gap-1.5">
@@ -2967,8 +2967,8 @@
                 type="button"
                 data-rt-404-dismiss
                 class="inline-flex h-6 w-6 items-center justify-center rounded-md text-base leading-none text-amber-800/70 transition hover:bg-amber-200/70 hover:text-amber-950 dark:text-amber-300/80 dark:hover:bg-amber-900/50 dark:hover:text-amber-100"
-                aria-label="404 uyarısını gizle"
-                title="Gizle (kullanıcı sayısı artarsa veya kritik olursa tekrar görünür)"
+                aria-label="Hide 404 alert"
+                title="Hide (shows again if user count rises or it becomes critical)"
               >×</button>
             </div>
           </div>
@@ -2982,28 +2982,28 @@
           <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(3,1fr)">
             <button type="button" onclick="rtSwitchTopTab(this,'detail')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="detail">Haber detay</button>
+              data-rt-top-tab="detail">News detail</button>
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="pages">Ekranlar</button>
+              data-rt-top-tab="pages">Screens</button>
             <button type="button" onclick="rtSwitchTopTab(this,'events')"
               class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="events">Etkinlik adı</button>
+              data-rt-top-tab="events">Event name</button>
           </div>
           {% else %}
           <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(2,1fr)">
             <button type="button" onclick="rtSwitchTopTab(this,'detail')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="detail">Haber detay</button>
+              data-rt-top-tab="detail">News detail</button>
             <button type="button" onclick="rtSwitchTopTab(this,'events')"
               class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="events">Etkinlik adı</button>
+              data-rt-top-tab="events">Event name</button>
           </div>
           {% endif %}
           <div data-rt-top-panel="detail" class="hidden min-w-0">
             <p class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400" data-rt-app-detail-meta>
               {% if profile == 'ios' %}<code class="font-mono text-[10px]">screen_view</code>{% else %}<code class="font-mono text-[10px]">news_detail_opened</code>{% endif %}
-              · son ~30 dk · URL eşleşmesi web/mweb indeksinden
+              · last ~30 min · URL match from web/mweb index
             </p>
             <div class="min-w-0 space-y-3" data-rt-app-detail-sections>
               <div class="animate-pulse space-y-2 py-2">
@@ -3034,11 +3034,11 @@
                 <p class="mt-1 text-3xl font-black tabular-nums tracking-tight text-slate-900 dark:text-slate-50" data-rt-events-top-count>—</p>
                 <p class="text-xs tabular-nums text-slate-500 dark:text-slate-400" data-rt-events-top-pct>—</p>
               </div>
-              <div class="rt-events-spark-bg flex h-[4.5rem] shrink-0 items-end gap-px rounded-md bg-slate-100 px-1 dark:border dark:border-slate-700/80" data-rt-events-spark title="İlk etkinliklerin göreli dağılımı (anlık pencere)"></div>
+              <div class="rt-events-spark-bg flex h-[4.5rem] shrink-0 items-end gap-px rounded-md bg-slate-100 px-1 dark:border dark:border-slate-700/80" data-rt-events-spark title="Relative distribution of top events (live window)"></div>
             </div>
             <div class="mt-3 grid grid-cols-[1fr_auto] gap-x-3 border-b border-dashed border-slate-200 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:border-slate-600 dark:text-slate-500">
-              <span>Etkinlik adı</span>
-              <span class="text-right">Sayı</span>
+              <span>Event name</span>
+              <span class="text-right">Count</span>
             </div>
             <div class="rt-scroll-area mt-1 max-h-80 space-y-0 overflow-y-auto" data-rt-events-list>
               <div class="animate-pulse space-y-2 py-2">
@@ -3049,8 +3049,8 @@
             </div>
             <div class="mt-2 flex items-center justify-end gap-2">
               <span class="text-[11px] tabular-nums text-slate-400 dark:text-slate-500" data-rt-events-range></span>
-              <button type="button" data-rt-events-prev onclick="rtEventsNav({{ site.id }}, '{{ profile }}', -1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Önceki">‹</button>
-              <button type="button" data-rt-events-next onclick="rtEventsNav({{ site.id }}, '{{ profile }}', 1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Sonraki">›</button>
+              <button type="button" data-rt-events-prev onclick="rtEventsNav({{ site.id }}, '{{ profile }}', -1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Previous">‹</button>
+              <button type="button" data-rt-events-next onclick="rtEventsNav({{ site.id }}, '{{ profile }}', 1)" class="rounded px-1.5 py-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Next">›</button>
             </div>
             <p class="mt-1 rt-ts-foot" data-rt-events-ts></p>
           </div>
@@ -3061,13 +3061,13 @@
           <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(3,1fr)">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
               class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="pages">Sayfalar</button>
+              data-rt-top-tab="pages">Pages</button>
             <button type="button" onclick="rtSwitchTopTab(this,'news')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="news">Haberler</button>
+              data-rt-top-tab="news">News</button>
             <button type="button" onclick="rtSwitchTopTab(this,'prevweek')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="prevweek">Geçen hafta</button>
+              data-rt-top-tab="prevweek">Last week</button>
           </div>
           <div data-rt-top-panel="pages" class="min-w-0">
             <div class="min-w-0 space-y-1" data-rt-pages-list>
@@ -3092,9 +3092,9 @@
           <div data-rt-top-panel="prevweek" class="hidden min-w-0">
             <p class="rt-wow-meta" data-rt-wow-meta></p>
             <div class="rt-wow-filter" data-rt-wow-filter>
-              <button type="button" class="rt-wow-filter-btn is-on" data-rt-wow-mode="excl">Haber hariç</button>
-              <button type="button" class="rt-wow-filter-btn" data-rt-wow-mode="news">Haberler</button>
-              <button type="button" class="rt-wow-filter-btn" data-rt-wow-mode="all">Tüm sayfalar</button>
+              <button type="button" class="rt-wow-filter-btn is-on" data-rt-wow-mode="excl">Exclude news</button>
+              <button type="button" class="rt-wow-filter-btn" data-rt-wow-mode="news">News</button>
+              <button type="button" class="rt-wow-filter-btn" data-rt-wow-mode="all">All pages</button>
             </div>
             <div class="min-w-0 space-y-1" data-rt-wow-list>
               <div class="animate-pulse space-y-2 py-2">
@@ -3126,16 +3126,16 @@
         id="rt-alarm-expand-btn"
         onclick="rtToggleAlarms()"
         class="text-xs font-bold text-indigo-600 transition hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200"
-      >Genişlet (50)</button>
+      >Expand (50)</button>
     </div>
     <div class="mb-4 flex gap-1 border-b border-slate-200 dark:border-slate-700">
       <button type="button" onclick="rtSwitchAlarmTab('site')" id="rt-alarm-tab-site"
         class="rt-alarm-tab-active">
-        Site Alarmları <span id="rt-alarm-badge-site" class="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600 dark:bg-slate-700 dark:text-slate-300">0</span>
+        Site Alerts <span id="rt-alarm-badge-site" class="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600 dark:bg-slate-700 dark:text-slate-300">0</span>
       </button>
       <button type="button" onclick="rtSwitchAlarmTab('page')" id="rt-alarm-tab-page"
         class="rt-alarm-tab-inactive">
-        Sayfa &amp; haber <span id="rt-alarm-badge-page" class="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600 dark:bg-slate-700 dark:text-slate-300">0</span>
+        Pages &amp; news <span id="rt-alarm-badge-page" class="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600 dark:bg-slate-700 dark:text-slate-300">0</span>
       </button>
     </div>
     <div id="rt-alarm-panel-site">
@@ -3149,7 +3149,7 @@
       </div>
     </div>
     <div id="rt-alarm-panel-page" class="hidden">
-      <div id="rt-alarm-page-pills" class="mb-3 hidden flex flex-wrap gap-1.5" role="radiogroup" aria-label="Sayfa ve haber — site filtresi"></div>
+      <div id="rt-alarm-page-pills" class="mb-3 hidden flex flex-wrap gap-1.5" role="radiogroup" aria-label="Pages and news — site filter"></div>
       <div class="space-y-2" id="rt-alarm-list-page">
         <div class="animate-pulse space-y-3 py-2">
           <div class="h-16 w-full rounded bg-slate-100 dark:bg-slate-800/50"></div>
@@ -3178,13 +3178,13 @@
           type="button"
           id="rt-spark-table-close"
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-          aria-label="Tabloyu kapat"
-          title="Kapat"
+          aria-label="Tableyu kapat"
+          title="Close"
         >×</button>
       </div>
     </div>
     <div class="rt-spark-table-drawer-body" id="rt-spark-table-body">
-      <p class="py-6 text-center text-xs text-slate-400 dark:text-zinc-500">Bir spark alanına veya <strong class="font-semibold">Tablo</strong> düğmesine tıklayın.</p>
+      <p class="py-6 text-center text-xs text-slate-400 dark:text-zinc-500">Click a spark area or the <strong class="font-semibold">Table</strong> button.</p>
     </div>
   </aside>
 
@@ -3201,7 +3201,7 @@
   var RT_TREND_LIMIT = 288;
   var RT_TREND_RANGE_MS = { '15m': 15 * 60 * 1000, '1h': 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000 };
   var RT_TREND_RANGE_DEFAULT = '24h';
-  var RT_LIST_RANGE_LABELS = { '15m': '15 dk', '1h': '1 saat', '24h': '24 saat' };
+  var RT_LIST_RANGE_LABELS = { '15m': '15 min', '1h': '1 hour', '24h': '24 hours' };
   /** iOS/Android etkinlik listesi — GA4 Realtime üst sınırı (dk) */
   var RT_EVENTS_LIST_WINDOW = 30;
   /** GA4 Realtime etkinlik adı tablosu: sayfa başına satır */
@@ -3289,7 +3289,7 @@
     } else {
       el.textContent = String(sec);
       if (badge) {
-        badge.title = 'Kart KPI ve sparkline için saniye geri sayımı; sıfırda otomatik yenileme. Top listeler ayrı aralıktadır.';
+        badge.title = 'Seconds countdown for card KPIs and sparklines; auto-refresh at zero. Top lists use a separate interval.';
         badge.classList.toggle('rt-live-badge--urgent', sec > 0 && sec <= 5);
         badge.classList.toggle('rt-live-badge--refresh', sec === 0);
       }
@@ -3402,7 +3402,7 @@
   /** Site toplamları — kartlardaki K yuvarlamasıyla karışmasın diye tam sayı. */
   function _fmtExact(n) {
     if (n == null || isNaN(n)) return '—';
-    return Math.round(Number(n)).toLocaleString('tr-TR');
+    return Math.round(Number(n)).toLocaleString('en-US');
   }
 
   function _slotText(el, text) {
@@ -3555,13 +3555,13 @@
       _slotText(auEl, haveAu ? _fmtExact(sumAu) : '—');
       auEl.setAttribute('title', allAu
         ? auParts.join(' + ') + ' = ' + _fmtExact(sumAu)
-        : (haveAu ? haveAu + '/' + expected + ' profil yüklendi' : 'Henüz veri yok'));
+        : (haveAu ? haveAu + '/' + expected + ' profiles loaded' : 'No data yet'));
     }
     if (pvEl) {
       _slotText(pvEl, havePv ? _fmtExact(sumPv) : '—');
       pvEl.setAttribute('title', allPv
         ? pvParts.join(' + ') + ' = ' + _fmtExact(sumPv)
-        : (havePv ? havePv + '/' + expected + ' profil yüklendi' : 'Henüz veri yok'));
+        : (havePv ? havePv + '/' + expected + ' profiles loaded' : 'No data yet'));
     }
     if (totalsWrap) {
       totalsWrap.classList.toggle('rt-site-totals--partial', !allAu || !allPv);
@@ -3591,7 +3591,7 @@
     _slotText(lastEl, val != null ? _fmtExact(val) : '—');
     lastEl.setAttribute(
       'title',
-      metric === 'pv' ? 'Anlık toplam görüntüleme (tüm profiller)' : 'Anlık toplam aktif (tüm profiller)'
+      metric === 'pv' ? 'Live total pageviews (all profiles)' : 'Live total active (all profiles)'
     );
   }
 
@@ -3650,15 +3650,15 @@
       rowEl.classList.toggle('rt-site-spark-row--brand-blue', _rtSiteSparkUsesBlue(siteEl, metric));
     }
     var labelEl = root.querySelector('[data-rt-site-spark-label]');
-    if (labelEl) labelEl.textContent = metric === 'pv' ? 'Toplam görüntüleme' : 'Toplam aktif';
+    if (labelEl) labelEl.textContent = metric === 'pv' ? 'Total pageviews' : 'Total active';
     var barsEl = root.querySelector('[data-rt-site-spark-bars]');
     if (barsEl) {
       var rk = _rtSiteSparkRangeKey(siteEl);
       barsEl.setAttribute(
         'aria-label',
         metric === 'pv'
-          ? 'Site geneli toplam görüntüleme — ' + rk
-          : 'Site geneli toplam aktif — ' + rk
+          ? 'Site-wide total pageviews — ' + rk
+          : 'Site-wide total active — ' + rk
       );
     }
     _wireSiteYfTabs(siteEl);
@@ -3773,7 +3773,7 @@
         var delta = curV - prevV;
         var pct = (delta / prevV) * 100;
         compareEl.textContent =
-          'Son dilim vs geçen hafta: ' +
+          'Last slice vs last week: ' +
           (delta >= 0 ? '+' : '') +
           _fmtExact(delta) +
           ' (' +
@@ -3959,7 +3959,7 @@
       for (var i = 0; i < pages.length; i++) {
         var p = pages[i];
         var n = metric === 'pv' ? p.pageviews || 0 : p.active_users || 0;
-        var unit = metric === 'pv' ? ' gör.' : ' kul.';
+        var unit = metric === 'pv' ? ' pv' : ' users';
         block +=
           '<div>' +
           _esc(String(i + 1) + '. ' + (p.label || p.page_path) + ' · ' + _fmt(n) + unit) +
@@ -3972,7 +3972,7 @@
     if (!pagesHtml) return '';
     return (
       '<div class="rt-tip-pages"><div class="rt-tip-pages-title">' +
-      _esc(title || 'Top içerik') +
+      _esc(title || 'Top content') +
       '</div>' +
       pagesHtml +
       '</div>'
@@ -4011,7 +4011,7 @@
       pages = profile === 'web' ? bucket.web || [] : bucket.mweb || [];
     }
     if (pages.length) {
-      var title = livePages && livePages.length ? 'Top içerik (canlı)' : 'Top içerik';
+      var title = livePages && livePages.length ? 'Top content (live)' : 'Top content';
       html +=
         '<div class="rt-tip-pages"><div class="rt-tip-pages-title">' +
         _esc(title) +
@@ -4026,7 +4026,7 @@
       }
       html += '</div>';
     } else if (!row.empty && row.bucketCount) {
-      html += '<div class="rt-tip-pages"><div>Bu dilim için sayfa snapshot yok</div></div>';
+      html += '<div class="rt-tip-pages"><div>No page snapshot for this slice</div></div>';
     }
     return html;
   }
@@ -4038,27 +4038,27 @@
       '<div><strong>' +
       _esc(row.label || '—') +
       '</strong></div><div>' +
-      _esc(_fmtExact(v) + (metric === 'pv' ? ' görüntüleme (dilim)' : ' aktif (dilim)')) +
+      _esc(_fmtExact(v) + (metric === 'pv' ? ' pageviews (slice)' : ' active (slice)')) +
       '</div>';
     if (metric === 'au' && row.vPrev != null && Number(row.vPrev) > 0) {
       html +=
-        '<div style="color:#6366f1">Geçen hafta: ' +
+        '<div style="color:#6366f1">Last week: ' +
         _esc(_fmtExact(Number(row.vPrev))) +
         '</div>';
     }
     if (metric === 'pv' && row.pvPrev != null && Number(row.pvPrev) > 0) {
       html +=
-        '<div style="color:#6366f1">Geçen hafta: ' +
+        '<div style="color:#6366f1">Last week: ' +
         _esc(_fmtExact(Number(row.pvPrev))) +
         '</div>';
     }
     var webPages = [];
     var mwebPages = [];
-    var pagesTitle = 'Top içerik';
+    var pagesTitle = 'Top content';
     if (liveBundle && liveBundle.live) {
       webPages = liveBundle.web || [];
       mwebPages = liveBundle.mweb || [];
-      pagesTitle = 'Top içerik (canlı)';
+      pagesTitle = 'Top content (live)';
     } else {
       var tops = siteEl._rtBucketTopPages || {};
       var rangeKey = siteEl._rtSparkRangeKey || '24h';
@@ -4070,7 +4070,7 @@
     if (pagesBlock) {
       html += pagesBlock;
     } else if (!row.empty && row.bucketCount && !(liveBundle && liveBundle.live)) {
-      html += '<div class="rt-tip-pages">Bu dilim için sayfa snapshot yok</div>';
+      html += '<div class="rt-tip-pages">No page snapshot for this slice</div>';
     }
     return html;
   }
@@ -4132,7 +4132,7 @@
       tipEl.classList.toggle('rt-site-spark-tip--rich', tipHtml.indexOf('rt-tip-pages') !== -1);
       tipEl.classList.remove('hidden');
       place(ev.clientX, ev.clientY);
-      if (tipHtml.indexOf('Top içerik') === -1 && !row.empty && row.bucketCount) {
+      if (tipHtml.indexOf('Top content') === -1 && !row.empty && row.bucketCount) {
         _fetchSiteSparkLiveTopPages(siteEl, metric).then(function (bundle) {
           if (!bundle || siteEl._rtSparkHoverIdx !== idx) return;
           var rich = _siteSparkTipInnerHtml(siteEl, row, metric, bundle);
@@ -4243,8 +4243,8 @@
     if (barsEl) {
       var msg =
         reason === 'error'
-          ? '24s grafik yüklenemedi (oturum veya ağ). Sayfayı yenileyin veya Tümünü Kontrol Et.'
-          : '24s snapshot henüz yok — GA4 Realtime job veri yazınca grafik dolar (Tümünü Kontrol Et).';
+          ? '24h chart failed to load (session or network). Reload or use Check All.'
+          : 'No 24h snapshot yet — the chart fills when the GA4 Realtime job writes data (Check All).';
       barsEl.innerHTML = '<p class="rt-site-spark-empty-msg" role="status">' + _esc(msg) + '</p>';
     }
   }
@@ -4731,7 +4731,7 @@
         if (refreshIcon) refreshIcon.classList.remove('rt-spin');
         if (d.error) {
           if (tsEl) {
-            tsEl.textContent = 'hata';
+            tsEl.textContent = 'error';
             if (d.message) tsEl.setAttribute('title', String(d.message));
             else tsEl.removeAttribute('title');
           }
@@ -4745,13 +4745,13 @@
         _renderChart(box, siteId, profile, d.trend || []);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
-          tsEl.textContent = dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+          tsEl.textContent = dt.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
           tsEl.removeAttribute('title');
         }
       })
       .catch(function (e) {
         if (refreshIcon) refreshIcon.classList.remove('rt-spin');
-        if (tsEl) tsEl.textContent = 'hata';
+        if (tsEl) tsEl.textContent = 'error';
       });
   }
   window.rtFetchProfile = rtFetchProfile;
@@ -4802,7 +4802,7 @@
       var pctEl = kpiBox.querySelector('[data-rt-pct]');
       if (valEl) _slotText(valEl, _fmt(v));
       if (halvesEl) {
-        halvesEl.textContent = 'son kayıt (önbellek)';
+        halvesEl.textContent = 'last record (cache)';
         halvesEl.className = 'text-xs tabular-nums text-slate-400 dark:text-slate-500';
         halvesEl.style.opacity = '1';
       }
@@ -4847,17 +4847,17 @@
       if (valEl && key === 'activeUsers') {
         valEl.setAttribute(
           'title',
-          'GA4 Realtime toplam aktif kullanıcı (son ' + (data.window_minutes || WINDOW) + ' dk)'
+          'GA4 Realtime total active users (last ' + (data.window_minutes || WINDOW) + ' min)'
         );
       }
       if (valEl && key === 'screenPageViews') {
         valEl.setAttribute(
           'title',
-          'GA4 Realtime görüntüleme (son ' + (data.window_minutes || WINDOW) + ' dk)'
+          'GA4 Realtime pageviews (last ' + (data.window_minutes || WINDOW) + ' min)'
         );
       }
       if (halvesEl) {
-        halvesEl.setAttribute('title', 'Son 15 dk vs önceki 15 dk (GA4 karşılaştırma; ana KPI 30 dk toplam)');
+        halvesEl.setAttribute('title', 'Last 15 min vs previous 15 min (GA4 comparison; main KPI is 30 min total)');
         _slotDelta(halvesEl, _fmt(c.previous) + ' → ' + _fmt(c.current), 'flat');
       }
       if (pctEl) {
@@ -4906,8 +4906,8 @@
     var rangeLbl = _rtListRangeLabel(rangeKey, data);
     var src = data && data.data_source === 'snapshots' ? ' · snapshot zirve' : '';
     tsEl.textContent =
-      'son ' + rangeLbl + src + ' · güncelleme: ' +
-      dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      'son ' + rangeLbl + src + ' · updated: ' +
+      dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     if (data && data.metric_scope) tsEl.setAttribute('title', String(data.metric_scope));
     else tsEl.removeAttribute('title');
   }
@@ -5212,22 +5212,22 @@
 
   function _sparkBarTipHtml(d) {
     if (d.empty || (!d.bucketCount && !d.carried)) {
-      return (d.label || '—') + '\nölçüm yok';
+      return (d.label || '—') + '\nno measurement';
     }
     if (d.carried && !d.bucketCount) {
-      return (d.label || '—') + '\n' + (d.backfilled ? 'önceki dilim · ' : 'ara dilim · ') + _fmt(d.v);
+      return (d.label || '—') + '\n' + (d.backfilled ? 'previous slice · ' : 'gap slice · ') + _fmt(d.v);
     }
     var v = Number(d.v) || 0;
     var lines = [];
     lines.push(d.label || d.tStart || '—');
     if (d.bucketCount > 1) {
-      lines.push(d.bucketCount + ' ölçüm · tepe ' + _fmt(v));
-      lines.push('min ' + _fmt(d.vmin) + ' · ort ' + _fmt(Math.round(d.vavg || v)) + ' · max ' + _fmt(d.vmax));
+      lines.push(d.bucketCount + ' samples · peak ' + _fmt(v));
+      lines.push('min ' + _fmt(d.vmin) + ' · avg ' + _fmt(Math.round(d.vavg || v)) + ' · max ' + _fmt(d.vmax));
     } else {
-      lines.push(_fmt(v) + ' aktif kullanıcı');
+      lines.push(_fmt(v) + ' active users');
     }
     if (d.pv != null && !isNaN(d.pv) && d.pv > 0) {
-      lines.push(_fmt(d.pv) + ' görüntüleme (tepe)');
+      lines.push(_fmt(d.pv) + ' pageviews (peak)');
     }
     return lines.join('\n');
   }
@@ -5306,14 +5306,14 @@
       n < 4
         ? '<text x="2" y="12" class="rt-spark-line-sparse" font-size="7">n=' +
           n +
-          ' ölçüm</text>'
+          ' samples</text>'
         : '';
     return (
       '<svg class="rt-spark-line-svg" viewBox="0 0 ' +
       w +
       ' ' +
       h +
-      '" preserveAspectRatio="none" role="img" aria-label="Aktif kullanıcı — gerçek snapshot çizgisi">' +
+      '" preserveAspectRatio="none" role="img" aria-label="Active users — real snapshot line">' +
       sparse +
       '<path class="rt-spark-line-area" d="' +
       areaD +
@@ -5370,7 +5370,7 @@
           var sidInt = parseInt(siteCard.getAttribute('data-rt-site'), 10);
           if (!isNaN(sidInt)) rtEnsureBucketTopPages(sidInt);
         }
-        if (row && tipHtml.indexOf('Top içerik') === -1 && !row.empty && row.bucketCount) {
+        if (row && tipHtml.indexOf('Top content') === -1 && !row.empty && row.bucketCount) {
           var profMetric = box._rtSparkMetricCurrent || 'au';
           _fetchProfileSparkLiveTopPages(box, profMetric).then(function (livePages) {
             if (!livePages || !livePages.length) return;
@@ -5572,7 +5572,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error && (!d.pages || !d.pages.length)) {
-          listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
+          listEl.innerHTML = '<p class="rt-empty text-sm italic">no data</p>';
           return;
         }
         var rows = (Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
@@ -5582,20 +5582,20 @@
         _rtUpdateListTimestamp(tsEl, d, rangeKey);
       })
       .catch(function () {
-        listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
+        listEl.innerHTML = '<p class="rt-empty text-sm italic">error</p>';
       });
   }
 
   function _renderNewsList(listEl, pages, showComparison, domain, profile) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede haber trafiği yok (makale URL’si veya uygulama ekran başlığı).</p>';
+      listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">No news traffic in this window (article URL or app screen title).</p>';
       return;
     }
     var sortKey = 'activeUsers';
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
-      var titleRaw = p.page || '(başlıksız)';
+      var titleRaw = p.page || '(untitled)';
       var titleDisp = _esc(titleRaw);
       var subRaw = (p.page_path || '').trim() || (p.link_url || '');
       var tipParts = [titleRaw];
@@ -5639,17 +5639,17 @@
       .then(function (d) {
         if (metaEl && d.event_name) {
           metaEl.innerHTML = '<code class="font-mono text-[10px]">' + _esc(d.event_name) + '</code>'
-            + ' · son ~' + (d.window_minutes || 29) + ' dk · URL eşleşmesi web/mweb indeksinden';
+            + ' · last ~' + (d.window_minutes || 29) + ' min · URL match from web/mweb index';
         }
         if (d.error && (!d.sections || !d.sections.length)) {
-          sectionsEl.innerHTML = '<p class="rt-empty text-sm italic">' + _esc(d.message || 'veri yok') + '</p>';
+          sectionsEl.innerHTML = '<p class="rt-empty text-sm italic">' + _esc(d.message || 'no data') + '</p>';
           return;
         }
         _renderAppEventDetailSections(sectionsEl, d.sections || [], domain, profile);
         _rtUpdateListTimestamp(tsEl, d, rangeKey);
       })
       .catch(function () {
-        sectionsEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
+        sectionsEl.innerHTML = '<p class="rt-empty text-sm italic">error</p>';
       });
   }
 
@@ -5660,7 +5660,7 @@
       return;
     }
     container.innerHTML = sections.map(function (section) {
-      var label = _esc(section.label || 'Bölüm');
+      var label = _esc(section.label || 'Section');
       var paramHint = section.param2
         ? _esc(section.param + ' + ' + section.param2)
         : _esc(section.param || '');
@@ -5671,7 +5671,7 @@
         return '<div class="rounded-lg border border-slate-200/90 bg-white px-2 py-2 dark:border-slate-600/80 dark:bg-slate-900/40">'
           + '<p class="text-xs font-bold text-slate-700 dark:text-slate-200">' + label + ' <span class="font-normal text-slate-400">(' + paramHint + ')</span></p>'
           + note + err
-          + '<p class="mt-1 text-[11px] italic text-slate-500 dark:text-slate-400">Satır yok.</p></div>';
+          + '<p class="mt-1 text-[11px] italic text-slate-500 dark:text-slate-400">No rows.</p></div>';
       }
       var maxVal = rows.reduce(function (m, r) { return Math.max(m, Number(r.count) || 0); }, 1) || 1;
       var body = rows.map(function (row, i) {
@@ -5725,7 +5725,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.pages || !d.pages.length) {
-          if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
+          if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">no data</p>';
           return;
         }
         var rows = (Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
@@ -5735,7 +5735,7 @@
         _rtUpdateListTimestamp(tsEl, d, rangeKey);
       })
       .catch(function () {
-        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
+        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">error</p>';
       });
   }
 
@@ -5785,7 +5785,7 @@
     if (title && !/^\d+$/.test(title)) return title;
     var pathRaw = String((p && p.page) || '').trim();
     var parts = pathRaw.split('/').filter(Boolean);
-    if (!parts.length) return pathRaw || '(başlıksız)';
+    if (!parts.length) return pathRaw || '(untitled)';
     var last = parts[parts.length - 1];
     if (/^\d+$/.test(last) && parts.length >= 2) {
       return parts[parts.length - 2].replace(/-/g, ' ');
@@ -5796,7 +5796,7 @@
   function _renderWowDayNews(listEl, pages, domain, meta, profile) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu günde haber trafiği yok.</p>';
+      listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">No news traffic on this day.</p>';
       return;
     }
     var sortKey = 'screenPageViews';
@@ -5804,9 +5804,9 @@
       return (Number(b[sortKey]) || 0) - (Number(a[sortKey]) || 0);
     });
     var maxVal = pages[0][sortKey] || 1;
-    var metaLbl = meta && meta.prev_week_day_label ? meta.prev_week_day_label : 'geçen hafta';
+    var metaLbl = meta && meta.prev_week_day_label ? meta.prev_week_day_label : 'last week';
     listEl.innerHTML = pages.map(function (p, i) {
-      var pathRaw = p.page || '(bilinmiyor)';
+      var pathRaw = p.page || '(unknown)';
       var pageUrl = _rtPageHref(domain, p, profile);
       var titleRaw = _wowNewsTitleFromPage(p);
       var titleDisp = _esc(titleRaw);
@@ -5829,8 +5829,8 @@
         + '<div class="rt-bar-track"><div class="rt-bar-fill-amber" style="width:' + barW + '%"></div></div>'
         + '</div>'
         + '<div class="rt-top-list-nums-col flex flex-col items-end gap-0.5">'
-        + '<span class="rt-list-nums tabular-nums"><strong class="text-sm">' + _fmt(prevViews) + '</strong> <span class="rt-list-meta">gör.</span></span>'
-        + '<span class="rt-list-meta" title="Dün (' + _attr((meta && meta.current_day_label) || '') + ') vs ' + _attr(metaLbl) + '">Dün: ' + _fmt(ydayViews) + ydayComp + '</span>'
+        + '<span class="rt-list-nums tabular-nums"><strong class="text-sm">' + _fmt(prevViews) + '</strong> <span class="rt-list-meta">pv</span></span>'
+        + '<span class="rt-list-meta" title="Yesterday (' + _attr((meta && meta.current_day_label) || '') + ') vs ' + _attr(metaLbl) + '">Yesterday: ' + _fmt(ydayViews) + ydayComp + '</span>'
         + '</div>'
         + '</div>';
     }).join('');
@@ -5839,7 +5839,7 @@
   function _renderWowDayPages(listEl, pages, domain, meta, profile) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
+      listEl.innerHTML = '<p class="rt-empty text-sm italic">no data</p>';
       return;
     }
     var sortKey = 'screenPageViews';
@@ -5848,7 +5848,7 @@
     });
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
-      var pathRaw = p.page || '(bilinmiyor)';
+      var pathRaw = p.page || '(unknown)';
       var path = _esc(pathRaw);
       var prevViews = Number(p.screenPageViews) || 0;
       var ydayViews = p.screenPageViews_current;
@@ -5861,7 +5861,7 @@
         titleHtml = '<div class="rt-list-title text-sm" title="' + _attr(pathRaw) + '">' + path + '</div>';
       }
       var barW = Math.max(4, Math.round((prevViews / maxVal) * 100));
-      var metaLbl = meta && meta.prev_week_day_label ? meta.prev_week_day_label : 'geçen hafta';
+      var metaLbl = meta && meta.prev_week_day_label ? meta.prev_week_day_label : 'last week';
       var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
       return '<div class="rt-top-list-row rounded-md px-2 py-1.5' + zebra + '">'
         + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-xs font-bold">' + (i + 1) + '</span>'
@@ -5870,8 +5870,8 @@
         + '<div class="rt-bar-track"><div class="rt-bar-fill-violet" style="width:' + barW + '%"></div></div>'
         + '</div>'
         + '<div class="rt-top-list-nums-col flex flex-col items-end gap-0.5">'
-        + '<span class="rt-list-nums tabular-nums"><strong class="text-sm">' + _fmt(prevViews) + '</strong> <span class="rt-list-meta">gör.</span></span>'
-        + '<span class="rt-list-meta" title="Dün (' + _attr((meta && meta.current_day_label) || '') + ') vs ' + _attr(metaLbl) + '">Dün: ' + _fmt(ydayViews) + ydayComp + '</span>'
+        + '<span class="rt-list-nums tabular-nums"><strong class="text-sm">' + _fmt(prevViews) + '</strong> <span class="rt-list-meta">pv</span></span>'
+        + '<span class="rt-list-meta" title="Yesterday (' + _attr((meta && meta.current_day_label) || '') + ') vs ' + _attr(metaLbl) + '">Yesterday: ' + _fmt(ydayViews) + ydayComp + '</span>'
         + '</div>'
         + '</div>';
     }).join('');
@@ -5900,21 +5900,21 @@
         if (_rtWowMode(box) !== fetchMode) return;
         var respMode = d.mode || mode;
         if (d.error || !d.pages || !d.pages.length) {
-          if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
+          if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">no data</p>';
           if (metaEl && d.meta) {
-            metaEl.textContent = (d.meta.prev_week_day_label || '') + ' · tam gün GA4';
+            metaEl.textContent = (d.meta.prev_week_day_label || '') + ' · full-day GA4';
           }
           return;
         }
         var domain = box.getAttribute('data-rt-domain') || '';
         if (metaEl && d.meta) {
           var modeLbl = respMode === 'news'
-            ? 'en çok görüntülenen haberler'
-            : ('en çok görüntülenen sayfalar' + (respMode === 'excl' ? ' (haber hariç)' : ''));
+            ? 'most-viewed news'
+            : ('most-viewed pages' + (respMode === 'excl' ? ' (excluding news)' : ''));
           metaEl.textContent =
-            (d.meta.prev_week_day_label || 'Geçen hafta') +
+            (d.meta.prev_week_day_label || 'Last week') +
             ' · ' + modeLbl +
-            ' · dün: ' + (d.meta.current_day_label || '');
+            ' · yesterday: ' + (d.meta.current_day_label || '');
         }
         if (respMode === 'news') {
           _renderWowDayNews(listEl, d.pages, domain, d.meta || {}, profile);
@@ -5923,12 +5923,12 @@
         }
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
-          var stale = d.stale ? ' · önbellek' : '';
-          tsEl.textContent = 'GA4 tam gün · güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) + stale;
+          var stale = d.stale ? ' · cache' : '';
+          tsEl.textContent = 'GA4 full day · updated: ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + stale;
         }
       })
       .catch(function () {
-        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
+        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">error</p>';
       });
   }
 
@@ -5945,7 +5945,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.events) {
-          if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
+          if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">no data</p>';
           return;
         }
         _rtEventState[key] = {
@@ -5959,11 +5959,11 @@
         _renderEventsCard(box, siteId, profile);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
-          tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+          tsEl.textContent = 'updated: ' + dt.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
         }
       })
       .catch(function () {
-        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
+        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">error</p>';
       });
   }
   window.rtFetchTopEvents = rtFetchTopEvents;
@@ -5972,7 +5972,7 @@
 
   function _fmtEvInt(n) {
     if (n == null || isNaN(n)) return '—';
-    return Math.round(Number(n)).toLocaleString('tr-TR');
+    return Math.round(Number(n)).toLocaleString('en-US');
   }
 
   function _renderComparison(cur, prev) {
@@ -6010,20 +6010,20 @@
     if (basisEl) {
       basisEl.textContent =
         st.count_basis === "active_users"
-          ? "Gösterilen değerler: etkinlik başına aktif kullanıcı (GA4 Realtime, eventCount boşsa yedek)."
-          : "Gösterilen değerler: etkinlik sayısı (eventCount).";
+          ? "Shown values: active users per event (GA4 Realtime; fallback when eventCount is empty)."
+          : "Shown values: event count (eventCount).";
     }
 
     if (!evs.length) {
       if (basisEl) {
         basisEl.textContent =
-          "Bu stream için Realtime etkinlik kırılımı boş döndü. Android Firebase’de GA4 veri akışı ve BigQuery/Realtime izinlerini kontrol edin.";
+          "Realtime event breakdown came back empty for this stream. Check the GA4 data stream and BigQuery/Realtime permissions in Android Firebase.";
       }
       if (nameEl) nameEl.textContent = '—';
       if (countEl) countEl.textContent = '—';
       if (pctEl) pctEl.textContent = '';
       if (sparkEl) sparkEl.innerHTML = '';
-      if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
+      if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">no data</p>';
       if (rangeEl) rangeEl.textContent = '';
       if (prevBtn) prevBtn.disabled = true;
       if (nextBtn) nextBtn.disabled = true;
@@ -6031,7 +6031,7 @@
     }
 
     var top = evs[0];
-    if (nameEl) nameEl.textContent = top.eventName || '(adsız)';
+    if (nameEl) nameEl.textContent = top.eventName || '(unnamed)';
     if (countEl) countEl.textContent = _fmtEvInt(top.eventCount);
     var tot = st.total_event_count > 0 ? st.total_event_count : evs.reduce(function (a, e) { return a + (e.eventCount || 0); }, 0);
     var pct = tot > 0 ? ((top.eventCount || 0) / tot) * 100 : 0;
@@ -6056,7 +6056,7 @@
     if (listEl) {
       listEl.innerHTML = pageRows.map(function (e, i) {
         var globalIdx = start + i + 1;
-        var rawNm = e.eventName || '(adsız)';
+        var rawNm = e.eventName || '(unnamed)';
         var nm = _esc(rawNm);
         var barW = Math.max(4, Math.round(((e.eventCount || 0) / maxVal) * 100));
         var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
@@ -6133,11 +6133,11 @@
         _renderDrivers(listEl, d, siteId, profile);
         if (tsEl) {
           var dt = d.collected_at ? new Date(d.collected_at) : new Date();
-          tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+          tsEl.textContent = 'updated: ' + dt.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
         }
       })
       .catch(function () {
-        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
+        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">error</p>';
       });
   }
 
@@ -6148,21 +6148,21 @@
     inc = inc.filter(function (x) { return !_isRealtimeNoiseTitle(x && x.page); });
     dec = dec.filter(function (x) { return !_isRealtimeNoiseTitle(x && x.page); });
     if (!d || !d.has_data) {
-      el.innerHTML = '<p style="font-size:12px;color:#71717a;padding:12px 0;font-style:italic;">Realtime ölçümü henüz yok — birkaç dakika sonra tekrar deneyin.</p>';
+      el.innerHTML = '<p style="font-size:12px;color:#71717a;padding:12px 0;font-style:italic;">No Realtime reading yet — try again in a few minutes.</p>';
       return;
     }
     if (!inc.length && !dec.length) {
       var sd = Number(d.site_delta) || 0;
       var emptyMsg = Math.abs(sd) < 5
-        ? 'Son 15 dakikada site genelinde belirgin sayfa değişimi yok.'
-        : 'Site toplamında değişim var; sayfa bazında net sürücü bulunamadı.';
+        ? 'No notable page-level change site-wide in the last 15 minutes.'
+        : 'The site total changed; no clear page-level driver was found.';
       el.innerHTML = '<p style="font-size:12px;color:#71717a;padding:12px 0;font-style:italic;">' + emptyMsg + '</p>';
       return;
     }
     var delta = d.site_delta || 0;
     var isDrop = delta < 0;
     var sign = delta >= 0 ? '+' : '';
-    var totalLabel = sign + Math.round(delta).toLocaleString('tr-TR') + ' kul.';
+    var totalLabel = sign + Math.round(delta).toLocaleString('en-US') + ' users';
     var accentColor = isDrop ? '#f87171' : '#34d399';
     var dimColor = '#71717a';
 
@@ -6174,7 +6174,7 @@
 
     function renderDriverRows(rows, heading, headingColor, barColorFor) {
       if (!rows.length) {
-        return '<div style="font-size:11px;color:#71717a;padding:6px 0;">Bu yönde sürücü yok.</div>';
+        return '<div style="font-size:11px;color:#71717a;padding:6px 0;">No drivers in this direction.</div>';
       }
       return rows.map(function(dr, i) {
       var path = dr.page || '';
@@ -6193,7 +6193,7 @@
         + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
         + '<span style="font-size:12px;color:#a1a1aa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="' + _attr(path) + '">' + pathInner + '</span>'
         + '<span style="font-size:13px;font-weight:700;color:' + numColor + ';white-space:nowrap;flex-shrink:0;">'
-        + dSign + Math.round(drDelta).toLocaleString('tr-TR')
+        + dSign + Math.round(drDelta).toLocaleString('en-US')
         + '<span style="font-size:10px;font-weight:400;color:' + dimColor + ';margin-left:3px;">%' + Math.round(pct) + '</span>'
         + '</span>'
         + '</div>'
@@ -6205,17 +6205,17 @@
     }
 
     var summary = '<div style="display:flex;align-items:center;justify-content:space-between;padding:0 0 10px;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:8px;">'
-      + '<span style="font-size:11px;font-weight:600;color:' + dimColor + ';text-transform:uppercase;letter-spacing:.05em;">Değişim özeti</span>'
+      + '<span style="font-size:11px;font-weight:600;color:' + dimColor + ';text-transform:uppercase;letter-spacing:.05em;">Change summary</span>'
       + '<span style="font-size:14px;font-weight:800;color:' + accentColor + ';">' + totalLabel + '</span>'
       + '</div>';
 
     var increaseBlock = '<div style="margin-top:8px;">'
-      + '<div style="font-size:11px;font-weight:700;color:#34d399;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Artış kaynağı</div>'
-      + renderDriverRows(inc, 'Artış kaynağı', '#34d399', '#059669')
+      + '<div style="font-size:11px;font-weight:700;color:#34d399;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Increase source</div>'
+      + renderDriverRows(inc, 'Increase source', '#34d399', '#059669')
       + '</div>';
     var decreaseBlock = '<div style="margin-top:10px;">'
-      + '<div style="font-size:11px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Düşüş kaynağı</div>'
-      + renderDriverRows(dec, 'Düşüş kaynağı', '#f87171', '#dc2626')
+      + '<div style="font-size:11px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Decrease source</div>'
+      + renderDriverRows(dec, 'Decrease source', '#f87171', '#dc2626')
       + '</div>';
 
     el.innerHTML = summary + increaseBlock + decreaseBlock;
@@ -6231,7 +6231,7 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (d) { _renderInsights(el, d); })
-      .catch(function () { if (el) el.innerHTML = '<p class="rt-empty text-sm italic">hata</p>'; });
+      .catch(function () { if (el) el.innerHTML = '<p class="rt-empty text-sm italic">error</p>'; });
   }
 
   function _renderInsights(el, d) {
@@ -6239,7 +6239,7 @@
     if (!d.has_data || !d.insights || !d.insights.length) {
       el.innerHTML = '<div class="py-4 text-center text-[12px] text-slate-400 dark:text-slate-500">'
         + '<div class="mb-1 text-lg" style="color:#52525b;">~</div>'
-        + '<div>Grafik verisi birikince ani iniş/çıkışlar burada görünecek.</div>'
+        + '<div>Sudden spikes and drops will appear here once chart data accumulates.</div>'
         + '</div>';
       return;
     }
@@ -6252,12 +6252,12 @@
       var pctAbs = Math.abs(ins.change_pct || 0);
       var deltaAbs = Math.abs(ins.site_delta || 0);
       var sign = ins.site_delta >= 0 ? '+' : '';
-      var deltaStr = sign + Math.round(ins.site_delta || 0).toLocaleString('tr-TR');
+      var deltaStr = sign + Math.round(ins.site_delta || 0).toLocaleString('en-US');
 
       // Ana özet satırı
       var headline = ins.period_start + '–' + ins.period_end + ' · '
-        + (isDrop ? 'düşüş' : 'artış') + ' · '
-        + '%' + pctAbs.toFixed(0) + ' (' + deltaStr + ' kul.)';
+        + (isDrop ? 'drop' : 'rise') + ' · '
+        + '%' + pctAbs.toFixed(0) + ' (' + deltaStr + ' users)';
 
       // Sayfa katkıları
       var pageLines = '';
@@ -6273,7 +6273,7 @@
           return '<div class="flex items-baseline justify-between gap-2 mt-1">'
             + '<span class="min-w-0 text-[11px] text-slate-500 dark:text-slate-400 truncate" title="' + _attr(path) + '">' + _esc(short) + '</span>'
             + '<span class="shrink-0 tabular-nums text-[11px] font-bold ' + pColor + '">'
-            + pSign + Math.round(p.delta).toLocaleString('tr-TR')
+            + pSign + Math.round(p.delta).toLocaleString('en-US')
             + ' <span class="font-normal text-slate-400">%' + Math.round(pct) + '</span>'
             + '</span>'
             + '</div>';
@@ -6291,7 +6291,7 @@
         + '</div>';
     }).join('');
 
-    el.innerHTML = '<div class="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Son olaylar (en büyükten küçüğe)</div>' + items;
+    el.innerHTML = '<div class="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Recent events (largest first)</div>' + items;
   }
 
   function rtSwitchTopTab(btn, tab) {
@@ -6322,7 +6322,7 @@
   function _renderTopPages(listEl, pages, viewsMode, domain, profile) {
     if (!listEl) return;
     if (!pages.length) {
-      listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
+      listEl.innerHTML = '<p class="rt-empty text-sm italic">no data</p>';
       return;
     }
     var isApp = profile === 'ios' || profile === 'android';
@@ -6336,7 +6336,7 @@
     });
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
-      var pathRaw = p.page || '(bilinmiyor)';
+      var pathRaw = p.page || '(unknown)';
       var path = _esc(pathRaw);
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
@@ -6395,13 +6395,13 @@
             var tsEl = box.querySelector('[data-rt-ts]');
             if (tsEl) {
               var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
-              tsEl.textContent = dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+              tsEl.textContent = dt.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
               tsEl.removeAttribute('title');
             }
           } else {
             var tsErr = box.querySelector('[data-rt-ts]');
             if (tsErr) {
-              tsErr.textContent = 'hata';
+              tsErr.textContent = 'error';
               if (d.message) tsErr.setAttribute('title', String(d.message));
               else tsErr.removeAttribute('title');
             }
@@ -6495,7 +6495,7 @@
     var listEl = colEl.querySelector('[data-rt-names-list]');
     if (!listEl) return;
     if (!pages || !pages.length) {
-      listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">veri yok</li>';
+      listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">no data</li>';
       return;
     }
     var sorted = pages.slice().sort(function (a, b) {
@@ -6503,11 +6503,11 @@
         || (Number(b.screenPageViews) || 0) - (Number(a.screenPageViews) || 0);
     }).slice(0, RT_NAMES_LIMIT);
     listEl.innerHTML = sorted.map(function (p, i) {
-      var titleRaw = String((p && p.page) || '(bilinmiyor)').trim() || '(bilinmiyor)';
+      var titleRaw = String((p && p.page) || '(unknown)').trim() || '(unknown)';
       var href = _rtPageHref(domain, p, profile);
       var users = Number(p.activeUsers) || 0;
       var views = Number(p.screenPageViews) || 0;
-      var tip = _attr(titleRaw + '\n' + users + ' kul. · ' + views + ' gör.' + (href ? '\n' + href : ''));
+      var tip = _attr(titleRaw + '\n' + users + ' users · ' + views + ' pv' + (href ? '\n' + href : ''));
       var titleHtml = href
         ? '<a class="rt-names-title" href="' + _attr(href) + '" target="_blank" rel="noopener noreferrer" title="' + tip + '">' + _esc(titleRaw) + '</a>'
         : '<span class="rt-names-title" title="' + tip + '">' + _esc(titleRaw) + '</span>';
@@ -6516,7 +6516,7 @@
         + titleHtml
         + '<div class="rt-names-traffic" title="' + tip + '">'
         + '<strong>' + _fmt(users) + '</strong>'
-        + '<span>' + _fmt(views) + ' gör.</span>'
+        + '<span>' + _fmt(views) + ' pv</span>'
         + '</div>'
         + '</li>';
     }).join('');
@@ -6555,7 +6555,7 @@
           return !_isRealtimeNoiseTitle(p && p.page);
         });
         if (d && d.error && !rows.length) {
-          listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">veri yok</li>';
+          listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">no data</li>';
         } else {
           _renderNamesCol(colEl, rows, domain, profile);
         }
@@ -6567,20 +6567,20 @@
           }
           if (au != null && !isNaN(au)) {
             auEl.textContent = _fmtExact(au);
-            auEl.setAttribute('title', 'Anlık aktif kullanıcı · ' + _fmtExact(au));
+            auEl.setAttribute('title', 'Live active users · ' + _fmtExact(au));
           } else {
             auEl.textContent = '—';
-            auEl.setAttribute('title', 'Anlık aktif kullanıcı');
+            auEl.setAttribute('title', 'Live active users');
           }
         }
         if (tsEl) {
           var dt = d && d.fetched_at ? new Date(d.fetched_at) : new Date();
-          tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+          tsEl.textContent = 'updated: ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         }
         return d;
       })
       .catch(function () {
-        listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">hata</li>';
+        listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">error</li>';
         if (auEl) auEl.textContent = '—';
       });
   }
@@ -6602,7 +6602,7 @@
           pending--;
           if (pending <= 0 && boardTs) {
             var dt = latest || new Date();
-            boardTs.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+            boardTs.textContent = 'updated: ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           }
         });
       }, idx * 180);
@@ -6653,7 +6653,7 @@
   function rtToggleAlarms() {
     _alarmExpanded = !_alarmExpanded;
     var btn = document.getElementById('rt-alarm-expand-btn');
-    if (btn) btn.textContent = _alarmExpanded ? 'Daralt (10)' : 'Genişlet (50)';
+    if (btn) btn.textContent = _alarmExpanded ? 'Daralt (10)' : 'Expand (50)';
     _fetchGlobalAlarms(_alarmExpanded ? 50 : 10);
   }
   window.rtToggleAlarms = rtToggleAlarms;
@@ -6734,7 +6734,7 @@
         });
         wrap.appendChild(b);
       }
-      addPill('all', 'Tümü');
+      addPill('all', 'All');
       RT_ALARM_SITES.forEach(function (s) {
         addPill(String(s.id), s.display_name || s.domain || String(s.id));
       });
@@ -6758,8 +6758,8 @@
   }
 
   function _rtMetricTr(key) {
-    if (key === 'activeUsers') return 'Aktif kullanıcı';
-    if (key === 'screenPageViews') return 'Sayfa görüntüleme';
+    if (key === 'activeUsers') return 'Active users';
+    if (key === 'screenPageViews') return 'Pageviews';
     return key || '—';
   }
 
@@ -6801,7 +6801,7 @@
         sev = 'rt-alarm--warn';
       }
       var dir = pct < 0 ? '↓' : pct > 0 ? '↑' : '·';
-      var dirTitle = pct < 0 ? 'Düşüş' : pct > 0 ? 'Artış' : 'Değişim';
+      var dirTitle = pct < 0 ? 'Drop' : pct > 0 ? 'Rise' : 'Change';
       var parsed = _parseSiteAlarmMessage(a.message);
       var dom = (a.domain || (parsed && parsed.domain) || '').trim();
       var prof = parsed && parsed.profile ? parsed.profile : '—';
@@ -6810,35 +6810,35 @@
       var cur = a.current_value;
       var pctStr = (typeof a.change_pct === 'number' ? a.change_pct : parseFloat(a.change_pct));
       if (isNaN(pctStr)) pctStr = 0;
-      var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
+      var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) : '';
       var shortLab = _siteShortLabel(a.site_id) || dom;
       return (
         '<tr class="' + sev + '">' +
-        '<td class="rt-alarm-site-dir rt-alarm-cell" data-label="Yön" title="' + _esc(dirTitle) + '">' + _esc(dir) + '</td>' +
+        '<td class="rt-alarm-site-dir rt-alarm-cell" data-label="Dir" title="' + _esc(dirTitle) + '">' + _esc(dir) + '</td>' +
         '<td class="rt-alarm-cell rt-alarm-cell--site" data-label="Site"><span class="rt-alarm-mobile-dir" aria-hidden="true">' + _esc(dir) + '</span><span title="' + _esc(dom) + '">' + _esc(shortLab) + '</span></td>' +
-        '<td class="rt-alarm-cell" data-label="Profil">' + _esc(prof) + '</td>' +
+        '<td class="rt-alarm-cell" data-label="Profile">' + _esc(prof) + '</td>' +
         '<td class="rt-alarm-cell rt-alarm-cell--metric font-bold">' + _esc(_rtMetricTr(metricKey)) + '</td>' +
-        '<td class="rt-alarm-cell tabular-nums" data-label="Önceki">' + _esc(String(Math.round(prev))) + '</td>' +
-        '<td class="rt-alarm-cell tabular-nums" data-label="Şimdi">' + _esc(String(Math.round(cur))) + '</td>' +
-        '<td class="rt-alarm-cell rt-alarm-cell--pct tabular-nums font-extrabold" data-label="% / Fark">' +
+        '<td class="rt-alarm-cell tabular-nums" data-label="Previous">' + _esc(String(Math.round(prev))) + '</td>' +
+        '<td class="rt-alarm-cell tabular-nums" data-label="Now">' + _esc(String(Math.round(cur))) + '</td>' +
+        '<td class="rt-alarm-cell rt-alarm-cell--pct tabular-nums font-extrabold" data-label="% / Delta">' +
            _esc((pctStr >= 0 ? '+' : '') + pctStr.toFixed(1) + '%') +
-           '<div class="text-[9px] opacity-70 font-normal sm:inline sm:ml-1">Fark: ' + (cur - prev).toFixed(0) + '</div>' +
+           '<div class="text-[9px] opacity-70 font-normal sm:inline sm:ml-1">Delta: ' + (cur - prev).toFixed(0) + '</div>' +
         '</td>' +
-        '<td class="rt-alarm-cell tabular-nums text-[10px] opacity-80" data-label="Saat">' + _esc(dt) + '</td>' +
+        '<td class="rt-alarm-cell tabular-nums text-[10px] opacity-80" data-label="Time">' + _esc(dt) + '</td>' +
         '</tr>'
       );
     }).join('');
     listEl.innerHTML =
       '<table class="rt-alarm-site-table" role="grid">' +
       '<thead><tr>' +
-      '<th scope="col" style="width:35px">Yön</th>' +
+      '<th scope="col" style="width:35px">Dir</th>' +
       '<th scope="col" style="min-width:80px">Site</th>' +
-      '<th scope="col" style="width:60px">Profil</th>' +
-      '<th scope="col" style="min-width:120px">Metrik</th>' +
-      '<th scope="col" style="width:60px">Önceki</th>' +
-      '<th scope="col" style="width:60px">Şimdi</th>' +
-      '<th scope="col" style="width:70px">% / Fark</th>' +
-      '<th scope="col" style="width:50px">Saat</th>' +
+      '<th scope="col" style="width:60px">Profile</th>' +
+      '<th scope="col" style="min-width:120px">Metric</th>' +
+      '<th scope="col" style="width:60px">Previous</th>' +
+      '<th scope="col" style="width:60px">Now</th>' +
+      '<th scope="col" style="width:70px">% / Delta</th>' +
+      '<th scope="col" style="width:50px">Time</th>' +
       '</tr></thead><tbody>' +
       rows +
       '</tbody></table>';
@@ -6858,7 +6858,7 @@
     alarms.forEach(function (a) {
       var msg = String(a.message || '');
       if (msg.indexOf('— —') === 0 || msg.indexOf('(other) —') === 0 || msg.indexOf('(not set) —') === 0) {
-        return; // Eski/hatalı DB kayıtlarını gizle
+        return; // Eski/hatalı DB recordslarını gizle
       }
       var metric = a.metric || '';
       if (metric.indexOf('page:') === 0 || metric.indexOf('news:') === 0) {
@@ -6892,8 +6892,8 @@
     });
     var siteEmpty =
       siteAlarms.length && !siteFiltered.length
-        ? 'Seçilen site için bu aralıkta alarm yok.'
-        : 'Henüz site alarmı yok.';
+        ? 'No alarms for the selected site in this range.'
+        : 'No site alarms yet.';
     _renderSiteAlarmTable(siteList, siteFiltered, showCount, siteEmpty);
     var pageFiltered = pageAlarms.filter(function (a) {
       if (_alarmSiteFilter === 'all') return true;
@@ -6901,8 +6901,8 @@
     });
     var pageEmpty =
       pageAlarms.length && !pageFiltered.length
-        ? 'Seçilen site için bu aralıkta sayfa/haber alarmı yok.'
-        : 'Henüz sayfa alarmı yok.';
+        ? 'No page/news alarms for the selected site in this range.'
+        : 'No page alarms yet.';
     _renderAlarmList(pageList, pageFiltered, showCount, pageEmpty);
   }
 
@@ -6999,7 +6999,7 @@
           icon = '~';
         }
       }
-      var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '';
+      var dt = a.triggered_at ? new Date(a.triggered_at).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) : '';
       var href = a.row_url || _rtAlarmHrefFromDomain(a.domain || '', mStr);
       var raw = _rtAlarmRawFromMetric(mStr);
       var sub = '';
@@ -7008,10 +7008,10 @@
           sub =
             '<div class="mt-1.5 text-xs leading-snug"><a class="font-medium text-sky-600 underline dark:text-sky-400" href="' +
             _esc(href) +
-            '" target="_blank" rel="noopener noreferrer">Sayfayı aç</a></div>';
+            '" target="_blank" rel="noopener noreferrer">Open page</a></div>';
         } else {
           sub =
-            '<div class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Bu satır için tam URL üretilemedi (GA ekran adı veya yol).</div>';
+            '<div class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Could not build a full URL for this row (GA screen name or path).</div>';
         }
       }
       var lead = icon ? '<span class="font-semibold">' + icon + '</span> ' : '';
@@ -7175,7 +7175,7 @@
     if (countEl) countEl.textContent = total;
     if (sevEl) {
       var isCrit = data.severity === 'critical';
-      sevEl.textContent = isCrit ? 'KRİTİK' : 'UYARI';
+      sevEl.textContent = isCrit ? 'CRITICAL' : 'ALERT';
       sevEl.style.color = isCrit ? '#dc2626' : '#d97706';
     }
     var sub = sec.querySelector('[data-rt-404-sub]');
@@ -7184,7 +7184,7 @@
       var delta = (data && data.delta_404_users);
       if (delta == null) delta = (total - prev);
       var deltaStr = delta >= 0 ? ('+' + delta) : String(delta);
-      sub.textContent = 'önceki ' + prev + ' → şimdi ' + total + ' (' + deltaStr + ')';
+      sub.textContent = 'previous ' + prev + ' → now ' + total + ' (' + deltaStr + ')';
     }
     if (pagesEl && data.pages && data.pages.length) {
       var domain = box.getAttribute('data-rt-domain') || '';
@@ -7197,7 +7197,7 @@
         return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0">'
           + '<span style="color:#78716c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:min(260px,45vw)">'
           + labelHtml + '</span>'
-          + '<strong style="color:#d97706;margin-left:8px;flex-shrink:0">' + p.activeUsers + ' kul.</strong>'
+          + '<strong style="color:#d97706;margin-left:8px;flex-shrink:0">' + p.activeUsers + ' users</strong>'
           + '</div>';
       }).join('');
     }
@@ -7247,7 +7247,7 @@
     if (profile === 'mweb') return 'Mobile Web';
     if (profile === 'android') return 'Android';
     if (profile === 'ios') return 'iOS';
-    return profile || 'Profil';
+    return profile || 'Profile';
   }
 
   function _rtSiteShortName(siteEl) {
@@ -7315,7 +7315,7 @@
   }
 
   function _rtSparkTableFmtInt(n) {
-    return (Number(n) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 });
+    return (Number(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
   }
 
   function _rtResolveSparkTableContext(fromEl) {
@@ -7329,7 +7329,7 @@
       return {
         anchor: box,
         title: _rtSiteShortName(siteEl) + ' · ' + _rtProfileDisplayName(profile),
-        sub: (RT_LIST_RANGE_LABELS[_rtTrendRangeForBox(box)] || '24 saat') + ' · spark dilimleri (tepe aktif / tepe görüntüleme)',
+        sub: (RT_LIST_RANGE_LABELS[_rtTrendRangeForBox(box)] || '24 hours') + ' · spark slices (peak active / peak pageviews)',
         trend: box._rtTrendFull || [],
         rangeKey: _rtTrendRangeForBox(box),
       };
@@ -7337,15 +7337,15 @@
     var siteEl = fromEl.closest('[data-rt-site]');
     if (siteEl) {
       var metric = siteEl._rtSparkMetric || 'au';
-      var metricLabel = metric === 'pv' ? 'görüntüleme' : 'aktif kullanıcı';
+      var metricLabel = metric === 'pv' ? 'pageviews' : 'active users';
       return {
         anchor: siteEl,
-        title: _rtSiteShortName(siteEl) + ' · site toplam',
+        title: _rtSiteShortName(siteEl) + ' · site total',
         sub:
-          (RT_LIST_RANGE_LABELS[_rtSiteSparkRangeKey(siteEl)] || '24 saat') +
+          (RT_LIST_RANGE_LABELS[_rtSiteSparkRangeKey(siteEl)] || '24 hours') +
           ' · ' +
           metricLabel +
-          ' (tüm profiller)',
+          ' (all profiles)',
         trend: siteEl._rtCombinedTrend || [],
         rangeKey: _rtSiteSparkRangeKey(siteEl),
       };
@@ -7357,7 +7357,7 @@
     if (prev == null || prev === undefined) return null;
     var c = Number(cur) || 0;
     var p = Number(prev) || 0;
-    if (c === p) return { cls: 'rt-spark-td--flat', title: 'Önceki dilimle aynı' };
+    if (c === p) return { cls: 'rt-spark-td--flat', title: 'Same as previous slice' };
     var diff = c - p;
     var base = Math.max(Math.abs(p), 1);
     var pct = (diff / base) * 100;
@@ -7392,11 +7392,11 @@
     if (!body) return;
     if (!rows.length) {
       body.innerHTML =
-        '<p class="py-8 text-center text-xs text-slate-400 dark:text-zinc-500">Bu aralık için henüz spark verisi yok. Kartı yenileyin veya aralığı değiştirin.</p>';
+        '<p class="py-8 text-center text-xs text-slate-400 dark:text-zinc-500">No spark data for this range yet. Refresh the card or change the range.</p>';
       return;
     }
     var html =
-      '<table class="rt-spark-data-table"><thead><tr><th scope="col">Saat</th><th scope="col">Kullanıcı</th><th scope="col">Gösterim</th></tr></thead><tbody>';
+      '<table class="rt-spark-data-table"><thead><tr><th scope="col">Saat</th><th scope="col">Users</th><th scope="col">Impressions</th></tr></thead><tbody>';
     rows.forEach(function (r, i) {
       var older = rows[i + 1];
       var uMeta = older ? _rtSparkTableDeltaTier(r.users, older.users) : null;
@@ -7407,7 +7407,7 @@
       var pTitle = pMeta && pMeta.title ? ' title="' + pMeta.title.replace(/"/g, '&quot;') + '"' : '';
       html +=
         '<tr' +
-        (r.carried ? ' class="is-carried" title="Önceki ölçümden taşınan dilim"' : '') +
+        (r.carried ? ' class="is-carried" title="Slice carried from the previous measurement"' : '') +
         '><td>' +
         r.time +
         '</td><td class="' +
@@ -7426,7 +7426,7 @@
     });
     html += '</tbody></table>';
     html +=
-      '<p class="mt-3 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">Sütunlar grafikle aynı 15 dk dilimlerini kullanır. Renk kademeleri bir alttaki dilime göre değişim yüzdesine göre: <span class="text-emerald-800 dark:text-emerald-300">koyu yeşil</span> (güçlü artış) → <span class="text-emerald-300 dark:text-emerald-200">açık yeşil</span> (hafif artış); <span class="text-red-900 dark:text-red-300">koyu kırmızı</span> (güçlü düşüş) → <span class="text-yellow-600 dark:text-yellow-300">sarı</span> (hafif düşüş). Hücre üzerine gelince yüzde görünür.</p>';
+      '<p class="mt-3 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">Columns use the same 15 min slices as the chart. Color steps follow the % change vs the previous slice: <span class="text-emerald-800 dark:text-emerald-300">dark green</span> (strong increase) → <span class="text-emerald-300 dark:text-emerald-200">light green</span> (slight increase); <span class="text-red-900 dark:text-red-300">dark red</span> (strong drop) → <span class="text-yellow-600 dark:text-yellow-300">yellow</span> (slight drop). Hover a cell for the percentage.</p>';
     body.innerHTML = html;
   }
 

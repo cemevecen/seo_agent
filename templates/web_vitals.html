@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 {% macro status_tr(s) -%}
-{%- if s == 'poor' -%}Kötü
-{%- elif s == 'needs_improvement' -%}İyileştirme gerekli
-{%- elif s == 'good' -%}İyi
-{%- elif s == 'unknown' -%}Bilinmiyor
+{%- if s == 'poor' -%}Poor
+{%- elif s == 'needs_improvement' -%}Needs improvement
+{%- elif s == 'good' -%}Good
+{%- elif s == 'unknown' -%}Unknown
 {%- else -%}{{ s or '—' }}
 {%- endif -%}
 {%- endmacro %}
@@ -16,13 +16,13 @@
       <div class="min-w-0">
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-200">Web Vitals</h2>
         <p class="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-zinc-400">
-          GSC Core Web Vitals + AMP · Mac köprü tarama
-          {% if collected_at %} · Son: {{ collected_at[:16].replace('T',' ') }}{% else %} · Henüz tarama yok{% endif %}
+          GSC Core Web Vitals + AMP · Mac bridge scan
+          {% if collected_at %} · Last: {{ collected_at[:16].replace('T',' ') }}{% else %} · No scan yet{% endif %}
         </p>
         <p class="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">
-          Eşik: Good −{{ thresholds.good_drop_pct|default(5) }}% · Poor +{{ thresholds.poor_increase_abs|default(10) }} · NI +{{ thresholds.ni_increase_pct|default(8) }}%
+          Threshold: Good −{{ thresholds.good_drop_pct|default(5) }}% · Poor +{{ thresholds.poor_increase_abs|default(10) }} · NI +{{ thresholds.ni_increase_pct|default(8) }}%
           {% if gsc_links and gsc_links.main %}
-          · <a class="text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.main }}" target="_blank" rel="noopener">GSC aç</a>
+          · <a class="text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.main }}" target="_blank" rel="noopener">Open GSC</a>
           {% endif %}
         </p>
       </div>
@@ -37,8 +37,8 @@
       </div>
     </div>
     <div id="wv-progress" class="mt-3 hidden rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200">
-      <span class="font-semibold">Taranıyor</span>
-      <span id="wv-progress-msg" class="ml-1 opacity-90">Köprü tarama çalışıyor…</span>
+      <span class="font-semibold">Scanning</span>
+      <span id="wv-progress-msg" class="ml-1 opacity-90">Bridge scan running…</span>
     </div>
     </div>
 
@@ -48,29 +48,29 @@
       <div class="flex min-w-0 items-center gap-2">
         <span class="text-slate-400 transition group-open:rotate-90" aria-hidden="true">▸</span>
         <div class="min-w-0">
-          <p class="text-sm font-semibold text-slate-800 dark:text-zinc-100">Vital &amp; AMP · önemli dipnotlar</p>
-          <p class="text-[11px] text-slate-500 dark:text-zinc-400">Kısa çıkarımlar — açınca madde madde</p>
+          <p class="text-sm font-semibold text-slate-800 dark:text-zinc-100">Vitals &amp; AMP · key notes</p>
+          <p class="text-[11px] text-slate-500 dark:text-zinc-400">Short takeaways — expand for the list</p>
         </div>
       </div>
-      <span class="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:bg-zinc-800 dark:text-zinc-400">kapalı</span>
+      <span class="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:bg-zinc-800 dark:text-zinc-400">closed</span>
     </summary>
     <div class="relative border-t border-slate-100 px-4 pb-4 pt-3 dark:border-zinc-800 sm:px-5">
       <a href="https://developers.google.com/search/docs/appearance/core-web-vitals"
          target="_blank" rel="noopener noreferrer"
          class="absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-sky-700 shadow-sm hover:bg-sky-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-sky-400 dark:hover:bg-zinc-800 sm:right-4 sm:top-3"
-         title="Google dokümantasyonu">
-        Daha fazla
+         title="Google documentation">
+        More
         <span aria-hidden="true">↗</span>
       </a>
       <ul class="max-w-[52rem] space-y-2.5 pr-24 text-[13px] leading-snug text-slate-700 dark:text-zinc-300 sm:pr-28">
-        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">CrUX = gerçek kullanıcı.</strong> Bu paneldeki mobil/masaüstü sayılar lab testi değil; son ~28 günlük alan verisidir. Anlık deploy etkisi hemen görünmez.</span></li>
-        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">URL sayısı ≠ trafik.</strong> “Kötü URL” çok olabilir ama tıklamasız sayfalar sıralamayı az etkiler. Önce yüksek trafikli şablonları düzelt.</span></li>
-        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">LCP / INP / CLS ayrı iş.</strong> LCP çoğunlukla görsel+TTFB; INP JS ağırlığı; CLS boyutsuz medya/reklam. Aynı “Poor” satırı farklı kök neden demektir.</span></li>
-        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">AMP ≠ hız garantisi.</strong> AMP sekmesi validation/uyumluluk sorunlarını listeler. Bir URL AMP’te “iyi” olsa bile canonical’da CWV kötü olabilir (ve tersi).</span></li>
-        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Custom JS AMP’te yasak.</strong> “Custom JavaScript is not allowed” → AMP kopyasından script’i kaldır veya AMP bileşenine taşı. Canonical HTML’de JS kalabilir.</span></li>
-        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Küçük görsel uyarısı.</strong> “Görüntü boyutu önerilen boyuttan küçük” genelde uyarı bandıdır; kırık AMP değildir ama LCP/kalite için width-height/srcset düzelt.</span></li>
-        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Tarama gecikmesi.</strong> “Tara” Mac köprü ile GSC’yi çeker; GSC’nin kendi güncelleme gecikmesi + köprü süresi üst üste binebilir. Grafik boşsa önce son tarama zamanına bak.</span></li>
-        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Öncelik sırası.</strong> 1) Yüksek tıklamalı Poor LCP/INP şablonları · 2) AMP validation (index kaybı riski) · 3) Needs improvement toplu temizlik · 4) kozmetik AMP görsel uyarıları.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">CrUX = real users.</strong> Mobile/desktop numbers here are field data from the last ~28 days, not lab tests. A deploy will not show up instantly.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">URL count ≠ traffic.</strong> There can be many “Poor URLs”, but pages with no clicks barely affect ranking. Fix high-traffic templates first.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">LCP / INP / CLS are separate jobs.</strong> LCP is mostly image+TTFB; INP is JS weight; CLS is unsized media/ads. The same “Poor” row can have different root causes.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">AMP ≠ a speed guarantee.</strong> The AMP tab lists validation/compatibility issues. A URL can be “good” on AMP while CWV is poor on the canonical (and vice versa).</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Custom JS is forbidden on AMP.</strong> “Custom JavaScript is not allowed” → remove the script from the AMP copy or move it to an AMP component. JS can remain on canonical HTML.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Small image warning.</strong> “Image is smaller than recommended” is usually a warning band; it is not broken AMP, but fix width-height/srcset for LCP/quality.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Scan delay.</strong> “Scan” pulls GSC via the Mac bridge; GSC’s own update lag plus bridge time can stack. If the chart is empty, check the last scan time first.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Priority order.</strong> 1) High-click Poor LCP/INP templates · 2) AMP validation (index-loss risk) · 3) Needs improvement bulk cleanup · 4) cosmetic AMP image warnings.</span></li>
       </ul>
       <div class="mt-3 flex flex-wrap gap-2 text-[11px]">
         <a class="rounded-md border border-slate-200 px-2 py-1 font-medium text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
@@ -100,54 +100,54 @@
 
   <div class="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
     <div class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
-      <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-rose-600 sm:text-[11px]">Kötü</p>
+      <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-rose-600 sm:text-[11px]">Poor</p>
       <p class="mt-1 break-all text-xl font-black tabular-nums text-rose-600 sm:text-2xl">{{ fmt_int(poor_tot) }}</p>
       <p class="mt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">M {{ fmt_int(mk.poor) }} · D {{ fmt_int(dk.poor) }}</p>
     </div>
     <div class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
-      <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-amber-600 sm:text-[11px]" title="Needs improvement">İyileştir</p>
+      <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-amber-600 sm:text-[11px]" title="Needs improvement">Needs work</p>
       <p class="mt-1 break-all text-xl font-black tabular-nums text-amber-600 sm:text-2xl">{{ fmt_int(ni_tot) }}</p>
       <p class="mt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">M {{ fmt_int(mk.needs_improvement) }} · D {{ fmt_int(dk.needs_improvement) }}</p>
     </div>
     <div class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
-      <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-emerald-600 sm:text-[11px]">İyi</p>
+      <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-emerald-600 sm:text-[11px]">Good</p>
       <p class="mt-1 break-all text-xl font-black tabular-nums text-emerald-600 sm:text-2xl">{{ fmt_int(good_tot) }}</p>
       <p class="mt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">M {{ fmt_int(mk.good) }} · D {{ fmt_int(dk.good) }}</p>
     </div>
     <div class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
       <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-violet-600 sm:text-[11px]">AMP URL</p>
       <p class="mt-1 break-all text-xl font-black tabular-nums text-violet-600 sm:text-2xl">{{ fmt_int(amp.url_row_count) }}</p>
-      <p class="mt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">{{ (amp.issues or [])|length }} sorun grubu</p>
+      <p class="mt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">{{ (amp.issues or [])|length }} issue groups</p>
     </div>
   </div>
 
   <div class="grid min-w-0 gap-3 lg:grid-cols-2">
     <section class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Mobil</h3>
+        <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Mobile</h3>
         {% if gsc_links.mobile_summary %}
-        <a class="text-[11px] font-semibold uppercase tracking-wide text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.mobile_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
+        <a class="text-[11px] font-semibold uppercase tracking-wide text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.mobile_summary }}" target="_blank" rel="noopener">Open report ›</a>
         {% endif %}
       </div>
       <div class="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-zinc-400">
-        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> kötü URL</span>
-        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> iyileştirme</span>
-        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> iyi URL</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> poor URLs</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> needs improvement</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> good URLs</span>
       </div>
       <div class="relative h-48 min-w-0 w-full sm:h-56"><canvas id="wv-chart-mobile"></canvas></div>
       <p id="wv-chart-mobile-note" class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500"></p>
     </section>
     <section class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Masaüstü</h3>
+        <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Desktop</h3>
         {% if gsc_links.desktop_summary %}
-        <a class="text-[11px] font-semibold uppercase tracking-wide text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.desktop_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
+        <a class="text-[11px] font-semibold uppercase tracking-wide text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.desktop_summary }}" target="_blank" rel="noopener">Open report ›</a>
         {% endif %}
       </div>
       <div class="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-zinc-400">
-        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> kötü URL</span>
-        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> iyileştirme</span>
-        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> iyi URL</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> poor URLs</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> needs improvement</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> good URLs</span>
       </div>
       <div class="relative h-48 min-w-0 w-full sm:h-56"><canvas id="wv-chart-desktop"></canvas></div>
       <p id="wv-chart-desktop-note" class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500"></p>
@@ -156,7 +156,7 @@
 
   <details id="wv-history-drop" class="min-w-0 rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
     <summary class="cursor-pointer list-none px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-zinc-200 sm:px-4 [&::-webkit-details-marker]:hidden">
-      <span class="mr-1.5 text-slate-400">▸</span> Tarama geçmişi (panel) · {{ history|length }} nokta
+      <span class="mr-1.5 text-slate-400">▸</span> Scan history (panel) · {{ history|length }} points
     </summary>
     <div class="border-t border-slate-100 px-3 pb-3 pt-2 dark:border-zinc-800">
       <div class="relative h-40 min-w-0 w-full"><canvas id="wv-history-chart"></canvas></div>
@@ -165,7 +165,7 @@
 
   <div class="min-w-0 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
     <div class="flex gap-1 overflow-x-auto border-b border-slate-100 px-3 pt-3 sm:px-4 dark:border-zinc-800" style="-webkit-overflow-scrolling:touch">
-      {% for tid, tlabel in [('mobile','Mobil'),('desktop','Masaüstü'),('amp','AMP')] %}
+      {% for tid, tlabel in [('mobile','Mobile'),('desktop','Desktop'),('amp','AMP')] %}
       <a href="/web-vitals?site_id={{ selected_site_id }}&tab={{ tid }}"
          class="shrink-0 rounded-t-lg px-3 py-2 text-xs font-semibold sm:px-4 {% if tab==tid %}border-b-2 border-sky-500 text-sky-600 dark:text-sky-400{% else %}text-slate-500 dark:text-zinc-400{% endif %}">
         {{ tlabel }}
@@ -178,10 +178,10 @@
         <div class="grid min-w-0 gap-3 lg:grid-cols-2">
           <div class="relative h-48 min-w-0 sm:h-52"><canvas id="wv-device-chart"></canvas></div>
           <div class="min-w-0 text-sm text-slate-600 dark:text-zinc-300">
-            <p class="mb-2 font-semibold">AMP sorun grupları</p>
-            <p class="mb-3 text-xs text-slate-500 dark:text-zinc-400">GSC AMP validation — URL listeleri kaydırılabilir.</p>
+            <p class="mb-2 font-semibold">AMP issue groups</p>
+            <p class="mb-3 text-xs text-slate-500 dark:text-zinc-400">GSC AMP validation — URL lists are scrollable.</p>
             {% if gsc_links and gsc_links.amp %}
-            <a class="text-xs text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.amp }}" target="_blank" rel="noopener">GSC AMP aç</a>
+            <a class="text-xs text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.amp }}" target="_blank" rel="noopener">Open GSC AMP</a>
             {% endif %}
           </div>
         </div>
@@ -205,7 +205,7 @@
           <div class="mt-3 max-h-[360px] overflow-auto overscroll-contain">
             <table class="w-full min-w-[320px] text-xs">
               <thead class="sticky top-0 bg-white dark:bg-zinc-900"><tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
-                <th class="py-1.5 pr-3">URL</th><th class="py-1.5 whitespace-nowrap">Son tarama</th>
+                <th class="py-1.5 pr-3">URL</th><th class="py-1.5 whitespace-nowrap">Last crawl</th>
               </tr></thead>
               <tbody>
                 {% for r in iss.url_rows or [] %}
@@ -214,14 +214,14 @@
                   <td class="py-1.5 whitespace-nowrap text-slate-600 dark:text-zinc-400">{{ r.last_crawl or '—' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="2" class="py-4 text-slate-400 dark:text-zinc-500">URL yok</td></tr>
+                <tr><td colspan="2" class="py-4 text-slate-400 dark:text-zinc-500">No URLs</td></tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
         </section>
         {% else %}
-        <p class="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">AMP verisi yok — Mac bridge ile Tara.</p>
+        <p class="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">No AMP data — Scan via Mac bridge.</p>
         {% endfor %}
       {% else %}
         {% set dev = mob if tab=='mobile' else desk %}
@@ -229,38 +229,38 @@
         <div class="grid min-w-0 gap-3 lg:grid-cols-2">
           <div class="relative h-48 min-w-0 sm:h-52"><canvas id="wv-device-chart"></canvas></div>
           <div class="min-w-0">
-            <p class="mb-2 text-xs font-semibold text-slate-600 dark:text-zinc-300">Özet KPI</p>
+            <p class="mb-2 text-xs font-semibold text-slate-600 dark:text-zinc-300">KPI summary</p>
             <div class="grid min-w-0 grid-cols-3 gap-2 text-center">
               <div class="min-w-0 rounded-xl bg-rose-50 p-2 sm:p-3 dark:bg-rose-950/30">
-                <p class="text-[10px] text-rose-600">Kötü</p>
+                <p class="text-[10px] text-rose-600">Poor</p>
                 <p class="break-all text-base font-black tabular-nums text-rose-600 sm:text-lg">{{ fmt_int(kpis.poor) }}</p>
               </div>
               <div class="min-w-0 rounded-xl bg-amber-50 p-2 sm:p-3 dark:bg-amber-950/30">
-                <p class="text-[10px] text-amber-600" title="Needs improvement">İyileştir</p>
+                <p class="text-[10px] text-amber-600" title="Needs improvement">Needs work</p>
                 <p class="break-all text-base font-black tabular-nums text-amber-600 sm:text-lg">{{ fmt_int(kpis.needs_improvement) }}</p>
               </div>
               <div class="min-w-0 rounded-xl bg-emerald-50 p-2 sm:p-3 dark:bg-emerald-950/30">
-                <p class="text-[10px] text-emerald-600">İyi</p>
+                <p class="text-[10px] text-emerald-600">Good</p>
                 <p class="break-all text-base font-black tabular-nums text-emerald-600 sm:text-lg">{{ fmt_int(kpis.good) }}</p>
               </div>
             </div>
             <p class="mt-3 text-[11px] text-slate-500 dark:text-zinc-400">
               {% if tab=='mobile' and gsc_links.mobile_summary %}
-              <a class="text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.mobile_summary }}" target="_blank" rel="noopener">GSC özet</a>
+              <a class="text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.mobile_summary }}" target="_blank" rel="noopener">GSC summary</a>
               {% elif gsc_links.desktop_summary %}
-              <a class="text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.desktop_summary }}" target="_blank" rel="noopener">GSC özet</a>
+              <a class="text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.desktop_summary }}" target="_blank" rel="noopener">GSC summary</a>
               {% endif %}
-              · Son GSC güncelleme: {{ payload.last_updated or '—' }}
+              · Last GSC update: {{ payload.last_updated or '—' }}
             </p>
           </div>
         </div>
 
         <section class="min-w-0">
-          <p class="mb-2 text-xs font-semibold text-slate-600 dark:text-zinc-300">Sorunlar (summary)</p>
+          <p class="mb-2 text-xs font-semibold text-slate-600 dark:text-zinc-300">Issuelar (summary)</p>
           <div class="overflow-x-auto overscroll-contain">
             <table class="w-full min-w-[480px] text-xs">
               <thead><tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
-                <th class="py-1.5 pr-2">Durum</th><th class="py-1.5 pr-2">Sorun</th><th class="py-1.5 pr-2">Doğrulama</th><th class="py-1.5">URL</th>
+                <th class="py-1.5 pr-2">Status</th><th class="py-1.5 pr-2">Issue</th><th class="py-1.5 pr-2">Validation</th><th class="py-1.5">URL</th>
               </tr></thead>
               <tbody>
                 {% for iss in dev.issues or [] %}
@@ -271,7 +271,7 @@
                   <td class="py-1.5 font-semibold tabular-nums">{{ fmt_int(iss.url_count) }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="4" class="py-6 text-center text-slate-400 dark:text-zinc-500">Sorun satırı yok</td></tr>
+                <tr><td colspan="4" class="py-6 text-center text-slate-400 dark:text-zinc-500">No issue rows</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -284,14 +284,14 @@
             <div class="min-w-0">
               <p class="text-sm font-semibold {% if d.status=='poor' %}text-rose-600{% else %}text-amber-700 dark:text-amber-400{% endif %}">{{ d.title }}</p>
               <p class="text-[11px] text-slate-500 dark:text-zinc-400" title="{{ d.item_key or '' }}">
-                {{ status_tr(d.status) }} · {{ d.metric or '—' }} · {{ fmt_int(d.url_row_count) }} grup satırı
+                {{ status_tr(d.status) }} · {{ d.metric or '—' }} · {{ fmt_int(d.url_row_count) }} group rows
               </p>
             </div>
-            {% if d.source_url %}<a class="shrink-0 text-[11px] text-sky-600 hover:underline dark:text-sky-400" href="{{ d.source_url }}" target="_blank" rel="noopener">Kırılım</a>{% endif %}
+            {% if d.source_url %}<a class="shrink-0 text-[11px] text-sky-600 hover:underline dark:text-sky-400" href="{{ d.source_url }}" target="_blank" rel="noopener">Breakdown</a>{% endif %}
           </div>
           {% if d.causes %}
           <div class="mt-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-800/60">
-            <p class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Olası sebepler</p>
+            <p class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Likely causes</p>
             <ul class="list-disc space-y-0.5 pl-4 text-[11px] text-slate-600 dark:text-zinc-400">
               {% for c in d.causes %}<li>{{ c }}</li>{% endfor %}
             </ul>
@@ -300,7 +300,7 @@
           <div class="mt-3 max-h-[360px] overflow-auto overscroll-contain">
             <table class="w-full min-w-[420px] text-xs">
               <thead class="sticky top-0 bg-white dark:bg-zinc-900"><tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
-                <th class="py-1.5 pr-3">Örnek URL</th><th class="py-1.5 pr-3">Grup URL</th><th class="py-1.5">Değer</th>
+                <th class="py-1.5 pr-3">Example URL</th><th class="py-1.5 pr-3">Group URL</th><th class="py-1.5">Value</th>
               </tr></thead>
               <tbody>
                 {% for r in d.url_rows or [] %}
@@ -310,7 +310,7 @@
                   <td class="py-1.5 whitespace-nowrap">{{ r.metric_value or '—' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="3" class="py-3 text-slate-400 dark:text-zinc-500">Bu kırılımda satır yok (0 URL)</td></tr>
+                <tr><td colspan="3" class="py-3 text-slate-400 dark:text-zinc-500">No rows in this breakdown (0 URLs)</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -319,12 +319,12 @@
         {% endfor %}
 
         <section class="min-w-0 rounded-xl border border-emerald-100 p-3 sm:p-4 dark:border-emerald-900/40">
-          <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-400">İyi URL örnekleri</p>
-          <p class="mb-2 text-[11px] text-slate-500 dark:text-zinc-400">{{ fmt_int((dev.good_urls or [])|length) }} satır (tam tarama, limit yok)</p>
+          <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Good URL examples</p>
+          <p class="mb-2 text-[11px] text-slate-500 dark:text-zinc-400">{{ fmt_int((dev.good_urls or [])|length) }} rows (full scan, no limit)</p>
           <div class="max-h-[480px] overflow-auto overscroll-contain">
             <table class="w-full min-w-[360px] text-xs">
               <thead class="sticky top-0 bg-white dark:bg-zinc-900"><tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
-                <th class="py-1.5 pr-3">Örnek URL</th><th class="py-1.5">Grup URL</th>
+                <th class="py-1.5 pr-3">Example URL</th><th class="py-1.5">Group URL</th>
               </tr></thead>
               <tbody>
                 {% for r in dev.good_urls or [] %}
@@ -333,7 +333,7 @@
                   <td class="py-1.5 tabular-nums">{{ r.group_url_count or '—' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="2" class="py-6 text-center text-slate-400 dark:text-zinc-500">İyi URL yok — Tara ile çekin</td></tr>
+                <tr><td colspan="2" class="py-6 text-center text-slate-400 dark:text-zinc-500">No good URLs — run Scan to fetch</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -426,17 +426,17 @@ function _renderGscTrend(canvasId, noteId, deviceKey) {
   var hasData = labels.length > 1 || (ser.poor || []).some(function(v){return v;}) || (ser.needs_improvement || []).some(function(v){return v;}) || (ser.good || []).some(function(v){return v;});
   if (note) {
     note.textContent = ser.source === 'gsc'
-      ? ('GSC trend · ' + labels.length + ' nokta')
-      : (hasData ? ('Tarama geçmişi · ' + labels.length + ' nokta — tam GSC grafik için Tara') : 'Grafik verisi yok — Mac köprü ile Tara');
+      ? ('GSC trend · ' + labels.length + ' points')
+      : (hasData ? ('Scan history · ' + labels.length + ' points — Scan for the full GSC chart') : 'No chart data — Scan via Mac bridge');
   }
   new Chart(canvas, {
     type: 'line',
     data: {
       labels: labels,
       datasets: [
-        { label: 'Kötü', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', backgroundColor: 'rgba(197,57,41,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0, fill: false },
-        { label: 'İyileştirme gerekli', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', backgroundColor: 'rgba(240,147,0,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0, fill: false },
-        { label: 'İyi', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', backgroundColor: 'rgba(11,128,67,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0, fill: false }
+        { label: 'Poor', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', backgroundColor: 'rgba(197,57,41,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0, fill: false },
+        { label: 'Needs improvement', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', backgroundColor: 'rgba(240,147,0,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0, fill: false },
+        { label: 'Good', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', backgroundColor: 'rgba(11,128,67,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0, fill: false }
       ]
     },
     options: {
@@ -449,7 +449,7 @@ function _renderGscTrend(canvasId, noteId, deviceKey) {
           callbacks: {
             label: function(ctx) {
               var n = ctx.parsed.y;
-              return ctx.dataset.label + ': ' + (n == null ? '—' : Math.round(Number(n)).toLocaleString('tr-TR'));
+              return ctx.dataset.label + ': ' + (n == null ? '—' : Math.round(Number(n)).toLocaleString('en-US'));
             }
           }
         }
@@ -460,7 +460,7 @@ function _renderGscTrend(canvasId, noteId, deviceKey) {
           ticks: {
             maxTicksLimit: 5,
             callback: function(v) {
-              if (v >= 1000) return (v / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + 'K';
+              if (v >= 1000) return (v / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 }) + 'K';
               return v;
             }
           },
@@ -481,7 +481,7 @@ function _setRunUi(running, msg) {
   var box = document.getElementById('wv-progress');
   var pmsg = document.getElementById('wv-progress-msg');
   if (btn) btn.disabled = !!running;
-  if (label) label.textContent = running ? 'Taranıyor…' : 'Tara';
+  if (label) label.textContent = running ? 'Scanning…' : 'Scan';
   if (box) box.classList.toggle('hidden', !running);
   if (pmsg && msg) pmsg.textContent = msg;
 }
@@ -499,7 +499,7 @@ function _pollBridge() {
         var p = (j && j.gsc_cwv_progress) || {};
         var last = (j && j.last_gsc_cwv) || {};
         if (p.running) {
-          _setRunUi(true, p.message || 'Köprü tarama çalışıyor…');
+          _setRunUi(true, p.message || 'Bridge scan running…');
           return;
         }
         _stopPoll();
@@ -510,9 +510,9 @@ function _pollBridge() {
         }
         _setRunUi(false, '');
         if (p.phase === 'error' || (last && last.ok === false && last.message)) {
-          var msg = p.message || last.message || 'hata';
+          var msg = p.message || last.message || 'error';
           if (/oturumu yok|login/i.test(msg)) {
-            msg += '\n\nÇözüm: Mac köprüde GSC oturumunu yenileyin, sonra tekrar Tara.';
+            msg += '\n\nFix: refresh the GSC session on the Mac bridge, then Scan again.';
           }
           alert('Web Vitals: ' + msg);
         }
@@ -523,7 +523,7 @@ function _pollBridge() {
 
 function runWebVitals() {
   var site = _siteKeyFromDomain(_siteDomain);
-  _setRunUi(true, 'Bridge’e istek gönderiliyor…');
+  _setRunUi(true, 'Sending request to the bridge…');
   fetch(_bridgeUrl, {
     method: 'POST', mode: 'cors',
     headers: {'Content-Type':'application/json','Accept':'application/json'},
@@ -536,21 +536,21 @@ function runWebVitals() {
   }).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, status:r.status, j:j}; }); })
     .then(function(res){
       if (res.status === 409 || (res.j && res.j.running)) {
-        _setRunUi(true, (res.j && res.j.message) || 'Zaten çalışıyor…');
+        _setRunUi(true, (res.j && res.j.message) || 'Already running…');
         _pollBridge();
         return;
       }
       if (res.ok && res.j && res.j.ok !== false) {
-        _setRunUi(true, (res.j && res.j.message) || 'Arka planda başladı…');
+        _setRunUi(true, (res.j && res.j.message) || 'Started in the background…');
         _pollBridge();
         return;
       }
       _setRunUi(false, '');
-      alert('Bridge: ' + ((res.j && res.j.message) || 'hata'));
+      alert('Bridge: ' + ((res.j && res.j.message) || 'error'));
     })
     .catch(function(){
       _setRunUi(false, '');
-      alert('Mac bridge kapalı (127.0.0.1:18765). Önce bridge’i açın.');
+      alert('Mac bridge is down (127.0.0.1:18765). Start the bridge first.');
     });
 }
 
@@ -566,9 +566,9 @@ function runWebVitals() {
       data: {
         labels: labels.length ? labels : ['—'],
         datasets: [
-          { label: 'Kötü', data: (_history||[]).map(function(h){return h.poor||0;}), borderColor:'#C53929', backgroundColor:'rgba(197,57,41,.12)', tension:.3, fill:true },
-          { label: 'İyileştirme gerekli', data: (_history||[]).map(function(h){return h.needs_improvement||0;}), borderColor:'#F09300', backgroundColor:'rgba(240,147,0,.12)', tension:.3, fill:true },
-          { label: 'İyi', data: (_history||[]).map(function(h){return h.good||0;}), borderColor:'#0B8043', backgroundColor:'rgba(11,128,67,.12)', tension:.3, fill:true }
+          { label: 'Poor', data: (_history||[]).map(function(h){return h.poor||0;}), borderColor:'#C53929', backgroundColor:'rgba(197,57,41,.12)', tension:.3, fill:true },
+          { label: 'Needs improvement', data: (_history||[]).map(function(h){return h.needs_improvement||0;}), borderColor:'#F09300', backgroundColor:'rgba(240,147,0,.12)', tension:.3, fill:true },
+          { label: 'Good', data: (_history||[]).map(function(h){return h.good||0;}), borderColor:'#0B8043', backgroundColor:'rgba(11,128,67,.12)', tension:.3, fill:true }
         ]
       },
       options: {
@@ -584,7 +584,7 @@ function runWebVitals() {
     if (_ampIssues) {
       var ampLabels = (_ampIssues || []).map(function(i){ return (i.title || 'AMP').slice(0, 42); });
       var ampData = (_ampIssues || []).map(function(i){ return i.url_row_count || 0; });
-      if (!ampLabels.length) { ampLabels = ['Veri yok']; ampData = [0]; }
+      if (!ampLabels.length) { ampLabels = ['No data']; ampData = [0]; }
       new Chart(dctx, {
         type: 'doughnut',
         data: {
@@ -604,7 +604,7 @@ function runWebVitals() {
       new Chart(dctx, {
         type: 'doughnut',
         data: {
-          labels: ['Kötü', 'İyileştirme gerekli', 'İyi'],
+          labels: ['Poor', 'Needs improvement', 'Good'],
           datasets: [{
             data: [(_kpis&&_kpis.poor)||0, (_kpis&&_kpis.needs_improvement)||0, (_kpis&&_kpis.good)||0],
             backgroundColor: ['#C53929','#F09300','#0B8043']
@@ -623,7 +623,7 @@ function runWebVitals() {
     .then(function(j){
       var p = (j && j.gsc_cwv_progress) || {};
       if (p.running) {
-        _setRunUi(true, p.message || 'Köprü tarama çalışıyor…');
+        _setRunUi(true, p.message || 'Bridge scan running…');
         _pollBridge();
       }
     })

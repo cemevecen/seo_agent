@@ -142,7 +142,7 @@ function applyAlertsFilters() {
       empty.className = 'alerts-empty-state rounded-xl border border-dashed border-slate-300 dark:border-slate-600 px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400';
       container.appendChild(empty);
     }
-    empty.textContent = 'Bu filtreye uygun alarm kaydı bulunamadı.';
+    empty.textContent = 'No alerts match this filter.';
     empty.style.display = '';
   } else if (empty) {
     empty.style.display = 'none';
@@ -208,10 +208,10 @@ function toggleAlertDetail(toggleBtn) {
   var alertId = card.getAttribute('data-alert-id');
   if (details.classList.contains('show')) {
     details.classList.remove('show');
-    toggleBtn.textContent = 'Detayına Bak';
+    toggleBtn.textContent = 'View details';
   } else {
     details.classList.add('show');
-    toggleBtn.textContent = 'Gizle';
+    toggleBtn.textContent = 'Hide';
     if (alertId) loadAlertDetails(String(alertId), card);
   }
 }
@@ -245,7 +245,7 @@ async function loadAlertDetails(alertId, card) {
     renderComparisonData(alertId, initialType);
   } catch (err) {
     var div = document.getElementById('comparison-info-' + alertId);
-    if (div) div.textContent = 'Hata: ' + err.message;
+    if (div) div.textContent = 'Error: ' + err.message;
   }
 }
 
@@ -264,7 +264,7 @@ function renderComparisonData(alertId, comparisonType) {
   if (!div || !cached) return;
 
   var comparison = cached.comparison || {};
-  var typeLabel = comparisonType === 'daily' ? 'Dünle Karşılaştırma' : 'Geçen Hafta Aynı Gün ile Karşılaştırma';
+  var typeLabel = comparisonType === 'daily' ? 'Compare vs yesterday' : 'Compare vs the same day last week';
   var isDark = document.documentElement.classList.contains('dark');
 
   var wrapBg = isDark ? 'rgba(15,23,42,0.55)' : 'rgba(240,249,255,0.72)';
@@ -302,7 +302,7 @@ function renderComparisonData(alertId, comparisonType) {
     });
     html += '</div>';
   } else if (!comparison.message) {
-    html += '<p class="text-sm text-slate-500 dark:text-slate-400">Karşılaştırma verisi bulunamadı.</p>';
+    html += '<p class="text-sm text-slate-500 dark:text-slate-400">No comparison data found.</p>';
   }
 
   html += '</div>';
@@ -328,7 +328,7 @@ function bindRefreshButton() {
 
     var origText = btn.innerHTML;
     btn.disabled = true;
-    btn.textContent = 'Yenileniyor…';
+    btn.textContent = 'Refreshing…';
 
     if (panel) panel.classList.remove('hidden');
 
@@ -343,7 +343,7 @@ function bindRefreshButton() {
       if (detailEl) detailEl.textContent = d || '';
     }
 
-    _setProgress(5, 'Yenileme başlatılıyor…', 'Sunucuya istek gönderiliyor.');
+    _setProgress(5, 'Starting refresh…', 'Sending the request to the server.');
 
     try {
       var resp = await fetch('/alerts/refresh', { method: 'POST', headers: { Accept: 'application/json' } });
@@ -357,12 +357,12 @@ function bindRefreshButton() {
     var TOTAL_SECS = 45;
     var elapsed = 0;
     var steps = [
-      { at: 0,  pct: 10, title: 'Site listesi hazırlanıyor',             detail: 'Alert yenileme arka planda başladı.' },
-      { at: 5,  pct: 25, title: 'Search Console verileri alınıyor',       detail: 'Sorgu bazlı karşılaştırma yapılıyor.' },
-      { at: 12, pct: 45, title: 'CTR ve pozisyon hesaplanıyor',           detail: 'Değişim eşikleri kontrol ediliyor.' },
-      { at: 22, pct: 65, title: 'Uyarılar oluşturuluyor',                 detail: 'Kayıtlar veritabanına yazılıyor.' },
-      { at: 32, pct: 80, title: 'Diğer siteler işleniyor…',               detail: 'Lütfen bekleyin.' },
-      { at: 40, pct: 90, title: 'Tamamlanmak üzere…',                     detail: 'Sonuçlar hazırlanıyor.' },
+      { at: 0,  pct: 10, title: 'Preparing the site list',             detail: 'Alert refresh started in the background.' },
+      { at: 5,  pct: 25, title: 'Fetching Search Console data',       detail: 'Running query-level comparison.' },
+      { at: 12, pct: 45, title: 'Computing CTR and position',           detail: 'Checking change thresholds.' },
+      { at: 22, pct: 65, title: 'Creating alerts',                 detail: 'Writing records to the database.' },
+      { at: 32, pct: 80, title: 'Processing other sites…',               detail: 'Please wait.' },
+      { at: 40, pct: 90, title: 'Almost done…',                     detail: 'Preparing results.' },
     ];
     var countdownTimer = setInterval(function () {
       elapsed++;
@@ -373,7 +373,7 @@ function bindRefreshButton() {
       if (step) _setProgress(step.pct, step.title, step.detail);
       if (elapsed >= TOTAL_SECS) {
         clearInterval(countdownTimer);
-        _setProgress(100, 'Tamamlandı ✓', 'Sayfa yenileniyor…');
+        _setProgress(100, 'Done ✓', 'Reloading the page…');
         setTimeout(_reloadAlerts, 600);
       }
     }, 1000);
@@ -412,11 +412,11 @@ function bindMainDelegation() {
         renderComparisonData(alertId, compType);
       } else {
         var infoDiv = document.getElementById('comparison-info-' + alertId);
-        if (infoDiv) infoDiv.textContent = 'Yükleniyor…';
+        if (infoDiv) infoDiv.textContent = 'Loading…';
         loadComparisonData(alertId, compType).then(function () {
           renderComparisonData(alertId, compType);
         }).catch(function (err) {
-          if (infoDiv) infoDiv.textContent = 'Hata: ' + err.message;
+          if (infoDiv) infoDiv.textContent = 'Error: ' + err.message;
         });
       }
       return;

@@ -2,7 +2,7 @@
 {% if detail_id %}
 <button type="button" data-detail-target="{{ detail_id }}"
   class="group block w-full text-left rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm transition hover:border-sky-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-400 dark:hover:border-sky-700"
-  title="{{ detail_label or 'Detay için tıkla' }}">
+  title="{{ detail_label or 'Click for details' }}">
   <div class="flex items-start justify-between gap-2">
     <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ title }}</p>
     <span class="text-[10px] text-slate-400 group-hover:text-sky-500 dark:text-slate-500 dark:group-hover:text-sky-400">▼</span>
@@ -27,13 +27,13 @@
 
 {# Lab eşikleri: backend benchmark_tr ile uyumlu; sadece şablon güncell olsa bile kutu görünür #}
 {% set ps_lab_benchmarks = {
-  'fcp': 'ideal: ≤1,8sn · hedef ≤3sn',
-  'lcp': 'ideal: ≤2,5sn · hedef ≤4sn',
-  'tbt': 'ideal: ≤200ms · hedef ≤600ms',
-  'cls': 'ideal: ≤0,10 · hedef ≤0,25',
-  'speed_index': 'ideal: ≤3,4sn · hedef ≤5,8sn',
+  'fcp': 'ideal: ≤1.8s · target ≤3s',
+  'lcp': 'ideal: ≤2.5s · target ≤4s',
+  'tbt': 'ideal: ≤200ms · target ≤600ms',
+  'cls': 'ideal: ≤0.10 · target ≤0.25',
+  'speed_index': 'ideal: ≤3.4s · target ≤5.8s',
 } %}
-{% set ps_category_benchmark_tr = 'ideal ≥90 · hedef 50–89 · zayıf <50' %}
+{% set ps_category_benchmark_tr = 'ideal ≥90 · target 50–89 · poor <50' %}
 
 {% macro crux_metric_color_class(label) %}
 {% set normalized = (label or '')|upper %}
@@ -61,7 +61,7 @@ text-slate-500 dark:text-slate-400
 {% set period_last = metric.latest_period_last or '' %}
 {% set period_tooltip = '' %}
 {% if period_first and period_last %}
-  {% set period_tooltip = '28 günlük periyot: ' ~ period_first ~ ' → ' ~ period_last %}
+  {% set period_tooltip = '28-day period: ' ~ period_first ~ ' → ' ~ period_last %}
 {% endif %}
 {% set is_zero_inp = (normalized == 'INP' and (metric.latest is none or metric.latest == 0)) %}
 {# CWV "iyi/geliştirilebilir/kötü" verdict — Google önerilen eşiklerine göre #}
@@ -71,25 +71,25 @@ text-slate-500 dark:text-slate-400
 {% if metric.latest is not none and metric.latest > 0 %}
   {% set v = metric.latest|float %}
   {% if normalized == 'LCP' %}
-    {% if v <= 2500 %}{% set verdict = 'İyi' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'LCP ≤ 2.5sn (hedef)' %}
-    {% elif v <= 4000 %}{% set verdict = 'Geliştirilebilir' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '2.5–4sn arası' %}
-    {% else %}{% set verdict = 'Kötü' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 4sn (kötü)' %}{% endif %}
+    {% if v <= 2500 %}{% set verdict = 'Good' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'LCP ≤ 2.5s (target)' %}
+    {% elif v <= 4000 %}{% set verdict = 'Needs improvement' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '2.5–4s range' %}
+    {% else %}{% set verdict = 'Poor' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 4s (poor)' %}{% endif %}
   {% elif normalized == 'INP' %}
-    {% if v <= 200 %}{% set verdict = 'İyi' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'INP ≤ 200ms (hedef)' %}
-    {% elif v <= 500 %}{% set verdict = 'Geliştirilebilir' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '200–500ms arası' %}
-    {% else %}{% set verdict = 'Kötü' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 500ms (kötü)' %}{% endif %}
+    {% if v <= 200 %}{% set verdict = 'Good' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'INP ≤ 200ms (target)' %}
+    {% elif v <= 500 %}{% set verdict = 'Needs improvement' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '200–500ms range' %}
+    {% else %}{% set verdict = 'Poor' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 500ms (poor)' %}{% endif %}
   {% elif normalized == 'CLS' %}
-    {% if v <= 0.1 %}{% set verdict = 'İyi' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'CLS ≤ 0.1 (hedef)' %}
-    {% elif v <= 0.25 %}{% set verdict = 'Geliştirilebilir' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '0.1–0.25 arası' %}
-    {% else %}{% set verdict = 'Kötü' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 0.25 (kötü)' %}{% endif %}
+    {% if v <= 0.1 %}{% set verdict = 'Good' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'CLS ≤ 0.1 (target)' %}
+    {% elif v <= 0.25 %}{% set verdict = 'Needs improvement' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '0.1–0.25 range' %}
+    {% else %}{% set verdict = 'Poor' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 0.25 (poor)' %}{% endif %}
   {% elif normalized == 'FCP' %}
-    {% if v <= 1800 %}{% set verdict = 'İyi' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'FCP ≤ 1.8sn (hedef)' %}
-    {% elif v <= 3000 %}{% set verdict = 'Geliştirilebilir' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '1.8–3sn arası' %}
-    {% else %}{% set verdict = 'Kötü' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 3sn (kötü)' %}{% endif %}
+    {% if v <= 1800 %}{% set verdict = 'Good' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'FCP ≤ 1.8s (target)' %}
+    {% elif v <= 3000 %}{% set verdict = 'Needs improvement' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '1.8–3s range' %}
+    {% else %}{% set verdict = 'Poor' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 3s (poor)' %}{% endif %}
   {% elif normalized == 'TTFB' %}
-    {% if v <= 800 %}{% set verdict = 'İyi' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'TTFB ≤ 0.8sn (hedef)' %}
-    {% elif v <= 1800 %}{% set verdict = 'Geliştirilebilir' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '0.8–1.8sn arası' %}
-    {% else %}{% set verdict = 'Kötü' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 1.8sn (kötü)' %}{% endif %}
+    {% if v <= 800 %}{% set verdict = 'Good' %}{% set verdict_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' %}{% set verdict_help = 'TTFB ≤ 0.8s (target)' %}
+    {% elif v <= 1800 %}{% set verdict = 'Needs improvement' %}{% set verdict_class = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' %}{% set verdict_help = '0.8–1.8s range' %}
+    {% else %}{% set verdict = 'Poor' %}{% set verdict_class = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' %}{% set verdict_help = '> 1.8s (poor)' %}{% endif %}
   {% endif %}
 {% endif %}
 {% if normalized == 'CLS' %}
@@ -137,11 +137,11 @@ text-slate-500 dark:text-slate-400
       data-fit-min="9"
       class="mt-1.5 text-[clamp(0.8rem,0.96vw,0.92rem)] font-semibold leading-snug text-slate-500 dark:text-slate-400"
       style="font-size: 14px;"
-    >iyi {{ metric.good_share|max_two_decimals if metric.good_share is not none else "N/A" }}%</p>
+    >good {{ metric.good_share|max_two_decimals if metric.good_share is not none else "N/A" }}%</p>
     {% if metric.ni_share is not none or metric.poor_share is not none %}
     <p class="mt-1 text-[10px] font-medium leading-snug text-slate-500 dark:text-zinc-400">
-      geliştirilebilir {{ metric.ni_share|max_two_decimals if metric.ni_share is not none else "—" }}%
-      · kötü {{ metric.poor_share|max_two_decimals if metric.poor_share is not none else "—" }}%
+      needs improvement {{ metric.ni_share|max_two_decimals if metric.ni_share is not none else "—" }}%
+      · poor {{ metric.poor_share|max_two_decimals if metric.poor_share is not none else "—" }}%
     </p>
     {% endif %}
     {% if verdict %}
@@ -158,15 +158,15 @@ text-slate-500 dark:text-slate-400
 {% set status_label = tone.status_label|default('N/A') %}
 {% set shell_class = 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90' %}
 {% set label_class = 'text-slate-600 dark:text-slate-300' %}
-{% if status_label == 'Iyi' %}
+{% if status_label == 'Good' %}
 {% set value_class = 'text-emerald-700 dark:text-emerald-300' %}
 {% set bar_class = 'bg-emerald-500' %}
 {% set bar_width = '90%' %}
-{% elif status_label == 'Izlenmeli' %}
+{% elif status_label == 'Watch' %}
 {% set value_class = 'text-amber-700 dark:text-amber-300' %}
 {% set bar_class = 'bg-amber-500' %}
 {% set bar_width = '68%' %}
-{% elif status_label == 'Zayif' %}
+{% elif status_label == 'Poor' %}
 {% set value_class = 'text-rose-700 dark:text-rose-300' %}
 {% set bar_class = 'bg-rose-500' %}
 {% set bar_width = '42%' %}
@@ -176,11 +176,11 @@ text-slate-500 dark:text-slate-400
 {% set bar_width = '50%' %}
 {% endif %}
 {% set hint_map = {
-  'First Contentful Paint': 'ilk boyama hizi',
-  'Largest Contentful Paint': 'ana içerik hızı',
-  'Total Blocking Time': 'ana thread blokaji',
-  'Cumulative Layout Shift': 'gorsel stabilite',
-  'Speed Index': 'görünür yüklenme hızı'
+  'First Contentful Paint': 'first paint speed',
+  'Largest Contentful Paint': 'main content speed',
+  'Total Blocking Time': 'main-thread blocking',
+  'Cumulative Layout Shift': 'visual stability',
+  'Speed Index': 'visible load speed'
 } %}
 <div class="min-w-0 rounded-[1.2rem] border p-2.5 shadow-sm {{ shell_class }}">
   <div class="min-w-0">
@@ -225,7 +225,7 @@ text-slate-500 dark:text-slate-400
     data-fit-min="9"
     class="mt-1.5 text-[0.76rem] font-semibold leading-snug text-slate-500 dark:text-slate-400"
     style="font-size: 12px;"
-  >{{ hint_map.get(metric.label, 'ölçüm özeti') }}</p>
+  >{{ hint_map.get(metric.label, 'measurement summary') }}</p>
 </div>
 {% endmacro %}
 
@@ -371,20 +371,20 @@ text-slate-500 dark:text-slate-400
         {% if data_explorer_schedule and not pagespeed_scrape_primary %}
         <span class="inline-flex items-center gap-1.5" title="Lab/KPI: pagespeed.web.dev (Mac bridge).">
           <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
-          <span>Otomatik yenileme planı:</span>
-          <span class="font-medium text-slate-700 dark:text-slate-300">her gün {{ data_explorer_schedule }} (TSİ)</span>
+          <span>Auto-refresh schedule:</span>
+          <span class="font-medium text-slate-700 dark:text-slate-300">every day {{ data_explorer_schedule }} (TR time)</span>
         </span>
         {% elif pagespeed_scrape_primary %}
-        <span class="inline-flex items-center gap-1.5" title="PSI API ve CrUX History API kapalı; Mac köprü tarama.">
+        <span class="inline-flex items-center gap-1.5" title="PSI API and CrUX History API are off; Mac bridge scrape.">
           <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
-          <span>Kaynak:</span>
-          <span class="font-medium text-slate-700 dark:text-slate-300">yalnızca pagespeed.web.dev tarama (01:10 + 13:10 TR)</span>
+          <span>Source:</span>
+          <span class="font-medium text-slate-700 dark:text-slate-300">pagespeed.web.dev scrape only (01:10 + 13:10 TR)</span>
         </span>
         {% endif %}
         {% if data_explorer_last_auto_refresh %}
-        <span class="inline-flex items-center gap-1.5" title="Son başarılı günlük otomatik çekim.">
+        <span class="inline-flex items-center gap-1.5" title="Last successful daily auto fetch.">
           <span class="inline-block h-1.5 w-1.5 rounded-full bg-teal-500" aria-hidden="true"></span>
-          <span>Son otomatik çekim:</span>
+          <span>Last auto fetch:</span>
           <span class="font-medium text-slate-700 dark:text-slate-300">{{ data_explorer_last_auto_refresh|e }}</span>
         </span>
         {% endif %}
@@ -396,16 +396,16 @@ text-slate-500 dark:text-slate-400
   <details class="group rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800">
     <summary class="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5 [&::-webkit-details-marker]:hidden">
       <div class="min-w-0 flex-1">
-        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Otomatik yenileme kaydı</p>
-        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{% if pagespeed_scrape_primary %}Bu site için PSI/CrUX API yok — yalnızca pagespeed.web.dev tarama.{% else %}Zamanlanmış çekimlerin son durumu. Lab/KPI: pagespeed.web.dev (Mac köprü).{% endif %}</p>
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Auto-refresh log</p>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{% if pagespeed_scrape_primary %}No PSI/CrUX API for this site — pagespeed.web.dev scrape only.{% else %}Latest scheduled fetches. Lab/KPI: pagespeed.web.dev (Mac bridge).{% endif %}</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2 text-[11px] sm:text-xs">
         <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 {% if sched.scheduler_running %}border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200{% endif %}">
-          Scheduler: {% if sched.scheduler_running %}aktif{% else %}pasif / job yok{% endif %}
+          Scheduler: {% if sched.scheduler_running %}active{% else %}idle / no job{% endif %}
         </span>
         {% if sched.next_run and sched.next_run != '—' %}
         <span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
-          Sonraki plan: {{ sched.next_run|e }}
+          Next run: {{ sched.next_run|e }}
         </span>
         {% endif %}
         <span class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-transform group-open:rotate-180 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400" aria-hidden="true">
@@ -419,10 +419,10 @@ text-slate-500 dark:text-slate-400
       <table class="min-w-full text-left text-xs sm:text-sm">
         <thead>
           <tr class="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            <th class="py-2 pr-3 font-semibold">Sistem</th>
-            <th class="py-2 pr-3 font-semibold">Durum</th>
-            <th class="py-2 pr-3 font-semibold">Bitiş</th>
-            <th class="py-2 font-semibold">Tetik</th>
+            <th class="py-2 pr-3 font-semibold">System</th>
+            <th class="py-2 pr-3 font-semibold">Status</th>
+            <th class="py-2 pr-3 font-semibold">Finished</th>
+            <th class="py-2 font-semibold">Trigger</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
@@ -440,7 +440,7 @@ text-slate-500 dark:text-slate-400
       </table>
     </div>
     {% else %}
-    <p class="rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">Henüz zamanlanmış otomatik çekim kaydı yok. İlk günlük job ({{ data_explorer_schedule|default('07:00') }} TSİ) sonrasında burada görünür.</p>
+    <p class="rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">No scheduled auto-fetch records yet. They appear here after the first daily job ({{ data_explorer_schedule|default('07:00') }} TR time).</p>
     {% endif %}
     </div>
   </details>
@@ -449,7 +449,7 @@ text-slate-500 dark:text-slate-400
   <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:px-5">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <p class="shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Site</p>
-      <nav class="flex min-w-0 flex-1 flex-wrap items-center gap-2" aria-label="PageSpeed için site seçimi">
+      <nav class="flex min-w-0 flex-1 flex-wrap items-center gap-2" aria-label="Site picker for PageSpeed">
         {% for s in sites %}
         <a
           href="{{ s.href }}"
@@ -471,7 +471,7 @@ text-slate-500 dark:text-slate-400
   {# ── Sağlık Özeti — Mobil/Masaüstü farkları + son 7 gün hata özeti ── #}
   {% if mobile_desktop_delta or (error_widget and (error_widget.total_404 or error_widget.total_5xx)) %}
   <section class="rounded-3xl bg-white dark:bg-slate-900 p-4 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 sm:p-5">
-    <p class="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Sağlık Özeti · Mobil ↔ Masaüstü</p>
+    <p class="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Health summary · Mobile ↔ Desktop</p>
     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
       {% for d in mobile_desktop_delta %}
       <div class="flex flex-col justify-between gap-3 rounded-2xl border p-3 {% if d.tone == 'negative' %}border-rose-200 bg-rose-50/60 dark:border-rose-900/50 dark:bg-slate-800/60{% else %}border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/50 dark:bg-slate-800/60{% endif %}">
@@ -484,7 +484,7 @@ text-slate-500 dark:text-slate-400
       {% endfor %}
       {% if error_widget and (error_widget.total_404 or error_widget.total_5xx) %}
       <div class="flex flex-col justify-between gap-3 rounded-2xl border p-3 {% if error_widget.total_5xx > 0 %}border-rose-200 bg-rose-50/60 dark:border-rose-900/50 dark:bg-slate-800/60{% else %}border-amber-200 bg-amber-50/60 dark:border-amber-900/50 dark:bg-slate-800/60{% endif %}">
-        <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Son {{ error_widget.window_days }}g hata</p>
+        <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Last {{ error_widget.window_days }}d errors</p>
         <div class="grid grid-cols-2 gap-1">
           <div>
             <p lang="en" class="text-[9px] font-bold uppercase text-slate-400">404</p>
@@ -505,10 +505,10 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev</p>
-          <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Mobil</h4>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_mobile_last_updated|e }}</p>
-          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kaynak: pagespeed.web.dev (28g uç KPI)</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Field · KPI: pagespeed.web.dev</p>
+          <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Mobile</h4>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Last fetch: {{ crux_mobile_last_updated|e }}</p>
+          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Source: pagespeed.web.dev (28d endpoint KPI)</p>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_mobile_status.badge_class }}">{{ crux_mobile_status.label }}</span>
       </div>
@@ -522,7 +522,7 @@ text-slate-500 dark:text-slate-400
         {% for metric in crux_mobile_series.values() %}
         {{ crux_metric_card(metric) }}
         {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz mobil KPI yok — otomatik tarama sonrası dolacak</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">No mobile KPI yet — fills after the automatic scan</div>
         {% endfor %}
       </div>
     </section>
@@ -530,10 +530,10 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev</p>
-          <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Masaüstü</h4>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_desktop_last_updated|e }}</p>
-          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kaynak: pagespeed.web.dev (28g uç KPI)</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Field · KPI: pagespeed.web.dev</p>
+          <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Desktop</h4>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Last fetch: {{ crux_desktop_last_updated|e }}</p>
+          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Source: pagespeed.web.dev (28d endpoint KPI)</p>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_desktop_status.badge_class }}">{{ crux_desktop_status.label }}</span>
       </div>
@@ -547,7 +547,7 @@ text-slate-500 dark:text-slate-400
         {% for metric in crux_desktop_series.values() %}
         {{ crux_metric_card(metric) }}
         {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz masaüstü KPI yok — otomatik tarama sonrası dolacak</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">No desktop KPI yet — fills after the automatic scan</div>
         {% endfor %}
       </div>
     </section>
@@ -557,8 +557,8 @@ text-slate-500 dark:text-slate-400
     <div class="flex items-center justify-between gap-3">
       <div>
         <p class="text-sm uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">Lab · pagespeed.web.dev / Lighthouse</p>
-        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Skor kartları ve audit bulguları</h4>
-        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son güncelleme: {{ psi_lighthouse_last_updated|e }}</p>
+        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Score cards and audit findings</h4>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Last updated: {{ psi_lighthouse_last_updated|e }}</p>
       </div>
     </div>
 
@@ -569,8 +569,8 @@ text-slate-500 dark:text-slate-400
           <div class="min-w-0 flex-1">
             <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ report.strategy_label }}</p>
             <h5 class="text-xl font-semibold text-slate-900 dark:text-slate-100">PageSpeed Insights {{ report.strategy_label }}</h5>
-            <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500 dark:text-slate-400">{{ report.source_note or 'lab ölçümü' }}</p>
-            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Report zamanı: {{ report.report_time }}</p>
+            <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500 dark:text-slate-400">{{ report.source_note or 'lab measurement' }}</p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Report time: {{ report.report_time }}</p>
             {% if report.analysis_url %}
             <p class="mt-1 break-words text-xs text-emerald-700 dark:text-emerald-300"><a href="{{ report.analysis_url }}" target="_blank" rel="noopener" class="underline">pagespeed.web.dev analizi ↗</a></p>
             {% endif %}
@@ -660,13 +660,13 @@ text-slate-500 dark:text-slate-400
               <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0 pr-1">
                   <p class="text-xs font-semibold leading-snug text-slate-700 dark:text-slate-200 sm:text-[0.8125rem]">{{ category.label }}</p>
-                  <p class="mt-0.5 text-[10px] leading-tight text-slate-500 dark:text-slate-400 sm:text-xs">{{ category.items_count }} madde</p>
+                  <p class="mt-0.5 text-[10px] leading-tight text-slate-500 dark:text-slate-400 sm:text-xs">{{ category.items_count }} items</p>
                 </div>
                 <span
                   class="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-200/90 bg-gradient-to-b from-sky-50/90 to-white py-0.5 pl-2 pr-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800 shadow-sm ring-1 ring-sky-100/80 dark:border-sky-700/50 dark:from-slate-800 dark:to-slate-800/90 dark:text-sky-200 dark:ring-sky-900/30"
                   aria-hidden="true"
                 >
-                  <span class="hidden sm:inline">Detay</span>
+                  <span class="hidden sm:inline">Details</span>
                   <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-600 text-white shadow-sm ring-1 ring-sky-500/40 dark:bg-sky-500 dark:ring-sky-400/30">
                     <svg class="h-3.5 w-3.5 transition-transform duration-200 ease-out group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
@@ -674,7 +674,7 @@ text-slate-500 dark:text-slate-400
                   </span>
                 </span>
               </div>
-              <span class="sr-only">Bu bölümü aç veya kapat</span>
+              <span class="sr-only">Expand or collapse this section</span>
             </summary>
             <div class="mt-2.5 space-y-2.5">
               {% for section in category.sections %}
@@ -702,7 +702,7 @@ text-slate-500 dark:text-slate-400
         </div>
         {% else %}
         <div class="mt-5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-sm text-slate-500 dark:text-slate-400">
-          Bu strateji için henüz kaydedilmiş resmi PSI audit section verisi yok.
+          No official PSI audit section data saved for this strategy yet.
         </div>
         {% endif %}
       </section>
@@ -713,9 +713,9 @@ text-slate-500 dark:text-slate-400
   <details class="rounded-3xl bg-white dark:bg-slate-900 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 group">
     <summary class="flex cursor-pointer items-center justify-between gap-3 p-6 list-none [&::-webkit-details-marker]:hidden">
       <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Warehouse Özeti</p>
-        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Kayıt Sayaçları</h4>
-        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Toplama servisi ve veri depoları için kayıt sayıları</p>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Warehouse summary</p>
+        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Record counts</h4>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Record counts for collectors and data stores</p>
       </div>
       <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-transform group-open:rotate-180 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -723,10 +723,10 @@ text-slate-500 dark:text-slate-400
     </summary>
     <div class="border-t border-slate-100 px-6 pb-6 pt-4 dark:border-slate-800">
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tüm collector çalışmaları", "Arka planda toplam kaç collector görevi koştuğunu gösterir.", "warehouse-runs-section", "Son çalışma kayıtlarına git") }}
-        {{ metric_tile("PS Kayıtları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed kayıt sayısı", "Kaydedilmiş ham PageSpeed yanıtlarının toplam adedidir.", "warehouse-runs-section", "Son PSI çalışmalarına git") }}
-        {{ metric_tile("LH Denetimleri", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari", "Ayrıştırılıp satır bazında saklanan Lighthouse audit kayıtlarıdır.", "warehouse-runs-section", "Lighthouse audit çalışmalarına git") }}
-        {{ metric_tile("SC Satırları", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari", "Search Console’dan çekilen query bazlı toplam satır sayısıdır.", "warehouse-runs-section", "Search Console toplama kayıtlarına git") }}
+        {{ metric_tile("Collector runs", warehouse_summary.collector_runs, "All collector runs", "How many collector jobs ran in the background.", "warehouse-runs-section", "Go to latest run records") }}
+        {{ metric_tile("PS records", warehouse_summary.pagespeed_payload_snapshots, "Raw PageSpeed record count", "Total stored raw PageSpeed responses.", "warehouse-runs-section", "Go to latest PSI runs") }}
+        {{ metric_tile("LH audits", warehouse_summary.lighthouse_audit_records, "Normalized Lighthouse rows", "Lighthouse audits parsed and stored as rows.", "warehouse-runs-section", "Go to Lighthouse audit runs") }}
+        {{ metric_tile("SC rows", warehouse_summary.search_console_query_snapshots, "Search Console query rows", "Total query-level rows fetched from Search Console.", "warehouse-runs-section", "Go to Search Console collector records") }}
       </div>
     </div>
   </details>
@@ -734,17 +734,17 @@ text-slate-500 dark:text-slate-400
   <details class="rounded-3xl bg-white dark:bg-slate-900 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 group">
     <summary class="flex cursor-pointer items-start justify-between gap-3 p-6 list-none [&::-webkit-details-marker]:hidden">
       <div class="min-w-0">
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Crawler Denetimi</p>
-        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Kırık Link ve Redirect Taraması</h4>
-        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Sitemap + Search Console URL listesinden iç linklerin 301/302/zincir/kırık durumları</p>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Crawler audit</p>
+        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Broken link and redirect scan</h4>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">301/302/chain/broken status of internal links from sitemap + Search Console URLs</p>
       </div>
       <div class="flex shrink-0 items-center gap-2">
         {% if crawler_link_audit.has_data %}
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {% if crawler_link_audit.broken_links > 0 or crawler_link_audit.redirect_chains > 0 or crawler_link_audit.redirect_301_links > 0 or crawler_link_audit.redirect_302_links > 0 %}border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-slate-800/60 dark:text-rose-300{% else %}border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-slate-800/60 dark:text-emerald-300{% endif %}">
-          {% if crawler_link_audit.broken_links > 0 or crawler_link_audit.redirect_chains > 0 or crawler_link_audit.redirect_301_links > 0 or crawler_link_audit.redirect_302_links > 0 %}Kontrol gerekli{% else %}Sağlıklı{% endif %}
+          {% if crawler_link_audit.broken_links > 0 or crawler_link_audit.redirect_chains > 0 or crawler_link_audit.redirect_301_links > 0 or crawler_link_audit.redirect_302_links > 0 %}Needs review{% else %}Healthy{% endif %}
         </span>
         {% else %}
-        <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-slate-800/60 dark:text-amber-300">Henüz taranmadı</span>
+        <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-slate-800/60 dark:text-amber-300">Not scanned yet</span>
         {% endif %}
         <span class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-transform group-open:rotate-180 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
           <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -755,44 +755,44 @@ text-slate-500 dark:text-slate-400
 
     {% if crawler_link_audit.has_data %}
     <div class="grid gap-4 md:grid-cols-2 2xl:grid-cols-6 xl:grid-cols-3">
-      {{ metric_tile("Kaynak Sayfa", crawler_link_audit.source_pages, "Başlangıç URL", "İç linkleri çıkarılan kaynak sayfa sayısıdır.") }}
-      {{ metric_tile("Taranan URL", crawler_link_audit.audited_urls, "Final durum kontrolü", "Durumu tek tek kontrol edilen benzersiz hedef URL sayısıdır.") }}
-      {{ metric_tile("301", crawler_link_audit.redirect_301_links, "Kalıcı yönlendirme", "Dahili linklerin kaç tanesi 301 ile başka adrese gidiyor.", ("crawler-redirects-section" if crawler_link_audit.redirect_301_links > 0 else ""), "301 örneklerini gör") }}
-      {{ metric_tile("302", crawler_link_audit.redirect_302_links, "Geçici yönlendirme", "Dahili linklerin kaç tanesi 302 ile yönleniyor.", ("crawler-redirects-section" if crawler_link_audit.redirect_302_links > 0 else ""), "302 örneklerini gör") }}
-      {{ metric_tile("Zincir", crawler_link_audit.redirect_chains, "Birden fazla hop", "İki veya daha fazla yönlendirme adımı kullanan hedef sayısıdır.", ("crawler-redirects-section" if crawler_link_audit.redirect_chains > 0 else ""), "Yönlendirme zincirlerini gör") }}
-      {{ metric_tile("Kırık", crawler_link_audit.broken_links, "404 / 5xx / erişilemeyen", "Açılmayan veya hata dönen hedef URL sayısıdır.", ("crawler-broken-section" if crawler_link_audit.broken_links > 0 else ""), "Kırık link örneklerini gör") }}
+      {{ metric_tile("Source pages", crawler_link_audit.source_pages, "Start URL", "Number of source pages whose internal links were extracted.") }}
+      {{ metric_tile("URLs scanned", crawler_link_audit.audited_urls, "Final status check", "Unique destination URLs checked one by one.") }}
+      {{ metric_tile("301", crawler_link_audit.redirect_301_links, "Permanent redirect", "How many internal links go elsewhere via 301.", ("crawler-redirects-section" if crawler_link_audit.redirect_301_links > 0 else ""), "See 301 examples") }}
+      {{ metric_tile("302", crawler_link_audit.redirect_302_links, "Temporary redirect", "How many internal links redirect via 302.", ("crawler-redirects-section" if crawler_link_audit.redirect_302_links > 0 else ""), "See 302 examples") }}
+      {{ metric_tile("Chain", crawler_link_audit.redirect_chains, "Multiple hops", "Destinations that use two or more redirect hops.", ("crawler-redirects-section" if crawler_link_audit.redirect_chains > 0 else ""), "See redirect chains") }}
+      {{ metric_tile("Broken", crawler_link_audit.broken_links, "404 / 5xx / unreachable", "Destination URLs that fail or return an error.", ("crawler-broken-section" if crawler_link_audit.broken_links > 0 else ""), "See broken-link examples") }}
     </div>
 
     <div class="mt-5 grid gap-4 xl:grid-cols-2">
       <div id="crawler-broken-section" class="scroll-mt-20 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 transition-all duration-300">
-        <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Kırık Link Örnekleri</p>
+        <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Broken link examples</p>
         {% if crawler_link_audit.broken_samples %}
         <div class="mt-3 space-y-2">
           {% for sample in crawler_link_audit.broken_samples %}
           <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
             <p class="break-all text-sm font-semibold text-rose-700">{{ sample.url }}</p>
-            <p class="mt-1 text-xs text-rose-600">Son durum: {{ sample.final_status or "erişilemedi" }}</p>
+            <p class="mt-1 text-xs text-rose-600">Last status: {{ sample.final_status or "unreachable" }}</p>
             <p class="mt-1 break-all text-xs text-rose-600">Final URL: {{ sample.final_url or "-" }}</p>
-            <p class="mt-2 text-[11px] font-semibold uppercase tracking-wide text-rose-700">Kaynak sayfalar</p>
+            <p class="mt-2 text-[11px] font-semibold uppercase tracking-wide text-rose-700">Source pages</p>
             <div class="mt-1 space-y-1">
               {% for source_url in sample.source_urls %}
               <p class="break-all text-[11px] text-rose-700">{{ source_url }}</p>
               {% endfor %}
               {% if sample.source_count > sample.source_urls|length %}
-              <p class="text-[11px] text-rose-700">+{{ sample.source_count - (sample.source_urls|length) }} kaynak sayfa daha</p>
+              <p class="text-[11px] text-rose-700">+{{ sample.source_count - (sample.source_urls|length) }} more source pages</p>
               {% endif %}
             </div>
           </div>
           {% endfor %}
         </div>
         {% else %}
-        <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Taranan URL'ler içinde kırık link bulunmadı.</div>
+        <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">No broken links among scanned URLs.</div>
         {% endif %}
       </div>
 
       <details id="crawler-redirects-section" class="scroll-mt-20 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 group transition-all duration-300">
         <summary class="flex cursor-pointer list-none items-center justify-between">
-          <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Yönlendirme ve Zincir Örnekleri</p>
+          <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Redirect and chain examples</p>
           <svg class="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
         </summary>
         {% if crawler_link_audit.redirect_samples %}
@@ -801,28 +801,28 @@ text-slate-500 dark:text-slate-400
           <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
             <p class="break-all text-sm font-semibold text-amber-800">{{ sample.url }}</p>
             <p class="mt-1 text-xs font-semibold text-amber-800">{{ sample.issue_label }}</p>
-            <p class="mt-1 text-xs text-amber-700">Adım: {{ sample.hops }} | Zincir: {{ sample.chain }}</p>
+            <p class="mt-1 text-xs text-amber-700">Hops: {{ sample.hops }} | Chain: {{ sample.chain }}</p>
             <p class="mt-1 break-all text-xs text-amber-700">Final URL: {{ sample.final_url }}</p>
-            <p class="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-800">Kaynak sayfalar</p>
+            <p class="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-800">Source pages</p>
             <div class="mt-1 space-y-1">
               {% for source_url in sample.source_urls %}
               <p class="break-all text-[11px] text-amber-800">{{ source_url }}</p>
               {% endfor %}
               {% if sample.source_count > sample.source_urls|length %}
-              <p class="text-[11px] text-amber-800">+{{ sample.source_count - (sample.source_urls|length) }} kaynak sayfa daha</p>
+              <p class="text-[11px] text-amber-800">+{{ sample.source_count - (sample.source_urls|length) }} more source pages</p>
               {% endif %}
             </div>
           </div>
           {% endfor %}
         </div>
         {% else %}
-        <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Taranan URL'ler içinde yönlendirme veya redirect zinciri bulunmadı.</div>
+        <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">No redirects or redirect chains among scanned URLs.</div>
         {% endif %}
       </details>
     </div>
     {% else %}
     <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-sm text-slate-500 dark:text-slate-400">
-      Henüz crawler link denetimi kaydı yok.
+      No crawler link-audit records yet.
     </div>
     {% endif %}
     </div>
@@ -832,9 +832,9 @@ text-slate-500 dark:text-slate-400
   <details id="warehouse-runs-section" class="scroll-mt-20 rounded-3xl bg-white dark:bg-slate-900 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-all duration-300 group">
     <summary class="flex cursor-pointer items-center justify-between gap-3 p-6 list-none [&::-webkit-details-marker]:hidden">
       <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Collector Günlüğü</p>
-        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Son Warehouse Çalışmaları</h4>
-        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Arka plan collector işlerinin son durumlarını göster</p>
+        <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Collector log</p>
+        <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Latest warehouse runs</h4>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Latest status of background collector jobs</p>
       </div>
       <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-transform group-open:rotate-180 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -844,12 +844,12 @@ text-slate-500 dark:text-slate-400
       <table class="min-w-full text-sm">
         <thead class="text-left text-slate-500 dark:text-slate-400">
           <tr>
-            <th class="py-2 pr-4">Kaynak</th>
-            <th class="py-2 pr-4">Strateji</th>
-            <th class="py-2 pr-4">Durum</th>
-            <th class="py-2 pr-4">Satır</th>
-            <th class="py-2 pr-4">İstek Zamanı</th>
-            <th class="py-2 pr-4">Hata</th>
+            <th class="py-2 pr-4">Source</th>
+            <th class="py-2 pr-4">Strategy</th>
+            <th class="py-2 pr-4">Status</th>
+            <th class="py-2 pr-4">Rows</th>
+            <th class="py-2 pr-4">Requested at</th>
+            <th class="py-2 pr-4">Error</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
@@ -864,7 +864,7 @@ text-slate-500 dark:text-slate-400
           </tr>
           {% else %}
           <tr>
-            <td colspan="6" class="py-6 text-center text-slate-500 dark:text-slate-400">Henüz collector run kaydı yok.</td>
+            <td colspan="6" class="py-6 text-center text-slate-500 dark:text-slate-400">No collector run records yet.</td>
           </tr>
           {% endfor %}
         </tbody>

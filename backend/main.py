@@ -2324,12 +2324,12 @@ def _collector_run_counts_as_scheduled(run: CollectorRun | None) -> bool:
 
 
 _COLLECTOR_STATUS_LABELS = {
-    "success": "Başarılı",
-    "failed": "Başarısız",
-    "stale": "Eski veri",
-    "no_data": "Veri yok",
-    "started": "Devam ediyor",
-    "skipped": "Atlandı",
+    "success": "Success",
+    "failed": "Failed",
+    "stale": "Stale",
+    "no_data": "No data",
+    "started": "In progress",
+    "skipped": "Skipped",
 }
 
 
@@ -2387,7 +2387,7 @@ def _data_explorer_last_auto_refresh_label(db, site_id: int) -> str:
         if isinstance(finished, datetime):
             times.append(finished)
     if times:
-        return format_local_datetime(max(times), fallback="Henüz otomatik yenileme kaydı yok")
+        return format_local_datetime(max(times), fallback="No automatic refresh record yet")
 
     # Başarılı otomatik run yoksa son denemeyi göster (kota skip / hata) — başarı gibi görünmesin.
     attempt_times: list[datetime] = []
@@ -2406,8 +2406,8 @@ def _data_explorer_last_auto_refresh_label(db, site_id: int) -> str:
             if not attempt_status:
                 attempt_status = _collector_status_label(getattr(run, "status", None))
     if attempt_times:
-        stamp = format_local_datetime(max(attempt_times), fallback="Henüz otomatik yenileme kaydı yok")
-        if attempt_status and attempt_status not in {"Başarılı", "—"}:
+        stamp = format_local_datetime(max(attempt_times), fallback="No automatic refresh record yet")
+        if attempt_status and attempt_status not in {"Success", "—"}:
             return f"{stamp} ({attempt_status})"
         return stamp
 
@@ -2421,16 +2421,16 @@ def _data_explorer_last_auto_refresh_label(db, site_id: int) -> str:
         if isinstance(t, datetime)
     ]
     if fallback_times:
-        return format_local_datetime(max(fallback_times), fallback="Henüz otomatik yenileme kaydı yok")
-    return "Henüz otomatik yenileme kaydı yok"
+        return format_local_datetime(max(fallback_times), fallback="No automatic refresh record yet")
+    return "No automatic refresh record yet"
 
 
 def _build_data_explorer_auto_refresh_log(db, site_id: int, *, limit: int = 12) -> list[dict]:
     provider_labels = {
-        ("pagespeed", "mobile"): "PSI · Mobil",
-        ("pagespeed", "desktop"): "PSI · Masaüstü",
-        ("crux_history", "mobile"): "CrUX · Mobil",
-        ("crux_history", "desktop"): "CrUX · Masaüstü",
+        ("pagespeed", "mobile"): "PSI · Mobile",
+        ("pagespeed", "desktop"): "PSI · Desktop",
+        ("crux_history", "mobile"): "CrUX · Mobile",
+        ("crux_history", "desktop"): "CrUX · Desktop",
     }
     rows: list[dict] = []
     for (provider, strategy), label in provider_labels.items():
@@ -2459,7 +2459,7 @@ def _build_data_explorer_auto_refresh_log(db, site_id: int, *, limit: int = 12) 
                     "status_label": _collector_status_label(run.status),
                     "status_ok": str(run.status or "").lower() == "success",
                     "finished_at": format_local_datetime(finished, fallback="—"),
-                    "trigger_label": "Zamanlanmış" if _collector_run_trigger_source(run) == "system" else "Zamanlanmış (eski kayıt)",
+                    "trigger_label": "Scheduled" if _collector_run_trigger_source(run) == "system" else "Scheduled (legacy)",
                     "error": (run.error_message or "").strip()[:160],
                     "_sort": finished,
                 }
@@ -5960,7 +5960,7 @@ def _search_console_status_from_cache(
         "badge_class": badge_class,
         "description": description,
         "updated_at": _format_metric_timestamp(clicks_metric),
-        "connection_label": connection.get("label", "Bağlantı yok"),
+        "connection_label": connection.get("label", "Not connected"),
         "has_rows": has_rows_28d,
     }
 
@@ -6054,7 +6054,7 @@ def _build_dashboard_slim_cards_batch(
         previous_rows_sc = site_sc.get(prev_scope, [])
         has_rows_28d = latest.get("search_console_clicks_28d") is not None
         connection = sc_connections.get(
-            site.id, {"connected": False, "method": "none", "label": "Bağlantı yok"}
+            site.id, {"connected": False, "method": "none", "label": "Not connected"}
         )
         sc_run = sc_runs.get(site.id)
 
@@ -6439,10 +6439,10 @@ def _format_pagespeed_delta_text(diff_ms: float, metric_key: str) -> str:
     abs_v = abs(diff_ms)
     if metric_key == "cls":
         # CLS unitsiz; diff_ms aslında oran farkı
-        return f"{sign}{abs_v / 1000:.3f} mobil {'kötü' if diff_ms > 0 else 'iyi'}"
+        return f"{sign}{abs_v / 1000:.3f} mobile {'worse' if diff_ms > 0 else 'better'}"
     if abs_v >= 1000:
-        return f"{sign}{abs_v / 1000:.2f}s mobil {'yavaş' if diff_ms > 0 else 'hızlı'}"
-    return f"{sign}{abs_v:.0f}ms mobil {'yavaş' if diff_ms > 0 else 'hızlı'}"
+        return f"{sign}{abs_v / 1000:.2f}s mobile {'slower' if diff_ms > 0 else 'faster'}"
+    return f"{sign}{abs_v:.0f}ms mobile {'slower' if diff_ms > 0 else 'faster'}"
 
 
 def _latest_pagespeed_payload_snapshot(db, site_id: int, strategy: str) -> tuple[dict, datetime | None]:
@@ -6490,16 +6490,16 @@ def _pagespeed_metric_numeric_value(audit: dict, fallback_value: float | None = 
 def _pagespeed_metric_benchmark_tr(metric_key: str) -> str:
     """Google CWV (lab) ve Lighthouse ile uyumlu eşikler; arayüzde 'hedef' satırı için."""
     mapping = {
-        "fcp": "ideal: ≤1,8sn · hedef ≤3sn",
-        "lcp": "ideal: ≤2,5sn · hedef ≤4sn",
-        "tbt": "ideal: ≤200ms · hedef ≤600ms",
-        "cls": "ideal: ≤0,10 · hedef ≤0,25",
-        "speed_index": "ideal: ≤3,4sn · hedef ≤5,8sn",
+        "fcp": "ideal: ≤1.8s · target ≤3s",
+        "lcp": "ideal: ≤2.5s · target ≤4s",
+        "tbt": "ideal: ≤200ms · target ≤600ms",
+        "cls": "ideal: ≤0.10 · target ≤0.25",
+        "speed_index": "ideal: ≤3.4s · target ≤5.8s",
     }
     return mapping.get(metric_key, "")
 
 
-PSI_LIGHTHOUSE_CATEGORY_BENCHMARK_TR = "ideal ≥90 · hedef 50–89 · zayıf <50"
+PSI_LIGHTHOUSE_CATEGORY_BENCHMARK_TR = "ideal ≥90 · target 50–89 · poor <50"
 
 
 def _pagespeed_metric_tone(metric_key: str, numeric_value: float | None) -> dict[str, str]:
@@ -6527,7 +6527,7 @@ def _pagespeed_metric_tone(metric_key: str, numeric_value: float | None) -> dict
             "label_class": "text-emerald-700",
             "value_class": "text-emerald-700",
             "badge_class": "bg-emerald-100 text-emerald-700",
-            "status_label": "Iyi",
+            "status_label": "Good",
         }
     if numeric_value <= needs_attention_threshold:
         return {
@@ -6535,14 +6535,14 @@ def _pagespeed_metric_tone(metric_key: str, numeric_value: float | None) -> dict
             "label_class": "text-amber-700",
             "value_class": "text-amber-700",
             "badge_class": "bg-amber-100 text-amber-700",
-            "status_label": "Izlenmeli",
+            "status_label": "Watch",
         }
     return {
         "shell_class": "border-rose-200 bg-rose-50/70",
         "label_class": "text-rose-700",
         "value_class": "text-rose-700",
         "badge_class": "bg-rose-100 text-rose-700",
-        "status_label": "Zayif",
+        "status_label": "Poor",
     }
 
 
@@ -7405,7 +7405,7 @@ def _public_explorer_context(domain: str) -> dict:
             "domain": site.domain,
             "display_name": site.display_name,
             "is_public_only": not bool(connection.get("connected")),
-            "search_console_label": connection.get("label", "Bağlantı yok"),
+            "search_console_label": connection.get("label", "Not connected"),
             "pagespeed_mobile": round(_metric_value(latest, "pagespeed_mobile_score", 0.0)) if latest.get("pagespeed_mobile_score") else None,
             "pagespeed_desktop": round(_metric_value(latest, "pagespeed_desktop_score", 0.0)) if latest.get("pagespeed_desktop_score") else None,
             "crawler_robots": _metric_value(latest, "crawler_robots_accessible", 0.0) >= 1.0,
@@ -13369,7 +13369,7 @@ def alerts_page(request: Request):
         from backend.services.alert_engine import list_live_position_alert_rows
 
         alert_rows = get_recent_alerts(db, limit=100, include_external=True, only_latest_sc_scan=False)
-        alert_rows = [a for a in alert_rows if a.get("metric_type") != "Pozisyon"]
+        alert_rows = [a for a in alert_rows if a.get("metric_type") not in {"Pozisyon", "Position"}]
         live_position_alert_rows = list_live_position_alert_rows(db, domain=None)
         threshold_payload = _build_threshold_alerts_payload(db, days=7)
         payload = {
@@ -13479,19 +13479,19 @@ def settings_page(request: Request):
         }
     flash_key = (request.query_params.get("admin_pw") or "").strip()
     _admin_pw_flash_messages = {
-        "short": "Şifre en az 6 karakter olmalı.",
-        "mismatch": "Şifreler eşleşmiyor.",
-        "save_error": "Şifre kaydedilemedi (veritabanı veya sunucu hatası). Railway deploy loglarına bakın; bir süre sonra tekrar deneyin.",
-        "forbidden": "Bu işlem için yetki yok.",
-        "saved": "Şifre güncellendi.",
-        "first_setup": "Henüz veritabanında admin şifresi yok. Aşağıda en az 6 karakter olacak şekilde belirleyip kaydedin; sonra /admin/login ile giriş yapın.",
+        "short": "Password must be at least 6 characters.",
+        "mismatch": "Passwords do not match.",
+        "save_error": "Password could not be saved (database or server error). Check Railway deploy logs; try again shortly.",
+        "forbidden": "You do not have permission for this action.",
+        "saved": "Password updated.",
+        "first_setup": "There is no admin password in the database yet. Set one below with at least 6 characters, then sign in at /admin/login.",
     }
     if flash_key in _admin_pw_flash_messages:
         payload["admin_password_flash"] = _admin_pw_flash_messages[flash_key]
         payload["admin_password_flash_ok"] = flash_key == "saved"
         payload["admin_password_flash_info"] = flash_key == "first_setup"
     if (request.query_params.get("device_trusted") or "").strip() == "1":
-        payload["admin_password_flash"] = "Cihaz tanıdık olarak kaydedildi."
+        payload["admin_password_flash"] = "Device saved as trusted."
         payload["admin_password_flash_ok"] = True
     return templates.TemplateResponse(request, "settings.html", context={"request": request, **payload})
 
@@ -13589,7 +13589,7 @@ def admin_login_page(request: Request):
         "admin_login.html",
         context={
             "request": request,
-            "site_name": "Giriş — SEO Agent",
+            "site_name": "Sign in — SEO Agent",
             "password_configured": configured,
             "client_ip": _extract_client_ip(request),
             "local_first_setup": (not configured) and _is_local_dev_first_password_client(request),

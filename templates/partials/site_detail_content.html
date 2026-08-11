@@ -7,12 +7,12 @@
       <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">{{ issue.title_tr|e }}</p>
       {% endif %}
       <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-        Source / Kaynak: <span class="font-semibold">{{ source_label }}</span>
+        Source: <span class="font-semibold">{{ source_label }}</span>
         {% if issue.state_label_en %}
-        • Status / Durum: <span class="font-semibold">{{ issue.state_label_en }}{% if issue.state_label_tr %} / {{ issue.state_label_tr }}{% endif %}</span>
+        • Status: <span class="font-semibold">{{ issue.state_label_en }}{% if issue.state_label_tr %} / {{ issue.state_label_tr }}{% endif %}</span>
         {% endif %}
         {% if issue.priority %}
-        • Priority / Seviye: <span class="font-semibold">{{ issue.priority }}</span>
+        • Priority: <span class="font-semibold">{{ issue.priority }}</span>
         {% endif %}
       </p>
     </div>
@@ -21,7 +21,7 @@
   <div class="lighthouse-details hidden bg-gradient-to-b from-slate-50 to-white px-4 py-4 space-y-4">
     {% if issue.problem_en or issue.problem %}
     <div>
-      <h6 class="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wide mb-2">Issue / Sorun</h6>
+      <h6 class="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wide mb-2">Issue</h6>
       <p class="text-slate-700 dark:text-slate-200">{{ (issue.problem_en or issue.problem)|e }}</p>
       {% if issue.problem_tr %}
       <p class="mt-2 text-slate-700 dark:text-slate-200">{{ issue.problem_tr|e }}</p>
@@ -30,7 +30,7 @@
     {% endif %}
     {% if issue.impact_en or issue.impact %}
     <div class="rounded-xl bg-gradient-to-br from-rose-50 to-white p-3 shadow-xs">
-      <h6 class="text-sm font-semibold text-rose-900">Impact / Etki</h6>
+      <h6 class="text-sm font-semibold text-rose-900">Impact</h6>
       <p class="text-sm text-rose-800 mt-2">{{ (issue.impact_en or issue.impact)|e }}</p>
       {% if issue.impact_tr %}
       <p class="text-sm text-rose-800 mt-2">{{ issue.impact_tr|e }}</p>
@@ -39,7 +39,7 @@
     {% endif %}
     {% if issue.examples %}
     <div class="rounded-xl bg-gradient-to-br from-slate-50 to-white p-3 shadow-xs">
-      <h6 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Detected Examples / Tespit Edilen Ornekler</h6>
+      <h6 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Detected examples</h6>
       <div class="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-200">
         {% for example in issue.examples %}
         <p>{{ example|e }}</p>
@@ -49,7 +49,7 @@
     {% endif %}
     {% if issue.solution %}
     <div>
-      <h6 class="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wide mb-3">Solution Steps / Çözüm Adımları</h6>
+      <h6 class="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wide mb-3">Solution steps</h6>
       <div class="space-y-3">
         {% for step in issue.solution %}
         <div class="rounded-xl bg-gradient-to-br from-sky-50 to-white p-3 shadow-xs hover:shadow-sm transition-shadow">
@@ -60,7 +60,7 @@
               {% if step.title_tr %}
               <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">{{ step.title_tr|e }}</p>
               {% endif %}
-              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Difficulty / Zorluk: <span class="font-semibold">{{ step.difficulty }}</span></p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Difficulty: <span class="font-semibold">{{ step.difficulty }}</span></p>
             </div>
           </div>
           {% if step.details_en %}
@@ -71,7 +71,7 @@
           {% endif %}
           {% if step.code %}
           <button class="code-trigger mt-3 w-full text-left text-xs font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-2">
-            <span>Code Example / Kod Ornegi</span> <span class="code-toggle">(Göster)</span>
+            <span>Code example</span> <span class="code-toggle">(Show)</span>
           </button>
           <div class="code-block hidden mt-2 rounded-lg bg-slate-900 text-slate-100 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{{ step.code|e }}</div>
           {% endif %}
@@ -82,7 +82,7 @@
     {% endif %}
     {% if issue.expected_result_en or issue.expected_result %}
     <div class="rounded-xl bg-gradient-to-br from-emerald-50 to-white p-3 shadow-xs">
-      <h6 class="text-sm font-semibold text-emerald-900">Expected Result / Beklenen Sonuç</h6>
+      <h6 class="text-sm font-semibold text-emerald-900">Expected result</h6>
       <p class="text-sm text-emerald-800 mt-2">{{ (issue.expected_result_en or issue.expected_result)|e }}</p>
       {% if issue.expected_result_tr %}
       <p class="text-sm text-emerald-800 mt-2">{{ issue.expected_result_tr|e }}</p>
@@ -146,11 +146,11 @@
 <div class="space-y-6" data-site-domain="{{ domain }}" data-site-title="{{ site_name|default('Lighthouse')|e }}">
   <div class="rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
     <p lang="en" class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Lighthouse</p>
-    <h2 class="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">Lighthouse Skorları</h2>
+    <h2 class="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">Lighthouse scores</h2>
     <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
-      Bu sayfa artık yalnızca Lighthouse skorlarına odaklanır. Diğer veri katmanları ve teknik ayrıntılar
+      This page now focuses only on Lighthouse scores. Other data layers and technical detail stay in
       <a href="/data-explorer/{{ domain }}" class="font-semibold text-sky-700 underline underline-offset-2">PageSpeed</a>
-      içinde kalır.
+      .
     </p>
   </div>
 
@@ -158,7 +158,7 @@
     <div class="rounded-2xl bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="mb-4">
         <p class="text-sm text-slate-500 dark:text-slate-400">Lighthouse Mobile</p>
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Mobile Skorları</h3>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Mobile scores</h3>
       </div>
       <div class="grid grid-cols-2 gap-6 md:grid-cols-4">
         {% for score in mobile_lighthouse_scores %}
@@ -180,7 +180,7 @@
     <div class="rounded-2xl bg-white dark:bg-slate-900 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="mb-4">
         <p class="text-sm text-slate-500 dark:text-slate-400">Lighthouse Desktop</p>
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Desktop Skorları</h3>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Desktop scores</h3>
       </div>
       <div class="grid grid-cols-2 gap-6 md:grid-cols-4">
         {% for score in desktop_lighthouse_scores %}

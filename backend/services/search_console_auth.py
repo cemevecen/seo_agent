@@ -274,9 +274,9 @@ def format_search_console_error_for_ui(message: str | None) -> str:
         return ""
     if _is_oauth_revoked_error(raw):
         return (
-            "Google OAuth oturumu sona ermiş veya iptal edilmiş (invalid_grant). "
-            "«Bağlantıyı Kaldır» → «Google ile Bağlan» ile Search Console erişimi olan hesapla yeniden yetkilendirin. "
-            "Google Cloud OAuth istemcisinde redirect URI: "
+            "The Google OAuth session has expired or been revoked (invalid_grant). "
+            "Click “Disconnect” → “Connect with Google” and authorize again with an account that has Search Console access. "
+            "Google Cloud OAuth client redirect URI: "
             f"{get_oauth_redirect_uri()}"
         )
     return raw
@@ -366,7 +366,7 @@ def get_search_console_connection_status(db: Session, site_id: int) -> dict[str,
         return {
             "connected": True,
             "method": "oauth",
-            "label": "OAuth yeniden bağlanmalı" if requires_reauth else "OAuth bağlı",
+            "label": "OAuth needs reconnect" if requires_reauth else "OAuth connected",
             "requires_reauth": requires_reauth,
         }
 
@@ -376,9 +376,9 @@ def get_search_console_connection_status(db: Session, site_id: int) -> dict[str,
         .first()
     )
     if service_record is not None:
-        return {"connected": True, "method": "service_account", "label": "Service account bağlı", "requires_reauth": False}
+        return {"connected": True, "method": "service_account", "label": "Service account connected", "requires_reauth": False}
 
-    return {"connected": False, "method": "none", "label": "Bağlantı yok", "requires_reauth": False}
+    return {"connected": False, "method": "none", "label": "Not connected", "requires_reauth": False}
 
 
 def get_sc_connections_batch(db: "Session", site_ids: list[int]) -> "dict[int, dict]":
@@ -449,16 +449,16 @@ def get_sc_connections_batch(db: "Session", site_ids: list[int]) -> "dict[int, d
             result[sid] = {
                 "connected": True,
                 "method": "oauth",
-                "label": "OAuth yeniden bağlanmalı" if requires_reauth else "OAuth bağlı",
+                "label": "OAuth needs reconnect" if requires_reauth else "OAuth connected",
                 "requires_reauth": requires_reauth,
             }
         elif SERVICE_ACCOUNT_CREDENTIAL_TYPE in types:
             result[sid] = {
                 "connected": True,
                 "method": "service_account",
-                "label": "Service account bağlı",
+                "label": "Service account connected",
                 "requires_reauth": False,
             }
         else:
-            result[sid] = {"connected": False, "method": "none", "label": "Bağlantı yok", "requires_reauth": False}
+            result[sid] = {"connected": False, "method": "none", "label": "Not connected", "requires_reauth": False}
     return result

@@ -5,22 +5,22 @@
       <p class="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">External Site</p>
       <h4 class="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">{{ site.display_name }}</h4>
       <p class="mt-1 break-all text-sm text-slate-600 dark:text-slate-300">{{ site.domain }}</p>
-      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Son güncelleme: {{ site.last_updated }}</p>
+      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Last updated: {{ site.last_updated }}</p>
     </div>
     <div class="flex flex-wrap gap-2">
       <form hx-post="/external/refresh/{{ site.id }}" hx-target="#public-site-list" hx-swap="innerHTML">
         <button type="submit" class="rounded-full border border-orange-300 bg-orange-50 px-4 py-2 text-xs font-semibold text-orange-700 transition hover:bg-orange-100">
-          External Veriyi Yenile
+          Refresh external data
         </button>
       </form>
       <form
         hx-delete="/external/sites/{{ site.id }}"
         hx-target="#public-site-list"
         hx-swap="innerHTML"
-        onsubmit="return confirm('Bu external site kaydini silmek istiyor musunuz?');"
+        onsubmit="return confirm('Delete this external site record?');"
       >
         <button type="submit" class="rounded-full border border-rose-300 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100">
-          Sil
+          Delete
         </button>
       </form>
       <a
@@ -48,38 +48,38 @@
     <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3">
       <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Crawler</p>
       <p class="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ site.crawler_audited_urls }} URL</p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Kırık: {{ site.crawler_broken_links }} · Zincir: {{ site.crawler_redirect_chains }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Broken: {{ site.crawler_broken_links }} · Chains: {{ site.crawler_redirect_chains }}</p>
       {% if site.crawler_status == 'started' %}
-        <p class="mt-1 text-xs font-semibold text-amber-700">Durum: Arka planda taraniyor</p>
+        <p class="mt-1 text-xs font-semibold text-amber-700">Status: Scanning in the background</p>
       {% elif site.crawler_status == 'failed' %}
-        <p class="mt-1 text-xs font-semibold text-rose-700">Durum: Son crawler denemesi basarisiz</p>
+        <p class="mt-1 text-xs font-semibold text-rose-700">Status: Last crawler attempt failed</p>
       {% endif %}
     </div>
     <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3">
       <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">CrUX</p>
-      <p class="mt-2 text-lg font-semibold {% if site.crux_ready %}text-emerald-700{% else %}text-amber-700{% endif %}">{{ 'Hazır' if site.crux_ready else 'Bekleniyor' }}</p>
+      <p class="mt-2 text-lg font-semibold {% if site.crux_ready %}text-emerald-700{% else %}text-amber-700{% endif %}">{{ 'Ready' if site.crux_ready else 'Waiting' }}</p>
       <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Snapshot: {{ site.warehouse.crux_history_snapshots }}</p>
     </div>
   </div>
 
   <div class="mt-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3 sm:p-4">
     <div class="flex items-center justify-between gap-3">
-      <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Uyarılar</p>
-      <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Toplam {{ site.alerts["total"] }} kayıt</span>
+      <p class="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Alerts</p>
+      <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Total {{ site.alerts["total"] }} records</span>
     </div>
 
     <div class="mt-2 flex flex-wrap gap-2">
       <span class="rounded-full bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">CTR/Kritik: {{ site.alerts["breakdown"]["rose"] }}</span>
-      <span class="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Impression/Uyarı: {{ site.alerts["breakdown"]["amber"] }}</span>
-      <span class="rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">Pozisyon: {{ site.alerts["breakdown"]["sky"] }}</span>
-      <span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">İyileşme: {{ site.alerts["breakdown"]["emerald"] }}</span>
-      <span class="rounded-full bg-slate-100 dark:bg-slate-800/70 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200">Diğer: {{ site.alerts["breakdown"]["other"] }}</span>
+      <span class="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Impression/Alert: {{ site.alerts["breakdown"]["amber"] }}</span>
+      <span class="rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">Position: {{ site.alerts["breakdown"]["sky"] }}</span>
+      <span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Improvement: {{ site.alerts["breakdown"]["emerald"] }}</span>
+      <span class="rounded-full bg-slate-100 dark:bg-slate-800/70 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200">Other: {{ site.alerts["breakdown"]["other"] }}</span>
     </div>
 
     {% if site.alerts["items"] %}
       <details class="mt-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" {% if site.alerts["total"] <= 8 %}open{% endif %}>
         <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
-          {{ site.alerts["total"] }} uyarıyı göster / gizle
+          {{ site.alerts["total"] }} alerts show / hide
         </summary>
         <div class="max-h-[32rem] space-y-2 overflow-y-auto border-t border-slate-200 dark:border-slate-700 p-3">
         {% for alert in site.alerts["items"] %}
@@ -96,11 +96,11 @@
                   {% elif alert.display_tone == 'amber' %}
                     <span class="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Impression</span>
                   {% elif alert.display_tone == 'sky' %}
-                    <span class="rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">Pozisyon</span>
+                    <span class="rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">Position</span>
                   {% elif "[POSITIVE]" in alert.message %}
-                    <span class="rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700">✓ İyileşme</span>
+                    <span class="rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700">✓ Improved</span>
                   {% else %}
-                    <span class="rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700">Uyarı</span>
+                    <span class="rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700">Alert</span>
                   {% endif %}
                 </div>
                 <div class="mt-2 space-y-1">
@@ -112,7 +112,7 @@
                   {% endif %}
                   <p class="text-sm {% if alert.display_tone == 'rose' or alert.display_tone == 'sky' %}text-rose-600{% elif alert.display_tone == 'amber' %}text-amber-700{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ alert.display_metric | safe }}</p>
                   <details class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-1">
-                    <summary class="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300">Ham alert kırılımı</summary>
+                    <summary class="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300">Raw alert breakdown</summary>
                     <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">{{ alert.message }}</p>
                   </details>
                 </div>
@@ -120,7 +120,7 @@
               <div class="text-right">
                 <p class="text-xs text-slate-500 dark:text-slate-400">{{ alert.triggered_at }}</p>
                 <p class="mt-1 text-xs {% if alert.sent_mail %}text-green-600{% else %}text-amber-600{% endif %}">
-                  {% if alert.sent_mail %}✓ Mail gönderildi{% else %}⧗ Mail bekliyor{% endif %}
+                  {% if alert.sent_mail %}✓ Mail sent{% else %}⧗ Mail pending{% endif %}
                 </p>
               </div>
             </div>
@@ -130,7 +130,7 @@
       </details>
     {% else %}
       <div class="mt-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-        Bu external site için henüz alarm kaydı oluşmadı.
+        No alert records for this external site yet.
       </div>
     {% endif %}
   </div>

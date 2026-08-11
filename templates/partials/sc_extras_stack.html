@@ -5,11 +5,11 @@
       <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">{{ item.group }}</p>
       <h2 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">{{ item.order }}. {{ item.title }}</h2>
       {% if item.kind == 'analytics' %}
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Canlı Search Console API · son 28 gün</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Live Search Console API · last 28 days</p>
       {% elif item.kind == 'inspection' %}
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">URL Inspection API · site başına inceleme formu</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">URL Inspection API · per-site inspection form</p>
       {% elif item.kind == 'sitemaps' %}
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Search Console sitemap listesi</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Search Console sitemap list</p>
       {% endif %}
     </div>
     <div

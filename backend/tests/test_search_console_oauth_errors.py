@@ -11,8 +11,8 @@ def test_oauth_revoked_detection():
 
 def test_format_revoked_for_ui():
     msg = format_search_console_error_for_ui("invalid_grant: Token has been expired or revoked.")
-    assert "Bağlantıyı Kaldır" in msg
-    assert "Google ile Bağlan" in msg
+    assert "Disconnect" in msg
+    assert "Connect with Google" in msg
 
 
 def test_search_console_oauth_error_is_exception():

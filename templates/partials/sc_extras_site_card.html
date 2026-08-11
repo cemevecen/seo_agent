@@ -11,13 +11,13 @@
       <p class="truncate text-xs text-slate-500 dark:text-slate-400">{{ domain }}</p>
     </div>
     <div class="shrink-0 text-xs font-semibold {% if connection.connected %}text-emerald-700 dark:text-emerald-400{% else %}text-amber-700 dark:text-amber-400{% endif %}">
-      {{ connection.label or ('Bağlı' if connection.connected else 'Bağlantı yok') }}
+      {{ connection.label or ('Connected' if connection.connected else 'Not connected') }}
     </div>
   </div>
 
   {% if not connection.connected %}
     <div class="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-      Search Console bağlantısı yok. Ayarlardan OAuth veya servis hesabı ekleyin.
+      Search Console is not connected. Add OAuth or a service account from Settings.
     </div>
   {% elif error %}
     <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
@@ -31,7 +31,7 @@
       hx-swap="innerHTML"
       hx-indicator="#sc-inspection-spinner-{{ site_id }}"
     >
-      <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300" for="sc-inspect-url-{{ site_id }}">İncelenecek URL</label>
+      <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300" for="sc-inspect-url-{{ site_id }}">URL to inspect</label>
       <div class="flex flex-col gap-2 sm:flex-row">
         <input
           id="sc-inspect-url-{{ site_id }}"
@@ -39,17 +39,17 @@
           type="url"
           value="{{ (report.default_url if report else '') }}"
           class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-          placeholder="https://example.com/sayfa"
+          placeholder="https://example.com/page"
           required
         />
         <button
           type="submit"
           class="shrink-0 rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
         >
-          İncele
+          Inspect
         </button>
       </div>
-      <p id="sc-inspection-spinner-{{ site_id }}" class="hidden text-xs text-slate-500 htmx-request:inline dark:text-slate-400">Google URL Inspection API çağrılıyor…</p>
+      <p id="sc-inspection-spinner-{{ site_id }}" class="hidden text-xs text-slate-500 htmx-request:inline dark:text-slate-400">Calling Google URL Inspection API…</p>
     </form>
     <div id="sc-inspection-result-{{ site_id }}" class="mt-3"></div>
   {% elif sc_view_item.kind == 'sitemaps' and report %}
@@ -57,8 +57,8 @@
     {% set sc_sitemap_rows = report.sitemaps or [] %}
     {% if sc_sitemap_rows %}
       <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
-        {{ sc_sitemap_rows|length|tr_int }} kayıt
-        {% if sc_sitemap_rows|length > sc_preview_limit %} · ilk {{ sc_preview_limit }} gösteriliyor{% endif %}
+        {{ sc_sitemap_rows|length|tr_int }} records
+        {% if sc_sitemap_rows|length > sc_preview_limit %} · showing first {{ sc_preview_limit }}{% endif %}
       </p>
       <div class="sc-extra-table-wrap rounded-2xl border border-slate-200 dark:border-slate-700" data-sc-extra-table data-sc-mobile-cards>
         <table class="sc-extra-table w-full text-left text-[11px] sm:text-xs" data-sc-cols="5" data-sc-mobile-cards data-search-console-table>
@@ -69,28 +69,28 @@
           <thead class="bg-slate-50 text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[10px] dark:bg-slate-800/80 dark:text-slate-400">
             <tr>
               <th class="sc-extra-th-text px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-left font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="dimension" data-sort-type="string">Sitemap</button></th>
-              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="status" data-sort-type="number">Durum</button></th>
-              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="warnings" data-sort-type="number">Uyarı</button></th>
-              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="errors" data-sort-type="number">Hata</button></th>
-              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="lastSubmitted" data-sort-type="date">Son gönderim</button></th>
+              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="status" data-sort-type="number">Status</button></th>
+              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="warnings" data-sort-type="number">Alert</button></th>
+              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="errors" data-sort-type="number">Error</button></th>
+              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="lastSubmitted" data-sort-type="date">Last submitted</button></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             {% for row in sc_sitemap_rows %}
             <tr class="text-slate-700 dark:text-slate-200" data-sc-sort-row data-dimension="{{ (row.path or '')|lower }}" data-status="{% if row.error %}2{% elif row.isPending %}1{% else %}0{% endif %}" data-warnings="{{ row.warnings|default(0) }}" data-errors="{{ row.errors|default(0) }}" data-last-submitted="{{ row.lastSubmitted or '' }}"{% if loop.index > sc_preview_limit %} data-sc-extra-row-more{% endif %}>
               <td class="sc-extra-td-text sc-extra-td-primary px-2 py-1.5 font-medium sm:px-3 sm:py-2" data-label="Sitemap" title="{{ row.path }}">{{ row.path or '—' }}</td>
-              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Durum">
+              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Status">
                 {% if row.error %}
-                  <span class="text-red-600 dark:text-red-400">Hata</span>
+                  <span class="text-red-600 dark:text-red-400">Error</span>
                 {% elif row.isPending %}
-                  Beklemede
+                  Pending
                 {% else %}
                   OK
                 {% endif %}
               </td>
-              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Uyarı">{{ row.warnings|default(0)|tr_int }}</td>
-              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Hata">{{ row.errors|default(0)|tr_int }}</td>
-              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Son gönderim">{{ row.lastSubmitted or '—' }}</td>
+              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Alert">{{ row.warnings|default(0)|tr_int }}</td>
+              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Error">{{ row.errors|default(0)|tr_int }}</td>
+              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Last submitted">{{ row.lastSubmitted or '—' }}</td>
             </tr>
             {% if row.error %}
             <tr data-sc-extra-row-error{% if loop.index > sc_preview_limit %} data-sc-extra-row-more{% endif %}>
@@ -109,7 +109,7 @@
           data-sc-extra-expand
           onclick="scExtraExpandTable(this)"
         >
-          Tümünü göster ({{ sc_sitemap_rows|length|tr_int }} satır)
+          Show all ({{ sc_sitemap_rows|length|tr_int }} rows)
         </button>
         <button
           type="button"
@@ -117,12 +117,12 @@
           data-sc-extra-collapse
           onclick="scExtraCollapseTable(this)"
         >
-          Daralt (ilk {{ sc_preview_limit }} satır)
+          Collapse (first {{ sc_preview_limit }} rows)
         </button>
       </div>
       {% endif %}
     {% else %}
-      <p class="text-sm text-slate-500 dark:text-slate-400">Bu property için sitemap kaydı bulunamadı.</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400">No sitemap records for this property.</p>
     {% endif %}
   {% elif sc_view_item.kind == 'analytics' and report %}
     {% set sc_preview_limit = 15 %}
@@ -135,10 +135,10 @@
     {% if sc_show_position %}{% set sc_table_cols = sc_table_cols + 1 %}{% endif %}
     <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
       {{ report.start_date|ga4_iso_ddmmyyyy }} – {{ report.end_date|ga4_iso_ddmmyyyy }}
-      · {{ report.row_count|tr_int }} satır
+      · {{ report.row_count|tr_int }} rows
       {% if report.search_type %} · {{ report.search_type }}{% endif %}
       {% if sc_all_rows|length > sc_preview_limit %}
-      · ilk {{ sc_preview_limit }} gösteriliyor
+      · showing first {{ sc_preview_limit }}
       {% endif %}
     </p>
     {% if sc_all_rows %}
@@ -153,18 +153,18 @@
           </colgroup>
           <thead class="bg-slate-50 text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[10px] dark:bg-slate-800/80 dark:text-slate-400">
             <tr>
-              <th class="sc-extra-th-text px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-left font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="dimension" data-sort-type="string">{{ sc_view_item.primary_label or 'Boyut' }}</button></th>
+              <th class="sc-extra-th-text px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-left font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="dimension" data-sort-type="string">{{ sc_view_item.primary_label or 'Dimension' }}</button></th>
               {% if sc_view_item.secondary_col %}
-              <th class="sc-extra-th-text px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-left font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="secondary" data-sort-type="string">{{ sc_view_item.secondary_label or 'Sorgu' }}</button></th>
+              <th class="sc-extra-th-text px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-left font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="secondary" data-sort-type="string">{{ sc_view_item.secondary_label or 'Query' }}</button></th>
               {% endif %}
               {% if sc_show_page_date %}
-              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="pageDate" data-sort-type="date">Tarih</button></th>
+              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="pageDate" data-sort-type="date">Date</button></th>
               {% endif %}
-              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="clicks" data-sort-type="number">Tıklama</button></th>
-              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="impressions" data-sort-type="number">Gösterim</button></th>
+              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="clicks" data-sort-type="number">Clicks</button></th>
+              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="impressions" data-sort-type="number">Impressions</button></th>
               <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="ctr" data-sort-type="number">CTR</button></th>
               {% if sc_show_position %}
-              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="position" data-sort-type="number">Pozisyon</button></th>
+              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2"><button type="button" class="w-full text-right font-bold uppercase tracking-wide hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="position" data-sort-type="number">Position</button></th>
               {% endif %}
             </tr>
           </thead>
@@ -172,7 +172,7 @@
             {% for row in sc_all_rows %}
             {% set _dim = row.get('page') or row.get(sc_view_item.primary_col) or '' %}
             <tr class="text-slate-700 dark:text-slate-200" data-sc-sort-row data-dimension="{{ _dim|lower }}"{% if sc_view_item.secondary_col %} data-secondary="{{ (row.get(sc_view_item.secondary_col) or '')|lower }}"{% endif %}{% if sc_show_page_date %} data-page-date="{{ row.page_date or '' }}"{% endif %} data-clicks="{{ row.get('clicks') or 0 }}" data-impressions="{{ row.get('impressions') or 0 }}" data-ctr="{{ row.get('ctr') or 0 }}"{% if sc_show_position %} data-position="{{ row.get('position') if row.get('position') is not none else '' }}"{% endif %}{% if loop.index > sc_preview_limit %} data-sc-extra-row-more{% endif %}>
-              <td class="sc-extra-td-text sc-extra-td-primary px-2 py-1.5 font-medium sm:px-3 sm:py-2" data-label="{{ sc_view_item.primary_label or 'Boyut' }}" title="{{ row.get('page') or row.get(sc_view_item.primary_col) or '' }}">
+              <td class="sc-extra-td-text sc-extra-td-primary px-2 py-1.5 font-medium sm:px-3 sm:py-2" data-label="{{ sc_view_item.primary_label or 'Dimension' }}" title="{{ row.get('page') or row.get(sc_view_item.primary_col) or '' }}">
                 {% if sc_view_item.primary_col == 'page' and row.get('page') %}
                   <a href="{{ row.page }}" target="_blank" rel="noopener" class="text-sky-700 hover:underline dark:text-sky-400">{{ row.page | sc_extra_page_label(domain) }}</a>
                 {% else %}
@@ -180,16 +180,16 @@
                 {% endif %}
               </td>
               {% if sc_view_item.secondary_col %}
-              <td class="sc-extra-td-text px-2 py-1.5 sm:px-3 sm:py-2" data-label="{{ sc_view_item.secondary_label or 'Sorgu' }}" title="{{ row.get(sc_view_item.secondary_col) or '' }}">{{ row.get(sc_view_item.secondary_col) or '—' }}</td>
+              <td class="sc-extra-td-text px-2 py-1.5 sm:px-3 sm:py-2" data-label="{{ sc_view_item.secondary_label or 'Query' }}" title="{{ row.get(sc_view_item.secondary_col) or '' }}">{{ row.get(sc_view_item.secondary_col) or '—' }}</td>
               {% endif %}
               {% if sc_show_page_date %}
-              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2 whitespace-nowrap" data-label="Tarih" title="{% if row.page_date_kind == 'publish' %}Yayın tarihi{% elif row.page_date_kind == 'traffic' %}İlk trafik (dönem içi){% else %}—{% endif %}">{% if row.page_date %}{{ row.page_date | ga4_iso_ddmmyyyy }}{% else %}—{% endif %}</td>
+              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2 whitespace-nowrap" data-label="Date" title="{% if row.page_date_kind == 'publish' %}Publish date{% elif row.page_date_kind == 'traffic' %}First traffic (in period){% else %}—{% endif %}">{% if row.page_date %}{{ row.page_date | ga4_iso_ddmmyyyy }}{% else %}—{% endif %}</td>
               {% endif %}
-              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Tıklama">{{ (row.get('clicks') or 0)|tr_int }}</td>
-              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Gösterim">{{ (row.get('impressions') or 0)|tr_int }}</td>
+              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Clicks">{{ (row.get('clicks') or 0)|tr_int }}</td>
+              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Impressions">{{ (row.get('impressions') or 0)|tr_int }}</td>
               <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="CTR">{{ ((row.get('ctr') or 0) * 100)|max_two_decimals }}%</td>
               {% if sc_show_position %}
-              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Pozisyon">{% if row.get('position') %}{{ row.position|max_two_decimals }}{% else %}—{% endif %}</td>
+              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Position">{% if row.get('position') %}{{ row.position|max_two_decimals }}{% else %}—{% endif %}</td>
               {% endif %}
             </tr>
             {% endfor %}
@@ -204,7 +204,7 @@
           data-sc-extra-expand
           onclick="scExtraExpandTable(this)"
         >
-          Tümünü göster ({{ sc_all_rows|length|tr_int }} satır)
+          Show all ({{ sc_all_rows|length|tr_int }} rows)
         </button>
         <button
           type="button"
@@ -212,14 +212,14 @@
           data-sc-extra-collapse
           onclick="scExtraCollapseTable(this)"
         >
-          Daralt (ilk {{ sc_preview_limit }} satır)
+          Collapse (first {{ sc_preview_limit }} rows)
         </button>
       </div>
       {% endif %}
     {% else %}
-      <p class="text-sm text-slate-500 dark:text-slate-400">Seçilen dönemde veri yok.</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400">No data for the selected period.</p>
     {% endif %}
   {% else %}
-    <p class="text-sm text-slate-500 dark:text-slate-400">Veri yüklenemedi.</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">Could not load data.</p>
   {% endif %}
 </section>
