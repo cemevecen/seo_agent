@@ -1,10 +1,10 @@
 {% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
-<div class="home-readable flex flex-wrap items-center justify-between gap-3">
-  <div class="flex items-center gap-2">
+<div class="home-rt-head">
+  <div class="home-rt-head-title">
     <span class="home-rt-live-dot" aria-hidden="true"></span>
     {{ container_chip('active users') }}
   </div>
-  <div class="flex flex-wrap items-center justify-end gap-2">
+  <div class="home-rt-head-chips">
     {% if sites %}
       {% for site in sites %}
       <div class="home-rt-pill {% if site.site_id == 1 %}home-rt-pill--doviz{% else %}home-rt-pill--sinemalar{% endif %}"
