@@ -181,7 +181,6 @@
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
     <h3 class="text-sm font-bold text-indigo-700 dark:text-indigo-300">4 platform toplam click (Top 20)</h3>
-    <p id="nt-cross-top-range" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Her bildirim gönderimi (id + tarih); Web + MWeb + Android + iOS click toplamı · seçili tarih aralığı</p>
     <div id="nt-cross-top-list" class="nt-cross-top-wrap mt-3 text-xs"></div>
     <button type="button" id="nt-cross-top-expand" class="mt-3 hidden w-full rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Top 50'yi gör / genişlet</button>
   </div>
@@ -772,7 +771,6 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-bold text-slate-800 dark:text-slate-200">Gönderim saati heatmap</h2>
-      <p class="text-[10px] text-slate-500 dark:text-slate-400">07:00–23:00 · kırmızı (düşük) → koyu yeşil (yüksek) · veri yok = gri</p>
       <select id="nt-heatmap-metric" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
         <option value="total">Toplam click</option>
         <option value="desktop">Web</option>
@@ -2253,13 +2251,6 @@
   function renderCrossPlatformTop(rows) {
     cachedCrossTopList = buildCrossPlatformRanking(rows);
     window.cachedCrossTopList = cachedCrossTopList;
-    var rangeEl = document.getElementById("nt-cross-top-range");
-    if (rangeEl) {
-      var start = selectedStartDate();
-      var end = selectedEndDate();
-      var rangeTxt = (start || end) ? ((start || "…") + " – " + (end || "…")) : "Tüm tarihler";
-      rangeEl.textContent = "Her bildirim gönderimi (id + tarih) · Web + MWeb + Android + iOS click · " + rangeTxt;
-    }
     paintCrossTopList(crossTopExpanded);
   }
   function paintCrossTopList(expanded) {
