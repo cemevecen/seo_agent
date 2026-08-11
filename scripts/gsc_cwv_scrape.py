@@ -946,7 +946,7 @@ def _snap_series_to_kpis(chart_series: dict[str, Any], overview: dict[str, Any])
             last = int(arr[-1] or 0)
             if last > 50 and kpi_v > 50:
                 ratio = kpi_v / last if last else 0
-                if ratio < 0.45 or ratio > 2.2:
+                if abs(ratio - 1.0) > 0.12:
                     continue
             arr[-1] = kpi_v
             ser[metric] = arr
@@ -1531,7 +1531,7 @@ def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) ->
         chart_series = {"mobile": None, "desktop": None, "error": str(exc)[:200]}
 
     if charts_only:
-        # KPI’ları overview + chart son noktasından doldur
+        # Cihaz KPI = o grafiğin son GSC noktası (başlık metni birleşik toplam olabiliyor)
         mobile_k = dict(overview.get("mobile") or {})
         desktop_k = dict(overview.get("desktop") or {})
         for key, bucket in (("mobile", mobile_k), ("desktop", desktop_k)):
@@ -1540,7 +1540,7 @@ def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) ->
                 continue
             for metric in ("poor", "needs_improvement", "good"):
                 arr = ser.get(metric) or []
-                if arr and not bucket.get(metric):
+                if arr:
                     bucket[metric] = int(round(float(arr[-1] or 0)))
         poor = int(mobile_k.get("poor") or 0) + int(desktop_k.get("poor") or 0)
         ni = int(mobile_k.get("needs_improvement") or 0) + int(desktop_k.get("needs_improvement") or 0)
@@ -1564,11 +1564,19 @@ def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) ->
 
     mobile = _scrape_device(page, resource_id=rid, device=DEVICE_MOBILE, label="Mobil")
     desktop = _scrape_device(page, resource_id=rid, device=DEVICE_DESKTOP, label="Masaüstü")
-    # Prefer overview KPIs when summary parse weak
+    # Prefer overview KPIs when summary parse weak; chart last point wins for device cards
     if overview["mobile"]["good"] or overview["mobile"]["needs_improvement"]:
         mobile["kpis"] = overview["mobile"]
     if overview["desktop"]["good"] or overview["desktop"]["poor"] or overview["desktop"]["needs_improvement"]:
         desktop["kpis"] = overview["desktop"]
+    for key, dev in (("mobile", mobile), ("desktop", desktop)):
+        ser = chart_series.get(key) if isinstance(chart_series.get(key), dict) else {}
+        kpis = dict(dev.get("kpis") or {})
+        for metric in ("poor", "needs_improvement", "good"):
+            arr = (ser or {}).get(metric) or []
+            if arr:
+                kpis[metric] = int(round(float(arr[-1] or 0)))
+        dev["kpis"] = kpis
     mobile["last_updated"] = last_upd
     desktop["last_updated"] = last_upd
 
