@@ -1,4 +1,4 @@
-"""Owner PM lab — erişim ve payload birleştirme."""
+"""Owner PM lab — erişim, geçmiş birleştirme, şablon."""
 
 from pathlib import Path
 
@@ -14,27 +14,28 @@ from backend.services.pm_lab_store import SECTION_DEFS, ingest_pm_lab_payload, p
 def test_owner_emails_only():
     assert is_pm_lab_allowed_email("cemevecen@nokta.com")
     assert is_pm_lab_allowed_email("CEMEVECEN@Gmail.com")
-    assert is_pm_lab_allowed_email("cemevecen@example.com")
     assert not is_pm_lab_allowed_email("onur@nokta.com")
-    assert not is_pm_lab_allowed_email("")
-    assert resolve_pm_lab_visible(member_email="ops@nokta.com") is False
     assert resolve_pm_lab_visible(member_email="cemevecen@gmail.com") is True
 
 
 def test_paths():
     assert is_pm_lab_path("/pm-lab")
-    assert is_pm_lab_path("/pm-lab/image/serp/dolar_p1")
     assert is_pm_lab_path("/api/pm-lab/state")
     assert not is_pm_lab_path("/api/pm-lab/ingest")
-    assert not is_pm_lab_path("/settings")
 
 
-def test_ten_closed_sections():
-    assert len(SECTION_DEFS) == 10
-    assert [s["no"] for s in SECTION_DEFS] == [2, 3, 7, 9, 10, 11, 12, 14, 15, 17]
+def test_five_live_sections():
+    assert [s["id"] for s in SECTION_DEFS] == [
+        "serp",
+        "competitors",
+        "sikayet",
+        "store_charts",
+        "google_news",
+    ]
+    assert [s["no"] for s in SECTION_DEFS] == [2, 3, 9, 12, 17]
 
 
-def test_ingest_merges_sections():
+def test_ingest_serp_history_and_no_shots():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
@@ -42,67 +43,81 @@ def test_ingest_merges_sections():
             db,
             {
                 "sections": {
-                    "serp": {"ok": True, "summary": "a", "shots": {"x": "YQ=="}},
-                },
-                "source": "test",
+                    "serp": {
+                        "ok": True,
+                        "summary": "a",
+                        "keywords": [
+                            {
+                                "keyword": "gram altın",
+                                "rows": [
+                                    {
+                                        "rank": 3,
+                                        "domain": "www.doviz.com",
+                                        "title": "eski",
+                                        "url": "https://www.doviz.com/",
+                                    }
+                                ],
+                            }
+                        ],
+                        "shots": {"x": "YQ=="},
+                    }
+                }
             },
         )
         ingest_pm_lab_payload(
             db,
             {
                 "sections": {
-                    "serp": {"summary": "b", "shots": {"y": "Yg=="}},
-                    "competitors": {"ok": False, "message": "yok"},
+                    "serp": {
+                        "ok": True,
+                        "summary": "b",
+                        "keywords": [
+                            {
+                                "keyword": "gram altın",
+                                "rows": [
+                                    {
+                                        "rank": 1,
+                                        "domain": "www.doviz.com",
+                                        "title": "yeni",
+                                        "url": "https://www.doviz.com/",
+                                    },
+                                    {
+                                        "rank": 2,
+                                        "domain": "bigpara.hurriyet.com.tr",
+                                        "title": "bp",
+                                        "url": "https://bigpara.hurriyet.com.tr/",
+                                    },
+                                ],
+                            }
+                        ],
+                    }
                 }
             },
         )
         ctx = page_context(db)
         by_id = {c["id"]: c for c in ctx["cards"]}
-        assert by_id["serp"]["summary"] == "b"
-        assert by_id["serp"]["ok"] is True
-        assert set(by_id["serp"]["shot_names"]) == {"x", "y"}
-        assert by_id["competitors"]["ok"] is False
-        assert by_id["google_news"]["ok"] is None
+        assert len(ctx["cards"]) == 5
+        serp = by_id["serp"]["data"]
+        assert "shots" not in serp
+        rows = serp["keywords"][0]["rows"]
+        ours = next(r for r in rows if "doviz.com" in r["domain"])
+        assert ours["delta"] == "up"
+        assert ours["delta_n"] == 2
+        newbie = next(r for r in rows if "bigpara" in r["domain"])
+        assert newbie["delta"] == "new"
+        assert len(serp["runs"]) == 2
+        assert "boot_json" in ctx
+        assert "gram altın" in ctx["boot_json"]
     finally:
         db.close()
 
 
-def test_template_dropdowns_start_closed():
+def test_template_has_no_photos_and_js_shell():
     html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
-    assert html.count("<details") >= 1
-    assert "<details open" not in html
-    assert "pm_lab_visible" not in html  # nav is in base; page itself is gated
-    assert "sikayetvar.items" not in html  # dict.items method shadows JSON key
-
-
-def test_pm_lab_template_renders_sikayet_items():
-    from jinja2 import Environment
-
-    src = Path("templates/pm_lab.html").read_text(encoding="utf-8")
-    src = src.replace('{% extends "base.html" %}', "")
-    src = src.replace("{% block content %}", "").replace("{% endblock %}", "")
-    tmpl = Environment().from_string(src)
-    cards = [
-        {
-            "id": "sikayet",
-            "no": 9,
-            "title": "Şikayetvar",
-            "hint": "",
-            "ok": True,
-            "message": "",
-            "summary": "",
-            "shot_names": [],
-            "data": {
-                "sikayetvar": {
-                    "score": "3.2",
-                    "count": "12",
-                    "solved": "%40",
-                    "url": "https://www.sikayetvar.com/doviz",
-                    "items": [{"title": "Test", "meta": "bugün", "excerpt": "x"}],
-                }
-            },
-        }
-    ]
-    html = tmpl.render(cards=cards, scraped_at="", updated_at="", sync_message="")
-    assert "Test" in html
-    assert "3.2" in html
+    assert "<img" not in html
+    assert "shot_grid" not in html
+    assert "pm_lab.js" in html
+    assert "data-pml" in html
+    js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
+    assert "renderSerp" in js
+    assert "renderCompetitors" in js

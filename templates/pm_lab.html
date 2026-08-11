@@ -1,62 +1,65 @@
 {% extends "base.html" %}
 
-{% macro shot_grid(card) %}
-  {% if card.shot_names %}
-  <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-    {% for name in card.shot_names %}
-    <figure class="overflow-hidden rounded-xl ring-1 ring-slate-200 dark:ring-zinc-700">
-      <img
-        src="/pm-lab/image/{{ card.id }}/{{ name }}"
-        alt="{{ card.title }} · {{ name }}"
-        class="h-auto w-full bg-slate-100 object-cover object-top dark:bg-zinc-800"
-        loading="lazy"
-      />
-      <figcaption class="border-t border-slate-100 px-3 py-1.5 text-[11px] text-slate-500 dark:border-zinc-800 dark:text-zinc-500">{{ name }}</figcaption>
-    </figure>
-    {% endfor %}
-  </div>
-  {% endif %}
-{% endmacro %}
-
-{% macro kv_table(rows) %}
-  {% if rows %}
-  <div class="mt-3 overflow-x-auto">
-    <table class="w-full min-w-[420px] text-left text-xs">
-      <tbody>
-        {% for row in rows %}
-        <tr class="border-t border-slate-100 dark:border-zinc-800">
-          <th class="whitespace-nowrap py-1.5 pr-3 font-medium text-slate-500 dark:text-zinc-500">{{ row[0] }}</th>
-          <td class="py-1.5 text-slate-800 dark:text-zinc-300">{{ row[1] }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-{% endmacro %}
-
 {% block content %}
-<div class="mx-auto w-full min-w-0 max-w-[1100px] space-y-4">
+<style>
+  .pml-chip{display:inline-flex;align-items:center;gap:.35rem;border-radius:999px;padding:.15rem .55rem;font-size:10px;font-weight:700;letter-spacing:.02em;background:#f4f4f5;color:#52525b}
+  html.dark .pml-chip{background:#27272a;color:#a1a1aa}
+  .pml-chip-ok{background:#ecfdf5;color:#3f6b58}
+  html.dark .pml-chip-ok{background:#1c2a24;color:#8aa897}
+  .pml-chip-bad{background:#f4f4f5;color:#71717a}
+  .pml-chip-up{background:#eef2ee;color:#4a5c4e}
+  .pml-chip-down{background:#f3eeee;color:#6b5353}
+  .pml-chip-new{background:#eef0f4;color:#4a5568}
+  .pml-tabs{display:flex;flex-wrap:wrap;gap:.35rem}
+  .pml-tab{border:0;border-radius:999px;padding:.35rem .7rem;font-size:11px;font-weight:650;background:#f4f4f5;color:#52525b;cursor:pointer}
+  html.dark .pml-tab{background:#27272a;color:#a1a1aa}
+  .pml-tab.is-on{background:#18181b;color:#fafafa}
+  html.dark .pml-tab.is-on{background:#e4e4e7;color:#18181b}
+  .pml-shell{overflow:auto;max-height:min(70vh,720px);border-radius:12px}
+  .pml-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;min-width:640px}
+  .pml-table th{position:sticky;top:0;z-index:2;background:#fafafa;color:#71717a;font-size:10px;letter-spacing:.04em;text-transform:uppercase;font-weight:700;padding:.55rem .6rem;text-align:left;border-bottom:1px solid #e4e4e7;cursor:pointer}
+  html.dark .pml-table th{background:#18181b;border-bottom-color:#27272a;color:#71717a}
+  .pml-table td{padding:.5rem .6rem;border-bottom:1px solid #f4f4f5;color:#3f3f46}
+  html.dark .pml-table td{border-bottom-color:#27272a;color:#d4d4d8}
+  .pml-table tbody tr:nth-child(even) td{background:#fafafa}
+  html.dark .pml-table tbody tr:nth-child(even) td{background:#18181b}
+  .pml-table tbody tr:hover td{background:#f4f4f5}
+  html.dark .pml-table tbody tr:hover td{background:#27272a}
+  .pml-table .pin{position:sticky;left:0;z-index:1;background:inherit;font-weight:650}
+  .pml-ours td{font-weight:700}
+  .pml-heat-up{background:#eef2ee !important}
+  .pml-heat-down{background:#f6f0f0 !important}
+  .pml-heat-new{background:#eef1f5 !important}
+  .pml-miss{color:#a1a1aa}
+  .pml-search{border-radius:8px;border:1px solid #e4e4e7;background:#fff;padding:.35rem .6rem;font-size:12px;min-width:10rem}
+  html.dark .pml-search{border-color:#3f3f46;background:#18181b;color:#e4e4e7}
+  .pml-spark{display:flex;align-items:flex-end;gap:2px;height:28px}
+  .pml-spark i{display:block;width:6px;border-radius:2px 2px 0 0;background:#a1a1aa;min-height:3px}
+  .pml-spark i.on{background:#6f9b86}
+  .pml-spark i.off{background:#b57a82}
+  .pml-bar{display:flex;align-items:center;gap:.5rem;margin:.25rem 0}
+  .pml-bar-track{flex:1;height:8px;border-radius:99px;background:#f4f4f5;overflow:hidden}
+  html.dark .pml-bar-track{background:#27272a}
+  .pml-bar-fill{height:100%;background:#8a9a8e;border-radius:99px}
+</style>
+
+<div class="mx-auto w-full min-w-0 max-w-[1280px] space-y-4">
   <div class="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-    <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">PM lab</h2>
-    <p class="mt-1 text-xs text-slate-500 dark:text-zinc-500">
-      Yalnızca sana açık. Kapalı duran her blok bir tarama maddesi — beğendiğini sonra sekmeye veya başka kaba taşıyacağız.
-    </p>
-    <p class="mt-2 text-[11px] text-slate-400 dark:text-zinc-600">
-      {% if scraped_at %}Son tarama: {{ scraped_at }}{% else %}Henüz tarama yok.{% endif %}
-      {% if updated_at %} · kayıt: {{ updated_at }}{% endif %}
-      {% if sync_message %} · {{ sync_message }}{% endif %}
-    </p>
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">PM lab</h2>
+        <p class="mt-1 text-xs text-slate-500 dark:text-zinc-500">Fotoğraf yok · 3 saatte bir tarama · iniş-çıkış ve kaynak metrikleri tabloda.</p>
+      </div>
+      <div id="pml-status" class="flex flex-wrap gap-1.5"></div>
+    </div>
+    <div id="pml-run-chart" class="mt-3"></div>
   </div>
 
   {% for card in cards %}
-  {% set d = card.data or {} %}
   <details class="group rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
     <summary class="flex cursor-pointer list-none items-center gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
       <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-400 transition-transform duration-200 group-open:rotate-90" aria-hidden="true">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
       </span>
       <span class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-100 px-2 text-[11px] font-bold text-slate-600 dark:bg-zinc-800 dark:text-zinc-400">{{ card.no }}</span>
       <div class="min-w-0 flex-1">
@@ -64,330 +67,20 @@
         <p class="truncate text-[11px] text-slate-500 dark:text-zinc-500">{{ card.hint }}{% if card.summary %} · {{ card.summary }}{% endif %}</p>
       </div>
       {% if card.ok == True %}
-      <span class="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-zinc-800 dark:text-zinc-400">dolu</span>
+      <span class="pml-chip pml-chip-ok">dolu</span>
       {% elif card.ok == False %}
-      <span class="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-zinc-800 dark:text-zinc-500">eksik</span>
+      <span class="pml-chip">eksik</span>
       {% else %}
-      <span class="shrink-0 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-400 dark:bg-zinc-800 dark:text-zinc-600">boş</span>
+      <span class="pml-chip">boş</span>
       {% endif %}
     </summary>
     <div class="border-t border-slate-100 px-5 py-4 dark:border-zinc-800">
-      {% if card.message %}
-      <p class="mb-3 text-xs text-slate-500 dark:text-zinc-500">{{ card.message }}</p>
-      {% endif %}
-      {% if not d or (card.ok is none) %}
-      <p class="text-xs text-slate-400 dark:text-zinc-600">Bu blok henüz doldurulmadı.</p>
-      {% endif %}
-
-      {# 2 SERP #}
-      {% if card.id == "serp" and d.keywords %}
-      <div class="space-y-6">
-        {% for kw in d.keywords %}
-        <section>
-          <h4 class="text-sm font-semibold text-slate-800 dark:text-zinc-300">{{ kw.keyword }}</h4>
-          <p class="text-[11px] text-slate-500 dark:text-zinc-500">
-            bizim sıra:
-            {% if kw.our_rank %}{{ kw.our_rank }}. · {{ kw.our_url }}{% else %}ilk 20’de yok{% endif %}
-            {% if kw.ads_count %} · reklam {{ kw.ads_count }}{% endif %}
-          </p>
-          {% for page in kw.pages or [] %}
-          <div class="mt-2">
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sayfa {{ page.page }}</p>
-            {% if page.organic %}
-            <ol class="mt-1 space-y-1 text-xs text-slate-700 dark:text-zinc-300">
-              {% for row in page.organic %}
-              <li>
-                <span class="text-slate-400">{{ row.rank }}.</span>
-                <a class="font-medium hover:underline" href="{{ row.url }}" target="_blank" rel="noopener">{{ row.title }}</a>
-                <span class="text-slate-400"> · {{ row.domain }}</span>
-                {% if row.snippet %}<p class="pl-4 text-[11px] text-slate-500 dark:text-zinc-500">{{ row.snippet }}</p>{% endif %}
-              </li>
-              {% endfor %}
-            </ol>
-            {% endif %}
-            {% if page.ads %}
-            <p class="mt-2 text-[11px] font-semibold text-slate-500">Reklam</p>
-            <ul class="text-xs text-slate-600 dark:text-zinc-400">
-              {% for ad in page.ads %}
-              <li>{{ ad.title }}{% if ad.url %} · {{ ad.url }}{% endif %}</li>
-              {% endfor %}
-            </ul>
-            {% endif %}
-            {% if page.paa %}
-            <p class="mt-2 text-[11px] font-semibold text-slate-500">People also ask</p>
-            <ul class="list-disc pl-4 text-xs text-slate-600 dark:text-zinc-400">
-              {% for q in page.paa %}<li>{{ q }}</li>{% endfor %}
-            </ul>
-            {% endif %}
-            {% if page.related %}
-            <p class="mt-2 text-[11px] font-semibold text-slate-500">İlgili</p>
-            <p class="text-xs text-slate-600 dark:text-zinc-400">{{ page.related | join(" · ") }}</p>
-            {% endif %}
-          </div>
-          {% endfor %}
-        </section>
-        {% endfor %}
-      </div>
-      {{ shot_grid(card) }}
-      {% endif %}
-
-      {# 3 competitors #}
-      {% if card.id == "competitors" and d.sites %}
-      <div class="space-y-4">
-        {% for site in d.sites %}
-        <section class="rounded-xl bg-slate-50 p-3 dark:bg-zinc-950/40">
-          <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <h4 class="text-sm font-semibold text-slate-800 dark:text-zinc-300">{{ site.label }}</h4>
-            <a class="text-[11px] text-slate-500 hover:underline" href="{{ site.url }}" target="_blank" rel="noopener">{{ site.url }}</a>
-          </div>
-          {% if site.message %}<p class="mt-1 text-[11px] text-slate-500">{{ site.message }}</p>{% endif %}
-          {% if site.quotes %}
-          <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-            {% for q in site.quotes %}
-            <div class="rounded-lg bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-zinc-800">
-              <p class="text-[10px] uppercase tracking-wide text-slate-400">{{ q.name }}</p>
-              <p class="text-sm font-bold text-slate-800 dark:text-zinc-200">{{ q.value }}</p>
-              {% if q.change %}<p class="text-[10px] text-slate-500">{{ q.change }}</p>{% endif %}
-            </div>
-            {% endfor %}
-          </div>
-          {% endif %}
-          {% if site.notes %}
-          <ul class="mt-2 list-disc pl-4 text-[11px] text-slate-500">
-            {% for n in site.notes %}<li>{{ n }}</li>{% endfor %}
-          </ul>
-          {% endif %}
-        </section>
-        {% endfor %}
-      </div>
-      {{ shot_grid(card) }}
-      {% endif %}
-
-      {# 7 ads transparency #}
-      {% if card.id == "ads_transparency" %}
-      {% if d.advertisers %}
-      <ul class="space-y-2 text-xs">
-        {% for adv in d.advertisers %}
-        <li class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-950/40">
-          <p class="font-semibold text-slate-800 dark:text-zinc-300">{{ adv.name }}</p>
-          <p class="text-slate-500">{{ adv.detail }}</p>
-        </li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-      {% if d.ads %}
-      <ol class="mt-3 space-y-2 text-xs text-slate-700 dark:text-zinc-300">
-        {% for ad in d.ads %}
-        <li>
-          <span class="font-medium">{{ ad.advertiser or "reklam" }}</span>
-          {% if ad.format %} · {{ ad.format }}{% endif %}
-          {% if ad.last_shown %} · son {{ ad.last_shown }}{% endif %}
-          {% if ad.text %}<p class="text-slate-500">{{ ad.text }}</p>{% endif %}
-        </li>
-        {% endfor %}
-      </ol>
-      {% endif %}
-      {% if d.raw_lines %}
-      <pre class="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-[11px] text-slate-600 dark:bg-zinc-950/40 dark:text-zinc-400">{{ d.raw_lines | join("\n") }}</pre>
-      {% endif %}
-      {{ shot_grid(card) }}
-      {% endif %}
-
-      {# 9 sikayet #}
-      {% if card.id == "sikayet" %}
-      {% if d.sikayetvar %}
-      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-400">Şikayetvar</h4>
-      {{ kv_table([
-        ("Puan", d.sikayetvar.score or "—"),
-        ("Şikayet", d.sikayetvar.count or "—"),
-        ("Çözüm", d.sikayetvar.solved or "—"),
-        ("URL", d.sikayetvar.url or "—"),
-      ]) }}
-      {% if d.sikayetvar.get('items') %}
-      <ul class="mt-2 space-y-2 text-xs">
-        {% for it in d.sikayetvar.get('items') %}
-        <li class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-950/40">
-          <p class="font-medium text-slate-800 dark:text-zinc-300">{{ it.title }}</p>
-          <p class="text-slate-500">{{ it.meta }}</p>
-          {% if it.excerpt %}<p class="mt-1 text-slate-600 dark:text-zinc-400">{{ it.excerpt }}</p>{% endif %}
-        </li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-      {% endif %}
-      {% if d.eksi %}
-      <h4 class="mt-4 text-xs font-bold uppercase tracking-wide text-slate-400">Ekşi Sözlük</h4>
-      <p class="text-xs text-slate-500">{{ d.eksi.title }} · {{ d.eksi.url }}</p>
-      {% if d.eksi.entries %}
-      <ul class="mt-2 space-y-2 text-xs text-slate-700 dark:text-zinc-300">
-        {% for en in d.eksi.entries %}
-        <li class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-950/40">{{ en }}</li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-      {% endif %}
-      {{ shot_grid(card) }}
-      {% endif %}
-
-      {# 10 app rank #}
-      {% if card.id == "app_rank" %}
-      {% if d.play %}
-      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-400">Play</h4>
-      {{ kv_table([
-        ("Sıra", d.play.rank_label or d.play.rank or "—"),
-        ("Kategori", d.play.category or "—"),
-        ("Kurulum", d.play.installs or "—"),
-        ("Puan", d.play.score or "—"),
-        ("Yorum", d.play.ratings or "—"),
-      ]) }}
-      {% endif %}
-      {% if d.ios %}
-      <h4 class="mt-3 text-xs font-bold uppercase tracking-wide text-slate-400">App Store</h4>
-      {{ kv_table([
-        ("Sıra", d.ios.rank_label or d.ios.rank or "—"),
-        ("Kategori", d.ios.category or "—"),
-        ("Puan", d.ios.score or "—"),
-        ("Chart", d.ios.chart or "—"),
-      ]) }}
-      {% endif %}
-      {% if d.third_party %}
-      <h4 class="mt-3 text-xs font-bold uppercase tracking-wide text-slate-400">Üçüncü taraf</h4>
-      <ul class="mt-1 space-y-2 text-xs">
-        {% for src in d.third_party %}
-        <li class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-950/40">
-          <p class="font-semibold">{{ src.name }} · {{ src.status }}</p>
-          <p class="text-slate-500">{{ src.url }}</p>
-          {% if src.notes %}<p class="mt-1 text-slate-600">{{ src.notes }}</p>{% endif %}
-        </li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-      {{ shot_grid(card) }}
-      {% endif %}
-
-      {# 11 firebase perf #}
-      {% if card.id == "firebase_perf" %}
-      {% for plat in d.platforms or [] %}
-      <section class="mb-4 rounded-xl bg-slate-50 p-3 dark:bg-zinc-950/40">
-        <h4 class="text-sm font-semibold">{{ plat.label }}</h4>
-        <p class="text-[11px] text-slate-500">{{ plat.url }}</p>
-        {% if plat.message %}<p class="mt-1 text-xs text-slate-500">{{ plat.message }}</p>{% endif %}
-        {% if plat.metrics %}
-        <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {% for m in plat.metrics %}
-          <div class="rounded-lg bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-zinc-800">
-            <p class="text-[10px] uppercase tracking-wide text-slate-400">{{ m.name }}</p>
-            <p class="text-sm font-bold">{{ m.value }}</p>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-        {% if plat.traces %}
-        <ul class="mt-2 text-xs text-slate-600 dark:text-zinc-400">
-          {% for t in plat.traces %}<li>{{ t }}</li>{% endfor %}
-        </ul>
-        {% endif %}
-      </section>
-      {% endfor %}
-      {{ shot_grid(card) }}
-      {% endif %}
-
-      {# 12 store charts #}
-      {% if card.id == "store_charts" %}
-      {% for chart in d.charts or [] %}
-      <section class="mb-4">
-        <h4 class="text-sm font-semibold">{{ chart.title }}</h4>
-        <p class="text-[11px] text-slate-500">{{ chart.our_label }}</p>
-        <ol class="mt-2 columns-1 gap-x-6 text-xs sm:columns-2">
-          {% for app in chart.apps or [] %}
-          <li class="break-inside-avoid py-0.5 {% if app.is_ours %}font-bold text-slate-900 dark:text-zinc-100{% else %}text-slate-600 dark:text-zinc-400{% endif %}">
-            {{ app.rank }}. {{ app.name }}{% if app.subtitle %} <span class="font-normal text-slate-400">{{ app.subtitle }}</span>{% endif %}
-          </li>
-          {% endfor %}
-        </ol>
-      </section>
-      {% endfor %}
-      {{ shot_grid(card) }}
-      {% endif %}
-
-      {# 14 apple search ads #}
-      {% if card.id == "apple_search_ads" %}
-      {% if d.campaigns %}
-      <div class="overflow-x-auto">
-        <table class="w-full min-w-[520px] text-left text-xs">
-          <thead>
-            <tr class="text-[10px] uppercase tracking-wide text-slate-400">
-              <th class="py-1 pr-3">Kampanya</th>
-              <th class="py-1 pr-3">Durum</th>
-              <th class="py-1 pr-3">Harcama</th>
-              <th class="py-1 pr-3">Install</th>
-              <th class="py-1">CPA / not</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for c in d.campaigns %}
-            <tr class="border-t border-slate-100 dark:border-zinc-800">
-              <td class="py-1.5 pr-3 font-medium">{{ c.name }}</td>
-              <td class="py-1.5 pr-3">{{ c.status }}</td>
-              <td class="py-1.5 pr-3">{{ c.spend }}</td>
-              <td class="py-1.5 pr-3">{{ c.installs }}</td>
-              <td class="py-1.5">{{ c.note }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% endif %}
-      {% if d.raw_lines %}
-      <pre class="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-[11px] text-slate-600 dark:bg-zinc-950/40 dark:text-zinc-400">{{ d.raw_lines | join("\n") }}</pre>
-      {% endif %}
-      {{ shot_grid(card) }}
-      {% endif %}
-
-      {# 15 GSC #}
-      {% if card.id == "gsc_index" %}
-      {% if d.crawl %}
-      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-400">Tarama istatistiği</h4>
-      {{ kv_table(d.crawl.stats or []) }}
-      {% endif %}
-      {% if d.index %}
-      <h4 class="mt-3 text-xs font-bold uppercase tracking-wide text-slate-400">Dizin</h4>
-      {{ kv_table(d.index.stats or []) }}
-      {% if d.index.reasons %}
-      <ul class="mt-2 space-y-1 text-xs text-slate-700 dark:text-zinc-300">
-        {% for r in d.index.reasons %}
-        <li class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-1.5 dark:bg-zinc-950/40">
-          <span>{{ r.reason }}</span>
-          <span class="font-semibold">{{ r.count }}</span>
-        </li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-      {% endif %}
-      {{ shot_grid(card) }}
-      {% endif %}
-
-      {# 17 news #}
-      {% if card.id == "google_news" and d.keywords %}
-      <div class="space-y-4">
-        {% for kw in d.keywords %}
-        <section>
-          <h4 class="text-sm font-semibold">{{ kw.keyword }}</h4>
-          <ol class="mt-1 space-y-1.5 text-xs">
-            {% for art in kw.articles or [] %}
-            <li>
-              <a class="font-medium hover:underline" href="{{ art.url }}" target="_blank" rel="noopener">{{ art.title }}</a>
-              <span class="text-slate-400"> · {{ art.source }}{% if art.time %} · {{ art.time }}{% endif %}</span>
-            </li>
-            {% endfor %}
-          </ol>
-        </section>
-        {% endfor %}
-      </div>
-      {{ shot_grid(card) }}
-      {% endif %}
+      <div class="pml-body" data-pml="{{ card.id }}"></div>
     </div>
   </details>
   {% endfor %}
 </div>
+
+<script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
+<script src="/static/js/pm_lab.js?v=2"></script>
 {% endblock %}

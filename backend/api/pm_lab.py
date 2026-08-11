@@ -54,8 +54,7 @@ def pm_lab_state(db: Session = Depends(get_db)) -> dict[str, Any]:
         if not isinstance(block, dict):
             continue
         copy = dict(block)
-        shots = copy.get("shots") if isinstance(copy.get("shots"), dict) else {}
-        copy["shots"] = sorted(str(k) for k in shots.keys())
+        copy.pop("shots", None)
         slim[key] = copy
     return {
         "ok": True,

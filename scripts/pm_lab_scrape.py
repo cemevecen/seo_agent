@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
-"""Owner PM lab — seçilen tarama maddeleri (Mac Firefox → Railway ingest).
+"""Owner PM lab taramaları (fotoğraf yok) — Mac Firefox → Railway ingest.
 
   .venv/bin/python scripts/pm_lab_scrape.py --sync --ingest
   .venv/bin/python scripts/pm_lab_scrape.py --jobs serp,competitors --ingest
-
-Env:
-  PM_LAB_INGEST_URL          default …/api/pm-lab/ingest
-  NOTIFICATION_INGEST_TOKEN
-  PM_LAB_HEADLESS=1
 """
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import os
 import re
@@ -21,6 +15,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -47,12 +42,7 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
-from backend.services.scrape_browser import (  # noqa: E402
-    asc_profile_dir,
-    google_profile_dir,
-    launch_ephemeral,
-    launch_persistent,
-)
+from backend.services.scrape_browser import google_profile_dir, launch_ephemeral, launch_persistent  # noqa: E402
 
 INGEST_URL = (
     os.environ.get("PM_LAB_INGEST_URL")
@@ -61,40 +51,166 @@ INGEST_URL = (
 ).strip()
 
 SERP_KEYWORDS = (
-    "gümüş",
+    "gram gümüş",
+    "usd",
+    "çeyrek altın",
+    "harem çeyrek altın",
+    "harem gram altın",
+    "harem dolar",
+    "kapalıçarşı gram altın",
     "gram altın",
-    "bitcoin",
-    "harem altın",
+)
+SERP_PAGES = 4
+
+NEWS_KEYWORDS = (
     "dolar",
-    "altın fiyatı",
+    "altın",
+    "gram altın",
+    "çeyrek altın",
+    "kripto para",
+    "ons altın",
 )
 
-COMPETITORS = (
-    {"id": "bigpara", "label": "Bigpara", "url": "https://bigpara.hurriyet.com.tr/"},
-    {"id": "uzmanpara", "label": "Uzmanpara", "url": "https://uzmanpara.milliyet.com.tr/"},
-    {"id": "tradingview", "label": "TradingView", "url": "https://tr.tradingview.com/markets/currencies/rates-turkey/"},
-    {"id": "canlidoviz", "label": "Canlı Döviz", "url": "https://www.canlidoviz.com/"},
-    {"id": "investing", "label": "Investing", "url": "https://tr.investing.com/"},
+ASSETS = (
+    {"id": "usd", "label": "Dolar"},
+    {"id": "bist100", "label": "BIST 100"},
+    {"id": "eur", "label": "Euro"},
+    {"id": "gram_altin", "label": "Gram Altın"},
+    {"id": "harem_gram_altin", "label": "Harem Gram Altın"},
+    {"id": "kapalicarsi_gram_altin", "label": "Kapalıçarşı Gram Altın"},
+    {"id": "gram_gumus", "label": "Gram Gümüş"},
+    {"id": "ons_altin", "label": "Ons Altın"},
+    {"id": "brent", "label": "Brent Petrol"},
+    {"id": "ceyrek_altin", "label": "Çeyrek Altın"},
 )
 
-ADS_DOMAINS = ("doviz.com", "sinemalar.com")
-OUR_HOSTS = ("doviz.com", "canlidoviz.com")
+SITES = (
+    {"id": "doviz", "label": "Döviz", "home": "https://www.doviz.com/"},
+    {"id": "tradingview", "label": "TradingView", "home": "https://www.tradingview.com/"},
+    {"id": "canlidoviz", "label": "Canlı Döviz", "home": "https://canlidoviz.com/"},
+    {"id": "investing", "label": "Investing", "home": "https://www.investing.com/"},
+    {"id": "bigpara", "label": "Bigpara", "home": "https://bigpara.hurriyet.com.tr/"},
+    {"id": "uzmanpara", "label": "Uzmanpara", "home": "https://uzmanpara.milliyet.com.tr/"},
+    {"id": "bloomberght", "label": "Bloomberg HT", "home": "https://www.bloomberght.com/"},
+    {"id": "cnbce", "label": "CNBC-e", "home": "https://www.cnbce.com/"},
+    {"id": "cnnturk", "label": "CNN Türk Finans", "home": "https://finans.cnnturk.com/"},
+    {"id": "enuygun", "label": "Enuygun Finans", "home": "https://www.enuygunfinans.com/"},
+)
+
+ASSET_URLS: dict[str, dict[str, str]] = {
+    "doviz": {
+        "usd": "https://kur.doviz.com/serbest-piyasa/amerikan-dolari",
+        "eur": "https://kur.doviz.com/serbest-piyasa/euro",
+        "gram_altin": "https://altin.doviz.com/gram-altin",
+        "kapalicarsi_gram_altin": "https://altin.doviz.com/gram-altin",
+        "harem_gram_altin": "https://altin.doviz.com/harem/gram-altin",
+        "gram_gumus": "https://altin.doviz.com/gumus",
+        "ons_altin": "https://altin.doviz.com/ons",
+        "ceyrek_altin": "https://altin.doviz.com/ceyrek-altin",
+        "brent": "https://www.doviz.com/emtia/brent-petrol",
+        "bist100": "https://borsa.doviz.com/endeksler/xu100",
+    },
+    "tradingview": {
+        "usd": "https://www.tradingview.com/symbols/USDTRY/",
+        "eur": "https://www.tradingview.com/symbols/EURTRY/",
+        "bist100": "https://www.tradingview.com/symbols/BIST-XU100/",
+        "ons_altin": "https://www.tradingview.com/symbols/XAUUSD/",
+        "brent": "https://www.tradingview.com/symbols/TVC-UKOIL/",
+        "gram_gumus": "https://www.tradingview.com/symbols/XAGUSD/",
+        "gram_altin": "https://www.tradingview.com/symbols/GOLD-TRY/",
+    },
+    "canlidoviz": {
+        "usd": "https://canlidoviz.com/doviz-kurlari/dolar",
+        "eur": "https://canlidoviz.com/doviz-kurlari/euro",
+        "gram_altin": "https://canlidoviz.com/altin-fiyatlari/gram-altin",
+        "gram_gumus": "https://canlidoviz.com/altin-fiyatlari/gumus",
+        "ons_altin": "https://canlidoviz.com/altin-fiyatlari/ons-altin",
+        "ceyrek_altin": "https://canlidoviz.com/altin-fiyatlari/ceyrek-altin",
+        "brent": "https://canlidoviz.com/emtia-fiyatlari/brent-petrol",
+        "bist100": "https://canlidoviz.com/endeks/bist-100",
+    },
+    "investing": {
+        "usd": "https://www.investing.com/currencies/usd-try",
+        "eur": "https://www.investing.com/currencies/eur-try",
+        "bist100": "https://www.investing.com/indices/ise-100",
+        "ons_altin": "https://www.investing.com/commodities/gold",
+        "brent": "https://www.investing.com/commodities/brent-oil",
+        "gram_gumus": "https://www.investing.com/commodities/silver",
+        "ceyrek_altin": "https://tr.investing.com/commodities/turkey-gold-quarter",
+    },
+    "bigpara": {
+        "usd": "https://bigpara.hurriyet.com.tr/doviz/dolar/",
+        "eur": "https://bigpara.hurriyet.com.tr/doviz/euro/",
+        "gram_altin": "https://bigpara.hurriyet.com.tr/altin/gram-altin/",
+        "ceyrek_altin": "https://bigpara.hurriyet.com.tr/altin/ceyrek-altin/",
+        "ons_altin": "https://bigpara.hurriyet.com.tr/altin/altin-ons/",
+        "bist100": "https://bigpara.hurriyet.com.tr/borsa/endeks/xu100/",
+    },
+    "uzmanpara": {
+        "usd": "https://uzmanpara.milliyet.com.tr/dolar-ne-kadar/",
+        "eur": "https://uzmanpara.milliyet.com.tr/euro-ne-kadar/",
+        "gram_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/gram-altin/",
+        "ceyrek_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/ceyrek-altin/",
+        "bist100": "https://uzmanpara.milliyet.com.tr/borsa/",
+        "gram_gumus": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/gumus/",
+        "ons_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/ons-altin/",
+    },
+    "bloomberght": {
+        "usd": "https://www.bloomberght.com/dolar",
+        "eur": "https://www.bloomberght.com/euro",
+        "gram_altin": "https://www.bloomberght.com/gram-altin",
+        "bist100": "https://www.bloomberght.com/xu100",
+        "ons_altin": "https://www.bloomberght.com/ons",
+        "brent": "https://www.bloomberght.com/brent-petrol",
+        "ceyrek_altin": "https://www.bloomberght.com/ceyrek-altin",
+    },
+    "cnbce": {
+        "usd": "https://www.cnbce.com/",
+        "eur": "https://www.cnbce.com/",
+        "bist100": "https://www.cnbce.com/",
+        "ons_altin": "https://www.cnbce.com/",
+        "brent": "https://www.cnbce.com/",
+    },
+    "cnnturk": {
+        "usd": "https://finans.cnnturk.com/",
+        "eur": "https://finans.cnnturk.com/",
+        "gram_altin": "https://finans.cnnturk.com/",
+        "bist100": "https://finans.cnnturk.com/",
+        "ons_altin": "https://finans.cnnturk.com/",
+        "ceyrek_altin": "https://finans.cnnturk.com/",
+    },
+    "enuygun": {
+        "usd": "https://www.enuygunfinans.com/dolar-kuru",
+        "eur": "https://www.enuygunfinans.com/euro-kuru",
+        "gram_altin": "https://www.enuygunfinans.com/gram-altin",
+        "ceyrek_altin": "https://www.enuygunfinans.com/ceyrek-altin",
+        "ons_altin": "https://www.enuygunfinans.com/ons-altin",
+        "bist100": "https://www.enuygunfinans.com/bist-100",
+    },
+}
+
+ASSET_LABELS: dict[str, tuple[str, ...]] = {
+    "usd": ("usd/try", "usd try", "amerikan doları", "abd doları", "dolar kuru", " dolar ", "usd "),
+    "eur": ("eur/try", "euro", "avro"),
+    "bist100": ("bist 100", "bist100", "xu100", "bist-100"),
+    "gram_altin": ("gram altın", "gram altin", "ga altın"),
+    "harem_gram_altin": ("harem gram", "harem altın"),
+    "kapalicarsi_gram_altin": ("kapalıçarşı gram", "kapalicarsi gram", "kapalı çarşı"),
+    "gram_gumus": ("gram gümüş", "gram gumus", "gümüş gram", "gumus gram"),
+    "ons_altin": ("ons altın", "ons altin", "xauusd", "altın/ons", "gold ounce"),
+    "brent": ("brent", "brent petrol", "ham petrol"),
+    "ceyrek_altin": ("çeyrek altın", "ceyrek altin", "çeyrek"),
+}
+
 PLAY_PACKAGE = "com.Doviz"
 IOS_APP_ID = "465599322"
 IOS_FINANCE_GENRE = 6015
-GSC_RESOURCE = "sc-domain:doviz.com"
+OUR_HOSTS = ("doviz.com",)
 
-JOB_IDS = (
-    "serp",
-    "competitors",
-    "ads_transparency",
-    "sikayet",
-    "app_rank",
-    "store_charts",
-    "google_news",
-    "firebase_perf",
-    "gsc_index",
-    "apple_search_ads",
+JOB_IDS = ("serp", "competitors", "sikayet", "store_charts", "google_news")
+
+_PRICE_RE = re.compile(
+    r"([+-]?%?\s*\d{1,3}(?:[.\s]\d{3})*(?:[.,]\d{1,4})|\d+[.,]\d{2,4})"
 )
 
 
@@ -146,90 +262,30 @@ def post_ingest(sections: dict[str, Any], *, message: str = "") -> dict[str, Any
         return {"ok": False, "message": str(exc)[:240]}
 
 
-def _shot(page: Any, *, full_page: bool = False, quality: int = 42) -> str:
-    try:
-        raw = page.screenshot(type="jpeg", quality=quality, full_page=full_page)
-    except Exception:
-        try:
-            raw = page.screenshot(type="jpeg", quality=quality, full_page=False)
-        except Exception:
-            return ""
-    if not raw:
-        return ""
-    if len(raw) > 420_000 and full_page:
-        try:
-            raw = page.screenshot(type="jpeg", quality=34, full_page=False)
-        except Exception:
-            pass
-    return base64.b64encode(raw).decode("ascii")
-
-
 def _dismiss_consent(page: Any) -> None:
-    names = (
-        "Tümünü kabul et",
-        "Accept all",
-        "I agree",
-        "Accept",
-        "Kabul et",
-        "Agree",
-        "Reject all",
-        "Tümünü reddet",
-    )
-    for name in names:
+    for name in ("Tümünü kabul et", "Accept all", "I agree", "Accept", "Kabul et", "Agree"):
         try:
             loc = page.get_by_role("button", name=name)
             if loc.count() and loc.first.is_visible():
-                loc.first.click(timeout=2500)
-                page.wait_for_timeout(600)
-                return
-        except Exception:
-            continue
-    for sel in ("#L2AGLb", "button[aria-label='Accept all']", "button[aria-label='Tümünü kabul et']"):
-        try:
-            loc = page.locator(sel)
-            if loc.count() and loc.first.is_visible():
-                loc.first.click(timeout=2500)
-                page.wait_for_timeout(600)
+                loc.first.click(timeout=2000)
+                page.wait_for_timeout(400)
                 return
         except Exception:
             continue
 
 
-def _goto(page: Any, url: str, *, wait: str = "domcontentloaded", timeout: int = 60_000) -> None:
-    page.goto(url, wait_until=wait, timeout=timeout)
-    page.wait_for_timeout(900)
+def _goto(page: Any, url: str, *, timeout: int = 60_000) -> None:
+    page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+    page.wait_for_timeout(700)
     _dismiss_consent(page)
-    page.wait_for_timeout(400)
+    page.wait_for_timeout(300)
 
 
-def _text(page: Any, limit: int = 8000) -> str:
+def _text(page: Any, limit: int = 12000) -> str:
     try:
         return (page.inner_text("body") or "")[:limit]
     except Exception:
         return ""
-
-
-def _needs_google_login(page: Any) -> bool:
-    try:
-        url = (page.url or "").lower()
-    except Exception:
-        url = ""
-    if "accounts.google.com" in url:
-        return True
-    try:
-        body = (_text(page, 1500) or "").lower()
-    except Exception:
-        body = ""
-    markers = (
-        "email or phone",
-        "e-posta veya telefon",
-        "şifrenizi girin",
-        "enter your password",
-        "iki adımlı doğrulama",
-        "verify it’s you",
-        "verify it's you",
-    )
-    return any(m in body for m in markers)
 
 
 def _domain_of(url: str) -> str:
@@ -248,24 +304,12 @@ def _is_our_host(host: str) -> bool:
     return False
 
 
-def _our_rank(organic: list[dict[str, Any]]) -> tuple[int | None, str]:
-    for row in organic:
-        host = (row.get("domain") or _domain_of(str(row.get("url") or ""))).lower()
-        if _is_our_host(host):
-            try:
-                return int(row.get("rank") or 0) or None, str(row.get("url") or "")
-            except (TypeError, ValueError):
-                return None, str(row.get("url") or "")
-    return None, ""
-
-
 def _extract_serp(page: Any) -> dict[str, Any]:
     data = page.evaluate(
         """() => {
           const organic = [];
           const seen = new Set();
-          const h3s = document.querySelectorAll('h3');
-          h3s.forEach((h3) => {
+          document.querySelectorAll('h3').forEach((h3) => {
             const a = h3.closest('a');
             if (!a || !a.href) return;
             const href = a.href;
@@ -278,29 +322,22 @@ def _extract_serp(page: Any) -> dict[str, Any]:
             let snippet = '';
             if (block) {
               const t = (block.innerText || '').split('\\n').filter(Boolean);
-              snippet = t.slice(1, 4).join(' ').slice(0, 280);
+              snippet = t.slice(1, 5).join(' ').slice(0, 320);
             }
-            organic.push({ rank: organic.length + 1, title: (h3.innerText || '').trim(), url: href, domain: host, snippet });
-          });
-          const ads = [];
-          document.querySelectorAll('#tads a, #tvcap a, [data-text-ad] a').forEach((a) => {
-            const title = (a.innerText || '').trim().split('\\n')[0];
-            if (title && title.length > 2) ads.push({ title: title.slice(0, 160), url: a.href || '' });
+            organic.push({
+              rank: organic.length + 1,
+              title: (h3.innerText || '').trim(),
+              url: href,
+              domain: host,
+              snippet
+            });
           });
           const paa = [];
           document.querySelectorAll('div[jsname] span, div[role="button"] span').forEach((el) => {
             const t = (el.innerText || '').trim();
             if (t.endsWith('?') && t.length > 12 && t.length < 140 && !paa.includes(t)) paa.push(t);
           });
-          const related = [];
-          document.querySelectorAll('#botstuff a, div.k8XOCe, a[data-ved]').forEach((a) => {
-            const t = (a.innerText || '').trim();
-            if (t && t.length < 80 && related.length < 12 && !related.includes(t) && !t.includes('http')) {
-              if (a.closest('#search')) return;
-              related.push(t);
-            }
-          });
-          return { organic, ads: ads.slice(0, 12), paa: paa.slice(0, 8), related: related.slice(0, 10) };
+          return { organic, paa: paa.slice(0, 8) };
         }"""
     )
     return data if isinstance(data, dict) else {}
@@ -308,448 +345,229 @@ def _extract_serp(page: Any) -> dict[str, Any]:
 
 def job_serp(page: Any) -> dict[str, Any]:
     keywords: list[dict[str, Any]] = []
-    shots: dict[str, str] = {}
     for kw in SERP_KEYWORDS:
-        slug = re.sub(r"[^a-z0-9]+", "_", kw.lower().replace("ü", "u").replace("ı", "i").replace("ş", "s").replace("ğ", "g").replace("ö", "o").replace("ç", "c"))
-        pages_out: list[dict[str, Any]] = []
-        all_organic: list[dict[str, Any]] = []
-        ads_count = 0
-        for start, pno in ((0, 1), (10, 2)):
-            q = quote(kw)
-            url = f"https://www.google.com/search?q={q}&hl=tr&gl=tr&pws=0&num=10&start={start}"
+        rows: list[dict[str, Any]] = []
+        our = None
+        for pno in range(SERP_PAGES):
+            start = pno * 10
+            url = f"https://www.google.com/search?q={quote(kw)}&hl=tr&gl=tr&pws=0&num=10&start={start}"
             try:
                 _goto(page, url, timeout=75_000)
-                page.wait_for_timeout(1200)
+                page.wait_for_timeout(900)
                 parsed = _extract_serp(page)
-            except Exception as exc:  # noqa: BLE001
-                pages_out.append({"page": pno, "url": url, "error": str(exc)[:180], "organic": [], "ads": [], "paa": [], "related": []})
-                continue
+            except Exception:
+                break
             organic = parsed.get("organic") or []
-            ads = parsed.get("ads") or []
-            ads_count += len(ads)
-            all_organic.extend(organic)
-            pages_out.append(
-                {
-                    "page": pno,
-                    "url": url,
-                    "organic": organic,
-                    "ads": ads,
-                    "paa": parsed.get("paa") or [],
-                    "related": parsed.get("related") or [],
-                    "captcha": "unusual traffic" in _text(page, 800).lower() or "/sorry/" in (page.url or ""),
+            for i, row in enumerate(organic, 1):
+                rec = {
+                    "keyword": kw,
+                    "page": pno + 1,
+                    "rank": pno * 10 + i,
+                    "title": row.get("title") or "",
+                    "url": row.get("url") or "",
+                    "domain": row.get("domain") or _domain_of(str(row.get("url") or "")),
+                    "snippet": row.get("snippet") or "",
+                    "ours": False,
                 }
-            )
-            shot = _shot(page, full_page=True)
-            if shot:
-                shots[f"{slug}_p{pno}"] = shot
-            time.sleep(2.2)
-        rank, our_url = _our_rank(all_organic)
+                rec["ours"] = _is_our_host(str(rec["domain"]))
+                if rec["ours"] and our is None:
+                    our = rec["rank"]
+                rows.append(rec)
+            time.sleep(1.6)
         keywords.append(
             {
                 "keyword": kw,
-                "our_rank": rank,
-                "our_url": our_url,
-                "ads_count": ads_count,
-                "pages": pages_out,
+                "our_rank": our,
+                "row_count": len(rows),
+                "rows": rows,
             }
         )
-    total_org = sum(len(p.get("organic") or []) for kw in keywords for p in kw.get("pages") or [])
+    total = sum(k.get("row_count") or 0 for k in keywords)
     return {
-        "ok": total_org > 0,
+        "ok": total > 0,
         "scraped_at": _now(),
-        "summary": f"{len(keywords)} kelime · {len(shots)} fotoğraf · {total_org} organik",
-        "message": "" if total_org else "SERP boş veya doğrulama istedi",
+        "summary": f"{len(keywords)} kelime · {SERP_PAGES} sayfa · {total} sonuç",
+        "message": "" if total else "SERP boş",
         "keywords": keywords,
-        "shots": shots,
+        "pages": SERP_PAGES,
     }
 
 
-_QUOTE_NAME_RE = re.compile(
-    r"(dolar|usd|euro|eur|sterlin|gbp|gram\s*alt[ıi]n|alt[ıi]n|g[üu]m[üu][şs]|silver|bitcoin|btc|bts|çeyrek|yarım|ata)",
-    re.I,
-)
-_PRICE_RE = re.compile(r"(?:₺|TL|\$|€)?\s*\d{1,3}(?:[.\s]\d{3})*(?:[.,]\d{2,4})")
-
-
-def _quotes_from_text(text: str) -> list[dict[str, str]]:
+def _pick_price(text: str, labels: tuple[str, ...]) -> dict[str, str] | None:
+    low = (text or "").lower().replace("ı", "i").replace("ş", "s").replace("ğ", "g").replace("ü", "u").replace("ö", "o").replace("ç", "c")
     lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
-    out: list[dict[str, str]] = []
-    seen: set[str] = set()
     for i, ln in enumerate(lines):
-        if not _QUOTE_NAME_RE.search(ln):
-            continue
-        name = ln[:48]
+        ln_n = ln.lower().replace("ı", "i").replace("ş", "s").replace("ğ", "g").replace("ü", "u").replace("ö", "o").replace("ç", "c")
+        if not any(lab.strip() in ln_n or lab.strip() in low[max(0, text.lower().find(ln.lower()) - 40):] for lab in labels):
+            if not any(lab in ln_n for lab in labels):
+                continue
         window = " ".join(lines[i : i + 4])
         prices = _PRICE_RE.findall(window)
-        if not prices:
+        nums = [p.strip() for p in prices if re.search(r"\d", p) and "%" not in p]
+        if not nums:
             continue
-        key = name.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        rec = {"name": name, "value": prices[0].strip()}
-        if len(prices) > 1:
-            rec["change"] = prices[1].strip()
-        out.append(rec)
-        if len(out) >= 16:
-            break
-    return out
+        change = next((p.strip() for p in prices if "%" in p), "")
+        return {"value": nums[0], "change": change}
+    return None
 
 
-def _extract_table_quotes(page: Any) -> list[dict[str, str]]:
-    try:
-        rows = page.evaluate(
-            """() => {
-              const out = [];
-              const trs = document.querySelectorAll('table tr, [class*="row"]');
-              trs.forEach((tr) => {
-                const t = (tr.innerText || '').replace(/\\s+/g, ' ').trim();
-                if (!t || t.length > 180) return;
-                if (!/dolar|usd|euro|eur|alt[ıi]n|g[üu]m[üu][şs]|bitcoin|btc|sterlin/i.test(t)) return;
-                out.push(t);
-              });
-              return out.slice(0, 24);
-            }"""
-        )
-    except Exception:
-        rows = []
-    quotes: list[dict[str, str]] = []
-    for raw in rows or []:
-        prices = _PRICE_RE.findall(raw)
-        name = _QUOTE_NAME_RE.search(raw)
-        if not prices:
-            continue
-        quotes.append(
-            {
-                "name": (name.group(0) if name else raw.split()[0])[:40],
-                "value": prices[0].strip(),
-                "change": prices[1].strip() if len(prices) > 1 else "",
-            }
-        )
-        if len(quotes) >= 16:
-            break
-    return quotes
+def _parse_assets_from_text(text: str) -> dict[str, dict[str, str]]:
+    found: dict[str, dict[str, str]] = {}
+    for asset in ASSETS:
+        hit = _pick_price(text, ASSET_LABELS.get(asset["id"]) or (asset["label"].lower(),))
+        if hit:
+            found[asset["id"]] = hit
+    return found
 
 
 def job_competitors(page: Any) -> dict[str, Any]:
-    sites: list[dict[str, Any]] = []
-    shots: dict[str, str] = {}
-    for spec in COMPETITORS:
-        rec: dict[str, Any] = {"id": spec["id"], "label": spec["label"], "url": spec["url"], "quotes": [], "notes": []}
+    columns = [{"id": s["id"], "label": s["label"], "url": s["home"]} for s in SITES]
+    values: dict[str, dict[str, dict[str, str]]] = {a["id"]: {} for a in ASSETS}
+    notes: dict[str, str] = {}
+    for site in SITES:
+        sid = site["id"]
         try:
-            _goto(page, spec["url"], timeout=75_000)
-            page.wait_for_timeout(1800)
-            quotes = _extract_table_quotes(page)
-            if len(quotes) < 3:
-                quotes = _quotes_from_text(_text(page, 12000))
-            rec["quotes"] = quotes
-            rec["title"] = (page.title() or "")[:120]
-            if not quotes:
-                rec["message"] = "Fiyat satırı ayrıştırılamadı; fotoğraf kaydedildi."
-                rec["notes"] = [ln for ln in _text(page, 2500).splitlines() if ln.strip()][:12]
-            shot = _shot(page, full_page=False)
-            if shot:
-                shots[spec["id"]] = shot
+            _goto(page, site["home"], timeout=70_000)
+            page.wait_for_timeout(1200)
+            found = _parse_assets_from_text(_text(page, 16000))
+            extra = ASSET_URLS.get(sid) or {}
+            for aid, url in extra.items():
+                if found.get(aid) and aid not in ("harem_gram_altin", "kapalicarsi_gram_altin"):
+                    continue
+                try:
+                    _goto(page, url, timeout=55_000)
+                    page.wait_for_timeout(900)
+                    more = _parse_assets_from_text(_text(page, 9000))
+                    if aid in more:
+                        found[aid] = more[aid]
+                    elif more.get("gram_altin") and aid in ("kapalicarsi_gram_altin", "gram_altin"):
+                        found[aid] = more["gram_altin"]
+                    elif more.get("usd") and aid == "usd":
+                        found[aid] = more["usd"]
+                except Exception:
+                    continue
+            for aid, rec in found.items():
+                values.setdefault(aid, {})[sid] = rec
+            notes[sid] = f"{len(found)} varlık"
         except Exception as exc:  # noqa: BLE001
-            rec["message"] = str(exc)[:200]
-        sites.append(rec)
-        time.sleep(0.6)
-    filled = sum(1 for s in sites if s.get("quotes"))
+            notes[sid] = str(exc)[:160]
+        time.sleep(0.4)
+
+    matrix = []
+    for asset in ASSETS:
+        row = {"id": asset["id"], "label": asset["label"], "cells": {}}
+        for site in SITES:
+            cell = (values.get(asset["id"]) or {}).get(site["id"])
+            row["cells"][site["id"]] = cell or {"value": "", "change": ""}
+        matrix.append(row)
+
+    filled = sum(1 for r in matrix for c in r["cells"].values() if c.get("value"))
     return {
         "ok": filled > 0,
         "scraped_at": _now(),
-        "summary": f"{filled}/{len(sites)} sitede fiyat",
+        "summary": f"{filled} hücre dolu · {len(SITES)} site",
         "message": "",
-        "sites": sites,
-        "shots": shots,
-    }
-
-
-def job_ads_transparency(page: Any) -> dict[str, Any]:
-    advertisers: list[dict[str, str]] = []
-    ads: list[dict[str, str]] = []
-    raw_lines: list[str] = []
-    shots: dict[str, str] = {}
-    for domain in ADS_DOMAINS:
-        url = f"https://adstransparency.google.com/?region=TR&domain={quote(domain)}"
-        try:
-            _goto(page, url, timeout=90_000)
-            page.wait_for_timeout(2500)
-            body = _text(page, 9000)
-            raw_lines.append(f"--- {domain} ---")
-            raw_lines.extend([ln.strip() for ln in body.splitlines() if ln.strip()][:40])
-            parsed = page.evaluate(
-                """() => {
-                  const ads = [];
-                  document.querySelectorAll('a, article, li').forEach((el) => {
-                    const t = (el.innerText || '').trim();
-                    if (!t || t.length < 8 || t.length > 240) return;
-                    if (/advertiser|reklam veren|shown|gösterildi|format/i.test(t)) {
-                      ads.push({ text: t.slice(0, 220), url: el.href || '' });
-                    }
-                  });
-                  const advertisers = [];
-                  document.querySelectorAll('h1,h2,h3,[role="heading"]').forEach((h) => {
-                    const t = (h.innerText || '').trim();
-                    if (t) advertisers.push({ name: t.slice(0, 120), detail: '' });
-                  });
-                  return { ads: ads.slice(0, 20), advertisers: advertisers.slice(0, 8) };
-                }"""
-            )
-            if isinstance(parsed, dict):
-                for a in parsed.get("ads") or []:
-                    a["advertiser"] = domain
-                    ads.append(a)
-                for adv in parsed.get("advertisers") or []:
-                    adv["detail"] = domain
-                    advertisers.append(adv)
-            shot = _shot(page, full_page=True)
-            if shot:
-                shots[domain.replace(".", "_")] = shot
-        except Exception as exc:  # noqa: BLE001
-            raw_lines.append(f"{domain}: {exc}"[:200])
-        time.sleep(0.8)
-    extra_q = (
-        ("query_doviz", "https://adstransparency.google.com/?region=TR&query=" + quote("Döviz")),
-        ("query_nokta", "https://adstransparency.google.com/?region=TR&query=" + quote("Nokta")),
-    )
-    for sid, url in extra_q:
-        try:
-            _goto(page, url, timeout=90_000)
-            page.wait_for_timeout(2200)
-            body = _text(page, 6000)
-            raw_lines.append(f"--- {sid} ---")
-            raw_lines.extend([ln.strip() for ln in body.splitlines() if ln.strip()][:25])
-            shot = _shot(page, full_page=False)
-            if shot:
-                shots[sid] = shot
-        except Exception as exc:  # noqa: BLE001
-            raw_lines.append(f"{sid}: {exc}"[:200])
-
-    zero = any("0 reklam" in ln or "Hiç reklam bulunamadı" in ln for ln in raw_lines)
-    summary = f"{len(ads)} reklam satırı"
-    if zero and not ads:
-        summary = "TR vitrinde 0 reklam (alan adı araması)"
-    return {
-        "ok": bool(ads or advertisers or shots or raw_lines),
-        "scraped_at": _now(),
-        "summary": summary,
-        "message": "Ads Transparency TR’de doviz.com / sinemalar.com için reklam göstermedi." if zero and not ads else "",
-        "advertisers": advertisers,
-        "ads": ads,
-        "raw_lines": raw_lines[:120],
-        "shots": shots,
+        "assets": list(ASSETS),
+        "columns": columns,
+        "matrix": matrix,
+        "notes": notes,
     }
 
 
 def job_sikayet(page: Any) -> dict[str, Any]:
-    shots: dict[str, str] = {}
-    sikayetvar: dict[str, Any] = {"url": "https://www.sikayetvar.com/doviz", "items": []}
-    try:
-        _goto(page, sikayetvar["url"], timeout=75_000)
-        page.wait_for_timeout(1500)
-        if "bulunamadı" in _text(page, 400).lower() or page.url.endswith("/"):
-            _goto(page, "https://www.sikayetvar.com/doviz-com", timeout=75_000)
-            sikayetvar["url"] = page.url
-        body = _text(page, 10000)
-        score_m = re.search(r"(\d+[.,]\d)\s*/\s*5", body)
-        count_m = re.search(r"(\d[\d.]*)\s*(?:şikayet|Şikayet)", body)
-        sikayetvar["score"] = score_m.group(1) if score_m else ""
-        sikayetvar["count"] = count_m.group(1) if count_m else ""
-        solved_m = re.search(r"%\s*(\d+)|(\d+)\s*%", body)
-        sikayetvar["solved"] = (solved_m.group(0) if solved_m else "")[:20]
-        items = page.evaluate(
-            """() => {
-              const out = [];
-              document.querySelectorAll('article, .card, a[href*="/doviz"]').forEach((el) => {
-                const titleEl = el.querySelector('h2,h3,.title,a');
-                const title = ((titleEl && titleEl.innerText) || '').trim();
-                if (!title || title.length < 8) return;
-                const meta = (el.innerText || '').split('\\n').slice(1, 3).join(' · ').slice(0, 160);
-                const excerpt = (el.innerText || '').split('\\n').slice(3, 6).join(' ').slice(0, 280);
-                out.push({ title: title.slice(0, 160), meta, excerpt });
-              });
-              return out.slice(0, 12);
-            }"""
-        )
-        sikayetvar["items"] = items if isinstance(items, list) else []
-        shot = _shot(page, full_page=False)
-        if shot:
-            shots["sikayetvar"] = shot
-    except Exception as exc:  # noqa: BLE001
-        sikayetvar["message"] = str(exc)[:200]
-
-    eksi: dict[str, Any] = {"url": "https://eksisozluk.com/doviz-com", "title": "doviz.com", "entries": []}
-    try:
-        _goto(page, "https://eksisozluk.com/?q=doviz.com", timeout=75_000)
-        page.wait_for_timeout(1200)
-        eksi["url"] = page.url
-        eksi["title"] = (page.title() or "doviz.com")[:120]
-        entries = page.evaluate(
-            """() => {
-              const out = [];
-              document.querySelectorAll('[id^="entry-item"], .content, li').forEach((el) => {
-                const t = (el.innerText || '').trim();
-                if (t.length > 40 && t.length < 500) out.push(t.slice(0, 420));
-              });
-              return out.slice(0, 8);
-            }"""
-        )
-        eksi["entries"] = entries if isinstance(entries, list) else []
-        if not eksi["entries"]:
-            eksi["entries"] = [ln.strip() for ln in _text(page, 4000).splitlines() if len(ln.strip()) > 40][:8]
-        shot = _shot(page, full_page=False)
-        if shot:
-            shots["eksi"] = shot
-    except Exception as exc:  # noqa: BLE001
-        eksi["message"] = str(exc)[:200]
-
-    return {
-        "ok": bool(sikayetvar.get("items") or eksi.get("entries") or shots),
-        "scraped_at": _now(),
-        "summary": f"şikayet {len(sikayetvar.get('items') or [])} · ekşi {len(eksi.get('entries') or [])}",
-        "message": "",
-        "sikayetvar": sikayetvar,
-        "eksi": eksi,
-        "shots": shots,
-    }
-
-
-def job_app_rank(page: Any) -> dict[str, Any]:
-    shots: dict[str, str] = {}
-    play: dict[str, Any] = {}
-    ios: dict[str, Any] = {}
-    third: list[dict[str, Any]] = []
-
-    play_url = f"https://play.google.com/store/apps/details?id={PLAY_PACKAGE}&hl=tr&gl=tr"
-    try:
-        _goto(page, play_url, timeout=75_000)
-        body = _text(page, 8000)
-        rank_m = re.search(r"#\s*([\d.]+)\s*(?:sırada|in)?\s*([^\n]{0,40})?", body, re.I)
-        inst_m = re.search(r"([\d.,]+\s*[KkMm+]*\s*(?:indirme|downloads|\+))", body, re.I)
-        score_m = re.search(r"(\d[.,]\d)\s*(?:star|yıldız|\n)", body)
-        play = {
-            "url": play_url,
-            "rank": rank_m.group(1) if rank_m else "",
-            "rank_label": rank_m.group(0).strip() if rank_m else "",
-            "category": (rank_m.group(2) or "").strip() if rank_m and rank_m.lastindex and rank_m.lastindex >= 2 else "Finans",
-            "installs": inst_m.group(1).strip() if inst_m else "",
-            "score": score_m.group(1) if score_m else "",
-        }
-        try:
-            from google_play_scraper import app as gp_app
-
-            meta = gp_app(PLAY_PACKAGE, lang="tr", country="tr")
-            play["installs"] = play["installs"] or str(meta.get("installs") or meta.get("realInstalls") or "")
-            play["score"] = play["score"] or str(meta.get("score") or "")
-            play["ratings"] = str(meta.get("ratings") or "")
-            play["category"] = play["category"] or str((meta.get("genre") or ""))
-            play["title"] = meta.get("title") or ""
-        except Exception:
-            pass
-        try:
-            from backend.services.app_intel import _fetch_android_category_rank
-
-            ar = _fetch_android_category_rank(PLAY_PACKAGE, country="tr", lang="tr", category_id="FINANCE")
-            if ar:
-                play["rank"] = ar.get("rank")
-                play["rank_label"] = f"#{ar.get('rank')} / {ar.get('total')} {ar.get('category_name') or 'Finans'}"
-                play["chart"] = ar.get("play_chart") or ar.get("chart")
-        except Exception:
-            pass
-        shot = _shot(page, full_page=False)
-        if shot:
-            shots["play_details"] = shot
-    except Exception as exc:  # noqa: BLE001
-        play = {"message": str(exc)[:200], "url": play_url}
-
-    ios_url = f"https://apps.apple.com/tr/app/id{IOS_APP_ID}"
-    try:
-        _goto(page, ios_url, timeout=75_000)
-        body = _text(page, 8000)
-        rank_m = re.search(r"#\s*(\d+)\s+in\s+([^\n]{2,40})", body, re.I)
-        if not rank_m:
-            rank_m = re.search(r"(\d+)\.?\s*(?:sırada|sıra).*?(Finans|Finance)", body, re.I)
-        ios = {
-            "url": ios_url,
-            "rank": rank_m.group(1) if rank_m else "",
-            "rank_label": rank_m.group(0).strip() if rank_m else "",
-            "category": (rank_m.group(2).strip() if rank_m and rank_m.lastindex and rank_m.lastindex >= 2 else "Finance"),
-            "chart": "top-free",
-        }
-        try:
-            lookup_url = f"https://itunes.apple.com/lookup?id={IOS_APP_ID}&country=tr"
-            with urllib.request.urlopen(lookup_url, timeout=20) as resp:
-                info = json.loads(resp.read().decode("utf-8", errors="replace"))
-            res = (info.get("results") or [{}])[0]
-            ios["score"] = str(res.get("averageUserRating") or "")
-            ios["category"] = ios.get("category") or str(res.get("primaryGenreName") or "")
-            ios["title"] = res.get("trackName") or ""
-        except Exception:
-            pass
-        try:
-            from backend.services.app_intel import _fetch_ios_category_rank
-
-            ir = _fetch_ios_category_rank(IOS_APP_ID, country="tr", genre_id=IOS_FINANCE_GENRE)
-            if ir:
-                ios["rank"] = ir.get("rank")
-                ios["rank_label"] = f"#{ir.get('rank')} / {ir.get('total')} {ir.get('chart_label') or ir.get('chart')}"
-                ios["chart"] = ir.get("chart")
-                ios["category"] = ios.get("category") or "Finance"
-        except Exception:
-            pass
-        shot = _shot(page, full_page=False)
-        if shot:
-            shots["ios_details"] = shot
-    except Exception as exc:  # noqa: BLE001
-        ios = {"message": str(exc)[:200], "url": ios_url}
-
-    third_urls = (
-        ("Sensor Tower", f"https://sensortower.com/ios/tr/finance/app/doviz/465599322"),
-        ("data.ai", f"https://www.data.ai/apps/ios/app/{IOS_APP_ID}/app-overview/"),
+    brands = (
+        {
+            "id": "doviz.com",
+            "sikayet": "https://www.sikayetvar.com/doviz-com",
+            "eksi": "https://eksisozluk.com/?q=doviz.com",
+        },
+        {
+            "id": "sinemalar.com",
+            "sikayet": "https://www.sikayetvar.com/sinemalar-com",
+            "eksi": "https://eksisozluk.com/?q=sinemalar.com",
+        },
     )
-    for name, url in third_urls:
-        rec = {"name": name, "url": url, "status": "ok", "notes": ""}
+    out: list[dict[str, Any]] = []
+    for brand in brands:
+        rec: dict[str, Any] = {"brand": brand["id"], "sikayetvar": {"url": brand["sikayet"], "items": []}, "eksi": {"url": brand["eksi"], "entries": []}}
         try:
-            _goto(page, url, timeout=60_000)
-            body = _text(page, 3500)
-            low = body.lower()
-            if any(x in low for x in ("sign in", "log in", "oturum", "create account", "subscribe")):
-                rec["status"] = "oturum / duvar"
-            rec["notes"] = " ".join(ln.strip() for ln in body.splitlines() if ln.strip())[:400]
-            shot = _shot(page, full_page=False)
-            if shot:
-                shots[name.lower().replace(" ", "_").replace(".", "_")] = shot
+            _goto(page, brand["sikayet"], timeout=70_000)
+            page.wait_for_timeout(1200)
+            rec["sikayetvar"]["url"] = page.url
+            rec["sikayetvar"]["title"] = (page.title() or "")[:160]
+            items = page.evaluate(
+                """() => {
+                  const out = [];
+                  document.querySelectorAll('article, a[href*="/sikayet/"], .card').forEach((el) => {
+                    const a = el.querySelector('a') || (el.tagName === 'A' ? el : null);
+                    const title = ((el.querySelector('h2,h3,.title') || a || {}).innerText || '').trim();
+                    if (!title || title.length < 8) return;
+                    const href = (a && a.href) || '';
+                    const text = (el.innerText || '').trim();
+                    const lines = text.split('\\n').map(s => s.trim()).filter(Boolean);
+                    out.push({
+                      title: title.slice(0, 180),
+                      url: href,
+                      meta: lines.slice(1, 3).join(' · ').slice(0, 160),
+                      excerpt: lines.slice(3, 8).join(' ').slice(0, 420)
+                    });
+                  });
+                  return out.slice(0, 16);
+                }"""
+            )
+            rec["sikayetvar"]["items"] = items if isinstance(items, list) else []
         except Exception as exc:  # noqa: BLE001
-            rec["status"] = "hata"
-            rec["notes"] = str(exc)[:200]
-        third.append(rec)
+            rec["sikayetvar"]["message"] = str(exc)[:200]
+        try:
+            _goto(page, brand["eksi"], timeout=70_000)
+            page.wait_for_timeout(1200)
+            rec["eksi"]["url"] = page.url
+            rec["eksi"]["title"] = (page.title() or "")[:160]
+            entries = page.evaluate(
+                """() => {
+                  const out = [];
+                  document.querySelectorAll('[id^="entry-item"] .content, [id^="entry-item"]').forEach((el) => {
+                    const t = (el.innerText || '').trim();
+                    if (t.length < 40) return;
+                    out.push({ text: t.slice(0, 600), url: window.location.href });
+                  });
+                  return out.slice(0, 10);
+                }"""
+            )
+            if isinstance(entries, list) and entries:
+                rec["eksi"]["entries"] = entries
+            else:
+                rec["eksi"]["entries"] = [
+                    {"text": ln.strip()[:500], "url": page.url}
+                    for ln in _text(page, 5000).splitlines()
+                    if len(ln.strip()) > 50
+                ][:8]
+        except Exception as exc:  # noqa: BLE001
+            rec["eksi"]["message"] = str(exc)[:200]
+        out.append(rec)
         time.sleep(0.5)
-
+    n = sum(len((b.get("sikayetvar") or {}).get("items") or []) + len((b.get("eksi") or {}).get("entries") or []) for b in out)
     return {
-        "ok": bool(play or ios),
+        "ok": n > 0,
         "scraped_at": _now(),
-        "summary": f"Play {play.get('rank_label') or '—'} · iOS {ios.get('rank_label') or '—'}",
+        "summary": f"{n} kayıt · 2 marka",
         "message": "",
-        "play": play,
-        "ios": ios,
-        "third_party": third,
-        "shots": shots,
+        "brands": out,
     }
 
 
-def _play_chart_packages(limit: int = 80) -> list[str]:
+def _play_chart_packages(limit: int = 200) -> list[str]:
     from backend.services.app_intel import _extract_android_packages
 
     import httpx
 
     inner = json.dumps(
-        [[None, [[None, [None, max(80, limit)]], None, None, [113]], [2, "topselling_free", "FINANCE"]]],
+        [[None, [[None, [None, max(200, limit)]], None, None, [113]], [2, "topselling_free", "FINANCE"]]],
         separators=(",", ":"),
     )
     body = "f.req=" + quote(json.dumps([[["vyAe2", inner]]], separators=(",", ":")))
     url = "https://play.google.com/_/PlayStoreUi/data/batchexecute?hl=tr&gl=tr"
-    with httpx.Client(timeout=28.0, follow_redirects=True) as client:
+    with httpx.Client(timeout=35.0, follow_redirects=True) as client:
         r = client.post(
             url,
             content=body,
@@ -765,142 +583,131 @@ def _play_chart_packages(limit: int = 80) -> list[str]:
         return _extract_android_packages(r.text or "")[:limit]
 
 
-def job_store_charts(page: Any) -> dict[str, Any]:
-    shots: dict[str, str] = {}
-    charts: list[dict[str, Any]] = []
-
-    play_url = "https://play.google.com/store/apps/category/FINANCE?hl=tr&gl=tr"
+def _play_titles(packages: list[str]) -> dict[str, str]:
+    names: dict[str, str] = {}
     try:
-        pkgs = _play_chart_packages(80)
-        name_cache: dict[str, str] = {}
+        from google_play_scraper import app as gp_app
+    except ImportError:
+        return names
+
+    def one(pkg: str) -> tuple[str, str]:
         try:
-            from google_play_scraper import app as gp_app
-
-            for pkg in pkgs[:20]:
-                try:
-                    meta = gp_app(pkg, lang="tr", country="tr")
-                    name_cache[pkg] = str(meta.get("title") or pkg)
-                except Exception:
-                    name_cache[pkg] = pkg
+            meta = gp_app(pkg, lang="tr", country="tr")
+            return pkg, str(meta.get("title") or pkg)
         except Exception:
-            pass
-        apps = [
+            return pkg, pkg
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futs = [pool.submit(one, p) for p in packages]
+        for fut in as_completed(futs):
+            pkg, title = fut.result()
+            names[pkg] = title
+    return names
+
+
+def _ios_chart_apps(limit: int = 200) -> list[dict[str, Any]]:
+    url = (
+        f"https://itunes.apple.com/tr/rss/topfreeapplications/"
+        f"genre={IOS_FINANCE_GENRE}/limit={min(200, limit)}/json"
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=25) as resp:
+        payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+    entries = ((payload.get("feed") or {}).get("entry")) or []
+    if isinstance(entries, dict):
+        entries = [entries]
+    apps: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for e in entries:
+        if not isinstance(e, dict):
+            continue
+        aid = str((((e.get("id") or {}).get("attributes") or {}).get("im:id") or "")).strip()
+        name = str(((e.get("im:name") or {}).get("label") or "")).strip()
+        if not aid or aid in seen:
+            continue
+        seen.add(aid)
+        apps.append(
             {
-                "rank": i,
-                "name": name_cache.get(pkg) or pkg,
-                "subtitle": pkg,
-                "package": pkg,
-                "is_ours": pkg.lower() == PLAY_PACKAGE.lower(),
-            }
-            for i, pkg in enumerate(pkgs[:40], 1)
-        ]
-        ours = next((a for a in apps if a.get("is_ours")), None)
-        if ours is None:
-            from backend.services.app_intel import _fetch_android_category_rank
-
-            ar = _fetch_android_category_rank(PLAY_PACKAGE, country="tr", lang="tr", category_id="FINANCE")
-            our_label = f"Döviz #{ar.get('rank')} / {ar.get('total')}" if ar else "Döviz listede yok"
-        else:
-            our_label = f"Döviz #{ours['rank']}"
-        charts.append({"title": "Play · Finans ücretsiz (TR)", "url": play_url, "our_label": our_label, "apps": apps})
-        _goto(page, play_url, timeout=75_000)
-        shot = _shot(page, full_page=False)
-        if shot:
-            shots["play_finance"] = shot
-    except Exception as exc:  # noqa: BLE001
-        charts.append({"title": "Play · Finans", "our_label": str(exc)[:160], "apps": []})
-
-    ios_url = f"https://apps.apple.com/tr/iphone/charts/{IOS_FINANCE_GENRE}"
-    ios_apps: list[dict[str, Any]] = []
-    try:
-        with urllib.request.urlopen(
-            urllib.request.Request(ios_url, headers={"User-Agent": "Mozilla/5.0"}),
-            timeout=25,
-        ) as resp:
-            html = resp.read().decode("utf-8", errors="replace")
-        m = re.search(r'<script[^>]*type="application/json"[^>]*>(.*?)</script>', html, re.DOTALL)
-        if m:
-            page_data = json.loads(m.group(1))
-            segments = ((page_data.get("data") or [{}])[0].get("data") or {}).get("segments") or []
-            for segment in segments:
-                if segment.get("chart") not in ("top-free", "top-free-iphone", ""):
-                    if segment.get("chart") and "free" not in str(segment.get("chart")):
-                        continue
-                ids: list[str] = []
-                names: dict[str, str] = {}
-                for shelf in segment.get("shelves") or []:
-                    for item in shelf.get("items") or []:
-                        if isinstance(item, dict) and item.get("id"):
-                            ids.append(str(item["id"]))
-                            names[str(item["id"])] = str(item.get("name") or item.get("title") or "")
-                for item in (segment.get("nextPage") or {}).get("remainingContent") or []:
-                    if isinstance(item, dict) and item.get("id"):
-                        ids.append(str(item["id"]))
-                        names[str(item["id"])] = str(item.get("name") or "")
-                for i, aid in enumerate(ids[:40], 1):
-                    ios_apps.append(
-                        {
-                            "rank": i,
-                            "name": names.get(aid) or aid,
-                            "subtitle": aid,
-                            "is_ours": aid == IOS_APP_ID,
-                        }
-                    )
-                if ios_apps:
-                    break
-        ours = next((a for a in ios_apps if a.get("is_ours")), None)
-        if ours is None:
-            from backend.services.app_intel import _fetch_ios_category_rank
-
-            ir = _fetch_ios_category_rank(IOS_APP_ID, country="tr", genre_id=IOS_FINANCE_GENRE)
-            our_label = f"Döviz #{ir.get('rank')} / {ir.get('total')}" if ir else "Döviz listede (ilk 40) yok"
-        else:
-            our_label = f"Döviz #{ours['rank']}"
-        if ios_apps and all(str(a.get("name") or "").isdigit() for a in ios_apps[:5]):
-            ids = [a["subtitle"] for a in ios_apps[:20] if a.get("subtitle")]
-            try:
-                lookup = f"https://itunes.apple.com/lookup?id={','.join(ids)}&country=tr"
-                with urllib.request.urlopen(lookup, timeout=20) as resp:
-                    info = json.loads(resp.read().decode("utf-8", errors="replace"))
-                titles = {str(r.get("trackId")): r.get("trackName") or "" for r in (info.get("results") or [])}
-                for a in ios_apps:
-                    a["name"] = titles.get(str(a.get("subtitle")), a.get("name"))
-            except Exception:
-                pass
-        charts.append(
-            {
-                "title": "App Store · Finance ücretsiz (TR)",
-                "url": ios_url,
-                "our_label": our_label,
-                "apps": ios_apps,
+                "rank": len(apps) + 1,
+                "name": name or aid,
+                "id": aid,
+                "is_ours": aid == IOS_APP_ID,
             }
         )
-    except Exception as exc:  # noqa: BLE001
-        charts.append({"title": "App Store · Finance", "our_label": str(exc)[:160], "apps": []})
+        if len(apps) >= limit:
+            break
+    missing = [a["id"] for a in apps if a["name"] == a["id"]]
+    if missing:
+        names = _ios_titles(missing)
+        for a in apps:
+            if a["name"] == a["id"] and names.get(a["id"]):
+                a["name"] = names[a["id"]]
+    return apps
 
+
+def _ios_titles(ids: list[str]) -> dict[str, str]:
+    names: dict[str, str] = {}
+    for i in range(0, len(ids), 50):
+        chunk = ids[i : i + 50]
+        url = f"https://itunes.apple.com/lookup?id={','.join(chunk)}&country=tr"
+        try:
+            with urllib.request.urlopen(url, timeout=25) as resp:
+                info = json.loads(resp.read().decode("utf-8", errors="replace"))
+            for row in info.get("results") or []:
+                names[str(row.get("trackId"))] = str(row.get("trackName") or "")
+        except Exception:
+            continue
+    return names
+
+
+def job_store_charts(page: Any) -> dict[str, Any]:
+    del page
+    charts: list[dict[str, Any]] = []
+    pkgs = _play_chart_packages(200)
+    titles = _play_titles(pkgs)
+    play_apps = [
+        {
+            "rank": i,
+            "name": titles.get(pkg) or pkg,
+            "id": pkg,
+            "is_ours": pkg.lower() == PLAY_PACKAGE.lower(),
+        }
+        for i, pkg in enumerate(pkgs[:200], 1)
+    ]
+    ours = next((a for a in play_apps if a["is_ours"]), None)
+    charts.append(
+        {
+            "id": "android",
+            "title": "Play · Finans ücretsiz (TR)",
+            "our_label": f"Döviz #{ours['rank']} / {len(play_apps)}" if ours else f"Döviz listede yok · {len(play_apps)} uygulama",
+            "apps": play_apps,
+        }
+    )
     try:
-        _goto(page, ios_url, timeout=60_000)
-        shot = _shot(page, full_page=False)
-        if shot:
-            shots["ios_finance"] = shot
+        ios_apps = _ios_chart_apps(200)
     except Exception:
-        pass
-
+        ios_apps = []
+    ours_ios = next((a for a in ios_apps if a["is_ours"]), None)
+    charts.append(
+        {
+            "id": "ios",
+            "title": "App Store · Finance ücretsiz (TR)",
+            "our_label": f"Döviz #{ours_ios['rank']} / {len(ios_apps)}" if ours_ios else f"Döviz listede yok · {len(ios_apps)} uygulama",
+            "apps": ios_apps,
+        }
+    )
     return {
-        "ok": any((c.get("apps") for c in charts)),
+        "ok": bool(play_apps or ios_apps),
         "scraped_at": _now(),
-        "summary": " · ".join(c.get("our_label") or c.get("title") or "" for c in charts),
+        "summary": f"Play {len(play_apps)} · iOS {len(ios_apps)}",
         "message": "",
         "charts": charts,
-        "shots": shots,
     }
 
 
 def job_google_news(page: Any) -> dict[str, Any]:
     keywords: list[dict[str, Any]] = []
-    shots: dict[str, str] = {}
-    for kw in SERP_KEYWORDS:
-        slug = re.sub(r"[^a-z0-9]+", "_", kw.lower().replace("ü", "u").replace("ı", "i").replace("ş", "s").replace("ğ", "g").replace("ö", "o").replace("ç", "c"))
+    for kw in NEWS_KEYWORDS:
         url = f"https://news.google.com/search?q={quote(kw)}&hl=tr&gl=TR&ceid=TR:tr"
         rec: dict[str, Any] = {"keyword": kw, "url": url, "articles": []}
         try:
@@ -913,30 +720,21 @@ def job_google_news(page: Any) -> dict[str, Any]:
                     const a = art.querySelector('a');
                     const title = ((a && a.innerText) || (art.querySelector('h3,h4') || {}).innerText || '').trim();
                     if (!title) return;
-                    const source = ((art.querySelector('time') && art.querySelector('time').previousElementSibling)
-                      ? art.querySelector('time').previousElementSibling.innerText
-                      : (art.innerText.split('\\n')[1] || '')).trim().slice(0, 80);
-                    const time = ((art.querySelector('time') && (art.querySelector('time').innerText || art.querySelector('time').getAttribute('datetime'))) || '').slice(0, 40);
-                    out.push({ title: title.slice(0, 180), url: (a && a.href) || '', source, time });
+                    let source = '';
+                    const timeEl = art.querySelector('time');
+                    if (timeEl && timeEl.previousElementSibling) source = (timeEl.previousElementSibling.innerText || '').trim();
+                    if (!source) source = (art.innerText.split('\\n')[1] || '').trim();
+                    const time = ((timeEl && (timeEl.innerText || timeEl.getAttribute('datetime'))) || '').slice(0, 40);
+                    out.push({ title: title.slice(0, 200), url: (a && a.href) || '', source: source.slice(0, 80), time });
                   });
-                  return out.slice(0, 12);
+                  return out.slice(0, 25);
                 }"""
             )
             rec["articles"] = arts if isinstance(arts, list) else []
-            if not rec["articles"]:
-                rec["articles"] = [
-                    {"title": ln.strip()[:180], "url": url, "source": "", "time": ""}
-                    for ln in _text(page, 3000).splitlines()
-                    if 24 < len(ln.strip()) < 160
-                ][:8]
-            if kw in ("dolar", "altın fiyatı", "bitcoin"):
-                shot = _shot(page, full_page=False)
-                if shot:
-                    shots[slug] = shot
         except Exception as exc:  # noqa: BLE001
             rec["message"] = str(exc)[:180]
         keywords.append(rec)
-        time.sleep(0.8)
+        time.sleep(0.7)
     total = sum(len(k.get("articles") or []) for k in keywords)
     return {
         "ok": total > 0,
@@ -944,228 +742,13 @@ def job_google_news(page: Any) -> dict[str, Any]:
         "summary": f"{total} haber · {len(keywords)} kelime",
         "message": "",
         "keywords": keywords,
-        "shots": shots,
-    }
-
-
-def _metric_cards_from_text(text: str) -> list[dict[str, str]]:
-    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
-    out: list[dict[str, str]] = []
-    keys = (
-        "app start",
-        "slow",
-        "frozen",
-        "network",
-        "screen",
-        "trace",
-        "crash-free",
-        "anr",
-        "duration",
-        "success",
-        "http",
-        "lcp",
-        "cold",
-        "warm",
-        "başlat",
-        "ağ",
-        "ekran",
-        "iz",
-    )
-    for i, ln in enumerate(lines):
-        low = ln.lower()
-        if any(k in low for k in keys) and i + 1 < len(lines):
-            nxt = lines[i + 1]
-            if re.search(r"\d", nxt) and len(nxt) < 40:
-                out.append({"name": ln[:48], "value": nxt[:40]})
-        if len(out) >= 12:
-            break
-    return out
-
-
-def job_firebase_perf(page: Any) -> dict[str, Any]:
-    platforms = (
-        {
-            "id": "android",
-            "label": "Android · doviz-android",
-            "url": "https://console.firebase.google.com/u/0/project/doviz-android/performance/app/android:com.Doviz/trends",
-        },
-        {
-            "id": "ios",
-            "label": "iOS · doviz-ios",
-            "url": "https://console.firebase.google.com/u/0/project/doviz-ios/performance/app/ios:com.nokta.Finans-Takip/trends",
-        },
-    )
-    out: list[dict[str, Any]] = []
-    shots: dict[str, str] = {}
-    login_block = False
-    for spec in platforms:
-        rec: dict[str, Any] = {**spec, "metrics": [], "traces": []}
-        try:
-            _goto(page, spec["url"], timeout=90_000)
-            page.wait_for_timeout(5000)
-            if _needs_google_login(page):
-                login_block = True
-                rec["message"] = "Google oturumu gerekli (fx-google)."
-            else:
-                body = _text(page, 9000)
-                rec["metrics"] = _metric_cards_from_text(body)
-                rec["traces"] = [ln.strip() for ln in body.splitlines() if "trace" in ln.lower() or "custom" in ln.lower()][:12]
-                if not rec["metrics"]:
-                    rec["notes_preview"] = [ln.strip() for ln in body.splitlines() if ln.strip()][:20]
-            shot = _shot(page, full_page=False)
-            if shot:
-                shots[spec["id"]] = shot
-        except Exception as exc:  # noqa: BLE001
-            rec["message"] = str(exc)[:200]
-        out.append(rec)
-    return {
-        "ok": (not login_block) and any(p.get("metrics") or p.get("traces") for p in out),
-        "scraped_at": _now(),
-        "summary": "oturum gerekli" if login_block else f"{len(out)} proje",
-        "message": "Firebase Performance için fx-google oturumu yok." if login_block else "",
-        "platforms": out,
-        "shots": shots,
-    }
-
-
-def _stats_pairs(text: str) -> list[list[str]]:
-    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
-    pairs: list[list[str]] = []
-    for i, ln in enumerate(lines):
-        if i + 1 >= len(lines):
-            break
-        nxt = lines[i + 1]
-        if len(ln) < 48 and re.search(r"\d", nxt) and len(nxt) < 36:
-            if re.search(r"crawl|tarama|index|dizin|response|yanıt|page|sayfa|not indexed|hariç|excluded|fetched", ln, re.I):
-                pairs.append([ln, nxt])
-        if len(pairs) >= 16:
-            break
-    return pairs
-
-
-def job_gsc_index(page: Any) -> dict[str, Any]:
-    rid = quote(GSC_RESOURCE, safe="")
-    crawl_url = f"https://search.google.com/u/0/search-console/settings/crawl-stats?resource_id={rid}&hl=tr"
-    index_url = f"https://search.google.com/u/0/search-console/index?resource_id={rid}&hl=tr"
-    shots: dict[str, str] = {}
-    crawl: dict[str, Any] = {"url": crawl_url, "stats": []}
-    index: dict[str, Any] = {"url": index_url, "stats": [], "reasons": []}
-    login_block = False
-
-    try:
-        _goto(page, crawl_url, timeout=90_000)
-        page.wait_for_timeout(2200)
-        if _needs_google_login(page):
-            login_block = True
-            crawl["message"] = "Google oturumu gerekli."
-        else:
-            crawl["stats"] = _stats_pairs(_text(page, 9000))
-            if not crawl["stats"]:
-                crawl["preview"] = [ln.strip() for ln in _text(page, 3000).splitlines() if ln.strip()][:24]
-        shot = _shot(page, full_page=False)
-        if shot:
-            shots["crawl"] = shot
-    except Exception as exc:  # noqa: BLE001
-        crawl["message"] = str(exc)[:200]
-
-    try:
-        _goto(page, index_url, timeout=90_000)
-        page.wait_for_timeout(2200)
-        if _needs_google_login(page):
-            login_block = True
-            index["message"] = "Google oturumu gerekli."
-        else:
-            body = _text(page, 12000)
-            index["stats"] = _stats_pairs(body)
-            reasons = page.evaluate(
-                """() => {
-                  const out = [];
-                  document.querySelectorAll('tr, li, [role="row"]').forEach((el) => {
-                    const t = (el.innerText || '').replace(/\\s+/g, ' ').trim();
-                    if (!t || t.length > 160) return;
-                    const m = t.match(/(\\d[\\d.\\s]*)$/);
-                    if (!m) return;
-                    const reason = t.slice(0, t.length - m[1].length).trim();
-                    if (reason.length < 4) return;
-                    out.push({ reason, count: m[1].trim() });
-                  });
-                  return out.slice(0, 20);
-                }"""
-            )
-            index["reasons"] = reasons if isinstance(reasons, list) else []
-        shot = _shot(page, full_page=True)
-        if shot:
-            shots["index"] = shot
-    except Exception as extra:  # noqa: BLE001
-        index["message"] = str(extra)[:200]
-
-    return {
-        "ok": (not login_block) and bool(crawl.get("stats") or index.get("reasons") or shots),
-        "scraped_at": _now(),
-        "summary": "oturum gerekli" if login_block else f"{len(index.get('reasons') or [])} neden",
-        "message": "GSC için fx-google oturumu yok." if login_block else "",
-        "crawl": crawl,
-        "index": index,
-        "shots": shots,
-    }
-
-
-def job_apple_search_ads(page: Any) -> dict[str, Any]:
-    url = "https://app.searchads.apple.com/cm/app"
-    shots: dict[str, str] = {}
-    campaigns: list[dict[str, str]] = []
-    raw_lines: list[str] = []
-    message = ""
-    try:
-        _goto(page, url, timeout=90_000)
-        page.wait_for_timeout(2500)
-        body = _text(page, 10000)
-        raw_lines = [ln.strip() for ln in body.splitlines() if ln.strip()][:40]
-        low = body.lower()
-        if any(x in low for x in ("sign in", "apple id", "oturum aç", "log in")):
-            message = "Apple Search Ads oturumu gerekli (Apple ID)."
-        rows = page.evaluate(
-            """() => {
-              const out = [];
-              document.querySelectorAll('table tr, [role="row"]').forEach((tr) => {
-                const cells = Array.from(tr.querySelectorAll('td,th,[role="cell"]')).map(c => (c.innerText || '').trim());
-                if (cells.length >= 3 && cells[0] && cells[0].toLowerCase() !== 'campaign') {
-                  out.push({
-                    name: cells[0].slice(0, 80),
-                    status: (cells[1] || '').slice(0, 40),
-                    spend: (cells[2] || '').slice(0, 40),
-                    installs: (cells[3] || '').slice(0, 40),
-                    note: (cells.slice(4).join(' · ') || '').slice(0, 80),
-                  });
-                }
-              });
-              return out.slice(0, 20);
-            }"""
-        )
-        campaigns = rows if isinstance(rows, list) else []
-        shot = _shot(page, full_page=False)
-        if shot:
-            shots["asa"] = shot
-    except Exception as exc:  # noqa: BLE001
-        message = str(exc)[:200]
-    return {
-        "ok": bool(campaigns),
-        "scraped_at": _now(),
-        "summary": f"{len(campaigns)} kampanya" if campaigns else (message or "boş"),
-        "message": message,
-        "campaigns": campaigns,
-        "raw_lines": raw_lines,
-        "shots": shots,
     }
 
 
 def _write_scratch(job: str, payload: dict[str, Any]) -> None:
     out = ROOT / "scratch" / f"pm_lab_{job}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    slim = dict(payload)
-    shots = slim.get("shots") if isinstance(slim.get("shots"), dict) else {}
-    slim["shots"] = sorted(shots.keys())
-    out.write_text(json.dumps(slim, ensure_ascii=False, indent=2), encoding="utf-8")
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _run_job(name: str, fn, page: Any, *, ingest: bool) -> dict[str, Any]:
@@ -1175,8 +758,7 @@ def _run_job(name: str, fn, page: Any, *, ingest: bool) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         result = {"ok": False, "scraped_at": _now(), "message": str(exc)[:240], "summary": "hata"}
     _write_scratch(name, result)
-    nshot = len(result.get("shots") or {})
-    print(f"  · {result.get('summary') or result.get('message') or ''} · shots={nshot} · ok={result.get('ok')}", flush=True)
+    print(f"  · {result.get('summary') or result.get('message') or ''} · ok={result.get('ok')}", flush=True)
     if ingest:
         ing = post_ingest({name: result}, message=f"{name} tarama")
         print(f"  · ingest: {ing}", flush=True)
@@ -1185,10 +767,10 @@ def _run_job(name: str, fn, page: Any, *, ingest: bool) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Owner PM lab taramaları")
-    parser.add_argument("--sync", action="store_true", help="Tüm maddeler")
+    parser.add_argument("--sync", action="store_true")
     parser.add_argument("--ingest", action="store_true")
     parser.add_argument("--headed", action="store_true")
-    parser.add_argument("--jobs", default="", help="virgülle job id")
+    parser.add_argument("--jobs", default="")
     args = parser.parse_args(argv)
 
     wanted = [j.strip() for j in (args.jobs or "").split(",") if j.strip()]
@@ -1199,27 +781,20 @@ def main(argv: list[str] | None = None) -> int:
             print(f"bilinmeyen job: {j}", flush=True)
             return 2
 
-    headed = bool(args.headed) or os.environ.get("PM_LAB_HEADLESS", "").strip() in ("0", "false", "no")
+    headed = bool(args.headed)
     if os.environ.get("PM_LAB_HEADLESS", "").strip() in ("1", "true", "yes"):
         headed = False
 
     from playwright.sync_api import sync_playwright
 
-    public = [j for j in wanted if j in ("competitors", "ads_transparency", "sikayet", "app_rank", "store_charts", "google_news")]
-    google_jobs = [j for j in wanted if j in ("serp", "firebase_perf", "gsc_index")]
-    asa_jobs = [j for j in wanted if j == "apple_search_ads"]
-
+    public = [j for j in wanted if j in ("competitors", "sikayet", "store_charts", "google_news")]
+    google_jobs = [j for j in wanted if j == "serp"]
     fns = {
         "serp": job_serp,
         "competitors": job_competitors,
-        "ads_transparency": job_ads_transparency,
         "sikayet": job_sikayet,
-        "app_rank": job_app_rank,
         "store_charts": job_store_charts,
         "google_news": job_google_news,
-        "firebase_perf": job_firebase_perf,
-        "gsc_index": job_gsc_index,
-        "apple_search_ads": job_apple_search_ads,
     }
 
     failures = 0
@@ -1241,7 +816,6 @@ def main(argv: list[str] | None = None) -> int:
             finally:
                 ctx.close()
                 browser.close()
-
         if google_jobs:
             ctx = launch_persistent(
                 pw,
@@ -1257,23 +831,6 @@ def main(argv: list[str] | None = None) -> int:
                         failures += 1
             finally:
                 ctx.close()
-
-        if asa_jobs:
-            ctx = launch_persistent(
-                pw,
-                asc_profile_dir(),
-                headed=headed,
-                viewport={"width": 1440, "height": 1100},
-            )
-            page = ctx.pages[0] if ctx.pages else ctx.new_page()
-            try:
-                for name in asa_jobs:
-                    res = _run_job(name, fns[name], page, ingest=bool(args.ingest))
-                    if not res.get("ok"):
-                        failures += 1
-            finally:
-                ctx.close()
-
     print(f"bitti · failures={failures}", flush=True)
     return 1 if failures else 0
 
