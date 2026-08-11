@@ -432,18 +432,158 @@
     }
     .dn-table--cards .dn-title-cell { font-weight: 650; }
   }
+  .dn-chrome {
+    container-type: inline-size;
+    container-name: dn-chrome;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 0.85rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 0.85rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+  }
+  html.dark .dn-chrome, html.midnight .dn-chrome {
+    border-color: #3f3f46;
+    background: #09090b;
+  }
+  .dn-chrome-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.55rem;
+  }
+  .dn-chrome h1 {
+    margin: 0;
+    font-size: clamp(0.92rem, 2.2cqi, 1.12rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
   .dn-page-tabs {
-    display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 1.1rem;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.28rem;
+    margin: 0;
+    min-width: 0;
   }
   .dn-page-tab {
-    border-radius: 0.75rem; border: 1px solid #cbd5e1; background: #fff;
-    padding: 0.5rem 0.95rem; font-size: 0.8125rem; font-weight: 700; color: #334155; cursor: pointer;
+    flex: 0 0 auto;
+    border-radius: 0.55rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0.28rem 0.55rem;
+    font-size: clamp(0.62rem, 1.55cqi, 0.75rem);
+    font-weight: 700;
+    line-height: 1.2;
+    color: #334155;
+    cursor: pointer;
+    white-space: nowrap;
   }
   html.dark .dn-page-tab, html.midnight .dn-page-tab {
     border-color: #52525b; background: #18181b; color: #e4e4e7;
   }
   .dn-page-tab.is-active {
     border-color: #4f46e5; background: #4f46e5; color: #fff;
+  }
+  .dn-tab-short { display: none; }
+  .dn-chrome-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.3rem;
+    margin-left: auto;
+  }
+  .dn-chrome-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 1.7rem;
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0.22rem 0.5rem;
+    font-size: clamp(0.62rem, 1.5cqi, 0.72rem);
+    font-weight: 700;
+    line-height: 1.2;
+    color: #334155;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .dn-chrome-btn:hover { background: #f8fafc; }
+  .dn-btn-short { display: none; }
+  .dn-chrome .js-page-tarama {
+    height: auto !important;
+    min-height: 1.7rem;
+    padding: 0.22rem 0.5rem !important;
+    font-size: clamp(0.62rem, 1.5cqi, 0.72rem) !important;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .dn-chrome .js-page-tarama svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+  .dn-chrome .js-page-tarama .pt-label-short { display: none; }
+  .dn-chrome-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.28rem 0.4rem;
+    min-width: 0;
+  }
+  .dn-meta-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.22rem;
+    min-width: 0;
+    flex: 1 1 12rem;
+  }
+  .dn-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 999px;
+    background: #f1f5f9;
+    padding: 0.12rem 0.45rem;
+    font-size: clamp(0.58rem, 1.35cqi, 0.68rem);
+    font-weight: 650;
+    line-height: 1.25;
+    color: #475569;
+    white-space: nowrap;
+  }
+  html.dark .dn-chip, html.midnight .dn-chip {
+    background: #18181b;
+    color: #a1a1aa;
+  }
+  .dn-meta-status {
+    margin-left: auto;
+    font-size: clamp(0.58rem, 1.35cqi, 0.68rem);
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+  .dn-meta-status.is-ok { color: #059669; }
+  .dn-meta-status.is-stale { color: #d97706; }
+  .dn-meta-status.is-error { color: #dc2626; font-weight: 800; }
+  html.dark .dn-meta-status.is-ok, html.midnight .dn-meta-status.is-ok { color: #34d399; }
+  html.dark .dn-meta-status.is-stale, html.midnight .dn-meta-status.is-stale { color: #fbbf24; }
+  html.dark .dn-meta-status.is-error, html.midnight .dn-meta-status.is-error { color: #fb7185; }
+  @container dn-chrome (max-width: 42rem) {
+    .dn-tab-full { display: none; }
+    .dn-tab-short { display: inline; }
+    .dn-btn-full { display: none; }
+    .dn-btn-short { display: inline; }
+    .dn-chrome .js-page-tarama .pt-label-full { display: none; }
+    .dn-chrome .js-page-tarama .pt-label-short { display: inline; }
+    .dn-chrome-actions { margin-left: 0; }
+    .dn-meta-status { margin-left: 0; white-space: normal; }
   }
   .dn-trend-wrap { min-width: 0; }
 
@@ -803,11 +943,15 @@
   html.midnight #dn-refresh:hover {
     background: #555872 !important;
   }
-  html.dark #dn-source-link,
-  html.midnight #dn-source-link {
+  html.dark .dn-chrome-btn,
+  html.midnight .dn-chrome-btn {
     border-color: #33333a !important;
     background: #16161b !important;
     color: #a8a8b3 !important;
+  }
+  html.dark .dn-chrome-btn:hover,
+  html.midnight .dn-chrome-btn:hover {
+    background: #1f1f24 !important;
   }
   html.dark .dn-page h1,
   html.midnight .dn-page h1,
@@ -818,14 +962,32 @@
 </style>
 
 <div class="dn-page" data-page-tarama="news">
-  <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-    <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">Doviz News</h1>
-    <span data-page-tarama-slot></span>
-  </div>
-
-  <div class="dn-page-tabs" role="tablist" aria-label="Doviz News bölümleri">
-    <button type="button" class="dn-page-tab" data-dn-page-tab="trend" role="tab" aria-selected="false">Trend haberler</button>
-    <button type="button" class="dn-page-tab is-active" data-dn-page-tab="stats" role="tab" aria-selected="true">Yayın istatistikleri</button>
+  <div class="dn-chrome">
+    <div class="dn-chrome-top">
+      <h1>Doviz News</h1>
+      <div class="dn-page-tabs" role="tablist" aria-label="Doviz News bölümleri">
+        <button type="button" class="dn-page-tab" data-dn-page-tab="trend" role="tab" aria-selected="false">
+          <span class="dn-tab-full">Trend haberler</span><span class="dn-tab-short">Trend</span>
+        </button>
+        <button type="button" class="dn-page-tab is-active" data-dn-page-tab="stats" role="tab" aria-selected="true">
+          <span class="dn-tab-full">Yayın istatistikleri</span><span class="dn-tab-short">Yayın</span>
+        </button>
+      </div>
+      <div class="dn-chrome-actions">
+        <a id="dn-source-link"
+           href="https://www.doviz.com/admin/news?page=1&type=N&status=1&is_advertorial=0&sort=id_desc"
+           target="_blank" rel="noopener"
+           class="dn-chrome-btn">
+          <span class="dn-btn-full">Admin haberler</span><span class="dn-btn-short">Admin</span>
+          <span aria-hidden="true">↗</span>
+        </a>
+        <span data-page-tarama-slot></span>
+      </div>
+    </div>
+    <div id="dn-chrome-meta" class="dn-chrome-meta">
+      <div id="dn-meta" class="dn-meta-chips"></div>
+      <p id="dn-bg-sync" class="dn-meta-status" hidden></p>
+    </div>
   </div>
 
   <div id="dn-panel-trend" class="hidden" role="tabpanel">
@@ -833,22 +995,6 @@
   </div>
 
   <div id="dn-panel-stats" role="tabpanel">
-  <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-    <div class="min-w-0">
-      <h2 class="text-lg font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">Yayın istatistikleri</h2>
-      <p id="dn-meta" class="mt-1 dn-muted"></p>
-      <p id="dn-bg-sync" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400" hidden></p>
-    </div>
-    <div class="flex shrink-0 flex-wrap items-center gap-2">
-      <a id="dn-source-link"
-         href="https://www.doviz.com/admin/news?page=1&type=N&status=1&is_advertorial=0&sort=id_desc"
-         target="_blank" rel="noopener"
-         class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200">
-        Admin haberler ↗
-      </a>
-    </div>
-  </div>
-
   <p id="dn-error" class="mb-4 hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
   <p id="dn-loading" class="mb-4 hidden text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
 
@@ -996,6 +1142,10 @@
     var stats = document.getElementById("dn-panel-stats");
     if (trend) trend.classList.toggle("hidden", pageTab !== "trend");
     if (stats) stats.classList.toggle("hidden", pageTab !== "stats");
+    var chromeMeta = document.getElementById("dn-chrome-meta");
+    if (chromeMeta) chromeMeta.hidden = pageTab !== "stats";
+    var adminLink = document.getElementById("dn-source-link");
+    if (adminLink) adminLink.hidden = pageTab !== "stats";
     document.querySelectorAll(".dn-page-tab").forEach(function (btn) {
       var on = btn.getAttribute("data-dn-page-tab") === pageTab;
       btn.classList.toggle("is-active", on);
@@ -2576,36 +2726,41 @@
         src.indexOf("admin") >= 0 || src.indexOf("bridge") >= 0
           ? "admin"
           : (src || "—");
-      meta.textContent =
-        "son senkron: " + fmtTsTR(data.fetched_at || data.background_synced_at || "—") +
-        " · " + fmt(s.total) + " kayıt" +
-        " · " + srcLabel +
-        (data.min_id ? " · id≥" + data.min_id : "") +
-        (pm.label ? " · " + pm.label : "") +
-        (latestId ? " · son id: " + latestId : "");
+      var syncAt = fmtTsTR(data.fetched_at || data.background_synced_at || "—");
+      function chip(text, title) {
+        return '<span class="dn-chip"' + (title ? ' title="' + esc(title) + '"' : "") + ">" + esc(text) + "</span>";
+      }
+      var chips = [];
+      if (syncAt && syncAt !== "—") chips.push(chip(syncAt, "son senkron: " + syncAt));
+      chips.push(chip(fmt(s.total) + " kayıt"));
+      if (srcLabel && srcLabel !== "—") chips.push(chip(srcLabel));
+      if (data.min_id) chips.push(chip("id≥" + data.min_id));
+      if (pm.label) chips.push(chip(pm.label));
+      if (latestId) chips.push(chip("#" + latestId, "son id: " + latestId));
+      meta.innerHTML = chips.join("");
     }
     var bg = $("dn-bg-sync");
     if (bg && DN_SHOW_BG_SYNC) {
       var health = data.sync_health || (data.sync_ok === false ? "error" : (data.sync_stale ? "stale" : "ok"));
       var bgAt = fmtTsTR(data.background_synced_at || data.fetched_at || "—");
-      var mode = data.sync_mode ? (" · " + data.sync_mode) : "";
-      var age = data.sync_age_sec != null
-        ? (" · " + Math.max(0, Math.round(data.sync_age_sec / 60)) + " dk önce")
-        : "";
+      var mode = data.sync_mode ? String(data.sync_mode) : "";
+      var ageMin = data.sync_age_sec != null ? Math.max(0, Math.round(data.sync_age_sec / 60)) : null;
+      var age = ageMin != null ? ageMin + " dk önce" : "";
       var label;
-      var cls = "mt-1 text-[11px] ";
+      var full;
       if (health === "error") {
-        label = "Arka plan: hata — " + (data.sync_message || data.admin_error || "bilinmiyor") + " · " + bgAt + mode;
-        cls += "font-semibold text-rose-600 dark:text-rose-400";
+        label = "Hata" + (age ? " · " + age : "");
+        full = "Arka plan: hata — " + (data.sync_message || data.admin_error || "bilinmiyor") + " · " + bgAt + (mode ? " · " + mode : "");
       } else if (health === "stale") {
-        label = "Arka plan gecikmiş (>45 dk) · son: " + bgAt + age + mode + " · hedef: 30 dk";
-        cls += "font-semibold text-amber-600 dark:text-amber-400";
+        label = "Gecikmiş" + (age ? " · " + age : "");
+        full = "Arka plan gecikmiş (>45 dk) · son: " + bgAt + (age ? " · " + age : "") + (mode ? " · " + mode : "") + " · hedef: 30 dk";
       } else {
-        label = "Arka plan OK · son güncelleme: " + bgAt + age + mode + " · her 30 dk";
-        cls += "text-emerald-700 dark:text-emerald-400";
+        label = "OK" + (age ? " · " + age : "") + " · 30 dk";
+        full = "Arka plan OK · son güncelleme: " + bgAt + (age ? " · " + age : "") + (mode ? " · " + mode : "") + " · her 30 dk";
       }
-      bg.className = cls;
+      bg.className = "dn-meta-status is-" + health;
       bg.textContent = label;
+      bg.title = full;
       bg.hidden = false;
     } else if (bg) {
       bg.hidden = true;

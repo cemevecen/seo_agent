@@ -386,7 +386,7 @@
       btn.type = "button";
       btn.className = "js-page-tarama inline-flex h-9 items-center gap-1.5 rounded-lg border border-sky-600 bg-sky-600 px-3 text-xs font-bold text-white shadow-sm hover:bg-sky-500 disabled:opacity-60";
       btn.title = "Bu sayfadaki tüm tarama kaynaklarını şimdi çalıştır";
-      btn.innerHTML = '<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>Sayfayı güncelle';
+      btn.innerHTML = '<svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg><span class="pt-label-full">Sayfayı güncelle</span><span class="pt-label-short">Güncelle</span>';
       slot.appendChild(btn);
     });
   }
