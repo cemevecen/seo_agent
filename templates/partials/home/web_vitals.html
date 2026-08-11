@@ -6,9 +6,9 @@
 {% set dk = block.desktop_kpis if block else {} %}
 {% set gsc = block.gsc_links if block else {} %}
 {% set has_data = block and block.has_data %}
-{% set poor_tot = (mk.poor or 0)|int + (dk.poor or 0)|int %}
-{% set ni_tot = (mk.needs_improvement or 0)|int + (dk.needs_improvement or 0)|int %}
-{% set good_tot = (mk.good or 0)|int + (dk.good or 0)|int %}
+{% set poor_tot = (mk.poor or 0)|int %}
+{% set ni_tot = (mk.needs_improvement or 0)|int %}
+{% set good_tot = (mk.good or 0)|int %}
 
 <style>
   .home-wv details > summary {

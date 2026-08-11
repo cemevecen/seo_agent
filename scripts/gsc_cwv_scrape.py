@@ -470,7 +470,7 @@ def _extract_page_meta(page) -> dict[str, Any]:
       const clean = (s) => (s || '').replace(/[\\ue000-\\uf8ff]/g, '').replace(/\\s+/g, ' ').trim();
       const body = clean((document.body && document.body.innerText) || '');
       const title = clean((document.querySelector('h1, [role=heading]') || {}).innerText || '');
-      return { title, body_head: body.slice(0, 2500), url: location.href };
+      return { title, body_head: body.slice(0, 8000), url: location.href };
     }"""
     )
 
@@ -551,11 +551,18 @@ def explain_causes(metric: str, status: str, title: str = "") -> list[str]:
 
 
 _OV_TRIPLET_RES = (
-    # TR: 0 yetersiz URL · 14.674 URL iyileştirme gerektiriyor · 3.036 iyi URL
+    # folded TR: 0 yetersiz URL · 14.674 URL iyilestirme gerektiriyor · 3.036 iyi URL
     re.compile(
-        r"(\d[\d\.,]*)\s*(?:yetersiz|kötü)\s*URL.{0,80}?"
-        r"([\d\.,]+)\s*URL.{0,40}?iyileştir.{0,80}?"
+        r"(\d[\d\.,]*)\s*(?:yetersiz|kotu)\s*URL.{0,80}?"
+        r"([\d\.,]+)\s*URL.{0,40}?iyilestir.{0,80}?"
         r"([\d\.,]+)\s*iyi\s*URL",
+        re.I | re.S,
+    ),
+    # folded TR kart: yetersiz 0 · iyilestirme gerekiyor 15,6 B · iyi 3,12 B
+    re.compile(
+        r"(?:yetersiz|kotu|poor)\D{0,80}?([\d.,]+\s*[BK]?|\d+)\D{0,160}?"
+        r"(?:iyilestir|need improvement)\D{0,80}?([\d.,]+\s*[BK]?)\D{0,160}?"
+        r"(?:iyi(?!lestir)\s|good)\D{0,80}?([\d.,]+\s*[BK]?)",
         re.I | re.S,
     ),
     # EN: 0 poor URLs · 14,674 URLs need improvement · 3,036 good URLs
@@ -573,9 +580,47 @@ _OV_TRIPLET_RES = (
 )
 
 
+def _kpi_near_label(text: str, labels: tuple[str, ...]) -> int | None:
+    """Etiket üstte/altta, sayı '15,6 B' veya 15.557 olabilir. Metin folded TR."""
+    lab = "|".join(labels)
+    t = text or ""
+    m = re.search(rf"(?:{lab})[^\d]{{0,160}}([\d.,]+\s*[BK]?)", t, re.I | re.S)
+    if m:
+        return _parse_count(m.group(1))
+    m = re.search(rf"([\d.,]+\s*[BK]?)\s*(?:{lab})", t, re.I)
+    if m:
+        return _parse_count(m.group(1))
+    return None
+
+
+def _parse_gsc_kpi_triplet(block: str) -> dict[str, int] | None:
+    """GSC özet kartları — Mobil rapordaki 0 / 15,6 B / 3,12 B."""
+    raw = block or ""
+    if not raw.strip():
+        return None
+    t = _fold_tr(raw)
+    parsed = _parse_overview_triplet(t)
+    if parsed and (parsed.get("needs_improvement") or parsed.get("good")):
+        return parsed
+    ni = _kpi_near_label(t, (r"iyilestir", r"need improvement", r"needs improvement"))
+    poor = _kpi_near_label(t, (r"yetersiz", r"kotu", r"\bpoor\b"))
+    good = _kpi_near_label(t, (r"iyi\s*url", r"\bgood\s*url", r"iyi(?!lestir)\s", r"\bgood\b"))
+    if ni is None and good is None and poor is None:
+        return None
+    out = {
+        "poor": int(poor or 0),
+        "needs_improvement": int(ni or 0),
+        "good": int(good or 0),
+    }
+    if out["needs_improvement"] or out["good"] or out["poor"]:
+        return out
+    return None
+
+
 def _parse_overview_triplet(block: str) -> dict[str, int] | None:
+    t = _fold_tr(block or "")
     for cre in _OV_TRIPLET_RES:
-        m = cre.search(block or "")
+        m = cre.search(t)
         if not m:
             continue
         return {
@@ -595,7 +640,7 @@ def _parse_overview_counts(body: str) -> dict[str, dict[str, int]]:
     parts = re.split(r"(?=Mobil\b|Mobile\b|Masaüstü\b|Desktop\b)", text, flags=re.I)
     for part in parts:
         head = part[:24].lower()
-        parsed = _parse_overview_triplet(part[:1200])
+        parsed = _parse_gsc_kpi_triplet(part[:2500])
         if not parsed:
             continue
         if head.startswith("mobil") or head.startswith("mobile"):
@@ -604,8 +649,7 @@ def _parse_overview_counts(body: str) -> dict[str, dict[str, int]]:
             out["desktop"] = parsed
     if out["mobile"]["good"] or out["mobile"]["needs_improvement"]:
         return out
-    # fallback: whole body
-    parsed = _parse_overview_triplet(text)
+    parsed = _parse_gsc_kpi_triplet(text)
     if parsed:
         out["mobile"] = parsed
     return out
@@ -851,6 +895,88 @@ def _series_from_tooltip_samples(
     }
 
 
+def _svg_pts_to_daily(
+    pts: list[Any],
+    dates: list[str],
+    x_min: float,
+    x_max: float,
+    y_to_val,
+) -> list[int]:
+    """Yığılmış çubuk path: her gün diliminde tepe−taban (Y interp testere üretmesin)."""
+    n = len(dates)
+    if n < 2 or x_max <= x_min:
+        return [0] * max(n, 0)
+    width = (x_max - x_min) / n
+    buckets: list[list[float]] = [[] for _ in range(n)]
+    for p in pts or []:
+        if not isinstance(p, (list, tuple)) or len(p) < 2:
+            continue
+        x, y = float(p[0]), float(p[1])
+        i = int((x - x_min) / width)
+        i = max(0, min(n - 1, i))
+        buckets[i].append(float(y_to_val(y)))
+    out: list[int] = []
+    for bucket in buckets:
+        if not bucket:
+            out.append(0)
+            continue
+        hi, lo = max(bucket), min(bucket)
+        if hi - lo >= max(40.0, 0.12 * hi):
+            out.append(int(round(hi - lo)))
+        else:
+            out.append(int(round(hi)))
+    return out
+
+
+def _rects_to_daily(rects: list[Any], dates: list[str], y_to_val) -> list[int] | None:
+    """<rect> çubukları — her rengin yüksekliği o günün URL sayısı."""
+    n = len(dates)
+    clean: list[tuple[float, float, float, float]] = []
+    for r in rects or []:
+        if not isinstance(r, (list, tuple)) or len(r) < 4:
+            continue
+        x, y, w, h = float(r[0]), float(r[1]), float(r[2]), float(r[3])
+        if w <= 1 or h <= 1:
+            continue
+        clean.append((x, y, w, h))
+    if n < 2 or len(clean) < 3:
+        return None
+    x_min = min(r[0] for r in clean)
+    x_max = max(r[0] + r[2] for r in clean)
+    if x_max <= x_min:
+        return None
+    width = (x_max - x_min) / n
+    buckets: list[list[float]] = [[] for _ in range(n)]
+    for x, y, w, h in clean:
+        cx = x + w / 2.0
+        i = int((cx - x_min) / width)
+        i = max(0, min(n - 1, i))
+        buckets[i].append(abs(float(y_to_val(y)) - float(y_to_val(y + h))))
+    return [int(round(max(b))) if b else 0 for b in buckets]
+
+
+def _unstack_if_cumulative(
+    poor: list[int], ni: list[int], good: list[int]
+) -> tuple[list[int], list[int], list[int]]:
+    """SVG tepe çizgisi kümülatifse (yeşil=toplam) dilimlere ayır; bağımsızsa dokunma."""
+    n = min(len(poor), len(ni), len(good))
+    if n < 8:
+        return poor, ni, good
+    neg = 0
+    for i in range(n):
+        if int(good[i]) - int(ni[i]) < -80 or int(ni[i]) - int(poor[i]) < -80:
+            neg += 1
+    if neg >= max(3, int(0.2 * n)):
+        return poor, ni, good
+    out_p, out_n, out_g = [], [], []
+    for i in range(n):
+        p = max(0, int(poor[i]))
+        out_p.append(p)
+        out_n.append(max(0, int(ni[i]) - p))
+        out_g.append(max(0, int(good[i]) - int(ni[i])))
+    return out_p, out_n, out_g
+
+
 def _interp_y(by_x: dict[float, float], x: float) -> float:
     if not by_x:
         return 0.0
@@ -903,20 +1029,23 @@ def _parse_gsc_chart_tooltip(text: str) -> dict[str, Any] | None:
                 return _parse_count(m.group(1))
         return 0
 
+    num = r"([\d\.,]+\s*[BK]?)"
     poor = grab(
-        r"(?:yetersiz|kotu|kötü|poor)[^\d]{0,28}([\d\.,]+)",
-        r"([\d\.,]+)[^\d]{0,12}(?:yetersiz|kotu|kötü|poor)",
+        rf"(?:yetersiz|kotu|kötü|poor)[^\d]{{0,28}}{num}",
+        rf"{num}[^\d]{{0,12}}(?:yetersiz|kotu|kötü|poor)",
     )
     ni = grab(
-        r"iyilestir[^\d]{0,40}([\d\.,]+)",
-        r"iyileştir[^\d]{0,40}([\d\.,]+)",
-        r"(?:need improvement|needs improvement)[^\d]{0,20}([\d\.,]+)",
-        r"([\d\.,]+)[^\d]{0,24}iyilestir",
-        r"([\d\.,]+)[^\d]{0,20}(?:need improvement|needs improvement)",
+        rf"iyilestir[^\d]{{0,40}}{num}",
+        rf"iyileştir[^\d]{{0,40}}{num}",
+        rf"(?:need improvement|needs improvement)[^\d]{{0,20}}{num}",
+        rf"{num}[^\d]{{0,24}}iyilestir",
+        rf"{num}[^\d]{{0,20}}(?:need improvement|needs improvement)",
     )
     good = grab(
-        r"(?:iyi\s+url'?l?e?r?|good(?:\s+url)?)[^\d]{0,28}([\d\.,]+)",
-        r"([\d\.,]+)[^\d]{0,12}(?:iyi\s+url|good(?:\s+url)?)",
+        rf"(?:iyi\s+url'?l?e?r?|good(?:\s+url)?)[^\d]{{0,28}}{num}",
+        rf"iyi(?!lestir)\s+{num}",
+        rf"{num}[^\d]{{0,12}}(?:iyi\s+url|good(?:\s+url)?)",
+        rf"{num}[^\d]{{0,8}}iyi(?!lestir)",
     )
     return {"date": date, "poor": poor, "needs_improvement": ni, "good": good}
 
@@ -982,22 +1111,26 @@ def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
         time.sleep(0.2)
         samples: dict[str, dict[str, Any]] = {}
         n = 110
-        for i in range(n):
-            x = float(box["x"]) + 8 + (w - 16) * i / max(n - 1, 1)
-            y = float(box["y"]) + h * 0.38
-            try:
-                page.mouse.move(x, y)
-            except Exception:
-                continue
-            time.sleep(0.04)
-            try:
-                text = page.evaluate(_TIP_TEXT_JS)
-            except Exception:
-                text = ""
-            parsed = _parse_gsc_chart_tooltip(str(text or ""))
-            if parsed and parsed.get("date"):
-                samples[str(parsed["date"])] = parsed
-            if i == 24 and not samples:
+        y_fracs = (0.55, 0.72)
+        for y_frac in y_fracs:
+            for i in range(n):
+                x = float(box["x"]) + 8 + (w - 16) * i / max(n - 1, 1)
+                y = float(box["y"]) + h * y_frac
+                try:
+                    page.mouse.move(x, y)
+                except Exception:
+                    continue
+                time.sleep(0.045)
+                try:
+                    text = page.evaluate(_TIP_TEXT_JS)
+                except Exception:
+                    text = ""
+                parsed = _parse_gsc_chart_tooltip(str(text or ""))
+                if parsed and parsed.get("date"):
+                    samples[str(parsed["date"])] = parsed
+                if i == 24 and not samples:
+                    break
+            if len(samples) >= 20:
                 break
         if len(samples) < 8:
             continue
@@ -1016,7 +1149,7 @@ def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
 
 
 def _snap_series_to_kpis(chart_series: dict[str, Any], overview: dict[str, Any]) -> None:
-    """Son günün noktasını GSC başlık KPI’sına kilitle (tooltip/SVG sapmasını kapatır)."""
+    """Son gün = GSC özet kartı. Seriyi oranla çarpma (testere şişer)."""
     if not isinstance(chart_series, dict) or not isinstance(overview, dict):
         return
     for key in ("mobile", "desktop"):
@@ -1035,11 +1168,6 @@ def _snap_series_to_kpis(chart_series: dict[str, Any], overview: dict[str, Any])
             if kpi_v is None:
                 continue
             kpi_v = int(kpi_v)
-            last = int(arr[-1] or 0)
-            if last > 50 and kpi_v > 50:
-                ratio = kpi_v / last if last else 0
-                if abs(ratio - 1.0) > 0.12:
-                    continue
             # KPI 0 iken seri başka metrikle aynı düz çizgiyse (kırmızı=turuncu) hepsini 0 yap.
             if kpi_v == 0 and len(arr) >= 8:
                 cloned = False
@@ -1122,24 +1250,37 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
               !/^\d{1,2}[./]\d{1,2}[./]\d{2,4}$/.test(t)
             );
             const series = {};
+            const rects = {};
             for (const path of svg.querySelectorAll('path')) {
               const stroke = path.getAttribute('stroke') || '';
-              if (!stroke || stroke === 'none' || stroke === 'transparent') continue;
               const fill = (path.getAttribute('fill') || '').trim().toLowerCase();
-              // Alan dolgusu (baseline'a inen path) EKG/halı deseni üretir — yalnız çizgi.
-              if (fill && fill !== 'none' && fill !== 'transparent') continue;
-              const st = statusFrom(stroke);
-              if (!st) continue;
               const d = path.getAttribute('d') || '';
+              const hv = (d.match(/[HhVv]/g) || []).length;
+              const isBars = /[Zz]/.test(d) && hv >= 8;
+              // Alan dolgusu (çizgi altı) EKG üretir; yığılmış çubuk path'i tut.
+              if (fill && fill !== 'none' && fill !== 'transparent' && !isBars) continue;
+              const st = statusFrom(stroke) || statusFrom(fill);
+              if (!st) continue;
               if (d.length < 40) continue;
               const pts = parsePathPoints(d);
               if (pts.length < 8) continue;
               if (!series[st] || pts.length > series[st].length) series[st] = pts;
             }
-            if (Object.keys(series).length) {
+            for (const rect of svg.querySelectorAll('rect')) {
+              const fill = (rect.getAttribute('fill') || '').trim().toLowerCase();
+              const st = statusFrom(fill) || statusFrom(rect.getAttribute('stroke') || '');
+              if (!st) continue;
+              const x = parseFloat(rect.getAttribute('x'));
+              const y = parseFloat(rect.getAttribute('y'));
+              const rw = parseFloat(rect.getAttribute('width'));
+              const rh = parseFloat(rect.getAttribute('height'));
+              if (!(rw > 1 && rh > 1) || Number.isNaN(x) || Number.isNaN(y)) continue;
+              (rects[st] = rects[st] || []).push([x, y, rw, rh]);
+            }
+            if (Object.keys(series).length || Object.keys(rects).length) {
               charts.push({
                 width: bb.width, height: bb.height,
-                dateLabels, axisNums, series
+                dateLabels, axisNums, series, rects
               });
             }
           }
@@ -1158,11 +1299,17 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
         if y_max <= 0:
             y_max = 1.0
         series_pts = ch.get("series") or {}
+        series_rects = ch.get("rects") if isinstance(ch.get("rects"), dict) else {}
         all_xy: list[tuple[float, float]] = []
         for pts in series_pts.values():
             for p in pts or []:
                 if isinstance(p, (list, tuple)) and len(p) >= 2:
                     all_xy.append((float(p[0]), float(p[1])))
+        for recs in (series_rects or {}).values():
+            for r in recs or []:
+                if isinstance(r, (list, tuple)) and len(r) >= 4:
+                    all_xy.append((float(r[0]), float(r[1])))
+                    all_xy.append((float(r[0]) + float(r[2]), float(r[1]) + float(r[3])))
         if not all_xy:
             continue
         xs = [p[0] for p in all_xy]
@@ -1186,7 +1333,6 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
         dates = _daily_iso_range(t0, t1)
         if not dates:
             continue
-        span = max(len(dates) - 1, 1)
 
         def y_to_val(y: float) -> float:
             if y_bottom <= y_top:
@@ -1201,17 +1347,18 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
             "good": [],
         }
         for status in out_series:
-            pts = series_pts.get(status) or []
-            by_x = {
-                float(p[0]): y_to_val(float(p[1]))
-                for p in pts
-                if isinstance(p, (list, tuple)) and len(p) >= 2
-            }
-            vals: list[int] = []
-            for i in range(len(dates)):
-                x = x_min + (x_max - x_min) * (i / span)
-                vals.append(int(round(_interp_y(by_x, x))))
-            out_series[status] = vals
+            from_rects = _rects_to_daily(list(series_rects.get(status) or []), dates, y_to_val)
+            if from_rects and sum(from_rects) > 0:
+                out_series[status] = from_rects
+            else:
+                out_series[status] = _svg_pts_to_daily(
+                    list(series_pts.get(status) or []), dates, x_min, x_max, y_to_val
+                )
+        out_series["poor"], out_series["needs_improvement"], out_series["good"] = _unstack_if_cumulative(
+            out_series["poor"],
+            out_series["needs_improvement"],
+            out_series["good"],
+        )
 
         charts.append(
             {
@@ -1334,18 +1481,13 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
     time.sleep(4)
     _wait_table(page)
     meta = _extract_page_meta(page)
-    body = meta.get("body_head") or ""
-    # KPIs from summary header
-    kpis = {"poor": 0, "needs_improvement": 0, "good": 0}
-    m_poor = re.search(r"(?:Yetersiz|Kötü|Poor)\s+([\d\.\,]+(?:\s*[BK])?)", body, re.I)
-    m_ni = re.search(r"(?:İyileştirme gerektiriyor|Need improvement)\s+([\d\.\,]+(?:\s*[BK])?)", body, re.I)
-    m_good = re.search(r"(?:İyi|Good)\s+([\d\.\,]+(?:\s*[BK])?)", body, re.I)
-    if m_poor:
-        kpis["poor"] = _parse_count(m_poor.group(1))
-    if m_ni:
-        kpis["needs_improvement"] = _parse_count(m_ni.group(1))
-    if m_good:
-        kpis["good"] = _parse_count(m_good.group(1))
+    body = ""
+    try:
+        body = page.inner_text("body") or ""
+    except Exception:
+        body = str(meta.get("body_head") or "")
+    parsed = _parse_gsc_kpi_triplet(body) or _parse_gsc_kpi_triplet(str(meta.get("body_head") or ""))
+    kpis = parsed or {"poor": 0, "needs_improvement": 0, "good": 0}
 
     issues_raw = _extract_table(page)
     issues: list[dict[str, Any]] = []
@@ -1680,18 +1822,23 @@ def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) ->
 
     mobile = _scrape_device(page, resource_id=rid, device=DEVICE_MOBILE, label="Mobil")
     desktop = _scrape_device(page, resource_id=rid, device=DEVICE_DESKTOP, label="Masaüstü")
-    # Prefer overview KPIs when summary parse weak; chart last point wins for device cards
-    if overview["mobile"]["good"] or overview["mobile"]["needs_improvement"]:
-        mobile["kpis"] = overview["mobile"]
-    if overview["desktop"]["good"] or overview["desktop"]["poor"] or overview["desktop"]["needs_improvement"]:
-        desktop["kpis"] = overview["desktop"]
+    # Kart KPI asıl kaynak. Grafik son dişi (testere 18k) kartı (15,6 B) ezmesin.
     for key, dev in (("mobile", mobile), ("desktop", desktop)):
+        card = dict(dev.get("kpis") or {})
+        ov_k = overview.get(key) if isinstance(overview.get(key), dict) else {}
         ser = chart_series.get(key) if isinstance(chart_series.get(key), dict) else {}
-        kpis = dict(dev.get("kpis") or {})
-        for metric in ("poor", "needs_improvement", "good"):
-            arr = (ser or {}).get(metric) or []
-            if arr:
-                kpis[metric] = int(round(float(arr[-1] or 0)))
+        has_card = int(card.get("needs_improvement") or 0) or int(card.get("good") or 0)
+        has_ov = int((ov_k or {}).get("needs_improvement") or 0) or int((ov_k or {}).get("good") or 0)
+        if has_card:
+            kpis = card
+        elif has_ov:
+            kpis = dict(ov_k)
+        else:
+            kpis = dict(card)
+            for metric in ("poor", "needs_improvement", "good"):
+                arr = (ser or {}).get(metric) or []
+                if arr:
+                    kpis[metric] = int(round(float(arr[-1] or 0)))
         dev["kpis"] = kpis
     mobile["last_updated"] = last_upd
     desktop["last_updated"] = last_upd

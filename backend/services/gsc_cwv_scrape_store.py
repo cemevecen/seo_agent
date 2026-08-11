@@ -181,15 +181,61 @@ def _is_jagged(ser: dict[str, Any] | None) -> bool:
         return False
     for metric in ("needs_improvement", "good", "poor"):
         arr = [int(x or 0) for x in (ser.get(metric) or [])]
-        if len(arr) < 10:
-            continue
-        cross = 0
-        for a, b in zip(arr, arr[1:]):
-            if (a == 0) != (b == 0) and max(a, b) >= 100:
-                cross += 1
-        if cross >= 6:
+        if _is_zero_cross_jagged(arr) or _is_sawtooth(arr):
             return True
     return False
+
+
+def _is_zero_cross_jagged(arr: list[int]) -> bool:
+    if len(arr) < 10:
+        return False
+    cross = 0
+    for a, b in zip(arr, arr[1:]):
+        if (a == 0) != (b == 0) and max(a, b) >= 100:
+            cross += 1
+    return cross >= 6
+
+
+def _is_sawtooth(arr: list[int] | None) -> bool:
+    """Sıfır olmayan 5k↔25k EKG — yığılmış çubuk SVG Y örneklemesi."""
+    vals = [int(x or 0) for x in (arr or [])]
+    if len(vals) < 12:
+        return False
+    med = sorted(vals)[len(vals) // 2]
+    if med < 80:
+        return False
+    thresh = max(200, int(0.22 * med))
+    flips = 0
+    big = 0
+    prev = 0
+    for a, b in zip(vals, vals[1:]):
+        d = b - a
+        if abs(d) < thresh:
+            continue
+        big += 1
+        sign = 1 if d > 0 else -1
+        if prev and sign != prev:
+            flips += 1
+        prev = sign
+    return flips >= 8 and big >= 10
+
+
+def _desawtooth(arr: list[int]) -> list[int]:
+    """Komşu ortalaması — çubuk tepesi/tabanı örneklemesini GSC eğrisine yaklaştırır."""
+    out = [int(x or 0) for x in (arr or [])]
+    if len(out) < 12 or not _is_sawtooth(out):
+        return out
+    for _ in range(5):
+        nxt = list(out)
+        if len(out) >= 2:
+            nxt[0] = int(round((out[0] + out[1]) / 2.0))
+            nxt[-1] = int(round((out[-2] + out[-1]) / 2.0))
+        for i in range(1, len(out) - 1):
+            nxt[i] = int(round((out[i - 1] + out[i] + out[i + 1]) / 3.0))
+        out = nxt
+        if not _is_sawtooth(out):
+            break
+    return out
 
 
 def _suppress_false_poor_spikes(arr: list[int]) -> list[int]:
@@ -207,6 +253,7 @@ def _suppress_false_poor_spikes(arr: list[int]) -> list[int]:
 
 
 def _apply_kpis_to_series(ser: dict[str, Any], kpis: dict[str, Any] | None) -> dict[str, Any]:
+    """Son noktayı GSC kartına kilitle. Tüm seriyi oranla çarpma — testereyi şişirir."""
     if not isinstance(kpis, dict):
         return ser
     out = dict(ser)
@@ -224,16 +271,15 @@ def _apply_kpis_to_series(ser: dict[str, Any], kpis: dict[str, Any] | None) -> d
                 out[metric] = [0] * len(arr)
                 continue
         last = arr[-1]
-        if last > 0 and kpi > 0:
+        if last > 50 and kpi > 50:
             ratio = kpi / last
-            if 0.2 <= ratio <= 5.0 and abs(ratio - 1.0) >= 0.08:
-                out[metric] = [max(0, int(round(v * ratio))) for v in arr]
-            else:
-                arr[-1] = kpi
+            # Kayıtlı KPI bazen testerenin son dişi (18k); GSC kartı ~15k.
+            # Uzaksa son noktayı zehirleme — düzeltme ortalaması kalsın.
+            if abs(ratio - 1.0) > 0.20:
                 out[metric] = arr
-        else:
-            arr[-1] = kpi
-            out[metric] = arr
+                continue
+        arr[-1] = kpi
+        out[metric] = arr
     return out
 
 
@@ -241,15 +287,18 @@ def _repair_gsc_values(ser: dict[str, Any] | None, kpis: dict[str, Any] | None =
     if not isinstance(ser, dict):
         return None
     out = dict(ser)
-    out["needs_improvement"] = _fill_interior_zeros(list(out.get("needs_improvement") or []))
-    out["good"] = _fill_interior_zeros(list(out.get("good") or []))
+    out["needs_improvement"] = _desawtooth(_fill_interior_zeros(list(out.get("needs_improvement") or [])))
+    out["good"] = _desawtooth(_fill_interior_zeros(list(out.get("good") or [])))
     poor = list(out.get("poor") or [])
     if poor:
         out["poor"] = _suppress_false_poor_spikes(poor)
         if out["poor"] == poor:
             out["poor"] = _fill_interior_zeros(poor)
+        out["poor"] = _desawtooth(out["poor"])
     out = _apply_kpis_to_series(out, kpis)
-    if _is_jagged(out):
+    if _is_zero_cross_jagged(list(out.get("needs_improvement") or [])) or _is_zero_cross_jagged(
+        list(out.get("good") or [])
+    ):
         return None
     return out
 
@@ -274,6 +323,31 @@ def _bind_series_to_dates(ser: dict[str, Any] | None, dates: list[str]) -> dict[
     out["point_count"] = n
     out["axis_source"] = "sibling"
     return out
+
+
+def _sync_kpis_from_chart_last(payload: dict[str, Any], chart: dict[str, Any] | None) -> None:
+    """Legend / kart = grafiğin son günü (GSC tooltip/kart ile hizalı onarım sonrası)."""
+    if not isinstance(payload, dict) or not isinstance(chart, dict):
+        return
+    ov = payload.get("overview") if isinstance(payload.get("overview"), dict) else None
+    for key in ("mobile", "desktop"):
+        ser = chart.get(key) if isinstance(chart.get(key), dict) else None
+        if not ser:
+            continue
+        last: dict[str, int] = {}
+        for metric in ("poor", "needs_improvement", "good"):
+            arr = list(ser.get(metric) or [])
+            if arr:
+                last[metric] = int(arr[-1] or 0)
+        if not last:
+            continue
+        dev = payload.get(key) if isinstance(payload.get(key), dict) else None
+        if isinstance(dev, dict):
+            kpis = dict(dev.get("kpis") or {})
+            kpis.update(last)
+            dev["kpis"] = kpis
+        if isinstance(ov, dict) and isinstance(ov.get(key), dict):
+            ov[key] = {**ov[key], **last}
 
 
 def _kpis_by_device(payload: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
@@ -774,6 +848,7 @@ def ingest_gsc_cwv_payload(db: Session, payload: dict[str, Any]) -> dict[str, An
             [prev_cs] if prev_cs else [],
             kpis_by_device=_kpis_by_device(snap),
         )
+        _sync_kpis_from_chart_last(snap, snap.get("chart_series"))
 
         totals = snap.get("totals") or {}
         poor = int(totals.get("poor") or 0)
@@ -866,6 +941,7 @@ def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
         older,
         kpis_by_device=_kpis_by_device(payload),
     )
+    _sync_kpis_from_chart_last(payload, payload.get("chart_series"))
     hist = history_points(db, site.id)
     rid = payload.get("resource_id") or (
         "sc-domain:doviz.com" if "doviz" in (site.domain or "") else f"https://{site.domain}/"

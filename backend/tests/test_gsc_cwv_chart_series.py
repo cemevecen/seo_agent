@@ -98,6 +98,23 @@ def test_tooltip_ignores_svg_start_in_2007():
     assert ser["needs_improvement"][0] == 6592
 
 
+def test_snap_always_locks_last_to_card_kpi():
+    chart = {
+        "mobile": {
+            "dates": [f"2026-08-{d:02d}" for d in range(1, 11)],
+            "poor": [8000] * 10,
+            "needs_improvement": [18216] * 10,
+            "good": [3657] * 10,
+        }
+    }
+    overview = {"mobile": {"poor": 0, "needs_improvement": 15557, "good": 3123}}
+    mod._snap_series_to_kpis(chart, overview)
+    assert chart["mobile"]["poor"][-1] == 0
+    assert chart["mobile"]["needs_improvement"][-1] == 15557
+    assert chart["mobile"]["good"][-1] == 3123
+    assert chart["mobile"]["needs_improvement"][0] == 18216
+
+
 def test_snap_zeros_cloned_poor_series():
     chart = {
         "mobile": {
@@ -250,13 +267,111 @@ def test_sanitize_fills_sawtooth_zeros_and_snaps_kpis():
     out = sanitize_chart_series(
         chart,
         year_now=2026,
-        kpis_by_device={"mobile": {"poor": 0, "needs_improvement": 6592, "good": 6592}},
+        kpis_by_device={"mobile": {"poor": 0, "needs_improvement": 12000, "good": 8000}},
     )
     assert out["mobile"]["dates"][0] == "2026-05-13"
     assert 0 not in out["mobile"]["needs_improvement"][1:-1]
     assert out["mobile"]["poor"] == [0] * n
-    assert out["mobile"]["needs_improvement"][-1] == 6592
-    assert out["mobile"]["good"][-1] == 6592
+    assert out["mobile"]["needs_improvement"][-1] == 12000
+    assert out["mobile"]["good"][-1] == 8000
+
+
+def test_sanitize_flattens_nonzero_bar_sawtooth():
+    from backend.services.gsc_cwv_scrape_store import sanitize_chart_series, _is_sawtooth
+
+    dates = [f"2026-05-{d:02d}" for d in range(13, 32)]
+    n = len(dates)
+    ni = [5000 if i % 2 else 25000 for i in range(n)]
+    good = [12000 if i % 2 else 2000 for i in range(n)]
+    chart = {
+        "mobile": {
+            "dates": dates,
+            "poor": [0] * n,
+            "needs_improvement": ni,
+            "good": good,
+        },
+        "desktop": {
+            "dates": dates,
+            "poor": [0] * n,
+            "needs_improvement": [100] * n,
+            "good": [50] * n,
+        },
+    }
+    out = sanitize_chart_series(
+        chart,
+        year_now=2026,
+        kpis_by_device={"mobile": {"poor": 0, "needs_improvement": 15557, "good": 3123}},
+    )
+    ni_out = out["mobile"]["needs_improvement"]
+    good_out = out["mobile"]["good"]
+    assert not _is_sawtooth(ni_out)
+    assert not _is_sawtooth(good_out)
+    assert max(ni_out) - min(ni_out) < 12000
+    assert out["mobile"]["needs_improvement"][-1] == 15557
+    assert out["mobile"]["poor"][-1] == 0
+
+
+def test_apply_kpis_does_not_scale_whole_series():
+    from backend.services.gsc_cwv_scrape_store import _apply_kpis_to_series
+
+    ser = {
+        "dates": [f"2026-07-{d:02d}" for d in range(1, 12)],
+        "poor": [0] * 11,
+        "needs_improvement": [10000] * 11,
+        "good": [3000] * 11,
+    }
+    out = _apply_kpis_to_series(
+        ser, {"poor": 0, "needs_improvement": 24584, "good": 10913}
+    )
+    assert out["needs_improvement"] == [10000] * 11
+    assert out["good"] == [3000] * 11
+
+
+def test_parse_gsc_cards_tr_bin_suffix():
+    text = (
+        "Önemli Web Verileri > Mobil\n"
+        "Yetersiz\n0\nSorun yok\n"
+        "İyileştirme gerekiyor...\n15,6 B\n2 sorun\n"
+        "İyi\n3,12 B"
+    )
+    parsed = mod._parse_gsc_kpi_triplet(text)
+    assert parsed is not None
+    assert parsed["poor"] == 0
+    assert parsed["needs_improvement"] == 15600
+    assert parsed["good"] == 3120
+
+
+def test_parse_gsc_tooltip_aug_10_matches_cards():
+    text = (
+        "10 Ağu Pazartesi\n"
+        "Yetersiz 0\n"
+        "İyileştirme gerektiriyor 15.557\n"
+        "İyi 3.123"
+    )
+    parsed = mod._parse_gsc_chart_tooltip(text)
+    assert parsed is not None
+    assert parsed["date"] == "2026-08-10"
+    assert parsed["poor"] == 0
+    assert parsed["needs_improvement"] == 15557
+    assert parsed["good"] == 3123
+
+
+def test_svg_bar_path_bins_height_not_sawtooth():
+    dates = [f"2026-08-{d:02d}" for d in range(1, 9)]
+    pts = []
+    for i in range(8):
+        x0 = i * 10
+        pts.extend([[x0, 20], [x0 + 8, 20], [x0 + 8, 90], [x0, 90], [x0, 20]])
+    y_bottom, y_top, y_max = 90.0, 20.0, 18000.0
+
+    def y_to_val(y: float) -> float:
+        return (y_bottom - y) / (y_bottom - y_top) * y_max
+
+    vals = mod._svg_pts_to_daily(pts, dates, 0.0, 80.0, y_to_val)
+    assert len(vals) == 8
+    assert min(vals) >= 15000
+    assert max(vals) <= 20000
+    assert max(vals) - min(vals) < 3000
 
 
 def test_recover_prefers_longer_previous_mobile():
