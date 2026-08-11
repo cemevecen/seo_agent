@@ -145,6 +145,8 @@ def test_mention_query_match_requires_brand_string():
     assert not mod._matches_query("ziraat döviz hesabım bloke", "doviz.com")
     assert not mod._matches_query("sinema bileti kampanyası", "sinemalar.com")
     assert mod._matches_query("sinemalar.com giriş yapamıyorum", "sinemalar.com")
+    assert mod._url_has_brand("https://x.com/dovizcom/status/1", "doviz.com")
+    assert not mod._url_has_brand("https://x.com/Merkez_Bankasi/status/1", "doviz.com")
     assert mod._sikayet_complaint_url(
         "https://www.sikayetvar.com/dovizcom/dovizcom-3-gundur-manipulatif-oldugunu-dusundugum-icerikle-karsi",
         brand_slug="dovizcom",

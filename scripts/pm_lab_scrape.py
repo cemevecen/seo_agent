@@ -737,15 +737,17 @@ def _matches_query(blob: str, query: str) -> bool:
     return q.replace(".", " ") in blob_l
 
 
+def _url_has_brand(url: str, query: str) -> bool:
+    compact = (query or "").replace(".", "").lower()
+    return bool(compact) and compact in (url or "").lower()
+
+
 def _filter_query_rows(rows: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for row in rows:
         url = str(row.get("url") or "")
         blob = " ".join(str(row.get(k) or "") for k in ("title", "text", "url", "author"))
-        if "/status/" in url and ("x.com/" in url or "twitter.com/" in url):
-            out.append(row)
-            continue
-        if _matches_query(blob, query):
+        if _matches_query(blob, query) or _url_has_brand(url, query):
             out.append(row)
     return out
 
