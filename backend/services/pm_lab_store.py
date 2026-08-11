@@ -469,12 +469,68 @@ def _refresh_job_ids(raw: Any) -> list[str]:
     return out
 
 
+REFRESH_QUEUE_TTL_SEC = 90
+REFRESH_RUNNING_TTL_SEC = 20 * 60
+
+
+def _parse_iso_dt(raw: str) -> datetime | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _prune_refresh_state(data: dict[str, Any]) -> bool:
+    """Drop stale Refresh queue / running flags so the UI cannot stick on Queued."""
+    changed = False
+    now = datetime.now(timezone.utc)
+    raw = data.get("refresh_queue")
+    kept: list[dict[str, str]] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                job = str(item.get("job") or "").strip()
+                ts = str(item.get("requested_at") or "")
+            else:
+                job = str(item or "").strip()
+                ts = ""
+            if job not in PM_LAB_REFRESH_JOBS:
+                changed = True
+                continue
+            requested = _parse_iso_dt(ts)
+            if requested is not None and (now - requested).total_seconds() > REFRESH_QUEUE_TTL_SEC:
+                changed = True
+                continue
+            kept.append({"job": job, "requested_at": ts or now.isoformat()})
+        if kept != raw:
+            data["refresh_queue"] = kept
+            changed = True
+    running = str(data.get("refresh_running") or "").strip()
+    if running:
+        started = _parse_iso_dt(str(data.get("refresh_running_at") or ""))
+        if started is None:
+            data["refresh_running_at"] = now.isoformat()
+            changed = True
+        elif (now - started).total_seconds() > REFRESH_RUNNING_TTL_SEC:
+            data["refresh_running"] = ""
+            data["refresh_running_at"] = ""
+            changed = True
+    return changed
+
+
 def enqueue_pm_lab_refresh(db: Session, job: str) -> dict[str, Any]:
     job = str(job or "").strip()
     if job not in PM_LAB_REFRESH_JOBS:
         raise ValueError("unknown job")
     row = _get_or_create(db)
     data = _loads(row.payload_json)
+    _prune_refresh_state(data)
     queued = _refresh_job_ids(data.get("refresh_queue"))
     if job not in queued:
         queued.append(job)
@@ -488,13 +544,18 @@ def enqueue_pm_lab_refresh(db: Session, job: str) -> dict[str, Any]:
 def claim_pm_lab_refresh(db: Session) -> str | None:
     row = _get_or_create(db)
     data = _loads(row.payload_json)
+    pruned = _prune_refresh_state(data)
     queued = _refresh_job_ids(data.get("refresh_queue"))
     if not queued:
+        if pruned:
+            row.payload_json = json.dumps(data, ensure_ascii=False)
+            db.commit()
         return None
     job = queued.pop(0)
     now = datetime.now(timezone.utc).isoformat()
     data["refresh_queue"] = [{"job": j, "requested_at": now} for j in queued]
     data["refresh_running"] = job
+    data["refresh_running_at"] = now
     row.payload_json = json.dumps(data, ensure_ascii=False)
     db.commit()
     return job
@@ -650,6 +711,9 @@ def _enrich_generic(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str,
 def load_payload(db: Session) -> dict[str, Any]:
     row = _get_or_create(db)
     data = _loads(row.payload_json)
+    if _prune_refresh_state(data):
+        row.payload_json = json.dumps(data, ensure_ascii=False)
+        db.commit()
     data.setdefault("sections", {})
     if not isinstance(data["sections"], dict):
         data["sections"] = {}
@@ -705,6 +769,7 @@ def ingest_pm_lab_payload(db: Session, body: dict[str, Any]) -> dict[str, Any]:
     running = str(existing.get("refresh_running") or "").strip()
     if running and running in incoming:
         existing["refresh_running"] = ""
+        existing["refresh_running_at"] = ""
     row.payload_json = json.dumps(existing, ensure_ascii=False)
     row.source = str(body.get("source") or "pm_lab_scrape")[:64]
     row.sync_ok = bool(body.get("sync_ok", True))

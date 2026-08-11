@@ -952,15 +952,22 @@ _HTTP_JAR = urllib.request.HTTPCookieProcessor()
 _HTTP_OPENER = urllib.request.build_opener(_HTTP_JAR)
 
 
-def _http_get(url: str, *, timeout: int = 18) -> str:
+def _http_get(url: str, *, timeout: int = 18, retry_403: bool = True) -> str:
     headers = dict(_HTTP_HEADERS)
     host = (urllib.parse.urlparse(url).netloc or "").lower()
     if "paratic.com" in host:
         headers["User-Agent"] = _SAFARI_UA
         headers["Referer"] = "https://piyasa.paratic.com/"
+        headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
     req = urllib.request.Request(url, headers=headers)
-    with _HTTP_OPENER.open(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+    try:
+        with _HTTP_OPENER.open(req, timeout=timeout) as resp:
+            return resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        if retry_403 and exc.code == 403 and "paratic.com" in host:
+            _paratic_warmup()
+            return _http_get(url, timeout=timeout, retry_403=False)
+        raise
 
 
 def _html_visible_text(html: str) -> str:
@@ -1073,11 +1080,12 @@ PARATIC_CODES = {
 }
 
 
-def _paratic_quote_from_html(html: str, aid: str) -> dict[str, str] | None:
-    """Paratic SAT (ask) / last; BIST sayfasında XU100 SON."""
+def _paratic_quote_from_html(html: str, aid: str, *, strict: bool = False) -> dict[str, str] | None:
+    """Paratic SAT (ask) / last; BIST sayfasında XU100 SON.
+
+    strict=True: only data-code matches for this asset (list pages mix many tickers).
+    """
     raws: list[str] = []
-    for m in _PARATIC_HERO_ASK_RE.finditer(html or ""):
-        raws.append((m.group(1) or m.group(2) or "").strip())
     codes = PARATIC_CODES.get(aid) or ()
     for code in codes:
         cm = re.search(
@@ -1089,23 +1097,27 @@ def _paratic_quote_from_html(html: str, aid: str) -> dict[str, str] | None:
         if cm:
             raws.append((cm.group(1) or cm.group(2) or "").strip())
     if aid == "bist100":
-        vis = _html_visible_text(html)
-        hit = _parse_one_asset(vis, "bist100")
-        if hit:
-            return hit
         m = re.search(
-            r'data-code="XU100"[^>]*data-type="(?:last|close|price)"[^>]*>\s*([\d.,]+)',
-            html,
+            r'data-code="XU100"[^>]*data-type="(?:last|close|price|ask)"[^>]*>\s*(?:<[^>]+>\s*)*?([\d.,]+)',
+            html or "",
             re.I,
         )
         if m:
             raws.append(m.group(1).strip())
-    raws.extend(m.group(1).strip() for m in _PARATIC_ASK_RE.finditer(html or ""))
-    raws.extend(m.group(1).strip() for m in _PARATIC_LAST_RE.finditer(html or ""))
-    vis = _html_visible_text(html)
-    sat = _PARATIC_SAT_RE.search(vis)
-    if sat:
-        raws.append(sat.group(1).strip())
+        if not strict:
+            vis = _html_visible_text(html)
+            hit = _parse_one_asset(vis, "bist100")
+            if hit:
+                return hit
+    if not strict:
+        for m in _PARATIC_HERO_ASK_RE.finditer(html or ""):
+            raws.append((m.group(1) or m.group(2) or "").strip())
+        raws.extend(m.group(1).strip() for m in _PARATIC_ASK_RE.finditer(html or ""))
+        raws.extend(m.group(1).strip() for m in _PARATIC_LAST_RE.finditer(html or ""))
+        vis = _html_visible_text(html)
+        sat = _PARATIC_SAT_RE.search(vis)
+        if sat:
+            raws.append(sat.group(1).strip())
     change = ""
     ch = _PARATIC_CHANGE_RE.search(html or "")
     if ch:
@@ -1122,22 +1134,51 @@ def _paratic_quote_from_html(html: str, aid: str) -> dict[str, str] | None:
             continue
         if any(_in_range(aid, cand) for cand in _value_candidates(raw, val)):
             return {"value": raw, "change": change}
-    return _parse_one_asset(vis, aid)
+    if strict:
+        return None
+    return _parse_one_asset(_html_visible_text(html), aid)
 
 
-def _paratic_warmup() -> None:
-    try:
-        _http_get("https://piyasa.paratic.com/", timeout=15)
-    except Exception:
-        pass
+def _paratic_warmup() -> dict[str, str]:
+    pages: dict[str, str] = {}
+    for url in (
+        "https://piyasa.paratic.com/",
+        "https://piyasa.paratic.com/doviz/",
+        "https://piyasa.paratic.com/altin/",
+        "https://piyasa.paratic.com/kripto-coin/",
+        "https://piyasa.paratic.com/borsa/",
+    ):
+        try:
+            html = _http_get(url, timeout=15, retry_403=False)
+        except Exception:
+            continue
+        if html:
+            pages[url] = html
+    return pages
+
+
+def _paratic_merge_html(found: dict[str, dict[str, str]], html: str, wanted: list[str]) -> None:
+    if not html:
+        return
+    for aid in wanted:
+        if aid in found:
+            continue
+        rec = _paratic_quote_from_html(html, aid, strict=True)
+        if rec and rec.get("value"):
+            found[aid] = rec
 
 
 def _http_fill_paratic() -> dict[str, dict[str, str]]:
     found: dict[str, dict[str, str]] = {}
     extra = ASSET_URLS.get("paratic") or {}
-    _paratic_warmup()
+    wanted = [aid for aid, url in extra.items() if url]
+    pages = _paratic_warmup()
+    for html in pages.values():
+        _paratic_merge_html(found, html, wanted)
+        if len(found) >= len(wanted):
+            return found
     for aid, url in extra.items():
-        if not url:
+        if aid in found or not url:
             continue
         html = ""
         for attempt in range(3):
@@ -1149,6 +1190,7 @@ def _http_fill_paratic() -> dict[str, dict[str, str]]:
                     html = ""
                     break
                 time.sleep(0.8 * (attempt + 1))
+                _paratic_warmup()
             except Exception:
                 html = ""
                 break
@@ -1375,11 +1417,25 @@ def _paratic_dom_quote(page: Any, aid: str) -> dict[str, str] | None:
 
 def _browser_fill_paratic(page: Any, found: dict[str, dict[str, str]]) -> None:
     extra = ASSET_URLS.get("paratic") or {}
-    try:
-        _goto(page, "https://piyasa.paratic.com/", timeout=45_000)
-        page.wait_for_timeout(800)
-    except Exception:
-        pass
+    wanted = [aid for aid, url in extra.items() if url]
+    for seed in (
+        "https://piyasa.paratic.com/",
+        "https://piyasa.paratic.com/doviz/",
+        "https://piyasa.paratic.com/altin/",
+    ):
+        try:
+            _goto(page, seed, timeout=45_000)
+            page.wait_for_timeout(900)
+            html = ""
+            try:
+                html = page.content() or ""
+            except Exception:
+                html = ""
+            _paratic_merge_html(found, html, wanted)
+        except Exception:
+            continue
+        if len(found) >= len(wanted):
+            return
     for aid, url in extra.items():
         if aid in found or not url:
             continue

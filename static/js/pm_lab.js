@@ -845,9 +845,31 @@
     btn.textContent = label;
   }
 
-  function pollSection(id, prevAt, timeoutMs, btn) {
+  function pingBridge(id) {
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = setTimeout(function () {
+      if (ctrl) ctrl.abort();
+    }, 3500);
+    return fetch("http://127.0.0.1:18765/sync-pm-lab?jobs=" + encodeURIComponent(id), {
+      method: "POST",
+      mode: "cors",
+      headers: { Accept: "application/json" },
+      signal: ctrl ? ctrl.signal : undefined,
+    })
+      .then(function (resp) {
+        return resp.status === 200 || resp.status === 409;
+      })
+      .catch(function (err) {
+        return !!(err && err.name === "AbortError");
+      })
+      .then(function (ok) {
+        clearTimeout(timer);
+        return ok;
+      });
+  }
+
+  function pollSection(id, prevAt, timeoutMs, btn, kicked) {
     var started = Date.now();
-    var sawQueue = false;
     function tick() {
       var elapsed = Date.now() - started;
       if (elapsed > timeoutMs) {
@@ -864,17 +886,12 @@
           if (at && at !== prevAt) return state;
           var queued = (state.queued || []).indexOf(id) >= 0;
           var running = String(state.running || "") === id;
-          if (queued) sawQueue = true;
-          if (running) setRefreshBtn(btn, true, "Scanning…");
-          else if (queued) {
-            setRefreshBtn(btn, true, "Queued…");
-            if (elapsed > 45000) {
-              return Promise.reject(
-                new Error("Mac bridge did not pick up the scan. git pull && restart the bridge daemon.")
-              );
-            }
-          } else if (elapsed > 20000 && !sawQueue && !running) {
-            return Promise.reject(new Error("Mac bridge did not pick up the scan. Restart the bridge after git pull."));
+          if (running || kicked) setRefreshBtn(btn, true, "Scanning…");
+          else if (queued) setRefreshBtn(btn, true, "Queued…");
+          if (!kicked && !running && elapsed > 12000) {
+            return Promise.reject(
+              new Error("Mac bridge did not pick up the scan. git pull && restart the bridge daemon.")
+            );
           }
           return sleep(3000).then(tick);
         });
@@ -886,26 +903,36 @@
     if (!id || refreshing[id]) return;
     refreshing[id] = true;
     var prevAt = String((sections[id] || {}).scraped_at || "");
-    setRefreshBtn(btn, true, "Queued…");
-    fetch("/api/pm-lab/refresh", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ job: id }),
-    })
-      .then(function (resp) {
+    setRefreshBtn(btn, true, "Scanning…");
+    var kicked = false;
+    Promise.all([
+      fetch("/api/pm-lab/refresh", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ job: id }),
+      }).then(function (resp) {
         return resp.json().then(function (data) {
           return { resp: resp, data: data || {} };
         }).catch(function () {
           return { resp: resp, data: {} };
         });
-      })
-      .then(function (out) {
+      }),
+      pingBridge(id).then(function (ok) {
+        kicked = !!ok;
+        return ok;
+      }),
+    ])
+      .then(function (pair) {
+        var out = pair[0] || { resp: { ok: false }, data: {} };
         if (!out.resp.ok || out.data.ok === false) {
-          var detail = out.data.detail || out.data.message || "Could not queue scan";
-          throw new Error(typeof detail === "string" ? detail : "Could not queue scan");
+          if (!kicked) {
+            var detail = out.data.detail || out.data.message || "Could not queue scan";
+            throw new Error(typeof detail === "string" ? detail : "Could not queue scan");
+          }
         }
-        return pollSection(id, prevAt, JOB_WAIT_MS[id] || 12 * 60 * 1000, btn);
+        setRefreshBtn(btn, true, "Scanning…");
+        return pollSection(id, prevAt, JOB_WAIT_MS[id] || 12 * 60 * 1000, btn, kicked);
       })
       .then(function (state) {
         var block = ((state || {}).sections || {})[id] || {};

@@ -90,9 +90,9 @@
   html.dark .pml-table tbody tr:hover td.pml-sapma-warn{background:#3a3018 !important}
   html.dark .pml-table tbody tr:hover td.pml-sapma-hot{background:#4a2222 !important}
   .pml-sum{min-width:0}
-  .pml-updated{font-size:11px;font-variant-numeric:tabular-nums;color:#64748b;white-space:nowrap;letter-spacing:.01em}
+  .pml-updated{position:static;font-size:11px;font-variant-numeric:tabular-nums;color:#64748b;white-space:nowrap;letter-spacing:.01em}
   html.dark .pml-updated{color:#a1a1aa}
-  .pml-refresh{flex:0 0 auto;min-width:5.75rem;border:0;border-radius:999px;padding:.28rem .7rem;font-size:11px;font-weight:650;line-height:1.2;background:#f4f4f5;color:#334155;cursor:pointer;text-align:center}
+  .pml-refresh{position:static;flex:0 0 auto;min-width:5.75rem;border:0;border-radius:999px;padding:.28rem .7rem;font-size:11px;font-weight:650;line-height:1.2;background:#f4f4f5;color:#334155;cursor:pointer;text-align:center}
   html.dark .pml-refresh{background:#27272a;color:#e4e4e7}
   .pml-refresh:hover{background:#e4e4e7}
   html.dark .pml-refresh:hover{background:#3f3f46}
@@ -168,5 +168,5 @@
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=28"></script>
+<script src="/static/js/pm_lab.js?v=29"></script>
 {% endblock %}

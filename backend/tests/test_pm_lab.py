@@ -11,6 +11,7 @@ from backend.services.pm_lab_access import (
 from backend.services.pm_lab_store import (
     COMPETITORS_INTERVAL_MIN,
     SECTION_DEFS,
+    _prune_refresh_state,
     claim_pm_lab_refresh,
     enqueue_pm_lab_refresh,
     format_pm_lab_when,
@@ -361,6 +362,19 @@ def test_enqueue_and_claim_pm_lab_refresh():
         db.close()
 
 
+def test_stale_refresh_queue_is_pruned():
+    data = {
+        "refresh_queue": [
+            {"job": "competitors", "requested_at": "2020-01-01T00:00:00+00:00"},
+        ],
+        "refresh_running": "competitors",
+        "refresh_running_at": "2020-01-01T00:00:00+00:00",
+    }
+    assert _prune_refresh_state(data) is True
+    assert data["refresh_queue"] == []
+    assert data["refresh_running"] == ""
+
+
 def test_ios_lockup_id_uses_adam_id():
     import importlib.util
 
@@ -507,6 +521,11 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert assets["paratic"]["ceyrek_altin"] == "https://piyasa.paratic.com/altin/ceyrek/"
     assert assets["paratic"]["brent"] == "https://piyasa.paratic.com/forex/emtia/brent-petrol/"
     assert assets["paratic"]["bist100"] == "https://piyasa.paratic.com/borsa/"
+    src = Path("scripts/pm_lab_scrape.py").read_text(encoding="utf-8")
+    assert "https://piyasa.paratic.com/doviz/" in src
+    assert "https://piyasa.paratic.com/kripto-coin/" in src
+    assert "retry_403" in src
+    assert "_paratic_merge_html" in src
     assert assets["investing"]["gram_gumus"] == "https://tr.investing.com/currencies/xagg-try"
     assert assets["investing"]["gram_altin"] == "https://tr.investing.com/currencies/gau-try"
     assert assets["tradingview"]["gram_gumus"] == "https://tr.tradingview.com/symbols/XAGTRYG/"
@@ -523,6 +542,15 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert mod._paratic_quote_from_html(gumus, "gram_gumus")["value"] == "99.1292"
     nested = '<div class="price" data-code="XGLD" data-type="ask"><span>5432.10</span></div>'
     assert mod._paratic_quote_from_html(nested, "gram_altin")["value"] == "5432.10"
+    mixed = (
+        '<div class="price" data-code="USD/TRL" data-type="ask">47.74</div>'
+        '<div class="price" data-code="EUR/TRL" data-type="ask">55.15</div>'
+        '<div class="price" data-code="XGLD" data-type="ask">6707.54</div>'
+    )
+    assert mod._paratic_quote_from_html(mixed, "usd", strict=True)["value"] == "47.74"
+    assert mod._paratic_quote_from_html(mixed, "eur", strict=True)["value"] == "55.15"
+    assert mod._paratic_quote_from_html(mixed, "gram_altin", strict=True)["value"] == "6707.54"
+    assert mod._paratic_quote_from_html(mixed, "brent", strict=True) is None
     bist = "BIST 100 XU100 13704.52 %-0,78"
     assert mod._paratic_quote_from_html(bist, "bist100")["value"] == "13704.52"
     btc = mod._parse_assets_from_text("BITCOIN $63.590 %-0,62 ( -$399 )")
@@ -539,7 +567,10 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com rank:" in js
-    assert "pm_lab.js?v=28" in html
+    assert "pm_lab.js?v=29" in html
+    assert "pingBridge" in js
+    assert "127.0.0.1:18765/sync-pm-lab" in js
+    assert "position:static" in html
     assert COMPETITORS_INTERVAL_MIN == 10
     assert "fiyat " not in js
     assert "Fotoğraf yok" not in html
