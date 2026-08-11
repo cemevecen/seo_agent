@@ -1873,6 +1873,7 @@ def _cors_headers(handler: BaseHTTPRequestHandler) -> dict[str, str]:
         "Access-Control-Allow-Origin": allow,
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Accept",
+        "Access-Control-Allow-Private-Network": "true",
         "Access-Control-Max-Age": "86400",
         "Cache-Control": "no-store",
     }
@@ -2700,6 +2701,45 @@ def _post_page_tarama_result(payload: dict[str, Any]) -> None:
         print(f"page-tarama result hata: {exc}", flush=True)
 
 
+def _pm_lab_claim_loop() -> None:
+    """PM Lab Refresh kuyruğunu Mac’te çalıştır."""
+    url = _page_tarama_api_base() + "/api/pm-lab/claim-refresh"
+    print(f"PM lab yenile kuyruğu: {url}", flush=True)
+    while True:
+        try:
+            if not _ingest_token():
+                time.sleep(12)
+                continue
+            resp = requests.get(url, headers=_page_tarama_auth_headers(), timeout=20)
+            if resp.status_code != 200:
+                time.sleep(5)
+                continue
+            job = str((resp.json() or {}).get("job") or "").strip()
+            if not job:
+                time.sleep(3)
+                continue
+            print(f"PM lab yenile başladı: {job}", flush=True)
+            result = None
+            while result is None:
+                result = _run_locked_job(
+                    name=f"PM lab {job}",
+                    lock=_pm_lab_lock,
+                    runner=lambda j=job: run_pm_lab_jobs_once(j),
+                    kind="pm_lab",
+                    notify=False,
+                )
+                if result is None:
+                    print(f"PM lab {job}: kilit meşgul, 8 sn…", flush=True)
+                    time.sleep(8)
+            print(
+                f"PM lab yenile bitti: {job} · ok={bool(result.get('ok'))} · {result.get('message') or ''}",
+                flush=True,
+            )
+        except Exception:
+            traceback.print_exc()
+            time.sleep(5)
+
+
 def _page_tarama_claim_loop() -> None:
     """Mobil/Railway «Sayfayı güncelle» kuyruğunu Mac’te çalıştır."""
     url = _page_tarama_api_base() + "/api/page-tarama/claim"
@@ -2775,6 +2815,7 @@ def run_daemon() -> int:
         print(f"Oturum bekçi başlatılamadı: {exc}", flush=True)
     threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()
     threading.Thread(target=_page_tarama_claim_loop, name="page-tarama-claim", daemon=True).start()
+    threading.Thread(target=_pm_lab_claim_loop, name="pm-lab-claim", daemon=True).start()
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), _BridgeHandler)
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "

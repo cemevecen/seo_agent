@@ -784,7 +784,6 @@
     store_charts: renderStore,
     google_news: renderNews,
   };
-  var BRIDGE = "http://127.0.0.1:18765";
   var JOB_WAIT_MS = {
     serp: 20 * 60 * 1000,
     competitors: 12 * 60 * 1000,
@@ -846,11 +845,13 @@
     btn.textContent = label;
   }
 
-  function pollSection(id, prevAt, timeoutMs) {
+  function pollSection(id, prevAt, timeoutMs, btn) {
     var started = Date.now();
+    var sawQueue = false;
     function tick() {
-      if (Date.now() - started > timeoutMs) {
-        return Promise.reject(new Error("Scan timed out"));
+      var elapsed = Date.now() - started;
+      if (elapsed > timeoutMs) {
+        return Promise.reject(new Error("Scan timed out — is the Mac bridge running?"));
       }
       return fetch("/api/pm-lab/state", { credentials: "same-origin", headers: { Accept: "application/json" } })
         .then(function (resp) {
@@ -861,7 +862,21 @@
           var block = ((state || {}).sections || {})[id] || {};
           var at = String(block.scraped_at || "");
           if (at && at !== prevAt) return state;
-          return sleep(4000).then(tick);
+          var queued = (state.queued || []).indexOf(id) >= 0;
+          var running = String(state.running || "") === id;
+          if (queued) sawQueue = true;
+          if (running) setRefreshBtn(btn, true, "Scanning…");
+          else if (queued) {
+            setRefreshBtn(btn, true, "Queued…");
+            if (elapsed > 45000) {
+              return Promise.reject(
+                new Error("Mac bridge did not pick up the scan. git pull && restart the bridge daemon.")
+              );
+            }
+          } else if (elapsed > 20000 && !sawQueue && !running) {
+            return Promise.reject(new Error("Mac bridge did not pick up the scan. Restart the bridge after git pull."));
+          }
+          return sleep(3000).then(tick);
         });
     }
     return tick();
@@ -871,11 +886,12 @@
     if (!id || refreshing[id]) return;
     refreshing[id] = true;
     var prevAt = String((sections[id] || {}).scraped_at || "");
-    setRefreshBtn(btn, true, "Scanning…");
-    fetch(BRIDGE + "/sync-pm-lab?jobs=" + encodeURIComponent(id), {
+    setRefreshBtn(btn, true, "Queued…");
+    fetch("/api/pm-lab/refresh", {
       method: "POST",
-      mode: "cors",
-      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ job: id }),
     })
       .then(function (resp) {
         return resp.json().then(function (data) {
@@ -885,14 +901,11 @@
         });
       })
       .then(function (out) {
-        if (out.resp.status === 409) {
-          throw new Error((out.data && out.data.message) || "Another scan is already running");
-        }
         if (!out.resp.ok || out.data.ok === false) {
-          throw new Error((out.data && out.data.message) || "Could not start scan");
+          var detail = out.data.detail || out.data.message || "Could not queue scan";
+          throw new Error(typeof detail === "string" ? detail : "Could not queue scan");
         }
-        setRefreshBtn(btn, true, "Waiting…");
-        return pollSection(id, prevAt, JOB_WAIT_MS[id] || 12 * 60 * 1000);
+        return pollSection(id, prevAt, JOB_WAIT_MS[id] || 12 * 60 * 1000, btn);
       })
       .then(function (state) {
         var block = ((state || {}).sections || {})[id] || {};
@@ -901,11 +914,9 @@
         setRefreshBtn(btn, false, "Refresh");
       })
       .catch(function (err) {
-        var msg = String((err && err.message) || err || "");
-        if (/Failed to fetch|NetworkError|Load failed|fetch/i.test(msg)) {
-          msg = "Mac bridge is offline (127.0.0.1:18765)";
-        }
+        var msg = String((err && err.message) || err || "Refresh failed");
         setRefreshBtn(btn, false, "Refresh");
+        btn.title = msg;
         window.alert(msg);
       })
       .then(function () {
@@ -915,23 +926,10 @@
 
   function bindRefreshButtons() {
     document.querySelectorAll("[data-pml-refresh]").forEach(function (btn) {
-      function stopToggle(e) {
+      btn.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
-      }
-      ["pointerdown", "mousedown"].forEach(function (ev) {
-        btn.addEventListener(ev, stopToggle);
-      });
-      btn.addEventListener("click", function (e) {
-        stopToggle(e);
         refreshSection(btn.getAttribute("data-pml-refresh"), btn);
-      });
-    });
-    document.querySelectorAll("[data-pml-actions]").forEach(function (el) {
-      ["click", "pointerdown", "mousedown"].forEach(function (ev) {
-        el.addEventListener(ev, function (e) {
-          e.stopPropagation();
-        });
       });
     });
   }

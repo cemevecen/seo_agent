@@ -141,30 +141,30 @@
   </div>
 
   {% for card in cards %}
-  <details class="group rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-    <summary class="flex cursor-pointer list-none items-start gap-2 px-3 py-3 sm:items-center sm:gap-3 sm:px-5 sm:py-4 [&::-webkit-details-marker]:hidden">
-      <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-400 transition-transform duration-200 group-open:rotate-90 dark:text-zinc-500" aria-hidden="true">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-      </span>
-      <div class="pml-sum min-w-0 flex-1">
-        <h3 class="text-sm font-semibold leading-snug text-slate-900 dark:text-zinc-200">{{ card.title }}</h3>
-      </div>
-      <span class="pml-card-actions" data-pml-actions="{{ card.id }}">
-        <button type="button" class="pml-refresh" data-pml-refresh="{{ card.id }}" title="Scan this section now">Refresh</button>
+  <div class="pml-card-wrap relative rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
+    <button type="button" class="pml-refresh absolute right-3 top-3 z-10 sm:right-5" data-pml-refresh="{{ card.id }}" title="Scan this section now">Refresh</button>
+    <details class="group">
+      <summary class="flex cursor-pointer list-none items-start gap-2 px-3 py-3 pr-[4.75rem] sm:items-center sm:gap-3 sm:px-5 sm:py-4 sm:pr-24 [&::-webkit-details-marker]:hidden">
+        <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-400 transition-transform duration-200 group-open:rotate-90 dark:text-zinc-500" aria-hidden="true">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+        </span>
+        <div class="pml-sum min-w-0 flex-1">
+          <h3 class="text-sm font-semibold leading-snug text-slate-900 dark:text-zinc-200">{{ card.title }}</h3>
+        </div>
         {% if card.scraped_at_label %}
-        <time class="pml-updated" data-pml-when="{{ card.id }}" datetime="{{ card.scraped_at or '' }}">{{ card.scraped_at_label }}</time>
+        <time class="pml-updated mt-0.5 shrink-0" data-pml-when="{{ card.id }}" datetime="{{ card.scraped_at or '' }}">{{ card.scraped_at_label }}</time>
         {% else %}
-        <time class="pml-updated" data-pml-when="{{ card.id }}" datetime="" hidden></time>
+        <time class="pml-updated mt-0.5 shrink-0" data-pml-when="{{ card.id }}" datetime="" hidden></time>
         {% endif %}
-      </span>
-    </summary>
-    <div class="border-t border-slate-100 px-3 py-3 sm:px-5 sm:py-4 dark:border-zinc-800">
-      <div class="pml-body" data-pml="{{ card.id }}"></div>
-    </div>
-  </details>
+      </summary>
+      <div class="border-t border-slate-100 px-3 py-3 sm:px-5 sm:py-4 dark:border-zinc-800">
+        <div class="pml-body" data-pml="{{ card.id }}"></div>
+      </div>
+    </details>
+  </div>
   {% endfor %}
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=26"></script>
+<script src="/static/js/pm_lab.js?v=27"></script>
 {% endblock %}

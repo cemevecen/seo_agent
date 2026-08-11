@@ -10,7 +10,14 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.database import get_db
-from backend.services.pm_lab_store import ingest_pm_lab_payload, load_payload
+from backend.services.pm_lab_store import (
+    PM_LAB_REFRESH_JOBS,
+    claim_pm_lab_refresh,
+    enqueue_pm_lab_refresh,
+    ingest_pm_lab_payload,
+    load_payload,
+    pm_lab_refresh_status,
+)
 
 router = APIRouter(tags=["pm-lab"])
 
@@ -56,6 +63,7 @@ def pm_lab_state(db: Session = Depends(get_db)) -> dict[str, Any]:
         copy = dict(block)
         copy.pop("shots", None)
         slim[key] = copy
+    status = pm_lab_refresh_status(payload)
     return {
         "ok": True,
         "updated_at": payload.get("updated_at"),
@@ -63,7 +71,32 @@ def pm_lab_state(db: Session = Depends(get_db)) -> dict[str, Any]:
         "sync_ok": payload.get("sync_ok", True),
         "sync_message": payload.get("sync_message") or "",
         "sections": slim,
+        "queued": status["queued"],
+        "running": status["running"],
     }
+
+
+class PmLabRefreshBody(BaseModel):
+    job: str = ""
+
+
+@router.post("/pm-lab/refresh")
+def pm_lab_refresh(body: PmLabRefreshBody, db: Session = Depends(get_db)) -> dict[str, Any]:
+    job = str(body.job or "").strip()
+    if job not in PM_LAB_REFRESH_JOBS:
+        raise HTTPException(status_code=400, detail="unknown job")
+    return enqueue_pm_lab_refresh(db, job)
+
+
+@router.get("/pm-lab/claim-refresh")
+def pm_lab_claim_refresh(
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    job = claim_pm_lab_refresh(db)
+    return {"ok": True, "job": job or ""}
 
 
 @router.post("/pm-lab/ingest")

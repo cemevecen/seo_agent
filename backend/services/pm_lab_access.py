@@ -17,6 +17,8 @@ def is_pm_lab_path(path: str) -> bool:
     p = (path or "").split("?", 1)[0]
     if p == "/pm-lab" or p.startswith("/pm-lab/"):
         return True
-    if p.startswith("/api/pm-lab/") and not p.startswith("/api/pm-lab/ingest"):
+    if p.startswith("/api/pm-lab/"):
+        if p.startswith("/api/pm-lab/ingest") or p.startswith("/api/pm-lab/claim-refresh"):
+            return False
         return True
     return False

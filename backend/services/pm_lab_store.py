@@ -452,6 +452,62 @@ def _persist_payload(db: Session, payload: dict[str, Any]) -> None:
     db.commit()
 
 
+PM_LAB_REFRESH_JOBS = ("serp", "competitors", "store_charts", "google_news")
+
+
+def _refresh_job_ids(raw: Any) -> list[str]:
+    out: list[str] = []
+    if not isinstance(raw, list):
+        return out
+    for item in raw:
+        if isinstance(item, dict):
+            job = str(item.get("job") or "").strip()
+        else:
+            job = str(item or "").strip()
+        if job in PM_LAB_REFRESH_JOBS and job not in out:
+            out.append(job)
+    return out
+
+
+def enqueue_pm_lab_refresh(db: Session, job: str) -> dict[str, Any]:
+    job = str(job or "").strip()
+    if job not in PM_LAB_REFRESH_JOBS:
+        raise ValueError("unknown job")
+    row = _get_or_create(db)
+    data = _loads(row.payload_json)
+    queued = _refresh_job_ids(data.get("refresh_queue"))
+    if job not in queued:
+        queued.append(job)
+    now = datetime.now(timezone.utc).isoformat()
+    data["refresh_queue"] = [{"job": j, "requested_at": now} for j in queued]
+    row.payload_json = json.dumps(data, ensure_ascii=False)
+    db.commit()
+    return {"ok": True, "job": job, "queued": queued}
+
+
+def claim_pm_lab_refresh(db: Session) -> str | None:
+    row = _get_or_create(db)
+    data = _loads(row.payload_json)
+    queued = _refresh_job_ids(data.get("refresh_queue"))
+    if not queued:
+        return None
+    job = queued.pop(0)
+    now = datetime.now(timezone.utc).isoformat()
+    data["refresh_queue"] = [{"job": j, "requested_at": now} for j in queued]
+    data["refresh_running"] = job
+    row.payload_json = json.dumps(data, ensure_ascii=False)
+    db.commit()
+    return job
+
+
+def pm_lab_refresh_status(payload: dict[str, Any] | None) -> dict[str, Any]:
+    data = payload if isinstance(payload, dict) else {}
+    return {
+        "queued": _refresh_job_ids(data.get("refresh_queue")),
+        "running": str(data.get("refresh_running") or "").strip(),
+    }
+
+
 def _store_chart_comparable(old_apps: list[Any], new_apps: list[Any]) -> bool:
     """Skip Δ when the previous snapshot is a different slice (e.g. missing first 25)."""
     old_ids = [
@@ -646,6 +702,9 @@ def ingest_pm_lab_payload(db: Session, body: dict[str, Any]) -> dict[str, Any]:
 
     now = datetime.utcnow()
     existing["scraped_at"] = str(body.get("scraped_at") or now.isoformat())
+    running = str(existing.get("refresh_running") or "").strip()
+    if running and running in incoming:
+        existing["refresh_running"] = ""
     row.payload_json = json.dumps(existing, ensure_ascii=False)
     row.source = str(body.get("source") or "pm_lab_scrape")[:64]
     row.sync_ok = bool(body.get("sync_ok", True))

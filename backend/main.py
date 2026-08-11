@@ -1926,6 +1926,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/page-tarama/result",
         "/api/scrape-runs/report",
         "/api/pm-lab/ingest",
+        "/api/pm-lab/claim-refresh",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)

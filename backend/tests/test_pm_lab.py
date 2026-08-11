@@ -11,6 +11,8 @@ from backend.services.pm_lab_access import (
 from backend.services.pm_lab_store import (
     COMPETITORS_INTERVAL_MIN,
     SECTION_DEFS,
+    claim_pm_lab_refresh,
+    enqueue_pm_lab_refresh,
     format_pm_lab_when,
     ingest_pm_lab_payload,
     page_context,
@@ -27,7 +29,9 @@ def test_owner_emails_only():
 def test_paths():
     assert is_pm_lab_path("/pm-lab")
     assert is_pm_lab_path("/api/pm-lab/state")
+    assert is_pm_lab_path("/api/pm-lab/refresh")
     assert not is_pm_lab_path("/api/pm-lab/ingest")
+    assert not is_pm_lab_path("/api/pm-lab/claim-refresh")
 
 
 def test_live_sections():
@@ -153,7 +157,7 @@ def test_template_has_no_photos_and_js_shell():
     assert "pml-updated" in html
     assert "pml-refresh" in html
     assert "data-pml-refresh" in html
-    assert "sync-pm-lab?jobs=" in js
+    assert "/api/pm-lab/refresh" in js
     assert format_pm_lab_when("2026-08-11T15:26:00+00:00") == "11.08.2026 18:26"
 
 
@@ -338,6 +342,23 @@ def test_hydrate_store_icons_fills_missing(monkeypatch):
     assert store["icon_map"]["ios:465599322"].endswith("doviz.png")
 
 
+def test_enqueue_and_claim_pm_lab_refresh():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        while claim_pm_lab_refresh(db):
+            pass
+        out = enqueue_pm_lab_refresh(db, "google_news")
+        assert out["queued"] == ["google_news"]
+        enqueue_pm_lab_refresh(db, "google_news")
+        enqueue_pm_lab_refresh(db, "competitors")
+        assert claim_pm_lab_refresh(db) == "google_news"
+        assert claim_pm_lab_refresh(db) == "competitors"
+        assert claim_pm_lab_refresh(db) is None
+    finally:
+        db.close()
+
+
 def test_ios_lockup_id_uses_adam_id():
     import importlib.util
 
@@ -516,7 +537,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com rank:" in js
-    assert "pm_lab.js?v=26" in html
+    assert "pm_lab.js?v=27" in html
     assert COMPETITORS_INTERVAL_MIN == 10
     assert "fiyat " not in js
     assert "Fotoğraf yok" not in html
@@ -526,6 +547,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "run_pm_lab_competitors_once" in bridge
     assert "run_pm_lab_jobs_once" in bridge
     assert "PM_LAB_JOB_IDS" in bridge
+    assert "_pm_lab_claim_loop" in bridge
     assert 'enuygun: "Enuygun"' in js
     assert 'bloomberght: "Bloomberg"' in js
     assert 'tradingview: "Trading"' in js
