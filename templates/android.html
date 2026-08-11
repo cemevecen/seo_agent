@@ -468,6 +468,26 @@
     display: flex;
     align-items: stretch;
     align-self: stretch;
+    cursor: pointer;
+  }
+  .metric-kpi-ss2.is-chart-focus {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--kpi-color) 42%, transparent);
+  }
+  #pa-chart .chart-series-g {
+    transition: opacity 0.16s ease;
+  }
+  #pa-chart.is-series-focus .chart-series-g {
+    opacity: 0.14;
+  }
+  #pa-chart.is-series-focus .chart-series-g.is-focus {
+    opacity: 1;
+    filter: drop-shadow(0 1px 1.5px rgba(15, 23, 42, 0.22));
+  }
+  #pa-chart.is-series-focus .chart-series-g.is-focus path[stroke] {
+    stroke-width: 2.15;
+  }
+  #pa-chart.is-series-focus .chart-series-g.is-focus path[fill]:not([fill="none"]) {
+    fill-opacity: 0.42;
   }
   .metric-kpi-ss2 .metric-kpi-spark {
     width: 100%;
@@ -3275,6 +3295,7 @@
     if (style === "bar") {
       var stackList = seriesPts.map(function (sp) {
         return {
+          metric: sp.metric,
           color: overviewMetricColor(sp.metric),
           heights: keys.map(function (key) {
             if (!Object.prototype.hasOwnProperty.call(sp.map, key)) return 0;
@@ -3283,6 +3304,7 @@
         };
       }).concat(ovSeriesState.map(function (os) {
         return {
+          metric: os.metric,
           color: os.color,
           heights: keys.map(function (key) {
             if (!Object.prototype.hasOwnProperty.call(os.map, key)) return 0;
@@ -3299,17 +3321,17 @@
       );
     } else {
       pathsHtml = linePaths.map(function (lp, li) {
-        return buildSeriesStyleHtml(style, lp.pts, lp.color, baseY, {
+        return wrapChartSeriesG(lp.sp && lp.sp.metric, buildSeriesStyleHtml(style, lp.pts, lp.color, baseY, {
           strokeW: PA_STROKE_W,
           fillOpacity: pal.areaFill != null ? pal.areaFill : 0.16,
           showDots: false,
           seriesIndex: li,
           seriesCount: linePaths.length,
           slotWidth: barSlot
-        });
+        }));
       }).join("");
       ovPathsHtml = ovSeriesState.map(function (os, oi) {
-        return buildSeriesStyleHtml(style, os.pts, os.color, baseY, {
+        return wrapChartSeriesG(os.metric, buildSeriesStyleHtml(style, os.pts, os.color, baseY, {
           strokeW: PA_STROKE_W_OV,
           fillOpacity: paIsDark() ? 0.1 : 0.12,
           showDots: false,
@@ -3317,7 +3339,7 @@
           seriesIndex: linePaths.length + oi,
           seriesCount: linePaths.length + ovSeriesState.length,
           slotWidth: barSlot
-        });
+        }));
       }).join("");
     }
     var ovDotsHtml = "";
@@ -3362,6 +3384,7 @@
       xAxis.html +
       '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
+    applyPaChartSeriesFocus();
     var hit = paChart.querySelector("#pa-hit");
     function idxFromEvent(ev) {
       var rect = paChart.getBoundingClientRect();
@@ -3863,7 +3886,7 @@
           "</strong></div>";
       }
       return (
-        '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card>' +
+        '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
           '<div class="metric-kpi-ss2-head">' +
             '<span class="metric-kpi-chip truncate">' + esc(label) + "</span>" +
             infoBtn +
@@ -4080,6 +4103,40 @@
     for (var i = 1; i < pts.length; i++) d += " L" + pts[i].x.toFixed(1) + "," + pts[i].y.toFixed(1);
     return d;
   }
+  var paFocusedMetric = null;
+  function wrapChartSeriesG(metric, innerHtml) {
+    if (!innerHtml) return "";
+    return '<g class="chart-series-g" data-chart-series="' + esc(metric || "") + '">' + innerHtml + "</g>";
+  }
+  function setPaChartSeriesFocus(metric) {
+    paFocusedMetric = metric || null;
+    applyPaChartSeriesFocus();
+  }
+  function applyPaChartSeriesFocus() {
+    if (!paChart) return;
+    var metric = paFocusedMetric;
+    var groups = paChart.querySelectorAll("[data-chart-series]");
+    var has = false;
+    groups.forEach(function (g) {
+      var on = !!metric && g.getAttribute("data-chart-series") === metric;
+      g.classList.toggle("is-focus", on);
+      if (on) has = true;
+    });
+    paChart.classList.toggle("is-series-focus", has);
+    if (has) {
+      var focused = paChart.querySelector("[data-chart-series].is-focus");
+      var hit = paChart.querySelector("#pa-hit");
+      if (focused) {
+        if (hit) paChart.insertBefore(focused, hit);
+        else paChart.appendChild(focused);
+      }
+    }
+    if (paMetricKpis) {
+      paMetricKpis.querySelectorAll("[data-metric-kpi-card]").forEach(function (c) {
+        c.classList.toggle("is-chart-focus", !!metric && c.getAttribute("data-metric") === metric);
+      });
+    }
+  }
   /** Çoklu seri → yığınlı çubuk (tek path / seri) */
   function buildStackedBarsHtml(seriesList, xs, baseY, plotH, slotWidth) {
     var n = xs.length;
@@ -4114,9 +4171,11 @@
         cum[j] += h;
       }
       if (parts.length) {
-        html +=
+        html += wrapChartSeriesG(
+          ser.metric,
           '<path d="' + parts.join("") + '" fill="' + ser.color +
-          '" fill-opacity="0.88" shape-rendering="optimizeSpeed" />';
+          '" fill-opacity="0.88" shape-rendering="optimizeSpeed" />'
+        );
       }
     }
     return html;
@@ -5128,12 +5187,12 @@
         });
       }
       ovPathsHtml = overlaySeriesState.map(function (os, oi) {
-        return buildSeriesStyleHtml("bar", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
+        return wrapChartSeriesG(os.metric, buildSeriesStyleHtml("bar", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
           seriesIndex: 1 + oi,
           seriesCount: Math.max(1, 1 + overlaySeriesState.length),
           barOpacity: 0.75,
           slotWidth: barSlot
-        });
+        }));
       }).join("");
     } else if (style === "area") {
       primaryHtml = buildSeriesStyleHtml("area", curPts, PA_LINE_COLOR, baseYDraw, {
@@ -5149,10 +5208,10 @@
         }
       }
       ovPathsHtml = overlaySeriesState.map(function (os) {
-        return buildSeriesStyleHtml("area", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
+        return wrapChartSeriesG(os.metric, buildSeriesStyleHtml("area", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
           strokeW: PA_STROKE_W_OV,
           fillOpacity: paIsDark() ? 0.1 : 0.12
-        });
+        }));
       }).join("");
       if (n <= 40) {
         dots = curPts.map(function (p, i) {
@@ -5181,7 +5240,7 @@
       ovPathsHtml = overlaySeriesState.map(function (os) {
         var d = buildLinePath((os.pts || []).filter(Boolean));
         if (!d) return "";
-        return (
+        return wrapChartSeriesG(os.metric,
           '<path d="' + d + '" fill="none" stroke="' + os.color +
           '" stroke-width="' + PA_STROKE_W_OV + '" stroke-linecap="round" stroke-linejoin="round" />'
         );
@@ -5202,6 +5261,7 @@
         }).join("");
       }).join("");
     }
+    primaryHtml = wrapChartSeriesG(paPrimaryMetric(), primaryHtml);
 
     paChart.innerHTML =
       '<defs>' +
@@ -5224,6 +5284,7 @@
       xAxis.html +
       '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
+    applyPaChartSeriesFocus();
 
     var hit = paChart.querySelector("#pa-hit");
     function idxFromEvent(ev) {
@@ -5761,6 +5822,24 @@
     paMetricList.addEventListener("mousedown", function (ev) { ev.stopPropagation(); });
   }
   if (paMetricKpis) {
+    paMetricKpis.addEventListener("pointerover", function (ev) {
+      var card = ev.target && ev.target.closest ? ev.target.closest("[data-metric-kpi-card]") : null;
+      if (!card || !paMetricKpis.contains(card)) return;
+      if (ev.relatedTarget && card.contains(ev.relatedTarget)) return;
+      setPaChartSeriesFocus(card.getAttribute("data-metric"));
+    });
+    paMetricKpis.addEventListener("pointerout", function (ev) {
+      var card = ev.target && ev.target.closest ? ev.target.closest("[data-metric-kpi-card]") : null;
+      if (!card || !paMetricKpis.contains(card)) return;
+      var to = ev.relatedTarget && ev.relatedTarget.closest
+        ? ev.relatedTarget.closest("[data-metric-kpi-card]")
+        : null;
+      if (to && paMetricKpis.contains(to)) {
+        if (to !== card) setPaChartSeriesFocus(to.getAttribute("data-metric"));
+        return;
+      }
+      setPaChartSeriesFocus(null);
+    });
     paMetricKpis.addEventListener("click", function (ev) {
       if (ev.target && ev.target.closest && ev.target.closest("[data-pa-metric-info]")) {
         ev.preventDefault();

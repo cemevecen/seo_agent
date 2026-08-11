@@ -388,6 +388,26 @@
     display: flex;
     align-items: stretch;
     align-self: stretch;
+    cursor: pointer;
+  }
+  .metric-kpi-ss2.is-chart-focus {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--kpi-color) 42%, transparent);
+  }
+  #ia-chart .chart-series-g {
+    transition: opacity 0.16s ease;
+  }
+  #ia-chart.is-series-focus .chart-series-g {
+    opacity: 0.14;
+  }
+  #ia-chart.is-series-focus .chart-series-g.is-focus {
+    opacity: 1;
+    filter: drop-shadow(0 1px 1.5px rgba(15, 23, 42, 0.22));
+  }
+  #ia-chart.is-series-focus .chart-series-g.is-focus path[stroke] {
+    stroke-width: 2.15;
+  }
+  #ia-chart.is-series-focus .chart-series-g.is-focus path[fill]:not([fill="none"]) {
+    fill-opacity: 0.42;
   }
   .metric-kpi-ss2 .metric-kpi-spark {
     width: 100%;
@@ -1974,7 +1994,7 @@
       var dltCls = dlt == null ? "is-flat" : (dlt >= 0 ? "is-up" : "is-down");
       var dltTxt = dlt == null ? "—" : ((dlt >= 0 ? "↑ " : "↓ ") + Math.abs(dlt).toFixed(1) + "%");
       return (
-        '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card>' +
+        '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
           '<div class="metric-kpi-ss2-head">' +
             '<span class="metric-kpi-chip truncate">' + esc(label) + "</span>" +
             infoBtn +
@@ -2655,6 +2675,40 @@
     });
     return pts;
   }
+  var iaFocusedMetric = null;
+  function wrapIaChartSeriesG(metric, innerHtml) {
+    if (!innerHtml) return "";
+    return '<g class="chart-series-g" data-chart-series="' + esc(metric || "") + '">' + innerHtml + "</g>";
+  }
+  function setIaChartSeriesFocus(metric) {
+    iaFocusedMetric = metric || null;
+    applyIaChartSeriesFocus();
+  }
+  function applyIaChartSeriesFocus() {
+    if (!iaChart) return;
+    var metric = iaFocusedMetric;
+    var groups = iaChart.querySelectorAll("[data-chart-series]");
+    var has = false;
+    groups.forEach(function (g) {
+      var on = !!metric && g.getAttribute("data-chart-series") === metric;
+      g.classList.toggle("is-focus", on);
+      if (on) has = true;
+    });
+    iaChart.classList.toggle("is-series-focus", has);
+    if (has) {
+      var focused = iaChart.querySelector("[data-chart-series].is-focus");
+      var hit = iaChart.querySelector("#ia-hit");
+      if (focused) {
+        if (hit) iaChart.insertBefore(focused, hit);
+        else iaChart.appendChild(focused);
+      }
+    }
+    if (iaMetricKpis) {
+      iaMetricKpis.querySelectorAll("[data-metric-kpi-card]").forEach(function (c) {
+        c.classList.toggle("is-chart-focus", !!metric && c.getAttribute("data-metric") === metric);
+      });
+    }
+  }
   function buildIaStackedBarsHtml(seriesList, xs, baseY, plotH, slotWidth) {
     var n = xs.length;
     if (!n || !(seriesList || []).length) return "";
@@ -2688,9 +2742,11 @@
         cum[j] += h;
       }
       if (parts.length) {
-        html +=
+        html += wrapIaChartSeriesG(
+          ser.metric,
           '<path d="' + parts.join("") + '" fill="' + ser.color +
-          '" fill-opacity="0.88" shape-rendering="optimizeSpeed" />';
+          '" fill-opacity="0.88" shape-rendering="optimizeSpeed" />'
+        );
       }
     }
     return html;
@@ -2855,6 +2911,7 @@
       paths = buildIaStackedBarsHtml(
         seriesList.map(function (s) {
           return {
+            metric: s.metric,
             color: s.color,
             heights: keys.map(function (key) {
               if (!Object.prototype.hasOwnProperty.call(s.map, key)) return 0;
@@ -2869,13 +2926,13 @@
       );
     } else {
       paths = seriesList.map(function (s, si) {
-        return buildIaSeriesStyleHtml(style, s.pts, s.color, baseY, {
+        return wrapIaChartSeriesG(s.metric, buildIaSeriesStyleHtml(style, s.pts, s.color, baseY, {
           strokeW: STROKE,
           fillOpacity: fillOp,
           seriesIndex: si,
           seriesCount: seriesList.length,
           slotWidth: barSlot
-        });
+        }));
       }).join("");
     }
     var dots = seriesList.map(function (s, i) {
@@ -2900,6 +2957,7 @@
       xAxis.html +
       '<rect id="ia-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
+    applyIaChartSeriesFocus();
     bindIaChartHit(w, left, plotW, n);
   }
   function drawSingle(series, color) {
@@ -2967,13 +3025,13 @@
     var baseY = top + plotH;
     var pal = iaChartPalette();
     var pts = buildIaSeriesPts(keys, map, max, xs, top, plotH);
-    var seriesHtml = buildIaSeriesStyleHtml(style, pts, lineColor, baseY, {
+    var seriesHtml = wrapIaChartSeriesG(metric, buildIaSeriesStyleHtml(style, pts, lineColor, baseY, {
       strokeW: STROKE,
       fillOpacity: pal.areaFill != null ? pal.areaFill : 0.26,
       seriesIndex: 0,
       seriesCount: 1,
       slotWidth: n > 1 ? plotW / (n - 1) : plotW
-    });
+    }));
     iaChart.innerHTML =
       '<rect width="720" height="260" fill="transparent" />' +
       grid +
@@ -2984,6 +3042,7 @@
       xAxis.html +
       '<rect id="ia-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
+    applyIaChartSeriesFocus();
     if (iaLegend) iaLegend.innerHTML = "";
     iaLastDrawBundles = null;
     bindIaChartHit(w, left, plotW, n);
@@ -3360,6 +3419,24 @@
     iaMetricList.addEventListener("mousedown", function (ev) { ev.stopPropagation(); });
   }
   if (iaMetricKpis) {
+    iaMetricKpis.addEventListener("pointerover", function (ev) {
+      var card = ev.target && ev.target.closest ? ev.target.closest("[data-metric-kpi-card]") : null;
+      if (!card || !iaMetricKpis.contains(card)) return;
+      if (ev.relatedTarget && card.contains(ev.relatedTarget)) return;
+      setIaChartSeriesFocus(card.getAttribute("data-metric"));
+    });
+    iaMetricKpis.addEventListener("pointerout", function (ev) {
+      var card = ev.target && ev.target.closest ? ev.target.closest("[data-metric-kpi-card]") : null;
+      if (!card || !iaMetricKpis.contains(card)) return;
+      var to = ev.relatedTarget && ev.relatedTarget.closest
+        ? ev.relatedTarget.closest("[data-metric-kpi-card]")
+        : null;
+      if (to && iaMetricKpis.contains(to)) {
+        if (to !== card) setIaChartSeriesFocus(to.getAttribute("data-metric"));
+        return;
+      }
+      setIaChartSeriesFocus(null);
+    });
     iaMetricKpis.addEventListener("click", function (ev) {
       if (ev.target && ev.target.closest && ev.target.closest("[data-ia-metric-info]")) {
         ev.preventDefault();
