@@ -26,6 +26,18 @@
     return false;
   }
 
+  function isNestedVerticalScroller(el) {
+    for (var node = el; node && node !== document.body; node = node.parentElement) {
+      if (!node || node.nodeType !== 1) continue;
+      if (node.id === "app-shell" || node.id === "content" || node === document.documentElement) continue;
+      var st = window.getComputedStyle(node);
+      var oy = st.overflowY;
+      if (oy !== "auto" && oy !== "scroll" && oy !== "overlay") continue;
+      if (node.scrollHeight > node.clientHeight + 4 && node.scrollTop > 2) return true;
+    }
+    return false;
+  }
+
   function scrollTop() {
     return (
       window.scrollY ||
@@ -98,6 +110,7 @@
         if (ev.touches.length !== 1) return;
         if (scrollTop() > 2) return;
         if (isHorizontalScrollArea(ev.target)) return;
+        if (isNestedVerticalScroller(ev.target)) return;
         startY = ev.touches[0].clientY;
         pulling = true;
       },
@@ -119,7 +132,7 @@
         }
         setPull(dy);
         indicator.classList.add("pc-ptr-active");
-        if (dy > 12) ev.preventDefault();
+        if (dy > 12 && ev.cancelable) ev.preventDefault();
       },
       { passive: false }
     );
