@@ -1880,6 +1880,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/seo-audit/urls",
         "/api/seo-audit/progress",
         "/api/gsc-cwv/ingest",
+        "/api/market-quotes/ingest",
         "/api/scrape-runs/report",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):

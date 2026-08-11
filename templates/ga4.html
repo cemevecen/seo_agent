@@ -2924,7 +2924,10 @@
     document.addEventListener('seo-theme-change', relayoutGa4TrendChartsTheme);
   }
 
-  function ga4RerenderTrendChartsForMarket() {
+  function ga4RerenderTrendChartsForMarket(keys) {
+    if (window.SeoMarketOverlay && SeoMarketOverlay.setForcedModes && Array.isArray(keys)) {
+      SeoMarketOverlay.setForcedModes(keys);
+    }
     document.querySelectorAll('[data-ga4-kpi-trend]').forEach(function (el) {
       delete el.dataset.chartReady;
       if (window.Plotly) {

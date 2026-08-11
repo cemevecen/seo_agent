@@ -45,7 +45,9 @@
     payload: null,
     rangeKey: "",
     pending: null,
+    pendingKey: "",
   };
+  var forcedModes = null;
 
   function rootEl(controlId) {
     if (controlId) {
@@ -163,7 +165,25 @@
     return m.length ? m[0] : "";
   }
 
+  function setForcedModes(keys) {
+    forcedModes = Array.isArray(keys) ? keys.slice() : null;
+  }
+
+  function collectCheckedFromAnyPanel() {
+    var keys = [];
+    document.querySelectorAll("[data-market-overlay-panel] input[type=checkbox]:checked").forEach(function (cb) {
+      if (cb.value && keys.indexOf(cb.value) < 0) keys.push(cb.value);
+    });
+    return keys;
+  }
+
   function modes(controlId) {
+    if (forcedModes && forcedModes.length) {
+      return normalizeKeys(forcedModes);
+    }
+    if (Array.isArray(forcedModes) && forcedModes.length === 0) {
+      return [];
+    }
     var root = rootEl(controlId);
     if (!root) {
       var legacy = document.getElementById(controlId || "seo-market-overlay-mode");
@@ -171,12 +191,11 @@
         var v = legacy.value;
         return v ? [v] : [];
       }
-      return [];
-    }
-    if (root.dataset.marketOverlayBound === "1") {
-      return normalizeKeys(selectedFromDom(root));
+      var any = collectCheckedFromAnyPanel();
+      return normalizeKeys(any.length ? any : readStored(null));
     }
     var keys = selectedFromDom(root);
+    if (!keys.length) keys = collectCheckedFromAnyPanel();
     if (!keys.length) keys = readStored(root);
     return normalizeKeys(keys);
   }
@@ -224,6 +243,7 @@
     cache.payload = null;
     cache.rangeKey = "";
     cache.pending = null;
+    cache.pendingKey = "";
   }
 
   function pointsForSeries(payload, seriesKey) {
@@ -272,10 +292,11 @@
     if (cache.payload && cache.rangeKey === key) {
       return Promise.resolve(cache.payload);
     }
-    if (cache.pending) return cache.pending;
+    if (cache.pending && cache.pendingKey === key) return cache.pending;
     var p = new URLSearchParams();
     if (startIso) p.set("start", startIso);
     if (endIso) p.set("end", endIso);
+    cache.pendingKey = key;
     cache.pending = fetch("/api/market-quotes/overlay?" + p.toString(), { credentials: "same-origin" })
       .then(function (r) {
         if (!r.ok) throw new Error("Piyasa verisi alınamadı");
@@ -285,10 +306,12 @@
         cache.rangeKey = key;
         cache.payload = data;
         cache.pending = null;
+        cache.pendingKey = "";
         return data;
       })
       .catch(function (err) {
         cache.pending = null;
+        cache.pendingKey = "";
         throw err;
       });
     return cache.pending;
@@ -301,10 +324,18 @@
     return n ? "yaxis" + n : "yaxis";
   }
 
+  function ymdLocal(dt) {
+    if (!dt || isNaN(dt.getTime())) return "";
+    var y = dt.getFullYear();
+    var m = String(dt.getMonth() + 1).padStart(2, "0");
+    var day = String(dt.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
   function normalizeDateKey(d) {
     if (d == null || d === "") return "";
     if (typeof d === "number" && !isNaN(d)) {
-      return new Date(d).toISOString().slice(0, 10);
+      return ymdLocal(new Date(d));
     }
     var s = String(d).trim();
     if (/^\d{8}$/.test(s)) {
@@ -313,7 +344,7 @@
     if (s.length >= 10 && s.charAt(4) === "-") return s.slice(0, 10);
     var parsed = Date.parse(s);
     if (!isNaN(parsed)) {
-      return new Date(parsed).toISOString().slice(0, 10);
+      return ymdLocal(new Date(parsed));
     }
     return s.slice(0, 10);
   }
@@ -544,13 +575,31 @@
         var added = false;
         var colorIdx = 0;
         keys.forEach(function (sk) {
-          var block = series[sk];
-          if (!block) return;
+          var block = series[sk] || { label: OPTION_LABELS[sk] || sk, by_date: [] };
           var clos = closeMap(block);
+          var xs = dateKeys;
           var ys = dateKeys.map(function (d) {
             var k = normalizeDateKey(d);
-            return clos[k] != null ? clos[k] : null;
+            return clos[k] != null && !isNaN(clos[k]) ? clos[k] : null;
           });
+          var mappedHits = ys.some(function (v) {
+            return v != null;
+          });
+          if (!mappedHits) {
+            xs = [];
+            ys = [];
+            ((block && block.by_date) || []).forEach(function (pt) {
+              if (!pt || pt.date == null) return;
+              var d = normalizeDateKey(pt.date);
+              if (!d) return;
+              if (startIso && d < startIso) return;
+              if (endIso && d > endIso) return;
+              var v = Number(pt.close);
+              if (!Number.isFinite(v)) return;
+              xs.push(d);
+              ys.push(v);
+            });
+          }
           if (indexed) {
             var indexedYs = indexSeries(ys);
             if (!indexedYs) return;
@@ -564,10 +613,10 @@
               ? LINE_COLOR
               : SERIES_COLORS[colorIdx % SERIES_COLORS.length];
           colorIdx += 1;
-          var legendName = block.label + (indexed ? " %" : "");
+          var legendName = (block.label || OPTION_LABELS[sk] || sk) + (indexed ? " %" : "");
           var legendGroup = "seo_mkt_" + sk + (indexed ? "_i" : "");
           traces.push({
-            x: dateKeys,
+            x: xs,
             y: ys,
             type: "scatter",
             mode: "lines",
@@ -578,7 +627,7 @@
             line: { color: lineColor, width: 2 },
             connectgaps: false,
           });
-          marketGapBridgeTraces(dateKeys, ys, lineColor, yaxisId, legendGroup, legendName).forEach(function (bt) {
+          marketGapBridgeTraces(xs, ys, lineColor, yaxisId, legendGroup, legendName).forEach(function (bt) {
             traces.push(bt);
           });
           added = true;
@@ -614,7 +663,10 @@
         }
         return true;
       })
-      .catch(function () {
+      .catch(function (err) {
+        if (typeof console !== "undefined" && console.warn) {
+          console.warn("Piyasa overlay:", err);
+        }
         return false;
       });
   }
@@ -726,29 +778,35 @@
       });
     }
 
-    panelCheckboxes(root).forEach(function (cb) {
-      cb.addEventListener("change", function () {
-        if (cb.value === "all_indexed" && cb.checked) {
-          panelCheckboxes(root).forEach(function (other) {
-            if (other !== cb) other.checked = false;
-          });
-        } else if (cb.checked && cb.value !== "all_indexed") {
-          var allCb = panelForRoot(root);
-          allCb = allCb && allCb.querySelector('input[value="all_indexed"]');
-          if (allCb) allCb.checked = false;
-        }
-        var keys = normalizeKeys(selectedFromDom(root));
-        panelCheckboxes(root).forEach(function (box) {
-          box.checked = keys.indexOf(box.value) >= 0;
+    function commitSelection(fromBox) {
+      if (fromBox && fromBox.value === "all_indexed" && fromBox.checked) {
+        panelCheckboxes(root).forEach(function (other) {
+          if (other !== fromBox) other.checked = false;
         });
-        writeStored(root, keys);
-        updateTriggerLabel(root);
-        clearCache();
-        var cbFn =
-          (root && root._marketOverlayOnChange) ||
-          onChange ||
-          resolveMarketOverlayOnChange(root);
-        if (typeof cbFn === "function") cbFn(keys);
+      } else if (fromBox && fromBox.checked && fromBox.value !== "all_indexed") {
+        var allCb = panelForRoot(root);
+        allCb = allCb && allCb.querySelector('input[value="all_indexed"]');
+        if (allCb) allCb.checked = false;
+      }
+      var keys = normalizeKeys(selectedFromDom(root));
+      panelCheckboxes(root).forEach(function (box) {
+        box.checked = keys.indexOf(box.value) >= 0;
+      });
+      setForcedModes(keys);
+      writeStored(root, keys);
+      updateTriggerLabel(root);
+      clearCache();
+      var cbFn =
+        (root && root._marketOverlayOnChange) ||
+        onChange ||
+        resolveMarketOverlayOnChange(root);
+      if (typeof cbFn === "function") cbFn(keys);
+    }
+
+    panelCheckboxes(root).forEach(function (cb) {
+      cb.dataset.marketOverlayHasListener = "1";
+      cb.addEventListener("change", function () {
+        commitSelection(cb);
       });
     });
 
@@ -778,6 +836,27 @@
     if (panelForClicks) {
       panelForClicks.addEventListener("click", function (e) {
         e.stopPropagation();
+      });
+    }
+
+    if (!global.__seoMarketOverlayChangeDelegate) {
+      global.__seoMarketOverlayChangeDelegate = true;
+      document.addEventListener("change", function (ev) {
+        var t = ev.target;
+        if (!t || t.type !== "checkbox") return;
+        if (t.dataset && t.dataset.marketOverlayHasListener === "1") return;
+        var panel = t.closest("[data-market-overlay-panel]");
+        if (!panel) return;
+        var rid = panel.getAttribute("data-market-overlay-for");
+        var r = (rid && document.getElementById(rid)) || t.closest("[data-market-overlay-root]");
+        if (!r) return;
+        var keys = normalizeKeys(selectedFromDom(r));
+        setForcedModes(keys);
+        writeStored(r, keys);
+        updateTriggerLabel(r);
+        clearCache();
+        var fn = r._marketOverlayOnChange || resolveMarketOverlayOnChange(r);
+        if (typeof fn === "function") fn(keys);
       });
     }
   }
@@ -1080,6 +1159,7 @@
     OPTION_LABELS: OPTION_LABELS,
     mode: mode,
     modes: modes,
+    setForcedModes: setForcedModes,
     clearCache: clearCache,
     ensureOverlay: ensureOverlay,
     pointsForSeries: pointsForSeries,

@@ -59,6 +59,28 @@ _TR_MONTHS: dict[str, int] = {
     "aralik": 12,
     "aralık": 12,
     "ara": 12,
+    "january": 1,
+    "jan": 1,
+    "february": 2,
+    "feb": 2,
+    "march": 3,
+    "april": 4,
+    "apr": 4,
+    "may": 5,
+    "june": 6,
+    "jun": 6,
+    "july": 7,
+    "jul": 7,
+    "august": 8,
+    "aug": 8,
+    "september": 9,
+    "sep": 9,
+    "october": 10,
+    "oct": 10,
+    "november": 11,
+    "nov": 11,
+    "december": 12,
+    "dec": 12,
 }
 
 
@@ -248,7 +270,15 @@ def parse_archive_payload(payload: Any) -> list[dict[str, Any]]:
             continue
         close = point.get("close")
         if close is None:
-            close = point.get("value") or point.get("last") or point.get("price")
+            close = (
+                point.get("value")
+                or point.get("last")
+                or point.get("price")
+                or point.get("ask")
+                or point.get("selling")
+                or point.get("satis")
+                or point.get("close_price")
+            )
         try:
             close_f = float(close) if close is not None else None
         except (TypeError, ValueError):
@@ -291,6 +321,10 @@ def parse_historical_table_matrix(
             col["kapanis"] = j
         elif "son" in h and "deger" in h:
             col.setdefault("kapanis", j)
+        elif h.startswith("satis") or h in ("ask", "selling", "sat"):
+            col.setdefault("kapanis", j)
+        elif h.startswith("alis") or h in ("bid", "buying"):
+            col.setdefault("acilis", j)
         elif h in ("son", "kapanis", "close", "fiyat"):
             col.setdefault("kapanis", j)
     if "tarih" not in col or "kapanis" not in col:

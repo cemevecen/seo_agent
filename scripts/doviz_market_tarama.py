@@ -147,13 +147,13 @@ def _set_date_inputs(page: Any, start_iso: str, end_iso: str) -> None:
 
 
 def _click_tablo(page: Any) -> bool:
+    # Bitcoin /tarihsel-veri: "Tarihsel Veri" bir nav link — tıklama sayfayı yeniler.
     locators = (
         "li.historical-data-filter",
         ".chart-time-filter.historical-data-filter",
         "li.chart-time-filter:has-text('Tablo')",
         "button:has-text('Tablo')",
-        "a:has-text('Tablo')",
-        "a:has-text('Tarihsel Veri')",
+        "a.chart-time-filter:has-text('Tablo')",
     )
     for sel in locators:
         try:
@@ -166,20 +166,103 @@ def _click_tablo(page: Any) -> bool:
     return False
 
 
+def _reveal_historical(page: Any) -> None:
+    try:
+        page.evaluate(
+            """() => {
+              document.querySelectorAll('.historical-data').forEach((el) => {
+                el.classList.remove('hide', 'hidden');
+                el.style.display = '';
+              });
+            }"""
+        )
+    except Exception:
+        return
+
+
+def _archive_unix_range(start_iso: str, end_iso: str) -> tuple[int, int]:
+    start_d = date.fromisoformat(start_iso)
+    end_d = date.fromisoformat(end_iso)
+    start_ts = int(datetime(start_d.year, start_d.month, start_d.day, tzinfo=TR_TZ).timestamp())
+    end_ts = int(datetime(end_d.year, end_d.month, end_d.day, 23, 59, 59, tzinfo=TR_TZ).timestamp())
+    return start_ts, end_ts
+
+
+def _page_asset_meta(page: Any) -> dict[str, str]:
+    try:
+        meta = page.evaluate(
+            """() => {
+              const prefix = (typeof apiPrefix !== 'undefined' && apiPrefix)
+                ? String(apiPrefix) : 'https://api.doviz.com/api/v12';
+              let key = (typeof historicalDataAssetKey !== 'undefined' && historicalDataAssetKey)
+                ? String(historicalDataAssetKey) : '';
+              if (!key && typeof apiInfo !== 'undefined' && Array.isArray(apiInfo) && apiInfo[0]) {
+                key = String(apiInfo[0].assetKey || '');
+              }
+              return { prefix, key };
+            }"""
+        )
+    except Exception:
+        return {}
+    if not isinstance(meta, dict):
+        return {}
+    return {
+        "prefix": str(meta.get("prefix") or "").rstrip("/"),
+        "key": str(meta.get("key") or "").strip(),
+    }
+
+
+def _fetch_archive_api(page: Any, start_iso: str, end_iso: str) -> dict[str, Any] | None:
+    """Tarayıcı oturumu ile api.doviz.com arşiv JSON (CORS yok; çeyrek/bitcoin Tablo'suz)."""
+    meta = _page_asset_meta(page)
+    key = meta.get("key") or ""
+    prefix = meta.get("prefix") or ""
+    if not key or not prefix:
+        return None
+    start_ts, end_ts = _archive_unix_range(start_iso, end_iso)
+    url = f"{prefix}/assets/{key}/archive?start={start_ts}&end={end_ts}"
+    try:
+        resp = page.request.get(
+            url,
+            timeout=45000,
+            headers={
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "Referer": page.url or "",
+            },
+        )
+        if resp.status != 200:
+            return None
+        body = resp.json()
+        return body if isinstance(body, dict) else None
+    except Exception:
+        return None
+
+
 def _read_table_matrix(page: Any) -> tuple[list[str], list[list[str]]]:
     try:
         data = page.evaluate(
             """() => {
-              const table = document.querySelector('.historical-data table')
-                || document.querySelector('table');
-              if (!table) return { headers: [], rows: [] };
-              const headers = [...table.querySelectorAll('thead th, thead td')].map(
-                (el) => (el.innerText || '').trim()
-              );
-              const rows = [...table.querySelectorAll('tbody tr')].map((tr) =>
-                [...tr.querySelectorAll('td')].map((td) => (td.innerText || '').trim())
-              );
-              return { headers, rows };
+              const tables = [...document.querySelectorAll('.historical-data table, table')];
+              const scored = tables.map((table) => {
+                const headers = [...table.querySelectorAll('thead th, thead td')].map(
+                  (el) => (el.innerText || '').trim()
+                );
+                const rows = [...table.querySelectorAll('tbody tr')].map((tr) =>
+                  [...tr.querySelectorAll('td')].map((td) => (td.innerText || '').trim())
+                );
+                const h = headers.join(' ').toLowerCase();
+                let score = 0;
+                if (table.closest('.historical-data')) score += 5;
+                if (h.includes('tarih')) score += 4;
+                if (h.includes('kapan') || h.includes('son değer') || h.includes('son deger') || h.includes('satış') || h.includes('satis')) score += 3;
+                if (h.includes('banka')) score -= 8;
+                if (!rows.length) score -= 2;
+                return { headers, rows, score };
+              }).filter((t) => t.headers.length);
+              scored.sort((a, b) => b.score - a.score);
+              const best = scored[0];
+              if (!best || best.score < 1) return { headers: [], rows: [] };
+              return { headers: best.headers, rows: best.rows };
             }"""
         )
     except Exception:
@@ -230,41 +313,50 @@ def tarama_series(page: Any, spec: Any, *, start_iso: str, end_iso: str) -> dict
         page.wait_for_timeout(600)
         _click_tablo(page)
         page.wait_for_timeout(800)
+        _reveal_historical(page)
         _dismiss_overlays(page)
         try:
             page.locator(".historical-data, .load-historical-data").first.wait_for(
-                state="visible", timeout=10000
+                state="attached", timeout=10000
             )
         except Exception:
             pass
         _set_date_inputs(page, start_iso, end_iso)
         page.wait_for_timeout(400)
-        before = len(archive_hits)
-        clicked = False
-        for sel in (".load-historical-data", "button:has-text('Verileri Getir')"):
-            try:
-                loc = page.locator(sel).first
-                if loc.count():
-                    loc.click(timeout=5000, force=True)
-                    clicked = True
-                    break
-            except Exception:
-                continue
-        if clicked:
-            deadline = time.time() + 25
-            while time.time() < deadline:
-                if len(archive_hits) > before:
-                    break
-                page.wait_for_timeout(400)
-        page.wait_for_timeout(800)
 
         parsed: list[dict[str, Any]] = []
         source = ""
-        for hit in reversed(archive_hits):
-            parsed = parse_archive_payload(hit)
+        api_hit = _fetch_archive_api(page, start_iso, end_iso)
+        if api_hit:
+            parsed = parse_archive_payload(api_hit)
             if parsed:
-                source = "archive"
-                break
+                source = "archive-api"
+                archive_hits.append(api_hit)
+
+        before = len(archive_hits)
+        if not parsed:
+            clicked = False
+            for sel in (".load-historical-data", "button:has-text('Verileri Getir')"):
+                try:
+                    loc = page.locator(sel).first
+                    if loc.count():
+                        loc.click(timeout=5000, force=True)
+                        clicked = True
+                        break
+                except Exception:
+                    continue
+            if clicked:
+                deadline = time.time() + 25
+                while time.time() < deadline:
+                    if len(archive_hits) > before:
+                        break
+                    page.wait_for_timeout(400)
+            page.wait_for_timeout(800)
+            for hit in reversed(archive_hits):
+                parsed = parse_archive_payload(hit)
+                if parsed:
+                    source = "archive"
+                    break
         if not parsed:
             headers, matrix = _read_table_matrix(page)
             parsed = parse_historical_table_matrix(headers, matrix)

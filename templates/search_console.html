@@ -2447,7 +2447,10 @@
     });
   }
 
-  function scRerenderTrendChartsForMarket() {
+  function scRerenderTrendChartsForMarket(keys) {
+    if (window.SeoMarketOverlay && SeoMarketOverlay.setForcedModes && Array.isArray(keys)) {
+      SeoMarketOverlay.setForcedModes(keys);
+    }
     document.querySelectorAll('[data-search-console-trend]').forEach(function (el) {
       delete el.dataset.chartReady;
       if (window.Plotly) {

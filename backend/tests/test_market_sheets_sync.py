@@ -75,6 +75,21 @@ def test_parse_historical_table_open_close():
     assert rows[0]["close_price"] == 6711.16
 
 
+def test_parse_historical_table_alis_satis():
+    rows = parse_historical_table_matrix(
+        ["Tarih", "Alış", "Satış"],
+        [["11 Ağustos 2026", "10.572,98", "10.816,63"]],
+    )
+    assert len(rows) == 1
+    assert rows[0]["open_price"] == 10572.98
+    assert rows[0]["close_price"] == 10816.63
+
+
+def test_parse_tr_date_english_month():
+    assert _parse_tr_date_cell("11 August 2026") == date(2026, 8, 11)
+    assert _parse_tr_date_cell("10 Aug 2026") == date(2026, 8, 10)
+
+
 def test_parse_archive_payload():
     payload = {
         "data": {
@@ -87,3 +102,16 @@ def test_parse_archive_payload():
     assert len(rows) == 1
     assert rows[0]["close_price"] == 2984.70
     assert rows[0]["open_price"] == 2983.35
+
+
+def test_parse_archive_payload_ask_as_close():
+    payload = {
+        "data": {
+            "archive": {
+                "a": {"update_date": 1735689600, "ask": 10816.63},
+            }
+        }
+    }
+    rows = parse_archive_payload(payload)
+    assert len(rows) == 1
+    assert rows[0]["close_price"] == 10816.63
