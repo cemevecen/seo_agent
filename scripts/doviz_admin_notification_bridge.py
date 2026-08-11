@@ -10,6 +10,7 @@ Tek sefer (ikisi):
 
 Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
+  Play/ASC Chrome oturumu açık kalır (CDP); giriş uyarısı maili yok.
 
   POST /sync       → notification (30 dk)
   POST /sync-news  → news (1 saat)
@@ -352,6 +353,23 @@ def _notify_auto_failure(
     if last and (now - last) < cooldown:
         left = int(cooldown - (now - last))
         print(f"Bridge alert cooldown ({kind}) · ~{left}s", flush=True)
+        return
+    if isinstance(result, dict) and result.get("needs_login"):
+        print(
+            f"Bridge alert atlandı ({kind} oturum) — kalıcı Chrome açık; "
+            f"pencerede bir kez giriş yeterli. {msg[:160]}",
+            flush=True,
+        )
+        return
+    loginish = any(
+        tok in msg.lower()
+        for tok in ("needs_login", "login gerekli", "oturum", "giriş", "giris", "sign in")
+    )
+    if kind in ("play", "asc", "notification", "firebase") and loginish:
+        print(
+            f"Bridge alert atlandı ({kind} giriş) — oturum bekçi / çerez. {msg[:160]}",
+            flush=True,
+        )
         return
     labels = {
         "notification": "Notification (/notification)",
@@ -2445,6 +2463,13 @@ def _auto_loop() -> None:
 
 def run_daemon() -> int:
     _load_dotenv()
+    try:
+        from backend.services.store_session_cdp import start_keeper_threads
+
+        start_keeper_threads()
+        print("Oturum bekçi: Play Console + App Store Connect Chrome açık kalacak", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"Oturum bekçi başlatılamadı: {exc}", flush=True)
     threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), _BridgeHandler)
     print(

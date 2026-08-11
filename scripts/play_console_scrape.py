@@ -682,35 +682,25 @@ def _clear_profile_singleton_locks(profile_dir: Path) -> None:
             pass
 
 
-def _launch_context(*, headed: bool):
-    from playwright.sync_api import sync_playwright
+_CDP_ATTACHED: set[int] = set()
 
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    # Alive Chromium on the same user-data-dir blocks relaunch and can leave the
-    # bridge thread stuck with a running asyncio loop → Sync API errors on retry.
-    killed = _kill_stale_profile_browsers(PROFILE_DIR)
-    if killed:
-        print(f"Play profile: {killed} stale browser process sonlandırıldı", flush=True)
-    _clear_profile_singleton_locks(PROFILE_DIR)
-    pw = sync_playwright().start()
-    channel = (os.environ.get("PLAY_CONSOLE_BROWSER_CHANNEL") or "chrome").strip()
-    launch_kwargs: dict[str, Any] = {
-        "user_data_dir": str(PROFILE_DIR),
-        "headless": not headed,
-        "viewport": {"width": 1440, "height": 1100},
-        "locale": "tr-TR",
-        "accept_downloads": True,
-        "args": ["--disable-blink-features=AutomationControlled"],
-    }
-    # Bundled Chromium can crash on newer macOS; system Chrome is more stable.
-    if channel and channel.lower() not in ("0", "none", "chromium"):
-        launch_kwargs["channel"] = channel
-    try:
-        context = pw.chromium.launch_persistent_context(**launch_kwargs)
-    except Exception:
-        launch_kwargs.pop("channel", None)
-        context = pw.chromium.launch_persistent_context(**launch_kwargs)
+
+def _launch_context(*, headed: bool):
+    from backend.services.store_session_cdp import attach_or_launch
+
+    pw, context, attached = attach_or_launch("play", headed=headed)
+    if attached:
+        _CDP_ATTACHED.add(id(context))
+        print("Play: kalıcı Chrome’a bağlandı (CDP)", flush=True)
     return pw, context
+
+
+def _release_context(pw, context) -> None:
+    from backend.services.store_session_cdp import release_browser
+
+    attached = id(context) in _CDP_ATTACHED
+    _CDP_ATTACHED.discard(id(context))
+    release_browser(pw, context, attached=attached)
 
 
 def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
@@ -750,14 +740,7 @@ def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
             "profile": str(PROFILE_DIR),
         }
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context)
 
 
 def _attach_network_capture(page, bag: list[dict[str, Any]]) -> None:
@@ -4733,14 +4716,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "raw_network": network[-10:],
         }
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context)
 
 
 def scrape_vitals_only(*, headed: bool | None = None) -> dict[str, Any]:
@@ -4814,14 +4790,7 @@ def scrape_vitals_only(*, headed: bool | None = None) -> dict[str, Any]:
             "panels": {},
         }
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context)
 
 
 def scrape_reviews_only(*, headed: bool | None = None) -> dict[str, Any]:
@@ -4911,14 +4880,7 @@ def scrape_reviews_only(*, headed: bool | None = None) -> dict[str, Any]:
             "merge_reviews": False,
         }
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context)
 
 
 def scrape_ratings_dist_only(*, headed: bool | None = None) -> dict[str, Any]:
@@ -4980,14 +4942,7 @@ def scrape_ratings_dist_only(*, headed: bool | None = None) -> dict[str, Any]:
             "merge_ratings_counts": False,
         }
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context)
 
 
 def _snapshot_cache_path() -> Path:

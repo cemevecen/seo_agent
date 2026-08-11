@@ -6,11 +6,13 @@ Developer API gerekmez: DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD ile giriş yap�
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from html import unescape
+from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -37,6 +39,10 @@ _BASE_PATH_STRIP = (
 )
 
 _TAG_RE = re.compile(r"<[^>]+>", re.I)
+_ADMIN_COOKIE_JAR = Path(
+    os.environ.get("DOVIZ_ADMIN_COOKIE_JAR")
+    or str(Path.home() / ".seo-agent" / "doviz-admin-cookies.json")
+).expanduser()
 _TR_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.I | re.S)
 _TH_RE = re.compile(r"<th[^>]*>(.*?)</th>", re.I | re.S)
 _TD_RE = re.compile(r"<td[^>]*>(.*?)</td>", re.I | re.S)
@@ -216,6 +222,65 @@ def _has_login_form(html: str) -> bool:
     return 'name="password"' in low and ('name="email"' in low or 'id="email"' in low)
 
 
+def _admin_cookie_jar_path() -> Path:
+    return Path(
+        os.environ.get("DOVIZ_ADMIN_COOKIE_JAR") or str(_ADMIN_COOKIE_JAR)
+    ).expanduser()
+
+
+def _save_admin_cookies(sess: requests.Session) -> None:
+    path = _admin_cookie_jar_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        records = []
+        for cookie in sess.cookies:
+            records.append(
+                {
+                    "name": cookie.name,
+                    "value": cookie.value,
+                    "domain": cookie.domain,
+                    "path": cookie.path or "/",
+                    "secure": bool(cookie.secure),
+                }
+            )
+        path.write_text(
+            json.dumps(
+                {
+                    "saved_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+                    "cookies": records,
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.info("Admin çerez kaydı atlandı: %s", exc)
+
+
+def _load_admin_cookies(sess: requests.Session) -> bool:
+    path = _admin_cookie_jar_path()
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        records = data.get("cookies") if isinstance(data, dict) else None
+        if not isinstance(records, list) or not records:
+            return False
+        for row in records:
+            if not isinstance(row, dict) or not row.get("name"):
+                continue
+            sess.cookies.set(
+                str(row.get("name")),
+                str(row.get("value") or ""),
+                domain=str(row.get("domain") or "") or None,
+                path=str(row.get("path") or "/") or "/",
+            )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.info("Admin çerez okunamadı: %s", exc)
+        return False
+
+
 def login_admin_session(
     *,
     email: str | None = None,
@@ -245,6 +310,10 @@ def login_admin_session(
         }
     )
     _apply_admin_proxy(sess)
+
+    if _load_admin_cookies(sess) and _session_seems_authenticated(sess):
+        LOGGER.info("Admin oturumu kayıtlı çerezden yüklendi (yeniden giriş yok)")
+        return sess
 
     # Proxy yoksa kısa timeout — Railway’de 404’te hızla sheet’e düşülsün
     get_timeout = timeout if admin_http_proxy() else min(timeout, 12)
@@ -392,6 +461,7 @@ def login_admin_session(
                 + ". Railway’de DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD "
                 "ve DOVIZ_ADMIN_BASE_URL=https://www.doviz.com değerlerini kontrol edin."
             )
+    _save_admin_cookies(sess)
     return sess
 
 

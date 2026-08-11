@@ -152,3 +152,20 @@ def test_login_ignores_404_landing_when_stats_ok():
         sess = login_admin_session()
         assert sess is not None
         assert sess.cookies.get("session") == "1"
+
+
+def test_admin_cookie_jar_roundtrip(tmp_path, monkeypatch):
+    from backend.services.doviz_notification_admin import (
+        _load_admin_cookies,
+        _save_admin_cookies,
+    )
+
+    jar = tmp_path / "admin-cookies.json"
+    monkeypatch.setenv("DOVIZ_ADMIN_COOKIE_JAR", str(jar))
+    sess = requests.Session()
+    sess.cookies.set("doviz_session", "abc", domain="www.doviz.com", path="/")
+    _save_admin_cookies(sess)
+    assert jar.is_file()
+    sess2 = requests.Session()
+    assert _load_admin_cookies(sess2) is True
+    assert sess2.cookies.get("doviz_session") == "abc"

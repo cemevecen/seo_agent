@@ -254,35 +254,29 @@ def _wait_for_asc_session(page, ctx, *, timeout_sec: int = 600) -> bool:
     return False
 
 
-def _launch_context(*, headed: bool):
-    from playwright.sync_api import sync_playwright
+_CDP_ATTACHED: set[int] = set()
 
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
-        try:
-            (PROFILE_DIR / name).unlink(missing_ok=True)
-        except Exception:
-            pass
-    pw = sync_playwright().start()
-    channel = (os.environ.get("ASC_CONSOLE_BROWSER_CHANNEL") or "chrome").strip()
-    launch_kwargs: dict[str, Any] = {
-        "user_data_dir": str(PROFILE_DIR),
-        "headless": not headed,
-        "viewport": {"width": 1440, "height": 1100},
-        "locale": "tr-TR",
-        "accept_downloads": True,
-        # ASC SW /analytics/api/* → index.html shell; Playwright request + XHR kırılıyor
-        "service_workers": "block",
-        "args": ["--disable-blink-features=AutomationControlled"],
-    }
-    if channel and channel.lower() not in ("0", "none", "chromium"):
-        launch_kwargs["channel"] = channel
-    try:
-        ctx = pw.chromium.launch_persistent_context(**launch_kwargs)
-    except TypeError:
-        launch_kwargs.pop("service_workers", None)
-        ctx = pw.chromium.launch_persistent_context(**launch_kwargs)
+
+def _launch_context(*, headed: bool):
+    from backend.services.store_session_cdp import attach_or_launch
+
+    pw, ctx, attached = attach_or_launch(
+        "asc",
+        headed=headed,
+        extra_kwargs={"service_workers": "block"},
+    )
+    if attached:
+        _CDP_ATTACHED.add(id(ctx))
+        print("ASC: kalıcı Chrome’a bağlandı (CDP)", flush=True)
     return pw, ctx
+
+
+def _release_context(pw, ctx) -> None:
+    from backend.services.store_session_cdp import release_browser
+
+    attached = id(ctx) in _CDP_ATTACHED
+    _CDP_ATTACHED.discard(id(ctx))
+    release_browser(pw, ctx, attached=attached)
 
 
 def run_login_interactive() -> None:
@@ -303,14 +297,7 @@ def run_login_interactive() -> None:
         if not ok:
             return
     finally:
-        try:
-            ctx.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, ctx)
 
 
 def _normalize_date(v: Any) -> str | None:
@@ -1312,14 +1299,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             "raw_network": [],
         }
     finally:
-        try:
-            ctx.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, ctx)
 
 
 def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
