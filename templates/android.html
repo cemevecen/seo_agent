@@ -1272,6 +1272,8 @@
       </label>
       <label class="pa-f pa-f--sm">Preset
         <select id="pa-preset">
+          <option value="yesterday">Dün</option>
+          <option value="3">Son 3 gün</option>
           <option value="7">Son 1 hafta</option>
           <option value="14">Son 2 hafta</option>
           <option value="30" selected>Son 1 ay</option>
@@ -3915,8 +3917,14 @@
     opts = opts || {};
     var end = new Date();
     var start = new Date();
-    var days = parseInt((paPreset && paPreset.value) || "30", 10) || 30;
-    start.setDate(end.getDate() - (days - 1));
+    var raw = (paPreset && paPreset.value) || "30";
+    if (raw === "yesterday") {
+      end.setDate(end.getDate() - 1);
+      start = new Date(end.getTime());
+    } else {
+      var days = parseInt(raw, 10) || 30;
+      start.setDate(end.getDate() - (days - 1));
+    }
     paEnd.value = isoDate(end);
     paStart.value = isoDate(start);
     var shell = document.getElementById("pa-table-shell");

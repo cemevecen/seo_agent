@@ -1071,6 +1071,8 @@
       <label class="pa-f pa-f--date">Bitiş <input id="ia-end" type="date" /></label>
       <label class="pa-f pa-f--sm">Preset
         <select id="ia-preset">
+          <option value="yesterday">Dün</option>
+          <option value="3">Son 3 gün</option>
           <option value="7">Son 1 hafta</option>
           <option value="14">Son 2 hafta</option>
           <option value="30" selected>Son 1 ay</option>
@@ -1793,8 +1795,14 @@
   function applyPreset() {
     var end = new Date();
     var start = new Date();
-    var days = parseInt((iaPreset && iaPreset.value) || "30", 10) || 30;
-    start.setDate(end.getDate() - (days - 1));
+    var raw = (iaPreset && iaPreset.value) || "30";
+    if (raw === "yesterday") {
+      end.setDate(end.getDate() - 1);
+      start = new Date(end.getTime());
+    } else {
+      var days = parseInt(raw, 10) || 30;
+      start.setDate(end.getDate() - (days - 1));
+    }
     iaEnd.value = isoDate(end);
     iaStart.value = isoDate(start);
     var shell = document.getElementById("ia-table-shell");
