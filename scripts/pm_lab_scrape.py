@@ -740,10 +740,11 @@ def _matches_query(blob: str, query: str) -> bool:
 def _filter_query_rows(rows: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for row in rows:
-        blob = " ".join(
-            str(row.get(k) or "")
-            for k in ("title", "text", "excerpt", "url", "author", "meta")
-        )
+        url = str(row.get("url") or "")
+        blob = " ".join(str(row.get(k) or "") for k in ("title", "text", "url", "author"))
+        if "/status/" in url and ("x.com/" in url or "twitter.com/" in url):
+            out.append(row)
+            continue
         if _matches_query(blob, query):
             out.append(row)
     return out
@@ -791,7 +792,7 @@ def _harvest_host_results(page: Any, *, hosts: tuple[str, ...], limit: int = 10)
                 const snippet = ((block && block.innerText) || title).trim().replace(/\\s+/g, ' ');
                 out.push({
                   title: title.slice(0, 180),
-                  text: snippet.slice(0, 700),
+                  text: title.slice(0, 700),
                   excerpt: snippet.slice(0, 420),
                   author: '',
                   date: '',
@@ -859,6 +860,19 @@ def _web_search_mentions(
     return final, collected[:limit]
 
 
+def _sikayet_complaint_url(url: str, *, brand_slug: str = "") -> bool:
+    try:
+        path = urllib.parse.urlparse(url).path.strip("/")
+    except Exception:
+        return False
+    parts = [p for p in path.split("/") if p]
+    if len(parts) < 2 or len(parts[-1]) < 20:
+        return False
+    if brand_slug and parts[0].lower() not in {brand_slug.lower(), brand_slug.replace("com", "").lower()}:
+        return False
+    return True
+
+
 def _sikayet_extract(page: Any, *, query: str = "", limit: int = 10) -> list[dict[str, Any]]:
     try:
         rows = page.evaluate(
@@ -893,6 +907,8 @@ def _sikayet_extract(page: Any, *, query: str = "", limit: int = 10) -> list[dic
             limit,
         )
         rows = rows if isinstance(rows, list) else []
+        slug = query.replace(".", "")
+        rows = [r for r in rows if _sikayet_complaint_url(str(r.get("url") or ""), brand_slug=slug)]
         return _filter_query_rows(rows, query)[:limit]
     except Exception:
         return []
@@ -980,21 +996,28 @@ def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, lis
     ]
     final = urls[0]
     items: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for url in urls:
         try:
             _goto(page, url, timeout=70_000)
-            page.wait_for_timeout(2500)
+            page.wait_for_timeout(2200)
             try:
-                page.wait_for_selector("a[href]", timeout=8000)
+                page.mouse.wheel(0, 2800)
+                page.wait_for_timeout(700)
             except Exception:
                 pass
             final = page.url
-            items = _sikayet_extract(page, query=query, limit=limit)
-            if items:
+            for row in _sikayet_extract(page, query=query, limit=limit):
+                key = str(row.get("url") or "")[:120]
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                items.append(row)
+            if len(items) >= limit:
                 break
         except Exception:
             continue
-    if len(items) < 3:
+    if len(items) < limit:
         web_url, extra = _web_search_mentions(
             page,
             query,
@@ -1002,9 +1025,13 @@ def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, lis
             site_query="site:sikayetvar.com",
             limit=limit,
         )
-        seen = {str(x.get("url") or "")[:80] for x in items}
         for row in extra:
-            key = str(row.get("url") or "")[:80]
+            href = str(row.get("url") or "")
+            if not _sikayet_complaint_url(href, brand_slug=compact):
+                continue
+            if not _filter_query_rows([row], query):
+                continue
+            key = href[:120]
             if not key or key in seen:
                 continue
             seen.add(key)
@@ -1013,48 +1040,11 @@ def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, lis
                 break
         if extra:
             final = web_url or final
-    profiles: list[str] = []
-    compact = query.replace(".", "")
-    if compact:
-        profiles.append(f"https://www.sikayetvar.com/{compact}")
-    for row in items:
-        href = str(row.get("url") or "")
-        try:
-            path = urllib.parse.urlparse(href).path.strip("/")
-        except Exception:
-            continue
-        parts = [p for p in path.split("/") if p]
-        if len(parts) == 1 and "sikayetvar.com" in href:
-            profiles.append(href.split("?")[0])
-    complaint_items = [
+    items = [
         row
         for row in items
-        if len([p for p in urllib.parse.urlparse(str(row.get("url") or "")).path.split("/") if p]) >= 2
+        if _sikayet_complaint_url(str(row.get("url") or ""), brand_slug=compact)
     ]
-    if len(complaint_items) < 3:
-        for purl in profiles[:3]:
-            try:
-                _goto(page, purl, timeout=70_000)
-                page.wait_for_timeout(2200)
-                extra_prof = _sikayet_extract(page, query=query, limit=limit)
-                if extra_prof:
-                    final = page.url or final
-                seen = {str(x.get("url") or "")[:80] for x in complaint_items}
-                for row in extra_prof:
-                    key = str(row.get("url") or "")[:80]
-                    if not key or key in seen:
-                        continue
-                    seen.add(key)
-                    complaint_items.append(row)
-                    if len(complaint_items) >= limit:
-                        break
-            except Exception:
-                continue
-            if len(complaint_items) >= limit:
-                break
-        items = complaint_items or items
-    else:
-        items = complaint_items
     return final, items[:limit]
 
 
