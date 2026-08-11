@@ -2,34 +2,44 @@
 
 {% block content %}
 <style>
-  .pml-chip{display:inline-flex;align-items:center;gap:.35rem;border-radius:999px;padding:.15rem .55rem;font-size:10px;font-weight:700;letter-spacing:.02em;background:#f4f4f5;color:#52525b}
+  .pml-page{min-width:0}
+  .pml-chip{display:inline-flex;align-items:center;gap:.35rem;border-radius:999px;padding:.2rem .55rem;font-size:10px;font-weight:700;letter-spacing:.02em;background:#f4f4f5;color:#52525b;max-width:100%}
   html.dark .pml-chip{background:#27272a;color:#a1a1aa}
   .pml-chip-ok{background:#ecfdf5;color:#3f6b58}
   html.dark .pml-chip-ok{background:#1c2a24;color:#8aa897}
   .pml-chip-bad{background:#f4f4f5;color:#71717a}
   .pml-chip-up{background:#eef2ee;color:#4a5c4e}
+  html.dark .pml-chip-up{background:#1c2a22;color:#8aa897}
   .pml-chip-down{background:#f3eeee;color:#6b5353}
+  html.dark .pml-chip-down{background:#2a1f1f;color:#c4a0a0}
   .pml-delta-up{color:#16a34a;font-weight:800;white-space:nowrap}
   .pml-delta-down{color:#dc2626;font-weight:800;white-space:nowrap}
   html.dark .pml-delta-up{color:#4ade80}
   html.dark .pml-delta-down{color:#f87171}
   .pml-chip-new{background:#eef0f4;color:#4a5568}
-  .pml-tabs{display:flex;flex-wrap:wrap;gap:.35rem}
-  .pml-tab{border:0;border-radius:999px;padding:.35rem .7rem;font-size:11px;font-weight:650;background:#f4f4f5;color:#52525b;cursor:pointer}
+  html.dark .pml-chip-new{background:#27272a;color:#a1a1aa}
+  .pml-tabs,.pml-subtabs{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.75rem;-webkit-overflow-scrolling:touch}
+  .pml-tab{border:0;border-radius:999px;padding:.45rem .85rem;font-size:12px;font-weight:650;line-height:1.2;min-height:2.25rem;background:#f4f4f5;color:#52525b;cursor:pointer;max-width:100%}
   html.dark .pml-tab{background:#27272a;color:#a1a1aa}
   .pml-tab.is-on{background:#18181b;color:#fafafa}
   html.dark .pml-tab.is-on{background:#e4e4e7;color:#18181b}
-  .pml-shell{overflow:auto;max-height:min(70vh,720px);border-radius:12px}
-  .pml-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;min-width:640px}
-  .pml-table th{position:sticky;top:0;z-index:2;background:#fafafa;color:#71717a;font-size:10px;letter-spacing:.04em;text-transform:uppercase;font-weight:700;padding:.55rem .6rem;text-align:left;border-bottom:1px solid #e4e4e7;cursor:pointer}
-  html.dark .pml-table th{background:#18181b;border-bottom-color:#27272a;color:#71717a}
-  .pml-table td{padding:.5rem .6rem;border-bottom:1px solid #f4f4f5;color:#3f3f46}
-  html.dark .pml-table td{border-bottom-color:#27272a;color:#d4d4d8}
+  .pml-body{min-width:0;color:#3f3f46}
+  html.dark .pml-body{color:#d4d4d8}
+  .pml-shell{overflow:auto;max-height:min(70vh,720px);border-radius:12px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-x pan-y;max-width:100%}
+  .pml-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
+  .pml-table-wide{min-width:640px}
+  .pml-table-fit{min-width:0}
+  .pml-table th{position:sticky;top:0;z-index:2;background:#fafafa;color:#71717a;font-size:10px;letter-spacing:.04em;text-transform:uppercase;font-weight:700;padding:.55rem .6rem;text-align:left;border-bottom:1px solid #e4e4e7;cursor:pointer;white-space:nowrap}
+  html.dark .pml-table th{background:#18181b;border-bottom-color:#27272a;color:#a1a1aa}
+  .pml-table td{padding:.5rem .6rem;border-bottom:1px solid #f4f4f5;color:#3f3f46;background:#fff;vertical-align:top}
+  html.dark .pml-table td{border-bottom-color:#27272a;color:#d4d4d8;background:#09090b}
   .pml-table tbody tr:nth-child(even) td{background:#fafafa}
   html.dark .pml-table tbody tr:nth-child(even) td{background:#18181b}
   .pml-table tbody tr:hover td{background:#f4f4f5}
   html.dark .pml-table tbody tr:hover td{background:#27272a}
-  .pml-table .pin{position:sticky;left:0;z-index:1;background:inherit;font-weight:650}
+  .pml-table .pin{position:sticky;left:0;z-index:1;font-weight:650;box-shadow:1px 0 0 #e4e4e7}
+  html.dark .pml-table .pin{box-shadow:1px 0 0 #27272a}
+  .pml-table thead .pin{z-index:3}
   .pml-ours td{font-weight:700}
   .pml-doviz td{background:#fef2f2 !important;color:#991b1b}
   html.dark .pml-doviz td{background:#3f1a1a !important;color:#fca5a5}
@@ -38,54 +48,86 @@
   .pml-chip-doviz{background:#fef2f2;color:#dc2626}
   html.dark .pml-chip-doviz{background:#3f1a1a;color:#fca5a5}
   .pml-tab-total{letter-spacing:.04em}
-  .pml-heat-up{background:#eef2ee !important}
-  .pml-heat-down{background:#f6f0f0 !important}
-  .pml-heat-new{background:#eef1f5 !important}
+  .pml-heat-up td{background:#eef2ee !important}
+  .pml-heat-down td{background:#f6f0f0 !important}
+  .pml-heat-new td{background:#eef1f5 !important}
+  html.dark .pml-heat-up td{background:#152018 !important}
+  html.dark .pml-heat-down td{background:#2a1c1c !important}
+  html.dark .pml-heat-new td{background:#1c2230 !important}
+  .pml-doviz td,.pml-doviz.pml-heat-up td,.pml-doviz.pml-heat-down td,.pml-doviz.pml-heat-new td{background:#fef2f2 !important;color:#991b1b}
+  html.dark .pml-doviz td,html.dark .pml-doviz.pml-heat-up td,html.dark .pml-doviz.pml-heat-down td,html.dark .pml-doviz.pml-heat-new td{background:#3f1a1a !important;color:#fca5a5}
   .pml-miss{color:#a1a1aa}
-  .pml-search{border-radius:8px;border:1px solid #e4e4e7;background:#fff;padding:.35rem .6rem;font-size:12px;min-width:10rem}
-  html.dark .pml-search{border-color:#3f3f46;background:#18181b;color:#e4e4e7}
-  .pml-spark{display:flex;align-items:flex-end;gap:2px;height:28px}
-  .pml-spark i{display:block;width:6px;border-radius:2px 2px 0 0;background:#a1a1aa;min-height:3px}
+  .pml-search{border-radius:8px;border:1px solid #e4e4e7;background:#fff;padding:.55rem .7rem;font-size:13px;width:100%;max-width:24rem;min-width:0;color-scheme:light}
+  html.dark .pml-search{border-color:#3f3f46;background:#18181b;color:#e4e4e7;color-scheme:dark}
+  .pml-tools{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.5rem}
+  .pml-spark{display:flex;align-items:flex-end;gap:2px;height:28px;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+  .pml-spark i{display:block;width:6px;flex:0 0 6px;border-radius:2px 2px 0 0;background:#a1a1aa;min-height:3px}
   .pml-spark i.on{background:#6f9b86}
   .pml-spark i.off{background:#b57a82}
-  .pml-bar{display:flex;align-items:center;gap:.5rem;margin:.25rem 0}
-  .pml-bar-track{flex:1;height:8px;border-radius:99px;background:#f4f4f5;overflow:hidden}
+  .pml-bar{display:flex;align-items:center;gap:.5rem;margin:.35rem 0;min-width:0}
+  .pml-bar-label{flex:0 1 7rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#52525b}
+  html.dark .pml-bar-label{color:#a1a1aa}
+  .pml-bar-track{flex:1;height:8px;border-radius:99px;background:#f4f4f5;overflow:hidden;min-width:3rem}
   html.dark .pml-bar-track{background:#27272a}
   .pml-bar-fill{height:100%;background:#8a9a8e;border-radius:99px}
+  html.dark .pml-bar-fill{background:#6f9b86}
+  .pml-card{border-radius:12px;padding:.85rem;margin-bottom:.5rem;background:#fff;box-shadow:0 0 0 1px #e4e4e7}
+  html.dark .pml-card{background:#18181b;box-shadow:0 0 0 1px #27272a}
+  .pml-card-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#a1a1aa;word-break:break-word}
+  .pml-card-text{margin-top:.35rem;font-size:13px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;color:#3f3f46}
+  html.dark .pml-card-text{color:#d4d4d8}
+  .pml-card-url{margin-top:.4rem;font-size:11px;word-break:break-all}
+  .pml-link{color:#334155;text-decoration:underline;text-underline-offset:2px}
+  html.dark .pml-link{color:#e4e4e7}
+  .pml-note{font-size:11px;color:#64748b;margin-bottom:.5rem;overflow-wrap:anywhere}
+  html.dark .pml-note{color:#a1a1aa}
+  .pml-sum{min-width:0}
+  @media (max-width: 639px) {
+    .pml-tabs,.pml-subtabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.15rem;scrollbar-width:thin}
+    .pml-tab{flex:0 0 auto;font-size:11px;padding:.4rem .75rem}
+    .pml-shell{max-height:min(62dvh,560px);border-radius:10px}
+    .pml-table{font-size:11px}
+    .pml-table th,.pml-table td{padding:.45rem .5rem}
+    .pml-table-wide{min-width:520px}
+    .pml-bar{flex-wrap:wrap}
+    .pml-bar-label{flex:1 1 100%;max-width:100%}
+    .pml-spark i{width:5px;flex-basis:5px}
+    .pml-search{font-size:16px;max-width:100%}
+  }
 </style>
 
-<div class="mx-auto w-full min-w-0 max-w-[1280px] space-y-4">
-  <div class="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">PM lab</h2>
-        <p class="mt-1 text-xs text-slate-500 dark:text-zinc-500">Fotoğraf yok · 3 saatte bir tarama · iniş-çıkış ve kaynak metrikleri tabloda.</p>
+<div class="pml-page mx-auto w-full min-w-0 max-w-[1280px] space-y-3 sm:space-y-4 px-0 sm:px-0">
+  <div class="rounded-2xl bg-white px-3 py-3 shadow-sm ring-1 ring-slate-200 sm:px-5 sm:py-4 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
+    <div class="flex flex-wrap items-start justify-between gap-2 sm:gap-3">
+      <div class="min-w-0">
+        <h2 class="text-base font-bold text-slate-900 sm:text-lg dark:text-zinc-300">PM lab</h2>
+        <p class="mt-1 text-xs leading-snug text-slate-500 dark:text-zinc-500">Fotoğraf yok · 3 saatte bir tarama · iniş-çıkış ve kaynak metrikleri tabloda.</p>
       </div>
-      <div id="pml-status" class="flex flex-wrap gap-1.5"></div>
+      <div id="pml-status" class="flex min-w-0 flex-wrap gap-1.5"></div>
     </div>
     <div id="pml-run-chart" class="mt-3"></div>
   </div>
 
   {% for card in cards %}
   <details class="group rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-    <summary class="flex cursor-pointer list-none items-center gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
-      <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-400 transition-transform duration-200 group-open:rotate-90" aria-hidden="true">
+    <summary class="flex cursor-pointer list-none items-start gap-2 px-3 py-3 sm:items-center sm:gap-3 sm:px-5 sm:py-4 [&::-webkit-details-marker]:hidden">
+      <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-400 transition-transform duration-200 group-open:rotate-90 dark:text-zinc-500" aria-hidden="true">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
       </span>
-      <span class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-100 px-2 text-[11px] font-bold text-slate-600 dark:bg-zinc-800 dark:text-zinc-400">{{ card.no }}</span>
-      <div class="min-w-0 flex-1">
-        <h3 class="truncate text-sm font-semibold text-slate-900 dark:text-zinc-200">{{ card.title }}</h3>
-        <p class="truncate text-[11px] text-slate-500 dark:text-zinc-500">{{ card.hint }}{% if card.summary %} · {{ card.summary }}{% endif %}</p>
+      <span class="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 px-2 text-[11px] font-bold text-slate-600 dark:bg-zinc-800 dark:text-zinc-400">{{ card.no }}</span>
+      <div class="pml-sum min-w-0 flex-1">
+        <h3 class="text-sm font-semibold leading-snug text-slate-900 dark:text-zinc-200">{{ card.title }}</h3>
+        <p class="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-zinc-500">{{ card.hint }}{% if card.summary %} · {{ card.summary }}{% endif %}</p>
       </div>
       {% if card.ok == True %}
-      <span class="pml-chip pml-chip-ok">dolu</span>
+      <span class="pml-chip pml-chip-ok mt-0.5 shrink-0">dolu</span>
       {% elif card.ok == False %}
-      <span class="pml-chip">eksik</span>
+      <span class="pml-chip mt-0.5 shrink-0">eksik</span>
       {% else %}
-      <span class="pml-chip">boş</span>
+      <span class="pml-chip mt-0.5 shrink-0">boş</span>
       {% endif %}
     </summary>
-    <div class="border-t border-slate-100 px-5 py-4 dark:border-zinc-800">
+    <div class="border-t border-slate-100 px-3 py-3 sm:px-5 sm:py-4 dark:border-zinc-800">
       <div class="pml-body" data-pml="{{ card.id }}"></div>
     </div>
   </details>
@@ -93,5 +135,5 @@
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=11"></script>
+<script src="/static/js/pm_lab.js?v=12"></script>
 {% endblock %}

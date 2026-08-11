@@ -126,6 +126,12 @@ def test_template_has_no_photos_and_js_shell():
     assert 'label: "X"' in js
     assert "function tabs(labels, onPick, active)" in js
     assert "rankDeltaHtml" in js
+    assert "@media (max-width: 639px)" in html
+    assert "html.dark .pml-heat-up" in html
+    assert "html.dark .pml-card" in html
+    assert "pml-card" in js
+    assert "pml-table-fit" in js
+    assert "pml-link" in js
     assert any(s["title"] == "x - ekşi - şikayetvar" for s in SECTION_DEFS)
     assert "doviz.com · sinemalar.com · her kaynaktan son 10" in next(
         s["hint"] for s in SECTION_DEFS if s["id"] == "sikayet"

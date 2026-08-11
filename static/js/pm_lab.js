@@ -74,12 +74,13 @@
     var wrap = document.createElement("div");
     wrap.className = "pml-shell mt-3 ring-1 ring-slate-200 dark:ring-zinc-800";
     var table = document.createElement("table");
-    table.className = "pml-table";
+    table.className = "pml-table " + (opts.wide === false ? "pml-table-fit" : "pml-table-wide");
     var thead = document.createElement("thead");
     var hr = document.createElement("tr");
     headers.forEach(function (h, i) {
       var th = document.createElement("th");
       th.textContent = h;
+      if (i === 0) th.classList.add("pin");
       th.addEventListener("click", function () {
         var dir = table.getAttribute("data-dir") === "asc" && table.getAttribute("data-col") === String(i) ? "desc" : "asc";
         table.setAttribute("data-col", String(i));
@@ -204,7 +205,7 @@
         .join(" · ");
       if (drop) {
         var p = document.createElement("p");
-        p.className = "text-[11px] text-slate-500 mb-2";
+        p.className = "pml-note";
         p.textContent = "Çıkanlar: " + drop;
         meta.appendChild(p);
       }
@@ -215,7 +216,7 @@
           [
             { text: r.rank, sort: r.rank, cls: ours ? "pml-rank" : "" },
             { text: r.page, sort: r.page },
-            { html: '<a class="hover:underline" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.domain) + "</a>" },
+            { html: '<a class="pml-link" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.domain) + "</a>" },
             { text: r.title },
             { text: r.snippet },
           ],
@@ -271,7 +272,7 @@
         chip("doviz ort. " + (ours ? ours.avg.toFixed(1) : "yok"), "pml-chip-doviz") +
         (ours ? chip("göründü " + ours.hit + "/" + kws.length, "pml-chip-doviz") : "");
       var note = document.createElement("p");
-      note.className = "text-[11px] text-slate-500 mb-2";
+      note.className = "pml-note";
       note.textContent =
         "Ortalama = 8 kelimedeki en iyi sıra. İlk " +
         pages +
@@ -343,7 +344,7 @@
         var v = cell.value || "";
         cells.push({
           html: v
-            ? esc(v) + (cell.change ? '<div class="text-[10px] text-slate-400">' + esc(cell.change) + "</div>" : "")
+            ? esc(v) + (cell.change ? '<div class="pml-note" style="margin:0">' + esc(cell.change) + "</div>" : "")
             : '<span class="pml-miss">—</span>',
           text: v,
           sort: v.replace(/[^\d,.-]/g, "").replace(",", "."),
@@ -352,7 +353,7 @@
       return tr(cells);
     });
     var legend = document.createElement("p");
-    legend.className = "text-[11px] text-slate-500 mb-2";
+    legend.className = "pml-note";
     legend.textContent = "Satır = varlık, sütun = site. Boş hücre o sitede yok / okunamadı.";
     root.appendChild(legend);
     root.appendChild(sortableTable(headers, rows));
@@ -376,7 +377,9 @@
       return;
     }
     var sourceStage = document.createElement("div");
+    sourceStage.className = "min-w-0";
     var stage = document.createElement("div");
+    stage.className = "min-w-0";
     var currentBrand = 0;
     var currentSrc = 0;
     var srcDefs = [
@@ -397,16 +400,16 @@
 
     function cardMeta(label, meta, text, url) {
       var card = document.createElement("article");
-      card.className = "rounded-xl ring-1 ring-slate-200 p-3 mb-2 dark:ring-zinc-800";
+      card.className = "pml-card";
       card.innerHTML =
-        '<p class="text-[10px] uppercase tracking-wide text-slate-400">' +
+        '<p class="pml-card-kicker">' +
         esc(label) +
         (meta ? " · " + esc(meta) : "") +
         "</p>" +
-        '<p class="mt-1 text-xs whitespace-pre-wrap">' +
+        '<p class="pml-card-text">' +
         esc(text) +
         "</p>" +
-        (url ? '<p class="mt-1 text-[11px]"><a class="hover:underline" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + "</a></p>" : "");
+        (url ? '<p class="pml-card-url"><a class="pml-link" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + "</a></p>" : "");
       return card;
     }
 
@@ -510,9 +513,11 @@
       return;
     }
     var tools = document.createElement("div");
-    tools.className = "flex flex-wrap items-center gap-2 mb-2";
+    tools.className = "pml-tools";
     var search = document.createElement("input");
     search.className = "pml-search";
+    search.setAttribute("inputmode", "search");
+    search.setAttribute("autocomplete", "off");
     search.placeholder = "Uygulama ara…";
     tools.appendChild(search);
     var stage = document.createElement("div");
@@ -551,7 +556,7 @@
       stage.appendChild(meta);
       if ((ch.dropped || []).length) {
         var drop = document.createElement("p");
-        drop.className = "text-[11px] text-slate-500 mb-2";
+        drop.className = "pml-note";
         drop.textContent =
           "Çıkanlar: " +
           ch.dropped
@@ -562,7 +567,7 @@
             .join(" · ");
         stage.appendChild(drop);
       }
-      stage.appendChild(sortableTable(["Sıra", "Δ", "Uygulama"], rows));
+      stage.appendChild(sortableTable(["Sıra", "Δ", "Uygulama"], rows, { wide: false }));
     }
     search.addEventListener("input", function () {
       paint(current);
@@ -590,7 +595,7 @@
       row.className = "pml-bar";
       var w = Math.round((100 * (s.count || 0)) / max);
       row.innerHTML =
-        '<span class="w-28 truncate text-[11px]">' +
+        '<span class="pml-bar-label">' +
         esc(s.source) +
         "</span><div class=\"pml-bar-track\"><div class=\"pml-bar-fill\" style=\"width:" +
         w +
@@ -611,7 +616,7 @@
       var rows = (kw.articles || []).map(function (a, n) {
         return tr([
           { text: n + 1, sort: n + 1 },
-          { html: '<a class="hover:underline" href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.title) + "</a>" },
+          { html: '<a class="pml-link" href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.title) + "</a>" },
           { text: a.source },
           { text: a.time },
         ]);
