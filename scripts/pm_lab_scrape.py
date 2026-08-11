@@ -113,11 +113,37 @@ SITE_LIST_URLS: dict[str, tuple[str, ...]] = {
     "bigpara": (
         "https://bigpara.hurriyet.com.tr/doviz/",
         "https://bigpara.hurriyet.com.tr/altin/",
+        "https://bigpara.hurriyet.com.tr/borsa/",
     ),
     "tradingview": (
         "https://www.tradingview.com/markets/turkey/",
         "https://www.tradingview.com/markets/currencies/rates-middle-east/",
     ),
+    "cnbce": (
+        "https://www.cnbce.com/piyasalar",
+        "https://www.cnbce.com/doviz",
+        "https://www.cnbce.com/altin",
+    ),
+    "cnnturk": (
+        "https://finans.cnnturk.com/canli-borsa",
+    ),
+    "uzmanpara": (
+        "https://uzmanpara.milliyet.com.tr/doviz/",
+        "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
+    ),
+    "bloomberght": (
+        "https://www.bloomberght.com/piyasalar",
+        "https://www.bloomberght.com/doviz",
+    ),
+}
+
+# TradingView scanner (HTTP) — JS ticker şeridine gerek yok.
+TV_SCANNER_SYMBOLS: dict[str, str] = {
+    "usd": "FX_IDC:USDTRY",
+    "eur": "FX_IDC:EURTRY",
+    "bist100": "BIST:XU100",
+    "ons_altin": "OANDA:XAUUSD",
+    "brent": "NYMEX:BZ1!",
 }
 
 ASSET_URLS: dict[str, dict[str, str]] = {
@@ -173,30 +199,32 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "brent": "https://bigpara.hurriyet.com.tr/",
     },
     "uzmanpara": {
-        "usd": "https://uzmanpara.milliyet.com.tr/dolar-ne-kadar/",
-        "eur": "https://uzmanpara.milliyet.com.tr/euro-ne-kadar/",
-        "gram_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/gram-altin/",
-        "ceyrek_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/ceyrek-altin/",
-        "bist100": "https://uzmanpara.milliyet.com.tr/borsa/",
-        "gram_gumus": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/gumus/",
-        "ons_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/ons-altin/",
+        "usd": "https://uzmanpara.milliyet.com.tr/doviz/",
+        "eur": "https://uzmanpara.milliyet.com.tr/doviz/",
+        "gram_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
+        "ceyrek_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
+        "bist100": "https://uzmanpara.milliyet.com.tr/",
+        "gram_gumus": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
+        "ons_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
+        "brent": "https://uzmanpara.milliyet.com.tr/",
     },
     "bloomberght": {
-        "usd": "https://www.bloomberght.com/dolar",
-        "eur": "https://www.bloomberght.com/euro",
-        "gram_altin": "https://www.bloomberght.com/gram-altin",
-        "bist100": "https://www.bloomberght.com/xu100",
-        "ons_altin": "https://www.bloomberght.com/ons",
-        "brent": "https://www.bloomberght.com/brent-petrol",
-        "ceyrek_altin": "https://www.bloomberght.com/ceyrek-altin",
+        "usd": "https://www.bloomberght.com/doviz",
+        "eur": "https://www.bloomberght.com/doviz",
+        "gram_altin": "https://www.bloomberght.com/piyasalar",
+        "bist100": "https://www.bloomberght.com/piyasalar",
+        "ons_altin": "https://www.bloomberght.com/piyasalar",
+        "brent": "https://www.bloomberght.com/piyasalar",
+        "ceyrek_altin": "https://www.bloomberght.com/piyasalar",
     },
     "cnbce": {
-        "usd": "https://www.cnbce.com/",
-        "eur": "https://www.cnbce.com/",
-        "bist100": "https://www.cnbce.com/",
-        "ons_altin": "https://www.cnbce.com/",
-        "gram_altin": "https://www.cnbce.com/",
-        "brent": "https://www.cnbce.com/",
+        "usd": "https://www.cnbce.com/doviz",
+        "eur": "https://www.cnbce.com/doviz",
+        "bist100": "https://www.cnbce.com/piyasalar",
+        "ons_altin": "https://www.cnbce.com/altin",
+        "gram_altin": "https://www.cnbce.com/altin",
+        "brent": "https://www.cnbce.com/piyasalar",
+        "ceyrek_altin": "https://www.cnbce.com/altin",
     },
     "cnnturk": {
         "usd": "https://finans.cnnturk.com/",
@@ -232,12 +260,12 @@ ASSET_LABELS: dict[str, tuple[str, ...]] = {
     ),
     "eur": ("eurtry", "eur/try", "eur try", "eur to try", "euro", "avro"),
     "bist100": ("bist 100", "bist100", "xu100", "bist-100"),
-    "gram_altin": ("gram altin", "ga altin", "xautry", "altin (tl/gr)", "spot altin", "gldgr"),
+    "gram_altin": ("gram altin", "ga altin", "xautry", "altin (tl/gr)", "spot altin", "gldgr", "altin"),
     "harem_gram_altin": ("harem gram altin", "harem gram"),
-    "kapalicarsi_gram_altin": ("kapalicarsi gram", "kapali carsi gram", "kapali carsi"),
+    "kapalicarsi_gram_altin": ("kapalicarsi gram", "kapali carsi gram"),
     "gram_gumus": ("gram gumus", "gumus gram", "ga gumus", "gumus (tl/gr)", "sxaggr"),
     "ons_altin": ("ons altin", "altin/ons", "altin ons", "xauusd", "gold ounce", "altin ($/ons)"),
-    "brent": ("brent petrol", "brent", "ham petrol", "ukoil"),
+    "brent": ("brent petrol", "brent", "ukoil", "petrol"),
     "ceyrek_altin": ("ceyrek altin", "ceyrek", "sgldc"),
 }
 
@@ -259,8 +287,8 @@ ASSET_RANGES: dict[str, tuple[float, float]] = {
     "eur": (30.0, 110.0),
     "bist100": (5000.0, 30000.0),
     "gram_altin": (4000.0, 9000.0),
-    "harem_gram_altin": (2500.0, 20000.0),
-    "kapalicarsi_gram_altin": (2500.0, 20000.0),
+    "harem_gram_altin": (4000.0, 9000.0),
+    "kapalicarsi_gram_altin": (4000.0, 9000.0),
     "gram_gumus": (80.0, 160.0),
     "ons_altin": (1500.0, 10000.0),
     "brent": (30.0, 250.0),
@@ -268,12 +296,14 @@ ASSET_RANGES: dict[str, tuple[float, float]] = {
 }
 
 ASSET_LINE_EXCLUDE: dict[str, tuple[str, ...]] = {
-    "gram_altin": ("harem", "kapalicarsi", "kapali carsi"),
-    "usd": ("harem",),
-    "eur": ("harem",),
-    "ceyrek_altin": ("harem",),
-    "gram_gumus": ("harem", "dolar", "usd", "euro", "sterlin", "gbp"),
-    "ons_altin": ("gram",),
+    "gram_altin": ("harem", "kapalicarsi", "kapali carsi", "ons", "ceyrek", "senaryo"),
+    "usd": ("harem", "kanada", "avustralya", "endeks", "jpy", "yen", "yuan", "bitcoin", "banka", "bank"),
+    "eur": ("harem", "banka", "bank"),
+    "ceyrek_altin": ("harem", "bist", "xu100"),
+    "gram_gumus": ("harem", "petrol", "brent", "bitcoin", "btc"),
+    "ons_altin": ("gram", "senaryo"),
+    "brent": ("benzin", "bitcoin", "gumus", "silver", "ham petrol", "wti"),
+    "bist100": ("hisse",),
 }
 
 PLAY_PACKAGE = "com.Doviz"
@@ -504,6 +534,19 @@ def _in_range(aid: str, val: float) -> bool:
     return lo <= val <= hi
 
 
+def _value_candidates(raw: str, val: float) -> list[float]:
+    out = [val]
+    s = (raw or "").strip()
+    if re.fullmatch(r"\d{1,2}\.\d{3}", s) and val < 500:
+        try:
+            alt = float(s.replace(".", ""))
+        except ValueError:
+            alt = None
+        if alt is not None and alt != val:
+            out.append(alt)
+    return out
+
+
 def _numbers_on_line(line: str) -> list[tuple[str, float]]:
     out: list[tuple[str, float]] = []
     for m in _NUM_RE.finditer(line):
@@ -518,32 +561,103 @@ def _numbers_on_line(line: str) -> list[tuple[str, float]]:
     return out
 
 
+def _iter_label_spans(folded: str, aid: str):
+    excludes = tuple(_fold(b) for b in (ASSET_LINE_EXCLUDE.get(aid) or ()) if b)
+    labels = sorted((_fold(x) for x in (ASSET_LABELS.get(aid) or ()) if x), key=len, reverse=True)
+    seen: set[int] = set()
+    for lab in labels:
+        start = 0
+        while True:
+            i = folded.find(lab, start)
+            if i < 0:
+                break
+            around = folded[max(0, i - 24) : i + len(lab) + 24]
+            if any(bad and bad in around for bad in excludes):
+                start = i + 1
+                continue
+            rest = folded[i + len(lab) : i + len(lab) + 4]
+            if aid in ("usd", "eur") and re.match(r"/[a-z]{3}", rest) and not rest.startswith("/try"):
+                start = i + 1
+                continue
+            if i not in seen:
+                seen.add(i)
+                yield i, i + len(lab)
+            start = i + 1
+
+
+def _label_span(folded: str, aid: str) -> tuple[int, int] | None:
+    for span in _iter_label_spans(folded, aid):
+        return span
+    return None
+
+
 def _line_has_label(folded: str, aid: str) -> bool:
-    labels = tuple(_fold(x) for x in (ASSET_LABELS.get(aid) or ()))
-    if not any(lab and lab in folded for lab in labels):
-        return False
-    for bad in ASSET_LINE_EXCLUDE.get(aid) or ():
-        if _fold(bad) in folded:
-            return False
-    return True
+    return _label_span(folded, aid) is not None
+
+
+def _foreign_cut(folded_window: str, aid: str) -> int:
+    cut = len(folded_window)
+    for other in _ASSET_MATCH_ORDER:
+        if other == aid:
+            continue
+        for start, _end in _iter_label_spans(folded_window, other):
+            if 0 <= start < cut:
+                cut = start
+            break
+    return cut
+
+
+def _looks_date_number(text: str, start: int, end: int) -> bool:
+    after = text[end : end + 8]
+    if re.match(r"[./-]\d{2,4}", after):
+        return True
+    before = text[max(0, start - 3) : start]
+    if re.search(r"\d{2}[./-]$", before):
+        return True
+    return False
 
 
 def _extract_from_line(line: str, aid: str) -> dict[str, str] | None:
-    nums = _numbers_on_line(line)
-    for raw, val in nums:
-        if _in_range(aid, val):
-            ch = _CHANGE_RE.search(line)
-            return {"value": raw, "change": (ch.group(0).replace(" ", "") if ch else "")}
+    folded = _fold(line)
+    for _ls, le in _iter_label_spans(folded, aid):
+        window = line[le : le + 72]
+        cut = _foreign_cut(_fold(window), aid)
+        search_blob = window[: max(cut, 1)]
+        for m in _NUM_RE.finditer(search_blob):
+            if _looks_date_number(search_blob, m.start(), m.end()):
+                continue
+            ctx = search_blob[max(0, m.start() - 2) : m.end() + 1]
+            if "%" in ctx:
+                continue
+            raw = m.group(1).strip()
+            val = _to_float(raw)
+            if val is None:
+                continue
+            if any(_in_range(aid, cand) for cand in _value_candidates(raw, val)):
+                ch = _CHANGE_RE.search(search_blob) or _CHANGE_RE.search(line)
+                return {"value": raw, "change": (ch.group(0).replace(" ", "") if ch else "")}
     return None
+
+
+def _extract_from_blob(text: str, aid: str) -> dict[str, str] | None:
+    return _extract_from_line(text, aid)
 
 
 def _parse_assets_from_text(text: str) -> dict[str, dict[str, str]]:
     found: dict[str, dict[str, str]] = {}
+    blob = " ".join((text or "").split())
+    if blob:
+        for aid in _ASSET_MATCH_ORDER:
+            hit = _extract_from_line(blob, aid)
+            if hit:
+                found[aid] = hit
+    if len(found) >= len(_ASSET_MATCH_ORDER):
+        return found
     raw_lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
     lines: list[str] = []
     for ln in raw_lines:
         compact = " ".join(ln.split())
-        if 6 <= len(compact) <= 180:
+        if 6 <= len(compact) <= 12000:
             lines.append(compact)
     for i, ln in enumerate(lines):
         folded = _fold(ln)
@@ -578,7 +692,7 @@ def _ticker_text(page: Any) -> str:
               const seen = new Set();
               const add = (t) => {
                 t = (t || '').replace(/\\s+/g, ' ').trim();
-                if (t.length < 6 || t.length > 160) return;
+                if (t.length < 6 || t.length > 900) return;
                 if (seen.has(t)) return;
                 seen.add(t);
                 out.push(t);
@@ -586,7 +700,7 @@ def _ticker_text(page: Any) -> str:
               document.querySelectorAll(
                 'tr, li, table, [class*="ticker"], [class*="parity"], [class*="market"], [class*="price"], [class*="symbol"], [data-symbol], [class*="kur"], [class*="quote"]'
               ).forEach((el) => add(el.innerText));
-              return out.slice(0, 140);
+              return out.slice(0, 220);
             }"""
         )
         if isinstance(blocks, list) and blocks:
@@ -604,6 +718,245 @@ def _norm_url(url: str) -> str:
     return str(url or "").split("#")[0].split("?")[0].rstrip("/")
 
 
+_HTTP_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+}
+
+
+def _http_get(url: str, *, timeout: int = 18) -> str:
+    req = urllib.request.Request(url, headers=_HTTP_HEADERS)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode("utf-8", errors="replace")
+
+
+def _html_visible_text(html: str) -> str:
+    html = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", html or "")
+    html = re.sub(r"(?is)<!--.*?-->", " ", html)
+    html = re.sub(r"(?is)<br\s*/?>", "\n", html)
+    html = re.sub(r"(?is)</(tr|li|p|div|h[1-6]|td|th|section|article)>", "\n", html)
+    html = re.sub(r"(?is)<[^>]+>", " ", html)
+    return html_lib.unescape(html)
+
+
+def _http_parse_url(url: str) -> dict[str, dict[str, str]]:
+    try:
+        html = _http_get(url)
+    except Exception:
+        return {}
+    low = html.lower()
+    if "just a moment" in low or "cf-challenge-running" in low:
+        return {}
+    return _parse_assets_from_text(_html_visible_text(html))
+
+
+def _fmt_quote(val: float) -> str:
+    if abs(val) >= 100:
+        return f"{val:,.2f}"
+    s = f"{val:.6f}".rstrip("0").rstrip(".")
+    return s
+
+
+def _http_tradingview_quotes() -> dict[str, dict[str, str]]:
+    found: dict[str, dict[str, str]] = {}
+    for aid, symbol in TV_SCANNER_SYMBOLS.items():
+        url = (
+            "https://scanner.tradingview.com/symbol?symbol="
+            + quote(symbol, safe=":")
+            + "&fields=close,change,change_percent"
+        )
+        try:
+            raw = _http_get(url, timeout=12)
+            data = json.loads(raw)
+        except Exception:
+            continue
+        close = data.get("close") if isinstance(data, dict) else None
+        try:
+            val = float(close)
+        except (TypeError, ValueError):
+            continue
+        if not _in_range(aid, val):
+            continue
+        ch = data.get("change_percent")
+        change = ""
+        try:
+            if ch is not None:
+                change = f"{float(ch):+.2f}%".replace(".", ",")
+        except (TypeError, ValueError):
+            change = ""
+        found[aid] = {"value": _fmt_quote(val), "change": change}
+    return found
+
+
+def _merge_found(found: dict[str, dict[str, str]], parsed: dict[str, dict[str, str]]) -> None:
+    for aid, rec in (parsed or {}).items():
+        if aid not in found and rec and rec.get("value"):
+            found[aid] = rec
+
+
+def _site_urls(sid: str, home: str) -> list[str]:
+    out: list[str] = [home]
+    out.extend(SITE_LIST_URLS.get(sid) or ())
+    extra = ASSET_URLS.get(sid) or {}
+    for url in extra.values():
+        if url:
+            out.append(url)
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for url in out:
+        key = _norm_url(url)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        uniq.append(url)
+    return uniq
+
+
+def _http_fill_site(sid: str, home: str) -> dict[str, dict[str, str]]:
+    found: dict[str, dict[str, str]] = {}
+    if sid == "investing":
+        return found
+    if sid == "tradingview":
+        _merge_found(found, _http_tradingview_quotes())
+    for url in _site_urls(sid, home):
+        _merge_found(found, _http_parse_url(url))
+        if len(found) >= len(ASSETS):
+            break
+    return found
+
+
+_CHROME_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+
+
+def _new_context_page(page: Any):
+    browser = page.context.browser
+    ctx = browser.new_context(
+        locale="en-US",
+        user_agent=_CHROME_UA,
+        viewport={"width": 1280, "height": 900},
+    )
+    return ctx, ctx.new_page()
+
+
+def _investing_dom_quote(page: Any) -> dict[str, str] | None:
+    try:
+        loc = page.locator('[data-test="instrument-price-last"]')
+        if not loc.count():
+            return None
+        raw = (loc.first.inner_text() or "").strip()
+        if not raw:
+            return None
+        change = ""
+        ch = page.locator('[data-test="instrument-price-change-percent"]')
+        if ch.count():
+            change = (ch.first.inner_text() or "").strip().replace(" ", "")
+        return {"value": raw, "change": change}
+    except Exception:
+        return None
+
+
+def _browser_fill_investing(page: Any, found: dict[str, dict[str, str]]) -> None:
+    extra = ASSET_URLS.get("investing") or {}
+    for aid, url in extra.items():
+        if aid in found or not url:
+            continue
+        ctx2 = None
+        try:
+            ctx2, p2 = _new_context_page(page)
+            p2.goto(url, wait_until="domcontentloaded", timeout=45_000)
+            p2.wait_for_timeout(2800)
+            hit = _investing_dom_quote(p2)
+            if hit:
+                val = _to_float(hit["value"])
+                if val is not None and _in_range(aid, val):
+                    found[aid] = hit
+            blob = _page_blob(p2, limit=12000)
+            parsed = _parse_assets_from_text(blob)
+            if aid not in found and aid in parsed:
+                found[aid] = parsed[aid]
+            _merge_found(found, parsed)
+        except Exception:
+            continue
+        finally:
+            if ctx2 is not None:
+                try:
+                    ctx2.close()
+                except Exception:
+                    pass
+        time.sleep(0.5)
+
+
+_CORE_ASSETS = {
+    "usd",
+    "eur",
+    "bist100",
+    "gram_altin",
+    "gram_gumus",
+    "ons_altin",
+    "brent",
+    "ceyrek_altin",
+}
+
+
+def _browser_fill_gaps(page: Any, sid: str, home: str, found: dict[str, dict[str, str]]) -> None:
+    wanted = set(_CORE_ASSETS)
+    if sid == "doviz":
+        wanted.update({"harem_gram_altin", "kapalicarsi_gram_altin"})
+    if wanted <= found.keys():
+        return
+    seen_urls: set[str] = set()
+    extra = ASSET_URLS.get(sid) or {}
+    queue: list[str] = []
+    if not found:
+        queue = [home]
+        queue.extend(SITE_LIST_URLS.get(sid) or ())
+    for aid in wanted:
+        if aid in found:
+            continue
+        url = extra.get(aid)
+        if url:
+            queue.append(url)
+    if not queue:
+        queue = [home]
+        queue.extend(SITE_LIST_URLS.get(sid) or ())
+    for url in queue:
+        if wanted <= found.keys():
+            break
+        key = _norm_url(url)
+        if not key or key in seen_urls:
+            continue
+        seen_urls.add(key)
+        try:
+            _goto(page, url, timeout=70_000)
+            page.wait_for_timeout(2200)
+            try:
+                page.wait_for_function(
+                    r"() => /\d+[.,]\d{2,}/.test((document.body && document.body.innerText) || '')",
+                    timeout=6000,
+                )
+            except Exception:
+                pass
+            blob = _page_blob(page, limit=22000)
+            parsed = _parse_assets_from_text(blob)
+            _merge_found(found, parsed)
+            if url in extra.values():
+                for aid, asset_url in extra.items():
+                    if aid in found or _norm_url(asset_url) != key:
+                        continue
+                    hit = _parse_one_asset(blob, aid)
+                    if hit:
+                        found[aid] = hit
+        except Exception:
+            continue
+
+
 def job_competitors(page: Any) -> dict[str, Any]:
     columns = [{"id": s["id"], "label": s["label"], "url": s["home"]} for s in SITES]
     values: dict[str, dict[str, dict[str, str]]] = {a["id"]: {} for a in ASSETS}
@@ -611,45 +964,20 @@ def job_competitors(page: Any) -> dict[str, Any]:
     for site in SITES:
         sid = site["id"]
         found: dict[str, dict[str, str]] = {}
-        seen_urls: set[str] = set()
+        http_n = 0
         try:
-            queue: list[str] = [site["home"]]
-            queue.extend(SITE_LIST_URLS.get(sid) or ())
-            for url in queue:
-                key = _norm_url(url)
-                if not key or key in seen_urls:
-                    continue
-                seen_urls.add(key)
-                try:
-                    _goto(page, url, timeout=70_000)
-                    page.wait_for_timeout(1200)
-                    parsed = _parse_assets_from_text(_page_blob(page, limit=18000))
-                    for aid, rec in parsed.items():
-                        found.setdefault(aid, rec)
-                except Exception:
-                    continue
-            extra = ASSET_URLS.get(sid) or {}
-            for aid, url in extra.items():
-                if aid in found or not url:
-                    continue
-                key = _norm_url(url)
-                if not key or key in seen_urls:
-                    continue
-                seen_urls.add(key)
-                try:
-                    _goto(page, url, timeout=55_000)
-                    page.wait_for_timeout(900)
-                    hit = _parse_one_asset(_page_blob(page, limit=9000), aid)
-                    if hit:
-                        found[aid] = hit
-                except Exception:
-                    continue
+            found = _http_fill_site(sid, site["home"])
+            http_n = len(found)
+            if sid == "investing":
+                _browser_fill_investing(page, found)
+            else:
+                _browser_fill_gaps(page, sid, site["home"], found)
             for aid, rec in found.items():
                 values.setdefault(aid, {})[sid] = rec
-            notes[sid] = f"{len(found)} varlık"
+            notes[sid] = f"{len(found)} varlık (http {http_n})"
         except Exception as exc:
             notes[sid] = str(exc)[:160]
-        time.sleep(0.4)
+        time.sleep(0.25)
 
     matrix = []
     for asset in ASSETS:

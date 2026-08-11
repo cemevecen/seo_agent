@@ -307,6 +307,24 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert bp["gram_gumus"]["value"] == "99,4365"
     tv = "USDTRY U.S. DOLLAR / TURKISH LIRA 47.732710 +0.13%"
     assert mod._parse_assets_from_text(tv)["usd"]["value"] == "47.732710"
+    canli = (
+        "USD 47.7431 %0.05 EUR Euro 55.1026 55.1219 %-0.11 GA Gram Altın 6707.93 6708.83 %-0.38 "
+        "GBP İngiliz Sterlini 64.2839 64.6062 %0.04 BIST100 13704.52"
+    )
+    cl = mod._parse_assets_from_text(canli)
+    assert cl["usd"]["value"] == "47.7431"
+    assert cl["eur"]["value"] == "55.1026"
+    assert cl["gram_altin"]["value"] == "6707.93"
+    assert cl["bist100"]["value"] == "13704.52"
+    cnn = "BIST100 % -0,78 13.705 DOLAR % 0,09 47,7427 EURO % 0,04 55,1261 ALTIN % -0,18 6.719,10 PETROL % 1,19 88,76"
+    cn = mod._parse_assets_from_text(cnn)
+    assert cn["usd"]["value"] == "47,7427"
+    assert cn["eur"]["value"] == "55,1261"
+    assert cn["gram_altin"]["value"] == "6.719,10"
+    assert cn["brent"]["value"] == "88,76"
+    assert cn["bist100"]["value"] == "13.705"
+    pairs = mod._parse_assets_from_text("USD/EGP 50,2144 %0,63\nUSD/RUB 82,6201\nUSD 47,7374 %0,08")
+    assert pairs["usd"]["value"] == "47,7374"
     lists = mod.SITE_LIST_URLS
     assert "https://www.enuygunfinans.com/doviz-fiyatlari/" in lists["enuygun"]
     assert "https://www.enuygunfinans.com/altin-fiyatlari/" in lists["enuygun"]
@@ -315,8 +333,13 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert "https://tr.investing.com/" in lists["investing"]
     assert "https://bigpara.hurriyet.com.tr/doviz/" in lists["bigpara"]
     assert "https://bigpara.hurriyet.com.tr/altin/" in lists["bigpara"]
+    assert "https://bigpara.hurriyet.com.tr/borsa/" in lists["bigpara"]
     assert "https://www.tradingview.com/markets/turkey/" in lists["tradingview"]
     assert "https://www.tradingview.com/markets/currencies/rates-middle-east/" in lists["tradingview"]
+    assert "https://www.cnbce.com/doviz" in lists["cnbce"]
+    assert "https://finans.cnnturk.com/canli-borsa" in lists["cnnturk"]
+    assert mod.TV_SCANNER_SYMBOLS["usd"] == "FX_IDC:USDTRY"
+    assert mod.TV_SCANNER_SYMBOLS["bist100"] == "BIST:XU100"
 
 
 def test_pm_lab_doviz_rank_chip_labels():
