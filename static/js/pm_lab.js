@@ -30,15 +30,6 @@
   function chip(text, cls) {
     return '<span class="pml-chip ' + (cls || "") + '">' + esc(text) + "</span>";
   }
-  function deltaChip(row) {
-    var d = row.delta;
-    if (d === "new") return chip("yeni", "pml-chip-new");
-    if (d === "up") return chip("↑ " + (row.delta_n || ""), "pml-chip-up");
-    if (d === "down") return chip("↓ " + Math.abs(row.delta_n || 0), "pml-chip-down");
-    if (row.prev_rank) return chip("= " + row.prev_rank, "");
-    return "";
-  }
-
   function collectRuns() {
     var runs = [];
     Object.keys(sections).forEach(function (id) {
@@ -205,9 +196,7 @@
         return tr(
           [
             { text: r.rank, sort: r.rank },
-            { html: deltaChip(r), sort: r.delta_n == null ? 0 : r.delta_n },
             { text: r.page, sort: r.page },
-            { text: r.keyword },
             { html: '<a class="hover:underline" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.domain) + "</a>" },
             { text: r.title },
             { text: r.snippet },
@@ -217,7 +206,7 @@
       });
       stage.appendChild(meta);
       stage.appendChild(
-        sortableTable(["Sıra", "Δ", "Sayfa", "Sözcük", "Domain", "Başlık / meta", "Snippet"], rows)
+        sortableTable(["Sıra", "Sayfa", "Domain", "Başlık / meta", "Snippet"], rows)
       );
     }
     root.appendChild(head);
