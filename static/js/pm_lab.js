@@ -195,7 +195,7 @@
       meta.className = "flex flex-wrap gap-1.5 mb-2";
       var mv = kw.moves || {};
       meta.innerHTML =
-        chip("bizim sıra: " + (kw.our_rank || "yok"), "pml-chip-doviz") +
+        chip("doviz.com: " + (kw.our_rank || "yok"), "pml-chip-doviz") +
         chip("+" + (mv.entered || 0) + " girdi", "pml-chip-new") +
         chip((mv.dropped || 0) + " çıktı", "pml-chip-down");
       var drop = (kw.dropped || [])
@@ -610,16 +610,35 @@
       spark.innerHTML += '<i class="' + (r.ok ? "on" : "off") + '" style="height:' + h + 'px" title="' + esc(fmtWhen(r.at) + " · " + (r.article_total || 0)) + '"></i>';
     });
     var stage = document.createElement("div");
+    function newsIsDoviz(art) {
+      var blob = [art && art.source, art && art.publisher, art && art.url, art && art.domain]
+        .join(" ")
+        .toLowerCase();
+      return blob.indexOf("doviz.com") !== -1;
+    }
     function paint(i) {
       stage.innerHTML = "";
-      var kw = kws[i];
-      var rows = (kw.articles || []).map(function (a, n) {
-        return tr([
-          { text: n + 1, sort: n + 1 },
-          { html: '<a class="pml-link" href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.title) + "</a>" },
-          { text: a.source },
-          { text: a.time },
-        ]);
+      var kw = kws[i] || {};
+      var arts = kw.articles || [];
+      var our = 0;
+      arts.forEach(function (a, n) {
+        if (!our && newsIsDoviz(a)) our = n + 1;
+      });
+      var meta = document.createElement("div");
+      meta.className = "flex flex-wrap gap-1.5 mb-2";
+      meta.innerHTML = chip("doviz.com sıra: " + (our || "yok"), "pml-chip-doviz");
+      stage.appendChild(meta);
+      var rows = arts.map(function (a, n) {
+        var ours = newsIsDoviz(a);
+        return tr(
+          [
+            { text: n + 1, sort: n + 1, cls: ours ? "pml-rank" : "" },
+            { html: '<a class="pml-link" href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.title) + "</a>" },
+            { text: a.source },
+            { text: a.time },
+          ],
+          ours ? "pml-ours pml-doviz" : ""
+        );
       });
       stage.appendChild(sortableTable(["#", "Başlık", "Kaynak", "Zaman"], rows));
     }

@@ -278,3 +278,12 @@ HAREM GRAM ALTIN 6.736,38
     mixed = mod._parse_assets_from_text("GRAM GÜMÜŞ\nDOLAR 47,7396  %0,08\nGRAM GÜMÜŞ 99,60")
     assert mixed["usd"]["value"] == "47,7396"
     assert mixed["gram_gumus"]["value"] == "99,60"
+
+
+def test_pm_lab_doviz_rank_chip_labels():
+    js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
+    html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
+    assert "bizim sıra" not in js
+    assert "doviz.com: " in js
+    assert "doviz.com sıra:" in js
+    assert "pm_lab.js?v=13" in html
