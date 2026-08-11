@@ -392,7 +392,7 @@
           return en;
         })
         .filter(function (en) {
-          var key = String(en.id || "") || String(en.text || "").slice(0, 80);
+          var key = String(en.text || "").replace(/\s+/g, " ").slice(0, 80);
           if (seen[key]) return false;
           seen[key] = 1;
           return String(en.text || "").length > 12;

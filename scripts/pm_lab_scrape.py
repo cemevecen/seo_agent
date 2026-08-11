@@ -687,10 +687,14 @@ def _eksi_newest(page: Any, start_url: str, *, limit: int = 10) -> tuple[str, li
         final_url = page.url
         page_rows = list(reversed(_eksi_extract_entries(page)))
         for row in page_rows:
-            rid = str(row.get("id") or "") or str(row.get("text") or "")[:80]
-            if rid in seen:
+            rid = str(row.get("id") or "")
+            fp = " ".join(str(row.get("text") or "").split())[:80]
+            if (rid and rid in seen) or (fp and fp in seen):
                 continue
-            seen.add(rid)
+            if rid:
+                seen.add(rid)
+            if fp:
+                seen.add(fp)
             collected.append(row)
             if len(collected) >= limit:
                 return final_url, collected[:limit]
