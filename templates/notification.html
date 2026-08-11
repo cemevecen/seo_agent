@@ -83,39 +83,41 @@
     </div>
   </div>
 
-  <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-    <div class="space-y-2">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Metrik</span>
-        <button type="button" data-nt-metric="click" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">Click</button>
-        <button type="button" data-nt-metric="impression" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">Impression</button>
-        <button type="button" data-nt-metric="ctr" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">CTR</button>
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Liste platformu</span>
-        <button type="button" data-nt-list-platform="web" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Web</button>
-        <button type="button" data-nt-list-platform="mobileweb" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Mobile Web</button>
-        <button type="button" data-nt-list-platform="android" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Android</button>
-        <button type="button" data-nt-list-platform="ios" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">iOS</button>
-      </div>
-      <div class="nt-mini-card inline-flex max-w-full flex-col gap-2 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900 sm:flex-row sm:flex-wrap sm:items-end">
-        <div class="min-w-[10rem] space-y-1.5">
-          <label for="nt-range-preset-secondary" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</label>
-          <select id="nt-range-preset-secondary" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-            <option value="custom">Özel aralık</option>
-            <option value="all">Tümü</option>
-            <option value="1d">Dün</option>
-            <option value="1w">Son 1 hafta</option>
-            <option value="1m">Son 1 ay</option>
-            <option value="3m">Son 3 ay</option>
-            <option value="6m">Son 6 ay</option>
-            <option value="1y" selected>Son 1 yıl</option>
-            <option value="2y">Son 2 yıl</option>
-            <option value="3y">Son 3 yıl</option>
-            <option value="4y">Son 4 yıl</option>
-          </select>
+  <div class="rounded-2xl border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
+    <div class="nt-metric-bar">
+      <div class="nt-metric-bar-group">
+        <span class="nt-metric-bar-label">Metrik</span>
+        <div class="nt-metric-bar-pills">
+          <button type="button" data-nt-metric="click" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">Click</button>
+          <button type="button" data-nt-metric="impression" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">Impression</button>
+          <button type="button" data-nt-metric="ctr" class="nt-metric-pill rounded-full border px-3 py-1 text-xs font-semibold">CTR</button>
         </div>
-        <button id="nt-apply-preset-secondary" type="button" class="nt-btn-pastel-green shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold sm:mb-0.5">Hazır aralığı uygula</button>
+      </div>
+      <div class="nt-metric-bar-group">
+        <span class="nt-metric-bar-label">Liste platformu</span>
+        <div class="nt-metric-bar-pills">
+          <button type="button" data-nt-list-platform="web" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Web</button>
+          <button type="button" data-nt-list-platform="mobileweb" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Mobile Web</button>
+          <button type="button" data-nt-list-platform="android" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Android</button>
+          <button type="button" data-nt-list-platform="ios" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">iOS</button>
+        </div>
+      </div>
+      <div class="nt-metric-bar-group nt-metric-bar-preset">
+        <label for="nt-range-preset-secondary" class="nt-metric-bar-label">Hazır zaman dilimi</label>
+        <select id="nt-range-preset-secondary" class="nt-metric-bar-select rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+          <option value="custom">Özel aralık</option>
+          <option value="all">Tümü</option>
+          <option value="1d">Dün</option>
+          <option value="1w">Son 1 hafta</option>
+          <option value="1m">Son 1 ay</option>
+          <option value="3m">Son 3 ay</option>
+          <option value="6m">Son 6 ay</option>
+          <option value="1y" selected>Son 1 yıl</option>
+          <option value="2y">Son 2 yıl</option>
+          <option value="3y">Son 3 yıl</option>
+          <option value="4y">Son 4 yıl</option>
+        </select>
+        <button id="nt-apply-preset-secondary" type="button" class="nt-btn-pastel-green shrink-0 rounded-lg px-3 py-1 text-xs font-bold">Hazır aralığı uygula</button>
       </div>
     </div>
   </div>
@@ -342,6 +344,47 @@
     .notification-page .nt-filter-panel-item {
       min-width: 0;
       width: 100%;
+    }
+    .notification-page .nt-metric-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem 1.1rem;
+      width: 100%;
+    }
+    .notification-page .nt-metric-bar-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem 0.45rem;
+      min-width: 0;
+    }
+    .notification-page .nt-metric-bar-label {
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+      white-space: nowrap;
+    }
+    html.dark .notification-page .nt-metric-bar-label,
+    html.midnight .notification-page .nt-metric-bar-label {
+      color: #a1a1aa;
+    }
+    .notification-page .nt-metric-bar-pills {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .notification-page .nt-metric-bar-preset {
+      flex: 1 1 14rem;
+      min-width: min(100%, 14rem);
+    }
+    .notification-page .nt-metric-bar-select {
+      flex: 1 1 8.5rem;
+      min-width: 7.5rem;
+      max-width: 14rem;
     }
     .notification-page .nt-filter-dates {
       display: grid;
