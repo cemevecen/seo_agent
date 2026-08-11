@@ -736,8 +736,11 @@ def alarm_worthy_for_email(alarm: dict[str, Any]) -> bool:
 
     rid = str(alarm.get("rule_id") or "")
     sev = str(alarm.get("severity") or "").lower()
-    if sev == "critical" or "404" in rid or rid.startswith("rt_404"):
+    if sev == "critical":
         return True
+    # 404: yalnızca kritik spike mail gider (uyarı panoda kalır)
+    if "404" in rid or rid.startswith("rt_404"):
+        return False
 
     min_vol = int(getattr(settings, "ga4_realtime_email_min_users_for_mail", 30))
     min_delta = int(getattr(settings, "ga4_realtime_email_min_abs_user_delta", 12))
@@ -5118,18 +5121,19 @@ def _evaluate_404_spike_severity(
     warn_threshold: int,
     crit_threshold: int,
 ) -> str | None:
-    """Mutlak kullanıcı sayısı değil, önceki pencereye göre ani artış (spike) aranır."""
+    """Yalnızca ani, büyük 404 sıçraması. Sabit yüksek taban (Sinemalar ~380) spam üretmez."""
     if total < warn_threshold:
         return None
     delta = total - previous
-    min_delta = max(8, warn_threshold // 2)
-    # Sürekli yüksek taban (384→380 gibi): spike değil, uyarı verme
-    if previous >= warn_threshold and delta < min_delta:
+    # Küçük salınım (+14 / 370 gibi) önemli değil
+    warn_delta = max(40, int(previous * 0.15) if previous else warn_threshold)
+    crit_delta = max(50, int(previous * 0.25) if previous else crit_threshold)
+    if previous >= warn_threshold and delta < warn_delta:
         return None
     pct = (delta / previous * 100) if previous > 0 else (100.0 if total >= warn_threshold else 0.0)
-    if total >= crit_threshold and (delta >= min_delta or previous == 0 or pct >= 25):
+    if total >= crit_threshold and (delta >= crit_delta or (previous == 0 and total >= crit_threshold)):
         return "critical"
-    if total >= warn_threshold and (delta >= min_delta or previous == 0 or pct >= 15):
+    if total >= warn_threshold and (delta >= warn_delta or previous == 0 or pct >= 40):
         return "warning"
     return None
 

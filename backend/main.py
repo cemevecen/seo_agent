@@ -4754,17 +4754,8 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         )
         job_count += 1
 
-    # Günlük hata tespiti — her gece 01:30'da, tüm siteler için 4 periyot (1/7/14/30g)
-    scheduler.add_job(
-        _run_error_detection_job,
-        trigger=CronTrigger(hour=1, minute=30, timezone=timezone),
-        id="daily-error-detection",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=3600,
-    )
-    job_count += 1
+    # Hata izleme tarama 03:00 + 13:00 TR — CSV HTTP (GA4 API yok)
+    # Job, CSV manifest zamanlayıcısı ile aynı fonksiyonda (aşağıda).
 
     # Günlük meta tag snapshot — bridge scrape (02:45) sonrası
     scheduler.add_job(
@@ -4994,8 +4985,6 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         LOGGER.info("Döviz varlık izleme aktif: her %d dk.", dz_iv)
 
     if settings.doviz_asset_csv_manifest_enabled:
-        from apscheduler.triggers.interval import IntervalTrigger as _DovizCsvTrigger
-
         def _run_doviz_csv_manifest_job():
             try:
                 from backend.services.doviz_asset_csv_manifest import (
@@ -5012,24 +5001,24 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
                     run_doviz_asset_csv_manifest(
                         db,
                         on_progress=lambda done, total: set_csv_scan_progress(done=done, total=total),
+                        force=True,
                     )
                     cleanup_old_csv_runs(db, keep_days=14)
                     set_csv_scan_progress(running=False)
             except Exception as _csv_exc:
-                logging.getLogger(__name__).warning("Döviz CSV manifest tarama hatası: %s", _csv_exc)
+                logging.getLogger(__name__).warning("Döviz CSV / hata tarama hatası: %s", _csv_exc)
 
-        csv_iv = max(15, int(settings.doviz_asset_csv_manifest_interval_minutes))
         scheduler.add_job(
             _run_doviz_csv_manifest_job,
-            trigger=_DovizCsvTrigger(minutes=csv_iv, timezone=timezone),
+            trigger=CronTrigger(hour="3,13", minute=0, timezone=timezone),
             id="doviz-asset-csv-manifest",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
-            misfire_grace_time=max(900, csv_iv * 60),
+            misfire_grace_time=3600,
         )
         job_count += 1
-        LOGGER.info("Döviz CSV manifest tarama aktif: her %d dk.", csv_iv)
+        LOGGER.info("Hata izleme / CSV tarama aktif: 03:00 ve 13:00 TR.")
 
     # AI Talk proaktif izleme — her 30 dakikada bir
     from apscheduler.triggers.interval import IntervalTrigger as _AiMonitorTrigger
@@ -7002,13 +6991,21 @@ def _build_error_widget(db, site_id: int) -> dict:
 
     Format: {"total_404": 12, "total_5xx": 3, "top_404_urls": [{"url": "...", "hits": 42}, ...]}
     """
+    from backend.services.error_monitor import TARAMA_SOURCE, _FETCH_META_URL
     from sqlalchemy import func as sqlfunc
     cutoff = datetime.utcnow() - timedelta(days=7)
     rows = (
         db.query(SiteErrorLog)
-        .filter(SiteErrorLog.site_id == site_id, SiteErrorLog.last_seen >= cutoff)
+        .filter(
+            SiteErrorLog.site_id == site_id,
+            SiteErrorLog.last_seen >= cutoff,
+            SiteErrorLog.url != _FETCH_META_URL,
+        )
         .all()
     )
+    tarama_rows = [r for r in rows if (r.source or "") == TARAMA_SOURCE]
+    if tarama_rows:
+        rows = tarama_rows
     total_404 = 0
     total_5xx = 0
     by_url_404: dict[str, int] = {}
@@ -15395,7 +15392,7 @@ def errors_page(request: Request, site_id: int | None = None, days: int = 7):
 
 @app.get("/api/errors/{site_id}/summary")
 def api_errors_summary(site_id: int, days: int = 7):
-    """HTMX lazy-load: belirtilen site için hata özeti (DB'den, GA4 çağrısı yok)."""
+    """HTMX lazy-load: belirtilen site için hata özeti (DB'den, tarama kaydı)."""
     from backend.services.error_monitor import get_error_summary
     days = max(1, min(int(days), 30))
     with SessionLocal() as db:
@@ -15405,27 +15402,18 @@ def api_errors_summary(site_id: int, days: int = 7):
 
 @app.get("/api/errors/{site_id}/refresh")
 def api_errors_refresh(site_id: int, days: int = 1):
-    """Manuel hata tespiti tetikle — site için GA4'ten 404 çek."""
-    try:
-        from backend.services.error_monitor import run_error_detection_for_site
-        with SessionLocal() as db:
-            result = run_error_detection_for_site(db, site_id, days=days)
-        return {"status": "ok", **result}
-    except Exception as exc:
-        return {"status": "error", "message": str(exc)}
+    """Manuel tarama tetikle — CSV/HTTP (GA4 yok)."""
+    from backend.services.doviz_asset_csv_manifest import start_csv_manifest_scan_background
+    out = start_csv_manifest_scan_background()
+    return {"status": "ok" if out.get("started") or out.get("reason") == "already_running" else "error", **out}
 
 
 @app.get("/api/errors/refresh-all")
 def api_errors_refresh_all():
-    """Tüm siteler için tüm periyotları GA4'ten çek (manuel tetikleme)."""
-    try:
-        from backend.services.error_monitor import run_error_detection_all_sites
-        with SessionLocal() as db:
-            results = run_error_detection_all_sites(db)
-        total_found = sum(r.get("found", 0) for r in results if isinstance(r, dict))
-        return {"status": "ok", "sites": len(results), "total_found": total_found}
-    except Exception as exc:
-        return {"status": "error", "message": str(exc)}
+    """CSV URL listesini tarar (manuel)."""
+    from backend.services.doviz_asset_csv_manifest import start_csv_manifest_scan_background
+    out = start_csv_manifest_scan_background()
+    return {"status": "ok" if out.get("started") or out.get("reason") == "already_running" else "error", **out}
 
 
 # --- Hata izleme: arka plan job + progress ----------------------------------
@@ -15436,79 +15424,55 @@ _err_refresh_lock = threading.Lock()
 
 @app.post("/api/errors/refresh-all/start")
 def api_errors_refresh_start():
-    """Arka planda tüm siteler için GA4 hata çekimini başlatır."""
-    with _err_refresh_lock:
-        if _err_refresh_job.get("running"):
-            return {"status": "already_running"}
-        _err_refresh_job.update({"running": True, "steps": [], "current": "", "total": 0, "done": 0, "total_found": 0, "error": ""})
+    """Arka planda CSV/HTTP hata taramasını başlatır."""
+    from backend.services.doviz_asset_csv_manifest import (
+        get_csv_scan_progress,
+        start_csv_manifest_scan_background,
+    )
 
-    def _worker():
-        try:
-            from backend.services.error_monitor import run_error_detection_for_site, _GA4_PERIODS
-            from backend.services.ga4_auth import get_ga4_credentials_record, ga4_is_configured
-
-            with SessionLocal() as db:
-                if not ga4_is_configured():
-                    _err_refresh_job["error"] = "GA4 yapılandırılmamış"
-                    return
-                sites = [s for s in db.query(Site).all() if get_ga4_credentials_record(db, s.id)]
-
-            total_steps = len(sites) * len(_GA4_PERIODS)
-            _err_refresh_job["total"] = total_steps
-
-            done = 0
-            total_found = 0
-            for site in sites:
-                for days in _GA4_PERIODS:
-                    _err_refresh_job["current"] = f"{site.display_name or site.domain} · {days}g"
-                    try:
-                        with SessionLocal() as db:
-                            result = run_error_detection_for_site(db, site.id, days=days)
-                        found = result.get("found", 0)
-                        total_found += found
-                        _err_refresh_job["steps"].append({
-                            "domain": site.display_name or site.domain,
-                            "days": days,
-                            "found": found,
-                            "status": result.get("status", "ok"),
-                        })
-                    except Exception as exc:
-                        _err_refresh_job["steps"].append({
-                            "domain": site.display_name or site.domain,
-                            "days": days,
-                            "found": 0,
-                            "status": "error",
-                            "msg": str(exc)[:80],
-                        })
-                    done += 1
-                    _err_refresh_job["done"] = done
-                    _err_refresh_job["total_found"] = total_found
-        except Exception as exc:
-            _err_refresh_job["error"] = str(exc)
-        finally:
-            _err_refresh_job["running"] = False
-            _err_refresh_job["current"] = ""
-
-    threading.Thread(target=_worker, daemon=True, name="err-refresh-all").start()
-    return {"status": "started"}
+    prog = get_csv_scan_progress()
+    if prog.get("running"):
+        return {"status": "already_running"}
+    out = start_csv_manifest_scan_background()
+    if out.get("started"):
+        return {"status": "started"}
+    if out.get("reason") == "already_running":
+        return {"status": "already_running"}
+    return {"status": "error", **out}
 
 
 @app.get("/api/errors/refresh-all/progress")
 def api_errors_refresh_progress():
-    """Arka plan hata çekimi progress durumu."""
-    j = _err_refresh_job
-    steps = list(j.get("steps") or [])
-    total = j.get("total") or 0
-    done = j.get("done", 0)
-    pct = int(done * 100 / total) if total > 0 else (100 if not j.get("running") else 0)
+    """CSV/HTTP tarama progress."""
+    from backend.services.doviz_asset_csv_manifest import get_csv_scan_progress
+
+    p = get_csv_scan_progress()
+    total = int(p.get("total") or 0)
+    done = int(p.get("done") or 0)
+    running = bool(p.get("running"))
+    pct = int(done * 100 / total) if total > 0 else (100 if not running else 0)
+    last = p.get("last_result") or {}
+    found = int(last.get("failure_count") or 0)
+    err = p.get("error") or ""
+    current = "Taranıyor…" if running else ("Tamamlandı" if not err else "Hata")
+    steps = []
+    if last:
+        steps.append(
+            {
+                "domain": "CSV tarama",
+                "days": 0,
+                "found": found,
+                "status": "ok" if not err else "error",
+            }
+        )
     return {
-        "running": bool(j.get("running")),
-        "current": j.get("current", ""),
+        "running": running,
+        "current": current,
         "total": total,
         "done": done,
         "pct": pct,
-        "total_found": j.get("total_found", 0),
-        "error": j.get("error", ""),
+        "total_found": found,
+        "error": err,
         "recent_steps": steps[-8:],
     }
 
@@ -20130,20 +20094,28 @@ def _get_error_summary_for_card(db, site_id: int, days: int = 7) -> dict:
 
 
 def _run_error_detection_job() -> None:
-    """Günlük GA4 hata tespiti — tüm siteler için 1/7/14/30g periyotlarını DB'ye yazar."""
+    """03:00 / 13:00 CSV HTTP tarama (GA4 API yok)."""
     try:
-        from backend.services.error_monitor import run_error_detection_all_sites, _GA4_PERIODS
+        from backend.services.doviz_asset_csv_manifest import (
+            cleanup_old_csv_runs,
+            manifest_url_count,
+            run_doviz_asset_csv_manifest,
+        )
+
         with SessionLocal() as db:
-            results = run_error_detection_all_sites(db)
-        ok = [r for r in results if isinstance(r, dict) and r.get("status") == "ok"]
-        total_found = sum(r.get("found", 0) for r in ok)
-        site_count = len({r.get("domain") for r in ok if r.get("domain")})
+            if manifest_url_count(db) < 1:
+                LOGGER.info("Hata tarama atlandı: CSV URL listesi boş")
+                return
+            result = run_doviz_asset_csv_manifest(db, force=True)
+            cleanup_old_csv_runs(db, keep_days=14)
         LOGGER.info(
-            "Hata tespiti tamamlandı: %d site, %d periyot, toplam %d hata URL",
-            site_count, len(_GA4_PERIODS), total_found,
+            "Hata tarama tamamlandı: url=%s fail=%s emailed=%s",
+            result.get("url_count"),
+            result.get("failure_count"),
+            result.get("emailed_count"),
         )
     except Exception as exc:
-        LOGGER.error("Hata tespiti job hatası: %s", exc)
+        LOGGER.error("Hata tarama job hatası: %s", exc)
 
 
 def _run_meta_audit_snapshot_job() -> None:

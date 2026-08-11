@@ -1,6 +1,6 @@
 """
-Site hata izleme — GA4 Analytics Data API ile 404/hata sayfası tespiti.
-Credential pattern: ga4_realtime.py ile aynı (global service account).
+Site hata izleme — birincil kaynak HTTP/CSV tarama (source=tarama).
+GA4 Data API yedek/eski kayıtlar için durur; panel tarama sonuçlarını gösterir.
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from backend.config import settings
 logger = logging.getLogger(__name__)
 
 _FETCH_META_URL = "__fetch_meta__"
+TARAMA_SOURCE = "tarama"
 
 _REFERRER_SKIP = frozenset({"", "(not set)", "(none)", "(direct)"})
 _MAX_REFERRERS = 20
@@ -853,7 +854,10 @@ def get_error_summary(
     site_id: int,
     days: int = 7,
 ) -> dict[str, Any]:
-    """Belirtilen periyot için DB'den hata özetini döner (GA4 çağrısı yapmaz)."""
+    """Belirtilen periyot için DB'den hata özetini döner (GA4 çağrısı yapmaz).
+
+    Birincil kaynak ``tarama`` (CSV/HTTP). Tarama yoksa eski GA4 kaydı gösterilir.
+    """
     from backend.models import Site, SiteErrorLog
 
     site_host = ""
@@ -861,7 +865,12 @@ def get_error_summary(
     if site:
         site_host = _host_hint(site.domain)
 
-    source_key = _ga4_source_key(days)
+    tarama_any = (
+        db.query(SiteErrorLog.id)
+        .filter(SiteErrorLog.site_id == site_id, SiteErrorLog.source == TARAMA_SOURCE)
+        .first()
+    )
+    source_key = TARAMA_SOURCE if tarama_any else _ga4_source_key(days)
 
     rows = (
         db.query(SiteErrorLog)
@@ -886,29 +895,40 @@ def get_error_summary(
             continue
         data_rows.append(r)
 
-    total_404 = int(fetch_meta.get("ga4_unique_url_count") or 0)
-    if total_404 <= 0:
-        total_404 = sum(1 for r in data_rows if r.status_code == 404)
-    total_5xx = sum(1 for r in data_rows if r.status_code >= 500)
-    total_users = sum(r.hit_count for r in data_rows)
-    fetched_url_count = int(fetch_meta.get("fetched_url_count") or len(data_rows))
-    truncated = bool(fetch_meta.get("truncated")) or (
-        total_404 > len(data_rows) and len(data_rows) >= _ga4_error_display_limit()
-    )
-
-    # Verinin kapsadığı tarih aralığı: çekim anından geriye days gün
-    fetched_at = max((r.last_seen for r in data_rows if r.last_seen), default=None)
-    if fetched_at:
-        range_end = fetched_at.date()
-        range_start = range_end - timedelta(days=days - 1)
-        if range_start == range_end:
-            fetched_at_str = range_end.strftime("%-d %b %Y")
-        elif range_start.year == range_end.year:
-            fetched_at_str = f"{range_start.strftime('%-d %b')} – {range_end.strftime('%-d %b %Y')}"
-        else:
-            fetched_at_str = f"{range_start.strftime('%-d %b %Y')} – {range_end.strftime('%-d %b %Y')}"
+    is_tarama = source_key == TARAMA_SOURCE
+    if is_tarama:
+        total_404 = sum(1 for r in data_rows if int(r.status_code or 0) == 404)
+        total_5xx = sum(1 for r in data_rows if int(r.status_code or 0) >= 500)
+        total_users = sum(1 for r in data_rows if str(r.error_type or "") == "unreachable")
+        fetched_url_count = int(fetch_meta.get("url_count") or len(data_rows))
+        truncated = False
+        fetched_at_str = str(fetch_meta.get("scan_at_tr") or "")
+        if not fetched_at_str:
+            fetched_at = max((r.last_seen for r in data_rows if r.last_seen), default=None)
+            fetched_at_str = fetched_at.strftime("%d.%m.%Y %H:%M") if fetched_at else ""
     else:
-        fetched_at_str = ""
+        total_404 = int(fetch_meta.get("ga4_unique_url_count") or 0)
+        if total_404 <= 0:
+            total_404 = sum(1 for r in data_rows if r.status_code == 404)
+        total_5xx = sum(1 for r in data_rows if r.status_code >= 500)
+        total_users = sum(r.hit_count for r in data_rows)
+        fetched_url_count = int(fetch_meta.get("fetched_url_count") or len(data_rows))
+        truncated = bool(fetch_meta.get("truncated")) or (
+            total_404 > len(data_rows) and len(data_rows) >= _ga4_error_display_limit()
+        )
+
+        fetched_at = max((r.last_seen for r in data_rows if r.last_seen), default=None)
+        if fetched_at:
+            range_end = fetched_at.date()
+            range_start = range_end - timedelta(days=days - 1)
+            if range_start == range_end:
+                fetched_at_str = range_end.strftime("%-d %b %Y")
+            elif range_start.year == range_end.year:
+                fetched_at_str = f"{range_start.strftime('%-d %b')} – {range_end.strftime('%-d %b %Y')}"
+            else:
+                fetched_at_str = f"{range_start.strftime('%-d %b %Y')} – {range_end.strftime('%-d %b %Y')}"
+        else:
+            fetched_at_str = ""
 
     error_list = []
     for r in data_rows[: _ga4_error_display_limit()]:
@@ -944,8 +964,9 @@ def get_error_summary(
         "total_users": total_users,
         "fetched_url_count": fetched_url_count,
         "truncated": truncated,
-        "fetch_limit": int(fetch_meta.get("fetch_limit") or _ga4_error_fetch_limit()),
-        "by_source":   {"ga4": total_404 + total_5xx},
+        "fetch_limit": int(fetch_meta.get("fetch_limit") or (fetched_url_count if is_tarama else _ga4_error_fetch_limit())),
+        "by_source":   {("tarama" if is_tarama else "ga4"): total_404 + total_5xx},
+        "data_source": "tarama" if is_tarama else "ga4",
         "errors":      error_list,
         "site_id":     site_id,
         "days":        days,

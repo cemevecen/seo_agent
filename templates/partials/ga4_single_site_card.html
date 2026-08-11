@@ -229,11 +229,11 @@
           {# Çek butonu #}
           <button type="button" onclick="errWidgetRefresh({{ site.id }})"
                   class="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                  title="GA4'ten 404 sayfalarını çek">
+                  title="CSV / HTTP tarama çalıştır">
             <svg id="err-spin-{{ site.id }}" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
-            Çek
+            Tara
           </button>
           <a href="/errors?site_id={{ site.id }}&days={{ error_summary.days }}"
              class="text-[10px] font-semibold text-sky-600 hover:underline dark:text-sky-400">Tümü →</a>
@@ -267,7 +267,7 @@
         </table>
         {% else %}
         <p class="py-4 text-center text-[11px] text-slate-400 dark:text-slate-500">
-          Kayıt yok — "Çek" butonuyla GA4'ten veri al.
+          Kayıt yok — otomatik tarama 03:00 ve 13:00.
         </p>
         {% endif %}
       </div>

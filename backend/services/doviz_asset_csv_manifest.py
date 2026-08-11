@@ -82,6 +82,7 @@ def start_csv_manifest_scan_background() -> dict[str, Any]:
                 result = run_doviz_asset_csv_manifest(
                     db,
                     on_progress=lambda done, total: _set_scan_progress(done=done, total=total),
+                    force=True,
                 )
                 cleanup_old_csv_runs(db, keep_days=14)
             _set_scan_progress(last_result=result, finished_at=_iso_utc(), running=False)
@@ -372,8 +373,9 @@ def run_doviz_asset_csv_manifest(
     db: Session,
     *,
     on_progress: Callable[[int, int], None] | None = None,
+    force: bool = False,
 ) -> dict[str, Any]:
-    """DB'deki URL listesini tarar; boş/hatalı sayfalar için mail (issue başına max 2)."""
+    """DB'deki URL listesini tarar; gerçek HTTP hatalarını yazar; yalnızca kritik sapmada mail."""
     urls = [r.url for r in db.query(DovizAssetMonitorUrl).order_by(DovizAssetMonitorUrl.id).all()]
     if not urls:
         return {
@@ -382,6 +384,8 @@ def run_doviz_asset_csv_manifest(
             "reason": "no_manifest_urls",
             "url_count": 0,
         }
+
+    prev_payload = _get_prev_csv_payload(db)
 
     t0 = time.monotonic()
     if on_progress:
@@ -392,7 +396,6 @@ def run_doviz_asset_csv_manifest(
     ok_count = len(probes) - len(failures)
     summary = _summarize_probes(probes)
 
-    prev_payload = _get_prev_csv_payload(db)
     prev_issue_state = prev_payload.get("issue_state") or {}
 
     scan_iso = _iso_utc()
@@ -411,7 +414,50 @@ def run_doviz_asset_csv_manifest(
             p["first_seen_tr"] = hit["first_seen_tr"]
             p["last_seen_tr"] = hit["last_seen_tr"]
 
-    mail_items = _failures_for_email(failures, issue_state)
+    from backend.services.error_page_tarama import (
+        classify_csv_anomalies,
+        email_cooldown_ok,
+        persist_tarama_errors,
+        send_csv_anomaly_email,
+    )
+
+    persist_info = persist_tarama_errors(
+        db,
+        probes,
+        scan_iso=scan_iso,
+        url_count=len(urls),
+        ok_count=ok_count,
+        failure_count=len(failures),
+    )
+
+    prev_failures = prev_payload.get("failures") or []
+    anomaly = classify_csv_anomalies(
+        failures,
+        prev_failures,
+        url_count=len(urls),
+        prev_url_count=int(prev_payload.get("url_count") or 0),
+        prev_failure_count=int(prev_payload.get("failure_count") or len(prev_failures)),
+    )
+    mail_items = anomaly.get("items") or []
+    emailed = False
+    if (
+        anomaly.get("should_mail")
+        and mail_items
+        and email_cooldown_ok(prev_payload)
+        and settings.doviz_asset_monitor_email_enabled
+        and settings.outbound_email_enabled
+    ):
+        emailed = send_csv_anomaly_email(
+            mail_items,
+            {
+                "url_count": len(urls),
+                "failure_count": len(failures),
+            },
+            scan_iso=scan_iso,
+            reasons=list(anomaly.get("reasons") or []),
+        )
+        if emailed:
+            _increment_email_counts(issue_state, mail_items)
 
     payload: dict[str, Any] = {
         "run_kind": RUN_KIND,
@@ -426,7 +472,10 @@ def run_doviz_asset_csv_manifest(
         "sample_ok": summary["sample_ok"],
         "failures": failures,
         "issue_state": issue_state,
-        "mail_items": mail_items,
+        "mail_items": mail_items if emailed else [],
+        "anomaly": {k: v for k, v in anomaly.items() if k != "items"},
+        "persist": persist_info,
+        "last_anomaly_email_at": scan_iso if emailed else prev_payload.get("last_anomaly_email_at"),
     }
 
     run = DovizAssetMonitorRun(
@@ -440,13 +489,6 @@ def run_doviz_asset_csv_manifest(
     db.commit()
     db.refresh(run)
 
-    if mail_items and settings.doviz_asset_monitor_email_enabled and settings.outbound_email_enabled:
-        _send_csv_manifest_email(mail_items, payload, scan_iso=scan_iso)
-        _increment_email_counts(issue_state, mail_items)
-        payload["issue_state"] = issue_state
-        run.payload_json = json.dumps(payload, ensure_ascii=False)
-        db.commit()
-
     return {
         "run_id": run.id,
         "run_kind": RUN_KIND,
@@ -456,9 +498,12 @@ def run_doviz_asset_csv_manifest(
         "ok_count": ok_count,
         "failure_count": len(failures),
         "duration_seconds": duration_seconds,
-        "emailed_count": len(mail_items),
+        "emailed_count": len(mail_items) if emailed else 0,
+        "emailed": emailed,
+        "anomaly_reasons": anomaly.get("reasons") or [],
         "by_kind": summary["by_kind"],
         "failures": failures[:50],
+        "persist": persist_info,
     }
 
 
