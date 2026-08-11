@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import html as html_lib
 import json
 import os
 import re
@@ -15,6 +16,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
@@ -705,42 +707,117 @@ def job_store_charts(page: Any) -> dict[str, Any]:
     }
 
 
+def _news_rss_articles(keyword: str, *, limit: int = 25) -> list[dict[str, str]]:
+    rss_url = f"https://news.google.com/rss/search?q={quote(keyword)}&hl=tr&gl=TR&ceid=TR:tr"
+    req = urllib.request.Request(
+        rss_url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/rss+xml, application/xml, text/xml, */*;q=0.8",
+            "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.5",
+            "Referer": "https://news.google.com/",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=25) as resp:
+        raw = resp.read()
+    sniff = raw.lstrip()[:80].lower()
+    if sniff.startswith(b"<!doctype") or sniff.startswith(b"<html"):
+        return []
+    root = ET.fromstring(raw)
+    items = root.findall("./channel/item")
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in items:
+        title = html_lib.unescape((item.findtext("title") or "").strip())
+        link = (item.findtext("link") or "").strip()
+        source_el = item.find("source")
+        source = (source_el.text or "").strip() if source_el is not None else ""
+        if source and title.endswith(" - " + source):
+            title = title[: -len(source) - 3].strip()
+        pub = (item.findtext("pubDate") or "").strip()[:40]
+        if not title or title in seen:
+            continue
+        seen.add(title)
+        out.append({"title": title[:200], "url": link, "source": source[:80], "time": pub})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _news_html_articles(page: Any, *, limit: int = 25) -> list[dict[str, str]]:
+    arts = page.evaluate(
+        """(limit) => {
+          const out = [];
+          const seen = new Set();
+          const push = (title, url, source, time) => {
+            title = (title || '').trim();
+            if (!title || seen.has(title)) return;
+            seen.add(title);
+            out.push({
+              title: title.slice(0, 200),
+              url: url || '',
+              source: (source || '').slice(0, 80),
+              time: (time || '').slice(0, 40)
+            });
+          };
+          document.querySelectorAll('article').forEach((art) => {
+            const a = art.querySelector('a[href]');
+            const title = ((art.querySelector('h3,h4') || a || {}).innerText || '').trim();
+            const timeEl = art.querySelector('time');
+            let source = '';
+            if (timeEl && timeEl.previousElementSibling) source = (timeEl.previousElementSibling.innerText || '').trim();
+            if (!source) {
+              const lines = (art.innerText || '').split('\\n').map(s => s.trim()).filter(Boolean);
+              source = lines[1] || '';
+            }
+            push(title, a && a.href, source, timeEl && (timeEl.innerText || timeEl.getAttribute('datetime')));
+          });
+          if (!out.length) {
+            document.querySelectorAll('a[href*="./articles/"], a[href*="/articles/"]').forEach((a) => {
+              const title = (a.innerText || '').trim();
+              if (title.length < 18) return;
+              const block = a.closest('article, div') || a.parentElement;
+              const lines = ((block && block.innerText) || '').split('\\n').map(s => s.trim()).filter(Boolean);
+              push(title, a.href, lines[1] || '', '');
+            });
+          }
+          return out.slice(0, limit);
+        }""",
+        limit,
+    )
+    return arts if isinstance(arts, list) else []
+
+
 def job_google_news(page: Any) -> dict[str, Any]:
     keywords: list[dict[str, Any]] = []
     for kw in NEWS_KEYWORDS:
-        url = f"https://news.google.com/search?q={quote(kw)}&hl=tr&gl=TR&ceid=TR:tr"
-        rec: dict[str, Any] = {"keyword": kw, "url": url, "articles": []}
+        search_url = f"https://news.google.com/search?q={quote(kw)}&hl=tr&gl=TR&ceid=TR:tr"
+        rec: dict[str, Any] = {"keyword": kw, "url": search_url, "articles": []}
+        alias_err = ""
         try:
-            _goto(page, url, timeout=75_000)
-            page.wait_for_timeout(1400)
-            arts = page.evaluate(
-                """() => {
-                  const out = [];
-                  document.querySelectorAll('article').forEach((art) => {
-                    const a = art.querySelector('a');
-                    const title = ((a && a.innerText) || (art.querySelector('h3,h4') || {}).innerText || '').trim();
-                    if (!title) return;
-                    let source = '';
-                    const timeEl = art.querySelector('time');
-                    if (timeEl && timeEl.previousElementSibling) source = (timeEl.previousElementSibling.innerText || '').trim();
-                    if (!source) source = (art.innerText.split('\\n')[1] || '').trim();
-                    const time = ((timeEl && (timeEl.innerText || timeEl.getAttribute('datetime'))) || '').slice(0, 40);
-                    out.push({ title: title.slice(0, 200), url: (a && a.href) || '', source: source.slice(0, 80), time });
-                  });
-                  return out.slice(0, 25);
-                }"""
-            )
-            rec["articles"] = arts if isinstance(arts, list) else []
-        except Exception as exc:  # noqa: BLE001
-            rec["message"] = str(exc)[:180]
+            rec["articles"] = _news_rss_articles(kw, limit=25)
+        except Exception as exc:
+            alias_err = str(exc)[:180]
+        if not rec["articles"]:
+            try:
+                _goto(page, search_url, timeout=75_000)
+                page.wait_for_timeout(1600)
+                rec["articles"] = _news_html_articles(page, limit=25)
+            except Exception as exc:
+                alias_err = alias_err or str(exc)[:180]
+        if alias_err and not rec["articles"]:
+            rec["message"] = alias_err
         keywords.append(rec)
-        time.sleep(0.7)
+        time.sleep(0.4)
     total = sum(len(k.get("articles") or []) for k in keywords)
     return {
         "ok": total > 0,
         "scraped_at": _now(),
         "summary": f"{total} haber · {len(keywords)} kelime",
-        "message": "",
+        "message": "" if total else "Google News boş (RSS/HTML)",
         "keywords": keywords,
     }
 
