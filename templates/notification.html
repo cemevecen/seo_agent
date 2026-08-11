@@ -289,6 +289,10 @@
     .notification-page .nt-cmp-chart-plot {
       width: 100%;
       height: 16rem;
+      overflow: visible;
+    }
+    .notification-page #nt-weight-clicks {
+      overflow: visible;
     }
     @media (min-width: 640px) {
       .notification-page .nt-cmp-chart-plot { height: 17.5rem; }
@@ -1983,17 +1987,48 @@
       return;
     }
     var pc = ntChartColors();
+    var weightVals = PLATFORM_KEYS.map(function (p) { return clickTotals[p.key]; });
+    var weightTotal = weightVals.reduce(function (a, b) { return a + b; }, 0) || 1;
+    var weightLabels = PLATFORM_KEYS.map(function (p, i) {
+      var pct = (weightVals[i] / weightTotal) * 100;
+      var pctTxt = pct >= 10 ? pct.toFixed(1) : pct.toFixed(2);
+      return p.label + " · " + pctTxt + "%";
+    });
     Plotly.newPlot("nt-weight-clicks", [{
       type: "pie",
-      labels: PLATFORM_KEYS.map(function (p) { return p.label; }),
-      values: PLATFORM_KEYS.map(function (p) { return clickTotals[p.key]; }),
-      hole: 0.45,
+      labels: weightLabels,
+      values: weightVals,
+      hole: 0.42,
+      sort: false,
+      direction: "clockwise",
+      textinfo: "percent",
+      textposition: "inside",
+      insidetextorientation: "horizontal",
+      automargin: true,
+      domain: { x: [0, 0.68], y: [0.08, 0.92] },
       marker: {
         colors: [pc.android, pc.ios, pc.desktop, pc.mobileweb],
         line: { color: ntIsDark() ? "#18181b" : "#ffffff", width: 1 }
       },
-      insidetextfont: { color: ntIsDark() ? "#e4e4e7" : "#ffffff" }
-    }], { margin: { l: 10, r: 10, t: 8, b: 8 }, paper_bgcolor: "rgba(0,0,0,0)", font: ntFont(), legend: { font: ntFont() } }, { responsive: true, displayModeBar: false });
+      insidetextfont: { size: 12, color: ntIsDark() ? "#e4e4e7" : "#ffffff" },
+      outsidetextfont: { size: 11, color: ntFont().color },
+      hovertemplate: "%{label}<br>%{value:,.0f} click<extra></extra>"
+    }], {
+      margin: { l: 12, r: 12, t: 12, b: 28 },
+      paper_bgcolor: "rgba(0,0,0,0)",
+      font: ntFont(),
+      showlegend: true,
+      uniformtext: { minsize: 10, mode: "hide" },
+      legend: {
+        font: ntFont(),
+        bgcolor: "rgba(0,0,0,0)",
+        orientation: "v",
+        x: 1,
+        xanchor: "right",
+        y: 0.5,
+        yanchor: "middle"
+      }
+    }, { responsive: true, displayModeBar: false });
   }
   function renderMostLeast(rows) {
     var dataKey = mapListPlatformToDataKey(selectedListPlatform);
