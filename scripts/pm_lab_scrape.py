@@ -240,10 +240,18 @@ def _domain_of(url: str) -> str:
     return host.removeprefix("www.")
 
 
+def _is_our_host(host: str) -> bool:
+    h = (host or "").lower().removeprefix("www.")
+    for ours in OUR_HOSTS:
+        if h == ours or h.endswith("." + ours):
+            return True
+    return False
+
+
 def _our_rank(organic: list[dict[str, Any]]) -> tuple[int | None, str]:
     for row in organic:
         host = (row.get("domain") or _domain_of(str(row.get("url") or ""))).lower()
-        if any(h in host for h in OUR_HOSTS):
+        if _is_our_host(host):
             try:
                 return int(row.get("rank") or 0) or None, str(row.get("url") or "")
             except (TypeError, ValueError):
@@ -256,7 +264,7 @@ def _extract_serp(page: Any) -> dict[str, Any]:
         """() => {
           const organic = [];
           const seen = new Set();
-          const h3s = document.querySelectorAll('#search h3, #rso h3');
+          const h3s = document.querySelectorAll('h3');
           h3s.forEach((h3) => {
             const a = h3.closest('a');
             if (!a || !a.href) return;
@@ -334,7 +342,7 @@ def job_serp(page: Any) -> dict[str, Any]:
             shot = _shot(page, full_page=True)
             if shot:
                 shots[f"{slug}_p{pno}"] = shot
-            time.sleep(1.4)
+            time.sleep(2.2)
         rank, our_url = _our_rank(all_organic)
         keywords.append(
             {
@@ -501,14 +509,35 @@ def job_ads_transparency(page: Any) -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             raw_lines.append(f"{domain}: {exc}"[:200])
         time.sleep(0.8)
+    extra_q = (
+        ("query_doviz", "https://adstransparency.google.com/?region=TR&query=" + quote("Döviz")),
+        ("query_nokta", "https://adstransparency.google.com/?region=TR&query=" + quote("Nokta")),
+    )
+    for sid, url in extra_q:
+        try:
+            _goto(page, url, timeout=90_000)
+            page.wait_for_timeout(2200)
+            body = _text(page, 6000)
+            raw_lines.append(f"--- {sid} ---")
+            raw_lines.extend([ln.strip() for ln in body.splitlines() if ln.strip()][:25])
+            shot = _shot(page, full_page=False)
+            if shot:
+                shots[sid] = shot
+        except Exception as exc:  # noqa: BLE001
+            raw_lines.append(f"{sid}: {exc}"[:200])
+
+    zero = any("0 reklam" in ln or "Hiç reklam bulunamadı" in ln for ln in raw_lines)
+    summary = f"{len(ads)} reklam satırı"
+    if zero and not ads:
+        summary = "TR vitrinde 0 reklam (alan adı araması)"
     return {
-        "ok": bool(ads or advertisers or shots),
+        "ok": bool(ads or advertisers or shots or raw_lines),
         "scraped_at": _now(),
-        "summary": f"{len(ads)} reklam satırı · {len(ADS_DOMAINS)} alan",
-        "message": "" if ads or shots else "Transparency sayfası boş veya doğrulama",
+        "summary": summary,
+        "message": "Ads Transparency TR’de doviz.com / sinemalar.com için reklam göstermedi." if zero and not ads else "",
         "advertisers": advertisers,
         "ads": ads,
-        "raw_lines": raw_lines[:80],
+        "raw_lines": raw_lines[:120],
         "shots": shots,
     }
 
@@ -618,6 +647,16 @@ def job_app_rank(page: Any) -> dict[str, Any]:
             play["title"] = meta.get("title") or ""
         except Exception:
             pass
+        try:
+            from backend.services.app_intel import _fetch_android_category_rank
+
+            ar = _fetch_android_category_rank(PLAY_PACKAGE, country="tr", lang="tr", category_id="FINANCE")
+            if ar:
+                play["rank"] = ar.get("rank")
+                play["rank_label"] = f"#{ar.get('rank')} / {ar.get('total')} {ar.get('category_name') or 'Finans'}"
+                play["chart"] = ar.get("play_chart") or ar.get("chart")
+        except Exception:
+            pass
         shot = _shot(page, full_page=False)
         if shot:
             shots["play_details"] = shot
@@ -646,6 +685,17 @@ def job_app_rank(page: Any) -> dict[str, Any]:
             ios["score"] = str(res.get("averageUserRating") or "")
             ios["category"] = ios.get("category") or str(res.get("primaryGenreName") or "")
             ios["title"] = res.get("trackName") or ""
+        except Exception:
+            pass
+        try:
+            from backend.services.app_intel import _fetch_ios_category_rank
+
+            ir = _fetch_ios_category_rank(IOS_APP_ID, country="tr", genre_id=IOS_FINANCE_GENRE)
+            if ir:
+                ios["rank"] = ir.get("rank")
+                ios["rank_label"] = f"#{ir.get('rank')} / {ir.get('total')} {ir.get('chart_label') or ir.get('chart')}"
+                ios["chart"] = ir.get("chart")
+                ios["category"] = ios.get("category") or "Finance"
         except Exception:
             pass
         shot = _shot(page, full_page=False)
@@ -688,46 +738,72 @@ def job_app_rank(page: Any) -> dict[str, Any]:
     }
 
 
+def _play_chart_packages(limit: int = 80) -> list[str]:
+    from backend.services.app_intel import _extract_android_packages
+
+    import httpx
+
+    inner = json.dumps(
+        [[None, [[None, [None, max(80, limit)]], None, None, [113]], [2, "topselling_free", "FINANCE"]]],
+        separators=(",", ":"),
+    )
+    body = "f.req=" + quote(json.dumps([[["vyAe2", inner]]], separators=(",", ":")))
+    url = "https://play.google.com/_/PlayStoreUi/data/batchexecute?hl=tr&gl=tr"
+    with httpx.Client(timeout=28.0, follow_redirects=True) as client:
+        r = client.post(
+            url,
+            content=body,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                ),
+            },
+        )
+        r.raise_for_status()
+        return _extract_android_packages(r.text or "")[:limit]
+
+
 def job_store_charts(page: Any) -> dict[str, Any]:
     shots: dict[str, str] = {}
     charts: list[dict[str, Any]] = []
 
     play_url = "https://play.google.com/store/apps/category/FINANCE?hl=tr&gl=tr"
     try:
-        _goto(page, play_url, timeout=75_000)
-        page.wait_for_timeout(2000)
+        pkgs = _play_chart_packages(80)
+        name_cache: dict[str, str] = {}
         try:
-            page.mouse.wheel(0, 2400)
-            page.wait_for_timeout(800)
+            from google_play_scraper import app as gp_app
+
+            for pkg in pkgs[:20]:
+                try:
+                    meta = gp_app(pkg, lang="tr", country="tr")
+                    name_cache[pkg] = str(meta.get("title") or pkg)
+                except Exception:
+                    name_cache[pkg] = pkg
         except Exception:
             pass
-        apps = page.evaluate(
-            """() => {
-              const out = [];
-              const seen = new Set();
-              document.querySelectorAll('a[href*="/store/apps/details?id="]').forEach((a) => {
-                const href = a.href || '';
-                const m = href.match(/id=([^&]+)/);
-                if (!m) return;
-                const id = decodeURIComponent(m[1]);
-                if (seen.has(id)) return;
-                seen.add(id);
-                const name = ((a.getAttribute('aria-label') || a.innerText || '').trim().split('\\n')[0] || id).slice(0, 80);
-                out.push({ rank: out.length + 1, name, subtitle: id, package: id, is_ours: id === 'com.Doviz' });
-              });
-              return out.slice(0, 40);
-            }"""
-        )
-        apps = apps if isinstance(apps, list) else []
-        ours = next((a for a in apps if a.get("is_ours")), None)
-        charts.append(
+        apps = [
             {
-                "title": "Play · Finans (TR)",
-                "url": play_url,
-                "our_label": f"Döviz #{ours['rank']}" if ours else "Döviz listede (ilk 40) yok",
-                "apps": apps,
+                "rank": i,
+                "name": name_cache.get(pkg) or pkg,
+                "subtitle": pkg,
+                "package": pkg,
+                "is_ours": pkg.lower() == PLAY_PACKAGE.lower(),
             }
-        )
+            for i, pkg in enumerate(pkgs[:40], 1)
+        ]
+        ours = next((a for a in apps if a.get("is_ours")), None)
+        if ours is None:
+            from backend.services.app_intel import _fetch_android_category_rank
+
+            ar = _fetch_android_category_rank(PLAY_PACKAGE, country="tr", lang="tr", category_id="FINANCE")
+            our_label = f"Döviz #{ar.get('rank')} / {ar.get('total')}" if ar else "Döviz listede yok"
+        else:
+            our_label = f"Döviz #{ours['rank']}"
+        charts.append({"title": "Play · Finans ücretsiz (TR)", "url": play_url, "our_label": our_label, "apps": apps})
+        _goto(page, play_url, timeout=75_000)
         shot = _shot(page, full_page=False)
         if shot:
             shots["play_finance"] = shot
@@ -773,11 +849,29 @@ def job_store_charts(page: Any) -> dict[str, Any]:
                 if ios_apps:
                     break
         ours = next((a for a in ios_apps if a.get("is_ours")), None)
+        if ours is None:
+            from backend.services.app_intel import _fetch_ios_category_rank
+
+            ir = _fetch_ios_category_rank(IOS_APP_ID, country="tr", genre_id=IOS_FINANCE_GENRE)
+            our_label = f"Döviz #{ir.get('rank')} / {ir.get('total')}" if ir else "Döviz listede (ilk 40) yok"
+        else:
+            our_label = f"Döviz #{ours['rank']}"
+        if ios_apps and all(str(a.get("name") or "").isdigit() for a in ios_apps[:5]):
+            ids = [a["subtitle"] for a in ios_apps[:20] if a.get("subtitle")]
+            try:
+                lookup = f"https://itunes.apple.com/lookup?id={','.join(ids)}&country=tr"
+                with urllib.request.urlopen(lookup, timeout=20) as resp:
+                    info = json.loads(resp.read().decode("utf-8", errors="replace"))
+                titles = {str(r.get("trackId")): r.get("trackName") or "" for r in (info.get("results") or [])}
+                for a in ios_apps:
+                    a["name"] = titles.get(str(a.get("subtitle")), a.get("name"))
+            except Exception:
+                pass
         charts.append(
             {
                 "title": "App Store · Finance ücretsiz (TR)",
                 "url": ios_url,
-                "our_label": f"Döviz #{ours['rank']}" if ours else "Döviz listede (ilk 40) yok",
+                "our_label": our_label,
                 "apps": ios_apps,
             }
         )
@@ -893,12 +987,12 @@ def job_firebase_perf(page: Any) -> dict[str, Any]:
         {
             "id": "android",
             "label": "Android · doviz-android",
-            "url": "https://console.firebase.google.com/u/0/project/doviz-android/performance",
+            "url": "https://console.firebase.google.com/u/0/project/doviz-android/performance/app/android:com.Doviz/trends",
         },
         {
             "id": "ios",
             "label": "iOS · doviz-ios",
-            "url": "https://console.firebase.google.com/u/0/project/doviz-ios/performance",
+            "url": "https://console.firebase.google.com/u/0/project/doviz-ios/performance/app/ios:com.nokta.Finans-Takip/trends",
         },
     )
     out: list[dict[str, Any]] = []
@@ -908,7 +1002,7 @@ def job_firebase_perf(page: Any) -> dict[str, Any]:
         rec: dict[str, Any] = {**spec, "metrics": [], "traces": []}
         try:
             _goto(page, spec["url"], timeout=90_000)
-            page.wait_for_timeout(2500)
+            page.wait_for_timeout(5000)
             if _needs_google_login(page):
                 login_block = True
                 rec["message"] = "Google oturumu gerekli (fx-google)."
@@ -1111,8 +1205,8 @@ def main(argv: list[str] | None = None) -> int:
 
     from playwright.sync_api import sync_playwright
 
-    public = [j for j in wanted if j in ("serp", "competitors", "ads_transparency", "sikayet", "app_rank", "store_charts", "google_news")]
-    google_jobs = [j for j in wanted if j in ("firebase_perf", "gsc_index")]
+    public = [j for j in wanted if j in ("competitors", "ads_transparency", "sikayet", "app_rank", "store_charts", "google_news")]
+    google_jobs = [j for j in wanted if j in ("serp", "firebase_perf", "gsc_index")]
     asa_jobs = [j for j in wanted if j == "apple_search_ads"]
 
     fns = {
