@@ -728,20 +728,41 @@ def _harvest_host_results(page: Any, *, hosts: tuple[str, ...], limit: int = 10)
     try:
         rows = page.evaluate(
             """([hosts, limit]) => {
+              const unwrap = (href) => {
+                try {
+                  const u = new URL(href);
+                  const host = u.hostname;
+                  if (host.includes('google.') && (u.pathname === '/url' || u.pathname === '/url')) {
+                    return u.searchParams.get('q') || u.searchParams.get('url') || href;
+                  }
+                  if (host.includes('duckduckgo.')) {
+                    const uddg = u.searchParams.get('uddg');
+                    if (uddg) return decodeURIComponent(uddg);
+                  }
+                  if (host.includes('bing.') && u.searchParams.get('u')) {
+                    let raw = u.searchParams.get('u') || '';
+                    if (raw.startsWith('a1')) {
+                      try { raw = atob(raw.slice(2).replace(/_/g, '/').replace(/-/g, '+')); } catch (e) {}
+                    }
+                    if (raw.startsWith('http')) return raw;
+                  }
+                } catch (e) {}
+                return href;
+              };
               const out = [];
               const seen = new Set();
-              const skip = ['google.com', 'bing.com', 'duckduckgo.com', 'microsoft.com'];
+              const engine = ['google.', 'bing.', 'duckduckgo.', 'microsoft.com'];
               document.querySelectorAll('a[href]').forEach((a) => {
-                const href = (a.href || '').split('#')[0];
-                if (!href.startsWith('http')) return;
+                let href = unwrap((a.href || '').split('#')[0]);
+                if (!href || !href.startsWith('http')) return;
                 const low = href.toLowerCase();
+                if (engine.some((h) => low.includes(h))) return;
                 if (!hosts.some((h) => low.includes(h))) return;
-                if (skip.some((h) => low.includes(h))) return;
                 const key = href.split('?')[0];
                 if (seen.has(key)) return;
                 seen.add(key);
                 const title = (a.innerText || '').trim().replace(/\\s+/g, ' ');
-                const block = a.closest('li, article, .b_algo, div.g') || a.parentElement;
+                const block = a.closest('li, article, .b_algo, div.g, .result') || a.parentElement;
                 const snippet = ((block && block.innerText) || title).trim().replace(/\\s+/g, ' ');
                 out.push({
                   title: title.slice(0, 180),
@@ -781,7 +802,7 @@ def _web_search_mentions(
     for url in engines:
         try:
             _goto(page, url, timeout=70_000)
-            page.wait_for_timeout(1400)
+            page.wait_for_timeout(1800)
             final = page.url or url
             if "sorry" in (final or "").lower():
                 continue
@@ -919,7 +940,9 @@ def _x_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict
             if len(items) >= limit:
                 break
         final = web_url or final
-    return final, items[:limit]
+    status = [x for x in items if "/status/" in str(x.get("url") or "")]
+    other = [x for x in items if x not in status]
+    return final, (status + other)[:limit]
 
 
 def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
@@ -962,6 +985,45 @@ def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, lis
                 break
         if extra:
             final = web_url or final
+    profiles: list[str] = []
+    for row in items:
+        href = str(row.get("url") or "")
+        try:
+            path = urllib.parse.urlparse(href).path.strip("/")
+        except Exception:
+            continue
+        parts = [p for p in path.split("/") if p]
+        if len(parts) == 1 and "sikayetvar.com" in href:
+            profiles.append(href.split("?")[0])
+    complaint_items = [
+        row
+        for row in items
+        if len([p for p in urllib.parse.urlparse(str(row.get("url") or "")).path.split("/") if p]) >= 2
+    ]
+    if len(complaint_items) < 3:
+        for purl in profiles[:3]:
+            try:
+                _goto(page, purl, timeout=70_000)
+                page.wait_for_timeout(2200)
+                extra_prof = _sikayet_extract(page, query=query, limit=limit)
+                if extra_prof:
+                    final = page.url or final
+                seen = {str(x.get("url") or "")[:80] for x in complaint_items}
+                for row in extra_prof:
+                    key = str(row.get("url") or "")[:80]
+                    if not key or key in seen:
+                        continue
+                    seen.add(key)
+                    complaint_items.append(row)
+                    if len(complaint_items) >= limit:
+                        break
+            except Exception:
+                continue
+            if len(complaint_items) >= limit:
+                break
+        items = complaint_items or items
+    else:
+        items = complaint_items
     return final, items[:limit]
 
 
