@@ -16,7 +16,7 @@ Env:
   PLAY_CONSOLE_DEVELOPER_ID  (default 7587799419591090593)
   PLAY_CONSOLE_APP_ID        (default 4974102243818231576)
   PLAY_CONSOLE_PACKAGE       (default com.Doviz)
-  PLAY_CONSOLE_PROFILE_DIR   (default ~/.seo-agent/play-console-profile)
+  PLAY_CONSOLE_PROFILE_DIR   (default ~/.seo-agent/fx-google)
   PLAY_CONSOLE_INGEST_URL
   NOTIFICATION_INGEST_TOKEN
 """
@@ -59,10 +59,9 @@ _load_dotenv()
 DEV_ID = (os.environ.get("PLAY_CONSOLE_DEVELOPER_ID") or "7587799419591090593").strip()
 APP_ID = (os.environ.get("PLAY_CONSOLE_APP_ID") or "4974102243818231576").strip()
 PACKAGE = (os.environ.get("PLAY_CONSOLE_PACKAGE") or "com.Doviz").strip()
-PROFILE_DIR = Path(
-    os.environ.get("PLAY_CONSOLE_PROFILE_DIR")
-    or str(Path.home() / ".seo-agent" / "play-console-profile")
-).expanduser()
+from backend.services.scrape_browser import google_profile_dir
+
+PROFILE_DIR = google_profile_dir()
 BASE_APP = f"https://play.google.com/console/u/0/developers/{DEV_ID}/app/{APP_ID}"
 DASHBOARD_URL = (
     os.environ.get("PLAY_CONSOLE_DASHBOARD_URL") or f"{BASE_APP}/app-dashboard"
@@ -691,7 +690,7 @@ def _launch_context(*, headed: bool):
     pw, context, attached = attach_or_launch("play", headed=headed)
     if attached:
         _CDP_ATTACHED.add(id(context))
-        print("Play: kalıcı Chrome’a bağlandı (CDP)", flush=True)
+        print("Play: kalıcı Firefox profili", flush=True)
     return pw, context
 
 

@@ -9,7 +9,7 @@ Site filtresi: sinemalar.com → CSV veya DOM → Railway ingest.
   .venv/bin/python scripts/admanager_policy_scrape.py --sync --ingest
 
 Env:
-  ADMANAGER_POLICY_PROFILE_DIR  (default: ~/.seo-agent/play-console-profile)
+  ADMANAGER_POLICY_PROFILE_DIR  (default: ~/.seo-agent/fx-google)
   ADMANAGER_NETWORK_ID          (default: 21728129623)
   ADMANAGER_POLICY_INGEST_URL
   NOTIFICATION_INGEST_TOKEN
@@ -52,11 +52,9 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
-PROFILE_DIR = Path(
-    os.environ.get("ADMANAGER_POLICY_PROFILE_DIR")
-    or os.environ.get("PLAY_CONSOLE_PROFILE_DIR")
-    or str(Path.home() / ".seo-agent" / "play-console-profile")
-).expanduser()
+from backend.services.scrape_browser import google_profile_dir
+
+PROFILE_DIR = google_profile_dir()
 
 NETWORK_ID = (os.environ.get("ADMANAGER_NETWORK_ID") or "21728129623").strip()
 SITE_FILTER = (os.environ.get("ADMANAGER_POLICY_SITE_FILTER") or "sinemalar.com").strip()
@@ -98,33 +96,12 @@ def _looks_signed_in(page) -> bool:
 def _launch_context(*, headed: bool):
     from playwright.sync_api import sync_playwright
 
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
-        try:
-            (PROFILE_DIR / name).unlink(missing_ok=True)
-        except Exception:
-            pass
+    from backend.services.scrape_browser import launch_persistent
+
     pw = sync_playwright().start()
-    channel = (
-        os.environ.get("ADMANAGER_POLICY_BROWSER_CHANNEL")
-        or os.environ.get("PLAY_CONSOLE_BROWSER_CHANNEL")
-        or "chrome"
-    ).strip()
-    launch_kwargs: dict[str, Any] = {
-        "user_data_dir": str(PROFILE_DIR),
-        "headless": not headed,
-        "viewport": {"width": 1500, "height": 1100},
-        "locale": "tr-TR",
-        "accept_downloads": True,
-        "args": ["--disable-blink-features=AutomationControlled"],
-    }
-    if channel and channel.lower() not in ("0", "none", "chromium"):
-        launch_kwargs["channel"] = channel
-    try:
-        context = pw.chromium.launch_persistent_context(**launch_kwargs)
-    except Exception:
-        launch_kwargs.pop("channel", None)
-        context = pw.chromium.launch_persistent_context(**launch_kwargs)
+    context = launch_persistent(
+        pw, PROFILE_DIR, headed=headed, viewport={"width": 1500, "height": 1100}, locale="tr-TR"
+    )
     return pw, context
 
 

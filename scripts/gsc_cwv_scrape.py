@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """Google Search Console Core Web Vitals + AMP scrape (Mac bridge).
 
-Playwright (play-console-profile) ile GSC CWV / AMP raporlarını çeker → Railway ingest.
+Playwright Firefox (fx-google profili) ile GSC CWV / AMP raporlarını çeker → Railway ingest.
 Satır limiti yok — tablo sonuna kadar kaydırılır.
 
   .venv/bin/python scripts/gsc_cwv_scrape.py --login
   .venv/bin/python scripts/gsc_cwv_scrape.py --sync --ingest
   .venv/bin/python scripts/gsc_cwv_scrape.py --sync --ingest --site doviz
 
-Not: --login aynı play-console-profile’ı kullanan eski Chrome süreçlerini kapatır
-(profil uyarısı / şifre ekranında ani kapanmayı önlemek için).
+Not: --login aynı fx-google profilini kullanan eski tarayıcı süreçlerini kapatır.
 
 Env:
   GSC_CWV_PROFILE_DIR / GSC_LINKS_PROFILE_DIR / PLAY_CONSOLE_PROFILE_DIR
@@ -53,12 +52,9 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
-PROFILE_DIR = Path(
-    os.environ.get("GSC_CWV_PROFILE_DIR")
-    or os.environ.get("GSC_LINKS_PROFILE_DIR")
-    or os.environ.get("PLAY_CONSOLE_PROFILE_DIR")
-    or str(Path.home() / ".seo-agent" / "play-console-profile")
-).expanduser()
+from backend.services.scrape_browser import google_profile_dir
+
+PROFILE_DIR = google_profile_dir()
 
 INGEST_URL = (
     os.environ.get("GSC_CWV_INGEST_URL")
@@ -285,42 +281,10 @@ def _clear_profile_locks(profile_dir: Path) -> None:
 def _launch_context(*, headed: bool):
     from playwright.sync_api import sync_playwright
 
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    killed = _kill_stale_profile_browsers(PROFILE_DIR)
-    if killed:
-        print(f"GSC CWV profil: {killed} eski Chrome süreci kapatıldı ({PROFILE_DIR})", flush=True)
-    _clear_profile_locks(PROFILE_DIR)
+    from backend.services.scrape_browser import launch_persistent
+
     pw = sync_playwright().start()
-    channel = (
-        os.environ.get("GSC_CWV_BROWSER_CHANNEL")
-        or os.environ.get("GSC_LINKS_BROWSER_CHANNEL")
-        or os.environ.get("PLAY_CONSOLE_BROWSER_CHANNEL")
-        or "chrome"
-    ).strip()
-    kwargs: dict[str, Any] = {
-        "user_data_dir": str(PROFILE_DIR),
-        "headless": not headed,
-        "viewport": {"width": 1440, "height": 1100},
-        "locale": "en-US",
-        "accept_downloads": True,
-        "ignore_default_args": ["--enable-automation"],
-        "args": [
-            "--disable-blink-features=AutomationControlled",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--password-store=basic",
-            "--use-mock-keychain",
-        ],
-    }
-    if channel and channel.lower() not in ("0", "none", "chromium"):
-        kwargs["channel"] = channel
-    try:
-        context = pw.chromium.launch_persistent_context(**kwargs)
-    except Exception as exc:
-        print(f"channel={channel!r} launch fail → bundled chromium: {exc}", flush=True)
-        kwargs.pop("channel", None)
-        _clear_profile_locks(PROFILE_DIR)
-        context = pw.chromium.launch_persistent_context(**kwargs)
+    context = launch_persistent(pw, PROFILE_DIR, headed=headed, locale="en-US")
     return pw, context
 
 
@@ -329,7 +293,7 @@ def run_login_interactive(timeout_sec: int = 900) -> dict[str, Any]:
     url = _cwv_url("sc-domain:doviz.com")
     print(f"Profil: {PROFILE_DIR}", flush=True)
     print(
-        "Not: Aynı profilde başka Chrome açıksa kapatılır (profil uyarısı / ani kapanma önlemi).",
+        "Not: Aynı profilde başka Firefox açıksa kapatılır.",
         flush=True,
     )
     pw, context = _launch_context(headed=True)

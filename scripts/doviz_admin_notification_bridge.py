@@ -356,7 +356,7 @@ def _notify_auto_failure(
         return
     if isinstance(result, dict) and result.get("needs_login"):
         print(
-            f"Bridge alert atlandı ({kind} oturum) — kalıcı Chrome açık; "
+            f"Bridge alert atlandı ({kind} oturum) — Firefox profilinde giriş gerekir; "
             f"pencerede bir kez giriş yeterli. {msg[:160]}",
             flush=True,
         )
@@ -2572,7 +2572,7 @@ def run_daemon() -> int:
         from backend.services.store_session_cdp import start_keeper_threads
 
         start_keeper_threads()
-        print("Oturum bekçi: Play Console + App Store Connect Chrome açık kalacak", flush=True)
+        print("Tarama tarayıcısı: Firefox (Chrome/Chromium açılmaz)", flush=True)
     except Exception as exc:  # noqa: BLE001
         print(f"Oturum bekçi başlatılamadı: {exc}", flush=True)
     threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()

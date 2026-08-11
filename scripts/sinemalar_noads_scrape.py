@@ -2,14 +2,14 @@
 """Sinemalar management/noAds tarama (Mac bridge).
 
 https://www.sinemalar.com/management/noAds
-Admin oturumu gerekir (kalıcı Chromium profili veya form login).
+Admin oturumu gerekir (kalıcı Firefox profili veya form login).
 
 Örnek:
   .venv/bin/python scripts/sinemalar_noads_scrape.py --login
   .venv/bin/python scripts/sinemalar_noads_scrape.py --sync --ingest
 
 Env:
-  SINEMALAR_NOADS_PROFILE_DIR  (default: ~/.seo-agent/sinemalar-admin-profile)
+  SINEMALAR_NOADS_PROFILE_DIR  (default: ~/.seo-agent/fx-sinemalar)
   SINEMALAR_ADMIN_EMAIL / SINEMALAR_ADMIN_PASSWORD  (opsiyonel form login)
   SINEMALAR_NOADS_URL          (default: https://www.sinemalar.com/management/noAds)
   SINEMALAR_NOADS_INGEST_URL
@@ -53,10 +53,9 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
-PROFILE_DIR = Path(
-    os.environ.get("SINEMALAR_NOADS_PROFILE_DIR")
-    or str(Path.home() / ".seo-agent" / "sinemalar-admin-profile")
-).expanduser()
+from backend.services.scrape_browser import sinemalar_profile_dir
+
+PROFILE_DIR = sinemalar_profile_dir()
 
 NOADS_URL = (
     os.environ.get("SINEMALAR_NOADS_URL") or "https://www.sinemalar.com/management/noAds"
@@ -251,19 +250,12 @@ def _try_form_login(page) -> bool:
 def scrape_sinemalar_noads(*, headed: bool = True) -> dict[str, Any]:
     from playwright.sync_api import sync_playwright
 
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    channel = (os.environ.get("SINEMALAR_NOADS_BROWSER_CHANNEL") or os.environ.get("PLAY_CONSOLE_BROWSER_CHANNEL") or "").strip() or None
+    from backend.services.scrape_browser import launch_persistent
 
     with sync_playwright() as p:
-        browser_kwargs: dict[str, Any] = {
-            "user_data_dir": str(PROFILE_DIR),
-            "headless": not headed,
-            "viewport": {"width": 1400, "height": 900},
-            "args": ["--disable-blink-features=AutomationControlled"],
-        }
-        if channel:
-            browser_kwargs["channel"] = channel
-        context = p.chromium.launch_persistent_context(**browser_kwargs)
+        context = launch_persistent(
+            p, PROFILE_DIR, headed=headed, viewport={"width": 1400, "height": 900}
+        )
         page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
@@ -381,34 +373,13 @@ def open_noads_prefill(url: str, *, keep_open_sec: int | None = None) -> dict[st
     )
     hold = max(60, min(hold, 3600))
 
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
-        try:
-            (PROFILE_DIR / name).unlink(missing_ok=True)
-        except Exception:
-            pass
-
-    channel = (
-        os.environ.get("SINEMALAR_NOADS_BROWSER_CHANNEL")
-        or os.environ.get("PLAY_CONSOLE_BROWSER_CHANNEL")
-        or ""
-    ).strip() or None
+    from backend.services.scrape_browser import launch_persistent
 
     print(f"noAds prefill · {target}", flush=True)
     with sync_playwright() as p:
-        kwargs: dict[str, Any] = {
-            "user_data_dir": str(PROFILE_DIR),
-            "headless": False,
-            "viewport": {"width": 1400, "height": 900},
-            "args": ["--disable-blink-features=AutomationControlled"],
-        }
-        if channel:
-            kwargs["channel"] = channel
-        try:
-            context = p.chromium.launch_persistent_context(**kwargs)
-        except Exception:
-            kwargs.pop("channel", None)
-            context = p.chromium.launch_persistent_context(**kwargs)
+        context = launch_persistent(
+            p, PROFILE_DIR, headed=True, viewport={"width": 1400, "height": 900}
+        )
         page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
@@ -501,15 +472,14 @@ def open_noads_prefill(url: str, *, keep_open_sec: int | None = None) -> dict[st
 def run_login_interactive() -> int:
     from playwright.sync_api import sync_playwright
 
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    from backend.services.scrape_browser import launch_persistent
+
     print(f"Profil: {PROFILE_DIR}", flush=True)
     print(f"Açılacak: {NOADS_URL}", flush=True)
     print("Tarayıcıda Sinemalar admin girişi yapın; noAds sayfasını görünce Enter.", flush=True)
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(PROFILE_DIR),
-            headless=False,
-            viewport={"width": 1400, "height": 900},
+        context = launch_persistent(
+            p, PROFILE_DIR, headed=True, viewport={"width": 1400, "height": 900}
         )
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)

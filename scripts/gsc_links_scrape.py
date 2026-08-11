@@ -15,7 +15,7 @@ Türler: EXTERNAL · DOMAIN · ANCHOR_TEXT · INTERNAL
   .venv/bin/python scripts/gsc_links_scrape.py --site doviz --type EXTERNAL --ingest
 
 Env:
-  GSC_LINKS_PROFILE_DIR  (default: ~/.seo-agent/play-console-profile — aynı Google oturumu)
+  GSC_LINKS_PROFILE_DIR  (default: ~/.seo-agent/fx-google — aynı Google oturumu)
   GSC_LINKS_INGEST_URL
   NOTIFICATION_INGEST_TOKEN
 """
@@ -57,11 +57,9 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
-PROFILE_DIR = Path(
-    os.environ.get("GSC_LINKS_PROFILE_DIR")
-    or os.environ.get("PLAY_CONSOLE_PROFILE_DIR")
-    or str(Path.home() / ".seo-agent" / "play-console-profile")
-).expanduser()
+from backend.services.scrape_browser import google_profile_dir
+
+PROFILE_DIR = google_profile_dir()
 
 INGEST_URL = (
     os.environ.get("GSC_LINKS_INGEST_URL")
@@ -226,29 +224,10 @@ def _looks_signed_in(page) -> bool:
 def _launch_context(*, headed: bool):
     from playwright.sync_api import sync_playwright
 
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
-        try:
-            (PROFILE_DIR / name).unlink(missing_ok=True)
-        except Exception:
-            pass
+    from backend.services.scrape_browser import launch_persistent
+
     pw = sync_playwright().start()
-    channel = (os.environ.get("GSC_LINKS_BROWSER_CHANNEL") or os.environ.get("PLAY_CONSOLE_BROWSER_CHANNEL") or "chrome").strip()
-    launch_kwargs: dict[str, Any] = {
-        "user_data_dir": str(PROFILE_DIR),
-        "headless": not headed,
-        "viewport": {"width": 1440, "height": 1100},
-        "locale": "en-US",
-        "accept_downloads": True,
-        "args": ["--disable-blink-features=AutomationControlled"],
-    }
-    if channel and channel.lower() not in ("0", "none", "chromium"):
-        launch_kwargs["channel"] = channel
-    try:
-        context = pw.chromium.launch_persistent_context(**launch_kwargs)
-    except Exception:
-        launch_kwargs.pop("channel", None)
-        context = pw.chromium.launch_persistent_context(**launch_kwargs)
+    context = launch_persistent(pw, PROFILE_DIR, headed=headed, locale="en-US")
     return pw, context
 
 

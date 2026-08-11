@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """App Store Connect Analytics scrape — Play Console bridge ile aynı model.
 
-Mac'te Apple ID oturumu (persistent Chrome profile) ile ASC SPA network JSON
+Mac'te Apple ID oturumu (kalıcı Firefox profili) ile ASC SPA network JSON
 yakalanır → explorer_facts → Railway /api/asc-console/ingest.
 
   .venv/bin/python scripts/asc_console_scrape.py --login
   .venv/bin/python scripts/asc_console_scrape.py --sync --ingest
 
 Env:
-  ASC_CONSOLE_PROFILE_DIR   default ~/.seo-agent/asc-console-profile
+  ASC_CONSOLE_PROFILE_DIR   default ~/.seo-agent/fx-asc
   ASC_CONSOLE_INGEST_URL    default …/api/asc-console/ingest
   NOTIFICATION_INGEST_TOKEN
   ASC_CONSOLE_APP_ID        default 465599322
@@ -49,10 +49,9 @@ _load_dotenv()
 
 APP_ID = (os.environ.get("ASC_CONSOLE_APP_ID") or "465599322").strip()
 BUNDLE_ID = (os.environ.get("ASC_CONSOLE_BUNDLE_ID") or "com.nokta.Finans.Takip").strip()
-PROFILE_DIR = Path(
-    os.environ.get("ASC_CONSOLE_PROFILE_DIR")
-    or (Path.home() / ".seo-agent" / "asc-console-profile")
-).expanduser()
+from backend.services.scrape_browser import asc_profile_dir
+
+PROFILE_DIR = asc_profile_dir()
 INGEST_URL = (
     os.environ.get("ASC_CONSOLE_INGEST_URL")
     or "https://projectcontrol.up.railway.app/api/asc-console/ingest"
@@ -267,7 +266,7 @@ def _launch_context(*, headed: bool):
     )
     if attached:
         _CDP_ATTACHED.add(id(ctx))
-        print("ASC: kalıcı Chrome’a bağlandı (CDP)", flush=True)
+        print("ASC: kalıcı Firefox profili", flush=True)
     return pw, ctx
 
 

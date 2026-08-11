@@ -408,15 +408,14 @@ def run_tarama(
     specs = [s for s in MARKET_SHEET_SERIES if not keys or s.key in keys]
     results: list[dict[str, Any]] = []
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=not headed)
-        context = browser.new_context(
+        from backend.services.scrape_browser import launch_ephemeral
+
+        browser, context = launch_ephemeral(
+            p,
+            headed=headed,
             viewport={"width": 1440, "height": 1100},
             locale="tr-TR",
             timezone_id="Europe/Istanbul",
-            user_agent=(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            ),
         )
         try:
             for spec in specs:

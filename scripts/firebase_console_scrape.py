@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Firebase Console Crashlytics scrape — ASC/Play bridge modeli.
 
-Mac'te Google oturumu (persistent Chrome profile) ile Firebase Console
+Mac'te Google oturumu (kalıcı Firefox profili) ile Firebase Console
 (overview + Crashlytics issues + Release Monitoring) okunur → Railway ingest.
 
   .venv/bin/python scripts/firebase_console_scrape.py --login
@@ -12,7 +12,7 @@ Hedefler:
   iOS:     https://console.firebase.google.com/project/doviz-ios/...
 
 Env:
-  FIREBASE_CONSOLE_PROFILE_DIR  default ~/.seo-agent/firebase-console-profile
+  FIREBASE_CONSOLE_PROFILE_DIR  default ~/.seo-agent/fx-google
   FIREBASE_CONSOLE_INGEST_URL   default …/api/firebase-console/ingest
   NOTIFICATION_INGEST_TOKEN
   FIREBASE_CONSOLE_SCRAPE_DAYS  default 365 (1–365)
@@ -53,10 +53,9 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
-PROFILE_DIR = Path(
-    os.environ.get("FIREBASE_CONSOLE_PROFILE_DIR")
-    or (Path.home() / ".seo-agent" / "firebase-console-profile")
-).expanduser()
+from backend.services.scrape_browser import firebase_profile_dir
+
+PROFILE_DIR = firebase_profile_dir()
 INGEST_URL = (
     os.environ.get("FIREBASE_CONSOLE_INGEST_URL")
     or "https://projectcontrol.up.railway.app/api/firebase-console/ingest"
@@ -896,11 +895,10 @@ def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
     errors: list[str] = []
 
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(PROFILE_DIR),
-            headless=not headed,
-            viewport={"width": 1440, "height": 960},
-            args=["--disable-blink-features=AutomationControlled"],
+        from backend.services.scrape_browser import launch_persistent
+
+        context = launch_persistent(
+            p, PROFILE_DIR, headed=headed, viewport={"width": 1440, "height": 960}
         )
         page = context.pages[0] if context.pages else context.new_page()
         try:

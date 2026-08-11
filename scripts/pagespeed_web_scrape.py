@@ -498,13 +498,10 @@ def scrape_one(*, site_url: str, form_factor: str, headed: bool = False, timeout
     final_page_url = analysis_url
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=not headed)
-        context = browser.new_context(
-            viewport={"width": 1440, "height": 1100},
-            user_agent=(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            ),
+        from backend.services.scrape_browser import launch_ephemeral
+
+        browser, context = launch_ephemeral(
+            p, headed=headed, viewport={"width": 1440, "height": 1100}
         )
         page = context.new_page()
 

@@ -119,8 +119,7 @@ def list_owned_site_ids() -> list[int]:
 def _user_agent() -> str:
     return (
         os.environ.get("SEO_AUDIT_USER_AGENT")
-        or "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+        or "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0"
     )
 
 
@@ -130,7 +129,7 @@ def scrape_chunk(
     timeout_ms: int,
     on_row=None,
 ) -> list[dict[str, Any]]:
-    """Tek worker: bir Chromium, sırayla URL (Playwright sync thread-safe değil)."""
+    """Tek worker: bir Firefox, sırayla URL (Playwright sync thread-safe değil)."""
     from playwright.sync_api import sync_playwright
 
     from backend.collectors.site_audit import build_url_audit_from_html
@@ -139,12 +138,15 @@ def scrape_chunk(
     if not urls:
         return out
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        from backend.services.scrape_browser import launch_ephemeral
+
+        browser, context = launch_ephemeral(
+            p,
+            headed=False,
+            user_agent=_user_agent(),
+            viewport={"width": 1280, "height": 900},
+        )
         try:
-            context = browser.new_context(
-                user_agent=_user_agent(),
-                viewport={"width": 1280, "height": 900},
-            )
             page = context.new_page()
             for url in urls:
                 try:

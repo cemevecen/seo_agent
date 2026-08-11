@@ -1416,16 +1416,18 @@ def _fetch_android_rank_playwright(
 
     try:
         with sync_playwright() as pw:
-            browser = pw.chromium.launch(headless=True)
+            from backend.services.scrape_browser import launch_ephemeral
+
             # Mağaza mobil web daha uzun liste yükler; masaüstü headless'ta sık sık ~75 uygulamada kalınıyor.
-            ctx = browser.new_context(
+            browser, ctx = launch_ephemeral(
+                pw,
+                headed=False,
                 locale=f"{lang}-{country.upper()}",
                 viewport={"width": 412, "height": 915},
                 is_mobile=True,
                 has_touch=True,
                 user_agent=(
-                    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+                    "Mozilla/5.0 (Android 13; Mobile; rv:128.0) Gecko/128.0 Firefox/128.0"
                 ),
             )
             page = ctx.new_page()

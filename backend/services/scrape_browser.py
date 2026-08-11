@@ -1,0 +1,160 @@
+"""Tarama tarayıcısı — yalnızca Firefox.
+
+Chrome / Chromium / Chrome for Testing açılmaz. Google oturumu
+~/.seo-agent/fx-google altında tutulur (Play, GSC, Firebase, Policy).
+"""
+
+from __future__ import annotations
+
+import os
+import signal
+import subprocess
+import time
+from pathlib import Path
+from typing import Any
+
+STATE_DIR = Path.home() / ".seo-agent"
+
+_BROWSER_MARKERS = (
+    "chrome",
+    "chromium",
+    "firefox",
+    "gecko",
+    "headless_shell",
+    "chrome for testing",
+)
+
+
+def _fx_dir(name: str) -> Path:
+    return (STATE_DIR / name).expanduser()
+
+
+def _from_env_or_fx(env_keys: tuple[str, ...], fx_name: str) -> Path:
+    for key in env_keys:
+        raw = (os.environ.get(key) or "").strip()
+        if not raw:
+            continue
+        path = Path(raw).expanduser()
+        if "fx-" in path.name:
+            return path
+        return path.parent / fx_name
+    return _fx_dir(fx_name)
+
+
+def google_profile_dir() -> Path:
+    return _from_env_or_fx(
+        ("PLAY_CONSOLE_PROFILE_DIR", "GSC_CWV_PROFILE_DIR", "GSC_LINKS_PROFILE_DIR"),
+        "fx-google",
+    )
+
+
+def asc_profile_dir() -> Path:
+    return _from_env_or_fx(("ASC_CONSOLE_PROFILE_DIR",), "fx-asc")
+
+
+def firebase_profile_dir() -> Path:
+    return _from_env_or_fx(("FIREBASE_CONSOLE_PROFILE_DIR",), "fx-google")
+
+
+def sinemalar_profile_dir() -> Path:
+    return _from_env_or_fx(("SINEMALAR_NOADS_PROFILE_DIR",), "fx-sinemalar")
+
+
+def kill_profile_browsers(profile: Path) -> int:
+    marker = str(profile.resolve())
+    killed = 0
+    try:
+        out = subprocess.check_output(["ps", "ax", "-o", "pid=,command="], text=True)
+    except Exception:
+        return 0
+    for line in out.splitlines():
+        if marker not in line:
+            continue
+        low = line.lower()
+        if not any(m in low for m in _BROWSER_MARKERS):
+            continue
+        try:
+            pid = int(line.split(None, 1)[0])
+        except Exception:
+            continue
+        if pid <= 1 or pid == os.getpid():
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed += 1
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    if killed:
+        time.sleep(0.5)
+    return killed
+
+
+def kill_legacy_chrome_scrapers() -> int:
+    """Eski Chrome tarama pencerelerini kapat (kişisel Chrome’a dokunma)."""
+    names = (
+        "play-console-profile",
+        "asc-console-profile",
+        "firebase-console-profile",
+        "sinemalar-admin-profile",
+        "fx-google",
+        "fx-asc",
+        "fx-sinemalar",
+    )
+    n = 0
+    for name in names:
+        n += kill_profile_browsers(STATE_DIR / name)
+    return n
+
+
+def _persistent_kwargs(
+    profile: Path,
+    *,
+    headed: bool,
+    viewport: dict[str, int] | None = None,
+    locale: str = "tr-TR",
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    profile.mkdir(parents=True, exist_ok=True)
+    kwargs: dict[str, Any] = {
+        "user_data_dir": str(profile),
+        "headless": not headed,
+        "viewport": viewport or {"width": 1440, "height": 1100},
+        "locale": locale,
+        "accept_downloads": True,
+    }
+    if extra:
+        extra = dict(extra)
+        extra.pop("channel", None)
+        extra.pop("args", None)
+        extra.pop("ignore_default_args", None)
+        kwargs.update(extra)
+    return kwargs
+
+
+def launch_persistent(
+    pw: Any,
+    profile: Path,
+    *,
+    headed: bool = True,
+    viewport: dict[str, int] | None = None,
+    locale: str = "tr-TR",
+    extra: dict[str, Any] | None = None,
+) -> Any:
+    kill_profile_browsers(profile)
+    kwargs = _persistent_kwargs(
+        profile, headed=headed, viewport=viewport, locale=locale, extra=extra
+    )
+    return pw.firefox.launch_persistent_context(**kwargs)
+
+
+def launch_ephemeral(
+    pw: Any,
+    *,
+    headed: bool = False,
+    **context_kwargs: Any,
+) -> tuple[Any, Any]:
+    browser = pw.firefox.launch(headless=not headed)
+    context_kwargs.pop("channel", None)
+    context_kwargs.pop("args", None)
+    ctx = browser.new_context(**context_kwargs)
+    return browser, ctx
