@@ -154,3 +154,6 @@ HAREM GRAM ALTIN 6.736,38
     assert found["ons_altin"]["value"] == "4.397,56"
     assert found["harem_gram_altin"]["value"] == "6.736,38"
     assert len({v["value"] for v in found.values()}) == len(found)
+    mixed = mod._parse_assets_from_text("GRAM GÜMÜŞ\nDOLAR 47,7396  %0,08\nGRAM GÜMÜŞ 99,60")
+    assert mixed["usd"]["value"] == "47,7396"
+    assert mixed["gram_gumus"]["value"] == "99,60"

@@ -224,7 +224,7 @@ ASSET_RANGES: dict[str, tuple[float, float]] = {
     "gram_altin": (2500.0, 20000.0),
     "harem_gram_altin": (2500.0, 20000.0),
     "kapalicarsi_gram_altin": (2500.0, 20000.0),
-    "gram_gumus": (20.0, 400.0),
+    "gram_gumus": (70.0, 250.0),
     "ons_altin": (1500.0, 10000.0),
     "brent": (30.0, 250.0),
     "ceyrek_altin": (3000.0, 40000.0),
@@ -235,7 +235,7 @@ ASSET_LINE_EXCLUDE: dict[str, tuple[str, ...]] = {
     "usd": ("harem",),
     "eur": ("harem",),
     "ceyrek_altin": ("harem",),
-    "gram_gumus": ("harem",),
+    "gram_gumus": ("harem", "dolar", "usd", "euro", "sterlin", "gbp"),
     "ons_altin": ("gram",),
 }
 
@@ -445,6 +445,8 @@ def _to_float(raw: str) -> float | None:
     s = (raw or "").strip().replace(" ", "").replace("$", "")
     if not s:
         return None
+    if re.match(r"^0+\d", s):
+        return None
     if s.count(",") == 1 and s.count(".") >= 1:
         s = s.replace(".", "").replace(",", ".")
     elif s.count(",") == 1 and s.count(".") == 0:
@@ -510,8 +512,12 @@ def _parse_assets_from_text(text: str) -> dict[str, dict[str, str]]:
         folded = _fold(ln)
         window = ln
         if not _numbers_on_line(ln) and i + 1 < len(lines):
-            window = ln + " " + lines[i + 1]
-            folded = _fold(window)
+            nxt = lines[i + 1]
+            nxt_aids = [a for a in _ASSET_MATCH_ORDER if _line_has_label(_fold(nxt), a)]
+            cur_aids = [a for a in _ASSET_MATCH_ORDER if _line_has_label(folded, a)]
+            if not nxt_aids or set(nxt_aids) & set(cur_aids) or not cur_aids:
+                window = ln + " " + nxt
+                folded = _fold(window)
         for aid in _ASSET_MATCH_ORDER:
             if aid in found:
                 continue
