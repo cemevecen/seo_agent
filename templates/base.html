@@ -2610,6 +2610,9 @@
               {% if settings_menu_visible(request) %}
               <a href="/settings" data-nav-match="/settings" data-nav-priority class="header-nav-link">settings</a>
               {% endif %}
+              {% if pm_lab_visible(request) %}
+              <a href="/pm-lab" data-nav-match="/pm-lab" data-nav-priority class="header-nav-link">lab</a>
+              {% endif %}
               <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden">external</a>
               {% endif %}
               </div>

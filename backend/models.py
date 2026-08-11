@@ -1336,3 +1336,16 @@ class PageTaramaState(Base):
     runs_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     bridge_seen_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class OwnerPmLabWorkspace(Base):
+    """Owner-only PM lab — seçilen tarama maddeleri tek payload."""
+
+    __tablename__ = "owner_pm_lab_workspace"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    sync_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sync_message: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
