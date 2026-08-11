@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v53-sf-chips">
+<style id="home-site-borders" data-home-css="v54-sf-plain">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -537,7 +537,7 @@
     letter-spacing: 0.02em;
   }
   #home-board .home-readable .home-sf-metric__side {
-    font-size: clamp(0.34rem, 3.1cqi, 0.48rem) !important;
+    font-size: clamp(0.36rem, 3.6cqi, 0.55rem) !important;
     line-height: 1.05 !important;
     letter-spacing: -0.02em;
     text-transform: none;
@@ -559,9 +559,9 @@
     text-transform: none;
     font-weight: 400;
   }
-  /* Yüzde: %10 küçült (2 → 1.8) + kart cqi ile responsive, tek satır */
+  /* Ana yüzde: yarı boyut, kartın solunda */
   #home-board .home-readable .home-sf-metric__value {
-    font-size: clamp(0.75rem, 20cqi, calc(var(--home-text) * 1.8)) !important;
+    font-size: clamp(0.38rem, 10cqi, calc(var(--home-text) * 0.9)) !important;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     line-height: 1.1 !important;
@@ -2144,7 +2144,7 @@
 
     {# Mobil mağaza / Firebase — odak projesine göre (doviz | sinemalar) #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=27" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=28" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              data-home-app-product="doviz"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -2218,7 +2218,7 @@
     var product = mode === 'sinemalar' ? 'sinemalar' : 'doviz';
     var sec = board.querySelector('[data-home-container="crashlytics"]');
     if (!sec) return;
-    var url = '/api/home/crashlytics?product=' + product + '&v=27';
+    var url = '/api/home/crashlytics?product=' + product + '&v=28';
     var root = null;
     try { root = sec.querySelector('[data-home-crash-root]'); } catch (e) {}
     var loaded = (root && root.getAttribute('data-home-app-product')) || '';

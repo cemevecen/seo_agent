@@ -8837,26 +8837,18 @@ def _home_sf_a(label: str, href: str, *, external: bool = False, title: str | No
 def _home_sf_fb_sub(*, plat: str, time_param: str, version: str) -> str:
     from urllib.parse import quote
 
-    release = _FB_ANDROID_RELEASE if plat == "android" else _FB_IOS_RELEASE
-    parts = [
-        _home_sf_a(
-            "Firebase",
-            "/s-firebase",
-            title="S-Firebase · Crashlytics / Release Monitoring",
-        ),
-    ]
     ver = (version or "").strip()
-    if ver and ver != "—":
-        href = f"{release}?time={quote(time_param)}&version={quote(ver)}"
-        parts.append(
-            _home_sf_a(
-                ver if plat == "android" else f"v{ver.lstrip('v')}",
-                href,
-                external=True,
-                title=f"Firebase Console · Release Monitoring · {ver}",
-            )
-        )
-    return " · ".join(parts)
+    if not ver or ver == "—":
+        return ""
+    release = _FB_ANDROID_RELEASE if plat == "android" else _FB_IOS_RELEASE
+    href = f"{release}?time={quote(time_param)}&version={quote(ver)}"
+    label = ver if plat == "android" else f"v{ver.lstrip('v')}"
+    return _home_sf_a(
+        label,
+        href,
+        external=True,
+        title=f"Release Monitoring · {ver}",
+    )
 
 
 def _home_sf_fb_tip(*, period_label: str, version: str = "") -> str:
@@ -9028,17 +9020,14 @@ def _home_store_firebase_card_from_tabs(
             "ANR-free",
             latest.get("anr_free_fmt"),
             sub=(
-                "ANR · "
-                + (
-                    _home_sf_a(
-                        fall_label,
-                        f"{_FB_ANDROID_RELEASE}?time=28d&version={quote(fall_ver)}",
-                        external=True,
-                        title=f"Firebase Console · {fall_label}",
-                    )
-                    if fall_ver and fall_ver != "—"
-                    else fall_label
+                _home_sf_a(
+                    fall_label,
+                    f"{_FB_ANDROID_RELEASE}?time=28d&version={quote(fall_ver)}",
+                    external=True,
+                    title=f"Release Monitoring · {fall_label}",
                 )
+                if fall_ver and fall_ver != "—"
+                else fall_label
             ),
             pct=latest.get("anr_free_pct"),
             period_label="son 28 gün",
