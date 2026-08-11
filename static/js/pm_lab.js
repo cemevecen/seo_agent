@@ -357,8 +357,14 @@
     root.appendChild(sortableTable(headers, rows));
   }
 
+  function parseTrDate(s) {
+    var m = String(s || "").match(/(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+    if (!m) return 0;
+    return Date.UTC(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
+  }
+
   function renderSikayet(root, data) {
-    var brands = data.brands || [];
+    var brands = (data.brands || []).slice();
     if (!brands.length && data.sikayetvar) {
       brands = [{ brand: "doviz.com", sikayetvar: data.sikayetvar, eksi: data.eksi }];
     }
@@ -366,17 +372,38 @@
       root.textContent = "Kayıt yok.";
       return;
     }
+    brands.sort(function (a, b) {
+      var da = a.brand === "x.com" ? 0 : 1;
+      var db = b.brand === "x.com" ? 0 : 1;
+      return da - db;
+    });
     var stage = document.createElement("div");
     function paint(i) {
       stage.innerHTML = "";
       var b = brands[i];
       var sv = b.sikayetvar || {};
       var ek = b.eksi || {};
-      var items = sv.items || [];
-      var entries = ek.entries || [];
+      var items = (sv.items || []).slice(0, 10);
+      var entries = (ek.entries || []).slice();
+      var seen = {};
+      entries = entries
+        .map(function (en) {
+          if (typeof en === "string") return { text: en, url: ek.url, date: "", author: "" };
+          return en;
+        })
+        .filter(function (en) {
+          var key = String(en.id || "") || String(en.text || "").slice(0, 80);
+          if (seen[key]) return false;
+          seen[key] = 1;
+          return String(en.text || "").length > 12;
+        })
+        .sort(function (a, b) {
+          return parseTrDate(b.date) - parseTrDate(a.date);
+        })
+        .slice(0, 10);
       var h = document.createElement("div");
       h.className = "flex flex-wrap gap-1.5 mb-2";
-      h.innerHTML = chip("şikayetvar " + items.length) + chip("ekşi " + entries.length);
+      h.innerHTML = chip("şikayetvar " + items.length) + chip("ekşi son " + entries.length);
       stage.appendChild(h);
       items.forEach(function (it) {
         var card = document.createElement("article");
@@ -390,13 +417,18 @@
         stage.appendChild(card);
       });
       entries.forEach(function (en) {
-        var text = typeof en === "string" ? en : en.text || "";
-        var url = typeof en === "string" ? ek.url : en.url || ek.url;
+        var text = en.text || "";
+        var url = en.url || ek.url;
+        var meta = [en.author, en.date].filter(Boolean).join(" · ");
         var card = document.createElement("article");
         card.className = "rounded-xl ring-1 ring-slate-200 p-3 mb-2 dark:ring-zinc-800";
         card.innerHTML =
-          '<p class="text-[10px] uppercase tracking-wide text-slate-400">Ekşi</p>' +
-          '<p class="text-xs whitespace-pre-wrap">' + esc(text) + "</p>" +
+          '<p class="text-[10px] uppercase tracking-wide text-slate-400">Ekşi' +
+          (meta ? " · " + esc(meta) : "") +
+          "</p>" +
+          '<p class="text-xs whitespace-pre-wrap">' +
+          esc(text) +
+          "</p>" +
           (url ? '<p class="mt-1 text-[11px]"><a class="hover:underline" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + "</a></p>" : "");
         stage.appendChild(card);
       });

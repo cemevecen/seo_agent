@@ -123,6 +123,7 @@ def test_template_has_no_photos_and_js_shell():
     assert "renderCompetitors" in js
     assert 'concat(["Toplam"])' in js
     assert "missRank" in js
+    assert 'brand === "x.com"' in js
 
 
 def test_competitor_parser_keeps_distinct_asset_prices():

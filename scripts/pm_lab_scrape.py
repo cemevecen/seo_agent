@@ -614,85 +614,174 @@ def job_competitors(page: Any) -> dict[str, Any]:
     }
 
 
+def _eksi_last_page_href(page: Any) -> str:
+    try:
+        href = page.evaluate(
+            """() => {
+              let max = 0, href = '';
+              document.querySelectorAll('.pager a').forEach((a) => {
+                const n = parseInt((a.innerText || '').trim(), 10);
+                if (n > max && a.href) { max = n; href = a.href; }
+              });
+              const last = document.querySelector('.pager a.last, .pager a[title*="son"]');
+              if (last && last.href) return last.href;
+              return href;
+            }"""
+        )
+        return str(href or "")
+    except Exception:
+        return ""
+
+
+def _eksi_extract_entries(page: Any) -> list[dict[str, Any]]:
+    try:
+        rows = page.evaluate(
+            """() => {
+              const out = [];
+              const seen = new Set();
+              document.querySelectorAll('li[id^="entry-item"], [id^="entry-item"]').forEach((el) => {
+                const contentEl = el.querySelector('.content');
+                if (!contentEl) return;
+                const id = el.getAttribute('data-id') || el.id.replace(/^entry-item-?/, '');
+                if (!id || seen.has(id)) return;
+                const text = (contentEl.innerText || '').trim();
+                if (text.length < 20) return;
+                seen.add(id);
+                const author = ((el.querySelector('a.entry-author') || {}).innerText || '').trim();
+                const dateEl = el.querySelector('a.entry-date');
+                out.push({
+                  id: String(id),
+                  text: text.slice(0, 800),
+                  author,
+                  date: ((dateEl && dateEl.innerText) || '').trim().slice(0, 48),
+                  url: (dateEl && dateEl.href) || window.location.href
+                });
+              });
+              return out;
+            }"""
+        )
+        return rows if isinstance(rows, list) else []
+    except Exception:
+        return []
+
+
+def _eksi_newest(page: Any, start_url: str, *, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
+    _goto(page, start_url, timeout=70_000)
+    page.wait_for_timeout(1100)
+    last_href = _eksi_last_page_href(page)
+    urls: list[str] = []
+    if last_href:
+        urls.append(last_href)
+        m = re.search(r"([?&]p=)(\d+)", last_href)
+        if m and int(m.group(2)) > 1:
+            urls.append(re.sub(r"([?&]p=)\d+", rf"\g<1>{int(m.group(2)) - 1}", last_href, count=1))
+    else:
+        urls.append(page.url)
+    collected: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    final_url = page.url
+    for url in urls:
+        if url and url != page.url:
+            _goto(page, url, timeout=70_000)
+            page.wait_for_timeout(900)
+        final_url = page.url
+        page_rows = list(reversed(_eksi_extract_entries(page)))
+        for row in page_rows:
+            rid = str(row.get("id") or "") or str(row.get("text") or "")[:80]
+            if rid in seen:
+                continue
+            seen.add(rid)
+            collected.append(row)
+            if len(collected) >= limit:
+                return final_url, collected[:limit]
+    return final_url, collected[:limit]
+
+
+def _sikayet_extract(page: Any, *, limit: int = 10) -> list[dict[str, Any]]:
+    try:
+        rows = page.evaluate(
+            """(limit) => {
+              const out = [];
+              const seen = new Set();
+              document.querySelectorAll('a[href*="/sikayet/"]').forEach((a) => {
+                const href = (a.href || '').split('?')[0];
+                if (!href || seen.has(href)) return;
+                const title = (a.innerText || '').trim().replace(/\\s+/g, ' ');
+                if (title.length < 12) return;
+                seen.add(href);
+                const card = a.closest('article, .card, li, .complaint, .search-item') || a.parentElement;
+                const blob = ((card && card.innerText) || '').trim();
+                const lines = blob.split('\\n').map(s => s.trim()).filter(Boolean);
+                out.push({
+                  title: title.slice(0, 180),
+                  url: href,
+                  meta: lines.slice(1, 3).join(' · ').slice(0, 160),
+                  excerpt: lines.slice(1, 8).join(' ').slice(0, 420)
+                });
+              });
+              return out.slice(0, limit);
+            }""",
+            limit,
+        )
+        return rows if isinstance(rows, list) else []
+    except Exception:
+        return []
+
+
 def job_sikayet(page: Any) -> dict[str, Any]:
     brands = (
         {
+            "id": "x.com",
+            "sikayet": "https://www.sikayetvar.com/twitter",
+            "eksi": "https://eksisozluk.com/?q=x.com",
+        },
+        {
             "id": "doviz.com",
-            "sikayet": "https://www.sikayetvar.com/doviz-com",
+            "sikayet": "https://www.sikayetvar.com/search?q=doviz.com",
             "eksi": "https://eksisozluk.com/?q=doviz.com",
         },
         {
             "id": "sinemalar.com",
-            "sikayet": "https://www.sikayetvar.com/sinemalar-com",
+            "sikayet": "https://www.sikayetvar.com/search?q=sinemalar.com",
             "eksi": "https://eksisozluk.com/?q=sinemalar.com",
         },
     )
     out: list[dict[str, Any]] = []
     for brand in brands:
-        rec: dict[str, Any] = {"brand": brand["id"], "sikayetvar": {"url": brand["sikayet"], "items": []}, "eksi": {"url": brand["eksi"], "entries": []}}
+        rec: dict[str, Any] = {
+            "brand": brand["id"],
+            "sikayetvar": {"url": brand["sikayet"], "items": []},
+            "eksi": {"url": brand["eksi"], "entries": []},
+        }
         try:
             _goto(page, brand["sikayet"], timeout=70_000)
             page.wait_for_timeout(1200)
             rec["sikayetvar"]["url"] = page.url
             rec["sikayetvar"]["title"] = (page.title() or "")[:160]
-            items = page.evaluate(
-                """() => {
-                  const out = [];
-                  document.querySelectorAll('article, a[href*="/sikayet/"], .card').forEach((el) => {
-                    const a = el.querySelector('a') || (el.tagName === 'A' ? el : null);
-                    const title = ((el.querySelector('h2,h3,.title') || a || {}).innerText || '').trim();
-                    if (!title || title.length < 8) return;
-                    const href = (a && a.href) || '';
-                    const text = (el.innerText || '').trim();
-                    const lines = text.split('\\n').map(s => s.trim()).filter(Boolean);
-                    out.push({
-                      title: title.slice(0, 180),
-                      url: href,
-                      meta: lines.slice(1, 3).join(' · ').slice(0, 160),
-                      excerpt: lines.slice(3, 8).join(' ').slice(0, 420)
-                    });
-                  });
-                  return out.slice(0, 16);
-                }"""
-            )
-            rec["sikayetvar"]["items"] = items if isinstance(items, list) else []
-        except Exception as exc:  # noqa: BLE001
+            rec["sikayetvar"]["items"] = _sikayet_extract(page, limit=10)
+        except Exception as exc:
             rec["sikayetvar"]["message"] = str(exc)[:200]
         try:
-            _goto(page, brand["eksi"], timeout=70_000)
-            page.wait_for_timeout(1200)
-            rec["eksi"]["url"] = page.url
+            final_url, entries = _eksi_newest(page, brand["eksi"], limit=10)
+            rec["eksi"]["url"] = final_url
             rec["eksi"]["title"] = (page.title() or "")[:160]
-            entries = page.evaluate(
-                """() => {
-                  const out = [];
-                  document.querySelectorAll('[id^="entry-item"] .content, [id^="entry-item"]').forEach((el) => {
-                    const t = (el.innerText || '').trim();
-                    if (t.length < 40) return;
-                    out.push({ text: t.slice(0, 600), url: window.location.href });
-                  });
-                  return out.slice(0, 10);
-                }"""
-            )
-            if isinstance(entries, list) and entries:
-                rec["eksi"]["entries"] = entries
-            else:
-                rec["eksi"]["entries"] = [
-                    {"text": ln.strip()[:500], "url": page.url}
-                    for ln in _text(page, 5000).splitlines()
-                    if len(ln.strip()) > 50
-                ][:8]
-        except Exception as exc:  # noqa: BLE001
+            rec["eksi"]["entries"] = entries
+        except Exception as exc:
             rec["eksi"]["message"] = str(exc)[:200]
         out.append(rec)
-        time.sleep(0.5)
-    n = sum(len((b.get("sikayetvar") or {}).get("items") or []) + len((b.get("eksi") or {}).get("entries") or []) for b in out)
+        time.sleep(0.4)
+    n = sum(
+        len((b.get("sikayetvar") or {}).get("items") or [])
+        + len((b.get("eksi") or {}).get("entries") or [])
+        for b in out
+    )
     return {
         "ok": n > 0,
         "scraped_at": _now(),
-        "summary": f"{n} kayıt · 2 marka",
+        "summary": f"{n} kayıt · {len(out)} marka · son 10",
         "message": "",
         "brands": out,
+        "default_brand": "x.com",
     }
 
 
