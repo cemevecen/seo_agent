@@ -340,6 +340,13 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert "https://finans.cnnturk.com/canli-borsa" in lists["cnnturk"]
     assert mod.TV_SCANNER_SYMBOLS["usd"] == "FX_IDC:USDTRY"
     assert mod.TV_SCANNER_SYMBOLS["bist100"] == "BIST:XU100"
+    assert any(s["id"] == "foreks" for s in mod.SITES)
+    assert "https://www.foreks.com/doviz/" in lists["foreks"]
+    assert "https://www.foreks.com/altin/" in lists["foreks"]
+    assert "https://www.foreks.com/emtia/" in lists["foreks"]
+    assert mod.FOREKS_FIELDS["usd"] == "o10_l"
+    assert mod.FOREKS_FIELDS["gram_gumus"] == "o16_l"
+    assert mod.FOREKS_FIELDS["brent"] == "o2627_l"
 
 
 def test_pm_lab_doviz_rank_chip_labels():

@@ -90,6 +90,7 @@ SITES = (
     {"id": "doviz", "label": "Döviz", "home": "https://www.doviz.com/"},
     {"id": "tradingview", "label": "TradingView", "home": "https://www.tradingview.com/"},
     {"id": "canlidoviz", "label": "Canlı Döviz", "home": "https://canlidoviz.com/"},
+    {"id": "foreks", "label": "Foreks", "home": "https://www.foreks.com/"},
     {"id": "investing", "label": "Investing", "home": "https://www.investing.com/"},
     {"id": "bigpara", "label": "Bigpara", "home": "https://bigpara.hurriyet.com.tr/"},
     {"id": "uzmanpara", "label": "Uzmanpara", "home": "https://uzmanpara.milliyet.com.tr/"},
@@ -105,6 +106,11 @@ SITE_LIST_URLS: dict[str, tuple[str, ...]] = {
         "https://www.enuygunfinans.com/doviz-fiyatlari/",
         "https://www.enuygunfinans.com/altin-fiyatlari/",
         "https://www.enuygunfinans.com/borsa/bist-100-hisseleri/",
+    ),
+    "foreks": (
+        "https://www.foreks.com/doviz/",
+        "https://www.foreks.com/altin/",
+        "https://www.foreks.com/emtia/",
     ),
     "investing": (
         "https://www.investing.com/currencies/",
@@ -167,6 +173,16 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "brent": "https://www.tradingview.com/symbols/TVC-UKOIL/",
         "gram_gumus": "https://www.tradingview.com/symbols/XAGUSD/",
         "gram_altin": "https://www.tradingview.com/symbols/XAUTRY/",
+    },
+    "foreks": {
+        "usd": "https://www.foreks.com/doviz/",
+        "eur": "https://www.foreks.com/doviz/",
+        "bist100": "https://www.foreks.com/",
+        "gram_altin": "https://www.foreks.com/altin/",
+        "ceyrek_altin": "https://www.foreks.com/altin/",
+        "ons_altin": "https://www.foreks.com/altin/",
+        "gram_gumus": "https://www.foreks.com/emtia/",
+        "brent": "https://www.foreks.com/emtia/",
     },
     "canlidoviz": {
         "usd": "https://canlidoviz.com/doviz-kurlari/dolar",
@@ -818,7 +834,7 @@ def _site_urls(sid: str, home: str) -> list[str]:
 
 def _http_fill_site(sid: str, home: str) -> dict[str, dict[str, str]]:
     found: dict[str, dict[str, str]] = {}
-    if sid == "investing":
+    if sid in ("investing", "foreks"):
         return found
     if sid == "tradingview":
         _merge_found(found, _http_tradingview_quotes())
@@ -860,6 +876,84 @@ def _investing_dom_quote(page: Any) -> dict[str, str] | None:
         return {"value": raw, "change": change}
     except Exception:
         return None
+
+
+FOREKS_FIELDS: dict[str, str] = {
+    "usd": "o10_l",
+    "eur": "o11_l",
+    "bist100": "H3558_l",
+    "gram_altin": "o15_l",
+    "ceyrek_altin": "o34_l",
+    "ons_altin": "o13_l",
+    "gram_gumus": "o16_l",
+    "brent": "o2627_l",
+}
+
+FOREKS_PAGES = (
+    "https://www.foreks.com/doviz/",
+    "https://www.foreks.com/altin/",
+    "https://www.foreks.com/emtia/",
+)
+
+
+def _foreks_dom_fields(page: Any) -> tuple[dict[str, str], dict[str, str]]:
+    try:
+        data = page.evaluate(
+            """() => {
+              const last = {}, ch = {};
+              document.querySelectorAll('[data-field]').forEach((el) => {
+                const k = el.getAttribute('data-field') || '';
+                const t = (el.innerText || '').trim();
+                if (!k || !t) return;
+                if (k.endsWith('_l') && !last[k]) last[k] = t;
+                if (k.endsWith('_C') && !ch[k]) ch[k] = t;
+              });
+              return {last, ch};
+            }"""
+        )
+    except Exception:
+        return {}, {}
+    if not isinstance(data, dict):
+        return {}, {}
+    last = data.get("last") if isinstance(data.get("last"), dict) else {}
+    ch = data.get("ch") if isinstance(data.get("ch"), dict) else {}
+    return last, ch
+
+
+def _browser_fill_foreks(page: Any, found: dict[str, dict[str, str]]) -> None:
+    wanted = set(FOREKS_FIELDS)
+    for url in FOREKS_PAGES:
+        if wanted <= found.keys():
+            break
+        try:
+            _goto(page, url, timeout=70_000)
+            page.wait_for_timeout(800)
+            try:
+                page.wait_for_function(
+                    """() => {
+                      const el = document.querySelector('[data-field="o10_l"], [data-field="o15_l"], [data-field="o16_l"]');
+                      return el && (el.innerText || '').trim().length > 1;
+                    }""",
+                    timeout=14000,
+                )
+            except Exception:
+                pass
+            last, ch = _foreks_dom_fields(page)
+            for aid, field in FOREKS_FIELDS.items():
+                if aid in found:
+                    continue
+                raw = str(last.get(field) or "").strip()
+                if not raw:
+                    continue
+                val = _to_float(raw)
+                if val is None or not _in_range(aid, val):
+                    continue
+                pct = str(ch.get(field.replace("_l", "_C")) or "").strip().replace(" ", "")
+                if pct and "%" not in pct:
+                    pct = f"%{pct}"
+                found[aid] = {"value": raw, "change": pct}
+        except Exception:
+            continue
 
 
 def _browser_fill_investing(page: Any, found: dict[str, dict[str, str]]) -> None:
@@ -970,6 +1064,8 @@ def job_competitors(page: Any) -> dict[str, Any]:
             http_n = len(found)
             if sid == "investing":
                 _browser_fill_investing(page, found)
+            elif sid == "foreks":
+                _browser_fill_foreks(page, found)
             else:
                 _browser_fill_gaps(page, sid, site["home"], found)
             for aid, rec in found.items():
