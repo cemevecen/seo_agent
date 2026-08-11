@@ -1148,6 +1148,12 @@ def _play_titles(packages: list[str]) -> dict[str, str]:
     return names
 
 
+def _ios_lockup_id(item: Any) -> str:
+    if not isinstance(item, dict):
+        return ""
+    return str(item.get("adamId") or item.get("id") or "").strip()
+
+
 def _ios_chart_ids_html(limit: int = 200) -> list[str]:
     url = f"https://apps.apple.com/tr/iphone/charts/{IOS_FINANCE_GENRE}"
     req = urllib.request.Request(
@@ -1172,11 +1178,13 @@ def _ios_chart_ids_html(limit: int = 200) -> list[str]:
         ids: list[str] = []
         for shelf in segment.get("shelves") or []:
             for item in shelf.get("items") or []:
-                if isinstance(item, dict) and item.get("id"):
-                    ids.append(str(item["id"]))
+                aid = _ios_lockup_id(item)
+                if aid:
+                    ids.append(aid)
         for item in (segment.get("nextPage") or {}).get("remainingContent") or []:
-            if isinstance(item, dict) and item.get("id"):
-                ids.append(str(item["id"]))
+            aid = _ios_lockup_id(item)
+            if aid:
+                ids.append(aid)
         if ids:
             by_chart[chart] = ids
     picked = by_chart.get("top-free") or by_chart.get("topfreeapplications") or []

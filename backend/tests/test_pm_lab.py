@@ -211,6 +211,35 @@ def test_store_chart_rank_deltas():
         db.close()
 
 
+def test_store_chart_skips_delta_when_top_slice_shifted():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        old_apps = [{"rank": i, "id": f"old-{i}", "name": f"Eski {i}"} for i in range(1, 16)]
+        new_apps = [{"rank": i, "id": f"new-{i}", "name": f"Yeni {i}"} for i in range(1, 16)]
+        ingest_pm_lab_payload(db, {"sections": {"store_charts": {"ok": True, "charts": [{"id": "ios", "apps": old_apps}]}}})
+        ingest_pm_lab_payload(db, {"sections": {"store_charts": {"ok": True, "charts": [{"id": "ios", "apps": new_apps}]}}})
+        ctx = page_context(db)
+        chart = next(c["data"]["charts"][0] for c in ctx["cards"] if c["id"] == "store_charts")
+        assert chart["moves"].get("reset") is True
+        assert chart["apps"][0]["delta"] is None
+        assert chart["dropped"] == []
+    finally:
+        db.close()
+
+
+def test_ios_lockup_id_uses_adam_id():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("pm_lab_scrape", Path("scripts/pm_lab_scrape.py"))
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    assert mod._ios_lockup_id({"adamId": "521117624", "id": "x"}) == "521117624"
+    assert mod._ios_lockup_id({"id": "99"}) == "99"
+    assert mod._ios_lockup_id({}) == ""
+
+
 def test_competitor_parser_keeps_distinct_asset_prices():
     import importlib.util
 

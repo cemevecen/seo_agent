@@ -524,12 +524,13 @@
       var mv = ch.moves || {};
       var meta = document.createElement("div");
       meta.className = "flex flex-wrap gap-1.5 mb-2";
-      meta.innerHTML =
-        chip(ch.our_label || ch.title || "") +
-        chip("↑ " + (mv.up || 0), "pml-chip-up") +
-        chip("↓ " + (mv.down || 0), "pml-chip-down") +
-        chip("yeni " + (mv.new || 0), "pml-chip-new") +
-        chip("çıktı " + (mv.dropped || 0), "pml-chip-down");
+      meta.innerHTML = mv.reset
+        ? chip(ch.our_label || ch.title || "") + chip("Δ sonraki taramada")
+        : chip(ch.our_label || ch.title || "") +
+          chip("↑ " + (mv.up || 0), "pml-chip-up") +
+          chip("↓ " + (mv.down || 0), "pml-chip-down") +
+          chip("yeni " + (mv.new || 0), "pml-chip-new") +
+          chip("çıktı " + (mv.dropped || 0), "pml-chip-down");
       var q = search.value.trim().toLowerCase();
       var rows = (ch.apps || [])
         .filter(function (a) {

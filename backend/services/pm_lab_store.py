@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -234,6 +235,23 @@ def _enrich_news(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, An
     return out
 
 
+def _store_chart_comparable(old_apps: list[Any], new_apps: list[Any]) -> bool:
+    """Skip Δ when the previous snapshot is a different slice (e.g. missing first 25)."""
+    old_ids = [
+        str(a.get("id") or "")
+        for a in (old_apps or [])[:15]
+        if isinstance(a, dict) and a.get("id")
+    ]
+    new_ids = [
+        str(a.get("id") or "")
+        for a in (new_apps or [])[:15]
+        if isinstance(a, dict) and a.get("id")
+    ]
+    if len(old_ids) < 5 or len(new_ids) < 5:
+        return bool(old_ids) and bool(new_ids) and len(set(old_ids) & set(new_ids)) >= 1
+    return len(set(old_ids) & set(new_ids)) >= 3
+
+
 def _enrich_store_charts(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     out = _strip_shots(incoming)
     prev_charts = {
@@ -245,6 +263,16 @@ def _enrich_store_charts(prev: dict[str, Any], incoming: dict[str, Any]) -> dict
         if not isinstance(chart, dict):
             continue
         old_apps = (prev_charts.get(str(chart.get("id") or "")) or {}).get("apps") or []
+        new_apps = chart.get("apps") or []
+        if old_apps and new_apps and not _store_chart_comparable(old_apps, new_apps):
+            for app in new_apps:
+                if isinstance(app, dict):
+                    app["prev_rank"] = None
+                    app["delta"] = None
+                    app["delta_n"] = None
+            chart["dropped"] = []
+            chart["moves"] = {"up": 0, "down": 0, "new": 0, "same": 0, "dropped": 0, "reset": True}
+            continue
         old_map: dict[str, dict[str, Any]] = {}
         for app in old_apps:
             if not isinstance(app, dict) or not app.get("id"):
@@ -290,6 +318,24 @@ def _enrich_store_charts(prev: dict[str, Any], incoming: dict[str, Any]) -> dict
             if k not in current_ids
         ]
         dropped.sort(key=lambda r: int(r.get("prev_rank") or 0))
+        matched_dn = [
+            int(app.get("delta_n"))
+            for app in chart.get("apps") or []
+            if isinstance(app, dict) and app.get("delta") in ("up", "down") and app.get("delta_n") is not None
+        ]
+        mode_n = 0
+        mode = 0
+        if matched_dn:
+            mode, mode_n = Counter(matched_dn).most_common(1)[0]
+        if abs(mode) >= 20 and mode_n >= max(15, len(matched_dn) // 2):
+            for app in chart.get("apps") or []:
+                if isinstance(app, dict):
+                    app["prev_rank"] = None
+                    app["delta"] = None
+                    app["delta_n"] = None
+            chart["dropped"] = []
+            chart["moves"] = {"up": 0, "down": 0, "new": 0, "same": 0, "dropped": 0, "reset": True}
+            continue
         chart["dropped"] = dropped[:40]
         chart["moves"] = {"up": up, "down": down, "new": new, "same": same, "dropped": len(dropped)}
     runs = list(prev.get("runs") or []) if isinstance(prev.get("runs"), list) else []

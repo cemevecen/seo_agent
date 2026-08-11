@@ -1125,14 +1125,19 @@ def _fetch_ios_category_rank(
                     shelf_items: list[str] = []
                     for shelf in segment.get("shelves", []):
                         for item in shelf.get("items", []):
-                            if isinstance(item, dict):
-                                shelf_items.append(str(item.get("id", "")))
+                            if not isinstance(item, dict):
+                                continue
+                            aid = str(item.get("adamId") or item.get("id") or "").strip()
+                            if aid:
+                                shelf_items.append(aid)
                     # Geri kalan uygulamalar
-                    remaining_items: list[str] = [
-                        str(item.get("id", ""))
-                        for item in segment.get("nextPage", {}).get("remainingContent", [])
-                        if isinstance(item, dict)
-                    ]
+                    remaining_items: list[str] = []
+                    for item in segment.get("nextPage", {}).get("remainingContent", []):
+                        if not isinstance(item, dict):
+                            continue
+                        aid = str(item.get("adamId") or item.get("id") or "").strip()
+                        if aid:
+                            remaining_items.append(aid)
                     all_app_ids = shelf_items + remaining_items
 
                     if app_id_str in all_app_ids:
