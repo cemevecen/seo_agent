@@ -380,7 +380,7 @@ function _fmtChartLabel(iso) {
   var s = String(iso);
   if (s.length >= 10 && s.indexOf('-') > 0) {
     var p = s.slice(0, 10).split('-');
-    return parseInt(p[1], 10) + '/' + parseInt(p[2], 10) + '/' + String(p[0]).slice(2);
+    return parseInt(p[2], 10) + '.' + String(p[1]).padStart(2, '0') + '.' + String(p[0]).slice(2);
   }
   return s.slice(5, 16).replace('T', ' ');
 }
@@ -428,9 +428,9 @@ function _renderGscTrend(canvasId, noteId, deviceKey) {
     data: {
       labels: labels,
       datasets: [
-        { label: 'Kötü', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', backgroundColor: 'rgba(197,57,41,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0.25, fill: false },
-        { label: 'İyileştirme gerekli', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', backgroundColor: 'rgba(240,147,0,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0.25, fill: false },
-        { label: 'İyi', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', backgroundColor: 'rgba(11,128,67,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0.25, fill: false }
+        { label: 'Kötü', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', backgroundColor: 'rgba(197,57,41,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0, fill: false },
+        { label: 'İyileştirme gerekli', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', backgroundColor: 'rgba(240,147,0,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0, fill: false },
+        { label: 'İyi', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', backgroundColor: 'rgba(11,128,67,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0, fill: false }
       ]
     },
     options: {
@@ -443,7 +443,7 @@ function _renderGscTrend(canvasId, noteId, deviceKey) {
           callbacks: {
             label: function(ctx) {
               var n = ctx.parsed.y;
-              return ctx.dataset.label + ': ' + (n == null ? '—' : Number(n).toLocaleString('tr-TR'));
+              return ctx.dataset.label + ': ' + (n == null ? '—' : Math.round(Number(n)).toLocaleString('tr-TR'));
             }
           }
         }

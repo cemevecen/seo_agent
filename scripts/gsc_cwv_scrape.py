@@ -27,7 +27,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, quote, urlparse
@@ -130,33 +130,28 @@ def _parse_count(raw: str) -> int:
     s = _clean(raw).replace("\u00a0", " ")
     if not s or s in {"-", "—", "Yok", "N/A"}:
         return 0
-    # 14,3 B / 14.347 / 1,97 B
     m = re.search(r"([\d\.\,]+)\s*([BbKkMm])?", s)
     if not m:
         digits = re.sub(r"[^\d]", "", s)
         return int(digits) if digits else 0
-    num = m.group(1).replace(".", "").replace(",", ".")
+    raw_num = m.group(1)
+    suf = (m.group(2) or "").upper()
     try:
-        val = float(num)
+        if re.fullmatch(r"\d{1,3}([.,]\d{3})+", raw_num):
+            val = float(raw_num.replace(".", "").replace(",", ""))
+        elif "," in raw_num and "." in raw_num:
+            if raw_num.rfind(",") > raw_num.rfind("."):
+                val = float(raw_num.replace(".", "").replace(",", "."))
+            else:
+                val = float(raw_num.replace(",", ""))
+        else:
+            val = float(raw_num.replace(",", "."))
     except ValueError:
         return 0
-    suf = (m.group(2) or "").upper()
-    if suf == "B":  # bin (TR)
-        val *= 1000
-    elif suf == "K":
+    if suf in ("B", "K"):  # GSC TR "B" = bin
         val *= 1000
     elif suf == "M":
         val *= 1_000_000
-    # TR binlik: 14.347
-    if suf == "" and "," not in m.group(1) and m.group(1).count(".") == 1:
-        # already handled by replace
-        pass
-    if suf == "" and "." in m.group(1) and "," not in m.group(1):
-        # 14.347 → already removed dots above incorrectly if US style
-        # recover: original had dots as thousands
-        raw_digits = m.group(1)
-        if re.fullmatch(r"\d{1,3}(\.\d{3})+", raw_digits):
-            val = float(raw_digits.replace(".", ""))
     return int(round(val))
 
 
@@ -591,74 +586,146 @@ def explain_causes(metric: str, status: str, title: str = "") -> list[str]:
     return causes
 
 
+_OV_TRIPLET_RES = (
+    # TR: 0 yetersiz URL · 14.674 URL iyileştirme gerektiriyor · 3.036 iyi URL
+    re.compile(
+        r"(\d[\d\.,]*)\s*(?:yetersiz|kötü)\s*URL.{0,80}?"
+        r"([\d\.,]+)\s*URL.{0,40}?iyileştir.{0,80}?"
+        r"([\d\.,]+)\s*iyi\s*URL",
+        re.I | re.S,
+    ),
+    # EN: 0 poor URLs · 14,674 URLs need improvement · 3,036 good URLs
+    re.compile(
+        r"([\d,]+)\s*poor\s*URL.{0,80}?"
+        r"([\d,]+)\s*URL?s?\s*(?:need improvement|need improv).{0,80}?"
+        r"([\d,]+)\s*good\s*URL",
+        re.I | re.S,
+    ),
+    # EN legend: Poor 0 · Need improvement 14,674 · Good 3,036
+    re.compile(
+        r"Poor\s*([\d\.,]+K?).{0,80}?Need improvement\s*([\d\.,]+K?).{0,80}?Good\s*([\d\.,]+K?)",
+        re.I | re.S,
+    ),
+)
+
+
+def _parse_overview_triplet(block: str) -> dict[str, int] | None:
+    for cre in _OV_TRIPLET_RES:
+        m = cre.search(block or "")
+        if not m:
+            continue
+        return {
+            "poor": _parse_count(m.group(1)),
+            "needs_improvement": _parse_count(m.group(2)),
+            "good": _parse_count(m.group(3)),
+        }
+    return None
+
+
 def _parse_overview_counts(body: str) -> dict[str, dict[str, int]]:
     out = {
         "mobile": {"poor": 0, "needs_improvement": 0, "good": 0},
         "desktop": {"poor": 0, "needs_improvement": 0, "good": 0},
     }
-    # Mobil ... Masaüstü ...
-    low = body
-    mob = re.search(
-        r"Mobil.{0,80}?(\d[\d\.\\,]*)\s*kötü.{0,40}?([\d\.\\,]+(?:\s*B)?)\s*URL.{0,40}?iyileştir.{0,40}?([\d\.\\,]+(?:\s*B)?)\s*iyi",
-        low,
-        re.I | re.S,
-    )
-    if not mob:
-        mob = re.search(
-            r"Mobil.*?(\d[\d\.\\,]*)\s*kötü URL.*?([\d\.\\,]+)\s*URL'nin iyileştirilmesi.*?([\d\.\\,]+)\s*iyi URL",
-            low,
-            re.I | re.S,
-        )
-    if not mob:
-        # EN GSC overview
-        mob = re.search(
-            r"Mobile.{0,120}?Poor\s*([\d\.,]+K?).*?Need improvement\s*([\d\.,]+K?).*?Good\s*([\d\.,]+K?)",
-            low,
-            re.I | re.S,
-        )
-    desk = re.search(
-        r"Masaüstü.{0,80}?(\d[\d\.\\,]*)\s*kötü.{0,40}?([\d\.\\,]+(?:\s*B)?)\s*URL.{0,40}?iyileştir.{0,40}?([\d\.\\,]+(?:\s*B)?)\s*iyi",
-        low,
-        re.I | re.S,
-    )
-    if not desk:
-        desk = re.search(
-            r"Masaüstü.*?(\d[\d\.\\,]*)\s*kötü URL.*?([\d\.\\,]+)\s*URL'nin iyileştirilmesi.*?([\d\.\\,]+)\s*iyi URL",
-            low,
-            re.I | re.S,
-        )
-    if not desk:
-        desk = re.search(
-            r"Desktop.{0,120}?Poor\s*([\d\.,]+K?).*?Need improvement\s*([\d\.,]+K?).*?Good\s*([\d\.,]+K?)",
-            low,
-            re.I | re.S,
-        )
-    if mob:
-        out["mobile"] = {
-            "poor": _parse_count(mob.group(1)),
-            "needs_improvement": _parse_count(mob.group(2)),
-            "good": _parse_count(mob.group(3)),
-        }
-    if desk:
-        out["desktop"] = {
-            "poor": _parse_count(desk.group(1)),
-            "needs_improvement": _parse_count(desk.group(2)),
-            "good": _parse_count(desk.group(3)),
-        }
+    text = body or ""
+    parts = re.split(r"(?=Mobil\b|Mobile\b|Masaüstü\b|Desktop\b)", text, flags=re.I)
+    for part in parts:
+        head = part[:24].lower()
+        parsed = _parse_overview_triplet(part[:1200])
+        if not parsed:
+            continue
+        if head.startswith("mobil") or head.startswith("mobile"):
+            out["mobile"] = parsed
+        elif head.startswith("masaüstü") or head.startswith("masaustu") or head.startswith("desktop"):
+            out["desktop"] = parsed
+    if out["mobile"]["good"] or out["mobile"]["needs_improvement"]:
+        return out
+    # fallback: whole body
+    parsed = _parse_overview_triplet(text)
+    if parsed:
+        out["mobile"] = parsed
     return out
 
 
-def _mdy_to_iso(label: str) -> str:
-    """GSC eksen etiketi M/D/YY → YYYY-MM-DD."""
-    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{2})$", (label or "").strip())
+_TR_MONTHS = {
+    "oca": 1, "şub": 2, "sub": 2, "mar": 3, "nis": 4, "may": 5, "haz": 6,
+    "tem": 7, "ağu": 8, "agu": 8, "eyl": 9, "eki": 10, "kas": 11, "ara": 12,
+}
+_EN_MONTHS = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+
+def _gsc_label_to_iso(label: str, *, default_year: int | None = None) -> str:
+    """GSC etiket: M/D/YY, D.M.YYYY, '9 Ağu', 'Aug 9, 2026' → YYYY-MM-DD."""
+    s = re.sub(r"\s+", " ", (label or "").strip()).strip(" .,")
+    if not s:
+        return ""
+    year_now = default_year or datetime.now(timezone.utc).year
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{2,4})$", s)
+    if m:
+        a, b, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        year = 2000 + y if y < 100 else y
+        month, day = (b, a) if a > 12 else (a, b)  # hl=en → M/D
+        try:
+            datetime(year, month, day)
+            return f"{year:04d}-{month:02d}-{day:02d}"
+        except ValueError:
+            return ""
+    m = re.match(r"^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$", s)
+    if m:
+        day, month, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        year = 2000 + y if y < 100 else y
+        try:
+            datetime(year, month, day)
+            return f"{year:04d}-{month:02d}-{day:02d}"
+        except ValueError:
+            return ""
+    m = re.search(
+        r"(\d{1,2})\s+([A-Za-zçğıöşüÇĞİÖŞÜ]{3,})(?:\s+(\d{2,4}))?",
+        s,
+        re.I,
+    )
     if not m:
+        m = re.search(
+            r"([A-Za-z]{3,})\s+(\d{1,2})(?:,?\s+(\d{2,4}))?",
+            s,
+            re.I,
+        )
+        if m:
+            mon_s, day_s, year_s = m.group(1), m.group(2), m.group(3)
+            key = mon_s.lower()[:3]
+            month = _EN_MONTHS.get(key)
+            day = int(day_s)
+            year = int(year_s) if year_s else year_now
+            if year < 100:
+                year += 2000
+            if month:
+                try:
+                    datetime(year, month, day)
+                    return f"{year:04d}-{month:02d}-{day:02d}"
+                except ValueError:
+                    return ""
         return ""
-    month, day, yy = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    year = 2000 + yy if yy < 100 else yy
+    day = int(m.group(1))
+    key = m.group(2).lower().replace("ı", "i").replace("ş", "s").replace("ğ", "g")[:3]
+    month = _TR_MONTHS.get(m.group(2).lower()[:3]) or _TR_MONTHS.get(key) or _EN_MONTHS.get(key)
+    year_s = m.group(3)
+    year = int(year_s) if year_s else year_now
+    if year < 100:
+        year += 2000
+    if not month:
+        return ""
     try:
+        datetime(year, month, day)
         return f"{year:04d}-{month:02d}-{day:02d}"
-    except Exception:
+    except ValueError:
         return ""
+
+
+def _mdy_to_iso(label: str) -> str:
+    return _gsc_label_to_iso(label)
 
 
 def _axis_max_from_labels(labels: list[str]) -> float:
@@ -670,12 +737,10 @@ def _axis_max_from_labels(labels: list[str]) -> float:
             continue
         n = float(m.group(1))
         suf = m.group(2) or ""
-        if suf == "K":
+        if suf in ("K", "B"):  # GSC TR "B" = bin
             n *= 1_000
         elif suf == "M":
             n *= 1_000_000
-        elif suf == "B":
-            n *= 1_000_000_000
         if n > best:
             best = n
     return best
@@ -688,8 +753,177 @@ def _status_from_hex(color: str) -> str | None:
     return _GSC_CHART_COLORS.get(c[:7])
 
 
-def _extract_overview_chart_series(page) -> dict[str, Any]:
-    """GSC overview Mobil/Masaüstü çizgi grafiklerini SVG path noktalarından çıkarır."""
+def _daily_iso_range(t0: datetime, t1: datetime) -> list[str]:
+    if t1 < t0:
+        t0, t1 = t1, t0
+    n = (t1.date() - t0.date()).days
+    n = max(0, min(n, 400))
+    return [(t0 + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(n + 1)]
+
+
+def _interp_y(by_x: dict[float, float], x: float) -> float:
+    if not by_x:
+        return 0.0
+    if x in by_x:
+        return by_x[x]
+    xs = sorted(by_x)
+    if x <= xs[0]:
+        return by_x[xs[0]]
+    if x >= xs[-1]:
+        return by_x[xs[-1]]
+    for i in range(1, len(xs)):
+        if xs[i] >= x:
+            x0, x1 = xs[i - 1], xs[i]
+            if x1 == x0:
+                return by_x[x0]
+            t = (x - x0) / (x1 - x0)
+            return by_x[x0] + t * (by_x[x1] - by_x[x0])
+    return by_x[xs[-1]]
+
+
+def _parse_gsc_chart_tooltip(text: str) -> dict[str, Any] | None:
+    t = _clean(text)
+    if not t or len(t) < 8:
+        return None
+    date = ""
+    for line in t.splitlines():
+        iso = _gsc_label_to_iso(line)
+        if iso:
+            date = iso
+            break
+    if not date:
+        m = re.search(r"(\d{1,2}[./]\d{1,2}[./]\d{2,4})", t)
+        if m:
+            date = _gsc_label_to_iso(m.group(1))
+    if not date:
+        m = re.search(
+            r"(\d{1,2}\s+[A-Za-zçğıöşüÇĞİÖŞÜ]{3,}(?:\s+\d{2,4})?|[A-Za-z]{3,}\s+\d{1,2}(?:,?\s+\d{2,4})?)",
+            t,
+        )
+        if m:
+            date = _gsc_label_to_iso(m.group(0))
+    if not date:
+        return None
+
+    def grab(*pats: str) -> int:
+        for pat in pats:
+            m = re.search(pat, t, re.I)
+            if m:
+                return _parse_count(m.group(1))
+        return 0
+
+    poor = grab(
+        r"(?:yetersiz|kötü|poor)[^\d]{0,28}([\d\.,]+)",
+        r"([\d\.,]+)[^\d]{0,12}(?:yetersiz|kötü|poor)",
+    )
+    ni = grab(
+        r"iyileştir[^\d]{0,40}([\d\.,]+)",
+        r"(?:need improvement|needs improvement)[^\d]{0,20}([\d\.,]+)",
+        r"([\d\.,]+)[^\d]{0,24}iyileştir",
+        r"([\d\.,]+)[^\d]{0,20}(?:need improvement|needs improvement)",
+    )
+    good = grab(
+        r"(?:iyi\s+URL|good(?:\s+URL)?)[^\d]{0,28}([\d\.,]+)",
+        r"([\d\.,]+)[^\d]{0,12}(?:iyi\s+URL|good(?:\s+URL)?)",
+    )
+    return {"date": date, "poor": poor, "needs_improvement": ni, "good": good}
+
+
+_TIP_TEXT_JS = r"""() => {
+  const hit = (el) => {
+    const t = (el.innerText || el.textContent || '').trim();
+    if (t.length < 12 || t.length > 500) return false;
+    return /poor|good|yetersiz|kötü|kotu|iyileştir|improvement|iyi url/i.test(t);
+  };
+  const nodes = [...document.querySelectorAll('div, span, li, p')].filter((el) => {
+    const cs = getComputedStyle(el);
+    if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) === 0) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width < 70 || r.height < 28 || r.width > 520) return false;
+    return hit(el);
+  });
+  nodes.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length);
+  return nodes.length ? (nodes[0].innerText || '') : '';
+}"""
+
+
+def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
+    """Grafik üzerinde gezerek GSC tooltip'inden günlük tam sayıları oku."""
+    charts: list[dict[str, Any]] = []
+    try:
+        handles = page.query_selector_all("svg")
+    except Exception:
+        return charts
+    for svg in handles:
+        try:
+            svg.scroll_into_view_if_needed()
+            time.sleep(0.2)
+        except Exception:
+            pass
+        try:
+            box = svg.bounding_box()
+        except Exception:
+            continue
+        if not box or box["width"] < 320 or box["height"] < 120:
+            continue
+        samples: dict[str, dict[str, Any]] = {}
+        n = 100
+        for i in range(n):
+            x = box["x"] + 20 + (box["width"] - 32) * i / max(n - 1, 1)
+            y = box["y"] + box["height"] * 0.42
+            try:
+                page.mouse.move(x, y)
+            except Exception:
+                continue
+            time.sleep(0.03)
+            try:
+                text = page.evaluate(_TIP_TEXT_JS)
+            except Exception:
+                text = ""
+            parsed = _parse_gsc_chart_tooltip(str(text or ""))
+            if parsed and parsed.get("date"):
+                samples[str(parsed["date"])] = parsed
+        if len(samples) < 12:
+            continue
+        dates = sorted(samples)
+        charts.append(
+            {
+                "dates": dates,
+                "poor": [int(samples[d]["poor"]) for d in dates],
+                "needs_improvement": [int(samples[d]["needs_improvement"]) for d in dates],
+                "good": [int(samples[d]["good"]) for d in dates],
+                "point_count": len(dates),
+                "source": "gsc_tooltip",
+            }
+        )
+    return charts
+
+
+def _snap_series_to_kpis(chart_series: dict[str, Any], overview: dict[str, Any]) -> None:
+    """Son günün noktasını GSC başlık KPI’sına kilitle (tooltip/SVG sapmasını kapatır)."""
+    if not isinstance(chart_series, dict) or not isinstance(overview, dict):
+        return
+    for key in ("mobile", "desktop"):
+        ser = chart_series.get(key)
+        kpis = overview.get(key) if isinstance(overview.get(key), dict) else {}
+        if not isinstance(ser, dict) or not kpis:
+            continue
+        dates = ser.get("dates") or []
+        if not dates:
+            continue
+        for metric in ("poor", "needs_improvement", "good"):
+            arr = list(ser.get(metric) or [])
+            if not arr:
+                continue
+            kpi_v = kpis.get(metric)
+            if kpi_v is None:
+                continue
+            arr[-1] = int(kpi_v)
+            ser[metric] = arr
+
+
+def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str, Any]:
+    """GSC overview Mobil/Masaüstü çizgi grafikleri — tooltip (tam sayı) + SVG yedek."""
     raw = page.evaluate(
         r"""() => {
           const COLOR = {
@@ -742,8 +976,13 @@ def _extract_overview_chart_series(page) -> dict[str, Any]:
           for (const svg of svgs) {
             const bb = svg.getBoundingClientRect();
             const texts = [...svg.querySelectorAll('text')].map(t => (t.textContent || '').trim()).filter(Boolean);
-            const dateLabels = texts.filter(t => /^\d{1,2}\/\d{1,2}\/\d{2}$/.test(t));
-            const axisNums = texts.filter(t => /^[\d\.,]+\s*[KMB]?$/i.test(t) && !/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(t));
+            const dateLabels = texts.filter(t =>
+              /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(t) || /^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(t)
+            );
+            const axisNums = texts.filter(t =>
+              /^[\d\.,]+\s*[KMB]?$/i.test(t) &&
+              !/^\d{1,2}[./]\d{1,2}[./]\d{2,4}$/.test(t)
+            );
             const series = {};
             for (const path of svg.querySelectorAll('path')) {
               const stroke = path.getAttribute('stroke') || '';
@@ -767,18 +1006,18 @@ def _extract_overview_chart_series(page) -> dict[str, Any]:
           return charts;
         }"""
     )
+    end_iso = _gsc_label_to_iso(last_updated)
     charts: list[dict[str, Any]] = []
     for ch in raw or []:
         if not isinstance(ch, dict):
             continue
         date_labels = [str(x) for x in (ch.get("dateLabels") or [])]
-        iso_dates = [_mdy_to_iso(x) for x in date_labels]
+        iso_dates = [_gsc_label_to_iso(x) for x in date_labels]
         iso_dates = [d for d in iso_dates if d]
         y_max = _axis_max_from_labels([str(x) for x in (ch.get("axisNums") or [])])
         if y_max <= 0:
             y_max = 1.0
         series_pts = ch.get("series") or {}
-        # Plot alanı: path x/y SVG user units — tipik baseline ~166, top ~0..20
         all_xy: list[tuple[float, float]] = []
         for pts in series_pts.values():
             for p in pts or []:
@@ -789,36 +1028,34 @@ def _extract_overview_chart_series(page) -> dict[str, Any]:
         xs = [p[0] for p in all_xy]
         ys = [p[1] for p in all_xy]
         x_min, x_max = min(xs), max(xs)
-        y_bottom, y_top = max(ys), min(ys)  # SVG: büyük y = alt
+        y_bottom, y_top = max(ys), min(ys)
         if x_max <= x_min:
             continue
-        # Tarih ekseni: ilk/son etiket arası lineer
-        if len(iso_dates) >= 2:
+        if iso_dates:
             t0 = datetime.strptime(iso_dates[0], "%Y-%m-%d")
             t1 = datetime.strptime(iso_dates[-1], "%Y-%m-%d")
         else:
-            t0 = t1 = datetime.utcnow()
-
-        def x_to_date(x: float) -> str:
-            if t1 == t0:
-                return t0.strftime("%Y-%m-%d")
-            ratio = (x - x_min) / (x_max - x_min)
-            ratio = max(0.0, min(1.0, ratio))
-            dt = t0 + (t1 - t0) * ratio
-            return dt.strftime("%Y-%m-%d")
+            t0 = t1 = datetime.now(timezone.utc).replace(tzinfo=None)
+        if end_iso:
+            try:
+                t_end = datetime.strptime(end_iso, "%Y-%m-%d")
+                if t_end >= t0:
+                    t1 = t_end
+            except ValueError:
+                pass
+        dates = _daily_iso_range(t0, t1)
+        if not dates:
+            continue
+        span = max(len(dates) - 1, 1)
 
         def y_to_val(y: float) -> float:
             if y_bottom <= y_top:
                 return 0.0
             ratio = (y_bottom - y) / (y_bottom - y_top)
             ratio = max(0.0, min(1.2, ratio))
-            return round(max(0.0, ratio * y_max), 2)
+            return max(0.0, ratio * y_max)
 
-        # Ortak tarih ızgarası: en uzun serinin x noktaları
-        primary = max(series_pts.values(), key=lambda p: len(p or []))
-        dates = [x_to_date(float(p[0])) for p in primary if isinstance(p, (list, tuple)) and len(p) >= 2]
-
-        out_series: dict[str, list[float]] = {
+        out_series: dict[str, list[int]] = {
             "poor": [],
             "needs_improvement": [],
             "good": [],
@@ -830,21 +1067,10 @@ def _extract_overview_chart_series(page) -> dict[str, Any]:
                 for p in pts
                 if isinstance(p, (list, tuple)) and len(p) >= 2
             }
-            if not by_x:
-                out_series[status] = [0.0] * len(dates)
-                continue
-            xs_sorted = sorted(by_x.keys())
-            vals: list[float] = []
-            for p in primary:
-                if not isinstance(p, (list, tuple)) or len(p) < 2:
-                    continue
-                x = float(p[0])
-                if x in by_x:
-                    vals.append(by_x[x])
-                    continue
-                # en yakın x
-                nearest = min(xs_sorted, key=lambda z: abs(z - x))
-                vals.append(by_x[nearest])
+            vals: list[int] = []
+            for i in range(len(dates)):
+                x = x_min + (x_max - x_min) * (i / span)
+                vals.append(int(round(_interp_y(by_x, x))))
             out_series[status] = vals
 
         charts.append(
@@ -856,17 +1082,30 @@ def _extract_overview_chart_series(page) -> dict[str, Any]:
                 "y_max": y_max,
                 "date_labels": date_labels,
                 "point_count": len(dates),
+                "source": "gsc_overview_svg",
             }
         )
 
+    tip_charts: list[dict[str, Any]] = []
+    try:
+        tip_charts = _harvest_overview_tooltips(page)
+    except Exception as exc:  # noqa: BLE001
+        print(f"    tooltip harvest skip: {exc}", flush=True)
+    if len(tip_charts) >= 1:
+        print(
+            f"    tooltip charts={len(tip_charts)} "
+            f"pts={[c.get('point_count') for c in tip_charts]}",
+            flush=True,
+        )
+        charts = tip_charts
+
     result: dict[str, Any] = {"mobile": None, "desktop": None, "source": "gsc_overview_svg"}
+    if charts and charts[0].get("source") == "gsc_tooltip":
+        result["source"] = "gsc_tooltip"
     if len(charts) >= 1:
         result["mobile"] = charts[0]
     if len(charts) >= 2:
         result["desktop"] = charts[1]
-    elif len(charts) == 1:
-        # tek grafik varsa mobil kabul
-        pass
     return result
 
 
@@ -928,9 +1167,9 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
     body = meta.get("body_head") or ""
     # KPIs from summary header
     kpis = {"poor": 0, "needs_improvement": 0, "good": 0}
-    m_poor = re.search(r"Yetersiz\s+([\d\.\,]+(?:\s*B)?)", body, re.I)
-    m_ni = re.search(r"İyileştirme gerektiriyor\s+([\d\.\,]+(?:\s*B)?)", body, re.I)
-    m_good = re.search(r"İyi\s+([\d\.\,]+(?:\s*B)?)", body, re.I)
+    m_poor = re.search(r"(?:Yetersiz|Kötü|Poor)\s+([\d\.\,]+(?:\s*[BK])?)", body, re.I)
+    m_ni = re.search(r"(?:İyileştirme gerektiriyor|Need improvement)\s+([\d\.\,]+(?:\s*[BK])?)", body, re.I)
+    m_good = re.search(r"(?:İyi|Good)\s+([\d\.\,]+(?:\s*[BK])?)", body, re.I)
     if m_poor:
         kpis["poor"] = _parse_count(m_poor.group(1))
     if m_ni:
@@ -1204,17 +1443,35 @@ def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) ->
     body = page.inner_text("body")
     overview = _parse_overview_counts(body)
     last_upd = ""
-    m = re.search(r"(?:Son güncelleme|Last update):\s*([0-9\./]+)", body, re.I)
+    m = re.search(
+        r"(?:Son güncelleme(?: tarihi)?|Last update(?:d)?(?: date)?)\s*:?\s*([0-9\./]+)",
+        body,
+        re.I,
+    )
     if m:
         last_upd = m.group(1)
 
     print("  · overview chart series…", flush=True)
     chart_series: dict[str, Any] = {"mobile": None, "desktop": None}
     try:
-        chart_series = _extract_overview_chart_series(page)
+        try:
+            page.evaluate("window.scrollTo(0, 360)")
+        except Exception:
+            pass
+        time.sleep(1.2)
+        chart_series = _extract_overview_chart_series(page, last_updated=last_upd)
+        _snap_series_to_kpis(chart_series, overview)
         mob_n = int(((chart_series.get("mobile") or {}).get("point_count")) or 0)
         desk_n = int(((chart_series.get("desktop") or {}).get("point_count")) or 0)
-        print(f"    charts mobile={mob_n} desktop={desk_n} pts", flush=True)
+        last_d = ""
+        ser_m = chart_series.get("mobile") if isinstance(chart_series.get("mobile"), dict) else {}
+        if ser_m and ser_m.get("dates"):
+            last_d = str(ser_m["dates"][-1])
+        print(
+            f"    charts mobile={mob_n} desktop={desk_n} pts last={last_d or '—'} "
+            f"src={chart_series.get('source')}",
+            flush=True,
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"  · chart series skip: {exc}", flush=True)
         chart_series = {"mobile": None, "desktop": None, "error": str(exc)[:200]}

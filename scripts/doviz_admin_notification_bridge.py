@@ -1222,7 +1222,7 @@ def _set_gsc_cwv_progress(**kwargs: Any) -> None:
     _gsc_cwv_progress.update(kwargs)
 
 
-def run_gsc_cwv_bridge_once(site_key: str | None = None) -> dict[str, Any]:
+def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = False) -> dict[str, Any]:
     """GSC Core Web Vitals + AMP scrape → Railway ingest."""
     global _last_gsc_cwv_result
     if not _ingest_token():
@@ -1254,6 +1254,8 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None) -> dict[str, Any]:
         finished_at=0.0,
     )
     cmd = [sys.executable, str(script), "--sync", "--ingest", "--headed"]
+    if charts_only:
+        cmd.append("--charts-only")
     if site_key:
         cmd += ["--site", str(site_key)]
     env = os.environ.copy()
@@ -1904,6 +1906,11 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             return
         elif path in ("/sync-gsc-cwv", "/gsc-cwv", "/sync-web-vitals", "/web-vitals"):
             site_key = (qs.get("site") or [""])[0].strip().lower() or None
+            charts_only = str((qs.get("charts_only") or [""])[0]).strip().lower() in (
+                "1",
+                "true",
+                "yes",
+            )
             length = int(self.headers.get("Content-Length") or 0)
             raw_body = self.rfile.read(length) if length > 0 else b""
             if raw_body:
@@ -1912,6 +1919,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     if isinstance(payload, dict):
                         if payload.get("site"):
                             site_key = str(payload.get("site") or "").strip().lower() or site_key
+                        if payload.get("charts_only") in (True, 1, "1", "true", "yes"):
+                            charts_only = True
                         # domain öncelikli (site_id sabit varsayımı kırılgan)
                         dom = str(payload.get("domain") or payload.get("site_domain") or "").lower()
                         if "doviz" in dom:
@@ -1947,7 +1956,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
 
             def _bg_cwv() -> None:
                 try:
-                    run_gsc_cwv_bridge_once(site_key=site_key)
+                    run_gsc_cwv_bridge_once(site_key=site_key, charts_only=charts_only)
                 except Exception:
                     traceback.print_exc()
                     _set_gsc_cwv_progress(

@@ -123,7 +123,7 @@
           var s = String(iso);
           if (s.length >= 10 && s.indexOf('-') > 0) {
             var p = s.slice(0, 10).split('-');
-            return parseInt(p[1], 10) + '/' + parseInt(p[2], 10) + '/' + String(p[0]).slice(2);
+            return parseInt(p[2], 10) + '.' + String(p[1]).padStart(2, '0') + '.' + String(p[0]).slice(2);
           }
           return s.slice(5, 16).replace('T', ' ');
         }
@@ -172,16 +172,26 @@
             data: {
               labels: labels,
               datasets: [
-                { label: 'Kötü', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0.25, fill: false },
-                { label: 'İyileştirme', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0.25, fill: false },
-                { label: 'İyi', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0.25, fill: false }
+                { label: 'Kötü', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false },
+                { label: 'İyileştirme', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false },
+                { label: 'İyi', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false }
               ]
             },
             options: {
               responsive: true,
               maintainAspectRatio: false,
               interaction: { mode: 'index', intersect: false },
-              plugins: { legend: { display: false } },
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function(ctx) {
+                      var n = ctx.parsed.y;
+                      return ctx.dataset.label + ': ' + (n == null ? '—' : Math.round(Number(n)).toLocaleString('tr-TR'));
+                    }
+                  }
+                }
+              },
               scales: {
                 x: { ticks: { maxTicksLimit: 5, font: { size: 13 }, color: '#94a3b8' }, grid: { display: false } },
                 y: { beginAtZero: true, ticks: { maxTicksLimit: 4, font: { size: 13 }, color: '#94a3b8', callback: function(v){ return v >= 1000 ? (Math.round(v/1000)+'K') : v; } }, grid: { color: 'rgba(148,163,184,.18)' } }
