@@ -137,15 +137,18 @@
     line-height: 1.15;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 0;
   }
   .home-store-kpi__v {
     margin: 0.2rem 0 0;
-    font-size: 0.85rem;
+    font-size: clamp(0.7rem, 4.5cqi, 0.85rem);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: #0f172a;
     line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    min-width: 0;
   }
   html.dark .home-store-kpi__v { color: #e2e8f0; }
   .home-store-stars {
@@ -247,6 +250,7 @@
     flex-direction: column;
     min-height: 100%;
     min-width: 0;
+    overflow: hidden;
     border-radius: 0.75rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(248 250 252 / 0.85);
@@ -267,8 +271,8 @@
     color: #64748b;
     line-height: 1.2;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
   }
   .home-sf-metric__sub {
     margin: 0.15rem 0 0;
@@ -276,8 +280,8 @@
     color: #94a3b8;
     line-height: 1.2;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
   }
   .home-sf-metric__sub a {
     color: inherit;
@@ -322,9 +326,10 @@
     justify-items: stretch;
     flex: none;
     width: max-content;
-    max-width: 100%;
-    min-width: 4.75rem;
+    max-width: 46%;
+    min-width: 0;
     justify-self: end;
+    overflow: hidden;
     font-size: clamp(0.6rem, 2cqi, 0.7rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -351,6 +356,7 @@
   }
   .home-sf-metric__side-val {
     min-width: 0;
+    overflow: hidden;
     white-space: nowrap;
   }
   .home-sf-metric__side-info {
@@ -378,6 +384,7 @@
     }
     .home-sf-metric__side {
       width: 100%;
+      max-width: none;
       min-width: 0;
       justify-self: stretch;
     }
@@ -512,7 +519,7 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
   {% set bars = plat.star_bars if plat and plat.star_bars else [] %}
   {% set themes = plat.themes if plat and plat.themes else [] %}
   <div class="home-crash-zone-store">
-    {% if plat and (plat.version or plat.score_fmt != '—' or plat.ratings_fmt != '—' or plat.rank_fmt != '—') %}
+    {% if plat and (plat.version or plat.updated_label or plat.score_fmt != '—' or plat.ratings_fmt != '—' or plat.rank_fmt != '—' or plat.star_bars) %}
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="min-w-0">
           <p class="home-label text-slate-500 dark:text-slate-400">mağaza özeti</p>
@@ -734,15 +741,25 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
     if (!root || root.getAttribute('data-crash-shell-wired') === '1') return;
     root.setAttribute('data-crash-shell-wired', '1');
     function fitHomeSfValues() {
-      root.querySelectorAll('.home-sf-metric__value').forEach(function (el) {
+      var ux = window.SeoMetricTableUx;
+      var sel = '.home-sf-metric__title, .home-sf-metric__sub, .home-sf-metric__value, .home-sf-metric__side-val, .home-store-kpi__l, .home-store-kpi__v';
+      if (ux && ux.fitCardTexts) {
+        ux.fitCardTexts(root);
+        return;
+      }
+      root.querySelectorAll(sel).forEach(function (el) {
         el.style.whiteSpace = 'nowrap';
+        el.style.overflow = 'hidden';
         el.style.fontSize = '';
-        var minPx = 9;
+        var minPx = 8;
+        var boxW = el.clientWidth;
+        if (!(boxW > 1)) return;
         var maxPx = parseFloat(window.getComputedStyle(el).fontSize) || 22;
         if (!(maxPx > minPx)) {
           el.style.fontSize = minPx + 'px';
           return;
         }
+        if (el.scrollWidth <= boxW + 1) return;
         var lo = minPx, hi = maxPx, best = minPx;
         for (var i = 0; i < 16; i++) {
           var mid = (lo + hi) / 2;
@@ -764,7 +781,7 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
         if (homeSfTimer) clearTimeout(homeSfTimer);
         homeSfTimer = setTimeout(fitHomeSfValues, 60);
       });
-      root.querySelectorAll('[data-home-sf-metrics], .home-sf-metric').forEach(function (node) {
+      root.querySelectorAll('[data-home-sf-metrics], .home-sf-metric, .home-crash-zone-store').forEach(function (node) {
         homeSfRo.observe(node);
       });
     }
@@ -797,7 +814,7 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=24';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=25';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;

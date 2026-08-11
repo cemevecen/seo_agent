@@ -2171,8 +2171,10 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False, cache_
     mem_hit: dict[str, Any] | None = None
     with _CACHE_LOCK:
         hit = _RAW_CACHE.get(cache_key)
-        if (not force_refresh) and hit and now - hit[0] < _CACHE_TTL_SEC:
-            mem_hit = copy.deepcopy(hit[1])
+        if (not force_refresh) and hit:
+            # cache_only: TTL dolmuş RAM kopyasını da kullan (home boş kart olmasın)
+            if now - hit[0] < _CACHE_TTL_SEC or cache_only:
+                mem_hit = copy.deepcopy(hit[1])
     if mem_hit is not None:
         if _refresh_obsolete_android_rank_in_payload(product_id, spec, mem_hit):
             with _CACHE_LOCK:
@@ -2367,6 +2369,125 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False, cache_
 
     with _CACHE_LOCK:
         _RAW_CACHE[cache_key] = (now, payload)
+    return payload
+
+
+def _raw_has_store_meta(raw: dict[str, Any] | None) -> bool:
+    if not isinstance(raw, dict) or raw.get("error"):
+        return False
+    am = ((raw.get("android") or {}).get("meta") or {}) if isinstance(raw.get("android"), dict) else {}
+    im = ((raw.get("ios") or {}).get("meta") or {}) if isinstance(raw.get("ios"), dict) else {}
+    return bool(
+        am.get("score")
+        or am.get("play_version")
+        or am.get("ratings")
+        or im.get("score")
+        or im.get("version")
+        or im.get("ratings_count")
+    )
+
+
+def fetch_store_meta_snapshot(product_id: str, *, timeout_sec: float = 22.0) -> dict[str, Any]:
+    """Home mağaza özeti için hızlı meta (yorum çekmez). Cache boşken kartı doldurur."""
+    if product_id not in APP_PRODUCTS:
+        return {"error": "unknown_product"}
+    spec = APP_PRODUCTS[product_id]
+    prev = _load_disk_raw(product_id)
+    if prev is None:
+        prev_db, _age = _load_db_raw_with_age(product_id, time.time())
+        prev = prev_db
+    prev_and = ((prev or {}).get("android") or {}) if isinstance(prev, dict) else {}
+    prev_ios = ((prev or {}).get("ios") or {}) if isinstance(prev, dict) else {}
+    prev_am = prev_and.get("meta") if isinstance(prev_and.get("meta"), dict) else {}
+    prev_im = prev_ios.get("meta") if isinstance(prev_ios.get("meta"), dict) else {}
+
+    play_meta: dict[str, Any] = {}
+    i_lookup: dict[str, Any] = {}
+    i_ssr: dict[str, Any] = {}
+    pool = ThreadPoolExecutor(max_workers=3)
+    try:
+        f_play = pool.submit(_fetch_google_bundle, spec["android_package"], 0)
+        f_ios = pool.submit(_fetch_ios_lookup_meta, spec["ios_app_id"])
+        f_ssr = pool.submit(_fetch_ios_ssr_ratings, spec["ios_app_id"], spec["ios_slug"])
+        done, pending = wait((f_play, f_ios, f_ssr), timeout=timeout_sec, return_when=ALL_COMPLETED)
+
+        def _take(fut, empty, label: str):  # noqa: ANN001
+            if fut in pending:
+                logger.warning("store meta snapshot: %s %.0fs içinde bitmedi", label, timeout_sec)
+                return empty
+            try:
+                return fut.result()
+            except Exception as exc:
+                logger.warning("store meta snapshot: %s hata: %s", label, exc)
+                return empty
+
+        play_pack = _take(f_play, ({}, [], None), "play")
+        play_meta = play_pack[0] if isinstance(play_pack, tuple) and play_pack else {}
+        i_lookup = _take(f_ios, {}, "ios_lookup") or {}
+        i_ssr = _take(f_ssr, {}, "ios_ssr") or {}
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+    and_meta = {
+        **prev_am,
+        "score": play_meta.get("score") if play_meta.get("score") is not None else prev_am.get("score"),
+        "ratings": play_meta.get("ratings") if play_meta.get("ratings") is not None else prev_am.get("ratings"),
+        "histogram": _android_histogram_overall(play_meta) or prev_am.get("histogram"),
+        "reviews": play_meta.get("reviews") if play_meta.get("reviews") is not None else prev_am.get("reviews"),
+        "icon": play_meta.get("icon") or prev_am.get("icon"),
+        "genre": play_meta.get("genre") or prev_am.get("genre"),
+        "genreId": play_meta.get("genreId") or prev_am.get("genreId"),
+        "play_version": play_meta.get("version") or prev_am.get("play_version"),
+        "play_last_updated_at": _play_updated_iso(play_meta.get("updated"))
+        or prev_am.get("play_last_updated_at"),
+    }
+    cr_a = play_meta.get("category_rank") if isinstance(play_meta.get("category_rank"), dict) else None
+    if not (isinstance(cr_a, dict) and cr_a.get("rank") is not None):
+        cr_a = _latest_stored_category_rank(product_id, "android") or prev_am.get("category_rank")
+    if isinstance(cr_a, dict) and cr_a.get("rank") is not None:
+        and_meta["category_rank"] = cr_a
+
+    i_snap = {**prev_im, **{k: v for k, v in (i_lookup or {}).items() if v is not None}}
+    hist = (i_ssr or {}).get("star_histogram")
+    if isinstance(hist, dict) and any(int(v or 0) > 0 for v in hist.values()):
+        i_snap["star_histogram"] = hist
+    if (i_ssr or {}).get("score") is not None and not i_snap.get("score"):
+        i_snap["score"] = i_ssr["score"]
+    if (i_ssr or {}).get("ratings_count") is not None and not i_snap.get("ratings_count"):
+        i_snap["ratings_count"] = i_ssr["ratings_count"]
+    cr_i = i_snap.get("category_rank") if isinstance(i_snap.get("category_rank"), dict) else None
+    if not (isinstance(cr_i, dict) and cr_i.get("rank") is not None):
+        cr_i = _latest_stored_category_rank(product_id, "ios")
+        if cr_i:
+            i_snap["category_rank"] = cr_i
+
+    payload = {
+        "product_id": product_id,
+        "label": spec["label"],
+        "urls": {
+            "android": spec["android_url"],
+            "ios": spec["ios_url"],
+        },
+        "fetched_at": datetime.now(tz=_UTC).isoformat(),
+        "android": {
+            "meta": and_meta,
+            "reviews": prev_and.get("reviews") if isinstance(prev_and.get("reviews"), list) else [],
+            "error": prev_and.get("error"),
+        },
+        "ios": {
+            "meta": i_snap,
+            "reviews": prev_ios.get("reviews") if isinstance(prev_ios.get("reviews"), list) else [],
+            "error": prev_ios.get("error"),
+            "storefronts_ok": prev_ios.get("storefronts_ok"),
+            "storefronts_total": prev_ios.get("storefronts_total"),
+            "note_tr": prev_ios.get("note_tr"),
+        },
+        "meta_snapshot": True,
+    }
+    if _raw_has_store_meta(payload):
+        _write_disk_raw(product_id, payload)
+        with _CACHE_LOCK:
+            _RAW_CACHE[product_id] = (time.time(), payload)
     return payload
 
 

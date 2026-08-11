@@ -376,16 +376,20 @@
   function fitTextToWidth(root, selector, opts) {
     opts = opts || {};
     if (!root) return;
-    var minPx = opts.minPx != null ? opts.minPx : 9;
+    var minPx = opts.minPx != null ? opts.minPx : 8;
     var sel = selector || ".sf-card__value, .home-sf-metric__value";
     root.querySelectorAll(sel).forEach(function (el) {
       el.style.whiteSpace = "nowrap";
+      el.style.overflow = "hidden";
       el.style.fontSize = "";
+      var boxW = el.clientWidth;
+      if (!(boxW > 1)) return;
       var maxPx = parseFloat(window.getComputedStyle(el).fontSize) || 22;
       if (!(maxPx > minPx)) {
         el.style.fontSize = minPx + "px";
         return;
       }
+      if (el.scrollWidth <= boxW + 1) return;
       var lo = minPx;
       var hi = maxPx;
       var best = minPx;
@@ -403,6 +407,16 @@
     });
   }
 
+  var SF_FIT_SEL =
+    ".sf-card__title, .sf-card__sub, .sf-card__value, .sf-card__side-val, " +
+    ".home-sf-metric__title, .home-sf-metric__sub, .home-sf-metric__value, .home-sf-metric__side-val, " +
+    ".home-store-kpi__l, .home-store-kpi__v";
+
+  function fitCardTexts(root, extraSelector) {
+    var sel = extraSelector ? SF_FIT_SEL + ", " + extraSelector : SF_FIT_SEL;
+    fitTextToWidth(root, sel, { minPx: 8 });
+  }
+
   global.SeoMetricTableUx = {
     injectStyles: injectStyles,
     heatBackground: heatBackground,
@@ -417,5 +431,6 @@
     bindInteractive: bindInteractive,
     applyWidths: applyWidths,
     fitTextToWidth: fitTextToWidth,
+    fitCardTexts: fitCardTexts,
   };
 })(typeof window !== "undefined" ? window : this);

@@ -768,6 +768,8 @@
     display: flex;
     flex-direction: column;
     min-height: 100%;
+    min-width: 0;
+    overflow: hidden;
     padding: 0.55rem 0.65rem;
     container-type: inline-size;
     container-name: sf-card;
@@ -781,9 +783,9 @@
   }
   .ia-stability-grid .sf-card__title {
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: clamp(0.5625rem, 1.1vw, 0.625rem);
+    min-width: 0;
+    font-size: clamp(0.5rem, 4.8cqi, 0.625rem);
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -793,12 +795,11 @@
     color: #a1a1aa;
   }
   .ia-stability-grid .sf-card__sub {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
     overflow: hidden;
+    white-space: nowrap;
+    min-width: 0;
     margin-top: 0.125rem;
-    font-size: clamp(0.5625rem, 1vw, 0.625rem);
+    font-size: clamp(0.5rem, 4.4cqi, 0.625rem);
     line-height: 1.25;
     color: #94a3b8;
   }
@@ -847,10 +848,11 @@
     justify-items: stretch;
     flex: none;
     width: max-content;
-    max-width: 100%;
-    min-width: 4.75rem;
+    max-width: 46%;
+    min-width: 0;
     justify-self: end;
-    font-size: clamp(0.6rem, 2cqi, 0.72rem);
+    overflow: hidden;
+    font-size: clamp(0.55rem, 2cqi, 0.72rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.15;
@@ -878,6 +880,7 @@
   }
   .ia-stability-grid .sf-card__side-val {
     min-width: 0;
+    overflow: hidden;
     white-space: nowrap;
   }
   .ia-stability-grid .sf-card__side-info {
@@ -905,6 +908,7 @@
     }
     .ia-stability-grid .sf-card__side {
       width: 100%;
+      max-width: none;
       min-width: 0;
       justify-self: stretch;
     }
@@ -1200,7 +1204,7 @@
   </section>
 </div>
 <script src="/static/js/resizable_data_list.js?v=5"></script>
-<script src="/static/js/metric_table_ux.js?v=6"></script>
+<script src="/static/js/metric_table_ux.js?v=7"></script>
 <script>
 (function () {
   var iaStart = document.getElementById("ia-start");
@@ -3635,7 +3639,8 @@
       el.innerHTML = pills.join("");
       requestAnimationFrame(function () {
         var ux = window.SeoMetricTableUx;
-        if (ux && ux.fitTextToWidth) ux.fitTextToWidth(el, ".sf-card__value", { minPx: 9 });
+        if (ux && ux.fitCardTexts) ux.fitCardTexts(el);
+        else if (ux && ux.fitTextToWidth) ux.fitTextToWidth(el, ".sf-card__title, .sf-card__sub, .sf-card__value, .sf-card__side-val", { minPx: 8 });
       });
     }
     function renderAll() {
@@ -3787,7 +3792,8 @@
         if (iaSfResizeTimer) clearTimeout(iaSfResizeTimer);
         iaSfResizeTimer = setTimeout(function () {
           var ux = window.SeoMetricTableUx;
-          if (ux && ux.fitTextToWidth) ux.fitTextToWidth(el, ".sf-card__value", { minPx: 9 });
+          if (ux && ux.fitCardTexts) ux.fitCardTexts(el);
+        else if (ux && ux.fitTextToWidth) ux.fitTextToWidth(el, ".sf-card__title, .sf-card__sub, .sf-card__value, .sf-card__side-val", { minPx: 8 });
         }, 60);
       });
       iaSfRo.observe(el);

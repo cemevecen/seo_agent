@@ -11922,8 +11922,13 @@ def _home_build_app_platform(
     tz_utc = ZoneInfo("UTC")
     tz_ist = ZoneInfo("Europe/Istanbul")
     now = datetime.now(tz_utc)
-    ver = meta.get(version_key)
-    updated_raw = meta.get(date_key)
+    ver = meta.get(version_key) or meta.get("play_version") or meta.get("version")
+    updated_raw = (
+        meta.get(date_key)
+        or meta.get("currentVersionReleaseDate")
+        or meta.get("current_version_release_date")
+        or meta.get("play_last_updated_at")
+    )
     updated_dt = _home_parse_iso_date(updated_raw)
     updated_label = None
     is_recent = False
@@ -11938,7 +11943,9 @@ def _home_build_app_platform(
     score = meta.get("score")
     score_fmt = f"{float(score):.2f}" if isinstance(score, (int, float)) else "—"
     ratings_val = meta.get("ratings") if key == "android" else meta.get("ratings_count")
-    ratings_fmt = _home_format_int(ratings_val) if ratings_val else "—"
+    if ratings_val is None and key != "android":
+        ratings_val = meta.get("ratings")
+    ratings_fmt = _home_format_int(ratings_val) if ratings_val not in (None, "") else "—"
     cr = meta.get("category_rank") if isinstance(meta.get("category_rank"), dict) else {}
     if not (isinstance(cr, dict) and cr.get("rank") is not None):
         try:
@@ -12126,6 +12133,35 @@ def api_home_drive_uploads(request: Request):
         )
 
 
+def _home_raw_usable(raw: dict | None) -> bool:
+    if not isinstance(raw, dict) or raw.get("error"):
+        return False
+    am = ((raw.get("android") or {}).get("meta") or {}) if isinstance(raw.get("android"), dict) else {}
+    im = ((raw.get("ios") or {}).get("meta") or {}) if isinstance(raw.get("ios"), dict) else {}
+    return bool(
+        am.get("score")
+        or am.get("play_version")
+        or am.get("ratings")
+        or im.get("score")
+        or im.get("version")
+        or im.get("ratings_count")
+        or (isinstance(am.get("category_rank"), dict) and am["category_rank"].get("rank") is not None)
+        or (isinstance(im.get("category_rank"), dict) and im["category_rank"].get("rank") is not None)
+    )
+
+
+def _home_kick_app_intel_refresh(product_id: str) -> None:
+    def _run() -> None:
+        try:
+            from backend.services.app_intel import get_raw_product_data
+
+            get_raw_product_data(product_id, force_refresh=True, cache_only=False)
+        except Exception:
+            LOGGER.debug("Home app-intel arka plan yenilemesi atlandı", exc_info=True)
+
+    threading.Thread(target=_run, name=f"home-app-intel-{product_id}", daemon=True).start()
+
+
 def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: bool = False) -> list[dict]:
     """Ana sayfa mağaza özeti — iOS/Android platform kartları."""
     product_id = (product_id or "doviz").strip().lower() or "doviz"
@@ -12139,14 +12175,27 @@ def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: boo
             force_refresh=force_refresh,
             cache_only=not force_refresh,
         )
-        if not result.get("error"):
+        if _home_raw_usable(result):
             raw = result
     except Exception:
         pass
 
-    if raw is None:
+    if not _home_raw_usable(raw):
         with SessionLocal() as db:
-            raw = _home_app_raw_from_db(db, product_id)
+            db_raw = _home_app_raw_from_db(db, product_id)
+            if _home_raw_usable(db_raw):
+                raw = db_raw
+
+    if not _home_raw_usable(raw) and not force_refresh:
+        try:
+            from backend.services.app_intel import fetch_store_meta_snapshot
+
+            snap = fetch_store_meta_snapshot(product_id, timeout_sec=22.0)
+            if _home_raw_usable(snap):
+                raw = snap
+            _home_kick_app_intel_refresh(product_id)
+        except Exception:
+            LOGGER.debug("Home store meta snapshot atlandı", exc_info=True)
 
     if raw and not raw.get("error"):
         try:
@@ -12196,7 +12245,7 @@ def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: boo
             )
     else:
         for key, label in [("ios", "iOS"), ("android", "Android")]:
-            platforms.append({
+            plat = {
                 "key": key, "label": label, "subtitle": "Veri henüz toplanmadı",
                 "version": None, "updated_label": None, "is_recent": False,
                 "score_fmt": "—", "ratings_fmt": "—", "rank_fmt": "—",
@@ -12204,7 +12253,22 @@ def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: boo
                 "rank_spark": {"svg_points": "", "delta_fmt": "—", "tone": "mid"},
                 "release_delta_fmt": "—", "release_tone": "mid", "release_note": "",
                 "store_url": "",
-            })
+            }
+            try:
+                from backend.services.app_intel import _latest_stored_category_rank, _rank_history_series
+
+                cr = _latest_stored_category_rank(product_id, key)
+                if isinstance(cr, dict) and cr.get("rank") is not None:
+                    plat["rank"] = cr.get("rank")
+                    plat["rank_fmt"] = f"#{cr['rank']}"
+                    if cr.get("total"):
+                        plat["rank_fmt"] = f"#{cr['rank']}/{cr['total']}"
+                    if cr.get("category"):
+                        plat["subtitle"] = cr.get("category")
+                plat["rank_spark"] = _home_rank_spark(_rank_history_series(product_id, key, days=7))
+            except Exception:
+                pass
+            platforms.append(plat)
     return platforms
 
 
