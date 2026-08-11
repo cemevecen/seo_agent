@@ -187,26 +187,8 @@
     return ntCompareSparkSvg(aligned.primary, aligned.compare);
   }
 
-  function ntIndexSeries(ys) {
-    var base = null;
-    (ys || []).forEach(function (v) {
-      if (base == null && Number(v) > 0) base = Number(v);
-    });
-    if (!base) return (ys || []).map(function () { return 100; });
-    return ys.map(function (v) { return (Number(v) / base) * 100; });
-  }
-
   function ntIsDark() {
     return global.document.documentElement.classList.contains("dark");
-  }
-
-  function ntSparkFillRgba(hex, alpha) {
-    var h = String(hex || "").replace("#", "");
-    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-    var r = parseInt(h.slice(0, 2), 16);
-    var g = parseInt(h.slice(2, 4), 16);
-    var b = parseInt(h.slice(4, 6), 16);
-    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
   }
 
   function ntCompareSparkColors() {
@@ -218,34 +200,6 @@
     return {
       primary: dark ? "#4a8f73" : "#047857",
       compare: dark ? "#b87333" : "#c2410c",
-    };
-  }
-
-  function ntSparkOverlayFillTrace(xs, ys, colorHex, dark) {
-    return {
-      x: xs,
-      y: ys,
-      type: "scatter",
-      mode: "lines",
-      line: { width: 1, color: colorHex, dash: "dot" },
-      fill: "tozeroy",
-      fillcolor: ntSparkFillRgba(colorHex, dark ? 0.2 : 0.16),
-      connectgaps: false,
-      hoverinfo: "skip",
-    };
-  }
-
-  function ntSparkPrimaryTrace(xs, ys, colorHex, dark) {
-    return {
-      x: xs,
-      y: ys,
-      type: "scatter",
-      mode: "lines",
-      line: { width: 2, color: colorHex },
-      fill: "tozeroy",
-      fillcolor: ntSparkFillRgba(colorHex, dark ? 0.24 : 0.18),
-      connectgaps: false,
-      hoverinfo: "skip",
     };
   }
 
@@ -321,126 +275,6 @@
       compare: c.map(function (d) { return d[key] != null ? d[key] : 0; }),
       labels: p.map(function (d) { return d.day; }),
     };
-  }
-
-  var _ntPeriodChartTimer = null;
-  var _lastPeriodDaily = null;
-
-  function ntChartFont() {
-    return { color: ntIsDark() ? "#a1a1aa" : "#475569", size: 11 };
-  }
-
-  function ntChartGrid() {
-    return ntIsDark() ? "#27272a" : "#e2e8f0";
-  }
-
-  function renderPeriodCompareCharts(curDaily, prevDaily) {
-    if (!global.Plotly) return;
-    var trendEl = global.document.getElementById("nt-period-trend-chart");
-    if (trendEl) {
-      var aligned = alignPeriodDaily(curDaily, prevDaily, "clicks", 90);
-      if (aligned && aligned.primary && aligned.primary.length >= 2) {
-        var colors = ntCompareSparkColors();
-        var dark = ntIsDark();
-        var traces = [];
-        var idxP = ntIndexSeries(aligned.primary);
-        if (aligned.compare && aligned.compare.length === aligned.primary.length) {
-          traces.push({
-            x: aligned.labels,
-            y: ntIndexSeries(aligned.compare),
-            customdata: aligned.compare,
-            type: "scatter",
-            mode: "lines",
-            name: "Önceki dönem",
-            line: { color: colors.compare, width: 2, dash: "dot" },
-            hovertemplate: "%{x}<br>%{customdata:,.0f} click<br>endeks %{y:.0f}<extra>Önceki</extra>",
-          });
-        }
-        traces.push({
-          x: aligned.labels,
-          y: idxP,
-          customdata: aligned.primary,
-          type: "scatter",
-          mode: "lines",
-          name: "Seçili dönem",
-          line: { color: colors.primary, width: 2.75 },
-          fill: "tozeroy",
-          fillcolor: ntSparkFillRgba(colors.primary, dark ? 0.18 : 0.12),
-          hovertemplate: "%{x}<br>%{customdata:,.0f} click<br>endeks %{y:.0f}<extra>Seçili</extra>",
-        });
-        global.Plotly.newPlot(trendEl, traces, {
-          autosize: true,
-          margin: { l: 48, r: 12, t: 8, b: 40 },
-          paper_bgcolor: "rgba(0,0,0,0)",
-          plot_bgcolor: "rgba(0,0,0,0)",
-          font: ntChartFont(),
-          xaxis: { type: "date", tickformat: "%d.%m", gridcolor: ntChartGrid() },
-          yaxis: {
-            title: "Endeks (ilk gün = 100)",
-            gridcolor: ntChartGrid(),
-            zerolinecolor: ntChartGrid(),
-          },
-          legend: { orientation: "h", y: 1.18, font: { size: 10, color: ntChartFont().color } },
-          showlegend: true,
-        }, { responsive: true, displayModeBar: false });
-      } else {
-        trendEl.innerHTML = '<p class="flex h-full items-center justify-center text-xs text-slate-500">Trend için yeterli günlük veri yok.</p>';
-      }
-    }
-
-    var platEl = global.document.getElementById("nt-period-platform-chart");
-    if (platEl && lastComparePayload) {
-      var cur = lastComparePayload.current;
-      var prev = lastComparePayload.previous;
-      var labels = ["Web", "MWeb", "Android", "iOS"];
-      var keys = ["desktop", "mobileweb", "android", "ios"];
-      var fmtN = nt().fmtCount || function (n) { return String(n); };
-      var deltas = keys.map(function (k) { return compareDelta(cur.platform[k], prev.platform[k]); });
-      var barColors = deltas.map(function (d) {
-        if (d == null || isNaN(d)) return ntIsDark() ? "#52525b" : "#94a3b8";
-        return d >= 0 ? (ntIsDark() ? "#34d399" : "#059669") : (ntIsDark() ? "#fb7185" : "#e11d48");
-      });
-      var custom = keys.map(function (k, i) {
-        return [fmtN(cur.platform[k]), fmtN(prev.platform[k]), fmtDeltaHero(deltas[i])];
-      });
-      global.Plotly.newPlot(platEl, [
-        {
-          y: labels,
-          x: deltas.map(function (d) { return d == null ? 0 : d; }),
-          type: "bar",
-          orientation: "h",
-          marker: { color: barColors },
-          customdata: custom,
-          text: deltas.map(function (d) { return fmtDeltaHero(d); }),
-          textposition: "outside",
-          hovertemplate: "%{y}<br>%{customdata[2]}<br>seçili %{customdata[0]} · önceki %{customdata[1]}<extra></extra>",
-        },
-      ], {
-        autosize: true,
-        margin: { l: 64, r: 56, t: 8, b: 36 },
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
-        font: ntChartFont(),
-        xaxis: {
-          title: "% değişim",
-          gridcolor: ntChartGrid(),
-          zeroline: true,
-          zerolinewidth: 1.5,
-          zerolinecolor: ntIsDark() ? "#52525b" : "#94a3b8",
-        },
-        yaxis: { autorange: "reversed", gridcolor: ntChartGrid() },
-        showlegend: false,
-      }, { responsive: true, displayModeBar: false });
-    }
-  }
-
-  function scheduleNtPeriodCharts(curDaily, prevDaily) {
-    _lastPeriodDaily = { cur: curDaily, prev: prevDaily };
-    if (_ntPeriodChartTimer) clearTimeout(_ntPeriodChartTimer);
-    _ntPeriodChartTimer = setTimeout(function () {
-      _ntPeriodChartTimer = null;
-      renderPeriodCompareCharts(curDaily, prevDaily);
-    }, 80);
   }
 
   function periodKpiCard(id, label, value, prevVal, delta, opts) {
@@ -672,18 +506,7 @@
         + "</div>"
         + '<div class="nt-cmp-grid nt-cmp-grid-plats">'
         + platHtml
-        + "</div>"
-        + '<div class="nt-cmp-charts">'
-        + '<div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">'
-        + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük click endeksi</p>'
-        + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">İlk gün = 100 · yeşil seçili · turuncu noktalı önceki · şekil karşılaştırması</p>'
-        + '<div id="nt-period-trend-chart" class="nt-cmp-chart-plot mt-2"></div></div>'
-        + '<div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">'
-        + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Platform % değişim</p>'
-        + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Seçili dönem vs önceki · yeşil artış · kırmızı düşüş</p>'
-        + '<div id="nt-period-platform-chart" class="nt-cmp-chart-plot mt-2"></div></div>'
         + "</div>";
-      scheduleNtPeriodCharts(curDaily, prevDaily);
     }).catch(function () {
       el.innerHTML = '<p class="text-xs text-rose-600">Karşılaştırma verisi yüklenemedi.</p>';
       clearTopKpiCompare();
