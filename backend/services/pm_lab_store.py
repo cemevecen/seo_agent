@@ -24,31 +24,31 @@ SECTION_DEFS: list[dict[str, Any]] = [
         "id": "serp",
         "no": 2,
         "title": "SERP — ilk 4 sayfa",
-        "hint": "sekme sekme kelimeler · sıra / domain / meta · iniş-çıkış",
+        "hint": "",
     },
     {
         "id": "competitors",
         "no": 3,
         "title": "Rakip ana sayfa fiyatları",
-        "hint": "satır: varlık · sütun: site · sapma: Döviz vs akran · 10 dk",
+        "hint": "",
     },
     {
         "id": "sikayet",
         "no": 9,
         "title": "x - ekşi - şikayetvar",
-        "hint": "doviz.com · sinemalar.com · her kaynaktan son 10",
+        "hint": "",
     },
     {
         "id": "store_charts",
         "no": 12,
         "title": "Play / App Store kategori listeleri",
-        "hint": "solda Android · sağda iOS · ikon bir kez",
+        "hint": "",
     },
     {
         "id": "google_news",
         "no": 17,
         "title": "Google News vitrin",
-        "hint": "ilk 25 · kaynak metrikleri · 3 saatte bir",
+        "hint": "",
     },
 ]
 
@@ -518,6 +518,25 @@ def _next_run_iso(
     return nxt.isoformat()
 
 
+def format_pm_lab_when(iso: str | None) -> str:
+    raw = str(iso or "").strip()
+    if not raw:
+        return ""
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return raw[:16].replace("T", " ")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    try:
+        from zoneinfo import ZoneInfo
+
+        dt = dt.astimezone(ZoneInfo("Europe/Istanbul"))
+    except Exception:
+        pass
+    return dt.strftime("%d.%m.%Y %H:%M")
+
+
 def page_context(db: Session) -> dict[str, Any]:
     payload = load_payload(db)
     raw_sections = payload.get("sections") if isinstance(payload.get("sections"), dict) else {}
@@ -529,12 +548,14 @@ def page_context(db: Session) -> dict[str, Any]:
             block = {}
         data = _strip_shots(block)
         boot_sections[spec["id"]] = data
+        scraped_at = str(data.get("scraped_at") or payload.get("scraped_at") or "")
         cards.append(
             {
                 **spec,
                 "ok": data.get("ok"),
                 "message": data.get("message") or "",
-                "scraped_at": data.get("scraped_at") or "",
+                "scraped_at": scraped_at,
+                "scraped_at_label": format_pm_lab_when(scraped_at),
                 "summary": data.get("summary") or "",
                 "data": data,
                 "shot_names": [],
@@ -558,6 +579,7 @@ def page_context(db: Session) -> dict[str, Any]:
     return {
         "updated_at": payload.get("updated_at"),
         "scraped_at": payload.get("scraped_at"),
+        "scraped_at_label": format_pm_lab_when(str(payload.get("scraped_at") or payload.get("updated_at") or "")),
         "sync_ok": payload.get("sync_ok", True),
         "sync_message": payload.get("sync_message") or "",
         "source": payload.get("source") or "",

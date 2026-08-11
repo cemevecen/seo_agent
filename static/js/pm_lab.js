@@ -44,13 +44,6 @@
   }
 
   function renderStatus() {
-    var box = document.getElementById("pml-status");
-    if (!box) return;
-    box.innerHTML =
-      chip("son " + fmtWhen(boot.scraped_at), boot.sync_ok ? "pml-chip-ok" : "") +
-      chip("sonraki ~" + fmtWhen(boot.next_at), "") +
-      chip("fiyat " + (boot.interval_minutes || 10) + " dk", "") +
-      chip("diğer " + (boot.interval_hours || 3) + " saat", "");
     var chart = document.getElementById("pml-run-chart");
     if (!chart) return;
     var runs = collectRuns();
@@ -539,11 +532,6 @@
       });
       return tr(cells);
     });
-    var legend = document.createElement("p");
-    legend.className = "pml-note";
-    legend.textContent =
-      "ort. sapma = Döviz vs diğer sitelerin ortalaması. Foreks sapma = Döviz vs Foreks. Eşik hacme göre: USD/EUR ±0,08%, gram/ons altın ±0,12%, BIST ±0,15%, Brent ±0,20%, Bitcoin ±0,25%, gümüş ±0,35%, çeyrek ±0,50%. Yeşil eşik içi, sarı uyarı, kırmızı sapma. Sarı/kırmızı alarm maili: Doviz - Sapma - varlık - değer.";
-    root.appendChild(legend);
     root.appendChild(sortableTable(headers, rows));
   }
 

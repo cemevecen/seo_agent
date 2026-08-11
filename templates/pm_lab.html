@@ -96,6 +96,8 @@
   html.dark .pml-table tbody tr:hover td.pml-sapma-warn{background:#3a3018 !important}
   html.dark .pml-table tbody tr:hover td.pml-sapma-hot{background:#4a2222 !important}
   .pml-sum{min-width:0}
+  .pml-updated{font-size:11px;font-variant-numeric:tabular-nums;color:#64748b;white-space:nowrap;letter-spacing:.01em}
+  html.dark .pml-updated{color:#a1a1aa}
   .pml-store-split{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:.75rem;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .pml-store-col{min-width:260px}
   .pml-store-col .pml-shell{max-height:min(68vh,640px);margin-top:.5rem}
@@ -126,9 +128,10 @@
     <div class="flex flex-wrap items-start justify-between gap-2 sm:gap-3">
       <div class="min-w-0">
         <h2 class="text-base font-bold text-slate-900 sm:text-lg dark:text-zinc-300">PM lab</h2>
-        <p class="mt-1 text-xs leading-snug text-slate-500 dark:text-zinc-500">Fotoğraf yok · fiyat 10 dk · SERP / mağaza / haber 3 saat · iniş-çıkış tabloda.</p>
       </div>
-      <div id="pml-status" class="flex min-w-0 flex-wrap gap-1.5"></div>
+      {% if scraped_at_label %}
+      <time class="pml-updated mt-0.5 shrink-0" datetime="{{ scraped_at or '' }}">{{ scraped_at_label }}</time>
+      {% endif %}
     </div>
     <div id="pml-run-chart" class="mt-3"></div>
   </div>
@@ -141,14 +144,9 @@
       </span>
       <div class="pml-sum min-w-0 flex-1">
         <h3 class="text-sm font-semibold leading-snug text-slate-900 dark:text-zinc-200">{{ card.title }}</h3>
-        <p class="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-zinc-500">{{ card.hint }}{% if card.summary %} · {{ card.summary }}{% endif %}</p>
       </div>
-      {% if card.ok == True %}
-      <span class="pml-chip pml-chip-ok mt-0.5 shrink-0">dolu</span>
-      {% elif card.ok == False %}
-      <span class="pml-chip mt-0.5 shrink-0">eksik</span>
-      {% else %}
-      <span class="pml-chip mt-0.5 shrink-0">boş</span>
+      {% if card.scraped_at_label %}
+      <time class="pml-updated mt-0.5 shrink-0" datetime="{{ card.scraped_at or '' }}">{{ card.scraped_at_label }}</time>
       {% endif %}
     </summary>
     <div class="border-t border-slate-100 px-3 py-3 sm:px-5 sm:py-4 dark:border-zinc-800">
@@ -159,5 +157,5 @@
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=20"></script>
+<script src="/static/js/pm_lab.js?v=21"></script>
 {% endblock %}

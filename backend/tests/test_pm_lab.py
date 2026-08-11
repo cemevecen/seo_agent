@@ -11,6 +11,7 @@ from backend.services.pm_lab_access import (
 from backend.services.pm_lab_store import (
     COMPETITORS_INTERVAL_MIN,
     SECTION_DEFS,
+    format_pm_lab_when,
     ingest_pm_lab_payload,
     page_context,
 )
@@ -139,9 +140,11 @@ def test_template_has_no_photos_and_js_shell():
     assert "pml-table-fit" in js
     assert "pml-link" in js
     assert any(s["title"] == "x - ekşi - şikayetvar" for s in SECTION_DEFS)
-    assert "doviz.com · sinemalar.com · her kaynaktan son 10" in next(
-        s["hint"] for s in SECTION_DEFS if s["id"] == "sikayet"
-    )
+    assert "doviz.com · sinemalar.com · her kaynaktan son 10" not in html
+    assert "Fotoğraf yok" not in html
+    assert "card.hint" not in html
+    assert "pml-updated" in html
+    assert format_pm_lab_when("2026-08-11T15:26:00+00:00") == "11.08.2026 18:26"
 
 
 def test_mention_query_match_requires_brand_string():
@@ -495,10 +498,11 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=20" in html
+    assert "pm_lab.js?v=21" in html
     assert COMPETITORS_INTERVAL_MIN == 10
-    assert "fiyat " in js
-    assert "10 dk" in Path("templates/pm_lab.html").read_text(encoding="utf-8")
+    assert "fiyat " not in js
+    assert "Fotoğraf yok" not in html
+    assert "ort. sapma = Döviz" not in js
     bridge = Path("scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
     assert 'PM_LAB_COMPETITORS_INTERVAL_SEC") or "600"' in bridge
     assert "run_pm_lab_competitors_once" in bridge
