@@ -75,14 +75,14 @@ NEWS_KEYWORDS = (
 
 ASSETS = (
     {"id": "usd", "label": "Dolar"},
-    {"id": "bist100", "label": "BIST 100"},
     {"id": "eur", "label": "Euro"},
     {"id": "gram_altin", "label": "Gram Altın"},
-    {"id": "gram_gumus", "label": "Gram Gümüş"},
-    {"id": "ons_altin", "label": "Ons Altın"},
-    {"id": "brent", "label": "Brent Petrol"},
     {"id": "ceyrek_altin", "label": "Çeyrek Altın"},
+    {"id": "ons_altin", "label": "Ons Altın"},
+    {"id": "gram_gumus", "label": "Gram Gümüş"},
     {"id": "bitcoin", "label": "Bitcoin"},
+    {"id": "brent", "label": "Brent Petrol"},
+    {"id": "bist100", "label": "BIST 100"},
 )
 
 SITES = (

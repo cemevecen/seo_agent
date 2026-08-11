@@ -355,7 +355,17 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert mod.FOREKS_FIELDS["usd"] == "o10_l"
     assert mod.FOREKS_FIELDS["gram_gumus"] == "o16_l"
     assert mod.FOREKS_FIELDS["brent"] == "o2627_l"
-    assert any(a["id"] == "bitcoin" for a in mod.ASSETS)
+    assert [a["id"] for a in mod.ASSETS] == [
+        "usd",
+        "eur",
+        "gram_altin",
+        "ceyrek_altin",
+        "ons_altin",
+        "gram_gumus",
+        "bitcoin",
+        "brent",
+        "bist100",
+    ]
     assert mod.FOREKS_FIELDS["bitcoin"] == "o1836_l"
     assert mod.TV_SCANNER_SYMBOLS["bitcoin"] == "BITSTAMP:BTCUSD"
     assert any(s["id"] == "paratic" for s in mod.SITES)
@@ -401,11 +411,12 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=15" in html
+    assert "pm_lab.js?v=16" in html
     assert 'enuygun: "Enuygun"' in js
     assert 'bloomberght: "Bloomberg"' in js
     assert 'tradingview: "Trading"' in js
     assert 'cnnturk: "CNN"' in js
+    assert '"ceyrek_altin"' in js and "ASSET_ROW_ORDER" in js
 
 
 def test_competitor_sapma_vs_peer_average():

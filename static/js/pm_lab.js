@@ -437,9 +437,36 @@
     return out;
   }
 
+  var ASSET_ROW_ORDER = [
+    "usd",
+    "eur",
+    "gram_altin",
+    "ceyrek_altin",
+    "ons_altin",
+    "gram_gumus",
+    "bitcoin",
+    "brent",
+    "bist100",
+  ];
+
+  function sortAssetRows(matrix) {
+    var rank = {};
+    ASSET_ROW_ORDER.forEach(function (id, i) {
+      rank[id] = i;
+    });
+    return (matrix || []).slice().sort(function (a, b) {
+      var ar = rank[a.id];
+      var br = rank[b.id];
+      if (ar == null && br == null) return 0;
+      if (ar == null) return 1;
+      if (br == null) return -1;
+      return ar - br;
+    });
+  }
+
   function renderCompetitors(root, data) {
     var cols = withSapmaColumn(data.columns || []);
-    var matrix = data.matrix || [];
+    var matrix = sortAssetRows(data.matrix || []);
     if (!matrix.length) {
       root.textContent = "Fiyat matrisi henüz yok.";
       return;
