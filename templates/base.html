@@ -2249,6 +2249,7 @@
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
+  <script src="/static/js/page_tarama.js?v=1" defer></script>
   <script src="/static/js/market_chart_overlay.js?v=24" defer></script>
   <script src="/static/js/app_empower_overlay.js?v=9" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
@@ -2261,6 +2262,19 @@
     aria-hidden="true"
     aria-live="polite"
   >Yenilemek için bırakın</div>
+  <div id="pc-page-tarama-overlay" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/50 backdrop-blur-sm" style="display:none" aria-hidden="true" role="dialog" aria-labelledby="pc-page-tarama-title">
+    <div class="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <h3 id="pc-page-tarama-title" class="text-sm font-bold text-slate-800 dark:text-zinc-200">Sayfa taranıyor</h3>
+        <span id="pc-page-tarama-pct" class="text-xs font-bold text-sky-600 dark:text-sky-400">0%</span>
+      </div>
+      <div class="mb-4 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
+        <div id="pc-page-tarama-bar" class="h-full rounded-full bg-sky-500 transition-all duration-300" style="width:0%"></div>
+      </div>
+      <p id="pc-page-tarama-status" class="mb-3 truncate text-xs text-slate-500 dark:text-zinc-400">Başlatılıyor…</p>
+      <div id="pc-page-tarama-steps" class="max-h-48 space-y-1 overflow-y-auto text-[11px] text-slate-600 dark:text-zinc-400"></div>
+    </div>
+  </div>
   {% if online_presence_visible(request) %}
   <div id="header-online-toast" role="status" aria-live="polite" aria-modal="false" hidden>
     <span id="header-online-toast-icon" aria-hidden="true">

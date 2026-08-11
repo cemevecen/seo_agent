@@ -61,7 +61,7 @@
   }
 </style>
 
-<div id="app-intel-root" class="app-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-5">
+<div id="app-intel-root" class="app-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-5" data-page-tarama="app">
   {# JSON'u data-* içinde |e ile vermek bazı tarayıcılarda parse hatasına yol açabiliyor #}
   <script type="application/json" id="app-intel-products-json">{{ app_products | tojson }}</script>
   <style>
@@ -232,6 +232,7 @@
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+          <span data-page-tarama-slot></span>
           <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dönem</span>
           <nav id="app-intel-period-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Gün aralığı">
             <button type="button" data-app-period="7" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">7g</button>

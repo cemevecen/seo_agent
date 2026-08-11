@@ -182,7 +182,7 @@
   }
 </style>
 
-<div id="alerts-view" class="relative mx-auto w-full min-w-0 max-w-[1800px] space-y-3" data-selected-alert-id="{{ selected_alert_id or '' }}">
+<div id="alerts-view" class="relative mx-auto w-full min-w-0 max-w-[1800px] space-y-3" data-selected-alert-id="{{ selected_alert_id or '' }}" data-page-tarama="alerts">
   {# Tailwind CDN safelist — kullanılan dinamik sınıflar #}
   <div class="hidden pointer-events-none" aria-hidden="true">
     <span class="
@@ -202,7 +202,8 @@
   </div>
 
   {# ── Üst Sekme Anahtarı — sayfa ortasında ── #}
-  <div class="flex flex-wrap items-center justify-center gap-2 rounded-2xl bg-white px-3 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+  <div class="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white px-3 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+    <div class="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-2">
     <button type="button" class="alerts-top-tab is-active" data-alerts-tab="search-console">
       Search Console
       <span class="alerts-tab-count">{{ recent_alerts|length }}</span>
@@ -211,6 +212,8 @@
       Threshold
       <span class="alerts-tab-count">{{ (threshold_realtime_alerts|length) + (threshold_error_alerts|length) }}</span>
     </button>
+    </div>
+    <span data-page-tarama-slot></span>
   </div>
 
   {# ────────────────────────────────────────────────────────────────── #}

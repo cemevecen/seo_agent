@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-5">
+<div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-5" data-page-tarama="errors">
 
   {# Başlık #}
   <div class="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
@@ -10,6 +10,7 @@
         <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">CSV / HTTP tarama · 03:00 ve 13:00 · gerçek sayfa hataları</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <span data-page-tarama-slot></span>
         <a
           href="#doviz-asset-panel"
           class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-500 dark:bg-indigo-600 dark:hover:bg-indigo-500"

@@ -216,7 +216,7 @@
   </defs>
 </svg>
 
-<div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-5 px-1">
+<div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-5 px-1" data-page-tarama="firebase">
 
   {# ── Firebase Crashlytics tam panel ── #}
   <section id="app-crashlytics-root" class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-slate-800/80">
@@ -231,6 +231,7 @@
         <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Kaynak: /android Play Console · /ios stability-free</p>
       </div>
       <div class="flex flex-wrap items-stretch gap-2 sm:items-center">
+        <span data-page-tarama-slot></span>
         {% if crash_products|length > 1 %}
         <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
           {% for p in crash_products %}

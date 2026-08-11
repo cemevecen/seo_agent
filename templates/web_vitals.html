@@ -10,7 +10,7 @@
 {%- endmacro %}
 {% macro fmt_int(n) -%}{{ '{:,}'.format((n or 0)|int).replace(',', '.') }}{%- endmacro %}
 
-<div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-4 sm:space-y-5">
+<div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-4 sm:space-y-5" data-page-tarama="vitals">
   <div class="min-w-0 rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200 sm:px-5 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
     <div class="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div class="min-w-0">
@@ -27,6 +27,7 @@
         </p>
       </div>
       <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <span data-page-tarama-slot></span>
         <select id="wv-site" onchange="window.location='/web-vitals?site_id='+this.value+'&tab={{ tab }}'"
                 class="min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-transparent dark:bg-zinc-800 dark:text-zinc-300">
           {% for s in all_sites %}
