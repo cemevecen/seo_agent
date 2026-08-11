@@ -524,10 +524,10 @@
     var bars = document.createElement("div");
     bars.className = "mb-4";
     var max = 1;
-    avgs.slice(0, 12).forEach(function (s) {
+    avgs.slice(0, 15).forEach(function (s) {
       max = Math.max(max, s.count || 0, s.avg || 0);
     });
-    avgs.slice(0, 12).forEach(function (s) {
+    avgs.slice(0, 15).forEach(function (s) {
       var row = document.createElement("div");
       row.className = "pml-bar";
       var w = Math.round((100 * (s.count || 0)) / max);
