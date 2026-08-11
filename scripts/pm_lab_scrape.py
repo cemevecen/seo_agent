@@ -99,6 +99,27 @@ SITES = (
     {"id": "enuygun", "label": "Enuygun Finans", "home": "https://www.enuygunfinans.com/"},
 )
 
+# Ana sayfada yoksa bu liste/vitrin sayfalarından çek (kullanıcının verdiği URL’ler).
+SITE_LIST_URLS: dict[str, tuple[str, ...]] = {
+    "enuygun": (
+        "https://www.enuygunfinans.com/doviz-fiyatlari/",
+        "https://www.enuygunfinans.com/altin-fiyatlari/",
+        "https://www.enuygunfinans.com/borsa/bist-100-hisseleri/",
+    ),
+    "investing": (
+        "https://www.investing.com/currencies/",
+        "https://tr.investing.com/",
+    ),
+    "bigpara": (
+        "https://bigpara.hurriyet.com.tr/doviz/",
+        "https://bigpara.hurriyet.com.tr/altin/",
+    ),
+    "tradingview": (
+        "https://www.tradingview.com/markets/turkey/",
+        "https://www.tradingview.com/markets/currencies/rates-middle-east/",
+    ),
+}
+
 ASSET_URLS: dict[str, dict[str, str]] = {
     "doviz": {
         "usd": "https://kur.doviz.com/serbest-piyasa/amerikan-dolari",
@@ -113,13 +134,13 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "bist100": "https://borsa.doviz.com/endeksler/xu100",
     },
     "tradingview": {
-        "usd": "https://www.tradingview.com/symbols/USDTRY/",
-        "eur": "https://www.tradingview.com/symbols/EURTRY/",
+        "usd": "https://www.tradingview.com/symbols/USDTRY/?exchange=FX_IDC",
+        "eur": "https://www.tradingview.com/symbols/EURTRY/?exchange=FX_IDC",
         "bist100": "https://www.tradingview.com/symbols/BIST-XU100/",
         "ons_altin": "https://www.tradingview.com/symbols/XAUUSD/",
         "brent": "https://www.tradingview.com/symbols/TVC-UKOIL/",
         "gram_gumus": "https://www.tradingview.com/symbols/XAGUSD/",
-        "gram_altin": "https://www.tradingview.com/symbols/GOLD-TRY/",
+        "gram_altin": "https://www.tradingview.com/symbols/XAUTRY/",
     },
     "canlidoviz": {
         "usd": "https://canlidoviz.com/doviz-kurlari/dolar",
@@ -138,15 +159,18 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "ons_altin": "https://www.investing.com/commodities/gold",
         "brent": "https://www.investing.com/commodities/brent-oil",
         "gram_gumus": "https://www.investing.com/commodities/silver",
+        "gram_altin": "https://www.investing.com/currencies/xau-try",
         "ceyrek_altin": "https://tr.investing.com/commodities/turkey-gold-quarter",
     },
     "bigpara": {
         "usd": "https://bigpara.hurriyet.com.tr/doviz/dolar/",
         "eur": "https://bigpara.hurriyet.com.tr/doviz/euro/",
-        "gram_altin": "https://bigpara.hurriyet.com.tr/altin/gram-altin/",
-        "ceyrek_altin": "https://bigpara.hurriyet.com.tr/altin/ceyrek-altin/",
-        "ons_altin": "https://bigpara.hurriyet.com.tr/altin/altin-ons/",
+        "gram_altin": "https://bigpara.hurriyet.com.tr/altin/gram-altin-fiyati/",
+        "ceyrek_altin": "https://bigpara.hurriyet.com.tr/altin/ceyrek-altin-fiyati/",
+        "ons_altin": "https://bigpara.hurriyet.com.tr/altin/altin-ons-fiyati/",
         "bist100": "https://bigpara.hurriyet.com.tr/borsa/endeks/xu100/",
+        "gram_gumus": "https://bigpara.hurriyet.com.tr/altin/",
+        "brent": "https://bigpara.hurriyet.com.tr/",
     },
     "uzmanpara": {
         "usd": "https://uzmanpara.milliyet.com.tr/dolar-ne-kadar/",
@@ -171,6 +195,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "eur": "https://www.cnbce.com/",
         "bist100": "https://www.cnbce.com/",
         "ons_altin": "https://www.cnbce.com/",
+        "gram_altin": "https://www.cnbce.com/",
         "brent": "https://www.cnbce.com/",
     },
     "cnnturk": {
@@ -182,26 +207,38 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "ceyrek_altin": "https://finans.cnnturk.com/",
     },
     "enuygun": {
-        "usd": "https://www.enuygunfinans.com/dolar-kuru",
-        "eur": "https://www.enuygunfinans.com/euro-kuru",
-        "gram_altin": "https://www.enuygunfinans.com/gram-altin",
-        "ceyrek_altin": "https://www.enuygunfinans.com/ceyrek-altin",
-        "ons_altin": "https://www.enuygunfinans.com/ons-altin",
-        "bist100": "https://www.enuygunfinans.com/bist-100",
+        "usd": "https://www.enuygunfinans.com/doviz-fiyatlari/",
+        "eur": "https://www.enuygunfinans.com/doviz-fiyatlari/",
+        "gram_altin": "https://www.enuygunfinans.com/altin-fiyatlari/",
+        "ceyrek_altin": "https://www.enuygunfinans.com/altin-fiyatlari/",
+        "ons_altin": "https://www.enuygunfinans.com/altin-fiyatlari/",
+        "gram_gumus": "https://www.enuygunfinans.com/altin-fiyatlari/",
+        "bist100": "https://www.enuygunfinans.com/borsa/bist-100-hisseleri/",
     },
 }
 
 ASSET_LABELS: dict[str, tuple[str, ...]] = {
-    "usd": ("usd/try", "usd try", "amerikan dolari", "abd dolari", "dolar kuru", "dolar", "usd"),
-    "eur": ("eur/try", "euro", "avro"),
+    "usd": (
+        "usdtry",
+        "usd/try",
+        "usd try",
+        "usd to try",
+        "u.s. dollar / turkish",
+        "amerikan dolari",
+        "abd dolari",
+        "dolar kuru",
+        "dolar",
+        "usd",
+    ),
+    "eur": ("eurtry", "eur/try", "eur try", "eur to try", "euro", "avro"),
     "bist100": ("bist 100", "bist100", "xu100", "bist-100"),
-    "gram_altin": ("gram altin", "ga altin"),
+    "gram_altin": ("gram altin", "ga altin", "xautry", "altin (tl/gr)", "spot altin", "gldgr"),
     "harem_gram_altin": ("harem gram altin", "harem gram"),
     "kapalicarsi_gram_altin": ("kapalicarsi gram", "kapali carsi gram", "kapali carsi"),
-    "gram_gumus": ("gram gumus", "gumus gram", "ga gumus"),
-    "ons_altin": ("ons altin", "altin/ons", "xauusd", "gold ounce", "altin ons"),
-    "brent": ("brent petrol", "brent", "ham petrol"),
-    "ceyrek_altin": ("ceyrek altin", "ceyrek"),
+    "gram_gumus": ("gram gumus", "gumus gram", "ga gumus", "gumus (tl/gr)", "sxaggr"),
+    "ons_altin": ("ons altin", "altin/ons", "altin ons", "xauusd", "gold ounce", "altin ($/ons)"),
+    "brent": ("brent petrol", "brent", "ham petrol", "ukoil"),
+    "ceyrek_altin": ("ceyrek altin", "ceyrek", "sgldc"),
 }
 
 _ASSET_MATCH_ORDER = (
@@ -547,7 +584,7 @@ def _ticker_text(page: Any) -> str:
                 out.push(t);
               };
               document.querySelectorAll(
-                'tr, li, [class*="ticker"], [class*="parity"], [class*="market"], [class*="price"], [class*="symbol"]'
+                'tr, li, table, [class*="ticker"], [class*="parity"], [class*="market"], [class*="price"], [class*="symbol"], [data-symbol], [class*="kur"], [class*="quote"]'
               ).forEach((el) => add(el.innerText));
               return out.slice(0, 140);
             }"""
@@ -563,21 +600,42 @@ def _page_blob(page: Any, *, limit: int = 16000) -> str:
     return (_ticker_text(page) + "\n" + _text(page, limit)).strip()
 
 
+def _norm_url(url: str) -> str:
+    return str(url or "").split("#")[0].split("?")[0].rstrip("/")
+
+
 def job_competitors(page: Any) -> dict[str, Any]:
     columns = [{"id": s["id"], "label": s["label"], "url": s["home"]} for s in SITES]
     values: dict[str, dict[str, dict[str, str]]] = {a["id"]: {} for a in ASSETS}
     notes: dict[str, str] = {}
     for site in SITES:
         sid = site["id"]
-        home = str(site["home"]).rstrip("/")
+        found: dict[str, dict[str, str]] = {}
+        seen_urls: set[str] = set()
         try:
-            _goto(page, site["home"], timeout=70_000)
-            page.wait_for_timeout(1200)
-            found = _parse_assets_from_text(_page_blob(page, limit=16000))
+            queue: list[str] = [site["home"]]
+            queue.extend(SITE_LIST_URLS.get(sid) or ())
+            for url in queue:
+                key = _norm_url(url)
+                if not key or key in seen_urls:
+                    continue
+                seen_urls.add(key)
+                try:
+                    _goto(page, url, timeout=70_000)
+                    page.wait_for_timeout(1200)
+                    parsed = _parse_assets_from_text(_page_blob(page, limit=18000))
+                    for aid, rec in parsed.items():
+                        found.setdefault(aid, rec)
+                except Exception:
+                    continue
             extra = ASSET_URLS.get(sid) or {}
             for aid, url in extra.items():
-                if not url or url.rstrip("/") == home:
+                if aid in found or not url:
                     continue
+                key = _norm_url(url)
+                if not key or key in seen_urls:
+                    continue
+                seen_urls.add(key)
                 try:
                     _goto(page, url, timeout=55_000)
                     page.wait_for_timeout(900)

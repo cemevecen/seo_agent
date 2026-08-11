@@ -279,6 +279,44 @@ HAREM GRAM ALTIN 6.736,38
     mixed = mod._parse_assets_from_text("GRAM GÜMÜŞ\nDOLAR 47,7396  %0,08\nGRAM GÜMÜŞ 99,60")
     assert mixed["usd"]["value"] == "47,7396"
     assert mixed["gram_gumus"]["value"] == "99,60"
+    cnbce = """
+BIST 100 13.704,52 -107,08 -0,78%
+DOLAR 47,73 0,03 0,08%
+EURO 55,11 0,00 0,02%
+ALTIN/ONS 4.366,21 -22,95 -0,52%
+"""
+    cnb = mod._parse_assets_from_text(cnbce)
+    assert cnb["bist100"]["value"] == "13.704,52"
+    assert cnb["usd"]["value"] == "47,73"
+    assert cnb["eur"]["value"] == "55,11"
+    assert cnb["ons_altin"]["value"] == "4.366,21"
+    bigpara = """
+USDTRY Dolar Amerikan Doları Türk Lirası %+0,08 Alış 47,7307 Satış 47,7434
+EURTRY Euro Euro Türk Lirası %+0,02 Alış 55,1137 Satış 55,1242
+GLDGR Gram Altın Spot ALTIN (TL/GR) %-0,19 Alış 6.717,98 Satış 6.718,91
+SGLDC Çeyrek Altın %-0,32 Alış 10.851,00 Satış 10.961,00
+XAUUSD Altın ($/ONS) %-0,40 Alış 4.371,11 Satış 4.371,75
+SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
+"""
+    bp = mod._parse_assets_from_text(bigpara)
+    assert bp["usd"]["value"] == "47,7307"
+    assert bp["eur"]["value"] == "55,1137"
+    assert bp["gram_altin"]["value"] == "6.717,98"
+    assert bp["ceyrek_altin"]["value"] == "10.851,00"
+    assert bp["ons_altin"]["value"] == "4.371,11"
+    assert bp["gram_gumus"]["value"] == "99,4365"
+    tv = "USDTRY U.S. DOLLAR / TURKISH LIRA 47.732710 +0.13%"
+    assert mod._parse_assets_from_text(tv)["usd"]["value"] == "47.732710"
+    lists = mod.SITE_LIST_URLS
+    assert "https://www.enuygunfinans.com/doviz-fiyatlari/" in lists["enuygun"]
+    assert "https://www.enuygunfinans.com/altin-fiyatlari/" in lists["enuygun"]
+    assert "https://www.enuygunfinans.com/borsa/bist-100-hisseleri/" in lists["enuygun"]
+    assert "https://www.investing.com/currencies/" in lists["investing"]
+    assert "https://tr.investing.com/" in lists["investing"]
+    assert "https://bigpara.hurriyet.com.tr/doviz/" in lists["bigpara"]
+    assert "https://bigpara.hurriyet.com.tr/altin/" in lists["bigpara"]
+    assert "https://www.tradingview.com/markets/turkey/" in lists["tradingview"]
+    assert "https://www.tradingview.com/markets/currencies/rates-middle-east/" in lists["tradingview"]
 
 
 def test_pm_lab_doviz_rank_chip_labels():
