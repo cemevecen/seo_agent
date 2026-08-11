@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from backend.config import settings
@@ -46,21 +47,57 @@ class ResultBody(BaseModel):
     running: bool = False
 
 
+def _manual_limit_response(exc: store.ManualLimitExceeded) -> JSONResponse:
+    quota = dict(exc.quota or {})
+    retry = int(quota.get("retry_after_sec") or 1)
+    return JSONResponse(
+        status_code=429,
+        content={"ok": False, "detail": quota.get("message") or "Saatte en fazla 3 tarama", **quota},
+        headers={"Retry-After": str(max(1, retry))},
+    )
+
+
+def _begin_payload(page: str) -> dict[str, Any]:
+    out = store.begin_manual(page)
+    payload: dict[str, Any] = {"ok": True, **(out.get("quota") or {})}
+    run = out.get("run")
+    if run:
+        payload.update(run)
+    return payload
+
+
 @router.get("/page-tarama/catalog")
 def catalog() -> dict[str, Any]:
     return {"ok": True, "pages": store.PAGES, "jobs": store.JOBS}
 
 
-@router.post("/page-tarama/start")
-def start(body: StartBody) -> dict[str, Any]:
+@router.get("/page-tarama/quota")
+def quota() -> dict[str, Any]:
+    return {"ok": True, **store.quota_status()}
+
+
+@router.post("/page-tarama/manual")
+def manual(body: StartBody) -> Any:
     page = (body.page or "").strip()
     if page not in store.PAGES:
         raise HTTPException(status_code=400, detail="Bilinmeyen sayfa")
     try:
-        run = store.start_run(page)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc) or "no_bridge_jobs") from exc
-    return {"ok": True, **run}
+        return _begin_payload(page)
+    except store.ManualLimitExceeded as exc:
+        return _manual_limit_response(exc)
+
+
+@router.post("/page-tarama/start")
+def start(body: StartBody) -> Any:
+    page = (body.page or "").strip()
+    if page not in store.PAGES:
+        raise HTTPException(status_code=400, detail="Bilinmeyen sayfa")
+    if not any(s.get("kind") == "bridge" for s in store.jobs_for(page)):
+        raise HTTPException(status_code=400, detail="no_bridge_jobs")
+    try:
+        return _begin_payload(page)
+    except store.ManualLimitExceeded as exc:
+        return _manual_limit_response(exc)
 
 
 @router.get("/page-tarama/progress")

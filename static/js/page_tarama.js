@@ -56,6 +56,7 @@
   };
 
   var running = false;
+  var lastQuota = { remaining: 3, retry_after_sec: 0, limit: 3, message: "" };
 
   function pageKey() {
     var el = document.querySelector("[data-page-tarama]");
@@ -219,9 +220,40 @@
     });
   }
 
+  function fmtRetry(sec) {
+    sec = Number(sec) || 0;
+    if (sec <= 60) return "1 dk";
+    var mins = Math.round(sec / 60);
+    if (mins < 60) return mins + " dk";
+    return Math.max(1, Math.round(mins / 60)) + " sa";
+  }
+
+  function applyQuota(data) {
+    if (!data) return;
+    if (typeof data.remaining === "number") lastQuota.remaining = data.remaining;
+    if (typeof data.retry_after_sec === "number") lastQuota.retry_after_sec = data.retry_after_sec;
+    if (typeof data.limit === "number") lastQuota.limit = data.limit;
+    if (data.message) lastQuota.message = data.message;
+    var left = lastQuota.remaining;
+    var title = left <= 0
+      ? (lastQuota.message || ("Saatte en fazla " + lastQuota.limit + " tarama. "
+        + fmtRetry(lastQuota.retry_after_sec) + " sonra tekrar."))
+      : ("Bu sayfadaki taramaları çalıştır · saatte " + lastQuota.limit + " hak, " + left + " kaldı");
+    document.querySelectorAll(".js-page-tarama").forEach(function (btn) {
+      btn.title = title;
+      if (!running) btn.disabled = left <= 0;
+    });
+  }
+
+  function refreshQuota() {
+    return fetchJson("/api/page-tarama/quota", { credentials: "same-origin" }, 12000).then(function (out) {
+      if (out.resp && out.resp.ok) applyQuota(out.data);
+    }).catch(function () {});
+  }
+
   function setButtonsBusy(busy) {
     document.querySelectorAll(".js-page-tarama").forEach(function (btn) {
-      btn.disabled = !!busy;
+      btn.disabled = !!busy || lastQuota.remaining <= 0;
     });
   }
 
@@ -272,47 +304,46 @@
     return d || (data && (data.message || data.status)) || fallback;
   }
 
-  function runViaQueue(key, jobs, steps) {
-    return fetchJson("/api/page-tarama/start", {
+  function claimManual(page) {
+    return fetchJson("/api/page-tarama/manual", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ page: key }),
-    }, 20000).then(function (out) {
-      if (!out.resp.ok) {
-        throw new Error(errDetail(out.data, "Kuyruk başlatılamadı"));
+      body: JSON.stringify({ page: page }),
+    }, 20000);
+  }
+
+  function pollQueue(initial, jobs, steps) {
+    var runId = initial && initial.id;
+    if (!runId) return Promise.reject(new Error("Kuyruk kimliği yok"));
+    applyServerJobs(initial.jobs, steps, jobs);
+    setStatus(initial.message || "Mac köprü bekleniyor…");
+    setBar(initial.pct || 4);
+    var started = Date.now();
+    function poll() {
+      if (Date.now() - started > 3 * 60 * 60 * 1000) {
+        throw new Error("Tarama zaman aşımı");
       }
-      var runId = out.data.id;
-      if (!runId) throw new Error("Kuyruk kimliği yok");
-      applyServerJobs(out.data.jobs, steps, jobs);
-      setStatus(out.data.message || "Mac köprü bekleniyor…");
-      setBar(out.data.pct || 4);
-      var started = Date.now();
-      function poll() {
-        if (Date.now() - started > 3 * 60 * 60 * 1000) {
-          throw new Error("Tarama zaman aşımı");
-        }
-        return fetchJson("/api/page-tarama/progress?run_id=" + encodeURIComponent(runId), {
-          credentials: "same-origin",
-        }, 20000).then(function (p) {
-          if (!p.resp.ok) {
-            if ((p.resp.status === 404 || p.resp.status === 502 || p.resp.status === 503)
-                && Date.now() - started < 90000) {
-              setStatus("Kuyruk bekleniyor…");
-              return sleep(1500).then(poll);
-            }
-            throw new Error(errDetail(p.data, "Kuyruk okunamadı (HTTP " + p.resp.status + ")"));
+      return fetchJson("/api/page-tarama/progress?run_id=" + encodeURIComponent(runId), {
+        credentials: "same-origin",
+      }, 20000).then(function (p) {
+        if (!p.resp.ok) {
+          if ((p.resp.status === 404 || p.resp.status === 502 || p.resp.status === 503)
+              && Date.now() - started < 90000) {
+            setStatus("Kuyruk bekleniyor…");
+            return sleep(1500).then(poll);
           }
-          var d = p.data || {};
-          applyServerJobs(d.jobs, steps, jobs);
-          setBar(typeof d.pct === "number" ? d.pct : 10);
-          setStatus(d.message || "Taranıyor…");
-          if (d.running) return sleep(1200).then(poll);
-          return d;
-        });
-      }
-      return poll();
-    });
+          throw new Error(errDetail(p.data, "Kuyruk okunamadı (HTTP " + p.resp.status + ")"));
+        }
+        var d = p.data || {};
+        applyServerJobs(d.jobs, steps, jobs);
+        setBar(typeof d.pct === "number" ? d.pct : 10);
+        setStatus(d.message || "Taranıyor…");
+        if (d.running) return sleep(1200).then(poll);
+        return d;
+      });
+    }
+    return poll();
   }
 
   function runSequential(jobs, steps, fromIndex, opts) {
@@ -379,6 +410,10 @@
       return;
     }
     if (running) return;
+    if (lastQuota.remaining <= 0) {
+      window.alert(lastQuota.message || "Saatte en fazla 3 kez Sayfayı güncelle.");
+      return;
+    }
     running = true;
     setButtonsBusy(true);
     showOverlay(true);
@@ -391,23 +426,32 @@
 
     var bridgeJobs = jobs.filter(function (j) { return j.kind === "bridge"; });
     // Canlı panelde asla 127.0.0.1 köprüye düşme — diğer kullanıcıların tarayıcısı Mac’e ulaşamaz.
-    var useQueue = !isLocalHost() && bridgeJobs.length > 0;
-    if (useQueue) {
-      runViaQueue(key, jobs, steps)
-        .catch(function (err) {
-          jobs.forEach(function (job, i) {
-            if (job.kind !== "bridge" || steps[i].status === "ok") return;
-            steps[i].status = "fail";
-            steps[i].detail = ((err && err.message) || "Kuyruk hatası").slice(0, 90);
+    claimManual(key).then(function (out) {
+      applyQuota(out.data);
+      if (!out.resp.ok) {
+        finish(false, errDetail(out.data, "Saatte en fazla 3 tarama"));
+        return;
+      }
+      var useQueue = !isLocalHost() && bridgeJobs.length > 0 && out.data.id;
+      if (useQueue) {
+        pollQueue(out.data, jobs, steps)
+          .catch(function (err) {
+            jobs.forEach(function (job, i) {
+              if (job.kind !== "bridge" || steps[i].status === "ok") return;
+              steps[i].status = "fail";
+              steps[i].detail = ((err && err.message) || "Kuyruk hatası").slice(0, 90);
+            });
+            renderSteps(steps, 0);
+          })
+          .then(function () {
+            runSequential(jobs, steps, 0, { skipBridge: true });
           });
-          renderSteps(steps, 0);
-        })
-        .then(function () {
-          runSequential(jobs, steps, 0, { skipBridge: true });
-        });
-      return;
-    }
-    runSequential(jobs, steps, 0);
+        return;
+      }
+      runSequential(jobs, steps, 0);
+    }).catch(function (err) {
+      finish(false, (err && err.message) || "Kuyruk başlatılamadı");
+    });
   }
 
   function ensureButton(root) {
@@ -445,9 +489,11 @@
 
   function init() {
     ensureButton(document);
+    refreshQuota();
     document.body.addEventListener("htmx:afterSwap", function (ev) {
       var t = ev && ev.detail && ev.detail.target;
       ensureButton(t || document);
+      applyQuota(lastQuota);
     });
   }
 

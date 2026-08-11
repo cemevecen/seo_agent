@@ -60,11 +60,20 @@ PAGES: dict[str, list[str]] = {
 BRIDGE_STALE_SEC = 90.0
 CLAIM_STALE_SEC = 2 * 60 * 60
 RUN_TTL_SEC = 3 * 60 * 60
+MANUAL_LIMIT = 3
+MANUAL_WINDOW_SEC = 60 * 60
 
 _lock = threading.Lock()
 _runs: dict[str, dict[str, Any]] = {}
+_manual_starts: list[float] = []
 _bridge_seen_at: float | None = None
 _memory_only = False
+
+
+class ManualLimitExceeded(Exception):
+    def __init__(self, quota: dict[str, Any]):
+        self.quota = quota
+        super().__init__(str(quota.get("message") or "manual_limit"))
 
 
 def reset_for_tests() -> None:
@@ -72,6 +81,7 @@ def reset_for_tests() -> None:
     _memory_only = True
     with _lock:
         _runs.clear()
+        _manual_starts.clear()
         _bridge_seen_at = None
 
 
@@ -85,10 +95,117 @@ def jobs_for(page: str) -> list[dict[str, Any]]:
     return out
 
 
+def _unpack_state(loaded: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[float]]:
+    if isinstance(loaded.get("runs"), dict) and "manual_starts" in loaded:
+        starts = []
+        for raw in loaded.get("manual_starts") or []:
+            try:
+                starts.append(float(raw))
+            except (TypeError, ValueError):
+                continue
+        runs = loaded.get("runs") or {}
+        if not isinstance(runs, dict):
+            runs = {}
+        return runs, starts
+    return loaded, []
+
+
+def _pack_state() -> dict[str, Any]:
+    return {"runs": _runs, "manual_starts": list(_manual_starts)}
+
+
+def _prune_manual_locked(now: float) -> None:
+    cutoff = now - MANUAL_WINDOW_SEC
+    _manual_starts[:] = [t for t in _manual_starts if float(t) > cutoff]
+
+
+def _fmt_retry(sec: int) -> str:
+    if sec <= 60:
+        return "1 dk"
+    mins = int(round(sec / 60.0))
+    if mins < 60:
+        return f"{mins} dk"
+    hours = max(1, int(round(mins / 60.0)))
+    return f"{hours} sa"
+
+
+def _quota_locked(now: float) -> dict[str, Any]:
+    _prune_manual_locked(now)
+    used = len(_manual_starts)
+    remaining = max(0, MANUAL_LIMIT - used)
+    retry_after = 0
+    if remaining <= 0 and _manual_starts:
+        oldest = min(float(t) for t in _manual_starts)
+        retry_after = int(max(1, round(oldest + MANUAL_WINDOW_SEC - now)))
+    if remaining <= 0:
+        message = (
+            f"Saatte en fazla {MANUAL_LIMIT} kez Sayfayı güncelle. "
+            f"{_fmt_retry(retry_after)} sonra tekrar."
+        )
+    else:
+        message = f"Saatte {MANUAL_LIMIT} hak · {remaining} kaldı"
+    return {
+        "limit": MANUAL_LIMIT,
+        "used": used,
+        "remaining": remaining,
+        "window_sec": int(MANUAL_WINDOW_SEC),
+        "retry_after_sec": retry_after,
+        "message": message,
+    }
+
+
+def quota_status() -> dict[str, Any]:
+    now = time.time()
+    with _state():
+        return _quota_locked(now)
+
+
+def begin_manual(page: str) -> dict[str, Any]:
+    """Kotadan 1 hak düş; köprü işi varsa kuyruğa yaz."""
+    page = (page or "").strip()
+    if page not in PAGES:
+        raise ValueError("unknown_page")
+    specs = [s for s in jobs_for(page) if s.get("kind") == "bridge"]
+    now = time.time()
+    with _state():
+        quota = _quota_locked(now)
+        if quota["remaining"] <= 0:
+            raise ManualLimitExceeded(quota)
+        _manual_starts.append(now)
+        quota = _quota_locked(now)
+        run = None
+        if specs:
+            run_id = uuid.uuid4().hex[:16]
+            jobs = []
+            for spec in specs:
+                jobs.append(
+                    {
+                        "id": spec["id"],
+                        "label": spec["label"],
+                        "kind": spec["kind"],
+                        "path": spec.get("path") or "",
+                        "status": "queued",
+                        "detail": "",
+                        "claimed_at": None,
+                    }
+                )
+            rec = {
+                "id": run_id,
+                "page": page,
+                "started_at": now,
+                "jobs": jobs,
+                "local_kicked": False,
+            }
+            _prune_locked(now)
+            _runs[run_id] = rec
+            run = _public_run_locked(rec, now)
+        return {"quota": quota, "run": run}
+
+
 @contextmanager
 def _state() -> Iterator[None]:
     """Kuyruk durumunu Postgres’te kilitle; tablo yoksa süreç-içi belleğe düş."""
-    global _runs, _bridge_seen_at
+    global _runs, _bridge_seen_at, _manual_starts
     with _lock:
         if _memory_only:
             yield
@@ -113,7 +230,7 @@ def _state() -> Iterator[None]:
             loaded = json.loads(row.runs_json or "{}")
             if not isinstance(loaded, dict):
                 loaded = {}
-            _runs = loaded
+            _runs, _manual_starts = _unpack_state(loaded)
             _bridge_seen_at = row.bridge_seen_at
         except Exception:
             if db is not None:
@@ -129,7 +246,7 @@ def _state() -> Iterator[None]:
             return
         try:
             yield
-            row.runs_json = json.dumps(_runs)
+            row.runs_json = json.dumps(_pack_state())
             row.bridge_seen_at = _bridge_seen_at
             row.updated_at = datetime.utcnow()
             db.commit()

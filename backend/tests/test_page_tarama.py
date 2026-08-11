@@ -69,12 +69,14 @@ def test_all_listed_pages_have_slot_and_key():
 def test_js_uses_railway_queue_on_remote():
     js = (ROOT / "static/js/page_tarama.js").read_text(encoding="utf-8")
     assert "Sayfayı güncelle" in js
-    assert "/api/page-tarama/start" in js
+    assert "/api/page-tarama/manual" in js
+    assert "/api/page-tarama/quota" in js
     assert "/api/page-tarama/progress" in js
     assert "Load failed" in js
     assert "skipBridge" in js
     assert "useQueue" in js
     assert "runSequential(jobs, steps, 0, { skipBridge: true })" in js
+    assert "Saatte en fazla 3" in js
     for key in PAGES:
         assert f"{key}:" in js or f'"{key}":' in js, key
 
@@ -134,6 +136,40 @@ def test_stale_queue_fails_without_bridge():
     assert out is not None
     assert out["jobs"][0]["status"] == "fail"
     assert "daemon" in (out["jobs"][0]["detail"] or "").lower()
+
+
+def test_manual_limit_three_per_hour():
+    store.reset_for_tests()
+    for _ in range(store.MANUAL_LIMIT):
+        out = store.begin_manual("news")
+        assert out["run"] is not None
+        assert out["quota"]["remaining"] >= 0
+    try:
+        store.begin_manual("android")
+        assert False, "4th manual should be blocked"
+    except store.ManualLimitExceeded as exc:
+        assert exc.quota["remaining"] == 0
+        assert exc.quota["retry_after_sec"] > 0
+        assert "3" in (exc.quota["message"] or "")
+
+
+def test_manual_limit_expires_after_window():
+    store.reset_for_tests()
+    store.begin_manual("news")
+    store.begin_manual("news")
+    store.begin_manual("news")
+    with store._lock:
+        store._manual_starts[:] = [t - store.MANUAL_WINDOW_SEC - 1 for t in store._manual_starts]
+    out = store.begin_manual("ios")
+    assert out["run"] is not None
+    assert out["quota"]["used"] == 1
+
+
+def test_manual_alerts_consumes_quota_without_queue():
+    store.reset_for_tests()
+    out = store.begin_manual("alerts")
+    assert out["run"] is None
+    assert out["quota"]["used"] == 1
 
 
 def test_queue_persists_for_other_workers():
