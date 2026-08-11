@@ -49,7 +49,8 @@
     box.innerHTML =
       chip("son " + fmtWhen(boot.scraped_at), boot.sync_ok ? "pml-chip-ok" : "") +
       chip("sonraki ~" + fmtWhen(boot.next_at), "") +
-      chip((boot.interval_hours || 3) + " saatte bir", "");
+      chip("fiyat " + (boot.interval_minutes || 10) + " dk", "") +
+      chip("diğer " + (boot.interval_hours || 3) + " saat", "");
     var chart = document.getElementById("pml-run-chart");
     if (!chart) return;
     var runs = collectRuns();

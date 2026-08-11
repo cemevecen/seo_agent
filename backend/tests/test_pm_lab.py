@@ -8,7 +8,12 @@ from backend.services.pm_lab_access import (
     is_pm_lab_path,
     resolve_pm_lab_visible,
 )
-from backend.services.pm_lab_store import SECTION_DEFS, ingest_pm_lab_payload, page_context
+from backend.services.pm_lab_store import (
+    COMPETITORS_INTERVAL_MIN,
+    SECTION_DEFS,
+    ingest_pm_lab_payload,
+    page_context,
+)
 
 
 def test_owner_emails_only():
@@ -411,7 +416,13 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=16" in html
+    assert "pm_lab.js?v=17" in html
+    assert COMPETITORS_INTERVAL_MIN == 10
+    assert "fiyat " in js
+    assert "10 dk" in Path("templates/pm_lab.html").read_text(encoding="utf-8")
+    bridge = Path("scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
+    assert 'PM_LAB_COMPETITORS_INTERVAL_SEC") or "600"' in bridge
+    assert "run_pm_lab_competitors_once" in bridge
     assert 'enuygun: "Enuygun"' in js
     assert 'bloomberght: "Bloomberg"' in js
     assert 'tradingview: "Trading"' in js

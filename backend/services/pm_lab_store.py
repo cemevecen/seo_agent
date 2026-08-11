@@ -17,6 +17,7 @@ LOGGER = logging.getLogger(__name__)
 _WORKSPACE_ID = 1
 _RUNS_KEEP = 48
 _INTERVAL_HOURS = 3
+COMPETITORS_INTERVAL_MIN = 10
 
 SECTION_DEFS: list[dict[str, Any]] = [
     {
@@ -29,7 +30,7 @@ SECTION_DEFS: list[dict[str, Any]] = [
         "id": "competitors",
         "no": 3,
         "title": "Rakip ana sayfa fiyatları",
-        "hint": "satır: varlık · sütun: site · sapma: Döviz vs akran",
+        "hint": "satır: varlık · sütun: site · sapma: Döviz vs akran · 10 dk",
     },
     {
         "id": "sikayet",
@@ -439,7 +440,12 @@ def ingest_pm_lab_payload(db: Session, body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _next_run_iso(scraped_at: str | None) -> str:
+def _next_run_iso(
+    scraped_at: str | None,
+    *,
+    minutes: int | None = None,
+    hours: int | None = None,
+) -> str:
     raw = (scraped_at or "").strip()
     if not raw:
         return ""
@@ -449,7 +455,10 @@ def _next_run_iso(scraped_at: str | None) -> str:
         return ""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    nxt = dt + timedelta(hours=_INTERVAL_HOURS)
+    if minutes is not None:
+        nxt = dt + timedelta(minutes=minutes)
+    else:
+        nxt = dt + timedelta(hours=hours if hours is not None else _INTERVAL_HOURS)
     return nxt.isoformat()
 
 
@@ -475,11 +484,16 @@ def page_context(db: Session) -> dict[str, Any]:
                 "shot_names": [],
             }
         )
+    comp_block = raw_sections.get("competitors") if isinstance(raw_sections.get("competitors"), dict) else {}
     boot = {
         "updated_at": payload.get("updated_at"),
         "scraped_at": payload.get("scraped_at"),
-        "next_at": _next_run_iso(str(payload.get("scraped_at") or "")),
+        "next_at": _next_run_iso(
+            str(comp_block.get("scraped_at") or payload.get("scraped_at") or ""),
+            minutes=COMPETITORS_INTERVAL_MIN,
+        ),
         "interval_hours": _INTERVAL_HOURS,
+        "interval_minutes": COMPETITORS_INTERVAL_MIN,
         "sync_ok": payload.get("sync_ok", True),
         "sync_message": payload.get("sync_message") or "",
         "sections": boot_sections,

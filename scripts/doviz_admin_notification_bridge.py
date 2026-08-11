@@ -210,9 +210,11 @@ _last_pagespeed_auto_slot = ""
 _last_seo_audit_auto_slot = ""
 _last_gsc_cwv_auto_slot = ""
 _last_market_auto_slot = ""
-# Restart sonrası 3 saat bekle; ilk dolum manuel --ingest / /sync-pm-lab.
+# Restart sonrası tam interval bekle; ilk dolum manuel --ingest / /sync-pm-lab.
 _last_pm_lab_auto_at = time.time()
+_last_pm_lab_competitors_auto_at = time.time()
 PM_LAB_AUTO_INTERVAL_SEC = int(os.environ.get("PM_LAB_AUTO_INTERVAL_SEC") or str(3 * 3600))
+PM_LAB_COMPETITORS_INTERVAL_SEC = int(os.environ.get("PM_LAB_COMPETITORS_INTERVAL_SEC") or "600")
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -1175,11 +1177,12 @@ def run_pagespeed_bridge_once() -> dict[str, Any]:
     return out
 
 
-def run_pm_lab_bridge_once() -> dict[str, Any]:
-    """Owner PM lab taramaları (SERP/rakip/şikayet/store/news) → Railway ingest."""
+def _run_pm_lab_script(*, jobs: str = "", label: str = "PM lab") -> dict[str, Any]:
+    """Owner PM lab taramaları → Railway ingest."""
     global _last_pm_lab_result
+    kind = "pm_lab_competitors" if jobs == "competitors" else "pm_lab"
     if not _ingest_token():
-        err = {"ok": False, "kind": "pm_lab", "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        err = {"ok": False, "kind": kind, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
         _last_pm_lab_result = err
         return err
 
@@ -1187,13 +1190,18 @@ def run_pm_lab_bridge_once() -> dict[str, Any]:
 
     script = ROOT / "scripts" / "pm_lab_scrape.py"
     if not script.is_file():
-        err = {"ok": False, "kind": "pm_lab", "message": "PM lab tarama betiği yok"}
+        err = {"ok": False, "kind": kind, "message": "PM lab tarama betiği yok"}
         _last_pm_lab_result = err
         return err
 
-    print("PM lab tarama başlıyor…", flush=True)
-    cmd = [sys.executable, str(script), "--sync", "--ingest"]
-    timeout_sec = int(os.environ.get("PM_LAB_BRIDGE_TIMEOUT_SEC") or "1800")
+    print(f"{label} tarama başlıyor…", flush=True)
+    cmd = [sys.executable, str(script)]
+    if jobs:
+        cmd.extend(["--jobs", jobs, "--ingest"])
+        timeout_sec = int(os.environ.get("PM_LAB_COMPETITORS_TIMEOUT_SEC") or "540")
+    else:
+        cmd.extend(["--sync", "--ingest"])
+        timeout_sec = int(os.environ.get("PM_LAB_BRIDGE_TIMEOUT_SEC") or "1800")
     try:
         proc = subprocess.run(
             cmd,
@@ -1201,14 +1209,14 @@ def run_pm_lab_bridge_once() -> dict[str, Any]:
             env=os.environ.copy(),
             capture_output=True,
             text=True,
-            timeout=max(180, timeout_sec),
+            timeout=max(120, timeout_sec),
         )
     except subprocess.TimeoutExpired:
-        out = {"ok": False, "kind": "pm_lab", "message": f"PM lab zaman aşımı ({timeout_sec}s)"}
+        out = {"ok": False, "kind": kind, "message": f"{label} zaman aşımı ({timeout_sec}s)"}
         _last_pm_lab_result = out
         return out
     except Exception as exc:  # noqa: BLE001
-        out = {"ok": False, "kind": "pm_lab", "message": f"PM lab subprocess: {exc}"}
+        out = {"ok": False, "kind": kind, "message": f"{label} subprocess: {exc}"}
         _last_pm_lab_result = out
         return out
 
@@ -1217,13 +1225,23 @@ def run_pm_lab_bridge_once() -> dict[str, Any]:
         for line in combined.splitlines()[-40:]:
             print(line, flush=True)
     if proc.returncode == 0:
-        out = {"ok": True, "kind": "pm_lab", "message": "PM lab sync OK"}
+        out = {"ok": True, "kind": kind, "message": f"{label} sync OK"}
     else:
         tail = (combined[-300:] if combined else f"exit {proc.returncode}")[:300]
-        out = {"ok": False, "kind": "pm_lab", "message": tail}
+        out = {"ok": False, "kind": kind, "message": tail}
     _last_pm_lab_result = out
-    print(f"PM lab sync · {out['message']}", flush=True)
+    print(f"{label} sync · {out['message']}", flush=True)
     return out
+
+
+def run_pm_lab_bridge_once() -> dict[str, Any]:
+    """SERP / rakip / şikayet / store / news — 3 saatte bir."""
+    return _run_pm_lab_script(jobs="", label="PM lab")
+
+
+def run_pm_lab_competitors_once() -> dict[str, Any]:
+    """Rakip fiyat linkleri — 10 dakikada bir."""
+    return _run_pm_lab_script(jobs="competitors", label="PM lab fiyat")
 
 
 def run_market_tarama_bridge_once() -> dict[str, Any]:
@@ -1889,6 +1907,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_policy": _last_policy_result,
                     "last_noads": _last_noads_result,
                     "pm_lab_interval_sec": PM_LAB_AUTO_INTERVAL_SEC,
+                    "pm_lab_competitors_interval_sec": PM_LAB_COMPETITORS_INTERVAL_SEC,
                     "play_interval_sec": PLAY_AUTO_INTERVAL_SEC,
                     "asc_interval_sec": ASC_AUTO_INTERVAL_SEC,
                     "schedule": {
@@ -1912,6 +1931,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                             f"{h:02d}:{MARKET_SLOT_MINUTE:02d}" for h in MARKET_SLOT_HOURS
                         ],
                         "pm_lab_sec": PM_LAB_AUTO_INTERVAL_SEC,
+                        "pm_lab_competitors_sec": PM_LAB_COMPETITORS_INTERVAL_SEC,
                         "retry_max": BRIDGE_RETRY_MAX,
                         "retry_gap_sec": BRIDGE_RETRY_GAP_SEC,
                     },
@@ -2325,6 +2345,11 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
             "lock": _pm_lab_lock,
             "runner": run_pm_lab_bridge_once,
         },
+        "pm_lab_competitors": {
+            "name": "PM lab fiyat",
+            "lock": _pm_lab_lock,
+            "runner": run_pm_lab_competitors_once,
+        },
         "sinemalar_noads": {
             "name": "noAds",
             "lock": _noads_lock,
@@ -2335,7 +2360,7 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
 
 def _process_due_retries() -> None:
     """Zamanı gelen yeniden denemeleri çalıştır; başarıda kuyruğu temizle."""
-    global _last_nt_auto_at, _last_news_auto_at, _last_pm_lab_auto_at
+    global _last_nt_auto_at, _last_news_auto_at, _last_pm_lab_auto_at, _last_pm_lab_competitors_auto_at
     now = time.time()
     registry = _auto_job_registry()
     for kind, st in list(_job_retries.items()):
@@ -2379,6 +2404,9 @@ def _process_due_retries() -> None:
                 _last_news_auto_at = time.time()
             elif kind == "pm_lab":
                 _last_pm_lab_auto_at = time.time()
+                _last_pm_lab_competitors_auto_at = time.time()
+            elif kind == "pm_lab_competitors":
+                _last_pm_lab_competitors_auto_at = time.time()
             continue
         if is_last:
             print(
@@ -2401,7 +2429,7 @@ def _process_due_retries() -> None:
 def _auto_loop() -> None:
     """Slot + interval zamanlayıcı; poll ~60s. Hata → 3×10 dk retry, sonra sonraki slot."""
     global _auto_cycle
-    global _last_nt_auto_at, _last_news_auto_at, _last_pm_lab_auto_at
+    global _last_nt_auto_at, _last_news_auto_at, _last_pm_lab_auto_at, _last_pm_lab_competitors_auto_at
     global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
     global _last_gsc_links_auto_slot, _last_policy_auto_slot
     global _last_noads_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
@@ -2459,6 +2487,10 @@ def _auto_loop() -> None:
             _interval_due(_last_pm_lab_auto_at, PM_LAB_AUTO_INTERVAL_SEC, min_sec=120)
             and "pm_lab" not in _job_retries
         )
+        pm_comp_due = (
+            _interval_due(_last_pm_lab_competitors_auto_at, PM_LAB_COMPETITORS_INTERVAL_SEC, min_sec=60)
+            and "pm_lab_competitors" not in _job_retries
+        )
         if pm_due:
             result = _run_locked_job(
                 name="PM lab",
@@ -2471,12 +2503,32 @@ def _auto_loop() -> None:
                 print("Auto PM lab atlandı (manuel sync sürüyor)", flush=True)
             else:
                 _last_pm_lab_auto_at = time.time()
+                _last_pm_lab_competitors_auto_at = time.time()
                 if result.get("ok"):
                     _note_auto_success("pm_lab")
                     _clear_job_retry("pm_lab")
+                    _clear_job_retry("pm_lab_competitors")
                 else:
                     _notify_auto_failure("pm_lab", result)
                     _arm_job_retry("pm_lab", name="PM lab")
+        elif pm_comp_due:
+            result = _run_locked_job(
+                name="PM lab fiyat",
+                lock=_pm_lab_lock,
+                runner=run_pm_lab_competitors_once,
+                kind="pm_lab_competitors",
+                notify=False,
+            )
+            if result is None:
+                print("Auto PM lab fiyat atlandı (manuel sync sürüyor)", flush=True)
+            else:
+                _last_pm_lab_competitors_auto_at = time.time()
+                if result.get("ok"):
+                    _note_auto_success("pm_lab_competitors")
+                    _clear_job_retry("pm_lab_competitors")
+                else:
+                    _notify_auto_failure("pm_lab_competitors", result)
+                    _arm_job_retry("pm_lab_competitors", name="PM lab fiyat")
 
         def _slot_job(
             kind: str,
