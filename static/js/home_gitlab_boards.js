@@ -19,7 +19,7 @@
       statusMsg: '',
       panelOpen: true,
       vpnProbing: false,
-      vpnRemain: 15,
+      vpnRemain: 5,
       vpnOffline: false,
       vpnOk: null,
       _vpnTimer: null,
@@ -79,7 +79,7 @@
 
       startVpnProbe() {
         this._clearVpnTimer();
-        this.vpnRemain = 15;
+        this.vpnRemain = 5;
         this.vpnProbing = true;
         this.vpnOffline = false;
         this.vpnOk = null;
