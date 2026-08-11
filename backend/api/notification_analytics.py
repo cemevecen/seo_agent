@@ -104,7 +104,7 @@ def post_notification_analytics_sync_sheet(
     force: bool = Query(False, description="true ise TTL yok sayılır, Doviz admin yeniden çekilir"),
     db: Session = Depends(get_db),
 ):
-    """Aktif kaynak: Doviz admin (otomatik); erişilemezse Google Sheet."""
+    """Aktif kaynak: Doviz admin tarama / Mac köprüsü ingest. Sheet yedek kapalı."""
     try:
         result = store.sync_notification_analytics(db, force=force)
         if result.get("ok") is False and not result.get("skipped"):
@@ -180,17 +180,11 @@ def post_notification_analytics_sync_sheet_backup(
     force: bool = Query(True, description="true ise TTL yok sayılır"),
     db: Session = Depends(get_db),
 ):
-    """Yedek Google Sheet — bilinçli çağrı."""
-    try:
-        result = store.sync_from_google_sheet(db, force=force, prefer_sheet=True)
-        if result.get("ok") is False and not result.get("skipped"):
-            raise HTTPException(status_code=502, detail=result.get("message") or "Yedek sheet senkronu başarısız.")
-        return result
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    """Kapalı — Google Sheet yedek iptal."""
+    raise HTTPException(
+        status_code=410,
+        detail="Google Sheet yedek kapalı. Aktif kaynak: Doviz admin tarama / Mac köprüsü.",
+    )
 
 
 @router.post("/notification-analytics/upload")
@@ -198,7 +192,7 @@ def post_notification_analytics_upload(body: UploadCsvBody, db: Session = Depend
     """Kapalı — manuel dosya/sheet yükleme hesaplara dahil değil (çift kaynak engeli)."""
     raise HTTPException(
         status_code=410,
-        detail="Manuel CSV yükleme kapalı. Aktif kaynak: Doviz admin. Yedek için POST /api/notification-analytics/sync-sheet-backup.",
+        detail="Manuel CSV yükleme kapalı. Aktif kaynak: Doviz admin tarama / Mac köprüsü.",
     )
 
 

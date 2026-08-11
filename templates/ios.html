@@ -998,7 +998,7 @@
           <h1 class="text-lg font-extrabold text-slate-900 dark:text-slate-100 sm:text-xl">App Store Connect</h1>
           <span class="font-mono text-[11px] text-slate-500 dark:text-zinc-400">com.nokta.Finans.Takip · 465599322</span>
         </div>
-        <p id="ia-status" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Mac bridge sync (Play gibi) · Sales API yedek.</p>
+        <p id="ia-status" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Mac bridge sync (Play gibi).</p>
       </div>
       <div class="flex min-w-0 shrink-0 flex-wrap items-center gap-1.5 sm:gap-2">
         <a href="https://appstoreconnect.apple.com/apps/465599322/analytics/metrics" target="_blank" rel="noopener"
@@ -2148,11 +2148,7 @@
       iaStatus.textContent = parts.join(" · ");
       return;
     }
-    if (data.analytics_ok === false) {
-      iaStatus.textContent = (data.warnings && data.warnings[0])
-        ? ("Analytics: " + data.warnings[0])
-        : "Analytics Reports boş — Sales (indirme/gelir/abonelik) geliyor; gösterim vb. ASC Analytics ONGOING rapor ister.";
-    } else if (data.warnings && data.warnings.length) {
+    if (data.warnings && data.warnings.length) {
       iaStatus.textContent = "ASC · " + data.warnings.slice(0, 2).join(" · ");
     }
   }
@@ -3208,7 +3204,6 @@
       } else {
         parts.push("Sync yok — Mac’te login + bridge POST /sync-asc");
       }
-      if (d.configured) parts.push("API yedek açık");
       iaStatus.textContent = parts.join(" · ");
     } catch (_) {}
   }

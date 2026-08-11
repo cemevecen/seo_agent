@@ -85,19 +85,12 @@ def test_fetch_sales_dimension_segment_timeseries(mock_fetch, _env):
     assert by_key["2026-08-02"] == 7
 
 
-@patch.object(asc_client, "is_configured", return_value=True)
 @patch.object(asc_client, "fetch_sales_dimension_series")
-@patch("backend.services.asc_metrics_warehouse._cached_scrape_facts", return_value=([], {}))
-def test_query_asc_metric_dim_path(mock_scrape, mock_dim, _cfg):
-    mock_dim.return_value = {
-        "ok": True,
-        "series": [{"key": "iPhone", "value": 42}],
-        "segments": [{"key": "iPhone", "label": "iPhone", "total": 42}],
-        "total": 42.0,
-        "dim": "device",
-        "segment": "all",
-        "breakdown": "segment",
-    }
+@patch(
+    "backend.services.asc_metrics_warehouse._cached_scrape_facts",
+    return_value=([{"metric": "units", "date": "2026-08-01", "value": 1}], {}),
+)
+def test_query_asc_metric_dim_path_no_api_fallback(mock_scrape, mock_dim):
     out = query_asc_metric(
         start="2026-08-01",
         end="2026-08-07",
@@ -106,8 +99,7 @@ def test_query_asc_metric_dim_path(mock_scrape, mock_dim, _cfg):
         breakdown="segment",
         segment="all",
     )
-    assert out["ok"] is True
-    assert out["source"] == "asc_sales_dim"
-    assert out["series"][0]["key"] == "iPhone"
-    assert "device" in out["facets"]["dims"]
-    assert "iPhone" in out["facets"]["segments"]
+    assert out["source"] == "asc_scrape"
+    assert out["series"] == []
+    assert out.get("empty") is True
+    mock_dim.assert_not_called()

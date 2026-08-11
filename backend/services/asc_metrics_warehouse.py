@@ -1,18 +1,15 @@
 """App Store Connect Metrikler — Android play_scrape_warehouse benzeri sorgu katmanı.
 
-Kaynak: ASC API key (üyelik) — Sales & Trends + Analytics Reports + Subscription.
+Kaynak: Mac ASC console tarama (explorer_facts). Sales / Analytics / Subscription API yedek kapalı.
 Varsayılan uygulama: Döviz iOS (465599322 / com.nokta.Finans.Takip).
 """
 from __future__ import annotations
 
 import logging
-import os
 import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from typing import Any
 
-from backend.services import asc_analytics, asc_client
 from backend.services.asc_console_store import load_asc_scrape_facts
 
 logger = logging.getLogger(__name__)
@@ -238,105 +235,15 @@ def _load_bundle(
     if hit is not None and (now - hit[0]) < _BUNDLE_TTL_SEC:
         return hit[1]
 
-    days = _span_days(start, end) + 3  # Apple gecikmesi payı
-    days = min(max(days, 7), 365)
     scrape_facts, scrape_meta = _cached_scrape_facts()
-
-    uncovered = [
-        m
-        for m in metrics
-        if not _scrape_covers_metric(scrape_facts, m, start=start, end=end)
-    ]
-
-    analytics: dict[str, Any] = {}
-    sales = None
-    subs = None
-
-    # Scrape tüm istenen metrikleri kapsıyorsa Apple I/O yok — en hızlı yol
-    if scrape_facts and not uncovered:
-        out = {
-            "analytics": analytics,
-            "sales": sales,
-            "subs": subs,
-            "scrape_facts": scrape_facts,
-            "scrape_meta": scrape_meta,
-        }
-        _bundle_cache[cache_key] = (now, out)
-        return out
-
-    need_analytics = (not scrape_facts) or bool(set(uncovered) & _ANALYTICS_METRICS)
-    # Scrape varken Analytics yavaş; yalnızca scrape’in kapsamadığı analytics metrikleri için aç
-    if scrape_facts and not (set(uncovered) & _ANALYTICS_METRICS):
-        need_analytics = False
-    elif scrape_facts and (set(uncovered) & _ANALYTICS_METRICS):
-        # Engagement vb. scrape’te yoksa resmi Analytics Reports yedek dene
-        need_analytics = True
-    need_sales = bool(set(uncovered) & _SALES_METRICS) and asc_client.is_configured()
-    need_subs = bool(set(uncovered) & _SUBS_METRICS)
-
-    def _fetch_analytics() -> dict[str, Any]:
-        if not need_analytics:
-            return {}
-        try:
-            return (
-                asc_analytics.fetch_analytics_summary(
-                    bundle_id=bundle_id, days=days, country="all"
-                )
-                or {}
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("ASC analytics load failed: %s", exc)
-            return {}
-
-    def _fetch_sales() -> Any:
-        if not need_sales:
-            return None
-        try:
-            return asc_client.fetch_daily_sales_summary(
-                bundle_id=bundle_id, days=days, country="all", device="all"
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("ASC sales load failed: %s", exc)
-            return None
-
-    def _fetch_subs() -> Any:
-        if not need_subs:
-            return None
-        try:
-            return asc_client.fetch_subscription_daily_series(days=days)
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("ASC subscription load failed: %s", exc)
-            return None
-
-    jobs = []
-    if need_analytics:
-        jobs.append("analytics")
-    if need_sales:
-        jobs.append("sales")
-    if need_subs:
-        jobs.append("subs")
-    if len(jobs) >= 2:
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            fut_a = pool.submit(_fetch_analytics) if need_analytics else None
-            fut_s = pool.submit(_fetch_sales) if need_sales else None
-            fut_u = pool.submit(_fetch_subs) if need_subs else None
-            analytics = fut_a.result() if fut_a else {}
-            sales = fut_s.result() if fut_s else None
-            subs = fut_u.result() if fut_u else None
-    else:
-        analytics = _fetch_analytics()
-        sales = _fetch_sales()
-        subs = _fetch_subs()
-
     out = {
-        "analytics": analytics,
-        "sales": sales,
-        "subs": subs,
+        "analytics": {},
+        "sales": None,
+        "subs": None,
         "scrape_facts": scrape_facts,
         "scrape_meta": scrape_meta,
     }
     _bundle_cache[cache_key] = (now, out)
-    # Eski girdileri seyrek temizle
     if len(_bundle_cache) > 48:
         cutoff = now - _BUNDLE_TTL_SEC
         for k, (ts, _) in list(_bundle_cache.items()):
@@ -441,13 +348,12 @@ def query_asc_metric(
         }
     bid = (bundle_id or DEFAULT_BUNDLE).strip()
     scrape_facts_probe, _ = _cached_scrape_facts()
-    api_ok = asc_client.is_configured()
-    if not api_ok and not scrape_facts_probe:
+    if not scrape_facts_probe:
         return {
             "ok": False,
             "configured": False,
             "message": (
-                "ASC verisi yok ve API anahtarı tanımlı değil — "
+                "ASC tarama verisi yok — "
                 "Mac’te ASC console login + sync + ingest."
             ),
             "series": [],
@@ -458,71 +364,18 @@ def query_asc_metric(
             "facets": _asc_facets(metric_key),
         }
 
-    # Teknik kırılım (Sales SUMMARY: ülke / cihaz / sürüm)
+    # Ülke / cihaz / sürüm kırılımı tarama fact’lerinde yok (eski Sales API yedek kapalı)
     if dim_key in ("country", "device", "app_version"):
-        if not asc_client.sales_dimension_supported(metric_key):
-            return {
-                "ok": False,
-                "configured": True,
-                "message": (
-                    f"{_METRIC_META[metric_key][2]} için Sales kırılımı yok "
-                    f"(yalnızca first downloads / proceeds / IAP)."
-                ),
-                "series": [],
-                "total": 0,
-                "metric": metric_key,
-                "dim": dim_key,
-                "segment": seg_key,
-                "start": start_d.isoformat(),
-                "end": end_d.isoformat(),
-                "facets": _asc_facets(metric_key),
-            }
-        if not api_ok:
-            return {
-                "ok": False,
-                "configured": False,
-                "message": "Sales kırılımı için ASC API anahtarı gerekli",
-                "series": [],
-                "total": 0,
-                "facets": _asc_facets(metric_key),
-            }
         br = (breakdown or "segment").strip().lower()
         if br not in ("segment", "date", "week", "month"):
             br = "segment"
-        # Boyut seçili + segment=all → varsayılan segment listesi
         if seg_key.lower() == "all" and br == "date":
             br = "segment"
-        dim_payload = asc_client.fetch_sales_dimension_series(
-            start=start_d,
-            end=end_d,
-            metric=metric_key,
-            dim=dim_key,
-            segment=seg_key,
-            breakdown=br,
-            limit=30,
-        )
-        if not dim_payload:
-            return {
-                "ok": False,
-                "configured": True,
-                "message": "Sales kırılımı alınamadı (vendor / rapor)",
-                "series": [],
-                "total": 0,
-                "facets": _asc_facets(metric_key),
-            }
-        series = list(dim_payload.get("series") or [])
-        total = float(dim_payload.get("total") or 0)
-        mode = "sum"
         label = _METRIC_META[metric_key][2]
-        segs = [
-            s.get("key")
-            for s in (dim_payload.get("segments") or [])
-            if isinstance(s, dict) and s.get("key")
-        ]
         return {
             "ok": True,
             "configured": True,
-            "source": "asc_sales_dim",
+            "source": "asc_scrape",
             "app_id": DEFAULT_APP_ID,
             "bundle_id": bid,
             "metric": metric_key,
@@ -532,18 +385,14 @@ def query_asc_metric(
             "breakdown": br,
             "dim": dim_key,
             "segment": seg_key,
-            "series": series,
-            "total": total,
-            "total_mode": mode,
+            "series": [],
+            "total": 0.0,
+            "total_mode": "sum",
             "compare": None,
-            "message": (
-                f"ASC · {label} · {dim_key}"
-                + (f" · {seg_key}" if seg_key.lower() != "all" else "")
-                + f" · {len(series)} nokta · sales"
-            ),
+            "message": f"{label} · {dim_key} kırılımı tarama verisinde yok.",
             "warnings": [],
-            "facets": _asc_facets(metric_key, segments=segs),
-            "empty": not bool(series),
+            "facets": _asc_facets(metric_key),
+            "empty": True,
         }
 
     # Compare için önceki dönemi de kapsayan aralık yükle
@@ -569,17 +418,7 @@ def query_asc_metric(
     a = bundle.get("analytics") or {}
     warnings = list(a.get("warnings") or [])
     scrape_facts = bundle.get("scrape_facts") or []
-    source = "asc_scrape" if scrape_facts else "asc_api"
-    # Seri scrape’ten gelmediyse kaynak etiketini netleştir
-    scraped_series = (
-        _series_from_scrape_facts(scrape_facts, metric_key, start=start_d, end=end_d)
-        if scrape_facts
-        else []
-    )
-    if scrape_facts and not scraped_series and series:
-        source = "asc_api"
-    elif scrape_facts and scraped_series:
-        source = "asc_scrape"
+    source = "asc_scrape"
 
     compare_payload = None
     if want_compare:
@@ -640,8 +479,6 @@ def query_asc_metric(
 
 def _asc_facets(metric: str, segments: list[str] | None = None) -> dict[str, Any]:
     dims = ["overview"]
-    if asc_client.sales_dimension_supported(metric):
-        dims.extend(["country", "device", "app_version"])
     return {
         "metrics": [m["value"] for m in metric_catalog()],
         "dims": dims,
@@ -721,12 +558,11 @@ def query_asc_overview(
 
     bid = (bundle_id or DEFAULT_BUNDLE).strip()
     scrape_facts_probe, scrape_meta_probe = _cached_scrape_facts()
-    api_ok = asc_client.is_configured()
-    if not api_ok and not scrape_facts_probe:
+    if not scrape_facts_probe:
         return {
             "ok": False,
             "configured": False,
-            "message": "ASC verisi yok ve API anahtarı yok.",
+            "message": "ASC tarama verisi yok — Mac’te console login + sync + ingest.",
             "bundles": [],
             "scrape_ok": False,
         }
@@ -776,7 +612,7 @@ def query_asc_overview(
     return {
         "ok": True,
         "configured": True,
-        "source": "asc_scrape" if scrape_ok else "asc_api",
+        "source": "asc_scrape",
         "app_id": DEFAULT_APP_ID,
         "bundle_id": bid,
         "start": start_d.isoformat(),
@@ -790,17 +626,16 @@ def query_asc_overview(
 
 
 def asc_metrics_status() -> dict[str, Any]:
-    configured = asc_client.is_configured()
-    vendor = bool((os.getenv("ASC_VENDOR_NUMBER") or "").strip())
     scrape_facts, scrape_meta = [], {}
     try:
         scrape_facts, scrape_meta = _cached_scrape_facts()
     except Exception:  # noqa: BLE001
         pass
+    scrape_ok = bool(scrape_facts)
     return {
-        "ok": configured or bool(scrape_facts),
-        "configured": configured,
-        "vendor_configured": vendor,
+        "ok": scrape_ok,
+        "configured": scrape_ok,
+        "vendor_configured": False,
         "scrape_ok": bool(scrape_facts),
         "scrape_fact_count": len(scrape_facts),
         "scrape_synced_at": scrape_meta.get("synced_at"),

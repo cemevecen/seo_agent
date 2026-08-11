@@ -803,52 +803,27 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
 
 
 def sync_notification_analytics(db: Session, *, force: bool = False) -> dict:
-    """Otomatik: Doviz admin/notifications/stats (credential varsa), değilse Google Sheet.
+    """Otomatik: Doviz admin/notifications/stats. Google Sheet yedek kapalı.
 
-    UI’ya bilgi girilmez — yalnızca Railway/env credentials.
-    Admin VPN/IP engelli hostlardan açılamazsa sheet yedeğine düşülür.
-    VPN makinesinden bridge (ingest) da aynı tabloyu doldurabilir.
+    UI’ya bilgi girilmez — Railway/env credentials veya Mac köprüsü ingest.
     """
     from backend.config import settings
-    from backend.services.doviz_notification_admin import (
-        admin_credentials_configured,
-        is_admin_vpn_unreachable_error,
-    )
+    from backend.services.doviz_notification_admin import admin_credentials_configured
 
     try_admin = bool(
         settings.doviz_admin_notification_sync_enabled and admin_credentials_configured()
     )
 
     if try_admin:
-        admin_result = sync_from_doviz_admin(db, force=force)
-        if admin_result.get("synced"):
-            return admin_result
-        if admin_result.get("skipped"):
-            skip_msg = str(admin_result.get("message") or "").lower()
-            if "taze" in skip_msg or "yeniden çekilmedi" in skip_msg:
-                return admin_result
-        admin_msg = str(admin_result.get("message") or "")
-        low = admin_msg.lower()
-        auth_fail = any(
-            x in low for x in ("şifre", "password", "hatalı e-mail", "hatali e-mail")
-        )
-        if auth_fail and not is_admin_vpn_unreachable_error(admin_msg):
-            return admin_result
-        if not settings.doviz_admin_sheet_fallback_enabled:
-            return admin_result
-        LOGGER.warning(
-            "Doviz admin auto-sync unreachable — Google Sheet fallback: %s",
-            admin_msg[:200],
-        )
+        return sync_from_doviz_admin(db, force=force)
 
-    sheet = sync_from_google_sheet(db, force=force)
-    if try_admin and sheet.get("synced"):
-        sheet["message"] = (
-            "Admin şu an erişilemedi; Google Sheet ile güncellendi. "
-            + (sheet.get("message") or "")
-        ).strip()
-        sheet["fallback_from"] = "doviz_admin"
-    return sheet
+    return {
+        "ok": False,
+        "synced": False,
+        "skipped": True,
+        "message": "Admin tarama yok — Mac köprüsü ingest bekleniyor.",
+        "source": "doviz_admin_bridge",
+    }
 
 
 def ingest_notification_rows(

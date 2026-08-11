@@ -390,8 +390,6 @@ def _build_stability_free_payload_locked(
     force_refresh: bool,
     cache_key: str,
 ) -> dict[str, Any]:
-    from backend.services import gp_client
-
     play_overall = free_rates_from_vitals_overview(vitals)
     # CF UI yalnızca S-Firebase — Play vitals crash-free alanını düşür (ANR kalsın)
     play_overall = {
@@ -401,63 +399,9 @@ def _build_stability_free_payload_locked(
         "crash_free_source": "disabled_use_firebase_console",
     }
 
-    versions = vitals.get("versions") if isinstance(vitals.get("versions"), list) else []
-    prefer_codes: list[str] = []
-    latest_name = None
-    for v in versions:
-        if isinstance(v, dict) and v.get("code"):
-            prefer_codes.append(str(v["code"]))
-            if latest_name is None and v.get("name"):
-                latest_name = str(v["name"])
-    name_map = vitals.get("version_name_map") if isinstance(vitals.get("version_name_map"), dict) else {}
-    if not prefer_codes and name_map:
-        prefer_codes = sorted(
-            (str(k) for k in name_map.keys() if str(k).isdigit()),
-            key=lambda x: int(x),
-            reverse=True,
-        )
-
     play_latest = None
     play_versions: list[dict[str, Any]] = []
     play_err = None
-    # Reporting yalnızca ANR — crash_free UI'da kullanılmaz
-    try:
-        if gp_client.is_configured():
-            rep = gp_client.fetch_version_stability_free(
-                package_name,
-                days=28,
-                prefer_codes=prefer_codes[:5] or None,
-            )
-            play_err = rep.get("error")
-            for row in rep.get("versions") or []:
-                if not isinstance(row, dict):
-                    continue
-                code = str(row.get("version_code") or "")
-                vname = row.get("version_name") or name_map.get(code) or latest_name
-                anr_rate = row.get("anr_rate_pct")
-                anr_users = row.get("anr_users")
-                anr_rate_fmt = _fmt_rate_pct(
-                    anr_rate if isinstance(anr_rate, (int, float)) else None
-                )
-                users_fmt = _fmt_compact_n(anr_users)
-                item = {
-                    **row,
-                    "version_name": vname,
-                    "crash_free_pct": None,
-                    "crash_free_fmt": None,
-                    "anr_free_fmt": _fmt_free(row.get("anr_free_pct")),
-                    "anr_rate_fmt": anr_rate_fmt,
-                    "users_fmt": users_fmt,
-                    "extra": _compact_extra(anr_rate_fmt, users_fmt) or None,
-                    "label": f"v{vname}" if vname else f"code {code}",
-                }
-                play_versions.append(item)
-            play_latest = _strip_play_latest_crash_free(
-                play_versions[0] if play_versions else None
-            )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("stability-free reporting (ANR): %s", exc)
-        play_err = str(exc)[:160]
 
     fb = firebase_console_stability_kpis()
     fb_plats = fb.get("platforms") if isinstance(fb.get("platforms"), dict) else {}

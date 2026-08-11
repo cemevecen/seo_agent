@@ -490,52 +490,6 @@ def build_gp_preview_payload(
     if pkg:
         payload = _overlay_stability_free(payload, pid, pkg)
 
-    # Reporting/GCS: yalnızca scrape kurulum+vitals tamamen boşsa
-    needs_api = (
-        payload["kpis"]["installs"].get("is_unavailable")
-        and payload["vitals"].get("crash_rate") is None
-        and payload["vitals"].get("anr_rate") is None
-    )
-    if needs_api and pkg:
-        try:
-            from backend.services import gp_client
-
-            if gp_client.is_configured():
-                api_live = gp_client.build_gp_analytics_payload(pkg, days=p)
-                if api_live:
-                    crash = api_live.get("crash_rate_latest")
-                    anr = api_live.get("anr_rate_latest")
-                    if crash is not None and payload["vitals"].get("crash_rate") is None:
-                        payload["vitals"]["crash_rate"] = round(crash * 100, 3)
-                        payload["vitals"]["crash_rate_label"] = f"{crash * 100:.2f}%"
-                    if anr is not None and payload["vitals"].get("anr_rate") is None:
-                        payload["vitals"]["anr_rate"] = round(anr * 100, 3)
-                        payload["vitals"]["anr_rate_label"] = f"{anr * 100:.2f}%"
-                    inst = api_live.get("install_stats") or {}
-                    if inst.get("installs_series") and payload["kpis"]["installs"].get("is_unavailable"):
-                        i_series = [float(x) for x in (inst.get("installs_series") or [])]
-                        u_series = [float(x) for x in (inst.get("uninstalls_series") or [])]
-                        total_i = int(inst.get("total_installs") or 0)
-                        total_u = int(inst.get("total_uninstalls") or 0)
-                        payload["kpis"]["installs"] = _kpi(float(total_i), series=i_series)
-                        payload["kpis"]["uninstalls"] = _kpi(float(total_u), series=u_series)
-                        payload["kpis"]["net_installs"] = _kpi(float(max(0, total_i - total_u)))
-                        payload["trend_daily"] = [
-                            {
-                                "i": k,
-                                "installs": round(i_series[k]),
-                                "uninstalls": round(u_series[k] if k < len(u_series) else 0),
-                            }
-                            for k in range(len(i_series))
-                        ]
-                        payload["trend_daily_is_demo"] = False
-                    payload["source"] = "api_fallback"
-                    payload["source_note"] = (
-                        "Konsol verisi yoktu — Play Reporting/GCS yedek (sentetik değil)."
-                    )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("GP API fallback başarısız: %s", exc)
-
     with _PREVIEW_CACHE_LOCK:
         _PREVIEW_CACHE[cache_key] = (time.time(), payload)
         if len(_PREVIEW_CACHE) > 48:

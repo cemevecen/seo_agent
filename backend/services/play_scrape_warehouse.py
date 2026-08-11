@@ -1,4 +1,4 @@
-"""Play Console scrape explorer — snapshot explorer_facts + Reporting API ANR kırılımları."""
+"""Play Console tarama explorer — snapshot explorer_facts (Reporting API yedek kapalı)."""
 
 from __future__ import annotations
 
@@ -384,80 +384,8 @@ def _enrich_reporting(
     end_d: date,
     package_name: str,
 ) -> tuple[list[dict[str, Any]], str | None]:
-    """ANR/crash sürüm / cihaz / OS / ülke kırılımını Reporting API’den ekle.
-
-    Scrape yalnızca tarih×OVERALL ANR/çökme sayıları tutar; boyut kırılımı API’den gelir
-    (oran × distinctUsers ≈ etkilenen kullanıcı).
-    """
-    api_dim = _DIM_TO_REPORTING.get(dim)
-    if not api_dim or metric_key not in ("anrs", "crashes"):
-        return facts, None
-    existing = [
-        f
-        for f in facts
-        if str(f.get("dim")) == dim
-        and str(f.get("metric")) == metric_key
-        and str(f.get("segment") or "") not in ("", "OVERALL", "all", "ALL")
-    ]
-    if existing:
-        covered_dates: list[date] = []
-        for f in existing:
-            try:
-                covered_dates.append(date.fromisoformat(str(f.get("date") or "")[:10]))
-            except ValueError:
-                continue
-        if (
-            len(existing) >= 8
-            and covered_dates
-            and min(covered_dates) <= start_d
-            and max(covered_dates) >= end_d - timedelta(days=3)
-        ):
-            return facts, None
-    if not gp_client.is_configured():
-        return facts, (
-            "Sürüm/cihaz/OS ANR için Railway’de GP_SERVICE_ACCOUNT_JSON gerekir "
-            "(Play Reporting API). Sync yalnızca tarih bazlı ANR sayıları tutar."
-        )
-    try:
-        if metric_key == "anrs":
-            extra = gp_client.fetch_anr_by_dimension(
-                package_name, dimension=api_dim, start=start_d, end=end_d
-            )
-            last_err = getattr(gp_client.fetch_anr_by_dimension, "last_error", None)
-        else:
-            extra = gp_client.fetch_crash_by_dimension(
-                package_name, dimension=api_dim, start=start_d, end=end_d
-            )
-            last_err = getattr(gp_client.fetch_crash_by_dimension, "last_error", None)
-    except Exception as exc:  # noqa: BLE001
-        return facts, f"Reporting API hata: {exc}"
-    if not extra:
-        hint = last_err or "yanıt boş"
-        return facts, (
-            f"Reporting API boş ({api_dim}: {hint}). "
-            "Play Console → Kullanıcılar ve izinler → service account’a "
-            "«Uygulama bilgilerini görüntüleme» + Reporting erişimi ver; "
-            "API’de playdeveloperreporting etkin olsun. "
-            "Mac bridge ile OS/sürüm ANR sayfaları da eklenebilir."
-        )
-    # Aynı dim+metric eski satırları temizle (overview OVERALL kalsın)
-    kept = [
-        f
-        for f in facts
-        if not (
-            str(f.get("metric")) == metric_key
-            and str(f.get("dim")) == dim
-            and str(f.get("source") or "").startswith("reporting_api")
-        )
-    ]
-    src = str((extra[0] or {}).get("source") or "reporting_api")
-    kind = str((extra[0] or {}).get("value_kind") or "")
-    unit = (
-        "mutlak ANR/çökme raporu"
-        if kind == "error_report_count"
-        else "yaklaşık etkilenen kullanıcı (oran×kullanıcı)"
-    )
-    return kept + extra, f"Reporting API +{len(extra)} satır ({api_dim}→{dim}, {src}, {unit})"
+    """Reporting API yedek kapalı — tarama fact'lerine dokunulmaz."""
+    return facts, None
 
 
 def _aggregate(
@@ -978,15 +906,13 @@ def query_scrape_analytics(
         msg += " · kümülatif→günlük artış"
     if not series and dim in _DIM_TO_REPORTING and metric_key in ("anrs", "crashes"):
         msg = (
-            f"ANR/çökme `{dim}` kırılımı boş. "
-            "Sync yalnızca tarih bazlı sayıları tutar; sürüm/cihaz/OS/ülke "
-            "Play Reporting API’den gelir. "
-            + (enrich_msg or "Reporting yanıtı yok — GP_SERVICE_ACCOUNT_JSON / playdeveloperreporting yetkisini kontrol et.")
+            f"ANR/çökme `{dim}` kırılımı tarama verisinde yok. "
+            "Sync tarih bazlı sayıları tutar."
         )
 
     out = {
         "ok": bool(series),
-        "source": "scrape+reporting" if enrich_msg and "Reporting" in (enrich_msg or "") else "scrape",
+        "source": "scrape",
         "configured": True,
         "bucket": False,
         "message": msg,

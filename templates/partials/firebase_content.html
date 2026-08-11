@@ -228,7 +228,7 @@
           <span class="crash-motion-pulse" aria-hidden="true"></span>
           <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Crashlytics</h2>
         </div>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Kaynak: /android Play Console · /ios stability-free (+ Crashlytics peek)</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Kaynak: /android Play Console · /ios stability-free</p>
       </div>
       <div class="flex flex-wrap items-stretch gap-2 sm:items-center">
         {% if crash_products|length > 1 %}
@@ -239,10 +239,6 @@
           {% endfor %}
         </div>
         {% endif %}
-        <button type="button" id="crash-diagnose-btn"
-          class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
-          BQ Teşhis
-        </button>
         <button id="crash-refresh-btn" type="button"
           class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
           <span id="crash-refresh-icon">↺</span> Manuel Yenile

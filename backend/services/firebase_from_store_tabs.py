@@ -1,8 +1,7 @@
-"""Firebase sekmesi — /android + /ios scrape / stability-free kaynakları.
+"""Firebase sekmesi — /android + /ios tarama / stability-free kaynakları.
 
-BigQuery Crashlytics tam export yerine Play Console vitals scrape +
-stability-free (+ iOS Crashlytics peek) kullanır. Android cihaz/OS kırılımı
-önce explorer_facts; Reporting yalnızca scrape boşsa. Sentetik veri yok.
+Play Console vitals + stability-free. Reporting API ve BigQuery peek yedek kapalı.
+Sentetik veri yok.
 """
 
 from __future__ import annotations
@@ -891,21 +890,11 @@ def _build_firebase_tab_payload_uncached(
 
     try:
         android_device, android_os = _android_breakdowns_from_scrape(days=bd_days)
-        # Scrape henüz cihaz/OS fact tutmuyorsa Reporting yedek
-        if not android_device and not android_os:
-            android_device, android_os = _android_breakdowns_from_reporting(
-                package, days=bd_days
-            )
     except Exception:
         logger.debug("firebase android scrape breakdown failed", exc_info=True)
 
     try:
         android_version_trend = _android_version_trend_from_scrape(days=bd_days)
-        if not android_version_trend:
-            name_map = vitals.get("version_name_map") if isinstance(vitals.get("version_name_map"), dict) else None
-            android_version_trend = _android_version_trend_from_reporting(
-                package, days=bd_days, name_map=name_map
-            )
     except Exception:
         logger.debug("firebase android version trend failed", exc_info=True)
 
@@ -930,70 +919,6 @@ def _build_firebase_tab_payload_uncached(
     if ios_version_rows:
         ios_fatal = sum(int(r.get("fatal_count") or 0) for r in ios_version_rows)
         ios_affected = sum(int(r.get("affected_users") or 0) for r in ios_version_rows)
-
-    try:
-        from backend.services import crashlytics_bq as cbq
-
-        bq = cbq.peek_cached_payload(pid, days=7, platform_filter="all")
-        if bq and bq.get("ok") is not False:
-            # Yalnızca iOS dilimleri — Android BQ satırları Play scrape'e karışmaz
-            raw_ios_issues = (bq.get("issues_by_platform") or {}).get("ios") or []
-            ios_issues = [
-                enrich_issue_row({**r, "platform": "ios"}, days=int(bq.get("days") or 7))
-                for r in raw_ios_issues
-                if isinstance(r, dict)
-            ]
-            raw_ios_anr = (bq.get("anr_by_platform") or {}).get("ios") or []
-            ios_anr = [
-                enrich_issue_row({**r, "platform": "ios"}, days=int(bq.get("days") or 7))
-                for r in raw_ios_anr
-                if isinstance(r, dict)
-            ]
-            bq_ios_sum = (bq.get("summary_by_platform") or {}).get("ios") or {}
-            if bq_ios_sum:
-                ios_fatal = int(bq_ios_sum.get("fatal") or ios_fatal or 0)
-                ios_anr_n = int(bq_ios_sum.get("anr") or ios_anr_n or 0)
-                ios_affected = int(bq_ios_sum.get("affected_users") or ios_affected or 0)
-            if not ios_cf_block:
-                bq_cf = (bq.get("crash_free_by_platform") or {}).get("ios")
-                ios_cf_block = _cf_from_sf_block(bq_cf, method="ios_crashlytics_peek")
-                if ios_cf_block:
-                    crash_free_by_plat["ios"] = ios_cf_block
-            bq_ios_vers = (bq.get("versions_by_platform") or {}).get("ios") or []
-            if bq_ios_vers and not ios_version_rows:
-                ios_version_rows = [r for r in bq_ios_vers if isinstance(r, dict)][:12]
-            bq_filt = (bq.get("filter_versions_by_platform") or {}).get("ios") or []
-            if bq_filt:
-                ios_filter_versions = [str(x).strip() for x in bq_filt if str(x).strip()][:12]
-            ios_device = (bq.get("device_breakdown_by_platform") or {}).get("ios") or []
-            ios_os = (bq.get("os_breakdown_by_platform") or {}).get("ios") or []
-            ios_process = (bq.get("process_state_breakdown_by_platform") or {}).get("ios") or []
-            ios_trend = (bq.get("trend_by_platform") or {}).get("ios") or []
-            bq_ios_vt = (bq.get("version_trend_by_platform") or {}).get("ios") or []
-            if bq_ios_vt:
-                ios_version_trend = [
-                    {**r, "platform": r.get("platform") or "ios"}
-                    for r in bq_ios_vt
-                    if isinstance(r, dict)
-                ]
-            bq_and_vt = (bq.get("version_trend_by_platform") or {}).get("android") or []
-            if bq_and_vt and not android_version_trend:
-                android_version_trend = [
-                    {**r, "platform": r.get("platform") or "android"}
-                    for r in bq_and_vt
-                    if isinstance(r, dict)
-                ]
-            # Android cihaz/OS: scrape+Reporting boşsa Crashlytics peek (iOS ile aynı kaynak)
-            if not android_device:
-                android_device = (bq.get("device_breakdown_by_platform") or {}).get("android") or []
-            if not android_os:
-                android_os = (bq.get("os_breakdown_by_platform") or {}).get("android") or []
-            if not ios_affected and ios_issues:
-                ios_affected = sum(int(r.get("affected_users") or 0) for r in ios_issues)
-            if not ios_fatal and ios_issues:
-                ios_fatal = sum(int(r.get("event_count") or 0) for r in ios_issues)
-    except Exception:
-        logger.debug("firebase ios BQ peek failed", exc_info=True)
 
     if not ios_filter_versions and ios_cf.get("latest_version"):
         ios_filter_versions = [str(ios_cf["latest_version"])]

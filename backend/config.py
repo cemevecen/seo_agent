@@ -476,7 +476,7 @@ class Settings(BaseSettings):
             "doviz_admin_news_direct_scrape",
         ),
     )
-    # Admin VPN’den erişilemezse Google Sheet’e düş — Doviz News için kapalı (admin tek kaynak).
+    # Google Sheet yedek iptal (Notification / Doviz News yalnızca admin tarama).
     doviz_admin_sheet_fallback_enabled: bool = Field(
         default=False,
         validation_alias=AliasChoices(
