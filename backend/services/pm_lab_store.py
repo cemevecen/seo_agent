@@ -29,25 +29,25 @@ SECTION_DEFS: list[dict[str, Any]] = [
     {
         "id": "serp",
         "no": 2,
-        "title": "SERP — ilk 4 sayfa",
+        "title": "SERP — first 4 pages",
         "hint": "",
     },
     {
         "id": "competitors",
         "no": 3,
-        "title": "Rakip kur fiyatları karşılaştırma",
+        "title": "Competitor FX price comparison",
         "hint": "",
     },
     {
         "id": "store_charts",
         "no": 12,
-        "title": "Play / App Store kategori listeleri",
+        "title": "Play / App Store category charts",
         "hint": "",
     },
     {
         "id": "google_news",
         "no": 17,
-        "title": "Google News vitrin",
+        "title": "Google News showcase",
         "hint": "",
     },
 ]

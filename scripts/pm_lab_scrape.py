@@ -1836,8 +1836,8 @@ def job_store_charts(page: Any) -> dict[str, Any]:
     charts.append(
         {
             "id": "android",
-            "title": "Play · Finans ücretsiz (TR)",
-            "our_label": f"Döviz #{ours['rank']} / {len(play_apps)}" if ours else f"Döviz listede yok · {len(play_apps)} uygulama",
+            "title": "Play · Finance free (TR)",
+            "our_label": f"Döviz #{ours['rank']} / {len(play_apps)}" if ours else f"Döviz not listed · {len(play_apps)} apps",
             "apps": play_apps,
         }
     )
@@ -1849,8 +1849,8 @@ def job_store_charts(page: Any) -> dict[str, Any]:
     charts.append(
         {
             "id": "ios",
-            "title": "App Store · Finance ücretsiz (TR)",
-            "our_label": f"Döviz #{ours_ios['rank']} / {len(ios_apps)}" if ours_ios else f"Döviz listede yok · {len(ios_apps)} uygulama",
+            "title": "App Store · Finance free (TR)",
+            "our_label": f"Döviz #{ours_ios['rank']} / {len(ios_apps)}" if ours_ios else f"Döviz not listed · {len(ios_apps)} apps",
             "apps": ios_apps,
         }
     )

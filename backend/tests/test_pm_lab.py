@@ -38,6 +38,12 @@ def test_live_sections():
         "google_news",
     ]
     assert [s["no"] for s in SECTION_DEFS] == [2, 3, 12, 17]
+    assert [s["title"] for s in SECTION_DEFS] == [
+        "SERP — first 4 pages",
+        "Competitor FX price comparison",
+        "Play / App Store category charts",
+        "Google News showcase",
+    ]
     assert not any(s["id"] == "sikayet" for s in SECTION_DEFS)
     assert not any("şikayetvar" in (s.get("title") or "").lower() for s in SECTION_DEFS)
 
@@ -130,7 +136,7 @@ def test_template_has_no_photos_and_js_shell():
     js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
     assert "renderSerp" in js
     assert "renderCompetitors" in js
-    assert 'concat(["Toplam"])' in js
+    assert 'concat(["Total"])' in js
     assert "missRank" in js
     assert "function tabs(labels, onPick, active)" in js
     assert "rankDeltaHtml" in js
@@ -509,8 +515,8 @@ def test_pm_lab_doviz_rank_chip_labels():
     html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
-    assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=25" in html
+    assert "doviz.com rank:" in js
+    assert "pm_lab.js?v=26" in html
     assert COMPETITORS_INTERVAL_MIN == 10
     assert "fiyat " not in js
     assert "Fotoğraf yok" not in html
@@ -589,10 +595,10 @@ def test_competitor_sapma_vs_peer_average():
     assert any(s.startswith("Doviz - Foreks sapma - Dolar - ") for s in subjects)
     js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
     html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
-    assert 'label: "ort. sapma"' in js
+    assert 'label: "avg. deviation"' in js
     assert "ensureSiteColumns" in js
     assert "ids.paratic" in js
-    assert 'label: "Foreks sapma"' in js
+    assert 'label: "Foreks deviation"' in js
     assert "c.id === \"doviz\"" in js
     assert "pml-sapma-hot" in html
     assert "computeSapma" in js

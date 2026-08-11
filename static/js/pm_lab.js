@@ -53,7 +53,7 @@
     }
     var max = 1;
     chart.innerHTML =
-      '<div class="pml-spark" title="Son taramalar">' +
+      '<div class="pml-spark" title="Recent scans">' +
       runs
         .map(function (r) {
           var h = 8 + Math.round(20 * (r.ok ? 1 : 0.35));
@@ -128,7 +128,7 @@
     labels.forEach(function (lab, i) {
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "pml-tab" + (i === on ? " is-on" : "") + (lab === "Toplam" ? " pml-tab-total" : "");
+      b.className = "pml-tab" + (i === on ? " is-on" : "") + (lab === "Total" ? " pml-tab-total" : "");
       b.textContent = lab;
       b.addEventListener("click", function () {
         Array.prototype.forEach.call(bar.children, function (x) {
@@ -145,7 +145,7 @@
   function renderSerp(root, data) {
     var kws = data.keywords || [];
     if (!kws.length) {
-      root.textContent = "Henüz SERP taraması yok.";
+      root.textContent = "No SERP scan yet.";
       return;
     }
     var moves = (data.runs || []).slice(-1)[0];
@@ -153,11 +153,11 @@
     head.className = "flex flex-wrap gap-1.5 mb-3";
     var m = (moves && moves.moves) || {};
     head.innerHTML =
-      chip((data.row_count || kws.reduce(function (n, k) { return n + (k.row_count || (k.rows || []).length); }, 0)) + " satır") +
-      chip("girdi " + (m.entered || 0), "pml-chip-new") +
-      chip("çıktı " + (m.dropped || 0), "pml-chip-down") +
-      chip("yükselen " + (m.up || 0), "pml-chip-up") +
-      chip("düşen " + (m.down || 0), "pml-chip-down");
+      chip((data.row_count || kws.reduce(function (n, k) { return n + (k.row_count || (k.rows || []).length); }, 0)) + " rows") +
+      chip("in " + (m.entered || 0), "pml-chip-new") +
+      chip("out " + (m.dropped || 0), "pml-chip-down") +
+      chip("up " + (m.up || 0), "pml-chip-up") +
+      chip("down " + (m.down || 0), "pml-chip-down");
     var spark = document.createElement("div");
     spark.className = "pml-spark mb-3";
     (data.runs || []).slice(-16).forEach(function (r) {
@@ -189,18 +189,18 @@
       meta.className = "flex flex-wrap gap-1.5 mb-2";
       var mv = kw.moves || {};
       meta.innerHTML =
-        chip("doviz.com: " + (kw.our_rank || "yok"), "pml-chip-doviz") +
-        chip("+" + (mv.entered || 0) + " girdi", "pml-chip-new") +
-        chip((mv.dropped || 0) + " çıktı", "pml-chip-down");
+        chip("doviz.com: " + (kw.our_rank || "—"), "pml-chip-doviz") +
+        chip("+" + (mv.entered || 0) + " in", "pml-chip-new") +
+        chip((mv.dropped || 0) + " out", "pml-chip-down");
       var drop = (kw.dropped || [])
         .map(function (d) {
-          return esc(d.domain) + " (eski #" + d.prev_rank + ")";
+          return esc(d.domain) + " (prev #" + d.prev_rank + ")";
         })
         .join(" · ");
       if (drop) {
         var p = document.createElement("p");
         p.className = "pml-note";
-        p.textContent = "Çıkanlar: " + drop;
+        p.textContent = "Dropped: " + drop;
         meta.appendChild(p);
       }
       var rows = (kw.rows || []).map(function (r) {
@@ -218,7 +218,7 @@
         );
       });
       stage.appendChild(meta);
-      stage.appendChild(sortableTable(["Sıra", "Sayfa", "Domain", "Başlık / meta", "Snippet"], rows));
+      stage.appendChild(sortableTable(["Rank", "Page", "Domain", "Title / meta", "Snippet"], rows));
     }
 
     function paintTotal() {
@@ -262,18 +262,18 @@
       meta.className = "flex flex-wrap gap-1.5 mb-2";
       meta.innerHTML =
         chip(sites.length + " site") +
-        chip("yoksa #" + missRank, "") +
-        chip("doviz ort. " + (ours ? ours.avg.toFixed(1) : "yok"), "pml-chip-doviz") +
-        (ours ? chip("göründü " + ours.hit + "/" + kws.length, "pml-chip-doviz") : "");
+        chip("if missing #" + missRank, "") +
+        chip("doviz avg. " + (ours ? ours.avg.toFixed(1) : "—"), "pml-chip-doviz") +
+        (ours ? chip("seen " + ours.hit + "/" + kws.length, "pml-chip-doviz") : "");
       var note = document.createElement("p");
       note.className = "pml-note";
       note.textContent =
-        "Ortalama = 8 kelimedeki en iyi sıra. İlk " +
+        "Average = best rank across 8 queries. Missing from the first " +
         pages +
-        " sayfada yoksa " +
+        " pages counts as " +
         missRank +
-        " yazılır (4×10+1).";
-      var headers = ["Domain", "Ort. sıra", "Göründü"].concat(
+        " (4×10+1).";
+      var headers = ["Domain", "Avg. rank", "Seen"].concat(
         kws.map(function (k) {
           return k.keyword;
         })
@@ -315,7 +315,7 @@
           .map(function (k) {
             return k.keyword;
           })
-          .concat(["Toplam"]),
+          .concat(["Total"]),
         paint
       )
     );
@@ -444,14 +444,14 @@
         synthetic: c.synthetic,
       });
       if (!inserted && c.id === "doviz") {
-        out.push({ id: "sapma", label: "ort. sapma", synthetic: true });
-        out.push({ id: "foreks_sapma", label: "Foreks sapma", synthetic: true });
+        out.push({ id: "sapma", label: "avg. deviation", synthetic: true });
+        out.push({ id: "foreks_sapma", label: "Foreks deviation", synthetic: true });
         inserted = true;
       }
     });
     if (!inserted && out.length) {
-      out.splice(1, 0, { id: "sapma", label: "ort. sapma", synthetic: true });
-      out.splice(2, 0, { id: "foreks_sapma", label: "Foreks sapma", synthetic: true });
+      out.splice(1, 0, { id: "sapma", label: "avg. deviation", synthetic: true });
+      out.splice(2, 0, { id: "foreks_sapma", label: "Foreks deviation", synthetic: true });
     }
     return out;
   }
@@ -487,10 +487,10 @@
     var cols = withSapmaColumn(ensureSiteColumns(data.columns || []));
     var matrix = sortAssetRows(data.matrix || []);
     if (!matrix.length) {
-      root.textContent = "Fiyat matrisi henüz yok.";
+      root.textContent = "No price matrix yet.";
       return;
     }
-    var headers = ["Varlık"].concat(cols.map(function (c) { return c.label; }));
+    var headers = ["Asset"].concat(cols.map(function (c) { return c.label; }));
     var rows = matrix.map(function (r) {
       var sapma = computeSapma(r.id, r.cells || {});
       var foreksSapma = computeForeksSapma(r.id, r.cells || {});
@@ -508,12 +508,12 @@
           }
           var title =
             c.id === "foreks_sapma"
-              ? "Döviz vs Foreks · eşik ±" + String(rec.warn).replace(".", ",") + "% (hacim)"
-              : "Döviz vs diğer " +
+              ? "Döviz vs Foreks · threshold ±" + String(rec.warn).replace(".", ",") + "% (volume)"
+              : "Döviz vs peer mean (" +
                 rec.n +
-                " sitenin ortalaması · eşik ±" +
+                ") · threshold ±" +
                 String(rec.warn).replace(".", ",") +
-                "% (hacim)";
+                "% (volume)";
           var note =
             c.id === "foreks_sapma"
               ? "±" + String(rec.warn).replace(".", ",") + "%"
@@ -548,7 +548,7 @@
   }
 
   function rankDeltaHtml(a) {
-    if (a.delta === "new") return '<span class="pml-chip pml-chip-new">yeni</span>';
+    if (a.delta === "new") return '<span class="pml-chip pml-chip-new">new</span>';
     if (a.delta === "up") return '<span class="pml-delta-up">↑ ' + (a.delta_n || 0) + "</span>";
     if (a.delta === "down") return '<span class="pml-delta-down">↓ ' + Math.abs(a.delta_n || 0) + "</span>";
     if (a.delta === "same") return '<span class="pml-miss">—</span>';
@@ -604,10 +604,17 @@
     );
   }
 
+  function storeColTitle(ch) {
+    var id = String((ch && ch.id) || "").toLowerCase();
+    if (id === "android" || id === "play") return "Play · Finance free (TR)";
+    if (id === "ios" || id.indexOf("ios") >= 0 || id.indexOf("appstore") >= 0) return "App Store · Finance free (TR)";
+    return (ch && ch.title) || "";
+  }
+
   function paintStoreCol(host, ch, q) {
     host.innerHTML = "";
     if (!ch) {
-      host.textContent = "Liste yok.";
+      host.textContent = "No list.";
       return;
     }
     var mv = ch.moves || {};
@@ -617,28 +624,28 @@
       '<h4 class="pml-col-title text-sm font-bold text-slate-800 dark:text-zinc-100">' +
       platIconHtml(ch) +
       "<span>" +
-      esc(ch.title || "") +
+      esc(storeColTitle(ch)) +
       "</span></h4>";
     var meta = document.createElement("div");
     meta.className = "flex flex-wrap gap-1.5 mb-2";
     meta.innerHTML = mv.reset
-      ? chip(ch.our_label || "") + chip("Δ sonraki taramada")
+      ? chip(ch.our_label || "") + chip("Δ next scan")
       : chip(ch.our_label || "") +
         chip("↑ " + (mv.up || 0), "pml-chip-up") +
         chip("↓ " + (mv.down || 0), "pml-chip-down") +
-        chip("yeni " + (mv.new || 0), "pml-chip-new") +
-        chip("çıktı " + (mv.dropped || 0), "pml-chip-down");
+        chip("new " + (mv.new || 0), "pml-chip-new") +
+        chip("out " + (mv.dropped || 0), "pml-chip-down");
     host.appendChild(head);
     host.appendChild(meta);
     if ((ch.dropped || []).length) {
       var drop = document.createElement("p");
       drop.className = "pml-note";
       drop.textContent =
-        "Çıkanlar: " +
+        "Dropped: " +
         ch.dropped
           .slice(0, 8)
           .map(function (d) {
-            return (d.name || d.id) + " (eski #" + d.prev_rank + ")";
+            return (d.name || d.id) + " (prev #" + d.prev_rank + ")";
           })
           .join(" · ");
       host.appendChild(drop);
@@ -659,13 +666,13 @@
           (a.is_ours ? "pml-ours pml-doviz " : "") + heat
         );
       });
-    host.appendChild(sortableTable(["Sıra", "Δ", "Uygulama"], rows, { wide: false }));
+    host.appendChild(sortableTable(["Rank", "Δ", "App"], rows, { wide: false }));
   }
 
   function renderStore(root, data) {
     var charts = data.charts || [];
     if (!charts.length) {
-      root.textContent = "Liste yok.";
+      root.textContent = "No list.";
       return;
     }
     var android = chartById(charts, "android") || chartById(charts, "play") || charts[0];
@@ -676,7 +683,7 @@
     search.className = "pml-search";
     search.setAttribute("inputmode", "search");
     search.setAttribute("autocomplete", "off");
-    search.placeholder = "Uygulama ara…";
+    search.placeholder = "Search apps…";
     tools.appendChild(search);
     var split = document.createElement("div");
     split.className = "pml-store-split";
@@ -702,7 +709,7 @@
     var avgs = data.source_averages || data.source_counts || [];
     var head = document.createElement("div");
     head.className = "mb-3";
-    head.innerHTML = chip((data.article_total || 0) + " haber") + " " + chip((data.runs || []).length + " tarama");
+    head.innerHTML = chip((data.article_total || 0) + " stories") + " " + chip((data.runs || []).length + " scans");
     var bars = document.createElement("div");
     bars.className = "mb-4";
     var max = 1;
@@ -719,7 +726,7 @@
         "</span><div class=\"pml-bar-track\"><div class=\"pml-bar-fill\" style=\"width:" +
         w +
         '%"></div></div>' +
-        chip((s.count || 0) + " · ort " + (s.avg != null ? s.avg : s.count), "");
+        chip((s.count || 0) + " · avg " + (s.avg != null ? s.avg : s.count), "");
       bars.appendChild(row);
     });
     var spark = document.createElement("div");
@@ -745,7 +752,7 @@
       });
       var meta = document.createElement("div");
       meta.className = "flex flex-wrap gap-1.5 mb-2";
-      meta.innerHTML = chip("doviz.com sıra: " + (our || "yok"), "pml-chip-doviz");
+      meta.innerHTML = chip("doviz.com rank: " + (our || "—"), "pml-chip-doviz");
       stage.appendChild(meta);
       var rows = arts.map(function (a, n) {
         var ours = newsIsDoviz(a);
@@ -759,7 +766,7 @@
           ours ? "pml-ours pml-doviz" : ""
         );
       });
-      stage.appendChild(sortableTable(["#", "Başlık", "Kaynak", "Zaman"], rows));
+      stage.appendChild(sortableTable(["#", "Title", "Source", "Time"], rows));
     }
     root.appendChild(head);
     root.appendChild(spark);
@@ -810,13 +817,13 @@
     node.innerHTML = "";
     var fn = renderers[id];
     if (!fn) {
-      node.textContent = (data && data.message) || "Bu blok henüz yok.";
+      node.textContent = (data && data.message) || "This section is empty.";
       return;
     }
     try {
       fn(node, data || {});
     } catch (err) {
-      node.textContent = "Çizim hatası: " + err;
+      node.textContent = "Render error: " + err;
     }
     var timeEl = document.querySelector('time[data-pml-when="' + id + '"]');
     if (timeEl && data && data.scraped_at) {
@@ -843,11 +850,11 @@
     var started = Date.now();
     function tick() {
       if (Date.now() - started > timeoutMs) {
-        return Promise.reject(new Error("Tarama zaman aşımı"));
+        return Promise.reject(new Error("Scan timed out"));
       }
       return fetch("/api/pm-lab/state", { credentials: "same-origin", headers: { Accept: "application/json" } })
         .then(function (resp) {
-          if (!resp.ok) throw new Error("Durum alınamadı");
+          if (!resp.ok) throw new Error("Could not load status");
           return resp.json();
         })
         .then(function (state) {
@@ -864,7 +871,7 @@
     if (!id || refreshing[id]) return;
     refreshing[id] = true;
     var prevAt = String((sections[id] || {}).scraped_at || "");
-    setRefreshBtn(btn, true, "Taranıyor…");
+    setRefreshBtn(btn, true, "Scanning…");
     fetch(BRIDGE + "/sync-pm-lab?jobs=" + encodeURIComponent(id), {
       method: "POST",
       mode: "cors",
@@ -879,26 +886,26 @@
       })
       .then(function (out) {
         if (out.resp.status === 409) {
-          throw new Error((out.data && out.data.message) || "Başka bir tarama sürüyor");
+          throw new Error((out.data && out.data.message) || "Another scan is already running");
         }
         if (!out.resp.ok || out.data.ok === false) {
-          throw new Error((out.data && out.data.message) || "Tarama başlatılamadı");
+          throw new Error((out.data && out.data.message) || "Could not start scan");
         }
-        setRefreshBtn(btn, true, "Bekleniyor…");
+        setRefreshBtn(btn, true, "Waiting…");
         return pollSection(id, prevAt, JOB_WAIT_MS[id] || 12 * 60 * 1000);
       })
       .then(function (state) {
         var block = ((state || {}).sections || {})[id] || {};
         paintCard(id, block);
         renderStatus();
-        setRefreshBtn(btn, false, "Yenile");
+        setRefreshBtn(btn, false, "Refresh");
       })
       .catch(function (err) {
         var msg = String((err && err.message) || err || "");
         if (/Failed to fetch|NetworkError|Load failed|fetch/i.test(msg)) {
-          msg = "Mac köprü kapalı (127.0.0.1:18765)";
+          msg = "Mac bridge is offline (127.0.0.1:18765)";
         }
-        setRefreshBtn(btn, false, "Yenile");
+        setRefreshBtn(btn, false, "Refresh");
         window.alert(msg);
       })
       .then(function () {

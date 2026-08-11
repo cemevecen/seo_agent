@@ -13514,7 +13514,7 @@ def pm_lab_page(request: Request):
     with SessionLocal() as db:
         ctx = page_context(db)
         payload = {
-            "site_name": "PM lab",
+            "site_name": "PM Lab",
             "sites": get_sidebar_sites(),
             **ctx,
         }
