@@ -453,7 +453,7 @@
       : (nt().fmtCount ? nt().fmtCount(prevVal) : prevVal);
     var tone = deltaTone(delta);
     var extra = opts.share != null ? " · pay %" + Number(opts.share).toFixed(1) : "";
-    return '<article class="nt-kpi-ss2" style="--kpi-color:' + deltaColor(delta) + '">'
+    return '<article class="nt-kpi-ss2">'
       + '<div class="nt-kpi-ss2-head"><span class="nt-kpi-chip">' + enCapsLabel(label) + "</span></div>"
       + '<div class="nt-kpi-ss2-main">'
       + '<div class="nt-kpi-ss2-metrics">'
@@ -640,24 +640,20 @@
     var prev = previousPeriodRange(range.start, range.end);
     if (!prev) {
       el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Dönem karşılaştırması için başlangıç ve bitiş tarihi seçin.</p>';
-      clearTopKpiCompare();
       return;
     }
     el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Karşılaştırma yükleniyor…</p>';
-    setTopKpiCompareLoading();
     var curStats = aggregatePeriod(primaryRows);
     fetchRowsForRange(prev).then(function (prevRows) {
       var prevStats = aggregatePeriod(prevRows);
       var curDaily = aggregateDailyForCompare(primaryRows);
       var prevDaily = aggregateDailyForCompare(prevRows);
-      renderTopKpiCompare(curStats, prevStats, curDaily, prevDaily);
       lastComparePayload = { current: curStats, previous: prevStats, ranges: { primary: range, compare: prev } };
       function delta(cur, prevVal) {
         return compareDelta(cur, prevVal);
       }
       var clickD = delta(curStats.clicks, prevStats.clicks);
       var imprD = delta(curStats.impressions, prevStats.impressions);
-      var ctrD = delta(curStats.ctr, prevStats.ctr);
       var platHtml = ["desktop", "mobileweb", "android", "ios"].map(function (k) {
         var labels = { desktop: "Web", mobileweb: "MWeb", android: "Android", ios: "iOS" };
         var sparkIds = { desktop: "nt-spark-desktop", mobileweb: "nt-spark-mobileweb", android: "nt-spark-android", ios: "nt-spark-ios" };
@@ -668,25 +664,20 @@
       }).join("");
       el.innerHTML = '<p class="mb-2 text-xs text-slate-500 dark:text-slate-400">'
         + range.start + " – " + range.end + " vs " + prev.start + " – " + prev.end + "</p>"
-        + '<div class="nt-cmp-grid nt-cmp-grid--3">'
+        + '<div class="nt-cmp-grid">'
         + periodKpiCard("nt-spark-clicks", "Toplam click", curStats.clicks, prevStats.clicks, clickD, { spark: sparkForKey(curDaily, prevDaily, "clicks") })
         + periodKpiCard("nt-spark-impressions", "Toplam impression", curStats.impressions, prevStats.impressions, imprD, { spark: sparkForKey(curDaily, prevDaily, "impressions") })
-        + periodKpiCard("nt-spark-ctr", "CTR (web+android impr)", curStats.ctr, prevStats.ctr, ctrD, { pct: true, spark: sparkForKey(curDaily, prevDaily, "ctr") })
+        + platHtml
         + "</div>"
-        + '<div class="nt-cmp-grid nt-cmp-grid--4 mt-3">' + platHtml + "</div>"
-        + '<div class="nt-cmp-grid nt-cmp-grid--2 mt-3">'
-        + periodKpiCard("nt-spark-app", "App (Android+iOS)", curStats.app, prevStats.app, delta(curStats.app, prevStats.app), { spark: sparkForKey(curDaily, prevDaily, "app") })
-        + periodKpiCard("nt-spark-web", "Web (Desktop+MWeb)", curStats.web, prevStats.web, delta(curStats.web, prevStats.web), { spark: sparkForKey(curDaily, prevDaily, "web") })
-        + "</div>"
-        + '<div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">'
+        + '<div class="nt-cmp-charts">'
         + '<div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">'
         + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük click endeksi</p>'
         + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">İlk gün = 100 · yeşil seçili · turuncu noktalı önceki · şekil karşılaştırması</p>'
-        + '<div id="nt-period-trend-chart" class="mt-2 h-[200px] w-full"></div></div>'
+        + '<div id="nt-period-trend-chart" class="nt-cmp-chart-plot mt-2"></div></div>'
         + '<div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">'
         + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Platform % değişim</p>'
         + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Seçili dönem vs önceki · yeşil artış · kırmızı düşüş</p>'
-        + '<div id="nt-period-platform-chart" class="mt-2 h-[200px] w-full"></div></div>'
+        + '<div id="nt-period-platform-chart" class="nt-cmp-chart-plot mt-2"></div></div>'
         + "</div>";
       scheduleNtPeriodCharts(curDaily, prevDaily);
     }).catch(function () {

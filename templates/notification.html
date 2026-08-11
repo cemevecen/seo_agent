@@ -66,53 +66,6 @@
     </div>
   </div>
 
-  <div class="nt-kpi-strip grid grid-cols-2 gap-3 sm:grid-cols-4">
-    <article class="nt-kpi-ss2" data-nt-top-kpi="rows">
-      <div class="nt-kpi-ss2-head"><span class="nt-kpi-chip">Toplam kayıt</span></div>
-      <div class="nt-kpi-ss2-main">
-        <div class="nt-kpi-ss2-metrics">
-          <p id="nt-kpi-rows-delta" class="nt-kpi-ss2-delta is-flat">—</p>
-          <p id="nt-kpi-rows" class="nt-kpi-ss2-value">0</p>
-          <p id="nt-kpi-rows-meta" class="nt-kpi-ss2-prev hidden"></p>
-        </div>
-        <div id="nt-kpi-spark-rows" class="nt-kpi-ss2-spark" aria-hidden="true"></div>
-      </div>
-    </article>
-    <article class="nt-kpi-ss2" data-nt-top-kpi="headlines">
-      <div class="nt-kpi-ss2-head"><span class="nt-kpi-chip">Benzersiz başlık</span></div>
-      <div class="nt-kpi-ss2-main">
-        <div class="nt-kpi-ss2-metrics">
-          <p id="nt-kpi-headlines-delta" class="nt-kpi-ss2-delta is-flat">—</p>
-          <p id="nt-kpi-headlines" class="nt-kpi-ss2-value">0</p>
-          <p id="nt-kpi-headlines-meta" class="nt-kpi-ss2-prev hidden"></p>
-        </div>
-        <div id="nt-kpi-spark-headlines" class="nt-kpi-ss2-spark" aria-hidden="true"></div>
-      </div>
-    </article>
-    <article class="nt-kpi-ss2" data-nt-top-kpi="clicks">
-      <div class="nt-kpi-ss2-head"><span class="nt-kpi-chip">Toplam click</span></div>
-      <div class="nt-kpi-ss2-main">
-        <div class="nt-kpi-ss2-metrics">
-          <p id="nt-kpi-clicks-delta" class="nt-kpi-ss2-delta is-flat">—</p>
-          <p id="nt-kpi-clicks" class="nt-kpi-ss2-value">0</p>
-          <p id="nt-kpi-clicks-meta" class="nt-kpi-ss2-prev hidden"></p>
-        </div>
-        <div id="nt-kpi-spark-clicks" class="nt-kpi-ss2-spark" aria-hidden="true"></div>
-      </div>
-    </article>
-    <article class="nt-kpi-ss2" data-nt-top-kpi="impr">
-      <div class="nt-kpi-ss2-head"><span class="nt-kpi-chip">Toplam impression</span></div>
-      <div class="nt-kpi-ss2-main">
-        <div class="nt-kpi-ss2-metrics">
-          <p id="nt-kpi-impr-delta" class="nt-kpi-ss2-delta is-flat">—</p>
-          <p id="nt-kpi-impr" class="nt-kpi-ss2-value">0</p>
-          <p id="nt-kpi-impr-meta" class="nt-kpi-ss2-prev hidden"></p>
-        </div>
-        <div id="nt-kpi-spark-impr" class="nt-kpi-ss2-spark" aria-hidden="true"></div>
-      </div>
-    </article>
-  </div>
-
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
     <h2 class="text-sm font-bold text-slate-800 dark:text-slate-200">Dönem karşılaştırması</h2>
     <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Seçili aralık vs önceki eşit dönem · büyük rakam % değişim · spark her seriyi kendi ölçeğinde çizer</p>
@@ -224,16 +177,16 @@
       flex-direction: column;
       min-width: 0;
       border-radius: 1rem;
-      border: 1px solid color-mix(in srgb, var(--kpi-color, #2563eb) 26%, #e2e8f0);
-      background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
-      box-shadow: 0 8px 20px color-mix(in srgb, var(--kpi-color, #2563eb) 6%, rgb(15 23 42 / 0.03));
-      padding: 0.65rem 0.6rem 0.5rem;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      padding: 0.6rem 0.65rem 0.5rem;
       color: #334155;
     }
-    html.dark .notification-page .nt-kpi-ss2 {
-      border-color: color-mix(in srgb, var(--kpi-color, #38bdf8) 35%, #1e293b);
-      background: linear-gradient(160deg, #0b1220 0%, #111827 100%);
-      color: #e2e8f0;
+    html.dark .notification-page .nt-kpi-ss2,
+    html.midnight .notification-page .nt-kpi-ss2 {
+      border-color: #3f3f46;
+      background: #09090b;
+      color: #e4e4e7;
     }
     .notification-page .nt-kpi-ss2-head { display: flex; min-width: 0; }
     .notification-page .nt-kpi-chip {
@@ -243,17 +196,20 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       border-radius: 999px;
-      padding: 0.12rem 0.45rem;
-      font-size: clamp(0.55rem, 3.4cqi, 0.68rem);
+      border: 1px solid #0f172a;
+      background: #fff;
+      padding: 0.12rem 0.5rem;
+      font-size: clamp(0.58rem, 3.2cqi, 0.7rem);
       font-weight: 800;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.03em;
       text-transform: uppercase;
-      background: color-mix(in srgb, var(--kpi-color, #2563eb) 12%, white);
-      color: var(--kpi-color, #2563eb);
+      color: #0f172a;
     }
-    html.dark .notification-page .nt-kpi-chip {
-      background: color-mix(in srgb, var(--kpi-color, #38bdf8) 16%, #0b1220);
-      color: #f8fafc;
+    html.dark .notification-page .nt-kpi-chip,
+    html.midnight .notification-page .nt-kpi-chip {
+      border-color: #f4f4f5;
+      background: #09090b;
+      color: #f4f4f5;
     }
     .notification-page .nt-kpi-ss2-main {
       display: flex;
@@ -281,9 +237,12 @@
     .notification-page .nt-kpi-ss2-delta.is-up { color: #059669; }
     .notification-page .nt-kpi-ss2-delta.is-down { color: #e11d48; }
     .notification-page .nt-kpi-ss2-delta.is-flat { color: #64748b; }
-    html.dark .notification-page .nt-kpi-ss2-delta.is-up { color: #34d399; }
-    html.dark .notification-page .nt-kpi-ss2-delta.is-down { color: #fb7185; }
-    html.dark .notification-page .nt-kpi-ss2-delta.is-flat { color: #94a3b8; }
+    html.dark .notification-page .nt-kpi-ss2-delta.is-up,
+    html.midnight .notification-page .nt-kpi-ss2-delta.is-up { color: #34d399; }
+    html.dark .notification-page .nt-kpi-ss2-delta.is-down,
+    html.midnight .notification-page .nt-kpi-ss2-delta.is-down { color: #fb7185; }
+    html.dark .notification-page .nt-kpi-ss2-delta.is-flat,
+    html.midnight .notification-page .nt-kpi-ss2-delta.is-flat { color: #94a3b8; }
     .notification-page .nt-kpi-ss2-value {
       margin: 0;
       font-size: clamp(0.62rem, 6.2cqi, 0.82rem);
@@ -294,7 +253,8 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    html.dark .notification-page .nt-kpi-ss2-value { color: #94a3b8; }
+    html.dark .notification-page .nt-kpi-ss2-value,
+    html.midnight .notification-page .nt-kpi-ss2-value { color: #a1a1aa; }
     .notification-page .nt-kpi-ss2-prev {
       margin: 0;
       font-size: clamp(0.52rem, 4.6cqi, 0.66rem);
@@ -304,6 +264,8 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    html.dark .notification-page .nt-kpi-ss2-prev,
+    html.midnight .notification-page .nt-kpi-ss2-prev { color: #71717a; }
     .notification-page .nt-kpi-ss2-spark {
       flex: 1 1 0;
       min-width: 3rem;
@@ -320,10 +282,45 @@
       gap: 0.65rem;
       grid-template-columns: 1fr;
     }
+    .notification-page .nt-cmp-charts {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 0.85rem;
+      grid-template-columns: 1fr;
+    }
+    .notification-page .nt-cmp-chart-plot {
+      width: 100%;
+      height: 11.5rem;
+    }
     @media (min-width: 640px) {
-      .notification-page .nt-cmp-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .notification-page .nt-cmp-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-      .notification-page .nt-cmp-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .notification-page .nt-cmp-chart-plot { height: 12.5rem; }
+    }
+    @media (min-width: 520px) {
+      .notification-page .nt-cmp-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (min-width: 960px) {
+      .notification-page .nt-cmp-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .notification-page .nt-cmp-charts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 519px) {
+      .notification-page .nt-kpi-ss2-main {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .notification-page .nt-kpi-ss2-metrics {
+        max-width: none;
+      }
+      .notification-page .nt-kpi-ss2-spark {
+        width: 100%;
+        min-width: 0;
+        height: 2.35rem;
+      }
     }
     @container nt-kpi (max-width: 9.5rem) {
       .notification-page .nt-kpi-ss2-metrics { max-width: min(48%, 7rem); }
@@ -1873,10 +1870,14 @@
         totalImpr += platformImpression(p.key, z);
       });
     });
-    document.getElementById("nt-kpi-rows").textContent = fmt(rows.length);
-    document.getElementById("nt-kpi-headlines").textContent = fmt(Object.keys(headlines).length);
-    document.getElementById("nt-kpi-clicks").textContent = fmtCount(totalClicks);
-    document.getElementById("nt-kpi-impr").textContent = fmtCount(totalImpr);
+    var kpiRows = document.getElementById("nt-kpi-rows");
+    var kpiHl = document.getElementById("nt-kpi-headlines");
+    var kpiClicks = document.getElementById("nt-kpi-clicks");
+    var kpiImpr = document.getElementById("nt-kpi-impr");
+    if (kpiRows) kpiRows.textContent = fmt(rows.length);
+    if (kpiHl) kpiHl.textContent = fmt(Object.keys(headlines).length);
+    if (kpiClicks) kpiClicks.textContent = fmtCount(totalClicks);
+    if (kpiImpr) kpiImpr.textContent = fmtCount(totalImpr);
   }
   function aggregateByDay(rows) {
     var byDay = {};
@@ -2828,6 +2829,6 @@
 })();
 </script>
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
-<script src="/static/js/notification_extras.js?v=4"></script>
+<script src="/static/js/notification_extras.js?v=5"></script>
 <script src="/static/js/notification_lab.js?v=6"></script>
 {% endblock %}
