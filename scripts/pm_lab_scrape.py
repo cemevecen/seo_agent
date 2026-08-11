@@ -82,6 +82,7 @@ ASSETS = (
     {"id": "ons_altin", "label": "Ons Altın"},
     {"id": "brent", "label": "Brent Petrol"},
     {"id": "ceyrek_altin", "label": "Çeyrek Altın"},
+    {"id": "bitcoin", "label": "Bitcoin"},
 )
 
 SITES = (
@@ -120,6 +121,7 @@ SITE_LIST_URLS: dict[str, tuple[str, ...]] = {
         "https://bigpara.hurriyet.com.tr/borsa/",
         "https://bigpara.hurriyet.com.tr/borsa/endeksler/",
         "https://bigpara.hurriyet.com.tr/emtia/",
+        "https://bigpara.hurriyet.com.tr/kripto/kripto-para-piyasasi/",
     ),
     "tradingview": (
         "https://www.tradingview.com/markets/turkey/",
@@ -130,19 +132,25 @@ SITE_LIST_URLS: dict[str, tuple[str, ...]] = {
         "https://www.cnbce.com/doviz",
         "https://www.cnbce.com/altin",
         "https://www.cnbce.com/emtia",
+        "https://www.cnbce.com/kripto",
+        "https://www.cnbce.com/kripto/bitcoin",
     ),
     "cnnturk": (
         "https://finans.cnnturk.com/canli-borsa",
+        "https://finans.cnnturk.com/bitcoin",
     ),
     "uzmanpara": (
         "https://uzmanpara.milliyet.com.tr/doviz/",
         "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
+        "https://uzmanpara.milliyet.com.tr/kripto-paralar/",
     ),
     "bloomberght": (
         "https://www.bloomberght.com/piyasalar",
         "https://www.bloomberght.com/doviz",
         "https://www.bloomberght.com/emtia",
         "https://www.bloomberght.com/altin",
+        "https://www.bloomberght.com/doviz/bitcoin",
+        "https://www.bloomberght.com/kripto",
     ),
 }
 
@@ -153,6 +161,7 @@ TV_SCANNER_SYMBOLS: dict[str, str] = {
     "bist100": "BIST:XU100",
     "ons_altin": "OANDA:XAUUSD",
     "brent": "NYMEX:BZ1!",
+    "bitcoin": "BITSTAMP:BTCUSD",
 }
 
 ASSET_URLS: dict[str, dict[str, str]] = {
@@ -165,6 +174,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "ceyrek_altin": "https://altin.doviz.com/ceyrek-altin",
         "brent": "https://www.doviz.com/emtia/brent-petrol",
         "bist100": "https://borsa.doviz.com/endeksler/xu100",
+        "bitcoin": "https://www.doviz.com/kripto-paralar/bitcoin",
     },
     "tradingview": {
         "usd": "https://www.tradingview.com/symbols/USDTRY/?exchange=FX_IDC",
@@ -174,6 +184,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "brent": "https://www.tradingview.com/symbols/TVC-UKOIL/",
         "gram_gumus": "https://www.tradingview.com/symbols/XAGUSD/",
         "gram_altin": "https://www.tradingview.com/symbols/XAUTRY/",
+        "bitcoin": "https://www.tradingview.com/symbols/BTCUSD/",
     },
     "foreks": {
         "usd": "https://www.foreks.com/doviz/",
@@ -184,6 +195,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "ons_altin": "https://www.foreks.com/altin/",
         "gram_gumus": "https://www.foreks.com/emtia/",
         "brent": "https://www.foreks.com/emtia/",
+        "bitcoin": "https://www.foreks.com/bitcoin/",
     },
     "canlidoviz": {
         "usd": "https://canlidoviz.com/doviz-kurlari/dolar",
@@ -194,6 +206,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "ceyrek_altin": "https://canlidoviz.com/altin-fiyatlari/ceyrek-altin",
         "brent": "https://canlidoviz.com/emtia-fiyatlari/brent-petrol",
         "bist100": "https://canlidoviz.com/endeks/bist-100",
+        "bitcoin": "https://canlidoviz.com/kripto-paralar/bitcoin",
     },
     "investing": {
         "usd": "https://www.investing.com/currencies/usd-try",
@@ -204,6 +217,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "gram_gumus": "https://www.investing.com/currencies/xag-try",
         "gram_altin": "https://www.investing.com/currencies/xau-try",
         "ceyrek_altin": "https://tr.investing.com/commodities/turkey-gold-quarter",
+        "bitcoin": "https://www.investing.com/crypto/bitcoin",
     },
     "bigpara": {
         "usd": "https://bigpara.hurriyet.com.tr/doviz/dolar/",
@@ -214,6 +228,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "bist100": "https://bigpara.hurriyet.com.tr/borsa/endeksler/",
         "gram_gumus": "https://bigpara.hurriyet.com.tr/altin/",
         "brent": "https://bigpara.hurriyet.com.tr/emtia/",
+        "bitcoin": "https://bigpara.hurriyet.com.tr/kripto/kripto-para-piyasasi/",
     },
     "uzmanpara": {
         "usd": "https://uzmanpara.milliyet.com.tr/doviz/",
@@ -224,6 +239,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "gram_gumus": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
         "ons_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
         "brent": "https://uzmanpara.milliyet.com.tr/",
+        "bitcoin": "https://uzmanpara.milliyet.com.tr/kripto-paralar/",
     },
     "bloomberght": {
         "usd": "https://www.bloomberght.com/doviz",
@@ -234,6 +250,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "brent": "https://www.bloomberght.com/emtia",
         "ceyrek_altin": "https://www.bloomberght.com/altin",
         "gram_gumus": "https://www.bloomberght.com/altin",
+        "bitcoin": "https://www.bloomberght.com/doviz/bitcoin",
     },
     "cnbce": {
         "usd": "https://www.cnbce.com/doviz",
@@ -244,6 +261,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "brent": "https://www.cnbce.com/emtia",
         "ceyrek_altin": "https://www.cnbce.com/altin",
         "gram_gumus": "https://www.cnbce.com/emtia",
+        "bitcoin": "https://www.cnbce.com/kripto/bitcoin",
     },
     "cnnturk": {
         "usd": "https://finans.cnnturk.com/",
@@ -254,6 +272,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "ceyrek_altin": "https://finans.cnnturk.com/",
         "gram_gumus": "https://finans.cnnturk.com/altin",
         "brent": "https://finans.cnnturk.com/",
+        "bitcoin": "https://finans.cnnturk.com/bitcoin",
     },
     "enuygun": {
         "usd": "https://www.enuygunfinans.com/doviz-fiyatlari/",
@@ -286,9 +305,11 @@ ASSET_LABELS: dict[str, tuple[str, ...]] = {
     "ons_altin": ("ons altin", "altin/ons", "altin ons", "altin (ons)", "xauusd", "gold ounce", "altin ($/ons)"),
     "brent": ("brent petrol", "brent", "ukoil", "petrol"),
     "ceyrek_altin": ("ceyrek altin", "ceyrek", "sgldc"),
+    "bitcoin": ("btcusd", "btc/usd", "btc usd", "bitcoin (btc)", "bitcoin", "btc"),
 }
 
 _ASSET_MATCH_ORDER = (
+    "bitcoin",
     "ceyrek_altin",
     "gram_gumus",
     "gram_altin",
@@ -308,6 +329,7 @@ ASSET_RANGES: dict[str, tuple[float, float]] = {
     "ons_altin": (1500.0, 10000.0),
     "brent": (30.0, 250.0),
     "ceyrek_altin": (3000.0, 40000.0),
+    "bitcoin": (25000.0, 150000.0),
 }
 
 ASSET_LINE_EXCLUDE: dict[str, tuple[str, ...]] = {
@@ -319,6 +341,7 @@ ASSET_LINE_EXCLUDE: dict[str, tuple[str, ...]] = {
     "ons_altin": ("gram", "senaryo"),
     "brent": ("benzin", "bitcoin", "gumus", "silver", "ham petrol", "wti"),
     "bist100": ("hisse",),
+    "bitcoin": ("ethereum", "wrapped", "btctry"),
 }
 
 PLAY_PACKAGE = "com.Doviz"
@@ -597,6 +620,9 @@ def _iter_label_spans(folded: str, aid: str):
             if aid in ("usd", "eur") and re.match(r"/[a-z]{3}", rest) and not rest.startswith("/try"):
                 start = i + 1
                 continue
+            if aid == "bitcoin" and (rest.startswith("/try") or rest.startswith("try")):
+                start = i + 1
+                continue
             if i not in seen:
                 seen.add(i)
                 yield i, i + len(lab)
@@ -619,6 +645,7 @@ _FOREIGN_SKIP = {
     "ceyrek_altin": {"usd", "eur"},
     "brent": {"usd", "eur"},
     "gram_gumus": {"usd", "eur"},
+    "bitcoin": {"usd", "eur"},
 }
 
 
@@ -632,6 +659,13 @@ def _foreign_cut(folded_window: str, aid: str) -> int:
             if 0 <= start < cut:
                 cut = start
             break
+    for bad in ASSET_LINE_EXCLUDE.get(aid) or ():
+        fb = _fold(bad)
+        if not fb:
+            continue
+        i = folded_window.find(fb)
+        if 0 <= i < cut:
+            cut = i
     return cut
 
 
@@ -899,6 +933,7 @@ FOREKS_FIELDS: dict[str, str] = {
     "ons_altin": "o13_l",
     "gram_gumus": "o16_l",
     "brent": "o2627_l",
+    "bitcoin": "o1836_l",
 }
 
 FOREKS_PAGES = (
@@ -1008,6 +1043,7 @@ _CORE_ASSETS = {
     "ons_altin",
     "brent",
     "ceyrek_altin",
+    "bitcoin",
 }
 
 

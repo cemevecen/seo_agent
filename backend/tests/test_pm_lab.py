@@ -355,6 +355,15 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert mod.FOREKS_FIELDS["usd"] == "o10_l"
     assert mod.FOREKS_FIELDS["gram_gumus"] == "o16_l"
     assert mod.FOREKS_FIELDS["brent"] == "o2627_l"
+    assert any(a["id"] == "bitcoin" for a in mod.ASSETS)
+    assert mod.FOREKS_FIELDS["bitcoin"] == "o1836_l"
+    assert mod.TV_SCANNER_SYMBOLS["bitcoin"] == "BITSTAMP:BTCUSD"
+    btc = mod._parse_assets_from_text("BITCOIN $63.590 %-0,62 ( -$399 )")
+    assert btc["bitcoin"]["value"] == "63.590"
+    try_only = mod._parse_assets_from_text(
+        "Bitcoin (BTC) 3022380,3129 3022379,8358 % -0,83 Ethereum (ETH) 88931,9171"
+    )
+    assert "bitcoin" not in try_only
 
 
 def test_pm_lab_doviz_rank_chip_labels():
