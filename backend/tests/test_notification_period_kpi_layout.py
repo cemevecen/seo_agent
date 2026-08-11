@@ -40,3 +40,5 @@ def test_period_compare_uses_merged_trend_and_weight():
     assert "Platform % değişim" not in js
     assert "nt-period-trend-chart" not in js
     assert 'plotTrendChart("nt-trend-clicks", PLATFORM_KEYS, rows)' in html
+    assert 'uniformtext: { minsize: 10, mode: "hide" }' in html
+    assert "textposition: \"inside\"" in html
