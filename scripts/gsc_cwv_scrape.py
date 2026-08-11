@@ -357,7 +357,7 @@ def run_login_interactive(timeout_sec: int = 900) -> dict[str, Any]:
                         "message": (
                             "Tarayıcı kapandı (profil çakışması veya Chrome çökmesi). "
                             "Tüm seo-agent Chrome pencerelerini kapatıp tekrar: "
-                            "scripts/gsc_cwv_scrape.py --login"
+                            "Mac köprüde GSC oturumunu yenileyin"
                         ),
                         "profile": str(PROFILE_DIR),
                     }
@@ -1492,7 +1492,7 @@ def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) ->
             signed = True
             break
     if not signed:
-        raise RuntimeError("GSC oturumu yok — scripts/gsc_cwv_scrape.py --login")
+        raise RuntimeError("GSC oturumu yok — Mac köprüde oturum açın")
     meta = _extract_page_meta(page)
     body = page.inner_text("body")
     overview = _parse_overview_counts(body)

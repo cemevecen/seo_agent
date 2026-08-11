@@ -482,7 +482,7 @@ def open_noads_prefill(url: str, *, keep_open_sec: int | None = None) -> dict[st
         else:
             resync = {
                 "ok": False,
-                "message": scraped.get("message") or "resync scrape başarısız",
+                "message": scraped.get("message") or "yeniden tarama başarısız",
                 "needs_login": scraped.get("needs_login"),
             }
         print(f"noAds resync · {resync.get('message')}", flush=True)

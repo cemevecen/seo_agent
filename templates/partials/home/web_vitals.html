@@ -136,7 +136,7 @@
             ni.push(d.needs_improvement || 0);
             good.push(d.good || 0);
           });
-          return { dates: dates, poor: poor, needs_improvement: ni, good: good, source: 'scrape_history' };
+          return { dates: dates, poor: poor, needs_improvement: ni, good: good, source: 'panel_history' };
         }
         function resolve(deviceKey) {
           var ser = (payload.chart_series && payload.chart_series[deviceKey]) || null;

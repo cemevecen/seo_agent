@@ -418,7 +418,7 @@ def build_change_window(
             "ok": True,
             "window": window,
             "has_baseline": False,
-            "message": "Henüz scrape snapshot yok",
+            "message": "Henüz tarama kaydı yok",
             "series": [],
             "diff": {},
         }

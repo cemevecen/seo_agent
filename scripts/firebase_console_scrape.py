@@ -988,7 +988,7 @@ def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
             context.close()
 
     ok = any(isinstance(v, dict) and v.get("ok") for v in platforms_out.values())
-    msg = "Firebase Console scrape OK" if ok else (" · ".join(errors) or "scrape başarısız")
+    msg = "Firebase Console tarama tamam" if ok else (" · ".join(errors) or "tarama başarısız")
     return {
         "sync_ok": ok,
         "sync_message": msg[:500],

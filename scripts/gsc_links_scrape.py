@@ -409,7 +409,7 @@ def scrape_one(
         return {
             "ok": False,
             "needs_login": True,
-            "message": "GSC oturumu yok — scripts/gsc_links_scrape.py --login",
+            "message": "GSC oturumu yok — Mac köprüde oturum açın",
             "resource_id": resource_id,
             "link_type": link_type,
             "url": page.url,
@@ -534,7 +534,7 @@ def scrape_gsc_links(
     return {
         "ok": ok_n > 0 and not (errors and ok_n == 0),
         "needs_login": False,
-        "message": f"GSC Links scrape · {ok_n}/{len(snapshots)} snapshot"
+        "message": f"GSC bağlantı tarama · {ok_n}/{len(snapshots)} kayıt"
         + (f" · {len(errors)} hata" if errors else ""),
         "snapshots": snapshots,
         "errors": errors,

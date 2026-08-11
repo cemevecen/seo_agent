@@ -593,7 +593,7 @@ def scrape_admanager_policy(*, headed: bool = True) -> dict[str, Any]:
         return {
             "ok": False,
             "needs_login": False,
-            "message": f"Scrape hata: {exc}",
+            "message": f"Tarama hatası: {exc}",
             "scraped_at": scraped_at,
             "rows": [],
         }

@@ -4688,7 +4688,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         ) and debug:
             dbg = f" · dash_known={debug.get('known_found_count')} body={debug.get('body_len')}"
         msg = (
-            f"Play scrape · {len(metrics)} metric · "
+            f"Play tarama · {len(metrics)} metric · "
             f"{panels.get('tpg_count', 0)} dash · {panels.get('monetize_count', 0)} mon · "
             f"{panels.get('grow_count', 0)} grow · "
             f"{panels.get('store_listings_count', 0)} store · "
@@ -4793,7 +4793,7 @@ def scrape_vitals_only(*, headed: bool | None = None) -> dict[str, Any]:
         return {
             "ok": ok,
             "needs_login": False,
-            "message": f"Vitals scrape · categories={cat_n} overview_rows={ov_n}",
+            "message": f"Vitals tarama · categories={cat_n} overview_rows={ov_n}",
             "package_name": PACKAGE,
             "app_id": APP_ID,
             "metrics": [],
@@ -4810,7 +4810,7 @@ def scrape_vitals_only(*, headed: bool | None = None) -> dict[str, Any]:
         return {
             "ok": False,
             "needs_login": False,
-            "message": f"Vitals scrape hata: {exc}",
+            "message": f"Vitals tarama hatası: {exc}",
             "panels": {},
         }
     finally:
@@ -4906,7 +4906,7 @@ def scrape_reviews_only(*, headed: bool | None = None) -> dict[str, Any]:
         return {
             "ok": False,
             "needs_login": False,
-            "message": f"Reviews scrape hata: {exc}",
+            "message": f"Yorum tarama hatası: {exc}",
             "reviews": None,  # fail ingest'te mevcut yorumları ezme
             "merge_reviews": False,
         }
@@ -4975,7 +4975,7 @@ def scrape_ratings_dist_only(*, headed: bool | None = None) -> dict[str, Any]:
         return {
             "ok": False,
             "needs_login": False,
-            "message": f"Ratings dist scrape hata: {exc}",
+            "message": f"Puan dağılımı tarama hatası: {exc}",
             "panels": {},
             "merge_ratings_counts": False,
         }
@@ -5158,7 +5158,7 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
                 "ok": False,
                 "message": (
                     "Ingest atlandı: explorer_facts boş — mevcut Railway snapshot korunur. "
-                    "Play scrape stats views başarısız; tekrar --sync --ingest deneyin."
+                    "Play tarama istatistik görünümleri başarısız; senkronu tekrar deneyin."
                 ),
                 "http_status": 0,
                 "skipped_empty_facts": True,

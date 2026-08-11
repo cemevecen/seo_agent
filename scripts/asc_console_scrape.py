@@ -1036,7 +1036,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                     return {
                         "ok": False,
                         "needs_login": True,
-                        "message": "ASC login gerekli — scripts/asc_console_scrape.py --login",
+                        "message": "ASC girişi gerekli — Mac köprüde oturum açın",
                         "panels": {"explorer_facts": []},
                         "raw_network": [],
                     }
@@ -1045,7 +1045,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 return {
                     "ok": False,
                     "needs_login": True,
-                    "message": "ASC login gerekli — scripts/asc_console_scrape.py --login",
+                    "message": "ASC girişi gerekli — Mac köprüde oturum açın",
                     "panels": {"explorer_facts": []},
                     "raw_network": [],
                 }
@@ -1271,7 +1271,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
 
         ok_metrics = sum(1 for v in pages_meta.values() if v.get("ok"))
         msg = (
-            f"ASC scrape · {len(explorer_facts)} fact · "
+            f"ASC tarama · {len(explorer_facts)} fact · "
             f"{ok_metrics}/{len(MEASURE_MAP)} measure"
             + (" · ratings OK" if ratings.get("ok") else "")
         )
@@ -1307,7 +1307,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
         return {
             "ok": False,
             "needs_login": False,
-            "message": f"ASC scrape hata: {exc}",
+            "message": f"ASC tarama hatası: {exc}",
             "panels": {"explorer_facts": []},
             "raw_network": [],
         }

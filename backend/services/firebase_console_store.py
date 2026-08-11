@@ -90,7 +90,7 @@ def firebase_console_payload(db: Session) -> dict[str, Any]:
             "empty": True,
             "metrics": [],
             "panels": {},
-            "message": "Henüz Firebase scrape yok — Mac bridge: firebase_console_scrape.py --login && --sync --ingest",
+            "message": "Henüz Firebase tarama yok — Mac köprüde oturum açıp senkron çalıştırın",
         }
     metrics, panels = _unpack_blob(row.metrics_json or "")
     try:

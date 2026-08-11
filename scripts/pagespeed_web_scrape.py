@@ -628,7 +628,7 @@ def post_ingest(domain: str, form_factor: str, result: dict[str, Any]) -> dict[s
         "form_factor": form_factor,
         "analysis_url": result.get("analysis_url") or "",
         "psi_payload": result.get("psi") or {},
-        "scope_note": "pagespeed.web.dev scrape",
+        "scope_note": "pagespeed.web.dev tarama",
     }
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(

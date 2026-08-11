@@ -824,7 +824,7 @@ def admin_run_seo_audit_now():
         return {
             "status": "bridge_required",
             "message": (
-                "SEO audit Mac bridge scrape birincil — Railway HTTP job kapalı. "
+                "SEO denetim Mac köprü tarama ile çalışır — Railway HTTP işi kapalı. "
                 "POST http://127.0.0.1:18765/sync-seo-audit"
             ),
             "bridge_url": "http://127.0.0.1:18765/sync-seo-audit",
@@ -2482,7 +2482,7 @@ def _seo_audit_scheduler_health() -> dict:
         "scheduler_running": True if scrape_primary else scheduler_ok,
         "job_registered": True if scrape_primary else job_registered,
         "next_run": (
-            f"Mac bridge scrape · GA4 top {top_limit}"
+            f"Mac köprü tarama · GA4 top {top_limit}"
             if scrape_primary
             else next_run_label
         ),
@@ -4342,7 +4342,7 @@ def _run_daily_refresh_job() -> None:
                             site,
                             {
                                 "state": "skipped",
-                                "reason": "pagespeed.web.dev scrape birincil; CrUX History API atlandı.",
+                                "reason": "pagespeed.web.dev tarama birincil; CrUX History API atlandı.",
                                 "source": "pagespeed_web_scrape",
                             },
                         )
@@ -7115,16 +7115,16 @@ def _data_explorer_context(domain: str) -> dict:
             desktop_kpi_snap = desktop_crux
             mobile_state = _data_state_badge(
                 "stale" if mobile_stale else ("live" if mobile_crux else "failed"),
-                "pagespeed.web.dev scrape saha KPI güncel",
-                "Scrape geride — Mac bridge sync-pagespeed bekleniyor",
-                "Henüz pagespeed.web.dev scrape yok",
+                "pagespeed.web.dev tarama saha KPI güncel",
+                "Tarama geride — Mac köprü senkron bekleniyor",
+                "Henüz pagespeed.web.dev tarama yok",
                 stale_collected_at=mobile_collected,
             )
             desktop_state = _data_state_badge(
                 "stale" if desktop_stale else ("live" if desktop_crux else "failed"),
-                "pagespeed.web.dev scrape saha KPI güncel",
-                "Scrape geride — Mac bridge sync-pagespeed bekleniyor",
-                "Henüz pagespeed.web.dev scrape yok",
+                "pagespeed.web.dev tarama saha KPI güncel",
+                "Tarama geride — Mac köprü senkron bekleniyor",
+                "Henüz pagespeed.web.dev tarama yok",
                 stale_collected_at=desktop_collected,
             )
         else:
@@ -7219,7 +7219,7 @@ def _data_explorer_context(domain: str) -> dict:
                 else format_local_datetime(
                     psi_collected,
                     fallback=(
-                        "Henüz pagespeed.web.dev scrape yok"
+                        "Henüz pagespeed.web.dev tarama yok"
                         if scrape_primary
                         else "Henüz PSI/Lighthouse ölçümü yok"
                     ),
@@ -7232,19 +7232,19 @@ def _data_explorer_context(domain: str) -> dict:
                     _snap_collected_dt(mobile_crux) or _snap_collected_dt(desktop_crux)
                 ),
                 fallback=(
-                    "Henüz scrape yok" if scrape_primary else "Henüz CrUX geçmişi yok"
+                    "Henüz tarama yok" if scrape_primary else "Henüz CrUX geçmişi yok"
                 ),
             ),
             "crux_mobile_last_updated": format_datetime_like(
                 (mobile_crux or {}).get("collected_at"),
                 fallback=(
-                    "Henüz mobil scrape yok" if scrape_primary else "Henüz mobil CrUX kaydı yok"
+                    "Henüz mobil tarama yok" if scrape_primary else "Henüz mobil CrUX kaydı yok"
                 ),
             ),
             "crux_desktop_last_updated": format_datetime_like(
                 (desktop_crux or {}).get("collected_at"),
                 fallback=(
-                    "Henüz masaüstü scrape yok"
+                    "Henüz masaüstü tarama yok"
                     if scrape_primary
                     else "Henüz masaüstü CrUX kaydı yok"
                 ),
@@ -13024,7 +13024,7 @@ def api_refresh_data_explorer(request: Request, domain: str):
             }
             results["crux_history"] = {
                 "state": "skipped",
-                "reason": "pagespeed.web.dev scrape birincil; CrUX History API atlandı.",
+                "reason": "pagespeed.web.dev tarama birincil; CrUX History API atlandı.",
                 "source": "pagespeed_web_scrape",
             }
         ps = results.get("pagespeed")
@@ -13055,7 +13055,7 @@ def api_refresh_data_explorer(request: Request, domain: str):
             site=site,
             results=results,
             action_label=(
-                "Data Explorer manuel refresh (scrape-only; API yok)"
+                "Data Explorer manuel yenileme (yalnızca tarama; API yok)"
                 if scrape_primary
                 else "Data Explorer manuel refresh (PSI + CrUX)"
             ),
@@ -13092,7 +13092,7 @@ def api_refresh_site_metrics(request: Request, domain: str):
         if _is_pagespeed_scrape_primary_domain(site.domain or ""):
             results["crux_history"] = {
                 "state": "skipped",
-                "reason": "pagespeed.web.dev scrape birincil; CrUX History API atlandı.",
+                "reason": "pagespeed.web.dev tarama birincil; CrUX History API atlandı.",
                 "source": "pagespeed_web_scrape",
             }
         else:
@@ -15128,7 +15128,7 @@ def api_seo_audit_run(site_id: int):
         return {
             "status": "bridge_required",
             "message": (
-                "SEO audit Mac bridge scrape ile çalışır. "
+                "SEO denetim Mac köprü tarama ile çalışır. "
                 "Tarayıcıdan POST http://127.0.0.1:18765/sync-seo-audit tetiklenmeli."
             ),
             "bridge_url": "http://127.0.0.1:18765/sync-seo-audit",

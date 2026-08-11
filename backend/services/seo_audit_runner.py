@@ -238,12 +238,12 @@ def execute_seo_audit_for_site(
     }
     if bool(getattr(settings, "seo_audit_scrape_primary", True)):
         prog["running"] = False
-        prog["current"] = "Mac bridge scrape birincil — Railway HTTP crawl kapalı"
+        prog["current"] = "Mac köprü tarama birincil — Railway HTTP tarama kapalı"
         return {
             "status": "skipped",
             "message": (
-                "SEO audit scrape-primary: Mac bridge POST /sync-seo-audit kullanın "
-                "(Railway HTTP crawl kapalı)."
+                "SEO denetim Mac köprü tarama ile çalışır: POST /sync-seo-audit kullanın "
+                "(Railway HTTP tarama kapalı)."
             ),
             "ok": 0,
             "error": 0,

@@ -127,7 +127,7 @@ def ingest_seo_audit_scrape(
             "error": err,
             "deleted_old": deleted_old,
             "source": SOURCE,
-            "message": f"SEO scrape ingest · {ok} kayıt" + (f" · {deleted_old} eski silindi" if deleted_old else ""),
+            "message": f"SEO tarama kaydı · {ok} kayıt" + (f" · {deleted_old} eski silindi" if deleted_old else ""),
         }
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("seo audit scrape ingest failed")

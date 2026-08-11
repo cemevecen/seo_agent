@@ -613,7 +613,7 @@ def run_play_bridge_once() -> dict[str, Any]:
 
     script = ROOT / "scripts" / "play_console_scrape.py"
     if not script.is_file():
-        err = {"ok": False, "kind": "play", "message": "play_console_scrape.py yok"}
+        err = {"ok": False, "kind": "play", "message": "Play tarama betiği yok"}
         _last_play_result = err
         return err
 
@@ -639,7 +639,7 @@ def run_play_bridge_once() -> dict[str, Any]:
         out = {
             "ok": False,
             "kind": "play",
-            "message": f"Play scrape timeout ({timeout_sec}s) — stuck Chromium olabilir",
+            "message": f"Play tarama zaman aşımı ({timeout_sec}s) — takılı Chromium olabilir",
         }
         _last_play_result = out
         # Best-effort: leave cleanup to next launch's stale-browser kill
@@ -671,7 +671,7 @@ def run_play_bridge_once() -> dict[str, Any]:
         msg = "Play sync OK"
         for line in reversed((proc.stdout or "").splitlines()):
             s = line.strip()
-            if s.startswith("Play scrape") or s.startswith("INGEST"):
+            if s.startswith("Play tarama") or s.startswith("Play scrape") or s.startswith("INGEST"):
                 msg = s[:400]
                 break
         out = {"ok": True, "kind": "play", "message": msg, "needs_login": False}
@@ -717,7 +717,7 @@ def run_gsc_links_bridge_once() -> dict[str, Any]:
         path = ROOT / "scripts" / "gsc_links_scrape.py"
         spec = importlib.util.spec_from_file_location("gsc_links_scrape", path)
         if spec is None or spec.loader is None:
-            err = {"ok": False, "message": "gsc_links_scrape.py yüklenemedi"}
+            err = {"ok": False, "message": "GSC bağlantı tarama betiği yüklenemedi"}
             _last_gsc_links_result = err
             return err
         mod = importlib.util.module_from_spec(spec)
@@ -725,7 +725,7 @@ def run_gsc_links_bridge_once() -> dict[str, Any]:
         scrape_gsc_links = mod.scrape_gsc_links
         ingest_scrape_result = mod.ingest_scrape_result
     except Exception as exc:  # noqa: BLE001
-        err = {"ok": False, "message": f"gsc_links_scrape import: {exc}"}
+        err = {"ok": False, "message": f"GSC bağlantı tarama import: {exc}"}
         _last_gsc_links_result = err
         return err
 
@@ -786,7 +786,7 @@ def run_admanager_policy_bridge_once() -> dict[str, Any]:
         path = ROOT / "scripts" / "admanager_policy_scrape.py"
         spec = importlib.util.spec_from_file_location("admanager_policy_scrape", path)
         if spec is None or spec.loader is None:
-            err = {"ok": False, "message": "admanager_policy_scrape.py yüklenemedi"}
+            err = {"ok": False, "message": "Policy tarama betiği yüklenemedi"}
             _last_policy_result = err
             return err
         mod = importlib.util.module_from_spec(spec)
@@ -794,7 +794,7 @@ def run_admanager_policy_bridge_once() -> dict[str, Any]:
         scrape_fn = mod.scrape_admanager_policy
         ingest_fn = mod.ingest_scrape_result
     except Exception as exc:  # noqa: BLE001
-        err = {"ok": False, "message": f"admanager_policy_scrape import: {exc}"}
+        err = {"ok": False, "message": f"Policy tarama import: {exc}"}
         _last_policy_result = err
         return err
 
@@ -904,7 +904,7 @@ def run_sinemalar_noads_bridge_once() -> dict[str, Any]:
         scrape_fn = mod.scrape_sinemalar_noads
         ingest_fn = mod.ingest_noads_result
     except Exception as exc:  # noqa: BLE001
-        err = {"ok": False, "message": f"sinemalar_noads_scrape import: {exc}"}
+        err = {"ok": False, "message": f"noAds tarama import: {exc}"}
         _last_noads_result = err
         return err
 
@@ -965,7 +965,7 @@ def run_asc_bridge_once() -> dict[str, Any]:
         path = ROOT / "scripts" / "asc_console_scrape.py"
         spec = importlib.util.spec_from_file_location("asc_console_scrape", path)
         if spec is None or spec.loader is None:
-            err = {"ok": False, "message": "asc_console_scrape.py yüklenemedi"}
+            err = {"ok": False, "message": "ASC tarama betiği yüklenemedi"}
             _last_asc_result = err
             return err
         mod = importlib.util.module_from_spec(spec)
@@ -973,7 +973,7 @@ def run_asc_bridge_once() -> dict[str, Any]:
         scrape_asc_console = mod.scrape_asc_console
         ingest_scrape_result = mod.ingest_scrape_result
     except Exception as exc:  # noqa: BLE001
-        err = {"ok": False, "message": f"asc_console_scrape import: {exc}"}
+        err = {"ok": False, "message": f"ASC tarama import: {exc}"}
         _last_asc_result = err
         return err
 
@@ -1032,7 +1032,7 @@ def run_firebase_bridge_once() -> dict[str, Any]:
         path = ROOT / "scripts" / "firebase_console_scrape.py"
         spec = importlib.util.spec_from_file_location("firebase_console_scrape", path)
         if spec is None or spec.loader is None:
-            err = {"ok": False, "message": "firebase_console_scrape.py yüklenemedi"}
+            err = {"ok": False, "message": "Firebase tarama betiği yüklenemedi"}
             _last_firebase_result = err
             return err
         mod = importlib.util.module_from_spec(spec)
@@ -1040,7 +1040,7 @@ def run_firebase_bridge_once() -> dict[str, Any]:
         scrape_firebase_console = mod.scrape_firebase_console
         ingest_scrape_result = mod.ingest_scrape_result
     except Exception as exc:  # noqa: BLE001
-        err = {"ok": False, "message": f"firebase_console_scrape import: {exc}"}
+        err = {"ok": False, "message": f"Firebase tarama import: {exc}"}
         _last_firebase_result = err
         return err
 
@@ -1093,7 +1093,7 @@ def run_pagespeed_bridge_once() -> dict[str, Any]:
 
     script = ROOT / "scripts" / "pagespeed_web_scrape.py"
     if not script.is_file():
-        err = {"ok": False, "kind": "pagespeed", "message": "pagespeed_web_scrape.py yok"}
+        err = {"ok": False, "kind": "pagespeed", "message": "PageSpeed tarama betiği yok"}
         _last_pagespeed_result = err
         return err
 
@@ -1121,7 +1121,7 @@ def run_pagespeed_bridge_once() -> dict[str, Any]:
         out = {
             "ok": False,
             "kind": "pagespeed",
-            "message": f"PageSpeed scrape timeout ({timeout_sec}s)",
+            "message": f"PageSpeed tarama zaman aşımı ({timeout_sec}s)",
         }
         _last_pagespeed_result = out
         return out
@@ -1157,7 +1157,7 @@ def run_seo_audit_bridge_once(site_id: int | None = None) -> dict[str, Any]:
 
     script = ROOT / "scripts" / "seo_audit_scrape.py"
     if not script.is_file():
-        err = {"ok": False, "kind": "seo_audit", "message": "seo_audit_scrape.py yok"}
+        err = {"ok": False, "kind": "seo_audit", "message": "SEO denetim tarama betiği yok"}
         _last_seo_audit_result = err
         return err
 
@@ -1190,7 +1190,7 @@ def run_seo_audit_bridge_once(site_id: int | None = None) -> dict[str, Any]:
         out = {
             "ok": False,
             "kind": "seo_audit",
-            "message": f"SEO audit scrape timeout ({timeout_sec}s)",
+            "message": f"SEO denetim tarama zaman aşımı ({timeout_sec}s)",
         }
         _last_seo_audit_result = out
         return out
@@ -1203,14 +1203,14 @@ def run_seo_audit_bridge_once(site_id: int | None = None) -> dict[str, Any]:
         out = {
             "ok": True,
             "kind": "seo_audit",
-            "message": "SEO audit scrape OK",
+            "message": "SEO denetim tarama tamam",
             "site_id": site_id,
         }
     else:
         out = {
             "ok": False,
             "kind": "seo_audit",
-            "message": f"SEO audit scrape exit {proc.returncode}",
+            "message": f"SEO denetim tarama çıkış {proc.returncode}",
             "site_id": site_id,
         }
     _last_seo_audit_result = out
@@ -1237,7 +1237,7 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = 
 
     script = ROOT / "scripts" / "gsc_cwv_scrape.py"
     if not script.is_file():
-        err = {"ok": False, "kind": "gsc_cwv", "message": "gsc_cwv_scrape.py yok"}
+        err = {"ok": False, "kind": "gsc_cwv", "message": "GSC CWV tarama betiği yok"}
         _last_gsc_cwv_result = err
         _set_gsc_cwv_progress(
             running=False, phase="error", message=err["message"], finished_at=time.time()
@@ -1249,7 +1249,7 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = 
         running=True,
         phase="scrape",
         site=site_key or "all",
-        message=f"GSC CWV scrape · {site_key or 'all'}",
+        message=f"GSC CWV tarama · {site_key or 'all'}",
         started_at=time.time(),
         finished_at=0.0,
     )
@@ -1280,7 +1280,7 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = 
         out = {
             "ok": False,
             "kind": "gsc_cwv",
-            "message": f"GSC CWV scrape timeout ({timeout_sec}s)",
+            "message": f"GSC CWV tarama zaman aşımı ({timeout_sec}s)",
         }
         _last_gsc_cwv_result = out
         _set_gsc_cwv_progress(
@@ -1322,12 +1322,12 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = 
         detail = combined.splitlines()[-1].strip()[:240]
 
     if proc.returncode == 0:
-        out = {"ok": True, "kind": "gsc_cwv", "message": "GSC CWV scrape OK", "site": site_key}
+        out = {"ok": True, "kind": "gsc_cwv", "message": "GSC CWV tarama tamam", "site": site_key}
         _set_gsc_cwv_progress(
             running=False, phase="done", message=out["message"], finished_at=time.time()
         )
     else:
-        msg = f"GSC CWV scrape exit {proc.returncode}"
+        msg = f"GSC CWV tarama çıkış {proc.returncode}"
         if detail:
             msg = f"{msg}: {detail}"
         out = {
@@ -1385,7 +1385,7 @@ def run_notification_bridge_once() -> dict[str, Any]:
     try:
         fetched = fetch_notification_rows_from_admin(on_progress=_on_progress)
     except Exception as exc:  # noqa: BLE001
-        msg = str(exc) or "Notification scrape hatası"
+        msg = str(exc) or "Notification tarama hatası"
         _set_nt_progress(running=False, phase="error", message=msg)
         out = {"ok": False, "message": msg, "parsed": 0}
         _last_result = out
@@ -1497,7 +1497,7 @@ def run_news_bridge_once(
         page=0,
         total_pages=estimate,
         rows=0,
-        message=("Tam scrape…" if use_full else f"Son {days or 7} gün…"),
+        message=("Tam tarama…" if use_full else f"Son {days or 7} gün…"),
     )
 
     def _on_progress(info: dict[str, Any]) -> None:
@@ -1529,7 +1529,7 @@ def run_news_bridge_once(
             on_progress=_on_progress,
         )
     except Exception as exc:  # noqa: BLE001
-        msg = str(exc) or "News scrape hatası"
+        msg = str(exc) or "Haber tarama hatası"
         print(f"News scrape failed: {msg}", flush=True)
         _report_news_sync_failure(msg, sync_mode=sync_mode)
         out = {"ok": False, "message": msg, "parsed": 0, "sync_mode": sync_mode}
@@ -1880,7 +1880,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             if not _seo_audit_lock.acquire(blocking=False):
                 self._send(
                     409,
-                    {"ok": False, "message": "SEO audit scrape zaten çalışıyor, bekleyin."},
+                    {"ok": False, "message": "SEO denetim tarama zaten çalışıyor, bekleyin."},
                 )
                 return
 
@@ -1900,7 +1900,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "started": True,
                     "kind": "seo_audit",
                     "site_id": site_id,
-                    "message": "SEO audit scrape arka planda başladı (GA4 top URL)",
+                    "message": "SEO denetim tarama arka planda başladı (GA4 top URL)",
                 },
             )
             return
@@ -1940,7 +1940,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "ok": False,
                         "running": True,
                         "progress": dict(_gsc_cwv_progress),
-                        "message": "GSC CWV scrape zaten çalışıyor, bekleyin.",
+                        "message": "GSC CWV tarama zaten çalışıyor, bekleyin.",
                     },
                 )
                 return
@@ -1949,7 +1949,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 running=True,
                 phase="starting",
                 site=site_key or "all",
-                message="GSC CWV scrape kuyruğa alındı",
+                message="GSC CWV tarama kuyruğa alındı",
                 started_at=time.time(),
                 finished_at=0.0,
             )
@@ -1977,7 +1977,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "kind": "gsc_cwv",
                     "site": site_key,
                     "progress": dict(_gsc_cwv_progress),
-                    "message": "GSC CWV + AMP scrape arka planda başladı",
+                    "message": "GSC CWV + AMP tarama arka planda başladı",
                 },
             )
             return

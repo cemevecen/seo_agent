@@ -16,8 +16,8 @@
       <div class="min-w-0">
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-200">Web Vitals</h2>
         <p class="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-zinc-400">
-          GSC Core Web Vitals + AMP · Mac bridge scrape
-          {% if collected_at %} · Son: {{ collected_at[:16].replace('T',' ') }}{% else %} · Henüz scrape yok{% endif %}
+          GSC Core Web Vitals + AMP · Mac köprü tarama
+          {% if collected_at %} · Son: {{ collected_at[:16].replace('T',' ') }}{% else %} · Henüz tarama yok{% endif %}
         </p>
         <p class="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">
           Eşik: Good −{{ thresholds.good_drop_pct|default(5) }}% · Poor +{{ thresholds.poor_increase_abs|default(10) }} · NI +{{ thresholds.ni_increase_pct|default(8) }}%
@@ -41,7 +41,7 @@
     </div>
     <div id="wv-progress" class="mt-3 hidden rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200">
       <span class="font-semibold">Taranıyor</span>
-      <span id="wv-progress-msg" class="ml-1 opacity-90">Bridge scrape çalışıyor…</span>
+      <span id="wv-progress-msg" class="ml-1 opacity-90">Köprü tarama çalışıyor…</span>
     </div>
     </div>
 
@@ -72,7 +72,7 @@
         <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">AMP ≠ hız garantisi.</strong> AMP sekmesi validation/uyumluluk sorunlarını listeler. Bir URL AMP’te “iyi” olsa bile canonical’da CWV kötü olabilir (ve tersi).</span></li>
         <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Custom JS AMP’te yasak.</strong> “Custom JavaScript is not allowed” → AMP kopyasından script’i kaldır veya AMP bileşenine taşı. Canonical HTML’de JS kalabilir.</span></li>
         <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Küçük görsel uyarısı.</strong> “Görüntü boyutu önerilen boyuttan küçük” genelde uyarı bandıdır; kırık AMP değildir ama LCP/kalite için width-height/srcset düzelt.</span></li>
-        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Scrape gecikmesi.</strong> “Tara” Mac bridge ile GSC’yi çeker; GSC’nin kendi güncelleme gecikmesi + köprü süresi üst üste binebilir. Grafik boşsa önce son scrape zamanına bak.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Tarama gecikmesi.</strong> “Tara” Mac köprü ile GSC’yi çeker; GSC’nin kendi güncelleme gecikmesi + köprü süresi üst üste binebilir. Grafik boşsa önce son tarama zamanına bak.</span></li>
         <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Öncelik sırası.</strong> 1) Yüksek tıklamalı Poor LCP/INP şablonları · 2) AMP validation (index kaybı riski) · 3) Needs improvement toplu temizlik · 4) kozmetik AMP görsel uyarıları.</span></li>
       </ul>
       <div class="mt-3 flex flex-wrap gap-2 text-[11px]">
@@ -159,7 +159,7 @@
 
   <details id="wv-history-drop" class="min-w-0 rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
     <summary class="cursor-pointer list-none px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-zinc-200 sm:px-4 [&::-webkit-details-marker]:hidden">
-      <span class="mr-1.5 text-slate-400">▸</span> Scrape geçmişi (panel) · {{ history|length }} nokta
+      <span class="mr-1.5 text-slate-400">▸</span> Tarama geçmişi (panel) · {{ history|length }} nokta
     </summary>
     <div class="border-t border-slate-100 px-3 pb-3 pt-2 dark:border-zinc-800">
       <div class="relative h-40 min-w-0 w-full"><canvas id="wv-history-chart"></canvas></div>
@@ -323,7 +323,7 @@
 
         <section class="min-w-0 rounded-xl border border-emerald-100 p-3 sm:p-4 dark:border-emerald-900/40">
           <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-400">İyi URL örnekleri</p>
-          <p class="mb-2 text-[11px] text-slate-500 dark:text-zinc-400">{{ fmt_int((dev.good_urls or [])|length) }} satır (tam scrape, limit yok)</p>
+          <p class="mb-2 text-[11px] text-slate-500 dark:text-zinc-400">{{ fmt_int((dev.good_urls or [])|length) }} satır (tam tarama, limit yok)</p>
           <div class="max-h-[480px] overflow-auto overscroll-contain">
             <table class="w-full min-w-[360px] text-xs">
               <thead class="sticky top-0 bg-white dark:bg-zinc-900"><tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
@@ -394,7 +394,7 @@ function _deviceSeriesFromHistory(deviceKey) {
     ni.push(d.needs_improvement || 0);
     good.push(d.good || 0);
   });
-  return { dates: dates, poor: poor, needs_improvement: ni, good: good, source: 'scrape_history' };
+  return { dates: dates, poor: poor, needs_improvement: ni, good: good, source: 'panel_history' };
 }
 
 function _resolveDeviceSeries(deviceKey) {
@@ -421,7 +421,7 @@ function _renderGscTrend(canvasId, noteId, deviceKey) {
   if (note) {
     note.textContent = ser.source === 'gsc'
       ? ('GSC trend · ' + labels.length + ' nokta')
-      : (hasData ? ('Scrape geçmişi · ' + labels.length + ' nokta — tam GSC grafik için Tara') : 'Grafik verisi yok — Mac bridge ile Tara');
+      : (hasData ? ('Tarama geçmişi · ' + labels.length + ' nokta — tam GSC grafik için Tara') : 'Grafik verisi yok — Mac köprü ile Tara');
   }
   new Chart(canvas, {
     type: 'line',
@@ -493,7 +493,7 @@ function _pollBridge() {
         var p = (j && j.gsc_cwv_progress) || {};
         var last = (j && j.last_gsc_cwv) || {};
         if (p.running) {
-          _setRunUi(true, p.message || 'Bridge scrape çalışıyor…');
+          _setRunUi(true, p.message || 'Köprü tarama çalışıyor…');
           return;
         }
         _stopPoll();
@@ -506,7 +506,7 @@ function _pollBridge() {
         if (p.phase === 'error' || (last && last.ok === false && last.message)) {
           var msg = p.message || last.message || 'hata';
           if (/oturumu yok|login/i.test(msg)) {
-            msg += '\n\nÇözüm: Mac’te scripts/gsc_cwv_scrape.py --login ile GSC oturumunu yenileyin, sonra tekrar Tara.';
+            msg += '\n\nÇözüm: Mac köprüde GSC oturumunu yenileyin, sonra tekrar Tara.';
           }
           alert('Web Vitals: ' + msg);
         }
@@ -617,7 +617,7 @@ function runWebVitals() {
     .then(function(j){
       var p = (j && j.gsc_cwv_progress) || {};
       if (p.running) {
-        _setRunUi(true, p.message || 'Bridge scrape çalışıyor…');
+        _setRunUi(true, p.message || 'Köprü tarama çalışıyor…');
         _pollBridge();
       }
     })

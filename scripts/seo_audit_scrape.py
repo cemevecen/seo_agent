@@ -299,7 +299,7 @@ def scrape_site(site_id: int, *, limit: int, concurrency: int, timeout_ms: int) 
         "ok_count": ok,
         "error_count": err,
         "saved": saved,
-        "message": f"scrape {total} URL · kaydedilen {saved}",
+        "message": f"tarama {total} URL · kaydedilen {saved}",
     }
 
 

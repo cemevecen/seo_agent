@@ -9,7 +9,7 @@
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">SEO Denetim</h2>
         <p class="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
           {% if summary.last_crawled %}Son tarama: {{ summary.last_crawled[:16].replace("T"," ") }}{% else %}Henüz tarama yapılmadı{% endif %}
-          {% if seo_audit_scrape_primary %} · Mac bridge scrape · GA4 top {{ seo_audit_top_limit|default(500) }}{% endif %}
+          {% if seo_audit_scrape_primary %} · Mac köprü tarama · GA4 top {{ seo_audit_top_limit|default(500) }}{% endif %}
           · <a href="/static/docs/seo-audit-denetim-kriterleri.md" download="seo-audit-denetim-kriterleri.md"
                class="text-sky-600 hover:underline dark:text-sky-400">Denetim kriterleri (indir)</a>
           · <a href="/api/seo-audit/{{ selected_site_id }}/export.xlsx?filter={{ filter }}"
@@ -61,7 +61,7 @@
         <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-zinc-500">Otomatik tarama</p>
         <p class="mt-1 text-sm text-slate-600 dark:text-zinc-400">
           {% if sched.scrape_primary %}
-          Mac bridge Playwright scrape · GA4 en çok trafik alan top {{ sched.top_limit|default(seo_audit_top_limit)|default(500) }} URL
+          Mac köprü tarama · GA4 en çok trafik alan top {{ sched.top_limit|default(seo_audit_top_limit)|default(500) }} URL
           (Railway HTTP crawl kapalı). Plan: 02:45 + 14:45 TSİ.
           {% else %}
           Günlük GA4 top URL meta denetimi (manuel «Tara» burada sayılmaz).
@@ -376,7 +376,7 @@
 
 <script>
 var _siteId = {{ selected_site_id if selected_site_id else 'null' }};
-var _scrapePrimary = {{ 'true' if seo_audit_scrape_primary else 'false' }};
+var _bridgePrimary = {{ 'true' if seo_audit_scrape_primary else 'false' }};
 var _bridgeSeoUrl = 'http://127.0.0.1:18765/sync-seo-audit';
 var _openDetail = {};  // rid → active issue type
 
@@ -434,7 +434,7 @@ function runAudit() {
   fetch('/api/seo-audit/' + _siteId + '/run', {method: 'POST', credentials: 'same-origin'})
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (d.status === 'bridge_required' || (_scrapePrimary && d.bridge_url)) {
+      if (d.status === 'bridge_required' || (_bridgePrimary && d.bridge_url)) {
         if (label) label.textContent = 'Bridge…';
         return fetch(_bridgeSeoUrl, {
           method: 'POST',
