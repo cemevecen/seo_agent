@@ -221,10 +221,10 @@ ASSET_RANGES: dict[str, tuple[float, float]] = {
     "usd": (25.0, 90.0),
     "eur": (30.0, 110.0),
     "bist100": (5000.0, 30000.0),
-    "gram_altin": (2500.0, 20000.0),
+    "gram_altin": (4000.0, 9000.0),
     "harem_gram_altin": (2500.0, 20000.0),
     "kapalicarsi_gram_altin": (2500.0, 20000.0),
-    "gram_gumus": (70.0, 250.0),
+    "gram_gumus": (80.0, 160.0),
     "ons_altin": (1500.0, 10000.0),
     "brent": (30.0, 250.0),
     "ceyrek_altin": (3000.0, 40000.0),
@@ -530,17 +530,7 @@ def _parse_assets_from_text(text: str) -> dict[str, dict[str, str]]:
 
 
 def _parse_one_asset(text: str, aid: str) -> dict[str, str] | None:
-    parsed = _parse_assets_from_text(text)
-    if parsed.get(aid):
-        return parsed[aid]
-    for ln in (text or "").splitlines():
-        compact = " ".join(ln.split())
-        if not (6 <= len(compact) <= 180):
-            continue
-        hit = _extract_from_line(compact, aid)
-        if hit:
-            return hit
-    return None
+    return _parse_assets_from_text(text).get(aid)
 
 
 def _ticker_text(page: Any) -> str:
