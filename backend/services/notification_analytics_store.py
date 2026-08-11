@@ -724,9 +724,10 @@ def replace_workspace_from_rows(
 def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
     """Doviz.com admin notifications/stats → workspace (TTL ile throttle)."""
     global _last_sheet_sync_mono
-    from backend.config import settings
+    from backend.config import is_railway_runtime, settings
     from backend.services.doviz_notification_admin import (
         admin_credentials_configured,
+        admin_http_proxy,
         fetch_notification_rows_from_admin,
     )
 
@@ -747,10 +748,28 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
             "message": "DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD tanımlı değil.",
         }
 
+    if not force:
+        return {
+            **workspace_state(db, include_rows=False),
+            "synced": False,
+            "skipped": True,
+            "message": "Kayıtlı veri kullanılıyor; canlı tarama yalnızca «Sayfayı güncelle».",
+            "source": "doviz_admin",
+        }
+
+    if is_railway_runtime() and not (admin_http_proxy() or "").strip():
+        LOGGER.info("Notification admin live fetch skipped on Railway (no VPN proxy)")
+        return {
+            **workspace_state(db, include_rows=False),
+            "synced": False,
+            "skipped": True,
+            "message": "Railway canlı admin taraması yok (VPN proxy yok); Mac köprüsü / «Sayfayı güncelle».",
+            "source": "doviz_admin",
+        }
+
     now = time.monotonic()
     if (
-        not force
-        and _last_sheet_sync_mono > 0
+        _last_sheet_sync_mono > 0
         and (now - _last_sheet_sync_mono) < _SHEET_SYNC_TTL_SEC
     ):
         return {

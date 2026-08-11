@@ -467,6 +467,7 @@
     });
   }
 
+  var periodCompareReq = 0;
   function renderPeriodCompare(primaryRows) {
     var el = global.document.getElementById("nt-period-compare");
     if (!el) return;
@@ -476,9 +477,11 @@
       el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Dönem karşılaştırması için başlangıç ve bitiş tarihi seçin.</p>';
       return;
     }
+    var req = ++periodCompareReq;
     el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Karşılaştırma yükleniyor…</p>';
     var curStats = aggregatePeriod(primaryRows);
     fetchRowsForRange(prev).then(function (prevRows) {
+      if (req !== periodCompareReq) return;
       var prevStats = aggregatePeriod(prevRows);
       var curDaily = aggregateDailyForCompare(primaryRows);
       var prevDaily = aggregateDailyForCompare(prevRows);
@@ -508,6 +511,7 @@
         + platHtml
         + "</div>";
     }).catch(function () {
+      if (req !== periodCompareReq) return;
       el.innerHTML = '<p class="text-xs text-rose-600">Karşılaştırma verisi yüklenemedi.</p>';
       clearTopKpiCompare();
     });
@@ -1282,7 +1286,9 @@
 
   function bootInitialRender() {
     if (!nt().getFilteredRows) return;
-    onRedraw({ detail: { rows: nt().getFilteredRows() } });
+    var rows = nt().getFilteredRows();
+    if (!rows || !rows.length) return;
+    onRedraw({ detail: { rows: rows } });
   }
 
   global.NTExtras = {
@@ -1300,7 +1306,6 @@
   };
 
   global.addEventListener("nt-redraw", onRedraw);
-  global.addEventListener("nt-data-ready", bootInitialRender);
   bindDrill();
   bindHeatmapMetric();
   bindTrafficDays();

@@ -2192,7 +2192,8 @@ def _run_deferred_startup() -> None:
             from backend.services.notification_analytics_store import sync_notification_analytics
 
             with SessionLocal() as db:
-                sync_notification_analytics(db, force=True)
+                # force=False: deploy sonrası canlı admin taraması sayfa yükünü kilitlemesin
+                sync_notification_analytics(db, force=False)
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Notification sheet startup sync hatası: %s", exc)
 

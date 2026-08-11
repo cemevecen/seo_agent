@@ -2812,15 +2812,8 @@
   renderMetricPills();
   renderListPlatformPills();
 
-  status("Veriler senkronize ediliyor…");
-  syncSheetFromServer(false)
-    .catch(function () {
-      /* kaynak erişilemezse mevcut DB ile devam */
-      return null;
-    })
-    .then(function () {
-      return loadServerState();
-    })
+  status("Veriler yükleniyor…");
+  loadServerState()
     .then(function (data) {
       return migrateLocalStorageIfEmpty(data.row_count).then(function () { return data; });
     })
@@ -2864,6 +2857,6 @@
 })();
 </script>
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
-<script src="/static/js/notification_extras.js?v=7"></script>
+<script src="/static/js/notification_extras.js?v=8"></script>
 <script src="/static/js/notification_lab.js?v=6"></script>
 {% endblock %}
