@@ -210,7 +210,8 @@ _last_pagespeed_auto_slot = ""
 _last_seo_audit_auto_slot = ""
 _last_gsc_cwv_auto_slot = ""
 _last_market_auto_slot = ""
-_last_pm_lab_auto_at = 0.0
+# Restart sonrası 3 saat bekle; ilk dolum manuel --ingest / /sync-pm-lab.
+_last_pm_lab_auto_at = time.time()
 PM_LAB_AUTO_INTERVAL_SEC = int(os.environ.get("PM_LAB_AUTO_INTERVAL_SEC") or str(3 * 3600))
 _news_progress: dict[str, Any] = {
     "running": False,
