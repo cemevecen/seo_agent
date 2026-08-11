@@ -240,6 +240,85 @@ def test_store_chart_skips_delta_when_top_slice_shifted():
         db.close()
 
 
+def test_store_icons_remembered_across_ingest():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        ingest_pm_lab_payload(
+            db,
+            {
+                "sections": {
+                    "store_charts": {
+                        "ok": True,
+                        "charts": [
+                            {
+                                "id": "android",
+                                "apps": [
+                                    {
+                                        "rank": 1,
+                                        "id": "com.doviz.android",
+                                        "name": "Döviz",
+                                        "icon": "https://example.com/doviz.png",
+                                    }
+                                ],
+                            },
+                            {
+                                "id": "ios",
+                                "apps": [
+                                    {
+                                        "rank": 1,
+                                        "id": "465599322",
+                                        "name": "Döviz",
+                                        "icon": "https://example.com/doviz-ios.png",
+                                    }
+                                ],
+                            },
+                        ],
+                    }
+                }
+            },
+        )
+        ingest_pm_lab_payload(
+            db,
+            {
+                "sections": {
+                    "store_charts": {
+                        "ok": True,
+                        "charts": [
+                            {
+                                "id": "android",
+                                "apps": [{"rank": 2, "id": "com.doviz.android", "name": "Döviz"}],
+                            },
+                            {
+                                "id": "ios",
+                                "apps": [{"rank": 3, "id": "465599322", "name": "Döviz"}],
+                            },
+                        ],
+                    }
+                }
+            },
+        )
+        ctx = page_context(db)
+        card = next(c for c in ctx["cards"] if c["id"] == "store_charts")
+        by_plat = {c["id"]: c for c in card["data"]["charts"]}
+        assert by_plat["android"]["apps"][0]["icon"] == "https://example.com/doviz.png"
+        assert by_plat["ios"]["apps"][0]["icon"] == "https://example.com/doviz-ios.png"
+        assert card["data"]["icon_map"]["android:com.doviz.android"] == "https://example.com/doviz.png"
+    finally:
+        db.close()
+
+
+def test_store_split_layout_in_js():
+    js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
+    html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
+    assert "pml-store-split" in js
+    assert "pml-store-split" in html
+    assert "chartById(charts, \"android\")" in js
+    assert "appNameHtml" in js
+    assert "pml-app-icon" in js
+    assert "referrerpolicy" in js
+
+
 def test_ios_lockup_id_uses_adam_id():
     import importlib.util
 
@@ -416,7 +495,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=19" in html
+    assert "pm_lab.js?v=20" in html
     assert COMPETITORS_INTERVAL_MIN == 10
     assert "fiyat " in js
     assert "10 dk" in Path("templates/pm_lab.html").read_text(encoding="utf-8")

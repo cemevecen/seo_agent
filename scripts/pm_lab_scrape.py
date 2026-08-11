@@ -1979,26 +1979,73 @@ def _play_chart_packages(limit: int = 200) -> list[str]:
         return _extract_android_packages(r.text or "")[:limit]
 
 
+_APP_ICON_CACHE = ROOT / "scratch" / "pm_lab_app_icons.json"
+
+
+def _load_app_icon_cache() -> dict[str, Any]:
+    if not _APP_ICON_CACHE.is_file():
+        return {}
+    try:
+        data = json.loads(_APP_ICON_CACHE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_app_icon_cache(cache: dict[str, Any]) -> None:
+    _APP_ICON_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    _APP_ICON_CACHE.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _cache_app_meta(cache: dict[str, Any], key: str, name: str, icon: str) -> None:
+    rec = cache.get(key) if isinstance(cache.get(key), dict) else {}
+    if name:
+        rec["name"] = name
+    if icon:
+        rec["icon"] = icon
+    if rec:
+        cache[key] = rec
+
+
 def _play_titles(packages: list[str]) -> dict[str, str]:
-    names: dict[str, str] = {}
+    return {pkg: rec.get("name") or pkg for pkg, rec in _play_meta(packages).items()}
+
+
+def _play_meta(packages: list[str], cache: dict[str, Any] | None = None) -> dict[str, dict[str, str]]:
+    """Play başlık + ikon. İkon cache'te varsa tekrar çekilmez."""
+    cache = _load_app_icon_cache() if cache is None else cache
+    out: dict[str, dict[str, str]] = {}
+    need: list[str] = []
+    for pkg in packages:
+        hit = cache.get(f"android:{pkg}") if isinstance(cache.get(f"android:{pkg}"), dict) else {}
+        name = str(hit.get("name") or "").strip()
+        icon = str(hit.get("icon") or "").strip()
+        if icon:
+            out[pkg] = {"name": name or pkg, "icon": icon}
+        else:
+            need.append(pkg)
+    if not need:
+        return out
     try:
         from google_play_scraper import app as gp_app
     except ImportError:
-        return names
+        return out
 
-    def one(pkg: str) -> tuple[str, str]:
+    def one(pkg: str) -> tuple[str, str, str]:
         try:
             meta = gp_app(pkg, lang="tr", country="tr")
-            return pkg, str(meta.get("title") or pkg)
+            return pkg, str(meta.get("title") or pkg), str(meta.get("icon") or "").strip()
         except Exception:
-            return pkg, pkg
+            return pkg, pkg, ""
 
     with ThreadPoolExecutor(max_workers=8) as pool:
-        futs = [pool.submit(one, p) for p in packages]
+        futs = [pool.submit(one, p) for p in need]
         for fut in as_completed(futs):
-            pkg, title = fut.result()
-            names[pkg] = title
-    return names
+            pkg, title, icon = fut.result()
+            out[pkg] = {"name": title or pkg, "icon": icon}
+            _cache_app_meta(cache, f"android:{pkg}", title, icon)
+    _save_app_icon_cache(cache)
+    return out
 
 
 def _ios_lockup_id(item: Any) -> str:
@@ -2076,11 +2123,19 @@ def _ios_chart_apps_rss(limit: int = 200) -> list[dict[str, Any]]:
         if not aid or aid in seen:
             continue
         seen.add(aid)
+        icon = ""
+        imgs = e.get("im:image") or []
+        if isinstance(imgs, list):
+            for im in imgs:
+                url = str((im.get("label") if isinstance(im, dict) else "") or "").strip()
+                if url:
+                    icon = url
         apps.append(
             {
                 "rank": len(apps) + 1,
                 "name": name or aid,
                 "id": aid,
+                "icon": icon,
                 "is_ours": aid == IOS_APP_ID,
             }
         )
@@ -2101,12 +2156,13 @@ def _ios_chart_apps(limit: int = 200) -> list[dict[str, Any]]:
             return rss
     if not ids:
         return _ios_chart_apps_rss(limit)
-    names = _ios_titles(ids)
+    meta = _ios_meta(ids)
     return [
         {
             "rank": i,
-            "name": names.get(aid) or aid,
+            "name": (meta.get(aid) or {}).get("name") or aid,
             "id": aid,
+            "icon": (meta.get(aid) or {}).get("icon") or "",
             "is_ours": aid == IOS_APP_ID,
         }
         for i, aid in enumerate(ids[:limit], 1)
@@ -2114,30 +2170,53 @@ def _ios_chart_apps(limit: int = 200) -> list[dict[str, Any]]:
 
 
 def _ios_titles(ids: list[str]) -> dict[str, str]:
-    names: dict[str, str] = {}
-    for i in range(0, len(ids), 50):
-        chunk = ids[i : i + 50]
+    return {aid: rec.get("name") or aid for aid, rec in _ios_meta(ids).items()}
+
+
+def _ios_meta(ids: list[str], cache: dict[str, Any] | None = None) -> dict[str, dict[str, str]]:
+    cache = _load_app_icon_cache() if cache is None else cache
+    out: dict[str, dict[str, str]] = {}
+    need: list[str] = []
+    for aid in ids:
+        hit = cache.get(f"ios:{aid}") if isinstance(cache.get(f"ios:{aid}"), dict) else {}
+        name = str(hit.get("name") or "").strip()
+        icon = str(hit.get("icon") or "").strip()
+        if icon:
+            out[aid] = {"name": name or aid, "icon": icon}
+        else:
+            need.append(aid)
+    for i in range(0, len(need), 50):
+        chunk = need[i : i + 50]
         url = f"https://itunes.apple.com/lookup?id={','.join(chunk)}&country=tr"
         try:
             with urllib.request.urlopen(url, timeout=25) as resp:
                 info = json.loads(resp.read().decode("utf-8", errors="replace"))
             for row in info.get("results") or []:
-                names[str(row.get("trackId"))] = str(row.get("trackName") or "")
+                aid = str(row.get("trackId") or "")
+                name = str(row.get("trackName") or "")
+                icon = str(row.get("artworkUrl100") or row.get("artworkUrl60") or "").strip()
+                if not aid:
+                    continue
+                out[aid] = {"name": name or aid, "icon": icon}
+                _cache_app_meta(cache, f"ios:{aid}", name, icon)
         except Exception:
             continue
-    return names
+    if need:
+        _save_app_icon_cache(cache)
+    return out
 
 
 def job_store_charts(page: Any) -> dict[str, Any]:
     del page
     charts: list[dict[str, Any]] = []
     pkgs = _play_chart_packages(200)
-    titles = _play_titles(pkgs)
+    play_meta = _play_meta(pkgs)
     play_apps = [
         {
             "rank": i,
-            "name": titles.get(pkg) or pkg,
+            "name": (play_meta.get(pkg) or {}).get("name") or pkg,
             "id": pkg,
+            "icon": (play_meta.get(pkg) or {}).get("icon") or "",
             "is_ours": pkg.lower() == PLAY_PACKAGE.lower(),
         }
         for i, pkg in enumerate(pkgs[:200], 1)
@@ -2164,12 +2243,33 @@ def job_store_charts(page: Any) -> dict[str, Any]:
             "apps": ios_apps,
         }
     )
+    icon_map: dict[str, str] = {}
+    cache = _load_app_icon_cache()
+    for chart in charts:
+        plat = "android" if chart.get("id") == "android" else "ios"
+        for app in chart.get("apps") or []:
+            icon = str(app.get("icon") or "").strip()
+            aid = str(app.get("id") or "").strip()
+            name = str(app.get("name") or "").strip()
+            if aid:
+                _cache_app_meta(cache, f"{plat}:{aid}", name, icon)
+            if icon and aid:
+                icon_map[f"{plat}:{aid}"] = icon
+                if not app.get("icon"):
+                    app["icon"] = icon
+            elif aid and not icon:
+                remembered = (cache.get(f"{plat}:{aid}") or {}).get("icon") if isinstance(cache.get(f"{plat}:{aid}"), dict) else ""
+                if remembered:
+                    app["icon"] = remembered
+                    icon_map[f"{plat}:{aid}"] = remembered
+    _save_app_icon_cache(cache)
     return {
         "ok": bool(play_apps or ios_apps),
         "scraped_at": _now(),
         "summary": f"Play {len(play_apps)} · iOS {len(ios_apps)}",
         "message": "",
         "charts": charts,
+        "icon_map": icon_map,
     }
 
 

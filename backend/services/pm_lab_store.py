@@ -42,7 +42,7 @@ SECTION_DEFS: list[dict[str, Any]] = [
         "id": "store_charts",
         "no": 12,
         "title": "Play / App Store kategori listeleri",
-        "hint": "Finans ücretsiz · ilk 200 · bilinen isimler",
+        "hint": "solda Android · sağda iOS · ikon bir kez",
     },
     {
         "id": "google_news",
@@ -236,6 +236,58 @@ def _enrich_news(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, An
     return out
 
 
+def _store_plat(chart: dict[str, Any] | None) -> str:
+    cid = str((chart or {}).get("id") or "").lower()
+    if cid in ("android", "play"):
+        return "android"
+    return "ios"
+
+
+def _collect_store_icon_map(payload: dict[str, Any] | None) -> dict[str, str]:
+    """platform:app_id → ikon URL. Bir kez çekilir, sonraki taramada sistem tanır."""
+    out: dict[str, str] = {}
+    if not isinstance(payload, dict):
+        return out
+    raw = payload.get("icon_map")
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            ks, vs = str(k or "").strip(), str(v or "").strip()
+            if ks and vs:
+                out[ks] = vs
+    for chart in payload.get("charts") or []:
+        if not isinstance(chart, dict):
+            continue
+        plat = _store_plat(chart)
+        for app in chart.get("apps") or []:
+            if not isinstance(app, dict):
+                continue
+            aid = str(app.get("id") or "").strip()
+            icon = str(app.get("icon") or "").strip()
+            if aid and icon:
+                out[f"{plat}:{aid}"] = icon
+    return out
+
+
+def _apply_store_icon_map(charts: list[Any] | None, icon_map: dict[str, str]) -> None:
+    for chart in charts or []:
+        if not isinstance(chart, dict):
+            continue
+        plat = _store_plat(chart)
+        for app in chart.get("apps") or []:
+            if not isinstance(app, dict):
+                continue
+            aid = str(app.get("id") or "").strip()
+            if not aid:
+                continue
+            icon = str(app.get("icon") or "").strip()
+            if icon:
+                icon_map[f"{plat}:{aid}"] = icon
+                continue
+            remembered = icon_map.get(f"{plat}:{aid}") or ""
+            if remembered:
+                app["icon"] = remembered
+
+
 def _store_chart_comparable(old_apps: list[Any], new_apps: list[Any]) -> bool:
     """Skip Δ when the previous snapshot is a different slice (e.g. missing first 25)."""
     old_ids = [
@@ -255,6 +307,10 @@ def _store_chart_comparable(old_apps: list[Any], new_apps: list[Any]) -> bool:
 
 def _enrich_store_charts(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     out = _strip_shots(incoming)
+    icon_map = _collect_store_icon_map(prev)
+    icon_map.update(_collect_store_icon_map(out))
+    _apply_store_icon_map(out.get("charts") if isinstance(out.get("charts"), list) else [], icon_map)
+    out["icon_map"] = icon_map
     prev_charts = {
         str(c.get("id") or ""): c
         for c in (prev.get("charts") or [])

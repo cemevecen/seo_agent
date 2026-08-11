@@ -694,12 +694,96 @@
     return "";
   }
 
+  function chartById(charts, id) {
+    for (var i = 0; i < charts.length; i++) {
+      if (charts[i] && charts[i].id === id) return charts[i];
+    }
+    return null;
+  }
+
+  function appNameHtml(a) {
+    var name = esc(a.name || a.id || "");
+    var icon = String(a.icon || "").trim();
+    if (icon) {
+      return (
+        '<span class="pml-app"><img class="pml-app-icon" src="' +
+        esc(icon) +
+        '" alt="" width="22" height="22" loading="lazy" decoding="async" referrerpolicy="no-referrer"><span class="pml-app-name">' +
+        name +
+        "</span></span>"
+      );
+    }
+    var letter = String(a.name || "?").trim().charAt(0).toUpperCase() || "?";
+    return (
+      '<span class="pml-app"><span class="pml-app-icon pml-app-icon-fallback" aria-hidden="true">' +
+      esc(letter) +
+      '</span><span class="pml-app-name">' +
+      name +
+      "</span></span>"
+    );
+  }
+
+  function paintStoreCol(host, ch, q) {
+    host.innerHTML = "";
+    if (!ch) {
+      host.textContent = "Liste yok.";
+      return;
+    }
+    var mv = ch.moves || {};
+    var head = document.createElement("div");
+    head.className = "mb-1.5";
+    head.innerHTML = "<h4 class=\"text-sm font-bold text-slate-800 dark:text-zinc-100\">" + esc(ch.title || "") + "</h4>";
+    var meta = document.createElement("div");
+    meta.className = "flex flex-wrap gap-1.5 mb-2";
+    meta.innerHTML = mv.reset
+      ? chip(ch.our_label || "") + chip("Δ sonraki taramada")
+      : chip(ch.our_label || "") +
+        chip("↑ " + (mv.up || 0), "pml-chip-up") +
+        chip("↓ " + (mv.down || 0), "pml-chip-down") +
+        chip("yeni " + (mv.new || 0), "pml-chip-new") +
+        chip("çıktı " + (mv.dropped || 0), "pml-chip-down");
+    host.appendChild(head);
+    host.appendChild(meta);
+    if ((ch.dropped || []).length) {
+      var drop = document.createElement("p");
+      drop.className = "pml-note";
+      drop.textContent =
+        "Çıkanlar: " +
+        ch.dropped
+          .slice(0, 8)
+          .map(function (d) {
+            return (d.name || d.id) + " (eski #" + d.prev_rank + ")";
+          })
+          .join(" · ");
+      host.appendChild(drop);
+    }
+    var rows = (ch.apps || [])
+      .filter(function (a) {
+        if (!q) return true;
+        return String(a.name || "").toLowerCase().indexOf(q) >= 0 || String(a.id || "").toLowerCase().indexOf(q) >= 0;
+      })
+      .map(function (a) {
+        var heat = a.delta === "up" ? "pml-heat-up" : a.delta === "down" ? "pml-heat-down" : a.delta === "new" ? "pml-heat-new" : "";
+        return tr(
+          [
+            { text: a.rank, sort: a.rank, cls: "pin" },
+            { html: rankDeltaHtml(a), sort: a.delta_n == null ? 0 : a.delta_n },
+            { html: appNameHtml(a), sort: a.name || "" },
+          ],
+          (a.is_ours ? "pml-ours pml-doviz " : "") + heat
+        );
+      });
+    host.appendChild(sortableTable(["Sıra", "Δ", "Uygulama"], rows, { wide: false }));
+  }
+
   function renderStore(root, data) {
     var charts = data.charts || [];
     if (!charts.length) {
       root.textContent = "Liste yok.";
       return;
     }
+    var android = chartById(charts, "android") || chartById(charts, "play") || charts[0];
+    var ios = chartById(charts, "ios") || charts[1] || null;
     var tools = document.createElement("div");
     tools.className = "pml-tools";
     var search = document.createElement("input");
@@ -708,62 +792,23 @@
     search.setAttribute("autocomplete", "off");
     search.placeholder = "Uygulama ara…";
     tools.appendChild(search);
-    var stage = document.createElement("div");
-    var current = 0;
-    function paint(i) {
-      current = i;
-      stage.innerHTML = "";
-      var ch = charts[i];
-      var mv = ch.moves || {};
-      var meta = document.createElement("div");
-      meta.className = "flex flex-wrap gap-1.5 mb-2";
-      meta.innerHTML = mv.reset
-        ? chip(ch.our_label || ch.title || "") + chip("Δ sonraki taramada")
-        : chip(ch.our_label || ch.title || "") +
-          chip("↑ " + (mv.up || 0), "pml-chip-up") +
-          chip("↓ " + (mv.down || 0), "pml-chip-down") +
-          chip("yeni " + (mv.new || 0), "pml-chip-new") +
-          chip("çıktı " + (mv.dropped || 0), "pml-chip-down");
+    var split = document.createElement("div");
+    split.className = "pml-store-split";
+    var left = document.createElement("section");
+    left.className = "pml-store-col";
+    var right = document.createElement("section");
+    right.className = "pml-store-col";
+    split.appendChild(left);
+    split.appendChild(right);
+    function paint() {
       var q = search.value.trim().toLowerCase();
-      var rows = (ch.apps || [])
-        .filter(function (a) {
-          if (!q) return true;
-          return String(a.name || "").toLowerCase().indexOf(q) >= 0 || String(a.id || "").toLowerCase().indexOf(q) >= 0;
-        })
-        .map(function (a) {
-          var heat = a.delta === "up" ? "pml-heat-up" : a.delta === "down" ? "pml-heat-down" : a.delta === "new" ? "pml-heat-new" : "";
-          return tr(
-            [
-              { text: a.rank, sort: a.rank },
-              { html: rankDeltaHtml(a), sort: a.delta_n == null ? 0 : a.delta_n },
-              { text: a.name },
-            ],
-            (a.is_ours ? "pml-ours pml-doviz " : "") + heat
-          );
-        });
-      stage.appendChild(meta);
-      if ((ch.dropped || []).length) {
-        var drop = document.createElement("p");
-        drop.className = "pml-note";
-        drop.textContent =
-          "Çıkanlar: " +
-          ch.dropped
-            .slice(0, 12)
-            .map(function (d) {
-              return (d.name || d.id) + " (eski #" + d.prev_rank + ")";
-            })
-            .join(" · ");
-        stage.appendChild(drop);
-      }
-      stage.appendChild(sortableTable(["Sıra", "Δ", "Uygulama"], rows, { wide: false }));
+      paintStoreCol(left, android, q);
+      paintStoreCol(right, ios, q);
     }
-    search.addEventListener("input", function () {
-      paint(current);
-    });
-    root.appendChild(tabs(charts.map(function (c) { return c.title; }), paint));
+    search.addEventListener("input", paint);
     root.appendChild(tools);
-    root.appendChild(stage);
-    paint(0);
+    root.appendChild(split);
+    paint();
   }
 
   function renderNews(root, data) {
