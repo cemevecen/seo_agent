@@ -408,13 +408,56 @@
   }
 
   var SF_FIT_SEL =
-    ".sf-card__title, .sf-card__sub, .sf-card__value, .sf-card__side-val, " +
-    ".home-sf-metric__title, .home-sf-metric__sub, .home-sf-metric__value, .home-sf-metric__side-val, " +
+    ".sf-card__title, .sf-card__sub, .sf-card__value, " +
+    ".home-sf-metric__title, .home-sf-metric__sub, .home-sf-metric__value, " +
     ".home-store-kpi__l, .home-store-kpi__v";
+
+  function fitSideChips(root) {
+    if (!root) return;
+    root.querySelectorAll(".sf-card__side, .home-sf-metric__side").forEach(function (side) {
+      side.style.fontSize = "";
+      var body = side.closest(".sf-card__body, .home-sf-metric__body");
+      if (body) body.classList.remove("is-chip-stack");
+      var rows = side.querySelectorAll(".sf-card__side-row, .home-sf-metric__side-row");
+      if (!rows.length) return;
+      var maxPx = parseFloat(window.getComputedStyle(side).fontSize) || 9;
+      var minPx = 5;
+      function overflowing() {
+        for (var i = 0; i < rows.length; i++) {
+          var row = rows[i];
+          if (row.scrollWidth > row.clientWidth + 0.5) return true;
+          var val = row.querySelector(".sf-card__side-val, .home-sf-metric__side-val");
+          if (val && val.scrollWidth > val.clientWidth + 0.5) return true;
+        }
+        return false;
+      }
+      if (side.clientWidth < 2) return;
+      if (!overflowing()) return;
+      var lo = minPx;
+      var hi = maxPx;
+      var best = minPx;
+      for (var n = 0; n < 16; n++) {
+        var mid = (lo + hi) / 2;
+        side.style.fontSize = mid + "px";
+        if (!overflowing()) {
+          best = mid;
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      side.style.fontSize = Math.max(minPx, best) + "px";
+      if (overflowing() && body) {
+        body.classList.add("is-chip-stack");
+        side.style.fontSize = "";
+      }
+    });
+  }
 
   function fitCardTexts(root, extraSelector) {
     var sel = extraSelector ? SF_FIT_SEL + ", " + extraSelector : SF_FIT_SEL;
     fitTextToWidth(root, sel, { minPx: 8 });
+    fitSideChips(root);
   }
 
   global.SeoMetricTableUx = {
@@ -431,6 +474,7 @@
     bindInteractive: bindInteractive,
     applyWidths: applyWidths,
     fitTextToWidth: fitTextToWidth,
+    fitSideChips: fitSideChips,
     fitCardTexts: fitCardTexts,
   };
 })(typeof window !== "undefined" ? window : this);

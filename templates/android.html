@@ -1027,8 +1027,8 @@
   }
   .pc-stability-grid .sf-card__body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.4rem 0.5rem;
+    grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+    gap: 0.3rem 0.32rem;
     align-items: center;
     margin-top: 0.4rem;
     min-width: 0;
@@ -1048,20 +1048,18 @@
   }
   .pc-stability-grid .sf-card__side {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.22rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
     align-items: stretch;
     justify-items: stretch;
-    flex: none;
-    width: max-content;
-    max-width: 46%;
     min-width: 0;
+    max-width: 36cqi;
     justify-self: end;
     overflow: hidden;
-    font-size: clamp(0.55rem, 2cqi, 0.72rem);
+    font-size: clamp(0.34rem, 3.1cqi, 0.48rem);
     font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.15;
+    font-variant-numeric: lining-nums;
+    line-height: 1.05;
     color: #475569;
     text-align: center;
   }
@@ -1069,14 +1067,16 @@
     color: #d4d4d8;
   }
   .pc-stability-grid .sf-card__side-row {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.22rem;
+    gap: 0.12em;
     width: 100%;
     min-width: 0;
-    padding: 0.22rem 0.35rem;
-    border-radius: 0.45rem;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.08em 0.18em 0.08em 0.26em;
+    border-radius: 0.26rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255 / 0.85);
   }
@@ -1085,32 +1085,35 @@
     background: rgb(24 24 27 / 0.55);
   }
   .pc-stability-grid .sf-card__side-val {
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
+    letter-spacing: -0.02em;
   }
   .pc-stability-grid .sf-card__side-info {
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 0.78rem;
-    height: 0.78rem;
-    flex: 0 0 auto;
+    width: 1em;
+    height: 1em;
+    flex: 0 0 1em;
     border-radius: 9999px;
     border: 1px solid rgba(148, 163, 184, 0.55);
     background: transparent;
     color: #94a3b8;
-    font-size: 0.48rem;
+    font-size: 1em;
     font-weight: 800;
     line-height: 1;
     cursor: help;
     padding: 0;
   }
-  @container sf-card (max-width: 12.5rem) {
-    .pc-stability-grid .sf-card__body {
-      grid-template-columns: 1fr;
-      gap: 0.4rem;
+  @container sf-card (max-width: 11.25rem) {
+    .pc-stability-grid .sf-card__body,
+    .pc-stability-grid .sf-card__body.is-chip-stack {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.28rem;
     }
     .pc-stability-grid .sf-card__side {
       width: 100%;
@@ -1118,6 +1121,14 @@
       min-width: 0;
       justify-self: stretch;
     }
+  }
+  .pc-stability-grid .sf-card__body.is-chip-stack {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pc-stability-grid .sf-card__body.is-chip-stack .sf-card__side {
+    width: 100%;
+    max-width: none;
+    justify-self: stretch;
   }
   .pc-stability-grid .sf-card__side-info:hover,
   .pc-stability-grid .sf-card__side-info:focus-visible {
@@ -1656,7 +1667,7 @@
 </div>
 
 <script src="/static/js/resizable_data_list.js?v=5"></script>
-<script src="/static/js/metric_table_ux.js?v=7"></script>
+<script src="/static/js/metric_table_ux.js?v=8"></script>
 <script>
 (function () {
   var statusEl = document.getElementById("pc-status");

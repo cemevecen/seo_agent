@@ -312,40 +312,40 @@
   }
   .home-sf-metric__body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.35rem 0.45rem;
+    grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+    gap: 0.3rem 0.32rem;
     align-items: center;
     margin-top: 0.4rem;
     min-width: 0;
   }
   .home-sf-metric__side {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.2rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
     align-items: stretch;
     justify-items: stretch;
-    flex: none;
-    width: max-content;
-    max-width: 46%;
     min-width: 0;
+    max-width: 36cqi;
     justify-self: end;
     overflow: hidden;
-    font-size: clamp(0.6rem, 2cqi, 0.7rem);
+    font-size: clamp(0.34rem, 3.1cqi, 0.48rem);
     font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.15;
+    font-variant-numeric: lining-nums;
+    line-height: 1.05;
     color: #64748b;
     text-align: center;
   }
   .home-sf-metric__side-row {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.2rem;
+    gap: 0.12em;
     width: 100%;
     min-width: 0;
-    padding: 0.2rem 0.32rem;
-    border-radius: 0.45rem;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.08em 0.18em 0.08em 0.26em;
+    border-radius: 0.26rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255 / 0.85);
   }
@@ -355,32 +355,35 @@
     background: rgb(24 24 27 / 0.55);
   }
   .home-sf-metric__side-val {
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
+    letter-spacing: -0.02em;
   }
   .home-sf-metric__side-info {
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 0.78rem;
-    height: 0.78rem;
-    flex: 0 0 auto;
+    width: 1em;
+    height: 1em;
+    flex: 0 0 1em;
     border-radius: 9999px;
     border: 1px solid rgba(148, 163, 184, 0.55);
     background: transparent;
     color: #94a3b8;
-    font-size: 0.48rem;
+    font-size: 1em;
     font-weight: 800;
     line-height: 1;
     cursor: help;
     padding: 0;
   }
-  @container home-sf-metric (max-width: 12.5rem) {
-    .home-sf-metric__body {
-      grid-template-columns: 1fr;
-      gap: 0.35rem;
+  @container home-sf-metric (max-width: 11.25rem) {
+    .home-sf-metric__body,
+    .home-sf-metric__body.is-chip-stack {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.28rem;
     }
     .home-sf-metric__side {
       width: 100%;
@@ -388,6 +391,14 @@
       min-width: 0;
       justify-self: stretch;
     }
+  }
+  .home-sf-metric__body.is-chip-stack {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .home-sf-metric__body.is-chip-stack .home-sf-metric__side {
+    width: 100%;
+    max-width: none;
+    justify-self: stretch;
   }
   .home-sf-metric__side-info:hover,
   .home-sf-metric__side-info:focus-visible {
@@ -588,14 +599,6 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
       </div>
       {% endif %}
 
-      <div class="home-store-release mt-2 flex flex-wrap items-center justify-between gap-2">
-        <div class="min-w-0">
-          <p class="home-label text-slate-500 dark:text-slate-400">release etki</p>
-          <p class="home-meta truncate text-slate-400 dark:text-slate-500" title="{{ plat.release_note|default('') }}">{{ plat.release_note|default('—') }}</p>
-        </div>
-        <p class="home-store-release-delta shrink-0 tabular-nums {% if plat.release_tone == 'up' %}text-emerald-600 dark:text-emerald-300{% elif plat.release_tone == 'down' %}text-rose-600 dark:text-rose-300{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ plat.release_delta_fmt|default('—') }}</p>
-      </div>
-
       {% if themes %}
       <div class="home-store-themes" title="Dönem yorum kategorileri">
         {% for t in themes %}
@@ -741,11 +744,11 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
     root.setAttribute('data-crash-shell-wired', '1');
     function fitHomeSfValues() {
       var ux = window.SeoMetricTableUx;
-      var sel = '.home-sf-metric__title, .home-sf-metric__sub, .home-sf-metric__value, .home-sf-metric__side-val, .home-store-kpi__l, .home-store-kpi__v';
       if (ux && ux.fitCardTexts) {
         ux.fitCardTexts(root);
         return;
       }
+      var sel = '.home-sf-metric__title, .home-sf-metric__sub, .home-sf-metric__value, .home-store-kpi__l, .home-store-kpi__v';
       root.querySelectorAll(sel).forEach(function (el) {
         el.style.whiteSpace = 'nowrap';
         el.style.overflow = 'hidden';
@@ -772,6 +775,7 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
         }
         el.style.fontSize = Math.max(minPx, best) + 'px';
       });
+      if (ux && ux.fitSideChips) ux.fitSideChips(root);
     }
     requestAnimationFrame(fitHomeSfValues);
     if (typeof ResizeObserver !== 'undefined') {
@@ -813,7 +817,7 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=26';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=27';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
