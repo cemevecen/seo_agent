@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v55-rt-chips-row">
+<style id="home-site-borders" data-home-css="v56-home-edge">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -1927,6 +1927,68 @@
   }
   @media (min-width: 1024px) {
     .home-focus-split--bar { display: none !important; }
+  }
+
+  /* Mobil web: anasayfa container + iç çerçeveler kenara kadar */
+  @media (max-width: 767px) {
+    #content:has(#home-board) {
+      padding-left: env(safe-area-inset-left, 0px) !important;
+      padding-right: env(safe-area-inset-right, 0px) !important;
+    }
+    #home-board {
+      max-width: none;
+    }
+    #home-board > .rounded-2xl,
+    #home-board section.home-readable,
+    #home-board .home-readable[data-home-container],
+    #home-board [data-home-container-slot] > section,
+    #home-board .home-project-head {
+      border-radius: 0 !important;
+      padding-left: 0.4rem !important;
+      padding-right: 0.4rem !important;
+    }
+    .home-readable[data-home-container],
+    section.home-readable[data-home-container] {
+      padding-right: 0.4rem !important;
+    }
+    #home-board .home-ga4-spark-wrap,
+    #home-board .home-sc-spark-wrap,
+    #home-board .home-sf-metrics,
+    #home-board .home-split,
+    #home-board .home-vg-rev-grid,
+    #home-board .home-rt-grid-wrap {
+      margin-left: -0.4rem;
+      margin-right: -0.4rem;
+      width: calc(100% + 0.8rem);
+      max-width: none;
+    }
+    #home-board .home-rt-grid-wrap {
+      padding-left: 0;
+      padding-right: 0;
+      overflow-x: visible;
+    }
+    #home-board .home-rt-grid {
+      display: flex !important;
+      width: 100% !important;
+      min-width: 0 !important;
+    }
+    #home-board .home-rt-project-band {
+      flex: var(--rt-cols, 2) 1 0 !important;
+      width: auto !important;
+      min-width: 0 !important;
+      grid-template-columns: repeat(var(--rt-cols, 2), minmax(0, 1fr)) !important;
+    }
+    #home-board .home-rt-metric,
+    #home-board .home-ga4-spark-cell,
+    #home-board .home-sf-metric,
+    #home-board .home-vg-rev-card {
+      width: 100%;
+      min-width: 0 !important;
+      border-radius: 0;
+    }
+    #home-board .home-pair-row {
+      gap: 0.35rem;
+    }
   }
 </style>
 
