@@ -90,7 +90,7 @@
       },
       hoverinfo: "skip",
       showlegend: false,
-      name: "Sürüm",
+      name: "Version",
     };
   }
 

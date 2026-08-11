@@ -1248,11 +1248,11 @@
         <span data-page-tarama-slot></span>
         <button id="pc-btn-overview" type="button"
                 class="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20">
-          Özet
+          Summary
         </button>
         <button id="pc-btn-reviews" type="button"
                 class="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20">
-          Yorumlar
+          Reviews
         </button>
         <a id="pc-console-link"
            href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/app-dashboard"
@@ -1285,34 +1285,34 @@
   <!-- Interaktif Play analytics (console statistics tarama) -->
   <section class="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-900/50 dark:bg-slate-900">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Metrikler</h2>
+      <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Metrics</h2>
     </div>
 
     <div class="pa-filters mt-4 text-slate-600 dark:text-zinc-300">
-      <label class="pa-f pa-f--date">Başlangıç
+      <label class="pa-f pa-f--date">Start
         <input id="pa-start" type="date" />
       </label>
-      <label class="pa-f pa-f--date">Bitiş
+      <label class="pa-f pa-f--date">End
         <input id="pa-end" type="date" />
       </label>
       <label class="pa-f pa-f--sm">Preset
         <select id="pa-preset">
-          <option value="yesterday">Dün</option>
-          <option value="3">Son 3 gün</option>
-          <option value="7">Son 1 hafta</option>
-          <option value="14">Son 2 hafta</option>
-          <option value="30" selected>Son 1 ay</option>
-          <option value="90">Son 3 ay</option>
-          <option value="180">Son 6 ay</option>
-          <option value="270">Son 9 ay</option>
-          <option value="365">Son 1 sene</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="3">Last 3 days</option>
+          <option value="7">Last 1 week</option>
+          <option value="14">Last 2 weeks</option>
+          <option value="30" selected>Last 1 month</option>
+          <option value="90">Last 3 months</option>
+          <option value="180">Last 6 months</option>
+          <option value="270">Last 9 months</option>
+          <option value="365">Last 1 year</option>
         </select>
       </label>
-      <label class="pa-f pa-f--metric">Metrik
+      <label class="pa-f pa-f--metric">Metric
         <div class="pa-metric-dd">
           <button type="button" id="pa-metric-trigger" class="pa-metric-trigger"
                   aria-haspopup="listbox" aria-expanded="false" aria-controls="pa-metric-list">
-            <span id="pa-metric-label" class="min-w-0 flex-1 truncate">Seçiniz</span>
+            <span id="pa-metric-label" class="min-w-0 flex-1 truncate">Select</span>
             <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
           </button>
           <div id="pa-metric-list" role="listbox" aria-multiselectable="true"
@@ -1321,7 +1321,7 @@
           </div>
         </div>
         <select id="pa-metric-catalog" class="hidden" aria-hidden="true" tabindex="-1">
-          <option value="">Seçiniz</option>
+          <option value="">Select</option>
           <optgroup label="Quality">
             <option value="anrs">ANR</option>
             <option value="crashes">Crash</option>
@@ -1366,52 +1366,52 @@
             <option value="virgul:ctr_pct">Virgül · CTR (%)</option>
             <option value="virgul:coverage_pct">Virgül · Coverage (%)</option>
           </optgroup>
-          <optgroup label="Piyasa">
-            <option value="market:usd_try">USD/TRY kapanış</option>
-            <option value="market:eur_try">EUR/TRY kapanış</option>
-            <option value="market:gram_altin">Gram altın kapanış</option>
-            <option value="market:ceyrek_altin">Çeyrek altın kapanış</option>
-            <option value="market:gram_gumus">Gram gümüş kapanış</option>
-            <option value="market:bist100">BIST 100 kapanış</option>
-            <option value="market:brent">Brent kapanış</option>
-            <option value="market:bitcoin">Bitcoin kapanış</option>
-            <option value="market:all_indexed">Tümü (% aralık başı=100)</option>
+          <optgroup label="Market">
+            <option value="market:usd_try">USD/TRY close</option>
+            <option value="market:eur_try">EUR/TRY close</option>
+            <option value="market:gram_altin">Gold gram close</option>
+            <option value="market:ceyrek_altin">Quarter gold close</option>
+            <option value="market:gram_gumus">Silver gram close</option>
+            <option value="market:bist100">BIST 100 close</option>
+            <option value="market:brent">Brent close</option>
+            <option value="market:bitcoin">Bitcoin close</option>
+            <option value="market:all_indexed">All (range start=100)</option>
           </optgroup>
         </select>
       </label>
-      <label class="pa-f pa-f--sm">Zaman kırılımı
+      <label class="pa-f pa-f--sm">Time breakdown
         <select id="pa-breakdown">
-          <option value="date" selected>Gün</option>
-          <option value="week">Hafta</option>
-          <option value="month">Ay</option>
-          <option value="segment">Boyut (sürüm/cihaz/ülke)</option>
+          <option value="date" selected>Day</option>
+          <option value="week">Week</option>
+          <option value="month">Month</option>
+          <option value="segment">Dimension (version/device/country)</option>
         </select>
       </label>
-      <label class="pa-f pa-f--sm">Boyut
+      <label class="pa-f pa-f--sm">Dimension
         <select id="pa-dim">
-          <option value="overview">Genel (tarih)</option>
-          <option value="app_version">Uygulama sürümü</option>
-          <option value="device">Cihaz</option>
-          <option value="country">Ülke</option>
+          <option value="overview">Overview (date)</option>
+          <option value="app_version">App version</option>
+          <option value="device">Device</option>
+          <option value="country">Country</option>
           <option value="os_version">Android OS</option>
         </select>
       </label>
       <label class="pa-f pa-f--sm">Segment
         <select id="pa-segment">
-          <option value="all">Tümü</option>
+          <option value="all">All</option>
         </select>
       </label>
       <label class="pa-f pa-f--compare">
         <input id="pa-compare" type="checkbox" class="rounded border-slate-300" />
         <span class="pa-f-compare-text">
-          <span class="pa-f-compare-full">Önceki dönem kıyas</span>
-          <span class="pa-f-compare-short">Kıyas</span>
+          <span class="pa-f-compare-full">Compare previous period</span>
+          <span class="pa-f-compare-short">Compare</span>
         </span>
       </label>
       <div class="pa-f-actions">
         <button id="pa-run" type="button"
                 class="pa-f-btn border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80">
-          <span id="pa-run-label">Uygula</span>
+          <span id="pa-run-label">Apply</span>
         </button>
       </div>
     </div>
@@ -1425,37 +1425,37 @@
             <span class="pa-orbit__ring pa-orbit__ring--inner"></span>
             <span class="pa-orbit__core"></span>
           </div>
-          <p class="text-[11px] font-semibold tracking-wide text-emerald-800 dark:text-emerald-300">Veriler yükleniyor…</p>
+          <p class="text-[11px] font-semibold tracking-wide text-emerald-800 dark:text-emerald-300">Loading data…</p>
         </div>
       </div>
 
       <div id="pa-kpi-grid" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div id="pa-kpi-total" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
-          <p id="pa-total-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
+          <p id="pa-total-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Total / selected</p>
           <p id="pa-total" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
         </div>
         <div id="pa-kpi-prev" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
-          <p id="pa-prev-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Önceki dönem</p>
+          <p id="pa-prev-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Previous period</p>
           <p id="pa-prev" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
         </div>
         <div id="pa-kpi-delta" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
-          <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Değişim</p>
+          <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Change</p>
           <p id="pa-delta" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
         </div>
       </div>
-      <div id="pa-metric-kpis" class="hidden grid grid-cols-1 gap-3" aria-label="Seçili metrik KPI kartları"></div>
+      <div id="pa-metric-kpis" class="hidden grid grid-cols-1 gap-3" aria-label="Selected metric KPI cards"></div>
 
       <div id="pa-chart-card" class="pa-chart-card mt-4 overflow-visible rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800">
         <div class="pa-chart-card__toolbar flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
           <div id="pa-legend-line" class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
-            <span id="pa-legend-primary" class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-600/30"></span><span id="pa-legend-primary-label">Seçili dönem</span></span>
-            <span id="pa-legend-prev" class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Önceki dönem</span>
-            <span id="pa-legend-overlay" class="hidden inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-amber-500 ring-2 ring-amber-500/30"></span><span id="pa-legend-overlay-label">Ek grafik</span></span>
+            <span id="pa-legend-primary" class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-600/30"></span><span id="pa-legend-primary-label">Selected period</span></span>
+            <span id="pa-legend-prev" class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Previous period</span>
+            <span id="pa-legend-overlay" class="hidden inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-amber-500 ring-2 ring-amber-500/30"></span><span id="pa-legend-overlay-label">Extra chart</span></span>
             <span id="pa-legend-multi" class="hidden flex flex-wrap items-center gap-3"></span>
             <span id="pa-legend-overlays" class="hidden flex flex-wrap items-center gap-3"></span>
           </div>
           <div id="pa-legend-stars" class="hidden flex flex-wrap items-center gap-2.5 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
-            <span class="mr-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">Puan dağılımı</span>
+            <span class="mr-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">Rating distribution</span>
             <span class="inline-flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm" style="background:#c5d7f2"></span>5★</span>
             <span class="inline-flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm" style="background:#8eb4e6"></span>4★</span>
             <span class="inline-flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm" style="background:#5a8fd4"></span>3★</span>
@@ -1463,14 +1463,14 @@
             <span class="inline-flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm" style="background:#1a3a6e"></span>1★</span>
           </div>
           <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
-            <div id="pa-chart-style" class="pa-chart-style" role="group" aria-label="Grafik çizim tarzı">
-              <button type="button" data-pa-chart-style="line" title="Çizgi" aria-label="Çizgi grafik" aria-pressed="false">
+            <div id="pa-chart-style" class="pa-chart-style" role="group" aria-label="Chart style">
+              <button type="button" data-pa-chart-style="line" title="Line" aria-label="Line chart" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11.5 L5.5 7.5 L8.5 9.5 L14 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-pa-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="true" class="is-active">
+              <button type="button" data-pa-chart-style="area" title="Filled area" aria-label="Filled area chart" aria-pressed="true" class="is-active">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 12 V8.5 L5.5 5.5 L8.5 7.2 L14 3.5 V12 Z" fill="currentColor" fill-opacity="0.28"/><path d="M2 8.5 L5.5 5.5 L8.5 7.2 L14 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-pa-chart-style="bar" title="Yığınlı" aria-label="Yığınlı çubuk grafik" aria-pressed="false">
+              <button type="button" data-pa-chart-style="bar" title="Stacked" aria-label="Stacked bar chart" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="9" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="3" y="5.5" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="3" y="3" width="3.2" height="2.5" rx="0.4" fill="currentColor"/><rect x="9.5" y="10" width="3.2" height="2.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="9.5" y="7" width="3.2" height="3" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="9.5" y="4" width="3.2" height="3" rx="0.4" fill="currentColor"/></svg>
               </button>
             </div>
@@ -1478,7 +1478,7 @@
           </div>
         </div>
         <div id="pa-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
-          <svg id="pa-chart" viewBox="0 0 720 260" class="block w-full max-w-none touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Metrikler grafiği"></svg>
+          <svg id="pa-chart" viewBox="0 0 720 260" class="block w-full max-w-none touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Metrics chart"></svg>
           <div id="pa-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
             <p id="pa-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
             <div id="pa-tip-cur" class="mt-1.5 hidden"></div>
@@ -1494,24 +1494,24 @@
           <table class="pa-data-table text-left text-xs">
             <thead class="sticky top-0 z-[1] bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
               <tr id="pa-thead-row">
-                <th class="px-2 py-2 font-bold sm:px-3">Kırılım</th>
-                <th id="pa-th-value" class="px-2 py-2 font-bold tabular-nums sm:px-3">Değer</th>
+                <th class="px-2 py-2 font-bold sm:px-3">Breakdown</th>
+                <th id="pa-th-value" class="px-2 py-2 font-bold tabular-nums sm:px-3">Value</th>
                 <!-- ek grafik sütunları JS ile pa-th-value sonrasına eklenir -->
-                <th id="pa-th-with-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumlu</th>
-                <th id="pa-th-without-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumsuz</th>
+                <th id="pa-th-with-rev" class="hidden px-3 py-2 font-bold tabular-nums">With reviews</th>
+                <th id="pa-th-without-rev" class="hidden px-3 py-2 font-bold tabular-nums">Without reviews</th>
                 <th id="pa-th-star-5" class="hidden px-3 py-2 font-bold tabular-nums">5★</th>
                 <th id="pa-th-star-4" class="hidden px-3 py-2 font-bold tabular-nums">4★</th>
                 <th id="pa-th-star-3" class="hidden px-3 py-2 font-bold tabular-nums">3★</th>
                 <th id="pa-th-star-2" class="hidden px-3 py-2 font-bold tabular-nums">2★</th>
                 <th id="pa-th-star-1" class="hidden px-3 py-2 font-bold tabular-nums">1★</th>
-                <th id="pa-th-prev" class="hidden px-3 py-2 font-bold tabular-nums">Önceki</th>
+                <th id="pa-th-prev" class="hidden px-3 py-2 font-bold tabular-nums">Previous</th>
                 <th id="pa-th-delta" class="hidden px-3 py-2 font-bold tabular-nums">Δ %</th>
               </tr>
             </thead>
             <tbody id="pa-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
           </table>
         </div>
-        <div class="rdl-handle" data-rdl-handle role="separator" aria-orientation="horizontal" title="Sürükleyerek yüksekliği ayarla"></div>
+        <div class="rdl-handle" data-rdl-handle role="separator" aria-orientation="horizontal" title="Drag to adjust height"></div>
       </div>
     </div>
   </section>
@@ -1535,22 +1535,22 @@
     </div>
 
     <div class="mt-4">
-      <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Oranlar · son 28 gün</h3>
+      <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Rates · last 28 days</h3>
       <div id="pc-vitals-overview" class="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-700"></div>
-      <p id="pc-vitals-overview-empty" class="mt-2 hidden text-center text-sm text-slate-400">Henüz oran tablosu yok — vitals sync sonrası dolacak</p>
+      <p id="pc-vitals-overview-empty" class="mt-2 hidden text-center text-sm text-slate-400">No rates table yet — fills after vitals sync</p>
     </div>
 
     <div class="mt-5">
       <div class="flex flex-wrap items-center gap-2">
-        <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sorun kategorileri</h3>
+        <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Issue categories</h3>
         <div id="pc-vitals-etype" class="flex gap-1">
           <button type="button" data-etype="CRASH" class="pc-vitals-etype rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-zinc-800 dark:text-zinc-300">Crash</button>
           <button type="button" data-etype="ANR" class="pc-vitals-etype rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white">ANR</button>
         </div>
-        <div id="pc-vitals-versions" class="ml-auto flex flex-wrap items-center gap-1" aria-label="Uygulama sürümleri"></div>
+        <div id="pc-vitals-versions" class="ml-auto flex flex-wrap items-center gap-1" aria-label="App versions"></div>
       </div>
       <div id="pc-vitals-cats" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
-      <p id="pc-vitals-cats-empty" class="mt-2 hidden text-center text-sm text-slate-400">Henüz kategori yok — vitals sync sonrası dolacak</p>
+      <p id="pc-vitals-cats-empty" class="mt-2 hidden text-center text-sm text-slate-400">No categories yet — fills after vitals sync</p>
       <div id="pc-vitals-issues" class="mt-4 max-h-[28rem] overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700"></div>
       <div id="pc-vitals-detail" class="mt-3 hidden rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40"></div>
     </div>
@@ -1559,15 +1559,15 @@
   <section id="pc-panel-overview" class="hidden scroll-mt-4 space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
-        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Özet</h2>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Summary</h2>
       </div>
-      <button type="button" data-pc-close="overview" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Kapat</button>
+      <button type="button" data-pc-close="overview" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Close</button>
     </div>
     <div class="space-y-5" id="pc-overview-wrap">
 
   <section class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-700 dark:bg-zinc-950/40">
-    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Play puanı</h2>
-    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Mağaza varsayılan puanı · kullanıcılar · yorumlu puanlar</p>
+    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Play rating</h2>
+    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Store default rating · users · rated reviews</p>
     <div id="pc-rating" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"></div>
   </section>
 
@@ -1589,28 +1589,28 @@
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Monetize</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /monetize (gelir, alıcı, ÖYKBOG)</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /monetize (revenue, buyers, ARPU)</p>
       </div>
       <a href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/monetize"
          target="_blank" rel="noopener"
-         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Open in Play ↗</a>
     </div>
     <div id="pc-monetize" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
-    <p id="pc-monetize-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz monetize kartı yok — sync sonrası dolacak</p>
+    <p id="pc-monetize-empty" class="mt-4 hidden text-center text-sm text-slate-400">No monetize cards yet — fills after sync</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Grow</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /grow-overview (edinme, mağaza, AEKS)</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /grow-overview (acquisition, store, ASO)</p>
       </div>
       <a href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/grow-overview"
          target="_blank" rel="noopener"
-         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Open in Play ↗</a>
     </div>
     <div id="pc-grow" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
-    <p id="pc-grow-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz grow kartı yok — sync sonrası dolacak</p>
+    <p id="pc-grow-empty" class="mt-4 hidden text-center text-sm text-slate-400">No grow cards yet — fills after sync</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -1622,78 +1622,78 @@
       <a id="pc-store-listings-link"
          href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/store-listings?metric=METRIC_ACQUISITION"
          target="_blank" rel="noopener"
-         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Open in Play ↗</a>
     </div>
     <div id="pc-store-listings" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
-    <p id="pc-store-listings-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz store listings kartı yok — sync sonrası dolacak</p>
+    <p id="pc-store-listings-empty" class="mt-4 hidden text-center text-sm text-slate-400">No store listings cards yet — fills after sync</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Monitor</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /monitor (vitals, kilitlenme, ANR, puan)</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /monitor (vitals, crash, ANR, rating)</p>
       </div>
       <a href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/monitor"
          target="_blank" rel="noopener"
-         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Open in Play ↗</a>
     </div>
     <div id="pc-monitor" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
-    <p id="pc-monitor-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz monitor kartı yok — sync sonrası dolacak</p>
+    <p id="pc-monitor-empty" class="mt-4 hidden text-center text-sm text-slate-400">No monitor cards yet — fills after sync</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
-        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Cihazlar · Reach</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /devices/dashboard (yükleme tabanı, vitals, Android sürüm / RAM / SoC kırılımları)</p>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Devices · Reach</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /devices/dashboard (install base, vitals, Android version / RAM / SoC breakdowns)</p>
       </div>
       <a id="pc-devices-link"
          href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/devices/dashboard?days=28&amp;peerset_key=3%3A6a1f18dbb44333cd&amp;expanded_breakdowns=ANDROID_VERSION"
          target="_blank" rel="noopener"
-         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Open in Play ↗</a>
     </div>
     <div id="pc-devices" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
-    <p id="pc-devices-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz devices kartı yok — sync sonrası dolacak</p>
-    <h3 class="mt-5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Alt kırılımlar</h3>
+    <p id="pc-devices-empty" class="mt-4 hidden text-center text-sm text-slate-400">No devices cards yet — fills after sync</p>
+    <h3 class="mt-5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sub-breakdowns</h3>
     <div id="pc-devices-br" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
-    <p id="pc-devices-br-empty" class="mt-2 hidden text-center text-sm text-slate-400">Henüz devices kırılımı yok</p>
+    <p id="pc-devices-br-empty" class="mt-2 hidden text-center text-sm text-slate-400">No devices breakdown yet</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Test &amp; Release</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /test-and-release (üretim, rollout, vitals)</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /test-and-release (production, rollout, vitals)</p>
       </div>
       <a href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/test-and-release"
          target="_blank" rel="noopener"
-         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Open in Play ↗</a>
     </div>
     <div id="pc-release" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
-    <p id="pc-release-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz release kartı yok — sync sonrası dolacak</p>
+    <p id="pc-release-empty" class="mt-4 hidden text-center text-sm text-slate-400">No release cards yet — fills after sync</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Statistics</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Crash/ANR · mağaza edinme/ziyaret · kullanıcı edinme · DAU/MAU · /statistics</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Crash/ANR · store acquisition/visits · user acquisition · DAU/MAU · /statistics</p>
       </div>
       <a id="pc-stats-link"
          href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/statistics"
          target="_blank" rel="noopener"
-         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Open in Play ↗</a>
     </div>
     <div id="pc-statistics" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
-    <p id="pc-statistics-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz statistics kartı yok — sync sonrası dolacak</p>
+    <p id="pc-statistics-empty" class="mt-4 hidden text-center text-sm text-slate-400">No statistics cards yet — fills after sync</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-700 dark:bg-zinc-950/40">
-    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Kırılımlar</h2>
-    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Yükleme tabanı / cihaz / sürüm segmentleri</p>
+    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Breakdowns</h2>
+    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Install base / device / version segments</p>
     <div id="pc-breakdowns" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
-    <p id="pc-breakdowns-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz kırılım yok</p>
+    <p id="pc-breakdowns-empty" class="mt-4 hidden text-center text-sm text-slate-400">No breakdown yet</p>
   </section>
 
     </div>
@@ -1702,21 +1702,21 @@
   <section id="pc-panel-reviews" class="hidden scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
-        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Yorumlar</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Store · son 1 yıl · tüm metinli yorumlar</p>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Reviews</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Store · last 1 year · all text reviews</p>
       </div>
       <div class="flex items-center gap-3">
         <span id="pc-review-count" class="text-xs tabular-nums text-slate-500"></span>
-        <button type="button" data-pc-close="reviews" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Kapat</button>
+        <button type="button" data-pc-close="reviews" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Close</button>
       </div>
     </div>
     <div id="pc-reviews" class="mt-4 max-h-[36rem] space-y-3 overflow-auto"></div>
-    <p id="pc-reviews-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz yorum yok</p>
+    <p id="pc-reviews-empty" class="mt-4 hidden text-center text-sm text-slate-400">No reviews yet</p>
   </section>
 </div>
 
-<script src="/static/js/resizable_data_list.js?v=5"></script>
-<script src="/static/js/metric_table_ux.js?v=8"></script>
+<script src="/static/js/resizable_data_list.js?v=6"></script>
+<script src="/static/js/metric_table_ux.js?v=9"></script>
 <script>
 (function () {
   var statusEl = document.getElementById("pc-status");
@@ -1834,13 +1834,13 @@
     vitals = vitals || {};
     var vmap = vitals.version_name_map || {};
     var byv = vitals.by_version || {};
-    // Chip yalnızca by_version’da gerçekten toplanmış sürümler için
+    // Chip yalnızca by_version’da gerçekten toplanmış versionsler için
     // (290’dan 289/288 uydurmak → boş ANR listesi üretiyordu)
     var codes = Object.keys(byv).filter(function (k) {
       return k !== "all" && /^\d+$/.test(k) && byv[k] && byv[k].crashes && vitalsCrashesHasRows(byv[k].crashes);
     }).sort(function (a, b) { return parseInt(b, 10) - parseInt(a, 10); }).slice(0, 3);
     if (!codes.length) {
-      // Eski payload: tek sürüm
+      // Eski payload: tek versions
       var only = String(vitals.version_code || "").trim();
       return only ? [{ code: only, name: String(vmap[only] || "").trim() }] : [];
     }
@@ -1889,12 +1889,12 @@
     var vc = String(vitalsState.selectedVersion || "").trim();
     var byv = vitals.by_version || {};
     var crashes = vitals.crashes || {};
-    // Her sürüm kendi Play Console listesi (versionCode=…) — istemci süzmesi değil
+    // Her versions kendi Play Console listesi (versionCode=…) — istemci süzmesi değil
     if (vc && byv[vc] && byv[vc].crashes) {
       return byv[vc].crashes;
     }
     if (!vc) return crashes;
-    // Seçili sürüm top-level ile aynıysa (eski tek-sürüm payload) olduğu gibi göster
+    // Seçili versions top-level ile aynıysa (eski tek-sürüm payload) olduğu gibi göster
     var topVc = String(
       ((crashes.ANR || {}).version_code) ||
       ((crashes.CRASH || {}).version_code) ||
@@ -1943,7 +1943,7 @@
           (on
             ? "bg-emerald-600 text-white"
             : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700") +
-          '" title="Sürüm ' + esc(vitalsVersionChipLabel(v)) + '">' +
+          '" title="Version ' + esc(vitalsVersionChipLabel(v)) + '">' +
           esc(vitalsVersionChipLabel(v)) +
         "</button>"
       );
@@ -1990,15 +1990,15 @@
     });
     if (which === "reviews" && !_pcReviewsSyncing) {
       _pcReviewsSyncing = true;
-      setPcLine(statusEl, "Yorumlar senkron…");
-      if (reviewCountEl) reviewCountEl.textContent = "yükleniyor…";
+      setPcLine(statusEl, "Reviews senkron…");
+      if (reviewCountEl) reviewCountEl.textContent = "loading…";
       syncPlayStoreReviews({ quick: true })
         .then(function (sj) {
-          setPcLine(statusEl, (sj && sj.message) || ("Yorumlar: " + ((sj && sj.review_count) || 0)));
+          setPcLine(statusEl, (sj && sj.message) || ("Reviews: " + ((sj && sj.review_count) || 0)));
           return loadSnapshot();
         })
         .catch(function (err) {
-          setPcLine(statusEl, (err && err.message) || "Yorum senkron hatası");
+          setPcLine(statusEl, (err && err.message) || "Review sync error");
         })
         .finally(function () {
           _pcReviewsSyncing = false;
@@ -2069,7 +2069,7 @@
   var paCompareRange = document.getElementById("pa-compare-range");
   var paCompareNote = document.getElementById("pa-compare-note");
   var STAR_DIST_COLORS = { 5: "#c5d7f2", 4: "#8eb4e6", 3: "#5a8fd4", 2: "#3b6fbf", 1: "#1a3a6e" };
-  // Saks mavisi — Metrikler çizgi/alan grafikleri
+  // Saks mavisi — Metrics çizgi/alan grafikleri
   // Nokta yarıçapları (~%60 küçültülmüş); çizgi kalınlıkları yarı inceltilmiş
   var PA_DOT_R = 1.4;
   var PA_DOT_R_OV = 1.2;
@@ -2079,7 +2079,7 @@
   var PA_STROKE_W = 0.68;
   var PA_STROKE_W_OV = 0.75;
   var PA_STROKE_W_PREV = 1;
-  /* Açılış her zaman alan dolgulu; kullanıcı oturumda değiştirebilir. */
+  /* Açılış her zaman alan dolgulu; users oturumda değiştirebilir. */
   var paChartStyle = "area";
   try { localStorage.setItem("paChartStyle", "area"); } catch (_) {}
   function syncPaChartStyleUi() {
@@ -2243,14 +2243,14 @@
     if (!paMetricLabel) return;
     var n = paSelectedMetrics.length;
     if (!n) {
-      paMetricLabel.textContent = "Seçiniz";
+      paMetricLabel.textContent = "Select";
       return;
     }
     if (n === 1) {
       paMetricLabel.textContent = metricOptionLabel(paSelectedMetrics[0]) || paSelectedMetrics[0];
       return;
     }
-    paMetricLabel.textContent = n + " metrik seçili";
+    paMetricLabel.textContent = n + " metrics selected";
   }
   function positionPaMetricDropdown() {
     if (!paMetricList || !paMetricTrigger) return;
@@ -2325,7 +2325,7 @@
         paMetricDirty = false;
         applyPaMetricSelection();
       } else if (wasOpen && paOverviewActive && !paMetricDirty) {
-        // Sadece tick önizlemesiydi — Seçiniz / overview semantiğini koru
+        // Sadece tick önizlemesiydi — Select / overview semantiğini koru
         paSelectedMetrics = [];
         updatePaMetricTrigger();
       }
@@ -2352,7 +2352,7 @@
         : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") + '">' +
       '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-sky-600 dark:text-sky-400" aria-hidden="true">' +
       (!paSelectedMetrics.length ? "✓" : "") + "</span>" +
-      '<span class="min-w-0 flex-1 truncate">Seçiniz</span></button>';
+      '<span class="min-w-0 flex-1 truncate">Select</span></button>';
     Array.prototype.forEach.call(paMetricCatalog.children, function (node) {
       if (node.tagName === "OPTGROUP") {
         html += '<div class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">' +
@@ -2373,7 +2373,7 @@
             '<span class="min-w-0 flex-1 truncate">' + esc(opt.textContent || opt.value) + "</span></button>" +
             '<span class="pa-metric-info-wrap">' +
               '<button type="button" class="pa-metric-info" data-pa-metric-info tabindex="0" aria-label="' +
-                esc((opt.textContent || opt.value) + " bilgisi") + '">i</button>' +
+                esc((opt.textContent || opt.value) + " info") + '">i</button>' +
               '<span class="pa-metric-tip" role="tooltip">' + esc(tip) + "</span>" +
             "</span></div>";
         });
@@ -2388,21 +2388,21 @@
     anrs: "ANR (Application Not Responding): uygulama ana thread’i ~5 sn yanıt vermediğinde Play’e düşen donma olayları. Düşük olması iyidir.",
     crashes: "Crash: uygulamanın beklenmedik şekilde kapanma sayısı. Stabilite için düşük tutulmalıdır.",
     device_acquisition: "Device acquisition: uygulamayı ilk kez edinen cihaz sayısı (Play Console büyüme metriği).",
-    user_acquisition: "User acquisition: uygulamayı ilk kez edinen kullanıcı sayısı.",
-    user_lost: "User lost: uygulamayı kaldıran veya kaybedilen kullanıcı sayısı; churn sinyali verir.",
+    user_acquisition: "User acquisition: uygulamayı ilk kez edinen users sayısı.",
+    user_lost: "User lost: uygulamayı kaldıran veya kaybedilen users sayısı; churn sinyali verir.",
     active_devices: "Active devices: seçilen aralıkta uygulamayı açmış aktif cihaz sayısı.",
-    active_users: "Active users: seçilen aralıkta uygulamayı kullanan aktif kullanıcı sayısı.",
-    dau: "DAU: günlük aktif kullanıcı (Daily Active Users). Günün içinde en az bir kez açan kullanıcılar.",
+    active_users: "Active users: seçilen aralıkta uygulamayı kullanan aktif users sayısı.",
+    dau: "DAU: günlük aktif users (Daily Active Users). Günün içinde en az bir kez açan userslar.",
     dau_mau: "DAU/MAU: günlük aktif / aylık aktif oranı. Yapışkanlık (stickiness) göstergesidir; yüksek oran daha sık dönüş demektir.",
-    ar2_visitors: "Store visitors: Play Store liste sayfasını ziyaret eden kullanıcı sayısı.",
+    ar2_visitors: "Store visitors: Play Store liste sayfasını ziyaret eden users sayısı.",
     ar2_acquisitions: "Store acquisitions: store listesinden gelen kurulum / edinme sayısı.",
     store_listing_conversion: "Store listing conversion: ziyaretçilerin kurulum / edinmeye dönüşüm oranı.",
     revenue: "Revenue: Play üzerinden kaydedilen tahmini gelir (abonelik/IAP vb.).",
-    rating: "Google Play rating: ortalama puan ve yıldız dağılımı; mağaza algısını gösterir.",
+    rating: "Google Play rating: ortalama puan ve stars dağılımı; mağaza algısını gösterir.",
     "ga4:sessions": "GA4 Sessions: oturum sayısı. Kullanıcının uygulamada veya sitede başlattığı ziyaretler.",
-    "ga4:users": "GA4 Users: seçilen dönemde en az bir oturum açan aktif kullanıcı sayısı.",
+    "ga4:users": "GA4 Users: seçilen dönemde en az bir oturum açan aktif users sayısı.",
     "ga4:engaged_sessions": "GA4 Engaged sessions: anlamlı etkileşim içeren oturumlar (süre / sayfa / dönüşüm eşiği).",
-    "ga4:new_users": "GA4 New users: ilk kez görülen yeni kullanıcı sayısı.",
+    "ga4:new_users": "GA4 New users: ilk kez görülen yeni users sayısı.",
     "ga4:avg_session": "GA4 Avg. session: ortalama oturum süresi; etkileşim derinliğini gösterir.",
     "ga4:page_views": "GA4 Page views: görüntülenen ekran / sayfa sayısı.",
     "virgul:net_revenue": "Virgül net revenue: reklam ağından gelen net gelir (TL).",
@@ -2476,7 +2476,7 @@
       var lab = el.closest("label");
       if (lab) lab.classList.toggle("hidden", !on);
     });
-    // Zaman kırılımı (Gün/Hafta/Ay) her zaman görünür
+    // Time breakdown (Gün/Hafta/Ay) her zaman görünür
     if (paBreakdown && paBreakdown.closest) {
       var brLab = paBreakdown.closest("label");
       if (brLab) brLab.classList.remove("hidden");
@@ -2490,7 +2490,7 @@
     if (!on) {
       if (paDim) paDim.value = "overview";
       if (paSegment) {
-        paSegment.innerHTML = '<option value="all">Tümü</option>';
+        paSegment.innerHTML = '<option value="all">All</option>';
         paSegment.value = "all";
       }
     } else {
@@ -2527,9 +2527,9 @@
   var paLastChart = null; // { series, prevSeries, breakdown, compareMeta }
   /** Ek çizgiler: [{ metric, label, series, breakdown, dim, segment, color }] */
   var paOverlays = [];
-  var paLastPrimaryMetric = ""; // ana metrik değişince ekler temizlenir; filtrede kalır
+  var paLastPrimaryMetric = ""; // ana metrik değişince ekler clearnir; filtrede kalır
   var paRunSeq = 0; // hızlı filtre değişiminde sadece son istek UI günceller
-  var paOverviewActive = false; // Varsayılan: crash+GA4+Virgül çoklu; Seçiniz ile özet
+  var paOverviewActive = false; // Varsayılan: crash+GA4+Virgül çoklu; Select ile özet
   var paOverviewBundles = null;
   /** Özet tabloda × ile gizlenen metrikler (oturum içi) */
   var paOverviewHidden = {};
@@ -2707,7 +2707,7 @@
     if (isMarketOverlayMetric(metricKey)) {
       var sk = String(metricKey).slice("market:".length);
       if (!window.SeoMarketOverlay || !SeoMarketOverlay.ensureOverlay) {
-        throw new Error("Piyasa serisi yok");
+        throw new Error("Market serisi yok");
       }
       var payload = await SeoMarketOverlay.ensureOverlay(paStart.value, paEnd.value);
       var gSeries = SeoMarketOverlay.pointsForSeries(payload, sk);
@@ -2758,7 +2758,7 @@
       }
       // Snapshot yok / yapılandırılmamış → hata; boş seri (aralık dışı) → overlay kalsın
       if (gdata.configured === false || (gdata.ok === false && !Array.isArray(gdata.series))) {
-        throw new Error(gdata.message || (isVirgul ? "Virgül serisi yok" : "GA4 serisi yok"));
+        throw new Error(gdata.message || (isVirgul ? "No Virgül series" : "No GA4 series"));
       }
       var gSeries = Array.isArray(gdata.series) ? gdata.series : [];
       var asAvg = metricKey === "ga4:avg_session" || !!PA_VIRGUL_AVG_METRICS[metricKey];
@@ -2854,8 +2854,8 @@
     var results = await Promise.all(src.map(function (ov) {
       return fetchOneOverlaySeries(ov, signal).catch(function (err) {
         if (signal && signal.aborted) throw err;
-        // Tarih değişiminde eski seriyi tutma (eksen kayar, çizgi kaybolur gibi görünür).
-        // Chip/metrik kalsın; yeni aralık için boş seri.
+        // Date değişiminde eski seriyi tutma (eksen kayar, çizgi kaybolur gibi görünür).
+        // Chip/metrik kalsın; new aralık için boş seri.
         return {
           metric: ov.metric,
           label: ov.label,
@@ -3088,7 +3088,7 @@
           (muted
             ? "opacity-45 text-slate-400 hover:opacity-70 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
             : "hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100") +
-          '" title="' + esc(short) + (muted ? " — grafiğe ekle" : " — grafikten gizle") + '">' +
+          '" title="' + esc(short) + (muted ? " — add to chart" : " — hide from chart") + '">' +
           '<span class="h-2 w-2 rounded-full ' + (muted ? "ring-1 ring-slate-300 dark:ring-zinc-600" : "") + '" style="background:' + color + '"></span>' +
           '<span class="' + (muted ? "line-through decoration-slate-300" : "") + '">' + esc(short) + "</span>" +
         "</button>"
@@ -3121,7 +3121,7 @@
       return;
     }
     if (kind === "primary") {
-      // Ana metrik legend’ı → özet moda dön; tıklanan metrik grafikte gizli kalsın
+      // Ana metrik legend’ı → özet moda dön; clickslanan metrik grafikte gizli kalsın
       var m = paPrimaryMetric() || key || "";
       if (m) paOverviewHidden[m] = true;
       paSelectedMetrics = [];
@@ -3155,7 +3155,7 @@
     setOverviewLegend(chartBundles || []);
     var w = 720, h = 260;
     var right = 16, top = 16, bottom = 36;
-    // Ortak tarih ekseni (birleşik key sırası) — sadece ekler kaldıysa onlardan kur
+    // Ortak tarih ekseni (birleşik key sırası) — sadece ekler leftysa onlardan kur
     var keySet = {};
     bundles.forEach(function (b) {
       (b.series || []).forEach(function (r) {
@@ -3173,7 +3173,7 @@
     if (!n) {
       paChartState = null;
       paChart.innerHTML =
-        '<text x="360" y="130" text-anchor="middle" fill="' + pal.axis + '" font-size="13" font-family="ui-sans-serif,system-ui">Grafik için veri yok</text>';
+        '<text x="360" y="130" text-anchor="middle" fill="' + pal.axis + '" font-size="13" font-family="ui-sans-serif,system-ui">No chart data</text>';
       hidePaTooltip();
       return;
     }
@@ -3460,7 +3460,7 @@
     var thRemoveCls =
       'inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[10px] leading-none text-slate-400 hover:bg-rose-100 hover:text-rose-600 dark:text-zinc-500 dark:hover:bg-rose-950/50 dark:hover:text-rose-300';
     paTheadRow.innerHTML =
-      '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold sm:px-3 dark:bg-zinc-900" data-mtux-key="kirilim" data-mtux-fixed="1">Kırılım</th>' +
+      '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold sm:px-3 dark:bg-zinc-900" data-mtux-key="kirilim" data-mtux-fixed="1">Breakdown</th>' +
       colItems.map(function (col) {
         var b = col.bundle;
         var color = col.color;
@@ -3474,7 +3474,7 @@
               '<span class="mtux-th-text">' + esc(short) + "</span>" +
               '<button type="button" ' + removeAttr + ' ' +
                 'class="' + thRemoveCls + '" ' +
-                'title="Sütunu kaldır" aria-label="' + esc(short) + ' sütununu kaldır">×</button>' +
+                'title="Remove column" aria-label="' + esc(short) + ' remove column">×</button>' +
             "</span>" +
           "</th>"
         );
@@ -3482,14 +3482,14 @@
     var colCount = 1 + colItems.length;
     if (!colItems.length) {
       paTable.innerHTML =
-        '<tr><td class="px-3 py-4 text-center text-slate-400">Tüm sütunlar kaldırıldı — Metrik’ten Seçiniz ile yenileyin</td></tr>';
+        '<tr><td class="px-3 py-4 text-center text-slate-400">All columns removed — refresh via Metrics → Select</td></tr>';
       paFitDataList(0);
       return;
     }
     if (!keys.length) {
       paTable.innerHTML =
         '<tr><td colspan="' + colCount +
-        '" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+        '" class="px-3 py-4 text-center text-slate-400">No rows</td></tr>';
       paFitDataList(0);
       return;
     }
@@ -3537,7 +3537,7 @@
       return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800">' + cells + "</tr>";
     }).join("");
     var avgCells =
-      '<td class="sticky left-0 z-[2] bg-slate-100 px-2 py-1.5 font-bold tabular-nums text-slate-800 sm:px-3 dark:bg-zinc-900 dark:text-zinc-100" title="Verisi olan günlerin ortalaması">Ortalama</td>';
+      '<td class="sticky left-0 z-[2] bg-slate-100 px-2 py-1.5 font-bold tabular-nums text-slate-800 sm:px-3 dark:bg-zinc-900 dark:text-zinc-100" title="Average of days that have data">Average</td>';
     colItems.forEach(function (col, i) {
       var avg = overviewColAverage(maps[i]);
       avgCells +=
@@ -3603,11 +3603,11 @@
   }
   function shortMetricLabel(label, fallback) {
     var s = String(label || "").trim();
-    if (!s) return fallback || "Değer";
+    if (!s) return fallback || "Value";
     var cut = s.indexOf("(");
     if (cut > 0) s = s.slice(0, cut).trim();
     if (s.length > 22) s = s.slice(0, 20) + "…";
-    return s || fallback || "Değer";
+    return s || fallback || "Value";
   }
   function clearDynamicOverlayHeaders() {
     if (!paTheadRow) return;
@@ -3617,9 +3617,9 @@
   }
   function comparePrevHeaderText(compareMeta) {
     if (compareMeta && compareMeta.start && compareMeta.end) {
-      return "Önceki (" + compareMeta.start.slice(5) + "→" + compareMeta.end.slice(5) + ")";
+      return "Previous (" + compareMeta.start.slice(5) + "→" + compareMeta.end.slice(5) + ")";
     }
-    return "Önceki";
+    return "Previous";
   }
   function insertDynTh(insertBefore, text, color, title) {
     var th = document.createElement("th");
@@ -3635,16 +3635,16 @@
     var list = overlays || [];
     if (paThValue) {
       paThValue.textContent = list.length
-        ? shortMetricLabel(primaryLabel, "Değer")
-        : "Değer";
+        ? shortMetricLabel(primaryLabel, "Value")
+        : "Value";
     }
     if (!paThValue || !paThValue.parentNode) return;
-    // Overlay yoksa statik Önceki/Δ sütunları kullanılır
+    // Overlay yoksa statik Previous/Δ sütunları kullanılır
     if (!list.length) return;
     var insertBefore = paThValue.nextSibling;
     if (compareOn) {
-      insertDynTh(insertBefore, comparePrevHeaderText(compareMeta), null, "Ana metrik · önceki dönem");
-      insertDynTh(insertBefore, "Δ %", null, "Ana metrik · değişim");
+      insertDynTh(insertBefore, comparePrevHeaderText(compareMeta), null, "Ana metrik · previous period");
+      insertDynTh(insertBefore, "Δ %", null, "Main metric · change");
     }
     list.forEach(function (ov, i) {
       var color = ov.color || paOverlayColor(i);
@@ -3660,16 +3660,16 @@
           insertBefore,
           comparePrevHeaderText(ovCmp),
           color,
-          (ov.label || "Ek") + " · önceki dönem"
+          (ov.label || "Ek") + " · previous period"
         );
-        insertDynTh(insertBefore, "Δ %", color, (ov.label || "Ek") + " · değişim");
+        insertDynTh(insertBefore, "Δ %", color, (ov.label || "Ek") + " · change");
       }
     });
   }
   function setOverlayColVisible(show) {
     if (!show) {
       clearDynamicOverlayHeaders();
-      if (paThValue) paThValue.textContent = "Değer";
+      if (paThValue) paThValue.textContent = "Value";
     }
   }
   function fmtDeltaPct(cur, prev) {
@@ -3922,7 +3922,7 @@
   function renderPaMetricKpis(packs, compareInfo) {
     if (!paMetricKpis) return;
     var list = Array.isArray(packs) ? packs.filter(function (p) { return p && p.metric; }) : [];
-    // Çoklu metrik + legend’da tek (veya sıfır) kaldıysa mini spark kart alanını gizle
+    // Çoklu metrik + legend’da tek (veya sıfır) leftysa mini spark kart alanını gizle
     if (paSelectedMetrics.length >= 2 && list.length < 2) {
       hidePaMetricKpiStrip();
       return;
@@ -3950,7 +3950,7 @@
       var tip = typeof paMetricHelp === "function" ? paMetricHelp(pack.metric) : "";
       var spark = seriesSparkSvg(pack.series, color, 220, 56);
       var infoBtn =
-        '<button type="button" class="metric-kpi-info" data-pa-metric-info aria-label="' + esc(label) + ' bilgisi">' +
+        '<button type="button" class="metric-kpi-info" data-pa-metric-info aria-label="' + esc(label) + ' info">' +
           "i<span class=\"metric-kpi-tip\" role=\"tooltip\">" + esc(tip) + "</span></button>";
       var dlt = seriesDeltaPct(pack.series);
       var dltCls = dlt == null ? "is-flat" : (dlt >= 0 ? "is-up" : "is-down");
@@ -3958,8 +3958,8 @@
       var cmpBits = "";
       if (list.length === 1 && cmp && cmp.hasPrev) {
         cmpBits =
-          '<div><p class="metric-kpi-kicker">Önceki</p><strong>' + esc(fmtNum(cmp.prevTotal, countLike && modeTotal !== "avg")) + "</strong></div>" +
-          '<div><p class="metric-kpi-kicker">Değişim</p><strong>' +
+          '<div><p class="metric-kpi-kicker">Previous</p><strong>' + esc(fmtNum(cmp.prevTotal, countLike && modeTotal !== "avg")) + "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Change</p><strong>' +
             (cmp.deltaPct == null ? "—" : esc((cmp.deltaPct >= 0 ? "+" : "") + cmp.deltaPct + "%")) +
           "</strong></div>";
       }
@@ -3976,15 +3976,15 @@
             "</div>" +
             '<div class="metric-kpi-ss2-spark">' + spark + "</div>" +
           "</div>" +
-          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Detayları aç">' +
+          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Open details">' +
             '<svg class="metric-kpi-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
           "</button>" +
           '<div class="metric-kpi-ss2-panel">' +
-            '<div><p class="metric-kpi-kicker">Toplam</p><strong>' + esc(totalVal) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Total</p><strong>' + esc(totalVal) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Ortalama</p><strong>' + esc(fmtNum(avg, false)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Min</p><strong>' + esc(fmtNum(st.min, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Max</p><strong>' + esc(fmtNum(st.max, countLike)) + "</strong></div>" +
-            '<div><p class="metric-kpi-kicker">Son</p><strong>' + esc(fmtNum(st.last, countLike)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Last</p><strong>' + esc(fmtNum(st.last, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Nokta</p><strong>' + esc(String(st.n || 0)) + "</strong></div>" +
             cmpBits +
           "</div>" +
@@ -4015,7 +4015,7 @@
     paStart.value = isoDate(start);
     var shell = document.getElementById("pa-table-shell");
     if (shell && window.SeoResizableDataList) window.SeoResizableDataList.clearManual(shell);
-    // Preset / tarih değişince ana + ek (GA4 dahil) grafikleri yeni aralığa çek
+    // Preset / tarih değişince ana + ek (GA4 dahil) grafikleri new aralığa çek
     if (opts.run && (paOverviewActive || paSelectedMetrics.length)) {
       runPlayAnalytics({ fromUser: true });
     }
@@ -4053,8 +4053,8 @@
   function isTimeBreakdown(breakdown) {
     return breakdown === "date" || breakdown === "week" || breakdown === "month";
   }
-  var PREV_MISSING_LONG = "İlgili dönem için önceki dönem verisi çekilemedi";
-  var PREV_MISSING_SHORT = "Bulunamadı";
+  var PREV_MISSING_LONG = "Could not fetch previous-period data for this range";
+  var PREV_MISSING_SHORT = "Not found";
   /** Önceki dönem tarihleri örtüşmez → zaman kırılımında indeks hizası; segmentte anahtar. */
   function alignPrevRows(series, prevSeries, breakdown, compareMeta) {
     var prev = prevSeries || [];
@@ -4369,7 +4369,7 @@
           (muted
             ? "opacity-45 text-slate-400 hover:opacity-70 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
             : "hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100") +
-          '" title="' + esc(short) + (muted ? " — grafiğe ekle" : " — grafikten gizle") + '">' +
+          '" title="' + esc(short) + (muted ? " — add to chart" : " — hide from chart") + '">' +
           '<span class="h-2 w-2 rounded-full ' + (muted ? "ring-1 ring-slate-300 dark:ring-zinc-600" : "") + '" style="background:' + color + '"></span>' +
           '<span class="' + (muted ? "line-through decoration-slate-300" : "") + '">' + esc(short) + "</span>" +
         "</button>"
@@ -4389,7 +4389,7 @@
         '<button type="button" data-pa-ov-remove="' + i + '" ' +
           'class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 hover:border-rose-300 hover:text-rose-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 ' +
           (muted ? "opacity-45" : "") + '" ' +
-          'title="Kaldır">' +
+          'title="Remove">' +
           '<span class="h-2 w-2 rounded-full" style="background:' + color + '"></span>' +
           esc(shortMetricLabel(ov.label, ov.metric)) +
           '<span aria-hidden="true" class="text-slate-400">×</span>' +
@@ -4467,20 +4467,20 @@
       if (!paOvPending[k]) changed = true;
     });
     paOvRun.disabled = !changed;
-    paOvRun.textContent = changed && n ? ("Ekle (" + n + ")") : "Ekle";
+    paOvRun.textContent = changed && n ? ("Add (" + n + ")") : "Add";
   }
   function updatePaOvMetricTrigger() {
     if (!paOvMetricLabel) return;
     var keys = paOvPendingKeys();
     if (!keys.length) {
-      paOvMetricLabel.textContent = "Seçiniz";
+      paOvMetricLabel.textContent = "Select";
       return;
     }
     if (keys.length === 1) {
       paOvMetricLabel.textContent = metricOptionLabel(keys[0]) || keys[0];
       return;
     }
-    paOvMetricLabel.textContent = keys.length + " metrik seçili";
+    paOvMetricLabel.textContent = keys.length + " metrics selected";
   }
   function positionPaOvDropdown() {
     if (!paOvMetricList || !paOvMetricTrigger) return;
@@ -4559,7 +4559,7 @@
       });
     });
     if (!html) {
-      html = '<p class="px-2 py-2 text-xs text-slate-400">Eklenecek metrik kalmadı</p>';
+      html = '<p class="px-2 py-2 text-xs text-slate-400">No metrics left to add</p>';
     }
     paOvMetricList.innerHTML = html;
     paOvMetricList.scrollTop = scrollY;
@@ -4577,15 +4577,15 @@
     if (paOvBreakdown && paBreakdown) paOvBreakdown.value = paBreakdown.value || "date";
     if (paOvDim && paDim) paOvDim.value = paDim.value || "overview";
     if (paOvSegment) {
-      paOvSegment.innerHTML = '<option value="all">Tümü</option>';
+      paOvSegment.innerHTML = '<option value="all">All</option>';
       paOvSegment.value = "all";
     }
     var note = document.getElementById("pa-ov-note");
     if (note) {
       if (paOverviewActive) {
-        note.textContent = "Dropdown’dan ✓ ile çoklu seçin, sonra Ekle. Özet çizgilerinin üzerine Play, GA4 veya Virgül eklenir.";
+        note.textContent = "Multi-select with ✓ in the dropdown, then Add. Play, GA4 or Virgül overlay the Summary lines.";
       } else {
-        note.textContent = "Dropdown’dan ✓ ile çoklu seçin, sonra Ekle. Play / GA4 / Virgül aynı aralıkta üst üste gelir.";
+        note.textContent = "Multi-select with ✓ in the dropdown, then Add. Play / GA4 / Virgül overlay the same range.";
       }
     }
     paOverlayPanel.classList.remove("hidden");
@@ -4705,7 +4705,7 @@
     var s = String(key || "");
     var m = s.match(/^(20\d{2})-(\d{2})-(\d{2})$/);
     if (!m) return s;
-    var months = ["OCA", "ŞUB", "MAR", "NİS", "MAY", "HAZ", "TEM", "AĞU", "EYL", "EKİ", "KAS", "ARA"];
+    var months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
     var mi = parseInt(m[2], 10) - 1;
     return parseInt(m[3], 10) + " " + (months[mi] || m[2]) + " " + m[1];
   }
@@ -4830,7 +4830,7 @@
         paTipStars.innerHTML = [5, 4, 3, 2, 1].map(function (n) {
           var v = row["star_" + n];
           var nVal = v == null || isNaN(Number(v)) ? 0 : Number(v);
-          return tipMetricRow(n + " yıldız", fmtNum(nVal, true), "text-slate-600 dark:text-zinc-300", STAR_DIST_COLORS[n]);
+          return tipMetricRow(n + " stars", fmtNum(nVal, true), "text-slate-600 dark:text-zinc-300", STAR_DIST_COLORS[n]);
         }).join("");
         if (paTipCur) { paTipCur.classList.add("hidden"); paTipCur.innerHTML = ""; }
         if (paTipPrev) { paTipPrev.classList.add("hidden"); paTipPrev.innerHTML = ""; }
@@ -4865,7 +4865,7 @@
       }
       if (paTipPrev) { paTipPrev.classList.add("hidden"); paTipPrev.innerHTML = ""; }
     } else if (!isStars) {
-      var primaryName = (paLegendPrimaryLabel && paLegendPrimaryLabel.textContent) || "Seçili";
+      var primaryName = (paLegendPrimaryLabel && paLegendPrimaryLabel.textContent) || "Selected";
       var tipRows = [
         tipMetricRow(
           primaryName,
@@ -4892,8 +4892,8 @@
       if (paTipPrev) {
         if (!ovSeriesTip.length && !(row.prevMissing || row.prevValue == null)) {
           var label = row.prevKey && row.prevKey !== row.key
-            ? ("Önceki (" + row.prevKey + ")")
-            : "Önceki";
+            ? ("Previous (" + row.prevKey + ")")
+            : "Previous";
           paTipPrev.classList.remove("hidden");
           paTipPrev.innerHTML = tipMetricRow(
             label,
@@ -4953,7 +4953,7 @@
     paTooltip.style.maxWidth = maxTipW + "px";
     paTooltip.style.minHeight = "";
     paTooltip.style.transform = "none";
-    // İçerik ölçülsün
+    // Content ölçülsün
     var tipW = Math.min(maxTipW, Math.max(paTooltip.offsetWidth || 0, 140));
     var tipH = Math.max(paTooltip.offsetHeight || 0, 48);
     var x = clientX - wrapRect.left;
@@ -5090,11 +5090,11 @@
       setAddChartVisible(false);
       setPaChartLegendMode("line");
       paChart.innerHTML =
-        '<text x="360" y="130" text-anchor="middle" fill="' + pal.axis + '" font-size="13" font-family="ui-sans-serif,system-ui">Grafik için veri yok</text>';
+        '<text x="360" y="130" text-anchor="middle" fill="' + pal.axis + '" font-size="13" font-family="ui-sans-serif,system-ui">No chart data</text>';
       hidePaTooltip();
       return;
     }
-    // Ek grafik varken puan dağılımı stacked yerine çizgi (üst üste çizim için)
+    // Extra chart varken puan dağılımı stacked yerine çizgi (üst üste çizim için)
     if (!hasPaOverlays() && paPrimaryMetric() === "rating" && seriesHasStarDist(rows)) {
       drawRatingDistChart(rows);
       setAddChartVisible(true);
@@ -5109,7 +5109,7 @@
         paLegendPrimary.setAttribute("data-pa-legend-metric", paPrimaryMetric() || "");
         paLegendPrimary.setAttribute("role", "button");
         paLegendPrimary.setAttribute("tabindex", "0");
-        paLegendPrimary.setAttribute("title", primaryLegend + " — grafikten kaldır");
+        paLegendPrimary.setAttribute("title", primaryLegend + " — remove from the chart");
         paLegendPrimary.classList.add("cursor-pointer", "rounded-md", "px-1", "py-0.5", "transition", "hover:bg-rose-50", "hover:text-rose-700", "dark:hover:bg-rose-950/40", "dark:hover:text-rose-300");
         if (paLegendPrimaryLabel) paLegendPrimaryLabel.textContent = primaryLegend;
       } else {
@@ -5121,7 +5121,7 @@
         paLegendPrimary.removeAttribute("title");
       }
     } else if (paLegendPrimaryLabel) {
-      paLegendPrimaryLabel.textContent = primaryLegend || "Seçili dönem";
+      paLegendPrimaryLabel.textContent = primaryLegend || "Selected period";
     }
     syncPaOverlayColors();
     var overlaySeriesState = paOverlays.filter(function (ov) {
@@ -5188,7 +5188,7 @@
         });
       });
       if (paCompareRange) {
-        var note = "Ölçek: kendi maks. % (GA4 / farklı birim)";
+        var note = "Scale: own max % (GA4 / different unit)";
         var curNote = String(paCompareRange.textContent || "");
         if (curNote.indexOf("kendi maks") < 0) {
           paCompareRange.textContent = curNote ? (curNote + " · " + note) : note;
@@ -5455,7 +5455,7 @@
     if (!rows.length) {
       paTable.innerHTML =
         '<tr><td colspan="' + colCount +
-        '" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+        '" class="px-3 py-4 text-center text-slate-400">No rows</td></tr>';
       paFitDataList(0);
       return;
     }
@@ -5520,7 +5520,7 @@
   }
   function fillSegments(list) {
     var cur = paSegment.value || "all";
-    paSegment.innerHTML = '<option value="all">Tümü</option>' +
+    paSegment.innerHTML = '<option value="all">All</option>' +
       (list || []).filter(Boolean).map(function (s) {
         return '<option value="' + esc(s) + '">' + esc(s) + "</option>";
       }).join("");
@@ -5543,7 +5543,7 @@
       paRun.disabled = !!on;
       paRun.classList.toggle("is-loading", !!on);
     }
-    if (paRunLabel) paRunLabel.textContent = on ? "Yükleniyor" : "Uygula";
+    if (paRunLabel) paRunLabel.textContent = on ? "Loading" : "Apply";
   }
   async function runPlayAnalytics(opts) {
     opts = opts || {};
@@ -5560,7 +5560,7 @@
     setPaLoading(true);
     var timer = paAbort ? setTimeout(function () { try { paAbort.abort(); } catch (_) {} }, 90000) : null;
     try {
-      // Seçiniz / ilk açılış: varsayılan CHART metrikleri üst üste + geniş tablo
+      // Select / ilk açılış: varsayılan CHART metrikleri üst üste + geniş tablo
       if (paOverviewActive) {
         setCompareKpisVisible(false);
         setCompareNote("");
@@ -5575,7 +5575,7 @@
         try {
           bundles = await fetchPaOverviewBundles(defs, paAbort ? paAbort.signal : undefined);
         } catch (ovErr) {
-          var ovMsg = (ovErr && ovErr.message) ? String(ovErr.message) : "Özet yüklenemedi";
+          var ovMsg = (ovErr && ovErr.message) ? String(ovErr.message) : "Could not load summary";
           if (paCompareRange) paCompareRange.textContent = ovMsg;
           bundles = defs.map(function (m) {
             return {
@@ -5601,11 +5601,11 @@
         var hasSeries = tableBundles.some(function (b) { return (b.series || []).length; });
         if (paCompareRange) {
           var keepNote = (paCompareRange.textContent || "").trim();
-          var looksLikeShift = /kaydırıldı|explorer_facts|Özet yüklenemedi|sync verisine/i.test(keepNote);
+          var looksLikeShift = /kaydırıldı|explorer_facts|Could not load summary|sync verisine/i.test(keepNote);
           if (looksLikeShift && keepNote) {
             /* fetchPaOverviewBundles / catch mesajını koru */
           } else if (!hasSeries) {
-            paCompareRange.textContent = keepNote || "Özet · seçili aralıkta veri yok";
+            paCompareRange.textContent = keepNote || "Summary · no data in the selected range";
           } else {
             paCompareRange.textContent = "";
           }
@@ -5628,7 +5628,7 @@
       clearPaOverlaysState();
       syncPaDimFilters();
 
-      // Birden fazla seçili metrik → paralel çek, multi grafik + tablo
+      // Birden fazla selected metrik → paralel çek, multi grafik + tablo
       if (selected.length > 1) {
         setCompareKpisVisible(false);
         setCompareNote("");
@@ -5661,7 +5661,7 @@
             };
           }).catch(function (err) {
             if (paAbort && paAbort.signal && paAbort.signal.aborted) throw err;
-            softNotes.push((metricOptionLabel(metricKey) || metricKey) + " atlandı");
+            softNotes.push((metricOptionLabel(metricKey) || metricKey) + " skipped");
             console.warn("metric", metricKey, err);
             return {
               metric: metricKey,
@@ -5808,7 +5808,7 @@
       };
       if (paCompareRange) {
         if (hasPrev && cmp.start && cmp.end) {
-          paCompareRange.textContent = "Kıyas: " + cmp.start + " → " + cmp.end;
+          paCompareRange.textContent = "Compare: " + cmp.start + " → " + cmp.end;
         } else {
           paCompareRange.textContent = "";
         }
@@ -5829,7 +5829,7 @@
       if (paPrev) paPrev.textContent = "—";
       if (paDelta) paDelta.textContent = "—";
       if (paTable) {
-        paTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+        paTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">No rows</td></tr>';
         paFitDataList(0);
       }
       if (paChart) paChart.innerHTML = "";
@@ -5936,10 +5936,10 @@
       ev.stopPropagation();
       var card = expand.closest("[data-metric-kpi-card]");
       if (!card || !paMetricKpis.contains(card)) return;
-      // Yalnızca tıklanan kart — kardeşler etkilenmez
+      // Yalnızca clickslanan kart — kardeşler etkilenmez
       var open = card.classList.toggle("is-open");
       expand.setAttribute("aria-expanded", open ? "true" : "false");
-      expand.setAttribute("aria-label", open ? "Detayları kapat" : "Detayları aç");
+      expand.setAttribute("aria-label", open ? "Close details" : "Open details");
     });
   }
   document.addEventListener("mousedown", function (ev) {
@@ -5963,7 +5963,7 @@
       if (paBreakdown.value === "segment") paBreakdown.value = "date";
       return;
     }
-    // Boyut + Tümü → sıralama (hangi sürüm/cihaz)
+    // Boyut + All → sıralama (hangi versions/cihaz)
     // Boyut + belirli segment → o kırılımın günlük serisi
     if (seg === "all") {
       if (paBreakdown.value === "date") paBreakdown.value = "segment";
@@ -5977,7 +5977,7 @@
     if (paBreakdown) paBreakdown.value = "date";
     if (paDim) paDim.value = "overview";
     if (paSegment) {
-      paSegment.innerHTML = '<option value="all">Tümü</option>';
+      paSegment.innerHTML = '<option value="all">All</option>';
       paSegment.value = "all";
     }
     if (paCompare) paCompare.checked = false;
@@ -6026,29 +6026,29 @@
     });
   }
   applyPreset();
-  // İlk açılış: crash · session · user · pageview · net revenue · matched request
+  // First açılış: crash · session · user · pageview · net revenue · matched request
   runPlayAnalytics();
 
   var KPI_TITLES = {
-    "Kilitlenme oranı": 1,
+    "Crash rate": 1,
     "Crash rate": 1,
     "Ortalama puan": 1,
     "Average rating": 1,
-    "Yüklemeler": 1,
     "Installs": 1,
-    "Yükleme tabanı": 1,
+    "Installs": 1,
     "Install base": 1,
-    "Cihaz edinme sayısı": 1,
+    "Install base": 1,
     "Device acquisitions": 1,
-    "Cihaz ilk açılışları": 1,
+    "Device acquisitions": 1,
+    "Device first opens": 1,
     "First-time device opens": 1,
     "AEKS": 1,
     "Gelir": 1,
     "Revenue": 1,
-    "ÖYKBOG": 1,
+    "ARPU": 1,
     "Average revenue per DAU": 1,
-    "Alıcı Sayısı": 1,
-    "Alıcı sayısı": 1,
+    "Buyer count": 1,
+    "Buyer count": 1,
     "Buyers": 1
   };
   var KPI_EXCLUDE_RE = /^(anr\s*oran[ıi]|anr\s*rate)$/i;
@@ -6070,7 +6070,7 @@
     "cihaz ilk açılışları": "First-time device opens",
     "first-time device opens": "First-time device opens",
     "aeks": "Daily active users",
-    "günlük etkin kullanıcı sayısı": "Daily active users",
+    "günlük etkin users sayısı": "Daily active users",
     "daily active users": "Daily active users",
     "alıcı sayısı": "Buyers",
     "buyers": "Buyers",
@@ -6092,7 +6092,7 @@
     "store listing conversion rate": "Store listing conversion rate",
     "google play puanı": "Google Play rating",
     "google play rating": "Google Play rating",
-    "uygulamayı yükleyen kullanıcı sayısı": "Users who installed",
+    "uygulamayı yükleyen users sayısı": "Users who installed",
     "users who installed": "Users who installed"
   };
 
@@ -6107,7 +6107,7 @@
     "Daily active users": "Unique users active on a typical day (DAU / AEKS).",
     "Buyers": "Users who made at least one purchase in the selected period.",
     "Revenue": "Estimated Play billing revenue for the selected period.",
-    "Average revenue per DAU": "Average revenue per daily active user (ARPDAU / ÖYKBOG).",
+    "Average revenue per DAU": "Average revenue per daily active user (ARPDAU / ARPU).",
     "Total installs": "Total install count shown on the app-dashboard TPG card.",
     "User loss": "Users lost / churn events in the selected period.",
     "Active devices": "Unique devices that were active in the selected period.",
@@ -6237,7 +6237,7 @@
     } else if (/etkin cihaz|active device/.test(t)) {
       icon = "devices";
       path = "/statistics?metrics=ACTIVE_DEVICES-ALL-UNIQUE-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
-    } else if (/etkin kullanıcı|active user|yükleyen kullanıcı/.test(t)) {
+    } else if (/etkin users|active user|yükleyen users/.test(t)) {
       icon = "users";
       path = "/statistics?metrics=ACTIVE_USERS-ALL-UNIQUE-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
     } else if (/cihaz ilk açılış|first open/.test(t)) {
@@ -6287,12 +6287,12 @@
     var title = String((m && m.title) || "").replace(/\s+/g, " ").trim();
     var seg = String((m && m.segment) || "").replace(/\s+/g, " ").trim();
     var only = "User-perceived only";
-    // "Kullanıcı tarafından algılanan: Yalnızca …" → sadece ikinci kısım
-    var mColon = title.match(/^Kullanıcı tarafından algılanan\s*[:·\-]\s*(.+)$/i);
+    // "Users tarafından algılanan: Yalnızca …" → sadece ikinci kısım
+    var mColon = title.match(/^Users tarafından algılanan\s*[:·\-]\s*(.+)$/i);
     if (mColon) title = mColon[1].trim() || title;
-    else if (/^Kullanıcı tarafından algılanan$/i.test(title) && /yalnızca kullanıcı tarafından algılanan/i.test(seg)) {
+    else if (/^Users tarafından algılanan$/i.test(title) && /yalnızca users tarafından algılanan/i.test(seg)) {
       title = only;
-    } else if (/yalnızca kullanıcı tarafından algılanan/i.test(title)) {
+    } else if (/yalnızca users tarafından algılanan/i.test(title)) {
       title = only;
     }
     return globalMetricTitle(title);
@@ -6383,9 +6383,9 @@
   function renderRating(sum) {
     sum = sum || {};
     var cards = [
-      { label: "Varsayılan Play puanı", value: sum.default_rating || "—" },
-      { label: "Kullanıcılar", value: sum.users || "—" },
-      { label: "Yorum içeren puanlar", value: sum.ratings_with_reviews || "—" }
+      { label: "Default Play rating", value: sum.default_rating || "—" },
+      { label: "Users", value: sum.users || "—" },
+      { label: "Ratings with reviews", value: sum.ratings_with_reviews || "—" }
     ];
     ratingEl.innerHTML = cards.map(function (c) {
       return (
@@ -6518,11 +6518,11 @@
       '<table class="min-w-full text-left text-xs">' +
         '<thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">' +
           "<tr>" +
-            '<th class="px-3 py-2 font-bold">Metrik</th>' +
-            '<th class="px-3 py-2 font-bold tabular-nums">Son 28 gün</th>' +
+            '<th class="px-3 py-2 font-bold">Metric</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">Last 28 days</th>' +
             '<th class="px-3 py-2 font-bold tabular-nums">Free</th>' +
-            '<th class="px-3 py-2 font-bold tabular-nums">Önceki 28 güne kıyas</th>' +
-            '<th class="px-3 py-2 font-bold tabular-nums">Benzerler ortancası</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">vs previous 28 days</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">Peer median</th>' +
           "</tr>" +
         "</thead>" +
         '<tbody class="divide-y divide-slate-100 dark:divide-zinc-800">' +
@@ -6582,11 +6582,11 @@
 
   function paSfPeriodLabel(raw) {
     var p = String(raw || "").trim().toLowerCase();
-    if (p === "24h" || p === "24s") return "son 24 saat";
-    if (p === "7d" || p === "7g") return "son 7 gün";
-    if (p === "28d" || p === "28g") return "son 28 gün";
-    if (p === "30d" || p === "30g") return "son 30 gün";
-    if (p === "90d" || p === "90g") return "son 90 gün";
+    if (p === "24h" || p === "24s") return "last 24 hours";
+    if (p === "7d" || p === "7g") return "last 7 days";
+    if (p === "28d" || p === "28g") return "last 28 days";
+    if (p === "30d" || p === "30g") return "last 30 days";
+    if (p === "90d" || p === "90g") return "last 90 days";
     return String(raw || "").trim();
   }
 
@@ -6596,22 +6596,22 @@
     var ctx = String(tipContext || "").trim();
     var when = ctx ? (" · " + ctx) : "";
     if (/^s\s/i.test(p)) {
-      return "Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı)" + when + ".";
+      return "Crash-free sessions — sessions bazlı çökme yaşamayan oran (users CF’den ayrı)" + when + ".";
     }
     if (/^Δ/i.test(p) || p.indexOf("Δ") === 0) {
-      return "Δ — dönem içi fark (pp): son gün − ilk gün crash-free" + when + ".";
+      return "Δ — dönem içi fark (pp): son days − ilk days crash-free" + when + ".";
     }
     if (/%$/.test(p) && !/^s\s/i.test(p)) {
       if (/anr/i.test(title)) {
-        return "ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi)" + when + ".";
+        return "ANR rate — users algılanan ANR oranı (ANR-free’nin tersi)" + when + ".";
       }
       return "Oran — kaynak konsoldaki ham yüzde" + when + ".";
     }
     if (/[kKmM]$/.test(p) || /^\d/.test(p)) {
       if (/anr/i.test(title)) {
-        return "Örneklem — Reporting’deki distinct kullanıcı hacmi" + when + ".";
+        return "Örneklem — Reporting’deki distinct users hacmi" + when + ".";
       }
-      return "Örneklem — dönemdeki kullanıcı/oturum hacmi" + when + ".";
+      return "Örneklem — dönemdeki users/sessions hacmi" + when + ".";
     }
     return "Ek metrik — kaynak konsoldan gelen veri" + when + ".";
   }
@@ -6761,7 +6761,7 @@
       ? ("v" + playLatest.version_name)
       : (playLatest && playLatest.version_code ? ("code " + playLatest.version_code) : "latest");
     var staleSub = data._from_healthy
-      ? ("Son sağlıklı" + (data._healthy_at ? (" · " + data._healthy_at) : ""))
+      ? ("Last healthy" + (data._healthy_at ? (" · " + data._healthy_at) : ""))
       : "";
 
     var playCode = playLatest && playLatest.version_code ? String(playLatest.version_code) : "";
@@ -6780,13 +6780,13 @@
       return parts.join(" · ");
     }
     function fbTipContext(periodKey) {
-      var bits = ["son sürüm", paSfPeriodLabel(periodKey)];
+      var bits = ["latest version", paSfPeriodLabel(periodKey)];
       if (fbVer) bits.push(fbVer);
       return bits.join(" · ");
     }
     var playAllSubHtml =
       paSfLink("Play Console", "#pc-vitals", {
-        title: "Android · Vitals paneli (site içi)"
+        title: "Android · Vitals panel (in-site)"
       });
     var latestAnr = (playLatest && playLatest.anr_free_fmt) || null;
     var latestAnrPct = playLatest && playLatest.anr_free_pct != null ? playLatest.anr_free_pct : null;
@@ -7001,7 +7001,7 @@
     var sel = cats.find(function (c) { return c.id === vitalsState.selectedCat; }) || cats[0];
     var issues = Array.isArray(sel.issues) ? sel.issues : [];
     if (!issues.length) {
-      vitalsIssuesEl.innerHTML = '<p class="p-3 text-center text-sm text-slate-400">Bu kategoride sorun satırı yok</p>';
+      vitalsIssuesEl.innerHTML = '<p class="p-3 text-center text-sm text-slate-400">No issue rows in this category</p>';
       if (vitalsDetailEl) {
         vitalsDetailEl.classList.add("hidden");
         vitalsDetailEl.innerHTML = "";
@@ -7012,12 +7012,12 @@
       '<table class="min-w-full text-left text-xs">' +
         '<thead class="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">' +
           "<tr>" +
-            '<th class="px-3 py-2 font-bold">Sorun</th>' +
-            '<th class="px-3 py-2 font-bold">Tür</th>' +
-            '<th class="px-3 py-2 font-bold">Etkilenen sürümler</th>' +
-            '<th class="px-3 py-2 font-bold tabular-nums">Kullanıcı</th>' +
-            '<th class="px-3 py-2 font-bold tabular-nums">Etkinlikler</th>' +
-            '<th class="px-3 py-2 font-bold">Son</th>' +
+            '<th class="px-3 py-2 font-bold">Issue</th>' +
+            '<th class="px-3 py-2 font-bold">Type</th>' +
+            '<th class="px-3 py-2 font-bold">Affected versions</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">Users</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">Events</th>' +
+            '<th class="px-3 py-2 font-bold">Last</th>' +
           "</tr></thead>" +
         '<tbody class="divide-y divide-slate-100 dark:divide-zinc-800">' +
         issues.map(function (iss, idx) {
@@ -7041,9 +7041,9 @@
             ? (
                 '<a href="' + esc(detailHref) + '" target="_blank" rel="noopener noreferrer" ' +
                 'class="pc-vitals-console-link mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40" ' +
-                'title="Play Console’da aç" data-issue="' + esc(iid) + '" onclick="event.stopPropagation()">' +
+                'title="Open in Play Console" data-issue="' + esc(iid) + '" onclick="event.stopPropagation()">' +
                   externalLinkSvg() +
-                  '<span class="sr-only">Play Console’da aç</span>' +
+                  '<span class="sr-only">Open in Play Console</span>' +
                 "</a>"
               )
             : "";
@@ -7105,11 +7105,11 @@
     var link = d.url || (listIss && listIss.detail_url) || "";
     if (!cards.length && listIss) {
       [
-        ["Kullanıcı", listIss.users],
-        ["Etkinlik", listIss.events],
-        ["Pay", listIss.events_share],
-        ["Sürüm", listIss.affected_versions],
-        ["Son", listIss.last_occurrence]
+        ["Users", listIss.users],
+        ["Events", listIss.events],
+        ["Share", listIss.events_share],
+        ["Version", listIss.affected_versions],
+        ["Last", listIss.last_occurrence]
       ].forEach(function (pair) {
         if (pair[1]) cards.push({ title: pair[0], value: pair[1] });
       });
@@ -7118,7 +7118,7 @@
     vitalsDetailEl.innerHTML =
       '<div class="flex flex-wrap items-start justify-between gap-2">' +
         "<div>" +
-          '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sorun detayı</p>' +
+          '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Issue detail</p>' +
           '<p class="mt-0.5 text-sm font-bold text-slate-900 dark:text-zinc-50">' + esc(title) + "</p>" +
           (subtitle ? '<p class="text-[11px] text-slate-500">' + esc(subtitle) + "</p>" : "") +
         "</div>" +
@@ -7144,7 +7144,7 @@
           return (
             '<div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950">' +
               '<div class="flex items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-1.5 dark:border-zinc-800">' +
-                '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Yığın izi / örnek</p>' +
+                '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Stack trace / sample</p>' +
               "</div>" +
               '<pre class="max-h-52 overflow-auto whitespace-pre-wrap bg-transparent px-3 py-2.5 font-mono text-[11px] leading-relaxed text-slate-700 dark:text-zinc-300">' +
                 esc(stack) +
@@ -7156,11 +7156,11 @@
           return '<p class="mt-2 text-[11px] text-rose-600">' + esc(d.error) + "</p>";
         }
         if (link) {
-          return '<p class="mt-2 text-[11px] text-slate-500">Stack henüz senkron değil · <a href="' + esc(link) + '" target="_blank" rel="noopener" class="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play Console’da aç ↗</a></p>';
+          return '<p class="mt-2 text-[11px] text-slate-500">Stack not synced yet · <a href="' + esc(link) + '" target="_blank" rel="noopener" class="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Open in Play Console ↗</a></p>';
         }
-        return '<p class="mt-2 text-[11px] text-slate-400">Stack özeti yok</p>';
+        return '<p class="mt-2 text-[11px] text-slate-400">No stack summary</p>';
       })();
-    // İlk yüklemede scroll etme — sayfa en üstte kalsın; yalnızca kullanıcı seçince kaydır
+    // First yüklemede scroll etme — sayfa en üstte kalsın; yalnızca users seçince kaydır
     if (opts.scroll) {
       try {
         vitalsDetailEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -7219,13 +7219,13 @@
   function setVitalsSyncLabel(mode, iso) {
     if (!vitalsSyncEl) return;
     if (mode === "stale") {
-      vitalsSyncEl.textContent = "daha yeni veri henüz yok";
+      vitalsSyncEl.textContent = "no newer data yet";
       return;
     }
     var stamp = fmtStoreSyncTime(iso);
     vitalsSyncEl.textContent = stamp
-      ? ("store güncelleme zamanı: " + stamp)
-      : "store güncelleme zamanı: —";
+      ? ("store update time: " + stamp)
+      : "store update time: —";
   }
   function applyVitalsSnapshot(data, opts) {
     opts = opts || {};
@@ -7351,7 +7351,7 @@
       var iid = (consoleLink && consoleLink.getAttribute("data-issue"))
         || (row && row.getAttribute("data-issue"))
         || null;
-      // Dış link simgesi: yeni sekmede Play Console; satır da seçilsin
+      // Dış link simgesi: new sekmede Play Console; satır da seçilsin
       if (consoleLink) {
         vitalsState.selectedIssue = iid;
         renderVitalsDetail({ scroll: true });
@@ -7461,7 +7461,7 @@
       if (devicesLink && data.panels && data.panels.pages && data.panels.pages.devices && data.panels.pages.devices.url) {
         devicesLink.href = data.panels.pages.devices.url;
       }
-      setPcLine(metaEl, data.empty ? "Veri yok — bridge login + sync gerekli" : "");
+      setPcLine(metaEl, data.empty ? "No data — bridge login + sync gerekli" : "");
       applyVitalsSnapshot(data, { force: true });
       renderRating(data.rating_summary);
       renderMetricGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m, { withInfo: true }); });
@@ -7482,7 +7482,7 @@
       renderReviews(data.reviews);
       setPcLine(
         statusEl,
-        data.sync_ok === false ? ("Son sync uyarısı: " + (data.sync_message || "başarısız")) : ""
+        data.sync_ok === false ? ("Last sync warning: " + (data.sync_message || "failed")) : ""
       );
     } catch (err) {
       setPcLine(statusEl, (err && err.message) || String(err));
@@ -7491,7 +7491,7 @@
 
   async function refreshPage() {
     if (btn) btn.disabled = true;
-    setPcLine(statusEl, "Yenileniyor…");
+    setPcLine(statusEl, "Refreshing…");
     var host = (location.hostname || "").toLowerCase();
     var isLocal = host === "localhost" || host === "127.0.0.1";
     var bridgeOk = false;
@@ -7515,13 +7515,13 @@
     }
     // Play Store’dan son 1 yıl yorumlarını sunucuda çek (Console DOM’a bağlı değil)
     try {
-      setPcLine(statusEl, "Yorumlar senkron…");
+      setPcLine(statusEl, "Reviews senkron…");
       var sj = await syncPlayStoreReviews({ quick: false });
       if (sj && sj.ok) {
-        setPcLine(statusEl, sj.message || ("Yorumlar: " + (sj.review_count || 0)));
+        setPcLine(statusEl, sj.message || ("Reviews: " + (sj.review_count || 0)));
       }
     } catch (err) {
-      setPcLine(statusEl, (err && err.message) || "Yorum senkron hatası");
+      setPcLine(statusEl, (err && err.message) || "Review sync error");
     }
     try {
       await loadSnapshot();
@@ -7549,7 +7549,7 @@
       );
     }
   });
-  // İlk açılışta snapshot + vitals; yorumları arka planda tazele
+  // First açılışta snapshot + vitals; yorumları arka planda tazele
   (async function bootAndroid() {
     await loadSnapshot();
     startVitalsPolling();

@@ -119,13 +119,13 @@
               margin: { l: 52, r: 12, t: 32, b: 48 },
               paper_bgcolor: th.paper,
               plot_bgcolor: th.plot,
-              title: { text: "Oturumlar — çubuk (1 / 7 / 30 gün)", font: { size: 12, color: th.tick } },
+              title: { text: "Sessions — bar (1 / 7 / 30 days)", font: { size: 12, color: th.tick } },
               font: { color: th.tick, size: 11 },
               xaxis: { tickfont: { color: th.tick, size: 10 }, gridcolor: th.grid },
               yaxis: {
                 tickfont: { color: th.tick, size: 10 },
                 gridcolor: th.grid,
-                title: { text: "Oturum", font: { size: 11, color: th.tick } },
+                title: { text: "Sessions", font: { size: 11, color: th.tick } },
               },
               showlegend: true,
               legend: { orientation: "h", y: -0.22, font: { size: 10, color: th.legend } },
@@ -157,13 +157,13 @@
               margin: { l: 52, r: 12, t: 32, b: 44 },
               paper_bgcolor: th.paper,
               plot_bgcolor: th.plot,
-              title: { text: "Oturumlar — çizgi", font: { size: 12, color: th.tick } },
+              title: { text: "Sessions — line", font: { size: 12, color: th.tick } },
               font: { color: th.tick, size: 11 },
               xaxis: { tickfont: { color: th.tick, size: 10 }, gridcolor: th.grid },
               yaxis: {
                 tickfont: { color: th.tick, size: 10 },
                 gridcolor: th.grid,
-                title: { text: "Oturum", font: { size: 11, color: th.tick } },
+                title: { text: "Sessions", font: { size: 11, color: th.tick } },
               },
               showlegend: true,
               legend: { orientation: "h", y: -0.2, font: { size: 10, color: th.legend } },
@@ -191,7 +191,7 @@
             {
               margin: { l: 8, r: 8, t: 36, b: 8 },
               paper_bgcolor: th.paper,
-              title: { text: pieSpec.title || "Organik pay", font: { size: 12, color: th.tick } },
+              title: { text: pieSpec.title || "Organic share", font: { size: 12, color: th.tick } },
               font: { color: th.tick, size: 11 },
               showlegend: false,
             },
@@ -208,7 +208,7 @@
         psEl.className = "ai-brief-plot min-h-[180px] w-full min-w-0";
         psEl.id = "ai-brief-ps-" + uid + "-" + rid;
         slot.appendChild(psEl);
-        var px = ["Mobil", "Masaüstü"];
+        var px = ["Mobile", "Desktop"];
         var py = [ps.mobil != null ? ps.mobil : 0, ps.masaustu != null ? ps.masaustu : 0];
         window.Plotly.newPlot(
           psEl,
@@ -226,11 +226,11 @@
             margin: { l: 44, r: 16, t: 30, b: 48 },
             paper_bgcolor: th.paper,
             plot_bgcolor: th.plot,
-            title: { text: "PageSpeed (güncel skor)", font: { size: 12, color: th.tick } },
+            title: { text: "PageSpeed (current score)", font: { size: 12, color: th.tick } },
             font: { color: th.tick, size: 11 },
             yaxis: {
               range: [0, 100],
-              title: { text: "Skor", font: { size: 11, color: th.tick } },
+              title: { text: "Score", font: { size: 11, color: th.tick } },
               gridcolor: th.grid,
             },
             xaxis: { tickfont: { color: th.tick } },
@@ -250,13 +250,13 @@
         scEl.id = "ai-brief-sc-" + uid + "-" + rid;
         slot.appendChild(scEl);
         var sub =
-          (sc.position > 0 ? " · ort. konum " + sc.position : "") + (sc.ctr > 0 ? " · CTR %" + sc.ctr : "");
+          (sc.position > 0 ? " · avg. position " + sc.position : "") + (sc.ctr > 0 ? " · CTR %" + sc.ctr : "");
         window.Plotly.newPlot(
           scEl,
           [
             {
               type: "bar",
-              x: ["Tıklama", "Gösterim"],
+              x: ["Clicks", "Impressions"],
               y: [cl, im],
               marker: { color: ["#2563eb", "#94a3b8"] },
               text: [String(cl), String(im)],
@@ -267,11 +267,11 @@
             margin: { l: 56, r: 16, t: 36, b: 48 },
             paper_bgcolor: th.paper,
             plot_bgcolor: th.plot,
-            title: { text: "Search Console (7 gün)" + sub, font: { size: 11, color: th.tick } },
+            title: { text: "Search Console (7 days)" + sub, font: { size: 11, color: th.tick } },
             font: { color: th.tick, size: 11 },
             yaxis: {
               type: "log",
-              title: { text: "Adet (log ölçek)", font: { size: 11, color: th.tick } },
+              title: { text: "Count (log scale)", font: { size: 11, color: th.tick } },
               gridcolor: th.grid,
             },
             xaxis: { tickfont: { color: th.tick } },

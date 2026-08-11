@@ -1,5 +1,5 @@
 /**
- * Ana sayfa git.nokta — boards yıldızları + platform chip tab'leri.
+ * Ana sayfa git.nokta — boards starsları + platform chip tab'leri.
  */
 (function (global) {
   var PRODUCT_ACCENT = { doviz: 'sky', sinemalar: 'violet' };
@@ -112,7 +112,7 @@
         issue_iids: issueIids,
       }),
     });
-    if (!res.ok) throw new Error('Sıralama kaydedilemedi');
+    if (!res.ok) throw new Error('Could not save sort order');
     root._gnOrders = root._gnOrders || {};
     root._gnOrders[orderKey(productId, platformId, boardList)] = issueIids.slice();
   }
@@ -207,7 +207,7 @@
       if (busy) icon.classList.add('animate-spin');
       else icon.classList.remove('animate-spin');
     }
-    if (label) label.textContent = busy ? 'Yenileniyor…' : 'Yenile';
+    if (label) label.textContent = busy ? 'Refreshing…' : 'Refresh';
   }
 
   function applyStarsPayload(root, data) {
@@ -231,25 +231,25 @@
     if (root._gnRefreshing) return;
     root._gnRefreshing = true;
     setRefreshBusy(root, true);
-    setSyncStatus(root, 'GitLab ile senkronize ediliyor…', 'info');
+    setSyncStatus(root, 'Syncing with GitLab…', 'info');
     var bodyEl = root.querySelector('[data-gn-body]');
     if (bodyEl) {
       bodyEl.classList.add('opacity-60');
       bodyEl.setAttribute('aria-busy', 'true');
     }
     try {
-      // manual=1 → sunucu daha uzun timeout ile Closed dahil tüm yıldızları çeker
+      // manual=1 → sunucu daha uzun timeout ile Closed dahil tüm starsları çeker
       var data = await fetchStars('/api/boards/stars?refresh=1&manual=1', 60000);
       applyStarsPayload(root, data);
       var meta = data.refresh || {};
       var updated = typeof meta.updated === 'number' ? meta.updated : null;
       var errs = Array.isArray(meta.errors) ? meta.errors : [];
       if (meta.ok === false && meta.error) {
-        setSyncStatus(root, 'Kısmi: ' + meta.error, 'error');
+        setSyncStatus(root, 'Partial: ' + meta.error, 'error');
       } else if (errs.length) {
         setSyncStatus(
           root,
-          'Güncellendi (' + (updated != null ? updated + ' değişiklik' : 'ok') + '), bazı issue’lar eksik.',
+          'Refreshed (' + (updated != null ? updated + ' changes' : 'ok') + '), some issues are missing.',
           'error'
         );
       } else {
@@ -258,11 +258,11 @@
         var mm = String(now.getMinutes()).padStart(2, '0');
         setSyncStatus(
           root,
-          'GitLab ile güncellendi · ' +
+          'Updated from GitLab · ' +
             hh +
             ':' +
             mm +
-            (updated != null ? ' · ' + updated + ' değişiklik' : ''),
+            (updated != null ? ' · ' + updated + ' changes' : ''),
           'ok'
         );
       }
@@ -273,7 +273,7 @@
       } catch (_) { /* ignore */ }
     } catch (err) {
       console.warn('home git.nokta manual refresh failed', err);
-      setSyncStatus(root, 'Yenileme başarısız: ' + ((err && err.message) || 'bağlantı'), 'error');
+      setSyncStatus(root, 'Refresh failed: ' + ((err && err.message) || 'connection'), 'error');
     } finally {
       root._gnRefreshing = false;
       setRefreshBusy(root, false);
@@ -296,7 +296,7 @@
     function showError(msg) {
       if (loadingEl) loadingEl.classList.add('hidden');
       if (errorEl) errorEl.classList.remove('hidden');
-      if (errorMsg) errorMsg.textContent = msg || 'Yıldızlı maddeler alınamadı.';
+      if (errorMsg) errorMsg.textContent = msg || 'Could not load starred items.';
       if (bodyEl) {
         bodyEl.classList.remove('opacity-60', 'pointer-events-none');
         bodyEl.removeAttribute('aria-busy');
@@ -343,7 +343,7 @@
         });
     } catch (err) {
       console.warn('home git.nokta stars load failed', err);
-      showError((err && err.message) || 'Yıldızlı maddeler yüklenemedi.');
+      showError((err && err.message) || 'Could not load starred items.');
       ['doviz', 'sinemalar'].forEach(function (pid) {
         ['open', 'doing', 'testing', 'closed'].forEach(function (cid) {
           renderList(root, pid, cid, []);

@@ -379,16 +379,16 @@
   <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div class="flex items-center gap-3">
       <span class="inbox-motion-mail" aria-hidden="true"><span></span></span>
-      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Gelen kutusu</h1>
+      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Inbox</h1>
     </div>
     <div class="flex flex-wrap gap-2" id="inbox-toolbar">
       <a
         id="inbox-connect-btn"
         href="/api/inbox/oauth/start?next=/inbox"
         class="hidden rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white shadow hover:bg-indigo-700"
-      >Google ile bağla</a>
-      <button type="button" id="inbox-sync-btn" class="hidden rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Senkronize et</button>
-      <button type="button" id="inbox-disconnect-btn" class="hidden rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40">Bağlantıyı kes</button>
+      >Connect with Google</a>
+      <button type="button" id="inbox-sync-btn" class="hidden rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Sync</button>
+      <button type="button" id="inbox-disconnect-btn" class="hidden rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40">Disconnect</button>
     </div>
   </div>
 
@@ -401,7 +401,7 @@
     aria-live="polite"
   >
     <div class="mb-1.5 flex items-center justify-between gap-2">
-      <span class="text-xs font-bold uppercase tracking-wide text-indigo-900 dark:text-indigo-100">Senkronizasyon</span>
+      <span class="text-xs font-bold uppercase tracking-wide text-indigo-900 dark:text-indigo-100">Sync</span>
       <span id="inbox-sync-progress-pct" class="text-xs font-mono font-bold text-indigo-800 dark:text-indigo-200">0%</span>
     </div>
     <div class="h-3 w-full overflow-hidden rounded-full bg-white/90 ring-1 ring-indigo-200/80 dark:bg-slate-900 dark:ring-indigo-900">
@@ -418,18 +418,18 @@
   <div class="inbox-split-grid">
     <div class="inbox-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800">
       <div class="inbox-toolbar-strip mb-3 flex flex-col gap-2">
-        <div id="inbox-route-tabs" class="flex flex-wrap gap-1" role="tablist" aria-label="Gelen kutusu sekmeleri">
+        <div id="inbox-route-tabs" class="flex flex-wrap gap-1" role="tablist" aria-label="Inbox tabs">
           <button type="button" role="tab" data-route="doviz" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800" title="info@doviz.com ve feedback@doviz.com" aria-selected="true">doviz</button>
           <button type="button" role="tab" data-route="sinemalar" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">sinemalar</button>
-          <button type="button" role="tab" data-route="medya" class="inbox-tab rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-900 hover:bg-teal-100 dark:border-teal-700 dark:bg-teal-950/40 dark:text-teal-200 dark:hover:bg-teal-900/50" title="medya@nokta.com · işbirliği / reklam">medya</button>
+          <button type="button" role="tab" data-route="medya" class="inbox-tab rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-900 hover:bg-teal-100 dark:border-teal-700 dark:bg-teal-950/40 dark:text-teal-200 dark:hover:bg-teal-900/50" title="medya@nokta.com · partnerships / ads">medya</button>
           <button type="button" role="tab" data-route="nstat" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">nstat</button>
           <button type="button" role="tab" data-route="firebase" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">firebase</button>
           <button type="button" role="tab" data-route="reklam" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800" title="reklam@nokta.com">reklam</button>
           <button type="button" role="tab" data-route="all" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">all</button>
-          <button type="button" role="tab" data-route="answered" class="inbox-tab rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-900/50" title="Cevaplanan tüm mailler (route'tan bağımsız)">cevaplananlar</button>
+          <button type="button" role="tab" data-route="answered" class="inbox-tab rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-900/50" title="All replied mail (any route)">replied</button>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <span id="inbox-live-hint" class="text-[10px] text-slate-400 dark:text-slate-500 hidden">Liste ~30 sn’de bir yenilenir · Gmail senkronu ~10 dk</span>
+          <span id="inbox-live-hint" class="text-[10px] text-slate-400 dark:text-slate-500 hidden">List refreshes every ~30s · Gmail sync ~10 min</span>
           <span id="inbox-account" class="ml-auto text-xs text-slate-500 dark:text-slate-400"></span>
         </div>
       </div>
@@ -437,7 +437,7 @@
     </div>
 
     <div class="inbox-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800">
-      <div id="inbox-detail-empty" class="inbox-empty-hint text-sm text-slate-500 dark:text-slate-400">Soldan bir konuşma seçin.</div>
+      <div id="inbox-detail-empty" class="inbox-empty-hint text-sm text-slate-500 dark:text-slate-400">Select a conversation on the left.</div>
       <div id="inbox-detail" class="hidden space-y-4">
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -445,68 +445,68 @@
             <p id="inbox-detail-meta" class="mt-1 text-xs text-slate-500 dark:text-slate-400"></p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button type="button" id="btn-read" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Okundu</button>
-            <button type="button" id="btn-unread" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Okunmadı</button>
-            <button type="button" id="btn-answered" class="rounded-md border border-emerald-600 px-2 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-200">Cevaplandı işaretle</button>
-            <button type="button" id="btn-unanswered" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Cevaplandı kaldır</button>
-            <button type="button" id="btn-delete" class="rounded-md border border-rose-600 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-500 dark:bg-rose-950/50 dark:text-rose-100 dark:hover:bg-rose-900/60">Sil</button>
+            <button type="button" id="btn-read" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Read</button>
+            <button type="button" id="btn-unread" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Unread</button>
+            <button type="button" id="btn-answered" class="rounded-md border border-emerald-600 px-2 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-200">Mark as replied</button>
+            <button type="button" id="btn-unanswered" class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Unmark replied</button>
+            <button type="button" id="btn-delete" class="rounded-md border border-rose-600 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-500 dark:bg-rose-950/50 dark:text-rose-100 dark:hover:bg-rose-900/60">Delete</button>
           </div>
         </div>
         <div id="inbox-support-ai-actions" class="flex flex-wrap gap-2">
-          <button type="button" id="btn-summarize" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI özet</button>
-          <button type="button" id="btn-draft" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI taslak cevap</button>
+          <button type="button" id="btn-summarize" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI summary</button>
+          <button type="button" id="btn-draft" class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-500">AI draft reply</button>
         </div>
         <div id="inbox-alert-ai-actions" class="hidden flex flex-wrap items-center gap-2">
-          <button type="button" id="btn-analyze-alert" class="rounded-md bg-amber-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500">Durum analizi (AI)</button>
+          <button type="button" id="btn-analyze-alert" class="rounded-md bg-amber-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500">Status analysis (AI)</button>
           <span id="inbox-analyze-alert-status" class="text-[11px] text-slate-500 dark:text-slate-400"></span>
         </div>
         <p id="inbox-ai-summary-hint" class="hidden text-[11px] text-slate-500 dark:text-slate-400">
-          Özet otomatik gösterilmez. «Durum analizi» ile en az 15 cümlelik değerlendirme üretin.
+          Summary is not shown automatically. Use Status analysis to generate at least 15 sentences.
         </p>
         <div id="inbox-alert-analysis-panel" class="hidden mb-4 rounded-xl p-4 shadow-sm dark:shadow-none">
-          <h3 class="inbox-analysis-title">Durum değerlendirmesi</h3>
+          <h3 class="inbox-analysis-title">Status analysis</h3>
           <div id="inbox-alert-analysis-body" class="inbox-alert-analysis-body"></div>
         </div>
         <div id="inbox-ai-summary" class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"></div>
         <div class="my-6">
-          <h3 class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">İletiler</h3>
+          <h3 class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Messages</h3>
           <div id="inbox-messages" class="max-h-[50vh] space-y-3 overflow-y-auto text-sm"></div>
         </div>
 
         <div id="inbox-templates-wrap" class="space-y-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">AI yanıt şablonları (3)</h3>
+            <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">AI reply templates (3)</h3>
             <button
               type="button"
               id="inbox-templates-refresh"
               class="inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-            >Yenile</button>
+            >Refresh</button>
           </div>
           <p id="inbox-templates-hint" class="text-[11px] text-slate-500 dark:text-slate-400">
-            Bir şablonu seçin; metin alanına aktarılır, gönderen adresi ve konu doldurulur. Metni düzenleyip «Gmail ile gönder» ile iletebilirsiniz.
+            Pick a template; it fills the text field, sender, and subject. Edit the text and send with Send with Gmail.
           </p>
           <div id="inbox-templates-provider-btns" class="mb-2 flex flex-wrap items-center gap-2 text-[11px]">
-            <span class="text-slate-500 dark:text-slate-400">Şablonları üret:</span>
+            <span class="text-slate-500 dark:text-slate-400">Generate templates:</span>
             <button type="button" class="inbox-templates-provider-btn inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700" data-provider="groq">Groq</button>
             <button type="button" class="inbox-templates-provider-btn inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700" data-provider="gemini">Gemini</button>
             <button type="button" class="inbox-templates-provider-btn inbox-btn-secondary rounded-md border border-slate-300 bg-white px-2 py-1 font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700" data-provider="openai">OpenAI</button>
-            <span class="text-slate-400 dark:text-slate-500">(boş = otomatik sıra)</span>
+            <span class="text-slate-400 dark:text-slate-500">(empty = automatic order)</span>
           </div>
           <p id="inbox-templates-provider" class="text-[10px] text-slate-400 dark:text-slate-500"></p>
           <div id="inbox-templates-list" class="grid gap-2 sm:grid-cols-3"></div>
         </div>
         {# ── AI Serbest Yazma ── #}
         <div id="inbox-freewrite-wrap" class="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40 space-y-2">
-          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">AI ile yaz</label>
+          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Write with AI</label>
           <textarea
             id="inbox-freewrite-prompt"
             rows="3"
-            placeholder="Örn: konuyu net anlat; ortaklık teklifini nazikçe reddet; teknik sorun için SS ve cihaz bilgisi iste"
+            placeholder="e.g. explain the topic clearly; politely decline a partnership; ask for a screenshot and device info for a technical issue"
             class="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 placeholder-slate-400 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-500"
           ></textarea>
           <div class="flex items-center gap-2">
             <button type="button" id="btn-freewrite" class="inbox-btn-secondary rounded-md bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white disabled:opacity-50">
-              Yaz →
+              Write →
             </button>
             <span id="inbox-freewrite-status" class="text-[11px] text-slate-400 dark:text-slate-500"></span>
           </div>
@@ -515,7 +515,7 @@
         <div id="inbox-compose-anchor" class="space-y-2">
           <div class="rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 text-xs text-indigo-950 dark:border-indigo-800/60 dark:bg-indigo-950/30 dark:text-indigo-100">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <label for="inbox-send-from" class="font-bold uppercase tracking-wide">Gönderen</label>
+              <label for="inbox-send-from" class="font-bold uppercase tracking-wide">From</label>
               <select id="inbox-send-from" class="rounded-md border border-indigo-200 bg-white px-2 py-1 text-sm font-bold text-slate-900 dark:border-indigo-700 dark:bg-slate-950 dark:text-slate-100">
                 <option value="cemevecen@nokta.com">cemevecen@nokta.com</option>
                 <option value="info@doviz.com">info@doviz.com</option>
@@ -523,17 +523,17 @@
               </select>
             </div>
             <p id="inbox-send-from-note" class="mt-2 leading-relaxed">
-              Bu yanıt <span class="font-extrabold">cemevecen@nokta.com</span> adresiyle gönderilecek.
+              This reply <span class="font-extrabold">cemevecen@nokta.com</span> will be sent from this address.
             </p>
-            <p class="mt-1 text-[11px] text-indigo-800/75 dark:text-indigo-200/75">Not: Seçilen adres Gmail hesabında “Send mail as” alias olarak doğrulanmış olmalı.</p>
+            <p class="mt-1 text-[11px] text-indigo-800/75 dark:text-indigo-200/75">Note: the selected address must be verified as a Send mail as alias on the Gmail account.</p>
           </div>
-          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Alıcı</label>
+          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">To</label>
           <input id="inbox-send-to" type="email" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" />
-          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Konu</label>
+          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Subject</label>
           <input id="inbox-send-subject" type="text" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" />
-          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Gövde (düzenleyebilirsiniz)</label>
+          <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Body (you can edit)</label>
           <textarea id="inbox-send-body" rows="10" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 font-mono text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"></textarea>
-          <button type="button" id="btn-send" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700">Gmail ile gönder</button>
+          <button type="button" id="btn-send" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700">Send with Gmail</button>
         </div>
       </div>
 
@@ -552,8 +552,8 @@
       autoplay
     ></lottie-player>
     <div id="inbox-send-lottie-fallback" class="inbox-send-overlay-fallback hidden" aria-hidden="true"></div>
-    <p id="inbox-send-overlay-status">Gönderiliyor…</p>
-    <p id="inbox-send-overlay-sub">Mesaj Gmail üzerinden iletiliyor</p>
+    <p id="inbox-send-overlay-status">Sending…</p>
+    <p id="inbox-send-overlay-sub">Message is being sent via Gmail</p>
   </div>
 </div>
 
@@ -589,7 +589,7 @@
     text = text.replace(/\s*(##\s+[^\n]+)/g, "\n\n$1");
     if (text.indexOf("\n") === -1 && text.length > 350) {
       text = text.replace(
-        /\s+((?:Genel özet|Desktop|Mobil(?: trafik)?|Trafik kaynakları|Anomal(?:i|iler)|Dikkat|Risk(?:ler)?|Fırsat(?:lar)?|Önerilen|Aksiyon(?:lar)?|Sonuç)[^:]{0,48}:)/gi,
+        /\s+((?:Genel özet|Desktop|Mobil(?: trafik)?|Traffic sources|Anomal(?:i|iler)|Dikkat|Risk(?:ler)?|Fırsat(?:lar)?|Önerilen|Aksiyon(?:lar)?|Sonuç)[^:]{0,48}:)/gi,
         "\n\n## $1"
       );
       if (text.indexOf("\n") === -1) {
@@ -699,16 +699,16 @@
       reklam: "reklam",
       nstat: "nstat",
       all: "all",
-      answered: "cevaplandı",
+      answered: "replied",
     };
     return labels[tag] || tag;
   }
 
   function medyaKindLabel(kind) {
     var labels = {
-      isbirligi: "İşbirliği",
-      reklam: "Reklam",
-      diger: "Diğer",
+      isbirligi: "Partnership",
+      reklam: "Ads",
+      diger: "Other",
     };
     return labels[kind] || "";
   }
@@ -880,8 +880,8 @@
     var fromEmail = getInboxSendFrom();
     var els = _setInboxSendOverlay(
       "sending",
-      "Gönderiliyor…",
-      "Gönderen: " + fromEmail + " · Mesaj Gmail hesabınıza bağlanıyor"
+      "Sending…",
+      "From: " + fromEmail + " · Message is linking to your Gmail account"
     );
     _setInboxSendButtonsDisabled(true);
     _inboxLottieShow(els.player, els.fallback, true);
@@ -896,14 +896,14 @@
 
     var overlayTimer = setTimeout(function () {
       dismissSendOverlay();
-      showBanner("Gönderiliyor… (arka planda) · " + fromEmail);
+      showBanner("Sending… (in background) · " + fromEmail);
     }, INBOX_SEND_OVERLAY_VISIBLE_MS);
 
     try {
       await sendFn();
       clearTimeout(overlayTimer);
       dismissSendOverlay();
-      showBanner("✓ Gönderildi · " + fromEmail);
+      showBanner("✓ Sent · " + fromEmail);
       var sid = selectedId;
       loadThreads({ preserveScroll: true })
         .then(function () {
@@ -921,7 +921,7 @@
     } catch (e) {
       clearTimeout(overlayTimer);
       dismissSendOverlay();
-      showBanner("✗ Gönderilemedi: " + String(e.message || e).slice(0, 200));
+      showBanner("✗ Could not send: " + String(e.message || e).slice(0, 200));
       _setInboxSendButtonsDisabled(false);
       throw e;
     }
@@ -1006,7 +1006,7 @@
     var note = document.getElementById("inbox-send-from-note");
     if (!note) return;
     var from = getInboxSendFrom();
-    note.innerHTML = 'Bu yanıt <span class="font-extrabold">' + esc(from) + '</span> adresiyle gönderilecek.';
+    note.innerHTML = 'This reply <span class="font-extrabold">' + esc(from) + '</span> will be sent from this address.';
   }
 
   function setInboxSendFrom(value) {
@@ -1074,7 +1074,7 @@
   }
 
   async function sendInboxMailFromComposer() {
-    if (!selectedId) throw new Error("Konuşma seçili değil.");
+    if (!selectedId) throw new Error("No conversation selected.");
     var to = document.getElementById("inbox-send-to").value.trim();
     var subj = document.getElementById("inbox-send-subject").value.trim();
     var bodyEl = document.getElementById("inbox-send-body");
@@ -1103,7 +1103,7 @@
     currentTemplateFocusGmid = focusGmid || null;
     if (!status.inbox_llm_ready) {
       list.innerHTML =
-        '<p class="text-xs text-amber-800 dark:text-amber-200">AI şablonları için GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY — en az birini tanımlayın (öncelik: Groq → Gemini → OpenAI).</p>';
+        '<p class="text-xs text-amber-800 dark:text-amber-200">For AI templates set at least one of GROQ_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY (priority: Groq → Gemini → OpenAI).</p>';
       if (prov) prov.textContent = "";
       templatesCache = [];
       templateFocus = null;
@@ -1114,7 +1114,7 @@
     if (!forceRefresh && _aiTemplatesMemo[cacheKey]) {
       out = _aiTemplatesMemo[cacheKey];
     } else {
-      list.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Şablonlar üretiliyor…</p>';
+      list.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Generating templates…</p>';
       if (prov) prov.textContent = "";
       try {
         var url = "/api/inbox/threads/" + selectedId + "/reply-templates";
@@ -1131,7 +1131,7 @@
         });
         _aiTemplatesMemo[cacheKey] = out;
       } catch (e) {
-        list.innerHTML = '<p class="text-xs text-rose-600 dark:text-rose-400">Hata: ' + esc(e.message || e) + "</p>";
+        list.innerHTML = '<p class="text-xs text-rose-600 dark:text-rose-400">Error: ' + esc(e.message || e) + "</p>";
         return;
       }
     }
@@ -1139,7 +1139,7 @@
     templatesCache = out.templates || [];
       var humanProv =
         { openai: "OpenAI", gemini: "Google Gemini", groq: "Groq" }[out.provider] || out.provider || "";
-      if (prov) prov.textContent = humanProv ? "Üretim: " + humanProv : "";
+      if (prov) prov.textContent = humanProv ? "Generated: " + humanProv : "";
       list.innerHTML = templatesCache
         .map(function (tpl, idx) {
           return (
@@ -1152,10 +1152,10 @@
             "</pre>" +
             '<button type="button" class="inbox-use-template-btn mt-auto rounded-md bg-indigo-600 px-2 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-500" data-idx="' +
             idx +
-            '">Bu şablonu kullan</button>' +
+            '">Use this template</button>' +
             '<button type="button" class="inbox-send-template-btn mt-1 w-full rounded-md border border-rose-400 bg-rose-50 px-2 py-1.5 text-[11px] font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-100 dark:hover:bg-rose-900/50" data-idx="' +
             idx +
-            '">Gmail ile gönder</button></div>'
+            '">Send with Gmail</button></div>'
           );
         })
         .join("");
@@ -1177,7 +1177,7 @@
           applyReplyTemplate(templatesCache[idx]);
           // Minik bir gecikme: scroll bitmeden confirm açılırsa bazı tarayıcılarda sorun çıkabiliyor
           setTimeout(async function() {
-            if (!confirm("Bu şablon Gmail üzerinden gönderilecek. Onaylıyor musunuz?")) return;
+            if (!confirm("This template will be sent via Gmail. Are you sure?")) return;
             try {
               await runInboxSendWithOverlay(function () {
                 return sendInboxMailFromComposer();
@@ -1215,14 +1215,14 @@
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
     modal.innerHTML = `
       <div style="background:#18181b;border:1px solid #3f3f46;border-radius:14px;padding:28px 32px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#f4f4f5;">Aksiyon Şifresi</p>
-        <p style="margin:0 0 16px;font-size:12px;color:#71717a;">Gmail bağlantısından ayrı: Railway’deki <strong>INBOX_ACTION_PASSWORD</strong> (panel giriş şifresiyle aynı olmak zorunda değil).</p>
-        <input id="inbox-action-pwd-input" type="password" placeholder="Şifre" autocomplete="current-password"
+        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#f4f4f5;">Action password</p>
+        <p style="margin:0 0 16px;font-size:12px;color:#71717a;">Separate from Gmail connections: on Railway, <strong>INBOX_ACTION_PASSWORD</strong> (does not have to match the panel login password).</p>
+        <input id="inbox-action-pwd-input" type="password" placeholder="Password" autocomplete="current-password"
           style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid #3f3f46;background:#09090b;color:#f4f4f5;font-size:14px;outline:none;margin-bottom:10px;">
         <p id="inbox-action-pwd-err" style="margin:0 0 10px;font-size:12px;color:#f87171;display:none;"></p>
         <div style="display:flex;gap:8px;">
-          <button id="inbox-action-pwd-ok" style="flex:1;padding:8px;border-radius:8px;background:#4f46e5;color:#fff;font-weight:700;font-size:13px;border:none;cursor:pointer;">Onayla</button>
-          <button id="inbox-action-pwd-cancel" style="flex:1;padding:8px;border-radius:8px;background:#27272a;color:#a1a1aa;font-size:13px;border:none;cursor:pointer;">İptal</button>
+          <button id="inbox-action-pwd-ok" style="flex:1;padding:8px;border-radius:8px;background:#4f46e5;color:#fff;font-weight:700;font-size:13px;border:none;cursor:pointer;">Confirm</button>
+          <button id="inbox-action-pwd-cancel" style="flex:1;padding:8px;border-radius:8px;background:#27272a;color:#a1a1aa;font-size:13px;border:none;cursor:pointer;">Cancel</button>
         </div>
       </div>`;
     document.body.appendChild(modal);
@@ -1243,20 +1243,20 @@
           modal.remove();
           resolve();
         } else {
-          errEl.textContent = d.error || 'Yanlış şifre';
+          errEl.textContent = d.error || 'Wrong password';
           errEl.style.display = 'block';
           input.value = '';
           input.focus();
         }
       } catch(e) {
-        errEl.textContent = 'Bağlantı hatası';
+        errEl.textContent = 'Connection error';
         errEl.style.display = 'block';
       }
       modal.querySelector('#inbox-action-pwd-ok').disabled = false;
     }
     modal.querySelector('#inbox-action-pwd-ok').addEventListener('click', tryAuth);
     input.addEventListener('keydown', function(e) { if (e.key === 'Enter') tryAuth(); });
-    modal.querySelector('#inbox-action-pwd-cancel').addEventListener('click', function() { modal.remove(); reject(new Error('İptal edildi')); });
+    modal.querySelector('#inbox-action-pwd-cancel').addEventListener('click', function() { modal.remove(); reject(new Error('Cancelled')); });
   }
 
   async function _ensureInboxActionAuth() {
@@ -1312,7 +1312,7 @@
       } catch (parseErr) {
         if (!r.ok) {
           throw new Error(
-            "Sunucu yanıtı JSON değil (" +
+            "Server response is not JSON (" +
               r.status +
               "): " +
               t0.slice(0, 400) +
@@ -1366,7 +1366,7 @@
     if (ev.current != null && ev.total != null) parts.push(String(ev.current) + " / " + String(ev.total));
     if ((ev.subject || "").trim()) parts.push(ev.subject);
     else if ((ev.gmail_thread_id || "").trim()) parts.push("ID: " + String(ev.gmail_thread_id).slice(0, 24));
-    if (ev.messages_written != null) parts.push(String(ev.messages_written) + " ileti");
+    if (ev.messages_written != null) parts.push(String(ev.messages_written) + " messages");
     if ((ev.snippet || "").trim()) {
       var sn = String(ev.snippet);
       parts.push(sn.length > 160 ? sn.slice(0, 160) + "…" : sn);
@@ -1386,7 +1386,7 @@
     var wrap = document.getElementById("inbox-sync-progress");
     var btn = document.getElementById("inbox-sync-btn");
     if (wrap) wrap.classList.remove("hidden");
-    setSyncProgress({ pct: 0, message: "Başlatılıyor…" });
+    setSyncProgress({ pct: 0, message: "Starting…" });
     if (btn) btn.disabled = true;
     try {
       var r = await fetch("/api/inbox/sync-stream", {
@@ -1401,11 +1401,11 @@
           var errJson = JSON.parse(errText);
           if (errJson && errJson.detail) errMsg = String(errJson.detail);
         } catch (_) {}
-        if (r.status === 401 || r.status === 403) errMsg = "Yetki gerekli — şifre modalını tamamlayın veya oturumu yenileyin.";
+        if (r.status === 401 || r.status === 403) errMsg = "Authorization required — complete the password modal or refresh the session.";
         throw new Error(errMsg);
       }
       var reader = r.body && r.body.getReader ? r.body.getReader() : null;
-      if (!reader) throw new Error("Tarayıcı akış okumasını desteklemiyor.");
+      if (!reader) throw new Error("The browser does not support stream reading.");
       var dec = new TextDecoder();
       var buf = "";
       var lastComplete = null;
@@ -1424,7 +1424,7 @@
           } catch (x) {
             continue;
           }
-          if (ev.type === "error") throw new Error(ev.message || "Senkron hatası");
+          if (ev.type === "error") throw new Error(ev.message || "Sync error");
           setSyncProgress(ev);
           if (ev.type === "complete") lastComplete = ev;
         }
@@ -1432,7 +1432,7 @@
       if (buf.trim()) {
         try {
           var evLast = JSON.parse(buf.trim());
-          if (evLast.type === "error") throw new Error(evLast.message || "Senkron hatası");
+          if (evLast.type === "error") throw new Error(evLast.message || "Sync error");
           setSyncProgress(evLast);
           if (evLast.type === "complete") lastComplete = evLast;
         } catch (x2) {
@@ -1452,7 +1452,7 @@
     var sync = document.getElementById("inbox-sync-btn");
     var disc = document.getElementById("inbox-disconnect-btn");
     if (acc) {
-      acc.textContent = status.connected ? status.account_email || "Bağlı" : "Bağlı değil";
+      acc.textContent = status.connected ? status.account_email || "Connected" : "Not connected";
     }
     if (connect) connect.classList.toggle("hidden", !status.oauth_client_configured || status.connected);
     if (sync) sync.classList.toggle("hidden", !status.connected);
@@ -1460,7 +1460,7 @@
     var parts = [];
     if (!status.inbox_llm_ready) {
       parts.push(
-        "AI özet, taslak ve üç şablon için GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY — en az birini tanımlayın (öncelik: Groq → Gemini → OpenAI)."
+        "For AI summary, draft, and three templates set at least one of GROQ_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY (priority: Groq → Gemini → OpenAI)."
       );
     }
     var oauthErr = new URLSearchParams(window.location.search).get("oauth_error");
@@ -1468,17 +1468,17 @@
       var ru = (status.redirect_uri || "").trim();
       var hostHint = window.location.origin || "";
       var msg =
-        "Google izni reddedildi (access_denied). Muhtemel nedenler: (1) OAuth uygulaması «Testing» modunda ve Google hesabınız Test kullanıcıları listesinde değil — " +
-        "Cloud Console → APIs & Services → OAuth consent screen → Test users → e-postanızı ekleyin. " +
-        "(2) İzin ekranında «İptal»e bastınız veya yanlış Google hesabını seçtiniz — Test users’taki hesapla giriş yapın" +
+        "Google permission was denied (access_denied). Likely causes: (1) the OAuth app is in Testing mode and your Google account is not on the Test users list — " +
+        "Cloud Console → APIs & Services → OAuth consent screen → Test users → add your email. " +
+        "(2) You pressed Cancel on the consent screen or picked the wrong Google account — sign in with an account on Test users" +
         (status.oauth_login_hint ? " (" + status.oauth_login_hint + ")" : " (cemevecen@nokta.com)") +
-        ". Tekrar «Google ile bağla» deyip tüm kutucukları onaylayın. " +
-        "(3) Authorized redirect URI eksik — aynı OAuth istemcisinde şu adres kayıtlı olmalı: " +
+        ". Click Connect with Google again and approve every checkbox. " +
+        "(3) Authorized redirect URI is missing — this address must be listed on the same OAuth client: " +
         (ru || hostHint + "/api/inbox/oauth/callback") +
         " (Credentials → OAuth 2.0 Client → Authorized redirect URIs).";
       showBanner(msg);
     } else if (oauthErr) {
-      showBanner("Gmail bağlantısı tamamlanamadı: " + oauthErr);
+      showBanner("Gmail connection could not be completed: " + oauthErr);
     } else if (parts.length) {
       showBanner(parts.join(" "));
     } else {
@@ -1497,10 +1497,10 @@
         var ru2 = (status.redirect_uri || "").trim() || (window.location.origin + "/api/inbox/oauth/callback");
         help.innerHTML =
           '<p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">' +
-          "<strong>Gmail bağlantısı için:</strong> Google Cloud Console’da bu redirect URI kayıtlı olmalı: " +
+          "<strong>For Gmail connections:</strong> this redirect URI must be listed in Google Cloud Console: " +
           '<code class="rounded bg-slate-100 px-1 py-0.5 text-[10px] dark:bg-slate-800">' +
           esc(ru2) +
-          "</code>. Testing modundaysanız bağlayacağınız Google hesabını Test users listesine ekleyin." +
+          "</code>. If you are in Testing mode, add the Google account you will connect to the Test users list." +
           "</p>";
         help.classList.remove("hidden");
       }
@@ -1586,22 +1586,22 @@
     if (!items.length) {
       var emptyMsg =
         route === "firebase"
-          ? "firebase uyarısı yok. «Senkronize et» deyin veya ~10 dk’lık otomatik senkronu bekleyin."
+          ? "No Firebase alerts. Click Sync or wait for the ~10 min automatic sync."
           : route === "nstat"
-          ? "nstat (En çok ziyaret edilen sayfalar) kaydı yok. «Senkronize et» ile Gmail'den çekin."
+          ? "No nstat (top visited pages) records. Sync to pull from Gmail."
           : route === "all"
-          ? "all sekmesinde (to:me, info@blogcu.com, info@izlesene.com) mail yok. «Senkronize et» ile güncelleyin."
+          ? "No mail in the all tab (to:me, info@blogcu.com, info@izlesene.com). Sync to update."
           : route === "medya"
-          ? "medya (medya@nokta.com) kaydı yok. «Senkronize et» ile Gmail’den çekin."
+          ? "No medya (medya@nokta.com) records. Sync to pull from Gmail."
           : route === "reklam"
-          ? "reklam (reklam@nokta.com) kaydı yok. «Senkronize et» ile Gmail’den çekin."
+          ? "No reklam (reklam@nokta.com) records. Sync to pull from Gmail."
           : route === "doviz"
-          ? "doviz (info/feedback@doviz.com) kaydı yok. «Senkronize et» ile Gmail’den çekin."
+          ? "No doviz (info/feedback@doviz.com) records. Sync to pull from Gmail."
           : route === "sinemalar"
-          ? "sinemalar kaydı yok. «Senkronize et» ile Gmail’den çekin."
+          ? "No sinemalar records. Sync to pull from Gmail."
           : route === "answered"
-          ? "Henüz cevaplanan mail yok. Bir maili cevapladığında veya «Cevaplandı» işaretlediğinde buraya taşınır."
-          : "Henüz kayıt yok. «Senkronize et» deyin.";
+          ? "No replied mail yet. It moves here when you reply or mark as Replied."
+          : "No records yet. Click Sync.";
       box.innerHTML = '<p class="inbox-empty-hint text-slate-500 dark:text-slate-400">' + emptyMsg + "</p>";
       if (saved) inboxRestoreListScroll(saved);
       return;
@@ -1626,7 +1626,7 @@
         }
         var flags = "";
         if (t.gmail_unread) flags += '<span class="ml-1 text-rose-600 dark:text-rose-400">●</span>';
-        if (t.answered_flag) flags += '<span class="ml-1 rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200 uppercase tracking-tighter">Cevaplandı</span>';
+        if (t.answered_flag) flags += '<span class="ml-1 rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200 uppercase tracking-tighter">Replied</span>';
         return (
           '<div class="inbox-row-wrap">' +
           '<button type="button" data-tid="' +
@@ -1636,7 +1636,7 @@
           '">' +
           '<div class="flex items-start justify-between gap-2">' +
           '<span class="inbox-row-title line-clamp-2 text-slate-900 dark:text-slate-100">' +
-          esc(t.subject || "(konu yok)") +
+          esc(t.subject || "(no subject)") +
           medyaBadge +
           badge +
           flags +
@@ -1651,7 +1651,7 @@
           "</button>" +
           '<button type="button" class="inbox-row-delete" data-inbox-delete="' +
           t.id +
-          '" title="Gmail çöp kutusuna taşı ve listeden kaldır" aria-label="Sil">Sil</button>' +
+          '" title="Move to Gmail trash and remove from the list" aria-label="Delete">Delete</button>' +
           "</div>"
         );
       })
@@ -1680,15 +1680,15 @@
     currentMessages = messages;
     document.getElementById("inbox-detail-empty").classList.add("hidden");
     document.getElementById("inbox-detail").classList.remove("hidden");
-    document.getElementById("inbox-detail-subject").textContent = t.subject || "(konu yok)";
+    document.getElementById("inbox-detail-subject").textContent = t.subject || "(no subject)";
     document.getElementById("inbox-detail-meta").textContent =
-      "Rota: " +
+      "Route: " +
       inboxRouteLabel(t.route_tag) +
-      (t.medya_kind && medyaKindLabel(t.medya_kind) ? " · Tür: " + medyaKindLabel(t.medya_kind) : "") +
-      " · Gmail okunmadı: " +
-      (t.gmail_unread ? "evet" : "hayır") +
-      " · Cevaplandı: " +
-      (t.answered_flag ? "evet" : "hayır");
+      (t.medya_kind && medyaKindLabel(t.medya_kind) ? " · Type: " + medyaKindLabel(t.medya_kind) : "") +
+      " · Gmail unread: " +
+      (t.gmail_unread ? "yes" : "no") +
+      " · Replied: " +
+      (t.answered_flag ? "yes" : "no");
     toggleInboxReplyMode(t.route_tag);
     setInboxSendFrom(inboxSendFromForRoute(t.route_tag));
     if (isInboxAlertRoute(t.route_tag)) {
@@ -1725,7 +1725,7 @@
           : "";
         var replyBtn = m.is_outbound || isInboxNstatRoute(t.route_tag)
           ? ""
-          : '<button type="button" class="inbox-reply-btn mt-2 rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-900/50">Bu iletiye yanıtla</button>';
+          : '<button type="button" class="inbox-reply-btn mt-2 rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-900/50">Reply to this message</button>';
         var imageAttachmentsHtml = renderInboxImageAttachments(m.image_attachments);
         var bodyBlock = m.body_display_html
           ? '<div class="inbox-msg-body ' +
@@ -1748,7 +1748,7 @@
           '"><div class="text-[11px] text-slate-500 dark:text-slate-400">' +
           esc(fmtMs(m.internal_ms)) +
           " · " +
-          (m.is_outbound ? "Giden" : "Gelen") +
+          (m.is_outbound ? "Outbound" : "Inbound") +
           '</div><div class="mt-1 text-xs font-semibold text-slate-800 dark:text-slate-200">' +
           esc(m.from) +
           "</div>" +
@@ -1796,7 +1796,7 @@
       hideBanner();
       hideSyncProgressSoon();
     } catch (e) {
-      showBanner("Senkronizasyon: " + String(e.message || e));
+      showBanner("Sync: " + String(e.message || e));
       var wp = document.getElementById("inbox-sync-progress");
       if (wp) wp.classList.add("hidden");
       return;
@@ -1804,19 +1804,19 @@
     try {
       await loadThreads({ preserveScroll: true });
     } catch (e) {
-      showBanner("Liste yenilenemedi (Gmail senkronu tamam): " + String(e.message || e));
+      showBanner("List could not refresh (Gmail sync complete): " + String(e.message || e));
       return;
     }
     if (selectedId) {
       try {
         await openDetail(selectedId);
       } catch (e) {
-        showBanner("Detay yenilenemedi: " + String(e.message || e));
+        showBanner("Detail could not refresh: " + String(e.message || e));
       }
     }
   });
   document.getElementById("inbox-disconnect-btn").addEventListener("click", async function () {
-    if (!confirm("Gmail gelen kutusu bağlantısını kesmek istiyor musunuz?")) return;
+    if (!confirm("Disconnect the Gmail inbox connection?")) return;
     await jfetch("/api/inbox/oauth", { method: "DELETE" });
     selectedId = null;
     document.getElementById("inbox-detail").classList.add("hidden");
@@ -1921,11 +1921,11 @@
       return;
     }
     if (btn) btn.disabled = true;
-    if (st) st.textContent = "Analiz üretiliyor…";
+    if (st) st.textContent = "Generating analysis…";
     try {
       var out = await jfetch("/api/inbox/threads/" + selectedId + "/analyze-alert", { method: "POST" });
       showAlertAnalysisPanel(out.analysis || "", selectedId);
-      if (st) st.textContent = "Tamamlandı.";
+      if (st) st.textContent = "Done.";
       var panel = document.getElementById("inbox-alert-analysis-panel");
       if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (e) {
@@ -1963,7 +1963,7 @@
     ev.stopPropagation();
     if (!selectedId) return;
     try { await _ensureInboxActionAuth(); } catch (e) { return; }
-    if (!confirm("Bu metin Gmail hesabınızdan gönderilecek. Onaylıyor musunuz?")) return;
+    if (!confirm("This text will be sent from your Gmail account. Are you sure?")) return;
     try {
       await runInboxSendWithOverlay(function () {
         return sendInboxMailFromComposer();
@@ -2019,17 +2019,17 @@
     if (!txt) { prompt.focus(); return; }
     var ctx = window.__pcInboxFreewriteContext ? window.__pcInboxFreewriteContext() : {};
     if (!ctx.thread_id) {
-      status.textContent = '✗ Önce soldan bir konuşma seçin.';
+      status.textContent = '✗ Select a conversation on the left first.';
       return;
     }
     var jf = window.__pcInboxJfetch;
     var ensureAuth = window.__pcInboxEnsureActionAuth;
     if (!jf) {
-      status.textContent = '✗ Sayfa betiği yüklenemedi; sayfayı yenileyin.';
+      status.textContent = '✗ Page script did not load; refresh the page.';
       return;
     }
     btn.disabled = true;
-    status.textContent = 'Yazılıyor…';
+    status.textContent = 'Writing…';
     try {
       if (ensureAuth) await ensureAuth();
       var d = await jf('/api/inbox/generate-from-prompt', {
@@ -2047,12 +2047,12 @@
         var anchor = document.getElementById('inbox-compose-anchor');
         if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-      status.textContent = '✓ ' + (d.provider || '') + ' ile oluşturuldu';
+      status.textContent = '✓ Created with ' + (d.provider || '');
       setTimeout(function () { status.textContent = ''; }, 4000);
     } catch (e) {
-      var msg = e && e.message ? e.message : 'Hata';
+      var msg = e && e.message ? e.message : 'Error';
       if (msg.indexOf('inbox_action_auth_required') !== -1) {
-        msg = 'Aksiyon şifresi gerekli (INBOX_ACTION_PASSWORD).';
+        msg = 'Action password required (INBOX_ACTION_PASSWORD).';
       }
       status.textContent = '✗ ' + msg;
     } finally {

@@ -147,7 +147,7 @@
     var btn = legend.querySelector(".mtux-heat-toggle");
     if (btn) {
       btn.setAttribute("aria-pressed", on ? "false" : "true");
-      btn.textContent = on ? "Renkleri kaldır" : "Renkleri aç";
+      btn.textContent = on ? "Remove colors" : "Show colors";
     }
     var scale = legend.querySelector(".mtux-legend-scale");
     if (scale) scale.style.visibility = on ? "visible" : "hidden";
@@ -198,9 +198,9 @@
           '<span style="background:rgba(37,99,235,0.42)"></span>' +
           '<span style="background:rgba(37,99,235,0.55)"></span>' +
         "</span>" +
-        "<span>düşük → yüksek</span>" +
+        "<span>low → high</span>" +
       "</span>" +
-      '<button type="button" class="mtux-heat-toggle">Renkleri kaldır</button>';
+      '<button type="button" class="mtux-heat-toggle">Remove colors</button>';
     placeLegendAtTop(shell, legend);
     legend._mtuxOnHeatToggle = onToggle;
     legend._mtuxHeatBound = true;
@@ -224,7 +224,7 @@
     ths.forEach(function (th) {
       var key = th.getAttribute("data-mtux-key");
       var w = Number(widths[key]);
-      // Eski dar kayıtlarda başlık "..." oluyordu — yok say
+      // Eski dar records başlık "..." oluyordu — yok say
       if (!Number.isFinite(w) || w < MIN_COL_WIDTH) return;
       w = Math.min(MAX_COL_WIDTH, Math.round(w));
       th.style.width = w + "px";
@@ -254,7 +254,7 @@
     var orderKey = opts.orderKey || "";
     var onOrder = typeof opts.onOrderChange === "function" ? opts.onOrderChange : null;
     var widths = widthsKey ? readJson(widthsKey, {}) : {};
-    // Dar geçmiş kayıtları temizle
+    // Dar geçmiş records clear
     if (widthsKey && widths && typeof widths === "object") {
       var cleaned = {};
       var dirty = false;
@@ -279,7 +279,7 @@
       if (!th.querySelector(".mtux-col-resizer")) {
         var resizer = document.createElement("span");
         resizer.className = "mtux-col-resizer";
-        resizer.title = "Sürükleyerek sütun genişliği";
+        resizer.title = "Drag to resize column";
         th.appendChild(resizer);
         resizer.addEventListener("pointerdown", function (ev) {
           ev.preventDefault();

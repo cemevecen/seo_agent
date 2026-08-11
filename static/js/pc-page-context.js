@@ -36,59 +36,59 @@
   ];
 
   var DEFAULT_QUICK = [
-    { label: 'Sağlık', msg: 'Sistem sağlık durumunu kontrol et' },
-    { label: 'Deploy', msg: 'Railway son deployment durumu nedir?' },
-    { label: 'Commit', msg: 'Son commit\'leri göster ve özetle' },
+    { label: 'Health', msg: 'Check system health' },
+    { label: 'Deploy', msg: 'What is the latest Railway deployment status?' },
+    { label: 'Commit', msg: 'Show and summarize recent commits' },
   ];
 
   var QUICK_BY_PAGE = {
     ad: [
-      { label: 'Analiz et', msg: 'Seçili filtrelerle monetizasyon verisini analiz et: KPI + trend + gelir/impression/eCPM ilişkisi. Ölçülen→gözlem→çıkarım→risk→en fazla 3 öneri formatında yaz; sadece ekranı tarif etme.' },
-      { label: 'Darboğaz', msg: 'Request→match→impression→click hunisinde ve coverage/CTR ile birlikte darboğaz veya anomali var mı? Olası nedenleri ve test edilebilir aksiyonları sırala.' },
-      { label: 'Karşılaştırma', msg: 'Karşılaştırma açıksa delta ve kazanan/kaybeden birimleri yorumla: hangi birimler geliri çekiyor, hangileri risk; somut öncelik listesi ver.' },
+      { label: 'Analyze', msg: 'Analyze monetization data with the selected filters: KPI + trend + revenue/impression/eCPM. Write measured→observation→inference→risk→at most 3 recommendations; do not only describe the screen.' },
+      { label: 'Bottleneck', msg: 'Are there bottlenecks or anomalies in the request→match→impression→click funnel together with coverage/CTR? List likely causes and testable actions.' },
+      { label: 'Compare', msg: 'If comparison is on, interpret deltas and winning/losing units: which units drive revenue, which are at risk; give a concrete priority list.' },
     ],
     firebase: [
-      { label: 'Analiz et', msg: 'Crashlytics verisini analiz et: crash-free, günlük trend, top issue ve cihaz/OS kırılımı. Spike mı kronik mi ayır; kullanıcı etkisine göre öncelik ve 3 aksiyon öner.' },
-      { label: 'Sürüm riski', msg: 'Top issue\'lar hangi sürüm/cihaz/OS ile hizalanıyor? Yayın veya hotfix önceliği için çıkarım yap.' },
-      { label: 'Kritik crash', msg: 'En kritik issue için kök neden hipotezleri (kanıtla sınırlı) ve doğrulama adımlarını yaz.' },
+      { label: 'Analyze', msg: 'Analyze Crashlytics data: crash-free, daily trend, top issues, and device/OS breakdown. Separate spike vs chronic; prioritize by user impact and suggest 3 actions.' },
+      { label: 'Version risk', msg: 'Which versions/devices/OS align with top issues? Infer release or hotfix priority.' },
+      { label: 'Critical crash', msg: 'For the most critical issue, write root-cause hypotheses (evidence-limited) and verification steps.' },
     ],
     inbox: [
-      { label: 'Sekme özeti', msg: 'Bu inbox sekmesindeki okunmamış ve cevaplanmamış mailleri özetle.' },
-      { label: 'Seçili mail', msg: 'Şu an seçili mail thread\'ini özetle ve ne cevap vermeliyiz öner.' },
+      { label: 'Tab summary', msg: 'Summarize unread and unreplied mail in this inbox tab.' },
+      { label: 'Selected mail', msg: 'Summarize the currently selected mail thread and suggest how we should reply.' },
     ],
     intelligence: [
-      { label: 'Haber özeti', msg: 'Son 12 saatin haber başlıklarını konuya göre gruplayarak özetle.' },
-      { label: 'Kaynak analizi', msg: 'Seçili kaynak filtresindeki haberlerin ortak teması ne?' },
+      { label: 'News summary', msg: 'Summarize the last 12 hours of headlines grouped by topic.' },
+      { label: 'Source analysis', msg: 'What is the common theme of stories in the selected source filter?' },
     ],
     app: [
-      { label: 'ASC analiz', msg: 'App Store Connect verisini analiz et: impression, dönüşüm, indirme, redownload, proceeds. Ölçülen→çıkarım→öneri; sentetik demo kullanma.' },
-      { label: 'Kazanım hunisi', msg: 'Impression → sayfa görüntüleme → indirme ilişkisinde darboğaz ve olası nedenleri yaz.' },
-      { label: 'Yorumlar', msg: 'Store yorum analizi ne gösteriyor, öncelikli aksiyon ne?' },
+      { label: 'ASC analysis', msg: 'Analyze App Store Connect data: impression, conversion, download, redownload, proceeds. Measured→inference→recommendation; do not use synthetic demo data.' },
+      { label: 'Acquisition funnel', msg: 'Write bottlenecks and likely causes in impression → page views → download.' },
+      { label: 'Reviews', msg: 'What does store review analysis show, and what is the priority action?' },
     ],
     ga4: [
-      { label: 'Trafik özeti', msg: 'Bu GA4 ekranındaki oturum/kaynak verilerini özetle.' },
-      { label: 'Site listesi', msg: 'Hangi siteler var, site id listesini göster.' },
+      { label: 'Traffic summary', msg: 'Summarize session/source data on this GA4 screen.' },
+      { label: 'Site list', msg: 'Which sites exist? Show the site id list.' },
     ],
     realtime: [
-      { label: 'Anlık trafik', msg: 'Realtime ekranındaki anlık kullanıcı ve alarm durumunu özetle.' },
+      { label: 'Realtime traffic', msg: 'Summarize live users and alert status on the realtime screen.' },
     ],
     errors: [
-      { label: 'Hata özeti', msg: 'Seçili site için 404/5xx hata özetini yorumla.' },
+      { label: 'Error summary', msg: 'Interpret the 404/5xx error summary for the selected site.' },
     ],
     'tmdb-upcoming': [
-      { label: 'Takvim özeti', msg: 'Movie takviminde bu ay ve yakın dönemde öne çıkan yapımları özetle.' },
+      { label: 'Calendar summary', msg: 'Summarize notable titles this month and nearby on the movie calendar.' },
     ],
     home: [
-      { label: 'Verileri özetle', msg: 'Ana sayfadaki Günün Özeti verilerini sayılarla özetle: doviz ve sinemalar için anlık kullanıcı, GA4 session, Search Console, pozisyon düşüş/yükseliş, notification 7g vs önceki hafta (click + top başlıklar), git.nokta kanban durumunu kısaca not et.' },
-      { label: 'Dikkat çeken', msg: 'Bugün dikkat çeken tek en önemli metrik hangisi ve neden? Notification top 40 veya pozisyon hareketlerini de dikkate al.' },
-      { label: 'Notification', msg: 'Ana sayfadaki Döviz notification 7 gün karşılaştırmasını yorumla: click/impression değişimi, platform payı ve bu hafta top gönderimler.' },
+      { label: 'Summarize data', msg: 'Summarize Daily Summary numbers on the home page: live users, GA4 sessions, Search Console, position down/up for doviz and sinemalar, notification 7d vs previous week (clicks + top titles), and a short git.nokta kanban note.' },
+      { label: 'Standout', msg: 'What is the single most important metric today and why? Also consider notification top 40 or position moves.' },
+      { label: 'Notification', msg: 'Interpret the Doviz notification 7-day comparison on the home page: click/impression change, platform share, and this week’s top sends.' },
     ],
     notification: [
-      { label: 'Bu ekranı özetle', msg: 'Notification Analytics ekranındaki KPI, dönem karşılaştırması ve platform dağılımını özetle. Ölçülen→çıkarım→en fazla 3 aksiyon formatında yaz.' },
-      { label: 'Android vs Web', msg: 'Seçili tarih aralığında Android+iOS (app) ile Desktop+MWeb (web) click performansını karşılaştır; hangisi öne çıkıyor, neden olabilir?' },
-      { label: 'GA4/GSC trafik', msg: 'Drill-down ile seçili bildirimin içerik ID karşılığını GA4 (görüntüleme/oturum) ve Search Console (click/gösterim/pozisyon) ile yorumla. Bildirim click ile organik trafik arasındaki farkı değerlendir.' },
-      { label: 'Alarm yorumla', msg: 'Notification alarmlar panelindeki durumu yorumla: click düşüşü veya CTR medyan altı var mı, olası nedenler ve kontrol listesi ver.' },
-      { label: 'Top bildirimler', msg: 'Cross-platform Top 20 ve en çok/en az listelerinden öne çıkan bildirimleri analiz et; tekrar eden başlıklar, platform farkları ve varsa GA4/GSC trafik verisine dikkat et.' },
+      { label: 'Summarize this screen', msg: 'Summarize KPI, period comparison, and platform mix on Notification Analytics. Write measured→inference→at most 3 actions.' },
+      { label: 'Android vs Web', msg: 'Compare Android+iOS (app) vs Desktop+MWeb (web) click performance in the selected date range; which leads, and why might that be?' },
+      { label: 'GA4/GSC traffic', msg: 'With drill-down, interpret the selected notification’s content ID in GA4 (views/sessions) and Search Console (click/impression/position). Assess the gap between notification clicks and organic traffic.' },
+      { label: 'Interpret alerts', msg: 'Interpret the notification alerts panel: is there a click drop or CTR below median, likely causes, and a checklist.' },
+      { label: 'Top notifications', msg: 'Analyze standout notifications from Cross-platform Top 20 and most/least lists; note repeating titles, platform gaps, and any GA4/GSC traffic data.' },
     ],
   };
 

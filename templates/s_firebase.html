@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="w-full max-w-none space-y-4" data-header-title="S-Firebase · Crashlytics tarama" data-page-tarama="s-firebase">
+<div class="w-full max-w-none space-y-4" data-header-title="S-Firebase · Crashlytics scan" data-page-tarama="s-firebase">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-950">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div class="min-w-0">
         <div class="flex flex-wrap items-center gap-2">
           <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800">S-Firebase</span>
-          <h1 class="text-xl font-extrabold text-slate-900 dark:text-zinc-50">Firebase Console tarama</h1>
+          <h1 class="text-xl font-extrabold text-slate-900 dark:text-zinc-50">Firebase Console scan</h1>
         </div>
         <p id="sf-status" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Mac bridge · Crashlytics + Release Monitoring + Analytics Dashboard (Android &amp; iOS)</p>
       </div>
@@ -26,29 +26,29 @@
     <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
       <label class="text-[11px] font-semibold text-slate-500">Platform
         <select id="sf-platform" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-900">
-          <option value="all">Tümü</option>
+          <option value="all">All</option>
           <option value="android">Android</option>
           <option value="ios">iOS</option>
         </select>
       </label>
-      <label class="text-[11px] font-semibold text-slate-500">Zaman
+      <label class="text-[11px] font-semibold text-slate-500">Time
         <select id="sf-days" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-900">
-          <option value="1">24 saat</option>
-          <option value="7">7 gün</option>
-          <option value="30" selected>30 gün</option>
-          <option value="90">90 gün</option>
-          <option value="180">180 gün</option>
-          <option value="365">365 gün</option>
+          <option value="1">24 hours</option>
+          <option value="7">7 days</option>
+          <option value="30" selected>30 days</option>
+          <option value="90">90 days</option>
+          <option value="180">180 days</option>
+          <option value="365">365 days</option>
         </select>
       </label>
-      <label class="text-[11px] font-semibold text-slate-500">Sürüm
+      <label class="text-[11px] font-semibold text-slate-500">Version
         <select id="sf-version" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-900">
-          <option value="">Tümü</option>
+          <option value="">All</option>
         </select>
       </label>
-      <label class="text-[11px] font-semibold text-slate-500">Cihaz
+      <label class="text-[11px] font-semibold text-slate-500">Device
         <select id="sf-device" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-900">
-          <option value="">Tümü</option>
+          <option value="">All</option>
         </select>
       </label>
     </div>
@@ -63,7 +63,7 @@
       <div id="sf-issues" class="mt-3 overflow-x-auto text-xs"></div>
     </section>
     <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-950">
-      <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Sürüm / Cihaz</h2>
+      <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Version / Device</h2>
       <div id="sf-breakdown" class="mt-3 overflow-x-auto text-xs"></div>
     </section>
   </div>
@@ -90,7 +90,7 @@
   function fillSelect(el, values, keep) {
     if (!el) return;
     var cur = keep != null ? keep : el.value;
-    el.innerHTML = '<option value="">Tümü</option>' + (values || []).map(function (v) {
+    el.innerHTML = '<option value="">All</option>' + (values || []).map(function (v) {
       return '<option value="' + esc(v) + '">' + esc(v) + "</option>";
     }).join("");
     if (cur) el.value = cur;
@@ -122,7 +122,7 @@
         '<p class="mt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Crash-free users · filtre</p>' +
         '<p class="text-3xl font-black tabular-nums text-emerald-600 dark:text-emerald-400">' + esc(cf) + "</p>" +
         '<p class="mt-1 text-[11px] text-slate-500">Sessions · <span class="font-semibold tabular-nums">' + esc(sess) + "</span>" +
-          ' · aktif pencere ' + esc(block.active_window || "—") + "</p>" +
+          ' · active window ' + esc(block.active_window || "—") + "</p>" +
         '<div class="mt-3 grid grid-cols-4 gap-1.5">' + winChips + "</div>" +
         '<p class="mt-2 text-[11px] text-slate-500">Release · ' + esc(rel.version || block.latest_version || "—") + "</p>" +
         '<p class="mt-1 text-[11px] text-slate-400">Issues ' + esc(String((block.issues || []).length)) +
@@ -140,7 +140,7 @@
       return (
         '<article class="rounded-2xl border border-dashed border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-950">' +
           '<h3 class="text-sm font-extrabold uppercase tracking-wide text-slate-800 dark:text-zinc-100">' + esc(key) + " · Analytics</h3>" +
-          '<p class="mt-2 text-xs text-slate-400">Analytics dashboard henüz yok — Mac köprü ile yenile</p>' +
+          '<p class="mt-2 text-xs text-slate-400">Analytics dashboard not ready yet — refresh via Mac bridge</p>' +
         "</article>"
       );
     }
@@ -168,14 +168,14 @@
     if (statusEl) {
       var when = data.updated_at || data.background_synced_at || "";
       statusEl.textContent = data.empty
-        ? (data.message || "Tarama verisi yok")
+        ? (data.message || "No scan data")
         : ("Sync " + (data.sync_ok ? "OK" : "FAIL") +
             (when ? (" · " + when) : "") +
             " · filtre " + ((data.filter && data.filter.days) || "?") + "g");
     }
     var keys = Object.keys(plats);
     if (!keys.length) {
-      cardsEl.innerHTML = '<p class="text-sm text-slate-400 col-span-full">Henüz platform verisi yok. Mac köprüde oturum açıp senkron çalıştırın.</p>';
+      cardsEl.innerHTML = '<p class="text-sm text-slate-400 col-span-full">No platform data yet. Sign in on the Mac bridge and run a sync.</p>';
       if (analyticsEl) analyticsEl.innerHTML = "";
     } else {
       cardsEl.innerHTML = keys.map(function (k) { return platformCard(k, plats[k]); }).join("");
@@ -195,11 +195,11 @@
       });
     });
     if (!allIssues.length) {
-      issuesEl.innerHTML = '<p class="text-slate-400">Issue yok / tarama bekleniyor</p>';
+      issuesEl.innerHTML = '<p class="text-slate-400">No issues / waiting for scan</p>';
     } else {
       issuesEl.innerHTML =
         '<table class="min-w-full text-left"><thead><tr class="text-[10px] uppercase text-slate-400">' +
-        "<th class='py-1 pr-2'>Plat</th><th class='py-1 pr-2'>Tür</th><th class='py-1 pr-2'>Başlık</th><th class='py-1 tabular-nums'>Events</th></tr></thead><tbody>" +
+        "<th class='py-1 pr-2'>Plat</th><th class='py-1 pr-2'>Type</th><th class='py-1 pr-2'>Title</th><th class='py-1 tabular-nums'>Events</th></tr></thead><tbody>" +
         allIssues.slice(0, 60).map(function (r) {
           return "<tr class='border-t border-slate-100 dark:border-zinc-800'>" +
             "<td class='py-1.5 pr-2 font-semibold'>" + esc(r.platform) + "</td>" +
@@ -212,18 +212,18 @@
     var rows = [];
     keys.forEach(function (k) {
       (plats[k].by_version || []).forEach(function (r) {
-        rows.push({ kind: "sürüm", platform: k, label: r.label || r.version, extra: r.crash_free_fmt || "" });
+        rows.push({ kind: "version", platform: k, label: r.label || r.version, extra: r.crash_free_fmt || "" });
       });
       (plats[k].by_device || []).forEach(function (r) {
-        rows.push({ kind: "cihaz", platform: k, label: r.label || r.device, extra: r.events_fmt || r.event_count || "" });
+        rows.push({ kind: "device", platform: k, label: r.label || r.device, extra: r.events_fmt || r.event_count || "" });
       });
     });
     if (!rows.length) {
-      breakEl.innerHTML = '<p class="text-slate-400">Kırılım yok</p>';
+      breakEl.innerHTML = '<p class="text-slate-400">No breakdown</p>';
     } else {
       breakEl.innerHTML =
         '<table class="min-w-full text-left"><thead><tr class="text-[10px] uppercase text-slate-400">' +
-        "<th class='py-1 pr-2'>Tür</th><th class='py-1 pr-2'>Plat</th><th class='py-1 pr-2'>Değer</th><th class='py-1'>Ek</th></tr></thead><tbody>" +
+        "<th class='py-1 pr-2'>Type</th><th class='py-1 pr-2'>Plat</th><th class='py-1 pr-2'>Value</th><th class='py-1'>Extra</th></tr></thead><tbody>" +
         rows.slice(0, 50).map(function (r) {
           return "<tr class='border-t border-slate-100 dark:border-zinc-800'>" +
             "<td class='py-1.5 pr-2'>" + esc(r.kind) + "</td>" +
@@ -246,7 +246,7 @@
       .then(function (r) { return r.json(); })
       .then(render)
       .catch(function (err) {
-        if (statusEl) statusEl.textContent = (err && err.message) || "Yükleme hatası";
+        if (statusEl) statusEl.textContent = (err && err.message) || "Load error";
       })
       .finally(function () { busy = false; });
   }

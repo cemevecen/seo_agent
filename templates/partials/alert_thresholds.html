@@ -3,10 +3,10 @@
     <thead class="sticky top-0 z-[1] bg-slate-50 text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">
       <tr>
         <th class="min-w-[6rem] px-2 py-2 font-medium sm:px-3">Site</th>
-        <th class="min-w-[8rem] px-2 py-2 font-medium sm:px-3">Alert Türü</th>
-        <th class="px-2 py-2 font-medium sm:px-3">Eşik</th>
-        <th class="px-2 py-2 font-medium sm:px-3">Aktif</th>
-        <th class="px-2 py-2 font-medium sm:px-3">İşlem</th>
+        <th class="min-w-[8rem] px-2 py-2 font-medium sm:px-3">Alert type</th>
+        <th class="px-2 py-2 font-medium sm:px-3">Threshold</th>
+        <th class="px-2 py-2 font-medium sm:px-3">Active</th>
+        <th class="px-2 py-2 font-medium sm:px-3">Action</th>
       </tr>
     </thead>
     <tbody>
@@ -26,13 +26,13 @@
               class="whitespace-nowrap rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70 min-h-[32px]"
               onclick="updateAlertRule({{ item.id }})"
             >
-              Kaydet
+              Save
             </button>
           </td>
         </tr>
       {% else %}
         <tr>
-          <td colspan="5" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">Henüz alert kuralı yok.</td>
+          <td colspan="5" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">No alert rules yet.</td>
         </tr>
       {% endfor %}
     </tbody>

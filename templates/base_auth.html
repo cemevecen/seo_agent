@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ site_name or "Giriş — SEO Agent" }}</title>
+  <title>{{ site_name or "Sign in — SEO Agent" }}</title>
   {% set favicon_v = "12" %}
   {% set app_css_v = "15" %}
   <link rel="icon" href="/static/favicon.png?v={{ favicon_v }}" sizes="any" type="image/png" />
@@ -31,7 +31,7 @@
   <div class="flex min-h-screen flex-col items-center justify-center px-4 py-10">
     <div class="mb-6 text-center">
       <p lang="en" class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">SEO Agent</p>
-      <p class="mt-1 text-sm text-slate-600 dark:text-zinc-400">Panele erişmek için giriş yapın</p>
+      <p class="mt-1 text-sm text-slate-600 dark:text-zinc-400">Sign in to open the panel</p>
     </div>
     {% block content %}{% endblock %}
   </div>

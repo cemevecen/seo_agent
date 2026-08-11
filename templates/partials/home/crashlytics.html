@@ -502,7 +502,7 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
                     {% set tip = sf_side_tip(part, m.title, m.tip_context or m.period_label or '') %}
                     <div class="home-sf-metric__side-row">
                       <span class="home-sf-metric__side-val">{{ part }}</span>
-                      <button type="button" class="home-sf-metric__side-info" aria-label="{{ tip }}" data-sf-side-info>
+                      <button type="button" class="home-sf-metric__side-info" aria-label="Info" data-sf-side-info>
                         i
                         <span class="home-sf-metric__side-tip" role="tooltip">{{ tip }}</span>
                       </button>
@@ -515,7 +515,7 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
         </div>
       {% endfor %}
     {% else %}
-      <p class="home-meta text-slate-400 dark:text-slate-500">Veri yok</p>
+      <p class="home-meta text-slate-400 dark:text-slate-500">No data</p>
     {% endif %}
   </div>
 {%- endmacro %}
@@ -528,17 +528,17 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
     {% if plat and (plat.version or plat.updated_label or plat.score_fmt != '—' or plat.ratings_fmt != '—' or plat.rank_fmt != '—' or plat.star_bars) %}
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="min-w-0">
-          <p class="home-label text-slate-500 dark:text-slate-400">mağaza özeti</p>
+          <p class="home-label text-slate-500 dark:text-slate-400">store summary</p>
           {% if plat.subtitle and plat.subtitle != '—' %}
             <p class="home-meta mt-0.5 truncate text-slate-400 dark:text-slate-500" title="{{ plat.subtitle }}">{{ plat.subtitle }}</p>
           {% endif %}
         </div>
         <div class="flex shrink-0 flex-wrap items-center gap-1.5">
           {% if plat.store_url %}
-            <a href="{{ plat.store_url }}" target="_blank" rel="noopener" class="home-meta font-semibold text-sky-600 hover:underline dark:text-sky-300">mağaza ↗</a>
+            <a href="{{ plat.store_url }}" target="_blank" rel="noopener" class="home-meta font-semibold text-sky-600 hover:underline dark:text-sky-300">store ↗</a>
           {% endif %}
           {% if plat.is_recent %}
-            <span class="rounded-full bg-amber-50 px-1.5 py-0.5 home-label text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60">yeni</span>
+            <span class="rounded-full bg-amber-50 px-1.5 py-0.5 home-label text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60">new</span>
           {% endif %}
           {% if plat.version %}
             <span class="rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">v{{ plat.version }}</span>
@@ -547,26 +547,26 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
       </div>
 
       <div class="home-store-kpi-grid">
-        <div class="home-store-kpi" title="Mağaza skoru">
-          <p class="home-store-kpi__l">Skor</p>
+        <div class="home-store-kpi" title="Store score">
+          <p class="home-store-kpi__l">Score</p>
           <p class="home-store-kpi__v">{{ plat.score_fmt }}</p>
         </div>
-        <div class="home-store-kpi" title="Kategori sırası">
-          <p class="home-store-kpi__l">Sıra</p>
+        <div class="home-store-kpi" title="Category rank">
+          <p class="home-store-kpi__l">Rank</p>
           <p class="home-store-kpi__v">{{ plat.rank_fmt }}</p>
         </div>
-        <div class="home-store-kpi" title="Son 30 gün yorum">
-          <p class="home-store-kpi__l">Dönem</p>
+        <div class="home-store-kpi" title="Reviews in last 30 days">
+          <p class="home-store-kpi__l">Period</p>
           <p class="home-store-kpi__v">{{ plat.period_reviews_fmt|default('—') }}</p>
         </div>
-        <div class="home-store-kpi is-accent" title="Toplam değerlendirme">
-          <p class="home-store-kpi__l">Puan</p>
+        <div class="home-store-kpi is-accent" title="Total ratings">
+          <p class="home-store-kpi__l">Ratings</p>
           <p class="home-store-kpi__v">{{ plat.ratings_fmt }}</p>
         </div>
       </div>
 
       {% if bars %}
-      <div class="home-store-stars" title="Yıldız dağılımı (mağaza geneli)">
+      <div class="home-store-stars" title="Star distribution (store-wide)">
         {% for b in bars %}
         <div class="home-store-star-row">
           <span>{{ b.star }}★</span>
@@ -581,21 +581,21 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
       {% endif %}
 
       {% if spark.svg_points %}
-      <div class="home-store-rank-row" title="Kategori sırası trendi (7g)">
+      <div class="home-store-rank-row" title="Category rank trend (7d)">
         <div class="home-store-spark" aria-hidden="true">
           <svg viewBox="0 0 100 100" preserveAspectRatio="none">
             <polyline vector-effect="non-scaling-stroke" fill="none" stroke="{% if spark.tone == 'up' %}#059669{% elif spark.tone == 'down' %}#e11d48{% else %}#64748b{% endif %}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" points="{{ spark.svg_points }}"></polyline>
           </svg>
         </div>
         <div class="shrink-0 text-right">
-          <p class="home-label text-slate-500 dark:text-slate-400">sıra 7g</p>
+          <p class="home-label text-slate-500 dark:text-slate-400">rank 7d</p>
           <p class="home-meta home-delta tabular-nums {% if spark.tone == 'up' %}text-emerald-600 dark:text-emerald-300{% elif spark.tone == 'down' %}text-rose-600 dark:text-rose-300{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ spark.delta_fmt }}</p>
         </div>
       </div>
       {% endif %}
 
       {% if themes %}
-      <div class="home-store-themes" title="Dönem yorum kategorileri">
+      <div class="home-store-themes" title="Period review categories">
         {% for t in themes %}
           <span class="home-store-theme"><span class="truncate">{{ t.label }}</span> <b>×{{ t.count }}</b></span>
         {% endfor %}
@@ -603,11 +603,11 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
       {% endif %}
 
       <p class="home-store-updated home-meta mt-2 text-slate-500 dark:text-slate-400">
-        güncelleme · {% if plat.updated_label %}{{ plat.updated_label }}{% else %}—{% endif %}
+        updated · {% if plat.updated_label %}{{ plat.updated_label }}{% else %}—{% endif %}
       </p>
     {% else %}
-      <p class="home-label text-slate-500 dark:text-slate-400">mağaza özeti</p>
-      <p class="home-meta mt-2 text-slate-400 dark:text-slate-500">Veri yok</p>
+      <p class="home-label text-slate-500 dark:text-slate-400">store summary</p>
+      <p class="home-meta mt-2 text-slate-400 dark:text-slate-500">No data</p>
     {% endif %}
   </div>
 {%- endmacro %}
@@ -653,8 +653,8 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
 
 {% if card.warming %}
   <div class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-5 text-center dark:border-slate-700 dark:bg-slate-800/40">
-    <p class="home-body text-slate-500 dark:text-slate-400">{{ card.message or "Veri yükleniyor…" }}</p>
-    <p class="home-meta mt-1 text-slate-400 dark:text-slate-500">/android ve /ios stability kaynağı hazırlanıyor — otomatik yenilenecek.</p>
+    <p class="home-body text-slate-500 dark:text-slate-400">{{ card.message or "Loading data…" }}</p>
+    <p class="home-meta mt-1 text-slate-400 dark:text-slate-500">/android and /ios stability source is preparing — will refresh automatically.</p>
     {% if store_ios or store_android %}
       <div class="home-crash-pair text-left">
         <div class="home-crash-plat">
@@ -670,7 +670,7 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
   </div>
 {% elif not card.ok %}
   <div class="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-4 dark:border-amber-900/40 dark:bg-amber-950/20">
-    <p class="home-body font-medium text-amber-800 dark:text-amber-300">{{ card.message or "Crash / ANR verisi gösterilemiyor" }}</p>
+    <p class="home-body font-medium text-amber-800 dark:text-amber-300">{{ card.message or "Crash / ANR data unavailable" }}</p>
     {% if store_ios or store_android %}
       <div class="home-crash-pair">
         <div class="home-crash-plat">

@@ -32,13 +32,13 @@
   var OPTION_LABELS = {
     usd_try: "USD/TRY",
     eur_try: "EUR/TRY",
-    gram_altin: "Gram altın",
-    ceyrek_altin: "Çeyrek altın",
-    gram_gumus: "Gram gümüş",
+    gram_altin: "Gold gram",
+    ceyrek_altin: "Quarter gold",
+    gram_gumus: "Silver gram",
     bist100: "BIST 100",
     brent: "Brent",
     bitcoin: "Bitcoin",
-    all_indexed: "Tümü (%)",
+    all_indexed: "All (%)",
   };
 
   var cache = {
@@ -145,7 +145,7 @@
     if (!labelEl) return;
     var keys = selectedFromDom(root);
     if (!keys.length) {
-      labelEl.textContent = "Piyasa: kapalı";
+      labelEl.textContent = "Market: closed";
       return;
     }
     if (keys.length === 1) {
@@ -156,7 +156,7 @@
       labelEl.textContent = OPTION_LABELS.all_indexed;
       return;
     }
-    labelEl.textContent = "Piyasa: " + keys.length + " seri";
+    labelEl.textContent = "Market: " + keys.length + " series";
   }
 
   /** @deprecated tek seçim — ilk mod */
@@ -299,7 +299,7 @@
     cache.pendingKey = key;
     cache.pending = fetch("/api/market-quotes/overlay?" + p.toString(), { credentials: "same-origin" })
       .then(function (r) {
-        if (!r.ok) throw new Error("Piyasa verisi alınamadı");
+        if (!r.ok) throw new Error("Could not load market data");
         return r.json();
       })
       .then(function (data) {
@@ -635,7 +635,7 @@
         if (!added) return false;
         var axisTitle =
           opts.axisTitle ||
-          (indexed ? "Endeks (100)" : keys.length > 1 ? "Piyasa (çoklu)" : "Piyasa");
+          (indexed ? "Index (100)" : keys.length > 1 ? "Market (multi)" : "Market");
         layout[layoutKey] = Object.assign(
           {},
           defaultMarketAxisLayout(axisTitle, opts.tickColor || LINE_COLOR),
@@ -665,7 +665,7 @@
       })
       .catch(function (err) {
         if (typeof console !== "undefined" && console.warn) {
-          console.warn("Piyasa overlay:", err);
+          console.warn("Market overlay:", err);
         }
         return false;
       });
@@ -991,7 +991,7 @@
         if (!dateKeys.length) {
           if (emptyEl) {
             emptyEl.classList.remove("hidden");
-            emptyEl.textContent = "Seçilen aralıkta piyasa verisi yok.";
+            emptyEl.textContent = "No market data in the selected range.";
           }
           el.classList.add("hidden");
           return false;
@@ -1060,7 +1060,7 @@
             zeroline: false,
           },
           yaxis: {
-            title: indexed ? "Endeks (100)" : keys.length > 1 ? "Piyasa" : "",
+            title: indexed ? "Index (100)" : keys.length > 1 ? "Market" : "",
             gridcolor: dark ? "rgba(255,255,255,0.06)" : "rgba(15,23,42,0.06)",
             zeroline: false,
             automargin: true,

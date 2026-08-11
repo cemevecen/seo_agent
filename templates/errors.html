@@ -358,17 +358,17 @@ function _errMiniBlock(title, items, key) {
 }
 
 var _ERR_BREAKDOWN_KEYS = [
-  ['direct_devices', 'Cihaz'],
+  ['direct_devices', 'Device'],
   ['direct_os', 'Operating system'],
   ['direct_browsers', 'Browser'],
   ['direct_platforms', 'Platform'],
   ['direct_source_medium', 'Source / medium'],
-  ['devices', 'Cihaz'],
+  ['devices', 'Device'],
   ['operating_systems', 'Operating system'],
   ['browsers', 'Browser'],
   ['platforms', 'Platform'],
   ['source_medium', 'Source / medium'],
-  ['landing_params', 'Parametre']
+  ['landing_params', 'Parameter']
 ];
 
 var _ERR_DIRECT_KEYS = _ERR_BREAKDOWN_KEYS.slice(0, 5);
@@ -655,9 +655,9 @@ function _setErrModal(d) {
   if (steps.length) {
     document.getElementById('err-prog-steps').innerHTML = steps.slice().reverse().map(function(s) {
       var ok = s.status === 'ok';
-      var badge = ok ? '<span class="text-emerald-600 dark:text-emerald-400 font-semibold">'+s.found+' hata</span>'
-                     : '<span class="text-rose-500">hata</span>';
-      return '<div class="flex items-center justify-between gap-2 '+(ok?'text-slate-500 dark:text-zinc-400':'text-rose-500')+'"><span class="truncate">'+_esc(s.domain||'')+' · '+s.days+'g</span>'+badge+'</div>';
+      var badge = ok ? '<span class="text-emerald-600 dark:text-emerald-400 font-semibold">'+s.found+' errors</span>'
+                     : '<span class="text-rose-500">error</span>';
+      return '<div class="flex items-center justify-between gap-2 '+(ok?'text-slate-500 dark:text-zinc-400':'text-rose-500')+'"><span class="truncate">'+_esc(s.domain||'')+' · '+s.days+'d</span>'+badge+'</div>';
     }).join('');
   }
 }

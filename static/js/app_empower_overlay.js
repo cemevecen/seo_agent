@@ -81,14 +81,14 @@
     var keys = selectedFromDom(root);
     if (!keys.length) keys = readStored(root);
     if (!keys.length) {
-      labelEl.textContent = "Empower: kapalı";
+      labelEl.textContent = "Empower: off";
       return;
     }
     if (keys.length === 1) {
       labelEl.textContent = "Empower: " + keys[0];
       return;
     }
-    labelEl.textContent = "Empower: " + keys.length + " seri";
+    labelEl.textContent = "Empower: " + keys.length + " series";
   }
 
   function modes(controlId) {
@@ -134,7 +134,7 @@
     if (endIso) p.set("end", endIso);
     cache.pending = fetch("/api/mz-analytics/app-empower/overlay?" + p.toString(), { credentials: "same-origin" })
       .then(function (r) {
-        if (!r.ok) throw new Error("Empower verisi alınamadı");
+        if (!r.ok) throw new Error("Empower data unavailable");
         return r.json();
       })
       .then(function (data) {

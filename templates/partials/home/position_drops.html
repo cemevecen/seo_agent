@@ -247,7 +247,7 @@
             {% for d in drops %}{{ pos_row(d, 'drop') }}{% endfor %}
           </ul>
         {% else %}
-          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">Anlamlı düşüş yok</p>
+          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">No significant drop</p>
         {% endif %}
       </div>
       <div class="min-w-0">
@@ -257,7 +257,7 @@
             {% for d in rises %}{{ pos_row(d, 'rise') }}{% endfor %}
           </ul>
         {% else %}
-          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">Anlamlı yükseliş yok</p>
+          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">No significant rise</p>
         {% endif %}
       </div>
     </div>
@@ -276,9 +276,9 @@
       {% if block and block.as_of_label %}
         <p class="mt-1 home-pos-asof home-meta tabular-nums text-slate-600 dark:text-slate-300">{{ block.as_of_label }}</p>
       {% endif %}
-      <div class="home-pos-mode-chips mt-2" role="tablist" aria-label="Pozisyon görünümü">
-        <button type="button" class="home-pos-mode-chip is-active" data-pos-mode-set="impact" role="tab" aria-selected="true">değişim</button>
-        <button type="button" class="home-pos-mode-chip" data-pos-mode-set="top20" role="tab" aria-selected="false" title="{{ block.top20_scope_label if block and block.top20_scope_label else 'Search Console Top queries · Mobile · Son 7 gün' }}">top 20</button>
+      <div class="home-pos-mode-chips mt-2" role="tablist" aria-label="Position view">
+        <button type="button" class="home-pos-mode-chip is-active" data-pos-mode-set="impact" role="tab" aria-selected="true">change</button>
+        <button type="button" class="home-pos-mode-chip" data-pos-mode-set="top20" role="tab" aria-selected="false" title="{{ block.top20_scope_label if block and block.top20_scope_label else 'Search Console Top queries · Mobile · Last 7 days' }}">top 20</button>
       </div>
     </div>
     {% if not hide_nav_link %}
@@ -290,10 +290,10 @@
   </div>
 
   <div data-pos-panel="impact">
-    {{ pos_panels(_real_drops, _real_rises, 'Top 50 içinde anlamlı pozisyon değişimi yok') }}
+    {{ pos_panels(_real_drops, _real_rises, 'No significant position change in Top 50') }}
   </div>
   <div data-pos-panel="top20">
-    {{ pos_panels(_top20_drops, _top20_rises, 'Search Console Top 20 içinde anlamlı pozisyon değişimi yok') }}
+    {{ pos_panels(_top20_drops, _top20_rises, 'No significant position change in Search Console Top 20') }}
   </div>
 </div>
 {# Tab click: document delegation in base.html (HTMX swap inline script çalıştırmaz) #}

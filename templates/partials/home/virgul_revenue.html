@@ -105,7 +105,7 @@
     <div class="min-w-0">
       {{ container_chip('virgül') }}
       <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">
-        Son hafta (bugün hariç) vs son 3 ay — Virgül
+        Last week (excluding today) vs last 3 months — Virgül
         {% if week_start and week_end %}
           <span class="tabular-nums"> · {{ week_start[8:10] }}.{{ week_start[5:7] }}–{{ week_end[8:10] }}.{{ week_end[5:7] }}</span>
         {% endif %}
@@ -122,7 +122,7 @@
     {% for c in cards %}
     <article class="home-vg-rev-card is-{{ c.brand }}" role="listitem"
              data-stream="{{ c.key }}" data-home-vg-brand="{{ c.brand }}"
-             title="{% if c.has_data %}son hafta {{ c.week_days_present|default('?') }}/{{ week_days|default(7) }} gün veri · 3 ay {{ c.month3_days_present|default('?') }}/{{ month3_days|default(90) }} gün veri{% endif %}">
+             title="{% if c.has_data %}last week {{ c.week_days_present|default('?') }}/{{ week_days|default(7) }} days of data · 3 months {{ c.month3_days_present|default('?') }}/{{ month3_days|default(90) }} days of data{% endif %}">
       <p class="home-vg-rev-label">
         {{ brand_icon(c.brand, 'sm') }}
         {% set _plat = (c.label or '')
@@ -136,17 +136,17 @@
       {% if c.has_data %}
         <p class="home-vg-rev-delta {% if c.tone and c.tone != 'flat' %}is-{{ c.tone }}{% endif %}">{{ c.delta_fmt }}</p>
         <div class="home-vg-rev-meta">
-          <span>son hafta · <strong>{{ c.week_avg_fmt }}</strong>/gün</span>
-          <span>3 ay · <strong>{{ c.month3_avg_fmt }}</strong>/gün</span>
+          <span>last week · <strong>{{ c.week_avg_fmt }}</strong>/day</span>
+          <span>3 months · <strong>{{ c.month3_avg_fmt }}</strong>/day</span>
         </div>
       {% else %}
         <p class="home-vg-rev-delta">—</p>
-        <div class="home-vg-rev-meta"><span>Veri yok</span></div>
+        <div class="home-vg-rev-meta"><span>No data</span></div>
       {% endif %}
     </article>
     {% endfor %}
   </div>
   {% else %}
-  <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">Virgül gelir verisi bulunamadı.</p>
+  <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">No Virgül revenue data found.</p>
   {% endif %}
 </div>

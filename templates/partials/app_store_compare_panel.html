@@ -552,11 +552,11 @@
   }
 </style>
 
-<section class="rt-viv-panel mb-4 sm:mb-5" aria-label="Mağaza araçları" data-rt-viv-root>
+<section class="rt-viv-panel mb-4 sm:mb-5" aria-label="Store tools" data-rt-viv-root>
   <div class="rt-viv-body">
     <div class="rt-viv-toolbar">
       <div class="rt-viv-toolbar-visual" aria-hidden="true">
-      <svg class="rt-viv-lottie" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mağaza arama ve uygulama karşılaştırma animasyonu">
+      <svg class="rt-viv-lottie" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Store search and app compare animation">
         <g class="rt-viv-phone-a">
           <rect class="rt-viv-app-shell" x="22" y="28" width="40" height="68" rx="8"/>
           <rect class="rt-viv-app-screen" x="26" y="36" width="32" height="46" rx="4"/>
@@ -585,30 +585,30 @@
       </svg>
       </div>
       <div class="rt-viv-toolbar-main">
-        <div class="rt-viv-tabs" role="tablist" aria-label="Mağaza araçları">
+        <div class="rt-viv-tabs" role="tablist" aria-label="Store tools">
           <button type="button" class="rt-viv-tab rt-viv-tab--on" role="tab" aria-selected="true" data-rt-viv-tab="store" onclick="rtVivSwitchTab('store')">Tek uygulama analizi</button>
-          <button type="button" class="rt-viv-tab" role="tab" aria-selected="false" data-rt-viv-tab="compare" onclick="rtVivSwitchTab('compare')">İki uygulama karşılaştır</button>
+          <button type="button" class="rt-viv-tab" role="tab" aria-selected="false" data-rt-viv-tab="compare" onclick="rtVivSwitchTab('compare')">Compare two apps</button>
         </div>
         <p class="rt-viv-tab-hint">
-          <span data-rt-viv-tab-hint="store">Mağazada uygulama arayın → yorumları çekin → puan dağılımı ve duygu analizini görün.</span>
-          <span class="hidden" data-rt-viv-tab-hint="compare">İki sütunda ayrı arama yapın → her birinden uygulama seçin → katalog ve yorum analizini yan yana kıyaslayın.</span>
+          <span data-rt-viv-tab-hint="store">Search the store → fetch reviews → see rating and sentiment analysis.</span>
+          <span class="hidden" data-rt-viv-tab-hint="compare">Search separately in each column → pick an app from each → compare catalog and review analysis side by side.</span>
         </p>
       </div>
     </div>
 
   <div data-rt-viv-panel="store">
     <div class="rt-viv-row">
-      <input id="rt-viv-q-store" type="search" class="rt-viv-input" placeholder="Örn. sofascore, com.spotify.music" autocomplete="off" />
+      <input id="rt-viv-q-store" type="search" class="rt-viv-input" placeholder="e.g. sofascore, com.spotify.music" autocomplete="off" />
       <select id="rt-viv-pl-store" class="rt-viv-select" title="Platform">
-        <option value="both">Her iki mağaza</option>
+        <option value="both">Both stores</option>
         <option value="google_play">Android (Play)</option>
         <option value="app_store">iOS (App Store)</option>
       </select>
-      <select id="rt-viv-country-store" class="rt-viv-select" title="Ülke kodu">
-        <option value="tr">Ülke: TR</option>
-        <option value="us">Ülke: US</option>
-        <option value="de">Ülke: DE</option>
-        <option value="gb">Ülke: GB</option>
+      <select id="rt-viv-country-store" class="rt-viv-select" title="Country code">
+        <option value="tr">Country: TR</option>
+        <option value="us">Country: US</option>
+        <option value="de">Country: DE</option>
+        <option value="gb">Country: GB</option>
       </select>
       <select id="rt-viv-lang-store" class="rt-viv-select" title="Dil">
         <option value="tr">Dil: tr</option>
@@ -627,16 +627,16 @@
           <p id="rt-viv-store-sel-name" class="text-sm font-bold text-slate-900 dark:text-slate-100 truncate"></p>
           <p id="rt-viv-store-sel-meta" class="text-[11px] text-slate-500 dark:text-slate-400 truncate"></p>
         </div>
-        <button type="button" onclick="rtVivClearStoreAnalysis()" class="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0">✕ Kaldır</button>
+        <button type="button" onclick="rtVivClearStoreAnalysis()" class="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0">✕ Remove</button>
       </div>
       <div class="mt-3 flex flex-wrap items-center gap-2">
         <select id="rt-viv-store-days" class="rt-viv-select">
-          <option value="7">Son 7 gün</option>
-          <option value="30" selected>Son 30 gün</option>
-          <option value="90">Son 90 gün</option>
-          <option value="180">Son 180 gün</option>
-          <option value="365">Son 1 yıl</option>
-          <option value="730">Son 2 yıl</option>
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="180">Last 180 days</option>
+          <option value="365">Last 1 year</option>
+          <option value="730">Last 2 years</option>
         </select>
         <select id="rt-viv-store-limit" class="rt-viv-select">
           <option value="200">200 yorum</option>
@@ -645,7 +645,7 @@
           <option value="1000" selected>1000 yorum</option>
         </select>
         <button type="button" id="rt-viv-store-analyze-btn" class="rt-viv-btn" onclick="rtVivRunStoreAnalysis()">
-          Yorumları çek &amp; analiz et
+          Fetch &amp; analyze reviews
         </button>
       </div>
       <p id="rt-viv-store-analyze-msg" class="mt-1 text-[11px] text-slate-500 dark:text-slate-400"></p>
@@ -656,10 +656,10 @@
   </div>
 
   <div class="hidden" data-rt-viv-panel="compare">
-    <p class="mb-2 text-xs text-slate-600 dark:text-slate-400">Her sütunda ayrı arama; sonuç satırına tıklayarak seçim yapın.</p>
+    <p class="mb-2 text-xs text-slate-600 dark:text-slate-400">Separate search per column; click a result row to select.</p>
     <div class="rt-viv-cmp-grid">
       <div>
-        <h3 class="mb-2 text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Uygulama 1</h3>
+        <h3 class="mb-2 text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">App 1</h3>
         <div class="rt-viv-row">
           <input id="rt-viv-q-a" type="search" class="rt-viv-input" placeholder="Ara…" autocomplete="off" />
           <select id="rt-viv-pl-a" class="rt-viv-select">
@@ -670,11 +670,11 @@
           <button type="button" class="rt-viv-btn" onclick="rtVivSearchCompare('a')">Ara</button>
         </div>
         <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500" id="rt-viv-msg-a"></p>
-        <div class="rt-viv-sel" id="rt-viv-sel-a">Henüz seçim yok — sonuç satırına tıklayın.</div>
+        <div class="rt-viv-sel" id="rt-viv-sel-a">Nothing selected yet — click a result row.</div>
         <div class="rt-viv-results mt-2 hidden" id="rt-viv-list-a"></div>
       </div>
       <div>
-        <h3 class="mb-2 text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">Uygulama 2</h3>
+        <h3 class="mb-2 text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">App 2</h3>
         <div class="rt-viv-row">
           <input id="rt-viv-q-b" type="search" class="rt-viv-input" placeholder="Ara…" autocomplete="off" />
           <select id="rt-viv-pl-b" class="rt-viv-select">
@@ -685,30 +685,30 @@
           <button type="button" class="rt-viv-btn" onclick="rtVivSearchCompare('b')">Ara</button>
         </div>
         <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500" id="rt-viv-msg-b"></p>
-        <div class="rt-viv-sel" id="rt-viv-sel-b">Henüz seçim yok — sonuç satırına tıklayın.</div>
+        <div class="rt-viv-sel" id="rt-viv-sel-b">Nothing selected yet — click a result row.</div>
         <div class="rt-viv-results mt-2 hidden" id="rt-viv-list-b"></div>
       </div>
     </div>
     <div id="rt-viv-compare-wrap" class="rt-viv-compare-wrap hidden" aria-live="polite">
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-800 dark:text-slate-100">Katalog karşılaştırması</h4>
-        <button type="button" class="rt-viv-ghost-btn" onclick="rtVivClearCompare()">Seçimleri sıfırla</button>
+        <h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-800 dark:text-slate-100">Catalog comparison</h4>
+        <button type="button" class="rt-viv-ghost-btn" onclick="rtVivClearCompare()">Reset selections</button>
       </div>
       <p id="rt-viv-compare-hint" class="rt-viv-cmp-muted mb-2"></p>
       <div class="overflow-x-auto">
-        <table class="rt-viv-cmp-table" id="rt-viv-compare-table" aria-label="İki uygulama katalog özeti"></table>
+        <table class="rt-viv-cmp-table" id="rt-viv-compare-table" aria-label="Two-app catalog summary"></table>
       </div>
-      <!-- Analiz kontrolleri (her iki uygulama seçilince görünür) -->
+      <!-- Analiz kontrolleri (her iki uygulama selectednce görünür) -->
       <div id="rt-viv-cmp-analyze-controls" class="hidden mt-3 pt-3 border-t border-indigo-100 dark:border-indigo-900/40">
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Yorum analizi:</span>
           <select id="rt-viv-cmp-days" class="rt-viv-select">
-            <option value="7">Son 7 gün</option>
-            <option value="30" selected>Son 30 gün</option>
-            <option value="90">Son 90 gün</option>
-            <option value="180">Son 180 gün</option>
-            <option value="365">Son 1 yıl</option>
-            <option value="730">Son 2 yıl</option>
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="180">Last 180 days</option>
+            <option value="365">Last 1 year</option>
+            <option value="730">Last 2 years</option>
           </select>
           <select id="rt-viv-cmp-limit" class="rt-viv-select">
             <option value="200">200 yorum</option>
@@ -717,7 +717,7 @@
             <option value="1000" selected>1000 yorum</option>
           </select>
           <button type="button" id="rt-viv-cmp-analyze-btn" class="rt-viv-btn" onclick="rtVivRunCompareAnalysis()">
-            İki uygulamayı analiz et
+            Analyze two apps
           </button>
         </div>
         <p id="rt-viv-cmp-analyze-msg" class="mt-1 text-[11px] text-slate-500 dark:text-slate-400"></p>
@@ -740,7 +740,7 @@
   var _rtVivLast = { a: [], b: [] };
   var _rtVivSel = { a: null, b: null };
   var _rtVivStoreLast = [];
-  var _rtVivStoreSelApp = null; // seçili uygulama (analiz için)
+  var _rtVivStoreSelApp = null; // selected uygulama (analiz için)
   var _rtVivReviewCache = {};
 
   function _rtVivReviewCardKey(prefix) {
@@ -749,12 +749,12 @@
 
   function _rtVivDaysLabel(days) {
     var d = parseInt(days, 10) || 30;
-    if (d === 7) return 'Son 7 gün';
-    if (d === 730) return 'Son 2 yıl';
-    if (d === 365) return 'Son 1 yıl';
-    if (d === 180) return 'Son 180 gün';
-    if (d === 90) return 'Son 90 gün';
-    return 'Son ' + d + ' gün';
+    if (d === 7) return 'Last 7 days';
+    if (d === 730) return 'Last 2 years';
+    if (d === 365) return 'Last 1 year';
+    if (d === 180) return 'Last 180 days';
+    if (d === 90) return 'Last 90 days';
+    return 'Last ' + d + ' days';
   }
 
   function _rtVivFmtRating(v) {
@@ -829,7 +829,7 @@
       iconEl.classList.remove('hidden');
     }
 
-    // Analiz sonuç alanını temizle
+    // Analiz results alanını clear
     var res = document.getElementById('rt-viv-store-analysis-result');
     if (res) { res.innerHTML = ''; res.classList.add('hidden'); }
     var msg2 = document.getElementById('rt-viv-store-analyze-msg');
@@ -873,19 +873,19 @@
       '<div class="space-y-1 text-[11px]">' +
       '<div class="flex h-3 overflow-hidden rounded-full">' +
       '<div class="bg-emerald-500" style="width:' + posW + '%" title="Pozitif ' + posW + '%"></div>' +
-      '<div class="bg-amber-400" style="width:' + neuW + '%" title="Nötr ' + neuW + '%"></div>' +
+      '<div class="bg-amber-400" style="width:' + neuW + '%" title="Neutral ' + neuW + '%"></div>' +
       '<div class="bg-rose-500" style="width:' + negW + '%" title="Negatif ' + negW + '%"></div>' +
       '</div>' +
       '<div class="flex flex-wrap gap-x-3 gap-y-0.5 text-slate-500 dark:text-slate-400">' +
       '<span class="text-emerald-600 dark:text-emerald-400 font-semibold">▲ Pozitif ' + posW + '%</span>' +
-      '<span class="text-amber-600 dark:text-amber-400 font-semibold">– Nötr ' + neuW + '%</span>' +
+      '<span class="text-amber-600 dark:text-amber-400 font-semibold">– Neutral ' + neuW + '%</span>' +
       '<span class="text-rose-600 dark:text-rose-400 font-semibold">▼ Negatif ' + negW + '%</span>' +
       '</div></div>'
     );
   }
 
   function _rtVivKeywordCloud(keywords) {
-    if (!keywords || !keywords.length) return '<p class="text-xs text-slate-400">Anahtar kelime bulunamadı.</p>';
+    if (!keywords || !keywords.length) return '<p class="text-xs text-slate-400">No keywords found.</p>';
     var max = keywords[0].count || 1;
     return keywords.slice(0, 20).map(function(kw) {
       var w = Math.max(0.75, kw.count / max);
@@ -925,13 +925,13 @@
       '<div class="border-t border-slate-200 dark:border-zinc-700 pt-3">' +
       '<div class="flex flex-wrap items-center gap-2">' +
       '<button type="button" class="rt-viv-btn text-xs py-1.5 px-3" data-reviews-toggle="' + cardKey + '" onclick="rtVivToggleAllReviews(\'' + cardKey + '\')">' +
-      'Tüm yorumları gör (' + reviews.length + ')' +
+      'See all reviews (' + reviews.length + ')' +
       '</button>' +
-      '<span class="text-[10px] text-slate-400 dark:text-slate-500">Analiz edilen tüm yorumlar</span>' +
+      '<span class="text-[10px] text-slate-400 dark:text-slate-500">All analyzed reviews</span>' +
       '</div>' +
       '<div id="' + cardKey + '-reviews-all" class="hidden mt-3">' +
       '<div class="mb-2 flex flex-wrap gap-1.5" role="tablist" aria-label="Yorum filtresi">' +
-      '<button type="button" class="rt-viv-review-filter rt-viv-review-filter--on rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-slate-200" data-card="' + cardKey + '" data-filter="all" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'all\')">Tümü</button>' +
+      '<button type="button" class="rt-viv-review-filter rt-viv-review-filter--on rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-slate-200" data-card="' + cardKey + '" data-filter="all" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'all\')">All</button>' +
       '<button type="button" class="rt-viv-review-filter rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-emerald-300" data-card="' + cardKey + '" data-filter="positive" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'positive\')">Olumlu (4–5★)</button>' +
       '<button type="button" class="rt-viv-review-filter rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-rose-300" data-card="' + cardKey + '" data-filter="negative" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'negative\')">Olumsuz (1–2★)</button>' +
       '</div>' +
@@ -951,7 +951,7 @@
     var reviews = _rtVivReviewCache[cardKey] || [];
     var filtered = _rtVivFilterReviews(reviews, filter);
     if (!filtered.length) {
-      return '<p class="text-xs text-slate-400 dark:text-slate-500 py-2">Bu filtrede yorum yok.</p>';
+      return '<p class="text-xs text-slate-400 dark:text-slate-500 py-2">No reviews in this filter.</p>';
     }
     return _rtVivSampleReviews(filtered, 'bg-slate-50 dark:bg-zinc-800/50 border-slate-200 dark:border-zinc-700', { fullText: true });
   }
@@ -963,7 +963,7 @@
     var opening = panel.classList.contains('hidden');
     panel.classList.toggle('hidden', !opening);
     var n = (_rtVivReviewCache[cardKey] || []).length;
-    btn.textContent = opening ? 'Yorumları gizle (' + n + ')' : 'Tüm yorumları gör (' + n + ')';
+    btn.textContent = opening ? 'Hide reviews (' + n + ')' : 'See all reviews (' + n + ')';
   };
 
   window.rtVivFilterAllReviews = function (cardKey, filter) {
@@ -992,7 +992,7 @@
       return (
         '<div class="rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">' +
         '<p class="text-xs font-bold text-slate-800 dark:text-slate-100">' + _esc(appName) + ' — ' + platLabel + '</p>' +
-        '<p class="mt-2 text-sm text-slate-500 dark:text-slate-400">' + _esc(a.error || daysLabel + ' döneminde yorum bulunamadı.') + '</p>' +
+        '<p class="mt-2 text-sm text-slate-500 dark:text-slate-400">' + _esc(a.error || daysLabel + ' period: no reviews found.') + '</p>' +
         '</div>'
       );
     }
@@ -1010,23 +1010,23 @@
       '</div>' +
       '</div>' +
       '<div>' +
-      '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Puan dağılımı</p>' +
+      '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Rating distribution</p>' +
       '<div class="space-y-1">' +
       [5,4,3,2,1].map(function(s){ return _rtVivRatingBar(s, dist[s] || 0, n); }).join('') +
       '</div></div>' +
       '<div>' +
-      '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Duygu dağılımı</p>' +
+      '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Sentiment distribution</p>' +
       _rtVivSentimentBar(sent.positive || 0, sent.neutral || 0, sent.negative || 0, n) +
       '</div>' +
       '<div>' +
-      '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Sık geçen kelimeler</p>' +
+      '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Frequent words</p>' +
       '<div class="flex flex-wrap gap-1">' + _rtVivKeywordCloud(a.top_keywords) + '</div>' +
       '</div>' +
       (a.best_samples && a.best_samples.length ?
-      '<div><p class="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-1.5">Olumlu yorumlar (özet)</p>' +
+      '<div><p class="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-1.5">Positive reviews (summary)</p>' +
       '<div class="space-y-2">' + _rtVivSampleReviews(a.best_samples, 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50') + '</div></div>' : '') +
       (a.worst_samples && a.worst_samples.length ?
-      '<div><p class="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400 mb-1.5">Olumsuz yorumlar (özet)</p>' +
+      '<div><p class="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400 mb-1.5">Negative reviews (summary)</p>' +
       '<div class="space-y-2">' + _rtVivSampleReviews(a.worst_samples, 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50') + '</div></div>' : '') +
       _rtVivAllReviewsSection(cardKey, reviews) +
       '</div>'
@@ -1045,7 +1045,7 @@
     var limit = parseInt(document.getElementById('rt-viv-store-limit').value || '1000', 10);
 
     if (btn) btn.disabled = true;
-    if (msg) msg.textContent = 'Yorumlar mağazadan çekiliyor… (1000 yorum 1–2 dk sürebilir)';
+    if (msg) msg.textContent = 'Fetching reviews from the store… (1000 reviews may take 1–2 min)';
 
     var platform = it.platform === 'app_store' ? 'app_store' : 'google_play';
     var lang = document.getElementById('rt-viv-lang-store');
@@ -1074,13 +1074,13 @@
       if (msg) msg.textContent = d.reviews_fetched + ' yorum analiz edildi.';
     })
     .catch(function(e) {
-      if (msg) msg.textContent = 'Hata: ' + (e.message || 'bilinmeyen hata');
+      if (msg) msg.textContent = 'Error: ' + (e.message || 'unknown error');
     })
     .finally(function() { if (btn) btn.disabled = false; });
   }
   window.rtVivRunStoreAnalysis = rtVivRunStoreAnalysis;
 
-  // ── İki uygulama karşılaştırmalı analiz ────────────────────────────────────
+  // ── Compare two appsmalı analiz ────────────────────────────────────
 
   function rtVivRunCompareAnalysis() {
     var selA = _rtVivSel.a;
@@ -1094,7 +1094,7 @@
     var limit = parseInt((document.getElementById('rt-viv-cmp-limit') || {}).value || '1000', 10);
 
     if (btn) btn.disabled = true;
-    if (msg) msg.textContent = 'Her iki uygulama için yorumlar çekiliyor… (1000 yorum 2–3 dk sürebilir)';
+    if (msg) msg.textContent = 'Fetching reviews for both apps… (1000 reviews may take 2–3 min)';
 
     var platA = selA.platform === 'app_store' ? 'app_store' : 'google_play';
     var platB = selB.platform === 'app_store' ? 'app_store' : 'google_play';
@@ -1113,12 +1113,12 @@
     ])
     .then(function(results) {
       var dA = results[0]; var dB = results[1];
-      if (dA.detail) throw new Error('Uygulama 1: ' + (typeof dA.detail === 'string' ? dA.detail : JSON.stringify(dA.detail)));
-      if (dB.detail) throw new Error('Uygulama 2: ' + (typeof dB.detail === 'string' ? dB.detail : JSON.stringify(dB.detail)));
+      if (dA.detail) throw new Error('App 1: ' + (typeof dA.detail === 'string' ? dA.detail : JSON.stringify(dA.detail)));
+      if (dB.detail) throw new Error('App 2: ' + (typeof dB.detail === 'string' ? dB.detail : JSON.stringify(dB.detail)));
 
       if (res) {
         res.innerHTML =
-          '<div class="mb-3"><h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200">Yorum analizi karşılaştırması</h4></div>' +
+          '<div class="mb-3"><h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200">Review analysis comparison</h4></div>' +
           '<div class="grid gap-4 md:grid-cols-2">' +
           '<div>' + _rtVivBuildAnalysisCard(selA.name, platA, days, dA, _rtVivReviewCardKey('cmp-a')) + '</div>' +
           '<div>' + _rtVivBuildAnalysisCard(selB.name, platB, days, dB, _rtVivReviewCardKey('cmp-b')) + '</div>' +
@@ -1130,7 +1130,7 @@
       if (msg) msg.textContent = selA.name + ': ' + fetchedA + ' yorum · ' + selB.name + ': ' + fetchedB + ' yorum analiz edildi.';
     })
     .catch(function(e) {
-      if (msg) msg.textContent = 'Hata: ' + (e.message || 'bilinmeyen hata');
+      if (msg) msg.textContent = 'Error: ' + (e.message || 'unknown error');
     })
     .finally(function() { if (btn) btn.disabled = false; });
   }
@@ -1153,7 +1153,7 @@
     var platform = pl ? pl.value : 'both';
     var langV = lang ? lang.value : 'tr';
     var cc = country ? country.value : 'tr';
-    if (msg) msg.textContent = 'Aranıyor… (Play sonuçları: yorum sayıları mağazadan çekiliyor, ~15–45 sn sürebilir)';
+    if (msg) msg.textContent = 'Searching… (Play results: review counts are fetched from the store, ~15–45s)';
     if (btn) btn.disabled = true;
     var u =
       '/api/store/search?' +
@@ -1167,7 +1167,7 @@
       }).toString();
     fetch(u, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then(function (r) {
-        if (r.status === 401) throw new Error('Oturum gerekli');
+        if (r.status === 401) throw new Error('Sign-in required');
         return r.json();
       })
       .then(function (d) {
@@ -1175,10 +1175,10 @@
           throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
         var items = d.results || [];
         _rtVivStoreLast = items;
-        if (msg) msg.textContent = items.length ? items.length + ' sonuç — satıra tıklayınca paket/id kutuya yazılır' : 'Sonuç yok';
+        if (msg) msg.textContent = items.length ? items.length + ' results — click a row to fill package/id' : 'No results';
         if (!items.length) {
           box.innerHTML =
-            '<p class="p-3 text-sm text-slate-500 dark:text-slate-400">Eşleşme bulunamadı.</p>';
+            '<p class="p-3 text-sm text-slate-500 dark:text-slate-400">No matches found.</p>';
           box.classList.remove('hidden');
           return;
         }
@@ -1193,7 +1193,7 @@
               '</button>' +
               '<a class="rt-viv-card-storelink" href="' +
               _esc(it.store_url) +
-              '" target="_blank" rel="noopener noreferrer" title="Mağaza sayfası">Mağaza</a>' +
+              '" target="_blank" rel="noopener noreferrer" title="Store page">Store</a>' +
               '</div>'
             );
           })
@@ -1201,7 +1201,7 @@
         box.classList.remove('hidden');
       })
       .catch(function (e) {
-        if (msg) msg.textContent = e.message || 'Hata';
+        if (msg) msg.textContent = e.message || 'Error';
         box.classList.add('hidden');
       })
       .finally(function () {
@@ -1222,7 +1222,7 @@
     }
     var pl = document.getElementById('rt-viv-pl-' + side);
     var platform = pl ? pl.value : 'google_play';
-    if (msg) msg.textContent = 'Aranıyor… (Android seçiliyse yorum sayıları mağazadan çekiliyor)';
+    if (msg) msg.textContent = 'Searching… (if Android is selected, review counts are fetched from the store)';
     var u =
       '/api/store/search?' +
       new URLSearchParams({
@@ -1235,7 +1235,7 @@
       }).toString();
     fetch(u, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then(function (r) {
-        if (r.status === 401) throw new Error('Oturum gerekli');
+        if (r.status === 401) throw new Error('Sign-in required');
         return r.json();
       })
       .then(function (d) {
@@ -1247,13 +1247,13 @@
         _rtVivRenderCompareTable();
         var selEl = document.getElementById('rt-viv-sel-' + side);
         if (selEl) {
-          selEl.textContent = 'Henüz seçim yok — sonuç satırına tıklayın.';
+          selEl.textContent = 'Nothing selected yet — click a result row.';
         }
         if (msg)
-          msg.textContent = items.length ? items.length + ' sonuç — seçmek için tıklayın' : 'Sonuç yok';
+          msg.textContent = items.length ? items.length + ' results — click to select' : 'No results';
         if (!items.length) {
           list.innerHTML =
-            '<p class="p-3 text-sm text-slate-500 dark:text-slate-400">Eşleşme yok.</p>';
+            '<p class="p-3 text-sm text-slate-500 dark:text-slate-400">No matches.</p>';
           list.classList.remove('hidden');
           return;
         }
@@ -1271,7 +1271,7 @@
         list.classList.remove('hidden');
       })
       .catch(function (e) {
-        if (msg) msg.textContent = e.message || 'Hata';
+        if (msg) msg.textContent = e.message || 'Error';
         list.classList.add('hidden');
       });
   }
@@ -1307,7 +1307,7 @@
       ' · id: <code>' + _esc(it.id) + '</code></span>' +
       '<a class="mt-1 inline-block text-indigo-600 underline dark:text-indigo-300" href="' +
       _esc(it.store_url) +
-      '" target="_blank" rel="noopener noreferrer">Mağaza sayfası</a>' +
+      '" target="_blank" rel="noopener noreferrer">Store page</a>' +
       '</div></div>';
     _rtVivRenderCompareTable();
   }
@@ -1336,14 +1336,14 @@
     }
     wrap.classList.remove('hidden');
     if (!a || !b) {
-      hint.textContent = !a && !b ? '' : 'Karşılaştırma için her iki sütundan da bir uygulama seçin.';
+      hint.textContent = !a && !b ? '' : 'Select one app from each column to compare.';
       tbl.innerHTML = '';
       var ac = document.getElementById('rt-viv-cmp-analyze-controls');
       if (ac) ac.classList.add('hidden');
       return;
     }
     hint.textContent =
-      'Aşağıdaki tablo yalnızca mağaza katalog verisidir (yorum analizi aşağıdaki analiz bölümünde).';
+      'The table below is store catalog data only (review analysis is in the section below).';
     var analyzeCtrl = document.getElementById('rt-viv-cmp-analyze-controls');
     if (analyzeCtrl) analyzeCtrl.classList.remove('hidden');
     var ra = _rtVivNumRating(a);
@@ -1385,27 +1385,27 @@
       );
     };
     tbl.innerHTML =
-      '<thead><tr><th scope="col">Özellik</th><th scope="col">Uygulama 1</th><th scope="col">Uygulama 2</th></tr></thead><tbody>' +
-      row('Uygulama adı', _esc(a.name), _esc(b.name), '', '') +
-      row('Geliştirici', a.developer ? _esc(a.developer) : '—', b.developer ? _esc(b.developer) : '—', '', '') +
+      '<thead><tr><th scope="col">Feature</th><th scope="col">App 1</th><th scope="col">App 2</th></tr></thead><tbody>' +
+      row('App name', _esc(a.name), _esc(b.name), '', '') +
+      row('Developer', a.developer ? _esc(a.developer) : '—', b.developer ? _esc(b.developer) : '—', '', '') +
       row('Platform', _esc(plat(a)), _esc(plat(b)), '', '') +
       row('Paket / track id', '<code>' + _esc(a.id) + '</code>', '<code>' + _esc(b.id) + '</code>', '', '') +
       row(
-        'Katalog puanı (★)',
+        'Catalog rating (★)',
         _rtVivFmtRating(a.rating),
         _rtVivFmtRating(b.rating),
         rClsA,
         rClsB,
       ) +
-      row('Yorum sayısı (varsa)', revA, revB, revClsA, revClsB) +
+      row('Review count (if any)', revA, revB, revClsA, revClsB) +
       row(
-        'Mağaza linki',
+        'Store link',
         '<a class="text-indigo-600 underline dark:text-indigo-300" href="' +
           _esc(a.store_url) +
-          '" target="_blank" rel="noopener noreferrer">Aç</a>',
+          '" target="_blank" rel="noopener noreferrer">Open</a>',
         '<a class="text-indigo-600 underline dark:text-indigo-300" href="' +
           _esc(b.store_url) +
-          '" target="_blank" rel="noopener noreferrer">Aç</a>',
+          '" target="_blank" rel="noopener noreferrer">Open</a>',
         '',
         '',
       ) +
@@ -1418,7 +1418,7 @@
     ['a', 'b'].forEach(function (side) {
       var el = document.getElementById('rt-viv-sel-' + side);
       if (el) {
-        el.textContent = 'Henüz seçim yok — sonuç satırına tıklayın.';
+        el.textContent = 'Nothing selected yet — click a result row.';
       }
       var list = document.getElementById('rt-viv-list-' + side);
       if (list) {

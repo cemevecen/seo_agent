@@ -2065,11 +2065,11 @@
 
 <div class="mx-auto w-full min-w-0 max-w-[1600px]" id="home-board" data-home-focus="split" data-page-tarama="home">
   <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:px-6 sm:py-4">
-    <h2 class="min-w-0 shrink-0 font-semibold tracking-tight text-slate-900 dark:text-slate-100">Günün Özeti</h2>
+    <h2 class="min-w-0 shrink-0 font-semibold tracking-tight text-slate-900 dark:text-slate-100">Today's summary</h2>
     <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
       <span data-page-tarama-slot></span>
       <button type="button" class="home-focus-split home-focus-split--bar lg:hidden" data-home-focus-set="split"
-              title="Split görünüm (iki proje yan yana)" aria-label="Split görünüme dön">
+              title="Split view (two projects side by side)" aria-label="Back to split view">
         <span class="home-focus-split-face home-focus-split-face--d" aria-hidden="true">
           <img class="home-project-logo" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         </span>
@@ -2078,7 +2078,7 @@
         </span>
       </button>
       <a href="/alerts" hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-         class="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 font-medium text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white sm:px-4 sm:py-2">Uyarılar</a>
+         class="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 font-medium text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white sm:px-4 sm:py-2">Alerts</a>
       <a href="/realtime" hx-get="/realtime" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
          class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-700 transition hover:border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500 sm:px-4 sm:py-2">Realtime</a>
     </div>
@@ -2092,7 +2092,7 @@
   <link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=2">
   <script src="/static/js/rt_slot_fx.js?v=3"></script>
   <script src="/static/js/home_top_pages.js?v=1"></script>
-  <script src="/static/js/metric_table_ux.js?v=8"></script>
+  <script src="/static/js/metric_table_ux.js?v=9"></script>
   <div data-home-container-slot="realtime">
   <section id="home-realtime-section" data-home-container="realtime" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -2181,16 +2181,16 @@
           <div class="home-project-head-main min-w-0 flex-1">
             <h2 class="truncate font-bold tracking-tight text-blue-900 dark:text-blue-200">doviz.com</h2>
           </div>
-          <button type="button" class="home-focus-chev" data-home-focus-set="doviz" title="doviz.com genişlet" aria-label="doviz.com genişlet">
+          <button type="button" class="home-focus-chev" data-home-focus-set="doviz" title="Expand doviz.com" aria-label="Expand doviz.com">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.25V3.5H7.25"/><path d="M12.75 3.5H16.5V7.25"/><path d="M16.5 12.75V16.5H12.75"/><path d="M7.25 16.5H3.5V12.75"/></svg>
           </button>
         </div>
         <button type="button" class="home-project-rail-label" data-home-focus-set="doviz"
-                title="doviz.com tam ekran" aria-label="doviz.com tam ekran">
+                title="Full screen doviz.com" aria-label="Full screen doviz.com">
           <img class="home-project-logo" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         </button>
       </div>
-      <button type="button" class="home-focus-split" data-home-focus-set="split" title="Split görünüm (iki proje yan yana)" aria-label="Split görünüme dön">
+      <button type="button" class="home-focus-split" data-home-focus-set="split" title="Split view (two projects side by side)" aria-label="Back to split view">
         <span class="home-focus-split-face home-focus-split-face--d" aria-hidden="true">
           <img class="home-project-logo" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         </span>
@@ -2200,11 +2200,11 @@
       </button>
       <div class="home-project-head-cluster" data-home-project="sinemalar">
         <button type="button" class="home-project-rail-label" data-home-focus-set="sinemalar"
-                title="sinemalar.com tam ekran" aria-label="sinemalar.com tam ekran">
+                title="Full screen sinemalar.com" aria-label="Full screen sinemalar.com">
           <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         </button>
         <div class="home-project-head home-project-head--sinemalar flex items-center gap-2 rounded-2xl bg-rose-50/60 px-3 ring-1 ring-rose-300/70 dark:bg-rose-950/30 dark:ring-rose-800/60 sm:px-4">
-          <button type="button" class="home-focus-chev" data-home-focus-set="sinemalar" title="sinemalar.com genişlet" aria-label="sinemalar.com genişlet">
+          <button type="button" class="home-focus-chev" data-home-focus-set="sinemalar" title="Expand sinemalar.com" aria-label="Expand sinemalar.com">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.25V3.5H7.25"/><path d="M12.75 3.5H16.5V7.25"/><path d="M16.5 12.75V16.5H12.75"/><path d="M7.25 16.5H3.5V12.75"/></svg>
           </button>
           <div class="home-project-head-main home-project-head-main--end min-w-0 flex-1">
@@ -2466,7 +2466,7 @@
   function ensureHomeGitlabStack() {
     if (homeGitlabStackPromise) return homeGitlabStackPromise;
     homeGitlabStackPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js')
-      .then(function () { return loadScriptOnce('/static/js/home_gitlab_boards.js?v=7'); })
+      .then(function () { return loadScriptOnce('/static/js/home_gitlab_boards.js?v=8'); })
       .then(function () {
         if (window.Alpine) return;
         return loadScriptOnce('https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js');
@@ -2620,7 +2620,7 @@
     }
     wait.innerHTML =
       '<lottie-player src="' + HOME_PERIOD_LOTTIE + '" background="transparent" speed="1" loop autoplay></lottie-player>' +
-      '<p class="home-period-wait-label">' + (daysLabel || 'Dönem') + ' yükleniyor</p>';
+      '<p class="home-period-wait-label">' + (daysLabel || 'Period') + ' loading</p>';
   }
 
   document.body.addEventListener('click', function (ev) {
@@ -2640,7 +2640,7 @@
       '&v=26';
     if (section) {
       section.setAttribute('hx-get', url);
-      showHomePeriodWait(section, days + 'g');
+      showHomePeriodWait(section, days + 'd');
     }
     if (window.htmx && section) {
       window.htmx.ajax('GET', url, { target: section, swap: 'innerHTML' });
@@ -2675,7 +2675,7 @@
     });
     return {
       page: 'home',
-      title: 'Günün Özeti',
+      title: "Today's summary",
       metrics: window.__pcHomeMetrics,
       visible_sections: visible,
     };
@@ -2765,7 +2765,7 @@
     var listHtml = '';
     files.forEach(function (f, idx) {
       var fid = String(f.file_id || '').replace(/"/g, '');
-      var name = String(f.name || ('dosya ' + (idx + 1))).replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      var name = String(f.name || ('file ' + (idx + 1))).replace(/</g, '&lt;').replace(/"/g, '&quot;');
       var isVideo = (f.kind || '') === 'video';
       var thumb = isVideo
         ? '<span class="home-drive-preview-item-thumb is-video">▶</span>'
@@ -2776,7 +2776,7 @@
           thumb +
           '<span class="home-drive-preview-item-meta">' +
             '<span class="home-drive-preview-item-name">' + name + '</span>' +
-            '<span class="home-drive-preview-item-kind">' + (isVideo ? 'video' : 'görsel') + '</span>' +
+            '<span class="home-drive-preview-item-kind">' + (isVideo ? 'video' : 'image') + '</span>' +
           '</span>' +
         '</button>';
     });
@@ -2785,13 +2785,13 @@
       '<div class="home-drive-preview-head">' +
         '<p class="home-drive-preview-title" data-home-drive-preview-title>' +
           String(info.container_label || key).replace(/</g, '&lt;') +
-          ' · ' + files.length + ' dosya — birini seç</p>' +
+          ' · ' + files.length + ' files — pick one</p>' +
         '<button type="button" class="home-drive-preview-close" data-home-drive-preview-close="' +
-          String(key).replace(/"/g, '') + '">&times; kapat</button>' +
+          String(key).replace(/"/g, '') + '">&times; close</button>' +
       '</div>' +
       '<div class="home-drive-preview-stage" data-home-drive-preview-stage></div>' +
       '<div class="home-drive-preview-list">' +
-        '<p class="home-drive-preview-list-label">Yüklenenler</p>' +
+        '<p class="home-drive-preview-list-label">Uploads</p>' +
         listHtml +
       '</div>';
 
@@ -2836,8 +2836,8 @@
       var count = (info.files && info.files.length) || info.file_count || 1;
       badge.setAttribute('data-container-key', key);
       badge.setAttribute('aria-expanded', homeDriveOpenPreview[key] ? 'true' : 'false');
-      badge.setAttribute('aria-label', 'Container görsellerini aç (' + count + ')');
-      badge.title = (info.container_label || key) + ' · ' + count + ' dosya — tıkla, altına aç';
+      badge.setAttribute('aria-label', 'Open container images (' + count + ')');
+      badge.title = (info.container_label || key) + ' · ' + count + ' files — click to open below';
       badge.classList.toggle('is-active', !!homeDriveOpenPreview[key]);
       var countHtml = count > 1
         ? '<span class="home-drive-badge-count">' + count + '</span>'

@@ -1,6 +1,6 @@
 {% from 'partials/crashlytics/_plat_filter.html' import plat_filter_buttons %}
 {% if not data or data.ok is sameas false %}
-  <p class="text-xs text-slate-400 dark:text-slate-500">Kırılım verisi yok.</p>
+  <p class="text-xs text-slate-400 dark:text-slate-500">No breakdown data.</p>
 {% else %}
 {% set dev_by_plat = data.device_breakdown_by_platform or {} %}
 {% set os_by_plat = data.os_breakdown_by_platform or {} %}
@@ -31,11 +31,11 @@
     {% endfor %}
     {% if rows|length > 8 %}
       <button type="button" data-bd-expand-btn class="mt-1 w-full rounded-md border border-slate-200 py-1 text-[10px] font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-        Genişlet (15)
+        Expand (15)
       </button>
     {% endif %}
   {% else %}
-    <p class="text-[11px] text-slate-400">Veri yok.</p>
+    <p class="text-[11px] text-slate-400">No data.</p>
   {% endif %}
 {% endmacro %}
 
@@ -49,9 +49,9 @@
 <div class="space-y-3" data-crash-breakdown-root data-bd-active-tab="devices"{% if show_plat_filter %} data-bd-plat-filter="1" data-bd-default-plat="{{ default_plat }}" data-bd-active-plat="{{ default_plat }}"{% endif %}>
   <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2 dark:border-slate-700">
     <div class="flex flex-wrap gap-1" data-crash-bd-tabs>
-      <button type="button" data-bd-tab="devices" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold bg-slate-900 text-white dark:bg-slate-600">Cihaz</button>
+      <button type="button" data-bd-tab="devices" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold bg-slate-900 text-white dark:bg-slate-600">Device</button>
       <button type="button" data-bd-tab="os" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">OS</button>
-      <button type="button" data-bd-tab="state" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Durum</button>
+      <button type="button" data-bd-tab="state" class="crash-bd-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">State</button>
     </div>
     {% if show_plat_filter %}
     <div class="ml-auto flex flex-wrap gap-1">

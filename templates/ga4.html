@@ -650,7 +650,7 @@
   </div>
 </div>
 
-<script src="/static/js/app_release_markers.js?v=2"></script>
+<script src="/static/js/app_release_markers.js?v=3"></script>
 <script>
   // App sürüm yayın listesini bir kez yükle (iOS/Android), sayfa boyunca paylaş.
   function ensureAppReleaseStore() {
@@ -682,7 +682,7 @@
     let lastDetail = 'Opening the GA4 page and requesting the site list.';
 
     function secondsText(from) {
-      return ((performance.now() - from) / 1000).toFixed(1) + ' sn';
+      return ((performance.now() - from) / 1000).toFixed(1) + ' s';
     }
 
     function render(step) {
@@ -1230,7 +1230,7 @@
               var pct = Math.min(96, Math.max(12, Math.round((pg.done / pg.total) * 100)));
               progress.renderLive(
                 pct,
-                'Siteler yenileniyor (' + pg.done + '/' + pg.total + ')',
+                'Refreshing sites (' + pg.done + '/' + pg.total + ')',
                 (pg.label ? pg.label + ' done. ' : '') + 'GA4 Data API calls are still running in the background.'
               );
             }

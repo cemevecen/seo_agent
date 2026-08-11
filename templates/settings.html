@@ -14,22 +14,22 @@
         </svg>
       </span>
       <div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Admin Erişimi</h3>
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Admin access</h3>
         {% if admin_password_configured %}
-          <span class="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">Şifre aktif</span>
+          <span class="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">Password active</span>
         {% else %}
-          <span class="inline-flex w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/45 dark:text-amber-300">Şifre ayarlanmamış</span>
+          <span class="inline-flex w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/45 dark:text-amber-300">Password not set</span>
         {% endif %}
       </div>
     </summary>
     <div class="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
     <p class="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
-      Tüm erişimler bu tek şifre ile korunmaktadır.
+      All access is protected by this single password.
     </p>
     <p class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-400 sm:text-xs">
-      Kayıtlı şifre güvenlik nedeniyle bu alanlarda <span class="font-medium text-slate-700 dark:text-slate-300">gösterilmez</span>.
-      Sarı renk veya dolu görünen kutu genelde <span class="font-medium">tarayıcı otomatik doldurmasıdır</span> (eski kayıtlı parola); Railway’deki veya veritabanındaki şifreyle aynı olmayabilir.
-      Değiştirmek için alanları temizleyip yeni şifreyi yazın veya tarayıcıda bu site için kayıtlı giriş bilgisini silin.
+      The saved password is <span class="font-medium text-slate-700 dark:text-slate-300">not shown</span> in these fields for security.
+      A yellow or filled box is usually <span class="font-medium">browser autofill</span> (an old saved password); it may not match the password in Railway or the database.
+      To change it, clear the fields and enter a new password, or delete the saved login for this site in your browser.
     </p>
     {% if admin_password_flash %}
     <p
@@ -41,7 +41,7 @@
     {% endif %}
     <form method="post" action="/admin/password" autocomplete="off" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
       <div>
-        <label for="admin-password" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Yeni Password</label>
+        <label for="admin-password" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">New password</label>
         <input
           id="admin-password"
           name="password"
@@ -54,7 +54,7 @@
         />
       </div>
       <div>
-        <label for="admin-password-confirm" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Password Tekrar</label>
+        <label for="admin-password-confirm" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Confirm password</label>
         <input
           id="admin-password-confirm"
           name="password_confirm"
@@ -67,20 +67,20 @@
         />
       </div>
       <div class="flex items-end gap-2">
-        <button type="submit" class="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600">Password Kaydet</button>
+        <button type="submit" class="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600">Save password</button>
       </div>
     </form>
     {% if admin_password_configured %}
     <form method="post" action="/admin/auth/logout" class="mt-3">
-      <button type="submit" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70">Admin çıkış yap</button>
+      <button type="submit" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70">Admin sign out</button>
     </form>
     {% endif %}
 
     {# Ziyaret günlüğü: giriş / sayfalar / çıkış #}
     <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
       <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Ziyaret günlüğü</h4>
-        <span class="text-[11px] text-slate-400 dark:text-slate-500">Giriş · gezilen sayfalar · çıkış · TR saati</span>
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Visit log</h4>
+        <span class="text-[11px] text-slate-400 dark:text-slate-500">Sign-in · pages visited · sign-out · TR time</span>
       </div>
       {% if visit_logs is defined and visit_logs %}
       <div class="space-y-2">
@@ -99,21 +99,21 @@
             <span class="text-slate-400 dark:text-slate-500 sm:ml-auto">{{ v.ip }} · {{ v.device }}</span>
           </div>
           <div class="mt-1 flex flex-col gap-0.5 text-slate-600 dark:text-slate-300 sm:flex-row sm:gap-4">
-            <span>Giriş {{ v.logged_in_tr }}</span>
-            <span>Çıkış {{ v.logged_out_tr }}</span>
+            <span>Signed in {{ v.logged_in_tr }}</span>
+            <span>Signed out {{ v.logged_out_tr }}</span>
           </div>
           {% if v.pages %}
           <p class="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
             {% for p in v.pages %}{% if not loop.first %} → {% endif %}<span title="{{ p.path }}">{{ p.label }}</span> <span class="tabular-nums text-slate-400">{{ p.at_tr }}</span>{% endfor %}
           </p>
           {% else %}
-          <p class="mt-1 text-[11px] text-slate-400">Sayfa kaydı yok.</p>
+          <p class="mt-1 text-[11px] text-slate-400">No page records.</p>
           {% endif %}
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">Henüz ziyaret kaydı yok. Panelde gezindikçe burada birikir.</p>
+      <p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">No visits yet. They accumulate as you browse the panel.</p>
       {% endif %}
     </div>
     </div>
@@ -131,38 +131,38 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
         </svg>
       </span>
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Google üyelikleri</h3>
+      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Google memberships</h3>
     </summary>
     <div class="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
     <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p class="text-xs text-slate-500 dark:text-slate-400">
-          Tablo, en az bir kez <strong>Google ile giriş</strong> yapmış üyeleri veritabanından listeler.
-          Tüm <span class="font-mono text-[10px]">@nokta.com</span> adresleri girişte otomatik eklenir (giriş yapmadan listede görünmez).
-          Kodda ön tanımlı / davetli hesaplar (TMDB kısıtlı veya davet listesi) ilk giriş öncesi gri satır olarak gösterilir.
-          Panele erişim yalnızca <strong>Google ile giriş</strong> ile açılır.
-          Ekran kısıtları <span class="font-mono text-[10px]">screen_permissions_json</span> ile ileride genişletilecek.
+          The table lists members who have <strong>signed in with Google</strong> at least once.
+          All <span class="font-mono text-[10px]">@nokta.com</span> addresses are added automatically at sign-in (they do not appear in the list until they sign in).
+          Predefined / invited accounts in code (TMDB-restricted or invite list) appear as gray rows before first sign-in.
+          Panel access opens only via <strong>Sign in with Google</strong>.
+          Screen restrictions will be extended later via <span class="font-mono text-[10px]">screen_permissions_json</span>.
         </p>
       </div>
       {% if current_app_member %}
       <form method="post" action="/auth/logout">
-        <button type="submit" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200">Google çıkış ({{ current_app_member.email }})</button>
+        <button type="submit" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200">Google sign out ({{ current_app_member.email }})</button>
       </form>
       {% endif %}
     </div>
     <p class="mb-3 text-[11px] text-slate-500 dark:text-slate-400">
       OAuth redirect: <span class="break-all font-mono">{{ google_member_oauth_redirect }}</span>
-      — Google Cloud → Authorized redirect URIs listesine ekleyin.
+      — add it to Google Cloud → Authorized redirect URIs.
     </p>
     {% if app_members %}
     <div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
       <table class="w-full min-w-[32rem] text-left text-xs">
         <thead class="border-b border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
           <tr>
-            <th class="px-3 py-2 font-semibold">E-posta</th>
-            <th class="px-3 py-2 font-semibold">Rol</th>
-            <th class="px-3 py-2 font-semibold">Aktif</th>
-            <th class="px-3 py-2 font-semibold">Son giriş</th>
+            <th class="px-3 py-2 font-semibold">Email</th>
+            <th class="px-3 py-2 font-semibold">Role</th>
+            <th class="px-3 py-2 font-semibold">Active</th>
+            <th class="px-3 py-2 font-semibold">Last sign-in</th>
           </tr>
         </thead>
         <tbody id="app-members-tbody">
@@ -172,14 +172,14 @@
               <div class="font-medium text-slate-900 dark:text-slate-100">{{ m.email }}</div>
               {% if m.display_name %}<div class="text-[10px] text-slate-500">{{ m.display_name }}</div>{% endif %}
               {% if m.pending_first_login %}
-              <div class="mt-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Henüz Google ile giriş yapmadı{% if m.access_note == 'tmdb-only' %} · yalnızca TMDB ekranı{% elif m.access_note == 'invited' %} · davetli tam panel{% elif m.access_note == 'allowlist' %} · özel e-posta izni{% endif %}</div>
+              <div class="mt-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Has not signed in with Google yet{% if m.access_note == 'tmdb-only' %} · TMDB screen only{% elif m.access_note == 'invited' %} · invited full panel{% elif m.access_note == 'allowlist' %} · special email allowlist{% endif %}</div>
               {% endif %}
             </td>
             <td class="px-3 py-2">
               {% if m.pending_first_login %}
               <span class="text-slate-500 dark:text-slate-400">member{% if m.access_note == 'tmdb-only' %} (tmdb){% endif %}</span>
               {% else %}
-              <select class="member-role-select rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-950" data-member-id="{{ m.id }}" {% if m.email in ['cemevecen@nokta.com', 'cemevecen@gmail.com'] %}disabled title="Sabit admin"{% endif %}>
+              <select class="member-role-select rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-950" data-member-id="{{ m.id }}" {% if m.email in ['cemevecen@nokta.com', 'cemevecen@gmail.com'] %}disabled title="Fixed admin"{% endif %}>
                 <option value="member" {% if m.role == 'member' %}selected{% endif %}>member</option>
                 <option value="admin" {% if m.role == 'admin' %}selected{% endif %}>admin</option>
               </select>
@@ -187,19 +187,19 @@
             </td>
             <td class="px-3 py-2">
               {% if m.pending_first_login %}
-              <span class="text-slate-400" title="İlk girişten sonra düzenlenebilir">—</span>
+              <span class="text-slate-400" title="Editable after first sign-in">—</span>
               {% else %}
               <input type="checkbox" class="member-active-toggle h-4 w-4 rounded" data-member-id="{{ m.id }}" {% if m.is_active %}checked{% endif %} />
               {% endif %}
             </td>
-            <td class="px-3 py-2 tabular-nums text-slate-600 dark:text-slate-400">{% if m.pending_first_login %}Henüz giriş yok{% else %}{{ m.last_login_at_tr or '—' }}{% endif %}</td>
+            <td class="px-3 py-2 tabular-nums text-slate-600 dark:text-slate-400">{% if m.pending_first_login %}No sign-in yet{% else %}{{ m.last_login_at_tr or '—' }}{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     {% else %}
-    <p class="text-sm text-slate-500 dark:text-slate-400">Henüz Google ile giriş yapan üye yok.</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">No members have signed in with Google yet.</p>
     {% endif %}
     </div>
   </details>
@@ -250,8 +250,8 @@
         </svg>
       </span>
       <div class="min-w-0">
-        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Site Ekle</h3>
-        <p class="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">Form gönderiminden sonra liste HTMX ile yenilenir.</p>
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Add site</h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">The list refreshes via HTMX after you submit the form.</p>
       </div>
     </summary>
     <div class="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
@@ -271,32 +271,32 @@
           name="domain"
           type="text"
           required
-          placeholder="ornek.com"
+          placeholder="example.com"
           class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-slate-200 focus:ring dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:ring-slate-700"
         />
       </div>
 
       <div class="min-w-0 flex-1 lg:min-w-[14rem] lg:max-w-md">
-        <label for="display_name" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Görünen Ad</label>
+        <label for="display_name" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Display name</label>
         <input
           id="display_name"
           name="display_name"
           type="text"
-          placeholder="Örnek Site"
+          placeholder="Example Site"
           class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-slate-200 focus:ring dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:ring-slate-700"
         />
       </div>
 
       <label class="flex shrink-0 items-center gap-2 pb-0.5 text-sm text-slate-700 dark:text-slate-200 lg:pb-2">
         <input id="is_active" name="is_active" type="checkbox" checked class="rounded border-slate-300 dark:border-slate-600" />
-        Aktif olarak ekle
+        Add as active
       </label>
 
       <button
         type="submit"
         class="w-full shrink-0 rounded-md bg-slate-900 px-6 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 lg:w-auto lg:min-w-[10rem]"
       >
-        Siteyi Kaydet
+        Save site
       </button>
     </form>
 
@@ -322,8 +322,8 @@
             </svg>
           </span>
           <div class="min-w-0">
-            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Kayıtlı Siteler</h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Veritabanındaki tüm siteler</p>
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Registered sites</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">All sites in the database</p>
           </div>
         </div>
         <div class="shrink-0" onclick="event.stopPropagation()">
@@ -332,14 +332,14 @@
             class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70"
             onclick="event.stopPropagation(); refreshSiteList();"
           >
-            Yenile
+            Refresh
           </button>
         </div>
       </summary>
 
       <div class="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
         <div id="site-list" class="min-w-0">
-          <p class="text-sm text-slate-500 dark:text-slate-400">Paneli açtığınızda site listesi yüklenecek.</p>
+          <p class="text-sm text-slate-500 dark:text-slate-400">The site list will load when you open the panel.</p>
         </div>
       </div>
     </details>
@@ -362,7 +362,7 @@
           </span>
           <div class="min-w-0">
             <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Search Console OAuth</h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Google OAuth yönlendirme ve durum</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Google OAuth redirect and status</p>
           </div>
         </div>
         <div
@@ -373,22 +373,22 @@
             <span
               class="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
             >
-              OAuth hazır
+              OAuth ready
             </span>
           {% else %}
             <span
               class="inline-flex w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/45 dark:text-amber-300"
             >
-              OAuth ayarı eksik
+              OAuth not configured
             </span>
           {% endif %}
           <button
             type="button"
             class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70"
             onclick="event.stopPropagation(); location.reload();"
-            title="OAuth / .env değişikliğini görmek için sayfayı yenile"
+            title="Reload the page to see OAuth / .env changes"
           >
-            Yenile
+            Refresh
           </button>
         </div>
       </summary>
@@ -399,7 +399,7 @@
         >
           <p><span class="font-semibold">Redirect URI:</span> {{ oauth_redirect_uri }}</p>
           {% if not oauth_ready %}
-            <p class="mt-2 text-amber-700 dark:text-amber-300">.env içinde GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET tanımlaman gerekiyor.</p>
+            <p class="mt-2 text-amber-700 dark:text-amber-300">You need to set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.</p>
           {% endif %}
         </div>
       </div>
@@ -421,7 +421,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </span>
-          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Alert Eşikleri</h3>
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Alert thresholds</h3>
         </div>
         <div class="shrink-0" onclick="event.stopPropagation()">
           <button
@@ -429,14 +429,14 @@
             class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70"
             onclick="event.stopPropagation(); refreshAlertRules();"
           >
-            Yenile
+            Refresh
           </button>
         </div>
       </summary>
 
       <div class="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
         <div id="alert-thresholds">
-          <p class="text-sm text-slate-500 dark:text-slate-400">Paneli açtığınızda eşikler yüklenecek.</p>
+          <p class="text-sm text-slate-500 dark:text-slate-400">Thresholds will load when you open the panel.</p>
         </div>
         <p id="alert-feedback" class="mt-3 text-sm text-slate-500 dark:text-slate-400"></p>
       </div>
@@ -459,8 +459,8 @@
             </svg>
           </span>
           <div class="min-w-0">
-            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">API Kota Kontrolü</h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Günlük ve aylık limit takibi</p>
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">API quota</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Daily and monthly limit tracking</p>
           </div>
         </div>
         <div class="shrink-0" onclick="event.stopPropagation()">
@@ -468,9 +468,9 @@
             type="button"
             class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70"
             onclick="event.stopPropagation(); location.reload();"
-            title="Kota sayılarını sayfayla birlikte yenile"
+            title="Refresh quota counts with the page"
           >
-            Yenile
+            Refresh
           </button>
         </div>
       </summary>
@@ -482,8 +482,8 @@
               <tr>
                 <th class="px-2 py-2 font-medium sm:px-3">Domain</th>
                 <th class="px-2 py-2 font-medium sm:px-3">Provider</th>
-                <th class="px-2 py-2 font-medium sm:px-3">Günlük Kullanım</th>
-                <th class="px-2 py-2 font-medium sm:px-3">Aylık Kullanım</th>
+                <th class="px-2 py-2 font-medium sm:px-3">Daily usage</th>
+                <th class="px-2 py-2 font-medium sm:px-3">Monthly usage</th>
               </tr>
             </thead>
             <tbody>
@@ -496,7 +496,7 @@
                 </tr>
               {% else %}
                 <tr>
-                  <td colspan="4" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">Henüz kota kullanımı oluşmadı.</td>
+                  <td colspan="4" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">No quota usage yet.</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -519,7 +519,7 @@
           </span>
           <div class="min-w-0">
             <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Scrape</h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Mac bridge · saatlik başarı / hacim / program</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Mac bridge · hourly success / volume / schedule</p>
           </div>
         </div>
         <div class="shrink-0" onclick="event.stopPropagation()">
@@ -527,15 +527,15 @@
             type="button"
             class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70"
             onclick="event.stopPropagation(); refreshScrapeMonitor();"
-            title="Scrape telemetrisini yenile"
+            title="Refresh scrape telemetry"
           >
-            Yenile
+            Refresh
           </button>
         </div>
       </summary>
       <div class="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
         <div id="scrape-monitor" class="min-h-[4rem] text-sm text-slate-500 dark:text-slate-400">
-          Açınca yüklenir…
+          Loads when opened…
         </div>
       </div>
     </details>
@@ -613,7 +613,7 @@
     var feedback = document.getElementById('site-form-feedback');
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Kaydediliyor…';
+      submitBtn.textContent = 'Saving…';
     }
     if (feedback) {
       feedback.textContent = '';
@@ -626,18 +626,18 @@
     const submitBtn = document.querySelector('#site-form button[type="submit"]');
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Siteyi Kaydet';
+      submitBtn.textContent = 'Save site';
     }
     if (event.detail.successful) {
       document.getElementById('site-form').reset();
-      feedback.textContent = 'Site başarıyla eklendi. Arka planda veri toplanıyor (PageSpeed, Crawler, CrUX).';
+      feedback.textContent = 'Site added successfully. Data is being collected in the background (PageSpeed, Crawler, CrUX).';
       feedback.className = 'mt-3 text-sm text-emerald-600';
       refreshSiteList();
       return;
     }
 
     // API'den gelen hata mesajını göster
-    var errorMsg = 'Site eklenemedi.';
+    var errorMsg = 'Could not add site.';
     try {
       var xhr = event.detail.xhr;
       if (xhr && xhr.responseText) {
@@ -665,7 +665,7 @@
     }
 
     if (event.detail && event.detail.successful) {
-      feedback.textContent = 'Kaydedildi';
+      feedback.textContent = 'Saved';
       feedback.className = 'text-xs font-medium text-emerald-600';
       window.setTimeout(() => {
         feedback.textContent = '';
@@ -675,7 +675,7 @@
       return;
     }
 
-    feedback.textContent = 'Kaydedilemedi';
+    feedback.textContent = 'Could not save';
     feedback.className = 'text-xs font-medium text-rose-600';
     window.setTimeout(() => {
       feedback.textContent = '';
@@ -723,19 +723,19 @@
     })
       .then((response) => {
         if (!response.ok) {
-          throw new Error('Alert güncellenemedi.');
+          throw new Error('Alert could not be updated.');
         }
         return response.json();
       })
       .then(() => {
         const feedback = document.getElementById('alert-feedback');
-        feedback.textContent = 'Alert eşiği güncellendi.';
+        feedback.textContent = 'Alert threshold updated.';
         feedback.className = 'mt-3 text-sm text-emerald-600';
         refreshAlertRules();
       })
       .catch(() => {
         const feedback = document.getElementById('alert-feedback');
-        feedback.textContent = 'Alert eşiği güncellenemedi.';
+        feedback.textContent = 'Alert threshold could not be updated.';
         feedback.className = 'mt-3 text-sm text-rose-600';
       });
   }

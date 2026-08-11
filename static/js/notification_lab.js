@@ -2,7 +2,7 @@
   function api() { return window.NT || null; }
 
   function emptyMsg(el, msg) {
-    if (el) el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">' + (msg || "Veri yok.") + "</p>";
+    if (el) el.innerHTML = '<p class="text-xs text-slate-500 dark:text-zinc-400">' + (msg || "No data.") + "</p>";
   }
 
   function dnaFingerprint(pcts) {
@@ -186,9 +186,9 @@
     el.innerHTML = parts.join("");
     bindChronoReveal(el);
     if (hint) {
-      var extra = truncated ? " İlk " + MAX + " gönderim (en yeniler); daha eskiler için aralığı daraltın." : "";
+      var extra = truncated ? " First " + MAX + " sends (newest); narrow the range for older ones." : "";
       hint.textContent =
-        (dup ? "Benzer platform karışımı tekrar eden gönderimler var." : sorted.length + " gönderim, yeniden eskiye.") + extra;
+        (dup ? "Repeated sends with a similar platform mix." : sorted.length + " sends, newest first.") + extra;
     }
   }
 
@@ -248,14 +248,14 @@
     var qEl = document.getElementById("nt-lab-quality");
     var oEl = document.getElementById("nt-lab-opportunity");
     if (!rows.length) {
-      emptyMsg(qEl, "Önce CSV yükleyin veya tarih filtresini genişletin.");
-      emptyMsg(oEl, "Önce CSV yükleyin veya tarih filtresini genişletin.");
+      emptyMsg(qEl, "Upload CSV first or widen the date filter.");
+      emptyMsg(oEl, "Upload CSV first or widen the date filter.");
       return;
     }
     var stats = buildHeadlineStatsAllPlatforms(nt, rows).filter(function (s) { return s.impressions > 0; });
     if (!stats.length) {
-      emptyMsg(qEl, "Seçili aralıkta impression verisi yok (click var, impression sütunları boş olabilir).");
-      emptyMsg(oEl, "Seçili aralıkta impression verisi yok (click var, impression sütunları boş olabilir).");
+      emptyMsg(qEl, "No impression data in the selected range (clicks exist; impression columns may be empty).");
+      emptyMsg(oEl, "No impression data in the selected range (clicks exist; impression columns may be empty).");
       return;
     }
     var imprs = stats.map(function (s) { return s.impressions; }).sort(function (a, b) { return a - b; });
@@ -276,7 +276,7 @@
       }).slice(0, 15);
     }
     function listRender(el, items, sub) {
-      if (!items.length) { emptyMsg(el, "Eşik için aday yok."); return; }
+      if (!items.length) { emptyMsg(el, "No threshold candidates."); return; }
       el.innerHTML = items
         .map(function (x, i) {
           return (
@@ -292,7 +292,7 @@
         .join("");
     }
     var subLine = function (x) {
-      return "tüm platform · impr " + nt.fmt(x.impressions) + " · CTR " + x.ctr.toFixed(2) + "% · " + nt.fmt(x.clicks) + " click";
+      return "all platforms · impr " + nt.fmt(x.impressions) + " · CTR " + x.ctr.toFixed(2) + "% · " + nt.fmt(x.clicks) + " click";
     };
     listRender(qEl, quality, subLine);
     listRender(oEl, opp, subLine);

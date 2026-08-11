@@ -306,7 +306,7 @@
 
     submitButton.disabled = true;
     var originalText = submitButton.textContent;
-    submitButton.textContent = 'Ekleniyor...';
+    submitButton.textContent = 'Adding...';
     setExternalFeedback('', false);
 
     try {
@@ -327,11 +327,11 @@
         payload = { ok: false, error: 'The server returned an invalid response.' };
       }
       if (!response.ok || !payload.ok) {
-        setExternalFeedback((payload && payload.error) || 'External site eklenemedi.', true);
+        setExternalFeedback((payload && payload.error) || 'Could not add external site.', true);
         return;
       }
 
-      setExternalFeedback(payload.summary || 'External site eklendi ve ilk veriler cekildi.', false);
+      setExternalFeedback(payload.summary || 'External site added and initial data fetched.', false);
       domainInput.value = '';
       if (nameInput) {
         nameInput.value = '';

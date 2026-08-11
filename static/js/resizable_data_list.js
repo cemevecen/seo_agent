@@ -1,5 +1,5 @@
 /**
- * Kapalı/açık tablo listeleri: max N satır yüksekliği, kısa dönemde içeriğe yapışır,
+ * Off/açık tablo listeleri: max N satır yüksekliği, kısa dönemde içeriğe yapışır,
  * alttan sürükleyerek (uzun listelerde) büyütülebilir. Virgül / Android / iOS ortak.
  *
  * Kısa liste: height:auto — liste bitimi ile container arasında boşluk yok.
@@ -216,8 +216,8 @@
       handle.setAttribute("data-rdl-handle", "");
       handle.setAttribute("role", "separator");
       handle.setAttribute("aria-orientation", "horizontal");
-      handle.setAttribute("aria-label", "Liste yüksekliğini sürükleyerek ayarla");
-      handle.title = "Alt kenardan sürükleyerek listeyi büyüt / küçült";
+      handle.setAttribute("aria-label", "Drag to set list height");
+      handle.title = "Drag the bottom edge to grow / shrink the list";
       shell.appendChild(handle);
     } else {
       handle.classList.add("rdl-handle");
@@ -286,7 +286,7 @@
       document.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerup", onUp);
       document.removeEventListener("pointercancel", onUp);
-      // Drag bitince hug durumunu satır sayısına göre yenile
+      // Drag bitince hug durumunu satır sayısına göre newle
       fit(shell, shell._rdlRowCount != null ? shell._rdlRowCount : 0, overrides);
     }
 

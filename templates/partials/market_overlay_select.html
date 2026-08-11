@@ -16,7 +16,7 @@
     aria-haspopup="listbox"
     aria-expanded="false"
   >
-    <span data-market-overlay-label class="truncate">Piyasa: kapalı</span>
+    <span data-market-overlay-label class="truncate">Market: off</span>
     <svg class="h-3 w-3 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
     </svg>
@@ -28,15 +28,15 @@
     aria-multiselectable="true"
   >
     {% for val, label in [
-      ('usd_try', 'USD/TRY kapanış'),
-      ('eur_try', 'EUR/TRY kapanış'),
-      ('gram_altin', 'Gram altın kapanış'),
-      ('ceyrek_altin', 'Çeyrek altın kapanış'),
-      ('gram_gumus', 'Gram gümüş kapanış'),
-      ('bist100', 'BIST 100 kapanış'),
-      ('brent', 'Brent kapanış'),
-      ('bitcoin', 'Bitcoin kapanış'),
-      ('all_indexed', 'Tümü (% aralık başı=100)'),
+      ('usd_try', 'USD/TRY close'),
+      ('eur_try', 'EUR/TRY close'),
+      ('gram_altin', 'Gold gram close'),
+      ('ceyrek_altin', 'Quarter gold close'),
+      ('gram_gumus', 'Silver gram close'),
+      ('bist100', 'BIST 100 close'),
+      ('brent', 'Brent close'),
+      ('bitcoin', 'Bitcoin close'),
+      ('all_indexed', 'All (% range start=100)'),
     ] %}
     <div
       class="flex items-stretch gap-0.5 px-1 sm:px-0.5"

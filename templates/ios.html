@@ -1046,11 +1046,11 @@
         </a>
         <button id="ia-btn-overview" type="button"
                 class="inline-flex h-8 items-center rounded-lg border border-sky-500 bg-sky-50 px-2.5 text-[11px] font-bold text-sky-900 transition dark:border-sky-500/70 dark:bg-sky-950/30 dark:text-sky-200">
-          Özet
+          Summary
         </button>
         <button id="ia-btn-reviews" type="button"
                 class="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-bold text-slate-700 transition hover:border-sky-400 hover:bg-sky-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-sky-600 dark:hover:bg-sky-950/20">
-          Yorumlar
+          Reviews
         </button>
       </div>
     </div>
@@ -1060,7 +1060,7 @@
           <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Crash-free</p>
           <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">Firebase · Crashlytics (iOS)</p>
         </div>
-        <div id="ia-stability-versions" class="ia-stability-versions" aria-label="Son iOS sürümleri"></div>
+        <div id="ia-stability-versions" class="ia-stability-versions" aria-label="Latest iOS versions"></div>
       </div>
       <div id="ia-stability-free" class="ia-stability-grid mt-2 grid gap-1.5 sm:gap-2" style="--sf-n:2"></div>
       <div id="ia-stability-free-empty" class="ia-stability-free-loading mt-2" aria-busy="true" aria-label="Loading">
@@ -1077,41 +1077,41 @@
   <section id="ia-panel-reviews" class="hidden scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-start justify-between gap-2">
       <div>
-        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Yorumlar</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">App Store · son 1 yıl · iTunes RSS</p>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Reviews</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">App Store · last 1 year · iTunes RSS</p>
       </div>
       <div class="flex items-center gap-2">
         <span id="ia-review-count" class="text-xs tabular-nums text-slate-500"></span>
-        <button type="button" data-ia-close="reviews" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Kapat</button>
+        <button type="button" data-ia-close="reviews" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Close</button>
       </div>
     </div>
     <div id="ia-reviews" class="mt-4 max-h-[36rem] space-y-3 overflow-auto"></div>
-    <p id="ia-reviews-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz yorum yok</p>
+    <p id="ia-reviews-empty" class="mt-4 hidden text-center text-sm text-slate-400">No reviews yet</p>
   </section>
 
   <section class="rounded-2xl border border-sky-200 bg-white p-4 shadow-sm dark:border-sky-900/50 dark:bg-slate-900">
-    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Metrikler</h2>
+    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Metrics</h2>
     <div class="pa-filters mt-4 text-slate-600 dark:text-zinc-300">
-      <label class="pa-f pa-f--date">Başlangıç <input id="ia-start" type="date" /></label>
-      <label class="pa-f pa-f--date">Bitiş <input id="ia-end" type="date" /></label>
+      <label class="pa-f pa-f--date">Start <input id="ia-start" type="date" /></label>
+      <label class="pa-f pa-f--date">End <input id="ia-end" type="date" /></label>
       <label class="pa-f pa-f--sm">Preset
         <select id="ia-preset">
-          <option value="yesterday">Dün</option>
-          <option value="3">Son 3 gün</option>
-          <option value="7">Son 1 hafta</option>
-          <option value="14">Son 2 hafta</option>
-          <option value="30" selected>Son 1 ay</option>
-          <option value="90">Son 3 ay</option>
-          <option value="180">Son 6 ay</option>
-          <option value="270">Son 9 ay</option>
-          <option value="365">Son 1 sene</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="3">Last 3 days</option>
+          <option value="7">Last 1 week</option>
+          <option value="14">Last 2 weeks</option>
+          <option value="30" selected>Last 1 month</option>
+          <option value="90">Last 3 months</option>
+          <option value="180">Last 6 months</option>
+          <option value="270">Last 9 months</option>
+          <option value="365">Last 1 year</option>
         </select>
       </label>
-      <label class="pa-f pa-f--metric">Metrik
+      <label class="pa-f pa-f--metric">Metric
         <div class="ia-metric-dd">
           <button type="button" id="ia-metric-trigger" class="ia-metric-trigger"
                   aria-haspopup="listbox" aria-expanded="false" aria-controls="ia-metric-list">
-            <span id="ia-metric-label" class="min-w-0 flex-1 truncate">Seçiniz</span>
+            <span id="ia-metric-label" class="min-w-0 flex-1 truncate">Select</span>
             <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
           </button>
           <div id="ia-metric-list" role="listbox" aria-multiselectable="true"
@@ -1120,7 +1120,7 @@
           </div>
         </div>
         <select id="ia-metric-catalog" class="hidden" aria-hidden="true" tabindex="-1">
-          <option value="">Seçiniz</option>
+          <option value="">Select</option>
           <optgroup label="Acquisition">
             <option value="units">First-time downloads</option>
             <option value="redownloads">Redownloads</option>
@@ -1164,42 +1164,42 @@
             <option value="virgul:ctr_pct">Virgül · CTR (%)</option>
             <option value="virgul:coverage_pct">Virgül · Coverage (%)</option>
           </optgroup>
-          <optgroup label="Piyasa">
-            <option value="market:usd_try">USD/TRY kapanış</option>
-            <option value="market:eur_try">EUR/TRY kapanış</option>
-            <option value="market:gram_altin">Gram altın kapanış</option>
-            <option value="market:ceyrek_altin">Çeyrek altın kapanış</option>
-            <option value="market:gram_gumus">Gram gümüş kapanış</option>
-            <option value="market:bist100">BIST 100 kapanış</option>
-            <option value="market:brent">Brent kapanış</option>
-            <option value="market:bitcoin">Bitcoin kapanış</option>
-            <option value="market:all_indexed">Tümü (% aralık başı=100)</option>
+          <optgroup label="Market">
+            <option value="market:usd_try">USD/TRY close</option>
+            <option value="market:eur_try">EUR/TRY close</option>
+            <option value="market:gram_altin">Gold gram close</option>
+            <option value="market:ceyrek_altin">Quarter gold close</option>
+            <option value="market:gram_gumus">Silver gram close</option>
+            <option value="market:bist100">BIST 100 close</option>
+            <option value="market:brent">Brent close</option>
+            <option value="market:bitcoin">Bitcoin close</option>
+            <option value="market:all_indexed">All (range start=100)</option>
           </optgroup>
         </select>
       </label>
-      <label id="ia-breakdown-wrap" class="pa-f pa-f--sm">Zaman kırılımı
+      <label id="ia-breakdown-wrap" class="pa-f pa-f--sm">Time breakdown
         <select id="ia-breakdown">
-          <option value="date" selected>Gün</option>
-          <option value="week">Hafta</option>
-          <option value="month">Ay</option>
-          <option value="segment">Boyut (sürüm/cihaz/ülke)</option>
+          <option value="date" selected>Day</option>
+          <option value="week">Week</option>
+          <option value="month">Month</option>
+          <option value="segment">Dimension (version/device/country)</option>
         </select>
       </label>
-      <label id="ia-dim-wrap" class="pa-f pa-f--sm hidden">Boyut
+      <label id="ia-dim-wrap" class="pa-f pa-f--sm hidden">Dimension
         <select id="ia-dim">
-          <option value="overview" selected>Genel (tarih)</option>
-          <option value="app_version">Uygulama sürümü</option>
-          <option value="device">Cihaz</option>
-          <option value="country">Ülke</option>
+          <option value="overview" selected>Overview (date)</option>
+          <option value="app_version">App version</option>
+          <option value="device">Device</option>
+          <option value="country">Country</option>
         </select>
       </label>
       <label id="ia-segment-wrap" class="pa-f pa-f--sm hidden">Segment
         <select id="ia-segment">
-          <option value="all">Tümü</option>
+          <option value="all">All</option>
         </select>
       </label>
       <div class="pa-f-actions">
-        <button id="ia-run" type="button" class="pa-f-btn"><span id="ia-run-label">Uygula</span></button>
+        <button id="ia-run" type="button" class="pa-f-btn"><span id="ia-run-label">Apply</span></button>
       </div>
     </div>
 
@@ -1212,34 +1212,34 @@
             <span class="ia-orbit__ring ia-orbit__ring--inner"></span>
             <span class="ia-orbit__core"></span>
           </div>
-          <p class="text-[11px] font-semibold tracking-wide text-sky-800 dark:text-sky-300">Veriler yükleniyor…</p>
+          <p class="text-[11px] font-semibold tracking-wide text-sky-800 dark:text-sky-300">Loading data…</p>
         </div>
       </div>
       <div id="ia-kpi-simple" class="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <p id="ia-total-label" class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
+          <p id="ia-total-label" class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total / selected</p>
           <p id="ia-total" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
         </div>
         <p id="ia-compare-range" class="text-[11px] text-slate-500 dark:text-zinc-400"></p>
       </div>
-      <div id="ia-metric-kpis" class="hidden grid grid-cols-1 gap-3" aria-label="Seçili metrik KPI kartları"></div>
+      <div id="ia-metric-kpis" class="hidden grid grid-cols-1 gap-3" aria-label="Selected metric KPI cards"></div>
       <div id="ia-chart-card" class="pa-chart-card mt-4 overflow-visible rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800">
         <div id="ia-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
           <div class="pa-chart-card__toolbar mb-1 flex flex-wrap items-start justify-between gap-2 px-2">
             <div id="ia-legend" class="flex min-w-0 flex-1 flex-wrap gap-2 text-[11px] text-slate-600 dark:text-zinc-300"></div>
-            <div id="ia-chart-style" class="pa-chart-style shrink-0" role="group" aria-label="Grafik çizim tarzı">
-              <button type="button" data-ia-chart-style="line" title="Çizgi" aria-label="Çizgi grafik" aria-pressed="false">
+            <div id="ia-chart-style" class="pa-chart-style shrink-0" role="group" aria-label="Chart style">
+              <button type="button" data-ia-chart-style="line" title="Line" aria-label="Line chart" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11.5 L5.5 7.5 L8.5 9.5 L14 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-ia-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="true" class="is-active">
+              <button type="button" data-ia-chart-style="area" title="Filled area" aria-label="Filled area chart" aria-pressed="true" class="is-active">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 12 V8.5 L5.5 5.5 L8.5 7.2 L14 3.5 V12 Z" fill="currentColor" fill-opacity="0.28"/><path d="M2 8.5 L5.5 5.5 L8.5 7.2 L14 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-ia-chart-style="bar" title="Yığınlı" aria-label="Yığınlı çubuk grafik" aria-pressed="false">
+              <button type="button" data-ia-chart-style="bar" title="Stacked" aria-label="Stacked bar chart" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="9" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="3" y="5.5" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="3" y="3" width="3.2" height="2.5" rx="0.4" fill="currentColor"/><rect x="9.5" y="10" width="3.2" height="2.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="9.5" y="7" width="3.2" height="3" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="9.5" y="4" width="3.2" height="3" rx="0.4" fill="currentColor"/></svg>
               </button>
             </div>
           </div>
-          <svg id="ia-chart" viewBox="0 0 720 260" class="block w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="iOS metrik grafiği"></svg>
+          <svg id="ia-chart" viewBox="0 0 720 260" class="block w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="iOS metrics chart"></svg>
           <div id="ia-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
             <p id="ia-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
             <div id="ia-tip-body" class="mt-1.5 space-y-1"></div>
@@ -1251,20 +1251,20 @@
           <table class="pa-data-table text-left">
             <thead class="sticky top-0 z-10 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-600 dark:bg-zinc-900 dark:text-zinc-300">
               <tr id="ia-thead-row">
-                <th class="px-3 py-2 font-bold">Kırılım</th>
-                <th class="px-3 py-2 font-bold">Değer</th>
+                <th class="px-3 py-2 font-bold">Breakdown</th>
+                <th class="px-3 py-2 font-bold">Value</th>
               </tr>
             </thead>
             <tbody id="ia-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
           </table>
         </div>
-        <div class="rdl-handle" data-rdl-handle role="separator" aria-orientation="horizontal" title="Sürükleyerek yüksekliği ayarla"></div>
+        <div class="rdl-handle" data-rdl-handle role="separator" aria-orientation="horizontal" title="Drag to adjust height"></div>
       </div>
     </div>
   </section>
 </div>
-<script src="/static/js/resizable_data_list.js?v=5"></script>
-<script src="/static/js/metric_table_ux.js?v=8"></script>
+<script src="/static/js/resizable_data_list.js?v=6"></script>
+<script src="/static/js/metric_table_ux.js?v=9"></script>
 <script>
 (function () {
   var iaStart = document.getElementById("ia-start");
@@ -1402,15 +1402,15 @@
     });
     if (_iaReviewsSyncing) return;
     _iaReviewsSyncing = true;
-    if (iaStatus) iaStatus.textContent = "Yorumlar senkron…";
-    if (iaReviewCountEl) iaReviewCountEl.textContent = "yükleniyor…";
+    if (iaStatus) iaStatus.textContent = "Reviews senkron…";
+    if (iaReviewCountEl) iaReviewCountEl.textContent = "loading…";
     syncAppStoreReviews({ quick: false })
       .then(function (sj) {
-        if (iaStatus) iaStatus.textContent = (sj && sj.message) || ("Yorumlar: " + ((sj && sj.review_count) || 0));
+        if (iaStatus) iaStatus.textContent = (sj && sj.message) || ("Reviews: " + ((sj && sj.review_count) || 0));
         return loadIaReviewsSnapshot();
       })
       .catch(function (err) {
-        if (iaStatus) iaStatus.textContent = (err && err.message) || "Yorum senkron hatası";
+        if (iaStatus) iaStatus.textContent = (err && err.message) || "Review sync error";
         return loadIaReviewsSnapshot();
       })
       .finally(function () {
@@ -1458,7 +1458,7 @@
   };
   var COLORS = ["#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"];
   var STROKE = 0.68;
-  /* Açılış her zaman alan dolgulu; kullanıcı oturumda değiştirebilir. */
+  /* Açılış her zaman alan dolgulu; users oturumda değiştirebilir. */
   var iaChartStyle = "area";
   try { localStorage.setItem("iaChartStyle", "area"); } catch (_) {}
   function syncIaChartStyleUi() {
@@ -1545,7 +1545,7 @@
           (muted
             ? "opacity-45 text-slate-400 hover:opacity-70 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
             : "hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100") +
-          '" title="' + esc(label) + (muted ? " — grafiğe ekle" : " — grafikten gizle") + '">' +
+          '" title="' + esc(label) + (muted ? " — add to chart" : " — hide from chart") + '">' +
           '<span class="inline-block h-2 w-2 rounded-full ' + (muted ? "ring-1 ring-slate-300 dark:ring-zinc-600" : "") + '" style="background:' + color + '"></span>' +
           '<span class="' + (muted ? "line-through decoration-slate-300" : "") + '">' + esc(label) + "</span>" +
         "</button>"
@@ -1596,14 +1596,14 @@
     if (!iaMetricLabel) return;
     var n = iaSelectedMetrics.length;
     if (!n) {
-      iaMetricLabel.textContent = "Seçiniz";
+      iaMetricLabel.textContent = "Select";
       return;
     }
     if (n === 1) {
       iaMetricLabel.textContent = metricLabel(iaSelectedMetrics[0]) || iaSelectedMetrics[0];
       return;
     }
-    iaMetricLabel.textContent = n + " metrik seçili";
+    iaMetricLabel.textContent = n + " metrics selected";
   }
   function positionIaMetricDropdown() {
     if (!iaMetricList || !iaMetricTrigger) return;
@@ -1672,7 +1672,7 @@
         syncIaDimFilters();
         runAnalytics();
       } else if (wasOpen && overviewActive && !iaMetricDirty) {
-        // Sadece tick önizlemesiydi — Seçiniz / overview semantiğini koru
+        // Sadece tick önizlemesiydi — Select / overview semantiğini koru
         iaSelectedMetrics = [];
         updateIaMetricTrigger();
       }
@@ -1699,7 +1699,7 @@
         : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") + '">' +
       '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-sky-600 dark:text-sky-400" aria-hidden="true">' +
       (!iaSelectedMetrics.length ? "✓" : "") + "</span>" +
-      '<span class="min-w-0 flex-1 truncate">Seçiniz</span></button>';
+      '<span class="min-w-0 flex-1 truncate">Select</span></button>';
     Array.prototype.forEach.call(iaMetricCatalog.children, function (node) {
       if (node.tagName === "OPTGROUP") {
         html += '<div class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">' +
@@ -1720,7 +1720,7 @@
             '<span class="min-w-0 flex-1 truncate">' + esc(opt.textContent || opt.value) + "</span></button>" +
             '<span class="pa-metric-info-wrap">' +
               '<button type="button" class="pa-metric-info" data-ia-metric-info tabindex="0" aria-label="' +
-                esc((opt.textContent || opt.value) + " bilgisi") + '">i</button>' +
+                esc((opt.textContent || opt.value) + " info") + '">i</button>' +
               '<span class="pa-metric-tip" role="tooltip">' + esc(tip) + "</span>" +
             "</span></div>";
         });
@@ -1732,8 +1732,8 @@
     updateIaMetricTrigger();
   }
   var IA_METRIC_HELP = {
-    units: "First-time downloads: App Store’da uygulamayı ilk kez indiren kullanıcı sayısı.",
-    redownloads: "Redownloads: daha önce indirmiş kullanıcıların yeniden indirme sayısı.",
+    units: "First-time downloads: App Store’da uygulamayı ilk kez indiren users sayısı.",
+    redownloads: "Redownloads: daha önce indirmiş usersların yeniden indirme sayısı.",
     total_downloads: "Total downloads: ilk indirme + yeniden indirme toplamı.",
     installs: "Installs: cihaza kurulum olayları (ASC analytics).",
     impressions: "Impressions: App Store’da uygulama kartının / ikonunun görüntülenme sayısı.",
@@ -1741,10 +1741,10 @@
     conversion_rate: "Conversion rate: görüntülemeden indirmeye dönüşüm oranı (%).",
     active_devices: "Active devices: seçilen dönemde uygulamayı açmış aktif cihaz sayısı.",
     sessions: "Sessions: uygulama oturumları; açılış ziyaretleri.",
-    uninstalls: "Uninstalls: uygulamayı kaldıran cihaz / kullanıcı olayları.",
+    uninstalls: "Uninstalls: uygulamayı kaldıran cihaz / users olayları.",
     crashes: "Crashes: uygulamanın beklenmedik kapanma sayısı. Düşük olması iyidir.",
     iap: "In-app purchases: uygulama içi satın alma adedi.",
-    paying_users: "Paying users: satın alma yapan benzersiz kullanıcı sayısı.",
+    paying_users: "Paying users: satın alma yapan benzersiz users sayısı.",
     proceeds: "Proceeds: Apple sonrası net gelir (USD).",
     sales: "Sales: satış tutarı / işlem hacmi (ASC).",
     active_subscriptions: "Active subscriptions: dönen aktif abonelik sayısı.",
@@ -1752,9 +1752,9 @@
     subscription_churned: "Subscription churn: iptal / kaybedilen abonelikler.",
     free_trials: "Free trials: başlatılan ücretsiz deneme sayısı.",
     "ga4:sessions": "GA4 Sessions: oturum sayısı. Kullanıcının uygulamada başlattığı ziyaretler.",
-    "ga4:users": "GA4 Users: seçilen dönemde en az bir oturum açan aktif kullanıcı sayısı.",
+    "ga4:users": "GA4 Users: seçilen dönemde en az bir oturum açan aktif users sayısı.",
     "ga4:engaged_sessions": "GA4 Engaged sessions: anlamlı etkileşim içeren oturumlar.",
-    "ga4:new_users": "GA4 New users: ilk kez görülen yeni kullanıcı sayısı.",
+    "ga4:new_users": "GA4 New users: ilk kez görülen yeni users sayısı.",
     "ga4:avg_session": "GA4 Avg. session: ortalama oturum süresi.",
     "ga4:page_views": "GA4 Page views: görüntülenen ekran / sayfa sayısı.",
     "virgul:net_revenue": "Virgül net revenue: reklam ağından gelen net gelir (TL).",
@@ -2072,7 +2072,7 @@
       var tip = typeof iaMetricHelp === "function" ? iaMetricHelp(pack.metric) : "";
       var spark = seriesSparkSvg(pack.series, color, 220, 56);
       var infoBtn =
-        '<button type="button" class="metric-kpi-info" data-ia-metric-info aria-label="' + esc(label) + ' bilgisi">' +
+        '<button type="button" class="metric-kpi-info" data-ia-metric-info aria-label="' + esc(label) + ' info">' +
           "i<span class=\"metric-kpi-tip\" role=\"tooltip\">" + esc(tip) + "</span></button>";
       var dlt = seriesDeltaPct(pack.series);
       var dltCls = dlt == null ? "is-flat" : (dlt >= 0 ? "is-up" : "is-down");
@@ -2090,15 +2090,15 @@
             "</div>" +
             '<div class="metric-kpi-ss2-spark">' + spark + "</div>" +
           "</div>" +
-          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Detayları aç">' +
+          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Open details">' +
             '<svg class="metric-kpi-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
           "</button>" +
           '<div class="metric-kpi-ss2-panel">' +
-            '<div><p class="metric-kpi-kicker">Toplam</p><strong>' + esc(totalVal) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Total</p><strong>' + esc(totalVal) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Ortalama</p><strong>' + esc(fmtNum(avg, false)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Min</p><strong>' + esc(fmtNum(st.min, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Max</p><strong>' + esc(fmtNum(st.max, countLike)) + "</strong></div>" +
-            '<div><p class="metric-kpi-kicker">Son</p><strong>' + esc(fmtNum(st.last, countLike)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Last</p><strong>' + esc(fmtNum(st.last, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Nokta</p><strong>' + esc(String(st.n || 0)) + "</strong></div>" +
           "</div>" +
         "</article>"
@@ -2114,13 +2114,13 @@
       iaLoading.setAttribute("aria-busy", on ? "true" : "false");
     }
     if (iaRun) iaRun.disabled = !!on;
-    if (iaRunLabel) iaRunLabel.textContent = on ? "Yükleniyor" : "Uygula";
+    if (iaRunLabel) iaRunLabel.textContent = on ? "Loading" : "Apply";
   }
   async function fetchExternalSeries(metricKey, signal) {
     if (isMarketMetric(metricKey)) {
       var sk = String(metricKey).slice("market:".length);
       if (!window.SeoMarketOverlay || !SeoMarketOverlay.ensureOverlay) {
-        throw new Error("Piyasa serisi yok");
+        throw new Error("Market serisi yok");
       }
       var payload = await SeoMarketOverlay.ensureOverlay(iaStart.value, iaEnd.value);
       var series = SeoMarketOverlay.pointsForSeries(payload, sk);
@@ -2167,7 +2167,7 @@
       throw new Error(data.message || data.detail || ((isVirgul ? "Virgül" : "GA4") + " HTTP " + r.status));
     }
     if (data.configured === false || (data.ok === false && !Array.isArray(data.series))) {
-      throw new Error(data.message || (isVirgul ? "Virgül serisi yok" : "GA4 serisi yok"));
+      throw new Error(data.message || (isVirgul ? "No Virgül series" : "GA4 serisi yok"));
     }
     return {
       metric: metricKey,
@@ -2192,7 +2192,7 @@
   function syncIaDimFilters() {
     var key = iaSelectedMetrics.length === 1 ? iaSelectedMetrics[0] : "";
     var on = metricSupportsDims(key);
-    // Zaman kırılımı her zaman (Gün/Hafta/Ay)
+    // Time breakdown her zaman (Gün/Hafta/Ay)
     if (iaBreakdownWrap) iaBreakdownWrap.classList.remove("hidden");
     [iaDimWrap, iaSegmentWrap].forEach(function (el) {
       if (!el) return;
@@ -2210,7 +2210,7 @@
     if (!on) {
       if (iaDim) iaDim.value = "overview";
       if (iaSegment) {
-        iaSegment.innerHTML = '<option value="all">Tümü</option>';
+        iaSegment.innerHTML = '<option value="all">All</option>';
         iaSegment.value = "all";
       }
       return;
@@ -2235,7 +2235,7 @@
     if (!iaSegment || !facets) return;
     var segs = Array.isArray(facets.segments) ? facets.segments : [];
     var prev = iaSegment.value || "all";
-    var html = '<option value="all">Tümü</option>';
+    var html = '<option value="all">All</option>';
     segs.forEach(function (s) {
       var key = typeof s === "string" ? s : (s && s.key);
       if (!key) return;
@@ -2272,7 +2272,7 @@
     if (!r.ok) throw new Error(data.message || ("HTTP " + r.status));
     // Boş seri (0 nokta) hata değil — overlay / çoklu ekleme devam etsin
     if (data.configured === false) {
-      throw new Error(data.message || "ASC yapılandırılmamış");
+      throw new Error(data.message || "ASC not configured");
     }
     if (data.ok === false && !Array.isArray(data.series)) {
       throw new Error(data.message || "ASC serisi yok");
@@ -2305,7 +2305,7 @@
       series: found.series || [],
       total: found.total,
       total_mode: found.total_mode || "sum",
-      message: "Özet önbelleği",
+      message: "Summary cache",
       source: "asc"
     };
   }
@@ -2353,7 +2353,7 @@
   function renderSelectedBundles(bundles) {
     var list = Array.isArray(bundles) ? bundles : [];
     if (!list.length) {
-      if (iaChart) iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Metrik seçin</text>';
+      if (iaChart) iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Select a metric</text>';
       if (iaLegend) iaLegend.innerHTML = "";
       return;
     }
@@ -2431,7 +2431,7 @@
     var s = String(key || "");
     var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (m) {
-      // Tablo kırılımı: gün.ay (1 aydan uzun aralıkta yalnız gün numarası sıra gibi görünmesin)
+      // Tablo kırılımı: gün.ay (1 aydan uzun aralıkta yalnız days numarası sıra gibi görünmesin)
       return String(parseInt(m[3], 10)) + "." + m[2];
     }
     var yw = s.match(/^(20\d{2})-W(\d{2})$/i);
@@ -2663,7 +2663,7 @@
       iaTipBody.innerHTML = seriesList.map(function (ms) {
         var v = ms.map && Object.prototype.hasOwnProperty.call(ms.map, key) ? ms.map[key] : null;
         return tipMetricRow(
-          ms.label || ms.metric || "Metrik",
+          ms.label || ms.metric || "Metric",
           v == null ? "—" : fmtNum(v, ms.countLike),
           ms.color
         );
@@ -2903,7 +2903,7 @@
     if (!list.length) {
       iaChartState = { mode: "empty", keys: [], xs: [], left: 0, plotW: 0, seriesList: [] };
       iaChart.innerHTML =
-        '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Legend’dan en az bir metrik açın</text>';
+        '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Turn on at least one metric in the legend</text>';
       return;
     }
     var keySet = {};
@@ -3056,8 +3056,8 @@
     if (!rows.length) {
       iaChartState = { mode: "empty", keys: [], xs: [], left: 0, plotW: 0, seriesList: [] };
       iaChart.innerHTML =
-        '<text x="360" y="120" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Bu aralıkta nokta yok</text>' +
-        '<text x="360" y="142" text-anchor="middle" fill="#cbd5e1" font-size="11">ASC verisi veya tarih aralığını kontrol edin</text>';
+        '<text x="360" y="120" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">No points in this range</text>' +
+        '<text x="360" y="142" text-anchor="middle" fill="#cbd5e1" font-size="11">Check ASC data or the date range</text>';
       if (iaLegend) iaLegend.innerHTML = "";
       iaLastDrawBundles = null;
       return;
@@ -3082,7 +3082,7 @@
       if (!Object.prototype.hasOwnProperty.call(map, key)) return null;
       return top + (1 - map[key] / max) * plotH;
     });
-    var label = (iaLastChart && iaLastChart.label) || metricLabel(metric) || "Değer";
+    var label = (iaLastChart && iaLastChart.label) || metricLabel(metric) || "Value";
     var countLike = isCountLike(metric);
     var xAxis = buildIaXAxisLabels(keys, xs, plotW, h);
     var grid = buildIaYGrid({
@@ -3153,7 +3153,7 @@
     }
 
     iaTheadRow.innerHTML =
-      '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold dark:bg-zinc-900" data-mtux-key="kirilim" data-mtux-fixed="1">Kırılım</th>' +
+      '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold dark:bg-zinc-900" data-mtux-key="kirilim" data-mtux-fixed="1">Breakdown</th>' +
       colItems.map(function (col) {
         return (
           '<th class="mtux-th px-1.5 py-2 font-bold tabular-nums" data-mtux-key="' + esc(col.key) + '" style="color:' + col.color + '" title="' + esc(col.bundle.label || col.bundle.metric || "") + '">' +
@@ -3162,7 +3162,7 @@
         );
       }).join("");
     if (!keys.length) {
-      iaTable.innerHTML = '<tr><td class="px-3 py-4 text-center text-slate-400" colspan="' + (1 + colItems.length) + '">Satır yok</td></tr>';
+      iaTable.innerHTML = '<tr><td class="px-3 py-4 text-center text-slate-400" colspan="' + (1 + colItems.length) + '">No rows</td></tr>';
       iaFitDataList(0);
       return;
     }
@@ -3232,7 +3232,7 @@
   }
   function renderSingleTable(series, metric) {
     iaTheadRow.innerHTML =
-      '<th class="px-3 py-2 font-bold">Kırılım</th><th class="px-3 py-2 font-bold">Değer</th>';
+      '<th class="px-3 py-2 font-bold">Breakdown</th><th class="px-3 py-2 font-bold">Value</th>';
     var br = iaActiveTimeBreakdown();
     var rows = series || [];
     if (br === "week" || br === "month") {
@@ -3240,7 +3240,7 @@
       rows = aggregateIaSeries(rows, br, asAvg);
     }
     if (!rows.length) {
-      iaTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+      iaTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">No rows</td></tr>';
       iaFitDataList(0);
       return;
     }
@@ -3361,7 +3361,7 @@
             source: pack.source || (isMarketMetric(metricKey) ? "market" : (isVirgulMetric(metricKey) ? "virgul" : (isGa4Metric(metricKey) ? "ga4" : "asc")))
           };
         }).catch(function (err) {
-          softNotes.push((metricLabel(metricKey) || metricKey) + " atlandı");
+          softNotes.push((metricLabel(metricKey) || metricKey) + " skipped");
           console.warn("metric", metricKey, err);
           return {
             metric: metricKey,
@@ -3399,8 +3399,8 @@
     } catch (err) {
       if (err && err.name === "AbortError") return;
       if (my !== runSeq) return;
-      if (iaStatus) iaStatus.textContent = (err && err.message) || "Yükleme hatası";
-      iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Veri yüklenemedi</text>';
+      if (iaStatus) iaStatus.textContent = (err && err.message) || "Load error";
+      iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Could not load data</text>';
       showIaSimpleKpi();
       if (iaTotal) iaTotal.textContent = "—";
       if (iaCompareRange) iaCompareRange.textContent = "";
@@ -3440,13 +3440,13 @@
         try {
           await fetch("http://127.0.0.1:18765/sync-asc", { method: "POST", mode: "cors" });
         } catch (_) {
-          if (iaStatus) iaStatus.textContent = "Bridge yanıt vermedi (127.0.0.1:18765) — önce bridge + --login";
+          if (iaStatus) iaStatus.textContent = "Bridge did not respond (127.0.0.1:18765) — start bridge + --login first";
         }
       }
       try {
-        if (iaStatus) iaStatus.textContent = "Yorumlar senkron…";
+        if (iaStatus) iaStatus.textContent = "Reviews senkron…";
         var sj = await syncAppStoreReviews({ quick: false });
-        if (iaStatus) iaStatus.textContent = (sj && sj.message) || "Yorumlar güncellendi";
+        if (iaStatus) iaStatus.textContent = (sj && sj.message) || "Reviews updated";
         await loadIaReviewsSnapshot();
       } catch (_) {}
       await loadStatus();
@@ -3533,10 +3533,10 @@
       ev.stopPropagation();
       var card = expand.closest("[data-metric-kpi-card]");
       if (!card || !iaMetricKpis.contains(card)) return;
-      // Yalnızca tıklanan kart — kardeşler etkilenmez
+      // Yalnızca clickslanan kart — kardeşler etkilenmez
       var open = card.classList.toggle("is-open");
       expand.setAttribute("aria-expanded", open ? "true" : "false");
-      expand.setAttribute("aria-label", open ? "Detayları kapat" : "Detayları aç");
+      expand.setAttribute("aria-label", open ? "Close details" : "Open details");
     });
   }
   document.addEventListener("mousedown", function (ev) {
@@ -3564,7 +3564,7 @@
   }, true);
   if (iaDim) iaDim.addEventListener("change", function () {
     if (iaSegment) {
-      iaSegment.innerHTML = '<option value="all">Tümü</option>';
+      iaSegment.innerHTML = '<option value="all">All</option>';
       iaSegment.value = "all";
     }
     syncIaDimBreakdown();
@@ -3710,7 +3710,7 @@
           _overallFallback: true
         };
       }
-      // Herhangi bir sağlıklı sürüm skoru
+      // Herhangi bir sağlıklı versions skoru
       for (var j = 0; j < list.length; j++) {
         if (hasScore(list[j])) return list[j];
       }
@@ -3722,9 +3722,9 @@
     function iaSfPeriodLabel(raw) {
       var p = String(raw || "").trim().toLowerCase();
       if (p === "24h" || p === "24s") return "son 24 saat";
-      if (p === "7d" || p === "7g") return "son 7 gün";
-      if (p === "28d" || p === "28g") return "son 28 gün";
-      if (p === "30d" || p === "30g") return "son 30 gün";
+      if (p === "7d" || p === "7g") return "last 7 days";
+      if (p === "28d" || p === "28g") return "last 28 days";
+      if (p === "30d" || p === "30g") return "last 30 days";
       return String(raw || "").trim();
     }
     function iaSfSideTip(part, cardTitle, tipContext) {
@@ -3733,18 +3733,18 @@
       var ctx = String(tipContext || "").trim();
       var when = ctx ? (" · " + ctx) : "";
       if (/^s\s/i.test(p)) {
-        return "Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı)" + when + ".";
+        return "Crash-free sessions — sessions bazlı çökme yaşamayan oran (users CF’den ayrı)" + when + ".";
       }
       if (/^Δ/i.test(p) || p.indexOf("Δ") === 0) {
-        return "Δ — dönem içi fark (pp): son gün − ilk gün crash-free" + when + ".";
+        return "Δ — dönem içi fark (pp): son days − ilk days crash-free" + when + ".";
       }
       if (/%$/.test(p) && !/^s\s/i.test(p)) {
         return /anr/i.test(t)
-          ? ("ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi)" + when + ".")
+          ? ("ANR rate — users algılanan ANR oranı (ANR-free’nin tersi)" + when + ".")
           : ("Oran — kaynak konsoldaki ham yüzde" + when + ".");
       }
       if (/[kKmM]$/.test(p) || /^\d/.test(p)) {
-        return "Örneklem — dönemdeki kullanıcı/oturum hacmi" + when + ".";
+        return "Örneklem — dönemdeki users/sessions hacmi" + when + ".";
       }
       return "Ek metrik — kaynak konsoldan gelen veri" + when + ".";
     }
@@ -3825,7 +3825,7 @@
         return (
           '<button type="button" data-ia-version="' + esc(ver) + '" ' +
             'class="ia-stability-version' + (on ? " is-on" : "") + '" ' +
-            'title="Sürüm ' + esc(label) + '">' + esc(label) + "</button>"
+            'title="Version ' + esc(label) + '">' + esc(label) + "</button>"
         );
       }).join("");
     }
@@ -3849,7 +3849,7 @@
         return parts.join(" · ");
       }
       function fbTipContext(periodKey) {
-        var bits = ["son sürüm", iaSfPeriodLabel(periodKey)];
+        var bits = ["latest version", iaSfPeriodLabel(periodKey)];
         if (fbVer) bits.push(fbVer);
         return bits.join(" · ");
       }

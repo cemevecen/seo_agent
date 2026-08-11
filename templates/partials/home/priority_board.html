@@ -355,7 +355,7 @@
       <div class="flex min-w-0 items-center gap-2">
         <span class="home-gl-chevron leading-none" aria-hidden="true">▸</span>
         <span class="home-container-chip">git.nokta</span>
-        <span x-show="vpnOffline && !panelOpen" class="home-meta text-amber-600 dark:text-amber-300" x-cloak>VPN yok</span>
+        <span x-show="vpnOffline && !panelOpen" class="home-meta text-amber-600 dark:text-amber-300" x-cloak>No VPN</span>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <button type="button"
@@ -409,7 +409,7 @@
             <span class="home-gl-orbit__ring home-gl-orbit__ring--inner"></span>
             <span class="home-gl-orbit__count" x-text="vpnRemain"></span>
           </div>
-          <p class="mt-3 text-sm font-medium text-slate-600 dark:text-zinc-300">vpn durumu sorgulanıyor</p>
+          <p class="mt-3 text-sm font-medium text-slate-600 dark:text-zinc-300">Checking VPN status</p>
         </div>
         <div x-show="pd().loaded && !pd().error" class="home-gl-lists">
           <template x-for="(lst, index) in pd().lists" :key="lst.id">
@@ -432,7 +432,7 @@
                   <button type="button"
                           @click.stop="collapsed = true"
                           class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 sm:h-9 sm:w-9"
-                          title="Sütunu daralt">
+                          title="Collapse column">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
                     </svg>

@@ -12,16 +12,16 @@
     firebase: { id: "firebase", label: "Firebase Console", kind: "bridge", path: "/sync-firebase", timeoutMs: 40 * 60 * 1000 },
     cwv: { id: "cwv", label: "Web Vitals (GSC)", kind: "bridge", path: "/sync-gsc-cwv", timeoutMs: 90 * 60 * 1000 },
     notification: { id: "notification", label: "Notification", kind: "bridge", path: "/sync", timeoutMs: 20 * 60 * 1000 },
-    news: { id: "news", label: "Haberler", kind: "bridge", path: "/sync-news?days=7", timeoutMs: 25 * 60 * 1000 },
+    news: { id: "news", label: "News", kind: "bridge", path: "/sync-news?days=7", timeoutMs: 25 * 60 * 1000 },
     virgul: { id: "virgul", label: "Virgül", kind: "bridge", path: "/sync-virgul", timeoutMs: 30 * 60 * 1000 },
-    market: { id: "market", label: "Piyasa", kind: "bridge", path: "/sync-market", timeoutMs: 25 * 60 * 1000 },
+    market: { id: "market", label: "Market", kind: "bridge", path: "/sync-market", timeoutMs: 25 * 60 * 1000 },
     links: { id: "links", label: "Backlinks (GSC)", kind: "bridge", path: "/sync-gsc-links", timeoutMs: 40 * 60 * 1000 },
     policy: { id: "policy", label: "Ad Manager Policy", kind: "bridge", path: "/sync-policy", timeoutMs: 25 * 60 * 1000 },
     noads: { id: "noads", label: "Sinemalar noAds", kind: "bridge", path: "/sync-noads", timeoutMs: 20 * 60 * 1000 },
-    seo: { id: "seo", label: "SEO denetim", kind: "bridge", path: "/sync-seo-audit", timeoutMs: 50 * 60 * 1000 },
+    seo: { id: "seo", label: "SEO audit", kind: "bridge", path: "/sync-seo-audit", timeoutMs: 50 * 60 * 1000 },
     errors: {
       id: "errors",
-      label: "Hata / CSV tarama",
+      label: "Errors / CSV scan",
       kind: "poll",
       startUrl: "/api/errors/refresh-all/start",
       progressUrl: "/api/errors/refresh-all/progress",
@@ -29,7 +29,7 @@
     },
     alerts: {
       id: "alerts",
-      label: "Uyarılar (Search Console)",
+      label: "Alerts (Search Console)",
       kind: "api",
       url: "/alerts/refresh",
       timeoutMs: 8 * 60 * 1000,
@@ -152,7 +152,7 @@
       tries += 1;
       return fetchJson(url, { method: "POST", mode: "cors" }, job.timeoutMs).then(function (out) {
         if (out.resp.status === 409 && tries < 10) {
-          setStatus(job.label + " · köprü meşgul, bekleniyor…");
+          setStatus(job.label + " · bridge busy, waiting…");
           return sleep(12000).then(attempt);
         }
         if (!out.resp.ok || out.data.ok === false) {
@@ -188,12 +188,12 @@
       var started = Date.now();
       function poll() {
         if (Date.now() - started > job.timeoutMs) {
-          throw new Error("Tarama zaman aşımı");
+          throw new Error("Scan timed out");
         }
         return fetchJson(job.progressUrl, { credentials: "same-origin" }, 20000).then(function (p) {
           var d = p.data || {};
           var pct = typeof d.pct === "number" ? d.pct : 0;
-          var msg = d.current || (d.running ? "Taranıyor…" : "Tamamlandı");
+          var msg = d.current || (d.running ? "Scanning…" : "Done");
           setStatus(job.label + " · " + msg + (d.total ? (" " + (d.done || 0) + "/" + d.total) : ""));
           if (d.error) throw new Error(d.error);
           if (d.running) return sleep(1500).then(poll);
@@ -212,7 +212,7 @@
       var tick = 2000;
       function waitTick() {
         if (left <= 0) return data;
-        setStatus(job.label + " · arka plan tarama " + Math.ceil(left / 1000) + "s");
+        setStatus(job.label + " · background scan " + Math.ceil(left / 1000) + "s");
         left -= tick;
         return sleep(tick).then(waitTick);
       }
@@ -222,10 +222,10 @@
 
   function fmtRetry(sec) {
     sec = Number(sec) || 0;
-    if (sec <= 60) return "1 dk";
+    if (sec <= 60) return "1 min";
     var mins = Math.round(sec / 60);
-    if (mins < 60) return mins + " dk";
-    return Math.max(1, Math.round(mins / 60)) + " sa";
+    if (mins < 60) return mins + " min";
+    return Math.max(1, Math.round(mins / 60)) + " h";
   }
 
   function applyQuota(data) {
@@ -236,9 +236,9 @@
     if (data.message) lastQuota.message = data.message;
     var left = lastQuota.remaining;
     var title = left <= 0
-      ? (lastQuota.message || ("Saatte en fazla " + lastQuota.limit + " tarama. "
-        + fmtRetry(lastQuota.retry_after_sec) + " sonra tekrar."))
-      : ("Bu sayfadaki taramaları çalıştır · saatte " + lastQuota.limit + " hak, " + left + " kaldı");
+      ? (lastQuota.message || ("At most " + lastQuota.limit + " scans per hour. "
+        + fmtRetry(lastQuota.retry_after_sec) + " later."))
+      : ("Run scans on this page · " + lastQuota.limit + " per hour, " + left + " left");
     document.querySelectorAll(".js-page-tarama").forEach(function (btn) {
       btn.title = title;
       if (!running) btn.disabled = left <= 0;
@@ -315,14 +315,14 @@
 
   function pollQueue(initial, jobs, steps) {
     var runId = initial && initial.id;
-    if (!runId) return Promise.reject(new Error("Kuyruk kimliği yok"));
+    if (!runId) return Promise.reject(new Error("No queue id"));
     applyServerJobs(initial.jobs, steps, jobs);
-    setStatus(initial.message || "Mac köprü bekleniyor…");
+    setStatus(initial.message || "Waiting for Mac bridge…");
     setBar(initial.pct || 4);
     var started = Date.now();
     function poll() {
       if (Date.now() - started > 3 * 60 * 60 * 1000) {
-        throw new Error("Tarama zaman aşımı");
+        throw new Error("Scan timed out");
       }
       return fetchJson("/api/page-tarama/progress?run_id=" + encodeURIComponent(runId), {
         credentials: "same-origin",
@@ -330,15 +330,15 @@
         if (!p.resp.ok) {
           if ((p.resp.status === 404 || p.resp.status === 502 || p.resp.status === 503)
               && Date.now() - started < 90000) {
-            setStatus("Kuyruk bekleniyor…");
+            setStatus("Waiting for queue…");
             return sleep(1500).then(poll);
           }
-          throw new Error(errDetail(p.data, "Kuyruk okunamadı (HTTP " + p.resp.status + ")"));
+          throw new Error(errDetail(p.data, "Could not read queue (HTTP " + p.resp.status + ")"));
         }
         var d = p.data || {};
         applyServerJobs(d.jobs, steps, jobs);
         setBar(typeof d.pct === "number" ? d.pct : 10);
-        setStatus(d.message || "Taranıyor…");
+        setStatus(d.message || "Scanning…");
         if (d.running) return sleep(1200).then(poll);
         return d;
       });
@@ -357,15 +357,15 @@
       if (i >= jobs.length) {
         var someOk = failed < jobs.length;
         finish(someOk, failed === 0
-          ? "Tüm taramalar bitti — sayfa yenileniyor…"
-          : failed + " tarama hata verdi" + (someOk ? " — başarılı olanlar yükleniyor…" : ". Mac’te bridge --daemon açık olmalı."));
+          ? "All scans finished — refreshing page…"
+          : failed + " scan(s) failed" + (someOk ? " — loading successful ones…" : ". bridge --daemon must be running on the Mac."));
         return;
       }
       if (jobs[i].kind === "bridge") {
         if (skipBridge && steps[i].status !== "ok" && steps[i].status !== "fail") {
           failed += 1;
           steps[i].status = "fail";
-          steps[i].detail = steps[i].detail || "Mac kuyruk tamamlanmadı";
+          steps[i].detail = steps[i].detail || "Mac queue did not complete";
         }
         if (skipBridge || steps[i].status === "ok" || steps[i].status === "fail") {
           i += 1;
@@ -377,7 +377,7 @@
       steps[i].status = "run";
       renderSteps(steps, i);
       setBar(((i + 0.15) / jobs.length) * 100);
-      setStatus(job.label + " çalışıyor…");
+      setStatus(job.label + " running…");
       runJob(job)
         .then(function (data) {
           steps[i].status = "ok";
@@ -388,7 +388,7 @@
           steps[i].status = "fail";
           var msg = (err && err.message) ? err.message : String(err);
           if (/Failed to fetch|NetworkError|Load failed|abort/i.test(msg)) {
-            msg = "Mac köprü yok (127.0.0.1:18765)";
+            msg = "Mac bridge unavailable (127.0.0.1:18765)";
           }
           steps[i].detail = msg.slice(0, 90);
         })
@@ -406,12 +406,12 @@
     key = key || pageKey();
     var jobs = jobsFor(key);
     if (!jobs.length) {
-      window.alert("Bu sayfa için tarama tanımı yok.");
+      window.alert("No scan defined for this page.");
       return;
     }
     if (running) return;
     if (lastQuota.remaining <= 0) {
-      window.alert(lastQuota.message || "Saatte en fazla 3 kez Sayfayı güncelle.");
+      window.alert(lastQuota.message || "At most 3 Update page runs per hour.");
       return;
     }
     running = true;
@@ -422,14 +422,14 @@
     });
     renderSteps(steps, 0);
     setBar(2);
-    setStatus("Başlatılıyor…");
+    setStatus("Starting…");
 
     var bridgeJobs = jobs.filter(function (j) { return j.kind === "bridge"; });
-    // Canlı panelde asla 127.0.0.1 köprüye düşme — diğer kullanıcıların tarayıcısı Mac’e ulaşamaz.
+    // Canlı panelde asla 127.0.0.1 köprüye düşme — diğer usersların tarayıcısı Mac’e ulaşamaz.
     claimManual(key).then(function (out) {
       applyQuota(out.data);
       if (!out.resp.ok) {
-        finish(false, errDetail(out.data, "Saatte en fazla 3 tarama"));
+        finish(false, errDetail(out.data, "At most 3 scans per hour"));
         return;
       }
       var useQueue = !isLocalHost() && bridgeJobs.length > 0 && out.data.id;
@@ -439,7 +439,7 @@
             jobs.forEach(function (job, i) {
               if (job.kind !== "bridge" || steps[i].status === "ok") return;
               steps[i].status = "fail";
-              steps[i].detail = ((err && err.message) || "Kuyruk hatası").slice(0, 90);
+              steps[i].detail = ((err && err.message) || "Queue error").slice(0, 90);
             });
             renderSteps(steps, 0);
           })
@@ -450,7 +450,7 @@
       }
       runSequential(jobs, steps, 0);
     }).catch(function (err) {
-      finish(false, (err && err.message) || "Kuyruk başlatılamadı");
+      finish(false, (err && err.message) || "Could not start queue");
     });
   }
 
@@ -461,8 +461,8 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "js-page-tarama inline-flex h-9 items-center gap-1.5 rounded-lg border border-sky-600 bg-sky-600 px-3 text-xs font-bold text-white shadow-sm hover:bg-sky-500 disabled:opacity-60";
-      btn.title = "Bu sayfadaki tüm tarama kaynaklarını şimdi çalıştır";
-      btn.innerHTML = '<svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg><span class="pt-label-full">Sayfayı güncelle</span><span class="pt-label-short">Güncelle</span>';
+      btn.title = "Run all scan sources on this page now";
+      btn.innerHTML = '<svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg><span class="pt-label-full">Update page</span><span class="pt-label-short">Update</span>';
       slot.appendChild(btn);
     });
   }

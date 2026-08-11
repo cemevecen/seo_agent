@@ -223,8 +223,8 @@
   <div class="flex min-w-0 flex-wrap items-center gap-2">
     {{ brand_icon(site_key | default('doviz')) }}
     {{ container_chip('search console') }}
-    <div class="home-period-chips inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Dönem">
-      {% for dv, dl in [(7,'7g'),(60,'60g'),(90,'90g')] %}
+    <div class="home-period-chips inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Period">
+      {% for dv, dl in [(7,'7d'),(60,'60d'),(90,'90d')] %}
         <button type="button" data-home-period="{{ dv }}"
           class="home-period-chip rounded-md px-2 py-0.5 font-semibold transition
             {% if (period_days | default(7)) == dv %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
@@ -236,12 +236,12 @@
 </div>
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
-  {% set device_order = ['Web', 'Mobil Web'] %}
+  {% set device_order = [('Web', 'Web'), ('Mobil Web', 'Mobile Web')] %}
   <div class="home-top-pages-root" data-home-top-pages-root>
     {# GA4 gibi 4 KPI kartı: Web/Mobil × Clicks/Position; TOP 25 kart içinde #}
     <div class="home-sc-spark-wrap">
     <div class="home-sc-spark-grid home-sc-spark-grid--quad">
-      {% for want in device_order %}
+      {% for want, want_label in device_order %}
         {% for dev in site.devices if (dev.label or '') == want %}
           {% set _pages_id = 'sc-pages-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
           {% set _kpi_id = 'sc-kpi-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
@@ -249,8 +249,8 @@
           {% set _ptone = dev.pos_tone | default('flat') %}
           <div class="home-sc-spark-cell">
             <div class="home-kpi-head">
-              <p class="home-label home-sc-metric-kicker">{{ want }} · Clicks</p>
-              {{ home_detail_kpis_trigger(_kpi_id, aria_label=want ~ ' KPI detay') }}
+              <p class="home-label home-sc-metric-kicker">{{ want_label }} · Clicks</p>
+              {{ home_detail_kpis_trigger(_kpi_id, aria_label=want_label ~ ' KPI details') }}
             </div>
             {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
               <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
@@ -262,7 +262,7 @@
             <p class="home-kpi home-delta mt-1 is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</p>
             <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
             {% if dev.top50_has_data %}
-            <div class="home-sc-top50" title="Top 50 trafik sorgusu — toplam tıklama (aynı set, önceki {{ period_days | default(7) }}g)">
+            <div class="home-sc-top50" title="Top 50 traffic queries — total clicks (same set, previous {{ period_days | default(7) }}d)">
               <p class="home-label home-sc-top50-label">top 50</p>
               <p class="home-meta home-sc-top50-vals">
                 {{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}
@@ -274,8 +274,8 @@
           </div>
           <div class="home-sc-spark-cell">
             <div class="home-kpi-head">
-              <p class="home-label home-sc-metric-kicker">{{ want }} · Position</p>
-              {{ home_detail_kpis_trigger(_kpi_id, aria_label=want ~ ' KPI detay') }}
+              <p class="home-label home-sc-metric-kicker">{{ want_label }} · Position</p>
+              {{ home_detail_kpis_trigger(_kpi_id, aria_label=want_label ~ ' KPI details') }}
             </div>
             {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
               <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
@@ -287,7 +287,7 @@
             <p class="home-kpi home-delta mt-1 is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</p>
             <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
             {% if dev.top50_has_data %}
-            <div class="home-sc-top50" title="Top 50 trafik sorgusu — gösterim ağırlıklı ort. pozisyon">
+            <div class="home-sc-top50" title="Top 50 traffic queries — impression-weighted avg. position">
               <p class="home-label home-sc-top50-label">top 50</p>
               <p class="home-meta home-sc-top50-vals">
                 {{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}
@@ -300,15 +300,15 @@
       {% endfor %}
     </div>
     </div>
-    {% for want in device_order %}
+    {% for want, want_label in device_order %}
       {% for dev in site.devices if (dev.label or '') == want %}
         {% set _pages_id = 'sc-pages-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
         {% set _kpi_id = 'sc-kpi-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
-        {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=want ~ ' · KPI detay', cur_label=cur_period_label | default('Son dönem'), prev_label=prev_period_label | default('Önceki dönem')) }}
-        {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=want ~ ' · top 25 sayfa') }}
+        {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=want_label ~ ' · KPI details', cur_label=cur_period_label | default('Current period'), prev_label=prev_period_label | default('Previous period')) }}
+        {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=want_label ~ ' · top 25 pages') }}
       {% endfor %}
     {% endfor %}
   </div>
 {% else %}
-  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Veri yok</p>
+  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">No data</p>
 {% endif %}

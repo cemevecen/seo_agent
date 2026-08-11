@@ -8,17 +8,17 @@
         @click="refreshActiveProject()" 
         :disabled="!activeProject || (projectData[activeProject] && projectData[activeProject].loading)" 
         class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-        title="Aktif Projeyi Yenile"
+        title="Refresh active project"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" :class="(projectData[activeProject] && projectData[activeProject].loading) ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
-        Yenile
+        Refresh
       </button>
       <div x-show="activeProject" class="flex flex-wrap items-center gap-2 sm:ml-2">
         <select
           id="board-sort-mode"
-          aria-label="Madde sırası"
+          aria-label="Item order"
           class="max-w-[14rem] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-blue-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           :value="getSortMode(activeProject)"
           @change="onSortModeChange(activeProject, $event.target.value)"
@@ -41,7 +41,7 @@
       <template x-if="vpnStatus === 'checking'">
         <span class="inline-flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
           <span class="inline-block h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-slate-600 animate-pulse"></span>
-          VPN kontrol ediliyor…
+          Checking VPN…
         </span>
       </template>
       <template x-if="vpnStatus === 'on'">
@@ -134,7 +134,7 @@
 
         <div x-show="projectData[activeProject].loading && !projectData[activeProject].loaded && !projectData[activeProject].error" class="mt-20 text-center">
           <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-slate-900 border-r-transparent align-[-0.125em] dark:border-white dark:border-r-transparent"></div>
-          <p class="mt-4 text-slate-500 dark:text-slate-400">GitLab'den veriler çekiliyor...</p>
+          <p class="mt-4 text-slate-500 dark:text-slate-400">Fetching data from GitLab...</p>
         </div>
 
         <div x-show="projectData[activeProject].loaded && !projectData[activeProject].error" class="flex h-full items-start gap-4 overflow-x-auto pb-4" id="lists-wrapper">
@@ -154,11 +154,11 @@
               <!-- Expanded Header -->
               <h4 x-show="!collapsed" class="mb-3 flex items-center justify-between text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
                 <div class="flex items-center gap-1 overflow-hidden">
-                  <button @click.stop="collapsed = true" class="shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Sütunu Daralt">
+                  <button @click.stop="collapsed = true" class="shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Collapse column">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
                   </button>
                   <span x-text="lst.label.name" class="truncate pr-1"></span>
-                  <button x-show="!lst.isClosed" @click.stop="lst.showNewIssueForm = true" class="ml-1 shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Yeni Madde Ekle">
+                  <button x-show="!lst.isClosed" @click.stop="lst.showNewIssueForm = true" class="ml-1 shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Add new item">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                   </button>
                 </div>
@@ -167,11 +167,11 @@
               
               <!-- Yeni Ekleme Formu -->
               <div x-show="!collapsed && lst.showNewIssueForm" x-transition class="mb-3 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <input type="text" x-model="lst.newIssueTitle" @keydown.enter="createIssue(activeProject, lst)" :disabled="lst.isCreating" placeholder="Ne yapılması gerekiyor?" class="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500">
+                <input type="text" x-model="lst.newIssueTitle" @keydown.enter="createIssue(activeProject, lst)" :disabled="lst.isCreating" placeholder="What needs to be done?" class="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500">
                 <div class="mt-2 flex justify-end gap-2">
-                  <button @click="lst.showNewIssueForm = false; lst.newIssueTitle = ''" class="text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">İptal</button>
+                  <button @click="lst.showNewIssueForm = false; lst.newIssueTitle = ''" class="text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">Cancel</button>
                   <button @click="createIssue(activeProject, lst)" :disabled="!lst.newIssueTitle || !lst.newIssueTitle.trim() || lst.isCreating" class="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50 transition">
-                    <span x-show="!lst.isCreating">Ekle</span>
+                    <span x-show="!lst.isCreating">Add</span>
                     <span x-show="lst.isCreating" class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-solid border-white border-r-transparent"></span>
                   </button>
                 </div>
@@ -198,7 +198,7 @@
                       <button type="button"
                               class="shrink-0 rounded-md p-1 transition hover:bg-amber-50 dark:hover:bg-amber-950/40"
                               :class="isStarred(activeProject, issue.iid) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400 dark:text-slate-600'"
-                              :title="isStarred(activeProject, issue.iid) ? 'Yıldızı kaldır (ana sayfa)' : 'Ana sayfaya yıldızla'"
+                              :title="isStarred(activeProject, issue.iid) ? 'Unstar (home)' : 'Star on home'"
                               @click.stop.prevent="toggleStar(activeProject, issue)"
                               :aria-pressed="isStarred(activeProject, issue.iid) ? 'true' : 'false'">
                         <svg class="h-4 w-4" viewBox="0 0 24 24" :fill="isStarred(activeProject, issue.iid) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -300,13 +300,13 @@
       sortSyncPendingMode: {},
       starredByProject: {},
       sortModeOptions: [
-        { id: 'manual', label: 'Manuel (sürükle-bırak)' },
-        { id: 'relative_position', label: 'GitLab board sırası' },
-        { id: 'updated_at_desc', label: 'Son güncelleme (yeni üstte)' },
-        { id: 'updated_at_asc', label: 'Son güncelleme (eski üstte)' },
-        { id: 'created_at_desc', label: 'Oluşturulma (yeni üstte)' },
-        { id: 'created_at_asc', label: 'Oluşturulma (eski üstte)' },
-        { id: 'weight_desc', label: 'Ağırlık / öncelik (yüksek üstte)' },
+        { id: 'manual', label: 'Manual (drag and drop)' },
+        { id: 'relative_position', label: 'GitLab board order' },
+        { id: 'updated_at_desc', label: 'Last updated (newest first)' },
+        { id: 'updated_at_asc', label: 'Last updated (oldest first)' },
+        { id: 'created_at_desc', label: 'Created (newest first)' },
+        { id: 'created_at_asc', label: 'Created (oldest first)' },
+        { id: 'weight_desc', label: 'Weight / priority (highest first)' },
       ],
       vpnStatus: 'checking',
 
@@ -395,7 +395,7 @@
         if (![...body.keys()].length) return null;
         const res = await fetch(url, { method: 'PUT', headers: { 'PRIVATE-TOKEN': this.token }, body });
         if (!res.ok) {
-          let detail = 'GitLab issue güncellenemedi';
+          let detail = 'Could not update GitLab issue';
           try {
             const err = await res.json();
             if (err && (err.message || err.error)) detail = String(err.message || err.error);
@@ -598,7 +598,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ project_path: path, sort_mode: mode }),
         });
-        if (!res.ok) throw new Error('Sıralama ayarı kaydedilemedi');
+        if (!res.ok) throw new Error('Could not save sort setting');
         const data = await res.json();
         this.setSortMode(path, data.sort_mode || mode);
       },
@@ -799,7 +799,7 @@
             issue_iids: iids,
           }),
         });
-        if (!res.ok) throw new Error('Sütun sırası kaydedilemedi');
+        if (!res.ok) throw new Error('Could not save column order');
       },
 
       sortIssuesWithSavedOrder(path, listKey, issues) {
@@ -859,7 +859,7 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ project_path: path, issue_iid: iid }),
             });
-            if (!res.ok) throw new Error('Yıldız kaldırılamadı');
+            if (!res.ok) throw new Error('Could not unstar');
             if (!this.starredByProject[path]) this.starredByProject[path] = new Set();
             this.starredByProject[path].delete(String(iid));
           } else {
@@ -878,14 +878,14 @@
             });
             if (!res.ok) {
               const err = await res.json().catch(() => ({}));
-              throw new Error(err.detail || 'Yıldızlanamadı');
+              throw new Error(err.detail || 'Could not star');
             }
             if (!this.starredByProject[path]) this.starredByProject[path] = new Set();
             this.starredByProject[path].add(String(iid));
           }
           this.starredByProject = { ...this.starredByProject };
         } catch (e) {
-          alert(e.message || 'Yıldız işlemi başarısız');
+          alert(e.message || 'Star action failed');
         }
       },
 
@@ -910,10 +910,10 @@
             this.loadProjectStars(path),
           ]);
 
-          if (!boardsRes.ok) throw new Error(`GitLab API Hatası: ${boardsRes.statusText}`);
+          if (!boardsRes.ok) throw new Error(`GitLab API error: ${boardsRes.statusText}`);
           this.vpnStatus = 'on';
           const boardsData = await boardsRes.json();
-          if (!boardsData || boardsData.length === 0) throw new Error("Projede aktif board bulunamadı.");
+          if (!boardsData || boardsData.length === 0) throw new Error("No active board found for this project.");
           
           pd.board = boardsData[0];
           
@@ -952,7 +952,7 @@
 
         } catch (err) {
           console.error(err);
-          pd.error = err.message || "Bağlantı hatası.";
+          pd.error = err.message || "Connection error.";
           if (this.vpnStatus === 'checking') this.vpnStatus = 'off';
         } finally {
           pd.loading = false;
@@ -1039,7 +1039,7 @@
             body: JSON.stringify(payload)
           });
           
-          if (!res.ok) throw new Error("Oluşturulamadı");
+          if (!res.ok) throw new Error("Could not create");
           
           const newIssue = await res.json();
           const pd = this.projectData[path];
@@ -1065,7 +1065,7 @@
           lst.newIssueTitle = '';
           lst.showNewIssueForm = false;
         } catch (err) {
-          alert("Hata: " + err.message);
+          alert("Error: " + err.message);
         } finally {
           lst.isCreating = false;
         }
@@ -1156,7 +1156,7 @@
                     pd.issues[issueIndex].labels = labels;
                   }
                 }
-                // Ana sayfa yıldız kolonunu da canlı tut
+                // Ana sayfa stars kolonunu da canlı tut
                 if (this.isStarred(projectPath, issueIid)) {
                   const cur = pd.issues.find((i) => String(i.iid) === String(issueIid));
                   if (cur) {
@@ -1199,7 +1199,7 @@
                 await this.saveBoardSortSettings(projectPath, 'manual');
               }
             } catch (e) {
-              alert("Taşıma işlemi kaydedilemedi: " + e.message);
+              alert("Could not save move: " + e.message);
               pd.loaded = false;
               await this.fetchProjectData(projectPath, true);
             }

@@ -557,7 +557,7 @@
     let lastDetail = 'Opening Search Console and requesting the site list.';
 
     function secondsText(from) {
-      return ((performance.now() - from) / 1000).toFixed(1) + ' sn';
+      return ((performance.now() - from) / 1000).toFixed(1) + ' s';
     }
 
     function render(step) {
@@ -761,13 +761,13 @@
       if (sec < 60) {
         // Tam saniyeye yuvarlama: 0,4 s işlem "0 sn" gibi görünmesin
         if (sec < 10) {
-          return String(sec.toFixed(1)).replace('.', ',') + ' sn';
+          return String(sec.toFixed(1)).replace('.', ',') + ' s';
         }
-        return Math.floor(sec) + ' sn';
+        return Math.floor(sec) + ' s';
       }
       var m = Math.floor(sec / 60);
       var s = Math.floor(sec % 60);
-      return m + ' dk ' + (s < 10 ? '0' : '') + s + ' sn';
+      return m + ' m ' + (s < 10 ? '0' : '') + s + ' s';
     }
 
     function render(step) {
@@ -1053,7 +1053,7 @@
               var pct = Math.min(96, Math.max(12, Math.round((pg.done / pg.total) * 100)));
               progress.renderLive(
                 pct,
-                'Siteler yenileniyor (' + pg.done + '/' + pg.total + ')',
+                'Refreshing sites (' + pg.done + '/' + pg.total + ')',
                 (pg.label ? pg.label + ' done. ' : '') + 'Search Console API calls are still running in the background.'
               );
             }

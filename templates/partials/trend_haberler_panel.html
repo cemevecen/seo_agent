@@ -1,22 +1,22 @@
 <div class="dn-trend-wrap">
   <div class="dn-trend-bar">
-    <p class="dn-trend-hint">Son 12 saat</p>
+    <p class="dn-trend-hint">Last 12 hours</p>
     <select id="rt-intel-source-filter"
       class="dn-trend-select max-w-[min(100%,12rem)]">
-      <option value="">Tüm Kaynaklar</option>
+      <option value="">All sources</option>
     </select>
     <select id="rt-intel-source-sort"
-      title="Kaynak sıralama"
+      title="Source sort"
       class="dn-trend-select">
-      <option value="name:asc">Kaynak A→Z</option>
-      <option value="name:desc">Kaynak Z→A</option>
-      <option value="count:desc">Adet çok→az</option>
-      <option value="count:asc">Adet az→çok</option>
+      <option value="name:asc">Source A→Z</option>
+      <option value="name:desc">Source Z→A</option>
+      <option value="count:desc">Count high→low</option>
+      <option value="count:asc">Count low→high</option>
     </select>
     <span id="rt-intel-last-update" class="dn-trend-updated"></span>
     <button id="rt-news-sync-btn" type="button" onclick="rtSyncNews()" class="dn-trend-sync">
       <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
-      <span class="dn-btn-full">Güncelle</span><span class="dn-btn-short">Yenile</span>
+      <span class="dn-btn-full">Refresh</span><span class="dn-btn-short">Refresh</span>
     </button>
   </div>
 
@@ -150,7 +150,7 @@
     const _intelHours = 12;
     let _intelLoading = false;
     let _intelFinished = false;
-    let _latestPublishedAt = null;   // en yeni haberin published_at'ı — auto-refresh için
+    let _latestPublishedAt = null;   // en new haberin published_at'ı — auto-refresh için
     let _autoRefreshTimer = null;
     let _intelSourceFilter = '';
     let _intelSourceSort = 'name:asc';
@@ -244,7 +244,7 @@
           sel.innerHTML = '';
           const allOpt = document.createElement('option');
           allOpt.value = '';
-          allOpt.textContent = 'Tüm Kaynaklar';
+          allOpt.textContent = 'All sources';
           sel.appendChild(allOpt);
           (data.sources || []).forEach(s => {
             const opt = document.createElement('option');
@@ -289,13 +289,13 @@
     async function rtSyncNews() {
       const btn = document.getElementById('rt-news-sync-btn');
       btn.disabled = true;
-      btn.innerHTML = '<span class="animate-spin inline-block">↻</span> Çekiliyor...';
+      btn.innerHTML = '<span class="animate-spin inline-block">↻</span> Fetching...';
 
       try {
         await fetch('/api/admin/news-intelligence/sync', { method: 'POST' });
       } catch(e) { console.error(e); }
 
-      btn.innerHTML = '<span class="animate-spin inline-block">↻</span> Bekleniyor...';
+      btn.innerHTML = '<span class="animate-spin inline-block">↻</span> Waiting...';
       await new Promise(r => setTimeout(r, 12000));
 
       _resetIntelList();
@@ -303,7 +303,7 @@
       rtAutoFillInitial();
 
       btn.disabled = false;
-      btn.innerHTML = _syncSvg + ' Güncelle';
+      btn.innerHTML = _syncSvg + ' Refresh';
     }
 
     function _intelEscHtml(s) {
@@ -343,12 +343,12 @@
       const isToday = d.toDateString() === now.toDateString();
       const isYesterday = d.toDateString() === new Date(now - 864e5).toDateString();
       const timeStr = isToday ? hhmm
-        : isYesterday ? ('dün ' + hhmm)
+        : isYesterday ? ('yesterday ' + hhmm)
         : (d.toLocaleDateString('tr-TR', {day:'numeric', month:'short'}) + ' ' + hhmm);
       const sourceName = String(item.source_name || '').trim();
-      const sourceTitle = sourceName ? `Kaynak: ${sourceName}` : '';
+      const sourceTitle = sourceName ? `Source: ${sourceName}` : '';
       const newBadge = isNew
-        ? '<span class="inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">YENİ</span>'
+        ? '<span class="inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">NEW</span>'
         : '';
 
       const excerpt = _intelExcerptText(item.content, item.headline);
@@ -395,8 +395,8 @@
           }
           if (items.length === 0 && _intelFinished && document.getElementById('rt-intel-list').children.length === 0) {
             const emptyMsg = _intelSourceFilter
-              ? `«${_intelSourceFilter}» kaynağında son ${_intelHours} saatte haber bulunamadı.`
-              : `Son ${_intelHours} saatte haber bulunamadı.`;
+              ? `«${_intelSourceFilter}» source in the last ${_intelHours} hours news items found.`
+              : `Son ${_intelHours} hours news items found.`;
             document.getElementById('rt-intel-list').innerHTML = `<div class="col-span-full py-12 text-center text-slate-500 dark:text-slate-400">${emptyMsg}</div>`;
             return;
           }
@@ -406,7 +406,7 @@
     }
 
     // Sayfa scroll edilebilir hale gelene kadar (ya da haber tükenene kadar) sırayla fetch et.
-    // Bu sayede kısa ekranlarda kullanıcı 24'lük ilk sayfaya takılı kalmıyor; otomatik
+    // Bu sayede kısa ekranlarda users 24'lük ilk sayfaya takılı kalmıyor; otomatik
     // olarak son 12 saatin tüm haberleri yükleniyor.
     async function rtAutoFillInitial() {
       let guard = 20; // sonsuz döngüden korunma
@@ -434,7 +434,7 @@
           listEl.insertAdjacentHTML('afterbegin', html);
           _latestPublishedAt = items[0].published_at;
           const ts = document.getElementById('rt-intel-last-update');
-          if(ts) ts.textContent = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) + ' güncellendi · ' + items.length + ' yeni';
+          if(ts) ts.textContent = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) + ' updated · ' + items.length + ' new';
         })
         .catch(() => {});
     }
@@ -452,7 +452,7 @@
     });
 
     let _intelBooted = false;
-    function rtBootTrendHaberler() {
+    function rtBootTrendNews() {
       if (_intelBooted) return;
       _intelBooted = true;
       _setIntelSourceFilter(_intelSourceFromUrl(), { updateUrl: false });
@@ -467,11 +467,11 @@
       rtLoadIntelSources().finally(() => rtAutoFillInitial());
       _startAutoRefresh();
     }
-    window.rtBootTrendHaberler = rtBootTrendHaberler;
+    window.rtBootTrendNews = rtBootTrendNews;
     document.addEventListener('DOMContentLoaded', () => {
-      // Parent tab controller may call rtBootTrendHaberler; fallback if panel visible.
+      // Parent tab controller may call rtBootTrendNews; fallback if panel visible.
       const panel = document.getElementById('dn-panel-trend');
-      if (!panel || !panel.classList.contains('hidden')) rtBootTrendHaberler();
+      if (!panel || !panel.classList.contains('hidden')) rtBootTrendNews();
     });
 
     window.__pcPageContext = function () {

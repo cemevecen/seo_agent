@@ -10,13 +10,13 @@
   data-end-input="{{ market_end_input }}"
 >
   <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
-    <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Piyasa</p>
+    <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Market</p>
     {% with market_overlay_control_id=_moid, market_overlay_storage_key=market_overlay_storage_key|default('pa') %}
     {% include 'partials/market_overlay_select.html' %}
     {% endwith %}
   </div>
   <div id="{{ _plot }}" class="seo-market-standalone-plot w-full" style="height:280px"></div>
   <p data-market-standalone-empty class="hidden px-3 py-6 text-center text-[12px] text-slate-400 dark:text-zinc-500">
-    Piyasa serisi seçin; grafik seçilen tarih aralığında çizilir.
+    Select a market series; the chart draws for the selected date range.
   </p>
 </div>

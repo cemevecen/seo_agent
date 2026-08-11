@@ -3170,7 +3170,7 @@
     <div class="rt-spark-table-drawer-head">
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Spark verisi</p>
+          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Spark data</p>
           <h2 id="rt-spark-table-title" class="truncate text-sm font-extrabold text-slate-900 dark:text-zinc-100">—</h2>
           <p id="rt-spark-table-sub" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">—</p>
         </div>
@@ -3283,7 +3283,7 @@
     if (night) {
       el.textContent = sec + 's';
       if (badge) {
-        badge.title = 'Gece Modu: Sadece Spark grafikleri yenileniyor (00:00-07:00).';
+        badge.title = 'Night mode: only spark charts are refreshing (00:00–07:00).';
         badge.classList.remove('rt-live-badge--urgent', 'rt-live-badge--refresh');
       }
     } else {
@@ -5656,7 +5656,7 @@
   function _renderAppEventDetailSections(container, sections, domain, profile) {
     if (!container) return;
     if (!sections.length) {
-      container.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede haber detay verisi yok.</p>';
+      container.innerHTML = '<p class="rt-empty text-sm leading-snug">No news detail data in this window.</p>';
       return;
     }
     container.innerHTML = sections.map(function (section) {
@@ -7373,7 +7373,7 @@
     var title =
       sign +
       (Math.round(pct * 10) / 10).toString().replace('.', ',') +
-      '% · bir alttaki (daha eski) dilime göre';
+      '% vs the previous (older) slice';
     return { cls: 'rt-spark-td--' + dir + '-' + tier, title: title };
   }
 

@@ -303,50 +303,50 @@
 <div class="mx-auto w-full max-w-[1920px] space-y-4 mz-page app-banner-page" data-header-title="Ad · GA4 banner">
   <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
     <div>
-      <h1 class="text-lg font-extrabold text-slate-900 dark:text-zinc-100">GA4 · İlk açılış / kampanya</h1>
+      <h1 class="text-lg font-extrabold text-slate-900 dark:text-zinc-100">GA4 · First open / campaign</h1>
     </div>
-    <a href="/ad-virgul" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">← Monetizasyon · Virgül</a>
+    <a href="/ad-virgul" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">← Monetization · Virgül</a>
   </div>
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
     <div class="flex flex-wrap items-end gap-3">
       <label class="text-xs font-semibold text-slate-600 dark:text-zinc-300">
-        Uygulama
+        App
         <select id="ab-profile" class="mt-1 block rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black">
           <option value="android" selected>Android</option>
           <option value="ios">iOS</option>
         </select>
       </label>
       <label class="text-xs font-semibold text-slate-600 dark:text-zinc-300">
-        Başlangıç
+        Start
         <input id="ab-start" type="date" min="2025-11-01" class="mt-1 block rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black" />
       </label>
       <label class="text-xs font-semibold text-slate-600 dark:text-zinc-300">
-        Bitiş
+        End
         <input id="ab-end" type="date" min="2025-11-01" class="mt-1 block rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black" />
       </label>
       <label class="text-xs font-semibold text-slate-600 dark:text-zinc-300">
-        Hızlı aralık
+        Quick range
         <select id="ab-preset" class="mt-1 block rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black">
-          <option value="">Özel tarih</option>
-          <option value="1">Son 1 ay</option>
-          <option value="2">Son 2 ay</option>
-          <option value="3">Son 3 ay</option>
-          <option value="6">Son 6 ay</option>
-          <option value="9">Son 9 ay</option>
-          <option value="12">Son 12 ay</option>
+          <option value="">Custom dates</option>
+          <option value="1">Last 1 month</option>
+          <option value="2">Last 2 months</option>
+          <option value="3">Last 3 months</option>
+          <option value="6">Last 6 months</option>
+          <option value="9">Last 9 months</option>
+          <option value="12">Last 12 months</option>
         </select>
       </label>
-      <button id="ab-run" type="button" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-600">Veriyi göster</button>
+      <button id="ab-run" type="button" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-600">Show data</button>
       <a
         id="ab-export-xlsx"
         href="/api/mz-analytics/ga4-app-banner/export.xlsx"
         class="rounded-lg border border-emerald-600 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/60"
         download
-      >XLSX indir</a>
+      >Download XLSX</a>
     </div>
     <div id="ab-day-insight" class="ab-day-insight--slot mt-2 hidden select-text rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs leading-relaxed text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-100" aria-live="polite">
-      <p class="font-bold text-slate-900 dark:text-zinc-100">Seçili gün</p>
+      <p class="font-bold text-slate-900 dark:text-zinc-100">Selected day</p>
       <p id="ab-day-insight-body" class="mt-1 break-words tabular-nums leading-relaxed"></p>
     </div>
     <p id="ab-error" class="mt-2 hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"></p>
@@ -357,27 +357,27 @@
       id="ab-loading"
       class="pointer-events-none absolute inset-0 z-10 hidden items-center justify-center gap-3 rounded-2xl bg-white/70 dark:bg-zinc-950/65"
       role="status"
-      aria-label="Yükleniyor"
+      aria-label="Loading"
     >
       <div class="h-8 w-8 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600 dark:border-zinc-600 dark:border-t-indigo-400" aria-hidden="true"></div>
-      <span class="text-sm font-semibold text-slate-700 dark:text-zinc-200">Tablolar ve grafikler yükleniyor…</span>
+      <span class="text-sm font-semibold text-slate-700 dark:text-zinc-200">Loading tables and charts…</span>
     </div>
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
     <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
-      <h2 id="ab-chart-camp-title" class="text-sm font-bold text-slate-800 dark:text-zinc-100">GA4 app — First opens (toplam + kampanya)</h2>
+      <h2 id="ab-chart-camp-title" class="text-sm font-bold text-slate-800 dark:text-zinc-100">GA4 app — First opens (total + campaign)</h2>
       <div id="ab-series-wrap" class="hidden w-full sm:w-auto sm:min-w-[14rem] sm:max-w-md">
         <details id="ab-series-details" class="rounded-lg border border-slate-200 bg-slate-50 dark:border-zinc-600 dark:bg-zinc-950">
           <summary class="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-[11px] font-semibold text-slate-600 dark:text-zinc-400">
-            <span>Grafik serileri</span>
+            <span>Chart series</span>
             <span id="ab-series-count" class="tabular-nums text-slate-500 dark:text-zinc-500"></span>
           </summary>
           <div class="border-t border-slate-200 px-3 py-2 dark:border-zinc-700">
-            <input id="ab-series-search" type="search" placeholder="Seri ara…" autocomplete="off" class="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] dark:border-zinc-600 dark:bg-black dark:text-zinc-100" />
+            <input id="ab-series-search" type="search" placeholder="Search series…" autocomplete="off" class="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] dark:border-zinc-600 dark:bg-black dark:text-zinc-100" />
             <div class="mt-2 flex flex-wrap gap-1.5">
-              <button type="button" id="ab-series-all" class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">Tümü</button>
-              <button type="button" id="ab-series-mweb" class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">Sadece mweb</button>
-              <button type="button" id="ab-series-app" class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">Sadece app</button>
+              <button type="button" id="ab-series-all" class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">All</button>
+              <button type="button" id="ab-series-mweb" class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">mweb only</button>
+              <button type="button" id="ab-series-app" class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">app only</button>
             </div>
             <div id="ab-series-list" class="mt-2 max-h-36 space-y-0.5 overflow-y-auto pr-1"></div>
           </div>
@@ -390,13 +390,13 @@
   <div id="ab-wrap-dump" class="hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
     <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Günlük döküm</h2>
-        <p id="ab-dump-subtitle" class="mt-0.5 text-[10px] text-slate-500 dark:text-zinc-400">Grafikteki tüm seriler · tarih satır, metrik sütun</p>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Daily dump</h2>
+        <p id="ab-dump-subtitle" class="mt-0.5 text-[10px] text-slate-500 dark:text-zinc-400">All chart series · date rows, metric columns</p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
         <label class="flex cursor-pointer items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-zinc-300">
           <input id="ab-dump-active-only" type="checkbox" checked class="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 dark:border-zinc-500" />
-          Yalnızca aktivite olan günler
+          Active days only
         </label>
         <p id="ab-dump-count" class="text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></p>
         <a
@@ -408,7 +408,7 @@
       </div>
     </div>
     <div class="ab-dump-wrap rounded-xl border border-slate-200 dark:border-zinc-700">
-      <div id="ab-dump-cards" class="ab-dump-cards" aria-label="Günlük döküm kart görünümü"></div>
+      <div id="ab-dump-cards" class="ab-dump-cards" aria-label="Daily dump card view"></div>
       <div class="ab-dump-table-wrap">
         <table id="ab-dump-table" class="ab-dump-table border-collapse text-left text-[11px]">
           <thead id="ab-dump-thead" class="text-slate-600 dark:text-zinc-400"></thead>
@@ -419,13 +419,13 @@
   </div>
 
   <div id="ab-wrap-asc" class="hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-    <h2 id="ab-chart-asc-title" class="mb-1 text-sm font-bold text-slate-800 dark:text-zinc-100">App Store — banner kampanyaları (Total Downloads)</h2>
+    <h2 id="ab-chart-asc-title" class="mb-1 text-sm font-bold text-slate-800 dark:text-zinc-100">App Store — banner campaigns (Total Downloads)</h2>
     <p id="ab-chart-asc-note" class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400"></p>
     <div id="ab-chart-asc" class="mz-chart-plot w-full" data-chart-h="320"></div>
     <div class="mt-3 overflow-x-auto">
       <table class="min-w-full text-left text-xs">
         <thead class="border-b border-slate-200 text-slate-500 dark:border-zinc-700">
-          <tr><th class="px-2 py-2 font-bold">ASC kampanya</th><th class="px-2 py-2 font-bold">Toplam indirme</th></tr>
+          <tr><th class="px-2 py-2 font-bold">ASC campaign</th><th class="px-2 py-2 font-bold">Total downloads</th></tr>
         </thead>
         <tbody id="ab-asc-table-body" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
       </table>
@@ -433,13 +433,13 @@
   </div>
 
   <div id="ab-wrap-mweb" class="hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-    <h2 id="ab-chart-mweb-title" class="mb-1 text-sm font-bold text-slate-800 dark:text-zinc-100">Mobil web — banner eventleri (ayrı ayrı)</h2>
-    <p id="ab-chart-mweb-note" class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">GA4 mweb · eventName bazında</p>
+    <h2 id="ab-chart-mweb-title" class="mb-1 text-sm font-bold text-slate-800 dark:text-zinc-100">Mobile web — banner events (separate)</h2>
+    <p id="ab-chart-mweb-note" class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">GA4 mweb · by eventName</p>
     <div id="ab-chart-mweb" class="mz-chart-plot w-full" style="min-height:320px;height:44vh;max-height:560px;"></div>
     <div class="mt-3 overflow-x-auto">
       <table class="min-w-full text-left text-xs">
         <thead class="border-b border-slate-200 text-slate-500 dark:border-zinc-700">
-          <tr><th class="px-2 py-2 font-bold">Event</th><th class="px-2 py-2 font-bold">Toplam</th></tr>
+          <tr><th class="px-2 py-2 font-bold">Event</th><th class="px-2 py-2 font-bold">Total</th></tr>
         </thead>
         <tbody id="ab-mweb-table-body" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
       </table>
@@ -686,7 +686,7 @@
     var el = document.getElementById("ab-chart-campaign");
     if (el && !el.getAttribute("data-plotly-wait")) {
       el.setAttribute("data-plotly-wait", "1");
-      el.innerHTML = "<p class=\"flex h-full min-h-[12rem] items-center justify-center text-xs text-slate-500 dark:text-zinc-400\">Grafik yükleniyor…</p>";
+      el.innerHTML = "<p class=\"flex h-full min-h-[12rem] items-center justify-center text-xs text-slate-500 dark:text-zinc-400\">Loading chart…</p>";
     }
     (function tick() {
       attempts += 1;
@@ -697,7 +697,7 @@
       }
       if (attempts > 150) {
         if (el) {
-          el.innerHTML = "<p class=\"py-8 text-center text-xs text-rose-600 dark:text-rose-400\">Grafik kütüphanesi yüklenemedi. Sayfayı yenileyin.</p>";
+          el.innerHTML = "<p class=\"py-8 text-center text-xs text-rose-600 dark:text-rose-400\">Chart library failed to load. Refresh the page.</p>";
         }
         return;
       }
@@ -873,7 +873,7 @@
           : item.group === "campaign"
             ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
             : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300");
-      tag.textContent = item.group === "mweb" ? "mweb" : item.group === "campaign" ? "kamp." : "app";
+      tag.textContent = item.group === "mweb" ? "mweb" : item.group === "campaign" ? "camp." : "app";
       lab.appendChild(cb);
       lab.appendChild(span);
       lab.appendChild(tag);
@@ -986,7 +986,7 @@
     body.innerHTML = "<span class=\"font-semibold\">" + escapeHtml(dateIso) + "</span><br>" +
       (lines.length
         ? lines.map(function (ln) { return escapeHtml(ln); }).join("<br>")
-        : "<span class=\"text-slate-500 dark:text-zinc-400\">Bu gün için gösterilecek değer yok.</span>");
+        : "<span class=\"text-slate-500 dark:text-zinc-400\">No values to show for this day.</span>");
   }
 
   function bannerChartPixelHeight(el) {
@@ -1019,7 +1019,7 @@
     el.removeAttribute("data-plotly-wait");
     try { Plotly.purge(el); } catch (_) {}
     if (!traces.length) {
-      el.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-400\">Grafik verisi yok.</p>";
+      el.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-400\">No chart data.</p>";
       mainChartState.plotGd = null;
       return;
     }
@@ -1045,7 +1045,7 @@
       }
       gd.on("plotly_hover", onHover);
     }).catch(function () {
-      el.innerHTML = "<p class=\"py-8 text-center text-xs text-rose-600 dark:text-rose-400\">Grafik çizilemedi. «Veriyi göster» ile tekrar deneyin.</p>";
+      el.innerHTML = "<p class=\"py-8 text-center text-xs text-rose-600 dark:text-rose-400\">Could not draw chart. Try again with “Show data”.</p>";
     });
   }
 
@@ -1062,7 +1062,7 @@
 
   function dumpGroupTag(group) {
     if (group === "mweb") return "mweb";
-    if (group === "campaign") return "kampanya";
+    if (group === "campaign") return "campaign";
     if (group === "asc") return "ASC";
     if (group === "app") return "app";
     return "";
@@ -1095,7 +1095,7 @@
     });
     var ascC = data.app_store_campaign_downloads;
     if (data.profile === "ios" && ascC && ascC.ok && hasSeriesSignal(ascC.combined_daily)) {
-      cols.push({ key: "asc_total", label: "ASC banner (toplam)", group: "asc", series: ascC.combined_daily });
+      cols.push({ key: "asc_total", label: "ASC banner (total)", group: "asc", series: ascC.combined_daily });
       filterCampaignsWithSignal(ascC.campaigns).forEach(function (c) {
         cols.push({ key: "asc:" + (c.campaign || ""), label: "ASC " + (c.campaign || ""), group: "asc", series: c.daily });
       });
@@ -1293,8 +1293,8 @@
     if (countEl) {
       var activeN = sortedRows.filter(function (r) { return r.active; }).length;
       countEl.textContent = activeOnly
-        ? shown + " gün gösteriliyor (" + activeN + " aktivite günü / " + total + " toplam)"
-        : shown + " gün · " + activeN + " aktivite günü";
+        ? shown + " days shown (" + activeN + " active days / " + total + " total)"
+        : shown + " days · " + activeN + " active days";
     }
     paintAbDumpCards(columns, sortedRows, activeOnly);
   }
@@ -1319,7 +1319,7 @@
     var span = chartSpanDates(data);
     var sub = document.getElementById("ab-dump-subtitle");
     if (sub && span.start && span.end) {
-      sub.textContent = "Grafikteki tüm seriler · " + span.start + " → " + span.end;
+      sub.textContent = "All chart series · " + span.start + " → " + span.end;
     }
 
     thead.innerHTML = "";
@@ -1331,7 +1331,7 @@
     thDate.setAttribute("data-sort-key", "date");
     thDate.setAttribute("data-sort-type", "date");
     thDate.setAttribute("data-default-desc", "1");
-    thDate.innerHTML = dumpHeaderCellHtml("Tarih", "", "↓");
+    thDate.innerHTML = dumpHeaderCellHtml("Date", "", "↓");
     headTr.appendChild(thDate);
     columns.forEach(function (col) {
       var th = document.createElement("th");
@@ -1386,15 +1386,15 @@
     var osLabel = (mw && mw.operating_systems) || "";
     if (mergeMweb && dualAxis) {
       document.getElementById("ab-chart-camp-title").textContent = manual
-        ? "iOS — download (manuel) + mobil web banner (" + osLabel + ")"
-        : "GA4 app download + mobil web banner (" + osLabel + ")";
+        ? "iOS — download (manual) + mobile web banner (" + osLabel + ")"
+        : "GA4 app download + mobile web banner (" + osLabel + ")";
     } else if (mergeMweb && !dualAxis) {
       document.getElementById("ab-chart-camp-title").textContent =
-        "Mobil web — banner eventleri (" + osLabel + ")";
+        "Mobile web — banner events (" + osLabel + ")";
     } else {
       document.getElementById("ab-chart-camp-title").textContent = manual
-        ? "GA4 app — Download (manuel Total Downloads)"
-        : "GA4 app — " + label + " (toplam + kampanya)";
+        ? "GA4 app — Download (manual Total Downloads)"
+        : "GA4 app — " + label + " (total + campaign)";
     }
 
     var layoutExtra = {
@@ -1421,7 +1421,7 @@
     showDayInsightSlot();
     var insightBody = document.getElementById("ab-day-insight-body");
     if (insightBody && !insightBody.innerHTML.trim()) {
-      insightBody.innerHTML = "<span class=\"text-slate-500 dark:text-zinc-400\">Grafikte bir güne gelin.</span>";
+      insightBody.innerHTML = "<span class=\"text-slate-500 dark:text-zinc-400\">Hover a day on the chart.</span>";
     }
 
     var ascWrap = document.getElementById("ab-wrap-asc");
@@ -1437,7 +1437,7 @@
         y: ascC.combined_daily.values,
         type: "scatter",
         mode: "lines",
-        name: "Banner kampanyaları (toplam)",
+        name: "Banner campaigns (total)",
         line: { width: 2.5, color: "#059669" },
       });
       filterCampaignsWithSignal(ascC.campaigns).forEach(function (c, i) {
@@ -1516,10 +1516,10 @@
     try {
       var r = await fetch("/api/mz-analytics/ga4-app-banner?" + q.toString(), { credentials: "same-origin" });
       var body = await r.json();
-      if (!r.ok) throw new Error(body.detail || "İstek başarısız");
+      if (!r.ok) throw new Error(body.detail || "Request failed");
       render(body);
     } catch (e) {
-      errEl.textContent = (e && e.message) || "Veri alınamadı";
+      errEl.textContent = (e && e.message) || "Could not fetch data";
       errEl.classList.remove("hidden");
     } finally {
       setLoading(false);

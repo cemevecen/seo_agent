@@ -22,11 +22,11 @@
           <div class="nt-mini-card space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
             <div class="nt-filter-dates">
               <div class="space-y-1.5 min-w-0">
-                <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Başlangıç tarihi</label>
+                <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Start tarihi</label>
                 <input id="nt-start-date" type="date" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
               </div>
               <div class="space-y-1.5 min-w-0">
-                <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Bitiş tarihi</label>
+                <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">End tarihi</label>
                 <input id="nt-end-date" type="date" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
               </div>
             </div>
@@ -36,22 +36,22 @@
         <div class="nt-filter-panel-item nt-filter-panel-preset">
           <div class="nt-mini-card space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
             <div class="space-y-1.5 min-w-0">
-              <label for="nt-range-preset" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</label>
+              <label for="nt-range-preset" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Preset time range</label>
               <select id="nt-range-preset" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                <option value="custom">Özel aralık</option>
-                <option value="all">Tümü</option>
-                <option value="1d">Dün</option>
-                <option value="1w">Son 1 hafta</option>
-                <option value="1m">Son 1 ay</option>
-                <option value="3m">Son 3 ay</option>
-                <option value="6m">Son 6 ay</option>
-                <option value="1y" selected>Son 1 yıl</option>
-                <option value="2y">Son 2 yıl</option>
-                <option value="3y">Son 3 yıl</option>
-                <option value="4y">Son 4 yıl</option>
+                <option value="custom">Custom range</option>
+                <option value="all">All</option>
+                <option value="1d">Yesterday</option>
+                <option value="1w">Last 1 week</option>
+                <option value="1m">Last 1 month</option>
+                <option value="3m">Last 3 months</option>
+                <option value="6m">Last 6 months</option>
+                <option value="1y" selected>Last 1 year</option>
+                <option value="2y">Last 2 years</option>
+                <option value="3y">Last 3 years</option>
+                <option value="4y">Last 4 years</option>
               </select>
             </div>
-            <button id="nt-apply-preset" type="button" class="nt-btn-pastel-green w-full whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold">Hazır aralığı uygula</button>
+            <button id="nt-apply-preset" type="button" class="nt-btn-pastel-green w-full whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold">Apply preset range</button>
           </div>
         </div>
       </div>
@@ -65,7 +65,7 @@
   </div>
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-    <h2 class="text-sm font-bold text-slate-800 dark:text-slate-200">Dönem karşılaştırması</h2>
+    <h2 class="text-sm font-bold text-slate-800 dark:text-slate-200">Period comparison</h2>
     <div id="nt-period-compare" class="mt-3"></div>
     <div class="nt-cmp-charts">
       <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">
@@ -74,54 +74,54 @@
         <div id="nt-trend-clicks" class="nt-cmp-chart-plot mt-2"></div>
       </div>
       <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">
-        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Platform ağırlığı (click payı)</p>
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Platform weight (click share)</p>
         <div id="nt-weight-clicks" class="nt-cmp-chart-plot mt-2"></div>
       </div>
     </div>
   </div>
 
   <details id="nt-ham-list-details" open class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-    <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-slate-200">Ham içerik listesi</summary>
+    <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-slate-200">Raw content list</summary>
     <div id="nt-drill-scroll-anchor" class="h-0 scroll-mt-4" aria-hidden="true"></div>
     <div id="nt-drill-banner" class="mt-3 hidden rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs dark:border-indigo-800 dark:bg-indigo-950/40">
       <span id="nt-drill-banner-text"></span>
-      <button type="button" id="nt-drill-clear" class="ml-2 font-bold text-indigo-700 underline dark:text-indigo-300">Filtreyi kaldır</button>
+      <button type="button" id="nt-drill-clear" class="ml-2 font-bold text-indigo-700 underline dark:text-indigo-300">Clear filter</button>
     </div>
     <div id="nt-drill-mini-cards" class="mt-2 hidden grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
     <div id="nt-content-traffic" class="mt-3 hidden rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h3 class="text-xs font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">GA4 / GSC trafik (içerik linki)</h3>
+        <h3 class="text-xs font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">GA4 / GSC traffic (content link)</h3>
         <select id="nt-traffic-days" class="rounded-lg border border-emerald-300 bg-white px-2 py-1 text-[10px] dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-300">
-          <option value="7">Gönderim +7 gün</option>
-          <option value="14" selected>Gönderim +14 gün</option>
-          <option value="30">Gönderim +30 gün</option>
+          <option value="7">Send +7 days</option>
+          <option value="14" selected>Send +14 days</option>
+          <option value="30">Send +30 days</option>
         </select>
       </div>
       <p id="nt-content-traffic-meta" class="mt-1 text-[10px] text-slate-500 dark:text-slate-400"></p>
       <div id="nt-content-traffic-body" class="nt-traffic-body mt-2 text-xs"></div>
     </div>
     <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-      <input id="nt-filter-q" type="search" placeholder="Başlık ara…" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
-      <input id="nt-filter-id" type="text" placeholder="Bildirim ID" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+      <input id="nt-filter-q" type="search" placeholder="Search titles…" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+      <input id="nt-filter-id" type="text" placeholder="Notification ID" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
       <select id="nt-filter-platform" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
         <option value="">Platform (min click)</option>
         <option value="desktop">Web</option>
         <option value="mobileweb">MWeb</option>
         <option value="android">Android</option>
         <option value="ios">iOS</option>
-        <option value="total">Toplam</option>
+        <option value="total">Total</option>
       </select>
       <input id="nt-filter-min-click" type="number" min="0" placeholder="Min click" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
-      <button type="button" id="nt-filter-apply" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:bg-slate-700">Filtrele</button>
+      <button type="button" id="nt-filter-apply" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:bg-slate-700">Filter</button>
     </div>
     <div class="mt-3 flex flex-wrap items-center gap-2">
-      <button type="button" id="nt-raw-view-7" class="hidden rounded-lg border px-3 py-1.5 text-xs font-bold">İlk 7'ye dön</button>
-      <button type="button" id="nt-raw-view-all" class="rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Hepsini göster</button>
+      <button type="button" id="nt-raw-view-7" class="hidden rounded-lg border px-3 py-1.5 text-xs font-bold">Back to top 7</button>
+      <button type="button" id="nt-raw-view-all" class="rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Show all</button>
       <span id="nt-raw-view-hint" class="text-xs text-slate-500 dark:text-slate-400"></span>
     </div>
     <div id="nt-raw-pagination" class="mt-2 hidden flex flex-wrap items-center gap-2">
-      <button id="nt-page-prev" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Önceki 1000</button>
-      <button id="nt-page-next" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Sonraki 1000</button>
+      <button id="nt-page-prev" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Previous 1000</button>
+      <button id="nt-page-next" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Next 1000</button>
       <span id="nt-page-info" class="text-xs text-slate-500 dark:text-slate-400"></span>
     </div>
     <div id="nt-raw-list" class="mt-3 space-y-2 text-xs"></div>
@@ -138,7 +138,7 @@
         </div>
       </div>
       <div class="nt-metric-bar-group">
-        <span class="nt-metric-bar-label">Liste platformu</span>
+        <span class="nt-metric-bar-label">List platform</span>
         <div class="nt-metric-bar-pills">
           <button type="button" data-nt-list-platform="web" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Web</button>
           <button type="button" data-nt-list-platform="mobileweb" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Mobile Web</button>
@@ -147,42 +147,42 @@
         </div>
       </div>
       <div class="nt-metric-bar-group nt-metric-bar-preset">
-        <label for="nt-range-preset-secondary" class="nt-metric-bar-label">Hazır zaman dilimi</label>
+        <label for="nt-range-preset-secondary" class="nt-metric-bar-label">Preset time range</label>
         <select id="nt-range-preset-secondary" class="nt-metric-bar-select rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-          <option value="custom">Özel aralık</option>
-          <option value="all">Tümü</option>
-          <option value="1d">Dün</option>
-          <option value="1w">Son 1 hafta</option>
-          <option value="1m">Son 1 ay</option>
-          <option value="3m">Son 3 ay</option>
-          <option value="6m">Son 6 ay</option>
-          <option value="1y" selected>Son 1 yıl</option>
-          <option value="2y">Son 2 yıl</option>
-          <option value="3y">Son 3 yıl</option>
-          <option value="4y">Son 4 yıl</option>
+          <option value="custom">Custom range</option>
+          <option value="all">All</option>
+          <option value="1d">Yesterday</option>
+          <option value="1w">Last 1 week</option>
+          <option value="1m">Last 1 month</option>
+          <option value="3m">Last 3 months</option>
+          <option value="6m">Last 6 months</option>
+          <option value="1y" selected>Last 1 year</option>
+          <option value="2y">Last 2 years</option>
+          <option value="3y">Last 3 years</option>
+          <option value="4y">Last 4 years</option>
         </select>
-        <button id="nt-apply-preset-secondary" type="button" class="nt-btn-pastel-green shrink-0 rounded-lg px-3 py-1 text-xs font-bold">Hazır aralığı uygula</button>
+        <button id="nt-apply-preset-secondary" type="button" class="nt-btn-pastel-green shrink-0 rounded-lg px-3 py-1 text-xs font-bold">Apply preset range</button>
       </div>
     </div>
   </div>
 
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
     <div class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-      <h3 class="text-sm font-bold text-emerald-700 dark:text-emerald-400">En çok (Top 50)</h3>
+      <h3 class="text-sm font-bold text-emerald-700 dark:text-emerald-400">Most (Top 50)</h3>
       <div id="nt-most-list" class="mt-2 min-w-0 space-y-2 text-sm"></div>
-      <button type="button" id="nt-most-expand" class="mt-3 hidden w-full rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/60">Top 50'yi gör / genişlet</button>
+      <button type="button" id="nt-most-expand" class="mt-3 hidden w-full rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/60">See / expand Top 50</button>
     </div>
     <div class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
       <h3 class="text-sm font-bold text-rose-700 dark:text-rose-400">En az (Top 50)</h3>
       <div id="nt-least-list" class="mt-2 min-w-0 space-y-2 text-sm"></div>
-      <button type="button" id="nt-least-expand" class="mt-3 hidden w-full rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200 dark:hover:bg-rose-950/60">Top 50'yi gör / genişlet</button>
+      <button type="button" id="nt-least-expand" class="mt-3 hidden w-full rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200 dark:hover:bg-rose-950/60">See / expand Top 50</button>
     </div>
   </div>
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-    <h3 class="text-sm font-bold text-indigo-700 dark:text-indigo-300">4 platform toplam click (Top 20)</h3>
+    <h3 class="text-sm font-bold text-indigo-700 dark:text-indigo-300">4-platform total clicks (Top 20)</h3>
     <div id="nt-cross-top-list" class="nt-cross-top-wrap mt-3 text-xs"></div>
-    <button type="button" id="nt-cross-top-expand" class="mt-3 hidden w-full rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Top 50'yi gör / genişlet</button>
+    <button type="button" id="nt-cross-top-expand" class="mt-3 hidden w-full rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">See / expand Top 50</button>
   </div>
 
   <style>
@@ -770,9 +770,9 @@
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="text-sm font-bold text-slate-800 dark:text-slate-200">Gönderim saati heatmap</h2>
+      <h2 class="text-sm font-bold text-slate-800 dark:text-slate-200">Send-hour heatmap</h2>
       <select id="nt-heatmap-metric" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-        <option value="total">Toplam click</option>
+        <option value="total">Total clicks</option>
         <option value="desktop">Web</option>
         <option value="mobileweb">MWeb</option>
         <option value="android">Android</option>
@@ -788,8 +788,8 @@
 <div id="nt-raw-text-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="nt-raw-text-modal-title">
   <div class="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-900" role="document">
     <div class="mb-3 flex items-start justify-between gap-3">
-      <h3 id="nt-raw-text-modal-title" class="text-sm font-bold text-slate-900 dark:text-slate-300">İçerik metni</h3>
-      <button type="button" id="nt-raw-text-modal-close" class="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Kapat</button>
+      <h3 id="nt-raw-text-modal-title" class="text-sm font-bold text-slate-900 dark:text-slate-300">Content text</h3>
+      <button type="button" id="nt-raw-text-modal-close" class="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Close</button>
     </div>
     <p id="nt-raw-text-modal-body" class="whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-slate-200"></p>
   </div>
@@ -797,12 +797,12 @@
 
 <div id="nt-confirm-modal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 p-4 dark:bg-black/70" role="dialog" aria-modal="true" aria-labelledby="nt-confirm-modal-title" style="display:none">
   <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-900">
-    <h3 id="nt-confirm-modal-title" class="text-sm font-bold text-slate-900 dark:text-slate-100">Onay</h3>
+    <h3 id="nt-confirm-modal-title" class="text-sm font-bold text-slate-900 dark:text-slate-100">Confirm</h3>
     <p id="nt-confirm-modal-step" class="mt-2 text-xs text-slate-600 dark:text-slate-300"></p>
     <p id="nt-confirm-modal-warn" class="mt-2 hidden text-xs font-semibold text-rose-700 dark:text-rose-300"></p>
     <div class="mt-4 flex justify-end gap-2">
-      <button id="nt-confirm-modal-cancel" type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Vazgeç</button>
-      <button id="nt-confirm-modal-confirm" type="button" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500">Devam</button>
+      <button id="nt-confirm-modal-cancel" type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Dismiss</button>
+      <button id="nt-confirm-modal-confirm" type="button" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500">Continue</button>
     </div>
   </div>
 </div>
@@ -1122,12 +1122,12 @@
       }
     }
     if (response.status === 401 || response.status === 403) {
-      return "Oturum gerekli — sayfayı yenileyip tekrar giriş yapın.";
+      return "Sign-in required — refresh the page and sign in again.";
     }
-    if (response.status === 413) return "Dosya çok büyük.";
+    if (response.status === 413) return "File too large.";
     var t = String(text || "").trim();
     if (t.indexOf("<!") === 0 || t.indexOf("<html") === 0) {
-      return "Sunucu HTML döndü (HTTP " + response.status + "). Oturum süresi dolmuş olabilir.";
+      return "Server returned HTML (HTTP " + response.status + "). The session may have expired.";
     }
     return "HTTP " + response.status;
   }
@@ -1247,7 +1247,7 @@
     var count = meta && meta.row_count != null ? Number(meta.row_count) : null;
     var parts = [];
     if (when && when !== "—") parts.push("son senkron: " + when);
-    if (count != null && !isNaN(count)) parts.push(count.toLocaleString("tr-TR") + " kayıt");
+    if (count != null && !isNaN(count)) parts.push(count.toLocaleString("tr-TR") + " records");
     el.textContent = parts.join(" · ");
     var link = document.getElementById("nt-source-link");
     if (link && meta && (meta.sheet_backup_url || meta.source_url)) {
@@ -1330,8 +1330,8 @@
       var cancelBtn = document.getElementById("nt-confirm-modal-cancel");
       var confirmBtn = document.getElementById("nt-confirm-modal-confirm");
       if (!modal || !titleEl || !stepEl || !warnEl || !cancelBtn || !confirmBtn) {
-        resolve(window.confirm(String(opts.step1 || "Onaylıyor musunuz?")) &&
-          window.confirm(String(opts.step2Warn || "Son onay?")));
+        resolve(window.confirm(String(opts.step1 || "Are you sure?")) &&
+          window.confirm(String(opts.step2Warn || "Final confirmation?")));
         return;
       }
       if (modal.parentNode !== document.body) {
@@ -1350,16 +1350,16 @@
         resolve(!!ok);
       }
       function renderStep() {
-        titleEl.textContent = opts.title || "Onay";
-        stepEl.textContent = step === 1 ? (opts.step1 || "Devam edilsin mi?") : "Son onay";
+        titleEl.textContent = opts.title || "Confirm";
+        stepEl.textContent = step === 1 ? (opts.step1 || "Continue?") : "Final confirmation";
         if (step === 1) {
           warnEl.classList.add("hidden");
-          confirmBtn.textContent = "Devam";
+          confirmBtn.textContent = "Continue";
           confirmBtn.className = "rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500";
         } else {
-          warnEl.textContent = opts.step2Warn || "Bu işlem geri alınamaz.";
+          warnEl.textContent = opts.step2Warn || "This cannot be undone.";
           warnEl.classList.remove("hidden");
-          confirmBtn.textContent = opts.confirmFinal || "Evet, onayla";
+          confirmBtn.textContent = opts.confirmFinal || "Yes, confirm";
           confirmBtn.className = "rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-500";
         }
       }
@@ -1420,7 +1420,7 @@
     var pct;
     if (phase === "ingest") {
       pct = 94;
-      msg = msg || (rows ? ("Railway · " + rows.toLocaleString("tr-TR") + " kayıt") : "Railway'e yazılıyor…");
+      msg = msg || (rows ? ("Railway · " + rows.toLocaleString("tr-TR") + " records") : "Writing to Railway…");
     } else if (phase === "done") {
       pct = 100;
     } else if (phase === "error") {
@@ -1438,9 +1438,9 @@
     if (lab) {
       var suffix = "";
       if (rows > 0 && msg.indexOf(String(rows)) < 0) {
-        suffix = " · " + rows.toLocaleString("tr-TR") + " kayıt";
+        suffix = " · " + rows.toLocaleString("tr-TR") + " records";
       }
-      lab.textContent = msg || (total ? (step + "/" + total) : "Köprü…") + suffix;
+      lab.textContent = msg || (total ? (step + "/" + total) : "Bridge…") + suffix;
     }
     if (msg) status(msg);
   }
@@ -1458,7 +1458,7 @@
       step: 0,
       total_steps: 13,
       rows: 0,
-      message: "0/13 · VPN köprüsü başlıyor…",
+      message: "0/13 · Starting VPN bridge…",
     });
     ntBridgeProgressTimer = setInterval(function () {
       fetch(NT_BRIDGE_PROGRESS_URL, {
@@ -1485,7 +1485,7 @@
       }).then(function (resp) {
         return resp.json().then(function (data) {
           if (resp.status === 409) {
-            var err = new Error((data && data.message) || "Bridge meşgul");
+            var err = new Error((data && data.message) || "Bridge busy");
             err.busy = true;
             err.bridge = data || null;
             throw err;
@@ -1500,7 +1500,7 @@
       });
     }
     startNtBridgeProgressPoll();
-    // Virgül veya başka sync kısa sürüyorsa Elle yenile'yi hemen Railway'e düşürme
+    // Virgül veya başka sync kısa sürüyorsa Elle newle'yi hemen Railway'e düşürme
     return attempt().catch(function (err) {
       if (!err || !err.busy) throw err;
       paintNtBridgeProgress({
@@ -1508,7 +1508,7 @@
         step: 0,
         total_steps: 13,
         rows: 0,
-        message: "Köprü meşgul · 8 sn sonra tekrar…",
+        message: "Bridge busy · retry in 8s…",
       });
       return new Promise(function (resolve) { setTimeout(resolve, 8000); }).then(attempt);
     }).catch(function (err) {
@@ -1518,7 +1518,7 @@
         step: 0,
         total_steps: 13,
         rows: 0,
-        message: "Köprü hâlâ meşgul · 12 sn sonra…",
+        message: "Bridge still busy · in 12s…",
       });
       return new Promise(function (resolve) { setTimeout(resolve, 12000); }).then(attempt);
     }).then(function (data) {
@@ -1527,7 +1527,7 @@
         step: 1,
         total_steps: 1,
         rows: (data && (data.row_count || data.parsed)) || 0,
-        message: (data && data.message) || "Tamam",
+        message: (data && data.message) || "Done",
       });
       return data;
     }).finally(function () {
@@ -1542,7 +1542,7 @@
     var preferBridge = !!force;
     status(
       preferBridge
-        ? "VPN köprüsü ile admin stats çekiliyor…"
+        ? "Fetching admin stats via VPN bridge…"
         : "Veriler senkronize ediliyor…"
     );
 
@@ -1550,9 +1550,9 @@
       ? syncViaVpnBridge().catch(function (bridgeErr) {
           hideNtBridgeProgress();
           status(
-            "Köprüye ulaşılamadı (" +
-              ((bridgeErr && bridgeErr.message) || "kapalı") +
-              "). Sunucu admin taraması deneniyor…"
+            "Could not reach bridge (" +
+              ((bridgeErr && bridgeErr.message) || "offline") +
+              "). Trying server-side admin scan…"
           );
           return apiFetch("/api/notification-analytics/sync-sheet?force=1", {
             method: "POST",
@@ -1613,7 +1613,7 @@
     var cached = readSessionRows(cacheKey);
     if (cached && cached.length) {
       rowsCache = cached;
-      status(cached.length.toLocaleString("tr-TR") + " kayıt (oturum önbelleği, veritabanı).");
+      status(cached.length.toLocaleString("tr-TR") + " records (session cache, database).");
       return Promise.resolve({ total: cached.length, from_cache: true });
     }
     var offset = 0;
@@ -1629,7 +1629,7 @@
       ).then(function (chunk) {
         var total = n(chunk.total);
         status(
-          "Kayıtlı veri okunuyor (veritabanı)… " +
+          "Reading saved data (database)… " +
             Math.min(offset + (chunk.rows ? chunk.rows.length : 0), total).toLocaleString("tr-TR") +
             " / " +
             total.toLocaleString("tr-TR")
@@ -1652,7 +1652,7 @@
       end: selectedEndDate() || "",
     };
     if (!skipStatus) {
-      status("Tarih aralığına göre veritabanından yenileniyor…");
+      status("Refreshing from the database for the date range…");
     }
     return loadRowsInChunks(range, ntDbUpdatedAt).then(function () {
       redrawAll();
@@ -1692,7 +1692,7 @@
     if (!lastLocal) {
       lastLocal = highestId(localRows);
     }
-    status("Tarayıcıdaki " + localRows.length + " kayıt sunucuya aktarılıyor…");
+    status("Browser " + localRows.length + " records uploading to server…");
     return saveRows(localRows).then(function () {
       serverLastId = Math.max(serverLastId, lastLocal);
       return savePrefsOnly({
@@ -1703,7 +1703,7 @@
     }).then(function () {
       localStorage.removeItem(STORE_KEY);
       localStorage.removeItem(LAST_ID_KEY);
-      status("Yerel veri sunucuya taşındı; artık tüm cihazlar aynı listeyi görür.");
+      status("Local data moved to the server; all devices now see the same list.");
     });
   }
   function highestId(rows) { return rows.reduce(function (m, r) { var idn = n(r.id); return idn > m ? idn : m; }, 0); }
@@ -1956,8 +1956,8 @@
     var start = selectedStartDate();
     var end = selectedEndDate();
     var dayCount = aggregateByDay(rows).length;
-    var rangeTxt = (!start && !end) ? "Tüm veri" : ((start || "…") + " – " + (end || "…"));
-    el.textContent = rangeTxt + " · " + fmt(rows.length) + " kayıt · " + dayCount + " günlük nokta";
+    var rangeTxt = (!start && !end) ? "All data" : ((start || "…") + " – " + (end || "…"));
+    el.textContent = rangeTxt + " · " + fmt(rows.length) + " records · " + dayCount + " daily points";
   }
   function plotTrendChart(elementId, seriesKeys, rows) {
     var el = document.getElementById(elementId);
@@ -1984,7 +1984,7 @@
       margin: { l: 52, r: 12, t: 8, b: dense ? 52 : 40 },
       paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
       font: ntFont(),
-      xaxis: Object.assign(ntAxisLayout("Tarih"), {
+      xaxis: Object.assign(ntAxisLayout("Date"), {
         type: "date",
         tickformat: "%d.%m.%y",
         tickangle: dense ? -45 : 0,
@@ -2197,20 +2197,20 @@
     return '<div class="nt-cross-drill-panel border-t border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900 dark:bg-indigo-950/35">'
       + '<div class="flex items-start justify-between gap-2">'
       + '<div class="min-w-0 flex-1">'
-      + '<p class="text-[10px] font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Detay</p>'
+      + '<p class="text-[10px] font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Detail</p>'
       + '<p class="nt-cross-drill-title mt-0.5 truncate text-sm font-semibold text-slate-800 dark:text-slate-200">' + title + "</p>"
       + '<p class="nt-cross-drill-meta mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">ID '
       + escapeHtml(x.id || "-") + " · " + escapeHtml(x.sendDay || "-") + "</p></div>"
-      + '<button type="button" data-nt-cross-drill-close class="shrink-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" title="Detayı gizle">✕ Gizle</button>'
+      + '<button type="button" data-nt-cross-drill-close class="shrink-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" title="Hide detail">✕ Hide</button>'
       + "</div>"
       + '<div class="nt-inline-drill-cards mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4"></div>'
       + '<div class="nt-inline-drill-traffic mt-3 rounded-xl border border-emerald-200 bg-white/90 p-2 dark:border-emerald-900 dark:bg-slate-900/70">'
       + '<div class="flex flex-wrap items-center justify-between gap-2">'
-      + '<h4 class="text-[10px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">GA4 / GSC trafik (içerik linki)</h4>'
+      + '<h4 class="text-[10px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">GA4 / GSC traffic (content link)</h4>'
       + '<select class="nt-inline-traffic-days rounded-lg border border-emerald-300 bg-white px-2 py-1 text-[10px] dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-300">'
-      + '<option value="7">Gönderim +7 gün</option>'
-      + '<option value="14" selected>Gönderim +14 gün</option>'
-      + '<option value="30">Gönderim +30 gün</option>'
+      + '<option value="7">Send +7 days</option>'
+      + '<option value="14" selected>Send +14 days</option>'
+      + '<option value="30">Send +30 days</option>'
       + "</select></div>"
       + '<p class="nt-inline-traffic-meta mt-1 text-[10px] text-slate-500 dark:text-slate-400"></p>'
       + '<div class="nt-inline-traffic-body nt-traffic-body mt-2 text-xs"></div>'
@@ -2267,7 +2267,7 @@
     var items = cachedCrossTopList;
     if (!el) return;
     if (!items.length) {
-      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Seçilen tarih aralığında veri yok.</p>';
+      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">No data in the selected date range.</p>';
       if (toggle) toggle.classList.add("hidden");
       return;
     }
@@ -2282,13 +2282,13 @@
     var head = "<thead><tr>"
       + '<th class="nt-cross-num">#</th>'
       + '<th class="nt-cross-id">ID</th>'
-      + '<th class="nt-cross-title">İçerik</th>'
-      + '<th class="nt-cross-total">Toplam</th>'
+      + '<th class="nt-cross-title">Content</th>'
+      + '<th class="nt-cross-total">Total</th>'
       + '<th class="nt-cross-p">Web</th>'
       + '<th class="nt-cross-p">MWeb</th>'
       + '<th class="nt-cross-p">Android</th>'
       + '<th class="nt-cross-p">iOS</th>'
-      + '<th class="nt-cross-day">Gönderim</th>'
+      + '<th class="nt-cross-day">Sends</th>'
       + "</tr></thead>";
     var body = shown.map(function (x, idx) {
       var title = escapeHtml(x.headline);
@@ -2320,8 +2320,8 @@
     }
     toggle.classList.remove("hidden");
     toggle.textContent = expanded
-      ? "İlk 20'ye daralt"
-      : ("Top 50'yi gör / genişlet (" + items.length + " içerik)");
+      ? "Collapse to top 20"
+      : ("See / expand top 50 (" + items.length + " items)");
   }
   function paintTopList(listId, toggleId, items, cls, expanded) {
     var el = document.getElementById(listId);
@@ -2329,7 +2329,7 @@
     var platformLabel = selectedListPlatform === "web" ? "Web (Desktop)" : selectedListPlatform === "mobileweb" ? "Mobile Web" : selectedListPlatform === "android" ? "Android" : "iOS";
     if (!el) return;
     if (!items.length) {
-      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Seçilen tarih aralığında veri yok.</p>';
+      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">No data in the selected date range.</p>';
       if (toggle) toggle.classList.add("hidden");
       return;
     }
@@ -2345,7 +2345,7 @@
         + '<span class="nt-top-list-num tabular-nums">' + (idx + 1) + ".</span>"
         + '<button type="button" class="nt-top-list-title text-left font-semibold text-indigo-700 underline dark:text-indigo-300"' + drillAttr + ' title="' + titleTip + '">' + title + "</button>"
         + "</p>"
-        + '<p class="nt-top-list-meta text-xs ' + cls + '">' + metricNumberText(x.metric) + " " + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + " · " + (x.latestDate || "-") + " · " + fmtCount(x.clicks) + " click" + (selectedListPlatform === "ios" ? "" : (" · " + fmtCount(x.impressions) + " impr")) + " · " + fmt(x.rows) + " kayıt</span></p>"
+        + '<p class="nt-top-list-meta text-xs ' + cls + '">' + metricNumberText(x.metric) + " " + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + " · " + (x.latestDate || "-") + " · " + fmtCount(x.clicks) + " click" + (selectedListPlatform === "ios" ? "" : (" · " + fmtCount(x.impressions) + " impr")) + " · " + fmt(x.rows) + " records</span></p>"
         + "</div>";
     }).join("");
     if (!toggle) return;
@@ -2355,8 +2355,8 @@
     }
     toggle.classList.remove("hidden");
     toggle.textContent = expanded
-      ? "İlk 10'a daralt"
-      : ("Top 50'yi gör / genişlet (" + items.length + " kayıt)");
+      ? "Collapse to top 10"
+      : ("See / expand top 50 (" + items.length + " records)");
   }
   function renderRawViewControls() {
     var btn5 = document.getElementById("nt-raw-view-7");
@@ -2430,9 +2430,9 @@
       if (hint) {
         var cap = selectedEndDate();
         hint.textContent = sorted.length
-          ? ("Son " + RAW_PREVIEW_SIZE + " kayıt (güncelden eskiye)"
-            + (cap ? (" · " + cap + " ve öncesi") : " · tüm tarihler")
-            + " · toplam " + fmt(sorted.length))
+          ? ("Last " + RAW_PREVIEW_SIZE + " records (newest first)"
+            + (cap ? (" · " + cap + " and earlier") : " · all dates")
+            + " · total " + fmt(sorted.length))
           : "";
       }
       if (pageInfo) pageInfo.textContent = "";
@@ -2443,11 +2443,11 @@
       var start = rawPage * CHUNK_SIZE;
       chunk = sorted.slice(start, start + CHUNK_SIZE);
       if (pageInfo) {
-        pageInfo.textContent = "Sayfa " + (rawPage + 1) + "/" + totalPages + " · " + (start + 1) + "–" + Math.min(start + CHUNK_SIZE, sorted.length) + " / " + fmt(sorted.length);
+        pageInfo.textContent = "Page " + (rawPage + 1) + "/" + totalPages + " · " + (start + 1) + "–" + Math.min(start + CHUNK_SIZE, sorted.length) + " / " + fmt(sorted.length);
       }
-      if (hint) hint.textContent = sorted.length ? (fmt(sorted.length) + " kayıt · 1000'lik sayfalama") : "";
+      if (hint) hint.textContent = sorted.length ? (fmt(sorted.length) + " records · 1000'lik sayfalama") : "";
     }
-    if (!chunk.length) { el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Gösterilecek kayıt yok.</p>'; return; }
+    if (!chunk.length) { el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">No records to show.</p>'; return; }
     var head = RAW_COLUMNS.map(function (c) {
       var effectiveField = rawListView === "preview" ? "date" : rawSortField;
       var effectiveDir = rawListView === "preview" ? "desc" : rawSortDir;
@@ -2600,7 +2600,7 @@
           if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
           return reloadRowsForCurrentFilters(true);
         }).catch(function (err) {
-          status((err && err.detail) || (err && err.message) || "Hazır aralık kaydedilemedi.");
+          status((err && err.detail) || (err && err.message) || "Could not save preset range.");
         });
         return;
       }
@@ -2628,7 +2628,7 @@
         if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
         return reloadRowsForCurrentFilters(true);
       }).catch(function (err) {
-        status((err && err.detail) || (err && err.message) || "Hazır aralık kaydedilemedi.");
+        status((err && err.detail) || (err && err.message) || "Could not save preset range.");
       });
       return;
     }
@@ -2733,12 +2733,12 @@
     refreshSheetBtn.addEventListener("click", function () {
       syncSheetFromServer(true)
         .then(function (syncData) {
-          var msg = (syncData && syncData.message) || "Senkron tamamlandı.";
-          status(msg + " Veriler yenileniyor…");
+          var msg = (syncData && syncData.message) || "Sync completed.";
+          status(msg + " Refreshing data…");
           return loadServerState().then(function (full) {
             status(
               msg +
-                " Toplam kayıt: " +
+                " Total records: " +
                 (full.row_count != null ? full.row_count : rowsCache.length).toLocaleString("tr-TR")
             );
             rawPage = 0;
@@ -2750,7 +2750,7 @@
           });
         })
         .catch(function (err) {
-          status((err && err.detail) || (err && err.message) || "Sheet senkronu başarısız.");
+          status((err && err.detail) || (err && err.message) || "Sheet sync failed.");
         });
     });
   }
@@ -2765,10 +2765,10 @@
         return reloadRowsForCurrentFilters(true);
       })
       .then(function () {
-        status("Tarih aralığı uygulandı (veritabanından yüklendi).");
+        status("Date range applied (loaded from database).");
       })
       .catch(function (err) {
-        status((err && err.detail) || "Tarih kaydedilemedi.");
+        status((err && err.detail) || "Could not save the date.");
       });
   });
 
@@ -2784,10 +2784,10 @@
     var matched = rawListRows();
     renderRawRows(matched);
     if (!serverReady && !rowsCache.length) {
-      status("Veri yükleniyor… Filtre hazır; kayıtlar gelince liste güncellenecek.");
+      status("Loading data… Filter is ready; the list will update when records arrive.");
       return;
     }
-    status("Ham liste filtresi uygulandı · " + fmt(matched.length) + " kayıt");
+    status("Raw list filter applied · " + fmt(matched.length) + " records");
   }
   function scheduleRawSearchApply() {
     if (rawFilterDebounce) clearTimeout(rawFilterDebounce);
@@ -2821,7 +2821,7 @@
   renderMetricPills();
   renderListPlatformPills();
 
-  status("Veriler yükleniyor…");
+  status("Loading data…");
   loadServerState()
     .then(function (data) {
       return migrateLocalStorageIfEmpty(data.row_count).then(function () { return data; });
@@ -2839,13 +2839,13 @@
         status(
           rowsCache.length
             ? rowsCache.length.toLocaleString("tr-TR") +
-              " kayıt gösteriliyor."
-            : "Henüz kayıt yok — «Sayfayı güncelle» ile senkronize edin."
+              " records shown."
+            : "No records yet — sync with “Update page”."
         );
       }
     })
     .catch(function (err) {
-      status((err && err.detail) || "Sunucudan veri alınamadı.");
+      status((err && err.detail) || "Could not fetch data from the server.");
       redrawAll();
     });
 
@@ -2856,7 +2856,7 @@
     });
   });
 
-  // Tema (açık/midnight) değişince grafikleri yeni renk paletiyle yeniden çiz.
+  // Tema (açık/midnight) değişince grafikleri new renk paletiyle newden çiz.
   var ntThemeTimer = null;
   var ntThemeObserver = new MutationObserver(function () {
     if (ntThemeTimer) clearTimeout(ntThemeTimer);
@@ -2866,6 +2866,6 @@
 })();
 </script>
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
-<script src="/static/js/notification_extras.js?v=8"></script>
-<script src="/static/js/notification_lab.js?v=6"></script>
+<script src="/static/js/notification_extras.js?v=9"></script>
+<script src="/static/js/notification_lab.js?v=7"></script>
 {% endblock %}

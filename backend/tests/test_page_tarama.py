@@ -68,7 +68,7 @@ def test_all_listed_pages_have_slot_and_key():
 
 def test_js_uses_railway_queue_on_remote():
     js = (ROOT / "static/js/page_tarama.js").read_text(encoding="utf-8")
-    assert "Sayfayı güncelle" in js
+    assert "Update page" in js
     assert "/api/page-tarama/manual" in js
     assert "/api/page-tarama/quota" in js
     assert "/api/page-tarama/progress" in js
@@ -76,7 +76,7 @@ def test_js_uses_railway_queue_on_remote():
     assert "skipBridge" in js
     assert "useQueue" in js
     assert "runSequential(jobs, steps, 0, { skipBridge: true })" in js
-    assert "Saatte en fazla 3" in js
+    assert "At most 3" in js
     for key in PAGES:
         assert f"{key}:" in js or f'"{key}":' in js, key
 

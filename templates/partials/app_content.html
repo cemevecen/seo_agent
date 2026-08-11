@@ -208,11 +208,11 @@
   <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-4">
     <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
       <div class="min-w-0">
-        <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">Mobil uygulama mağaza analitiği</h1>
+        <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">Mobile app store analytics</h1>
       </div>
       <div class="flex flex-col items-start gap-2 lg:items-end">
         <div class="flex flex-wrap items-center gap-2">
-          <nav id="app-intel-product-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Uygulama seçimi"></nav>
+          <nav id="app-intel-product-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="App selection"></nav>
           <div
             id="app-intel-hero"
             class="rounded-xl border border-slate-300/80 bg-slate-50 px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-800/80"
@@ -233,25 +233,25 @@
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <span data-page-tarama-slot></span>
-          <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dönem</span>
-          <nav id="app-intel-period-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Gün aralığı">
+          <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Period</span>
+          <nav id="app-intel-period-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Day range">
             <button type="button" data-app-period="7" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">7g</button>
             <button type="button" data-app-period="30" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">30g</button>
             <button type="button" data-app-period="90" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">3a</button>
             <button type="button" data-app-period="180" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">6a</button>
             <button type="button" data-app-period="365" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">1y</button>
             <button type="button" data-app-period="730" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">2y</button>
-            <button type="button" data-app-period="0" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">tümü</button>
+            <button type="button" data-app-period="0" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">all</button>
           </nav>
         </div>
       </div>
     </div>
     <p id="app-intel-status" class="mt-1 text-xs text-slate-700 dark:text-white">
-      Önbellek kontrol ediliyor…
+      Checking cache…
     </p>
     <div id="app-intel-progress-wrap" class="mt-2 hidden">
       <div class="mb-1 flex items-center justify-between">
-        <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">İlerleme</span>
+        <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Progress</span>
         <span id="app-intel-progress-label" class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">0%</span>
       </div>
       <div class="h-2 w-full overflow-hidden rounded-full border border-slate-300/80 bg-slate-200/90 dark:border-slate-600 dark:bg-slate-800">
@@ -272,14 +272,14 @@
       <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="app-intel-head-play" class="text-base font-bold text-slate-900 dark:text-slate-100">Google Play</h2>
-          <a id="app-intel-link-android" href="#" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-medium text-sky-600 hover:underline dark:text-sky-400">Mağaza sayfası</a>
+          <a id="app-intel-link-android" href="#" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-medium text-sky-600 hover:underline dark:text-sky-400">Store page</a>
         </div>
         <div id="app-intel-android-meta" class="w-full sm:w-auto"></div>
       </div>
       <p id="app-intel-android-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
       <div class="space-y-4">
         <div>
-          <p id="app-intel-play-stars-title" class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı</p>
+          <p id="app-intel-play-stars-title" class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Star distribution</p>
           <div id="app-chart-play-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
           <div id="app-intel-play-star-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
           <p id="app-intel-play-star-source-note" class="hidden mt-1.5 text-[10px] text-slate-400 dark:text-slate-500 italic"></p>
@@ -294,12 +294,12 @@
           <div id="app-intel-play-sat" class="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm"></div>
         </div>
         <div>
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Son 100 yorum (en güncelden)</p>
+          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Last 100 reviews (newest first)</p>
           <div id="app-intel-play-latest" class="max-h-[360px] space-y-2 overflow-y-auto pr-1"></div>
           <div id="app-intel-play-latest-pagination" class="mt-2 flex flex-wrap items-center gap-1.5"></div>
         </div>
         <div id="app-intel-play-rank-wrap" class="hidden">
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kategori sırası trendi (7g)</p>
+          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Category rank trend (7d)</p>
           <div id="app-chart-play-rank" class="h-[210px] w-full min-h-[180px]"></div>
         </div>
       </div>
@@ -309,7 +309,7 @@
       <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="app-intel-head-ios" class="text-base font-bold text-slate-900 dark:text-slate-100">App Store</h2>
-          <a id="app-intel-link-ios" href="#" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-medium text-sky-600 hover:underline dark:text-sky-400">Mağaza sayfası</a>
+          <a id="app-intel-link-ios" href="#" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-medium text-sky-600 hover:underline dark:text-sky-400">Store page</a>
         </div>
         <div id="app-intel-ios-meta" class="w-full sm:w-auto"></div>
       </div>
@@ -317,7 +317,7 @@
       <p id="app-intel-ios-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
       <div class="space-y-4">
         <div>
-          <p id="app-intel-ios-stars-title" class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yıldız dağılımı</p>
+          <p id="app-intel-ios-stars-title" class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Star distribution</p>
           <div id="app-chart-ios-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
           <div id="app-intel-ios-star-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
           <p id="app-intel-ios-star-source-note" class="hidden mt-1.5 text-[10px] text-slate-400 dark:text-slate-500 italic"></p>
@@ -332,12 +332,12 @@
           <div id="app-intel-ios-sat" class="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm"></div>
         </div>
         <div>
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Son 100 yorum (en güncelden)</p>
+          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Last 100 reviews (newest first)</p>
           <div id="app-intel-ios-latest" class="max-h-[360px] space-y-2 overflow-y-auto pr-1"></div>
           <div id="app-intel-ios-latest-pagination" class="mt-2 flex flex-wrap items-center gap-1.5"></div>
         </div>
         <div id="app-intel-ios-rank-wrap" class="hidden">
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kategori sırası trendi (7g)</p>
+          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Category rank trend (7d)</p>
           <div id="app-chart-ios-rank" class="h-[210px] w-full min-h-[180px]"></div>
         </div>
       </div>
@@ -348,21 +348,21 @@
     <div class="mb-3 flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
       <h2 lang="en" class="text-sm font-bold uppercase tracking-wide text-sky-800 dark:text-sky-200 sm:text-base">Competitor Benchmark</h2>
       <div class="flex items-center gap-2">
-        <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:text-[11px]">İki uygulamayı A/B olarak kıyaslayın; sonuçlar tam genişlikte gösterilir.</p>
-        <button id="app-aso-comp-clear" type="button" class="hidden shrink-0 rounded border border-slate-300 bg-white px-2 py-1 text-[10px] font-medium text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-rose-600 dark:hover:bg-rose-900/30 dark:hover:text-rose-300">Sonuçları temizle</button>
+        <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:text-[11px]">Compare two apps as A/B; results are shown full width.</p>
+        <button id="app-aso-comp-clear" type="button" class="hidden shrink-0 rounded border border-slate-300 bg-white px-2 py-1 text-[10px] font-medium text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-rose-600 dark:hover:bg-rose-900/30 dark:hover:text-rose-300">Clear results</button>
       </div>
     </div>
     <div class="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-12 xl:items-start xl:gap-4">
       <div class="min-w-0 space-y-2 xl:col-span-3 xl:self-start">
         <div class="flex flex-col gap-1.5 xl:flex-col">
-          <label class="sr-only" for="app-aso-comp-label">İsim (isteğe bağlı)</label>
-          <input id="app-aso-comp-label" type="text" placeholder="İsim (ops.): örn. DövizApp, RakipApp" title="İki uygulama için kısa etiket; sadece görünür isim, virgülle ayırın." class="min-w-0 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100 xl:max-w-[280px]" autocomplete="off" />
+          <label class="sr-only" for="app-aso-comp-label">Name (optional)</label>
+          <input id="app-aso-comp-label" type="text" placeholder="Name (opt.): e.g. DovizApp, RivalApp" title="Short labels for two apps; display name only, comma-separated." class="min-w-0 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100 xl:max-w-[280px]" autocomplete="off" />
           <label class="sr-only" for="app-aso-comp-android">Play paket</label>
-          <input id="app-aso-comp-android" type="text" placeholder="com.ilk, com.ikinci" title="Google Play package id — iki uygulama için virgülle (veya bu satırı boş bırakıp yalnız iOS id girin)." class="min-w-0 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100 xl:max-w-[280px]" autocomplete="off" />
+          <input id="app-aso-comp-android" type="text" placeholder="com.first, com.second" title="Google Play package id — comma-separated for two apps (or leave this row empty and enter iOS ids only)." class="min-w-0 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100 xl:max-w-[280px]" autocomplete="off" />
           <div class="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center xl:max-w-[280px]">
             <label class="sr-only" for="app-aso-comp-ios">App Store id</label>
-            <input id="app-aso-comp-ios" type="text" placeholder="465599322, 1500198745" title="App Store uygulama id’si (rakam veya App Store linkindeki id123… biçimi) — virgülle iki id veya bu satırı boş bırakıp yalnız Android paket girin." class="min-w-0 w-full flex-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100" autocomplete="off" />
-            <button id="app-aso-comp-run" type="button" class="shrink-0 rounded-md border border-sky-400 bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-800 whitespace-nowrap dark:border-sky-600 dark:bg-sky-900/40 dark:text-sky-200">Kıyasla</button>
+            <input id="app-aso-comp-ios" type="text" placeholder="465599322, 1500198745" title="App Store app id (digits or the id123… form in the App Store URL) — two ids comma-separated, or leave empty and enter Android packages only." class="min-w-0 w-full flex-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100" autocomplete="off" />
+            <button id="app-aso-comp-run" type="button" class="shrink-0 rounded-md border border-sky-400 bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-800 whitespace-nowrap dark:border-sky-600 dark:bg-sky-900/40 dark:text-sky-200">Compare</button>
           </div>
         </div>
         <div id="app-aso-comp-history" class="mt-1 min-w-0"></div>
@@ -374,17 +374,17 @@
   <section
     id="app-rollout-root"
     class="mt-5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-[#0b0f19] dark:ring-slate-800/80 sm:p-5"
-    aria-label="Mağaza sürüm yayını"
+    aria-label="Store version rollout"
   >
     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
       <div>
-        <h2 class="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">Mağaza sürüm yayını</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Son iOS / Android production sürümünün mağazada yüzde kaç kullanıcıya açık olduğu (staged / phased — canlı API)</p>
+        <h2 class="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">Store version rollout</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">What share of users the latest iOS / Android production version is live for (staged / phased — live API)</p>
       </div>
-      <button id="app-rollout-refresh" type="button" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">↺ Yenile</button>
+      <button id="app-rollout-refresh" type="button" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">↺ Refresh</button>
     </div>
     <div id="app-rollout-content" class="grid grid-cols-1 gap-3 md:grid-cols-2">
-      <p class="col-span-full text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+      <p class="col-span-full text-sm text-slate-500 dark:text-slate-400">Loading…</p>
     </div>
   </section>
 
@@ -414,7 +414,7 @@
   <section
     id="app-asc-root"
     class="app-asc-shell mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-[#0b0f19] dark:ring-slate-800/80"
-    aria-label="App Store Connect özeti"
+    aria-label="App Store Connect summary"
   >
     {# Başlık şeridi (tıklanabilir — dropdown toggle) #}
     <header id="app-asc-header" role="button" tabindex="0" aria-expanded="false" aria-controls="app-asc-body"
@@ -427,13 +427,13 @@
           <h2 class="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">App Store Connect</h2>
           <span id="app-asc-source-pill" class="hidden rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"></span>
         </div>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Kazanım · Satış · Abonelik · Etkileşim — App Store Analytics özet görünümü</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Acquisition · Sales · Subscriptions · Engagement — App Store Analytics summary</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <span id="app-asc-meta" class="text-[10px] text-slate-400 dark:text-slate-500"></span>
         <button id="app-asc-refresh-btn" type="button"
           class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
-          <span id="app-asc-refresh-icon">↺</span> Yenile
+          <span id="app-asc-refresh-icon">↺</span> Refresh
         </button>
         <svg id="app-asc-chevron" class="h-4 w-4 text-slate-400 transition-transform dark:text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
@@ -448,9 +448,9 @@
     <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
       {# Dönem #}
       <div class="flex items-center gap-1.5">
-        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
+        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Period</span>
         <div id="app-asc-period-nav" class="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
-          {% for dv, dl in [(1,"1g"),(7,"7g"),(14,"14g"),(30,"30g"),(90,"90g"),(365,"1y"),(0,"Tümü")] %}
+          {% for dv, dl in [(1,"1g"),(7,"7g"),(14,"14g"),(30,"30g"),(90,"90g"),(365,"1y"),(0,"All")] %}
             <button type="button" data-app-asc-period="{{ dv }}"
               class="app-asc-period-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition {% if dv == 30 %}bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
           {% endfor %}
@@ -459,34 +459,34 @@
 
       {# Ülke #}
       <div class="flex items-center gap-1.5">
-        <label for="app-asc-country" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Ülke</label>
+        <label for="app-asc-country" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Country</label>
         <select id="app-asc-country" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-          <option value="all">Tüm ülkeler</option>
+          <option value="all">All countries</option>
         </select>
       </div>
 
       {# Kaynak #}
       <div class="flex items-center gap-1.5">
-        <label for="app-asc-source" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Kaynak</label>
+        <label for="app-asc-source" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Source</label>
         <select id="app-asc-source" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-          <option value="all">Tüm kaynaklar</option>
+          <option value="all">All sources</option>
         </select>
       </div>
 
       {# Cihaz #}
       <div class="flex items-center gap-1.5">
-        <label for="app-asc-device" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Cihaz</label>
+        <label for="app-asc-device" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Device</label>
         <select id="app-asc-device" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-          <option value="all">Tüm cihazlar</option>
+          <option value="all">All devices</option>
         </select>
       </div>
 
-      <button type="button" id="app-asc-reset-btn" class="ml-auto text-[11px] font-semibold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Filtreleri sıfırla</button>
+      <button type="button" id="app-asc-reset-btn" class="ml-auto text-[11px] font-semibold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Reset filters</button>
     </div>
 
     {# Tab bar #}
     <div class="flex items-center gap-0 overflow-x-auto border-b border-slate-100 px-4 dark:border-slate-800 sm:px-5">
-      {% for tid, tlabel in [("overview","Genel Bakış"),("acquisition","Kazanım"),("sales","Satış"),("subscriptions","Abonelikler"),("engagement","Etkileşim"),("tops","Sıralamalar")] %}
+      {% for tid, tlabel in [("overview","Overview"),("acquisition","Acquisition"),("sales","Sales"),("subscriptions","Subscriptions"),("engagement","Engagement"),("tops","Rankings")] %}
         <button type="button" data-app-asc-tab="{{ tid }}"
           class="app-asc-tab-btn -mb-px shrink-0 border-b-2 px-3 py-2.5 text-xs font-semibold transition {% if tid == 'overview' %}border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-300{% else %}border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">{{ tlabel }}</button>
       {% endfor %}
@@ -501,7 +501,7 @@
       class="min-h-[200px] space-y-6 p-4 text-slate-900 dark:text-slate-100 sm:p-5"
       style="overflow-anchor: none"
     >
-      <p class="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
     </div>
     </div>{# /app-asc-body #}
   </section>
@@ -510,7 +510,7 @@
   <section
     id="app-gp-root"
     class="app-gp-shell mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-[#0b0f19] dark:ring-slate-800/80"
-    aria-label="Google Play Store özeti"
+    aria-label="Google Play Store summary"
   >
     {# Başlık şeridi (tıklanabilir — dropdown toggle) #}
     <header id="app-gp-header" role="button" tabindex="0" aria-expanded="false" aria-controls="app-gp-body"
@@ -523,13 +523,13 @@
           <h2 class="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">Google Play Store</h2>
           <span id="app-gp-source-pill" class="hidden rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"></span>
         </div>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">İndirmeler · Vitals · Puanlama · Kaynaklar — Play Console Analytics özet görünümü</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Downloads · Vitals · Ratings · Sources — Play Console Analytics summary</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <span id="app-gp-meta" class="text-[10px] text-slate-400 dark:text-slate-500"></span>
         <button id="app-gp-refresh-btn" type="button"
           class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
-          <span id="app-gp-refresh-icon">↺</span> Yenile
+          <span id="app-gp-refresh-icon">↺</span> Refresh
         </button>
         <svg id="app-gp-chevron" class="h-4 w-4 text-slate-400 transition-transform dark:text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
@@ -542,7 +542,7 @@
       {# Filtre bar #}
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
         <div class="flex items-center gap-1.5">
-          <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
+          <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Period</span>
           <div id="app-gp-period-nav" class="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
             {% for dv, dl in [(1,"1g"),(7,"7g"),(14,"14g"),(30,"30g"),(90,"90g"),(365,"1y")] %}
               <button type="button" data-app-gp-period="{{ dv }}"
@@ -551,23 +551,23 @@
           </div>
         </div>
         <div class="flex items-center gap-1.5">
-          <label for="app-gp-country" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Ülke</label>
+          <label for="app-gp-country" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Country</label>
           <select id="app-gp-country" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition focus:border-green-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-            <option value="all">Tüm ülkeler</option>
+            <option value="all">All countries</option>
           </select>
         </div>
         <div class="flex items-center gap-1.5">
-          <label for="app-gp-device" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Cihaz</label>
+          <label for="app-gp-device" class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Device</label>
           <select id="app-gp-device" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition focus:border-green-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-            <option value="all">Tüm cihazlar</option>
+            <option value="all">All devices</option>
           </select>
         </div>
-        <button type="button" id="app-gp-reset-btn" class="ml-auto text-[11px] font-semibold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Filtreleri sıfırla</button>
+        <button type="button" id="app-gp-reset-btn" class="ml-auto text-[11px] font-semibold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Reset filters</button>
       </div>
 
       {# Tab bar #}
       <div class="flex items-center gap-0 overflow-x-auto border-b border-slate-100 px-4 dark:border-slate-800 sm:px-5">
-        {% for tid, tlabel in [("overview","Genel Bakış"),("installs","İndirmeler"),("vitals","Vitals"),("ratings","Puanlama"),("tops","Sıralamalar")] %}
+        {% for tid, tlabel in [("overview","Overview"),("installs","Downloads"),("vitals","Vitals"),("ratings","Ratings"),("tops","Rankings")] %}
           <button type="button" data-app-gp-tab="{{ tid }}"
             class="app-gp-tab-btn -mb-px shrink-0 border-b-2 px-3 py-2.5 text-xs font-semibold transition {% if tid == 'overview' %}border-green-500 text-green-600 dark:border-green-400 dark:text-green-300{% else %}border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">{{ tlabel }}</button>
         {% endfor %}
@@ -578,7 +578,7 @@
 
       {# Content area #}
       <div id="app-gp-content" class="min-h-[200px] space-y-6 p-4 text-slate-900 dark:text-slate-100 sm:p-5" style="overflow-anchor: none">
-        <p class="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       </div>
     </div>{# /app-gp-body #}
   </section>
@@ -589,7 +589,7 @@
     <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <div class="min-w-0">
         <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Firebase Crashlytics</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">/android + /ios · vitals · stability-free (BQ yalnızca iOS peek)</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">/android + /ios · vitals · stability-free (BQ iOS peek only)</p>
       </div>
     </div>
 
@@ -599,7 +599,7 @@
       <div class="flex items-center gap-1.5">
         <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Platform</span>
         <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
-          {% for pv, pl in [("all","Tümü"),("android","Android"),("ios","iOS")] %}
+          {% for pv, pl in [("all","All"),("android","Android"),("ios","iOS")] %}
             <button type="button" data-crash-platform="{{ pv }}"
               class="crash-platform-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition {% if pv == 'all' %}bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ pl }}</button>
           {% endfor %}
@@ -608,7 +608,7 @@
 
       {# Dönem #}
       <div class="flex items-center gap-1.5">
-        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
+        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Period</span>
         <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
           {% for dv, dl in [(1,"1g"),(7,"7g"),(30,"30g"),(90,"90g")] %}
             <button type="button" data-crash-days="{{ dv }}"
@@ -619,9 +619,9 @@
 
       {# Tip filtresi #}
       <div class="flex items-center gap-1.5">
-        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Tür</span>
+        <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Type</span>
         <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
-          {% for tv, tl in [("","Tümü"),("FATAL","Fatal"),("ANR","ANR"),("NON_FATAL","Non-Fatal")] %}
+          {% for tv, tl in [("","All"),("FATAL","Fatal"),("ANR","ANR"),("NON_FATAL","Non-Fatal")] %}
             <button type="button" data-crash-type="{{ tv }}"
               class="crash-type-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition {% if tv == '' %}bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ tl }}</button>
           {% endfor %}
@@ -632,7 +632,7 @@
     {# Progress bar (gizli başlar) #}
     <div id="crash-progress-wrap" class="hidden px-4 py-3 dark:border-slate-800 sm:px-5">
       <div class="flex items-center justify-between mb-1">
-        <span id="crash-progress-step" class="text-[11px] text-slate-500 dark:text-slate-400">Yükleniyor…</span>
+        <span id="crash-progress-step" class="text-[11px] text-slate-500 dark:text-slate-400">Loading…</span>
         <span id="crash-progress-pct" class="text-[11px] font-semibold tabular-nums text-slate-600 dark:text-slate-300">0%</span>
       </div>
       <div class="h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
@@ -642,7 +642,7 @@
 
     {# Tab bar #}
     <div class="flex items-center gap-0 border-b border-slate-100 px-4 dark:border-slate-800 sm:px-5">
-      {% for tid, tlabel in [("summary","Özet"),("crashes","Crash'ler"),("anr","ANR"),("versions","Versiyonlar")] %}
+      {% for tid, tlabel in [("summary","Summary"),("crashes","Crashes"),("anr","ANR"),("versions","Versions")] %}
         <button type="button" data-crash-tab="{{ tid }}"
           class="crash-tab-btn -mb-px border-b-2 px-3 py-2.5 text-xs font-semibold transition {% if tid == 'summary' %}border-rose-500 text-rose-600 dark:border-rose-400 dark:text-rose-400{% else %}border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">{{ tlabel }}</button>
       {% endfor %}
@@ -650,7 +650,7 @@
 
     {# Content area — HTMX yükler #}
     <div id="crash-content" class="min-h-[120px] p-4 sm:p-5">
-      <p class="text-sm text-slate-400 dark:text-slate-500">Veri yüklemek için bir sekme seçin.</p>
+      <p class="text-sm text-slate-400 dark:text-slate-500">Select a tab to load data.</p>
     </div>
   </section>
 </div>
@@ -708,7 +708,7 @@
     var stepEl = document.getElementById("crash-progress-step");
     if (bar) bar.style.width = pct + "%";
     if (pctEl) pctEl.textContent = pct + "%";
-    if (stepEl) stepEl.textContent = step || "Yükleniyor…";
+    if (stepEl) stepEl.textContent = step || "Loading…";
   }
 
   function stopPoll() {
@@ -718,7 +718,7 @@
   function startProgressPoll() {
     stopPoll();
     showProgress(true);
-    setProgress(5, "Play Console / iOS verisi yükleniyor…");
+    setProgress(5, "Loading Play Console / iOS data…");
     crashState.pollTimer = setInterval(function () {
       fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store" })
         .then(function (r) { return r.json(); })
@@ -740,7 +740,7 @@
     crashState.seq += 1;
     var seq = crashState.seq;
     var url = crashUrl();
-    content.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin">⟳</span> Yükleniyor…</div>';
+    content.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin">⟳</span> Loading…</div>';
     var ctrl = new AbortController();
     var timer = setTimeout(function () { ctrl.abort(); }, 30000);
     fetch(url, { cache: "no-store", signal: ctrl.signal })
@@ -757,7 +757,7 @@
       .catch(function (e) {
         if (seq !== crashState.seq) return;
         content.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">'
-          + (e.name === "AbortError" ? "Zaman aşımı (30s). Dönem daraltın." : "Veri yüklenemedi.") + "</p>";
+          + (e.name === "AbortError" ? "Timed out (30s). Narrow the period." : "Could not load data.") + "</p>";
       });
   }
 
@@ -809,11 +809,11 @@
     });
   });
 
-  // Yenile butonu
+  // Refresh butonu
   var refreshBtn = document.getElementById("crash-refresh-btn");
   if (refreshBtn) refreshBtn.addEventListener("click", triggerRefresh);
 
-  // İlk yükleme — otomatik, ama lazy (Intersection Observer ile)
+  // First yükleme — otomatik, ama lazy (Intersection Observer ile)
   var observer = new IntersectionObserver(function (entries) {
     if (entries[0].isIntersecting) {
       observer.disconnect();
@@ -824,7 +824,7 @@
   observer.observe(crashRoot);
 })();
 </script>
-<script src="/static/js/app_release_markers.js?v=2"></script>
+<script src="/static/js/app_release_markers.js?v=3"></script>
 
 <script>
 (function () {
@@ -1003,15 +1003,15 @@
     if (!el) return;
     var hist = loadBenchmarkHistory();
     if (!hist.length) { el.innerHTML = ""; return; }
-    var html = '<p class="mb-1 text-[10px] text-slate-400 dark:text-slate-500">Geçmiş kıyaslamalar</p><div class="flex flex-wrap gap-1">';
+    var html = '<p class="mb-1 text-[10px] text-slate-400 dark:text-slate-500">Past comparisons</p><div class="flex flex-wrap gap-1">';
     hist.forEach(function (h, i) {
       var parts = [];
       if (h.android) parts.push("▶ " + h.android);
       if (h.ios) parts.push("◆ " + h.ios);
       var display = h.label || parts.join("  ");
-      if (!display) display = "Kıyaslama " + (i + 1);
+      if (!display) display = "Comparison " + (i + 1);
       var tip = [];
-      if (h.label) tip.push("İsim: " + h.label);
+      if (h.label) tip.push("Name: " + h.label);
       if (h.android) tip.push("Android: " + h.android);
       if (h.ios) tip.push("iOS: " + h.ios);
       html += '<button class="app-aso-hist-chip max-w-[260px] truncate rounded border border-slate-300 bg-slate-50 px-2 py-0.5 text-left text-[10px] text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-sky-500 dark:hover:bg-sky-900/30 dark:hover:text-sky-300" data-idx="' + i + '" title="' + esc(tip.join("\n")) + '">' + esc(display) + '</button>';
@@ -1065,8 +1065,8 @@
     }
     cEl.innerHTML =
       '<div class="grid grid-cols-1 gap-3 md:grid-cols-2">' +
-      '<div class="rounded-md border border-slate-300/80 bg-slate-50/70 p-2 dark:border-slate-600 dark:bg-slate-900/40"><p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Play kıyaslama</p><div id="app-aso-competitors-play"></div></div>' +
-      '<div class="rounded-md border border-slate-300/80 bg-slate-50/70 p-2 dark:border-slate-600 dark:bg-slate-900/40"><p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">App Store kıyaslama</p><div id="app-aso-competitors-ios"></div></div>' +
+      '<div class="rounded-md border border-slate-300/80 bg-slate-50/70 p-2 dark:border-slate-600 dark:bg-slate-900/40"><p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Play comparison</p><div id="app-aso-competitors-play"></div></div>' +
+      '<div class="rounded-md border border-slate-300/80 bg-slate-50/70 p-2 dark:border-slate-600 dark:bg-slate-900/40"><p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">App Store comparison</p><div id="app-aso-competitors-ios"></div></div>' +
       "</div>";
     var playEl = document.getElementById("app-aso-competitors-play");
     var iosEl = document.getElementById("app-aso-competitors-ios");
@@ -1074,22 +1074,22 @@
       renderCompetitorBenchmarkPair(play, playEl);
     } else if (playEl) {
       if (errs.android) {
-        playEl.innerHTML = '<div class="text-xs text-rose-600 dark:text-rose-300">Play kıyaslaması başarısız: ' + esc(errs.android) + '</div>';
+        playEl.innerHTML = '<div class="text-xs text-rose-600 dark:text-rose-300">Play comparison failed: ' + esc(errs.android) + '</div>';
       } else if (state.compAndroid && parseCsvCount(state.compAndroid) >= 2) {
-        playEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Play kıyaslaması için Kıyasla\'ya basın.</div>';
+        playEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Press Compare for the Play comparison.</div>';
       } else {
-        playEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz Play kıyaslaması yok.</div>';
+        playEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">No Play comparison yet.</div>';
       }
     }
     if (ios) {
       renderCompetitorBenchmarkPair(ios, iosEl);
     } else if (iosEl) {
       if (errs.ios) {
-        iosEl.innerHTML = '<div class="text-xs text-rose-600 dark:text-rose-300">App Store kıyaslaması başarısız: ' + esc(errs.ios) + '</div>';
+        iosEl.innerHTML = '<div class="text-xs text-rose-600 dark:text-rose-300">App Store comparison failed: ' + esc(errs.ios) + '</div>';
       } else if (state.compIos && parseCsvCount(state.compIos) >= 2) {
-        iosEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">iOS kıyaslaması için Kıyasla\'ya basın.</div>';
+        iosEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Press Compare for an iOS comparison.</div>';
       } else {
-        iosEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Henüz App Store kıyaslaması yok.</div>';
+        iosEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">No App Store comparison yet.</div>';
       }
     }
     updateClearBtnVisibility();
@@ -1113,7 +1113,7 @@
     if (!reEl) return;
     var by = rel && rel.by_product;
     if (!by || typeof by !== "object") {
-      reEl.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-300">Release verisi yok.</div>';
+      reEl.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-300">No release data.</div>';
       return;
     }
     var ids = products
@@ -1155,15 +1155,15 @@
       var isReleaseMode = mode === "release_compare" || mode === "release_window_compare";
       var curRel = p.recent_release || {};
       var prevRel = p.prev_release || {};
-      var firstLineLabel = isReleaseMode ? "Son release ort." : "Son 30 gün ort.";
-      var secondLineLabel = isReleaseMode ? "Önceki release" : "Önceki 30 gün";
+      var firstLineLabel = isReleaseMode ? "Latest release avg." : "Last 30 days avg.";
+      var secondLineLabel = isReleaseMode ? "Previous release" : "Previous 30 days";
       var releaseMeta = isReleaseMode
         ? (
             '<div class="mt-2 border-t border-slate-200/80 pt-2 text-xs text-slate-500 dark:border-slate-600 dark:text-slate-300 sm:text-sm">' +
             '<div>Son: <span class="font-semibold">' + esc(curRel.version ? "v" + curRel.version : "—") + '</span> · ' +
-            '<span class="font-medium">' + esc(curRel.live_days == null ? "—" : curRel.live_days + " gün") + "</span></div>" +
-            '<div>Önceki: <span class="font-semibold">' + esc(prevRel.version ? "v" + prevRel.version : (mode === "release_window_compare" ? "önceki sürüm" : "—")) + '</span> · ' +
-            '<span class="font-medium">' + esc(prevRel.live_days == null ? "—" : prevRel.live_days + " gün") + "</span></div>" +
+            '<span class="font-medium">' + esc(curRel.live_days == null ? "—" : curRel.live_days + " days") + "</span></div>" +
+            '<div>Previous: <span class="font-semibold">' + esc(prevRel.version ? "v" + prevRel.version : (mode === "release_window_compare" ? "previous version" : "—")) + '</span> · ' +
+            '<span class="font-medium">' + esc(prevRel.live_days == null ? "—" : prevRel.live_days + " days") + "</span></div>" +
             "</div>"
           )
         : "";
@@ -1198,7 +1198,7 @@
     var iv = si.version ? "v" + esc(si.version) : "—";
 
     reEl.innerHTML =
-      '<div class="mb-3 flex flex-wrap items-center gap-2" role="tablist" aria-label="Ürün seçimi">' +
+      '<div class="mb-3 flex flex-wrap items-center gap-2" role="tablist" aria-label="Product selection">' +
       tabs +
       "</div>" +
       '<div class="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">' +
@@ -1206,14 +1206,14 @@
       impactBlock("App Store", pl.ios) +
       "</div>" +
       '<div class="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300 sm:text-base">' +
-      "<div><span class=\"font-semibold text-slate-800 dark:text-slate-200\">Play mağaza</span> · Sürüm " +
+      "<div><span class=\"font-semibold text-slate-800 dark:text-slate-200\">Play store</span> · Version " +
       av +
-      " · Son güncelleme: <span class=\"font-medium\">" +
+      " · Last updated: <span class=\"font-medium\">" +
       formatShortDate(sa.last_updated_at) +
       "</span></div>" +
-      "<div><span class=\"font-semibold text-slate-800 dark:text-slate-200\">App Store</span> · Sürüm " +
+      "<div><span class=\"font-semibold text-slate-800 dark:text-slate-200\">App Store</span> · Version " +
       iv +
-      " · Son sürüm yayını: <span class=\"font-medium\">" +
+      " · Last version release: <span class=\"font-medium\">" +
       formatShortDate(si.current_version_release_date) +
       "</span></div>" +
       "</div>";
@@ -1287,7 +1287,7 @@
     nav.innerHTML = "";
     if (!products.length) {
       nav.innerHTML =
-        '<span class="rounded-lg px-2 py-1 text-xs text-amber-700 dark:text-amber-300">Ürün listesi alınamadı; sayfayı yenileyin.</span>';
+        '<span class="rounded-lg px-2 py-1 text-xs text-amber-700 dark:text-amber-300">Could not load product list; refresh the page.</span>';
       return;
     }
     products.forEach(function (p) {
@@ -1299,7 +1299,7 @@
       b.addEventListener("click", function () {
         state.product = p.id;
         state.releasePanelProduct = null;
-        // Store payload'larını temizle; yeni ürün için lazy load ile yeniden çekilecek
+        // Store payload'larını clear; new ürün için lazy load ile newden çekilecek
         ascState.payload = null;
         gpState.payload = null;
         refreshProductStyles();
@@ -1315,7 +1315,7 @@
             })
             .catch(function () {});
         }
-        // Açık store panellerini hemen yenile
+        // Açık store panellerini hemen newle
         var ascBody = document.getElementById('app-asc-body');
         loadStoreRollout();
         if (ascBody && !ascBody.hasAttribute('hidden')) loadAscPreview();
@@ -1341,7 +1341,7 @@
     });
   }
 
-  // ─── Mağaza sürüm yayını (rollout) ───────────────────────────────────────
+  // ─── Store version rollout (rollout) ───────────────────────────────────────
   var rolloutState = { seq: 0, payload: null };
 
   function rolloutPctBar(pct) {
@@ -1354,7 +1354,7 @@
 
   function rolloutCard(platformLabel, iconClass, row) {
     if (!row || !row.ok) {
-      var msg = (row && row.message) ? esc(row.message) : 'Veri yok';
+      var msg = (row && row.message) ? esc(row.message) : 'No data';
       return (
         '<div class="rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/50">' +
         '<p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">' + esc(platformLabel) + '</p>' +
@@ -1367,16 +1367,16 @@
     var sub = '';
     if (row.platform === 'ios') {
       sub = (row.app_store_state || '') + (row.phased_release_state ? ' · phased ' + row.phased_release_state : '');
-      if (row.phased_day) sub += ' · gün ' + row.phased_day;
+      if (row.phased_day) sub += ' · days ' + row.phased_day;
     } else {
       sub = (row.track || 'production') + ' · ' + (row.release_status || mode);
     }
     return (
       '<div class="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">' +
-      '<p class="text-xs font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">' + esc(platformLabel) + ' · canlı</p>' +
+      '<p class="text-xs font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">' + esc(platformLabel) + ' · live</p>' +
       '<p class="mt-1 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">v' + esc(String(ver).replace(/^v/i, '')) + '</p>' +
       '<p class="mt-0.5 text-2xl font-black tabular-nums text-emerald-700 dark:text-emerald-400">' + pct + '%</p>' +
-      '<p class="text-[10px] text-slate-500 dark:text-slate-400">mağaza yayın kapsamı</p>' +
+      '<p class="text-[10px] text-slate-500 dark:text-slate-400">store rollout coverage</p>' +
       rolloutPctBar(pct) +
       '<p class="mt-2 text-[10px] leading-snug text-slate-600 dark:text-slate-400">' + esc(sub) + '</p></div>'
     );
@@ -1386,7 +1386,7 @@
     var box = document.getElementById('app-rollout-content');
     if (!box) return;
     if (!j) {
-      box.innerHTML = '<p class="col-span-full text-sm text-rose-600 dark:text-rose-400">Yüklenemedi</p>';
+      box.innerHTML = '<p class="col-span-full text-sm text-rose-600 dark:text-rose-400">Could not load</p>';
       return;
     }
     box.innerHTML =
@@ -1399,7 +1399,7 @@
     if (!box) return;
     rolloutState.seq += 1;
     var req = rolloutState.seq;
-    box.innerHTML = '<p class="col-span-full text-sm text-slate-500 dark:text-slate-400">Mağaza API sorgulanıyor…</p>';
+    box.innerHTML = '<p class="col-span-full text-sm text-slate-500 dark:text-slate-400">Querying store API…</p>';
     fetch('/api/app/store-rollout?product=' + encodeURIComponent(state.product), { cache: 'no-store', credentials: 'same-origin' })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (x) {
@@ -1489,7 +1489,7 @@
         '<button type="button" onclick="var p=document.getElementById(\'' + tid + '\');p.classList.toggle(\'hidden\');var ic=this.querySelector(\'.yak-ic\');ic.textContent=p.classList.contains(\'hidden\')?\'▸\':\'▾\';" ' +
         'class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-400 transition hover:border-slate-300 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500 dark:hover:text-slate-300">' +
         '<span class="yak-ic">▸</span>' +
-        yakCount + ' metrik — Analytics API bağlandığında' +
+        yakCount + ' metrics — when the Analytics API is connected' +
         '</button>' +
         '<div id="' + tid + '" class="hidden mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">' +
         yakHtml +
@@ -1562,14 +1562,14 @@
     var K = j.kpis || {};
     var R = j.ratings || {};
     var E = j.engagement || {};
-    var html = '<section>' + ascSectionTitle('Genel Bakış', 'Son ' + j.period_days + ' gün') +
+    var html = '<section>' + ascSectionTitle('Overview', 'Last ' + j.period_days + ' days') +
       ascRenderKpiGrid([
-        { title: 'Gösterimler (Impressions)', metric: K.impressions,       opts: { color: 'sky' } },
-        { title: 'Ürün sayfası görüntüleme',  metric: K.product_page_views,opts: { color: 'cyan' } },
-        { title: 'Toplam indirme',             metric: K.total_downloads,   opts: { color: 'indigo' } },
-        { title: 'Dönüşüm oranı',             metric: K.conversion_rate,   opts: { color: 'violet' } },
-        { title: 'Gelir (Proceeds)',           metric: K.proceeds,          opts: { color: 'emerald' } },
-        { title: 'Aktif cihaz',               metric: K.active_devices,    opts: { color: 'fuchsia' } },
+        { title: 'Impressions', metric: K.impressions,       opts: { color: 'sky' } },
+        { title: 'Product page views',  metric: K.product_page_views,opts: { color: 'cyan' } },
+        { title: 'Total downloads',             metric: K.total_downloads,   opts: { color: 'indigo' } },
+        { title: 'Conversion rate',             metric: K.conversion_rate,   opts: { color: 'violet' } },
+        { title: 'Revenue (Proceeds)',           metric: K.proceeds,          opts: { color: 'emerald' } },
+        { title: 'Active devices',               metric: K.active_devices,    opts: { color: 'fuchsia' } },
       ]) +
       '</section>';
 
@@ -1577,13 +1577,13 @@
     if (trend.length) {
       var dlSeries = trend.map(function (r) { return r.downloads; });
       var prSeries = trend.map(function (r) { return r.proceeds; });
-      html += '<section class="mt-6">' + ascSectionTitle('Günlük Trend', 'İndirme · Gelir') +
+      html += '<section class="mt-6">' + ascSectionTitle('Daily trend', 'Downloads · Revenue') +
         '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
         '<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">' +
-        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">İndirme (toplam)</p>' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Downloads (total)</p>' +
         '<p class="text-xl font-extrabold tabular-nums">' + ascFmtNum(dlSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
         ascSparklineSvg(dlSeries, 'text-indigo-500 dark:text-indigo-400') + versionReleaseMarkerStrip('ios', dlSeries.length, j.period_days) + '</div>' +
-        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Gelir (toplam)</p>' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Revenue (total)</p>' +
         '<p class="text-xl font-extrabold tabular-nums">' + ascFmtMoney(prSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
         ascSparklineSvg(prSeries, 'text-emerald-500 dark:text-emerald-400') + versionReleaseMarkerStrip('ios', prSeries.length, j.period_days) + '</div>' +
         '</div></div></section>';
@@ -1608,17 +1608,17 @@
 
     html += '<section class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">' +
       '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
-      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Puanlama</p>' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ratings</p>' +
       '<div class="mt-1 flex items-baseline gap-1.5"><span class="text-3xl font-black text-amber-500 dark:text-amber-400">' + (R.average != null ? R.average.toFixed(2) : '—') + '</span><span class="text-sm text-slate-400">/ 5</span></div>' +
       '<p class="text-[11px] text-slate-500 dark:text-slate-400">' + ascFmtNum(R.total) + ' puan ' + (R.delta_avg != null ? '<span class="' + ascDeltaClass(R.delta_avg * 100) + '">(' + (R.delta_avg > 0 ? '+' : '') + R.delta_avg.toFixed(2) + ')</span>' : '') + '</p>' +
       '<div class="mt-3 space-y-1">' + rbar + '</div></div>' +
       '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70 lg:col-span-2">' +
-      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Etkileşim özeti</p>' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Engagement summary</p>' +
       '<div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">' +
-      ascMiniCard('Oturum', E.sessions ? E.sessions.value_label : '—', E.sessions ? E.sessions.delta_pct : null) +
-      ascMiniCard('Cihaz başına oturum', E.sessions_per_device != null ? E.sessions_per_device.toFixed(2) : '—', null) +
-      ascMiniCard('Çökme oranı', E.crash_rate_pct != null ? E.crash_rate_pct.toFixed(2) + '%' : '—', null) +
-      ascMiniCard('Ort. oturum süresi', E.avg_session_seconds != null ? E.avg_session_seconds + 's' : '—', null) +
+      ascMiniCard('Session', E.sessions ? E.sessions.value_label : '—', E.sessions ? E.sessions.delta_pct : null) +
+      ascMiniCard('Sessions per device', E.sessions_per_device != null ? E.sessions_per_device.toFixed(2) : '—', null) +
+      ascMiniCard('Crash rate', E.crash_rate_pct != null ? E.crash_rate_pct.toFixed(2) + '%' : '—', null) +
+      ascMiniCard('Avg. session duration', E.avg_session_seconds != null ? E.avg_session_seconds + 's' : '—', null) +
       '</div>' +
       '<div class="mt-3 grid grid-cols-3 gap-2 text-center">' +
       '<div class="rounded-lg bg-emerald-50 px-2 py-2 dark:bg-emerald-950/30"><p lang="en" class="text-[9px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Retention D1</p><p class="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-300">' + (E.retention_d1 != null ? E.retention_d1 + '%' : '—') + '</p></div>' +
@@ -1631,40 +1631,40 @@
 
   function ascRenderAcquisition(j) {
     var A = j.acquisition || {};
-    return '<section>' + ascSectionTitle('Kazanım (Acquisition)') +
+    return '<section>' + ascSectionTitle('Acquisition (Acquisition)') +
       ascRenderKpiGrid([
-        { title: 'Gösterimler',               metric: A.impressions,          opts: { color: 'sky' } },
-        { title: 'Ürün sayfası görüntüleme',  metric: A.product_page_views,   opts: { color: 'cyan' } },
-        { title: 'İlk indirme',               metric: A.first_time_downloads, opts: { color: 'indigo' } },
-        { title: 'Yeniden indirme',           metric: A.redownloads,          opts: { color: 'violet' } },
-        { title: 'Toplam indirme',            metric: A.total_downloads,      opts: { color: 'fuchsia' } },
-        { title: 'Dönüşüm oranı',            metric: A.conversion_rate,      opts: { color: 'emerald' } },
+        { title: 'Impressions',               metric: A.impressions,          opts: { color: 'sky' } },
+        { title: 'Product page views',  metric: A.product_page_views,   opts: { color: 'cyan' } },
+        { title: 'First-time downloads',               metric: A.first_time_downloads, opts: { color: 'indigo' } },
+        { title: 'Redownloads',           metric: A.redownloads,          opts: { color: 'violet' } },
+        { title: 'Total downloads',            metric: A.total_downloads,      opts: { color: 'fuchsia' } },
+        { title: 'Conversion rate',            metric: A.conversion_rate,      opts: { color: 'emerald' } },
       ]) +
       '</section>' +
       '<section class="mt-5">' + ascSectionTitle('Yan metrikler') +
       '<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">' +
-      ascMiniCard('Güncelleme', A.updates ? A.updates.value_label : '—', A.updates ? A.updates.delta_pct : null) +
+      ascMiniCard('Updates', A.updates ? A.updates.value_label : '—', A.updates ? A.updates.delta_pct : null) +
       '</div></section>';
   }
 
   function ascRenderSales(j) {
     var S = j.sales || {};
-    return '<section>' + ascSectionTitle('Satış (Sales)') +
+    return '<section>' + ascSectionTitle('Sales (Sales)') +
       '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">' +
-      ascKpiCard('Gelir (Proceeds)', S.proceeds, { color: 'emerald' }) +
-      ascKpiCard('Ödeme yapan kullanıcı', S.paying_users, { color: 'teal' }) +
-      ascKpiCard('Uygulama içi satın alma', S.in_app_purchases, { color: 'cyan' }) +
+      ascKpiCard('Revenue (Proceeds)', S.proceeds, { color: 'emerald' }) +
+      ascKpiCard('Paying users', S.paying_users, { color: 'teal' }) +
+      ascKpiCard('In-app purchases', S.in_app_purchases, { color: 'cyan' }) +
       '</div></section>' +
-      '<section class="mt-5">' + ascSectionTitle('Dönüşüm kohortları (Download → Paid)') +
+      '<section class="mt-5">' + ascSectionTitle('Conversion cohorts (Download → Paid)') +
       '<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">' +
-      ascMiniCard('Gün 1', (S.d1_download_to_paid != null ? S.d1_download_to_paid + '%' : '—'), null) +
-      ascMiniCard('Gün 7', (S.d7_download_to_paid != null ? S.d7_download_to_paid + '%' : '—'), null) +
-      ascMiniCard('Gün 35', (S.d35_download_to_paid != null ? S.d35_download_to_paid + '%' : '—'), null) +
-      ascMiniCard('İade oranı', (S.refund_rate_pct != null ? S.refund_rate_pct + '%' : '—'), null) +
+      ascMiniCard('Day 1', (S.d1_download_to_paid != null ? S.d1_download_to_paid + '%' : '—'), null) +
+      ascMiniCard('Day 7', (S.d7_download_to_paid != null ? S.d7_download_to_paid + '%' : '—'), null) +
+      ascMiniCard('Day 35', (S.d35_download_to_paid != null ? S.d35_download_to_paid + '%' : '—'), null) +
+      ascMiniCard('Refund rate', (S.refund_rate_pct != null ? S.refund_rate_pct + '%' : '—'), null) +
       '</div></section>' +
       '<section class="mt-5">' + ascSectionTitle('ARPU') +
       '<div class="grid grid-cols-1 gap-3 sm:max-w-sm">' +
-      ascKpiCard('Kullanıcı başına ortalama gelir (ARPU)', S.arpu, { color: 'emerald' }) +
+      ascKpiCard('Average revenue per user (ARPU)', S.arpu, { color: 'emerald' }) +
       '</div></section>';
   }
 
@@ -1690,38 +1690,38 @@
       });
       barHtml += '</div>';
     } else {
-      barHtml = '<p class="text-sm text-slate-500 dark:text-slate-400">Günlük seri yok.</p>';
+      barHtml = '<p class="text-sm text-slate-500 dark:text-slate-400">No daily series.</p>';
     }
-    return '<section>' + ascSectionTitle('Abonelikler (Subscriptions)') +
+    return '<section>' + ascSectionTitle('Subscriptions (Subscriptions)') +
       '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">' +
-      ascKpiCard('Aktif plan', U.active_plans, { color: 'indigo' }) +
-      ascKpiCard('Ücretli plan', U.paid_plans, { color: 'violet' }) +
-      ascKpiCard('Ücretsiz deneme', U.free_trials, { color: 'amber' }) +
-      ascKpiCard('Aylık tekrarlayan gelir (MRR)', U.mrr, { color: 'emerald' }) +
+      ascKpiCard('Active plans', U.active_plans, { color: 'indigo' }) +
+      ascKpiCard('Paid plan', U.paid_plans, { color: 'violet' }) +
+      ascKpiCard('Free trial', U.free_trials, { color: 'amber' }) +
+      ascKpiCard('Monthly recurring revenue (MRR)', U.mrr, { color: 'emerald' }) +
       '</div></section>' +
-      '<section class="mt-5">' + ascSectionTitle('Net ücretli plan (günlük)') +
+      '<section class="mt-5">' + ascSectionTitle('Net paid plan (daily)') +
       '<div class="grid grid-cols-1 gap-3 lg:grid-cols-12">' +
       '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70 lg:col-span-8">' +
-      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Net abonelik değişimi</p>' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Net subscription change</p>' +
       '<p class="mt-1 text-2xl font-extrabold tabular-nums">' + esc((U.net_paid_plans && U.net_paid_plans.value_label) || '—') + '</p>' +
       '<div class="mt-3">' + barHtml + '</div></div>' +
       '<div class="flex flex-col gap-2 lg:col-span-4">' +
-      ascMiniCard('Yeni başlangıç', (U.plan_starts != null ? String(U.plan_starts) : '—'), null) +
-      ascMiniCard('Churn (düşenler)', (U.churned != null ? String(U.churned) : '—'), null) +
-      ascMiniCard('Deneme dönüşümü', (U.trial_conversion_pct != null ? U.trial_conversion_pct + '%' : '—'), null) +
+      ascMiniCard('New starts', (U.plan_starts != null ? String(U.plan_starts) : '—'), null) +
+      ascMiniCard('Churn (dropped)', (U.churned != null ? String(U.churned) : '—'), null) +
+      ascMiniCard('Trial conversion', (U.trial_conversion_pct != null ? U.trial_conversion_pct + '%' : '—'), null) +
       '</div></div></section>';
   }
 
   function ascRenderEngagement(j) {
     var E = j.engagement || {};
-    return '<section>' + ascSectionTitle('Etkileşim (Engagement)') +
+    return '<section>' + ascSectionTitle('Engagement (Engagement)') +
       ascRenderKpiGrid([
-        { title: 'Oturum (Sessions)', metric: E.sessions,      opts: { color: 'indigo' } },
-        { title: 'Aktif cihaz',       metric: E.active_devices,opts: { color: 'sky' } },
-        { title: 'Çökme (Crashes)',   metric: E.crashes,       opts: { color: 'rose' } },
+        { title: 'Sessions (Sessions)', metric: E.sessions,      opts: { color: 'indigo' } },
+        { title: 'Active devices',       metric: E.active_devices,opts: { color: 'sky' } },
+        { title: 'Crashes',   metric: E.crashes,       opts: { color: 'rose' } },
       ]) +
       '</section>' +
-      '<section class="mt-5">' + ascSectionTitle('Kullanıcı tutma (Retention)') +
+      '<section class="mt-5">' + ascSectionTitle('Users tutma (Retention)') +
       '<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">' +
       '<div class="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-center dark:border-emerald-900/50 dark:bg-emerald-950/30">' +
       '<p lang="en" class="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Retention D1</p>' +
@@ -1733,11 +1733,11 @@
       '<p lang="en" class="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Retention D28</p>' +
       '<p class="mt-1 text-3xl font-black tabular-nums text-indigo-700 dark:text-indigo-300">' + (E.retention_d28 != null ? E.retention_d28 + '%' : '—') + '</p></div>' +
       '</div></section>' +
-      '<section class="mt-5">' + ascSectionTitle('Sağlık göstergeleri') +
+      '<section class="mt-5">' + ascSectionTitle('Health indicators') +
       '<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">' +
-      ascMiniCard('Çökme oranı', (E.crash_rate_pct != null ? E.crash_rate_pct.toFixed(2) + '%' : '—'), null) +
-      ascMiniCard('Cihaz başına oturum', (E.sessions_per_device != null ? E.sessions_per_device.toFixed(2) : '—'), null) +
-      ascMiniCard('Ort. oturum süresi', (E.avg_session_seconds != null ? E.avg_session_seconds + 's' : '—'), null) +
+      ascMiniCard('Crash rate', (E.crash_rate_pct != null ? E.crash_rate_pct.toFixed(2) + '%' : '—'), null) +
+      ascMiniCard('Sessions per device', (E.sessions_per_device != null ? E.sessions_per_device.toFixed(2) : '—'), null) +
+      ascMiniCard('Avg. session duration', (E.avg_session_seconds != null ? E.avg_session_seconds + 's' : '—'), null) +
       '</div></section>';
   }
 
@@ -1773,15 +1773,15 @@
     var tdBase = 'py-2 px-3 text-sm align-middle';
     var rowBase = 'border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-800/40';
 
-    var html = '<section>' + ascSectionTitle('En çok indirme: Ülkeler') +
+    var html = '<section>' + ascSectionTitle('Top downloads: countries') +
       '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">' +
       '<table class="w-full min-w-[500px] border-collapse">' +
       '<thead><tr>' +
-      '<th class="' + thBase + ' app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="name" data-sorted="' + (sortC.key === 'name' ? sortC.dir : '') + '">Ülke ' + ascSortArrow(sortC, 'name') + '</th>' +
-      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="downloads" data-sorted="' + (sortC.key === 'downloads' ? sortC.dir : '') + '">İndirme ' + ascSortArrow(sortC, 'downloads') + '</th>' +
-      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="share_pct" data-sorted="' + (sortC.key === 'share_pct' ? sortC.dir : '') + '">Pay ' + ascSortArrow(sortC, 'share_pct') + '</th>' +
+      '<th class="' + thBase + ' app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="name" data-sorted="' + (sortC.key === 'name' ? sortC.dir : '') + '">Country ' + ascSortArrow(sortC, 'name') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="downloads" data-sorted="' + (sortC.key === 'downloads' ? sortC.dir : '') + '">Downloads ' + ascSortArrow(sortC, 'downloads') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="share_pct" data-sorted="' + (sortC.key === 'share_pct' ? sortC.dir : '') + '">Share ' + ascSortArrow(sortC, 'share_pct') + '</th>' +
       '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="delta_pct" data-sorted="' + (sortC.key === 'delta_pct' ? sortC.dir : '') + '">Δ ' + ascSortArrow(sortC, 'delta_pct') + '</th>' +
-      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="proceeds" data-sorted="' + (sortC.key === 'proceeds' ? sortC.dir : '') + '">Gelir ' + ascSortArrow(sortC, 'proceeds') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="countries" data-asc-sort-key="proceeds" data-sorted="' + (sortC.key === 'proceeds' ? sortC.dir : '') + '">Revenue ' + ascSortArrow(sortC, 'proceeds') + '</th>' +
       '</tr></thead><tbody>';
     countries.forEach(function (r) {
       html += '<tr class="' + rowBase + '">' +
@@ -1794,15 +1794,15 @@
     });
     html += '</tbody></table></div></section>';
 
-    html += '<section class="mt-5">' + ascSectionTitle('Kaynaklar (Sources)') +
+    html += '<section class="mt-5">' + ascSectionTitle('Sources') +
       '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">' +
       '<table class="w-full min-w-[500px] border-collapse">' +
       '<thead><tr>' +
-      '<th class="' + thBase + ' app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="name" data-sorted="' + (sortS.key === 'name' ? sortS.dir : '') + '">Kaynak ' + ascSortArrow(sortS, 'name') + '</th>' +
-      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="impressions" data-sorted="' + (sortS.key === 'impressions' ? sortS.dir : '') + '">Gösterim ' + ascSortArrow(sortS, 'impressions') + '</th>' +
+      '<th class="' + thBase + ' app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="name" data-sorted="' + (sortS.key === 'name' ? sortS.dir : '') + '">Source ' + ascSortArrow(sortS, 'name') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="impressions" data-sorted="' + (sortS.key === 'impressions' ? sortS.dir : '') + '">Impressions ' + ascSortArrow(sortS, 'impressions') + '</th>' +
       '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="product_page_views" data-sorted="' + (sortS.key === 'product_page_views' ? sortS.dir : '') + '">PV ' + ascSortArrow(sortS, 'product_page_views') + '</th>' +
-      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="downloads" data-sorted="' + (sortS.key === 'downloads' ? sortS.dir : '') + '">İndirme ' + ascSortArrow(sortS, 'downloads') + '</th>' +
-      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="conversion_pct" data-sorted="' + (sortS.key === 'conversion_pct' ? sortS.dir : '') + '">Dönüşüm ' + ascSortArrow(sortS, 'conversion_pct') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="downloads" data-sorted="' + (sortS.key === 'downloads' ? sortS.dir : '') + '">Downloads ' + ascSortArrow(sortS, 'downloads') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="sources" data-asc-sort-key="conversion_pct" data-sorted="' + (sortS.key === 'conversion_pct' ? sortS.dir : '') + '">Conversion ' + ascSortArrow(sortS, 'conversion_pct') + '</th>' +
       '</tr></thead><tbody>';
     sources.forEach(function (r) {
       html += '<tr class="' + rowBase + '">' +
@@ -1815,20 +1815,20 @@
     });
     html += '</tbody></table></div></section>';
 
-    html += '<section class="mt-5">' + ascSectionTitle('Sürümler (Versions)') +
+    html += '<section class="mt-5">' + ascSectionTitle('Versions') +
       '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">' +
       '<table class="w-full min-w-[480px] border-collapse">' +
       '<thead><tr>' +
-      '<th class="' + thBase + ' app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="version" data-sorted="' + (sortV.key === 'version' ? sortV.dir : '') + '">Sürüm ' + ascSortArrow(sortV, 'version') + '</th>' +
-      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="downloads" data-sorted="' + (sortV.key === 'downloads' ? sortV.dir : '') + '">İndirme ' + ascSortArrow(sortV, 'downloads') + '</th>' +
-      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="active_devices" data-sorted="' + (sortV.key === 'active_devices' ? sortV.dir : '') + '">Aktif cihaz ' + ascSortArrow(sortV, 'active_devices') + '</th>' +
-      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="share_pct" data-sorted="' + (sortV.key === 'share_pct' ? sortV.dir : '') + '">Pay ' + ascSortArrow(sortV, 'share_pct') + '</th>' +
-      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="crash_rate_pct" data-sorted="' + (sortV.key === 'crash_rate_pct' ? sortV.dir : '') + '">Çökme % ' + ascSortArrow(sortV, 'crash_rate_pct') + '</th>' +
+      '<th class="' + thBase + ' app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="version" data-sorted="' + (sortV.key === 'version' ? sortV.dir : '') + '">Version ' + ascSortArrow(sortV, 'version') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="downloads" data-sorted="' + (sortV.key === 'downloads' ? sortV.dir : '') + '">Downloads ' + ascSortArrow(sortV, 'downloads') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="active_devices" data-sorted="' + (sortV.key === 'active_devices' ? sortV.dir : '') + '">Active devices ' + ascSortArrow(sortV, 'active_devices') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="share_pct" data-sorted="' + (sortV.key === 'share_pct' ? sortV.dir : '') + '">Share ' + ascSortArrow(sortV, 'share_pct') + '</th>' +
+      '<th class="' + thBase + ' text-right app-asc-sortable-th" data-asc-sort-group="versions" data-asc-sort-key="crash_rate_pct" data-sorted="' + (sortV.key === 'crash_rate_pct' ? sortV.dir : '') + '">Crash % ' + ascSortArrow(sortV, 'crash_rate_pct') + '</th>' +
       '</tr></thead><tbody>';
     versions.forEach(function (r) {
       html += '<tr class="' + rowBase + '">' +
         '<td class="' + tdBase + ' font-medium text-slate-900 dark:text-slate-100">' +
-        (r.is_latest ? '<span class="inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 mr-2">Güncel</span>' : '') +
+        (r.is_latest ? '<span class="inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 mr-2">Current</span>' : '') +
         '<code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-800 dark:text-slate-300">' + esc(r.version) + '</code></td>' +
         '<td class="' + tdBase + ' text-right tabular-nums text-slate-800 dark:text-slate-200">' + ascFmtNum(r.downloads) + '</td>' +
         '<td class="' + tdBase + ' text-right tabular-nums text-slate-800 dark:text-slate-200">' + ascFmtNum(r.active_devices) + '</td>' +
@@ -1932,7 +1932,7 @@
         pill.classList.remove('hidden');
       } else if (j && j.source) {
         pill.className = 'rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
-        pill.textContent = j.analytics_live ? 'Canlı · Analytics' : 'Canlı';
+        pill.textContent = j.analytics_live ? 'Live · Analytics' : 'Live';
         pill.classList.remove('hidden');
       } else {
         pill.classList.add('hidden');
@@ -1967,14 +1967,14 @@
     return (
       '<div class="space-y-2 px-1 py-6">' +
       '<div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">' +
-      '<span class="font-medium">App Store Connect verileri yükleniyor…</span>' +
-      '<span class="tabular-nums" id="asc-prog-label">' + done + ' / ' + total + ' gün</span>' +
+      '<span class="font-medium">App Store Connect data loading…</span>' +
+      '<span class="tabular-nums" id="asc-prog-label">' + done + ' / ' + total + ' days</span>' +
       '</div>' +
       '<div class="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">' +
       '<div id="asc-prog-fill" class="h-full rounded-full bg-indigo-500 transition-all duration-200" style="width:' + pct + '%"></div>' +
       '</div>' +
       '<p class="text-[10px] text-slate-400 dark:text-slate-500" id="asc-prog-detail">' +
-      (total > 0 ? (pct + '% tamamlandı · ' + total + ' günlük veri çekiliyor') : 'Bağlanıyor…') +
+      (total > 0 ? (pct + '% complete · ' + total + ' days of data loading') : 'Connecting…') +
       '</p>' +
       '</div>'
     );
@@ -1987,7 +1987,7 @@
     if (asc_body && asc_body.hasAttribute('hidden')) return;
     opts = opts || {};
 
-    // Önceki SSE bağlantısını kapat (eski yol)
+    // Previous SSE connectionsını kapat (eski yol)
     if (_ascEventSource) { _ascEventSource.close(); _ascEventSource = null; }
     ascState.seq += 1;
     var req = ascState.seq;
@@ -2002,7 +2002,7 @@
 
     var prevH = box.offsetHeight;
     if (prevH > 64) box.style.minHeight = prevH + 'px';
-    box.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400"><span class="app-gp-spin" style="animation:spin 1s linear infinite;display:inline-block">⟳</span> App Store Connect verileri yükleniyor…</div>';
+    box.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400"><span class="app-gp-spin" style="animation:spin 1s linear infinite;display:inline-block">⟳</span> App Store Connect data loading…</div>';
 
     fetch(url, { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
@@ -2010,7 +2010,7 @@
         if (req !== ascState.seq) return;
         box.style.minHeight = '';
         if (!x.ok || !x.j || x.j.error) {
-          box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">App Store Connect verisi alınamadı.</p>';
+          box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Could not fetch App Store Connect data.</p>';
           return;
         }
         ascState.payload = x.j;
@@ -2021,7 +2021,7 @@
       .catch(function () {
         if (req !== ascState.seq) return;
         box.style.minHeight = '';
-        box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Bağlantı hatası — App Store Connect verisi alınamadı.</p>';
+        box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Connection error — could not fetch App Store Connect data.</p>';
       });
   }
 
@@ -2075,7 +2075,7 @@
         var icon = document.getElementById('app-asc-refresh-icon');
         if (icon) icon.classList.add('app-asc-spin');
         refresh.disabled = true;
-        // Kapalıysa aç, sonra yükle
+        // Offysa aç, sonra yükle
         var bodyEl = document.getElementById('app-asc-body');
         if (bodyEl && bodyEl.hasAttribute('hidden')) {
           bodyEl.removeAttribute('hidden');
@@ -2084,7 +2084,7 @@
           var hdrEl = document.getElementById('app-asc-header');
           if (hdrEl) hdrEl.setAttribute('aria-expanded', 'true');
         }
-        // payload'ı null yaparak zorla yenile
+        // payload'ı null yaparak zorla newle
         ascState.payload = null;
         loadAscPreview({ refresh: 1 });
         setTimeout(function () {
@@ -2094,7 +2094,7 @@
       });
     }
 
-    // Dropdown toggle: header'a tıklayınca aç/kapa, ilk açılışta lazy load
+    // Dropdown toggle: header'a when clicked aç/kapa, ilk açılışta lazy load
     var hdr = document.getElementById('app-asc-header');
     var body = document.getElementById('app-asc-body');
     var chev = document.getElementById('app-asc-chevron');
@@ -2115,7 +2115,7 @@
     }
     if (hdr) {
       hdr.addEventListener('click', function (ev) {
-        // Refresh butonuna tıklarsa toggle etme
+        // Refresh butonuna clickslarsa toggle etme
         if (ev.target.closest('#app-asc-refresh-btn')) return;
         ascToggle();
       });
@@ -2216,7 +2216,7 @@
         '<button type="button" onclick="var p=document.getElementById(\'' + tid + '\');p.classList.toggle(\'hidden\');var ic=this.querySelector(\'.gp-yak-ic\');ic.textContent=p.classList.contains(\'hidden\')?\'▸\':\'▾\';" ' +
         'class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-400 transition hover:border-slate-300 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500 dark:hover:text-slate-300">' +
         '<span class="gp-yak-ic">▸</span>' +
-        yakCount + ' metrik — GP Reports bucket bağlandığında' +
+        yakCount + ' metrics — when the GP Reports bucket is connected' +
         '</button>' +
         '<div id="' + tid + '" class="hidden mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">' +
         yakHtml +
@@ -2228,11 +2228,11 @@
 
   function gpRenderOverview(j) {
     var K = j.kpis || {}, R = j.ratings || {}, V = j.vitals || {};
-    var html = '<section>' + gpSectionTitle('Genel Bakış', 'Son ' + j.period_days + ' gün') +
+    var html = '<section>' + gpSectionTitle('Overview', 'Last ' + j.period_days + ' days') +
       gpRenderKpiGrid([
-        { title: 'Kurulum',     metric: K.installs,     opts: { color: 'green' } },
-        { title: 'Kaldırma',   metric: K.uninstalls,   opts: { color: 'rose' } },
-        { title: 'Net kurulum', metric: K.net_installs, opts: { color: 'emerald' } },
+        { title: 'Installs',     metric: K.installs,     opts: { color: 'green' } },
+        { title: 'Uninstalls',   metric: K.uninstalls,   opts: { color: 'rose' } },
+        { title: 'Net installs', metric: K.net_installs, opts: { color: 'emerald' } },
       ]) +
       '</section>';
 
@@ -2240,19 +2240,19 @@
     if (trend.length && !j.trend_daily_is_demo) {
       var iSeries = trend.map(function (r) { return r.installs; });
       var uSeries = trend.map(function (r) { return r.uninstalls; });
-      html += '<section class="mt-6">' + gpSectionTitle('Günlük Trend', 'Kurulum · Kaldırma') +
+      html += '<section class="mt-6">' + gpSectionTitle('Daily trend', 'Installs · Uninstalls') +
         '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
         '<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">' +
-        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Kurulum (toplam)</p>' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Installs (total)</p>' +
         '<p class="text-xl font-extrabold tabular-nums">' + gpFmtNum(iSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
         gpSparkline(iSeries, 'text-green-500 dark:text-green-400') + versionReleaseMarkerStrip('android', iSeries.length, j.period_days) + '</div>' +
-        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Kaldırma (toplam)</p>' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Uninstalls (total)</p>' +
         '<p class="text-xl font-extrabold tabular-nums">' + gpFmtNum(uSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
         gpSparkline(uSeries, 'text-rose-500 dark:text-rose-400') + versionReleaseMarkerStrip('android', uSeries.length, j.period_days) + '</div>' +
         '</div></div></section>';
     }
 
-    // Puanlama + Vitals
+    // Ratings + Vitals
     var ratingDist = R.distribution || {};
     var maxR = 0;
     ["1","2","3","4","5"].forEach(function (k) { maxR = Math.max(maxR, ratingDist[k] || 0); });
@@ -2268,19 +2268,19 @@
     });
     html += '<section class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">' +
       '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
-      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Puanlama</p>' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ratings</p>' +
       '<div class="mt-1 flex items-baseline gap-1.5"><span class="text-3xl font-black text-amber-500 dark:text-amber-400">' + (R.average != null ? R.average.toFixed(2) : '—') + '</span><span class="text-sm text-slate-400">/ 5</span></div>' +
       '<p class="text-[11px] text-slate-500 dark:text-slate-400">' + gpFmtNum(R.total) + ' puan</p>' +
       '<div class="mt-3 space-y-1">' + rbar + '</div></div>' +
       '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70 lg:col-span-2">' +
       '<p lang="en" class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Android Vitals</p>' +
       '<div class="mt-2 grid grid-cols-3 gap-2">' +
-      gpMiniCard('Çökme oranı', V.crash_rate_label || '—', null) +
-      gpMiniCard('ANR oranı', V.anr_rate_label || '—', null) +
-      gpMiniCard('Yavaş render', V.slow_render_label || '—', null) +
+      gpMiniCard('Crash rate', V.crash_rate_label || '—', null) +
+      gpMiniCard('ANR rate', V.anr_rate_label || '—', null) +
+      gpMiniCard('Slow render', V.slow_render_label || '—', null) +
       '</div>' +
       (V.crash_series && V.crash_series.length ?
-        '<div class="mt-3"><p class="text-[9px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1">Çökme trendi</p>' + gpSparkline(V.crash_series, 'text-rose-500 dark:text-rose-400') + '</div>' : '') +
+        '<div class="mt-3"><p class="text-[9px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1">Crash trend</p>' + gpSparkline(V.crash_series, 'text-rose-500 dark:text-rose-400') + '</div>' : '') +
       '</div></section>';
     return html;
   }
@@ -2290,17 +2290,17 @@
     var trend = j.trend_daily || [];
     var iSeries = trend.map(function (r) { return r.installs; });
     var uSeries = trend.map(function (r) { return r.uninstalls; });
-    return '<section>' + gpSectionTitle('İndirmeler (Kurulum)') +
+    return '<section>' + gpSectionTitle('Downloads (Installs)') +
       gpRenderKpiGrid([
-        { title: 'Yeni kurulum', metric: K.installs,     opts: { color: 'green' } },
-        { title: 'Kaldırma',    metric: K.uninstalls,   opts: { color: 'rose' } },
-        { title: 'Net kurulum', metric: K.net_installs, opts: { color: 'emerald' } },
+        { title: 'New installs', metric: K.installs,     opts: { color: 'green' } },
+        { title: 'Uninstalls',    metric: K.uninstalls,   opts: { color: 'rose' } },
+        { title: 'Net installs', metric: K.net_installs, opts: { color: 'emerald' } },
       ]) +
       '</section>' +
       (trend.length && !j.trend_daily_is_demo ? '<section class="mt-5"><div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
         '<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">' +
-        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Kurulum serisi</p>' + gpSparkline(iSeries, 'text-green-500 dark:text-green-400') + '</div>' +
-        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Kaldırma serisi</p>' + gpSparkline(uSeries, 'text-rose-500 dark:text-rose-400') + '</div>' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Installs serisi</p>' + gpSparkline(iSeries, 'text-green-500 dark:text-green-400') + '</div>' +
+        '<div><p class="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Uninstall series</p>' + gpSparkline(uSeries, 'text-rose-500 dark:text-rose-400') + '</div>' +
         '</div></div></section>' : '');
   }
 
@@ -2309,17 +2309,17 @@
     return '<section>' + gpSectionTitle('Android Vitals') +
       '<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">' +
       '<div class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 dark:border-rose-900/50 dark:bg-rose-950/30">' +
-      '<p class="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">Çökme oranı</p>' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">Crash rate</p>' +
       '<p class="mt-1 text-2xl font-extrabold tabular-nums text-rose-700 dark:text-rose-300">' + esc(V.crash_rate_label || '—') + '</p>' +
       (V.crash_series && V.crash_series.length ? '<div class="mt-2">' + gpSparkline(V.crash_series, 'text-rose-500 dark:text-rose-400') + '</div>' : '') +
       '</div>' +
       '<div class="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">' +
-      '<p class="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">ANR oranı</p>' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">ANR rate</p>' +
       '<p class="mt-1 text-2xl font-extrabold tabular-nums text-amber-700 dark:text-amber-300">' + esc(V.anr_rate_label || '—') + '</p>' +
       (V.anr_series && V.anr_series.length ? '<div class="mt-2">' + gpSparkline(V.anr_series, 'text-amber-500 dark:text-amber-400') + '</div>' : '') +
       '</div>' +
       '<div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700/60 dark:bg-slate-900/70">' +
-      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Yavaş render</p>' +
+      '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Slow render</p>' +
       '<p class="mt-1 text-2xl font-extrabold tabular-nums text-slate-700 dark:text-slate-200">' + esc(V.slow_render_label || '—') + '</p>' +
       '</div>' +
       '</div></section>';
@@ -2340,34 +2340,34 @@
         '<div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-full rounded-full bg-amber-400 transition-all" style="width:' + w + '%"></div></div>' +
         '<span class="w-16 text-right tabular-nums text-slate-500">' + gpFmtNum(v) + '</span></div>';
     });
-    return '<section>' + gpSectionTitle('Puanlama') +
+    return '<section>' + gpSectionTitle('Ratings') +
       '<div class="max-w-lg rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700/60 dark:bg-slate-900/70">' +
       '<div class="flex items-baseline gap-3 mb-4"><span class="text-5xl font-black text-amber-500 dark:text-amber-400">' + (R.average != null ? R.average.toFixed(2) : '—') + '</span><div>' +
-      '<p class="text-sm text-slate-500">/ 5 yıldız</p>' +
-      '<p class="text-xs text-slate-400">' + gpFmtNum(R.total) + ' değerlendirme</p></div></div>' +
+      '<p class="text-sm text-slate-500">/ 5 stars</p>' +
+      '<p class="text-xs text-slate-400">' + gpFmtNum(R.total) + ' ratings</p></div></div>' +
       '<div class="space-y-2">' + rbar + '</div></div></section>';
   }
 
   function _gpDemoTablePlaceholder(title) {
     return '<div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700/40 dark:bg-slate-800/20">' +
       '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">' + esc(title) + '</p>' +
-      '<p class="text-[11px] text-slate-300 dark:text-slate-600">Kurulum verileri GP_REPORTS_BUCKET bağlandığında burada görünür.</p>' +
+      '<p class="text-[11px] text-slate-300 dark:text-slate-600">Install data appears here when GP_REPORTS_BUCKET is connected.</p>' +
       '</div>';
   }
 
   function gpRenderTops(j) {
     if (j.top_countries_is_demo || j.top_sources_is_demo) {
       var tid2 = 'gp-tops-' + (++_gpYakSeq);
-      return '<section>' + gpSectionTitle('En çok kurulum: Ülkeler / Kaynaklar') +
+      return '<section>' + gpSectionTitle('Top installs: Countries / Sources') +
         '<div class="mt-1">' +
         '<button type="button" onclick="var p=document.getElementById(\'' + tid2 + '\');p.classList.toggle(\'hidden\');var ic=this.querySelector(\'.gp-yak-ic\');ic.textContent=p.classList.contains(\'hidden\')?\'▸\':\'▾\';" ' +
         'class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-400 transition hover:border-slate-300 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500 dark:hover:text-slate-300">' +
         '<span class="gp-yak-ic">▸</span>' +
-        '2 tablo — GP Reports bucket bağlandığında' +
+        '2 tables — when the GP Reports bucket is connected' +
         '</button>' +
         '<div id="' + tid2 + '" class="hidden mt-3 space-y-3">' +
-        _gpDemoTablePlaceholder('En çok kurulum: Ülkeler') +
-        _gpDemoTablePlaceholder('Kurulum Kaynakları') +
+        _gpDemoTablePlaceholder('Top installs: Countries') +
+        _gpDemoTablePlaceholder('Install sources') +
         '</div></div></section>';
     }
     var sortC = gpState.topCountriesSort, sortS = gpState.topSourcesSort;
@@ -2385,13 +2385,13 @@
     var tdB = 'py-2 px-3 text-sm align-middle';
     var rowB = 'border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-800/40';
 
-    var html = '<section>' + gpSectionTitle('En çok kurulum: Ülkeler') +
+    var html = '<section>' + gpSectionTitle('Top installs: Countries') +
       '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">' +
       '<table class="w-full min-w-[400px] border-collapse">' +
       '<thead><tr>' +
-      '<th class="' + thB + '" data-gp-sort-group="countries" data-gp-sort-key="name">Ülke ' + (sortC.key === "name" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
-      '<th class="' + thB + ' text-right" data-gp-sort-group="countries" data-gp-sort-key="installs">Kurulum ' + (sortC.key === "installs" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
-      '<th class="' + thB + ' text-right" data-gp-sort-group="countries" data-gp-sort-key="share_pct">Pay ' + (sortC.key === "share_pct" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
+      '<th class="' + thB + '" data-gp-sort-group="countries" data-gp-sort-key="name">Country ' + (sortC.key === "name" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
+      '<th class="' + thB + ' text-right" data-gp-sort-group="countries" data-gp-sort-key="installs">Installs ' + (sortC.key === "installs" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
+      '<th class="' + thB + ' text-right" data-gp-sort-group="countries" data-gp-sort-key="share_pct">Share ' + (sortC.key === "share_pct" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
       '<th class="' + thB + ' text-right" data-gp-sort-group="countries" data-gp-sort-key="delta_pct">Δ ' + (sortC.key === "delta_pct" ? (sortC.dir === "asc" ? "↑" : "↓") : "↕") + '</th>' +
       '</tr></thead><tbody>';
     countries.forEach(function (r) {
@@ -2404,13 +2404,13 @@
     });
     html += '</tbody></table></div></section>';
 
-    html += '<section class="mt-5">' + gpSectionTitle('Kurulum Kaynakları') +
+    html += '<section class="mt-5">' + gpSectionTitle('Install sources') +
       '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">' +
       '<table class="w-full min-w-[380px] border-collapse">' +
       '<thead><tr>' +
-      '<th class="' + thB + '" data-gp-sort-group="sources" data-gp-sort-key="name">Kaynak</th>' +
-      '<th class="' + thB + ' text-right" data-gp-sort-group="sources" data-gp-sort-key="installs">Kurulum</th>' +
-      '<th class="' + thB + ' text-right" data-gp-sort-group="sources" data-gp-sort-key="share_pct">Pay</th>' +
+      '<th class="' + thB + '" data-gp-sort-group="sources" data-gp-sort-key="name">Source</th>' +
+      '<th class="' + thB + ' text-right" data-gp-sort-group="sources" data-gp-sort-key="installs">Installs</th>' +
+      '<th class="' + thB + ' text-right" data-gp-sort-group="sources" data-gp-sort-key="share_pct">Share</th>' +
       '</tr></thead><tbody>';
     sources.forEach(function (r) {
       html += '<tr class="' + rowB + '">' +
@@ -2498,10 +2498,10 @@
         pill.textContent = 'Demo'; pill.classList.remove('hidden');
       } else if (j && j.source === 'live_partial') {
         pill.className = 'rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-sky-800 dark:bg-sky-900/40 dark:text-sky-200';
-        pill.textContent = 'Kısmi Canlı'; pill.classList.remove('hidden');
+        pill.textContent = 'Partial live'; pill.classList.remove('hidden');
       } else if (j && j.source) {
         pill.className = 'rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
-        pill.textContent = 'Canlı'; pill.classList.remove('hidden');
+        pill.textContent = 'Live'; pill.classList.remove('hidden');
       } else {
         pill.classList.add('hidden');
       }
@@ -2538,12 +2538,12 @@
       '&country=' + encodeURIComponent(gpState.country) +
       '&device=' + encodeURIComponent(gpState.device);
     if (opts.refresh) url += '&refresh=1';
-    box.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400"><span class="app-gp-spin" style="animation:spin 1s linear infinite;display:inline-block">⟳</span> Google Play verileri yükleniyor…</div>';
+    box.innerHTML = '<div class="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400"><span class="app-gp-spin" style="animation:spin 1s linear infinite;display:inline-block">⟳</span> Google Play data loading…</div>';
     fetch(url, { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (x) {
         if (req !== gpState.seq) return;
-        if (!x.ok || !x.j) { box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Google Play özeti yüklenemedi.</p>'; return; }
+        if (!x.ok || !x.j) { box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Could not load Google Play summary.</p>'; return; }
         gpState.payload = x.j;
         gpPopulateFilters(x.j);
         gpRenderSourcePill(x.j);
@@ -2551,7 +2551,7 @@
       })
       .catch(function () {
         if (req !== gpState.seq) return;
-        box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Bağlantı hatası — Google Play verisi alınamadı.</p>';
+        box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Connection error — Could not load Google Play data.</p>';
       });
   }
 
@@ -2662,23 +2662,23 @@
           j.bigquery_project +
           " · Dataset: " +
           (j.bigquery_dataset || "firebase_crashlytics") +
-          " · Tablo adları bundle id / package (nokta → alt çizgi).";
+          " · Table names are bundle id / package (dot → underscore).";
       } else {
         note.textContent = "";
       }
     }
     if (!j) {
-      box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Crashlytics verisi alınamadı.</p>';
+      box.innerHTML = '<p class="text-sm text-rose-600 dark:text-rose-400">Could not load Crashlytics data.</p>';
       return;
     }
     if (j.ok === false) {
       box.innerHTML =
-        '<p class="text-sm text-amber-800 dark:text-amber-200">' + esc(j.message || "Yapılandırma eksik.") + "</p>";
+        '<p class="text-sm text-amber-800 dark:text-amber-200">' + esc(j.message || "Configuration missing.") + "</p>";
       return;
     }
     var T = j.totals || {};
     var head =
-      '<div class="flex flex-wrap gap-4 text-sm"><span class="rounded-lg bg-rose-50 px-3 py-1.5 font-medium text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/50 dark:text-rose-100 dark:ring-rose-800">FATAL olay: <strong class="tabular-nums">' +
+      '<div class="flex flex-wrap gap-4 text-sm"><span class="rounded-lg bg-rose-50 px-3 py-1.5 font-medium text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/50 dark:text-rose-100 dark:ring-rose-800">FATAL events: <strong class="tabular-nums">' +
       esc(String(T.fatal_events != null ? T.fatal_events : "—")) +
       '</strong></span><span class="rounded-lg bg-amber-50 px-3 py-1.5 font-medium text-amber-950 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800">ANR: <strong class="tabular-nums">' +
       esc(String(T.anr_events != null ? T.anr_events : "—")) +
@@ -2701,7 +2701,7 @@
         return;
       }
       sub +=
-        '<p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Tablo: <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">' +
+        '<p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Table: <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">' +
         esc(P.table_id || "") +
         "</code></p>";
       if (P.error) {
@@ -2710,11 +2710,11 @@
       var rows = P.issues || [];
       if (!P.error && rows.length === 0) {
         sub +=
-          '<p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Bu pencerede kayıt yok veya sorun listesi boş.</p>';
+          '<p class="mt-2 text-sm text-slate-600 dark:text-slate-400">No records in this window, or the issue list is empty.</p>';
       }
       if (rows.length) {
         sub +=
-          '<div class="mt-3 overflow-x-auto"><table class="w-full min-w-[480px] border-collapse text-left text-xs sm:text-sm"><thead><tr class="border-b border-slate-200 dark:border-slate-600"><th class="py-2 pr-3 font-semibold text-slate-600 dark:text-slate-300">Issue</th><th class="py-2 pr-3 font-semibold text-slate-600 dark:text-slate-300">Tür</th><th class="py-2 pr-3 font-semibold text-slate-600 dark:text-slate-300 text-right">Olay</th></tr></thead><tbody>';
+          '<div class="mt-3 overflow-x-auto"><table class="w-full min-w-[480px] border-collapse text-left text-xs sm:text-sm"><thead><tr class="border-b border-slate-200 dark:border-slate-600"><th class="py-2 pr-3 font-semibold text-slate-600 dark:text-slate-300">Issue</th><th class="py-2 pr-3 font-semibold text-slate-600 dark:text-slate-300">Type</th><th class="py-2 pr-3 font-semibold text-slate-600 dark:text-slate-300 text-right">Events</th></tr></thead><tbody>';
         rows.forEach(function (row) {
           var badge =
             '<span class="inline-block rounded px-2 py-0.5 text-[10px] font-semibold ' +
@@ -2724,7 +2724,7 @@
             "</span>";
           sub +=
             '<tr class="border-b border-slate-100 dark:border-slate-800/80"><td class="py-2 pr-3 align-top"><div class="font-medium text-slate-900 dark:text-slate-100">' +
-            esc(row.issue_title || "(başlıksız)") +
+            esc(row.issue_title || "(untitled)") +
             '</div><div class="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500 break-all">' +
             esc(row.issue_id || "") +
             "</div></td><td class=\"py-2 pr-3 align-top\">" +
@@ -2751,7 +2751,7 @@
       encodeURIComponent(state.product) +
       "&days=" +
       encodeURIComponent(String(state.crashlyticsDays));
-    box.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-400">Crashlytics sorgulanıyor…</p>';
+    box.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-400">Querying Crashlytics…</p>';
     fetch(url, { cache: "no-store" })
       .then(function (r) {
         return r.json().then(function (j) {
@@ -2801,7 +2801,7 @@
         el.innerHTML = "";
       }
       el.innerHTML =
-        '<p class="flex h-full items-center justify-center px-2 text-center text-sm text-amber-700 dark:text-amber-300">Grafik için Plotly yüklenemedi (CDN engelli veya ağ). Reklam engelleyiciyi kapatıp sayfayı yenileyin.</p>';
+        '<p class="flex h-full items-center justify-center px-2 text-center text-sm text-amber-700 dark:text-amber-300">Plotly did not load for the chart (CDN blocked or network). Turn off the ad blocker and refresh the page.</p>';
       return;
     }
     if (el.querySelector(".app-intel-skeleton")) {
@@ -2818,7 +2818,7 @@
     if (!sum) {
       Plotly.purge(el);
       el.innerHTML =
-        '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Dönemde yorum yok.</p>';
+        '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">No reviews in this period.</p>';
       return;
     }
     Plotly.newPlot(
@@ -2842,7 +2842,7 @@
         paper_bgcolor: th.paper,
         plot_bgcolor: th.plot,
         xaxis: { tickfont: { color: th.tick } },
-        yaxis: { title: { text: "Adet", font: { size: 11, color: th.tick } }, tickfont: { color: th.tick }, gridcolor: th.grid },
+        yaxis: { title: { text: "Count", font: { size: 11, color: th.tick } }, tickfont: { color: th.tick }, gridcolor: th.grid },
         showlegend: false,
       },
       { displayModeBar: false, responsive: true }
@@ -2858,7 +2858,7 @@
           var star = label.replace("★", "").replace("*", "").trim();
           if (!star || !drilldownEl) return;
           var rows = (starReviews && starReviews[star]) ? starReviews[star] : [];
-          renderCategoryDrilldown(drilldownEl, star + "★", rows, "puanında");
+          renderCategoryDrilldown(drilldownEl, star + "★", rows, "star");
         } catch (e) {}
       });
     }
@@ -2871,7 +2871,7 @@
         el.innerHTML = "";
       }
       el.innerHTML =
-        '<p class="flex h-full items-center justify-center px-2 text-center text-sm text-amber-700 dark:text-amber-300">Grafik için Plotly yüklenemedi. CDN erişimini kontrol edin.</p>';
+        '<p class="flex h-full items-center justify-center px-2 text-center text-sm text-amber-700 dark:text-amber-300">Plotly did not load for the chart. Check CDN access.</p>';
       return;
     }
     if (el.querySelector(".app-intel-skeleton")) {
@@ -2881,7 +2881,7 @@
     var list = Array.isArray(rows) ? rows : [];
     if (!list.length) {
       Plotly.purge(el);
-      el.innerHTML = '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Sıra geçmişi henüz oluşmadı.</p>';
+      el.innerHTML = '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">No ranking history yet.</p>';
       return;
     }
     var x = list.map(function (r) {
@@ -2898,7 +2898,7 @@
     });
     if (!y.some(function (v) { return v != null; })) {
       Plotly.purge(el);
-      el.innerHTML = '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Sıralama değeri bulunamadı.</p>';
+      el.innerHTML = '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">No ranking value found.</p>';
       return;
     }
     var traces = [
@@ -2908,8 +2908,8 @@
         mode: "lines+markers",
         line: { color: "#22c55e", width: 2 },
         marker: { size: 6, color: "#16a34a" },
-        name: label || "Sıra",
-        hovertemplate: "%{x|%d %b %H:%M}<br>Sıra: #%{y}<extra></extra>",
+        name: label || "Rank",
+        hovertemplate: "%{x|%d %b %H:%M}<br>Rank: #%{y}<extra></extra>",
       },
     ];
     var ARM = window.AppReleaseMarkers;
@@ -2946,7 +2946,7 @@
           tickformat: "%d %b",
         },
         yaxis: {
-          title: { text: "Sıra", font: { size: 11, color: th.tick } },
+          title: { text: "Rank", font: { size: 11, color: th.tick } },
           tickfont: { size: 11, color: th.tick },
           gridcolor: th.grid,
           autorange: "reversed",
@@ -2961,12 +2961,12 @@
     if (!el) return;
     el.classList.remove("hidden");
     var list = Array.isArray(rows) ? rows : [];
-    var scope = scopeText || "kategorisinde";
+    var scope = scopeText || "category";
     if (!list.length) {
       el.innerHTML =
         '<div class="rounded-md border border-slate-200 bg-white/80 px-2 py-1.5 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-200">"' +
         title +
-        '" ' + scope + ' yorum bulunamadı.</div>';
+        '" ' + scope + ' — no reviews.</div>';
       return;
     }
     var html = list
@@ -2998,7 +2998,7 @@
     el.innerHTML =
       '<div class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">' +
       title +
-      " yorumları</div>" +
+      " reviews</div>" +
       '<div class="max-h-56 space-y-2 overflow-y-auto pr-1">' +
       html +
       "</div>";
@@ -3011,7 +3011,7 @@
         el.innerHTML = "";
       }
       el.innerHTML =
-        '<p class="flex h-full items-center justify-center px-2 text-center text-sm text-amber-700 dark:text-amber-300">Grafik için Plotly yüklenemedi. CDN erişimini kontrol edin.</p>';
+        '<p class="flex h-full items-center justify-center px-2 text-center text-sm text-amber-700 dark:text-amber-300">Plotly did not load for the chart. Check CDN access.</p>';
       return;
     }
     if (el.querySelector(".app-intel-skeleton")) {
@@ -3022,7 +3022,7 @@
     if (!rows.length) {
       Plotly.purge(el);
       el.innerHTML =
-        '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Kategori yok.</p>';
+        '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">No categories.</p>';
       return;
     }
     var y = rows.map(function (r) {
@@ -3130,13 +3130,13 @@
         "border-emerald-300 bg-emerald-100 text-emerald-900 ring-1 ring-emerald-300/70 dark:border-emerald-700 dark:bg-emerald-900/55 dark:text-emerald-100 dark:ring-emerald-800/60"
       ) +
       box(
-        "Nötr (3★)",
+        "Neutral (3★)",
         n(s.notr),
         n(s.notr_oran),
         "border-slate-400 bg-slate-200 text-slate-900 ring-1 ring-slate-400/70 dark:border-slate-500 dark:bg-slate-600 dark:text-slate-50 dark:ring-slate-500/70"
       ) +
       box(
-        "Memnun değil (1–2★)",
+        "Not satisfied (1–2★)",
         n(s.memnun_degil),
         n(s.memnun_degil_oran),
         "border-rose-300 bg-rose-100 text-rose-900 ring-1 ring-rose-300/70 dark:border-rose-700 dark:bg-rose-900/55 dark:text-rose-100 dark:ring-rose-800/60"
@@ -3155,7 +3155,7 @@
     var pageRows = list.slice(start, start + perPage);
     if (!list.length) {
       el.innerHTML =
-        '<p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300">Yorum bulunamadı.</p>';
+        '<p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300">No reviews.</p>';
       renderLatestPagination(pageKey, 1, 1);
       return;
     }
@@ -3258,13 +3258,13 @@
   function competitorBenchmarkIdleHtml() {
     return (
       '<div class="rounded-md border border-slate-200/90 bg-slate-50/70 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-900/45">' +
-      '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kullanım</p>' +
+      '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">How to use</p>' +
       '<ul class="mt-1 list-inside list-disc space-y-0.5 text-[10px] leading-snug text-slate-600 dark:text-slate-300">' +
-      "<li><strong>2-4 uygulama</strong> kıyaslanır. Sonuç kartları girdiye göre dinamik çoğalır.</li>" +
-      "<li><strong>Yalnız Android:</strong> Play paket satırına 2-4 değer girin (<span class=\"font-mono text-[9px]\">com.a,com.b,com.c</span>).</li>" +
-      "<li><strong>Yalnız iOS:</strong> id satırına 2-4 sayı girin (<span class=\"font-mono text-[9px]\">465...,150...,123...</span>).</li>" +
-      "<li><strong>Her iki mağaza:</strong> sıra eşleşir (1. paket + 1. id = App 1, 2. paket + 2. id = App 2 ...).</li>" +
-      "<li>İsim satırı isteğe bağlıdır; sadece kartlardaki başlıkta kullanılır.</li>" +
+      "<li><strong>2–4 apps</strong> are compared. Result cards grow dynamically from the inputs.</li>" +
+      "<li><strong>Android only:</strong> enter 2–4 values in the Play package row (<span class=\"font-mono text-[9px]\">com.a,com.b,com.c</span>).</li>" +
+      "<li><strong>iOS only:</strong> enter 2–4 numbers in the id row (<span class=\"font-mono text-[9px]\">465...,150...,123...</span>).</li>" +
+      "<li><strong>Both stores:</strong> order matches (1st package + 1st id = App 1, 2nd package + 2nd id = App 2 …).</li>" +
+      "<li>The name row is optional; it is only used for card titles.</li>" +
       "</ul></div>"
     );
   }
@@ -3273,7 +3273,7 @@
     var cEl = document.getElementById("app-aso-competitors");
     if (!cEl) return;
     if (loading) {
-      cEl.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-300">ASO verisi bekleniyor…</p>';
+      cEl.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-300">Waiting for ASO data…</p>';
       return;
     }
     cEl.innerHTML = competitorBenchmarkIdleHtml();
@@ -3289,13 +3289,13 @@
     if (!payload) {
       ids.forEach(function (id) {
         var el = document.getElementById(id);
-        if (el) el.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-300">ASO verisi bekleniyor…</p>';
+        if (el) el.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-300">Waiting for ASO data…</p>';
       });
       resetCompetitorBenchmarkPanel(true);
       return;
     }
     var ga = document.getElementById("app-aso-generated-at");
-    if (ga) ga.textContent = "Güncellendi: " + formatShortDate(payload.generated_at);
+    if (ga) ga.textContent = "Refreshed: " + formatShortDate(payload.generated_at);
     var rs = payload.top_rank_summary || {};
     var rsEl = document.getElementById("app-aso-rank-summary");
     if (rsEl) {
@@ -3325,7 +3325,7 @@
     if (kwEl) {
       var lead = kw[0];
       var leadText = lead
-        ? '<div class="rounded-md border border-emerald-300/70 bg-emerald-50/70 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100 sm:text-base">Öne çıkan tema: <span class="font-semibold">' + esc(lead.keyword) + '</span> (' + esc(lead.avg_score) + '★, ' + esc(lead.mentions) + ' yorum)</div>'
+        ? '<div class="rounded-md border border-emerald-300/70 bg-emerald-50/70 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100 sm:text-base">Top theme: <span class="font-semibold">' + esc(lead.keyword) + '</span> (' + esc(lead.avg_score) + '★, ' + esc(lead.mentions) + ' reviews)</div>'
         : "";
       kwEl.innerHTML = leadText + kw.map(function (k) {
         return '<div class="flex items-center justify-between rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-slate-900 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100"><span class="font-medium text-sm sm:text-base">' +
@@ -3343,26 +3343,26 @@
       fEl.innerHTML =
         '<div class="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">' +
         '<div class="rounded-md border border-slate-300 bg-slate-100 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">' +
-        '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">Gerçek mağaza verisi</div>' +
-        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Toplam değerlendirme: <span class="font-semibold">' + esc(fmtNum(f.ratings_total || 0, 0)) + '</span></div>' +
-        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Dönem yorum: <span class="font-semibold">' + esc(fmtNum(f.reviews_period || 0, 0)) + '</span></div>' +
-        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Yorum/Değerlendirme: <span class="font-semibold">' + esc(fmtPct(k.reviews_to_ratings_pct, 2)) + '</span></div>' +
+        '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">Live store data</div>' +
+        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Total ratings: <span class="font-semibold">' + esc(fmtNum(f.ratings_total || 0, 0)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Period yorum: <span class="font-semibold">' + esc(fmtNum(f.reviews_period || 0, 0)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Yorum/Valuelendirme: <span class="font-semibold">' + esc(fmtPct(k.reviews_to_ratings_pct, 2)) + '</span></div>' +
         "</div>" +
         '<div class="rounded-md border border-slate-300 bg-slate-100 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">' +
-        '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">Dönem yoğunluğu</div>' +
-        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Dönem (gün): <span class="font-semibold">' + esc(fmtNum(s.period_days || 0, 0)) + '</span></div>' +
-        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Günlük yorum: <span class="font-semibold">' + esc(fmtNum(k.reviews_daily, 2)) + '</span></div>' +
+        '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">Period density</div>' +
+        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Period (days): <span class="font-semibold">' + esc(fmtNum(s.period_days || 0, 0)) + '</span></div>' +
+        '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Daily yorum: <span class="font-semibold">' + esc(fmtNum(k.reviews_daily, 2)) + '</span></div>' +
         '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Skor (mix): <span class="font-semibold">' + esc(fmtNum(s.rating_mix_score, 2)) + '</span></div>' +
         "</div>" +
         '<div class="rounded-md border border-slate-300 bg-slate-100 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">' +
         '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">Play</div>' +
-        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Değerlendirme: <span class="font-semibold">' + esc(fmtNum(sa.ratings, 0)) + '</span></div>' +
+        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Valuelendirme: <span class="font-semibold">' + esc(fmtNum(sa.ratings, 0)) + '</span></div>' +
         '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Skor: <span class="font-semibold">' + esc(fmtNum(sa.score, 2)) + '</span></div>' +
         '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Pay: <span class="font-semibold">' + esc(fmtPct(k.android_ratings_share_pct, 2)) + '</span></div>' +
         "</div>" +
         '<div class="rounded-md border border-slate-300 bg-slate-100 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">' +
         '<div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-sm">App Store</div>' +
-        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Değerlendirme: <span class="font-semibold">' + esc(fmtNum(si.ratings, 0)) + '</span></div>' +
+        '<div class="mt-1 text-sm text-slate-700 dark:text-slate-200 sm:text-base">Valuelendirme: <span class="font-semibold">' + esc(fmtNum(si.ratings, 0)) + '</span></div>' +
         '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Skor: <span class="font-semibold">' + esc(fmtNum(si.score, 2)) + '</span></div>' +
         '<div class="text-sm text-slate-700 dark:text-slate-200 sm:text-base">Pay: <span class="font-semibold">' + esc(fmtPct(k.ios_ratings_share_pct, 2)) + '</span></div>' +
         "</div>" +
@@ -3422,7 +3422,7 @@
       var periodVal = entry.review_count_period;
       var satVal = entry.satisfaction_mix;
       var noteLine = entry.note === "paket_bulunamadi"
-        ? '<div class="mt-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Paket/ID mağazada bulunamadı.</div>'
+        ? '<div class="mt-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Package/ID not found in the store.</div>'
         : "";
       return "<div class=\"min-w-0 break-words rounded-md border border-slate-300/80 bg-slate-100/80 p-3 dark:border-slate-600 dark:bg-slate-800/70\">" +
         "<div class=\"flex gap-3\">" +
@@ -3432,10 +3432,10 @@
         basisLine +
         "<div class=\"mt-1.5 space-y-0.5 text-xs text-slate-600 sm:text-[13px] dark:text-slate-300\">" +
         "<div>Skor: <span class=\"font-semibold\">" + esc(entry.store_score_mix == null ? "—" : entry.store_score_mix) + "</span></div>" +
-        "<div>Toplam değerlendirme: <span class=\"font-semibold\">" + esc(entry.ratings_total == null ? "—" : entry.ratings_total) + "</span></div>" +
-        "<div>Play değerlendirme: <span class=\"font-semibold\">" + esc(playRatingsText) + "</span></div>" +
-        "<div>App Store değerlendirme: <span class=\"font-semibold\">" + esc(iosRatingsText) + "</span></div>" +
-        "<div>Dönem yorum: <span class=\"font-semibold\">" + esc(periodVal == null ? "—" : periodVal) + "</span></div>" +
+        "<div>Total ratings: <span class=\"font-semibold\">" + esc(entry.ratings_total == null ? "—" : entry.ratings_total) + "</span></div>" +
+        "<div>Play ratings: <span class=\"font-semibold\">" + esc(playRatingsText) + "</span></div>" +
+        "<div>App Store ratings: <span class=\"font-semibold\">" + esc(iosRatingsText) + "</span></div>" +
+        "<div>Period yorum: <span class=\"font-semibold\">" + esc(periodVal == null ? "—" : periodVal) + "</span></div>" +
         "<div>Memnuniyet: <span class=\"font-semibold\">" + esc(satVal == null ? "—" : "%" + satVal) + "</span></div>" +
         "</div>" + noteLine + "</div></div></div>";
     }
@@ -3497,31 +3497,31 @@
       "<thead>" +
       '<tr class="border-b border-slate-300/80 bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/90">' +
       '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">#</th>' +
-      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Uygulama</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">App</th>' +
       '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Skor</th>' +
-      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Değerlendirme</th>' +
-      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Play değerlendirme</th>' +
-      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">App Store değerlendirme</th>' +
-      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Dönem yorum</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Valuelendirme</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Play ratings</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">App Store ratings</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Period yorum</th>' +
       '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Memnuniyet</th>' +
-      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Lider skor farkı</th>' +
-      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Lider değerlendirme farkı</th>' +
-      (isMultiMode ? '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Lidere değerlendirme oranı</th>' : "") +
-      (isMultiMode ? '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Play payı</th>' : "") +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Leader score gap</th>' +
+      '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Leader ratings gap</th>' +
+      (isMultiMode ? '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Ratings vs leader</th>' : "") +
+      (isMultiMode ? '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Play share</th>' : "") +
       (isMultiMode ? '<th class="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Liderlik indeksi</th>' : "") +
       "</tr>" +
       "</thead>" +
       "<tbody>" + tableRows + "</tbody>" +
       "</table></div>";
     cEl.innerHTML =
-      '<p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300 sm:text-[11px]">Karşılaştırma sonucu</p>' +
+      '<p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300 sm:text-[11px]">Compare sonucu</p>' +
       '<div class="grid grid-cols-1 gap-3 md:gap-4 ' + cols + '">' + cards + "</div>" +
       leaderLine +
       tableHtml +
       '<div class="mt-3 flex flex-col gap-1 text-xs text-slate-600 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 dark:text-slate-300">' +
-      "<span>Skor farkı: <span class=\"font-semibold " + scoreTone + "\">" + esc((cmp.delta_score == null ? "—" : (scoreDelta > 0 ? "+" : "") + cmp.delta_score)) + "</span></span>" +
+      "<span>Score gap: <span class=\"font-semibold " + scoreTone + "\">" + esc((cmp.delta_score == null ? "—" : (scoreDelta > 0 ? "+" : "") + cmp.delta_score)) + "</span></span>" +
       "<span class=\"hidden sm:inline\" aria-hidden=\"true\">·</span>" +
-      "<span>Değerlendirme farkı: <span class=\"font-semibold\">" + esc(cmp.delta_ratings_total == null ? "—" : cmp.delta_ratings_total) + "</span></span>" +
+      "<span>Ratings gap: <span class=\"font-semibold\">" + esc(cmp.delta_ratings_total == null ? "—" : cmp.delta_ratings_total) + "</span></span>" +
       "</div>";
   }
 
@@ -3584,8 +3584,8 @@
               if (!r.ok) {
                 var msg =
                   data && data.error === "pair_required"
-                    ? "Eksik bilgi: En az 2 uygulama girin. Play veya iOS satırında 2-4 değer olmalı (virgülle)."
-                    : "Karşılaştırma alınamadı. Bağlantıyı veya girdi formatını kontrol edin.";
+                    ? "Missing info: enter at least 2 apps. The Play or iOS row needs 2–4 comma-separated values."
+                    : "Compare failed. Check the connection or input format.";
                 return { ok: false, error: msg };
               }
               return { ok: true, data: data };
@@ -3597,8 +3597,8 @@
             ok: false,
             error:
               e && e.name === "AbortError"
-                ? "Zaman aşımı. Girdi sayısını azaltın veya tekrar deneyin."
-                : "İstek başarısız. Tekrar deneyin.",
+                ? "Timed out. Reduce the number of inputs or try again."
+                : "Request failed. Tekrar deneyin.",
           };
         });
     }
@@ -3608,12 +3608,12 @@
       state.compIos = ios && ios.value ? ios.value.trim() : "";
       var cEl = document.getElementById("app-aso-competitors");
       if (!cEl) return;
-      cEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Karşılaştırma yükleniyor…</div>';
+      cEl.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">Loading comparison…</div>';
       var aN = parseCsvCount(state.compAndroid);
       var iN = parseCsvCount(state.compIos);
       if (aN < 2 && iN < 2) {
         cEl.innerHTML =
-          '<p class="mb-2 text-xs text-rose-600 dark:text-rose-300">Eksik bilgi: En az 2 uygulama girin. Play veya iOS satırında 2-4 değer olmalı (virgülle).</p>' +
+          '<p class="mb-2 text-xs text-rose-600 dark:text-rose-300">Missing info: enter at least 2 apps. The Play or iOS row needs 2–4 comma-separated values.</p>' +
           competitorBenchmarkIdleHtml();
         return;
       }
@@ -3638,7 +3638,7 @@
             renderCompetitorBenchmarkPanel();
             var iosSlot = document.getElementById("app-aso-competitors-ios");
             if (iosSlot) {
-              iosSlot.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">App Store kıyaslaması getiriliyor…</div>';
+              iosSlot.innerHTML = '<div class="text-xs text-slate-500 dark:text-slate-300">App Store comparison getiriliyor…</div>';
             }
           }
           return fetchBenchmark("", state.compIos, 65000)
@@ -3675,7 +3675,7 @@
         })
         .catch(function () {
           cEl.innerHTML =
-            '<p class="mb-2 text-xs text-rose-600 dark:text-rose-300">Karşılaştırma sırasında hata oluştu.</p>' +
+            '<p class="mb-2 text-xs text-rose-600 dark:text-rose-300">An error occurred during compare.</p>' +
             competitorBenchmarkIdleHtml();
         });
     }
@@ -3763,7 +3763,7 @@
       }
     }
     function renderMetaBox(opts) {
-      var store = opts.store || "Mağaza: —";
+      var store = opts.store || "Store: —";
       var reviewCount = opts.reviewCount || 0;
       var ratingsText = opts.ratingsText || "—";
       var rankText = opts.rankText || "";
@@ -3774,7 +3774,7 @@
         storeLabel = store.slice(0, iStore + 1);
         storeValue = store.slice(iStore + 1).trim();
       }
-      var rankLabel = "Kategori sırası";
+      var rankLabel = "Category rank";
       var rankValue = rankText || "—";
       var iRank = rankText.indexOf(":");
       if (iRank >= 0) {
@@ -3783,12 +3783,12 @@
       }
       return (
         '<div class="min-h-[140px] rounded-xl border-2 border-slate-300 bg-gradient-to-br from-white to-slate-100 px-2.5 py-2 text-left shadow-sm ring-1 ring-slate-300 dark:border-slate-500 dark:from-slate-800 dark:to-slate-900 dark:ring-slate-500">' +
-        '<div class="mb-1 text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300">Mağaza özeti</div>' +
+        '<div class="mb-1 text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300">Store summary</div>' +
         '<div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">' +
         '<div class="min-h-[56px] rounded-lg border border-slate-300 bg-white/80 px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900/60"><div class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">' + storeLabel + '</div><div class="truncate text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + (storeValue || "—") + "</div></div>" +
         '<div class="min-h-[56px] rounded-lg border border-slate-300 bg-white/80 px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900/60"><div class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">' + rankLabel + '</div><div class="truncate text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + (rankValue || "—") + "</div></div>" +
-        '<div class="min-h-[56px] rounded-lg border border-slate-300 bg-white/80 px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900/60"><div class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">Dönem yorumu</div><div class="text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + reviewCount + "</div></div>" +
-        '<div class="min-h-[56px] rounded-lg border border-emerald-300 bg-emerald-50/80 px-2.5 py-1.5 dark:border-emerald-700 dark:bg-emerald-950/50"><div class="text-[10px] font-semibold uppercase text-emerald-800 dark:text-emerald-300">Değerlendirme</div><div class="text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + (ratingsText || "—") + "</div></div>" +
+        '<div class="min-h-[56px] rounded-lg border border-slate-300 bg-white/80 px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900/60"><div class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">Period yorumu</div><div class="text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + reviewCount + "</div></div>" +
+        '<div class="min-h-[56px] rounded-lg border border-emerald-300 bg-emerald-50/80 px-2.5 py-1.5 dark:border-emerald-700 dark:bg-emerald-950/50"><div class="text-[10px] font-semibold uppercase text-emerald-800 dark:text-emerald-300">Valuelendirme</div><div class="text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + (ratingsText || "—") + "</div></div>" +
         "</div>" +
         "</div>"
       );
@@ -3798,7 +3798,7 @@
       if (!bd) return;
       var safeFallback = fallback || "?";
       if (iconUrl) {
-        bd.innerHTML = '<img src="' + iconUrl + '" alt="Uygulama logosu" class="h-8 w-8 rounded-lg object-cover" loading="lazy" />';
+        bd.innerHTML = '<img src="' + iconUrl + '" alt="App logo" class="h-8 w-8 rounded-lg object-cover" loading="lazy" />';
         bd.className = "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 shadow-sm dark:bg-slate-700";
       } else {
         bd.textContent = safeFallback;
@@ -3809,18 +3809,18 @@
     }
     var ameta = document.getElementById("app-intel-android-meta");
     if (ameta) {
-      var storeLine = "Mağaza: " + (am.store_score != null ? Number(am.store_score).toFixed(2) : "—");
+      var storeLine = "Store: " + (am.store_score != null ? Number(am.store_score).toFixed(2) : "—");
       var androidRatingsText = am.store_ratings != null ? (formatFullCount(am.store_ratings) || am.store_ratings) : "—";
       var arank = am.store_category_rank || {};
       var aRankText = "";
       if (arank && arank.rank != null) {
         var rankPrefix =
-          arank.chart === "store_search_package" ? "Play araması (paket)" : "Kategori sırası";
+          arank.chart === "store_search_package" ? "Play search (package)" : "Category rank";
         var useLowerBound =
           arank.estimated === true && arank.chart !== "store_search_package";
         aRankText = rankPrefix + ": " + (useLowerBound ? "≥ #" : "#") + arank.rank;
       } else {
-        aRankText = "Kategori sırası: —";
+        aRankText = "Category rank: —";
       }
       ameta.innerHTML = renderMetaBox({
         store: storeLine,
@@ -3835,11 +3835,11 @@
         (im.store_ratings_count != null ? formatFullCount(im.store_ratings_count) : null) ||
         normalizeIosRatingsCaption(im.store_ratings_caption) ||
         "—";
-      var iosStoreLine = "Mağaza: " + (im.store_score != null ? Number(im.store_score).toFixed(2) : "—");
+      var iosStoreLine = "Store: " + (im.store_score != null ? Number(im.store_score).toFixed(2) : "—");
       var rank = im.store_category_rank || {};
       var rankText = "";
       if (rank && rank.rank != null) {
-        rankText = "Kategori sırası: #" + rank.rank;
+        rankText = "Category rank: #" + rank.rank;
         // Birden fazla chart'ta bulunduysa en iyi sıralamayı göster
         if (rank.all_charts) {
           var bestRank = rank.rank;
@@ -3852,10 +3852,10 @@
               }
             }
           }
-          rankText = "Kategori sırası: #" + bestRank;
+          rankText = "Category rank: #" + bestRank;
         }
       } else {
-        rankText = "Kategori sırası: —";
+        rankText = "Category rank: —";
       }
       imeta.innerHTML = renderMetaBox({
         store: iosStoreLine,
@@ -3897,8 +3897,8 @@
     var playStarTitle = document.getElementById("app-intel-play-stars-title");
     if (playStarTitle) {
       playStarTitle.textContent = am.star_distribution_overall
-        ? "Yıldız dağılımı (mağaza geneli)"
-        : "Yıldız dağılımı (yorum örnekleri)";
+        ? "Star distribution (store-wide)"
+        : "Star distribution (review samples)";
     }
     plotStars(
       document.getElementById("app-chart-play-stars"),
@@ -3910,7 +3910,7 @@
       var noteEl = document.getElementById("app-intel-play-star-source-note");
       if (!noteEl) return;
       noteEl.textContent = am.star_distribution_overall
-        ? "Mağaza sayfasından alınan tüm zaman yıldız dağılımı."
+        ? "All-time star distribution from the store page."
         : "";
       noteEl.classList.toggle("hidden", !am.star_distribution_overall);
     })();
@@ -3923,7 +3923,7 @@
       plotRankTrend(
         document.getElementById("app-chart-play-rank"),
         playRankRows,
-        "Android sıra",
+        "Android rank",
         "android"
       );
     }
@@ -3941,8 +3941,8 @@
     var iosStarTitle = document.getElementById("app-intel-ios-stars-title");
     if (iosStarTitle) {
       iosStarTitle.textContent = im.star_distribution_overall
-        ? "Yıldız dağılımı (App Store)"
-        : "Yıldız dağılımı (yorum örnekleri)";
+        ? "Star distribution (App Store)"
+        : "Star distribution (review samples)";
     }
     plotStars(
       document.getElementById("app-chart-ios-stars"),
@@ -3954,7 +3954,7 @@
       var noteEl = document.getElementById("app-intel-ios-star-source-note");
       if (!noteEl) return;
       noteEl.textContent = im.star_distribution_overall
-        ? "App Store sayfasından alınan yıldız dağılımı."
+        ? "Star distribution from the App Store page."
         : "";
       noteEl.classList.toggle("hidden", !im.star_distribution_overall);
     })();
@@ -3968,7 +3968,7 @@
       plotRankTrend(
         document.getElementById("app-chart-ios-rank"),
         iosRankRows,
-        "iOS sıra",
+        "iOS rank",
         "ios"
       );
     }
@@ -4104,7 +4104,7 @@
     if (rs) rs.textContent = "Sira bilgileri yukleniyor…";
   }
 
-  /** Sunucudan gelen son başarılı payload, şu anki ürün + dönem seçimiyle aynı mı (iskeletsiz yeniden çekim için). */
+  /** Sunucudan gelen son ok payload, şu anki ürün + dönem seçimiyle aynı mı (iskeletsiz yeniden çekim için). */
   function lastPayloadMatchesSelection() {
     var p = state.lastPayload;
     if (!p || !p.active_window) return false;
@@ -4117,24 +4117,24 @@
 
   function assertIntelPayload(j) {
     if (!j || typeof j !== "object") {
-      throw new Error("API geçersiz veya boş yanıt döndü.");
+      throw new Error("API returned an invalid or empty response.");
     }
     if (j.error && !j.active_window) {
       throw new Error(String(j.error));
     }
     if (!j.active_window || typeof j.active_window !== "object") {
       throw new Error(
-        "Mağaza özeti tamamlanmadı (active_window yok). Sunucu zaman aşımı veya ara katman yanıtı kırpması olabilir; tekrar deneyin."
+        "Store summary did not finish (no active_window). Server timeout or a truncated proxy response; try again."
       );
     }
     var w = j.active_window;
     if (typeof w.android !== "object" || w.android === null || typeof w.ios !== "object" || w.ios === null) {
-      throw new Error("Play / App Store kolon verisi eksik; API yanıtı beklenen biçimde değil.");
+      throw new Error("Play / App Store column data is missing; API response is not in the expected shape.");
     }
   }
 
   function flagIntelPanelsFailed(hint) {
-    var msg = hint || "Veri yüklenemedi.";
+    var msg = hint || "Could not load data.";
     var chartFail =
       '<p class="flex min-h-[120px] items-center justify-center px-2 text-center text-sm text-rose-600 dark:text-rose-300">' +
       esc(msg) +
@@ -4174,8 +4174,8 @@
     }
     if (status) {
       status.textContent = cacheOnly
-        ? "Önbellek kontrol ediliyor…"
-        : "Mağaza yorumları çekiliyor (Google Play sayfalama + App Store vitrinleri; birkaç dakika sürebilir)…";
+        ? "Checking cache…"
+        : "Fetching store reviews (Google Play paging + App Store listings; may take a few minutes)…";
     }
     if (!keepProgress) {
       startProgress();
@@ -4190,7 +4190,7 @@
       if (reqSeq !== state.requestSeq) return;
       if (status) {
         status.textContent =
-          "Hâlâ sunucudan yanıt bekleniyor… Bazı ortamlarda ~60 sn sonra HTTP cevabı kesilebilir; kesilirse kırmızı uyarı kutusu görünür.";
+          "Still waiting for the server… In some environments the HTTP response is cut after ~60s; if so a red warning appears.";
       }
     }, 62000);
     var to = window.setTimeout(function () {
@@ -4206,7 +4206,7 @@
           .catch(function () {
             return {
               ok: false,
-              j: { error: "Sunucu yanıtı JSON değil veya bozuk." },
+              j: { error: "Server response is not JSON or is corrupted." },
               status: r.status,
             };
           });
@@ -4226,7 +4226,7 @@
               finishProgress();
               if (status) {
                 status.textContent =
-                  "Önbellekte veri yok; Google Play ve App Store’dan çekiliyor (birkaç dakika sürebilir)…";
+                  "Nothing in cache; fetching from Google Play and App Store (may take a few minutes)…";
               }
               if (errEl) {
                 errEl.classList.add("hidden");
@@ -4237,9 +4237,9 @@
             }
             finishProgress();
             if (status) status.textContent = "";
-            flagIntelPanelsFailed("Henüz mağaza verisi yok. «Sayfayı güncelle» ile tarayın.");
+            flagIntelPanelsFailed("No store data yet. Scan with Update page.");
             if (errEl) {
-              errEl.textContent = x.j.message || "Henüz mağaza verisi yok. «Sayfayı güncelle» ile tarayın.";
+              errEl.textContent = x.j.message || "No store data yet. Scan with Update page.";
               errEl.className = "mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 dark:border-amber-600 dark:bg-amber-950/60 dark:text-amber-100";
               errEl.classList.remove("hidden");
             }
@@ -4251,7 +4251,7 @@
               ? detail
               : Array.isArray(detail) && detail[0] && detail[0].msg
                 ? detail[0].msg
-                : "İstek başarısız (" + (x.status || "?") + ")"
+                : "Request failed (" + (x.status || "?") + ")"
           );
         }
         assertIntelPayload(x.j);
@@ -4262,7 +4262,7 @@
           AppReleaseMarkers.mergeFromIntelPayload(x.j, state.versionReleases);
         }
         if (status) {
-          status.textContent = "Son çekim: " + formatShortDate(x.j.display_fetched_at || x.j.fetched_at);
+          status.textContent = "Last fetch: " + formatShortDate(x.j.display_fetched_at || x.j.fetched_at);
         }
         var eParts = [];
         if (x.j.errors && x.j.errors.android) eParts.push("Play: " + x.j.errors.android);
@@ -4274,10 +4274,10 @@
         return finishProgress().then(function () {
           try {
             if (!redrawAll()) {
-              throw new Error("Özet verisi çizilemedi; API yanıtı eksik veya beklenmeyen biçimde.");
+              throw new Error("Could not draw summary data; API response is missing or unexpected.");
             }
           } catch (drawErr) {
-            var dmsg = drawErr && drawErr.message ? String(drawErr.message) : "Çizim hatası.";
+            var dmsg = drawErr && drawErr.message ? String(drawErr.message) : "Draw error.";
             if (errEl) {
               errEl.textContent = dmsg;
               errEl.classList.remove("hidden");
@@ -4322,17 +4322,17 @@
         finishProgress();
         if (status) status.textContent = "";
         var brief = e && e.message ? String(e.message) : "";
-        flagIntelPanelsFailed("Bu bölüm yüklenemedi. Üstteki uyarıya bakın.");
+        flagIntelPanelsFailed("This section did not load. See the warning above.");
         if (errEl) {
           var rawMsg = brief;
-          var msg = "Veri alınırken bağlantı sorunu oluştu. Lütfen tekrar deneyin.";
+          var msg = "A connection problem occurred while loading data. Please try again.";
           if (e && e.name === "AbortError") {
             msg =
-              "İstek zaman aşımına uğradı (7 dk). Sunucu yanıt veremedi veya mağaza erişimi çok yavaş; sayfayı yenileyip tekrar deneyin.";
+              "The request timed out (7 min). The server did not respond or store access is very slow; refresh the page and try again.";
           } else if (rawMsg.toLowerCase().indexOf("admin girişi") >= 0 || rawMsg.toLowerCase().indexOf("girişi gerekli") >= 0) {
-            msg = "Oturum gerekli veya süresi dolmuş. Sayfayı yenileyip tekrar giriş yapın.";
+            msg = "Sign-in required or the session expired. Refresh the page and sign in again.";
           } else if (rawMsg.toLowerCase().indexOf("networkerror") >= 0) {
-            msg = "Bağlantı hatası oluştu. Sayfayı yenileyip tekrar deneyin.";
+            msg = "A connection error occurred. Refresh the page and try again.";
           }
           errEl.textContent = msg;
           errEl.classList.remove("hidden");
@@ -4355,7 +4355,7 @@
         errEl.classList.add("hidden");
         errEl.textContent = "";
       }
-      if (status) status.textContent = "Manuel App mağaza yenilemesi çalışıyor, özet mail hazırlanıyor...";
+      if (status) status.textContent = "Manual App store refresh is running, summary email is being prepared...";
       startProgress();
       fetch("/app/intel/refresh", Object.assign({ method: "POST", cache: "no-store" }, jsonCred))
         .then(function (r) {
@@ -4365,7 +4365,7 @@
               return { ok: r.ok, j: j, status: r.status };
             })
             .catch(function () {
-              return { ok: false, j: { ok: false, error: "Yanıt okunamadı." }, status: r.status };
+              return { ok: false, j: { ok: false, error: "Could not read the response." }, status: r.status };
             });
         })
         .then(function (x) {
@@ -4377,11 +4377,11 @@
                 : Array.isArray(det) && det[0] && det[0].msg
                   ? det[0].msg
                   : "";
-            throw new Error(detStr || "Manuel tetikleme başarısız (" + (x.status || "?") + ")");
+            throw new Error(detStr || "Manual trigger failed (" + (x.status || "?") + ")");
           }
-          if (status) status.textContent = x.j.message || "Manuel yenileme tamamlandı.";
+          if (status) status.textContent = x.j.message || "Manual refresh finished.";
           if (x.j && x.j.started) {
-            // Arka plan job'ı başladıktan kısa süre sonra güncel payload'ı yeniden çek.
+            // Arka plan job'ı başladıktan kısa süre sonra güncel payload'ı newden çek.
             setTimeout(function () {
               loadIntel({ keepProgress: true });
             }, 2500);
@@ -4395,9 +4395,9 @@
             var rawMsg = e && e.message ? String(e.message) : "";
             errEl.textContent =
               rawMsg.toLowerCase().indexOf("networkerror") >= 0
-                ? "Bağlantı hatası oluştu. Sayfayı yenileyip tekrar deneyin."
+                ? "A connection error occurred. Refresh the page and try again."
                 : rawMsg.toLowerCase().indexOf("admin girişi") >= 0 || rawMsg.toLowerCase().indexOf("girişi gerekli") >= 0
-                  ? "Oturum gerekli. Sayfayı yenileyip tekrar giriş yapın."
+                  ? "Sign-in required. Refresh the page and sign in again."
                   : rawMsg;
             errEl.classList.remove("hidden");
           }
@@ -4456,7 +4456,7 @@
     var ig = document.getElementById("app-intel-error");
     if (ig) {
       ig.textContent =
-        "Panel hazırlanırken hata: " + (initErr && initErr.message ? String(initErr.message) : String(initErr || ""));
+        "Error while preparing the panel: " + (initErr && initErr.message ? String(initErr.message) : String(initErr || ""));
       ig.classList.remove("hidden");
     }
   }
@@ -4523,7 +4523,7 @@
       var fe = document.getElementById("app-intel-error");
       if (fe) {
         fe.textContent =
-          "App paneli başlatılamadı. Konsoldaki hata mesajını kontrol edin: " +
+          "Could not start the App panel. Check the console error: " +
           (bootErr && bootErr.message ? String(bootErr.message) : "bilinmeyen hata");
         fe.classList.remove("hidden");
       }

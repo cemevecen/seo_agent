@@ -16,7 +16,7 @@
     aria-haspopup="listbox"
     aria-expanded="false"
   >
-    <span data-app-empower-overlay-label class="truncate">Empower: kapalı</span>
+    <span data-app-empower-overlay-label class="truncate">Empower: off</span>
     <svg class="h-3 w-3 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
     </svg>
@@ -29,9 +29,9 @@
   >
     {% for val, label in [
       ('sessions', 'Sessions'),
-      ('dau_7d', 'DAU (7 gün)'),
-      ('crash_affected_users', 'Crash etkilenen'),
-      ('avg_session_duration', 'Ort. oturum süresi (sn)'),
+      ('dau_7d', 'DAU (7 days)'),
+      ('crash_affected_users', 'Crash affected'),
+      ('avg_session_duration', 'Avg. session duration (s)'),
       ('engagement_rate', 'Engagement rate'),
       ('arpdau_usd', 'ARPDAU (USD)'),
     ] %}

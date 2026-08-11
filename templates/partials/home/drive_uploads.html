@@ -495,9 +495,9 @@
         {% endif %}
       </div>
       {% if connected and account_email %}
-        <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">bağlı · {{ account_email }}</p>
+        <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">connected · {{ account_email }}</p>
       {% elif not connected and oauth_client_configured %}
-        <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">kapalı · bağlamak için aç</p>
+        <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">closed · open to connect</p>
       {% endif %}
     </div>
     <span class="home-drive-shell-chevron" aria-hidden="true"></span>
@@ -507,17 +507,17 @@
     <div class="flex flex-wrap items-center justify-end gap-2">
       {% if folder_url %}
         <a href="{{ folder_url }}" target="_blank" rel="noopener noreferrer"
-           class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">klasör →</a>
+           class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">folder →</a>
       {% endif %}
       {% if connected %}
         <button type="button" data-home-drive-disconnect
                 class="home-meta rounded-full px-2.5 py-1 font-semibold text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-50 dark:ring-zinc-700 dark:hover:bg-zinc-800">
-          bağlantıyı kes
+          Disconnect
         </button>
       {% elif oauth_client_configured %}
         <a href="/api/home/drive/oauth/start?next=/"
            class="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 home-label text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900">
-          Google Drive bağla
+          Connect Google Drive
         </a>
       {% endif %}
     </div>
@@ -525,37 +525,37 @@
     {% if oauth_error %}
       <p class="home-drive-status is-err mt-3">OAuth: {{ oauth_error }}</p>
     {% elif not oauth_client_configured %}
-      <p class="home-drive-status is-err mt-3">GOOGLE_CLIENT_ID / SECRET eksik.</p>
+      <p class="home-drive-status is-err mt-3">GOOGLE_CLIENT_ID / SECRET missing.</p>
     {% elif not connected %}
       <p class="home-meta mt-3 text-slate-500 dark:text-slate-400">
-        Yüklemek için Google Drive’ı bağla.
-        Redirect URI (Cloud Console’a ekle):
+        Connect Google Drive to upload.
+        Redirect URI (add in Cloud Console):
         <code class="break-all text-[0.7rem] text-slate-600 dark:text-zinc-300">{{ redirect_uri }}</code>
       </p>
     {% else %}
       {% if error %}
-        <p class="home-drive-status is-err mt-3">Liste: {{ error }}</p>
+        <p class="home-drive-status is-err mt-3">List: {{ error }}</p>
       {% endif %}
       {% if not folder_id %}
-        <p class="home-drive-status is-err mt-3">HOME_DRIVE_FOLDER_ID tanımlı değil.</p>
+        <p class="home-drive-status is-err mt-3">HOME_DRIVE_FOLDER_ID is not set.</p>
       {% endif %}
       <div class="home-drive-drop mt-3" data-home-drive-drop>
         <input type="file" accept="image/*,video/*,.heic,.heif,image/heic,image/heif"
                multiple data-home-drive-input>
         <div class="home-drive-drop-copy">
-          <p class="home-body font-semibold text-slate-700 dark:text-slate-200">Görsel / video sürükle veya seç</p>
-          <p class="home-meta text-slate-500 dark:text-slate-400">PNG, JPG, WEBP · MP4, WEBM · görsel 12 MB / video 100 MB</p>
+          <p class="home-body font-semibold text-slate-700 dark:text-slate-200">Drag or choose an image / video</p>
+          <p class="home-meta text-slate-500 dark:text-slate-400">PNG, JPG, WEBP · MP4, WEBM · image 12 MB / video 100 MB</p>
         </div>
       </div>
 
       <div class="home-drive-picker" data-home-drive-picker hidden>
-        <p class="home-drive-picker-title">Hangi container?</p>
-        <p class="home-drive-picker-hint" data-home-drive-picker-hint>Dosyalar bu container’ın sağ altına bağlanacak.</p>
-        <input type="search" class="home-drive-picker-search" placeholder="Container ara…" data-home-drive-picker-search autocomplete="off">
+        <p class="home-drive-picker-title">Which container?</p>
+        <p class="home-drive-picker-hint" data-home-drive-picker-hint>Files will attach under the right side of this container.</p>
+        <input type="search" class="home-drive-picker-search" placeholder="Search containers…" data-home-drive-picker-search autocomplete="off">
         <div class="home-drive-picker-list" data-home-drive-picker-list role="listbox"></div>
         <div class="home-drive-picker-actions">
-          <button type="button" class="home-drive-picker-btn is-primary" data-home-drive-picker-confirm disabled title="Önce bir container seç">Yükle</button>
-          <button type="button" class="home-drive-picker-btn is-ghost" data-home-drive-picker-cancel>Vazgeç</button>
+          <button type="button" class="home-drive-picker-btn is-primary" data-home-drive-picker-confirm disabled title="Pick a container first">Upload</button>
+          <button type="button" class="home-drive-picker-btn is-ghost" data-home-drive-picker-cancel>Cancel</button>
         </div>
       </div>
 
@@ -564,7 +564,7 @@
       <div class="home-drive-gallery" data-home-drive-gallery {% if file_count %}data-count="{{ file_count }}"{% endif %}>
         <button type="button" class="home-drive-gallery-toggle" data-home-drive-gallery-toggle aria-expanded="false">
           <span class="home-label text-slate-600 dark:text-zinc-300">
-            yüklenenler
+            Uploads
             <span class="ml-1 tabular-nums text-slate-400" data-home-drive-count>({{ file_count }})</span>
           </span>
           <span class="home-drive-chevron" aria-hidden="true"></span>
@@ -573,20 +573,20 @@
           <div class="home-drive-toolbar" data-home-drive-toolbar {% if not files %}hidden{% endif %}>
             <label class="home-drive-select-all">
               <input type="checkbox" data-home-drive-select-all>
-              tümünü seç
+              Select all
             </label>
             <button type="button" class="home-drive-toolbar-btn is-danger" data-home-drive-delete-selected disabled>
-              seçilenleri sil
+              Delete selected
             </button>
             <button type="button" class="home-drive-toolbar-btn is-danger" data-home-drive-delete-all>
-              tümünü sil
+              Delete all
             </button>
           </div>
           {% if files %}
             <div class="home-drive-grid" data-home-drive-grid>
               {% for f in files %}
                 <article class="home-drive-card" data-home-drive-card data-file-id="{{ f.id }}">
-                  <input type="checkbox" class="home-drive-card-check" data-home-drive-pick value="{{ f.id }}" aria-label="Seç">
+                  <input type="checkbox" class="home-drive-card-check" data-home-drive-pick value="{{ f.id }}" aria-label="Select">
                   <a href="{{ f.web_view_link or f.thumb_url }}" target="_blank" rel="noopener noreferrer" title="{{ f.name }}">
                     {% if f.kind == 'video' %}
                       <div class="home-drive-card-video">video</div>
@@ -597,7 +597,7 @@
                   <div class="home-drive-card-meta">
                     <div class="home-drive-card-meta-row">
                       <span class="home-drive-card-name" title="{{ f.name }}">{{ f.name }}</span>
-                      <button type="button" class="home-drive-card-del" data-home-drive-delete="{{ f.id }}" title="Sil" aria-label="Sil">&times;</button>
+                      <button type="button" class="home-drive-card-del" data-home-drive-delete="{{ f.id }}" title="Delete" aria-label="Delete">&times;</button>
                     </div>
                     {% if f.container_label %}
                       <span class="home-drive-card-container" title="{{ f.container_label }}">{{ f.container_label }}</span>
@@ -607,7 +607,7 @@
               {% endfor %}
             </div>
           {% else %}
-            <p class="home-meta pt-3 text-slate-400" data-home-drive-empty>Henüz panelden yükleme yok</p>
+            <p class="home-meta pt-3 text-slate-400" data-home-drive-empty>No uploads from the panel yet</p>
             <div class="home-drive-grid" data-home-drive-grid hidden></div>
           {% endif %}
         </div>
@@ -719,8 +719,8 @@
     var ready = !!(selectedContainerKey && pendingFiles && pendingFiles.length && !uploading);
     pickerConfirm.disabled = !ready;
     pickerConfirm.title = ready
-      ? (pendingFiles.length + ' dosyayı yükle')
-      : (pendingFiles && pendingFiles.length ? 'Önce bir container seç' : 'Önce dosya seç');
+      ? ('Upload ' + pendingFiles.length + ' files')
+      : (pendingFiles && pendingFiles.length ? 'Pick a container first' : 'Pick a file first');
   }
 
   function cards() {
@@ -757,7 +757,7 @@
     }
     if (deleteSelectedBtn) {
       deleteSelectedBtn.disabled = checked === 0 || deleting;
-      deleteSelectedBtn.textContent = checked ? ('seçilenleri sil (' + checked + ')') : 'seçilenleri sil';
+      deleteSelectedBtn.textContent = checked ? ('Delete selected (' + checked + ')') : 'Delete selected';
     }
     if (deleteAllBtn) deleteAllBtn.disabled = n === 0 || deleting;
   }
@@ -794,12 +794,12 @@
       : '';
     return (
       '<article class="home-drive-card" data-home-drive-card data-file-id="' + id + '">' +
-        '<input type="checkbox" class="home-drive-card-check" data-home-drive-pick value="' + id + '" aria-label="Seç">' +
+        '<input type="checkbox" class="home-drive-card-check" data-home-drive-pick value="' + id + '" aria-label="Select">' +
         '<a href="' + link + '" target="_blank" rel="noopener noreferrer" title="' + name + '">' + media + '</a>' +
         '<div class="home-drive-card-meta">' +
           '<div class="home-drive-card-meta-row">' +
             '<span class="home-drive-card-name" title="' + name + '">' + name + '</span>' +
-            '<button type="button" class="home-drive-card-del" data-home-drive-delete="' + id + '" title="Sil" aria-label="Sil">&times;</button>' +
+            '<button type="button" class="home-drive-card-del" data-home-drive-delete="' + id + '" title="Delete" aria-label="Delete">&times;</button>' +
           '</div>' +
           cHtml +
         '</div>' +
@@ -820,7 +820,7 @@
     if (!window.confirm(confirmMsg)) return;
     deleting = true;
     syncSelectionUi();
-    setStatus('Siliniyor… (' + ids.length + ')', null);
+    setStatus('Deleting… (' + ids.length + ')', null);
     try {
       var res = await fetch('/api/home/drive/files/delete-batch', {
         method: 'POST',
@@ -833,18 +833,18 @@
       removeCards(deleted);
       notifyBadges();
       if (j && j.ok && !(j.failed_count)) {
-        setStatus(deleted.length + ' görsel silindi', 'ok');
+        setStatus(deleted.length + ' images deleted', 'ok');
       } else if (deleted.length) {
         setStatus(
-          deleted.length + ' silindi, ' + ((j && j.failed_count) || 0) + ' başarısız' +
+          deleted.length + ' deleted, ' + ((j && j.failed_count) || 0) + ' failed' +
             (j && j.error ? (': ' + j.error) : ''),
           'err'
         );
       } else {
-        setStatus((j && j.error) || 'Silinemedi', 'err');
+        setStatus((j && j.error) || 'Could not delete', 'err');
       }
     } catch (e) {
-      setStatus('Silinemedi', 'err');
+      setStatus('Could not delete', 'err');
     } finally {
       deleting = false;
       syncSelectionUi();
@@ -871,7 +871,7 @@
         '<span class="home-drive-picker-opt-check" aria-hidden="true"></span>' +
         '</label>';
     });
-    pickerList.innerHTML = html || '<p class="home-meta text-slate-400">Eşleşen container yok</p>';
+    pickerList.innerHTML = html || '<p class="home-meta text-slate-400">No matching containers</p>';
   }
 
   function closePicker(opts) {
@@ -891,18 +891,18 @@
   function openPicker(files) {
     var snapped = snapshotFileList(files);
     if (!snapped.length) {
-      setStatus('Dosya seçilemedi. Tekrar dene.', 'err');
+      setStatus('Could not select files. Try again.', 'err');
       return;
     }
     pendingFiles = snapped;
     selectedContainerKey = '';
     function show() {
       if (!containers.length) {
-        setStatus('Container listesi yüklenemedi. Sayfayı yenile.', 'err');
+        setStatus('Could not load container list. Refresh the page.', 'err');
       }
       if (pickerHint) {
         pickerHint.textContent =
-          pendingFiles.length + ' dosya · hangi ana sayfa container’ına bağlansın? (seçim mavi + tik ile görünür)';
+          pendingFiles.length + ' files · which home container should they attach to? (selection shows blue + check)';
       }
       renderPickerList('');
       if (picker) {
@@ -913,7 +913,7 @@
         } catch (e) {}
       }
       syncPickerConfirm();
-      setStatus(pendingFiles.length + ' dosya seçildi — listeden container’a dokun, sonra Yükle', null);
+      setStatus(pendingFiles.length + ' files selected — tap a container in the list, then Upload', null);
     }
     ensureContainers(show);
   }
@@ -942,7 +942,7 @@
     var ok = 0;
     var fail = 0;
     var lastErr = '';
-    setStatus('Yükleniyor… 0/' + total, null);
+    setStatus('Loading… 0/' + total, null);
     for (var i = 0; i < files.length; i++) {
       var fd = new FormData();
       fd.append('file', files[i]);
@@ -957,7 +957,7 @@
         if (!res.ok || !j.ok) {
           fail += 1;
           lastErr = (j && j.error) || ('HTTP ' + res.status);
-          setStatus('Yükleniyor… ' + (ok + fail) + '/' + total + ' · hata: ' + lastErr, 'err');
+          setStatus('Loading… ' + (ok + fail) + '/' + total + ' · error: ' + lastErr, 'err');
           continue;
         }
         ok += 1;
@@ -968,23 +968,23 @@
           updateCount();
           openGallery();
         }
-        setStatus('Yükleniyor… ' + (ok + fail) + '/' + total, null);
+        setStatus('Loading… ' + (ok + fail) + '/' + total, null);
       } catch (e) {
         fail += 1;
-        lastErr = 'ağ hatası';
-        setStatus('Yükleniyor… ' + (ok + fail) + '/' + total + ' · ağ hatası', 'err');
+        lastErr = 'network error';
+        setStatus('Loading… ' + (ok + fail) + '/' + total + ' · network error', 'err');
       }
     }
     uploading = false;
     if (input) input.value = '';
     if (ok && !fail) {
-      setStatus(ok + ' dosya yüklendi', 'ok');
+      setStatus(ok + ' files uploaded', 'ok');
       notifyBadges();
     } else if (ok && fail) {
-      setStatus(ok + ' yüklendi, ' + fail + ' başarısız' + (lastErr ? (': ' + lastErr) : ''), 'err');
+      setStatus(ok + ' uploaded, ' + fail + ' failed' + (lastErr ? (': ' + lastErr) : ''), 'err');
       notifyBadges();
     } else {
-      setStatus(lastErr || 'Yükleme başarısız', 'err');
+      setStatus(lastErr || 'Upload failed', 'err');
     }
     syncPickerConfirm();
   }
@@ -996,8 +996,8 @@
     if (selectedContainerKey) {
       setStatus(
         pendingFiles && pendingFiles.length
-          ? pendingFiles.length + ' dosya → ' + selectedContainerKey + ' · Yükle’ye bas'
-          : 'Container seçildi',
+          ? pendingFiles.length + ' files → ' + selectedContainerKey + ' · tap Upload'
+          : 'Container selected',
         null
       );
     }
@@ -1005,8 +1005,8 @@
 
   function startUploadFromPicker() {
     if (!pendingFiles || !pendingFiles.length || !selectedContainerKey || uploading) {
-      if (!selectedContainerKey) setStatus('Önce listeden bir container seç (mavi + tik).', 'err');
-      else if (!pendingFiles || !pendingFiles.length) setStatus('Dosya seçilmedi.', 'err');
+      if (!selectedContainerKey) setStatus('Pick a container from the list first (blue + check).', 'err');
+      else if (!pendingFiles || !pendingFiles.length) setStatus('No file selected.', 'err');
       return;
     }
     var files = pendingFiles.slice();
@@ -1062,7 +1062,7 @@
       if (input.files && input.files.length) {
         openPicker(input.files);
       } else {
-        setStatus('Dosya seçilmedi', 'err');
+        setStatus('No file selected', 'err');
       }
     });
     ['dragenter', 'dragover'].forEach(function (evName) {
@@ -1097,14 +1097,14 @@
   if (deleteSelectedBtn) {
     deleteSelectedBtn.addEventListener('click', function () {
       var ids = selectedIds();
-      deleteIds(ids, ids.length + ' görseli Drive’dan silmek istiyor musun?');
+      deleteIds(ids, 'Delete ' + ids.length + ' images from Drive?');
     });
   }
 
   if (deleteAllBtn) {
     deleteAllBtn.addEventListener('click', function () {
       var ids = cards().map(function (c) { return c.getAttribute('data-file-id'); }).filter(Boolean);
-      deleteIds(ids, 'Klasördeki tüm görselleri (' + ids.length + ') silmek istiyor musun?');
+      deleteIds(ids, 'Delete all images in the folder (' + ids.length + ')?');
     });
   }
 
@@ -1119,12 +1119,12 @@
     if (del) {
       var id = del.getAttribute('data-home-drive-delete');
       if (!id) return;
-      deleteIds([id], 'Bu görseli Drive’dan silmek istiyor musun?');
+      deleteIds([id], 'Delete this image from Drive?');
       return;
     }
     var disc = ev.target.closest('[data-home-drive-disconnect]');
     if (disc) {
-      if (!window.confirm('Drive bağlantısını kes?')) return;
+      if (!window.confirm('Disconnect Google Drive?')) return;
       fetch('/api/home/drive/oauth/disconnect', { method: 'POST', credentials: 'same-origin' })
         .then(function () {
           var sec = root.closest('section[hx-get]');

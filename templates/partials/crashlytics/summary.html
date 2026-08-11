@@ -1,8 +1,8 @@
-{# Servis konfigüre değilse / hata varsa: kullanıcı dostu fallback #}
+{# Servis konfigüre değilse / hata varsa: users dostu fallback #}
 {% if not data or data.ok is sameas false or data.configured is sameas false %}
   <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 dark:border-slate-700 dark:bg-slate-800 dark:text-amber-400">
-    <p class="text-sm font-semibold">Crashlytics özetini gösteremiyoruz.</p>
-    <p class="mt-1 text-xs">{{ data.message if data and data.message else "Servis henüz tamamlanmadı veya credential eksik." }}</p>
+    <p class="text-sm font-semibold">We can’t show the Crashlytics summary.</p>
+    <p class="mt-1 text-xs">{{ data.message if data and data.message else "Service is not ready yet or credentials are missing." }}</p>
   </div>
 {% else %}
 <style>
@@ -110,10 +110,10 @@
       </span>
       {% if show_meta and cf_p %}
         <span class="text-[8px] font-semibold leading-tight tabular-nums {% if cf_p.crash_free_pct >= 99 %}text-emerald-600 dark:text-emerald-300/85{% elif cf_p.crash_free_pct >= 95 %}text-amber-600 dark:text-amber-300/85{% else %}text-rose-600 dark:text-rose-300/85{% endif %}">
-          {{ cf_fmt(cf_p.crash_free_users_pct or cf_p.crash_free_pct) }}%{% if cf_p.crash_free_sessions_pct is not none %} · oturum {{ cf_fmt(cf_p.crash_free_sessions_pct) }}%{% endif %}
+          {{ cf_fmt(cf_p.crash_free_users_pct or cf_p.crash_free_pct) }}%{% if cf_p.crash_free_sessions_pct is not none %} · sessions {{ cf_fmt(cf_p.crash_free_sessions_pct) }}%{% endif %}
         </span>
       {% elif show_meta and s.affected_users %}
-        <span class="text-[8px] tabular-nums text-slate-400">{{ s.affected_users }} kul.</span>
+        <span class="text-[8px] tabular-nums text-slate-400">{{ s.affected_users }} usr.</span>
       {% endif %}
     </div>
     <div class="flex flex-1 flex-col items-center justify-center py-1 text-center">
@@ -127,8 +127,8 @@
 {# Storage badge — storage_mb yoksa Normal varsay #}
 {% set _storage = data.storage_mb or {} %}
 {% set total_mb = _storage.values()|sum if _storage else 0 %}
-{% if total_mb >= 9000 %}{% set sb_cls = "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400" %}{% set sb_label = "Kritik" %}
-{% elif total_mb >= 5000 %}{% set sb_cls = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" %}{% set sb_label = "Yüksek" %}
+{% if total_mb >= 9000 %}{% set sb_cls = "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400" %}{% set sb_label = "Critical" %}
+{% elif total_mb >= 5000 %}{% set sb_cls = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" %}{% set sb_label = "High" %}
 {% else %}{% set sb_cls = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" %}{% set sb_label = "Normal" %}{% endif %}
 
 {# Daily series — total ve platform bazlı. Eski cache satırları için güvenli erişim #}
@@ -162,10 +162,10 @@
   {% set total_events = (T.fatal or 0) + (T.anr or 0) + (T.non_fatal or 0) %}
   <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700/60 dark:bg-slate-900/40">
     <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">
-      <span class="tabular-nums">{{ total_events }}</span> crash olayı ·
-      <span class="tabular-nums">{{ T.affected_users or 0 }}</span> etkilenen kullanıcı
+      <span class="tabular-nums">{{ total_events }}</span> crash events ·
+      <span class="tabular-nums">{{ T.affected_users or 0 }}</span> affected users
     </p>
-    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Son {{ data.days or 7 }} gün · {{ data.platform_filter or 'all'|upper }}</p>
+    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Son {{ data.days or 7 }} days · {{ data.platform_filter or 'all'|upper }}</p>
   </div>
 
   {# Crash-free yoksa açıklama — store-tabs soft hint yok #}
@@ -186,12 +186,12 @@
         <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash-Free</p>
         {% if cfu is not none or cfs is not none %}
         <p class="crash-kpi-cf-sub mt-1 text-center leading-snug text-slate-500 dark:text-slate-400">
-          {% if cfu is not none %}<span class="whitespace-nowrap">Kullanıcı {{ cf_fmt(cfu) }}%</span>{% endif %}
+          {% if cfu is not none %}<span class="whitespace-nowrap">Users {{ cf_fmt(cfu) }}%</span>{% endif %}
           {% if cfu is not none and cfs is not none %}<span class="mx-1">·</span>{% endif %}
-          {% if cfs is not none %}<span class="whitespace-nowrap">Oturum {{ cf_fmt(cfs) }}%</span>{% endif %}
+          {% if cfs is not none %}<span class="whitespace-nowrap">Sessions {{ cf_fmt(cfs) }}%</span>{% endif %}
         </p>
         {% endif %}
-        {% if data.crash_free_method %}<p class="mt-0.5 text-[9px] text-slate-400">kaynak: {{ data.crash_free_method }}</p>{% endif %}
+        {% if data.crash_free_method %}<p class="mt-0.5 text-[9px] text-slate-400">source: {{ data.crash_free_method }}</p>{% endif %}
         {% set cfbp = data.crash_free_by_platform or {} %}
         {% set _pf = (data.platform_filter or 'all')|lower %}
         {% if cfbp and _pf == 'all' %}
@@ -266,8 +266,8 @@
   {% endif %}
 
   <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-    <p class="text-[10px] text-slate-400 dark:text-slate-500">Son güncelleme: {{ (data.fetched_at or "")[:16]|replace("T", " ") }} UTC</p>
-    {% if data.data_days %}<p class="text-[10px] text-slate-400 dark:text-slate-500">· {{ data.data_days }} günlük veri üzerinden tüm hesaplamalar yapılmaktadır</p>{% endif %}
+    <p class="text-[10px] text-slate-400 dark:text-slate-500">Last updated: {{ (data.fetched_at or "")[:16]|replace("T", " ") }} UTC</p>
+    {% if data.data_days %}<p class="text-[10px] text-slate-400 dark:text-slate-500">· {{ data.data_days }} days of data used for all calculations</p>{% endif %}
   </div>
 </div>
 {% endif %}

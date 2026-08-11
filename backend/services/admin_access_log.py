@@ -148,10 +148,10 @@ _ADMIN_PATH_LABELS: list[tuple[str, str]] = [
     ("/inbox", "Inbox"),
     ("/ga4", "GA4"),
     ("/admin/login", "Admin Login"),
-    ("/ad", "Ad / Monetizasyon"),
+    ("/ad", "Ad / Monetization"),
     ("/app", "App"),
     ("/ai", "AI Talk"),
-    ("/", "Home / Günün Özeti"),
+    ("/", "Home / Daily summary"),
 ]
 
 

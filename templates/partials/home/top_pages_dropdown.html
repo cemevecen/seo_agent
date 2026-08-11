@@ -326,7 +326,7 @@
 </style>
 {%- endmacro %}
 
-{% macro home_top_pages_trigger(panel_id, label='Top 25 sayfa') -%}
+{% macro home_top_pages_trigger(panel_id, label='Top 25 pages') -%}
 <button type="button"
         class="home-top-pages-trigger"
         data-home-top-pages-open="{{ panel_id }}"
@@ -337,19 +337,19 @@
 </button>
 {%- endmacro %}
 
-{% macro home_top_pages_panel(panel_id, pages, metric_label='trafik', metric_header='Trafik', title='Top 25 sayfa') -%}
+{% macro home_top_pages_panel(panel_id, pages, metric_label='traffic', metric_header='Traffic', title='Top 25 pages') -%}
 <div class="home-top-pages-panel"
      id="home-top-pages-{{ panel_id }}"
      data-home-top-pages-panel="{{ panel_id }}"
      hidden>
   <div class="home-top-pages-panel-head">
     <p class="home-top-pages-panel-title">{{ title }}</p>
-    <button type="button" class="home-top-pages-panel-close" data-home-top-pages-close>&times; kapat</button>
+    <button type="button" class="home-top-pages-panel-close" data-home-top-pages-close>&times; close</button>
   </div>
   {% if pages %}
     <div class="home-top-pages-cols" aria-hidden="true">
       <span>#</span>
-      <span>Sayfa</span>
+      <span>Pages</span>
       <span>{{ metric_header }}</span>
       <span>GSC</span>
     </div>
@@ -362,17 +362,17 @@
           {% else %}
             <span class="home-top-pages-link is-plain" title="{{ row.label }}"><span class="home-top-pages-link-text">{{ row.label }}</span></span>
           {% endif %}
-          <span class="home-top-pages-metric tabular-nums" title="{{ metric_label }} · önceki: {{ row.prev_fmt }}">
+          <span class="home-top-pages-metric tabular-nums" title="{{ metric_label }} · previous: {{ row.prev_fmt }}">
             <span class="home-top-pages-val">{{ row.metric_fmt }}</span>
             <span class="home-top-pages-delta-slot"><span class="home-delta is-{{ row.delta_tone }}">{{ row.delta_fmt }}</span></span>
           </span>
           {% if row.pos_missing %}
-            <span class="home-top-pages-pos is-empty tabular-nums" title="Search Console page kırılımında bu URL yok / eşleşmedi">
+            <span class="home-top-pages-pos is-empty tabular-nums" title="This URL is missing / unmatched in Search Console page breakdown">
               <span class="home-top-pages-val">—</span>
               <span class="home-top-pages-delta-slot" aria-hidden="true"></span>
             </span>
           {% else %}
-            <span class="home-top-pages-pos tabular-nums" title="SC ortalama pozisyon · fark (önceki − güncel)">
+            <span class="home-top-pages-pos tabular-nums" title="SC average position · diff (previous − current)">
               <span class="home-top-pages-val">{{ row.pos_cur_fmt }}</span>
               <span class="home-top-pages-delta-slot">{% if row.pos_diff_fmt %}<span class="home-delta is-{{ row.pos_tone }}">{{ row.pos_diff_fmt }}</span>{% endif %}</span>
             </span>
@@ -383,7 +383,7 @@
               <span class="home-top-pages-delta-slot"><span class="home-delta is-{{ row.delta_tone }}">{{ row.delta_fmt }}</span></span>
             </span>
             {% if row.pos_missing %}
-              <span class="home-top-pages-pos is-empty tabular-nums" title="SC pozisyon yok">
+              <span class="home-top-pages-pos is-empty tabular-nums" title="No SC position">
                 <span class="home-top-pages-val"><span style="opacity:0.7;margin-right:0.25rem;font-size:0.58rem">SC</span>—</span>
                 <span class="home-top-pages-delta-slot" aria-hidden="true"></span>
               </span>
@@ -398,7 +398,7 @@
       {% endfor %}
     </ol>
   {% else %}
-    <p class="home-top-pages-empty">Sayfa verisi yok</p>
+    <p class="home-top-pages-empty">No page data</p>
   {% endif %}
 </div>
 {%- endmacro %}

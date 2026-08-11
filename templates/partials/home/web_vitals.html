@@ -33,10 +33,10 @@
         {{ container_chip('Web Vitals') }}
         {% if has_data %}
         <span class="home-wv-micro home-meta hidden truncate tabular-nums text-slate-400 sm:inline dark:text-zinc-500">
-          K {{ fmt_int(poor_tot) }} · İ {{ fmt_int(ni_tot) }} · İyi {{ fmt_int(good_tot) }}
+          P {{ fmt_int(poor_tot) }} · NI {{ fmt_int(ni_tot) }} · Good {{ fmt_int(good_tot) }}
         </span>
         {% else %}
-        <span class="home-meta text-amber-600 dark:text-amber-300">veri yok</span>
+        <span class="home-meta text-amber-600 dark:text-amber-300">no data</span>
         {% endif %}
       </div>
       <a href="/web-vitals?site_id={{ sid }}"
@@ -47,41 +47,41 @@
 
     <div class="home-wv-body mt-3">
       {% if block and block.collected_at %}
-      <p class="home-wv-micro home-meta mb-2 text-slate-400 dark:text-zinc-500">Son tarama · {{ block.collected_at[:16].replace('T', ' ') }}</p>
+      <p class="home-wv-micro home-meta mb-2 text-slate-400 dark:text-zinc-500">Last crawl · {{ block.collected_at[:16].replace('T', ' ') }}</p>
       {% endif %}
 
       {% if not has_data %}
       <p class="home-meta rounded-xl border border-dashed border-amber-200/80 bg-amber-50/50 px-3 py-4 text-center text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-        GSC CWV verisi yok — Web Vitals’ta Tara (Mac bridge + GSC login gerekir).
+        No GSC CWV data — crawl in Web Vitals (Mac bridge + GSC login required).
       </p>
       {% else %}
       <div class="grid min-w-0 gap-3">
         <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
           <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-            <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Mobil</h4>
+            <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Mobile</h4>
             {% if gsc.mobile_summary %}
-            <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.mobile_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
+            <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.mobile_summary }}" target="_blank" rel="noopener">Open report ›</a>
             {% endif %}
           </div>
           <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400">
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> kötü</span>
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> iyileştir</span>
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> iyi</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> poor</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> needs work</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> good</span>
           </div>
           <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-m-{{ sid }}"></canvas></div>
           <p id="home-wv-m-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
         </section>
         <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
           <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-            <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Masaüstü</h4>
+            <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Desktop</h4>
             {% if gsc.desktop_summary %}
-            <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.desktop_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
+            <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.desktop_summary }}" target="_blank" rel="noopener">Open report ›</a>
             {% endif %}
           </div>
           <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400">
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> kötü</span>
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> iyileştir</span>
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> iyi</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> poor</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> needs work</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> good</span>
           </div>
           <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-d-{{ sid }}"></canvas></div>
           <p id="home-wv-d-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
@@ -173,17 +173,17 @@
           var has = labels.length > 1 || (ser.poor || []).some(function(v){return v;}) || (ser.needs_improvement || []).some(function(v){return v;}) || (ser.good || []).some(function(v){return v;});
           if (note) {
             note.textContent = ser.source === 'gsc'
-              ? ('GSC trend · ' + labels.length + ' nokta')
-              : (has ? ('Tarama geçmişi · ' + labels.length + ' nokta') : 'Grafik verisi yok');
+              ? ('GSC trend · ' + labels.length + ' points')
+              : (has ? ('Crawl history · ' + labels.length + ' points') : 'No chart data');
           }
           canvas.__homeWvChart = new Chart(canvas, {
             type: 'line',
             data: {
               labels: labels,
               datasets: [
-                { label: 'Kötü', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false },
-                { label: 'İyileştirme', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false },
-                { label: 'İyi', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false }
+                { label: 'Poor', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false },
+                { label: 'Needs improvement', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false },
+                { label: 'Good', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false }
               ]
             },
             options: {

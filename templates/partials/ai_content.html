@@ -343,7 +343,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
 <div class="ab-card px-4 py-3">
   <div id="ai-brief-progress" class="hidden mb-3" aria-live="polite">
     <div class="mb-1.5 flex items-center justify-between gap-2">
-      <p class="text-xs font-medium text-slate-600 dark:text-zinc-300">Analiz oluşturuluyor…</p>
+      <p class="text-xs font-medium text-slate-600 dark:text-zinc-300">Generating analysis…</p>
       <span id="ai-brief-progress-pct" class="tabular-nums text-xs font-semibold text-indigo-600 dark:text-zinc-300">0%</span>
     </div>
     <div class="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="ai-brief-progress-track">
@@ -353,19 +353,19 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
 
   <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
     <div>
-      <h2 class="text-base font-bold tracking-tight text-slate-900 dark:text-white">Kontrol Merkezi</h2>
+      <h2 class="text-base font-bold tracking-tight text-slate-900 dark:text-white">Control Center</h2>
       <p class="text-[11px] text-slate-500 dark:text-zinc-500 mt-0.5">
-        Tüm sekmeler tek ekranda ·
+        All tabs on one screen ·
         {% if ai_brief_last_run_at is defined and ai_brief_last_run_at %}
-          Son AI analizi: <span class="font-semibold text-slate-700 dark:text-zinc-300 tabular-nums">{{ ai_brief_last_run_at }}</span>
+          Last AI analysis: <span class="font-semibold text-slate-700 dark:text-zinc-300 tabular-nums">{{ ai_brief_last_run_at }}</span>
         {% else %}
-          Henüz AI analizi yapılmadı
+          No AI analysis yet
         {% endif %}
       </p>
     </div>
     <form id="ai-brief-generate-form" class="ai-brief-toolbar-form" action="/ai/generate" method="post" style="max-width:480px">
       <input type="hidden" name="llm_provider" id="ai-brief-llm-value" value="{{ llm_default }}" />
-      <div class="llm-chip-group" role="group" aria-label="LLM sağlayıcı">
+      <div class="llm-chip-group" role="group" aria-label="LLM provider">
         <button type="button" class="ai-brief-llm-btn llm-chip" data-ai-brief-llm="gemini" data-llm="gemini" aria-pressed="false" {% if not llm_gemini %}disabled aria-disabled="true"{% endif %}>
           <span class="llm-chip-halo" aria-hidden="true"></span>
           <span class="llm-chip-inner"><span class="llm-chip-icon" aria-hidden="true">✦</span><span class="llm-chip-title">Gemini</span></span>
@@ -376,7 +376,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
         </button>
       </div>
       <button type="submit" class="ai-brief-submit-btn" {% if not llm_gemini and not llm_openai %}disabled{% endif %}>
-        <span class="ai-brief-submit-label">Analiz yap</span>
+        <span class="ai-brief-submit-label">Analyze</span>
       </button>
     </form>
   </div>
@@ -388,7 +388,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
 <div class="ab-signal-bar">
   {# Policy #}
   <a href="/policy" class="ab-signal-item ab-sig--policy no-underline" style="text-decoration:none">
-    <span class="ab-signal-label">Policy İhlalleri</span>
+    <span class="ab-signal-label">Policy violations</span>
     <span class="ab-signal-num">{{ _pol_total }}</span>
     <span class="ab-signal-sub">
       {% set _pol_cats = _pol_by_cat.keys() | list %}
@@ -398,17 +398,17 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
 
   {# Errors #}
   <a href="/errors" class="ab-signal-item ab-sig--errors no-underline" style="text-decoration:none">
-    <span class="ab-signal-label">Hatalar (7g)</span>
+    <span class="ab-signal-label">Errors (7d)</span>
     <span class="ab-signal-num">{{ _t404 + _t5xx }}</span>
-    <span class="ab-signal-sub">{{ _t404 }} adet 404 · {{ _t5xx }} adet 5xx</span>
+    <span class="ab-signal-sub">{{ _t404 }} 404s · {{ _t5xx }} 5xx</span>
   </a>
 
   {# Alerts #}
   <a href="/alerts" class="ab-signal-item ab-sig--alerts no-underline" style="text-decoration:none">
-    <span class="ab-signal-label">Aktif Uyarılar</span>
+    <span class="ab-signal-label">Active alerts</span>
     <span class="ab-signal-num">{{ _al_total }}</span>
     <span class="ab-signal-sub">
-      {% if _al_list %}{{ _al_list[0].get('domain', '') }}{% if _al_total > 1 %} ve {{ _al_total - 1 }} diğer{% endif %}{% else %}Alarm sistemi{% endif %}
+      {% if _al_list %}{{ _al_list[0].get('domain', '') }}{% if _al_total > 1 %} and {{ _al_total - 1 }} more{% endif %}{% else %}Alert system{% endif %}
     </span>
   </a>
 </div>
@@ -420,7 +420,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
 <section class="ab-card overflow-hidden">
   <div class="ab-section-hd">
     <span class="ab-section-accent" style="background:linear-gradient(180deg,#6366f1,#06b6d4)"></span>
-    <h3>Site Sağlık Matrisi</h3>
+    <h3>Site health matrix</h3>
     <span class="ml-auto text-[10px] font-mono text-slate-400 dark:text-zinc-600">GA4 · PageSpeed · Search Console</span>
   </div>
   <div class="ab-matrix p-3">
@@ -467,7 +467,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
           {# GA4 pills #}
           {% if ga4 %}
           <div class="ab-mini-metrics">
-            {% for period, key in [('1g', 'cells_1d'), ('7g', 'cells_7d'), ('30g', 'cells_30d')] %}
+            {% for period, key in [('1d', 'cells_1d'), ('7d', 'cells_7d'), ('30d', 'cells_30d')] %}
               {% set cells = ga4.get(key, []) %}
               {% for cell in cells %}
                 {% if 'oturum' in (cell.get('label','') | lower) or 'session' in (cell.get('label','') | lower) %}
@@ -475,7 +475,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
                   {% if chg is not none and chg | float > 0 %}{% set pill_cls = 'blue' %}
                   {% elif chg is not none and chg | float < -5 %}{% set pill_cls = 'red' %}
                   {% else %}{% set pill_cls = 'slate' %}{% endif %}
-                  <span class="ab-mini-pill ab-pill--{{ pill_cls }}" title="GA4 {{ period }} oturum">
+                  <span class="ab-mini-pill ab-pill--{{ pill_cls }}" title="GA4 {{ period }} sessions">
                     {{ period }}
                     <span class="font-mono">{{ cell.get('value', 0) | int }}</span>
                     {% if chg is not none %}<span style="font-size:.6rem;opacity:.75">{{ '+' if chg | float > 0 else '' }}{{ chg | round(0) | int }}%</span>{% endif %}
@@ -488,7 +488,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
 
           {# PageSpeed arcs #}
           <div class="ab-ps-pair">
-            {% for label, score, color in [('Mob', mob_score, mob_color), ('Msk', desk_score, desk_color)] %}
+            {% for label, score, color in [('Mob', mob_score, mob_color), ('Desk', desk_score, desk_color)] %}
             <div class="ab-ps-arc">
               <div class="ab-ps-ring">
                 {% set r = 18 %}
@@ -512,7 +512,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
           {% if sc and (sc.get('clicks', 0) | float) > 0 or (sc.get('impressions', 0) | float) > 0 %}
           <div style="display:flex;flex-direction:column;gap:.25rem;padding:.5rem .6rem;border-radius:.5rem;background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.12);">
             <div class="ab-sc-row">
-              <span class="ab-sc-key">Tıklama (7g)</span>
+              <span class="ab-sc-key">Clicks (7d)</span>
               <span class="ab-sc-val" style="color:#6366f1">{{ sc.get('clicks', 0) | int }}</span>
             </div>
             <div class="ab-sc-row">
@@ -520,7 +520,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
               <span class="ab-sc-val">{{ sc.get('ctr', 0) | round(1) }}%</span>
             </div>
             <div class="ab-sc-row">
-              <span class="ab-sc-key">Ort. pozisyon</span>
+              <span class="ab-sc-key">Avg. position</span>
               <span class="ab-sc-val">{{ sc.get('position', 0) | round(1) }}</span>
             </div>
           </div>
@@ -539,9 +539,9 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
 <section class="ab-card overflow-hidden">
   <div class="ab-section-hd">
     <span class="ab-section-accent" style="background:linear-gradient(180deg,#f59e0b,#ef4444)"></span>
-    <h3>Son Uyarılar</h3>
+    <h3>Latest alerts</h3>
     {% if _al_total > _al_list | length %}
-    <a href="/alerts" class="ml-auto text-[10px] font-semibold text-amber-600 dark:text-amber-400 hover:underline">Tümünü gör ({{ _al_total }})</a>
+    <a href="/alerts" class="ml-auto text-[10px] font-semibold text-amber-600 dark:text-amber-400 hover:underline">View all ({{ _al_total }})</a>
     {% endif %}
   </div>
   <div>
@@ -570,19 +570,19 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
 ═══════════════════════════════════════════════════════════════════════ #}
 {% if not ai_brief %}
 <div class="ab-card px-6 py-10 text-center">
-  <p class="text-sm font-semibold text-slate-700 dark:text-zinc-200">Henüz AI analizi yok.</p>
-  <p class="mt-1.5 text-xs text-slate-500 dark:text-zinc-400">Yukarıdan bir LLM seçip <span class="font-semibold text-indigo-600 dark:text-indigo-400">Analiz yap</span> butonuna bas.</p>
+  <p class="text-sm font-semibold text-slate-700 dark:text-zinc-200">No AI analysis yet.</p>
+  <p class="mt-1.5 text-xs text-slate-500 dark:text-zinc-400">Select an LLM above and press <span class="font-semibold text-indigo-600 dark:text-indigo-400">Analyze</span>.</p>
 </div>
 {% else %}
 
 <script type="application/json" id="ai-brief-visual-json">{{ (_vis) | tojson }}</script>
 
 <div id="ai-brief-layout-root" class="space-y-3">
-  <nav class="ai-pillar-nav" aria-label="Bölümler">
+  <nav class="ai-pillar-nav" aria-label="Sections">
     <a href="#abp-ga4"    class="ai-pillar-chip">GA4</a>
     <a href="#abp-ps"     class="ai-pillar-chip">PageSpeed</a>
     <a href="#abp-sc"     class="ai-pillar-chip">Search Console</a>
-    <a href="#abp-alerts" class="ai-pillar-chip">Uyarılar</a>
+    <a href="#abp-alerts" class="ai-pillar-chip">Alerts</a>
   </nav>
 
   {% macro pillar(id, title, icon, accent, raw, pillar_key) %}
@@ -607,7 +607,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
             </div>
           </div>
           {% if pillar_key in ('ga4', 'pagespeed', 'search_console') %}
-          <div class="ai-brief-visual-slot ai-brief-visual--{{ pillar_key | e }} hidden min-w-0 mb-3" aria-label="Özet grafikler"></div>
+          <div class="ai-brief-visual-slot ai-brief-visual--{{ pillar_key | e }} hidden min-w-0 mb-3" aria-label="Summary charts"></div>
           {% endif %}
           <div class="ai-brief-metin">{{ it.metin | ai_brief_html_paragraphs }}</div>
         </div>
@@ -618,17 +618,17 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
         </div>
       {% else %}
         <div class="px-5 py-4">
-          <p class="text-sm text-slate-500 dark:text-zinc-400">Bu bölümde içerik yok.</p>
+          <p class="text-sm text-slate-500 dark:text-zinc-400">No content in this section.</p>
         </div>
       {% endif %}
     </div>
   </section>
   {% endmacro %}
 
-  {{ pillar("abp-ga4",    "GA4 Analizi",          "",  "#6366f1", ai_brief.ga4_text,          "ga4")          }}
+  {{ pillar("abp-ga4",    "GA4 analysis",          "",  "#6366f1", ai_brief.ga4_text,          "ga4")          }}
   {{ pillar("abp-ps",     "PageSpeed",             "",  "#06b6d4", ai_brief.pagespeed_text,     "pagespeed")    }}
   {{ pillar("abp-sc",     "Search Console",        "",  "#8b5cf6", ai_brief.search_console_text,"search_console")}}
-  {{ pillar("abp-alerts", "Uyarılar ve Öncelik",   "",  "#f59e0b", ai_brief.alerts_text,        "alerts")       }}
+  {{ pillar("abp-alerts", "Alerts and priority",   "",  "#f59e0b", ai_brief.alerts_text,        "alerts")       }}
 </div>
 {% endif %}
 
@@ -645,23 +645,23 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
     {%- set mid = pair[1] | trim -%}
     {%- if prov == 'gemini' %}Google Gemini{% elif prov == 'groq' %}Groq{% elif prov == 'openai' %}OpenAI{% else %}{{ prov | upper }}{% endif %}
     {%- if mid %} — {{ mid }}{% endif %}
-  {%- elif s in ('—','kayıtta yok','') %}Model bilinmiyor{%- else %}{{ s }}{%- endif -%}
+  {%- elif s in ('—','kayıtta yok','not on record','') %}Unknown model{%- else %}{{ s }}{%- endif -%}
 {%- endmacro %}
 
 <section class="ab-history">
   <div class="ab-section-hd">
     <span class="ab-section-accent" style="background:linear-gradient(180deg,#94a3b8,#64748b)"></span>
-    <h3>Analiz Geçmişi</h3>
+    <h3>Analysis history</h3>
     <span class="ml-4 text-2xl font-bold tabular-nums text-slate-800 dark:text-zinc-100">{{ st.total_all }}</span>
-    <span class="text-xs text-slate-500 dark:text-zinc-500 ml-1">toplam</span>
+    <span class="text-xs text-slate-500 dark:text-zinc-500 ml-1">total</span>
     {% if st.llm_spent_try_approx_month is defined %}
-    <span class="ml-auto text-[11px] text-slate-500 dark:text-zinc-500 tabular-nums">Bu ay ~<b class="text-slate-700 dark:text-zinc-300">{{ st.llm_spent_try_approx_month | round(2) }}</b> TRY</span>
+    <span class="ml-auto text-[11px] text-slate-500 dark:text-zinc-500 tabular-nums">This month ~<b class="text-slate-700 dark:text-zinc-300">{{ st.llm_spent_try_approx_month | round(2) }}</b> TRY</span>
     {% endif %}
   </div>
 
   {% if st.models_all_time %}
   <div class="px-4 py-3 border-b border-slate-100 dark:border-zinc-800">
-    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-600 mb-2">Model Kullanımı</p>
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-600 mb-2">Model usage</p>
     <div class="flex flex-wrap gap-2">
       {% for m in st.models_all_time %}
       <div class="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 dark:border-zinc-700 dark:bg-zinc-800">
@@ -679,12 +679,12 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
     <table class="w-full min-w-[44rem] text-left text-[11px] text-slate-700 dark:text-zinc-200" style="border-collapse:collapse">
       <thead>
         <tr class="border-b border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900">
-          <th class="whitespace-nowrap px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Zaman</th>
-          <th class="whitespace-nowrap px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Gün</th>
-          <th class="whitespace-nowrap px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Kaynak</th>
+          <th class="whitespace-nowrap px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Time</th>
+          <th class="whitespace-nowrap px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Day</th>
+          <th class="whitespace-nowrap px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Source</th>
           <th class="whitespace-nowrap px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Model</th>
           <th class="whitespace-nowrap px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">~TRY</th>
-          <th class="min-w-[12rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Açıklama</th>
+          <th class="min-w-[12rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Description</th>
         </tr>
       </thead>
       <tbody>
@@ -798,7 +798,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
             if (fill) fill.style.width = "0%";
             if (btn) btn.disabled = false;
             form.removeAttribute("data-ai-brief-busy");
-            window.alert((result.html || "").trim() || "İstek başarısız oldu.");
+            window.alert((result.html || "").trim() || "Request failed.");
             return;
           }
           if (fill) fill.style.width = "100%";
@@ -810,7 +810,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
           if (wrap) wrap.classList.add("hidden");
           if (btn) btn.disabled = false;
           form.removeAttribute("data-ai-brief-busy");
-          window.alert("Bağlantı veya sunucu hatası.");
+          window.alert("Connection or server error.");
         });
     });
   }

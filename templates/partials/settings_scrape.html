@@ -3,33 +3,33 @@
 <div class="space-y-4" data-scrape-panel data-hours="{{ hours }}">
   <div class="flex flex-wrap items-start justify-between gap-2">
     <p class="text-xs text-slate-500 dark:text-slate-400 max-w-3xl">{{ note }}</p>
-    <p class="home-meta text-xs tabular-nums text-slate-400 dark:text-slate-500">TR · {{ generated_at_tr }} · {{ event_count }} olay / {{ hours }}s</p>
+    <p class="home-meta text-xs tabular-nums text-slate-400 dark:text-slate-500">TR · {{ generated_at_tr }} · {{ event_count }} events / {{ hours }}h</p>
   </div>
 
   <div class="flex flex-wrap items-center gap-2">
-    <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Pencere:</span>
+    <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Window:</span>
     {% for h in [24, 48, 72, 168] %}
       <button type="button"
               class="rounded-md border px-2.5 py-1 text-xs font-semibold transition
                 {% if hours == h %}border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900{% else %}border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800{% endif %}"
-              data-scrape-hours="{{ h }}">{{ h }}s</button>
+              data-scrape-hours="{{ h }}">{{ h }}h</button>
     {% endfor %}
   </div>
 
   {# Kaynak özeti #}
   <div>
-    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kaynaklar · son {{ hours }}s</h4>
+    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sources · last {{ hours }}h</h4>
     <div class="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 [scrollbar-width:thin]">
       <table class="w-full min-w-[880px] text-left text-xs sm:text-sm">
         <thead class="bg-slate-50 text-slate-600 dark:bg-slate-900/50 dark:text-slate-300">
           <tr>
-            <th class="px-2 py-2 font-medium sm:px-3">Kaynak</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Hedef</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Program (TR)</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Source</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Target</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Schedule (TR)</th>
             <th class="px-2 py-2 font-medium sm:px-3">✅</th>
             <th class="px-2 py-2 font-medium sm:px-3">❌</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Hacim</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Son ingest</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Volume</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Last ingest</th>
           </tr>
         </thead>
         <tbody>
@@ -50,7 +50,7 @@
               <td class="whitespace-nowrap px-2 py-2 tabular-nums text-slate-600 dark:text-slate-300 sm:px-3">{{ s.last_at_tr }}</td>
             </tr>
           {% else %}
-            <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">Kaynak yok.</td></tr>
+            <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">No sources.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -60,7 +60,7 @@
   {# Son workspace sync (latest-only) #}
   {% if workspaces %}
   <div>
-    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Son sync (workspace)</h4>
+    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Latest sync (workspace)</h4>
     <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {% for w in workspaces %}
         <div class="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/40">
@@ -69,7 +69,7 @@
             {% if w.ok is sameas true %}
               <span class="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800">OK</span>
             {% elif w.ok is sameas false %}
-              <span class="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800">HATA</span>
+              <span class="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800">ERROR</span>
             {% else %}
               <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400">—</span>
             {% endif %}
@@ -87,18 +87,18 @@
 
   {# Saatlik #}
   <div>
-    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Saatlik (TR)</h4>
+    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hourly (TR)</h4>
     <div class="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 [scrollbar-width:thin]">
       <table class="w-full min-w-[720px] text-left text-xs sm:text-sm">
         <thead class="bg-slate-50 text-slate-600 dark:bg-slate-900/50 dark:text-slate-300">
           <tr>
-            <th class="px-2 py-2 font-medium sm:px-3">Saat</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Kaynak</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Hedef</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Hour</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Source</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Target</th>
             <th class="px-2 py-2 font-medium sm:px-3">✅</th>
             <th class="px-2 py-2 font-medium sm:px-3">❌</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Hacim</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Not</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Volume</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Note</th>
           </tr>
         </thead>
         <tbody>
@@ -115,8 +115,8 @@
           {% else %}
             <tr>
               <td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
-                Bu pencerede saatlik olay yok. Yeni ingest’ler loglanmaya başlayınca burada görünecek;
-                PageSpeed / GSC CWV / SEO audit / GSC Links için mevcut geçmiş zaten dahil edilir.
+                No hourly events in this window. New ingests will appear here once they are logged;
+                existing history for PageSpeed / GSC CWV / SEO audit / GSC Links is already included.
               </td>
             </tr>
           {% endfor %}
@@ -127,17 +127,17 @@
 
   {# Son olaylar #}
   <div>
-    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Son olaylar</h4>
+    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent events</h4>
     <div class="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 [scrollbar-width:thin]">
       <table class="w-full min-w-[760px] text-left text-xs sm:text-sm">
         <thead class="bg-slate-50 text-slate-600 dark:bg-slate-900/50 dark:text-slate-300">
           <tr>
-            <th class="px-2 py-2 font-medium sm:px-3">Zaman (TR)</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Kaynak</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Hedef</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Durum</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Hacim</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Mesaj</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Time (TR)</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Source</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Target</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Status</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Volume</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Message</th>
           </tr>
         </thead>
         <tbody>
@@ -157,7 +157,7 @@
               <td class="max-w-[16rem] truncate px-2 py-2 text-[11px] text-slate-400 sm:px-3" title="{{ e.message }}">{{ e.message or '—' }}</td>
             </tr>
           {% else %}
-            <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">Olay yok.</td></tr>
+            <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">No events.</td></tr>
           {% endfor %}
         </tbody>
       </table>

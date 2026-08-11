@@ -228,7 +228,7 @@
           <span class="crash-motion-pulse" aria-hidden="true"></span>
           <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Crashlytics</h2>
         </div>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Kaynak: /android Play Console · /ios stability-free</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Source: /android Play Console · /ios stability-free</p>
       </div>
       <div class="flex flex-wrap items-stretch gap-2 sm:items-center">
         <span data-page-tarama-slot></span>
@@ -247,7 +247,7 @@
     <div class="crash-filter-bar flex flex-col gap-3 border-b border-slate-100 bg-slate-50/60 px-3 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2.5 sm:px-5">
       {# Dönem #}
       <div class="crash-filter-row flex items-center gap-2 sm:items-center">
-        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
+        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Period</span>
         <div class="crash-filter-scroll min-w-0">
         <div class="inline-flex w-fit max-w-full rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
           {% for dv, dl in [(1,"1g"),(7,"7g"),(30,"30g"),(90,"90g")] %}
@@ -261,10 +261,10 @@
 
       {# Tür #}
       <div class="crash-filter-row flex items-center gap-2 sm:items-center">
-        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Tür</span>
+        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Type</span>
         <div class="crash-filter-scroll min-w-0">
         <div class="inline-flex w-fit max-w-full rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
-          {% for tv, tl in [("","Tümü"),("FATAL","Fatal"),("ANR","ANR"),("NON_FATAL","Non-Fatal")] %}
+          {% for tv, tl in [("","All"),("FATAL","Fatal"),("ANR","ANR"),("NON_FATAL","Non-Fatal")] %}
             <button type="button" data-crash-type="{{ tv }}"
               class="crash-type-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition
                 {% if tv == '' %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ tl }}</button>
@@ -277,7 +277,7 @@
     {# Progress bar #}
     <div id="crash-progress-wrap" class="hidden border-b border-slate-100 px-4 py-3 dark:border-slate-800 sm:px-5">
       <div class="mb-1.5 flex flex-wrap items-center gap-2">
-        <span id="crash-progress-step" class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Yükleniyor…</span>
+        <span id="crash-progress-step" class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Loading…</span>
         <span id="crash-progress-pct" class="text-[11px] font-semibold tabular-nums text-slate-600 dark:text-slate-300">0%</span>
       </div>
       <div class="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
@@ -290,24 +290,24 @@
     {# 30g/90g geçmiş veri uyarısı #}
     <div id="crash-limited-data-notice" class="hidden items-center gap-2.5 border-b border-amber-200/70 bg-amber-50/80 px-4 py-2.5 dark:border-amber-700/40 dark:bg-amber-900/20 sm:px-5">
       <svg class="h-3.5 w-3.5 flex-shrink-0 text-amber-500 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-      <span class="text-[11px] text-amber-700 dark:text-amber-300">Play vitals genelde 28 günlük penceredir — seçilen gün filtresi vitals döneminden farklı olabilir. Güncel veri için /android sync kullanın.</span>
+      <span class="text-[11px] text-amber-700 dark:text-amber-300">Play vitals is usually a 28-day window — the selected day filter may differ. Use /android sync for fresh data.</span>
     </div>
 
     {# Versiyon filtresi — sütun içine taşındı (split) #}
     <div id="crash-version-bar" class="hidden" aria-hidden="true"></div>
 
-    {# Mobil sürüm dropdown — fixed katman #}
+    {# Mobil versions dropdown — fixed katman #}
     <div id="crash-version-mobile-backdrop" class="fixed inset-0 z-[44] hidden md:hidden" aria-hidden="true"></div>
     <div id="crash-version-mobile-panel" role="listbox" data-open="false" data-crash-ver-plat=""
       class="fixed z-[45] hidden flex-col overflow-hidden rounded-xl border border-slate-200 md:hidden dark:border-slate-600">
       <div class="border-b border-slate-100 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
-        <input type="search" id="crash-version-search-mobile" placeholder="Sürüm ara…" autocomplete="off"
+        <input type="search" id="crash-version-search-mobile" placeholder="Search versions…" autocomplete="off"
           class="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" />
       </div>
       <div id="crash-version-mobile-list" class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-1.5 dark:bg-slate-900"></div>
       <div class="flex items-center justify-between gap-2 border-t border-slate-100 bg-white px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900">
         <span id="crash-version-mobile-count" class="text-[10px] tabular-nums text-slate-400"></span>
-        <button type="button" id="crash-version-mobile-done" class="rounded-md bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white dark:bg-slate-600">Tamam</button>
+        <button type="button" id="crash-version-mobile-done" class="rounded-md bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white dark:bg-slate-600">Done</button>
       </div>
     </div>
 
@@ -322,21 +322,21 @@
             </span>
             <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">{{ plabel }}</h3>
           </div>
-          <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400" data-crash-plat-ver-label="{{ plat }}">Son sürüm…</span>
+          <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400" data-crash-plat-ver-label="{{ plat }}">Latest version…</span>
         </div>
 
         <div class="flex flex-col gap-2 border-b border-slate-100 bg-white/80 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900/80 sm:px-4" data-crash-version-bar="{{ plat }}">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Versiyon</span>
-            <button type="button" data-crash-version-all="{{ plat }}" class="crash-version-all-btn shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold transition text-slate-500 hover:text-slate-800 dark:text-slate-400">Tümü</button>
+            <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Version</span>
+            <button type="button" data-crash-version-all="{{ plat }}" class="crash-version-all-btn shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold transition text-slate-500 hover:text-slate-800 dark:text-slate-400">All</button>
             <div class="relative min-w-0 flex-1 md:hidden">
               <button type="button" data-crash-version-mobile-trigger="{{ plat }}" aria-expanded="false" aria-haspopup="listbox"
                 class="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
-                <span data-crash-version-mobile-label="{{ plat }}" class="truncate">Tüm sürümler</span>
+                <span data-crash-version-mobile-label="{{ plat }}" class="truncate">All versions</span>
                 <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
               </button>
             </div>
-            <input type="search" data-crash-version-search="{{ plat }}" placeholder="Sürüm ara…"
+            <input type="search" data-crash-version-search="{{ plat }}" placeholder="Search versions…"
               class="hidden min-w-[8rem] flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none md:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
           </div>
           <div data-crash-version-chips="{{ plat }}" class="hidden max-h-28 flex-wrap gap-1 overflow-y-auto overscroll-contain md:flex"></div>
@@ -345,37 +345,37 @@
         <div class="divide-y divide-slate-100 dark:divide-slate-800">
           <div class="p-3 sm:p-4">
             <div id="crash-sec-summary-{{ plat }}" class="min-h-[100px]">
-              <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+              <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Loading…</div>
             </div>
           </div>
           <div class="p-3 sm:p-4">
-            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon trendi</p>
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Version trend</p>
             <div id="crash-sec-version-chart-{{ plat }}" class="min-h-[80px]">
-              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Loading…</div>
             </div>
           </div>
           <div class="p-3 sm:p-4">
-            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dağılım</p>
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Distribution</p>
             <div id="crash-sec-breakdown-{{ plat }}" class="min-h-[80px]">
-              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Loading…</div>
             </div>
           </div>
           <div class="p-3 sm:p-4">
-            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash'ler</p>
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crashes</p>
             <div id="crash-sec-crashes-{{ plat }}" class="min-h-[80px]">
-              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Loading…</div>
             </div>
           </div>
           <div class="p-3 sm:p-4">
             <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">ANR</p>
             <div id="crash-sec-anr-{{ plat }}" class="min-h-[80px]">
-              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Loading…</div>
             </div>
           </div>
           <div class="p-3 sm:p-4">
-            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyonlar</p>
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versions</p>
             <div id="crash-sec-versions-{{ plat }}" class="min-h-[80px]">
-              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Loading…</div>
             </div>
           </div>
         </div>
@@ -389,8 +389,8 @@
     <button type="button" id="crash-detail-floating-close"
       class="fixed right-3 top-3 z-[80] inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-950/90 px-3 py-2 text-xs font-semibold text-white shadow-2xl backdrop-blur transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-white/60 dark:border-slate-700"
       style="top: max(0.75rem, env(safe-area-inset-top)); right: max(0.75rem, env(safe-area-inset-right));"
-      aria-label="Detay penceresini kapat">
-      <span>Kapat</span>
+      aria-label="Close details">
+      <span>Close</span>
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
     </button>
     <div id="crash-detail-panel" class="flex h-[100dvh] w-full max-w-5xl flex-col border border-slate-200 bg-white shadow-2xl sm:h-auto sm:rounded-2xl dark:border-slate-700 dark:bg-slate-900">
@@ -405,7 +405,7 @@
       </div>
       <div id="crash-detail-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:max-h-[70vh] sm:flex-none sm:p-5">
         <div class="flex items-center gap-2 py-8 text-sm text-slate-400 dark:text-slate-500">
-          <span class="animate-spin inline-block">⟳</span> Detay yükleniyor…
+          <span class="animate-spin inline-block">⟳</span> Loading details…
         </div>
       </div>
     </div>
@@ -467,9 +467,9 @@
       var el = crashRoot.querySelector('[data-crash-plat-ver-label="' + plat + '"]');
       if (!el) return;
       var vers = platVersions(plat);
-      if (!vers.length) el.textContent = "Tüm sürümler";
+      if (!vers.length) el.textContent = "All versions";
       else if (vers.length === 1) el.textContent = "v" + vers[0];
-      else el.textContent = vers.length + " sürüm";
+      else el.textContent = vers.length + " versions";
     });
   }
   var crashScrollLock = {
@@ -609,9 +609,9 @@
       }
       var label = crashRoot.querySelector('[data-crash-version-mobile-label="' + p + '"]');
       if (label) {
-        if (!selected.length) label.textContent = "Tüm sürümler";
+        if (!selected.length) label.textContent = "All versions";
         else if (selected.length === 1) label.textContent = selected[0];
-        else label.textContent = selected.length + " sürüm seçili";
+        else label.textContent = selected.length + " versions selected";
       }
     });
     var mobileList = document.getElementById("crash-version-mobile-list");
@@ -751,12 +751,12 @@
   }
 
   var SECTION_LABELS = {
-    summary: "Özet",
-    "version-chart": "Versiyon trendi",
-    breakdown: "Dağılım",
-    crashes: "Crash'ler",
+    summary: "Summary",
+    "version-chart": "Version trend",
+    breakdown: "Distribution",
+    crashes: "Crashes",
     anr: "ANR",
-    versions: "Versiyonlar"
+    versions: "Versions"
   };
 
   function escapeHtml(s) {
@@ -767,7 +767,7 @@
 
   function secLoadingHtml(name, pct, step) {
     pct = Math.max(0, Math.min(100, Math.round(pct || 0)));
-    var text = step || ((SECTION_LABELS[name] || name) + " yükleniyor…");
+    var text = step || ((SECTION_LABELS[name] || name) + " loading…");
     return '<div class="crash-sec-loading space-y-2 py-4" data-sec="' + name + '">'
       + '<div class="flex flex-wrap items-center gap-2">'
       + '<span class="text-[11px] leading-snug text-slate-500 dark:text-slate-400" data-sec-step>' + escapeHtml(text) + '</span>'
@@ -802,7 +802,7 @@
     var done = _load.done;
     var label = SECTION_LABELS[name] || name;
     var pct = total ? Math.round((done / total) * 100) : 0;
-    return { pct: Math.min(99, Math.max(8, pct)), step: label + " yükleniyor…" };
+    return { pct: Math.min(99, Math.max(8, pct)), step: label + " loading…" };
   }
 
   function applyCombinedProgress() {
@@ -810,16 +810,16 @@
     var done = _load.done;
 
     if (_load.phase === "bq" && (_load.bq.running || (_load.bq.pct > 0 && _load.bq.pct < 100))) {
-      setProgress(_load.bq.pct || 0, _load.bq.step || "Play / ASC verisi yenileniyor…");
+      setProgress(_load.bq.pct || 0, _load.bq.step || "Refreshing Play / ASC data…");
     } else if (done >= total) {
-      setProgress(100, "Tamamlandı · " + total + "/" + total);
+      setProgress(100, "Done · " + total + "/" + total);
     } else {
       var pct = total ? Math.round((done / total) * 100) : 0;
       var loadingCount = 0;
       Object.keys(_load.loading || {}).forEach(function (k) { if (_load.loading[k]) loadingCount++; });
       if (loadingCount) pct = Math.max(pct, Math.round(((done + 0.35) / total) * 100), 4);
       var step = loadingCount
-        ? (loadingCount + " bölüm yükleniyor · " + done + "/" + total)
+        ? (loadingCount + " section loading · " + done + "/" + total)
         : (done + "/" + total);
       setProgress(pct, step);
     }
@@ -882,7 +882,7 @@
     _load.active = false;
     stopPoll();
     var total = SECTIONS.length * PLATS.length;
-    setProgress(100, "Tamamlandı · " + total + "/" + total);
+    setProgress(100, "Done · " + total + "/" + total);
     setTimeout(function () { showProgress(false); }, 450);
   }
 
@@ -990,7 +990,7 @@
           return;
         }
         onSectionLoaded(name, plat);
-        if (!opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
+        if (!opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Could not load data.</p>';
       });
   }
 
@@ -1056,7 +1056,7 @@
             if (n === "summary") ingestFilterVersionsMeta(document.getElementById(secId(n, plat)));
           } else {
             var box = document.getElementById(secId(n, plat));
-            if (box && !opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
+            if (box && !opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Could not load data.</p>';
           }
           onSectionLoaded(n, plat);
         });
@@ -1064,7 +1064,7 @@
           SECTIONS.forEach(function (n) {
             var box = document.getElementById(secId(n, plat));
             if (box && crashState.seqs[seqKey(n, plat)] === seqSnapshot[n]) {
-              box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
+              box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Could not load data.</p>';
             }
           });
         }
@@ -1086,7 +1086,7 @@
           if (crashState.seqs[seqKey(n, plat)] !== seqSnapshot[n]) return;
           onSectionLoaded(n, plat);
           var box = document.getElementById(secId(n, plat));
-          if (box && !opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
+          if (box && !opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Could not load data.</p>';
         });
       });
   }
@@ -1118,7 +1118,7 @@
 
   function prefetchPlatformCache() { /* split görünümde her iki platform zaten yüklenir */ }
 
-  // Filtre tipine göre hangi section'ların etkilendiğini bilir (hepsi yenilenir).
+  // Filtre tipine göre hangi section'ların etkilendiğini bilir (hepsi is refreshed).
   var _pendingFilterType = "all";
   function applyFilterChange(scope) {
     if (scope === "days" || scope === "product") {
@@ -1139,7 +1139,7 @@
   function bootstrapSplitLoad(opts) {
     opts = opts || {};
     beginLoadCycle({ phase: "sections" });
-    // Önce sürüm meta (platform=all özet) — sonra platform başına tek bundle
+    // Önce versions meta (platform=all özet) — sonra platform başına tek bundle
     fetch(sectionUrl("summary", { platform: "all", versions: [] }), { cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.ok ? r.text() : null; })
       .then(function (html) {
@@ -1172,7 +1172,7 @@
     }, filterType === "platform" ? 0 : (filterType === "version" || filterType === "type" ? 60 : 120));
   }
 
-  // ── Versiyon filtresi ──
+  // ── Version filtresi ──
   function semverSort(arr) {
     return arr.slice().sort(function (a, b) {
       var av = a.split(/[.\-_]/).map(function (p) { return parseInt(p) || 0; });
@@ -1243,12 +1243,12 @@
     if (!filtered.length) {
       var empty = document.createElement("p");
       empty.className = "px-2 py-6 text-center text-[11px] text-slate-400";
-      empty.textContent = q ? "Aramanızla eşleşen sürüm yok." : "Sürüm listesi boş.";
+      empty.textContent = q ? "No versions match your search." : "Version list is empty.";
       listEl.appendChild(empty);
     }
     if (mobCount) {
       var sel = platVersions(plat).length;
-      mobCount.textContent = filtered.length + " sürüm" + (sel ? " · " + sel + " seçili" : "");
+      mobCount.textContent = filtered.length + " versions" + (sel ? " · " + sel + " selected" : "");
     }
     syncVersionChips(plat);
   }
@@ -1307,7 +1307,7 @@
     var sEl = document.getElementById("crash-progress-step");
     if (bar) bar.style.width = pct + "%";
     if (pEl) pEl.textContent = pct + "%";
-    if (sEl) sEl.textContent = step || "Yükleniyor…";
+    if (sEl) sEl.textContent = step || "Loading…";
   }
   function stopPoll() {
     if (crashState.pollTimer) { clearInterval(crashState.pollTimer); crashState.pollTimer = null; }
@@ -1338,7 +1338,7 @@
         });
         if (expanded) {
           btn.setAttribute("data-bd-expanded", "0");
-          btn.textContent = "Genişlet (15)";
+          btn.textContent = "Expand (15)";
         } else {
           btn.setAttribute("data-bd-expanded", "1");
           btn.textContent = "Daralt (8)";
@@ -1461,7 +1461,7 @@
     }
   }
 
-  // ── Sütun sıralama + arama + drill-down satır tıklaması ──
+  // ── Sütun sıralama + arama + drill-down satır clickslaması ──
   function wireTableEnhancements(root) {
     root.querySelectorAll("table[data-crash-sortable]").forEach(function (tbl) {
       var sortState = { key: null, desc: true };
@@ -1495,7 +1495,7 @@
             row.style.display = show ? "" : "none";
             if (show) visible++;
           }
-          if (countEl) countEl.textContent = visible + " sonuç";
+          if (countEl) countEl.textContent = visible + " results";
         });
       }
 
@@ -1613,7 +1613,7 @@
     var metaEl = document.getElementById("crash-detail-meta");
     var bodyEl = document.getElementById("crash-detail-body");
     var panelEl = document.getElementById("crash-detail-panel");
-    if (titleEl) titleEl.textContent = info.issue_title || "(başlıksız)";
+    if (titleEl) titleEl.textContent = info.issue_title || "(untitled)";
     if (metaEl) {
       var platLower = (info.platform || "").toLowerCase();
       var badge = platLower === "android"
@@ -1621,12 +1621,12 @@
         : platLower === "ios" ? '<span class="plat-badge plat-badge--apple"><svg aria-hidden="true"><use href="#plat-apple"/></svg></span>' : "";
       metaEl.innerHTML = '<span class="inline-flex items-center gap-1.5">' + badge + escapeHtml((window.seoEnUppercase || function (s) { return String(s).toLocaleUpperCase("en-US"); })(info.platform || ""))
         + "</span> · " + escapeHtml(info.error_type || "")
-        + " · " + (info.event_count || 0) + " olay · " + (info.affected_users || 0) + " kullanıcı"
+        + " · " + (info.event_count || 0) + " events · " + (info.affected_users || 0) + " users"
         + (info.latest_version ? " · v" + escapeHtml(info.latest_version) : "");
     }
     if (bodyEl) {
       bodyEl.scrollTop = 0;
-      bodyEl.innerHTML = '<div class="flex items-center gap-2 py-8 text-sm text-slate-400"><span class="animate-spin inline-block">⟳</span> Detay yükleniyor…</div>';
+      bodyEl.innerHTML = '<div class="flex items-center gap-2 py-8 text-sm text-slate-400"><span class="animate-spin inline-block">⟳</span> Loading details…</div>';
     }
     if (panelEl) panelEl.scrollTop = 0;
     var url = "/api/app/crashlytics/issue-detail?product=" + encodeURIComponent(crashState.product)
@@ -1648,11 +1648,11 @@
             ? '<span class="plat-badge plat-badge--android"><svg aria-hidden="true"><use href="#plat-android"/></svg></span>'
             : platLower === "ios" ? '<span class="plat-badge plat-badge--apple"><svg aria-hidden="true"><use href="#plat-apple"/></svg></span>' : "";
           var verNote = (detailVers && detailVers.length)
-            ? " · filtre: v" + escapeHtml(detailVers.join(", v"))
+            ? " · filter: v" + escapeHtml(detailVers.join(", v"))
             : "";
           metaEl.innerHTML = '<span class="inline-flex items-center gap-1.5">' + badge + escapeHtml((window.seoEnUppercase || function (s) { return String(s).toLocaleUpperCase("en-US"); })(info.platform || ""))
             + "</span> · " + escapeHtml(s.error_type || info.error_type || "")
-            + " · " + (s.total_events || 0) + " olay · " + (s.affected_users || 0) + " kullanıcı" + verNote;
+            + " · " + (s.total_events || 0) + " events · " + (s.affected_users || 0) + " users" + verNote;
         }
         if (bodyEl) {
           bodyEl.innerHTML = renderIssueDetail(j);
@@ -1660,18 +1660,18 @@
           wireIssueDetailTabs(bodyEl);
         }
       })
-      .catch(function () { if (bodyEl) bodyEl.innerHTML = '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">Detay yüklenemedi.</p>'; });
+      .catch(function () { if (bodyEl) bodyEl.innerHTML = '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">Could not load details.</p>'; });
   }
 
   function renderIssueDetail(j) {
-    if (!j || j.ok === false) return '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">' + escapeHtml((j && (j.error || j.message)) || "Detay alınamadı.") + '</p>';
+    if (!j || j.ok === false) return '<p class="py-6 text-sm text-rose-600 dark:text-rose-400">' + escapeHtml((j && (j.error || j.message)) || "Could not fetch details.") + '</p>';
     if (j.filter_empty) {
       var vers = (j.filter_versions || []).join(", ");
       return '<div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 dark:border-amber-800/50 dark:bg-amber-950/30">'
-        + '<p class="text-sm font-semibold text-amber-900 dark:text-amber-200">Seçili sürümde olay yok</p>'
+        + '<p class="text-sm font-semibold text-amber-900 dark:text-amber-200">No events in the selected version</p>'
         + '<p class="mt-2 text-xs leading-relaxed text-amber-800 dark:text-amber-300">'
-        + escapeHtml(vers ? "v" + vers + " için bu issue dönem içinde kayıt göstermiyor." : "Seçili sürüm filtresi için kayıt yok.")
-        + " BigQuery export gecikmesi olabilir; yeni sürümlerde veri 24–48 saat içinde tamamlanır."
+        + escapeHtml(vers ? "v" + vers + " has no records for this issue in the period." : "No records for the selected version filter.")
+        + " BigQuery export may lag; data for new versions often completes in 24–48 hours."
         + '</p></div>';
     }
     var s = j.summary || {};
@@ -1688,43 +1688,43 @@
     trend.forEach(function (t) { if (t.count > maxC) maxC = t.count; });
     var trendBars = trend.map(function (t) {
       var h = Math.max(2, Math.round((t.count / maxC) * 36));
-      return '<div class="flex flex-col items-center justify-end gap-1" title="' + escapeHtml(t.date) + ': ' + t.count + ' olay"><div class="w-3 rounded-sm bg-rose-400/70 dark:bg-rose-700/55" style="height:' + h + 'px"></div><span class="text-[8px] tabular-nums text-slate-400">' + escapeHtml((t.date || "").slice(5)) + '</span></div>';
+      return '<div class="flex flex-col items-center justify-end gap-1" title="' + escapeHtml(t.date) + ': ' + t.count + ' events"><div class="w-3 rounded-sm bg-rose-400/70 dark:bg-rose-700/55" style="height:' + h + 'px"></div><span class="text-[8px] tabular-nums text-slate-400">' + escapeHtml((t.date || "").slice(5)) + '</span></div>';
     }).join("");
     var html = '<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">'
-      + ['Olay|' + (s.total_events || 0), 'Kullanıcı|' + (s.affected_users || 0), 'İlk görüldü|' + escapeHtml(firstSeen || "—"), 'Son görüldü|' + escapeHtml(lastSeen || "—")].map(function (x) {
+      + ['Events|' + (s.total_events || 0), 'Users|' + (s.affected_users || 0), 'First seen|' + escapeHtml(firstSeen || "—"), 'Last seen|' + escapeHtml(lastSeen || "—")].map(function (x) {
           var p = x.split("|"); return '<div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/40"><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">' + p[0] + '</p><p class="mt-0.5 text-base font-black tabular-nums text-slate-800 dark:text-slate-100">' + p[1] + '</p></div>';
         }).join("") + '</div>'
-      + '<div class="mt-4"><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük trend</p>'
-      + (trend.length ? '<div class="flex items-end gap-1 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40">' + trendBars + '</div>' : '<p class="py-2 text-[11px] text-slate-400 dark:text-slate-500">Trend verisi yok.</p>')
+      + '<div class="mt-4"><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Daily trend</p>'
+      + (trend.length ? '<div class="flex items-end gap-1 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40">' + trendBars + '</div>' : '<p class="py-2 text-[11px] text-slate-400 dark:text-slate-500">No trend data.</p>')
       + '</div><div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">'
-      + '<div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon kırılımı</p>'
-      + table(j.versions, ["Versiyon", "Olay", "Kullanıcı"], function (r) { return ['<span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono dark:bg-slate-800">' + escapeHtml(r.app_version) + '</span>', '<span class="tabular-nums font-semibold">' + r.event_count + '</span>', '<span class="tabular-nums">' + r.affected_users + '</span>']; }, "Versiyon verisi yok.")
-      + '</div><div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">OS kırılımı</p>'
-      + table(j.os_versions, ["OS Versiyon", "Olay"], function (r) { return [escapeHtml(r.os_version), '<span class="tabular-nums">' + r.event_count + '</span>']; }, "OS verisi yok.")
+      + '<div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Version breakdown</p>'
+      + table(j.versions, ["Version", "Events", "Users"], function (r) { return ['<span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono dark:bg-slate-800">' + escapeHtml(r.app_version) + '</span>', '<span class="tabular-nums font-semibold">' + r.event_count + '</span>', '<span class="tabular-nums">' + r.affected_users + '</span>']; }, "No version data.")
+      + '</div><div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">OS breakdown</p>'
+      + table(j.os_versions, ["OS Version", "Events"], function (r) { return [escapeHtml(r.os_version), '<span class="tabular-nums">' + r.event_count + '</span>']; }, "No OS data.")
       + '</div></div><div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">'
-      + '<div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cihaz kırılımı</p>'
-      + table(j.devices, ["Cihaz", "Olay"], function (r) {
+      + '<div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Device breakdown</p>'
+      + table(j.devices, ["Device", "Events"], function (r) {
           var code = r.manufacturer ? (r.manufacturer + " " + r.model) : r.model;
           var cell = escapeHtml(code);
           if (r.marketing_name) cell += ' <span class="ml-1 text-[10px] font-medium text-slate-400 dark:text-slate-500">(' + escapeHtml(r.marketing_name) + ')</span>';
           return [cell, '<span class="tabular-nums">' + r.event_count + '</span>'];
-        }, "Cihaz verisi yok.")
+        }, "No device data.")
       + '</div><div><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Stack frame (blame)</p>'
-      + table(j.blame_frames, ["Dosya / Sembol", "Adet"], function (r) { var loc = r.file ? (r.file + (r.line ? ":" + r.line : "")) : ""; var sym = r.symbol || ""; var disp = (loc || sym) ? (escapeHtml(loc) + (sym ? '<br><span class="font-mono text-[10px] text-slate-500">' + escapeHtml(sym) + '</span>' : '')) : '<span class="text-slate-400">—</span>'; return [disp, '<span class="tabular-nums">' + r.occurrences + '</span>']; }, "Stack frame verisi yok.")
+      + table(j.blame_frames, ["File / symbol", "Count"], function (r) { var loc = r.file ? (r.file + (r.line ? ":" + r.line : "")) : ""; var sym = r.symbol || ""; var disp = (loc || sym) ? (escapeHtml(loc) + (sym ? '<br><span class="font-mono text-[10px] text-slate-500">' + escapeHtml(sym) + '</span>' : '')) : '<span class="text-slate-400">—</span>'; return [disp, '<span class="tabular-nums">' + r.occurrences + '</span>']; }, "No stack frame data.")
       + '</div></div>';
     if (j.process_states && j.process_states.length) {
-      html += '<div class="mt-4"><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Durum (foreground/background)</p>'
-        + table(j.process_states, ["Durum", "Olay", "%"], function (r) { return [escapeHtml(r.state), r.event_count, (r.pct || 0) + '%']; }, "Yok.") + '</div>';
+      html += '<div class="mt-4"><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">State (foreground/background)</p>'
+        + table(j.process_states, ["State", "Events", "%"], function (r) { return [escapeHtml(r.state), r.event_count, (r.pct || 0) + '%']; }, "None.") + '</div>';
     }
     var events = j.events || [];
     if (events.length) {
-      html += '<div class="mt-4"><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Olaylar (' + events.length + ')</p><div class="max-h-52 space-y-1 overflow-y-auto">';
+      html += '<div class="mt-4"><p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Events (' + events.length + ')</p><div class="max-h-52 space-y-1 overflow-y-auto">';
       events.slice(0, 20).forEach(function (ev) {
         html += '<button type="button" class="crash-ev-btn block w-full rounded border border-slate-200 bg-white px-2.5 py-2 text-left text-[11px] text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800" data-ev-ts="' + escapeHtml(ev.event_timestamp || '') + '">' + escapeHtml((ev.event_timestamp || '').replace("T", " ").slice(0, 19)) + ' · ' + escapeHtml(ev.marketing_name || ev.device_model || '') + '</button>';
       });
-      html += '</div><div id="crash-ev-detail" class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Olay seçin.</div></div>';
+      html += '</div><div id="crash-ev-detail" class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Select an event.</div></div>';
     }
-    html += '<div class="mt-4"><button type="button" id="crash-ai-summary-btn" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white">AI özet</button><div id="crash-ai-summary-out" class="mt-2 text-sm"></div></div>';
+    html += '<div class="mt-4"><button type="button" id="crash-ai-summary-btn" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white">AI summary</button><div id="crash-ai-summary-out" class="mt-2 text-sm"></div></div>';
     if (j.error) html += '<p class="mt-3 text-[11px] text-amber-700 dark:text-amber-400">⚠ ' + escapeHtml(j.error) + '</p>';
     return html;
   }
@@ -1734,11 +1734,11 @@
       btn.addEventListener("click", function () {
         var ts = btn.getAttribute("data-ev-ts"), ctx = crashState.detailCtx || {}, box = root.querySelector("#crash-ev-detail");
         if (!ts || !ctx.issue_id || !box) return;
-        box.textContent = "Yükleniyor…";
+        box.textContent = "Loading…";
         fetch("/api/app/crashlytics/issue-event?product=" + encodeURIComponent(crashState.product) + "&platform=" + encodeURIComponent(ctx.platform || "android") + "&issue_id=" + encodeURIComponent(ctx.issue_id) + "&event_timestamp=" + encodeURIComponent(ts) + "&days=" + crashState.days)
           .then(function (r) { return r.json(); }).then(function (ev) {
-            box.innerHTML = ev.ok ? '<pre class="text-[10px] max-h-48 overflow-auto">' + escapeHtml(JSON.stringify(ev, null, 2).slice(0, 4000)) + '</pre>' : escapeHtml(ev.error || "Hata");
-          }).catch(function () { box.textContent = "Hata"; });
+            box.innerHTML = ev.ok ? '<pre class="text-[10px] max-h-48 overflow-auto">' + escapeHtml(JSON.stringify(ev, null, 2).slice(0, 4000)) + '</pre>' : escapeHtml(ev.error || "Error");
+          }).catch(function () { box.textContent = "Error"; });
       });
     });
     var aiBtn = root.querySelector("#crash-ai-summary-btn"), aiOut = root.querySelector("#crash-ai-summary-out");
@@ -1746,11 +1746,11 @@
       aiOut.textContent = "…";
       var ctx = crashState.detailCtx || {};
       fetch("/api/app/crashlytics/issue-ai-summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product: crashState.product, platform: ctx.platform, issue_id: ctx.issue_id, days: crashState.days }) })
-        .then(function (r) { return r.json(); }).then(function (j) { aiOut.textContent = j.ok ? j.summary : (j.error || "Hata"); });
+        .then(function (r) { return r.json(); }).then(function (j) { aiOut.textContent = j.ok ? j.summary : (j.error || "Error"); });
     });
   }
 
-  // ── Manuel Yenile ──
+  // ── Manuel Refresh ──
   function triggerRefresh() {
     var btn = document.getElementById("crash-refresh-btn");
     var icon = document.getElementById("crash-refresh-icon");
@@ -1853,7 +1853,7 @@
       var j = arr[0], pa = arr[1];
       var bodyEl = document.getElementById("crash-detail-body");
       var titleEl = document.getElementById("crash-detail-title");
-      if (titleEl) titleEl.textContent = "BigQuery Teşhis · iOS/Android";
+      if (titleEl) titleEl.textContent = "BigQuery diagnostics · iOS/Android";
       var html = "";
       if (pa && pa.findings && pa.findings.length) {
         html += '<div class="mb-3 space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">';
@@ -1873,7 +1873,7 @@
   var refreshBtn = document.getElementById("crash-refresh-btn");
   if (refreshBtn) refreshBtn.addEventListener("click", triggerRefresh);
 
-  // ── İlk yükleme: doğrudan bölümler (progress endpoint soğuk BQ beklemez) ──
+  // ── First yükleme: doğrudan bölümler (progress endpoint soğuk BQ beklemez) ──
   syncBtns();
   bootstrapSplitLoad();
 

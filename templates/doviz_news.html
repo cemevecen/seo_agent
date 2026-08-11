@@ -965,12 +965,12 @@
   <div class="dn-chrome">
     <div class="dn-chrome-top">
       <h1>Doviz News</h1>
-      <div class="dn-page-tabs" role="tablist" aria-label="Doviz News bölümleri">
+      <div class="dn-page-tabs" role="tablist" aria-label="Doviz News sections">
         <button type="button" class="dn-page-tab" data-dn-page-tab="trend" role="tab" aria-selected="false">
-          <span class="dn-tab-full">Trend haberler</span><span class="dn-tab-short">Trend</span>
+          <span class="dn-tab-full">Trend news</span><span class="dn-tab-short">Trend</span>
         </button>
         <button type="button" class="dn-page-tab is-active" data-dn-page-tab="stats" role="tab" aria-selected="true">
-          <span class="dn-tab-full">Yayın istatistikleri</span><span class="dn-tab-short">Yayın</span>
+          <span class="dn-tab-full">Publish stats</span><span class="dn-tab-short">Publish</span>
         </button>
       </div>
       <div class="dn-chrome-actions">
@@ -978,7 +978,7 @@
            href="https://www.doviz.com/admin/news?page=1&type=N&status=1&is_advertorial=0&sort=id_desc"
            target="_blank" rel="noopener"
            class="dn-chrome-btn">
-          <span class="dn-btn-full">Admin haberler</span><span class="dn-btn-short">Admin</span>
+          <span class="dn-btn-full">Admin news</span><span class="dn-btn-short">Admin</span>
           <span aria-hidden="true">↗</span>
         </a>
         <span data-page-tarama-slot></span>
@@ -996,13 +996,13 @@
 
   <div id="dn-panel-stats" role="tabpanel">
   <p id="dn-error" class="mb-4 hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
-  <p id="dn-loading" class="mb-4 hidden text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
+  <p id="dn-loading" class="mb-4 hidden text-xs text-slate-500 dark:text-zinc-400">Loading data…</p>
 
   <div class="dn-card dn-period-card">
     <div class="dn-card-head">
       <div>
-        <h3>Görüntüleme ve karşılaştırma</h3>
-        <p id="dn-period-range" class="dn-card-sub">Dönem seçin</p>
+        <h3>Views and comparison</h3>
+        <p id="dn-period-range" class="dn-card-sub">Select a period</p>
       </div>
       <div id="dn-period-cmp" class="dn-period-cmp" aria-live="polite"></div>
     </div>
@@ -1010,19 +1010,19 @@
       <div id="dn-period-tabs" class="dn-tabs" role="tablist" aria-label="Zaman dilimleri"></div>
       <div class="dn-period-actions">
         <button type="button" id="dn-traffic-btn" class="dn-traffic-btn">
-          İlgili içeriklerin trafiğini göster
+          Show traffic for related content
         </button>
       </div>
     </div>
-    <div id="dn-custom-range" class="dn-custom-range hidden" aria-label="Özel tarih aralığı">
-      <label>Başlangıç
+    <div id="dn-custom-range" class="dn-custom-range hidden" aria-label="Custom date range">
+      <label>Start
         <input type="date" id="dn-date-start" />
       </label>
-      <label>Bitiş
+      <label>End
         <input type="date" id="dn-date-end" />
       </label>
-      <button type="button" id="dn-date-apply" class="dn-custom-apply">Uygula</button>
-      <p class="dn-custom-hint">Tek gün veya aralık seçin; karşılaştırma eşit uzunluktaki önceki dönemle yapılır.</p>
+      <button type="button" id="dn-date-apply" class="dn-custom-apply">Apply</button>
+      <p class="dn-custom-hint">Pick a single day or a range; comparison uses an equal-length previous period.</p>
     </div>
     <div id="dn-period-progress" class="dn-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-hidden="true">
       <div id="dn-period-progress-fill" class="dn-progress-fill"></div>
@@ -1030,7 +1030,7 @@
     <p id="dn-period-progress-label" class="dn-progress-label" aria-live="polite"></p>
   </div>
 
-  <div id="dn-tabs" class="dn-tabs mb-4" role="tablist" aria-label="Kategoriler"></div>
+  <div id="dn-tabs" class="dn-tabs mb-4" role="tablist" aria-label="Categories"></div>
 
   <div id="dn-body" class="hidden space-y-4">
     <div id="dn-kpis" class="dn-kpi-flow"></div>
@@ -1039,7 +1039,7 @@
       <div class="dn-card">
         <div class="dn-card-head">
           <div>
-            <h3>Trafik (GA4 + GSC)</h3>
+            <h3>Traffic (GA4 + GSC)</h3>
             <p id="dn-traffic-meta" class="dn-card-sub"></p>
           </div>
         </div>
@@ -1047,79 +1047,79 @@
       </div>
       <div id="dn-traffic-charts" class="dn-traffic-charts">
         <div id="dn-card-traffic-sources" class="dn-card">
-          <div class="dn-card-head"><div><h3>Trafik kaynakları</h3></div></div>
-          <div id="dn-chart-traffic-sources" class="dn-hbar-list" aria-label="Trafik kaynakları"></div>
+          <div class="dn-card-head"><div><h3>Traffic sources</h3></div></div>
+          <div id="dn-chart-traffic-sources" class="dn-hbar-list" aria-label="Traffic sources"></div>
         </div>
         <div id="dn-card-traffic-phases" class="dn-card">
-          <div class="dn-card-head"><div><h3>Yayın → trafik gecikmesi</h3></div></div>
-          <div id="dn-chart-traffic-phases" class="dn-hbar-list" aria-label="Yayın trafik fazları"></div>
+          <div class="dn-card-head"><div><h3>Publish → traffic lag</h3></div></div>
+          <div id="dn-chart-traffic-phases" class="dn-hbar-list" aria-label="Publish traffic phases"></div>
         </div>
         <div id="dn-card-traffic-own" class="dn-card">
-          <div class="dn-card-head"><div><h3>Özgün vs kaynaklı trafik</h3></div></div>
-          <div id="dn-chart-traffic-own" class="dn-hbar-list" aria-label="Özgün vs kaynaklı trafik"></div>
+          <div class="dn-card-head"><div><h3>Original vs sourced traffic</h3></div></div>
+          <div id="dn-chart-traffic-own" class="dn-hbar-list" aria-label="Original vs sourced traffic"></div>
         </div>
       </div>
     </div>
 
     <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
       <div id="dn-card-cat" class="dn-card dn-card--fill lg:col-span-2">
-        <div class="dn-card-head"><div><h3>Kategori dağılımı</h3></div></div>
-        <div id="dn-chart-cat" class="dn-hbar-list dn-hbar-list--fill" aria-label="Kategori bar listesi"></div>
+        <div class="dn-card-head"><div><h3>Category mix</h3></div></div>
+        <div id="dn-chart-cat" class="dn-hbar-list dn-hbar-list--fill" aria-label="Category bar list"></div>
       </div>
       <div id="dn-card-sources" class="dn-card dn-card--fill">
-        <div class="dn-card-head"><div><h3>Kaynaklar (en çok kullanılan)</h3></div></div>
+        <div class="dn-card-head"><div><h3>Sources (most used)</h3></div></div>
         <div id="dn-table-sources" class="dn-table-host--fill"></div>
       </div>
       <div id="dn-card-keywords" class="dn-card dn-card--fill">
-        <div class="dn-card-head"><div><h3>Top başlık kelimeleri</h3></div></div>
-        <div id="dn-chart-keywords" class="dn-hbar-list dn-hbar-list--fill" aria-label="Kelime bar listesi"></div>
+        <div class="dn-card-head"><div><h3>Top headline words</h3></div></div>
+        <div id="dn-chart-keywords" class="dn-hbar-list dn-hbar-list--fill" aria-label="Word bar list"></div>
       </div>
     </div>
 
     <div class="dn-flow-grid">
       <div id="dn-card-day" class="dn-card dn-span-2">
-        <div class="dn-card-head"><div><h3>Günlük içerik sayısı</h3></div></div>
+        <div class="dn-card-head"><div><h3>Daily content count</h3></div></div>
         <div id="dn-chart-day" class="dn-chart" style="min-height:300px"></div>
       </div>
       <div id="dn-card-week-trend" class="dn-card">
-        <div class="dn-card-head"><div><h3>Haftalık trend (artış / düşüş)</h3></div></div>
+        <div class="dn-card-head"><div><h3>Weekly trend (up / down)</h3></div></div>
         <div id="dn-chart-week" class="dn-chart"></div>
       </div>
       <div id="dn-card-hour" class="dn-card">
-        <div class="dn-card-head"><div><h3>Saatlik yayın dağılımı</h3></div></div>
+        <div class="dn-card-head"><div><h3>Hourly publish mix</h3></div></div>
         <div id="dn-chart-hour" class="dn-chart"></div>
       </div>
       <div id="dn-card-weekday" class="dn-card">
-        <div class="dn-card-head"><div><h3>Haftanın günleri</h3></div></div>
+        <div class="dn-card-head"><div><h3>Days of week</h3></div></div>
         <div id="dn-chart-weekday" class="dn-chart"></div>
       </div>
       <div id="dn-card-own-vs" class="dn-card">
-        <div class="dn-card-head"><div><h3>Özgün vs kaynaklı (kategori)</h3></div></div>
+        <div class="dn-card-head"><div><h3>Original vs sourced (category)</h3></div></div>
         <div id="dn-chart-own" class="dn-chart"></div>
       </div>
       <div id="dn-card-week-summary" class="dn-card">
-        <div class="dn-card-head"><div><h3>Haftalık özet</h3></div></div>
-        <div id="dn-chart-week-mini" class="dn-chart dn-chart--mini" aria-label="Haftalık özet grafik"></div>
+        <div class="dn-card-head"><div><h3>Weekly summary</h3></div></div>
+        <div id="dn-chart-week-mini" class="dn-chart dn-chart--mini" aria-label="Weekly summary chart"></div>
         <div id="dn-table-week"></div>
       </div>
       <div id="dn-card-top-days" class="dn-card">
-        <div class="dn-card-head"><div><h3>Günlük adetler</h3></div></div>
+        <div class="dn-card-head"><div><h3>Daily counts</h3></div></div>
         <div id="dn-table-top-days"></div>
       </div>
       <div id="dn-card-own-cat" class="dn-card dn-card--fill dn-span-2">
-        <div class="dn-card-head"><div><h3>Özgün içerik — kategori</h3></div></div>
-        <div id="dn-own-bars" class="dn-own-wrap" aria-label="Özgün içerik kategori dağılımı"></div>
+        <div class="dn-card-head"><div><h3>Original content — category</h3></div></div>
+        <div id="dn-own-bars" class="dn-own-wrap" aria-label="Original-content category mix"></div>
       </div>
     </div>
 
     <div class="dn-card" id="dn-card-items">
       <div class="dn-card-head">
         <div>
-          <h3>Son içerikler</h3>
+          <h3>Latest content</h3>
           <p id="dn-items-meta" class="dn-card-sub"></p>
         </div>
         <button type="button" id="dn-items-traffic-btn" class="dn-traffic-btn">
-          Trafikleri göster
+          Show traffic
         </button>
       </div>
       <div id="dn-table-items"></div>
@@ -1158,8 +1158,8 @@
         window.history.replaceState({}, "", u.pathname + "?" + u.searchParams.toString() + u.hash);
       } catch (_) {}
     }
-    if (pageTab === "trend" && typeof window.rtBootTrendHaberler === "function") {
-      window.rtBootTrendHaberler();
+    if (pageTab === "trend" && typeof window.rtBootTrendNews === "function") {
+      window.rtBootTrendNews();
     }
     if (pageTab === "stats") {
       if (!window.__dnStatsLoaded) {
@@ -1222,9 +1222,9 @@
     return p[2] + "/" + p[1];
   }
 
-  /** Haftanın günleri grafiği: ≤7g → takvim sırası (…→Cuma bugün); uzun dönem → Pzt–Paz. */
+  /** Days of week grafiği: ≤7g → takvim sırası (…→Cuma bugün); uzun dönem → Pzt–Paz. */
   function weekdayChartSeries(wd, data) {
-    var WD = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
+    var WD = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     var pm = (data && data.period_meta) || {};
     var span = daysBetween(pm.start, pm.end);
     var labels = [];
@@ -1314,8 +1314,8 @@
       btn.classList.remove("is-on");
       btn.disabled = false;
       btn.textContent = id === "dn-items-traffic-btn"
-        ? "Trafikleri göster"
-        : "İlgili içeriklerin trafiğini göster";
+        ? "Show traffic"
+        : "Show traffic for related content";
     });
     if (state.data) {
       state.data.traffic = null;
@@ -1330,8 +1330,8 @@
   function syncTrafficButton() {
     var busy = !!(state.loading || state.trafficLoading);
     [
-      { id: "dn-traffic-btn", idle: "İlgili içeriklerin trafiğini göster", done: "Trafik yüklendi" },
-      { id: "dn-items-traffic-btn", idle: "Trafikleri göster", done: "Trafikler yüklendi" }
+      { id: "dn-traffic-btn", idle: "Show traffic for related content", done: "Traffic loaded" },
+      { id: "dn-items-traffic-btn", idle: "Show traffic", done: "Traffic loaded" }
     ].forEach(function (cfg) {
       var btn = $(cfg.id);
       if (!btn) return;
@@ -1441,9 +1441,9 @@
 
   function startLoadProgress(reason) {
     stopProgressTimer();
-    var label = reason || "Yükleniyor…";
+    var label = reason || "Loading…";
     state.progressLabel = label;
-    paintProgress(8, label + " · yayın verisi", { indeterminate: false });
+    paintProgress(8, label + " · publish data", { indeterminate: false });
     setFilterTabsDisabled(true);
     var started = Date.now();
     state.progressTimer = setInterval(function () {
@@ -1452,9 +1452,9 @@
       var next = Math.max(state.progressPct, Math.min(92, 8 + target));
       var stage;
       if (state.trafficLoading) {
-        stage = elapsed < 2000 ? "GA4" : (elapsed < 5500 ? "GSC" : "özet");
+        stage = elapsed < 2000 ? "GA4" : (elapsed < 5500 ? "GSC" : "summary");
       } else {
-        stage = elapsed < 1200 ? "sheet" : "grafik";
+        stage = elapsed < 1200 ? "sheet" : "chart";
       }
       paintProgress(next, label + " · " + stage, { indeterminate: false });
     }, 180);
@@ -1462,7 +1462,7 @@
 
   function finishLoadProgress(ok) {
     stopProgressTimer();
-    paintProgress(100, ok ? "Hazır" : "Tamamlanamadı", { indeterminate: false });
+    paintProgress(100, ok ? "Ready" : "Could not complete", { indeterminate: false });
     setTimeout(function () {
       var bar = $("dn-period-progress");
       var fill = $("dn-period-progress-fill");
@@ -1507,7 +1507,7 @@
         minute: "2-digit",
         second: "2-digit",
         hour12: false,
-      }) + " TSİ";
+      }) + " TRT";
     } catch (_) {
       return s;
     }
@@ -1590,7 +1590,7 @@
       .replace(/"/g, "&quot;");
   }
 
-  var TR_WEEKDAYS = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
+  var TR_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   function trWeekday(iso) {
     var p = String(iso || "").slice(0, 10).split("-");
     if (p.length !== 3) return "";
@@ -1689,7 +1689,7 @@
       return '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + Math.max(barW - 0.35, 0.5).toFixed(2) +
         '" height="' + Math.max(bh, 0.5).toFixed(2) + '" rx="0.4" fill="' + (on ? pal.amberOn : pal.barIdle) + '"/>';
     }).join("");
-    return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="Saatlik dağılım">' + rects + "</svg>";
+    return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="Hourly distribution">' + rects + "</svg>";
   }
 
   /** KPI sağ dikey mini bar — son N gün / seri. */
@@ -1778,11 +1778,11 @@
         return '<td class="' + (col.num ? "num" : "") + (col.className ? " " + col.className : "") +
           '" data-label="' + esc(label) + '">' + html + "</td>";
       }).join("") + "</tr>";
-    }).join("") || ('<tr><td colspan="' + cfg.columns.length + '" class="dn-muted">' + esc(cfg.empty || "Veri yok") + "</td></tr>");
+    }).join("") || ('<tr><td colspan="' + cfg.columns.length + '" class="dn-muted">' + esc(cfg.empty || "No data") + "</td></tr>");
 
     var moreBtn = "";
     if (cfg.expandable && st.limit && total > st.limit && !st.forceAll) {
-      moreBtn = '<button type="button" class="dn-ilink" data-act="more">Tümünü gör (' + fmt(total) + ") ›</button>";
+      moreBtn = '<button type="button" class="dn-ilink" data-act="more">See all (' + fmt(total) + ") ›</button>";
     } else if (cfg.expandable && st.forceAll && st.limit) {
       moreBtn = '<button type="button" class="dn-ilink" data-act="less">Daralt ‹</button>';
     }
@@ -1854,15 +1854,15 @@
     var el = $("dn-period-tabs");
     if (!el) return;
     var list = (tabs && tabs.length ? tabs.slice() : [
-      { key: "today", label: "Bugün" },
-      { key: "yesterday", label: "Dün" },
-      { key: "last_7d", label: "Son 1 hafta" },
-      { key: "prev_week", label: "Geçen hafta" },
+      { key: "today", label: "Today" },
+      { key: "yesterday", label: "Yesterday" },
+      { key: "last_7d", label: "Last 1 week" },
+      { key: "prev_week", label: "Last week" },
       { key: "this_month", label: "Bu ay" },
-      { key: "last_month", label: "Geçen ay" },
-      { key: "all", label: "Tümü" }
+      { key: "last_month", label: "Last month" },
+      { key: "all", label: "All" }
     ]).filter(function (t) { return t.key !== "custom"; });
-    list.push({ key: "custom", label: "Tarih aralığını seç" });
+    list.push({ key: "custom", label: "Select date range" });
     el.innerHTML = list.map(function (t) {
       var on = t.key === state.period;
       return '<button type="button" class="dn-tab' + (on ? " is-active" : "") + '" data-period="' + esc(t.key) + '">' +
@@ -1890,7 +1890,7 @@
         el.querySelectorAll(".dn-tab").forEach(function (b) {
           b.classList.toggle("is-active", b.getAttribute("data-period") === next);
         });
-        load(false, { reason: btn.textContent.trim() || "Dönem" });
+        load(false, { reason: btn.textContent.trim() || "Period" });
       });
       btn.disabled = !!state.loading;
     });
@@ -1904,7 +1904,7 @@
     if (rangeEl) {
       rangeEl.textContent = meta.range_label
         ? (meta.label || "") + " · " + meta.range_label
-        : "Dönem seçin";
+        : "Select a period";
     }
     if (cmpEl) {
       if (meta.current_count == null) {
@@ -1921,8 +1921,8 @@
           ? ""
           : " (" + (meta.delta_pct > 0 ? "+" : "") + fmt(meta.delta_pct, 1) + "%)";
         cmpEl.innerHTML =
-          '<span><span class="dn-period-cmp-val">' + fmt(meta.current_count) + "</span> içerik</span>" +
-          '<span>Son 7 vs önceki: <span class="' + rvpCls + '">' + rvpTxt + rvpPct + "</span></span>";
+          '<span><span class="dn-period-cmp-val">' + fmt(meta.current_count) + "</span> items</span>" +
+          '<span>Last 7 vs previous: <span class="' + rvpCls + '">' + rvpTxt + rvpPct + "</span></span>";
         return;
       }
       var delta = meta.delta;
@@ -1939,8 +1939,8 @@
         ? ""
         : " (" + (meta.delta_pct > 0 ? "+" : "") + fmt(meta.delta_pct, 1) + "%)";
       cmpEl.innerHTML =
-        '<span><span class="dn-period-cmp-val">' + fmt(meta.current_count) + "</span> içerik</span>" +
-        '<span>vs ' + esc(meta.cmp_label || "önceki") +
+        '<span><span class="dn-period-cmp-val">' + fmt(meta.current_count) + "</span> items</span>" +
+        '<span>vs ' + esc(meta.cmp_label || "previous") +
         ' <span class="dn-period-cmp-val">' + fmt(meta.previous_count) + "</span></span>" +
         '<span class="' + deltaCls + '">' + deltaTxt + pct + "</span>";
     }
@@ -1962,7 +1962,7 @@
         state.category = next;
         state.tables = {};
         resetTrafficUi();
-        load(false, { reason: "Kategori" });
+        load(false, { reason: "Category" });
       });
       btn.disabled = !!state.loading;
     });
@@ -1985,13 +1985,13 @@
     var cmpAccent = (rvp.delta != null && rvp.delta < 0) ? pal.red : pal.green;
     var cmpBase = (rvp.delta != null && rvp.delta < 0) ? pal.redSoft : pal.greenSoft;
     var ownPie = pieSvg([
-      { value: s.own || 0, color: pal.green, label: "Özgün" },
-      { value: s.sourced || 0, color: pal.blue, label: "Kaynaklı" }
+      { value: s.own || 0, color: pal.green, label: "Original" },
+      { value: s.sourced || 0, color: pal.blue, label: "Sourced" }
     ]);
     var hourViz = hourBarsSvg(data.by_hour || [], peak.hour);
     var recentN = rvp.recent != null ? rvp.recent : (rvp.recent_7d != null ? rvp.recent_7d : rvp.recent_14d);
     var prevN = rvp.prev != null ? rvp.prev : (rvp.prev_7d != null ? rvp.prev_7d : rvp.prev_14d);
-    var cmpLabel = rvp.kpi_label || "Dönem vs önceki";
+    var cmpLabel = rvp.kpi_label || "Period vs previous";
     var cmpSparkDays = days.length > 14 ? days.slice(-14) : days;
     var cmpBars = miniBarsSvg(
       cmpSparkDays.map(function (d) { return d.count; }),
@@ -2029,7 +2029,7 @@
         : " (" + (pair.delta_pct > 0 ? "+" : "") + fmt(pair.delta_pct, 1) + "%)";
       var prevBit = pair.previous == null
         ? ""
-        : '<span class="dn-kpi-delta-prev">önce ' + fmt(pair.previous, opts.prevDecimals != null ? opts.prevDecimals : dec) + unit + " · </span>";
+        : '<span class="dn-kpi-delta-prev">prev ' + fmt(pair.previous, opts.prevDecimals != null ? opts.prevDecimals : dec) + unit + " · </span>";
       return '<p class="dn-kpi-delta ' + cls + '">' + prevBit + sign + fmt(d, dec) + unit + pct + "</p>";
     }
 
@@ -2040,8 +2040,8 @@
       var psign = pd.delta > 0 ? "+" : "";
       var ppct = pd.delta_pct == null ? "" : " (" + (pd.delta_pct > 0 ? "+" : "") + fmt(pd.delta_pct, 1) + "%)";
       var prevHour = kc.peak_hour_prev && kc.peak_hour_prev !== (peak.label || "")
-        ? "önce " + kc.peak_hour_prev + " · "
-        : (pd.previous != null ? "önce " + fmt(pd.previous) + " · " : "");
+        ? "prev " + kc.peak_hour_prev + " · "
+        : (pd.previous != null ? "prev " + fmt(pd.previous) + " · " : "");
       peakDelta = '<p class="dn-kpi-delta ' + pcls + '"><span class="dn-kpi-delta-prev">' + esc(prevHour) + "</span>" +
         psign + fmt(pd.delta) + ppct + "</p>";
     }
@@ -2056,7 +2056,7 @@
       viz: cmpBars
     };
 
-    // İçerik toplamı ile "xxx vs xxx" aynı dönem sayılarıysa içerik kartını gösterme
+    // Content toplamı ile "xxx vs xxx" aynı dönem sayılarıysa içerik kartını gösterme
     var contentDupesCmp =
       recentN != null &&
       prevN != null &&
@@ -2072,7 +2072,7 @@
       cards.push(cmpCard);
     } else {
       cards.push({
-        label: "İçerik",
+        label: "Content",
         value: fmt(s.total),
         sub: (s.date_min || "—") + " → " + (s.date_max || "—"),
         delta: kc ? deltaHtml(kc.total) : "",
@@ -2081,14 +2081,14 @@
     }
     cards.push(
       {
-        label: "Özgün",
+        label: "Original",
         value: fmt(s.own_pct, 1) + "%",
         sub: fmt(s.own) + " / " + fmt(s.total),
         delta: kc ? deltaHtml(kc.own_pct, { decimals: 1, unit: " pp", prevDecimals: 1 }) : "",
         viz: ownPie
       },
       {
-        label: "Ort. / gün",
+        label: "Avg / day",
         value: fmt(s.avg_per_day, 1),
         sub: "Medyan: " + fmt(s.median_per_day, 1),
         delta: kc ? deltaHtml(kc.avg_per_day, { decimals: 1, prevDecimals: 1 }) : "",
@@ -2097,21 +2097,21 @@
     );
     if (showWeekend) {
       var weekendPie = pieSvg([
-        { value: s.weekend_count || 0, color: pal.red, label: "Cmt+Paz" },
-        { value: s.weekday_count || 0, color: pal.indigo, label: "Hafta içi" }
+        { value: s.weekend_count || 0, color: pal.red, label: "Sat+Sun" },
+        { value: s.weekday_count || 0, color: pal.indigo, label: "Weekdays" }
       ]);
       cards.push({
-        label: "Cmt + Paz",
+        label: "Sat + Sun",
         value: fmt(s.weekend_count),
-        sub: "Hafta içi: " + fmt(s.weekday_count) + " · %" + fmt(s.weekend_pct, 1),
+        sub: "Weekdays: " + fmt(s.weekday_count) + " · %" + fmt(s.weekend_pct, 1),
         delta: kc ? deltaHtml(kc.weekend_count) : "",
         viz: weekendPie
       });
     }
     cards.push({
-      label: "Yoğun saat",
+      label: "Peak hour",
       value: peak.label || "—",
-      sub: fmt(peak.count) + " içerik",
+      sub: fmt(peak.count) + " items",
       delta: peakDelta,
       viz: hourViz
     });
@@ -2156,16 +2156,16 @@
     var ownShare = ownTot ? (100 * (Number(own.own_views) || 0) / ownTot) : 0;
 
     var cards = [
-      { label: "GA4 görüntüleme", raw: ga4.views, value: fmt(ga4.views), sub: (ga4.matched_articles || 0) + " eşleşen içerik" },
-      { label: "GA4 oturum", raw: ga4.sessions, value: fmt(ga4.sessions), sub: "web+mweb" },
-      { label: "GSC tıklama", raw: gsc.clicks, value: fmt(gsc.clicks), sub: (gsc.matched_pages || 0) + " sayfa" },
-      { label: "GSC gösterim", raw: gsc.impressions, value: fmt(gsc.impressions), sub: "CTR " + fmt(gsc.ctr, 1) + "%" },
-      { label: "GSC pozisyon", raw: gsc.position, value: fmt(gsc.position, 1), sub: gsc.scope || "—", hideIf: isZero(gsc.impressions) && isZero(gsc.clicks) },
+      { label: "GA4 views", raw: ga4.views, value: fmt(ga4.views), sub: (ga4.matched_articles || 0) + " matched items" },
+      { label: "GA4 sessions", raw: ga4.sessions, value: fmt(ga4.sessions), sub: "web+mweb" },
+      { label: "GSC clicks", raw: gsc.clicks, value: fmt(gsc.clicks), sub: (gsc.matched_pages || 0) + " pages" },
+      { label: "GSC impressions", raw: gsc.impressions, value: fmt(gsc.impressions), sub: "CTR " + fmt(gsc.ctr, 1) + "%" },
+      { label: "GSC position", raw: gsc.position, value: fmt(gsc.position, 1), sub: gsc.scope || "—", hideIf: isZero(gsc.impressions) && isZero(gsc.clicks) },
       {
-        label: "Özgün trafik payı",
+        label: "Original traffic share",
         raw: ownShare,
         value: ownTot ? fmt(ownShare, 1) + "%" : "—",
-        sub: fmt(own.own_views) + " / " + fmt(own.sourced_views) + " görünt.",
+        sub: fmt(own.own_views) + " / " + fmt(own.sourced_views) + " views",
         hideIf: isZero(own.own_views)
       }
     ].filter(function (c) {
@@ -2200,8 +2200,8 @@
       }
       if (gsc.note && bits.indexOf(gsc.note) < 0) bits.push(gsc.note);
       if (t.error) bits.push(t.error);
-      else if (t.ok === false) bits.push("Trafik kısmen yüklenemedi");
-      meta.textContent = bits.join(" · ") || "Dönem yayın ID’leri ile eşleşen trafik";
+      else if (t.ok === false) bits.push("Traffic only partially loaded");
+      meta.textContent = bits.join(" · ") || "Traffic matching period publish IDs";
     }
 
     var kpiEl = $("dn-traffic-kpis");
@@ -2230,18 +2230,18 @@
     if (showSources) {
       renderHBarList("dn-chart-traffic-sources", buckets.map(function (b) {
         return { label: b.label || b.key, count: b.sessions || b.views || 0, share_pct: null };
-      }), { nameKey: "label", countKey: "count", empty: "Kaynak kırılımı yok" });
+      }), { nameKey: "label", countKey: "count", empty: "No source breakdown" });
     }
     if (showPhases) {
       renderHBarList("dn-chart-traffic-phases", phases.map(function (p) {
         return { label: p.label || p.key, count: p.views || p.sessions || 0 };
-      }), { nameKey: "label", countKey: "count", empty: "Faz verisi yok" });
+      }), { nameKey: "label", countKey: "count", empty: "No phase data" });
     }
     if (showOwnChart) {
       renderHBarList("dn-chart-traffic-own", [
-        { label: "Özgün", count: own.own_views || 0 },
-        { label: "Kaynaklı", count: own.sourced_views || 0 }
-      ].filter(function (r) { return !isZero(r.count); }), { nameKey: "label", countKey: "count", empty: "Trafik yok" });
+        { label: "Original", count: own.own_views || 0 },
+        { label: "Sourced", count: own.sourced_views || 0 }
+      ].filter(function (r) { return !isZero(r.count); }), { nameKey: "label", countKey: "count", empty: "No traffic" });
     }
   }
 
@@ -2288,7 +2288,7 @@
     var fillClass = opts.fillClass || "";
     var list = (rows || []).slice(0, opts.limit || 50);
     if (!list.length) {
-      el.innerHTML = '<p class="dn-muted">' + esc(opts.empty || "Veri yok") + "</p>";
+      el.innerHTML = '<p class="dn-muted">' + esc(opts.empty || "No data") + "</p>";
       return;
     }
     var max = Math.max.apply(null, list.map(function (r) { return Number(r[countKey]) || 0; }).concat([1]));
@@ -2317,17 +2317,17 @@
       defaultDir: "desc",
       searchable: false,
       showMeta: false,
-      empty: "Kaynak yok",
+      empty: "No sources",
       columns: [
         {
-          key: "source", label: "Kaynak",
+          key: "source", label: "Source",
           render: function (r, i) {
             return '<span class="dn-rank">' + (i + 1) + "</span>" + esc(r.source);
           }
         },
-        { key: "count", label: "Adet", num: true, render: function (r) { return fmt(r.count); } },
+        { key: "count", label: "Count", num: true, render: function (r) { return fmt(r.count); } },
         {
-          key: "share_pct", label: "Pay %", num: true,
+          key: "share_pct", label: "Share %", num: true,
           render: function (r) {
             var w = Math.max(4, Math.round((r.share_pct / maxShare) * 100));
             return '<div class="dn-barcell"><div class="dn-bartrack"><div class="dn-barfill" style="width:' + w + '%"></div></div>' +
@@ -2379,7 +2379,7 @@
         hideWeekly = true;
       }
     }
-    // Tek gün / kısa dönem: haftalık özet / trend / günlük seri / haftanın günleri yok
+    // Tek days / kısa dönem: haftalık özet / trend / günlük seri / haftanın günleri yok
     [
       ["dn-card-week-trend", hideWeekly],
       ["dn-card-week-summary", hideWeekly],
@@ -2429,7 +2429,7 @@
         nameKey: "label",
         countKey: "count",
         shareKey: "share_pct",
-        empty: "Kategori yok"
+        empty: "No categories"
       });
     }
 
@@ -2456,7 +2456,7 @@
         y: days.map(function (d) { return d.count; }),
         line: { color: pal.line, width: 2 },
         fill: "tozeroy", fillcolor: pal.lineFill,
-        hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
+        hovertemplate: "%{x}<br>%{y} items<extra></extra>"
       }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
     }
 
@@ -2475,7 +2475,7 @@
             return palW.gray;
           })
         },
-        hovertemplate: "%{customdata}<br>%{x}<br>%{y} içerik<extra></extra>"
+        hovertemplate: "%{customdata}<br>%{x}<br>%{y} items<extra></extra>"
       }];
       var weekLayout = plotLayout({ margin: { t: 8, r: 16, b: 72, l: 40 }, xaxis: { tickangle: -40 } });
       Plotly.newPlot("dn-chart-week", weekTrace, weekLayout, plotCfg());
@@ -2502,7 +2502,7 @@
       var wdSeries = weekdayChartSeries(wd, data);
       var wdLabels = wdSeries.labels;
       var wdCounts = wdSeries.counts;
-      // En düşük 2 günü kırmızı; diğerleri (hafta sonu dahil) mavi
+      // En düşük 2 günü red; diğerleri (hafta sonu dahil) mavi
       var lowestTwoIdx = wdCounts
         .map(function (c, i) { return { i: i, count: Number(c) || 0 }; })
         .sort(function (a, b) { return a.count - b.count || a.i - b.i; })
@@ -2517,7 +2517,7 @@
             return lowestTwoIdx[i] ? palWd.red : palWd.indigo;
           })
         },
-        hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
+        hovertemplate: "%{x}<br>%{y} items<extra></extra>"
       }], plotLayout({
         margin: { t: 8, r: 16, b: 56, l: 40 },
         xaxis: { tickfont: { size: 11 }, automargin: true }
@@ -2527,8 +2527,8 @@
     var own = data.own_by_category || [];
     var palO = dnPalette();
     Plotly.newPlot("dn-chart-own", [
-      { type: "bar", name: "Özgün", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.own; }), marker: { color: palO.green }, hovertemplate: "%{x}<br>Özgün: %{y}<extra></extra>" },
-      { type: "bar", name: "Kaynaklı", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.sourced; }), marker: { color: palO.blue }, hovertemplate: "%{x}<br>Kaynaklı: %{y}<extra></extra>" }
+      { type: "bar", name: "Original", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.own; }), marker: { color: palO.green }, hovertemplate: "%{x}<br>Original: %{y}<extra></extra>" },
+      { type: "bar", name: "Sourced", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.sourced; }), marker: { color: palO.blue }, hovertemplate: "%{x}<br>Sourced: %{y}<extra></extra>" }
     ], plotLayout({ barmode: "stack", margin: { t: 28, r: 16, b: 70, l: 40 }, xaxis: { tickangle: -20 } }), plotCfg());
   }
 
@@ -2545,9 +2545,9 @@
         searchable: false,
         showMeta: false,
         columns: [
-          { key: "week", label: "Hafta" },
-          { key: "range", label: "Tarih aralığı" },
-          { key: "count", label: "Adet", num: true, render: function (r) { return fmt(r.count); } },
+          { key: "week", label: "Week" },
+          { key: "range", label: "Date range" },
+          { key: "count", label: "Count", num: true, render: function (r) { return fmt(r.count); } },
           {
             key: "delta", label: "Δ", num: true,
             render: function (r) {
@@ -2579,11 +2579,11 @@
       defaultSort: "count",
       defaultDir: "desc",
       searchable: true,
-      searchPlaceholder: "Gün ara…",
+      searchPlaceholder: "Search days…",
       searchKeys: ["day", "day_label"],
       columns: [
-        { key: "day", label: "Gün", render: function (r) { return esc(r.day_label || formatDayWithWeekday(r.day)); } },
-        { key: "count", label: "Adet", num: true, render: function (r) { return fmt(r.count); } }
+        { key: "day", label: "Day", render: function (r) { return esc(r.day_label || formatDayWithWeekday(r.day)); } },
+        { key: "count", label: "Count", num: true, render: function (r) { return fmt(r.count); } }
       ]
     });
 
@@ -2594,31 +2594,31 @@
     if (itemsMeta) {
       if (state.trafficShown) {
         itemsMeta.textContent =
-          "Trafikli " + fmt(tableRows.length) + " / " + fmt((data.items || []).length) +
-          " listelenen · dönem " + fmt(data.items_total) +
-          " (GA4/GSC eşleşenler, görünt. azalan)";
+          "With traffic " + fmt(tableRows.length) + " / " + fmt((data.items || []).length) +
+          " listed · period " + fmt(data.items_total) +
+          " (GA4/GSC matches, views descending)";
       } else {
         itemsMeta.textContent =
-          "Gösterilen " + fmt((data.items || []).length) + " / " + fmt(data.items_total) +
-          " (en yeni) · trafik için «Trafikleri göster»";
+          "Showing " + fmt((data.items || []).length) + " / " + fmt(data.items_total) +
+          " (newest) · use «Show traffic» for traffic";
       }
     }
     var metricCols = state.trafficShown
       ? [
           {
-            key: "views", label: "Görünt.", num: true, defaultDir: "desc",
+            key: "views", label: "Views", num: true, defaultDir: "desc",
             render: function (r) { return r.views == null ? "—" : fmt(r.views); }
           },
           {
-            key: "sessions", label: "Oturum", num: true,
+            key: "sessions", label: "Sessions", num: true,
             render: function (r) { return r.sessions == null ? "—" : fmt(r.sessions); }
           },
           {
-            key: "gsc_clicks", label: "GSC tık", num: true,
+            key: "gsc_clicks", label: "GSC clicks", num: true,
             render: function (r) { return r.gsc_clicks == null ? "—" : fmt(r.gsc_clicks); }
           },
           {
-            key: "gsc_impressions", label: "GSC gösterim", num: true,
+            key: "gsc_impressions", label: "GSC impressions", num: true,
             render: function (r) { return r.gsc_impressions == null ? "—" : fmt(r.gsc_impressions); }
           },
           {
@@ -2632,17 +2632,17 @@
       defaultSort: state.trafficShown ? "views" : "date",
       defaultDir: "desc",
       cardMobile: true,
-      searchPlaceholder: "Başlık / kaynak / kategori ara…",
+      searchPlaceholder: "Search title / source / category…",
       searchKeys: ["title", "source", "category", "date"],
       columns: [
-        { key: "date", label: "Tarih", render: function (r) { return esc(r.date || "—"); } },
-        { key: "title", label: "Başlık", className: "dn-title-cell", render: function (r) { return esc(r.title || "—"); } },
-        { key: "category", label: "Kategori", render: function (r) { return esc(shortCat(r.category || "—")); } },
+        { key: "date", label: "Date", render: function (r) { return esc(r.date || "—"); } },
+        { key: "title", label: "Title", className: "dn-title-cell", render: function (r) { return esc(r.title || "—"); } },
+        { key: "category", label: "Category", render: function (r) { return esc(shortCat(r.category || "—")); } },
         {
-          key: "source", label: "Kaynak",
+          key: "source", label: "Source",
           render: function (r) {
             return r.is_own
-              ? '<span class="dn-badge dn-badge-own">Özgün</span>'
+              ? '<span class="dn-badge dn-badge-own">Original</span>'
               : '<span class="dn-badge dn-badge-src">' + esc(r.source || "—") + "</span>";
           }
         }
@@ -2657,7 +2657,7 @@
       return (Number(b.own_pct) || 0) - (Number(a.own_pct) || 0);
     });
     if (!rows.length) {
-      el.innerHTML = '<p class="dn-muted">Veri yok</p>';
+      el.innerHTML = '<p class="dn-muted">No data</p>';
       return;
     }
     var body = rows.map(function (r) {
@@ -2668,8 +2668,8 @@
       var ownPctBar = total ? (100 * own / total) : 0;
       var srcPctBar = total ? (100 * sourced / total) : 0;
       var ownPct = r.own_pct != null ? r.own_pct : ownPctBar;
-      var tip = name + " — özgün " + fmt(own) + " / kaynaklı " + fmt(sourced) +
-        " (" + fmt(ownPct, 1) + "% özgün)";
+      var tip = name + " — original " + fmt(own) + " / sourced " + fmt(sourced) +
+        " (" + fmt(ownPct, 1) + "% original)";
       return '<div class="dn-own-row" title="' + esc(tip) + '">' +
         '<div class="dn-own-head">' +
           '<span class="dn-own-name">' + esc(name) + "</span>" +
@@ -2680,15 +2680,15 @@
           '<div class="dn-own-seg dn-own-seg--src" style="width:' + srcPctBar.toFixed(2) + '%"></div>' +
         "</div>" +
         '<div class="dn-own-meta">' +
-          "<span><strong>" + fmt(own) + "</strong> özgün</span>" +
-          "<span><strong>" + fmt(sourced) + "</strong> kaynaklı</span>" +
+          "<span><strong>" + fmt(own) + "</strong> original</span>" +
+          "<span><strong>" + fmt(sourced) + "</strong> sourced</span>" +
         "</div>" +
       "</div>";
     }).join("");
     el.innerHTML =
       '<div class="dn-own-legend">' +
-        '<span class="dn-own-legend-item"><span class="dn-own-swatch dn-own-swatch--own"></span>Özgün</span>' +
-        '<span class="dn-own-legend-item"><span class="dn-own-swatch dn-own-swatch--src"></span>Kaynaklı</span>' +
+        '<span class="dn-own-legend-item"><span class="dn-own-swatch dn-own-swatch--own"></span>Original</span>' +
+        '<span class="dn-own-legend-item"><span class="dn-own-swatch dn-own-swatch--src"></span>Sourced</span>' +
         '<span class="dn-imeta" style="margin-left:auto">' + fmt(rows.length) + "</span>" +
       "</div>" +
       '<div class="dn-own-list">' + body + "</div>";
@@ -2732,11 +2732,11 @@
       }
       var chips = [];
       if (syncAt && syncAt !== "—") chips.push(chip(syncAt, "son senkron: " + syncAt));
-      chips.push(chip(fmt(s.total) + " kayıt"));
+      chips.push(chip(fmt(s.total) + " records"));
       if (srcLabel && srcLabel !== "—") chips.push(chip(srcLabel));
       if (data.min_id) chips.push(chip("id≥" + data.min_id));
       if (pm.label) chips.push(chip(pm.label));
-      if (latestId) chips.push(chip("#" + latestId, "son id: " + latestId));
+      if (latestId) chips.push(chip("#" + latestId, "last id: " + latestId));
       meta.innerHTML = chips.join("");
     }
     var bg = $("dn-bg-sync");
@@ -2745,18 +2745,18 @@
       var bgAt = fmtTsTR(data.background_synced_at || data.fetched_at || "—");
       var mode = data.sync_mode ? String(data.sync_mode) : "";
       var ageMin = data.sync_age_sec != null ? Math.max(0, Math.round(data.sync_age_sec / 60)) : null;
-      var age = ageMin != null ? ageMin + " dk önce" : "";
+      var age = ageMin != null ? ageMin + " min ago" : "";
       var label;
       var full;
       if (health === "error") {
-        label = "Hata" + (age ? " · " + age : "");
-        full = "Arka plan: hata — " + (data.sync_message || data.admin_error || "bilinmiyor") + " · " + bgAt + (mode ? " · " + mode : "");
+        label = "Error" + (age ? " · " + age : "");
+        full = "Background: error — " + (data.sync_message || data.admin_error || "unknown") + " · " + bgAt + (mode ? " · " + mode : "");
       } else if (health === "stale") {
-        label = "Gecikmiş" + (age ? " · " + age : "");
-        full = "Arka plan gecikmiş (>45 dk) · son: " + bgAt + (age ? " · " + age : "") + (mode ? " · " + mode : "") + " · hedef: 30 dk";
+        label = "Stale" + (age ? " · " + age : "");
+        full = "Background stale (>45 min) · last: " + bgAt + (age ? " · " + age : "") + (mode ? " · " + mode : "") + " · target: 30 min";
       } else {
-        label = "OK" + (age ? " · " + age : "") + " · 30 dk";
-        full = "Arka plan OK · son güncelleme: " + bgAt + (age ? " · " + age : "") + (mode ? " · " + mode : "") + " · her 30 dk";
+        label = "OK" + (age ? " · " + age : "") + " · 30 min";
+        full = "Background OK · last update: " + bgAt + (age ? " · " + age : "") + (mode ? " · " + mode : "") + " · every 30 min";
       }
       bg.className = "dn-meta-status is-" + health;
       bg.textContent = label;
@@ -2780,7 +2780,7 @@
       }).then(function (resp) {
         return resp.json().then(function (data) {
           if (resp.status === 409) {
-            var err = new Error((data && data.message) || "Bridge meşgul");
+            var err = new Error((data && data.message) || "Bridge busy");
             err.busy = true;
             err.bridge = data || null;
             throw err;
@@ -2796,11 +2796,11 @@
     }
     return attempt().catch(function (err) {
       if (!err || !err.busy) throw err;
-      paintProgress(8, "Köprü meşgul · 8 sn sonra tekrar…", { indeterminate: true });
+      paintProgress(8, "Bridge busy · retry in 8s…", { indeterminate: true });
       return new Promise(function (resolve) { setTimeout(resolve, 8000); }).then(attempt);
     }).catch(function (err) {
       if (!err || !err.busy) throw err;
-      paintProgress(12, "Köprü hâlâ meşgul · 12 sn sonra…", { indeterminate: true });
+      paintProgress(12, "Bridge still busy · in 12s…", { indeterminate: true });
       return new Promise(function (resolve) { setTimeout(resolve, 12000); }).then(attempt);
     });
   }
@@ -2815,17 +2815,17 @@
     var pct;
     if (phase === "ingest") {
       pct = 94;
-      label = (total ? total + "/" + total + " sayfa" : "sayfalar tamam") +
-        " · Railway'e yazılıyor… · " + fmt(rows) + " kayıt";
+      label = (total ? total + "/" + total + " pages" : "pages done") +
+        " · Writing to Railway… · " + fmt(rows) + " records";
     } else if (phase === "done") {
       pct = 96;
-      label = (p.message || "Tamam") + (rows ? " · " + fmt(rows) + " kayıt" : "");
+      label = (p.message || "Done") + (rows ? " · " + fmt(rows) + " records" : "");
     } else if (total > 0) {
       pct = Math.max(4, Math.min(90, Math.round((page / total) * 88)));
-      label = page + "/" + total + " sayfa · " + fmt(rows) + " kayıt";
+      label = page + "/" + total + " pages · " + fmt(rows) + " records";
     } else {
       pct = Math.max(4, Math.min(40, 4 + page));
-      label = (page ? page + " sayfa" : "Admin…") + " · " + fmt(rows) + " kayıt";
+      label = (page ? page + " pages" : "Admin…") + " · " + fmt(rows) + " records";
     }
     paintProgress(pct, label, { indeterminate: false });
     var loading = $("dn-loading");
@@ -2837,10 +2837,10 @@
 
   function startBridgeNewsProgressPoll() {
     stopProgressTimer();
-    paintProgress(3, "0/? sayfa · admin taranıyor…", { indeterminate: false });
+    paintProgress(3, "0/? pages · scanning admin…", { indeterminate: false });
     var loading = $("dn-loading");
     if (loading) {
-      loading.textContent = "Admin haberler taranıyor…";
+      loading.textContent = "Scanning admin news…";
       loading.classList.remove("hidden");
     }
     state.progressTimer = setInterval(function () {
@@ -2873,7 +2873,7 @@
       setFilterTabsDisabled(true);
       startBridgeNewsProgressPoll();
     } else {
-      startLoadProgress(opts.reason || "Yükleniyor");
+      startLoadProgress(opts.reason || "Loading");
     }
     if (loading && !preferBridge) loading.classList.remove("hidden");
     if (err) { err.classList.add("hidden"); err.textContent = ""; }
@@ -2883,12 +2883,12 @@
       if (preferBridge) {
         try {
           await syncNewsViaVpnBridge();
-          paintProgress(95, "Köprü OK · rapor yükleniyor", { indeterminate: false });
+          paintProgress(95, "Bridge OK · loading report", { indeterminate: false });
         } catch (bridgeErr) {
           stopProgressTimer();
           paintProgress(
             35,
-            "Köprü yok · son admin snapshot…",
+            "No bridge · last admin snapshot…",
             { indeterminate: true }
           );
           try {
@@ -2904,7 +2904,7 @@
               } catch (_) {}
               throw new Error(
                 syncDetail
-                  || "VPN köprüsü gerekli (admin tek kaynak). Mac’te bridge --daemon çalıştırın."
+                  || "VPN bridge required (admin is the only source). Run bridge --daemon on the Mac."
               );
             }
           } catch (syncErr) {
@@ -2921,10 +2921,10 @@
           var j = await r.json();
           detail = (j && (j.detail || j.message)) || "";
         } catch (_) {}
-        throw new Error(detail || ("Yükleme hatası (" + r.status + ")"));
+        throw new Error(detail || ("Load error (" + r.status + ")"));
       }
       var data = await r.json();
-      paintProgress(96, (opts.reason || "Yükleniyor") + " · render", { indeterminate: false });
+      paintProgress(96, (opts.reason || "Loading") + " · render", { indeterminate: false });
       if (loading) loading.classList.add("hidden");
       if (body) body.classList.remove("hidden");
       if (!opts.keepTraffic) resetTrafficUi();
@@ -2933,7 +2933,7 @@
     } catch (e) {
       if (loading) loading.classList.add("hidden");
       if (err) {
-        err.textContent = (e && e.message) || "Yükleme hatası";
+        err.textContent = (e && e.message) || "Load error";
         err.classList.remove("hidden");
       }
     } finally {
@@ -2964,7 +2964,7 @@
     state.trafficLoading = true;
     var err = $("dn-error");
     var ok = false;
-    startLoadProgress("Trafik");
+    startLoadProgress("Traffic");
     syncTrafficButton();
     if (err) { err.classList.add("hidden"); err.textContent = ""; }
     try {
@@ -2975,10 +2975,10 @@
           var j = await r.json();
           detail = (j && (j.detail || j.message)) || "";
         } catch (_) {}
-        throw new Error(detail || ("Trafik yükleme hatası (" + r.status + ")"));
+        throw new Error(detail || ("Traffic load error (" + r.status + ")"));
       }
       var data = await r.json();
-      paintProgress(96, "Trafik · render", { indeterminate: false });
+      paintProgress(96, "Traffic · render", { indeterminate: false });
       applyTrafficToItems(data);
       state.trafficShown = true;
       renderTraffic(state.data);
@@ -2998,7 +2998,7 @@
     } catch (e) {
       state.trafficShown = false;
       if (err) {
-        err.textContent = (e && e.message) || "Trafik yükleme hatası";
+        err.textContent = (e && e.message) || "Traffic load error";
         err.classList.remove("hidden");
       }
     } finally {
@@ -3011,7 +3011,7 @@
   var refreshBtn = $("dn-refresh");
   if (refreshBtn) refreshBtn.addEventListener("click", function () {
     resetTrafficUi();
-    load(true, { reason: "Elle yenile" });
+    load(true, { reason: "Manual refresh" });
   });
   var trafficBtn = $("dn-traffic-btn");
   if (trafficBtn) trafficBtn.addEventListener("click", function () { loadTraffic({}); });
@@ -3029,7 +3029,7 @@
     if (!start || !end) {
       var err = $("dn-error");
       if (err) {
-        err.textContent = "Başlangıç ve bitiş tarihi seçin";
+        err.textContent = "Select a start and end date";
         err.classList.remove("hidden");
       }
       return;
@@ -3047,7 +3047,7 @@
     state.tables = {};
     resetTrafficUi();
     showCustomRange(true);
-    load(false, { reason: "Tarih aralığı" });
+    load(false, { reason: "Date range" });
   });
   window.__dnLoadStats = load;
   window.addEventListener("resize", function () {

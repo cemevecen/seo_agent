@@ -7,23 +7,23 @@
 {% macro crashes_issues_block(rows) %}
   {% if not rows %}
     <div class="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center dark:border-slate-700">
-      <p class="text-sm text-slate-400 dark:text-slate-500">Bu filtre için crash kaydı yok.</p>
+      <p class="text-sm text-slate-400 dark:text-slate-500">No crash records for this filter.</p>
     </div>
   {% else %}
     <div class="flex items-center justify-between gap-2">
       <input type="text" data-crash-search class="w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-500"
-        placeholder="Issue başlığında ara..." />
-      <span data-crash-count class="text-[10px] text-slate-400 dark:text-slate-500">{{ rows|length }} sonuç</span>
+        placeholder="Search issue titles..." />
+      <span data-crash-count class="text-[10px] text-slate-400 dark:text-slate-500">{{ rows|length }} results</span>
     </div>
     <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/60">
       <table data-crash-sortable class="w-full min-w-[420px] border-collapse text-left">
         <thead>
           <tr class="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60">
             <th data-sort-key="issue_title" data-sort-type="str" class="sticky top-0 z-[1] cursor-pointer select-none bg-slate-50 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200">Issue <span class="sort-arrow ml-1 opacity-40">↕</span></th>
-            <th data-sort-key="error_type" data-sort-type="str" class="sticky top-0 z-[1] cursor-pointer select-none bg-slate-50 px-2 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200">Tür <span class="sort-arrow ml-1 opacity-40">↕</span></th>
-            <th data-sort-key="event_count" data-sort-type="num" data-default-desc="1" class="sticky top-0 z-[1] cursor-pointer select-none bg-slate-50 px-2 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200">Olay <span class="sort-arrow ml-1 opacity-100">↓</span></th>
-            <th data-sort-key="affected_users" data-sort-type="num" data-default-desc="1" class="sticky top-0 z-[1] cursor-pointer select-none bg-slate-50 px-2 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200">Kul. <span class="sort-arrow ml-1 opacity-40">↕</span></th>
-            <th data-sort-key="events_per_user" data-sort-type="num" title="Olay / kullanıcı" class="sticky top-0 z-[1] cursor-pointer select-none bg-slate-50 px-2 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200">O/K <span class="sort-arrow ml-1 opacity-40">↕</span></th>
+            <th data-sort-key="error_type" data-sort-type="str" class="sticky top-0 z-[1] cursor-pointer select-none bg-slate-50 px-2 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200">Type <span class="sort-arrow ml-1 opacity-40">↕</span></th>
+            <th data-sort-key="event_count" data-sort-type="num" data-default-desc="1" class="sticky top-0 z-[1] cursor-pointer select-none bg-slate-50 px-2 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200">Events <span class="sort-arrow ml-1 opacity-100">↓</span></th>
+            <th data-sort-key="affected_users" data-sort-type="num" data-default-desc="1" class="sticky top-0 z-[1] cursor-pointer select-none bg-slate-50 px-2 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200">Usr. <span class="sort-arrow ml-1 opacity-40">↕</span></th>
+            <th data-sort-key="events_per_user" data-sort-type="num" title="Events / users" class="sticky top-0 z-[1] cursor-pointer select-none bg-slate-50 px-2 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200">E/U <span class="sort-arrow ml-1 opacity-40">↕</span></th>
             <th data-sort-key="latest_version" data-sort-type="str" class="sticky top-0 z-[1] cursor-pointer select-none bg-slate-50 px-2 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200">Ver. <span class="sort-arrow ml-1 opacity-40">↕</span></th>
           </tr>
         </thead>
@@ -41,7 +41,7 @@
               data-events-per-user="{{ r.events_per_user or 0 }}"
               data-error-type="{{ et }}"
               data-latest-version="{{ r.latest_version or '' }}"
-              title="Detay için tıklayın">
+              title="Click for details">
               <td class="max-w-[220px] px-3 py-2.5">
                                 <div class="flex flex-wrap items-center gap-1">
                   {% for badge in r.badges or [] %}
@@ -79,7 +79,7 @@
         </tbody>
       </table>
     </div>
-    <p class="text-right text-[10px] text-slate-400 dark:text-slate-500">{{ rows|length }} sonuç · son 30 gösterilir · satıra tıklayarak detay</p>
+    <p class="text-right text-[10px] text-slate-400 dark:text-slate-500">{{ rows|length }} results · last 30 shown · click a row for details</p>
   {% endif %}
 {% endmacro %}
 

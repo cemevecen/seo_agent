@@ -1,6 +1,6 @@
 {% from 'partials/crashlytics/_plat_filter.html' import plat_filter_buttons %}
 {% if not data or data.ok is sameas false %}
-  <p class="text-xs text-slate-400 dark:text-slate-500">Versiyon grafiği yok.</p>
+  <p class="text-xs text-slate-400 dark:text-slate-500">No version chart.</p>
 {% else %}
 {% set vt_by_plat = data.version_trend_by_platform or {} %}
 {% set global_plat = (params.platform or 'all')|lower %}
@@ -9,7 +9,7 @@
 
 {% macro version_chart_body(rows) %}
   {% if not rows %}
-    <p class="text-[11px] text-slate-400 dark:text-slate-500 py-4 text-center">Seçili dönemde versiyon × zaman verisi yok.</p>
+    <p class="text-[11px] text-slate-400 dark:text-slate-500 py-4 text-center">No version × time data in the selected period.</p>
   {% else %}
   {% set versions = [] %}
   {% for r in rows %}

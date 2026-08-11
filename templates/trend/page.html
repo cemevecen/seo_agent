@@ -6,7 +6,7 @@
   <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
     <div>
       <div class="mb-1 flex flex-wrap items-center gap-2">
-        <span id="trend-live-dot" class="trend-live-dot" title="Canlı yenileme"></span>
+        <span id="trend-live-dot" class="trend-live-dot" title="Live refresh"></span>
         <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">{{ trend_item.group }}</p>
         <span id="trend-live-at" class="text-[10px] font-medium text-slate-400"></span>
       </div>
@@ -20,8 +20,8 @@
         <option value="{{ s.id }}" {% if s.id == site_id %}selected{% endif %}>{{ s.display_name or s.domain }}</option>
         {% endfor %}
       </select>
-      <button type="button" id="trend-refresh" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Yenile</button>
-      <label class="trend-live-pill" id="trend-live-pill" title="Otomatik yenileme geri sayımı">
+      <button type="button" id="trend-refresh" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Refresh</button>
+      <label class="trend-live-pill" id="trend-live-pill" title="Auto-refresh countdown">
         <input type="checkbox" id="trend-auto" checked class="sr-only" />
         <span class="trend-live-countdown-wrap" id="trend-live-badge">
           <lottie-player
@@ -40,12 +40,12 @@
           </svg>
           <span class="trend-cd-num" id="trend-countdown" aria-live="polite">30</span>
         </span>
-        <span class="trend-live-label">Canlı</span>
+        <span class="trend-live-label">Live</span>
       </label>
     </div>
   </div>
 
-  <div id="trend-loading" class="hidden py-12 text-center text-sm text-slate-400">Yükleniyor…</div>
+  <div id="trend-loading" class="hidden py-12 text-center text-sm text-slate-400">Loading…</div>
   <div id="trend-error" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"></div>
 
   <div id="trend-summary" class="trend-summary mb-4 hidden rounded-xl border px-4 py-3 text-sm"></div>
@@ -289,7 +289,7 @@
         inner += '</div>';
         return '<div class="trend-card">' + inner + '</div>';
       }).join('');
-      return '<div><h2 class="trend-section-title">' + esc(sec.title) + '</h2>' + (items || '<p class="text-xs text-slate-400">Veri yok</p>') + '</div>';
+      return '<div><h2 class="trend-section-title">' + esc(sec.title) + '</h2>' + (items || '<p class="text-xs text-slate-400">No data</p>') + '</div>';
     }).join('');
 
     if (data.actions && data.actions.length) {
@@ -393,7 +393,7 @@
       .then(function (res) {
         loading.classList.add('hidden');
         loadingNow = false;
-        if (!res.ok) throw new Error(res.j.error || 'Yüklenemedi');
+        if (!res.ok) throw new Error(res.j.error || 'Could not load');
         render(res.j);
         resetCountdown();
         scheduleAuto();
@@ -401,7 +401,7 @@
       .catch(function (e) {
         loading.classList.add('hidden');
         loadingNow = false;
-        errEl.textContent = e.message || 'Hata';
+        errEl.textContent = e.message || 'Error';
         errEl.classList.remove('hidden');
         resetCountdown();
         scheduleAuto();

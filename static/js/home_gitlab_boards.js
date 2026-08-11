@@ -358,7 +358,7 @@
         this.statusMsg = '';
         try {
           if (!this.token) {
-            throw new Error('GitLab token yok — VPN / boards sayfasını kontrol edin.');
+            throw new Error('No GitLab token — check VPN / the boards page.');
           }
           await this.loadBoardOrders(path);
           var encodedPath = encodeURIComponent(path);
@@ -368,13 +368,13 @@
           });
           if (!boardsRes.ok) {
             if (boardsRes.status === 0 || boardsRes.type === 'opaque') {
-              throw new Error('GitLab’e ulaşılamadı — VPN açık mı?');
+              throw new Error('Could not reach GitLab — is VPN on?');
             }
-            throw new Error('GitLab API hatası: ' + boardsRes.status + ' ' + (boardsRes.statusText || ''));
+            throw new Error('GitLab API error: ' + boardsRes.status + ' ' + (boardsRes.statusText || ''));
           }
           var boardsData = await boardsRes.json();
           if (!boardsData || !boardsData.length) {
-            throw new Error('Projede aktif board bulunamadı.');
+            throw new Error('No active board found for this project.');
           }
           var openedIssues = await this.fetchAllIssues(encodedPath, 'opened');
           var closedIssues = await this.fetchAllIssues(encodedPath, 'closed');
@@ -405,15 +405,15 @@
           this._clearVpnTimer();
           this.vpnProbing = false;
           this.expandPanel();
-          if (force) this.statusMsg = 'Güncellendi · ' + pd.issues.length + ' madde';
+          if (force) this.statusMsg = 'Updated · ' + pd.issues.length + ' items';
         } catch (err) {
           console.error(err);
-          var msg = (err && err.message) || 'Board yüklenemedi';
+          var msg = (err && err.message) || 'Could not load board';
           if (
             /Failed to fetch|NetworkError|Load failed|network/i.test(msg) ||
             (err && err.name === 'TypeError')
           ) {
-            msg = 'GitLab’e ulaşılamadı — VPN açık mı? (boards ile aynı bağlantı)';
+            msg = 'Could not reach GitLab — is VPN on? (same connection as boards)';
             this.vpnOk = false;
           }
           pd.error = msg;
@@ -496,7 +496,7 @@
           body: body,
         });
         if (!res.ok) {
-          var detail = 'GitLab issue güncellenemedi';
+          var detail = 'Could not update GitLab issue';
           try {
             var err = await res.json();
             if (err && (err.message || err.error)) detail = String(err.message || err.error);
@@ -648,7 +648,7 @@
               }
             } catch (e) {
               console.warn('home board drag failed', e);
-              self.statusMsg = 'Sürükle-bırak kaydı başarısız';
+              self.statusMsg = 'Drag-and-drop save failed';
               self.fetchProject(projectPath, true);
             }
           },

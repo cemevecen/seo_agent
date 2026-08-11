@@ -744,22 +744,22 @@
         <h2>GSC property</h2>
         <input type="hidden" id="bl-gsc-resource" value="" />
         <div id="bl-gsc-resource-wrap" class="bl-report-type-chips" role="tablist" aria-label="GSC property">
-          <p class="text-[10px] text-slate-500">Site seçilince property listesi gelir…</p>
+          <p class="text-[10px] text-slate-500">Property list appears after a site is selected…</p>
         </div>
       </section>
 
       <section class="bl-toolbar-col min-w-0">
-        <h2>Rapor türü</h2>
+        <h2>Report type</h2>
         <input type="hidden" id="bl-report-type" value="external" />
-        <div id="bl-report-type-wrap" class="bl-report-type-chips" role="tablist" aria-label="Rapor türü">
+        <div id="bl-report-type-wrap" class="bl-report-type-chips" role="tablist" aria-label="Report type">
           <div class="bl-rt-item">
             <button type="button" role="tab" class="bl-report-type-chip" data-value="external" aria-selected="true" title="GSC External — top linked pages">
               External
               <span class="bl-report-type-chip-sub">top linked pages</span>
             </button>
-            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="External açıklaması" title="Bilgi">i</button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Info" title="Info">i</button>
             <div class="bl-rt-info-tip" role="tooltip">
-              Dış sitelerden en çok backlink alan sayfalarınızı listeler. Hangi URL’lerin dışarıdan bağlantı çektiğini gösterir.
+              Dış sitelerden en çok backlink alan sayfalarınızı listeler. Hangi URL’lerin dışarıdan connection çektiğini gösterir.
             </div>
           </div>
           <div class="bl-rt-item">
@@ -767,9 +767,9 @@
               Domain
               <span class="bl-report-type-chip-sub">linking sites</span>
             </button>
-            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Domain açıklaması" title="Bilgi">i</button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Info" title="Info">i</button>
             <div class="bl-rt-info-tip" role="tooltip">
-              Size link veren benzersiz dış domainleri listeler. Hangi sitelerden bağlantı geldiğini domain bazında görürsünüz.
+              Size link veren benzersiz dış domainleri listeler. Hangi sitelerden connection geldiğini domain bazında görürsünüz.
             </div>
           </div>
           <div class="bl-rt-item">
@@ -777,9 +777,9 @@
               Anchor
               <span class="bl-report-type-chip-sub">linking text</span>
             </button>
-            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Anchor açıklaması" title="Bilgi">i</button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Info" title="Info">i</button>
             <div class="bl-rt-info-tip" role="tooltip">
-              Size gelen bağlantılarda kullanılan anchor (bağlantı metni) ifadelerini listeler. Hangi kelime veya ifadelerle link verildiğini gösterir.
+              Size gelen connectionlarda kullanılan anchor (connection metni) ifadelerini listeler. Hangi kelime veya ifadelerle link verildiğini gösterir.
             </div>
           </div>
           <div class="bl-rt-item">
@@ -787,23 +787,23 @@
               Internal
               <span class="bl-report-type-chip-sub">top linked pages</span>
             </button>
-            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Internal açıklaması" title="Bilgi">i</button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Info" title="Info">i</button>
             <div class="bl-rt-info-tip" role="tooltip">
               Aynı site içinden en çok link alan sayfaları listeler. İç link mimarisinde öne çıkan URL’leri gösterir.
             </div>
           </div>
         </div>
         <p class="bl-toolbar-hint hidden sm:block">
-          Kaynak: Search Console Links (Sheets yok) · günde 2×
+          Source: Search Console Links (no Sheets) · 2× daily
         </p>
       </section>
     </div>
     <div class="bl-toolbar-meta">
-      <span class="bl-toolbar-meta-label">Tarama</span>
+      <span class="bl-toolbar-meta-label">Scan</span>
       <div class="bl-toolbar-meta-body">
         <span>Mac bridge · GSC · 01:00 + 13:00 TR</span>
         <span aria-hidden="true"> · </span>
-        <p id="bl-scan-status">Veri Search Console Links üzerinden otomatik gelir. Google Sheets kapalı.</p>
+        <p id="bl-scan-status">Data comes automatically from Search Console Links. Google Sheets is off.</p>
       </div>
     </div>
   </div>
@@ -819,41 +819,41 @@
           autoplay
         ></lottie-player>
         <div id="bl-dashboard-lottie-fallback" class="bl-dashboard-lottie-fallback hidden" aria-hidden="true"></div>
-        <p id="bl-dashboard-loading-label" class="bl-dashboard-loading-label">Veriler güncelleniyor…</p>
-        <p id="bl-dashboard-loading-sub" class="bl-dashboard-loading-sub">Rapor özeti hazırlanıyor</p>
+        <p id="bl-dashboard-loading-label" class="bl-dashboard-loading-label">Updating data…</p>
+        <p id="bl-dashboard-loading-sub" class="bl-dashboard-loading-sub">Preparing report summary</p>
       </div>
     </div>
     <div class="bl-dashboard-content space-y-4">
       <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Özet</h2>
+          <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Summary</h2>
           <div class="flex flex-wrap gap-2">
             <a id="bl-disavow-link" href="#" class="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-bold text-rose-800 dark:border-rose-700 dark:text-rose-200">disavow.txt</a>
           </div>
         </div>
         <div id="bl-summary" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          <button type="button" class="bl-summary-card rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60" data-bl-summary="domains" title="Tüm domain listesini göster" aria-pressed="false">
+          <button type="button" class="bl-summary-card rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60" data-bl-summary="domains" title="Show the full domain list" aria-pressed="false">
             <div id="bl-st-domains-label" class="text-[10px] uppercase text-slate-500">Domain</div>
             <div id="bl-st-domains" class="text-lg font-bold">—</div>
           </button>
-          <button type="button" id="bl-st-disavow-wrap" class="bl-summary-card rounded-lg bg-rose-50 p-2 dark:bg-rose-950/40" data-bl-summary="disavow" title="Disavow önerilen domainleri göster" aria-pressed="false">
+          <button type="button" id="bl-st-disavow-wrap" class="bl-summary-card rounded-lg bg-rose-50 p-2 dark:bg-rose-950/40" data-bl-summary="disavow" title="Show domains recommended for disavow" aria-pressed="false">
             <div class="text-[10px] uppercase text-rose-700 dark:text-rose-300">Disavow</div>
             <div id="bl-st-disavow" class="text-lg font-bold text-rose-800 dark:text-rose-200">—</div>
           </button>
-          <button type="button" id="bl-st-review-wrap" class="bl-summary-card rounded-lg bg-amber-50 p-2 dark:bg-amber-950/40" data-bl-summary="review" title="Review önerilen domainleri göster" aria-pressed="false">
+          <button type="button" id="bl-st-review-wrap" class="bl-summary-card rounded-lg bg-amber-50 p-2 dark:bg-amber-950/40" data-bl-summary="review" title="Show domains recommended for review" aria-pressed="false">
             <div class="text-[10px] uppercase text-amber-800 dark:text-amber-200">Review</div>
             <div id="bl-st-review" class="text-lg font-bold">—</div>
           </button>
-          <button type="button" class="bl-summary-card rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/40" data-bl-summary="new" title="Son taramaya göre yeni domainleri göster" aria-pressed="false">
-            <div id="bl-st-new-label" class="text-[10px] uppercase text-emerald-800 dark:text-emerald-200">Yeni domain</div>
+          <button type="button" class="bl-summary-card rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/40" data-bl-summary="new" title="Show new domains vs the last scan" aria-pressed="false">
+            <div id="bl-st-new-label" class="text-[10px] uppercase text-emerald-800 dark:text-emerald-200">New domain</div>
             <div id="bl-st-new" class="text-lg font-bold">—</div>
           </button>
-          <button type="button" class="bl-summary-card rounded-lg bg-slate-100 p-2 dark:bg-slate-800/80" data-bl-summary="lost" title="Önceki taramaya göre kayıp domainleri göster" aria-pressed="false">
-            <div id="bl-st-lost-label" class="text-[10px] uppercase text-slate-600 dark:text-slate-300">Kayıp domain</div>
+          <button type="button" class="bl-summary-card rounded-lg bg-slate-100 p-2 dark:bg-slate-800/80" data-bl-summary="lost" title="Show lost domains vs the previous scan" aria-pressed="false">
+            <div id="bl-st-lost-label" class="text-[10px] uppercase text-slate-600 dark:text-slate-300">Lost domain</div>
             <div id="bl-st-lost" class="text-lg font-bold">—</div>
           </button>
-          <button type="button" id="bl-st-media-wrap" class="bl-summary-card rounded-lg bg-sky-50 p-2 dark:bg-sky-950/40" data-bl-summary="media" title="Medya ve temiz domainleri göster" aria-pressed="false">
-            <div class="text-[10px] uppercase text-sky-800 dark:text-sky-200">Medya / haber (domain)</div>
+          <button type="button" id="bl-st-media-wrap" class="bl-summary-card rounded-lg bg-sky-50 p-2 dark:bg-sky-950/40" data-bl-summary="media" title="Show media and clean domains" aria-pressed="false">
+            <div class="text-[10px] uppercase text-sky-800 dark:text-sky-200">Media / news (domain)</div>
             <div id="bl-st-media" class="text-lg font-bold">—</div>
           </button>
         </div>
@@ -869,13 +869,13 @@
           </section>
           <section class="min-w-0 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/40">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 id="bl-top-pages-title" class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">En çok backlink alan sayfalar</h3>
+              <h3 id="bl-top-pages-title" class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Pages with the most backlinks</h3>
               <span id="bl-top-pages-meta" class="text-[10px] text-slate-500 dark:text-slate-400"></span>
             </div>
-            <div id="bl-top-pages-filters" class="mt-1.5 hidden flex flex-wrap gap-1" role="tablist" aria-label="Hedef sayfa filtresi">
-              <button type="button" class="bl-top-pages-filter rounded px-2 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200" data-filter="all">Tümü</button>
-              <button type="button" class="bl-top-pages-filter rounded px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300" data-filter="external">Dış</button>
-              <button type="button" class="bl-top-pages-filter rounded px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300" data-filter="internal">İç</button>
+            <div id="bl-top-pages-filters" class="mt-1.5 hidden flex flex-wrap gap-1" role="tablist" aria-label="Target page filter">
+              <button type="button" class="bl-top-pages-filter rounded px-2 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200" data-filter="all">All</button>
+              <button type="button" class="bl-top-pages-filter rounded px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300" data-filter="external">External</button>
+              <button type="button" class="bl-top-pages-filter rounded px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300" data-filter="internal">Internal</button>
             </div>
             <ol id="bl-top-pages-list" class="mt-2 space-y-1.5 text-[11px]"></ol>
             <button type="button" id="bl-top-pages-toggle" class="mt-2 hidden text-[11px] font-semibold text-indigo-700 underline dark:text-indigo-300"></button>
@@ -887,10 +887,10 @@
 
         <div id="bl-changes-section" class="mt-5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-800/40">
           <div class="flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Günlük / haftalık değişim</h3>
-            <div class="flex flex-wrap gap-1" role="tablist" aria-label="Değişim penceresi">
-              <button type="button" class="bl-change-window rounded px-2 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200" data-window="daily">Günlük</button>
-              <button type="button" class="bl-change-window rounded px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300" data-window="weekly">Haftalık</button>
+            <h3 class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Daily / weekly change</h3>
+            <div class="flex flex-wrap gap-1" role="tablist" aria-label="Change window">
+              <button type="button" class="bl-change-window rounded px-2 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200" data-window="daily">Daily</button>
+              <button type="button" class="bl-change-window rounded px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300" data-window="weekly">Weekly</button>
             </div>
           </div>
           <div id="bl-kpi-row" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
@@ -900,27 +900,27 @@
       </div>
 
       <div id="bl-domain-list-section" class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-        <h2 id="bl-domain-list-title" class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Domain listesi</h2>
+        <h2 id="bl-domain-list-title" class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Domain list</h2>
         <p id="bl-target-mode-hint" class="mt-2 hidden text-xs text-slate-500 dark:text-slate-400">
-          Bu rapor türünde domain risk tablosu yok. Liste özet bölümündeki <strong>Top external links</strong> verisinden gelir.
+          This report type has no domain risk table. It uses <strong>Top external links</strong> from the summary.
         </p>
         <div id="bl-domain-filters-wrap" class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <label class="block text-[10px] font-bold uppercase text-slate-500">
-            Görünüm
+            View
             <select id="bl-filter-view" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
-              <option value="all">Tüm domainler</option>
-              <option value="media">Medya / haber siteleri</option>
-              <option value="media_summary">Medya + temiz (özet kartı)</option>
-              <option value="helpful">Yararlı / temiz (çoğunluk düşük risk)</option>
-              <option value="risky">Riskli (review·disavow veya risk ≥55)</option>
-              <option value="new_domains">Yeni domainler (son tarama)</option>
-              <option value="new_links_only">Yeni link içeren domainler</option>
+              <option value="all">All domains</option>
+              <option value="media">Media / news sites</option>
+              <option value="media_summary">Media + clean (summary card)</option>
+              <option value="helpful">Helpful / clean (mostly low risk)</option>
+              <option value="risky">Risky (review·disavow or risk ≥55)</option>
+              <option value="new_domains">New domains (last scan)</option>
+              <option value="new_links_only">Domains with new links</option>
             </select>
           </label>
           <label class="block text-[10px] font-bold uppercase text-slate-500">
             Aksiyon
             <select id="bl-filter-action" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
-              <option value="all">Tümü</option>
+              <option value="all">All</option>
               <option value="ignore">ignore</option>
               <option value="monitor">monitor</option>
               <option value="review">review</option>
@@ -930,21 +930,21 @@
           <label class="block text-[10px] font-bold uppercase text-slate-500">
             Risk
             <select id="bl-filter-risk" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
-              <option value="all">Tümü</option>
-              <option value="low">Düşük (0–34)</option>
+              <option value="all">All</option>
+              <option value="low">Low (0–34)</option>
               <option value="mid">Orta (35–54)</option>
-              <option value="high">Yüksek (55+)</option>
+              <option value="high">High (55+)</option>
             </select>
           </label>
           <label class="block text-[10px] font-bold uppercase text-slate-500 md:hidden">
-            Sırala (mobil)
+            Sort (mobil)
             <select id="bl-mobile-sort" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
-              <option value="max_risk_score:desc">Risk (yüksek → düşük)</option>
-              <option value="max_risk_score:asc">Risk (düşük → yüksek)</option>
-              <option value="link_count:desc" selected>Toplam link (çok → az)</option>
-              <option value="link_count:asc">Toplam link (az → çok)</option>
+              <option value="max_risk_score:desc">Risk (high → low)</option>
+              <option value="max_risk_score:asc">Risk (low → high)</option>
+              <option value="link_count:desc" selected>Total links (high → low)</option>
+              <option value="link_count:asc">Total links (low → high)</option>
               <option value="domain:asc">Domain (A → Z)</option>
-              <option value="effective_action:asc">Aksiyon (ignore önce)</option>
+              <option value="effective_action:asc">Action (ignore first)</option>
             </select>
           </label>
           <div class="bl-domain-picker-wrap sm:col-span-2 lg:col-span-1">
@@ -957,23 +957,23 @@
               aria-haspopup="listbox"
               aria-controls="bl-domain-picker-panel"
             >
-              <span id="bl-domain-picker-trigger-text" class="min-w-0 truncate font-semibold">Domain seç</span>
+              <span id="bl-domain-picker-trigger-text" class="min-w-0 truncate font-semibold">Select domain</span>
               <span class="bl-domain-picker-chevron" aria-hidden="true">▼</span>
             </button>
-            <div id="bl-domain-picker-panel" class="bl-domain-picker-panel hidden" role="listbox" aria-label="Domain seçimi">
+            <div id="bl-domain-picker-panel" class="bl-domain-picker-panel hidden" role="listbox" aria-label="Select domainimi">
               <input
                 id="bl-domain-picker-search"
                 type="search"
                 autocomplete="off"
-                placeholder="Domain ara…"
+                placeholder="Search domain…"
                 class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
               />
               <div class="mt-2 flex flex-wrap gap-2">
                 <button type="button" id="bl-domain-picker-select-all" class="rounded border border-slate-300 px-2 py-1 text-[10px] font-bold dark:border-slate-600">
-                  Görünenleri seç
+                  Select visible
                 </button>
                 <button type="button" id="bl-domain-picker-clear" class="rounded border border-slate-300 px-2 py-1 text-[10px] font-bold dark:border-slate-600">
-                  Seçimi temizle
+                  Clear selection
                 </button>
               </div>
               <p id="bl-domain-picker-meta" class="mt-2 text-[10px] text-slate-500 dark:text-slate-400"></p>
@@ -990,18 +990,18 @@
                 <th class="bl-sort-th bl-col-domain px-2 py-2 text-left" data-sort-key="domain" data-sort-type="string" scope="col">
                   Domain <span class="bl-sort-arrow" aria-hidden="true">↕</span>
                 </th>
-                <th class="bl-col-urls px-2 py-2 text-left" scope="col">Bağlantı URL’leri</th>
+                <th class="bl-col-urls px-2 py-2 text-left" scope="col">Link URLs</th>
                 <th class="bl-sort-th bl-col-num px-2 py-2 text-right" data-sort-key="link_count" data-sort-type="number" data-default-desc="1" data-sort-active="1" scope="col">
-                  Toplam link <span class="bl-sort-arrow" aria-hidden="true">↓</span>
+                  Total links <span class="bl-sort-arrow" aria-hidden="true">↓</span>
                 </th>
                 <th class="bl-sort-th bl-col-num px-2 py-2 text-right" data-sort-key="max_risk_score" data-sort-type="number" data-default-desc="1" scope="col">
-                  En yüksek risk <span class="bl-sort-arrow" aria-hidden="true">↕</span>
+                  Highest risk <span class="bl-sort-arrow" aria-hidden="true">↕</span>
                 </th>
                 <th class="bl-sort-th bl-col-action px-2 py-2 text-left" data-sort-key="recommended_action" data-sort-type="action" data-default-desc="1" scope="col">
-                  Öneri <span class="bl-sort-arrow" aria-hidden="true">↕</span>
+                  Recommendation <span class="bl-sort-arrow" aria-hidden="true">↕</span>
                 </th>
                 <th class="bl-sort-th bl-col-action px-2 py-2 text-left" data-sort-key="effective_action" data-sort-type="action" data-default-desc="1" scope="col">
-                  Aksiyon <span class="bl-sort-arrow" aria-hidden="true">↕</span>
+                  Action <span class="bl-sort-arrow" aria-hidden="true">↕</span>
                 </th>
               </tr>
             </thead>
@@ -1014,18 +1014,18 @@
             id="bl-domains-more-btn"
             class="rounded-lg border border-indigo-300 px-4 py-2 text-xs font-bold text-indigo-800 hover:bg-indigo-50 dark:border-indigo-600 dark:text-indigo-200 dark:hover:bg-indigo-950/40"
           >
-            Daha fazla göster
+            Show more
           </button>
         </div>
       </div>
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-6">
-    <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Tarama adımları</h2>
+    <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Scan steps</h2>
     <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-      Seçili <strong>rapor türü + GSC property</strong> tarama kayıtları. Sheets kapalı; yanlış adımı kaldırınca o kayıt satırları silinir.
+      Scan records for the selected <strong>report type + GSC property</strong>. Sheets is off; removing a wrong step deletes those record rows.
     </p>
     <ul id="bl-import-steps" class="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-200">
-      <li class="text-xs text-slate-500">Henüz adım yok.</li>
+      <li class="text-xs text-slate-500">No steps yet.</li>
     </ul>
   </div>
     </div>
@@ -1054,7 +1054,7 @@
       <div id="bl-import-progress-bar" class="bl-import-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
     </div>
     <p id="bl-import-progress-pct" class="bl-import-progress-pct">0%</p>
-    <p id="bl-import-overlay-status" class="bl-import-overlay-status">Tarama işleniyor…</p>
+    <p id="bl-import-overlay-status" class="bl-import-overlay-status">Processing scan…</p>
     <p id="bl-import-overlay-sub" class="bl-import-overlay-sub">GSC Links</p>
   </div>
 </div>
@@ -1150,7 +1150,7 @@
         esc(domain) +
         '" data-total="' +
         esc(String(total)) +
-        '">Tüm linkleri gör (' +
+        '">See all links (' +
         esc(String(total)) +
         ")</button>" +
         '<div class="bl-links-all mt-2 hidden overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-700 dark:bg-slate-900/50"></div>';
@@ -1178,7 +1178,7 @@
     var labels = {
       media: "Medya",
       mostly_clean: "Temiz",
-      mixed: "Karışık",
+      mixed: "Mixed",
       spammy: "Spam",
       unknown: "—",
     };
@@ -1204,9 +1204,9 @@
     var raw = parseInt(row.raw_row_count, 10) || 0;
     var extra =
       raw > total
-        ? ' <span class="font-normal text-slate-400">(' + raw + " satır)</span>"
+        ? ' <span class="font-normal text-slate-400">(' + raw + " rows)</span>"
         : "";
-    return "<strong>Toplam link:</strong> " + total + extra;
+    return "<strong>Total links:</strong> " + total + extra;
   }
 
   function renderDiffDomainBlock(title, domains, tone, totalCount) {
@@ -1235,9 +1235,9 @@
       .join("");
     var moreNote =
       total > slice.length
-        ? '<p class="mt-2 text-[10px] text-slate-500">Liste performans için ' +
+        ? '<p class="mt-2 text-[10px] text-slate-500">Shown for list performance ' +
           slice.length +
-          " gösteriliyor (toplam " +
+          " (total " +
           total +
           ").</p>"
         : "";
@@ -1298,7 +1298,7 @@
       .join("");
     var more =
       items.length > 80
-        ? '<p class="mt-1 text-[10px] text-slate-500">+' + (items.length - 80) + " kayıt daha…</p>"
+        ? '<p class="mt-1 text-[10px] text-slate-500">+' + (items.length - 80) + " records daha…</p>"
         : "";
     return (
       '<section class="rounded-xl border ' +
@@ -1342,7 +1342,7 @@
     } catch (_) { /* drop / bazı tarayıcılar: blPendingImportFile kullanılır */ }
     var picked = document.getElementById("bl-file-picked");
     if (picked) {
-      picked.textContent = "Seçili: " + (file.name || "dosya");
+      picked.textContent = "Selected: " + (file.name || "file");
       picked.classList.remove("hidden");
     }
   }
@@ -1410,7 +1410,7 @@
     els.layer.setAttribute("aria-hidden", "false");
     els.layer.setAttribute("aria-busy", "true");
     if (els.label && label) els.label.textContent = label;
-    if (els.sub) els.sub.textContent = subLabel || "Özet ve listeler güncelleniyor";
+    if (els.sub) els.sub.textContent = subLabel || "Updating summary and lists";
     blEnsureDashboardLottie();
     if (blLottieReady(els.player)) {
       try {
@@ -1470,7 +1470,7 @@
       top_target_pages: "External",
     };
     var key = blNormalizeReportType(rt);
-    return map[key] || key || "Rapor";
+    return map[key] || key || "Report";
   }
 
   function gscResourceId() {
@@ -1491,7 +1491,7 @@
     var sid = siteId();
     var wrap = document.getElementById("bl-gsc-resource-wrap");
     if (!wrap || !sid) return;
-    wrap.innerHTML = '<p class="text-[11px] text-slate-500">Yükleniyor…</p>';
+    wrap.innerHTML = '<p class="text-[11px] text-slate-500">Loading…</p>';
     try {
       var res = await fetch("/api/gsc-links/properties?site_id=" + encodeURIComponent(sid), {
         credentials: "same-origin",
@@ -1499,7 +1499,7 @@
       var data = await res.json();
       var props = (data && data.properties) || [];
       if (!props.length) {
-        wrap.innerHTML = '<p class="text-[11px] text-amber-700">Bu site için GSC property tanımlı değil.</p>';
+        wrap.innerHTML = '<p class="text-[11px] text-amber-700">No GSC property is defined for this site.</p>';
         syncBlGscResourceChipsUi("");
         return;
       }
@@ -1530,7 +1530,7 @@
       });
       syncBlGscResourceChipsUi(pick);
     } catch (e) {
-      wrap.innerHTML = '<p class="text-[11px] text-rose-700">Property listesi alınamadı.</p>';
+      wrap.innerHTML = '<p class="text-[11px] text-rose-700">Could not load the property list.</p>';
     }
   }
 
@@ -1614,7 +1614,7 @@
     els.overlay.classList.remove("hidden");
     els.overlay.setAttribute("aria-hidden", "false");
     els.overlay.dataset.phase = "working";
-    blSetImportProgress(0, "Import ediliyor…", "Hazırlanıyor");
+    blSetImportProgress(0, "Importing…", "Preparing");
     blLottieShow(els.player, els.fallback, true);
     return els;
   }
@@ -1685,14 +1685,14 @@
           data = JSON.parse(raw || "{}");
         } catch (parseErr) {
           if (xhr.status === 401 || xhr.status === 403) {
-            reject(new Error("Oturum gerekli — sayfayı yenileyip tekrar admin girişi yapın."));
+            reject(new Error("Sign-in required — refresh the page and sign in as admin again."));
             return;
           }
           if (raw.trim().indexOf("<") === 0) {
-            reject(new Error("Beklenmeyen HTML yanıtı (giriş süresi dolmuş olabilir). Sayfayı yenileyin."));
+            reject(new Error("Unexpected HTML response (session may have expired). Refresh the page."));
             return;
           }
-          reject(new Error("Sunucu yanıtı okunamadı (HTTP " + xhr.status + ")."));
+          reject(new Error("Could not read the server response (HTTP " + xhr.status + ")."));
           return;
         }
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -1700,16 +1700,16 @@
         } else {
           var detail = data.detail;
           if (Array.isArray(detail)) detail = detail.map(function (x) { return x.msg || x; }).join(" ");
-          reject(new Error(detail || "Import başarısız (HTTP " + xhr.status + ")"));
+          reject(new Error(detail || "Import failed (HTTP " + xhr.status + ")"));
         }
       };
       xhr.onerror = function () {
         if (serverPulse) clearInterval(serverPulse);
-        reject(new Error("Ağ hatası — import tamamlanamadı."));
+        reject(new Error("Network error — import did not finish."));
       };
       xhr.onabort = function () {
         if (serverPulse) clearInterval(serverPulse);
-        reject(new Error("Import iptal edildi."));
+        reject(new Error("Import cancelled."));
       };
       xhr.send(body);
     });
@@ -1720,10 +1720,10 @@
     var n = parseInt(imp.row_count, 10) || 0;
     var skipped = parseInt(imp.rows_skipped_duplicate, 10) || 0;
     if (!n && skipped) {
-      return "Yeni satır yok; " + skipped + " mükerrer (önceki importlarda zaten vardı).";
+      return "No new rows; " + skipped + " duplicates (already in previous imports).";
     }
-    var msg = n + " yeni satır";
-    if (skipped) msg += ", " + skipped + " mükerrer atlandı";
+    var msg = n + " new rows";
+    if (skipped) msg += ", " + skipped + " duplicates skipped";
     return msg;
   }
 
@@ -1737,7 +1737,7 @@
       els.overlay.dataset.phase = "success";
       blSetImportProgress(
         100,
-        "Import tamam",
+        "Import complete",
         result && result.import ? blImportResultMessage(result.import) : ""
       );
       blLottieShow(els.player, els.fallback, true);
@@ -1750,7 +1750,7 @@
       els.overlay.dataset.phase = "error";
       blSetImportProgress(
         els.bar ? parseInt(els.bar.getAttribute("aria-valuenow") || "0", 10) : 0,
-        "Import başarısız",
+        "Import failed",
         String(e.message || e).slice(0, 220)
       );
       blLottieShow(els.player, els.fallback, false);
@@ -1766,7 +1766,7 @@
     gsc_scrape: "GSC tarama",
     csv_upload: "CSV (eski)",
     csv_paste: "CSV (eski)",
-    google_sheets: "Sheets (kapalı)",
+    google_sheets: "Sheets (off)",
   };
 
   var blTopRankingsCache = { top_linking_sites: [], top_linking_pages: [], sites_total: 0, pages_total: 0 };
@@ -1790,10 +1790,10 @@
       return label + " " + blFmtNum(n);
     }
     if ((ext || 0) > 0 || row.incoming_links_gsc) {
-      parts.push(pair("dış", ext, extS));
+      parts.push(pair("ext", ext, extS));
     }
     if (intInc > 0) {
-      parts.push(pair("iç", intInc, intS));
+      parts.push(pair("int", intInc, intS));
     }
     if (parts.length) return parts.join(" · ");
     return String(row.link_count != null ? row.link_count : "0");
@@ -1918,9 +1918,9 @@
       if ((row.external_incoming || 0) > 0) {
         var extSites = Number(row.external_linking_sites || 0);
         parts.push(
-          "<strong>GSC (dış):</strong> " +
+          "<strong>GSC (ext):</strong> " +
             blFmtNum(row.external_incoming) +
-            " gelen bağlantı" +
+            " inbound links" +
             (extSites > 0 ? " · " + blFmtNum(extSites) + " site" : "")
         );
       }
@@ -1929,10 +1929,10 @@
       if ((row.internal_incoming || 0) > 0) {
         var intSites = Number(row.internal_linking_sites || 0);
         parts.push(
-          "<strong>GSC (iç):</strong> " +
+          "<strong>GSC (int):</strong> " +
             blFmtNum(row.internal_incoming) +
-            " gelen bağlantı" +
-            (intSites > 0 ? " · " + blFmtNum(intSites) + " kaynak site" : "")
+            " inbound links" +
+            (intSites > 0 ? " · " + blFmtNum(intSites) + " source sites" : "")
         );
       }
     }
@@ -1962,7 +1962,7 @@
       if (samples.length) {
         html += renderSampleLinksList(samples);
       } else {
-        html += '<span class="text-slate-400">Örnek bağlantı URL’si yok.</span>';
+        html += '<span class="text-slate-400">No sample link URLs.</span>';
       }
       html += "</div>";
       if (refTotal > samples.length) {
@@ -1971,7 +1971,7 @@
           esc(url) +
           '" data-total="' +
           esc(String(refTotal)) +
-          '">Tüm bağlantı URL’lerini gör (' +
+          '">See all link URLs (' +
           esc(String(refTotal)) +
           ")</button>" +
           '<div class="bl-top-page-all ml-5 mt-1 hidden rounded border border-slate-200 bg-white/80 p-2 dark:border-slate-700 dark:bg-slate-900/40"></div>';
@@ -1995,7 +1995,7 @@
     if (open) {
       html +=
         '<div class="bl-top-site-preview ml-5 mt-1 border-l-2 border-indigo-200 pl-2 dark:border-indigo-800">' +
-        (samples.length ? renderSampleLinksList(samples) : '<span class="text-slate-400">Örnek URL yok.</span>') +
+        (samples.length ? renderSampleLinksList(samples) : '<span class="text-slate-400">No sample URLs.</span>') +
         "</div>";
       if (total > shown) {
         html +=
@@ -2003,7 +2003,7 @@
           esc(dom) +
           '" data-total="' +
           esc(String(total)) +
-          '">Tüm linkleri gör (' +
+          '">See all links (' +
           esc(String(total)) +
           ")</button>" +
           '<div class="bl-top-site-all ml-5 mt-1 hidden rounded border border-slate-200 bg-white/80 p-2 dark:border-slate-700 dark:bg-slate-900/40"></div>';
@@ -2023,10 +2023,10 @@
     var limit = blTopRankLimit(blTopSitesExpanded);
     var slice = items.slice(0, Math.min(limit, items.length));
     if (metaEl) {
-      metaEl.textContent = total ? total + " domain · satıra tıklayınca URL listesi" : "";
+      metaEl.textContent = total ? total + " domains · click a row for the URL list" : "";
     }
     if (!slice.length) {
-      listEl.innerHTML = '<li class="text-slate-500">Henüz veri yok.</li>';
+      listEl.innerHTML = '<li class="text-slate-500">No data yet.</li>';
       if (btn) btn.classList.add("hidden");
       return;
     }
@@ -2074,7 +2074,7 @@
     } else if (rt === "top_target_pages_internal" && src === "gsc_top_target_pages") {
       titleEl.textContent = "Top internal links";
     } else {
-      titleEl.textContent = "En çok backlink alan sayfalar";
+      titleEl.textContent = "Pages with the most backlinks";
     }
   }
 
@@ -2093,20 +2093,20 @@
     if (metaEl) metaEl.textContent = "";
     if (!slice.length) {
       var rt = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
-      var emptyMsg = "Henüz tarama verisi yok. Otomatik tarama tamamlanınca burada görünür.";
+      var emptyMsg = "No scan data yet. It appears here when the automatic scan finishes.";
       if (rt === "top_target_pages" || rt === "external") {
         emptyMsg =
-          "Henüz external (top linked pages) verisi yok. Otomatik tarama sonrası dolacak.";
+          "No external (top linked pages) data yet. It fills in after the automatic scan.";
       } else if (rt === "top_target_pages_internal" || rt === "internal") {
         emptyMsg =
-          "Henüz internal links verisi yok. Otomatik tarama sonrası dolacak.";
+          "No internal links data yet. It fills in after the automatic scan.";
       } else if (rt === "domain" || rt === "top_linking_sites") {
         emptyMsg =
-          "Bu property için External top linked pages henüz yok. External sekmesine geçin veya bridge sync çalıştırın.";
+          "This property has no External top linked pages yet. Switch to the External tab or run a bridge sync.";
       } else if (rt === "anchor_text") {
-        emptyMsg = "Anchor text listesi alt bölümde; hedef sayfalar External / Internal sekmelerinde.";
+        emptyMsg = "Anchor text list is in the section below; target pages are on the External / Internal tabs.";
       } else if (rt === "top_linking_sites") {
-        emptyMsg = "Henüz linking sites verisi yok. Otomatik tarama sonrası dolacak.";
+        emptyMsg = "No linking sites data yet. It fills in after the automatic scan.";
       }
       listEl.innerHTML = '<li class="text-slate-500 leading-snug">' + emptyMsg + "</li>";
       if (btn) btn.classList.add("hidden");
@@ -2132,7 +2132,7 @@
           esc(url) +
           (open ? " ▾" : " ▸") +
           "</span>" +
-          '<span class="shrink-0 max-w-[9rem] text-right text-[9px] font-bold leading-tight text-slate-600 dark:text-slate-300" title="dış: gelen bağlantı / site · iç: gelen bağlantı / kaynak site">' +
+          '<span class="shrink-0 max-w-[9rem] text-right text-[9px] font-bold leading-tight text-slate-600 dark:text-slate-300" title="ext: inbound links / site · int: inbound links / source site">' +
           esc(countLabel) +
           "</span></button>" +
           blTopPagePanelHtml(row, open) +
@@ -2161,17 +2161,17 @@
         if (!panel) return;
         if (panel.dataset.loaded === "1" && !panel.classList.contains("hidden")) {
           panel.classList.add("hidden");
-          linkBtn.textContent = "Tüm bağlantı URL’lerini gör (" + total + ")";
+          linkBtn.textContent = "See all link URLs (" + total + ")";
           return;
         }
         if (panel.dataset.loaded === "1") {
           panel.classList.remove("hidden");
-          linkBtn.textContent = "URL’leri gizle";
+          linkBtn.textContent = "Hide URLs";
           return;
         }
         var prev = linkBtn.textContent;
         linkBtn.disabled = true;
-        linkBtn.textContent = "Yükleniyor…";
+        linkBtn.textContent = "Loading…";
         try {
           var kind = blTopPageLinkKind();
           var url =
@@ -2186,7 +2186,7 @@
           var r = await fetch(url, { credentials: "same-origin" });
           var data = await r.json();
           if (!r.ok) {
-            showBanner(data.detail || "Bağlantılar yüklenemedi.");
+            showBanner(data.detail || "Could not load links.");
             linkBtn.textContent = prev;
             return;
           }
@@ -2194,14 +2194,14 @@
           var note = "";
           if (data.truncated) {
             note =
-              '<p class="mb-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Liste üst sınırda kesildi (' +
+              '<p class="mb-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">List truncated at the cap (' +
               esc(String(data.link_count || links.length)) +
               ").</p>";
           }
           panel.innerHTML = note + renderSampleLinksList(links);
           panel.dataset.loaded = "1";
           panel.classList.remove("hidden");
-          linkBtn.textContent = "URL’leri gizle";
+          linkBtn.textContent = "Hide URLs";
         } catch (e) {
           showBanner(String(e.message || e));
           linkBtn.textContent = prev;
@@ -2235,17 +2235,17 @@
         if (!panel) return;
         if (panel.dataset.loaded === "1" && !panel.classList.contains("hidden")) {
           panel.classList.add("hidden");
-          allBtn.textContent = "Tüm linkleri gör (" + total + ")";
+          allBtn.textContent = "See all links (" + total + ")";
           return;
         }
         if (panel.dataset.loaded === "1") {
           panel.classList.remove("hidden");
-          allBtn.textContent = "Linkleri gizle";
+          allBtn.textContent = "Hide links";
           return;
         }
         var prev = allBtn.textContent;
         allBtn.disabled = true;
-        allBtn.textContent = "Yükleniyor…";
+        allBtn.textContent = "Loading…";
         try {
           var url =
             "/api/backlinks/domain-links?site_id=" +
@@ -2257,7 +2257,7 @@
           var r = await fetch(url, { credentials: "same-origin" });
           var data = await r.json();
           if (!r.ok) {
-            showBanner(data.detail || "Linkler yüklenemedi.");
+            showBanner(data.detail || "Could not load links.");
             allBtn.textContent = prev;
             return;
           }
@@ -2265,14 +2265,14 @@
           var note = "";
           if (data.truncated) {
             note =
-              '<p class="mb-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Liste üst sınırda kesildi (' +
+              '<p class="mb-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">List truncated at the cap (' +
               esc(String(data.link_count || links.length)) +
               ").</p>";
           }
           panel.innerHTML = note + renderSampleLinksList(links);
           panel.dataset.loaded = "1";
           panel.classList.remove("hidden");
-          allBtn.textContent = "Linkleri gizle";
+          allBtn.textContent = "Hide links";
         } catch (e) {
           showBanner(String(e.message || e));
           allBtn.textContent = prev;
@@ -2350,7 +2350,7 @@
     var ul = document.getElementById("bl-import-steps");
     if (!ul) return;
     if (!imports.length) {
-      ul.innerHTML = '<li class="text-xs text-slate-500">Henüz tarama adımı yok. Otomatik tarama bekleniyor.</li>';
+      ul.innerHTML = '<li class="text-xs text-slate-500">No scan steps yet. Waiting for the automatic scan.</li>';
       return;
     }
     ul.innerHTML = imports
@@ -2376,13 +2376,13 @@
           "</div>" +
           '<div class="mt-0.5 text-[10px] text-slate-500">' +
           esc(String(i.row_count || 0)) +
-          " satır · " +
+          " rows · " +
           esc(when) +
           "</div>" +
           "</div>" +
           '<button type="button" class="bl-delete-import shrink-0 rounded-md border border-rose-300 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-200 dark:hover:bg-rose-950/40" data-import-id="' +
           esc(i.id) +
-          '">Kaldır</button>' +
+          '">Remove</button>' +
           "</li>"
         );
       })
@@ -2391,7 +2391,7 @@
       btn.addEventListener("click", async function () {
         var id = btn.getAttribute("data-import-id");
         if (!id) return;
-        if (!window.confirm("#" + id + " adımını silmek istediğinize emin misiniz? Bu dosyanın satırları özette çıkar.")) return;
+        if (!window.confirm("Delete step #" + id + "? Rows from this file will drop out of the summary.")) return;
         btn.disabled = true;
         try {
           var r = await fetch(
@@ -2399,7 +2399,7 @@
             { method: "DELETE", credentials: "same-origin" }
           );
           var d = await r.json();
-          if (!r.ok) throw new Error(d.detail || "Silinemedi");
+          if (!r.ok) throw new Error(d.detail || "Could not delete");
           await loadDashboard();
         } catch (e) {
           showBanner(String(e.message || e));
@@ -2447,7 +2447,7 @@
       loadGscProperties()
         .then(function () {
           return loadDashboard({
-            loadingLabel: "Site değişiyor…",
+            loadingLabel: "Changing site…",
             loadingSub: siteName,
           });
         })
@@ -2515,7 +2515,7 @@
     syncBlReportTypeChipsUi(next);
     if (!opts || !opts.skipLoad) {
       loadDashboard({
-        loadingLabel: "Rapor türü değişiyor…",
+        loadingLabel: "Changing report type…",
         loadingSub: blReportTypeHumanLabel(next),
       }).catch(function (e) {
         showBanner(String(e.message || e));
@@ -2641,10 +2641,10 @@
     if (hint) {
       hint.classList.toggle("hidden", !hideDomainTable);
       if (isAnchor) {
-        hint.textContent = "Anchor text listesi özet bölümünde ve aşağıdaki değişim tablolarında.";
+        hint.textContent = "The anchor text list is in the summary and in the change tables below.";
       } else if (isTarget) {
         hint.innerHTML =
-          'Bu rapor türünde domain risk tablosu yok. Liste özet bölümündeki <strong>External / Internal</strong> verisinden gelir.';
+          'This report type has no domain risk table. It uses <strong>External / Internal</strong> from the summary.';
       }
     }
     if (filtersWrap) filtersWrap.classList.toggle("hidden", hideDomainTable);
@@ -2662,7 +2662,7 @@
       else if (nrt === "internal") title.textContent = "Internal — top linked pages";
       else if (nrt === "anchor_text") title.textContent = "Anchor text";
       else if (nrt === "domain") title.textContent = "Linking sites";
-      else title.textContent = hideDomainTable ? "Hedef sayfalar" : "Domain listesi";
+      else title.textContent = hideDomainTable ? "Target pages" : "Domain list";
     }
 
     ["bl-st-disavow-wrap", "bl-st-review-wrap", "bl-st-media-wrap"].forEach(function (id) {
@@ -2672,20 +2672,20 @@
     var domLabel = document.getElementById("bl-st-domains-label");
     if (domLabel) {
       if (isAnchor) domLabel.textContent = "Anchor";
-      else if (isTarget) domLabel.textContent = "Hedef sayfa";
+      else if (isTarget) domLabel.textContent = "Target page";
       else domLabel.textContent = "Domain";
     }
     var newLabel = document.getElementById("bl-st-new-label");
     if (newLabel) {
-      if (isAnchor) newLabel.textContent = "Yeni anchor";
-      else if (isTarget) newLabel.textContent = "Yeni hedef";
-      else newLabel.textContent = "Yeni domain";
+      if (isAnchor) newLabel.textContent = "New anchor";
+      else if (isTarget) newLabel.textContent = "New target";
+      else newLabel.textContent = "New domain";
     }
     var lostLabel = document.getElementById("bl-st-lost-label");
     if (lostLabel) {
-      if (isAnchor) lostLabel.textContent = "Kayıp anchor";
-      else if (isTarget) lostLabel.textContent = "Kayıp hedef";
-      else lostLabel.textContent = "Kayıp domain";
+      if (isAnchor) lostLabel.textContent = "Lost anchor";
+      else if (isTarget) lostLabel.textContent = "Lost target";
+      else lostLabel.textContent = "Lost domain";
     }
 
     var disavowLink = document.getElementById("bl-disavow-link");
@@ -2699,16 +2699,16 @@
       var rowN = agg.rows_total != null ? agg.rows_total : 0;
       var prop = (d && d.property_label) || (d && d.gsc_resource_id) || "";
       var kpi = (d && d.kpis) || {};
-      var kpiTxt = kpi.total_links ? " · toplam " + blFmtNum(kpi.total_links) : "";
+      var kpiTxt = kpi.total_links ? " · total " + blFmtNum(kpi.total_links) : "";
       rtBanner.textContent =
-        "Görünüm: " +
+        "View: " +
         label +
         (prop ? " · " + prop : "") +
         " · " +
         impN +
         " snapshot · " +
         blFmtNum(rowN) +
-        " satır" +
+        " rows" +
         kpiTxt;
       rtBanner.classList.remove("hidden");
     }
@@ -2721,7 +2721,7 @@
   var blDomainsCache = [];
   var blDiffData = { new_domains: [], lost_domains: [], new_links: [], lost_links: [] };
   var blFilters = { view: "all", action: "all", risk: "all" };
-  /** @type {Record<string, boolean>} seçili bağlantı veren domainler (boş = filtre yok) */
+  /** @type {Record<string, boolean>} selected connection veren domainler (boş = filtre yok) */
   var blDomainPick = {};
   var blDomainPickerSearch = "";
   var blSortState = { key: "link_count", desc: true };
@@ -2846,7 +2846,7 @@
     var textEl = document.getElementById("bl-domain-picker-trigger-text");
     if (!textEl) return;
     var n = blDomainPickKeys().length;
-    textEl.textContent = n ? "Domain seç (" + n + ")" : "Domain seç";
+    textEl.textContent = n ? "Select domain (" + n + ")" : "Select domain";
   }
 
   function blCloseDomainPicker() {
@@ -2868,10 +2868,10 @@
         all.length +
         " tekil domain" +
         (q ? " · aramada " + visible.length : "") +
-        (blDomainPickKeys().length ? " · " + blDomainPickKeys().length + " seçili" : "");
+        (blDomainPickKeys().length ? " · " + blDomainPickKeys().length + " selected" : "");
     }
     if (!visible.length) {
-      listEl.innerHTML = '<p class="py-2 text-[10px] text-slate-500">Eşleşen domain yok.</p>';
+      listEl.innerHTML = '<p class="py-2 text-[10px] text-slate-500">No matching domains.</p>';
       return;
     }
     listEl.innerHTML = visible
@@ -2979,10 +2979,10 @@
     var picked = blDomainPickKeys().length;
     var base =
       total > 0
-        ? "Gösterilen " + shown + " / " + total + " domain (filtre sonrası)."
+        ? "Showing " + shown + " / " + total + " domains (after filter)."
         : "";
     if (blDomainsPayloadTruncated && total > 0) {
-      base += " Sunucu listesi üst sınırda kesilmiş.";
+      base += " The server list was truncated at the cap.";
     }
     if (
       blDomainsTableRenderLimit > 0 &&
@@ -2992,12 +2992,12 @@
       base +=
         " Tabloda ilk " +
         blDomainsTableRenderLimit +
-        " satır; «Daha fazla göster» ile genişletin.";
+        " rows; expand with Show more.";
     }
     if (picked && base) {
-      base += " Domain seçimi: " + picked + " site.";
+      base += " Select domainimi: " + picked + " site.";
     } else if (picked) {
-      base = "Domain seçimi: " + picked + " site.";
+      base = "Select domainimi: " + picked + " site.";
     }
     el.textContent = base;
   }
@@ -3023,7 +3023,7 @@
     if ((diff.lost_links || []).length) {
       parts.push(
         renderDiffLinkBlock(
-          "Kayıp linkler · " + (diff.previous_import_label || "önceki import"),
+          "Lost links · " + (diff.previous_import_label || "previous import"),
           diff.lost_links,
           "lost"
         )
@@ -3031,14 +3031,14 @@
     }
     if ((diff.new_domains || []).length) {
       var newTitle =
-        diff.diff_kind === "target_pages" ? "Yeni sayfalar (Top external/internal)" : "Yeni domainler";
+        diff.diff_kind === "target_pages" ? "New pages (Top external/internal)" : "New domains";
       parts.push(
         renderDiffDomainBlock(newTitle, diff.new_domains, "new", diff.new_domains_count)
       );
     }
     if ((diff.lost_domains || []).length) {
       var lostTitle =
-        diff.diff_kind === "target_pages" ? "Kayıp sayfalar (Top external/internal)" : "Kayıp domainler";
+        diff.diff_kind === "target_pages" ? "Lost pages (Top external/internal)" : "Lost domains";
       parts.push(
         renderDiffDomainBlock(lostTitle, diff.lost_domains, "lost", diff.lost_domains_count)
       );
@@ -3082,7 +3082,7 @@
 
   function blOpenDiffTonePanel(tone) {
     if (!blLastDiff || !blLastDiff.has_previous) {
-      showBanner("Karşılaştırma için en az iki tarama kaydı gerekir.");
+      showBanner("Compare needs at least two scan records.");
       return false;
     }
     renderDiffPanels(blLastDiff);
@@ -3095,7 +3095,7 @@
       blScrollToSection("bl-diff-panels");
       return true;
     }
-    showBanner(tone === "lost" ? "Kayıp domain listesi boş." : "Yeni domain listesi boş.");
+    showBanner(tone === "lost" ? "Lost domain list is empty." : "New domain list is empty.");
     return false;
   }
 
@@ -3155,7 +3155,7 @@
             blUpdateSummaryCardActiveState();
             blOpenDiffTonePanel(key === "lost" ? "lost" : "new");
           } else {
-            showBanner("Bu rapor türünde domain tablosu yok; yeni/kayıp kartları diff listesini açar.");
+            showBanner("This report type has no domain table; new/lost cards open the diff list.");
           }
           return;
         }
@@ -3289,7 +3289,7 @@
       "</span>" +
       '<div class="mt-1 text-[10px] font-sans normal-case text-slate-500">' +
       esc(formatActionBreakdown(row)) +
-      (parseFloat(row.low_risk_pct) > 0 ? " · düşük risk %" + esc(row.low_risk_pct) : "") +
+      (parseFloat(row.low_risk_pct) > 0 ? " · low risk %" + esc(row.low_risk_pct) : "") +
       "</div>" +
       (flags ? '<div class="mt-0.5 text-[10px] text-slate-500">Bayraklar: ' + esc(flags) + "</div>" : "") +
       "</td>" +
@@ -3340,7 +3340,7 @@
       '<span class="text-[10px]">' +
       esc(formatActionBreakdown(row)) +
       "</span>" +
-      "<span><strong>Öneri:</strong> " +
+      "<span><strong>Recommendation:</strong> " +
       esc(row.recommended_action) +
       "</span>" +
       "</div>" +
@@ -3348,7 +3348,7 @@
       '<div class="mt-2 text-[11px] leading-relaxed">' +
       renderLinksCell(row) +
       "</div>" +
-      '<div class="mt-3"><span class="mb-1 block text-[10px] font-bold uppercase text-slate-500">Aksiyon</span>' +
+      '<div class="mt-3"><span class="mb-1 block text-[10px] font-bold uppercase text-slate-500">Action</span>' +
       renderActionSelect(row) +
       "</div></article>"
     );
@@ -3393,17 +3393,17 @@
         if (!panel) return;
         if (panel.dataset.loaded === "1" && !panel.classList.contains("hidden")) {
           panel.classList.add("hidden");
-          btn.textContent = "Tüm linkleri gör (" + total + ")";
+          btn.textContent = "See all links (" + total + ")";
           return;
         }
         if (panel.dataset.loaded === "1") {
           panel.classList.remove("hidden");
-          btn.textContent = "Linkleri gizle";
+          btn.textContent = "Hide links";
           return;
         }
         var prev = btn.textContent;
         btn.disabled = true;
-        btn.textContent = "Yükleniyor…";
+        btn.textContent = "Loading…";
         try {
           var url =
             "/api/backlinks/domain-links?site_id=" +
@@ -3415,7 +3415,7 @@
           var r = await fetch(url, { credentials: "same-origin" });
           var data = await r.json();
           if (!r.ok) {
-            showBanner(data.detail || "Linkler yüklenemedi.");
+            showBanner(data.detail || "Could not load links.");
             btn.textContent = prev;
             return;
           }
@@ -3423,14 +3423,14 @@
           var note = "";
           if (data.truncated) {
             note =
-              '<p class="mb-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Liste üst sınırda kesildi; tam sayı: ' +
+              '<p class="mb-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">List truncated at the cap; full count: ' +
               esc(String(data.link_count || links.length)) +
               ".</p>";
           }
           panel.innerHTML = note + renderSampleLinksList(links);
           panel.dataset.loaded = "1";
           panel.classList.remove("hidden");
-          btn.textContent = "Linkleri gizle";
+          btn.textContent = "Hide links";
         } catch (e) {
           showBanner(String(e.message || e));
           btn.textContent = prev;
@@ -3456,7 +3456,7 @@
         });
         if (!pr.ok) {
           var err = await pr.json();
-          showBanner(err.detail || "Aksiyon kaydedilemedi.");
+          showBanner(err.detail || "Could not save the action.");
           return;
         }
         blDomainsCache.forEach(function (row) {
@@ -3475,9 +3475,9 @@
     if (!domains.length) {
       if (tbody) {
         tbody.innerHTML =
-          '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Bu filtre için domain yok. Filtreleri gevşetin veya sonraki otomatik taramayı bekleyin.</td></tr>';
+          '<tr><td colspan="6" class="px-2 py-4 text-slate-500">No domains for this filter. Loosen the filters or wait for the next automatic scan.</td></tr>';
       }
-      if (cards) cards.innerHTML = '<p class="text-sm text-slate-500">Bu filtre için domain yok.</p>';
+      if (cards) cards.innerHTML = '<p class="text-sm text-slate-500">No domains for this filter.</p>';
       if (moreWrap) moreWrap.classList.add("hidden");
       return;
     }
@@ -3492,7 +3492,7 @@
         var btn = document.getElementById("bl-domains-more-btn");
         if (btn) {
           btn.textContent =
-            "Daha fazla göster (" + page.length + " / " + sorted.length + ")";
+            "Show more (" + page.length + " / " + sorted.length + ")";
         }
       } else {
         moreWrap.classList.add("hidden");
@@ -3533,25 +3533,25 @@
       var r = await fetch(url, { credentials: "same-origin", cache: "no-store" });
       var d = await r.json();
       if (!r.ok) {
-        kpiRow.innerHTML = '<p class="text-xs text-rose-700 col-span-full">Değişim verisi yok.</p>';
+        kpiRow.innerHTML = '<p class="text-xs text-rose-700 col-span-full">No change data.</p>';
         return;
       }
       var diff = d.diff || {};
       var latest = d.latest || {};
       var kpis = (latest.kpis || {});
       kpiRow.innerHTML =
-        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Snapshot satır</div><div class="text-lg font-bold">' +
+        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Snapshot rows</div><div class="text-lg font-bold">' +
         blFmtNum(latest.row_count || 0) +
         '</div></div>' +
         '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Yeni</div><div class="text-lg font-bold text-emerald-700">' +
         blFmtNum(diff.new_count || 0) +
         '</div></div>' +
-        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Kayıp</div><div class="text-lg font-bold text-slate-700">' +
+        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Lost</div><div class="text-lg font-bold text-slate-700">' +
         blFmtNum(diff.lost_count || 0) +
         '</div></div>' +
-        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Değişen</div><div class="text-lg font-bold text-indigo-700">' +
+        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Changed</div><div class="text-lg font-bold text-indigo-700">' +
         blFmtNum(diff.changed_count || 0) +
-        (kpis.total_links ? '<div class="text-[10px] text-slate-500">Toplam link ' + blFmtNum(kpis.total_links) + "</div>" : "") +
+        (kpis.total_links ? '<div class="text-[10px] text-slate-500">Total links ' + blFmtNum(kpis.total_links) + "</div>" : "") +
         "</div></div>";
 
       function listBlock(title, items, labelKey) {
@@ -3570,21 +3570,21 @@
           title +
           '</h4><ol class="mt-1 space-y-0.5 text-[11px] text-slate-700 dark:text-slate-200">' +
           (lis ||
-            '<li class="text-slate-400">Bu pencerede kayıt yok.</li>') +
+            '<li class="text-slate-400">No records in this window.</li>') +
           "</ol></section>"
         );
       }
       if (tables) {
         tables.innerHTML =
           listBlock("Yeni", diff.new || [], "label") +
-          listBlock("Kayıp", diff.lost || [], "label") +
-          listBlock("Değişen", diff.changed || [], "label");
+          listBlock("Lost", diff.lost || [], "label") +
+          listBlock("Changed", diff.changed || [], "label");
       }
       if (chart) {
         var series = d.series || [];
         if (!series.length) {
           chart.innerHTML =
-            '<p class="text-xs text-slate-500">Henüz zaman serisi yok — 2. tarama sonrası dolacak.</p>';
+            '<p class="text-xs text-slate-500">No time series yet — it fills in after the 2nd scan.</p>';
         } else {
           var max = 1;
           series.forEach(function (s) {
@@ -3602,7 +3602,7 @@
                   t +
                   " · " +
                   blFmtNum(v) +
-                  ' satır"><div class="w-full max-w-[2.5rem] rounded-t bg-indigo-500/85 dark:bg-indigo-400/80" style="height:' +
+                  ' rows"><div class="w-full max-w-[2.5rem] rounded-t bg-indigo-500/85 dark:bg-indigo-400/80" style="height:' +
                   barH +
                   'px"></div><span class="w-full truncate text-center text-[9px] text-slate-500">' +
                   t +
@@ -3616,15 +3616,15 @@
       var st = document.getElementById("bl-scan-status");
       if (st && latest.created_at) {
         st.textContent =
-          "Son tarama: " +
+          "Last scan: " +
           latest.created_at +
           " · " +
           blFmtNum(latest.row_count || 0) +
-          " satır" +
-          (d.has_baseline ? " · " + w + " baseline hazır" : " · baseline için sonraki tarama bekleniyor");
+          " rows" +
+          (d.has_baseline ? " · " + w + " baseline ready" : " · waiting for the next scan for baseline");
       }
     } catch (e) {
-      if (kpiRow) kpiRow.innerHTML = '<p class="text-xs text-rose-700">Değişim yüklenemedi.</p>';
+      if (kpiRow) kpiRow.innerHTML = '<p class="text-xs text-rose-700">Could not load change.</p>';
     }
   }
 
@@ -3636,8 +3636,8 @@
     var t0 = Date.now();
     if (showLoader) {
       blShowDashboardLoading(
-        (opts && opts.loadingLabel) || "Veriler güncelleniyor…",
-        (opts && opts.loadingSub) || "Dashboard yenileniyor"
+        (opts && opts.loadingLabel) || "Updating data…",
+        (opts && opts.loadingSub) || "Dashboard refreshing"
       );
     }
     try {
@@ -3658,7 +3658,7 @@
       var d = await r.json();
       if (mySeq !== blDashboardLoadSeq) return;
       if (!r.ok) {
-        showBanner(d.detail || "Dashboard yüklenemedi.");
+        showBanner(d.detail || "Could not load the dashboard.");
         await blMaybeHideDashboardLoader(mySeq, showLoader, t0);
         return;
       }
@@ -3734,7 +3734,7 @@
         var tbody = document.getElementById("bl-domains-body");
         if (tbody) {
           tbody.innerHTML =
-            '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Hedef sayfa listesi yukarıdaki özet bölümünde. Domain risk tablosu yalnızca link rapor türlerinde kullanılır.</td></tr>';
+            '<tr><td colspan="6" class="px-2 py-4 text-slate-500">The target page list is in the summary above. The domain risk table is only used in link report types.</td></tr>';
         }
       }
       pruneBlDomainPick();
@@ -3751,7 +3751,7 @@
       loadChanges(blChangeWindow || "daily");
     } catch (err) {
       if (mySeq === blDashboardLoadSeq) {
-        showBanner(String((err && err.message) || err || "Dashboard yüklenemedi"));
+        showBanner(String((err && err.message) || err || "Could not load the dashboard"));
         blHideDashboardLoading();
       }
       throw err;
@@ -3761,8 +3761,8 @@
   if (blRefreshBtn) {
     blRefreshBtn.addEventListener("click", function () {
       loadDashboard({
-        loadingLabel: "Yenileniyor…",
-        loadingSub: "Sunucudan güncel veri alınıyor",
+        loadingLabel: "Refreshing…",
+        loadingSub: "Fetching latest data from the server",
       }).catch(function (e) {
         showBanner(String(e.message || e));
       });
@@ -3807,8 +3807,8 @@
   loadGscProperties()
     .then(function () {
       return loadDashboard({
-        loadingLabel: "Backlinks yükleniyor…",
-        loadingSub: "GSC tarama kaydı",
+        loadingLabel: "Backlinks loading…",
+        loadingSub: "GSC scan record",
       });
     })
     .catch(function () {});
@@ -3818,7 +3818,7 @@
     blImportBtn.setAttribute("disabled", "disabled");
     blImportBtn.addEventListener("click", function (e) {
       e.preventDefault();
-      showBanner("Manuel dosya yükleme kapalı. Veri Search Console Links taraması ile gelir.");
+      showBanner("Manual file upload is off. Data comes from the Search Console Links scan.");
     });
   }
   ["bl-file", "bl-sheets-url", "bl-file-drop", "bl-file-picked", "bl-import-status"].forEach(function (id) {

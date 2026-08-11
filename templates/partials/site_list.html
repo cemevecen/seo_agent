@@ -5,12 +5,12 @@
         <tr>
           <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">ID</th>
           <th class="min-w-[7rem] px-2 py-2 font-medium sm:px-3">Domain</th>
-          <th class="min-w-[6rem] px-2 py-2 font-medium sm:px-3">Görünen Ad</th>
-          <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">Profil</th>
-          <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">Durum</th>
+          <th class="min-w-[6rem] px-2 py-2 font-medium sm:px-3">Display name</th>
+          <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">Profile</th>
+          <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">Status</th>
           <th class="min-w-[12rem] px-2 py-2 font-medium sm:px-3">Search Console</th>
           <th class="min-w-[18rem] px-2 py-2 font-medium sm:min-w-[22rem] lg:min-w-[26rem] sm:px-3">GA4</th>
-          <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">İşlem</th>
+          <th class="whitespace-nowrap px-2 py-2 font-medium sm:px-3">Action</th>
         </tr>
       </thead>
       <tbody>
@@ -28,9 +28,9 @@
             </td>
             <td class="align-top px-2 py-2 sm:px-3">
               {% if site.is_active %}
-                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">Aktif</span>
+                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">Active</span>
               {% else %}
-                <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300">Pasif</span>
+                <span class="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300">Inactive</span>
               {% endif %}
             </td>
             <td class="min-w-0 align-top px-2 py-2 sm:px-3">
@@ -50,7 +50,7 @@
                       type="submit"
                       class="rounded-md border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/50"
                     >
-                      Kaldır
+                      Remove
                     </button>
                   </form>
                 {% elif oauth_ready %}
@@ -58,14 +58,14 @@
                     href="/api/search-console/oauth/start/{{ site.id }}?next=/settings"
                     class="rounded-md border border-sky-200 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-300 dark:hover:bg-sky-950/40"
                   >
-                    Google ile Bağlan
+                    Connect with Google
                   </a>
                 {% else %}
-                  <span class="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-medium text-slate-500 dark:text-slate-400">OAuth ayarı bekleniyor</span>
+                  <span class="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-medium text-slate-500 dark:text-slate-400">Waiting for OAuth setup</span>
                 {% endif %}
               </div>
               {% if site.search_console.requires_reauth %}
-                <p class="mt-1 text-xs text-rose-600 dark:text-rose-300">Son Search Console yenilemesi token hatası verdi. "Kaldır" -> "Google ile Bağlan" yapın.</p>
+                <p class="mt-1 text-xs text-rose-600 dark:text-rose-300">The last Search Console refresh returned a token error. Use "Remove" → "Connect with Google".</p>
               {% endif %}
             </td>
             <td class="min-w-0 align-top px-2 py-2 sm:px-3">
@@ -119,7 +119,7 @@
                     type="submit"
                     class="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:hover:bg-slate-800"
                   >
-                    Kaydet
+                    Save
                   </button>
                   <button
                     type="button"
@@ -128,7 +128,7 @@
                     hx-swap="none"
                     hx-on::after-request="refreshSiteList()"
                   >
-                    Son 30 günü çek
+                    Fetch last 30 days
                   </button>
                   <span id="ga4-save-feedback-{{ site.id }}" class="text-xs font-medium text-slate-500 dark:text-slate-400"></span>
                   </div>
@@ -144,7 +144,7 @@
                   hx-swap="none"
                   hx-on::after-request="handleSiteDelete(event)"
                 >
-                  Sil
+                  Delete
                 </button>
                 {% if not site.search_console.connected %}
                   <a
@@ -167,6 +167,6 @@
   </div>
 {% else %}
   <div class="rounded-md border border-dashed border-slate-300 dark:border-slate-600 p-6 text-center text-sm text-slate-500 dark:text-slate-400">
-    Henüz kayıtlı site bulunmuyor.
+    No registered sites yet.
   </div>
 {% endif %}

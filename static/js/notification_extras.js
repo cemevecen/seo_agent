@@ -4,10 +4,10 @@
 (function (global) {
   "use strict";
 
-  var DOW_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+  var DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   var HEATMAP_HOUR_START = 7;
   var HEATMAP_HOUR_END = 23;
-  // Düşük click → kırmızı, yüksek click → koyu yeşil (önemli saatler belirgin)
+  // Düşük click → red, yüksek click → koyu yeşil (önemli saatler belirgin)
   var HEATMAP_COLORSCALE = window.seoMatteHeatmapScale
     ? window.seoMatteHeatmapScale()
     : [
@@ -286,14 +286,14 @@
       ? Number(prevVal).toFixed(2) + "%"
       : (nt().fmtCount ? nt().fmtCount(prevVal) : prevVal);
     var tone = deltaTone(delta);
-    var extra = opts.share != null ? " · pay %" + Number(opts.share).toFixed(1) : "";
+    var extra = opts.share != null ? " · share %" + Number(opts.share).toFixed(1) : "";
     return '<article class="nt-kpi-ss2">'
       + '<div class="nt-kpi-ss2-head"><span class="nt-kpi-chip">' + enCapsLabel(label) + "</span></div>"
       + '<div class="nt-kpi-ss2-main">'
       + '<div class="nt-kpi-ss2-metrics">'
       + '<p class="nt-kpi-ss2-delta ' + tone + '">' + fmtDeltaHero(delta) + "</p>"
       + '<p class="nt-kpi-ss2-value" title="' + valStr + '">' + valStr + "</p>"
-      + '<p class="nt-kpi-ss2-prev">önceki ' + prevStr + extra + "</p>"
+      + '<p class="nt-kpi-ss2-prev">previous ' + prevStr + extra + "</p>"
       + "</div>"
       + '<div id="' + id + '" class="nt-kpi-ss2-spark">' + (opts.spark || "") + "</div>"
       + "</div></article>";
@@ -368,7 +368,7 @@
         dEl.className = "nt-kpi-ss2-delta is-flat";
       }
       if (meta) {
-        meta.textContent = "önceki dönem…";
+        meta.textContent = "previous period…";
         meta.classList.remove("hidden");
       }
     });
@@ -393,7 +393,7 @@
         dEl.className = "nt-kpi-ss2-delta " + tone;
       }
       if (meta) {
-        meta.textContent = "önceki " + formatTopKpiPrevValue(prev, def.fmt);
+        meta.textContent = "previous " + formatTopKpiPrevValue(prev, def.fmt);
         meta.classList.remove("hidden");
       }
       if (spark) spark.innerHTML = sparkForKey(curDaily, prevDaily, def.dailyKey);
@@ -474,11 +474,11 @@
     var range = effectivePrimaryRange(primaryRows);
     var prev = previousPeriodRange(range.start, range.end);
     if (!prev) {
-      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Dönem karşılaştırması için başlangıç ve bitiş tarihi seçin.</p>';
+      el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Select a start and end date for period comparison.</p>';
       return;
     }
     var req = ++periodCompareReq;
-    el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Karşılaştırma yükleniyor…</p>';
+    el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Loading comparison…</p>';
     var curStats = aggregatePeriod(primaryRows);
     fetchRowsForRange(prev).then(function (prevRows) {
       if (req !== periodCompareReq) return;
@@ -503,16 +503,16 @@
       el.innerHTML = '<p class="mb-2 text-xs text-slate-500 dark:text-slate-400">'
         + range.start + " – " + range.end + " vs " + prev.start + " – " + prev.end + "</p>"
         + '<div class="nt-cmp-grid nt-cmp-grid-totals">'
-        + periodKpiCard("nt-spark-rows", "Toplam sayı", curStats.rows, prevStats.rows, rowsD, { spark: sparkForKey(curDaily, prevDaily, "rows") })
-        + periodKpiCard("nt-spark-clicks", "Toplam click", curStats.clicks, prevStats.clicks, clickD, { spark: sparkForKey(curDaily, prevDaily, "clicks") })
-        + periodKpiCard("nt-spark-impressions", "Toplam impression", curStats.impressions, prevStats.impressions, imprD, { spark: sparkForKey(curDaily, prevDaily, "impressions") })
+        + periodKpiCard("nt-spark-rows", "Total count", curStats.rows, prevStats.rows, rowsD, { spark: sparkForKey(curDaily, prevDaily, "rows") })
+        + periodKpiCard("nt-spark-clicks", "Total clicks", curStats.clicks, prevStats.clicks, clickD, { spark: sparkForKey(curDaily, prevDaily, "clicks") })
+        + periodKpiCard("nt-spark-impressions", "Total impressions", curStats.impressions, prevStats.impressions, imprD, { spark: sparkForKey(curDaily, prevDaily, "impressions") })
         + "</div>"
         + '<div class="nt-cmp-grid nt-cmp-grid-plats">'
         + platHtml
         + "</div>";
     }).catch(function () {
       if (req !== periodCompareReq) return;
-      el.innerHTML = '<p class="text-xs text-rose-600">Karşılaştırma verisi yüklenemedi.</p>';
+      el.innerHTML = '<p class="text-xs text-rose-600">Could not load comparison data.</p>';
       clearTopKpiCompare();
     });
   }
@@ -521,7 +521,7 @@
     var el = global.document.getElementById("nt-heatmap");
     if (!el || !global.Plotly) return;
     if (!rows || !rows.length) {
-      el.innerHTML = '<p class="flex h-full items-center justify-center text-xs text-slate-500">Heatmap için veri yok.</p>';
+      el.innerHTML = '<p class="flex h-full items-center justify-center text-xs text-slate-500">No heatmap data.</p>';
       return;
     }
     var metric = (global.document.getElementById("nt-heatmap-metric") || {}).value || "total";
@@ -585,7 +585,7 @@
       plot_bgcolor: noDataGray,
       font: { color: dark ? "#a1a1aa" : "#475569", size: 10 },
       xaxis: { title: "Saat (07:00–23:00)", tickangle: -45 },
-      yaxis: { title: "Gün" },
+      yaxis: { title: "Day" },
     }, { responsive: true, displayModeBar: false });
   }
 
@@ -602,8 +602,8 @@
       lastAlertPayload = data;
       var alerts = data.alerts || [];
       if (!alerts.length) {
-        el.innerHTML = '<p class="text-xs text-emerald-600 dark:text-emerald-400">Son 7 günde eşik alarmı yok.</p>'
-          + '<p class="mt-1 text-[10px] text-slate-500">Kurallar: click ≥%30 düşüş · CTR medyan altı · e-posta günlük tek sefer</p>';
+        el.innerHTML = '<p class="text-xs text-emerald-600 dark:text-emerald-400">No threshold alerts in the last 7 days.</p>'
+          + '<p class="mt-1 text-[10px] text-slate-500">Rules: click ≥30% drop · CTR below median · email once per day</p>';
         return;
       }
       el.innerHTML = alerts.map(function (a) {
@@ -611,7 +611,7 @@
         return '<div class="rounded-lg border px-3 py-2 text-xs ' + cls + '"><p class="font-bold">' + (nt().escapeHtml ? nt().escapeHtml(a.title) : a.title) + '</p><p class="mt-1 text-slate-600 dark:text-slate-400">' + (nt().escapeHtml ? nt().escapeHtml(a.summary) : a.summary) + "</p></div>";
       }).join("");
     }).catch(function () {
-      el.innerHTML = '<p class="text-xs text-slate-500">Alarm durumu okunamadı.</p>';
+      el.innerHTML = '<p class="text-xs text-slate-500">Could not read alert status.</p>';
     });
   }
 
@@ -700,7 +700,7 @@
         lastAlertPayload = data;
         renderAlertsPanel();
         btn.disabled = false;
-        alert(data.email_sent && data.email_sent.length ? "Alarm e-postası gönderildi." : "Kontrol tamamlandı.");
+        alert(data.email_sent && data.email_sent.length ? "Alert email sent." : "Check completed.");
       }).catch(function () {
         btn.disabled = false;
       });
@@ -749,7 +749,7 @@
         return;
       }
       if (left <= 0) {
-        el.textContent = "biraz daha…";
+        el.textContent = "a bit longer…";
         ntClearTrafficCountdown(body);
         return;
       }
@@ -761,22 +761,22 @@
   }
 
   function ntTrafficLoadingHtml() {
-    var countdownLine = '<p class="text-[10px] text-slate-500 dark:text-slate-400">Tahmini süre: '
+    var countdownLine = '<p class="text-[10px] text-slate-500 dark:text-slate-400">Estimated time: '
       + '<span class="nt-traffic-countdown inline-flex min-w-[1.25rem] items-center justify-center rounded-md bg-emerald-100/80 px-1.5 py-0.5 tabular-nums text-xs font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">'
       + NT_TRAFFIC_COUNTDOWN_SEC
-      + "</span> sn</p>";
+      + "</span> s</p>";
     if (ntTrafficLottieReady()) {
       return '<div class="nt-traffic-loading flex flex-col items-center justify-center gap-1 py-2">'
         + '<lottie-player class="nt-traffic-lottie" src="' + NT_TRAFFIC_LOTTIE + '" background="transparent" speed="1" loop autoplay'
         + ' style="width:' + NT_TRAFFIC_LOTTIE_PX + "px;height:" + NT_TRAFFIC_LOTTIE_PX + 'px"></lottie-player>'
-        + '<p class="text-xs font-medium text-emerald-700 dark:text-emerald-300">GA4 / GSC trafik yükleniyor…</p>'
-        + '<p class="text-[10px] text-slate-500 dark:text-slate-400">Search Console ve Analytics eşleşmesi alınıyor</p>'
+        + '<p class="text-xs font-medium text-emerald-700 dark:text-emerald-300">Loading GA4 / GSC traffic…</p>'
+        + '<p class="text-[10px] text-slate-500 dark:text-slate-400">Matching Search Console and Analytics</p>'
         + countdownLine
         + "</div>";
     }
     return '<div class="nt-traffic-loading flex flex-col items-center justify-center gap-2 py-3">'
       + '<div class="h-10 w-10 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" aria-hidden="true"></div>'
-      + '<p class="text-xs text-slate-500 dark:text-slate-400">GA4 / GSC trafik yükleniyor…</p>'
+      + '<p class="text-xs text-slate-500 dark:text-slate-400">Loading GA4 / GSC traffic…</p>'
       + countdownLine
       + "</div>";
   }
@@ -840,7 +840,7 @@
       { k: "iOS", click: nt().nCount ? nt().nCount((p.ios || {}).click) : 0, impr: null },
     ];
     containerEl.innerHTML = specs.map(function (x) {
-      var ctr = x.impr > 0 ? ((x.click / x.impr) * 100).toFixed(2) + "% CTR" : (x.k === "iOS" ? "impr yok" : "—");
+      var ctr = x.impr > 0 ? ((x.click / x.impr) * 100).toFixed(2) + "% CTR" : (x.k === "iOS" ? "no impr" : "—");
       return '<div class="rounded-lg border border-slate-200 bg-white px-2 py-2 text-center dark:border-slate-700 dark:bg-slate-900">'
         + '<p class="text-[10px] font-bold text-slate-500">' + enCapsLabel(x.k) + '</p>'
         + '<p class="text-lg font-black text-indigo-700 dark:text-indigo-300">' + (nt().fmtCount ? nt().fmtCount(x.click) : x.click) + "</p>"
@@ -870,7 +870,7 @@
     }).join("");
     var table = '<table class="nt-gsc-queries-table text-[9px] text-slate-600 dark:text-slate-400">'
       + "<thead><tr class=\"text-slate-500\">"
-      + "<th>Sorgu</th><th>Click</th><th>Impr</th><th>Poz</th>"
+      + "<th>Query</th><th>Click</th><th>Impr</th><th>Pos</th>"
       + "</tr></thead><tbody>" + rows + "</tbody></table>";
     if (queries.length > 8) {
       return '<div class="nt-gsc-queries-scroll">' + table + "</div>";
@@ -914,8 +914,8 @@
       var primary = urls[0];
       var gscPageUrl = buildGscPerformancePageUrl(data, primary);
       extraNum += 1;
-      parts.push(trafficExtraWrap(extraNum, "Hızlı linkler", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
-        + '<a class="rounded border border-emerald-200 px-2 py-1 text-emerald-800 underline dark:border-emerald-800 dark:text-emerald-300" href="' + (nt().escapeHtml ? nt().escapeHtml(primary) : primary) + '" target="_blank" rel="noopener">Haber</a>'
+      parts.push(trafficExtraWrap(extraNum, "Quick links", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
+        + '<a class="rounded border border-emerald-200 px-2 py-1 text-emerald-800 underline dark:border-emerald-800 dark:text-emerald-300" href="' + (nt().escapeHtml ? nt().escapeHtml(primary) : primary) + '" target="_blank" rel="noopener">Article</a>'
         + '<a class="rounded border border-slate-200 px-2 py-1 text-slate-700 underline dark:border-slate-600 dark:text-slate-300" href="/ga4" target="_blank" rel="noopener">GA4 panel</a>'
         + '<a class="rounded border border-sky-200 px-2 py-1 text-sky-800 underline dark:border-sky-800 dark:text-sky-300" href="/search-console" target="_blank" rel="noopener">Search Console</a>'
         + (gscPageUrl
@@ -927,14 +927,14 @@
     if (sbProfiles.web || sbProfiles.mweb) {
       var keys = ["notification", "organic", "direct", "referral", "paid", "social", "email", "other"];
       var labels = {
-        notification: "Bildirim",
-        organic: "Organik",
-        direct: "Direkt",
+        notification: "Notification",
+        organic: "Organic",
+        direct: "Direct",
         referral: "Referral",
-        paid: "Ücretli",
-        social: "Sosyal",
-        email: "E-posta",
-        other: "Diğer",
+        paid: "Paid",
+        social: "Social",
+        email: "Email",
+        other: "Other",
       };
       var rows6 = keys.map(function (key) {
         var w = 0; var m = 0;
@@ -953,16 +953,16 @@
       }).join("");
       if (rows6) {
         extraNum += 1;
-        parts.push(trafficExtraWrap(extraNum, "Kaynak × platform (oturum)", '<table class="nt-gsc-queries-table w-full text-[9px]"><thead><tr class="text-slate-500"><th>Kaynak</th><th>WEB</th><th>MWEB</th></tr></thead><tbody>' + rows6 + "</tbody></table>"));
+        parts.push(trafficExtraWrap(extraNum, "Source × platform (sessions)", '<table class="nt-gsc-queries-table w-full text-[9px]"><thead><tr class="text-slate-500"><th>Source</th><th>WEB</th><th>MWEB</th></tr></thead><tbody>' + rows6 + "</tbody></table>"));
       }
     }
     var phases = sum.ga4_day_phases || ga4.day_phases || [];
     if (phases.length) {
       extraNum += 1;
-      parts.push(trafficExtraWrap(extraNum, "Gönderim günü vs sonrası", '<div class="space-y-0.5 text-[9px]">' + phases.map(function (ph) {
+      parts.push(trafficExtraWrap(extraNum, "Send day vs after", '<div class="space-y-0.5 text-[9px]">' + phases.map(function (ph) {
         return '<p><span class="text-slate-600 dark:text-slate-400">' + (ph.label || ph.key) + ":</span> "
-          + '<span class="font-semibold">' + (nt().fmtCount ? nt().fmtCount(ph.sessions) : ph.sessions) + " oturum · "
-          + (nt().fmtCount ? nt().fmtCount(ph.views) : ph.views) + " gör.</span></p>";
+          + '<span class="font-semibold">' + (nt().fmtCount ? nt().fmtCount(ph.sessions) : ph.sessions) + " sessions · "
+          + (nt().fmtCount ? nt().fmtCount(ph.views) : ph.views) + " views</span></p>";
       }).join("") + "</div>"));
     }
     var eng = sum.ga4_engagement || ga4.engagement || {};
@@ -971,7 +971,7 @@
       parts.push(trafficExtraWrap(extraNum, "GA4 engagement", '<div class="flex flex-wrap gap-x-3 gap-y-1 text-[9px]">'
         + '<span><span class="text-slate-500">Eng. rate</span> <strong>' + Number(eng.engagement_rate_pct != null ? eng.engagement_rate_pct : (Number(eng.engagement_rate || 0) * 100)).toFixed(1) + "%</strong></span>"
         + '<span><span class="text-slate-500">Bounce</span> <strong>' + Number(eng.bounce_rate_pct != null ? eng.bounce_rate_pct : (Number(eng.bounce_rate || 0) * 100)).toFixed(1) + "%</strong></span>"
-        + '<span><span class="text-slate-500">Ort. oturum</span> <strong>' + Math.round(Number(eng.avg_session_duration_sec || 0)) + " sn</strong></span>"
+        + '<span><span class="text-slate-500">Avg. session</span> <strong>' + Math.round(Number(eng.avg_session_duration_sec || 0)) + " s</strong></span>"
         + '<span><span class="text-slate-500">Engaged</span> <strong>' + (nt().fmtCount ? nt().fmtCount(eng.engaged_sessions || 0) : (eng.engaged_sessions || 0)) + "</strong></span>"
         + "</div>"));
     }
@@ -1010,7 +1010,7 @@
     ntStopTrafficLottie(body);
     if (!data || !data.article_id) {
       if (inline) {
-        if (body) body.innerHTML = '<p class="text-[10px] text-slate-500">Geçerli içerik ID bulunamadı.</p>';
+        if (body) body.innerHTML = '<p class="text-[10px] text-slate-500">No valid content ID found.</p>';
         if (meta) meta.textContent = "";
       } else {
         clearContentTraffic();
@@ -1028,12 +1028,12 @@
     var gscPos = sum.gsc_position != null ? sum.gsc_position : (gsc7.position || 0);
     var gscStart = sum.gsc_start || gsc7.start_date || (data.date_range && data.date_range.start) || "";
     var gscEnd = sum.gsc_end || gsc7.end_date || (data.date_range && data.date_range.end) || "";
-    var gscRangeLabel = (gscStart && gscEnd) ? (gscStart + " – " + gscEnd) : "seçili pencere";
+    var gscRangeLabel = (gscStart && gscEnd) ? (gscStart + " – " + gscEnd) : "selected window";
     if (meta) {
       var dr = data.date_range || {};
-      var rangeTxt = (dr.start && dr.end) ? (dr.start + " – " + dr.end) : ("son " + (data.days || 14) + " gün");
-      var matchTxt = sum.match_method === "headline" ? " · başlık eşleşmesi" : (sum.match_method === "path_id" ? " · URL ID eşleşmesi" : "");
-      meta.textContent = "Bildirim ID " + data.content_id
+      var rangeTxt = (dr.start && dr.end) ? (dr.start + " – " + dr.end) : ("last " + (data.days || 14) + " days");
+      var matchTxt = sum.match_method === "headline" ? " · headline match" : (sum.match_method === "path_id" ? " · URL ID match" : "");
+      meta.textContent = "Notification ID " + data.content_id
         + (data.resolved_article_id && data.resolved_article_id !== data.article_id ? (" → makale " + data.resolved_article_id) : "")
         + " · " + (data.site_domain || "") + " · " + rangeTxt + matchTxt;
     }
@@ -1049,7 +1049,7 @@
         : (ga4Profiles[pf] || []).reduce(function (a, r) { return a + Number(r.views || 0); }, 0);
       if (!v && !(ga4Profiles[pf] || []).length) return "";
       var label = pf === "web" ? "WEB" : "MWEB";
-      return '<span class="mr-2">' + label + ": " + (nt().fmtCount ? nt().fmtCount(v) : v) + " görüntüleme</span>";
+      return '<span class="mr-2">' + label + ": " + (nt().fmtCount ? nt().fmtCount(v) : v) + " views</span>";
     }).join("");
     var ga4SourceHtml = (function () {
       var sb = ga4.source_breakdown;
@@ -1062,15 +1062,15 @@
           + '<div class="flex items-center justify-between gap-2 text-[10px]">'
           + '<span class="truncate text-slate-600 dark:text-slate-400">' + (nt().escapeHtml ? nt().escapeHtml(label) : label) + "</span>"
           + '<span class="shrink-0 font-semibold text-slate-700 dark:text-slate-200">'
-          + (nt().fmtCount ? nt().fmtCount(b.sessions) : b.sessions) + " oturum"
-          + (b.views ? " · " + (nt().fmtCount ? nt().fmtCount(b.views) : b.views) + " gör." : "")
+          + (nt().fmtCount ? nt().fmtCount(b.sessions) : b.sessions) + " sessions"
+          + (b.views ? " · " + (nt().fmtCount ? nt().fmtCount(b.views) : b.views) + " views" : "")
           + "</span></div>"
           + '<div class="h-1 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1 rounded-full bg-emerald-600" style="width:' + Math.max(pct, 2) + '%"></div></div>'
           + "</div>";
       }).join("");
       var topSm = sb.source_medium || [];
       var smHtml = topSm.length
-        ? '<details class="mt-1" open><summary class="cursor-pointer text-[10px] text-emerald-700 dark:text-emerald-400">Kaynak / medium (' + topSm.length + ")</summary>"
+        ? '<details class="mt-1" open><summary class="cursor-pointer text-[10px] text-emerald-700 dark:text-emerald-400">Source / medium (' + topSm.length + ")</summary>"
           + '<div class="mt-1 max-h-40 space-y-0.5 overflow-y-auto">' + topSm.map(function (r) {
             var sm = r.source_medium || "";
             return '<div class="flex justify-between gap-2 text-[9px] text-slate-500 dark:text-slate-400">'
@@ -1088,68 +1088,68 @@
         var ga4NotifTotal = (webGa4 ? Number(webGa4.sessions || 0) : 0) + (mwebGa4 ? Number(mwebGa4.sessions || 0) : 0);
         notifCompare = '<div class="nt-traffic-compare-box mb-2 rounded-lg border border-amber-100 bg-amber-50/70 p-2 text-[9px] leading-relaxed text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">'
           + '<div class="flex items-center justify-between gap-1">'
-          + '<p class="font-bold uppercase tracking-wide">Bildirim tıklaması vs GA4</p>'
-          + '<button type="button" class="nt-traffic-compare-info-btn inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-300/80 bg-white/80 text-[10px] font-bold leading-none text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/50" aria-expanded="false" aria-label="Metrik açıklaması" title="Metrik açıklaması">i</button>'
+          + '<p class="font-bold uppercase tracking-wide">Notification click vs GA4</p>'
+          + '<button type="button" class="nt-traffic-compare-info-btn inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-300/80 bg-white/80 text-[10px] font-bold leading-none text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/50" aria-expanded="false" aria-label="Info" title="Info">i</button>'
           + "</div>"
-          + '<p class="mt-1">CSV (bu gönderim): WEB ' + (nt().fmtCount ? nt().fmtCount(nc.desktop) : nc.desktop)
+          + '<p class="mt-1">CSV (this send): WEB ' + (nt().fmtCount ? nt().fmtCount(nc.desktop) : nc.desktop)
           + " + MWEB " + (nt().fmtCount ? nt().fmtCount(nc.mobileweb) : nc.mobileweb)
-          + " = <strong>" + (nt().fmtCount ? nt().fmtCount(csvWebTotal) : csvWebTotal) + " tık</strong>"
+          + " = <strong>" + (nt().fmtCount ? nt().fmtCount(csvWebTotal) : csvWebTotal) + " clicks</strong>"
           + " · App " + (nt().fmtCount ? nt().fmtCount(nc.android + nc.ios) : (nc.android + nc.ios)) + "</p>"
-          + '<p>GA4 <code class="text-[8px]">comet/notification</code> oturum: WEB '
+          + '<p>GA4 <code class="text-[8px]">comet/notification</code> sessions: WEB '
           + (webGa4 ? (nt().fmtCount ? nt().fmtCount(webGa4.sessions) : webGa4.sessions) : "0")
           + " + MWEB " + (mwebGa4 ? (nt().fmtCount ? nt().fmtCount(mwebGa4.sessions) : mwebGa4.sessions) : "0")
           + " = <strong>" + (nt().fmtCount ? nt().fmtCount(ga4NotifTotal) : ga4NotifTotal) + "</strong>"
-          + " · " + gscRangeLabel + " penceresi</p>"
+          + " · " + gscRangeLabel + " window</p>"
           + '<p class="nt-traffic-compare-tip hidden mt-1 rounded border border-amber-200/80 bg-white/70 px-2 py-1 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">CSV = push tıklaması (tek bildirim). GA4 = makale sayfasına gelen oturumlar (3 gün, aynı URL’ye başka bildirimler ve tekrar ziyaretler dahil olabilir).</p>'
           + "</div>";
       }
       return notifCompare + '<div class="mt-2 border-t border-emerald-100 pt-2 dark:border-emerald-900">'
-        + '<p class="mb-1 text-[10px] font-bold uppercase text-slate-500">Trafik kaynağı</p>'
+        + '<p class="mb-1 text-[10px] font-bold uppercase text-slate-500">Traffic source</p>'
         + bucketHtml + smHtml + "</div>";
     })();
     var gscPages = sum.gsc_pages || gsc.pages || [];
     var gscPagesHtml = gscPages.length
       ? '<div class="mt-2">'
-        + '<p class="text-[10px] font-bold uppercase text-sky-700 dark:text-sky-300">GSC sayfa kırılımı (' + gscPages.length + ")</p>"
+        + '<p class="text-[10px] font-bold uppercase text-sky-700 dark:text-sky-300">GSC page breakdown (' + gscPages.length + ")</p>"
         + '<div class="mt-1 max-h-36 space-y-1 overflow-y-auto">' + gscPages.map(function (p) {
           var u = p.url || "";
           return '<div class="rounded border border-sky-100 px-2 py-1 text-[9px] dark:border-sky-900">'
             + '<p class="truncate text-sky-900 dark:text-sky-200">' + (nt().escapeHtml ? nt().escapeHtml(u) : u) + "</p>"
             + '<p class="text-slate-500">' + (nt().fmtCount ? nt().fmtCount(p.clicks || 0) : (p.clicks || 0)) + " click · "
-            + (nt().fmtCount ? nt().fmtCount(p.impressions || 0) : (p.impressions || 0)) + " impr · poz "
+            + (nt().fmtCount ? nt().fmtCount(p.impressions || 0) : (p.impressions || 0)) + " impr · pos "
             + Number(p.position || 0).toFixed(1) + "</p></div>";
         }).join("") + "</div></div>"
       : (gscImpr > 0 && !gscPages.length
-        ? '<p class="mt-2 text-[9px] text-slate-500">GSC toplam görünür ama sayfa satırı yok — URL eşleşmesi kontrol ediliyor.</p>'
+        ? '<p class="mt-2 text-[9px] text-slate-500">GSC total is visible but there are no page rows — checking URL match.</p>'
         : "");
     var gscNote = (gscClicks === 0 && gscImpr > 0)
-      ? '<p class="mt-1 text-[9px] text-sky-700/80 dark:text-sky-300/80">0 click = Google arama sonuçlarından tıklama yok. Bildirim trafiği GSC’de görünmez.</p>'
+      ? '<p class="mt-1 text-[9px] text-sky-700/80 dark:text-sky-300/80">0 clicks = no clicks from Google search results. Notification traffic does not appear in GSC.</p>'
       : "";
     var gscQueries = sum.gsc_queries || (data.gsc && data.gsc.queries) || [];
     var gscQueriesHtml = gscQueries.length
-      ? trafficExtraWrap(1, "GSC arama sorguları", buildGscQueriesTableHtml(gscQueries))
+      ? trafficExtraWrap(1, "GSC search queries", buildGscQueriesTableHtml(gscQueries))
       : "";
     var bottomStartNum = gscQueries.length ? 1 : 0;
     body.innerHTML = '<div class="nt-traffic-grid">'
       + '<div class="nt-traffic-panel nt-traffic-panel-ga4 rounded-lg border border-emerald-200 bg-white p-2 dark:border-emerald-900 dark:bg-slate-900">'
       + '<p class="font-bold text-emerald-800 dark:text-emerald-300">GA4</p>'
-      + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_views || 0) : (sum.ga4_views || 0)) + ' <span class="text-xs font-normal">görüntüleme</span></p>'
-      + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_sessions || 0) : (sum.ga4_sessions || 0)) + " oturum · " + ga4Detail + "</p>"
+      + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_views || 0) : (sum.ga4_views || 0)) + ' <span class="text-xs font-normal">views</span></p>'
+      + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_sessions || 0) : (sum.ga4_sessions || 0)) + " sessions · " + ga4Detail + "</p>"
       + ga4SourceHtml + "</div>"
       + '<div class="nt-traffic-gsc-col">'
       + '<div class="nt-traffic-panel nt-traffic-panel-gsc rounded-lg border border-sky-200 bg-white p-2 dark:border-sky-900 dark:bg-slate-900">'
-      + '<p class="font-bold text-sky-800 dark:text-sky-300">Search Console <span class="text-[9px] font-normal">(organik arama)</span></p>'
+      + '<p class="font-bold text-sky-800 dark:text-sky-300">Search Console <span class="text-[9px] font-normal">(organic search)</span></p>'
       + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(gscClicks) : gscClicks) + ' <span class="text-xs font-normal">click</span></p>'
-      + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(gscImpr) : gscImpr) + " impr · poz " + Number(gscPos || 0).toFixed(1)
+      + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(gscImpr) : gscImpr) + " impr · pos " + Number(gscPos || 0).toFixed(1)
       + " · " + gscRangeLabel
-      + (gsc30.clicks ? " · 30g depo " + (nt().fmtCount ? nt().fmtCount(gsc30.clicks) : gsc30.clicks) + " click" : "") + "</p>"
+      + (gsc30.clicks ? " · 30d store " + (nt().fmtCount ? nt().fmtCount(gsc30.clicks) : gsc30.clicks) + " click" : "") + "</p>"
       + gscNote + gscPagesHtml + "</div>"
       + gscQueriesHtml
       + "</div>"
       + buildTrafficBottomExtrasHtml(data, row, bottomStartNum)
       + (urlHtml
-        ? '<div class="nt-traffic-urls"><p class="text-[10px] font-bold uppercase text-slate-500">Eşleşen URL</p>' + urlHtml + "</div>"
-        : '<p class="nt-traffic-urls text-[10px] text-slate-500">Bu bildirim için GA4/GSC URL eşleşmesi bulunamadı. Başlık ve gönderim tarihi ile tekrar denendi.</p>')
+        ? '<div class="nt-traffic-urls"><p class="text-[10px] font-bold uppercase text-slate-500">Matched URL</p>' + urlHtml + "</div>"
+        : '<p class="nt-traffic-urls text-[10px] text-slate-500">No GA4/GSC URL match for this notification. Retried with title and send date.</p>')
       + "</div>";
   }
 
@@ -1164,7 +1164,7 @@
     var cid = nt().idString ? nt().idString(row) : String(row.id || "");
     if (!cid || !/^\d+$/.test(cid.replace(/\D/g, "").slice(0, 20))) {
       if (inline) {
-        if (targets.bodyEl) targets.bodyEl.innerHTML = '<p class="text-[10px] text-slate-500">Geçerli bildirim ID yok.</p>';
+        if (targets.bodyEl) targets.bodyEl.innerHTML = '<p class="text-[10px] text-slate-500">No valid notification ID.</p>';
       } else {
         clearContentTraffic();
       }
@@ -1212,7 +1212,7 @@
         }
         if (body) {
           ntStopTrafficLottie(body);
-          body.innerHTML = '<p class="text-xs text-rose-600">Trafik verisi yüklenemedi.</p>';
+          body.innerHTML = '<p class="text-xs text-rose-600">Could not load traffic data.</p>';
         }
       });
   }
@@ -1270,16 +1270,16 @@
       content_traffic: lastContentTrafficPayload,
     };
     ctx.visible_text = "Notification KPI: " + stats.clicks + " click, " + stats.impressions + " impression, "
-      + rows.length + " kayıt. App " + stats.app + " / Web " + stats.web + " click.";
+      + rows.length + " records. App " + stats.app + " / Web " + stats.web + " click.";
     if (lastComparePayload && lastComparePayload.current) {
-      ctx.visible_text += " Dönem karşılaştırma yüklendi.";
+      ctx.visible_text += " Period comparison loaded.";
     }
     if (lastContentTrafficPayload && lastContentTrafficPayload.summary) {
       var ts = lastContentTrafficPayload.summary;
-      ctx.visible_text += " Seçili içerik GA4 " + (ts.ga4_views || 0) + " görüntüleme, GSC " + (ts.gsc_clicks_7d || 0) + " click (7g).";
+      ctx.visible_text += " Selected content GA4 " + (ts.ga4_views || 0) + " views, GSC " + (ts.gsc_clicks_7d || 0) + " clicks (7d).";
     }
     if (lastAlertPayload && lastAlertPayload.alerts && lastAlertPayload.alerts.length) {
-      ctx.visible_text += " Aktif alarm: " + lastAlertPayload.alerts.map(function (a) { return a.title; }).join("; ");
+      ctx.visible_text += " Active alert: " + lastAlertPayload.alerts.map(function (a) { return a.title; }).join("; ");
     }
     return ctx;
   }

@@ -52,7 +52,7 @@
               {% if row.available %}
                 <span class="home-nt-impr-share tabular-nums">{{ row.share_fmt }}</span>
               {% else %}
-                <span class="home-nt-impr-na">ölçülmüyor</span>
+                <span class="home-nt-impr-na">not measured</span>
               {% endif %}
             </div>
             <div class="home-nt-impr-track" aria-hidden="true">
@@ -770,7 +770,7 @@
           {% endif %}
         </p>
       {% else %}
-        <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">kapalı · açmak için tıkla</p>
+        <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">closed · click to open</p>
       {% endif %}
     </div>
     <span class="home-nt-shell-chevron" aria-hidden="true"></span>
@@ -783,7 +783,7 @@
   </div>
 
   {% if empty %}
-    <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Son iki haftada notification kaydı yok</p>
+    <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">No notification records in the last two weeks</p>
   {% else %}
     {# Click KPI+pie | Platform tablosu — responsive yan yana; top 40 altta #}
     <div class="home-nt-summary">
@@ -905,7 +905,7 @@
 
     <div class="home-nt-panel home-nt-top mt-4 w-full rounded-xl" data-home-nt-top>
       <div class="home-nt-panel-head flex flex-wrap items-center justify-between gap-2 rounded-t-xl">
-        <div class="flex min-w-0 flex-wrap items-center gap-2" role="tablist" aria-label="Top 40 dönem">
+        <div class="flex min-w-0 flex-wrap items-center gap-2" role="tablist" aria-label="Top 40 period">
           <button type="button"
                   role="tab"
                   aria-selected="true"
@@ -927,7 +927,7 @@
                   role="tab"
                   aria-selected="false"
                   data-nt-top-tab="including_today"
-                  title="Ham içerik listesi — güncelden eskiye son 40"
+                  title="Raw content list — last 40, newest first"
                   class="home-nt-top-tab rounded-full px-3.5 py-1.5 home-label normal-case tracking-wide transition
                          bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50
                          dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-zinc-800">
@@ -995,7 +995,7 @@
         {{ period_previous_label }}
       </p>
       <p data-nt-top-range="including_today" class="home-meta hidden border-t border-slate-100 px-2.5 py-1.5 tabular-nums text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
-        {% if period_including_today_label %}{{ period_including_today_label }} · {% endif %}ham liste · güncelden eskiye
+        {% if period_including_today_label %}{{ period_including_today_label }} · {% endif %}raw list · newest first
       </p>
     </div>
     <script>
@@ -1014,7 +1014,7 @@
       var countSuffix = {
         current: ' sends',
         previous: ' sends',
-        including_today: ' kayıt'
+        including_today: ' records'
       };
       var tabs = root.querySelectorAll('[data-nt-top-tab]');
       var panels = root.querySelectorAll('[data-nt-top-panel]');
