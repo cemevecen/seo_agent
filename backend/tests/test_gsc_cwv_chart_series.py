@@ -113,23 +113,138 @@ def test_snap_zeros_cloned_poor_series():
     assert chart["mobile"]["needs_improvement"][-1] == 6592
 
 
-def test_sanitize_drops_2007_axis():
+def test_sanitize_rebinds_2007_axis_to_sibling_dates():
+    from backend.services.gsc_cwv_scrape_store import sanitize_chart_series
+
+    desk_dates = [f"2026-05-{d:02d}" for d in range(13, 32)] + [
+        f"2026-06-{d:02d}" for d in range(1, 16)
+    ]
+    n = len(desk_dates)
+    chart = {
+        "mobile": {
+            "dates": [f"2007-08-{d:02d}" for d in range(1, n + 1)],
+            "poor": [0] * n,
+            "needs_improvement": list(range(n)),
+            "good": [1000 + i for i in range(n)],
+        },
+        "desktop": {
+            "dates": desk_dates,
+            "poor": [0] * n,
+            "needs_improvement": [100] * n,
+            "good": [50] * n,
+        },
+    }
+    out = sanitize_chart_series(chart, year_now=2026)
+    assert out["desktop"]["dates"][0] == "2026-05-13"
+    assert out["mobile"]["dates"][0] == "2026-05-13"
+    assert out["mobile"]["dates"][-1] == desk_dates[-1]
+    assert out["mobile"]["needs_improvement"] == list(range(n))
+    assert out["mobile"]["poor"][-1] == 0
+
+
+def test_sanitize_keeps_mixed_axis_2026_points():
     from backend.services.gsc_cwv_scrape_store import sanitize_chart_series
 
     chart = {
         "mobile": {
-            "dates": ["2007-08-08", "2007-08-09", "2008-07-30"],
-            "poor": [6592, 6592, 0],
-            "needs_improvement": [6592, 6592, 6592],
-            "good": [6592, 6592, 6592],
+            "dates": ["2007-08-08", "2026-05-13", "2026-05-14", "2026-08-11"],
+            "poor": [9, 0, 0, 0],
+            "needs_improvement": [1, 10, 11, 12],
+            "good": [1, 20, 21, 22],
         },
         "desktop": {
-            "dates": ["2026-07-01", "2026-07-02", "2026-08-11"],
+            "dates": ["2026-05-13", "2026-05-14", "2026-08-11"],
             "poor": [0, 0, 0],
             "needs_improvement": [100, 110, 120],
             "good": [50, 50, 50],
         },
     }
     out = sanitize_chart_series(chart, year_now=2026)
+    assert out["mobile"]["dates"][0] == "2026-05-13"
+    assert "2007" not in "".join(out["mobile"]["dates"])
+    assert out["mobile"]["needs_improvement"] == [10, 11, 12]
+
+
+def test_sanitize_does_not_bind_401_onto_89():
+    from backend.services.gsc_cwv_scrape_store import sanitize_chart_series
+
+    desk_dates = [f"2026-05-{d:02d}" for d in range(13, 32)]  # 19 pts
+    chart = {
+        "mobile": {
+            "dates": [f"2007-01-{(i % 28) + 1:02d}" for i in range(401)],
+            "poor": [6592] * 401,
+            "needs_improvement": [6592] * 401,
+            "good": [6592] * 401,
+        },
+        "desktop": {
+            "dates": desk_dates,
+            "poor": [0] * 19,
+            "needs_improvement": [100] * 19,
+            "good": [50] * 19,
+        },
+    }
+    out = sanitize_chart_series(chart, year_now=2026)
     assert out["mobile"] is None
-    assert out["desktop"]["dates"][-1] == "2026-08-11"
+    assert out["desktop"]["dates"][0] == "2026-05-13"
+
+
+def test_recover_short_plausible_does_not_beat_rebindable_mobile():
+    from backend.services.gsc_cwv_scrape_store import recover_chart_series
+
+    desk_dates = [f"2026-05-{d:02d}" for d in range(13, 32)]
+    n = len(desk_dates)
+    current = {
+        "mobile": {
+            "dates": ["2026-08-09", "2026-08-10", "2026-08-11"],
+            "poor": [0, 0, 0],
+            "needs_improvement": [1, 2, 3],
+            "good": [4, 5, 6],
+        },
+        "desktop": {
+            "dates": desk_dates,
+            "poor": [0] * n,
+            "needs_improvement": [100] * n,
+            "good": [50] * n,
+        },
+    }
+    older = {
+        "mobile": {
+            "dates": [f"2007-08-{d:02d}" for d in range(1, n + 1)],
+            "poor": [0] * n,
+            "needs_improvement": [40] * n,
+            "good": [80] * n,
+        }
+    }
+    out = recover_chart_series(current, [older], year_now=2026)
+    assert out["mobile"]["dates"][0] == "2026-05-13"
+    assert len(out["mobile"]["dates"]) == n
+    assert out["mobile"]["needs_improvement"][0] == 40
+
+
+def test_recover_prefers_longer_previous_mobile():
+    from backend.services.gsc_cwv_scrape_store import recover_chart_series
+
+    desk_dates = [f"2026-05-{d:02d}" for d in range(13, 32)]
+    n = len(desk_dates)
+    current = {
+        "mobile": None,
+        "desktop": {
+            "dates": desk_dates,
+            "poor": [0] * n,
+            "needs_improvement": [100] * n,
+            "good": [50] * n,
+        },
+    }
+    older = {
+        "mobile": {
+            "dates": [f"2007-08-{d:02d}" for d in range(1, n + 1)],
+            "poor": [0] * n,
+            "needs_improvement": [200 + i for i in range(n)],
+            "good": [300] * n,
+        },
+        "desktop": None,
+    }
+    out = recover_chart_series(current, [older], year_now=2026)
+    assert out["mobile"]["dates"][0] == "2026-05-13"
+    assert out["mobile"]["needs_improvement"][0] == 200
+    assert out["desktop"]["dates"][0] == "2026-05-13"

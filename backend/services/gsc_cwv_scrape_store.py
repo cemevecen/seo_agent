@@ -6,7 +6,7 @@ import html
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from urllib.parse import quote
 
@@ -98,29 +98,168 @@ def clean_issue_causes(causes: list | None, *, title: str = "") -> list[str]:
     return out
 
 
+def _iso_year_ok(iso: str, year_now: int) -> bool:
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", iso):
+        return False
+    y = int(iso[:4])
+    return year_now - 3 <= y <= year_now + 1
+
+
+def _resample_ints(arr: list[Any], n: int) -> list[int]:
+    if n <= 0:
+        return []
+    vals = [int(x or 0) for x in (arr or [])]
+    m = len(vals)
+    if m == n:
+        return vals
+    if m <= 0:
+        return [0] * n
+    if m == 1:
+        return [vals[0]] * n
+    out: list[int] = []
+    for i in range(n):
+        j = int(round(i * (m - 1) / max(n - 1, 1)))
+        out.append(vals[j])
+    return out
+
+
+def _series_value_len(ser: dict[str, Any] | None) -> int:
+    if not isinstance(ser, dict):
+        return 0
+    return max(
+        len(ser.get("dates") or []),
+        len(ser.get("poor") or []),
+        len(ser.get("needs_improvement") or []),
+        len(ser.get("good") or []),
+    )
+
+
+def _filter_plausible_dates(ser: dict[str, Any], year_now: int) -> dict[str, Any] | None:
+    dates = [str(d or "")[:10] for d in (ser.get("dates") or [])]
+    keep = [i for i, d in enumerate(dates) if _iso_year_ok(d, year_now)]
+    if len(keep) < 3:
+        return None
+    kept_dates = [dates[i] for i in keep]
+    if kept_dates[0] > kept_dates[-1]:
+        return None
+    out = dict(ser)
+    out["dates"] = kept_dates
+    for metric in ("poor", "needs_improvement", "good"):
+        arr = list(ser.get(metric) or [])
+        if arr:
+            out[metric] = [int(arr[i]) if i < len(arr) else 0 for i in keep]
+    out["point_count"] = len(kept_dates)
+    return out
+
+
+def _bind_series_to_dates(ser: dict[str, Any] | None, dates: list[str]) -> dict[str, Any] | None:
+    """Yanlış yıl etiketli GSC Y değerlerini kardeş cihazın 2026 eksenine oturt."""
+    n = len(dates)
+    if not isinstance(ser, dict) or n < 3:
+        return None
+    m = _series_value_len(ser)
+    if m < 3:
+        return None
+    if abs(m - n) > max(8, int(0.12 * max(n, m))):
+        return None
+    out = dict(ser)
+    out["dates"] = list(dates)
+    out["poor"] = _resample_ints(list(ser.get("poor") or []), n)
+    out["needs_improvement"] = _resample_ints(list(ser.get("needs_improvement") or []), n)
+    out["good"] = _resample_ints(list(ser.get("good") or []), n)
+    out["point_count"] = n
+    out["axis_source"] = "sibling"
+    return out
+
+
+def _series_quality(ser: Any, year_now: int, *, peer_len: int = 0) -> int:
+    """Uzun 2026 GSC eğrisi > kardeş uzunluğuna uyan sapmış seri > kısa tarama penceresi."""
+    if not isinstance(ser, dict):
+        return 0
+    dates = [str(d or "")[:10] for d in (ser.get("dates") or [])]
+    ok = [d for d in dates if _iso_year_ok(d, year_now)]
+    if len(ok) >= 3:
+        try:
+            span = (date.fromisoformat(ok[-1]) - date.fromisoformat(ok[0])).days
+        except ValueError:
+            span = len(ok)
+        return max(span, 0) * 20 + len(ok)
+    n = _series_value_len(ser)
+    if n < 3:
+        return 0
+    if peer_len >= 3 and abs(n - peer_len) <= max(8, int(0.12 * peer_len)):
+        return 200 + n
+    return 0
+
+
 def sanitize_chart_series(chart: dict[str, Any] | None, *, year_now: int | None = None) -> dict[str, Any]:
-    """2007–2008 sapmış GSC eksenini panoda gösterme — tarih gerçekçi değilse seriyi düşür."""
+    """Sapmış 2007 eksenini düşür; mümkünse kardeş cihazın 2026 tarihleriyle Y'yi koru."""
     if not isinstance(chart, dict):
         return {}
     y_now = year_now or datetime.utcnow().year
     out = dict(chart)
+    filtered: dict[str, dict[str, Any] | None] = {}
     for key in ("mobile", "desktop"):
         ser = out.get(key)
         if not isinstance(ser, dict):
+            filtered[key] = None
             continue
-        dates = [str(d or "")[:10] for d in (ser.get("dates") or [])]
-        bad = False
-        for d in dates:
-            if not re.match(r"^\d{4}-\d{2}-\d{2}$", d):
-                bad = True
+        filtered[key] = _filter_plausible_dates(ser, y_now)
+
+    donor_dates: list[str] | None = None
+    for min_n in (30, 3):
+        for key in ("desktop", "mobile"):
+            ser = filtered.get(key)
+            dates = list((ser or {}).get("dates") or []) if isinstance(ser, dict) else []
+            if len(dates) >= min_n:
+                donor_dates = dates
                 break
-            y = int(d[:4])
-            if y < y_now - 3 or y > y_now + 1:
-                bad = True
-                break
-        if bad or (len(dates) >= 2 and dates[0] > dates[-1]):
-            out[key] = None
+        if donor_dates:
+            break
+
+    for key in ("mobile", "desktop"):
+        ser = filtered.get(key)
+        if isinstance(ser, dict) and len(ser.get("dates") or []) >= 3:
+            out[key] = ser
+            continue
+        raw = out.get(key) if isinstance(out.get(key), dict) else None
+        bound = _bind_series_to_dates(raw, donor_dates) if donor_dates else None
+        out[key] = bound
     return out
+
+
+def recover_chart_series(
+    current: dict[str, Any] | None,
+    older: list[Any] | None = None,
+    *,
+    year_now: int | None = None,
+) -> dict[str, Any]:
+    """Eksik/kısa cihaz serisini önceki snapshot'tan tamamla, sonra sanitize et."""
+    y_now = year_now or datetime.utcnow().year
+    picked: dict[str, Any] = dict(current) if isinstance(current, dict) else {}
+    pool = [picked]
+    for cs in older or []:
+        if isinstance(cs, dict):
+            pool.append(cs)
+    best_desk = picked.get("desktop")
+    for cs in pool:
+        cand = cs.get("desktop")
+        if _series_quality(cand, y_now) > _series_quality(best_desk, y_now):
+            best_desk = cand
+    picked["desktop"] = best_desk
+    peer_n = 0
+    if isinstance(best_desk, dict):
+        filt = _filter_plausible_dates(best_desk, y_now)
+        peer_n = len((filt or {}).get("dates") or []) or _series_value_len(best_desk)
+    best_mob = picked.get("mobile")
+    for cs in pool:
+        cand = cs.get("mobile")
+        if _series_quality(cand, y_now, peer_len=peer_n) > _series_quality(
+            best_mob, y_now, peer_len=peer_n
+        ):
+            best_mob = cand
+    picked["mobile"] = best_mob
+    return sanitize_chart_series(picked, year_now=y_now)
 
 
 def sanitize_cwv_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -460,8 +599,6 @@ def ingest_gsc_cwv_payload(db: Session, payload: dict[str, Any]) -> dict[str, An
 
         snap = _dedupe_drilldowns(dict(snap))
         snap = sanitize_cwv_payload(snap)
-        if isinstance(snap.get("chart_series"), dict):
-            snap["chart_series"] = sanitize_chart_series(snap.get("chart_series"))
         # Hızlı charts-only: önceki drilldown/AMP verisini koru, sadece grafik+KPI güncelle
         if snap.get("charts_only") and isinstance(prev_payload, dict):
             merged = dict(prev_payload)
@@ -490,6 +627,15 @@ def ingest_gsc_cwv_payload(db: Session, payload: dict[str, Any]) -> dict[str, An
             if not (snap.get("amp") or {}).get("skipped"):
                 merged["amp"] = snap.get("amp")
             snap = merged
+        prev_cs = (
+            prev_payload.get("chart_series")
+            if isinstance(prev_payload, dict) and isinstance(prev_payload.get("chart_series"), dict)
+            else None
+        )
+        snap["chart_series"] = recover_chart_series(
+            snap.get("chart_series") if isinstance(snap.get("chart_series"), dict) else {},
+            [prev_cs] if prev_cs else [],
+        )
 
         totals = snap.get("totals") or {}
         poor = int(totals.get("poor") or 0)
@@ -542,6 +688,31 @@ def ingest_gsc_cwv_payload(db: Session, payload: dict[str, Any]) -> dict[str, An
     }
 
 
+def _recent_chart_series(db: Session, site_id: int, *, limit: int = 20) -> list[dict[str, Any]]:
+    rows = (
+        db.query(GscCwvReportSnapshot)
+        .filter(GscCwvReportSnapshot.site_id == site_id)
+        .order_by(
+            GscCwvReportSnapshot.collected_at.desc(),
+            GscCwvReportSnapshot.id.desc(),
+        )
+        .limit(max(3, min(40, int(limit or 20))))
+        .all()
+    )
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if not r.payload_json:
+            continue
+        try:
+            payload = json.loads(r.payload_json)
+        except Exception:
+            continue
+        cs = payload.get("chart_series") if isinstance(payload, dict) else None
+        if isinstance(cs, dict):
+            out.append(cs)
+    return out
+
+
 def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
     row = latest_snapshot(db, site.id)
     payload: dict[str, Any] = {}
@@ -551,8 +722,11 @@ def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
         except Exception:
             payload = {}
     payload = sanitize_cwv_payload(payload if isinstance(payload, dict) else {})
-    if isinstance(payload.get("chart_series"), dict):
-        payload["chart_series"] = sanitize_chart_series(payload.get("chart_series"))
+    older = _recent_chart_series(db, site.id)
+    payload["chart_series"] = recover_chart_series(
+        payload.get("chart_series") if isinstance(payload.get("chart_series"), dict) else {},
+        older,
+    )
     hist = history_points(db, site.id)
     rid = payload.get("resource_id") or (
         "sc-domain:doviz.com" if "doviz" in (site.domain or "") else f"https://{site.domain}/"
