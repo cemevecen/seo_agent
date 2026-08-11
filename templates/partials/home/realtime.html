@@ -40,14 +40,11 @@
             <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2.5 py-3 xl:px-3"
                  data-home-rt-key="{{ site.site_id }}-{{ prof.key }}"
                  data-home-rt-project="{{ _proj }}">
-              <div class="relative z-[1] min-w-0">
-                <p class="home-label flex items-center gap-1.5 {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">
-                  {{ brand_icon(_proj, 'sm') }}
-                  <span>{{ prof.label }}</span>
-                </p>
-                <p class="home-kpi mt-1.5 text-slate-900 dark:text-slate-100" data-rt-slot-value>{{ prof.value_fmt }}</p>
+              <div class="home-rt-metric-top">
+                {{ brand_icon(_proj, 'sm') }}
+                <p class="home-kpi home-rt-kpi text-slate-900 dark:text-slate-100" data-rt-slot-value>{{ prof.value_fmt }}</p>
               </div>
-              <div class="home-rt-spark relative z-[1] mt-2" aria-label="{{ prof.label }} realtime sparkline">
+              <div class="home-rt-spark relative z-[1]" aria-label="{{ prof.label }} realtime sparkline">
                 {% if prof.spark and prof.spark.has_points and prof.spark.bar_slots %}
                   <div class="home-rt-spark-bars" role="img" aria-label="{{ prof.label }} realtime spark bar chart">
                     {% for bar in prof.spark.bar_slots %}
@@ -59,6 +56,7 @@
                     <span aria-hidden="true"></span>
                   </div>
                 {% endif %}
+                <span class="home-rt-plat {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}" aria-hidden="true">{{ prof.label }}</span>
               </div>
             </div>
           {% endfor %}

@@ -421,6 +421,74 @@
     });
   }
 
+  function fitHomeRtPlats(root) {
+    root = root || document.getElementById('home-board') || document;
+    root.querySelectorAll('.home-rt-plat').forEach(function (el) {
+      var box = el.parentElement || el;
+      var avail = el.clientWidth || box.clientWidth || 0;
+      if (avail < 8) return;
+      el.style.transform = 'none';
+      var lo = 7;
+      var hi = Math.min(15, Math.max(9, avail * 0.26));
+      var best = lo;
+      for (var i = 0; i < 12; i++) {
+        var mid = (lo + hi) / 2;
+        el.style.setProperty('font-size', mid + 'px', 'important');
+        if (el.scrollWidth <= avail + 0.5) {
+          best = mid;
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      el.style.setProperty('font-size', best + 'px', 'important');
+    });
+    root.querySelectorAll('.home-rt-kpi').forEach(function (el) {
+      var avail = el.clientWidth || 0;
+      if (avail < 8) return;
+      var lo = 9;
+      var hi = Math.min(18, Math.max(11, avail * 0.42));
+      var best = lo;
+      for (var i = 0; i < 12; i++) {
+        var mid = (lo + hi) / 2;
+        el.style.setProperty('font-size', mid + 'px', 'important');
+        if (el.scrollWidth <= avail + 0.5) {
+          best = mid;
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      el.style.setProperty('font-size', best + 'px', 'important');
+    });
+  }
+
+  var _platObs = null;
+  var _platRaf = 0;
+  function bindHomeRtPlats(root) {
+    root = root || document.getElementById('home-realtime-section') || document.getElementById('home-board');
+    if (_platRaf) cancelAnimationFrame(_platRaf);
+    _platRaf = requestAnimationFrame(function () {
+      _platRaf = requestAnimationFrame(function () {
+        _platRaf = 0;
+        fitHomeRtPlats(root);
+      });
+    });
+    if (typeof ResizeObserver === 'undefined' || !root) return;
+    if (_platObs) _platObs.disconnect();
+    _platObs = new ResizeObserver(function () {
+      if (_platRaf) cancelAnimationFrame(_platRaf);
+      _platRaf = requestAnimationFrame(function () {
+        _platRaf = 0;
+        fitHomeRtPlats(root);
+      });
+    });
+    _platObs.observe(root);
+    root.querySelectorAll('.home-rt-metric').forEach(function (card) {
+      _platObs.observe(card);
+    });
+  }
+
   global.RtSlotFx = {
     setText: setText,
     setDeltaText: setDeltaText,
@@ -428,5 +496,7 @@
     snapshotHome: snapshotHome,
     animateHome: animateHome,
     barHtml: barHtml,
+    fitHomeRtPlats: fitHomeRtPlats,
+    bindHomeRtPlats: bindHomeRtPlats,
   };
 })(typeof window !== 'undefined' ? window : this);

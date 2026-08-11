@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v56-home-edge">
+<style id="home-site-borders" data-home-css="v57-rt-plat">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -1055,11 +1055,11 @@
       gap: 0.55rem;
     }
     .home-rt-metric {
-      min-height: 9.75rem;
-      padding: 0.75rem 0.7rem !important;
+      min-height: 8.25rem;
+      padding: clamp(0.32rem, 5cqi, 0.7rem) clamp(0.22rem, 4cqi, 0.65rem) clamp(0.28rem, 4.5cqi, 0.5rem) !important;
     }
     .home-rt-spark {
-      height: 3.5rem !important;
+      height: 3.35rem !important;
     }
   }
   .home-rt-metric {
@@ -1069,6 +1069,11 @@
     --home-rt-spark-area-fill: rgba(4, 120, 87, 0.10);
     position: relative;
     overflow: hidden;
+    container-type: inline-size;
+    container-name: home-rt;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
     border: 1px solid rgba(148, 163, 184, 0.14);
     background: linear-gradient(180deg, rgba(248, 250, 252, 0.72), rgba(248, 250, 252, 0.18));
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
@@ -1076,8 +1081,74 @@
   .home-rt-metric::before {
     content: none;
   }
+  .home-rt-metric-top {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.18rem, 4cqi, 0.4rem);
+    min-width: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .home-rt-metric-top .home-brand-icon {
+    width: clamp(0.72rem, 18cqi, 1.1rem);
+    height: clamp(0.72rem, 18cqi, 1.1rem);
+    max-width: none;
+    max-height: none;
+  }
+  #home-board .home-readable .home-rt-kpi {
+    margin: 0;
+    min-width: 0;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: visible;
+    overflow-wrap: normal;
+    word-break: normal;
+    font-size: clamp(0.68rem, 22cqi, 1rem) !important;
+    line-height: 1.1 !important;
+  }
   .home-rt-spark {
+    position: relative;
     height: 3.5rem;
+    margin-top: clamp(0.2rem, 4cqi, 0.5rem);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .home-rt-plat {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0.08rem;
+    z-index: 2;
+    pointer-events: none;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0.05rem 0.08rem;
+    border-radius: 0.2rem;
+    white-space: nowrap;
+    overflow: visible;
+    overflow-wrap: normal;
+    word-break: keep-all;
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: clamp(0.01em, 0.4cqi, 0.04em);
+    line-height: 1;
+    font-size: min(0.68rem, calc(100cqi / 5.2)) !important;
+    background: linear-gradient(90deg, rgba(248, 250, 252, 0.82), rgba(248, 250, 252, 0.08));
+    text-shadow: 0 0 6px rgba(255, 255, 255, 0.55);
+  }
+  html.dark .home-rt-plat,
+  html.midnight .home-rt-plat {
+    background: linear-gradient(90deg, rgba(9, 9, 11, 0.78), rgba(9, 9, 11, 0.08));
+    text-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
+  }
+  #home-board .home-readable .home-rt-plat {
+    font-size: min(0.68rem, calc(100cqi / 5.2)) !important;
+    letter-spacing: clamp(0.01em, 0.4cqi, 0.04em);
+    text-transform: uppercase;
+    line-height: 1 !important;
+    font-weight: 800;
   }
   .home-rt-spark-svg {
     display: block;
@@ -2019,7 +2090,7 @@
 
   {# Anlık aktif kullanıcı — Günün Özeti başlığının hemen altında, tek container / tek row #}
   <link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=2">
-  <script src="/static/js/rt_slot_fx.js?v=2"></script>
+  <script src="/static/js/rt_slot_fx.js?v=3"></script>
   <script src="/static/js/home_top_pages.js?v=1"></script>
   <script src="/static/js/metric_table_ux.js?v=8"></script>
   <div data-home-container-slot="realtime">
@@ -2078,6 +2149,9 @@
           section.innerHTML = html;
           if (prevSnap && window.RtSlotFx && window.RtSlotFx.animateHome) {
             window.RtSlotFx.animateHome(section, prevSnap);
+          }
+          if (window.RtSlotFx && window.RtSlotFx.bindHomeRtPlats) {
+            window.RtSlotFx.bindHomeRtPlats(section);
           }
           startCountdown();
           if (typeof window.__pcHomeEnsureRefreshButtons === 'function') {
