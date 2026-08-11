@@ -358,6 +358,30 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert any(a["id"] == "bitcoin" for a in mod.ASSETS)
     assert mod.FOREKS_FIELDS["bitcoin"] == "o1836_l"
     assert mod.TV_SCANNER_SYMBOLS["bitcoin"] == "BITSTAMP:BTCUSD"
+    assert any(s["id"] == "paratic" for s in mod.SITES)
+    assets = mod.ASSET_URLS
+    assert assets["paratic"]["usd"] == "https://piyasa.paratic.com/doviz/dolar/"
+    assert assets["paratic"]["gram_gumus"] == "https://piyasa.paratic.com/forex/emtia/gumus-gram/"
+    assert assets["paratic"]["bitcoin"] == "https://piyasa.paratic.com/kripto-coin/bitcoin/"
+    assert assets["paratic"]["ceyrek_altin"] == "https://piyasa.paratic.com/altin/ceyrek/"
+    assert assets["paratic"]["brent"] == "https://piyasa.paratic.com/forex/emtia/brent-petrol/"
+    assert assets["paratic"]["bist100"] == "https://piyasa.paratic.com/borsa/"
+    assert assets["investing"]["gram_gumus"] == "https://tr.investing.com/currencies/xagg-try"
+    assert assets["investing"]["gram_altin"] == "https://tr.investing.com/currencies/gau-try"
+    assert assets["tradingview"]["gram_gumus"] == "https://tr.tradingview.com/symbols/XAGTRYG/"
+    assert assets["uzmanpara"]["bitcoin"] == "https://uzmanpara.milliyet.com.tr/kripto-paralar/bitcoin/"
+    assert "https://uzmanpara.milliyet.com.tr/kripto-paralar/bitcoin/" in lists["uzmanpara"]
+    sample = """
+    <div class="ins_alsat sat"><div class="label">SAT</div>
+    <div class="price" data-code="USDTRY" data-type="ask">47.7403</div></div>
+    <div data-type="change">0.08</div>
+    """
+    pq = mod._paratic_quote_from_html(sample, "usd")
+    assert pq["value"] == "47.7403"
+    gumus = '<div class="price" data-code="XSLV" data-type="ask">99.1292</div> AL 99.0371 SAT 99.1292'
+    assert mod._paratic_quote_from_html(gumus, "gram_gumus")["value"] == "99.1292"
+    bist = "BIST 100 XU100 13704.52 %-0,78"
+    assert mod._paratic_quote_from_html(bist, "bist100")["value"] == "13704.52"
     btc = mod._parse_assets_from_text("BITCOIN $63.590 %-0,62 ( -$399 )")
     assert btc["bitcoin"]["value"] == "63.590"
     try_only = mod._parse_assets_from_text(

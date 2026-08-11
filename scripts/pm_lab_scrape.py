@@ -97,6 +97,7 @@ SITES = (
     {"id": "cnbce", "label": "CNBC-e", "home": "https://www.cnbce.com/"},
     {"id": "cnnturk", "label": "CNN Türk Finans", "home": "https://finans.cnnturk.com/"},
     {"id": "enuygun", "label": "Enuygun Finans", "home": "https://www.enuygunfinans.com/"},
+    {"id": "paratic", "label": "Paratic", "home": "https://piyasa.paratic.com/"},
 )
 
 # Ana sayfada yoksa bu liste/vitrin sayfalarından çek (kullanıcının verdiği URL’ler).
@@ -139,11 +140,6 @@ SITE_LIST_URLS: dict[str, tuple[str, ...]] = {
         "https://finans.cnnturk.com/canli-borsa",
         "https://finans.cnnturk.com/bitcoin",
     ),
-    "uzmanpara": (
-        "https://uzmanpara.milliyet.com.tr/doviz/",
-        "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
-        "https://uzmanpara.milliyet.com.tr/kripto-paralar/",
-    ),
     "bloomberght": (
         "https://www.bloomberght.com/piyasalar",
         "https://www.bloomberght.com/doviz",
@@ -151,6 +147,23 @@ SITE_LIST_URLS: dict[str, tuple[str, ...]] = {
         "https://www.bloomberght.com/altin",
         "https://www.bloomberght.com/doviz/bitcoin",
         "https://www.bloomberght.com/kripto",
+    ),
+    "paratic": (
+        "https://piyasa.paratic.com/doviz/dolar/",
+        "https://piyasa.paratic.com/doviz/euro/",
+        "https://piyasa.paratic.com/borsa/",
+        "https://piyasa.paratic.com/altin/gram/",
+        "https://piyasa.paratic.com/altin/ons/",
+        "https://piyasa.paratic.com/altin/ceyrek/",
+        "https://piyasa.paratic.com/forex/emtia/brent-petrol/",
+        "https://piyasa.paratic.com/forex/emtia/gumus-gram/",
+        "https://piyasa.paratic.com/kripto-coin/bitcoin/",
+    ),
+    "uzmanpara": (
+        "https://uzmanpara.milliyet.com.tr/doviz/",
+        "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
+        "https://uzmanpara.milliyet.com.tr/kripto-paralar/",
+        "https://uzmanpara.milliyet.com.tr/kripto-paralar/bitcoin/",
     ),
 }
 
@@ -182,8 +195,8 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "bist100": "https://www.tradingview.com/symbols/BIST-XU100/",
         "ons_altin": "https://www.tradingview.com/symbols/XAUUSD/",
         "brent": "https://www.tradingview.com/symbols/TVC-UKOIL/",
-        "gram_gumus": "https://www.tradingview.com/symbols/XAGUSD/",
-        "gram_altin": "https://www.tradingview.com/symbols/XAUTRY/",
+        "gram_gumus": "https://tr.tradingview.com/symbols/XAGTRYG/",
+        "gram_altin": "https://tr.tradingview.com/symbols/XAUTRYG/",
         "bitcoin": "https://www.tradingview.com/symbols/BTCUSD/",
     },
     "foreks": {
@@ -214,8 +227,8 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "bist100": "https://www.investing.com/indices/ise-100",
         "ons_altin": "https://www.investing.com/currencies/xau-usd",
         "brent": "https://www.investing.com/commodities/brent-oil",
-        "gram_gumus": "https://www.investing.com/currencies/xag-try",
-        "gram_altin": "https://www.investing.com/currencies/xau-try",
+        "gram_gumus": "https://tr.investing.com/currencies/xagg-try",
+        "gram_altin": "https://tr.investing.com/currencies/gau-try",
         "ceyrek_altin": "https://tr.investing.com/commodities/turkey-gold-quarter",
         "bitcoin": "https://www.investing.com/crypto/bitcoin",
     },
@@ -239,7 +252,7 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "gram_gumus": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
         "ons_altin": "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
         "brent": "https://uzmanpara.milliyet.com.tr/",
-        "bitcoin": "https://uzmanpara.milliyet.com.tr/kripto-paralar/",
+        "bitcoin": "https://uzmanpara.milliyet.com.tr/kripto-paralar/bitcoin/",
     },
     "bloomberght": {
         "usd": "https://www.bloomberght.com/doviz",
@@ -283,6 +296,17 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "gram_gumus": "https://www.enuygunfinans.com/altin-fiyatlari/",
         "bist100": "https://www.enuygunfinans.com/borsa/bist-100-hisseleri/",
     },
+    "paratic": {
+        "usd": "https://piyasa.paratic.com/doviz/dolar/",
+        "eur": "https://piyasa.paratic.com/doviz/euro/",
+        "bist100": "https://piyasa.paratic.com/borsa/",
+        "gram_altin": "https://piyasa.paratic.com/altin/gram/",
+        "ons_altin": "https://piyasa.paratic.com/altin/ons/",
+        "ceyrek_altin": "https://piyasa.paratic.com/altin/ceyrek/",
+        "brent": "https://piyasa.paratic.com/forex/emtia/brent-petrol/",
+        "gram_gumus": "https://piyasa.paratic.com/forex/emtia/gumus-gram/",
+        "bitcoin": "https://piyasa.paratic.com/kripto-coin/bitcoin/",
+    },
 }
 
 ASSET_LABELS: dict[str, tuple[str, ...]] = {
@@ -300,8 +324,8 @@ ASSET_LABELS: dict[str, tuple[str, ...]] = {
     ),
     "eur": ("eurtry", "eur/try", "eur try", "eur to try", "euro", "avro"),
     "bist100": ("bist 100", "bist100", "xu100", "bist-100"),
-    "gram_altin": ("gram altin", "ga altin", "xautry", "altin (tl/gr)", "spot altin", "gldgr", "altin"),
-    "gram_gumus": ("gram gumus", "gumus gram", "ga gumus", "gumus (tl/gr)", "sxaggr", "gumus"),
+    "gram_altin": ("gram altin", "ga altin", "xautryg", "xautry", "gau-try", "altin (tl/gr)", "spot altin", "gldgr", "altin"),
+    "gram_gumus": ("gram gumus", "gumus gram", "ga gumus", "xagtryg", "xagg-try", "xagg", "gumus (tl/gr)", "sxaggr", "gumus"),
     "ons_altin": ("ons altin", "altin/ons", "altin ons", "altin (ons)", "xauusd", "gold ounce", "altin ($/ons)"),
     "brent": ("brent petrol", "brent", "ukoil", "petrol"),
     "ceyrek_altin": ("ceyrek altin", "ceyrek", "sgldc"),
@@ -849,10 +873,19 @@ _HTTP_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
 }
+_SAFARI_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
+)
 
 
 def _http_get(url: str, *, timeout: int = 18) -> str:
-    req = urllib.request.Request(url, headers=_HTTP_HEADERS)
+    headers = dict(_HTTP_HEADERS)
+    host = (urllib.parse.urlparse(url).netloc or "").lower()
+    if "paratic.com" in host:
+        headers["User-Agent"] = _SAFARI_UA
+        headers["Referer"] = "https://piyasa.paratic.com/"
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
@@ -939,10 +972,85 @@ def _site_urls(sid: str, home: str) -> list[str]:
     return uniq
 
 
+_PARATIC_ASK_RE = re.compile(r'data-type="ask"[^>]*>\s*([\d.,]+)', re.I)
+_PARATIC_LAST_RE = re.compile(r'data-type="last"[^>]*>\s*([\d.,]+)', re.I)
+_PARATIC_SAT_RE = re.compile(r"\bSAT\s+([\d.,]+)", re.I)
+_PARATIC_CHANGE_RE = re.compile(r'data-type="change"[^>]*>\s*([+\-]?\s*[\d.,]+)', re.I)
+
+
+def _paratic_quote_from_html(html: str, aid: str) -> dict[str, str] | None:
+    """Paratic SAT (ask) / last; BIST sayfasında XU100 SON."""
+    raws: list[str] = []
+    if aid == "bist100":
+        vis = _html_visible_text(html)
+        hit = _parse_one_asset(vis, "bist100")
+        if hit:
+            return hit
+        m = re.search(
+            r'data-code="XU100"[^>]*data-type="(?:last|close|price)"[^>]*>\s*([\d.,]+)',
+            html,
+            re.I,
+        )
+        if m:
+            raws.append(m.group(1).strip())
+    raws.extend(m.group(1).strip() for m in _PARATIC_ASK_RE.finditer(html or ""))
+    raws.extend(m.group(1).strip() for m in _PARATIC_LAST_RE.finditer(html or ""))
+    vis = _html_visible_text(html)
+    sat = _PARATIC_SAT_RE.search(vis)
+    if sat:
+        raws.append(sat.group(1).strip())
+    change = ""
+    ch = _PARATIC_CHANGE_RE.search(html or "")
+    if ch:
+        change = ch.group(1).replace(" ", "")
+        if change and "%" not in change:
+            change = f"%{change}"
+    seen: set[str] = set()
+    for raw in raws:
+        if not raw or raw in seen:
+            continue
+        seen.add(raw)
+        val = _to_float(raw)
+        if val is None:
+            continue
+        if any(_in_range(aid, cand) for cand in _value_candidates(raw, val)):
+            return {"value": raw, "change": change}
+    return _parse_one_asset(vis, aid)
+
+
+def _http_fill_paratic() -> dict[str, dict[str, str]]:
+    found: dict[str, dict[str, str]] = {}
+    extra = ASSET_URLS.get("paratic") or {}
+    for aid, url in extra.items():
+        if not url:
+            continue
+        html = ""
+        for attempt in range(3):
+            try:
+                html = _http_get(url)
+                break
+            except urllib.error.HTTPError as exc:
+                if exc.code != 403 or attempt == 2:
+                    html = ""
+                    break
+                time.sleep(0.8 * (attempt + 1))
+            except Exception:
+                html = ""
+                break
+        if html:
+            rec = _paratic_quote_from_html(html, aid)
+            if rec and rec.get("value"):
+                found[aid] = rec
+        time.sleep(0.45)
+    return found
+
+
 def _http_fill_site(sid: str, home: str) -> dict[str, dict[str, str]]:
     found: dict[str, dict[str, str]] = {}
     if sid in ("investing", "foreks"):
         return found
+    if sid == "paratic":
+        return _http_fill_paratic()
     if sid == "tradingview":
         _merge_found(found, _http_tradingview_quotes())
     for url in _site_urls(sid, home):
@@ -1064,6 +1172,89 @@ def _browser_fill_foreks(page: Any, found: dict[str, dict[str, str]]) -> None:
             continue
 
 
+def _tv_dom_quote(page: Any) -> dict[str, str] | None:
+    try:
+        loc = page.locator('[data-qa-id="symbol-last-value"], .js-symbol-last')
+        if not loc.count():
+            return None
+        raw = (loc.first.inner_text() or "").strip()
+        if not raw or not re.search(r"\d", raw):
+            return None
+        change = ""
+        ch = page.locator(".js-symbol-change-pt, [data-qa-id='symbol-change-pt']")
+        if ch.count():
+            change = (ch.first.inner_text() or "").strip().replace(" ", "")
+        return {"value": raw, "change": change}
+    except Exception:
+        return None
+
+
+def _browser_fill_tradingview(page: Any, found: dict[str, dict[str, str]]) -> None:
+    extra = ASSET_URLS.get("tradingview") or {}
+    for aid, url in extra.items():
+        if aid in found or not url:
+            continue
+        try:
+            _goto(page, url, timeout=70_000)
+            page.wait_for_timeout(1200)
+            try:
+                page.wait_for_function(
+                    """() => {
+                      const el = document.querySelector('[data-qa-id="symbol-last-value"], .js-symbol-last');
+                      return el && /\\d/.test((el.innerText || '').trim());
+                    }""",
+                    timeout=14000,
+                )
+            except Exception:
+                pass
+            hit = _tv_dom_quote(page)
+            if hit:
+                val = _to_float(hit["value"])
+                if val is not None and any(_in_range(aid, c) for c in _value_candidates(hit["value"], val)):
+                    found[aid] = hit
+                    continue
+            blob = _page_blob(page, limit=12000)
+            parsed = _parse_one_asset(blob, aid)
+            if parsed:
+                found[aid] = parsed
+        except Exception:
+            continue
+        time.sleep(0.4)
+
+
+def _browser_fill_paratic(page: Any, found: dict[str, dict[str, str]]) -> None:
+    extra = ASSET_URLS.get("paratic") or {}
+    for aid, url in extra.items():
+        if aid in found or not url:
+            continue
+        try:
+            _goto(page, url, timeout=70_000)
+            page.wait_for_timeout(1800)
+            try:
+                page.wait_for_function(
+                    """() => !!document.querySelector('[data-type="ask"], [data-code="XU100"]')""",
+                    timeout=8000,
+                )
+            except Exception:
+                pass
+            html = ""
+            try:
+                html = page.content() or ""
+            except Exception:
+                html = ""
+            rec = _paratic_quote_from_html(html, aid) if html else None
+            if rec and rec.get("value"):
+                found[aid] = rec
+                continue
+            blob = _page_blob(page, limit=16000)
+            hit = _parse_one_asset(blob, aid)
+            if hit:
+                found[aid] = hit
+        except Exception:
+            continue
+        time.sleep(0.35)
+
+
 def _browser_fill_investing(page: Any, found: dict[str, dict[str, str]]) -> None:
     extra = ASSET_URLS.get("investing") or {}
     for aid, url in extra.items():
@@ -1173,6 +1364,10 @@ def job_competitors(page: Any) -> dict[str, Any]:
                 _browser_fill_investing(page, found)
             elif sid == "foreks":
                 _browser_fill_foreks(page, found)
+            elif sid == "tradingview":
+                _browser_fill_tradingview(page, found)
+            elif sid == "paratic":
+                _browser_fill_paratic(page, found)
             else:
                 _browser_fill_gaps(page, sid, site["home"], found)
             for aid, rec in found.items():
