@@ -707,9 +707,16 @@ def _sikayet_extract(page: Any, *, limit: int = 10) -> list[dict[str, Any]]:
             """(limit) => {
               const out = [];
               const seen = new Set();
-              document.querySelectorAll('a[href*="/sikayet/"]').forEach((a) => {
+              document.querySelectorAll('a[href]').forEach((a) => {
                 const href = (a.href || '').split('?')[0];
-                if (!href || seen.has(href)) return;
+                if (!href || seen.has(href) || !href.includes('sikayetvar.com')) return;
+                let path = '';
+                try { path = new URL(href).pathname; } catch (e) { return; }
+                const parts = path.split('/').filter(Boolean);
+                if (parts.length < 2) return;
+                if (['search','sikayetler','write','login','uye','blog'].includes(parts[0])) return;
+                const slug = parts[parts.length - 1] || '';
+                if (slug.length < 20) return;
                 const title = (a.innerText || '').trim().replace(/\\s+/g, ' ');
                 if (title.length < 12) return;
                 seen.add(href);
@@ -774,6 +781,8 @@ def _x_from_google(page: Any, query: str, *, limit: int = 10) -> list[dict[str, 
     url = f"https://www.google.com/search?q={quote(q)}&hl=tr&num=10&tbs=qdr:y"
     _goto(page, url, timeout=70_000)
     page.wait_for_timeout(1100)
+    if "sorry" in (page.url or "").lower():
+        return []
     parsed = _extract_serp(page)
     out: list[dict[str, Any]] = []
     for row in parsed.get("organic") or []:
@@ -795,6 +804,38 @@ def _x_from_google(page: Any, query: str, *, limit: int = 10) -> list[dict[str, 
     return out
 
 
+def _x_from_bing(page: Any, query: str, *, limit: int = 10) -> list[dict[str, Any]]:
+    q = f"site:x.com OR site:twitter.com {query}"
+    url = f"https://www.bing.com/search?q={quote(q)}&setlang=tr-TR"
+    _goto(page, url, timeout=70_000)
+    page.wait_for_timeout(1200)
+    try:
+        rows = page.evaluate(
+            """(limit) => {
+              const out = [];
+              document.querySelectorAll('li.b_algo').forEach((li) => {
+                const a = li.querySelector('h2 a');
+                if (!a || !a.href) return;
+                const href = a.href;
+                if (!href.includes('x.com') && !href.includes('twitter.com')) return;
+                const text = ((li.querySelector('p') || {}).innerText || '').trim();
+                out.push({
+                  title: (a.innerText || '').trim().slice(0, 180),
+                  text: (text || (a.innerText || '')).slice(0, 700),
+                  author: '',
+                  date: '',
+                  url: href
+                });
+              });
+              return out.slice(0, limit);
+            }""",
+            limit,
+        )
+        return rows if isinstance(rows, list) else []
+    except Exception:
+        return []
+
+
 def _x_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
     search = f"https://x.com/search?q={quote(query)}&src=typed_query&f=live"
     items: list[dict[str, Any]] = []
@@ -807,7 +848,16 @@ def _x_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict
     except Exception:
         items = []
     if len(items) < 3:
-        extra = _x_from_google(page, query, limit=limit)
+        extra: list[dict[str, Any]] = []
+        try:
+            extra = _x_from_google(page, query, limit=limit)
+        except Exception:
+            extra = []
+        if len(extra) < 3:
+            try:
+                extra = extra + _x_from_bing(page, query, limit=limit)
+            except Exception:
+                pass
         seen = {str(x.get("url") or x.get("text") or "")[:80] for x in items}
         for row in extra:
             key = str(row.get("url") or row.get("text") or "")[:80]
@@ -824,16 +874,21 @@ def _x_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict
 def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
     slug = query.replace(".com", "").replace(".", "")
     urls = [
-        f"https://www.sikayetvar.com/{slug}",
         f"https://www.sikayetvar.com/search?q={quote(query)}",
         f"https://www.sikayetvar.com/sikayetler?search={quote(query)}",
     ]
+    if slug and slug not in {"doviz"}:
+        urls.insert(0, f"https://www.sikayetvar.com/{slug}")
     final = urls[0]
     items: list[dict[str, Any]] = []
     for url in urls:
         try:
             _goto(page, url, timeout=70_000)
-            page.wait_for_timeout(1200)
+            page.wait_for_timeout(2500)
+            try:
+                page.wait_for_selector("a[href]", timeout=8000)
+            except Exception:
+                pass
             final = page.url
             items = _sikayet_extract(page, limit=limit)
             if items:
