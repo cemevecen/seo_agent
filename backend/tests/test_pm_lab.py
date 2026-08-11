@@ -359,6 +359,11 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert mod.FOREKS_FIELDS["bitcoin"] == "o1836_l"
     assert mod.TV_SCANNER_SYMBOLS["bitcoin"] == "BITSTAMP:BTCUSD"
     assert any(s["id"] == "paratic" for s in mod.SITES)
+    labels = {s["id"]: s["label"] for s in mod.SITES}
+    assert labels["enuygun"] == "Enuygun"
+    assert labels["bloomberght"] == "Bloomberg"
+    assert labels["tradingview"] == "Trading"
+    assert labels["cnnturk"] == "CNN"
     assets = mod.ASSET_URLS
     assert assets["paratic"]["usd"] == "https://piyasa.paratic.com/doviz/dolar/"
     assert assets["paratic"]["gram_gumus"] == "https://piyasa.paratic.com/forex/emtia/gumus-gram/"
@@ -396,7 +401,11 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=14" in html
+    assert "pm_lab.js?v=15" in html
+    assert 'enuygun: "Enuygun"' in js
+    assert 'bloomberght: "Bloomberg"' in js
+    assert 'tradingview: "Trading"' in js
+    assert 'cnnturk: "CNN"' in js
 
 
 def test_competitor_sapma_vs_peer_average():

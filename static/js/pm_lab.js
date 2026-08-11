@@ -409,11 +409,23 @@
     return sign + Math.abs(n).toFixed(2).replace(".", ",") + "%";
   }
 
+  var SITE_COL_LABELS = {
+    enuygun: "Enuygun",
+    bloomberght: "Bloomberg",
+    tradingview: "Trading",
+    cnnturk: "CNN",
+  };
+
   function withSapmaColumn(cols) {
     var out = [];
     var inserted = false;
     (cols || []).forEach(function (c) {
-      out.push(c);
+      out.push({
+        id: c.id,
+        label: SITE_COL_LABELS[c.id] || c.label,
+        url: c.url,
+        synthetic: c.synthetic,
+      });
       if (!inserted && c.id === "doviz") {
         out.push({ id: "sapma", label: "Sapma", synthetic: true });
         inserted = true;

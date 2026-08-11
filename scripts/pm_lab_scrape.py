@@ -87,16 +87,16 @@ ASSETS = (
 
 SITES = (
     {"id": "doviz", "label": "Döviz", "home": "https://www.doviz.com/"},
-    {"id": "tradingview", "label": "TradingView", "home": "https://www.tradingview.com/"},
+    {"id": "tradingview", "label": "Trading", "home": "https://www.tradingview.com/"},
     {"id": "canlidoviz", "label": "Canlı Döviz", "home": "https://canlidoviz.com/"},
     {"id": "foreks", "label": "Foreks", "home": "https://www.foreks.com/"},
     {"id": "investing", "label": "Investing", "home": "https://www.investing.com/"},
     {"id": "bigpara", "label": "Bigpara", "home": "https://bigpara.hurriyet.com.tr/"},
     {"id": "uzmanpara", "label": "Uzmanpara", "home": "https://uzmanpara.milliyet.com.tr/"},
-    {"id": "bloomberght", "label": "Bloomberg HT", "home": "https://www.bloomberght.com/"},
+    {"id": "bloomberght", "label": "Bloomberg", "home": "https://www.bloomberght.com/"},
     {"id": "cnbce", "label": "CNBC-e", "home": "https://www.cnbce.com/"},
-    {"id": "cnnturk", "label": "CNN Türk Finans", "home": "https://finans.cnnturk.com/"},
-    {"id": "enuygun", "label": "Enuygun Finans", "home": "https://www.enuygunfinans.com/"},
+    {"id": "cnnturk", "label": "CNN", "home": "https://finans.cnnturk.com/"},
+    {"id": "enuygun", "label": "Enuygun", "home": "https://www.enuygunfinans.com/"},
     {"id": "paratic", "label": "Paratic", "home": "https://piyasa.paratic.com/"},
 )
 
