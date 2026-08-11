@@ -121,3 +121,5 @@ def test_template_has_no_photos_and_js_shell():
     js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
     assert "renderSerp" in js
     assert "renderCompetitors" in js
+    assert 'concat(["Toplam"])' in js
+    assert "missRank" in js

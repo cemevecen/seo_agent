@@ -27,6 +27,13 @@
   html.dark .pml-table tbody tr:hover td{background:#27272a}
   .pml-table .pin{position:sticky;left:0;z-index:1;background:inherit;font-weight:650}
   .pml-ours td{font-weight:700}
+  .pml-doviz td{background:#fef2f2 !important;color:#991b1b}
+  html.dark .pml-doviz td{background:#3f1a1a !important;color:#fca5a5}
+  .pml-doviz td.pml-rank{color:#dc2626;font-weight:800}
+  html.dark .pml-doviz td.pml-rank{color:#f87171}
+  .pml-chip-doviz{background:#fef2f2;color:#dc2626}
+  html.dark .pml-chip-doviz{background:#3f1a1a;color:#fca5a5}
+  .pml-tab-total{letter-spacing:.04em}
   .pml-heat-up{background:#eef2ee !important}
   .pml-heat-down{background:#f6f0f0 !important}
   .pml-heat-new{background:#eef1f5 !important}
@@ -82,5 +89,5 @@
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=3"></script>
+<script src="/static/js/pm_lab.js?v=4"></script>
 {% endblock %}

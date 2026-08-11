@@ -132,7 +132,7 @@
     labels.forEach(function (lab, i) {
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "pml-tab" + (i === 0 ? " is-on" : "");
+      b.className = "pml-tab" + (i === 0 ? " is-on" : "") + (lab === "Toplam" ? " pml-tab-total" : "");
       b.textContent = lab;
       b.addEventListener("click", function () {
         Array.prototype.forEach.call(bar.children, function (x) {
@@ -170,14 +170,30 @@
       spark.innerHTML += '<i class="' + (r.ok ? "on" : "off") + '" style="height:' + h + 'px" title="' + esc(fmtWhen(r.at)) + '"></i>';
     });
     var stage = document.createElement("div");
-    function paint(idx) {
-      stage.innerHTML = "";
-      var kw = kws[idx];
+    var pages = Number(data.pages) || 4;
+    var missRank = pages * 10 + 1;
+
+    function siteKey(host) {
+      host = String(host || "")
+        .toLowerCase()
+        .replace(/^www\./, "");
+      var parts = host.split(".").filter(Boolean);
+      var multi = { "com.tr": 1, "gov.tr": 1, "org.tr": 1, "net.tr": 1, "gen.tr": 1, "bel.tr": 1, "co.uk": 1 };
+      if (parts.length >= 3 && multi[parts.slice(-2).join(".")]) return parts.slice(-3).join(".");
+      if (parts.length >= 2) return parts.slice(-2).join(".");
+      return host;
+    }
+    function isDoviz(host) {
+      var h = siteKey(host);
+      return h === "doviz.com";
+    }
+
+    function paintKeyword(kw) {
       var meta = document.createElement("div");
       meta.className = "flex flex-wrap gap-1.5 mb-2";
       var mv = kw.moves || {};
       meta.innerHTML =
-        chip("bizim sıra: " + (kw.our_rank || "yok")) +
+        chip("bizim sıra: " + (kw.our_rank || "yok"), "pml-chip-doviz") +
         chip("+" + (mv.entered || 0) + " girdi", "pml-chip-new") +
         chip((mv.dropped || 0) + " çıktı", "pml-chip-down");
       var drop = (kw.dropped || [])
@@ -193,25 +209,120 @@
       }
       var rows = (kw.rows || []).map(function (r) {
         var heat = r.delta === "up" ? "pml-heat-up" : r.delta === "down" ? "pml-heat-down" : r.delta === "new" ? "pml-heat-new" : "";
+        var ours = r.ours || isDoviz(r.domain);
         return tr(
           [
-            { text: r.rank, sort: r.rank },
+            { text: r.rank, sort: r.rank, cls: ours ? "pml-rank" : "" },
             { text: r.page, sort: r.page },
             { html: '<a class="hover:underline" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.domain) + "</a>" },
             { text: r.title },
             { text: r.snippet },
           ],
-          (r.ours ? "pml-ours " : "") + heat
+          (ours ? "pml-ours pml-doviz " : "") + heat
         );
       });
       stage.appendChild(meta);
-      stage.appendChild(
-        sortableTable(["Sıra", "Sayfa", "Domain", "Başlık / meta", "Snippet"], rows)
+      stage.appendChild(sortableTable(["Sıra", "Sayfa", "Domain", "Başlık / meta", "Snippet"], rows));
+    }
+
+    function paintTotal() {
+      var map = {};
+      kws.forEach(function (kw, ki) {
+        (kw.rows || []).forEach(function (r) {
+          var key = siteKey(r.domain);
+          if (!key) return;
+          var rank = Number(r.rank) || 0;
+          if (!rank) return;
+          if (!map[key]) map[key] = { domain: key, ranks: {}, ours: isDoviz(key) };
+          var prev = map[key].ranks[ki];
+          if (prev == null || rank < prev) map[key].ranks[ki] = rank;
+          if (r.ours) map[key].ours = true;
+        });
+      });
+      var sites = Object.keys(map).map(function (key) {
+        var rec = map[key];
+        var sum = 0;
+        var hit = 0;
+        var per = [];
+        for (var i = 0; i < kws.length; i++) {
+          var rk = rec.ranks[i];
+          if (rk == null) rk = missRank;
+          else hit += 1;
+          per.push(rk);
+          sum += rk;
+        }
+        rec.avg = sum / kws.length;
+        rec.hit = hit;
+        rec.per = per;
+        return rec;
+      });
+      sites.sort(function (a, b) {
+        return a.avg - b.avg || b.hit - a.hit || a.domain.localeCompare(b.domain, "tr");
+      });
+      var ours = sites.filter(function (s) {
+        return s.ours;
+      })[0];
+      var meta = document.createElement("div");
+      meta.className = "flex flex-wrap gap-1.5 mb-2";
+      meta.innerHTML =
+        chip(sites.length + " site") +
+        chip("yoksa #" + missRank, "") +
+        chip("doviz ort. " + (ours ? ours.avg.toFixed(1) : "yok"), "pml-chip-doviz") +
+        (ours ? chip("göründü " + ours.hit + "/" + kws.length, "pml-chip-doviz") : "");
+      var note = document.createElement("p");
+      note.className = "text-[11px] text-slate-500 mb-2";
+      note.textContent =
+        "Ortalama = 8 kelimedeki en iyi sıra. İlk " +
+        pages +
+        " sayfada yoksa " +
+        missRank +
+        " yazılır (4×10+1).";
+      var headers = ["Domain", "Ort. sıra", "Göründü"].concat(
+        kws.map(function (k) {
+          return k.keyword;
+        })
       );
+      var rows = sites.map(function (s) {
+        var cells = [
+          { text: s.domain },
+          { text: s.avg.toFixed(1), sort: s.avg, cls: "pml-rank" },
+          { text: s.hit + "/" + kws.length, sort: s.hit },
+        ];
+        s.per.forEach(function (rk) {
+          var missing = rk >= missRank;
+          cells.push({
+            html: missing ? '<span class="pml-miss">—</span>' : String(rk),
+            sort: rk,
+            cls: missing ? "pml-miss" : s.ours ? "pml-rank" : "",
+          });
+        });
+        return tr(cells, s.ours ? "pml-ours pml-doviz" : "");
+      });
+      stage.appendChild(meta);
+      stage.appendChild(note);
+      stage.appendChild(sortableTable(headers, rows));
+    }
+
+    function paint(idx) {
+      stage.innerHTML = "";
+      if (idx >= kws.length) {
+        paintTotal();
+        return;
+      }
+      paintKeyword(kws[idx]);
     }
     root.appendChild(head);
     root.appendChild(spark);
-    root.appendChild(tabs(kws.map(function (k) { return k.keyword; }), paint));
+    root.appendChild(
+      tabs(
+        kws
+          .map(function (k) {
+            return k.keyword;
+          })
+          .concat(["Toplam"]),
+        paint
+      )
+    );
     root.appendChild(stage);
     paint(0);
   }
