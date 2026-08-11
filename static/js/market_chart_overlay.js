@@ -226,6 +226,39 @@
     cache.pending = null;
   }
 
+  function pointsForSeries(payload, seriesKey) {
+    var block = payload && payload.series && payload.series[seriesKey];
+    var out = [];
+    ((block && block.by_date) || []).forEach(function (pt) {
+      if (!pt || !pt.date) return;
+      var v = Number(pt.close);
+      if (!Number.isFinite(v)) return;
+      out.push({ key: String(pt.date).slice(0, 10), value: v });
+    });
+    return out;
+  }
+
+  function indexPointSeries(series) {
+    var base = null;
+    (series || []).forEach(function (r) {
+      if (base == null && r && Number(r.value) > 0) base = Number(r.value);
+    });
+    if (!base) return series || [];
+    return (series || []).map(function (r) {
+      var v = r && r.value != null ? Number(r.value) : null;
+      return {
+        key: r && r.key,
+        value: v != null && Number.isFinite(v) ? (v / base) * 100 : null,
+      };
+    });
+  }
+
+  function seriesLabel(payload, seriesKey, indexed) {
+    var block = payload && payload.series && payload.series[seriesKey];
+    var label = (block && block.label) || OPTION_LABELS[seriesKey] || seriesKey;
+    return indexed ? label + " %" : label;
+  }
+
   function closeMap(seriesBlock) {
     var m = {};
     ((seriesBlock && seriesBlock.by_date) || []).forEach(function (pt) {
@@ -656,6 +689,7 @@
   function bindPanel(root, onChange) {
     if (!root || root.dataset.marketOverlayBound === "1") return;
     root.dataset.marketOverlayBound = "1";
+    if (typeof onChange === "function") root._marketOverlayOnChange = onChange;
     syncDomFromStored(root);
 
     var trigger = root.querySelector("[data-market-overlay-trigger]");
@@ -710,7 +744,11 @@
         writeStored(root, keys);
         updateTriggerLabel(root);
         clearCache();
-        if (typeof onChange === "function") onChange(keys);
+        var cbFn =
+          (root && root._marketOverlayOnChange) ||
+          onChange ||
+          resolveMarketOverlayOnChange(root);
+        if (typeof cbFn === "function") cbFn(keys);
       });
     });
 
@@ -747,6 +785,7 @@
   function bindSelect(controlId, onChange) {
     var root = rootEl(controlId);
     if (root) {
+      if (typeof onChange === "function") root._marketOverlayOnChange = onChange;
       if (root.dataset.marketOverlayBound === "1") return true;
       bindPanel(root, onChange);
       return true;
@@ -777,8 +816,9 @@
   function ensureBound(controlId, onChange) {
     var root = rootEl(controlId);
     if (!root) return false;
+    if (typeof onChange === "function") root._marketOverlayOnChange = onChange;
     if (root.dataset.marketOverlayBound !== "1") {
-      bindPanel(root, onChange);
+      bindPanel(root, onChange || resolveMarketOverlayOnChange(root));
     }
     return true;
   }
@@ -1036,10 +1076,15 @@
   global.SeoMarketOverlay = {
     LINE_COLOR: LINE_COLOR,
     SERIES_COLORS: SERIES_COLORS,
+    INDEXED_KEYS: INDEXED_KEYS,
+    OPTION_LABELS: OPTION_LABELS,
     mode: mode,
     modes: modes,
     clearCache: clearCache,
     ensureOverlay: ensureOverlay,
+    pointsForSeries: pointsForSeries,
+    indexPointSeries: indexPointSeries,
+    seriesLabel: seriesLabel,
     apply: apply,
     bindSelect: bindSelect,
     bindWhenReady: bindWhenReady,

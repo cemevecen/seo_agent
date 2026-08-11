@@ -1329,6 +1329,17 @@
             <option value="virgul:ctr_pct">Virgül · CTR (%)</option>
             <option value="virgul:coverage_pct">Virgül · Coverage (%)</option>
           </optgroup>
+          <optgroup label="Piyasa">
+            <option value="market:usd_try">USD/TRY kapanış</option>
+            <option value="market:eur_try">EUR/TRY kapanış</option>
+            <option value="market:gram_altin">Gram altın kapanış</option>
+            <option value="market:ceyrek_altin">Çeyrek altın kapanış</option>
+            <option value="market:gram_gumus">Gram gümüş kapanış</option>
+            <option value="market:bist100">BIST 100 kapanış</option>
+            <option value="market:brent">Brent kapanış</option>
+            <option value="market:bitcoin">Bitcoin kapanış</option>
+            <option value="market:all_indexed">Tümü (% aralık başı=100)</option>
+          </optgroup>
         </select>
       </label>
       <label class="pa-f pa-f--sm">Zaman kırılımı
@@ -1440,10 +1451,6 @@
         </div>
         <p id="pa-compare-note" class="hidden px-3 pb-2 pt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500"></p>
       </div>
-
-      {% with market_overlay_control_id='pa-market-overlay-root', market_overlay_storage_key='pa', market_plot_id='pa-market-plot', market_start_input='pa-start', market_end_input='pa-end' %}
-      {% include 'partials/market_standalone_chart.html' %}
-      {% endwith %}
 
       <div id="pa-table-shell" class="rdl-shell mt-4 w-full min-w-0 rounded-xl border border-slate-200 dark:border-zinc-700" data-rdl-max-rows="20" data-rdl-max-h="4000" data-rdl-storage-key="pa-table-h-v2">
         <div id="pa-table-wrap" class="rdl-scroll w-full min-w-0">
@@ -2154,8 +2161,28 @@
   function isVirgulOverlayMetric(key) {
     return String(key || "").indexOf("virgul:") === 0;
   }
+  function isMarketOverlayMetric(key) {
+    return String(key || "").indexOf("market:") === 0;
+  }
   function isExternalOverlayMetric(key) {
-    return isGa4OverlayMetric(key) || isVirgulOverlayMetric(key);
+    return isGa4OverlayMetric(key) || isVirgulOverlayMetric(key) || isMarketOverlayMetric(key);
+  }
+  var PA_MARKET_SERIES_KEYS = [
+    "usd_try", "eur_try", "gram_altin", "ceyrek_altin",
+    "gram_gumus", "bist100", "brent", "bitcoin"
+  ];
+  var paMarketIndexScale = false;
+  function normalizePaMarketSelection(selected) {
+    var keys = (selected || []).slice();
+    var indexed = keys.indexOf("market:all_indexed") >= 0;
+    if (indexed) {
+      keys = keys.filter(function (k) {
+        return k !== "market:all_indexed" && String(k).indexOf("market:") !== 0;
+      });
+      var src = (window.SeoMarketOverlay && SeoMarketOverlay.INDEXED_KEYS) || PA_MARKET_SERIES_KEYS;
+      src.forEach(function (sk) { keys.push("market:" + sk); });
+    }
+    return { keys: keys, indexed: indexed };
   }
   function ga4OverlayLabel(key) {
     for (var i = 0; i < PA_GA4_OVERLAY_METRICS.length; i++) {
@@ -2350,7 +2377,16 @@
     "virgul:ad_ecpm": "Ad impression eCPM: her 1000 gösterim başına ortalama gelir (TL).",
     "virgul:viewability_pct": "Viewability: görünür sayılan gösterimlerin oranı (%).",
     "virgul:ctr_pct": "CTR: tıklama / gösterim oranı (%).",
-    "virgul:coverage_pct": "Coverage: taleplerin ne kadarının reklamla doldurulduğu (%)."
+    "virgul:coverage_pct": "Coverage: taleplerin ne kadarının reklamla doldurulduğu (%).",
+    "market:usd_try": "USD/TRY kapanış: doviz.com günlük tarama.",
+    "market:eur_try": "EUR/TRY kapanış: doviz.com günlük tarama.",
+    "market:gram_altin": "Gram altın kapanış: doviz.com günlük tarama.",
+    "market:ceyrek_altin": "Çeyrek altın kapanış: doviz.com günlük tarama.",
+    "market:gram_gumus": "Gram gümüş kapanış: doviz.com günlük tarama.",
+    "market:bist100": "BIST 100 kapanış: doviz.com günlük tarama.",
+    "market:brent": "Brent kapanış: doviz.com günlük tarama.",
+    "market:bitcoin": "Bitcoin kapanış: doviz.com günlük tarama.",
+    "market:all_indexed": "Tüm piyasa serileri; aralık başı 100 olacak şekilde endekslenir."
   };
   function paMetricHelp(key) {
     return PA_METRIC_HELP[key] || "Bu metrik seçilen dönem için Play / GA4 / Virgül kaynağından gelir; grafik ve tabloda günlük (veya kırılım) serisi olarak gösterilir.";
@@ -2358,7 +2394,20 @@
   function togglePaMetric(key) {
     if (!key) {
       paSelectedMetrics = [];
+    } else if (key === "market:all_indexed") {
+      var ai = paSelectedMetrics.indexOf(key);
+      if (ai >= 0) paSelectedMetrics.splice(ai, 1);
+      else {
+        paSelectedMetrics = paSelectedMetrics.filter(function (k) {
+          return String(k).indexOf("market:") !== 0;
+        });
+        paSelectedMetrics.push(key);
+      }
     } else {
+      if (isMarketOverlayMetric(key)) {
+        var dropAll = paSelectedMetrics.indexOf("market:all_indexed");
+        if (dropAll >= 0) paSelectedMetrics.splice(dropAll, 1);
+      }
       var idx = paSelectedMetrics.indexOf(key);
       if (idx >= 0) paSelectedMetrics.splice(idx, 1);
       else paSelectedMetrics.push(key);
@@ -2420,6 +2469,9 @@
       var nv = Number(r && r.value);
       if (Number.isFinite(nv)) vals.push(nv);
     });
+    if (isMarketOverlayMetric(metricKey)) {
+      return { total: vals.length ? vals[vals.length - 1] : 0, mode: "last" };
+    }
     var asAvg = metricKey === "ga4:avg_session" || !!PA_VIRGUL_AVG_METRICS[metricKey];
     if (!vals.length) return { total: 0, mode: asAvg ? "avg" : "sum" };
     if (asAvg) {
@@ -2615,6 +2667,36 @@
     var metricKey = ov.metric;
     var brMain = (paBreakdown && paBreakdown.value) || "date";
     var wantCompare = paCompareEnabled();
+    if (isMarketOverlayMetric(metricKey)) {
+      var sk = String(metricKey).slice("market:".length);
+      if (!window.SeoMarketOverlay || !SeoMarketOverlay.ensureOverlay) {
+        throw new Error("Piyasa serisi yok");
+      }
+      var payload = await SeoMarketOverlay.ensureOverlay(paStart.value, paEnd.value);
+      var gSeries = SeoMarketOverlay.pointsForSeries(payload, sk);
+      if (paMarketIndexScale && SeoMarketOverlay.indexPointSeries) {
+        gSeries = SeoMarketOverlay.indexPointSeries(gSeries);
+      }
+      var asAvg = true;
+      if (brMain === "week" || brMain === "month") {
+        gSeries = aggregateOverlaySeries(gSeries, brMain, asAvg);
+      }
+      var gLabel = (window.SeoMarketOverlay.seriesLabel
+        ? SeoMarketOverlay.seriesLabel(payload, sk, paMarketIndexScale)
+        : (ov.label || metricOptionLabel(metricKey) || sk));
+      return {
+        metric: metricKey,
+        label: gLabel,
+        series: gSeries,
+        prevSeries: [],
+        compareMeta: null,
+        breakdown: brMain,
+        dim: "overview",
+        segment: "all",
+        source: "market",
+        color: ov.color || null
+      };
+    }
     if (isGa4OverlayMetric(metricKey) || isVirgulOverlayMetric(metricKey)) {
       var isVirgul = isVirgulOverlayMetric(metricKey);
       var extQs = new URLSearchParams({
@@ -3851,6 +3933,7 @@
   function metricIsCountLike(metricKey) {
     var m = metricKey || paPrimaryMetric() || "";
     if (m === "ga4:avg_session") return false;
+    if (isMarketOverlayMetric(m)) return false;
     if (isGa4OverlayMetric(m)) return true;
     if (isVirgulOverlayMetric(m)) {
       return m === "virgul:ad_request" || m === "virgul:matched_request"
@@ -3917,6 +4000,7 @@
     var m = metricKey || "";
     if (isGa4OverlayMetric(m) || String(m).indexOf("ga4:") === 0) return "ga4";
     if (isVirgulOverlayMetric(m) || String(m).indexOf("virgul:") === 0) return "virgul";
+    if (isMarketOverlayMetric(m) || String(m).indexOf("market:") === 0) return "market";
     return "play";
   }
   /**
@@ -5318,7 +5402,9 @@
   }
   async function runPlayAnalytics(opts) {
     opts = opts || {};
-    var selected = paSelectedMetrics.slice();
+    var marketNorm = normalizePaMarketSelection(paSelectedMetrics.slice());
+    var selected = marketNorm.keys;
+    paMarketIndexScale = !!marketNorm.indexed;
     paOverviewActive = !selected.length;
     var mySeq = ++paRunSeq;
     if (paAbort) {
@@ -5409,7 +5495,7 @@
         var packs = await Promise.all(selected.map(function (metricKey) {
           var src = isVirgulOverlayMetric(metricKey)
             ? "virgul"
-            : (isGa4OverlayMetric(metricKey) ? "ga4" : "play");
+            : (isGa4OverlayMetric(metricKey) ? "ga4" : (isMarketOverlayMetric(metricKey) ? "market" : "play"));
           return fetchOneOverlaySeries({
             metric: metricKey,
             label: metricOptionLabel(metricKey) || metricKey,

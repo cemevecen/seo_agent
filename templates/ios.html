@@ -1127,6 +1127,17 @@
             <option value="virgul:ctr_pct">Virgül · CTR (%)</option>
             <option value="virgul:coverage_pct">Virgül · Coverage (%)</option>
           </optgroup>
+          <optgroup label="Piyasa">
+            <option value="market:usd_try">USD/TRY kapanış</option>
+            <option value="market:eur_try">EUR/TRY kapanış</option>
+            <option value="market:gram_altin">Gram altın kapanış</option>
+            <option value="market:ceyrek_altin">Çeyrek altın kapanış</option>
+            <option value="market:gram_gumus">Gram gümüş kapanış</option>
+            <option value="market:bist100">BIST 100 kapanış</option>
+            <option value="market:brent">Brent kapanış</option>
+            <option value="market:bitcoin">Bitcoin kapanış</option>
+            <option value="market:all_indexed">Tümü (% aralık başı=100)</option>
+          </optgroup>
         </select>
       </label>
       <label id="ia-breakdown-wrap" class="pa-f pa-f--sm">Zaman kırılımı
@@ -1198,9 +1209,6 @@
           </div>
         </div>
       </div>
-      {% with market_overlay_control_id='ia-market-overlay-root', market_overlay_storage_key='ia', market_plot_id='ia-market-plot', market_start_input='ia-start', market_end_input='ia-end' %}
-      {% include 'partials/market_standalone_chart.html' %}
-      {% endwith %}
       <div id="ia-table-shell" class="rdl-shell mt-4 min-w-0 rounded-xl border border-slate-200 dark:border-zinc-700" data-rdl-max-rows="20" data-rdl-max-h="4000" data-rdl-storage-key="ia-table-h-v2">
         <div id="ia-table-wrap" class="rdl-scroll overflow-auto">
           <table class="pa-data-table text-left">
@@ -1527,7 +1535,25 @@
   }
   function isGa4Metric(key) { return String(key || "").indexOf("ga4:") === 0; }
   function isVirgulMetric(key) { return String(key || "").indexOf("virgul:") === 0; }
-  function isExternalMetric(key) { return isGa4Metric(key) || isVirgulMetric(key); }
+  function isMarketMetric(key) { return String(key || "").indexOf("market:") === 0; }
+  function isExternalMetric(key) { return isGa4Metric(key) || isVirgulMetric(key) || isMarketMetric(key); }
+  var IA_MARKET_SERIES_KEYS = [
+    "usd_try", "eur_try", "gram_altin", "ceyrek_altin",
+    "gram_gumus", "bist100", "brent", "bitcoin"
+  ];
+  var iaMarketIndexScale = false;
+  function normalizeIaMarketSelection(selected) {
+    var keys = (selected || []).slice();
+    var indexed = keys.indexOf("market:all_indexed") >= 0;
+    if (indexed) {
+      keys = keys.filter(function (k) {
+        return k !== "market:all_indexed" && String(k).indexOf("market:") !== 0;
+      });
+      var src = (window.SeoMarketOverlay && SeoMarketOverlay.INDEXED_KEYS) || IA_MARKET_SERIES_KEYS;
+      src.forEach(function (sk) { keys.push("market:" + sk); });
+    }
+    return { keys: keys, indexed: indexed };
+  }
   function iaPrimaryMetric() { return iaSelectedMetrics.length ? iaSelectedMetrics[0] : ""; }
   function updateIaMetricTrigger() {
     if (!iaMetricLabel) return;
@@ -1703,7 +1729,16 @@
     "virgul:ad_ecpm": "Ad impression eCPM: her 1000 gösterim başına ortalama gelir (TL).",
     "virgul:viewability_pct": "Viewability: görünür sayılan gösterimlerin oranı (%).",
     "virgul:ctr_pct": "CTR: tıklama / gösterim oranı (%).",
-    "virgul:coverage_pct": "Coverage: taleplerin ne kadarının reklamla doldurulduğu (%)."
+    "virgul:coverage_pct": "Coverage: taleplerin ne kadarının reklamla doldurulduğu (%).",
+    "market:usd_try": "USD/TRY kapanış: doviz.com günlük tarama.",
+    "market:eur_try": "EUR/TRY kapanış: doviz.com günlük tarama.",
+    "market:gram_altin": "Gram altın kapanış: doviz.com günlük tarama.",
+    "market:ceyrek_altin": "Çeyrek altın kapanış: doviz.com günlük tarama.",
+    "market:gram_gumus": "Gram gümüş kapanış: doviz.com günlük tarama.",
+    "market:bist100": "BIST 100 kapanış: doviz.com günlük tarama.",
+    "market:brent": "Brent kapanış: doviz.com günlük tarama.",
+    "market:bitcoin": "Bitcoin kapanış: doviz.com günlük tarama.",
+    "market:all_indexed": "Tüm piyasa serileri; aralık başı 100 olacak şekilde endekslenir."
   };
   function iaMetricHelp(key) {
     return IA_METRIC_HELP[key] || "Bu metrik seçilen dönem için App Store / GA4 / Virgül kaynağından gelir; grafik ve tabloda günlük (veya kırılım) serisi olarak gösterilir.";
@@ -1711,7 +1746,20 @@
   function toggleIaMetric(key) {
     if (!key) {
       iaSelectedMetrics = [];
+    } else if (key === "market:all_indexed") {
+      var ai = iaSelectedMetrics.indexOf(key);
+      if (ai >= 0) iaSelectedMetrics.splice(ai, 1);
+      else {
+        iaSelectedMetrics = iaSelectedMetrics.filter(function (k) {
+          return String(k).indexOf("market:") !== 0;
+        });
+        iaSelectedMetrics.push(key);
+      }
     } else {
+      if (isMarketMetric(key)) {
+        var dropAll = iaSelectedMetrics.indexOf("market:all_indexed");
+        if (dropAll >= 0) iaSelectedMetrics.splice(dropAll, 1);
+      }
       var idx = iaSelectedMetrics.indexOf(key);
       if (idx >= 0) iaSelectedMetrics.splice(idx, 1);
       else iaSelectedMetrics.push(key);
@@ -1768,6 +1816,7 @@
     if (m === "ga4:avg_session") return false;
     if (IA_VIRGUL_AVG[m]) return false;
     if (m === "virgul:net_revenue") return false;
+    if (isMarketMetric(m)) return false;
     return true;
   }
   function colorAt(i) { return COLORS[i % COLORS.length]; }
@@ -1964,6 +2013,34 @@
     if (iaRunLabel) iaRunLabel.textContent = on ? "Yükleniyor" : "Uygula";
   }
   async function fetchExternalSeries(metricKey, signal) {
+    if (isMarketMetric(metricKey)) {
+      var sk = String(metricKey).slice("market:".length);
+      if (!window.SeoMarketOverlay || !SeoMarketOverlay.ensureOverlay) {
+        throw new Error("Piyasa serisi yok");
+      }
+      var payload = await SeoMarketOverlay.ensureOverlay(iaStart.value, iaEnd.value);
+      var series = SeoMarketOverlay.pointsForSeries(payload, sk);
+      if (iaMarketIndexScale && SeoMarketOverlay.indexPointSeries) {
+        series = SeoMarketOverlay.indexPointSeries(series);
+      }
+      var label = SeoMarketOverlay.seriesLabel
+        ? SeoMarketOverlay.seriesLabel(payload, sk, iaMarketIndexScale)
+        : (metricLabel(metricKey) || sk);
+      var last = null;
+      (series || []).forEach(function (r) {
+        var nv = Number(r && r.value);
+        if (Number.isFinite(nv)) last = nv;
+      });
+      return {
+        metric: metricKey,
+        label: label,
+        series: series || [],
+        total: last,
+        total_mode: "last",
+        message: "",
+        source: "market"
+      };
+    }
     var isVirgul = isVirgulMetric(metricKey);
     var qs = new URLSearchParams({
       start: iaStart.value,
@@ -3041,7 +3118,9 @@
   }
 
   async function runAnalytics() {
-    var selected = iaSelectedMetrics.slice();
+    var marketNorm = normalizeIaMarketSelection(iaSelectedMetrics.slice());
+    var selected = marketNorm.keys;
+    iaMarketIndexScale = !!marketNorm.indexed;
     overviewActive = !selected.length;
     var my = ++runSeq;
     if (abortCtrl) try { abortCtrl.abort(); } catch (_) {}
@@ -3136,7 +3215,7 @@
             total: pack.total,
             total_mode: pack.total_mode || "sum",
             message: pack.message || "",
-            source: pack.source || (isVirgulMetric(metricKey) ? "virgul" : (isGa4Metric(metricKey) ? "ga4" : "asc"))
+            source: pack.source || (isMarketMetric(metricKey) ? "market" : (isVirgulMetric(metricKey) ? "virgul" : (isGa4Metric(metricKey) ? "ga4" : "asc")))
           };
         }).catch(function (err) {
           softNotes.push((metricLabel(metricKey) || metricKey) + " atlandı");
@@ -3148,7 +3227,7 @@
             total: null,
             total_mode: "sum",
             message: (err && err.message) || "",
-            source: isVirgulMetric(metricKey) ? "virgul" : (isGa4Metric(metricKey) ? "ga4" : "asc")
+            source: isMarketMetric(metricKey) ? "market" : (isVirgulMetric(metricKey) ? "virgul" : (isGa4Metric(metricKey) ? "ga4" : "asc"))
           };
         });
       }));
