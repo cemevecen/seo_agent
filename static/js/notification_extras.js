@@ -102,6 +102,100 @@
     return '<span class="font-semibold ' + cls + '">' + sign + Number(pct).toFixed(1) + "%</span>";
   }
 
+  function deltaTone(pct) {
+    if (pct === null || pct === undefined || isNaN(pct)) return "is-flat";
+    if (pct > 0.05) return "is-up";
+    if (pct < -0.05) return "is-down";
+    return "is-flat";
+  }
+
+  function deltaColor(pct) {
+    var t = deltaTone(pct);
+    if (t === "is-up") return "#059669";
+    if (t === "is-down") return "#e11d48";
+    return "#64748b";
+  }
+
+  function fmtDeltaHero(pct) {
+    if (pct === null || pct === undefined || isNaN(pct)) return "—";
+    var arrow = pct > 0.05 ? "↑ " : (pct < -0.05 ? "↓ " : "");
+    return arrow + Math.abs(Number(pct)).toFixed(1) + "%";
+  }
+
+  var _ntSparkSeq = 0;
+
+  function _sparkPts(vals, w, h, pad) {
+    var nums = [];
+    (vals || []).forEach(function (v) {
+      var n = Number(v);
+      if (Number.isFinite(n)) nums.push(n);
+    });
+    if (nums.length < 2) return null;
+    var min = Math.min.apply(null, nums);
+    var max = Math.max.apply(null, nums);
+    var span = (max - min) || 1;
+    var n = vals.length;
+    return vals.map(function (v, i) {
+      var num = Number(v);
+      if (!Number.isFinite(num)) num = min;
+      var x = n === 1 ? w / 2 : (i / (n - 1)) * w;
+      var y = h - pad - ((num - min) / span) * (h - pad * 2);
+      return [x, y];
+    });
+  }
+
+  function ntCompareSparkSvg(primaryVals, compareVals) {
+    var w = 120;
+    var h = 36;
+    var pad = 2;
+    var pPts = _sparkPts(primaryVals, w, h, pad);
+    var cPts = _sparkPts(compareVals, w, h, pad);
+    if (!pPts && !cPts) {
+      return '<div class="nt-kpi-ss2-spark" style="opacity:.28" aria-hidden="true"></div>';
+    }
+    var colors = ntCompareSparkColors();
+    _ntSparkSeq += 1;
+    var gid = "nt-spark-" + _ntSparkSeq;
+    var parts = ['<svg viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="none" aria-hidden="true"><defs>',
+      '<linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">',
+      '<stop offset="0%" stop-color="' + colors.primary + '" stop-opacity="0.38"></stop>',
+      '<stop offset="100%" stop-color="' + colors.primary + '" stop-opacity="0.03"></stop>',
+      "</linearGradient></defs>"];
+    function poly(pts, stroke, width, dash, fillId) {
+      if (!pts || pts.length < 2) return;
+      var line = pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+      if (fillId) {
+        var area = "M" + pts[0][0].toFixed(1) + " " + h + " L"
+          + pts.map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L")
+          + " L" + pts[pts.length - 1][0].toFixed(1) + " " + h + " Z";
+        parts.push('<path d="' + area + '" fill="url(#' + fillId + ')"></path>');
+      }
+      parts.push('<polyline points="' + line + '" fill="none" stroke="' + stroke
+        + '" stroke-width="' + width + '" stroke-linecap="round" stroke-linejoin="round"'
+        + (dash ? ' stroke-dasharray="' + dash + '"' : "")
+        + ' vector-effect="non-scaling-stroke"></polyline>');
+    }
+    poly(cPts, colors.compare, 1.15, "2.5 2", null);
+    poly(pPts, colors.primary, 1.55, "", gid);
+    parts.push("</svg>");
+    return parts.join("");
+  }
+
+  function sparkForKey(curDaily, prevDaily, key) {
+    var aligned = alignPeriodDaily(curDaily, prevDaily, key, 21);
+    if (!aligned) return ntCompareSparkSvg(null, null);
+    return ntCompareSparkSvg(aligned.primary, aligned.compare);
+  }
+
+  function ntIndexSeries(ys) {
+    var base = null;
+    (ys || []).forEach(function (v) {
+      if (base == null && Number(v) > 0) base = Number(v);
+    });
+    if (!base) return (ys || []).map(function () { return 100; });
+    return ys.map(function (v) { return (Number(v) / base) * 100; });
+  }
+
   function ntIsDark() {
     return global.document.documentElement.classList.contains("dark");
   }
@@ -229,33 +323,6 @@
     };
   }
 
-  function renderNtSparkline(elId, primaryDaily, compareDaily, key) {
-    if (!global.Plotly) return;
-    var el = global.document.getElementById(elId);
-    if (!el) return;
-    var aligned = alignPeriodDaily(primaryDaily, compareDaily, key, 21);
-    if (!aligned) return;
-    var colors = ntCompareSparkColors();
-    var dark = ntIsDark();
-    var traces = [];
-    if (aligned.compare && aligned.compare.some(function (v) { return v !== 0; })) {
-      traces.push(ntSparkOverlayFillTrace(aligned.xs, aligned.compare, colors.compare, dark));
-    }
-    if (aligned.primary && aligned.primary.some(function (v) { return v !== 0; })) {
-      traces.push(ntSparkPrimaryTrace(aligned.xs, aligned.primary, colors.primary, dark));
-    }
-    if (!traces.length) return;
-    try { global.Plotly.purge(el); } catch (e) { /* ignore */ }
-    global.Plotly.newPlot(el, traces, {
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(0,0,0,0)",
-      margin: { l: 4, r: 4, t: 2, b: 2 },
-      xaxis: { visible: false },
-      yaxis: { visible: false },
-      showlegend: false,
-    }, { responsive: true, displayModeBar: false, staticPlot: true });
-  }
-
   var _ntPeriodChartTimer = null;
   var _lastPeriodDaily = null;
 
@@ -276,36 +343,43 @@
         var colors = ntCompareSparkColors();
         var dark = ntIsDark();
         var traces = [];
-        if (aligned.compare && aligned.compare.some(function (v) { return v !== 0; })) {
+        var idxP = ntIndexSeries(aligned.primary);
+        if (aligned.compare && aligned.compare.length === aligned.primary.length) {
           traces.push({
             x: aligned.labels,
-            y: aligned.compare,
+            y: ntIndexSeries(aligned.compare),
+            customdata: aligned.compare,
             type: "scatter",
             mode: "lines",
             name: "Önceki dönem",
             line: { color: colors.compare, width: 2, dash: "dot" },
-            hovertemplate: "%{x}<br>%{y:,}<extra>Önceki</extra>",
+            hovertemplate: "%{x}<br>%{customdata:,.0f} click<br>endeks %{y:.0f}<extra>Önceki</extra>",
           });
         }
         traces.push({
           x: aligned.labels,
-          y: aligned.primary,
+          y: idxP,
+          customdata: aligned.primary,
           type: "scatter",
           mode: "lines",
           name: "Seçili dönem",
           line: { color: colors.primary, width: 2.75 },
           fill: "tozeroy",
           fillcolor: ntSparkFillRgba(colors.primary, dark ? 0.18 : 0.12),
-          hovertemplate: "%{x}<br>%{y:,}<extra>Seçili</extra>",
+          hovertemplate: "%{x}<br>%{customdata:,.0f} click<br>endeks %{y:.0f}<extra>Seçili</extra>",
         });
         global.Plotly.newPlot(trendEl, traces, {
           autosize: true,
-          margin: { l: 52, r: 12, t: 8, b: 40 },
+          margin: { l: 48, r: 12, t: 8, b: 40 },
           paper_bgcolor: "rgba(0,0,0,0)",
           plot_bgcolor: "rgba(0,0,0,0)",
           font: ntChartFont(),
           xaxis: { type: "date", tickformat: "%d.%m", gridcolor: ntChartGrid() },
-          yaxis: { title: "Click", gridcolor: ntChartGrid(), zerolinecolor: ntChartGrid() },
+          yaxis: {
+            title: "Endeks (ilk gün = 100)",
+            gridcolor: ntChartGrid(),
+            zerolinecolor: ntChartGrid(),
+          },
           legend: { orientation: "h", y: 1.18, font: { size: 10, color: ntChartFont().color } },
           showlegend: true,
         }, { responsive: true, displayModeBar: false });
@@ -320,45 +394,42 @@
       var prev = lastComparePayload.previous;
       var labels = ["Web", "MWeb", "Android", "iOS"];
       var keys = ["desktop", "mobileweb", "android", "ios"];
-      var curY = keys.map(function (k) { return cur.platform[k]; });
-      var prevY = keys.map(function (k) { return prev.platform[k]; });
-      var barColors = window.seoMattePlatformColors
-        ? (function () {
-            var p = window.seoMattePlatformColors();
-            return [p.desktop, p.mobileweb, p.android, p.ios];
-          })()
-        : ntIsDark()
-        ? ["#7a7da8", "#a67c3d", "#4a8f73", "#a85a66"]
-        : ["#5b5f9e", "#b8732e", "#15803d", "#b91c3c"];
-      var prevBar = ntIsDark() ? "rgba(184,115,51,0.32)" : "rgba(194,65,12,0.32)";
+      var fmtN = nt().fmtCount || function (n) { return String(n); };
+      var deltas = keys.map(function (k) { return compareDelta(cur.platform[k], prev.platform[k]); });
+      var barColors = deltas.map(function (d) {
+        if (d == null || isNaN(d)) return ntIsDark() ? "#52525b" : "#94a3b8";
+        return d >= 0 ? (ntIsDark() ? "#34d399" : "#059669") : (ntIsDark() ? "#fb7185" : "#e11d48");
+      });
+      var custom = keys.map(function (k, i) {
+        return [fmtN(cur.platform[k]), fmtN(prev.platform[k]), fmtDeltaHero(deltas[i])];
+      });
       global.Plotly.newPlot(platEl, [
         {
-          x: labels,
-          y: prevY,
+          y: labels,
+          x: deltas.map(function (d) { return d == null ? 0 : d; }),
           type: "bar",
-          name: "Önceki",
-          marker: { color: prevBar },
-          hovertemplate: "%{x}<br>%{y:,}<extra>Önceki</extra>",
-        },
-        {
-          x: labels,
-          y: curY,
-          type: "bar",
-          name: "Seçili",
+          orientation: "h",
           marker: { color: barColors },
-          hovertemplate: "%{x}<br>%{y:,}<extra>Seçili</extra>",
+          customdata: custom,
+          text: deltas.map(function (d) { return fmtDeltaHero(d); }),
+          textposition: "outside",
+          hovertemplate: "%{y}<br>%{customdata[2]}<br>seçili %{customdata[0]} · önceki %{customdata[1]}<extra></extra>",
         },
       ], {
-        barmode: "group",
         autosize: true,
-        margin: { l: 52, r: 12, t: 8, b: 36 },
+        margin: { l: 64, r: 56, t: 8, b: 36 },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         font: ntChartFont(),
-        xaxis: { gridcolor: ntChartGrid() },
-        yaxis: { title: "Click", gridcolor: ntChartGrid(), zerolinecolor: ntChartGrid() },
-        legend: { orientation: "h", y: 1.18, font: { size: 10, color: ntChartFont().color } },
-        showlegend: true,
+        xaxis: {
+          title: "% değişim",
+          gridcolor: ntChartGrid(),
+          zeroline: true,
+          zerolinewidth: 1.5,
+          zerolinecolor: ntIsDark() ? "#52525b" : "#94a3b8",
+        },
+        yaxis: { autorange: "reversed", gridcolor: ntChartGrid() },
+        showlegend: false,
       }, { responsive: true, displayModeBar: false });
     }
   }
@@ -368,32 +439,7 @@
     if (_ntPeriodChartTimer) clearTimeout(_ntPeriodChartTimer);
     _ntPeriodChartTimer = setTimeout(function () {
       _ntPeriodChartTimer = null;
-      var sparkDefs = [
-        ["nt-kpi-spark-rows", "rows"],
-        ["nt-kpi-spark-headlines", "headlines"],
-        ["nt-kpi-spark-clicks", "clicks"],
-        ["nt-kpi-spark-impr", "impressions"],
-        ["nt-spark-clicks", "clicks"],
-        ["nt-spark-impressions", "impressions"],
-        ["nt-spark-ctr", "ctr"],
-        ["nt-spark-desktop", "desktop"],
-        ["nt-spark-mobileweb", "mobileweb"],
-        ["nt-spark-android", "android"],
-        ["nt-spark-ios", "ios"],
-        ["nt-spark-app", "app"],
-        ["nt-spark-web", "web"],
-      ];
-      var i = 0;
-      function step() {
-        if (i >= sparkDefs.length) {
-          renderPeriodCompareCharts(curDaily, prevDaily);
-          return;
-        }
-        var pair = sparkDefs[i++];
-        renderNtSparkline(pair[0], curDaily, prevDaily, pair[1]);
-        setTimeout(step, 10);
-      }
-      global.requestAnimationFrame(function () { step(); });
+      renderPeriodCompareCharts(curDaily, prevDaily);
     }, 80);
   }
 
@@ -405,19 +451,25 @@
     var prevStr = opts.pct
       ? Number(prevVal).toFixed(2) + "%"
       : (nt().fmtCount ? nt().fmtCount(prevVal) : prevVal);
-    return '<div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">'
-      + '<p class="text-[10px] font-semibold tracking-wide text-slate-500 dark:text-slate-400">' + enCapsLabel(label) + "</p>"
-      + '<p class="mt-1 text-base font-black text-slate-900 dark:text-slate-200">' + valStr + "</p>"
-      + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Önceki: ' + prevStr + " · " + fmtDeltaHtml(delta) + "</p>"
-      + '<div id="' + id + '" class="mt-2 h-9 w-full"></div></div>';
+    var tone = deltaTone(delta);
+    var extra = opts.share != null ? " · pay %" + Number(opts.share).toFixed(1) : "";
+    return '<article class="nt-kpi-ss2" style="--kpi-color:' + deltaColor(delta) + '">'
+      + '<div class="nt-kpi-ss2-head"><span class="nt-kpi-chip">' + enCapsLabel(label) + "</span></div>"
+      + '<div class="nt-kpi-ss2-main">'
+      + '<div class="nt-kpi-ss2-metrics">'
+      + '<p class="nt-kpi-ss2-delta ' + tone + '">' + fmtDeltaHero(delta) + "</p>"
+      + '<p class="nt-kpi-ss2-value" title="' + valStr + '">' + valStr + "</p>"
+      + '<p class="nt-kpi-ss2-prev">önceki ' + prevStr + extra + "</p>"
+      + "</div>"
+      + '<div id="' + id + '" class="nt-kpi-ss2-spark">' + (opts.spark || "") + "</div>"
+      + "</div></article>";
   }
 
-  function periodPlatCard(id, label, value, delta, share) {
-    return '<div class="rounded-xl border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900/50">'
-      + '<p class="text-[10px] font-bold text-slate-500 dark:text-slate-400">' + enCapsLabel(label) + "</p>"
-      + '<p class="mt-0.5 text-sm font-black text-slate-800 dark:text-slate-200">' + (nt().fmtCount ? nt().fmtCount(value) : value) + "</p>"
-      + '<p class="text-[10px] text-slate-500 dark:text-slate-400">' + fmtDeltaHtml(delta) + ' · pay %' + share.toFixed(1) + "</p>"
-      + '<div id="' + id + '" class="mt-1.5 h-8 w-full"></div></div>';
+  function periodPlatCard(id, label, value, prevVal, delta, share, spark) {
+    return periodKpiCard(id, label, value, prevVal, delta, {
+      spark: spark || "",
+      share: share,
+    });
   }
 
   function rowPlatformClicks(row) {
@@ -442,10 +494,10 @@
   }
 
   var TOP_KPI_COMPARE_IDS = [
-    { meta: "nt-kpi-rows-meta", spark: "nt-kpi-spark-rows", curKey: "rows", prevKey: "rows", dailyKey: "rows", fmt: "count" },
-    { meta: "nt-kpi-headlines-meta", spark: "nt-kpi-spark-headlines", curKey: "headlines", prevKey: "headlines", dailyKey: "headlines", fmt: "count" },
-    { meta: "nt-kpi-clicks-meta", spark: "nt-kpi-spark-clicks", curKey: "clicks", prevKey: "clicks", dailyKey: "clicks", fmt: "count" },
-    { meta: "nt-kpi-impr-meta", spark: "nt-kpi-spark-impr", curKey: "impressions", prevKey: "impressions", dailyKey: "impressions", fmt: "count" },
+    { delta: "nt-kpi-rows-delta", meta: "nt-kpi-rows-meta", spark: "nt-kpi-spark-rows", card: "rows", curKey: "rows", dailyKey: "rows", fmt: "count" },
+    { delta: "nt-kpi-headlines-delta", meta: "nt-kpi-headlines-meta", spark: "nt-kpi-spark-headlines", card: "headlines", curKey: "headlines", dailyKey: "headlines", fmt: "count" },
+    { delta: "nt-kpi-clicks-delta", meta: "nt-kpi-clicks-meta", spark: "nt-kpi-spark-clicks", card: "clicks", curKey: "clicks", dailyKey: "clicks", fmt: "count" },
+    { delta: "nt-kpi-impr-delta", meta: "nt-kpi-impr-meta", spark: "nt-kpi-spark-impr", card: "impr", curKey: "impressions", dailyKey: "impressions", fmt: "count" },
   ];
 
   function formatTopKpiPrevValue(val, fmt) {
@@ -458,36 +510,37 @@
     TOP_KPI_COMPARE_IDS.forEach(function (def) {
       var meta = global.document.getElementById(def.meta);
       var spark = global.document.getElementById(def.spark);
+      var dEl = global.document.getElementById(def.delta);
+      var card = global.document.querySelector('[data-nt-top-kpi="' + def.card + '"]');
+      if (dEl) {
+        dEl.textContent = "—";
+        dEl.className = "nt-kpi-ss2-delta is-flat";
+      }
       if (meta) {
         meta.textContent = "";
         meta.classList.add("hidden");
       }
-      if (spark) {
-        spark.classList.add("hidden");
-        spark.innerHTML = "";
-        if (global.Plotly) {
-          try { global.Plotly.purge(spark); } catch (e) { /* ignore */ }
-        }
-      }
+      if (spark) spark.innerHTML = "";
+      if (card) card.style.removeProperty("--kpi-color");
     });
   }
 
   function setTopKpiCompareLoading() {
     TOP_KPI_COMPARE_IDS.forEach(function (def) {
       var meta = global.document.getElementById(def.meta);
-      var spark = global.document.getElementById(def.spark);
-      if (meta) {
-        meta.textContent = "Önceki dönem yükleniyor…";
-        meta.classList.remove("hidden");
+      var dEl = global.document.getElementById(def.delta);
+      if (dEl) {
+        dEl.textContent = "…";
+        dEl.className = "nt-kpi-ss2-delta is-flat";
       }
-      if (spark) {
-        spark.classList.add("hidden");
-        spark.innerHTML = "";
+      if (meta) {
+        meta.textContent = "önceki dönem…";
+        meta.classList.remove("hidden");
       }
     });
   }
 
-  function renderTopKpiCompare(curStats, prevStats) {
+  function renderTopKpiCompare(curStats, prevStats, curDaily, prevDaily) {
     if (!curStats || !prevStats) {
       clearTopKpiCompare();
       return;
@@ -495,13 +548,22 @@
     TOP_KPI_COMPARE_IDS.forEach(function (def) {
       var meta = global.document.getElementById(def.meta);
       var spark = global.document.getElementById(def.spark);
-      if (!meta) return;
+      var dEl = global.document.getElementById(def.delta);
+      var card = global.document.querySelector('[data-nt-top-kpi="' + def.card + '"]');
       var cur = curStats[def.curKey];
-      var prev = prevStats[def.prevKey];
+      var prev = prevStats[def.curKey];
       var delta = compareDelta(cur, prev);
-      meta.innerHTML = "Önceki: " + formatTopKpiPrevValue(prev, def.fmt) + " · " + fmtDeltaHtml(delta);
-      meta.classList.remove("hidden");
-      if (spark) spark.classList.remove("hidden");
+      var tone = deltaTone(delta);
+      if (dEl) {
+        dEl.textContent = fmtDeltaHero(delta);
+        dEl.className = "nt-kpi-ss2-delta " + tone;
+      }
+      if (meta) {
+        meta.textContent = "önceki " + formatTopKpiPrevValue(prev, def.fmt);
+        meta.classList.remove("hidden");
+      }
+      if (spark) spark.innerHTML = sparkForKey(curDaily, prevDaily, def.dailyKey);
+      if (card) card.style.setProperty("--kpi-color", deltaColor(delta));
     });
   }
 
@@ -586,7 +648,9 @@
     var curStats = aggregatePeriod(primaryRows);
     fetchRowsForRange(prev).then(function (prevRows) {
       var prevStats = aggregatePeriod(prevRows);
-      renderTopKpiCompare(curStats, prevStats);
+      var curDaily = aggregateDailyForCompare(primaryRows);
+      var prevDaily = aggregateDailyForCompare(prevRows);
+      renderTopKpiCompare(curStats, prevStats, curDaily, prevDaily);
       lastComparePayload = { current: curStats, previous: prevStats, ranges: { primary: range, compare: prev } };
       function delta(cur, prevVal) {
         return compareDelta(cur, prevVal);
@@ -594,37 +658,35 @@
       var clickD = delta(curStats.clicks, prevStats.clicks);
       var imprD = delta(curStats.impressions, prevStats.impressions);
       var ctrD = delta(curStats.ctr, prevStats.ctr);
-      var curDaily = aggregateDailyForCompare(primaryRows);
-      var prevDaily = aggregateDailyForCompare(prevRows);
       var platHtml = ["desktop", "mobileweb", "android", "ios"].map(function (k) {
         var labels = { desktop: "Web", mobileweb: "MWeb", android: "Android", ios: "iOS" };
         var sparkIds = { desktop: "nt-spark-desktop", mobileweb: "nt-spark-mobileweb", android: "nt-spark-android", ios: "nt-spark-ios" };
         var c = curStats.platform[k];
         var p = prevStats.platform[k];
         var share = curStats.clicks > 0 ? (c / curStats.clicks * 100) : 0;
-        return periodPlatCard(sparkIds[k], labels[k], c, delta(c, p), share);
+        return periodPlatCard(sparkIds[k], labels[k], c, p, delta(c, p), share, sparkForKey(curDaily, prevDaily, k));
       }).join("");
       el.innerHTML = '<p class="mb-2 text-xs text-slate-500 dark:text-slate-400">'
         + range.start + " – " + range.end + " vs " + prev.start + " – " + prev.end + "</p>"
-        + '<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">'
-        + periodKpiCard("nt-spark-clicks", "Toplam click", curStats.clicks, prevStats.clicks, clickD)
-        + periodKpiCard("nt-spark-impressions", "Toplam impression", curStats.impressions, prevStats.impressions, imprD)
-        + periodKpiCard("nt-spark-ctr", "CTR (web+android impr)", curStats.ctr, prevStats.ctr, ctrD, { pct: true })
+        + '<div class="nt-cmp-grid nt-cmp-grid--3">'
+        + periodKpiCard("nt-spark-clicks", "Toplam click", curStats.clicks, prevStats.clicks, clickD, { spark: sparkForKey(curDaily, prevDaily, "clicks") })
+        + periodKpiCard("nt-spark-impressions", "Toplam impression", curStats.impressions, prevStats.impressions, imprD, { spark: sparkForKey(curDaily, prevDaily, "impressions") })
+        + periodKpiCard("nt-spark-ctr", "CTR (web+android impr)", curStats.ctr, prevStats.ctr, ctrD, { pct: true, spark: sparkForKey(curDaily, prevDaily, "ctr") })
         + "</div>"
-        + '<div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">' + platHtml + "</div>"
-        + '<div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">'
-        + periodKpiCard("nt-spark-app", "App (Android+iOS)", curStats.app, prevStats.app, delta(curStats.app, prevStats.app))
-        + periodKpiCard("nt-spark-web", "Web (Desktop+MWeb)", curStats.web, prevStats.web, delta(curStats.web, prevStats.web))
+        + '<div class="nt-cmp-grid nt-cmp-grid--4 mt-3">' + platHtml + "</div>"
+        + '<div class="nt-cmp-grid nt-cmp-grid--2 mt-3">'
+        + periodKpiCard("nt-spark-app", "App (Android+iOS)", curStats.app, prevStats.app, delta(curStats.app, prevStats.app), { spark: sparkForKey(curDaily, prevDaily, "app") })
+        + periodKpiCard("nt-spark-web", "Web (Desktop+MWeb)", curStats.web, prevStats.web, delta(curStats.web, prevStats.web), { spark: sparkForKey(curDaily, prevDaily, "web") })
         + "</div>"
         + '<div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">'
         + '<div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">'
-        + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük click trendi</p>'
-        + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Yeşil: seçili · turuncu noktalı: önceki dönem (gün hizalı)</p>'
-        + '<div id="nt-period-trend-chart" class="mt-2 h-[180px] w-full"></div></div>'
+        + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük click endeksi</p>'
+        + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">İlk gün = 100 · yeşil seçili · turuncu noktalı önceki · şekil karşılaştırması</p>'
+        + '<div id="nt-period-trend-chart" class="mt-2 h-[200px] w-full"></div></div>'
         + '<div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">'
-        + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Platform click karşılaştırması</p>'
-        + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Turuncu: önceki · renkli: seçili dönem</p>'
-        + '<div id="nt-period-platform-chart" class="mt-2 h-[180px] w-full"></div></div>'
+        + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Platform % değişim</p>'
+        + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Seçili dönem vs önceki · yeşil artış · kırmızı düşüş</p>'
+        + '<div id="nt-period-platform-chart" class="mt-2 h-[200px] w-full"></div></div>'
         + "</div>";
       scheduleNtPeriodCharts(curDaily, prevDaily);
     }).catch(function () {
