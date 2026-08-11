@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import logging
+import re
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote
@@ -94,6 +95,31 @@ def clean_issue_causes(causes: list | None, *, title: str = "") -> list[str]:
         if len(s) > 280:
             s = s[:277] + "…"
         out.append(s)
+    return out
+
+
+def sanitize_chart_series(chart: dict[str, Any] | None, *, year_now: int | None = None) -> dict[str, Any]:
+    """2007–2008 sapmış GSC eksenini panoda gösterme — tarih gerçekçi değilse seriyi düşür."""
+    if not isinstance(chart, dict):
+        return {}
+    y_now = year_now or datetime.utcnow().year
+    out = dict(chart)
+    for key in ("mobile", "desktop"):
+        ser = out.get(key)
+        if not isinstance(ser, dict):
+            continue
+        dates = [str(d or "")[:10] for d in (ser.get("dates") or [])]
+        bad = False
+        for d in dates:
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+                bad = True
+                break
+            y = int(d[:4])
+            if y < y_now - 3 or y > y_now + 1:
+                bad = True
+                break
+        if bad or (len(dates) >= 2 and dates[0] > dates[-1]):
+            out[key] = None
     return out
 
 
@@ -434,12 +460,24 @@ def ingest_gsc_cwv_payload(db: Session, payload: dict[str, Any]) -> dict[str, An
 
         snap = _dedupe_drilldowns(dict(snap))
         snap = sanitize_cwv_payload(snap)
+        if isinstance(snap.get("chart_series"), dict):
+            snap["chart_series"] = sanitize_chart_series(snap.get("chart_series"))
         # Hızlı charts-only: önceki drilldown/AMP verisini koru, sadece grafik+KPI güncelle
         if snap.get("charts_only") and isinstance(prev_payload, dict):
             merged = dict(prev_payload)
-            for k in ("overview", "chart_series", "totals", "last_updated", "scraped_at"):
+            for k in ("overview", "totals", "last_updated", "scraped_at"):
                 if snap.get(k) is not None:
                     merged[k] = snap.get(k)
+            if snap.get("chart_series") is not None:
+                new_cs = snap.get("chart_series") if isinstance(snap.get("chart_series"), dict) else {}
+                old_cs = merged.get("chart_series") if isinstance(merged.get("chart_series"), dict) else {}
+                keep = dict(old_cs)
+                for key in ("mobile", "desktop"):
+                    if new_cs.get(key):
+                        keep[key] = new_cs.get(key)
+                if new_cs.get("source"):
+                    keep["source"] = new_cs.get("source")
+                merged["chart_series"] = keep
             for dev in ("mobile", "desktop"):
                 cur = snap.get(dev) if isinstance(snap.get(dev), dict) else {}
                 old = merged.get(dev) if isinstance(merged.get(dev), dict) else {}
@@ -513,6 +551,8 @@ def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
         except Exception:
             payload = {}
     payload = sanitize_cwv_payload(payload if isinstance(payload, dict) else {})
+    if isinstance(payload.get("chart_series"), dict):
+        payload["chart_series"] = sanitize_chart_series(payload.get("chart_series"))
     hist = history_points(db, site.id)
     rid = payload.get("resource_id") or (
         "sc-domain:doviz.com" if "doviz" in (site.domain or "") else f"https://{site.domain}/"

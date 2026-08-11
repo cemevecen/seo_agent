@@ -657,6 +657,20 @@ _EN_MONTHS = {
 }
 
 
+def _coerce_cwv_year(y: int, year_now: int) -> int | None:
+    """2 haneli yıl 07 → 2007 GSC CWV için saçma; yalnızca yakın yıllar."""
+    if y < 0:
+        return None
+    if y < 100:
+        for cand in (year_now, year_now - 1, year_now + 1):
+            if cand % 100 == y:
+                return cand
+        y = 2000 + y
+    if year_now - 3 <= y <= year_now + 1:
+        return y
+    return None
+
+
 def _gsc_label_to_iso(label: str, *, default_year: int | None = None) -> str:
     """GSC etiket: M/D/YY, D.M.YYYY, '9 Ağu', 'Aug 9, 2026' → YYYY-MM-DD."""
     s = re.sub(r"\s+", " ", (label or "").strip()).strip(" .,")
@@ -666,7 +680,9 @@ def _gsc_label_to_iso(label: str, *, default_year: int | None = None) -> str:
     m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{2,4})$", s)
     if m:
         a, b, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        year = 2000 + y if y < 100 else y
+        year = _coerce_cwv_year(y, year_now)
+        if year is None:
+            return ""
         month, day = (b, a) if a > 12 else (a, b)  # hl=en → M/D
         try:
             datetime(year, month, day)
@@ -676,7 +692,9 @@ def _gsc_label_to_iso(label: str, *, default_year: int | None = None) -> str:
     m = re.match(r"^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$", s)
     if m:
         day, month, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        year = 2000 + y if y < 100 else y
+        year = _coerce_cwv_year(y, year_now)
+        if year is None:
+            return ""
         try:
             datetime(year, month, day)
             return f"{year:04d}-{month:02d}-{day:02d}"
@@ -699,8 +717,9 @@ def _gsc_label_to_iso(label: str, *, default_year: int | None = None) -> str:
             month = _EN_MONTHS.get(key)
             day = int(day_s)
             year = int(year_s) if year_s else year_now
-            if year < 100:
-                year += 2000
+            year = _coerce_cwv_year(year, year_now)
+            if year is None:
+                return ""
             if month:
                 try:
                     datetime(year, month, day)
@@ -713,8 +732,9 @@ def _gsc_label_to_iso(label: str, *, default_year: int | None = None) -> str:
     month = _TR_MONTHS.get(m.group(2).lower()[:3]) or _TR_MONTHS.get(key) or _EN_MONTHS.get(key)
     year_s = m.group(3)
     year = int(year_s) if year_s else year_now
-    if year < 100:
-        year += 2000
+    year = _coerce_cwv_year(year, year_now)
+    if year is None:
+        return ""
     if not month:
         return ""
     try:
@@ -757,7 +777,11 @@ def _daily_iso_range(t0: datetime, t1: datetime) -> list[str]:
     if t1 < t0:
         t0, t1 = t1, t0
     n = (t1.date() - t0.date()).days
-    n = max(0, min(n, 400))
+    if n > 400:
+        # İlk 401 günü (2007…) değil, t1'e biten son 401 günü tut.
+        t0 = datetime.combine(t1.date() - timedelta(days=400), datetime.min.time())
+        n = 400
+    n = max(0, n)
     return [(t0 + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(n + 1)]
 
 
@@ -802,12 +826,24 @@ def _series_from_tooltip_samples(
     if len(clean) < 5:
         return None
     tip_dates = sorted(clean)
-    t0 = start_iso[:10] if start_iso and re.match(r"^\d{4}-\d{2}-\d{2}$", start_iso[:10]) else tip_dates[0]
-    t1 = end_iso[:10] if end_iso and re.match(r"^\d{4}-\d{2}-\d{2}$", end_iso[:10]) else tip_dates[-1]
-    if t0 > tip_dates[0]:
-        t0 = tip_dates[0]
-    if t1 < tip_dates[-1]:
-        t1 = tip_dates[-1]
+    t0 = tip_dates[0]
+    t1 = tip_dates[-1]
+
+    def _near(iso: str, anchor: str, *, max_days: int = 21) -> bool:
+        if not iso or not re.match(r"^\d{4}-\d{2}-\d{2}$", iso[:10]):
+            return False
+        try:
+            a = datetime.strptime(iso[:10], "%Y-%m-%d")
+            b = datetime.strptime(anchor[:10], "%Y-%m-%d")
+        except ValueError:
+            return False
+        return abs((a - b).days) <= max_days
+
+    # SVG ekseni 2007 gibi sapıksa yok say — tooltip tarihleri asıl kaynak.
+    if start_iso and _near(start_iso, tip_dates[0]) and start_iso[:10] < t0:
+        t0 = start_iso[:10]
+    if end_iso and _near(end_iso, tip_dates[-1], max_days=45) and end_iso[:10] > t1:
+        t1 = end_iso[:10]
     try:
         dates = _daily_iso_range(
             datetime.strptime(t0, "%Y-%m-%d"),
@@ -1039,6 +1075,22 @@ def _snap_series_to_kpis(chart_series: dict[str, Any], overview: dict[str, Any])
             if last > 50 and kpi_v > 50:
                 ratio = kpi_v / last if last else 0
                 if abs(ratio - 1.0) > 0.12:
+                    continue
+            # KPI 0 iken seri başka metrikle aynı düz çizgiyse (kırmızı=turuncu) hepsini 0 yap.
+            if kpi_v == 0 and len(arr) >= 8:
+                cloned = False
+                for alt in ("needs_improvement", "good"):
+                    if alt == metric:
+                        continue
+                    other = [int(x or 0) for x in (ser.get(alt) or [])]
+                    if len(other) != len(arr):
+                        continue
+                    same = sum(1 for a, b in zip(arr, other) if int(a or 0) == b and b > 0)
+                    if same >= int(0.7 * len(arr)):
+                        ser[metric] = [0] * len(arr)
+                        cloned = True
+                        break
+                if cloned:
                     continue
             arr[-1] = kpi_v
             ser[metric] = arr

@@ -123,9 +123,18 @@
           var s = String(iso);
           if (s.length >= 10 && s.indexOf('-') > 0) {
             var p = s.slice(0, 10).split('-');
-            return parseInt(p[2], 10) + '.' + String(p[1]).padStart(2, '0') + '.' + String(p[0]).slice(2);
+            return parseInt(p[2], 10) + '.' + String(p[1]).padStart(2, '0') + '.' + p[0];
           }
           return s.slice(5, 16).replace('T', ' ');
+        }
+        function datesPlausible(dates) {
+          var y0 = new Date().getFullYear();
+          if (!dates || !dates.length) return false;
+          for (var i = 0; i < dates.length; i++) {
+            var y = parseInt(String(dates[i]).slice(0, 4), 10);
+            if (!(y >= y0 - 3 && y <= y0 + 1)) return false;
+          }
+          return true;
         }
         function fromHistory(deviceKey) {
           var dates = [], poor = [], ni = [], good = [];
@@ -140,7 +149,7 @@
         }
         function resolve(deviceKey) {
           var ser = (payload.chart_series && payload.chart_series[deviceKey]) || null;
-          if (ser && ser.dates && ser.dates.length >= 3) {
+          if (ser && ser.dates && ser.dates.length >= 3 && datesPlausible(ser.dates)) {
             return {
               dates: (ser.dates || []).map(fmtLabel),
               poor: ser.poor || [],

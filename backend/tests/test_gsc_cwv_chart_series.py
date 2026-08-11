@@ -63,3 +63,73 @@ def test_tooltip_gap_is_linear_not_zero():
     assert ser["needs_improvement"][idx] == 11000
     assert ser["good"][idx] == 5000
     assert 0 not in ser["needs_improvement"]
+
+
+def test_reject_implausible_two_digit_year():
+    assert mod._gsc_label_to_iso("8.08.07") == ""
+    assert mod._gsc_label_to_iso("8/8/07") == ""
+    assert mod._gsc_label_to_iso("8.08.26") == "2026-08-08"
+    assert mod._gsc_label_to_iso("8.08.25") == "2025-08-08"
+
+
+def test_daily_range_caps_from_the_end_not_2007():
+    from datetime import datetime
+
+    dates = mod._daily_iso_range(datetime(2007, 8, 8), datetime(2026, 8, 11))
+    assert dates[-1] == "2026-08-11"
+    assert dates[0].startswith("2025-")
+    assert all(not d.startswith("2007") for d in dates)
+    assert len(dates) == 401
+
+
+def test_tooltip_ignores_svg_start_in_2007():
+    samples = {
+        f"2026-07-{d:02d}": {"poor": 0, "needs_improvement": 6592, "good": 6592}
+        for d in range(1, 12)
+    }
+    ser = mod._series_from_tooltip_samples(
+        samples, start_iso="2007-08-08", end_iso="2026-08-11"
+    )
+    assert ser is not None
+    assert ser["dates"][0].startswith("2026-07-")
+    assert all(not d.startswith("2007") for d in ser["dates"])
+    assert ser["poor"][0] == 0
+    assert ser["poor"][-1] == 0
+    assert ser["needs_improvement"][0] == 6592
+
+
+def test_snap_zeros_cloned_poor_series():
+    chart = {
+        "mobile": {
+            "dates": [f"2026-07-{d:02d}" for d in range(1, 12)],
+            "poor": [6592] * 11,
+            "needs_improvement": [6592] * 11,
+            "good": [6592] * 11,
+        }
+    }
+    overview = {"mobile": {"poor": 0, "needs_improvement": 6592, "good": 6592}}
+    mod._snap_series_to_kpis(chart, overview)
+    assert chart["mobile"]["poor"] == [0] * 11
+    assert chart["mobile"]["needs_improvement"][-1] == 6592
+
+
+def test_sanitize_drops_2007_axis():
+    from backend.services.gsc_cwv_scrape_store import sanitize_chart_series
+
+    chart = {
+        "mobile": {
+            "dates": ["2007-08-08", "2007-08-09", "2008-07-30"],
+            "poor": [6592, 6592, 0],
+            "needs_improvement": [6592, 6592, 6592],
+            "good": [6592, 6592, 6592],
+        },
+        "desktop": {
+            "dates": ["2026-07-01", "2026-07-02", "2026-08-11"],
+            "poor": [0, 0, 0],
+            "needs_improvement": [100, 110, 120],
+            "good": [50, 50, 50],
+        },
+    }
+    out = sanitize_chart_series(chart, year_now=2026)
+    assert out["mobile"] is None
+    assert out["desktop"]["dates"][-1] == "2026-08-11"
