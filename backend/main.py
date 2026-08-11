@@ -13457,7 +13457,6 @@ def alerts_refresh_status(request: Request):
 @app.get("/settings")
 def settings_page(request: Request):
     # Settings ekranı site yönetimi arayüzünü gösterir.
-    from backend.services import admin_access_log as aal
     from backend.services import app_member_auth as ama
     from backend.services import panel_visit_log as pvl
 
@@ -13472,8 +13471,6 @@ def settings_page(request: Request):
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
             "admin_password_configured": admin_password_configured,
-            "active_sessions": _get_active_sessions(request),
-            "login_history": aal.recent_login_history(db) if admin_password_configured else [],
             "visit_logs": pvl.recent_visits(limit=80) if admin_password_configured else [],
             "membership_admin": membership_admin,
             "app_members": ama.member_list_payload(db) if membership_admin else [],

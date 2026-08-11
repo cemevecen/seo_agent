@@ -77,3 +77,7 @@ def test_settings_template_has_visit_log():
     assert "visit_logs" in text
     assert "logged_in_tr" in text
     assert "logged_out_tr" in text
+    assert "Son Girişler" not in text
+    assert "Aktif Oturumlar" not in text
+    assert "login_history" not in text
+    assert "active_sessions" not in text

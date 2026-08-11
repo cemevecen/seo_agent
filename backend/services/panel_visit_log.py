@@ -117,6 +117,13 @@ def touch_visit(
                 )
                 db.add(row)
                 db.flush()
+                if email:
+                    try:
+                        from backend.services import app_member_auth as ama
+
+                        ama.touch_member_last_login(db, email, now)
+                    except Exception:  # noqa: BLE001
+                        LOGGER.debug("üye son giriş güncellenemedi", exc_info=True)
             else:
                 row.last_seen_at = now
                 if ip:

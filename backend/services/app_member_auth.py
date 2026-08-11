@@ -13,7 +13,7 @@ import json
 import logging
 import secrets
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -266,6 +266,14 @@ def _normalize_email(email: str) -> str:
     return str(email or "").strip().lower()
 
 
+def _naive_utc(value: datetime | None) -> datetime | None:
+    if value is None or not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def default_screen_permissions() -> str:
     return json.dumps({"screens": "*"}, separators=(",", ":"))
 
@@ -283,6 +291,56 @@ def member_exists_by_email(db: Session, email: str) -> bool:
     if not em:
         return False
     return db.query(AppMember).filter(AppMember.email == em).first() is not None
+
+
+def touch_member_last_login(db: Session, email: str, when: datetime | None = None) -> None:
+    """Google OAuth dışında da panel ziyareti son girişi güncellesin."""
+    em = _normalize_email(email)
+    if not em:
+        return
+    row = db.query(AppMember).filter(AppMember.email == em).first()
+    if row is None:
+        return
+    stamp = _naive_utc(when) or datetime.utcnow()
+    current = _naive_utc(row.last_login_at)
+    if current is not None and current >= stamp:
+        return
+    row.last_login_at = stamp
+
+
+def _latest_visit_login_by_email(db: Session) -> dict[str, datetime]:
+    """Ziyaret günlüğündeki en son oturum açılışı (e-posta → UTC naive)."""
+    out: dict[str, datetime] = {}
+    try:
+        from sqlalchemy import func
+
+        from backend.models import PanelVisitLog
+
+        rows = (
+            db.query(PanelVisitLog.email, func.max(PanelVisitLog.logged_in_at))
+            .filter(PanelVisitLog.email != "")
+            .group_by(PanelVisitLog.email)
+            .all()
+        )
+    except Exception:
+        return out
+    if not isinstance(rows, (list, tuple)):
+        return out
+    for row in rows:
+        try:
+            email, logged_in = row[0], row[1]
+        except Exception:
+            continue
+        em = _normalize_email(str(email or ""))
+        if not em or logged_in is None:
+            continue
+        stamp = _naive_utc(logged_in if isinstance(logged_in, datetime) else None)
+        if stamp is None:
+            continue
+        prev = out.get(em)
+        if prev is None or stamp > prev:
+            out[em] = stamp
+    return out
 
 
 def upsert_member_from_google(
@@ -464,6 +522,24 @@ def member_list_payload(db: Session) -> list[dict[str, Any]]:
     from backend.services.timezone_utils import format_local_datetime
 
     rows = db.query(AppMember).order_by(AppMember.created_at.desc()).all()
+    visit_last = _latest_visit_login_by_email(db)
+    dirty = False
+    for r in rows:
+        vis = visit_last.get(_normalize_email(r.email))
+        if vis is None:
+            continue
+        cur = _naive_utc(r.last_login_at)
+        if cur is None or vis > cur:
+            r.last_login_at = vis
+            dirty = True
+    if dirty:
+        try:
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for r in rows:

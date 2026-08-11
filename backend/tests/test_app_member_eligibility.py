@@ -1,4 +1,9 @@
+from datetime import datetime
+
+from backend.database import SessionLocal, init_db
+from backend.models import AppMember, PanelVisitLog
 from backend.services import app_member_auth as ama
+from backend.services import panel_visit_log as pvl
 
 
 def test_nokta_email_allowed():
@@ -75,3 +80,67 @@ def test_member_list_shows_pending_tmdb_only_before_first_login():
     assert melih is not None
     assert melih["pending_first_login"] is True
     assert melih["access_note"] == "invited"
+
+
+def test_member_last_login_uses_later_panel_visit():
+    init_db()
+    email = "mertkaradeniz@nokta.com"
+    stale = datetime(2026, 8, 3, 8, 0, 0)
+    fresh = datetime(2026, 8, 10, 12, 0, 0)
+    with SessionLocal() as db:
+        db.query(PanelVisitLog).filter(PanelVisitLog.email == email).delete()
+        db.query(AppMember).filter(AppMember.email == email).delete()
+        db.commit()
+        db.add(
+            AppMember(
+                email=email,
+                google_sub="sub-mert",
+                display_name="Mert",
+                role="member",
+                is_active=True,
+                created_at=stale,
+                last_login_at=stale,
+            )
+        )
+        db.add(
+            PanelVisitLog(
+                session_key="m:mert-test",
+                email=email,
+                display_name="Mert",
+                session_kind="member",
+                logged_in_at=fresh,
+                last_seen_at=fresh,
+            )
+        )
+        db.commit()
+        payload = ama.member_list_payload(db)
+        row = next(r for r in payload if r["email"] == email)
+        assert row["pending_first_login"] is False
+        assert "10.08.2026" in row["last_login_at_tr"]
+        stored = db.query(AppMember).filter(AppMember.email == email).one()
+        assert stored.last_login_at == fresh
+
+
+def test_new_panel_visit_bumps_member_last_login():
+    init_db()
+    email = "visit-bump@nokta.com"
+    stale = datetime(2026, 8, 3, 8, 0, 0)
+    with SessionLocal() as db:
+        db.query(PanelVisitLog).filter(PanelVisitLog.email == email).delete()
+        db.query(AppMember).filter(AppMember.email == email).delete()
+        db.commit()
+        db.add(
+            AppMember(
+                email=email,
+                google_sub="sub-visit",
+                role="member",
+                is_active=True,
+                created_at=stale,
+                last_login_at=stale,
+            )
+        )
+        db.commit()
+    pvl.touch_visit(session_key="m:visit-bump", email=email, path="/settings")
+    with SessionLocal() as db:
+        stored = db.query(AppMember).filter(AppMember.email == email).one()
+        assert stored.last_login_at > stale
