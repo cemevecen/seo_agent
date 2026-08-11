@@ -631,6 +631,7 @@ SAPMA_THRESHOLDS: dict[str, tuple[float, float]] = {
 }
 _SAPMA_DEFAULT = (0.20, 0.50)
 _SAPMA_MIN_PEERS = 2
+SAPMA_MAIL_THRESHOLD_PCT = 2.0
 
 
 def _parse_quote(aid: str, raw: str) -> float | None:
@@ -707,7 +708,7 @@ def format_sapma_pct(pct: float) -> str:
 
 
 def collect_sapma_alerts(matrix: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Uyarı eşiğini (sarı) geçen ortalama / Foreks sapmaları."""
+    """Mutlak sapması ≥ %2 olan ortalama / Foreks sapmaları (mail)."""
     out: list[dict[str, Any]] = []
     for row in matrix or []:
         if not isinstance(row, dict):
@@ -723,9 +724,11 @@ def collect_sapma_alerts(matrix: list[dict[str, Any]]) -> list[dict[str, Any]]:
             ("avg", avg, "Sapma"),
             ("foreks", foreks, "Foreks sapma"),
         ):
-            if rec.get("band") not in ("warn", "hot") or rec.get("pct") is None:
+            if rec.get("pct") is None:
                 continue
             pct = float(rec["pct"])
+            if abs(pct) < SAPMA_MAIL_THRESHOLD_PCT:
+                continue
             out.append(
                 {
                     "asset_id": aid,

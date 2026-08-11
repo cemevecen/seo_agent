@@ -1,4 +1,4 @@
-"""Rakip fiyat sapması — sarı eşiği aşınca operasyon maili."""
+"""Rakip fiyat sapması — |sapma| ≥ %2 olunca operasyon maili."""
 
 from __future__ import annotations
 
@@ -47,15 +47,14 @@ def _render_html(item: dict[str, Any]) -> str:
     tone = "rose" if item.get("band") == "hot" else "amber"
     status = "kritik sapma" if item.get("band") == "hot" else "uyarı eşiği"
     kind = "Foreks" if item.get("kind") == "foreks" else "diğer sitelerin ortalaması"
-    warn = str(item.get("warn") or "").replace(".", ",")
     detail = (
         f"{item.get('asset') or ''} · {item.get('pct_text') or ''}\n"
-        f"Döviz vs {kind}. Hacim eşiği ±{warn}%."
+        f"Döviz vs {kind}. Mail eşiği ±2%."
     )
     return render_email_shell(
         eyebrow="PM lab",
         title=str(item.get("subject") or "Doviz sapma"),
-        intro="Kotasyon sapması uyarı eşiğini geçti.",
+        intro="Kotasyon sapması %2 eşiğini geçti.",
         tone=tone,
         status_label=status,
         sections=[section("Sapma", note_box("Ölçüm", detail, tone=tone))],
@@ -63,7 +62,7 @@ def _render_html(item: dict[str, Any]) -> str:
 
 
 def notify_competitor_sapma(db: Session, section_data: dict[str, Any] | None) -> list[str]:
-    """Sarı/kırmızı sapmalar için mail. Konu: Doviz - Sapma - varlık - değer."""
+    """|sapma| ≥ %2 için mail. Konu: Doviz - Sapma - varlık - değer."""
     if not isinstance(section_data, dict):
         return []
     if not getattr(settings, "outbound_email_enabled", False):

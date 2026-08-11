@@ -644,10 +644,15 @@ def test_competitor_sapma_vs_peer_average():
     missing_fk = dict(peers)
     missing_fk["foreks"] = {"value": ""}
     assert mod.compute_pair_sapma("usd", missing_fk)["pct"] is None
-    alerts = mod.collect_sapma_alerts([{"id": "usd", "label": "Dolar", "cells": peers}])
+    quiet = mod.collect_sapma_alerts([{"id": "usd", "label": "Dolar", "cells": peers}])
+    assert quiet == []
+    mail_cells = dict(peers)
+    mail_cells["doviz"] = {"value": "48,80"}
+    alerts = mod.collect_sapma_alerts([{"id": "usd", "label": "Dolar", "cells": mail_cells}])
     subjects = [a["subject"] for a in alerts]
     assert any(s.startswith("Doviz - Sapma - Dolar - ") for s in subjects)
     assert any(s.startswith("Doviz - Foreks sapma - Dolar - ") for s in subjects)
+    assert all(abs(a["pct"]) >= mod.SAPMA_MAIL_THRESHOLD_PCT for a in alerts)
     js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
     html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
     assert 'label: "avg. deviation"' in js
@@ -675,7 +680,7 @@ def test_sapma_alert_mail_subject(monkeypatch):
                 "id": "usd",
                 "label": "Dolar",
                 "cells": {
-                    "doviz": {"value": "47,80"},
+                    "doviz": {"value": "48,80"},
                     "foreks": {"value": "47,7350"},
                     "tradingview": {"value": "47.73"},
                     "canlidoviz": {"value": "47.74"},
