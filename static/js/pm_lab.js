@@ -932,6 +932,14 @@
         refreshSection(btn.getAttribute("data-pml-refresh"), btn);
       });
     });
+    document.querySelectorAll("[data-pml-fold]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var wrap = btn.closest(".pml-card-wrap");
+        if (!wrap) return;
+        var open = wrap.classList.toggle("is-open");
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+    });
   }
 
   renderStatus();

@@ -92,12 +92,18 @@
   .pml-sum{min-width:0}
   .pml-updated{font-size:11px;font-variant-numeric:tabular-nums;color:#64748b;white-space:nowrap;letter-spacing:.01em}
   html.dark .pml-updated{color:#a1a1aa}
-  .pml-refresh{flex:0 0 auto;border:0;border-radius:999px;padding:.28rem .7rem;font-size:11px;font-weight:650;line-height:1.2;background:#f4f4f5;color:#334155;cursor:pointer}
+  .pml-refresh{flex:0 0 auto;min-width:5.75rem;border:0;border-radius:999px;padding:.28rem .7rem;font-size:11px;font-weight:650;line-height:1.2;background:#f4f4f5;color:#334155;cursor:pointer;text-align:center}
   html.dark .pml-refresh{background:#27272a;color:#e4e4e7}
   .pml-refresh:hover{background:#e4e4e7}
   html.dark .pml-refresh:hover{background:#3f3f46}
   .pml-refresh:disabled,.pml-refresh.is-busy{opacity:.55;cursor:wait}
-  .pml-card-actions{display:flex;align-items:center;gap:.45rem;flex:0 0 auto;margin-left:auto}
+  .pml-card-head{display:flex;align-items:center;flex-wrap:wrap;gap:.45rem .65rem;min-width:0}
+  .pml-fold{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:1.25rem;height:1.25rem;padding:0;border:0;background:transparent;color:#94a3b8;cursor:pointer}
+  html.dark .pml-fold{color:#71717a}
+  .pml-fold svg{transition:transform .2s}
+  .pml-card-wrap.is-open .pml-fold svg{transform:rotate(90deg)}
+  .pml-fold-panel{display:none}
+  .pml-card-wrap.is-open .pml-fold-panel{display:block}
   .pml-store-split{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:.75rem;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .pml-store-col{min-width:260px}
   .pml-store-col .pml-shell{max-height:min(68vh,640px);margin-top:.5rem}
@@ -141,30 +147,26 @@
   </div>
 
   {% for card in cards %}
-  <div class="pml-card-wrap relative rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-    <button type="button" class="pml-refresh absolute right-3 top-3 z-10 sm:right-5" data-pml-refresh="{{ card.id }}" title="Scan this section now">Refresh</button>
-    <details class="group">
-      <summary class="flex cursor-pointer list-none items-start gap-2 px-3 py-3 pr-[4.75rem] sm:items-center sm:gap-3 sm:px-5 sm:py-4 sm:pr-24 [&::-webkit-details-marker]:hidden">
-        <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-400 transition-transform duration-200 group-open:rotate-90 dark:text-zinc-500" aria-hidden="true">
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-        </span>
-        <div class="pml-sum min-w-0 flex-1">
-          <h3 class="text-sm font-semibold leading-snug text-slate-900 dark:text-zinc-200">{{ card.title }}</h3>
-        </div>
-        {% if card.scraped_at_label %}
-        <time class="pml-updated mt-0.5 shrink-0" data-pml-when="{{ card.id }}" datetime="{{ card.scraped_at or '' }}">{{ card.scraped_at_label }}</time>
-        {% else %}
-        <time class="pml-updated mt-0.5 shrink-0" data-pml-when="{{ card.id }}" datetime="" hidden></time>
-        {% endif %}
-      </summary>
-      <div class="border-t border-slate-100 px-3 py-3 sm:px-5 sm:py-4 dark:border-zinc-800">
-        <div class="pml-body" data-pml="{{ card.id }}"></div>
-      </div>
-    </details>
+  <div class="pml-card-wrap rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
+    <div class="pml-card-head px-3 py-3 sm:px-5 sm:py-4">
+      <button type="button" class="pml-fold" data-pml-fold aria-expanded="false" title="Toggle section">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+      </button>
+      <h3 class="pml-sum min-w-0 flex-1 truncate text-sm font-semibold leading-snug text-slate-900 dark:text-zinc-200">{{ card.title }}</h3>
+      {% if card.scraped_at_label %}
+      <time class="pml-updated shrink-0" data-pml-when="{{ card.id }}" datetime="{{ card.scraped_at or '' }}">{{ card.scraped_at_label }}</time>
+      {% else %}
+      <time class="pml-updated shrink-0" data-pml-when="{{ card.id }}" datetime="" hidden></time>
+      {% endif %}
+      <button type="button" class="pml-refresh" data-pml-refresh="{{ card.id }}" title="Scan this section now">Refresh</button>
+    </div>
+    <div class="pml-fold-panel border-t border-slate-100 px-3 py-3 sm:px-5 sm:py-4 dark:border-zinc-800">
+      <div class="pml-body" data-pml="{{ card.id }}"></div>
+    </div>
   </div>
   {% endfor %}
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=27"></script>
+<script src="/static/js/pm_lab.js?v=28"></script>
 {% endblock %}
