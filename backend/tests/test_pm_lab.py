@@ -30,15 +30,16 @@ def test_paths():
     assert not is_pm_lab_path("/api/pm-lab/ingest")
 
 
-def test_five_live_sections():
+def test_live_sections():
     assert [s["id"] for s in SECTION_DEFS] == [
         "serp",
         "competitors",
-        "sikayet",
         "store_charts",
         "google_news",
     ]
-    assert [s["no"] for s in SECTION_DEFS] == [2, 3, 9, 12, 17]
+    assert [s["no"] for s in SECTION_DEFS] == [2, 3, 12, 17]
+    assert not any(s["id"] == "sikayet" for s in SECTION_DEFS)
+    assert not any("şikayetvar" in (s.get("title") or "").lower() for s in SECTION_DEFS)
 
 
 def test_ingest_serp_history_and_no_shots():
@@ -102,7 +103,8 @@ def test_ingest_serp_history_and_no_shots():
         )
         ctx = page_context(db)
         by_id = {c["id"]: c for c in ctx["cards"]}
-        assert len(ctx["cards"]) == 5
+        assert len(ctx["cards"]) == 4
+        assert "sikayet" not in by_id
         serp = by_id["serp"]["data"]
         assert "shots" not in serp
         rows = serp["keywords"][0]["rows"]
@@ -130,46 +132,20 @@ def test_template_has_no_photos_and_js_shell():
     assert "renderCompetitors" in js
     assert 'concat(["Toplam"])' in js
     assert "missRank" in js
-    assert 'label: "X"' in js
     assert "function tabs(labels, onPick, active)" in js
     assert "rankDeltaHtml" in js
     assert "@media (max-width: 639px)" in html
     assert "html.dark .pml-heat-up" in html
-    assert "html.dark .pml-card" in html
-    assert "pml-card" in js
+    assert "pml-card" not in js
+    assert "renderSikayet" not in js
     assert "pml-table-fit" in js
     assert "pml-link" in js
-    assert any(s["title"] == "x - ekşi - şikayetvar" for s in SECTION_DEFS)
+    assert not any(s["title"] == "x - ekşi - şikayetvar" for s in SECTION_DEFS)
     assert "doviz.com · sinemalar.com · her kaynaktan son 10" not in html
     assert "Fotoğraf yok" not in html
     assert "card.hint" not in html
     assert "pml-updated" in html
     assert format_pm_lab_when("2026-08-11T15:26:00+00:00") == "11.08.2026 18:26"
-
-
-def test_mention_query_match_requires_brand_string():
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("pm_lab_scrape", Path("scripts/pm_lab_scrape.py"))
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
-    assert mod._matches_query("doviz.com uygulaması donuyor", "doviz.com")
-    assert mod._matches_query("Döviz.com 3 gündür manipülatif", "doviz.com")
-    assert mod._matches_query("https://x.com/i/status/1 doviz com", "doviz.com")
-    assert not mod._matches_query("ziraat döviz hesabım bloke", "doviz.com")
-    assert not mod._matches_query("sinema bileti kampanyası", "sinemalar.com")
-    assert mod._matches_query("sinemalar.com giriş yapamıyorum", "sinemalar.com")
-    assert mod._url_has_brand("https://x.com/dovizcom/status/1", "doviz.com")
-    assert not mod._url_has_brand("https://x.com/Merkez_Bankasi/status/1", "doviz.com")
-    assert mod._sikayet_complaint_url(
-        "https://www.sikayetvar.com/dovizcom/dovizcom-3-gundur-manipulatif-oldugunu-dusundugum-icerikle-karsi",
-        brand_slug="dovizcom",
-    )
-    assert not mod._sikayet_complaint_url(
-        "https://www.sikayetvar.com/nadir-doviz/nadirgoldda-altin-bozma-isleminde-eksik-gram",
-        brand_slug="dovizcom",
-    )
 
 
 def test_store_chart_rank_deltas():
@@ -531,7 +507,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=23" in html
+    assert "pm_lab.js?v=24" in html
     assert COMPETITORS_INTERVAL_MIN == 10
     assert "fiyat " not in js
     assert "Fotoğraf yok" not in html

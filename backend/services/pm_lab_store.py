@@ -39,12 +39,6 @@ SECTION_DEFS: list[dict[str, Any]] = [
         "hint": "",
     },
     {
-        "id": "sikayet",
-        "no": 9,
-        "title": "x - ekşi - şikayetvar",
-        "hint": "",
-    },
-    {
         "id": "store_charts",
         "no": 12,
         "title": "Play / App Store kategori listeleri",
