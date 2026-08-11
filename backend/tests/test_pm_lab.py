@@ -124,6 +124,61 @@ def test_template_has_no_photos_and_js_shell():
     assert 'concat(["Toplam"])' in js
     assert "missRank" in js
     assert 'brand === "x.com"' in js
+    assert "rankDeltaHtml" in js
+
+
+def test_store_chart_rank_deltas():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        ingest_pm_lab_payload(
+            db,
+            {
+                "sections": {
+                    "store_charts": {
+                        "ok": True,
+                        "charts": [
+                            {
+                                "id": "ios",
+                                "apps": [
+                                    {"rank": 4, "id": "465599322", "name": "Döviz"},
+                                    {"rank": 10, "id": "111", "name": "Eski"},
+                                ],
+                            }
+                        ],
+                    }
+                }
+            },
+        )
+        ingest_pm_lab_payload(
+            db,
+            {
+                "sections": {
+                    "store_charts": {
+                        "ok": True,
+                        "charts": [
+                            {
+                                "id": "ios",
+                                "apps": [
+                                    {"rank": 2, "id": "465599322", "name": "Döviz"},
+                                    {"rank": 12, "id": "222", "name": "Yeni"},
+                                ],
+                            }
+                        ],
+                    }
+                }
+            },
+        )
+        ctx = page_context(db)
+        chart = next(c["data"]["charts"][0] for c in ctx["cards"] if c["id"] == "store_charts")
+        by_id = {a["id"]: a for a in chart["apps"]}
+        assert by_id["465599322"]["delta"] == "up"
+        assert by_id["465599322"]["delta_n"] == 2
+        assert by_id["222"]["delta"] == "new"
+        assert chart["dropped"][0]["id"] == "111"
+        assert chart["moves"]["up"] == 1
+    finally:
+        db.close()
 
 
 def test_competitor_parser_keeps_distinct_asset_prices():

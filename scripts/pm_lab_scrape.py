@@ -838,7 +838,53 @@ def _play_titles(packages: list[str]) -> dict[str, str]:
     return names
 
 
-def _ios_chart_apps(limit: int = 200) -> list[dict[str, Any]]:
+def _ios_chart_ids_html(limit: int = 200) -> list[str]:
+    url = f"https://apps.apple.com/tr/iphone/charts/{IOS_FINANCE_GENRE}"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+            )
+        },
+    )
+    with urllib.request.urlopen(req, timeout=25) as resp:
+        html = resp.read().decode("utf-8", errors="replace")
+    m = re.search(r'<script[^>]*type="application/json"[^>]*>(.*?)</script>', html, re.DOTALL)
+    if not m:
+        return []
+    page_data = json.loads(m.group(1))
+    segments = ((page_data.get("data") or [{}])[0].get("data") or {}).get("segments") or []
+    by_chart: dict[str, list[str]] = {}
+    for segment in segments:
+        chart = str(segment.get("chart") or "unknown")
+        ids: list[str] = []
+        for shelf in segment.get("shelves") or []:
+            for item in shelf.get("items") or []:
+                if isinstance(item, dict) and item.get("id"):
+                    ids.append(str(item["id"]))
+        for item in (segment.get("nextPage") or {}).get("remainingContent") or []:
+            if isinstance(item, dict) and item.get("id"):
+                ids.append(str(item["id"]))
+        if ids:
+            by_chart[chart] = ids
+    picked = by_chart.get("top-free") or by_chart.get("topfreeapplications") or []
+    if not picked and by_chart:
+        picked = max(by_chart.values(), key=len)
+    seen: set[str] = set()
+    out: list[str] = []
+    for aid in picked:
+        if not aid or aid in seen:
+            continue
+        seen.add(aid)
+        out.append(aid)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _ios_chart_apps_rss(limit: int = 200) -> list[dict[str, Any]]:
     url = (
         f"https://itunes.apple.com/tr/rss/topfreeapplications/"
         f"genre={IOS_FINANCE_GENRE}/limit={min(200, limit)}/json"
@@ -869,13 +915,31 @@ def _ios_chart_apps(limit: int = 200) -> list[dict[str, Any]]:
         )
         if len(apps) >= limit:
             break
-    missing = [a["id"] for a in apps if a["name"] == a["id"]]
-    if missing:
-        names = _ios_titles(missing)
-        for a in apps:
-            if a["name"] == a["id"] and names.get(a["id"]):
-                a["name"] = names[a["id"]]
     return apps
+
+
+def _ios_chart_apps(limit: int = 200) -> list[dict[str, Any]]:
+    ids: list[str] = []
+    try:
+        ids = _ios_chart_ids_html(limit)
+    except Exception:
+        ids = []
+    if len(ids) < limit:
+        rss = _ios_chart_apps_rss(limit)
+        if len(rss) > len(ids):
+            return rss
+    if not ids:
+        return _ios_chart_apps_rss(limit)
+    names = _ios_titles(ids)
+    return [
+        {
+            "rank": i,
+            "name": names.get(aid) or aid,
+            "id": aid,
+            "is_ours": aid == IOS_APP_ID,
+        }
+        for i, aid in enumerate(ids[:limit], 1)
+    ]
 
 
 def _ios_titles(ids: list[str]) -> dict[str, str]:

@@ -438,6 +438,14 @@
     paint(0);
   }
 
+  function rankDeltaHtml(a) {
+    if (a.delta === "new") return '<span class="pml-chip pml-chip-new">yeni</span>';
+    if (a.delta === "up") return '<span class="pml-delta-up">↑ ' + (a.delta_n || 0) + "</span>";
+    if (a.delta === "down") return '<span class="pml-delta-down">↓ ' + Math.abs(a.delta_n || 0) + "</span>";
+    if (a.delta === "same") return '<span class="pml-miss">—</span>';
+    return "";
+  }
+
   function renderStore(root, data) {
     var charts = data.charts || [];
     if (!charts.length) {
@@ -456,9 +464,15 @@
       current = i;
       stage.innerHTML = "";
       var ch = charts[i];
-      var p = document.createElement("p");
-      p.className = "text-[11px] text-slate-500 mb-2";
-      p.textContent = ch.our_label || ch.title || "";
+      var mv = ch.moves || {};
+      var meta = document.createElement("div");
+      meta.className = "flex flex-wrap gap-1.5 mb-2";
+      meta.innerHTML =
+        chip(ch.our_label || ch.title || "") +
+        chip("↑ " + (mv.up || 0), "pml-chip-up") +
+        chip("↓ " + (mv.down || 0), "pml-chip-down") +
+        chip("yeni " + (mv.new || 0), "pml-chip-new") +
+        chip("çıktı " + (mv.dropped || 0), "pml-chip-down");
       var q = search.value.trim().toLowerCase();
       var rows = (ch.apps || [])
         .filter(function (a) {
@@ -466,16 +480,31 @@
           return String(a.name || "").toLowerCase().indexOf(q) >= 0 || String(a.id || "").toLowerCase().indexOf(q) >= 0;
         })
         .map(function (a) {
+          var heat = a.delta === "up" ? "pml-heat-up" : a.delta === "down" ? "pml-heat-down" : a.delta === "new" ? "pml-heat-new" : "";
           return tr(
             [
               { text: a.rank, sort: a.rank },
+              { html: rankDeltaHtml(a), sort: a.delta_n == null ? 0 : a.delta_n },
               { text: a.name },
             ],
-            a.is_ours ? "pml-ours pml-heat-new" : ""
+            (a.is_ours ? "pml-ours pml-doviz " : "") + heat
           );
         });
-      stage.appendChild(p);
-      stage.appendChild(sortableTable(["Sıra", "Uygulama"], rows));
+      stage.appendChild(meta);
+      if ((ch.dropped || []).length) {
+        var drop = document.createElement("p");
+        drop.className = "text-[11px] text-slate-500 mb-2";
+        drop.textContent =
+          "Çıkanlar: " +
+          ch.dropped
+            .slice(0, 12)
+            .map(function (d) {
+              return (d.name || d.id) + " (eski #" + d.prev_rank + ")";
+            })
+            .join(" · ");
+        stage.appendChild(drop);
+      }
+      stage.appendChild(sortableTable(["Sıra", "Δ", "Uygulama"], rows));
     }
     search.addEventListener("input", function () {
       paint(current);

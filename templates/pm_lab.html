@@ -9,6 +9,10 @@
   .pml-chip-bad{background:#f4f4f5;color:#71717a}
   .pml-chip-up{background:#eef2ee;color:#4a5c4e}
   .pml-chip-down{background:#f3eeee;color:#6b5353}
+  .pml-delta-up{color:#16a34a;font-weight:800;white-space:nowrap}
+  .pml-delta-down{color:#dc2626;font-weight:800;white-space:nowrap}
+  html.dark .pml-delta-up{color:#4ade80}
+  html.dark .pml-delta-down{color:#f87171}
   .pml-chip-new{background:#eef0f4;color:#4a5568}
   .pml-tabs{display:flex;flex-wrap:wrap;gap:.35rem}
   .pml-tab{border:0;border-radius:999px;padding:.35rem .7rem;font-size:11px;font-weight:650;background:#f4f4f5;color:#52525b;cursor:pointer}
@@ -89,5 +93,5 @@
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=6"></script>
+<script src="/static/js/pm_lab.js?v=7"></script>
 {% endblock %}

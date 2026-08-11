@@ -234,6 +234,80 @@ def _enrich_news(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, An
     return out
 
 
+def _enrich_store_charts(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    out = _strip_shots(incoming)
+    prev_charts = {
+        str(c.get("id") or ""): c
+        for c in (prev.get("charts") or [])
+        if isinstance(c, dict) and c.get("id")
+    }
+    for chart in out.get("charts") or []:
+        if not isinstance(chart, dict):
+            continue
+        old_apps = (prev_charts.get(str(chart.get("id") or "")) or {}).get("apps") or []
+        old_map: dict[str, dict[str, Any]] = {}
+        for app in old_apps:
+            if not isinstance(app, dict) or not app.get("id"):
+                continue
+            try:
+                rank = int(app.get("rank") or 0)
+            except (TypeError, ValueError):
+                rank = 0
+            if rank:
+                old_map[str(app["id"])] = {"rank": rank, "name": app.get("name") or ""}
+        current_ids: set[str] = set()
+        up = down = new = same = 0
+        for app in chart.get("apps") or []:
+            if not isinstance(app, dict):
+                continue
+            aid = str(app.get("id") or "")
+            current_ids.add(aid)
+            try:
+                rank = int(app.get("rank") or 0)
+            except (TypeError, ValueError):
+                rank = 0
+            old = old_map.get(aid)
+            prev_rank = (old or {}).get("rank")
+            app["prev_rank"] = prev_rank
+            if prev_rank is None:
+                app["delta"] = "new"
+                app["delta_n"] = None
+                new += 1
+            else:
+                app["delta_n"] = int(prev_rank) - rank
+                if rank < prev_rank:
+                    app["delta"] = "up"
+                    up += 1
+                elif rank > prev_rank:
+                    app["delta"] = "down"
+                    down += 1
+                else:
+                    app["delta"] = "same"
+                    same += 1
+        dropped = [
+            {"id": k, "name": v.get("name") or k, "prev_rank": v.get("rank")}
+            for k, v in old_map.items()
+            if k not in current_ids
+        ]
+        dropped.sort(key=lambda r: int(r.get("prev_rank") or 0))
+        chart["dropped"] = dropped[:40]
+        chart["moves"] = {"up": up, "down": down, "new": new, "same": same, "dropped": len(dropped)}
+    runs = list(prev.get("runs") or []) if isinstance(prev.get("runs"), list) else []
+    runs.append(
+        {
+            "at": out.get("scraped_at") or datetime.utcnow().isoformat(),
+            "ok": bool(out.get("ok")),
+            "summary": out.get("summary") or "",
+            "moves": {
+                "up": sum(int(((c.get("moves") or {}).get("up") or 0)) for c in out.get("charts") or [] if isinstance(c, dict)),
+                "down": sum(int(((c.get("moves") or {}).get("down") or 0)) for c in out.get("charts") or [] if isinstance(c, dict)),
+            },
+        }
+    )
+    out["runs"] = runs[-_RUNS_KEEP:]
+    return out
+
+
 def _enrich_generic(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     out = _strip_shots(incoming)
     runs = list(prev.get("runs") or []) if isinstance(prev.get("runs"), list) else []
@@ -294,6 +368,8 @@ def ingest_pm_lab_payload(db: Session, body: dict[str, Any]) -> dict[str, Any]:
             existing["sections"][key] = _enrich_serp(prev, val)
         elif key == "google_news":
             existing["sections"][key] = _enrich_news(prev, val)
+        elif key == "store_charts":
+            existing["sections"][key] = _enrich_store_charts(prev, val)
         else:
             existing["sections"][key] = _enrich_generic(prev, val)
 
