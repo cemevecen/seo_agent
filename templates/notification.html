@@ -80,6 +80,53 @@
     </div>
   </div>
 
+  <details id="nt-ham-list-details" open class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+    <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-slate-200">Ham içerik listesi</summary>
+    <div id="nt-drill-scroll-anchor" class="h-0 scroll-mt-4" aria-hidden="true"></div>
+    <div id="nt-drill-banner" class="mt-3 hidden rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs dark:border-indigo-800 dark:bg-indigo-950/40">
+      <span id="nt-drill-banner-text"></span>
+      <button type="button" id="nt-drill-clear" class="ml-2 font-bold text-indigo-700 underline dark:text-indigo-300">Filtreyi kaldır</button>
+    </div>
+    <div id="nt-drill-mini-cards" class="mt-2 hidden grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
+    <div id="nt-content-traffic" class="mt-3 hidden rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-xs font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">GA4 / GSC trafik (içerik linki)</h3>
+        <select id="nt-traffic-days" class="rounded-lg border border-emerald-300 bg-white px-2 py-1 text-[10px] dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-300">
+          <option value="7">Gönderim +7 gün</option>
+          <option value="14" selected>Gönderim +14 gün</option>
+          <option value="30">Gönderim +30 gün</option>
+        </select>
+      </div>
+      <p id="nt-content-traffic-meta" class="mt-1 text-[10px] text-slate-500 dark:text-slate-400"></p>
+      <div id="nt-content-traffic-body" class="nt-traffic-body mt-2 text-xs"></div>
+    </div>
+    <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <input id="nt-filter-q" type="search" placeholder="Başlık ara…" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+      <input id="nt-filter-id" type="text" placeholder="Bildirim ID" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+      <select id="nt-filter-platform" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+        <option value="">Platform (min click)</option>
+        <option value="desktop">Web</option>
+        <option value="mobileweb">MWeb</option>
+        <option value="android">Android</option>
+        <option value="ios">iOS</option>
+        <option value="total">Toplam</option>
+      </select>
+      <input id="nt-filter-min-click" type="number" min="0" placeholder="Min click" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+      <button type="button" id="nt-filter-apply" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:bg-slate-700">Filtrele</button>
+    </div>
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      <button type="button" id="nt-raw-view-7" class="hidden rounded-lg border px-3 py-1.5 text-xs font-bold">İlk 7'ye dön</button>
+      <button type="button" id="nt-raw-view-all" class="rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Hepsini göster</button>
+      <span id="nt-raw-view-hint" class="text-xs text-slate-500 dark:text-slate-400"></span>
+    </div>
+    <div id="nt-raw-pagination" class="mt-2 hidden flex flex-wrap items-center gap-2">
+      <button id="nt-page-prev" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Önceki 1000</button>
+      <button id="nt-page-next" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Sonraki 1000</button>
+      <span id="nt-page-info" class="text-xs text-slate-500 dark:text-slate-400"></span>
+    </div>
+    <div id="nt-raw-list" class="mt-3 space-y-2 text-xs"></div>
+  </details>
+
   <div class="rounded-2xl border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
     <div class="nt-metric-bar">
       <div class="nt-metric-bar-group">
@@ -721,52 +768,6 @@
       }
     }
   </style>
-  <details id="nt-ham-list-details" open class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-    <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-slate-200">Ham içerik listesi</summary>
-    <div id="nt-drill-scroll-anchor" class="h-0 scroll-mt-4" aria-hidden="true"></div>
-    <div id="nt-drill-banner" class="mt-3 hidden rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs dark:border-indigo-800 dark:bg-indigo-950/40">
-      <span id="nt-drill-banner-text"></span>
-      <button type="button" id="nt-drill-clear" class="ml-2 font-bold text-indigo-700 underline dark:text-indigo-300">Filtreyi kaldır</button>
-    </div>
-    <div id="nt-drill-mini-cards" class="mt-2 hidden grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
-    <div id="nt-content-traffic" class="mt-3 hidden rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <h3 class="text-xs font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">GA4 / GSC trafik (içerik linki)</h3>
-        <select id="nt-traffic-days" class="rounded-lg border border-emerald-300 bg-white px-2 py-1 text-[10px] dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-300">
-          <option value="7">Gönderim +7 gün</option>
-          <option value="14" selected>Gönderim +14 gün</option>
-          <option value="30">Gönderim +30 gün</option>
-        </select>
-      </div>
-      <p id="nt-content-traffic-meta" class="mt-1 text-[10px] text-slate-500 dark:text-slate-400"></p>
-      <div id="nt-content-traffic-body" class="nt-traffic-body mt-2 text-xs"></div>
-    </div>
-    <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-      <input id="nt-filter-q" type="search" placeholder="Başlık ara…" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
-      <input id="nt-filter-id" type="text" placeholder="Bildirim ID" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
-      <select id="nt-filter-platform" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-        <option value="">Platform (min click)</option>
-        <option value="desktop">Web</option>
-        <option value="mobileweb">MWeb</option>
-        <option value="android">Android</option>
-        <option value="ios">iOS</option>
-        <option value="total">Toplam</option>
-      </select>
-      <input id="nt-filter-min-click" type="number" min="0" placeholder="Min click" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
-      <button type="button" id="nt-filter-apply" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white dark:bg-slate-700">Filtrele</button>
-    </div>
-    <div class="mt-3 flex flex-wrap items-center gap-2">
-      <button type="button" id="nt-raw-view-5" class="hidden rounded-lg border px-3 py-1.5 text-xs font-bold">İlk 5'e dön</button>
-      <button type="button" id="nt-raw-view-all" class="rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Hepsini göster</button>
-      <span id="nt-raw-view-hint" class="text-xs text-slate-500 dark:text-slate-400"></span>
-    </div>
-    <div id="nt-raw-pagination" class="mt-2 hidden flex flex-wrap items-center gap-2">
-      <button id="nt-page-prev" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Önceki 1000</button>
-      <button id="nt-page-next" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Sonraki 1000</button>
-      <span id="nt-page-info" class="text-xs text-slate-500 dark:text-slate-400"></span>
-    </div>
-    <div id="nt-raw-list" class="mt-3 space-y-2 text-xs"></div>
-  </details>
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -819,7 +820,7 @@
   var RAW_SORT_FIELD_KEY = "notification_analytics_raw_sort_field_v1";
   var RAW_SORT_DIR_KEY = "notification_analytics_raw_sort_dir_v1";
   var CHUNK_SIZE = 1000;
-  var RAW_PREVIEW_SIZE = 5;
+  var RAW_PREVIEW_SIZE = 7;
   var rawPage = 0;
   var rawListView = "preview";
   var selectedListPlatform = "web";
@@ -2359,7 +2360,7 @@
       : ("Top 50'yi gör / genişlet (" + items.length + " kayıt)");
   }
   function renderRawViewControls() {
-    var btn5 = document.getElementById("nt-raw-view-5");
+    var btn5 = document.getElementById("nt-raw-view-7");
     var btnAll = document.getElementById("nt-raw-view-all");
     var pag = document.getElementById("nt-raw-pagination");
     var on5 = rawListView === "preview";
@@ -2646,7 +2647,7 @@
     crossTopExpanded = !crossTopExpanded;
     paintCrossTopList(crossTopExpanded);
   });
-  document.getElementById("nt-raw-view-5").addEventListener("click", function () {
+  document.getElementById("nt-raw-view-7").addEventListener("click", function () {
     rawListView = "preview";
     rawPage = 0;
     renderRawRows(rawListRows());
