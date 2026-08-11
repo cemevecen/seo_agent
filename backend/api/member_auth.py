@@ -156,8 +156,19 @@ def api_panel_online_users(request: Request) -> JSONResponse:
     return JSONResponse(payload)
 
 
+def _close_member_visit(request: Request) -> None:
+    try:
+        import backend.main as main_mod
+        from backend.services import panel_visit_log as pvl
+
+        pvl.close_visit(main_mod._current_panel_session_key(request), reason="logout")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @router.post("/auth/logout")
 def member_logout_post(request: Request):
+    _close_member_visit(request)
     _send_logout_usage_summary(request)
     resp = RedirectResponse(url="/admin/login", status_code=303)
     ama.clear_member_session_cookie(resp)
@@ -166,6 +177,7 @@ def member_logout_post(request: Request):
 
 @router.get("/auth/logout")
 def member_logout_get(request: Request):
+    _close_member_visit(request)
     _send_logout_usage_summary(request)
     resp = RedirectResponse(url="/admin/login", status_code=303)
     ama.clear_member_session_cookie(resp)

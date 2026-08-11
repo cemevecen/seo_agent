@@ -1304,6 +1304,29 @@ class ScrapeIngestLog(Base):
     received_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
+class PanelVisitLog(Base):
+    """Panel ziyareti — giriş saati, gezilen sayfalar, çıkış saati."""
+
+    __tablename__ = "panel_visit_logs"
+    __table_args__ = (
+        Index("ix_panel_visit_session_open", "session_key", "logged_out_at"),
+        Index("ix_panel_visit_logged_in", "logged_in_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_key: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    session_kind: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    ip: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    device_label: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    logged_in_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    logged_out_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    end_reason: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    pages_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+
+
 class PageTaramaState(Base):
     """Sayfayı güncelle kuyruğu — worker'lar ve panel kullanıcıları aynı satırı paylaşır."""
 

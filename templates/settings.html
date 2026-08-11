@@ -120,6 +120,47 @@
       <p class="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">İlk tanıdık cihaz otomatik kaydedilir. Sonraki bilinmeyen girişlerde e-posta uyarısı gider.</p>
     </div>
 
+    {# Ziyaret günlüğü: giriş / sayfalar / çıkış #}
+    <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+      <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Ziyaret günlüğü</h4>
+        <span class="text-[11px] text-slate-400 dark:text-slate-500">Giriş · gezilen sayfalar · çıkış · TR saati</span>
+      </div>
+      {% if visit_logs is defined and visit_logs %}
+      <div class="space-y-2">
+        {% for v in visit_logs %}
+        <div class="rounded-lg border px-3 py-2 text-xs
+          {% if v.is_open %}border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/15
+          {% else %}border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40{% endif %}">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="font-semibold text-slate-800 dark:text-slate-200">{{ v.who }}</span>
+            {% if v.email and v.email != v.who %}
+            <span class="text-slate-500 dark:text-slate-400">{{ v.email }}</span>
+            {% endif %}
+            <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold
+              {% if v.is_open %}bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200
+              {% else %}bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300{% endif %}">{{ v.end_label }}</span>
+            <span class="text-slate-400 dark:text-slate-500 sm:ml-auto">{{ v.ip }} · {{ v.device }}</span>
+          </div>
+          <div class="mt-1 flex flex-col gap-0.5 text-slate-600 dark:text-slate-300 sm:flex-row sm:gap-4">
+            <span>Giriş {{ v.logged_in_tr }}</span>
+            <span>Çıkış {{ v.logged_out_tr }}</span>
+          </div>
+          {% if v.pages %}
+          <p class="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+            {% for p in v.pages %}{% if not loop.first %} → {% endif %}<span title="{{ p.path }}">{{ p.label }}</span> <span class="tabular-nums text-slate-400">{{ p.at_tr }}</span>{% endfor %}
+          </p>
+          {% else %}
+          <p class="mt-1 text-[11px] text-slate-400">Sayfa kaydı yok.</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">Henüz ziyaret kaydı yok. Panelde gezindikçe burada birikir.</p>
+      {% endif %}
+    </div>
+
     {# Aktif oturumlar #}
     {% if active_sessions %}
     <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">

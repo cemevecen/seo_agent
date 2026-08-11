@@ -1517,6 +1517,13 @@ def _record_session(request: Request) -> None:
     now = datetime.utcnow()
     cutoff = now - timedelta(minutes=_SESSION_IDLE_MINUTES)
     dead = [k for k, v in _active_sessions.items() if v.get("last_seen", now) < cutoff]
+    if dead:
+        try:
+            from backend.services import panel_visit_log as pvl
+
+            pvl.close_sessions(dead, reason="idle")
+        except Exception:  # noqa: BLE001
+            pass
     for k in dead:
         del _active_sessions[k]
     ip = _extract_client_ip(request)
@@ -1561,6 +1568,21 @@ def _record_session(request: Request) -> None:
                 )
                 if len(paths) > 50:
                     del paths[:-50]
+
+    try:
+        from backend.services import panel_visit_log as pvl
+
+        pvl.touch_visit(
+            session_key=key,
+            email=email,
+            display_name=label,
+            session_kind=session_kind,
+            ip=ip,
+            device=_parse_device(ua),
+            path=path,
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
     from backend.services import admin_access_log as aal
 
@@ -13408,6 +13430,7 @@ def settings_page(request: Request):
     # Settings ekranı site yönetimi arayüzünü gösterir.
     from backend.services import admin_access_log as aal
     from backend.services import app_member_auth as ama
+    from backend.services import panel_visit_log as pvl
 
     with SessionLocal() as db:
         admin_password_configured = _admin_password_configured(db)
@@ -13422,6 +13445,7 @@ def settings_page(request: Request):
             "admin_password_configured": admin_password_configured,
             "active_sessions": _get_active_sessions(request),
             "login_history": aal.recent_login_history(db) if admin_password_configured else [],
+            "visit_logs": pvl.recent_visits(limit=80) if admin_password_configured else [],
             "membership_admin": membership_admin,
             "app_members": ama.member_list_payload(db) if membership_admin else [],
             "current_app_member": _app_member_from_request(request),
@@ -13779,6 +13803,12 @@ def admin_auth_login(request: Request, password: str = Form(default="")):
 
 @app.post("/admin/auth/logout")
 def admin_auth_logout(request: Request):
+    try:
+        from backend.services import panel_visit_log as pvl
+
+        pvl.close_visit(_current_panel_session_key(request), reason="logout")
+    except Exception:  # noqa: BLE001
+        pass
     response = RedirectResponse(url="/admin/login", status_code=303)
     response.delete_cookie(
         key=_ADMIN_AUTH_COOKIE,
