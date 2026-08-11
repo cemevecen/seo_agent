@@ -2249,7 +2249,7 @@
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
-  <script src="/static/js/page_tarama.js?v=1" defer></script>
+  <script src="/static/js/page_tarama.js?v=2" defer></script>
   <script src="/static/js/market_chart_overlay.js?v=24" defer></script>
   <script src="/static/js/app_empower_overlay.js?v=9" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
@@ -2273,6 +2273,7 @@
       </div>
       <p id="pc-page-tarama-status" class="mb-3 truncate text-xs text-slate-500 dark:text-zinc-400">Başlatılıyor…</p>
       <div id="pc-page-tarama-steps" class="max-h-48 space-y-1 overflow-y-auto text-[11px] text-slate-600 dark:text-zinc-400"></div>
+      <button id="pc-page-tarama-close" type="button" class="mt-4 hidden w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">Kapat</button>
     </div>
   </div>
   {% if online_presence_visible(request) %}

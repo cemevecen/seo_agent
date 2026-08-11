@@ -67,6 +67,7 @@ from backend.api.gsc_links import router as gsc_links_router
 from backend.api.policy_ingest import router as policy_ingest_router
 from backend.api.scrape_telemetry import router as scrape_telemetry_router
 from backend.api.market_quotes import router as market_quotes_router
+from backend.api.page_tarama import router as page_tarama_router
 from backend.api.member_auth import router as member_auth_router
 from backend.collectors.crawler import collect_crawler_metrics
 from backend.collectors.crux_history import collect_crux_history
@@ -1058,6 +1059,7 @@ app.include_router(asc_metrics_router, prefix="/api")
 app.include_router(asc_console_router, prefix="/api")
 app.include_router(firebase_console_router, prefix="/api")
 app.include_router(market_quotes_router, prefix="/api")
+app.include_router(page_tarama_router, prefix="/api")
 
 from backend.karma.router import router as karma_router
 
@@ -1881,6 +1883,8 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/seo-audit/progress",
         "/api/gsc-cwv/ingest",
         "/api/market-quotes/ingest",
+        "/api/page-tarama/claim",
+        "/api/page-tarama/result",
         "/api/scrape-runs/report",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):

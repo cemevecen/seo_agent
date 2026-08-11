@@ -2460,6 +2460,111 @@ def _auto_loop() -> None:
         time.sleep(max(30, AUTO_POLL_SEC))
 
 
+def _page_tarama_api_base() -> str:
+    return (
+        os.environ.get("PAGE_TARAMA_API_BASE")
+        or os.environ.get("SEO_AUDIT_API_BASE")
+        or "https://projectcontrol.up.railway.app"
+    ).rstrip("/")
+
+
+def _page_tarama_auth_headers() -> dict[str, str]:
+    token = _ingest_token()
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+
+
+def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
+    return {
+        "play": {"name": "Play", "lock": _play_lock, "runner": run_play_bridge_once},
+        "asc": {"name": "ASC", "lock": _asc_lock, "runner": run_asc_bridge_once},
+        "firebase": {"name": "Firebase", "lock": _firebase_lock, "runner": run_firebase_bridge_once},
+        "cwv": {"name": "GSC CWV", "lock": _gsc_cwv_lock, "runner": run_gsc_cwv_bridge_once},
+        "notification": {"name": "Notification", "lock": _nt_lock, "runner": run_notification_bridge_once},
+        "news": {"name": "News", "lock": _nt_lock, "runner": lambda: run_news_bridge_once(days=7)},
+        "virgul": {"name": "Virgul", "lock": _virgul_lock, "runner": run_virgul_bridge_once},
+        "market": {"name": "Piyasa", "lock": _market_lock, "runner": run_market_tarama_bridge_once},
+        "links": {"name": "GSC Links", "lock": _gsc_links_lock, "runner": run_gsc_links_bridge_once},
+        "policy": {"name": "Policy", "lock": _policy_lock, "runner": run_admanager_policy_bridge_once},
+        "noads": {"name": "noAds", "lock": _noads_lock, "runner": run_sinemalar_noads_bridge_once},
+        "seo": {"name": "SEO Audit", "lock": _seo_audit_lock, "runner": run_seo_audit_bridge_once},
+    }
+
+
+def _post_page_tarama_result(payload: dict[str, Any]) -> None:
+    url = _page_tarama_api_base() + "/api/page-tarama/result"
+    try:
+        requests.post(url, headers=_page_tarama_auth_headers(), json=payload, timeout=20)
+    except Exception as exc:  # noqa: BLE001
+        print(f"page-tarama result hata: {exc}", flush=True)
+
+
+def _page_tarama_claim_loop() -> None:
+    """Mobil/Railway «Sayfayı güncelle» kuyruğunu Mac’te çalıştır."""
+    url = _page_tarama_api_base() + "/api/page-tarama/claim"
+    registry = _remote_claim_job_registry()
+    print(f"Uzaktan tarama kuyruğu: {url}", flush=True)
+    while True:
+        try:
+            if not _ingest_token():
+                time.sleep(12)
+                continue
+            resp = requests.get(url, headers=_page_tarama_auth_headers(), timeout=20)
+            if resp.status_code != 200:
+                time.sleep(5)
+                continue
+            job = (resp.json() or {}).get("job")
+            if not job:
+                time.sleep(3)
+                continue
+            job_id = str(job.get("job_id") or "")
+            meta = registry.get(job_id)
+            if not meta:
+                _post_page_tarama_result(
+                    {
+                        "run_id": job.get("run_id"),
+                        "job_id": job_id,
+                        "ok": False,
+                        "message": "Bilinmeyen iş",
+                    }
+                )
+                continue
+            print(f"Uzaktan tarama başladı: {meta['name']}", flush=True)
+            _post_page_tarama_result(
+                {
+                    "run_id": job.get("run_id"),
+                    "job_id": job_id,
+                    "running": True,
+                    "message": "Mac tarama çalışıyor",
+                }
+            )
+            result = None
+            while result is None:
+                result = _run_locked_job(
+                    name=meta["name"],
+                    lock=meta["lock"],
+                    runner=meta["runner"],
+                    kind=job_id,
+                    notify=False,
+                )
+                if result is None:
+                    print(f"Uzaktan {meta['name']}: kilit meşgul, 8 sn…", flush=True)
+                    time.sleep(8)
+            _post_page_tarama_result(
+                {
+                    "run_id": job.get("run_id"),
+                    "job_id": job_id,
+                    "ok": bool(result.get("ok")),
+                    "message": str(result.get("message") or ("Tamam" if result.get("ok") else "Hata"))[:180],
+                }
+            )
+        except Exception:
+            traceback.print_exc()
+            time.sleep(5)
+
 
 def run_daemon() -> int:
     _load_dotenv()
@@ -2471,6 +2576,7 @@ def run_daemon() -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"Oturum bekçi başlatılamadı: {exc}", flush=True)
     threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()
+    threading.Thread(target=_page_tarama_claim_loop, name="page-tarama-claim", daemon=True).start()
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), _BridgeHandler)
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "

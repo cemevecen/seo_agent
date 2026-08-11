@@ -77,6 +77,8 @@
     el.classList.toggle("hidden", !show);
     el.style.display = show ? "flex" : "none";
     el.setAttribute("aria-hidden", show ? "false" : "true");
+    var closeBtn = $("pc-page-tarama-close");
+    if (closeBtn && show) closeBtn.classList.add("hidden");
   }
 
   function setBar(pct) {
@@ -129,6 +131,7 @@
       credentials: opts.credentials || "omit",
       mode: opts.mode,
       headers: headers,
+      body: opts.body,
       signal: ctrl ? ctrl.signal : undefined,
     }).then(function (resp) {
       return resp.json().then(function (data) {
@@ -227,14 +230,116 @@
     setButtonsBusy(false);
     setStatus(summary);
     setBar(100);
+    var closeBtn = $("pc-page-tarama-close");
+    if (closeBtn) closeBtn.classList.toggle("hidden", !!ok);
     setTimeout(function () {
-      showOverlay(false);
       if (ok) {
+        showOverlay(false);
         try {
           window.location.reload();
         } catch (e) {}
       }
-    }, ok ? 1200 : 2800);
+    }, ok ? 1200 : 0);
+  }
+
+  function isLocalHost() {
+    var h = (location.hostname || "").toLowerCase();
+    return h === "localhost" || h === "127.0.0.1";
+  }
+
+  function applyServerJobs(serverJobs, steps, jobs) {
+    var byId = {};
+    (serverJobs || []).forEach(function (j) { byId[j.id] = j; });
+    var current = 0;
+    jobs.forEach(function (job, i) {
+      if (job.kind !== "bridge") return;
+      var s = byId[job.id];
+      if (!s) return;
+      var st = s.status === "ok" ? "ok" : s.status === "fail" ? "fail"
+        : (s.status === "claimed" || s.status === "running") ? "run" : "wait";
+      steps[i].status = st;
+      steps[i].detail = (s.detail || "").slice(0, 90);
+      if (st === "run") current = i;
+    });
+    renderSteps(steps, current);
+  }
+
+  function runViaQueue(key, jobs, steps) {
+    return fetchJson("/api/page-tarama/start", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ page: key }),
+    }, 20000).then(function (out) {
+      if (!out.resp.ok) {
+        throw new Error((out.data && out.data.detail) || "Kuyruk başlatılamadı");
+      }
+      var runId = out.data.id;
+      applyServerJobs(out.data.jobs, steps, jobs);
+      setStatus(out.data.message || "Mac köprü bekleniyor…");
+      setBar(out.data.pct || 4);
+      function poll() {
+        return fetchJson("/api/page-tarama/progress?run_id=" + encodeURIComponent(runId), {
+          credentials: "same-origin",
+        }, 20000).then(function (p) {
+          var d = p.data || {};
+          applyServerJobs(d.jobs, steps, jobs);
+          setBar(typeof d.pct === "number" ? d.pct : 10);
+          setStatus(d.message || "Taranıyor…");
+          if (d.running) return sleep(1200).then(poll);
+          return d;
+        });
+      }
+      return poll();
+    });
+  }
+
+  function runSequential(jobs, steps, fromIndex) {
+    var i = fromIndex || 0;
+    var failed = 0;
+    steps.forEach(function (s) {
+      if (s.status === "fail") failed += 1;
+    });
+    function next() {
+      if (i >= jobs.length) {
+        var someOk = failed < jobs.length;
+        finish(someOk, failed === 0
+          ? "Tüm taramalar bitti — sayfa yenileniyor…"
+          : failed + " tarama hata verdi" + (someOk ? " — başarılı olanlar yükleniyor…" : ". Mac’te bridge --daemon açık olmalı."));
+        return;
+      }
+      if (jobs[i].kind === "bridge" && (steps[i].status === "ok" || steps[i].status === "fail")) {
+        i += 1;
+        next();
+        return;
+      }
+      var job = jobs[i];
+      steps[i].status = "run";
+      renderSteps(steps, i);
+      setBar(((i + 0.15) / jobs.length) * 100);
+      setStatus(job.label + " çalışıyor…");
+      runJob(job)
+        .then(function (data) {
+          steps[i].status = "ok";
+          steps[i].detail = (data && (data.message || data.status)) ? String(data.message || data.status).slice(0, 80) : "";
+        })
+        .catch(function (err) {
+          failed += 1;
+          steps[i].status = "fail";
+          var msg = (err && err.message) ? err.message : String(err);
+          if (/Failed to fetch|NetworkError|Load failed|abort/i.test(msg)) {
+            msg = "Mac köprü yok (127.0.0.1:18765)";
+          }
+          steps[i].detail = msg.slice(0, 90);
+        })
+        .then(function () {
+          renderSteps(steps, i);
+          setBar(((i + 1) / jobs.length) * 100);
+          i += 1;
+          next();
+        });
+    }
+    next();
   }
 
   function start(key) {
@@ -255,45 +360,22 @@
     setBar(2);
     setStatus("Başlatılıyor…");
 
-    var i = 0;
-    var failed = 0;
-
-    function next() {
-      if (i >= jobs.length) {
-        var someOk = failed < jobs.length;
-        finish(someOk, failed === 0
-          ? "Tüm taramalar bitti — sayfa yenileniyor…"
-          : failed + " tarama hata verdi" + (someOk ? " — başarılı olanlar yükleniyor…" : ". Köprü kapalıysa Mac’te bridge’i açın."));
-        return;
-      }
-      var job = jobs[i];
-      steps[i].status = "run";
-      renderSteps(steps, i);
-      setBar(((i + 0.15) / jobs.length) * 100);
-      setStatus(job.label + " çalışıyor…");
-
-      runJob(job)
-        .then(function (data) {
-          steps[i].status = "ok";
-          steps[i].detail = (data && (data.message || data.status)) ? String(data.message || data.status).slice(0, 80) : "";
-        })
-        .catch(function (err) {
-          failed += 1;
+    var bridgeJobs = jobs.filter(function (j) { return j.kind === "bridge"; });
+    var useQueue = !isLocalHost() && bridgeJobs.length > 0;
+    var chain = Promise.resolve();
+    if (useQueue) {
+      chain = runViaQueue(key, jobs, steps).catch(function (err) {
+        jobs.forEach(function (job, i) {
+          if (job.kind !== "bridge" || steps[i].status === "ok") return;
           steps[i].status = "fail";
-          var msg = (err && err.message) ? err.message : String(err);
-          if (/Failed to fetch|NetworkError|abort/i.test(msg)) {
-            msg = "Mac köprü yok (127.0.0.1:18765)";
-          }
-          steps[i].detail = msg.slice(0, 90);
-        })
-        .then(function () {
-          renderSteps(steps, i);
-          setBar(((i + 1) / jobs.length) * 100);
-          i += 1;
-          next();
+          steps[i].detail = ((err && err.message) || "Kuyruk hatası").slice(0, 90);
         });
+        renderSteps(steps, 0);
+      });
     }
-    next();
+    chain.then(function () {
+      runSequential(jobs, steps, 0);
+    });
   }
 
   function ensureButton(root) {
@@ -310,6 +392,11 @@
   }
 
   document.addEventListener("click", function (ev) {
+    if (ev.target && ev.target.id === "pc-page-tarama-close") {
+      ev.preventDefault();
+      showOverlay(false);
+      return;
+    }
     var btn = ev.target && ev.target.closest && ev.target.closest(".js-page-tarama");
     if (!btn) return;
     ev.preventDefault();
