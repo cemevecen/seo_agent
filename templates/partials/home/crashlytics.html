@@ -470,17 +470,17 @@
 {%- set p = (part or '')|trim -%}
 {%- set when = (' · ' ~ tip_context) if tip_context else '' -%}
 {%- if p.startswith('s ') -%}
-Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı){{ when }}.
+Crash-free sessions — session-based share of sessions with no crash (separate from users CF){{ when }}.
 {%- elif p.startswith('Δ') -%}
-Δ — dönem içi fark (pp): son gün − ilk gün crash-free{{ when }}.
+Δ — in-period difference (pp): last day − first day crash-free{{ when }}.
 {%- elif '%' in p -%}
 {%- if 'ANR' in (title or '') -%}
-ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi){{ when }}.
+ANR rate — user-perceived ANR rate (inverse of ANR-free){{ when }}.
 {%- else -%}
-Oran — kaynak konsoldaki ham yüzde{{ when }}.
+Rate — raw percentage from the source console{{ when }}.
 {%- endif -%}
 {%- else -%}
-Örneklem — dönemdeki kullanıcı/oturum hacmi{{ when }}.
+Sample — users/sessions volume in the period{{ when }}.
 {%- endif -%}
 {%- endmacro %}
 

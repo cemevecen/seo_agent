@@ -22,7 +22,7 @@ def test_notification_css_keeps_3_and_4_cols_at_all_widths():
     assert "repeat(3, minmax(0, 1fr))" in html
     assert "nt-cmp-grid-plats" in html
     assert "repeat(4, minmax(0, 1fr))" in html
-    assert "notification_extras.js?v=9" in html
+    assert "notification_extras.js?v=10" in html
     # Eski kırılımlı 1/2/3 kolon grid'i geri gelmesin
     assert "grid-template-columns: 1fr;" not in html.split(".nt-cmp-grid {")[1].split("}")[0]
 

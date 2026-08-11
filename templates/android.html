@@ -2385,48 +2385,48 @@
     updatePaMetricTrigger();
   }
   var PA_METRIC_HELP = {
-    anrs: "ANR (Application Not Responding): uygulama ana thread’i ~5 sn yanıt vermediğinde Play’e düşen donma olayları. Düşük olması iyidir.",
-    crashes: "Crash: uygulamanın beklenmedik şekilde kapanma sayısı. Stabilite için düşük tutulmalıdır.",
-    device_acquisition: "Device acquisition: uygulamayı ilk kez edinen cihaz sayısı (Play Console büyüme metriği).",
-    user_acquisition: "User acquisition: uygulamayı ilk kez edinen users sayısı.",
-    user_lost: "User lost: uygulamayı kaldıran veya kaybedilen users sayısı; churn sinyali verir.",
-    active_devices: "Active devices: seçilen aralıkta uygulamayı açmış aktif cihaz sayısı.",
-    active_users: "Active users: seçilen aralıkta uygulamayı kullanan aktif users sayısı.",
-    dau: "DAU: günlük aktif users (Daily Active Users). Günün içinde en az bir kez açan userslar.",
-    dau_mau: "DAU/MAU: günlük aktif / aylık aktif oranı. Yapışkanlık (stickiness) göstergesidir; yüksek oran daha sık dönüş demektir.",
-    ar2_visitors: "Store visitors: Play Store liste sayfasını ziyaret eden users sayısı.",
-    ar2_acquisitions: "Store acquisitions: store listesinden gelen kurulum / edinme sayısı.",
-    store_listing_conversion: "Store listing conversion: ziyaretçilerin kurulum / edinmeye dönüşüm oranı.",
-    revenue: "Revenue: Play üzerinden kaydedilen tahmini gelir (abonelik/IAP vb.).",
-    rating: "Google Play rating: ortalama puan ve stars dağılımı; mağaza algısını gösterir.",
-    "ga4:sessions": "GA4 Sessions: oturum sayısı. Kullanıcının uygulamada veya sitede başlattığı ziyaretler.",
-    "ga4:users": "GA4 Users: seçilen dönemde en az bir oturum açan aktif users sayısı.",
-    "ga4:engaged_sessions": "GA4 Engaged sessions: anlamlı etkileşim içeren oturumlar (süre / sayfa / dönüşüm eşiği).",
-    "ga4:new_users": "GA4 New users: ilk kez görülen yeni users sayısı.",
-    "ga4:avg_session": "GA4 Avg. session: ortalama oturum süresi; etkileşim derinliğini gösterir.",
-    "ga4:page_views": "GA4 Page views: görüntülenen ekran / sayfa sayısı.",
-    "virgul:net_revenue": "Virgül net revenue: reklam ağından gelen net gelir (TL).",
-    "virgul:ad_request": "Ad request: reklam talebi sayısı; envanter talebini gösterir.",
-    "virgul:matched_request": "Matched request: taleple eşleşen (doldurulan) reklam istekleri.",
-    "virgul:impression": "Impression: gösterilen reklam adedi.",
-    "virgul:click": "Click: reklama tıklama sayısı.",
-    "virgul:ad_request_ecpm": "Ad request eCPM: her 1000 reklam talebi başına ortalama gelir (TL).",
-    "virgul:ad_ecpm": "Ad impression eCPM: her 1000 gösterim başına ortalama gelir (TL).",
-    "virgul:viewability_pct": "Viewability: görünür sayılan gösterimlerin oranı (%).",
-    "virgul:ctr_pct": "CTR: tıklama / gösterim oranı (%).",
-    "virgul:coverage_pct": "Coverage: taleplerin ne kadarının reklamla doldurulduğu (%).",
-    "market:usd_try": "USD/TRY kapanış: doviz.com günlük tarama.",
-    "market:eur_try": "EUR/TRY kapanış: doviz.com günlük tarama.",
-    "market:gram_altin": "Gram altın kapanış: doviz.com günlük tarama.",
-    "market:ceyrek_altin": "Çeyrek altın kapanış: doviz.com günlük tarama.",
-    "market:gram_gumus": "Gram gümüş kapanış: doviz.com günlük tarama.",
-    "market:bist100": "BIST 100 kapanış: doviz.com günlük tarama.",
-    "market:brent": "Brent kapanış: doviz.com günlük tarama.",
-    "market:bitcoin": "Bitcoin kapanış: doviz.com günlük tarama.",
-    "market:all_indexed": "Tüm piyasa serileri; aralık başı 100 olacak şekilde endekslenir."
+    anrs: "ANR (Application Not Responding): freeze events reported to Play when the app main thread does not respond for ~5 seconds. Lower is better.",
+    crashes: "Crash: unexpected app close count. Should be kept low for stability.",
+    device_acquisition: "Device acquisition: number of devices that acquired the app for the first time (Play Console growth metric).",
+    user_acquisition: "User acquisition: number of users who acquired the app for the first time.",
+    user_lost: "User lost: number of users who uninstalled or were lost; a churn signal.",
+    active_devices: "Active devices: number of active devices that opened the app in the selected range.",
+    active_users: "Active users: number of active users who used the app in the selected range.",
+    dau: "DAU: daily active users (Daily Active Users). Users who opened the app at least once during the day.",
+    dau_mau: "DAU/MAU: daily active / monthly active ratio. A stickiness indicator; a higher ratio means more frequent returns.",
+    ar2_visitors: "Store visitors: number of users who visited the Play Store listing page.",
+    ar2_acquisitions: "Store acquisitions: install / acquisition count from the store listing.",
+    store_listing_conversion: "Store listing conversion: conversion rate of visitors to install / acquisition.",
+    revenue: "Revenue: estimated revenue recorded via Play (subscription/IAP etc.).",
+    rating: "Google Play rating: average score and stars distribution; shows store perception.",
+    "ga4:sessions": "GA4 Sessions: session count. Visits started by the user in the app or on the site.",
+    "ga4:users": "GA4 Users: number of active users who opened at least one session in the selected period.",
+    "ga4:engaged_sessions": "GA4 Engaged sessions: sessions with meaningful engagement (duration / page / conversion threshold).",
+    "ga4:new_users": "GA4 New users: number of new users seen for the first time.",
+    "ga4:avg_session": "GA4 Avg. session: average session duration; shows engagement depth.",
+    "ga4:page_views": "GA4 Page views: number of screens / pages viewed.",
+    "virgul:net_revenue": "Virgül net revenue: net ad-network revenue (TL).",
+    "virgul:ad_request": "Ad request: number of ad requests; shows inventory demand.",
+    "virgul:matched_request": "Matched request: ad requests that matched (were filled).",
+    "virgul:impression": "Impression: number of ads shown.",
+    "virgul:click": "Click: number of ad clicks.",
+    "virgul:ad_request_ecpm": "Ad request eCPM: average revenue per 1000 ad requests (TL).",
+    "virgul:ad_ecpm": "Ad impression eCPM: average revenue per 1000 impressions (TL).",
+    "virgul:viewability_pct": "Viewability: share of impressions counted as viewable (%).",
+    "virgul:ctr_pct": "CTR: click / impression rate (%).",
+    "virgul:coverage_pct": "Coverage: share of requests filled with an ad (%).",
+    "market:usd_try": "USD/TRY close: daily doviz.com scan.",
+    "market:eur_try": "EUR/TRY close: daily doviz.com scan.",
+    "market:gram_altin": "Gram gold close: daily doviz.com scan.",
+    "market:ceyrek_altin": "Quarter gold close: daily doviz.com scan.",
+    "market:gram_gumus": "Gram silver close: daily doviz.com scan.",
+    "market:bist100": "BIST 100 close: daily doviz.com scan.",
+    "market:brent": "Brent close: daily doviz.com scan.",
+    "market:bitcoin": "Bitcoin close: daily doviz.com scan.",
+    "market:all_indexed": "All market series, indexed to 100 at the start of the range."
   };
   function paMetricHelp(key) {
-    return PA_METRIC_HELP[key] || "Bu metrik seçilen dönem için Play / GA4 / Virgül kaynağından gelir; grafik ve tabloda günlük (veya kırılım) serisi olarak gösterilir.";
+    return PA_METRIC_HELP[key] || "This metric comes from Play / GA4 / Virgül for the selected period and is shown as a daily (or breakdown) series on the chart and table.";
   }
   function togglePaMetric(key) {
     if (!key) {
@@ -2707,7 +2707,7 @@
     if (isMarketOverlayMetric(metricKey)) {
       var sk = String(metricKey).slice("market:".length);
       if (!window.SeoMarketOverlay || !SeoMarketOverlay.ensureOverlay) {
-        throw new Error("Market serisi yok");
+        throw new Error("No market series");
       }
       var payload = await SeoMarketOverlay.ensureOverlay(paStart.value, paEnd.value);
       var gSeries = SeoMarketOverlay.pointsForSeries(payload, sk);
@@ -6596,24 +6596,24 @@
     var ctx = String(tipContext || "").trim();
     var when = ctx ? (" · " + ctx) : "";
     if (/^s\s/i.test(p)) {
-      return "Crash-free sessions — sessions bazlı çökme yaşamayan oran (users CF’den ayrı)" + when + ".";
+      return "Crash-free sessions — session-based share of sessions with no crash (separate from users CF)" + when + ".";
     }
     if (/^Δ/i.test(p) || p.indexOf("Δ") === 0) {
-      return "Δ — dönem içi fark (pp): son days − ilk days crash-free" + when + ".";
+      return "Δ — in-period difference (pp): last day − first day crash-free" + when + ".";
     }
     if (/%$/.test(p) && !/^s\s/i.test(p)) {
       if (/anr/i.test(title)) {
-        return "ANR rate — users algılanan ANR oranı (ANR-free’nin tersi)" + when + ".";
+        return "ANR rate — user-perceived ANR rate (inverse of ANR-free)" + when + ".";
       }
-      return "Oran — kaynak konsoldaki ham yüzde" + when + ".";
+      return "Rate — raw percentage from the source console" + when + ".";
     }
     if (/[kKmM]$/.test(p) || /^\d/.test(p)) {
       if (/anr/i.test(title)) {
-        return "Örneklem — Reporting’deki distinct users hacmi" + when + ".";
+        return "Sample — distinct users volume in Reporting" + when + ".";
       }
-      return "Örneklem — dönemdeki users/sessions hacmi" + when + ".";
+      return "Sample — users/sessions volume in the period" + when + ".";
     }
-    return "Ek metrik — kaynak konsoldan gelen veri" + when + ".";
+    return "Extra metric — data from the source console" + when + ".";
   }
 
   function paSfSideHtml(extra, cardTitle, tipContext) {

@@ -1100,7 +1100,7 @@
           + " + MWEB " + (mwebGa4 ? (nt().fmtCount ? nt().fmtCount(mwebGa4.sessions) : mwebGa4.sessions) : "0")
           + " = <strong>" + (nt().fmtCount ? nt().fmtCount(ga4NotifTotal) : ga4NotifTotal) + "</strong>"
           + " · " + gscRangeLabel + " window</p>"
-          + '<p class="nt-traffic-compare-tip hidden mt-1 rounded border border-amber-200/80 bg-white/70 px-2 py-1 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">CSV = push tıklaması (tek bildirim). GA4 = makale sayfasına gelen oturumlar (3 gün, aynı URL’ye başka bildirimler ve tekrar ziyaretler dahil olabilir).</p>'
+          + '<p class="nt-traffic-compare-tip hidden mt-1 rounded border border-amber-200/80 bg-white/70 px-2 py-1 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">CSV = push clicks (one notification). GA4 = sessions that landed on the article page (3 days; other notifications to the same URL and repeat visits may be included).</p>'
           + "</div>";
       }
       return notifCompare + '<div class="mt-2 border-t border-emerald-100 pt-2 dark:border-emerald-900">'
