@@ -1081,8 +1081,8 @@ def _build_firebase_tab_payload_uncached(
             "days": days_i,
             "requested_days": days,
             "message": (
-                "No Firebase Console scrape yet. "
-                "Run Update page → Firebase or Mac bridge /sync-firebase."
+                "No Firebase data yet. "
+                "Run Update page → Firebase or wait for the next automatic scan."
             ),
             "errors": [],
             "source": "firebase_console_scrape",

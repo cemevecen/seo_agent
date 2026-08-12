@@ -46,7 +46,7 @@
   </div>
 
   <div id="noads-refresh-bar" class="hidden flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs text-rose-800 dark:border-rose-800/40 dark:bg-rose-950/30 dark:text-rose-200">
-    <span id="noads-refresh-label">Scanning noAds list (Mac bridge)…</span>
+    <span id="noads-refresh-label">Scanning noAds list…</span>
   </div>
 
   <div id="title-fetch-bar" class="{% if not title_job.running %}hidden{% endif %} flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-300">
@@ -78,7 +78,7 @@
   <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
     <h4 class="mb-1 font-semibold text-slate-700 dark:text-slate-300">No scan data yet</h4>
     <p class="text-sm text-slate-500 dark:text-slate-400">
-      Automatic scan has not returned records yet. The bridge runs every night at 02:00.
+      Automatic scan has not returned records yet. Next run: 02:00 TR.
     </p>
   </div>
   {% else %}
@@ -418,7 +418,7 @@
     var orig = btn ? btn.textContent : "";
     if (btn) { btn.disabled = true; btn.textContent = "Scanning…"; }
     if (bar) bar.classList.remove("hidden");
-    if (lab) lab.textContent = "Scanning noAds list (Mac bridge)…";
+    if (lab) lab.textContent = "Scanning noAds list…";
     fetch("http://127.0.0.1:18765/sync-noads", {
       method: "POST",
       mode: "cors",
@@ -440,7 +440,7 @@
       })
       .catch(function () {
         if (lab) {
-          lab.textContent = "Mac bridge is down (127.0.0.1:18765). Start the bridge, then try again.";
+          lab.textContent = "Scan unavailable — try again later.";
         }
         if (btn) { btn.disabled = false; btn.textContent = orig; }
       });
@@ -471,7 +471,7 @@
           done(true, (res.j && res.j.message) || "ok");
           return;
         }
-        throw new Error((res.j && res.j.message) || "bridge error");
+        throw new Error((res.j && res.j.message) || "Scan failed");
       })
       .catch(function () {
         // Bridge yoksa: panoya kopyala + noAds sekmesi (yapıştır → Ekle)

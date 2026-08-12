@@ -230,7 +230,7 @@ def asc_console_payload(db: Session) -> dict[str, Any]:
             "panels": {"version": 1, "explorer_facts": []},
             "reviews": [],
             "review_count": 0,
-            "message": "Henüz ASC verisi yok — Mac bridge login + sync gerekli.",
+            "message": "No App Store Connect data yet — run Update page or wait for the next automatic scan.",
         }
     metrics, panels = _unpack_metrics_blob(row.metrics_json or "[]")
     try:

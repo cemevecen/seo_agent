@@ -12521,7 +12521,7 @@
   async function syncMzVirgulViaBridge() {
     var hint = document.getElementById("mz-sheets-sync-hint");
     setMzSheetsButtonsDisabled(true);
-    if (hint) hint.textContent = "Virgül: calling the office Mac bridge…";
+    if (hint) hint.textContent = "Virgül: scanning…";
     try {
       var br = await fetch("http://127.0.0.1:18765/sync-virgul", {
         method: "POST",
@@ -12530,16 +12530,16 @@
       var body = null;
       try { body = await br.json(); } catch (_) {}
       if (!br.ok || (body && body.ok === false)) {
-        throw new Error((body && (body.message || body.detail)) || ("Bridge HTTP " + br.status));
+        throw new Error((body && (body.message || body.detail)) || ("Scan HTTP " + br.status));
       }
       await loadFacets({ cacheBust: true });
       await loadMzSheetsStatus();
     } catch (err) {
       if (hint) {
         hint.textContent =
-          "Virgül bridge error: " +
+          "Virgül scan error: " +
           ((err && err.message) || err) +
-          " — run bridge --daemon on the Mac with VIRGUL_EMAIL/PASSWORD";
+          " — try Update page again";
       }
       try {
         await fetch("/api/virgul-analytics/sync?force=1", { method: "POST", credentials: "same-origin" });

@@ -992,7 +992,7 @@
     function tick() {
       var elapsed = Date.now() - started;
       if (elapsed > timeoutMs) {
-        return Promise.reject(new Error("Scan timed out — is the Mac bridge running?"));
+        return Promise.reject(new Error("Scan timed out — try again later"));
       }
       return fetchLabState()
         .then(function (state) {
@@ -1005,7 +1005,7 @@
           else if (queued) setRefreshBtn(btn, true, "Queued…");
           if (!kicked && !running && elapsed > 12000) {
             return Promise.reject(
-              new Error("Mac bridge did not pick up the scan. git pull && restart the bridge daemon.")
+              new Error("Scan did not start — try Update page again.")
             );
           }
           return sleep(3000).then(tick);

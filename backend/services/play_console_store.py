@@ -423,7 +423,7 @@ def play_console_payload(db: Session) -> dict[str, Any]:
             "panels": {"version": 2, "tpg": [], "breakdowns": [], "series": []},
             "reviews": [],
             "rating_summary": {},
-            "message": "Henüz Play Console verisi yok — Mac bridge login + sync gerekli.",
+            "message": "No Play Console data yet — run Update page or wait for the next automatic scan.",
         }
 
     def _loads(raw: str, default: Any) -> Any:

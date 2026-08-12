@@ -35,7 +35,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["doviz"],
         "cadence": "Her 30 dk",
         "hours_tr": "*:00 / *:30",
-        "method": "Admin CSV scrape → ingest",
+        "method": "Automatic scan",
         "volume_unit": "satır",
     },
     {
@@ -44,7 +44,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["doviz"],
         "cadence": "Saatlik",
         "hours_tr": "Her saat",
-        "method": "Admin scrape → ingest",
+        "method": "Automatic scan",
         "volume_unit": "haber",
     },
     {
@@ -53,7 +53,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["doviz · com.Doviz"],
         "cadence": "3 saatte bir",
         "hours_tr": "00/03/06/09/12/15/18/21:00",
-        "method": "Playwright → /api/play-console/ingest",
+        "method": "Automatic scan",
         "volume_unit": "metrik+yorum",
     },
     {
@@ -62,7 +62,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["doviz · ASC"],
         "cadence": "3 saatte bir",
         "hours_tr": "00/03/06/09/12/15/18/21:05",
-        "method": "Playwright → /api/asc-console/ingest",
+        "method": "Automatic scan",
         "volume_unit": "metrik",
     },
     {
@@ -71,7 +71,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["doviz-android", "doviz-ios"],
         "cadence": "3 saatte bir",
         "hours_tr": "00/03/06/09/12/15/18/21:10",
-        "method": "Playwright → /api/firebase-console/ingest",
+        "method": "Automatic scan",
         "volume_unit": "crash-free+issues",
     },
     {
@@ -80,7 +80,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["doviz", "sinemalar"],
         "cadence": "6 saatte bir",
         "hours_tr": "00/06/12/18:00",
-        "method": "Bridge sync → ingest",
+        "method": "Automatic scan",
         "volume_unit": "satır",
     },
     {
@@ -89,7 +89,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["doviz.com", "sinemalar.com"],
         "cadence": "Günde 2",
         "hours_tr": "01:00 · 13:00",
-        "method": "Playwright GSC → /api/gsc-links/ingest",
+        "method": "Automatic scan",
         "volume_unit": "link satırı",
     },
     {
@@ -98,7 +98,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["sinemalar.com"],
         "cadence": "Günde 2",
         "hours_tr": "01:05 · 13:05",
-        "method": "Playwright → /api/policy/ingest",
+        "method": "Automatic scan",
         "volume_unit": "ihlal",
     },
     {
@@ -107,7 +107,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["www.doviz.com", "www.sinemalar.com"],
         "cadence": "Günde 2 · mobil+masaüstü",
         "hours_tr": "01:10 · 13:10",
-        "method": "Playwright → /api/pagespeed-web/ingest",
+        "method": "Automatic scan",
         "volume_unit": "snapshot",
     },
     {
@@ -116,7 +116,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["sinemalar"],
         "cadence": "Günde 2",
         "hours_tr": "01:15 · 13:15",
-        "method": "Playwright → /api/policy/noads/ingest",
+        "method": "Automatic scan",
         "volume_unit": "URL",
     },
     {
@@ -125,7 +125,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["doviz", "sinemalar"],
         "cadence": "Günde 2",
         "hours_tr": "02:45 · 14:45",
-        "method": "Playwright → /api/seo-audit/ingest",
+        "method": "Automatic scan",
         "volume_unit": "URL",
     },
     {
@@ -134,7 +134,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "targets": ["doviz.com", "sinemalar.com"],
         "cadence": "Günde 2",
         "hours_tr": "03:00 · 15:00",
-        "method": "Playwright → /api/gsc-cwv/ingest",
+        "method": "Automatic scan",
         "volume_unit": "URL+KPI",
     },
 ]
@@ -604,9 +604,7 @@ def build_scrape_settings_context(db: Session, *, hours: int = 48) -> dict[str, 
         "workspaces": _workspace_last_syncs(db),
         "event_count": len(deduped),
         "note": (
-            "Saatler Europe/Istanbul. Hacim = ingest satır/URL/snapshot toplamı. "
-            "Play/ASC/notification gibi workspace kaynaklarında geçmiş, log tablosu "
-            "dolmaya başladıktan sonra saatlik detaylanır; PageSpeed/GSC CWV/SEO audit "
-            "için collector_runs geçmişi de dahil."
+            "Times are Europe/Istanbul. Volume = rows/URLs/snapshots ingested per source. "
+            "Last scan column shows the most recent successful run."
         ),
     }

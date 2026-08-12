@@ -238,13 +238,10 @@ def execute_seo_audit_for_site(
     }
     if bool(getattr(settings, "seo_audit_scrape_primary", True)):
         prog["running"] = False
-        prog["current"] = "Mac bridge scan is primary — Railway HTTP scan is off"
+        prog["current"] = "Automatic scan — HTTP crawl is off"
         return {
             "status": "skipped",
-            "message": (
-                "SEO Audit runs via Mac bridge scan: use POST /sync-seo-audit "
-                "(Railway HTTP scan is off)."
-            ),
+            "message": "Automatic scan only — use Scan or Update page.",
             "ok": 0,
             "error": 0,
             "total": 0,

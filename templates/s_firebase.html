@@ -8,7 +8,7 @@
           <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800">S-Firebase</span>
           <h1 class="text-xl font-extrabold text-slate-900 dark:text-zinc-50">Firebase Console scan</h1>
         </div>
-        <p id="sf-status" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Mac bridge · Crashlytics + Release Monitoring + Analytics Dashboard (Android &amp; iOS)</p>
+        <p id="sf-status" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Crashlytics + Release Monitoring + Analytics Dashboard (Android &amp; iOS)</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <span data-page-tarama-slot></span>
@@ -140,7 +140,7 @@
       return (
         '<article class="rounded-2xl border border-dashed border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-950">' +
           '<h3 class="text-sm font-extrabold uppercase tracking-wide text-slate-800 dark:text-zinc-100">' + esc(key) + " · Analytics</h3>" +
-          '<p class="mt-2 text-xs text-slate-400">Analytics dashboard not ready yet — refresh via Mac bridge</p>' +
+          '<p class="mt-2 text-xs text-slate-400">Analytics dashboard not ready yet — run Update page</p>' +
         "</article>"
       );
     }
@@ -175,7 +175,7 @@
     }
     var keys = Object.keys(plats);
     if (!keys.length) {
-      cardsEl.innerHTML = '<p class="text-sm text-slate-400 col-span-full">No platform data yet. Sign in on the Mac bridge and run a sync.</p>';
+      cardsEl.innerHTML = '<p class="text-sm text-slate-400 col-span-full">No platform data yet. Run Update page or wait for the next automatic scan.</p>';
       if (analyticsEl) analyticsEl.innerHTML = "";
     } else {
       cardsEl.innerHTML = keys.map(function (k) { return platformCard(k, plats[k]); }).join("");

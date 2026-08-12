@@ -826,8 +826,7 @@ def admin_run_seo_audit_now():
         return {
             "status": "bridge_required",
             "message": (
-                "SEO Audit runs via Mac bridge scan — Railway HTTP job is off. "
-                "POST http://127.0.0.1:18765/sync-seo-audit"
+                "Automatic scan only — use Scan or Update page."
             ),
             "bridge_url": "http://127.0.0.1:18765/sync-seo-audit",
         }
@@ -13100,8 +13099,8 @@ def api_refresh_data_explorer(request: Request, domain: str):
             results["pagespeed"] = {
                 "state": "skipped",
                 "reason": (
-                    "Lab/KPI: pagespeed.web.dev (Mac bridge). "
-                    "PSI API ve CrUX History API kullanılmaz."
+                    "Lab/KPI: pagespeed.web.dev. "
+                    "PSI API and CrUX History API are not used."
                 ),
                 "source": "pagespeed_web_scrape",
             }
@@ -15276,8 +15275,7 @@ def api_seo_audit_run(site_id: int):
         return {
             "status": "bridge_required",
             "message": (
-                "SEO Audit runs via Mac bridge scan. "
-                "Trigger POST http://127.0.0.1:18765/sync-seo-audit from the browser."
+                "Automatic scan only — use Scan or Update page."
             ),
             "bridge_url": "http://127.0.0.1:18765/sync-seo-audit",
             "site_id": site_id,

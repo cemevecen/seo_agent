@@ -2763,13 +2763,13 @@
       }).then(function (resp) {
         return resp.json().then(function (data) {
           if (resp.status === 409) {
-            var err = new Error((data && data.message) || "Bridge busy");
+            var err = new Error((data && data.message) || "Scan busy");
             err.busy = true;
             err.bridge = data || null;
             throw err;
           }
           if (!resp.ok || (data && data.ok === false)) {
-            var fail = new Error((data && data.message) || ("Bridge HTTP " + resp.status));
+            var fail = new Error((data && data.message) || ("Scan HTTP " + resp.status));
             fail.bridge = data || null;
             throw fail;
           }
@@ -2779,11 +2779,11 @@
     }
     return attempt().catch(function (err) {
       if (!err || !err.busy) throw err;
-      paintProgress(8, "Bridge busy · retry in 8s…", { indeterminate: true });
+      paintProgress(8, "Scan busy · retry in 8s…", { indeterminate: true });
       return new Promise(function (resolve) { setTimeout(resolve, 8000); }).then(attempt);
     }).catch(function (err) {
       if (!err || !err.busy) throw err;
-      paintProgress(12, "Bridge still busy · in 12s…", { indeterminate: true });
+      paintProgress(12, "Scan still busy · retry in 12s…", { indeterminate: true });
       return new Promise(function (resolve) { setTimeout(resolve, 12000); }).then(attempt);
     });
   }
@@ -2866,12 +2866,12 @@
       if (preferBridge) {
         try {
           await syncNewsViaVpnBridge();
-          paintProgress(95, "Bridge OK · loading report", { indeterminate: false });
+          paintProgress(95, "Scan OK · loading report", { indeterminate: false });
         } catch (bridgeErr) {
           stopProgressTimer();
           paintProgress(
             35,
-            "No bridge · last admin snapshot…",
+            "No scan yet · loading last snapshot…",
             { indeterminate: true }
           );
           try {
@@ -2887,7 +2887,7 @@
               } catch (_) {}
               throw new Error(
                 syncDetail
-                  || "VPN bridge required (admin is the only source). Run bridge --daemon on the Mac."
+                  || "Scan unavailable — try Update page or wait for the next automatic scan."
               );
             }
           } catch (syncErr) {

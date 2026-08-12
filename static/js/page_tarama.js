@@ -129,9 +129,9 @@
     var page = (snap && snap.page) || pageKey() || "page";
     var bridge = "";
     if (snap && snap.bridge_age_sec != null) {
-      bridge = " · bridge " + fmtElapsed(snap.bridge_age_sec) + " ago";
+      bridge = " · last activity " + fmtElapsed(snap.bridge_age_sec) + " ago";
     } else if (snap && snap.running && snap.bridge_seen_at == null) {
-      bridge = " · waiting Mac bridge";
+      bridge = " · waiting for scan";
     }
     meta.textContent = "Page «" + page + "» · elapsed " + fmtElapsed(elapsed) + bridge;
   }
@@ -368,7 +368,7 @@
     var maxMs = Math.max(60000, Number(job.timeoutMs) || 90 * 60 * 1000);
     function tick() {
       if (Date.now() - started > maxMs) {
-        throw new Error("Scan timed out waiting for Mac bridge");
+        throw new Error("Scan timed out — try again later");
       }
       return fetchJson(BRIDGE + job.progressPath, { mode: "cors" }, 8000).then(
         function (out) {
@@ -396,7 +396,7 @@
       tries += 1;
       return fetchJson(url, { method: "POST", mode: "cors" }, job.timeoutMs).then(function (out) {
         if (out.resp.status === 409 && tries < 10) {
-          setStatus(job.label + " · bridge busy, waiting…");
+          setStatus(job.label + " · scan busy, waiting…");
           return sleep(12000).then(attempt);
         }
         if (!out.resp.ok || out.data.ok === false) {
@@ -648,8 +648,7 @@
           });
           if (stillQueued) {
             throw new Error(
-              "Mac bridge offline (last seen " + Math.round(bridgeAge) + "s ago). "
-              + "Restart: python scripts/doviz_admin_notification_bridge.py --daemon"
+              "Automatic scan offline (last activity " + Math.round(bridgeAge) + "s ago). Try Update page later."
             );
           }
         }
@@ -673,14 +672,14 @@
         var someOk = failed < jobs.length;
         finish(someOk, failed === 0
           ? "All scans finished — refreshing page…"
-          : failed + " scan(s) failed" + (someOk ? " — loading successful ones…" : ". bridge --daemon must be running on the Mac."));
+          : failed + " scan(s) failed" + (someOk ? " — loading successful ones…" : ". Try Update page again later."));
         return;
       }
       if (jobs[i].kind === "bridge") {
         if (skipBridge && steps[i].status !== "ok" && steps[i].status !== "fail") {
           failed += 1;
           steps[i].status = "fail";
-          steps[i].detail = steps[i].detail || "Mac queue did not complete";
+          steps[i].detail = steps[i].detail || "Scan did not complete";
         }
         if (skipBridge || steps[i].status === "ok" || steps[i].status === "fail") {
           i += 1;
@@ -704,7 +703,7 @@
           steps[i].status = "fail";
           var msg = (err && err.message) ? err.message : String(err);
           if (/Failed to fetch|NetworkError|Load failed|abort/i.test(msg)) {
-            msg = "Mac bridge unavailable (127.0.0.1:18765)";
+            msg = "Scan unavailable — try again later";
           }
           steps[i].detail = msg.slice(0, 140);
         })

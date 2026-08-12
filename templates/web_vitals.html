@@ -16,8 +16,8 @@
       <div class="min-w-0">
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-200">Web Vitals</h2>
         <p class="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-zinc-400">
-          GSC Core Web Vitals + AMP · Mac bridge scan
-          {% if collected_at %} · Last: {{ collected_at[:16].replace('T',' ') }}{% else %} · No scan yet{% endif %}
+          GSC Core Web Vitals + AMP
+          {% if collected_at %} · Last scan: {{ collected_at[:16].replace('T',' ') }}{% else %} · No scan yet{% endif %}
         </p>
         <p class="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">
           Threshold: Good −{{ thresholds.good_drop_pct|default(5) }}% · Poor +{{ thresholds.poor_increase_abs|default(10) }} · NI +{{ thresholds.ni_increase_pct|default(8) }}%
@@ -38,7 +38,7 @@
     </div>
     <div id="wv-progress" class="mt-3 hidden rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200">
       <span class="font-semibold">Scanning</span>
-      <span id="wv-progress-msg" class="ml-1 opacity-90">Bridge scan running…</span>
+      <span id="wv-progress-msg" class="ml-1 opacity-90">Scan in progress…</span>
     </div>
     </div>
 
@@ -69,7 +69,7 @@
         <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">AMP ≠ a speed guarantee.</strong> The AMP tab lists validation/compatibility issues. A URL can be “good” on AMP while CWV is poor on the canonical (and vice versa).</span></li>
         <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Custom JS is forbidden on AMP.</strong> “Custom JavaScript is not allowed” → remove the script from the AMP copy or move it to an AMP component. JS can remain on canonical HTML.</span></li>
         <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Small image warning.</strong> “Image is smaller than recommended” is usually a warning band; it is not broken AMP, but fix width-height/srcset for LCP/quality.</span></li>
-        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Scan delay.</strong> “Scan” pulls GSC via the Mac bridge; GSC’s own update lag plus bridge time can stack. If the chart is empty, check the last scan time first.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Scan delay.</strong> GSC data can lag behind the console. If the chart is empty, check the last scan time first.</span></li>
         <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Priority order.</strong> 1) High-click Poor LCP/INP templates · 2) AMP validation (index-loss risk) · 3) Needs improvement bulk cleanup · 4) cosmetic AMP image warnings.</span></li>
       </ul>
       <div class="mt-3 flex flex-wrap gap-2 text-[11px]">
@@ -221,7 +221,7 @@
           </div>
         </section>
         {% else %}
-        <p class="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">No AMP data — Scan via Mac bridge.</p>
+        <p class="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">No AMP data yet — run Scan.</p>
         {% endfor %}
       {% else %}
         {% set dev = mob if tab=='mobile' else desk %}
@@ -427,7 +427,7 @@ function _renderGscTrend(canvasId, noteId, deviceKey) {
   if (note) {
     note.textContent = ser.source === 'gsc'
       ? ('GSC trend · ' + labels.length + ' points')
-      : (hasData ? ('Scan history · ' + labels.length + ' points — Scan for the full GSC chart') : 'No chart data — Scan via Mac bridge');
+      : (hasData ? ('Scan history · ' + labels.length + ' points — Scan for the full GSC chart') : 'No chart data yet — run Scan.');
   }
   new Chart(canvas, {
     type: 'line',
@@ -515,7 +515,7 @@ function _pollBridge() {
         var p = (j && j.gsc_cwv_progress) || {};
         var last = (j && j.last_gsc_cwv) || {};
         if (p.running) {
-          _setRunUi(true, p.message || 'Bridge scan running…');
+          _setRunUi(true, p.message || 'Scan in progress…');
           return;
         }
         _stopPoll();
@@ -529,7 +529,7 @@ function _pollBridge() {
         if (p.phase === 'error') {
           var err = p.message || last.message || 'error';
           if (/oturumu yok|login/i.test(err)) {
-            err += '\n\nFix: refresh the GSC session on the Mac bridge, then Scan again.';
+            err += '\n\nTry Scan again later.';
           }
           alert('Web Vitals: ' + err);
           return;
@@ -537,7 +537,7 @@ function _pollBridge() {
         if (last && last.ok === false && last.message && !_isIdleCwvMessage(last.message)) {
           var msg = last.message;
           if (/oturumu yok|login/i.test(msg)) {
-            msg += '\n\nFix: refresh the GSC session on the Mac bridge, then Scan again.';
+            msg += '\n\nTry Scan again later.';
           }
           alert('Web Vitals: ' + msg);
         }
@@ -548,7 +548,7 @@ function _pollBridge() {
 
 function runWebVitals() {
   var site = _siteKeyFromDomain(_siteDomain);
-  _setRunUi(true, 'Sending request to the bridge…');
+  _setRunUi(true, 'Starting scan…');
   fetch(_bridgeUrl, {
     method: 'POST', mode: 'cors',
     headers: {'Content-Type':'application/json','Accept':'application/json'},
@@ -571,11 +571,11 @@ function runWebVitals() {
         return;
       }
       _setRunUi(false, '');
-      alert('Bridge: ' + ((res.j && res.j.message) || 'error'));
+      alert('Scan failed: ' + ((res.j && res.j.message) || 'try again later'));
     })
     .catch(function(){
       _setRunUi(false, '');
-      alert('Mac bridge is down (127.0.0.1:18765). Start the bridge first.');
+      alert('Scan unavailable — try again later.');
     });
 }
 
@@ -649,7 +649,7 @@ function runWebVitals() {
       if (_pageTaramaBusy()) return;
       var p = (j && j.gsc_cwv_progress) || {};
       if (p.running) {
-        _setRunUi(true, p.message || 'Bridge scan running…');
+        _setRunUi(true, p.message || 'Scan in progress…');
         _pollBridge();
       }
     })

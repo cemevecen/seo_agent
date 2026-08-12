@@ -1511,7 +1511,7 @@
       if (rows > 0 && msg.indexOf(String(rows)) < 0) {
         suffix = " · " + rows.toLocaleString("tr-TR") + " records";
       }
-      lab.textContent = msg || (total ? (step + "/" + total) : "Bridge…") + suffix;
+      lab.textContent = msg || (total ? (step + "/" + total) : "Scanning…") + suffix;
     }
     if (msg) status(msg);
   }
@@ -1529,7 +1529,7 @@
       step: 0,
       total_steps: 13,
       rows: 0,
-      message: "0/13 · Starting VPN bridge…",
+      message: "0/13 · Starting scan…",
     });
     ntBridgeProgressTimer = setInterval(function () {
       fetch(NT_BRIDGE_PROGRESS_URL, {
@@ -1556,13 +1556,13 @@
       }).then(function (resp) {
         return resp.json().then(function (data) {
           if (resp.status === 409) {
-            var err = new Error((data && data.message) || "Bridge busy");
+            var err = new Error((data && data.message) || "Scan busy");
             err.busy = true;
             err.bridge = data || null;
             throw err;
           }
           if (!resp.ok || (data && data.ok === false)) {
-            var fail = new Error((data && data.message) || ("Bridge HTTP " + resp.status));
+            var fail = new Error((data && data.message) || ("Scan HTTP " + resp.status));
             fail.bridge = data || null;
             throw fail;
           }
@@ -1579,7 +1579,7 @@
         step: 0,
         total_steps: 13,
         rows: 0,
-        message: "Bridge busy · retry in 8s…",
+        message: "Scan busy · retry in 8s…",
       });
       return new Promise(function (resolve) { setTimeout(resolve, 8000); }).then(attempt);
     }).catch(function (err) {
@@ -1589,7 +1589,7 @@
         step: 0,
         total_steps: 13,
         rows: 0,
-        message: "Bridge still busy · in 12s…",
+        message: "Scan still busy · retry in 12s…",
       });
       return new Promise(function (resolve) { setTimeout(resolve, 12000); }).then(attempt);
     }).then(function (data) {
@@ -1613,7 +1613,7 @@
     var preferBridge = !!force;
     status(
       preferBridge
-        ? "Fetching admin stats via VPN bridge…"
+        ? "Scanning admin stats…"
         : "Veriler senkronize ediliyor…"
     );
 
@@ -1621,9 +1621,9 @@
       ? syncViaVpnBridge().catch(function (bridgeErr) {
           hideNtBridgeProgress();
           status(
-            "Could not reach bridge (" +
+            "Scan unavailable (" +
               ((bridgeErr && bridgeErr.message) || "offline") +
-              "). Trying server-side admin scan…"
+              "). Trying server-side scan…"
           );
           return apiFetch("/api/notification-analytics/sync-sheet?force=1", {
             method: "POST",

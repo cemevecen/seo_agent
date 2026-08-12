@@ -20,8 +20,8 @@
       </div>
       <div class="flex flex-wrap items-center justify-start gap-2 lg:max-w-[min(100%,52rem)] lg:justify-end">
         <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] sm:text-xs whitespace-nowrap {% if sched.scheduler_running %}border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200{% endif %}">
-          {% if sched.scrape_primary %}Mac bridge{% else %}Scheduler{% endif %}:
-          {% if sched.scheduler_running %}active{% else %}idle / no job{% endif %}
+          Automatic scan:
+          {% if sched.scheduler_running %}active{% else %}idle{% endif %}
         </span>
         {% if sched.enabled and sched.schedule %}
         <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] sm:text-xs text-slate-700 whitespace-nowrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
@@ -406,7 +406,7 @@ function runAudit() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.status === 'bridge_required' || (_bridgePrimary && d.bridge_url)) {
-        if (label) label.textContent = 'Bridge…';
+        if (label) label.textContent = 'Scanning…';
         return fetch(_bridgeSeoUrl, {
           method: 'POST',
           mode: 'cors',
@@ -427,11 +427,11 @@ function runAudit() {
               _startPolling();
               return;
             }
-            alert('Mac bridge: ' + ((res.j && res.j.message) || 'sync failed'));
+            alert('Scan failed: ' + ((res.j && res.j.message) || 'try again later'));
             _resetBtn();
           })
           .catch(function() {
-            alert('Mac bridge is down (127.0.0.1:18765). Start the bridge, then try again.');
+            alert('Scan unavailable — try again later.');
             _resetBtn();
           });
       }

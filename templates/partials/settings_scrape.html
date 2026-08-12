@@ -29,7 +29,7 @@
             <th class="px-2 py-2 font-medium sm:px-3">✅</th>
             <th class="px-2 py-2 font-medium sm:px-3">❌</th>
             <th class="px-2 py-2 font-medium sm:px-3">Volume</th>
-            <th class="px-2 py-2 font-medium sm:px-3">Last ingest</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Last scan</th>
           </tr>
         </thead>
         <tbody>
@@ -37,7 +37,6 @@
             <tr class="border-b border-slate-100 dark:border-slate-800 {% if s.error and not s.success %}bg-rose-50/60 dark:bg-rose-950/20{% elif s.success %}{% else %}opacity-80{% endif %}">
               <td class="px-2 py-2 font-medium text-slate-900 dark:text-slate-100 sm:px-3">
                 <div>{{ s.label }}</div>
-                <div class="mt-0.5 text-[10px] font-normal text-slate-400 dark:text-slate-500">{{ s.method }}</div>
               </td>
               <td class="max-w-[12rem] break-words px-2 py-2 text-slate-700 dark:text-slate-200 sm:px-3">{{ s.targets or '—' }}</td>
               <td class="whitespace-nowrap px-2 py-2 text-slate-600 dark:text-slate-300 sm:px-3">
@@ -60,7 +59,7 @@
   {# Son workspace sync (latest-only) #}
   {% if workspaces %}
   <div>
-    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Latest sync (workspace)</h4>
+    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Last scan (workspace)</h4>
     <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {% for w in workspaces %}
         <div class="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/40">
@@ -115,7 +114,7 @@
           {% else %}
             <tr>
               <td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
-                No hourly events in this window. New ingests will appear here once they are logged;
+                No hourly events in this window. New scans will appear here once logged;
                 existing history for PageSpeed / GSC CWV / SEO audit / GSC Links is already included.
               </td>
             </tr>

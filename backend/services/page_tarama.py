@@ -391,7 +391,7 @@ def claim_next() -> dict[str, Any] | None:
                     job["status"] = "claimed"
                     job["claimed_at"] = now
                     job["progress_at"] = now
-                    job["detail"] = "Mac scan started"
+                    job["detail"] = "Scan started"
                     return {
                         "run_id": run["id"],
                         "job_id": job["id"],
@@ -471,11 +471,11 @@ def _reap_stale_inflight_locked(now: float) -> None:
             quiet = now - progress_at
             if age >= CLAIM_STALE_SEC:
                 job["status"] = "fail"
-                job["detail"] = "Mac scan timed out"
+                job["detail"] = "Scan timed out"
                 job["finished_at"] = now
             elif quiet >= PROGRESS_STALE_SEC:
                 job["status"] = "fail"
-                job["detail"] = "Mac scan lost progress — restart bridge --daemon"
+                job["detail"] = "Scan lost progress — try again"
                 job["finished_at"] = now
 
 
@@ -502,7 +502,7 @@ def _expire_locked(run: dict[str, Any], now: float) -> None:
     for job in run["jobs"]:
         if job.get("kind") == "bridge" and job.get("status") == "queued":
             job["status"] = "fail"
-            job["detail"] = "Mac bridge missing — daemon is not running"
+            job["detail"] = "Automatic scan unavailable"
             job["finished_at"] = now
 
 
@@ -580,12 +580,12 @@ def _public_run_locked(run: dict[str, Any], now: float) -> dict[str, Any]:
         msg = " · ".join(bits)
     elif running and age is None:
         msg = (
-            f"Waiting for Mac bridge… {len(waiting)} job(s) queued"
+            f"Waiting for scan… {len(waiting)} job(s) queued"
             + (f" ({', '.join(waiting_labels[:4])})" if waiting_labels else "")
         )
     elif running and age is not None:
         msg = (
-            f"Queued on Mac · bridge seen {_fmt_elapsed(age)} ago · "
+            f"Queued · last activity {_fmt_elapsed(age)} ago · "
             f"{len(waiting)} waiting"
             + (f": {', '.join(waiting_labels[:4])}" if waiting_labels else "")
         )
