@@ -118,6 +118,15 @@ def test_ingest_daily_batch_upserts():
     assert row.count == 7
 
 
+def test_summary_url_for_day_uses_next_day_end():
+    from scripts.sinemalar_moderation_scrape import summary_url_for_day
+
+    u = summary_url_for_day(date(2026, 3, 1))
+    assert "startDate=2026-03-01" in u
+    assert "endDate=2026-03-02" in u
+    assert "endDate=2026-03-01" not in u
+
+
 def test_backfill_payload_updates_meta():
     db = _session()
     payload = {

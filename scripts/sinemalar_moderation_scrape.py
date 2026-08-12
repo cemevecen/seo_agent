@@ -175,12 +175,33 @@ def _try_form_login(page) -> bool:
         return False
 
 
+def summary_url_for_day(day: date) -> str:
+    """Sinemalar: startDate dahil, endDate hariç — tek gün için end = start + 1."""
+    end = day + timedelta(days=1)
+    return f"{SUMMARY_URL}?startDate={day.isoformat()}&endDate={end.isoformat()}"
+
+
+def _tracked_day_total(rows: list[dict[str, Any]]) -> dict[str, int]:
+    from backend.services.sinemalar_moderation import is_tracked_username, parse_summary_rows
+
+    out: dict[str, int] = {}
+    for item in parse_summary_rows(rows):
+        uname = str(item.get("username") or "")
+        if not is_tracked_username(uname):
+            continue
+        out[uname] = out.get(uname, 0) + int(item.get("count") or 0)
+    return out
+
+
 def fetch_summary_for_day(page, day: date) -> list[dict[str, Any]]:
-    iso = day.isoformat()
-    url = f"{SUMMARY_URL}?startDate={iso}&endDate={iso}"
-    page.goto(url, wait_until="domcontentloaded", timeout=90000)
-    time.sleep(1.0)
+    url = summary_url_for_day(day)
+    page.goto(url, wait_until="networkidle", timeout=90000)
+    time.sleep(0.5)
     rows = page.evaluate(_EXTRACT_ROWS_JS) or []
+    totals = _tracked_day_total(rows if isinstance(rows, list) else [])
+    if totals:
+        brief = ", ".join(f"{k}={v}" for k, v in sorted(totals.items()))
+        print(f"    tracked totals · {brief}", flush=True)
     return rows if isinstance(rows, list) else []
 
 
@@ -203,12 +224,12 @@ def scrape_days(
         )
         page = context.pages[0] if context.pages else context.new_page()
         try:
-            page.goto(SUMMARY_URL, wait_until="domcontentloaded", timeout=90000)
-            time.sleep(1.5)
+            page.goto(SUMMARY_URL, wait_until="networkidle", timeout=90000)
+            time.sleep(1.0)
             if not _looks_logged_in(page):
                 _try_form_login(page)
-                page.goto(SUMMARY_URL, wait_until="domcontentloaded", timeout=90000)
-                time.sleep(1.5)
+                page.goto(SUMMARY_URL, wait_until="networkidle", timeout=90000)
+                time.sleep(1.0)
             if not _looks_logged_in(page):
                 return {
                     "ok": False,
@@ -388,7 +409,11 @@ def main() -> int:
     parser.add_argument("--from-date", help="Backfill chunk başlangıcı YYYY-MM-DD (cursor override)")
     parser.add_argument("--max-days", type=int, default=0, help="Backfill'de en fazla N gün (test)")
     parser.add_argument("--incremental", choices=("yesterday", "today"), help="Tek gün incremental")
-    parser.add_argument("--date", help="Tek gün YYYY-MM-DD")
+    parser.add_argument("--date", help="Tek gün YYYY-MM-DD (endDate otomatik +1 gün)")
+    parser.add_argument(
+        "--range",
+        help="Aralık YYYY-MM-DD:YYYY-MM-DD (tek blok; günlük değil özet — doğrulama için)",
+    )
     parser.add_argument("--ingest", action="store_true", help="Railway ingest")
     parser.add_argument("--headless", action="store_true")
     args = parser.parse_args()
@@ -435,6 +460,43 @@ def main() -> int:
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0 if out.get("ok") else 1
 
+    if args.range:
+        raw = str(args.range).strip()
+        if ":" not in raw:
+            print("Geçersiz --range (YYYY-MM-DD:YYYY-MM-DD)", file=sys.stderr)
+            return 1
+        start_s, end_s = raw.split(":", 1)
+        try:
+            start_d = date.fromisoformat(start_s[:10])
+            end_d = date.fromisoformat(end_s[:10])
+        except ValueError:
+            print("Geçersiz --range tarihleri", file=sys.stderr)
+            return 1
+        from playwright.sync_api import sync_playwright
+
+        from backend.services.scrape_browser import launch_persistent
+
+        url = f"{SUMMARY_URL}?startDate={start_d.isoformat()}&endDate={end_d.isoformat()}"
+        with sync_playwright() as p:
+            ctx = launch_persistent(p, sinemalar_profile_dir(), headed=headed)
+            page = ctx.pages[0] if ctx.pages else ctx.new_page()
+            page.goto(url, wait_until="networkidle", timeout=90000)
+            time.sleep(0.5)
+            rows = page.evaluate(_EXTRACT_ROWS_JS) or []
+            ctx.close()
+        out = {"ok": True, "url": url, "rows": rows, "tracked": _tracked_day_total(rows)}
+        if args.ingest:
+            out["ingest"] = ingest_result(
+                {
+                    "source": "sinemalar_moderation",
+                    "scraped_at": datetime.now(timezone.utc).isoformat(),
+                    "days": [{"date": start_d.isoformat(), "rows": rows}],
+                },
+                mode="range",
+            )
+        print(json.dumps({k: v for k, v in out.items() if k != "rows"}, ensure_ascii=False, indent=2))
+        return 0 if out.get("ok") else 1
+
     if args.date:
         try:
             day = date.fromisoformat(args.date[:10])
@@ -442,6 +504,9 @@ def main() -> int:
             print("Geçersiz --date", file=sys.stderr)
             return 1
         out = scrape_days([day], headed=headed, delay_sec=0)
+        if out.get("ok"):
+            day_block = (out.get("days") or [{}])[0]
+            out["tracked"] = _tracked_day_total(day_block.get("rows") or [])
         if args.ingest and out.get("ok"):
             out["ingest"] = ingest_result(out, mode="single")
         print(json.dumps(out, ensure_ascii=False, indent=2)[:4000])
