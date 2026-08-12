@@ -6,35 +6,9 @@
   data-ga4-site-card
   data-site-id="{{ site.id }}"
   data-expanded="true"
+  aria-label="{{ site.display_name }} · {{ site.domain }}"
 >
-  <div class="relative z-20 flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3" data-ga4-align="title">
-    <button
-      type="button"
-      class="min-w-0 flex-1 text-left leading-snug"
-      data-site-expand-toggle
-      aria-expanded="true"
-      aria-controls="ga4-panel-{{ site.id }}"
-    >
-      <h5 class="text-lg font-bold leading-tight text-slate-900 dark:text-slate-100 sm:text-xl">
-        {% set _root_title = site.domain | ga4_site_root %}
-        {% if _root_title %}
-          <a href="{{ _root_title }}" target="_blank" rel="noopener noreferrer" class="text-slate-900 decoration-slate-300 underline-offset-2 hover:text-sky-700 dark:text-slate-100 dark:decoration-slate-700 dark:hover:text-sky-400">{{ site.display_name }}</a>
-        {% else %}
-          {{ site.display_name }}
-        {% endif %}
-      </h5>
-      <p class="mt-0.5 break-all text-xs font-medium text-slate-500 dark:text-slate-400">
-        {% set _root = site.domain | ga4_site_root %}
-        {% if _root %}
-          <a href="{{ _root }}" target="_blank" rel="noopener noreferrer" class="text-sky-700 underline decoration-sky-200 underline-offset-4 hover:text-sky-900 dark:text-sky-400 dark:decoration-sky-900/40 dark:hover:text-sky-300">{{ site.domain }}</a>
-        {% else %}
-          {{ site.domain }}
-        {% endif %}
-      </p>
-    </button>
-  </div>
-
-  <div id="ga4-panel-{{ site.id }}" class="relative z-0 mt-4 space-y-5 sm:mt-5 sm:space-y-6" data-site-expand-panel>
+  <div id="ga4-panel-{{ site.id }}" class="relative z-0 space-y-5 sm:space-y-6" data-site-expand-panel>
     {% if not site.ga4.connected %}
       <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-400">
         <p class="font-bold">{{ site.ga4.label }}</p>

@@ -2419,13 +2419,15 @@
       const button = card.querySelector('[data-site-expand-toggle]');
       const panel = card.querySelector('[data-site-expand-panel]');
 
-      if (!button || !panel) {
+      if (!panel) {
         return;
       }
 
       const setExpanded = function (expanded) {
         card.dataset.expanded = expanded ? 'true' : 'false';
-        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (button) {
+          button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        }
         panel.classList.toggle('hidden', !expanded);
         if (expanded) {
           window.setTimeout(function () {
@@ -2443,6 +2445,11 @@
           }, 60);
         }
       };
+
+      if (!button) {
+        setExpanded(true);
+        return;
+      }
 
       const toggleFromHeader = function () {
         setExpanded(button.getAttribute('aria-expanded') !== 'true');

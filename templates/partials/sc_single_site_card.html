@@ -6,27 +6,16 @@
   data-sc-card-revision="ga4-v1"
   data-site-id="{{ site.id }}"
   data-expanded="true"
+  aria-label="{{ site.display_name }} · {{ site.domain }}"
 >
   <!-- SC card template ga4-v1 (1d/7d/30d). If you still see 1g, the running server uses an old image; rebuild Docker / redeploy Railway. -->
-  <div class="relative z-20 flex w-full flex-col gap-2 sm:gap-2.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3" data-sc-align="title">
-    <button
-      type="button"
-      class="min-w-0 flex-1 text-left leading-snug"
-      data-site-expand-toggle
-      aria-expanded="true"
-      aria-controls="search-console-panel-{{ site.id }}"
-    >
-      <h5 class="text-lg font-semibold leading-tight text-slate-900 dark:text-slate-100 sm:text-xl">{{ site.display_name }}</h5>
-      <p class="mt-0.5 break-all text-sm leading-snug text-slate-600 dark:text-slate-300">{{ site.domain }}</p>
-    </button>
-  </div>
   {% if site.connection.requires_reauth %}
     <div class="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/35 dark:text-rose-300">
       The Search Console OAuth token is invalid or revoked. To reconnect, first click “Disconnect”, then “Connect with Google”.
     </div>
   {% endif %}
 
-  <div id="search-console-panel-{{ site.id }}" class="relative z-0 mt-4 flex min-h-0 flex-1 flex-col space-y-5 sm:mt-5 sm:space-y-6" data-site-expand-panel>
+  <div id="search-console-panel-{{ site.id }}" class="relative z-0 flex min-h-0 flex-1 flex-col space-y-5 sm:space-y-6" data-site-expand-panel>
 
   {% if site.report.has_data and site.report.periods %}
     <div class="space-y-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:p-5 sm:space-y-5">
