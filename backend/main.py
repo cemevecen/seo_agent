@@ -15885,6 +15885,36 @@ def api_app_intel(product: str = "doviz", period: int = 30, cache_only: int = 0)
     return JSONResponse(intel_json_safe(payload))
 
 
+@app.get("/api/app/store-charts")
+def api_app_store_charts(db: Session = Depends(get_db)):
+    """PM Lab store_charts snapshot — App sayfası embed (tüm panel üyeleri okuyabilir)."""
+    from backend.services.pm_lab_store import load_payload, pm_lab_refresh_status
+
+    payload = load_payload(db)
+    sections = payload.get("sections") if isinstance(payload.get("sections"), dict) else {}
+    raw = sections.get("store_charts") if isinstance(sections.get("store_charts"), dict) else {}
+    block = dict(raw)
+    block.pop("shots", None)
+    status = pm_lab_refresh_status(payload)
+    return {
+        "ok": True,
+        "section": block,
+        "updated_at": payload.get("updated_at"),
+        "queued": status.get("queued") or [],
+        "running": status.get("running") or "",
+    }
+
+
+@app.post("/api/app/store-charts/refresh")
+def api_app_store_charts_refresh(request: Request, db: Session = Depends(get_db)):
+    """Mac bridge store_charts taraması — owner only (PM Lab ile aynı kuyruk)."""
+    if not _pm_lab_owner_ok(request):
+        return JSONResponse({"ok": False, "detail": "Owner only"}, status_code=403)
+    from backend.services.pm_lab_store import enqueue_pm_lab_refresh
+
+    return enqueue_pm_lab_refresh(db, "store_charts")
+
+
 @app.get("/api/app/version-releases")
 def api_app_version_releases(product: str = "doviz", since: str = "2025-01-01"):
     from datetime import date as date_cls

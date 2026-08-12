@@ -1,11 +1,16 @@
 (function () {
   var bootEl = document.getElementById("pml-boot");
-  if (!bootEl) return;
+  var embedRoot = document.getElementById("app-store-charts-root");
+  if (!bootEl && !embedRoot) return;
+  var isEmbed = !bootEl && !!embedRoot;
+  var embedSectionId = "store_charts";
   var boot = {};
-  try {
-    boot = JSON.parse(bootEl.textContent || "{}");
-  } catch (e) {
-    return;
+  if (bootEl) {
+    try {
+      boot = JSON.parse(bootEl.textContent || "{}");
+    } catch (e) {
+      return;
+    }
   }
   var sections = boot.sections || {};
 
@@ -880,6 +885,47 @@
       });
   }
 
+  function fetchLabState() {
+    if (isEmbed) {
+      return fetch("/api/app/store-charts", { credentials: "same-origin", headers: { Accept: "application/json" } }).then(
+        function (resp) {
+          if (!resp.ok) throw new Error("Could not load status");
+          return resp.json().then(function (data) {
+            var block = (data && data.section) || {};
+            return {
+              sections: { store_charts: block },
+              queued: data && data.queued ? data.queued : [],
+              running: data && data.running ? data.running : "",
+            };
+          });
+        }
+      );
+    }
+    return fetch("/api/pm-lab/state", { credentials: "same-origin", headers: { Accept: "application/json" } }).then(
+      function (resp) {
+        if (!resp.ok) throw new Error("Could not load status");
+        return resp.json();
+      }
+    );
+  }
+
+  function queueLabRefresh(id) {
+    var url = isEmbed ? "/api/app/store-charts/refresh" : "/api/pm-lab/refresh";
+    var body = isEmbed ? "{}" : JSON.stringify({ job: id });
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: body,
+    }).then(function (resp) {
+      return resp.json().then(function (data) {
+        return { resp: resp, data: data || {} };
+      }).catch(function () {
+        return { resp: resp, data: {} };
+      });
+    });
+  }
+
   function pollSection(id, prevAt, timeoutMs, btn, kicked) {
     var started = Date.now();
     function tick() {
@@ -887,11 +933,7 @@
       if (elapsed > timeoutMs) {
         return Promise.reject(new Error("Scan timed out — is the Mac bridge running?"));
       }
-      return fetch("/api/pm-lab/state", { credentials: "same-origin", headers: { Accept: "application/json" } })
-        .then(function (resp) {
-          if (!resp.ok) throw new Error("Could not load status");
-          return resp.json();
-        })
+      return fetchLabState()
         .then(function (state) {
           var block = ((state || {}).sections || {})[id] || {};
           var at = String(block.scraped_at || "");
@@ -918,18 +960,7 @@
     setRefreshBtn(btn, true, "Scanning…");
     var kicked = false;
     Promise.all([
-      fetch("/api/pm-lab/refresh", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ job: id }),
-      }).then(function (resp) {
-        return resp.json().then(function (data) {
-          return { resp: resp, data: data || {} };
-        }).catch(function () {
-          return { resp: resp, data: {} };
-        });
-      }),
+      queueLabRefresh(id),
       pingBridge(id).then(function (ok) {
         kicked = !!ok;
         return ok;
@@ -948,8 +979,11 @@
       })
       .then(function (state) {
         var block = ((state || {}).sections || {})[id] || {};
-        paintCard(id, block);
-        renderStatus();
+        if (isEmbed) paintEmbedStoreCharts(block);
+        else {
+          paintCard(id, block);
+          renderStatus();
+        }
         setRefreshBtn(btn, false, "Refresh");
       })
       .catch(function (err) {
@@ -981,10 +1015,82 @@
     });
   }
 
-  renderStatus();
-  document.querySelectorAll(".pml-body[data-pml]").forEach(function (node) {
-    var id = node.getAttribute("data-pml");
-    paintCard(id, sections[id] || {});
-  });
-  bindRefreshButtons();
+  function paintEmbedStoreCharts(block) {
+    sections.store_charts = block || {};
+    var mount = document.getElementById("app-store-charts-mount");
+    if (!mount) return;
+    mount.innerHTML = "";
+    try {
+      renderStore(mount, block || {});
+    } catch (err) {
+      mount.textContent = "Render error: " + err;
+    }
+    var timeEl = document.getElementById("app-store-charts-when");
+    if (timeEl) {
+      if (block && block.scraped_at) {
+        timeEl.hidden = false;
+        timeEl.setAttribute("datetime", block.scraped_at);
+        timeEl.textContent = fmtWhenFull(block.scraped_at);
+      } else {
+        timeEl.hidden = true;
+        timeEl.textContent = "";
+      }
+    }
+  }
+
+  function loadEmbedStoreCharts() {
+    var mount = document.getElementById("app-store-charts-mount");
+    if (mount) mount.textContent = "Loading…";
+    return fetchLabState()
+      .then(function (state) {
+        paintEmbedStoreCharts((((state || {}).sections || {})[embedSectionId]) || {});
+      })
+      .catch(function (err) {
+        if (mount) mount.textContent = String((err && err.message) || err || "Load failed");
+      });
+  }
+
+  function wireEmbedStoreChartsShell() {
+    var hdr = document.getElementById("app-store-charts-header");
+    var body = document.getElementById("app-store-charts-body");
+    var chev = document.getElementById("app-store-charts-chevron");
+    var refreshBtn = document.getElementById("app-store-charts-refresh");
+    function setOpen(open) {
+      if (!body || !hdr) return;
+      body.hidden = !open;
+      hdr.setAttribute("aria-expanded", open ? "true" : "false");
+      if (chev) chev.classList.toggle("rotate-180", open);
+    }
+    if (hdr && body) {
+      hdr.addEventListener("click", function (ev) {
+        if (ev.target.closest("#app-store-charts-refresh")) return;
+        setOpen(body.hidden);
+      });
+      hdr.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          setOpen(body.hidden);
+        }
+      });
+    }
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        refreshSection(embedSectionId, refreshBtn);
+      });
+    }
+    loadEmbedStoreCharts();
+  }
+
+  if (isEmbed) {
+    wireEmbedStoreChartsShell();
+  } else {
+    renderStatus();
+    document.querySelectorAll(".pml-body[data-pml]").forEach(function (node) {
+      var id = node.getAttribute("data-pml");
+      paintCard(id, sections[id] || {});
+    });
+    bindRefreshButtons();
+  }
 })();
