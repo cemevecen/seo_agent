@@ -2856,6 +2856,8 @@ def prewarm_cache(product_id: str = "doviz") -> None:
     """Startup veya scheduled re-warm için arka planda cache'i ısıt.
     Manuel refresh'ten farklı olarak cache/circuit breaker'ı sıfırlamaz —
     sadece cache soğuksa sorgu başlatır."""
+    if not crashlytics_bigquery_enabled(product_id):
+        return
     global _REFRESH_RUNNING
     if is_cache_warm(product_id):
         return
@@ -2883,6 +2885,8 @@ def prewarm_cache(product_id: str = "doviz") -> None:
 
 def run_daily_refresh(product_id: str = "doviz") -> str:
     """Arkaplanda tam veri çekimi başlat. Job ID döndürür."""
+    if not crashlytics_bigquery_enabled(product_id):
+        return "disabled"
     global _REFRESH_RUNNING
     with _REFRESH_LOCK:
         if _REFRESH_RUNNING:

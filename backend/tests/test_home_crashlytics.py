@@ -165,46 +165,17 @@ def test_home_crashlytics_card_uses_store_version(monkeypatch):
 
 
 
-def test_home_crashlytics_card_sync_fetch_when_cold(monkeypatch):
+def test_home_crashlytics_card_warming_when_cold_bq_disabled(monkeypatch):
+    """Legacy BQ kart — soğuk cache'te warming; BigQuery kapalıyken prewarm no-op."""
+    prewarm_calls = {"n": 0}
+
     monkeypatch.setattr("backend.services.crashlytics_bq.peek_cached_payload", lambda *a, **k: None)
-    sample = {
-        "ok": True,
-        "product": "doviz",
-        "days": 7,
-        "totals": {"fatal": 1, "anr": 0, "non_fatal": 0},
-        "crash_free_sessions_pct": 99.9,
-        "summary_by_platform": {
-            "ios": {"fatal": 1, "anr": 0},
-            "android": {"fatal": 0, "anr": 0},
-        },
-        "crash_free_by_platform": {
-            "ios": {"crash_free_sessions_pct": 99.9},
-            "android": {"crash_free_sessions_pct": 99.8},
-        },
-        "issues_by_platform": {"ios": [], "android": []},
-        "device_breakdown_by_platform": {"ios": [], "android": []},
-        "os_breakdown_by_platform": {"ios": [], "android": []},
-        "filter_versions_by_platform": {"ios": ["1.0"], "android": ["1.0"]},
-        "versions_7d_by_platform": {
-            "ios": [{"app_version": "1.0", "fatal_count": 1, "anr_count": 0}],
-            "android": [{"app_version": "1.0", "fatal_count": 0, "anr_count": 0}],
-        },
-        "latest_version_stats_by_platform": {},
-    }
-    called = {"build": False}
-
-    def _build(*a, **k):
-        called["build"] = True
-        return sample
-
-    monkeypatch.setattr("backend.services.crashlytics_bq.build_full_payload", _build)
     monkeypatch.setattr(
         "backend.services.crashlytics_bq.prewarm_cache",
-        lambda *a, **k: (_ for _ in ()).throw(AssertionError("prewarm should not run on cold sync")),
+        lambda *a, **k: prewarm_calls.__setitem__("n", prewarm_calls["n"] + 1),
     )
 
     card = _home_crashlytics_card("doviz")
-    assert called["build"] is True
-    assert card.get("warming") is not True
-    assert card.get("ok") is True
-    assert "arka planda" not in str(card.get("message") or "").lower()
+    assert card.get("warming") is True
+    assert prewarm_calls["n"] == 1
+    assert "hazırlanıyor" in str(card.get("message") or "").lower()

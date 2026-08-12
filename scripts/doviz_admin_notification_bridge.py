@@ -17,7 +17,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-virgul → Virgül (00/06/12/18 TR)
   POST /sync-play   → Play / Android (3 saatte bir, :00)
   POST /sync-asc    → ASC / iOS (3 saatte bir, :05)
-  POST /sync-firebase → Firebase Console Crashlytics (3 saatte bir, :10)
+  POST /sync-firebase → Firebase Console Crashlytics (günde bir sabah, varsayılan 06:10 TR)
   POST /sync-gsc-links → Backlinks (01:00 + 13:00 TR)
   POST /sync-revenue-targets → Ad hedef sheet (05:05 + 13:05 TR, sistem Firefox)
   POST /sync-policy → Ad Manager Policy (01:05 + 13:05 TR)
@@ -104,6 +104,12 @@ VIRGUL_SLOT_MINUTE = int(os.environ.get("VIRGUL_BRIDGE_MINUTE") or "0")
 PLAY_SLOT_HOURS = (0, 3, 6, 9, 12, 15, 18, 21)
 PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "0")
 ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "5")
+FIREBASE_SLOT_HOURS = (6,)  # günde bir — sabah tarama (BigQuery yok)
+_FIREBASE_HOURS_RAW = (os.environ.get("FIREBASE_CONSOLE_BRIDGE_HOURS") or "").strip()
+if _FIREBASE_HOURS_RAW:
+    FIREBASE_SLOT_HOURS = tuple(
+        int(h.strip()) for h in _FIREBASE_HOURS_RAW.split(",") if h.strip().isdigit()
+    ) or FIREBASE_SLOT_HOURS
 FIREBASE_SLOT_MINUTE = int(os.environ.get("FIREBASE_CONSOLE_BRIDGE_MINUTE") or "10")
 TWICE_DAILY_HOURS = (1, 13)  # 01:00 + 13:00
 REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:05 + 13:05 TR — son ay; 1–2'de + biten ay
@@ -2175,7 +2181,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "virgul_slots_tr": [f"{h:02d}:{VIRGUL_SLOT_MINUTE:02d}" for h in VIRGUL_SLOT_HOURS],
                         "play_slots_tr": [f"{h:02d}:{PLAY_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
                         "asc_slots_tr": [f"{h:02d}:{ASC_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
-                        "firebase_slots_tr": [f"{h:02d}:{FIREBASE_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
+                        "firebase_slots_tr": [f"{h:02d}:{FIREBASE_SLOT_MINUTE:02d}" for h in FIREBASE_SLOT_HOURS],
                         "gsc_slots_tr": [f"{h:02d}:{GSC_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "pagespeed_slots_tr": [f"{h:02d}:{SPEED_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
@@ -2886,7 +2892,7 @@ def _auto_loop() -> None:
         )
         _slot_job(
             "firebase", "Firebase", _firebase_lock, run_firebase_bridge_once,
-            "_last_firebase_auto_slot", PLAY_SLOT_HOURS, FIREBASE_SLOT_MINUTE,
+            "_last_firebase_auto_slot", FIREBASE_SLOT_HOURS, FIREBASE_SLOT_MINUTE,
         )
         _slot_job(
             "gsc_links", "GSC Links", _gsc_links_lock, run_gsc_links_bridge_once,

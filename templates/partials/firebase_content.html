@@ -457,8 +457,9 @@
   function applyDefaultLatestVersions(force) {
     PLATS.forEach(function (plat) {
       if (!force && platVersions(plat).length) return;
-      var latest = latestVersionFor(plat);
-      setPlatVersions(plat, latest ? [latest] : []);
+      var vers = crashState.filterVersionsByPlat[plat] || [];
+      var top3 = semverSort(vers).slice(0, 3);
+      setPlatVersions(plat, top3.length ? top3 : (latestVersionFor(plat) ? [latestVersionFor(plat)] : []));
     });
     renderAllVersionChips();
     syncPlatVerLabels();

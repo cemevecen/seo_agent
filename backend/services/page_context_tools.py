@@ -91,8 +91,8 @@ def page_fetch_crashlytics_summary(
     days: int = 7,
     limit_issues: int = 8,
 ) -> dict[str, Any]:
-    """Firebase/Crashlytics özet — fatal/anr/non_fatal, crash-free, top issue'lar."""
-    from backend.services import crashlytics_bq as cbq
+    """Firebase/Crashlytics özet — Firebase Console scrape (BigQuery kapalı)."""
+    from backend.services.firebase_from_store_tabs import build_firebase_tab_payload
 
     pid = (product or "doviz").strip().lower()
     plat = (platform or "all").strip().lower()
@@ -100,17 +100,23 @@ def page_fetch_crashlytics_summary(
     lim = max(1, min(int(limit_issues), 15))
 
     try:
-        payload = cbq.build_full_payload(pid, days_i, plat)
+        payload = build_firebase_tab_payload(pid, days=days_i)
     except Exception as exc:
         LOGGER.exception("page_fetch_crashlytics_summary")
         return {"error": str(exc)}
 
-    if not payload or payload.get("error"):
+    if not payload or payload.get("ok") is False:
         return {
             "ok": False,
             "product": pid,
             "message": payload.get("message") or payload.get("error") or "veri alınamadı",
+            "source": "firebase_console_scrape",
         }
+
+    if plat in ("ios", "android"):
+        from backend.services.crashlytics_bq import slice_payload_for_platform
+
+        payload = slice_payload_for_platform(payload, plat)
 
     totals = payload.get("totals") or {}
     issues_flat: list[dict] = []

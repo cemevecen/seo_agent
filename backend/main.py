@@ -2168,15 +2168,6 @@ def _run_deferred_startup() -> None:
     except Exception:
         LOGGER.exception("app_intel prewarm registration failed")
 
-    def _prewarm_crashlytics():
-        try:
-            from backend.services import crashlytics_bq as cbq
-            cbq.prewarm_cache("doviz")
-        except Exception as exc:
-            LOGGER.warning("Crashlytics startup prewarm hatası: %s", exc)
-
-    _threading.Thread(target=_prewarm_crashlytics, daemon=True, name="crashlytics-prewarm-startup").start()
-
     def _prewarm_tmdb():
         try:
             from backend.services.tmdb import refresh_combined_cache
@@ -4965,51 +4956,6 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     if job_count == 0:
         LOGGER.info("All scheduled refresh jobs are disabled via settings.")
         return None
-
-    # Crashlytics günlük çekim — her sabah 06:15 (startup'ta çalışmaz)
-    def _run_crashlytics_daily() -> None:
-        from backend.services import crashlytics_bq as cbq
-        LOGGER.info("Crashlytics günlük çekim başladı.")
-        for prod in cbq.list_crashlytics_products():
-            pid = prod["id"]
-            if cbq.any_platform_ready():
-                try:
-                    cbq.run_daily_refresh(pid)
-                    LOGGER.info("Crashlytics %s yenileme tetiklendi.", pid)
-                except Exception as exc:
-                    LOGGER.warning("Crashlytics %s yenileme hatası: %s", pid, exc)
-
-    scheduler.add_job(
-        _run_crashlytics_daily,
-        trigger=CronTrigger(hour=6, minute=15, timezone=timezone),
-        id="crashlytics-daily-refresh",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=1800,
-    )
-
-    # Crashlytics cache re-warm — her 2 saatte bir (cache TTL 4 saat; soğumasın)
-    def _run_crashlytics_prewarm() -> None:
-        from backend.services import crashlytics_bq as cbq
-        for prod in cbq.list_crashlytics_products():
-            pid = prod["id"]
-            if cbq.any_platform_ready():
-                try:
-                    cbq.prewarm_cache(pid)
-                except Exception as exc:
-                    LOGGER.warning("Crashlytics prewarm hatası (%s): %s", pid, exc)
-
-    from apscheduler.triggers.interval import IntervalTrigger as _CrashIntervalTrigger
-    scheduler.add_job(
-        _run_crashlytics_prewarm,
-        trigger=_CrashIntervalTrigger(hours=3, timezone=timezone),
-        id="crashlytics-cache-prewarm-3h",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=1800,
-    )
 
     if settings.doviz_asset_monitor_enabled:
         from apscheduler.triggers.interval import IntervalTrigger as _DovizAssetTrigger
@@ -16181,9 +16127,9 @@ def api_app_gp_preview(
 
 @app.get("/api/app/crashlytics")
 def api_app_crashlytics(product: str = "doviz", days: int = 7):
-    """Eski endpoint — geriye uyumluluk için korundu."""
+    """Eski endpoint — Firebase Console scrape (BigQuery kapalı)."""
     from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
-    from backend.services import crashlytics_bq as cbq
+    from backend.services.firebase_from_store_tabs import build_firebase_tab_payload
 
     pid = (product or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
@@ -16194,7 +16140,7 @@ def api_app_crashlytics(product: str = "doviz", days: int = 7):
         d = 7
     if d not in (1, 7, 14, 30, 90):
         d = 7
-    payload = cbq.build_full_payload(pid, days=d, platform_filter="all")
+    payload = build_firebase_tab_payload(pid, days=d)
     return JSONResponse(intel_json_safe(payload))
 
 
@@ -16479,7 +16425,7 @@ def _crash_fetch(params: dict) -> dict:
 
 def _crash_fetch_impl(params: dict) -> dict:
     """Firebase Crashlytics HTMX — Firebase Console scrape."""
-    from backend.services import crashlytics_bq as cbq
+    from backend.services.crashlytics_bq import slice_payload_for_platform
     from backend.services.firebase_from_store_tabs import build_firebase_tab_payload
 
     ver_list = _version_list_from_params(params)
@@ -16497,7 +16443,7 @@ def _crash_fetch_impl(params: dict) -> dict:
 
     plat = (params.get("platform") or "all").strip().lower()
     if plat in ("ios", "android"):
-        data = cbq.slice_payload_for_platform(data, plat)
+        data = slice_payload_for_platform(data, plat)
 
     from backend.services.android_device_names import apply_device_friendly_labels
     return apply_device_friendly_labels(data, plat)
@@ -16627,40 +16573,50 @@ def api_crash_bundle(request: Request):
 
 @app.get("/api/app/crashlytics/diagnose")
 def api_crash_diagnose(product: str = "doviz"):
-    """Firebase Crashlytics BigQuery bağlantısını teşhis et.
-    Her adımda gerçek API hatasını yüzeye çıkarır."""
-    from backend.services import crashlytics_bq as cbq
+    """Firebase Console scrape teşhisi — BigQuery kullanılmaz."""
+    from backend.database import SessionLocal
     from backend.services.app_intel import APP_PRODUCTS
+    from backend.services.firebase_console_store import firebase_console_payload
 
     pid = (product or "doviz").strip().lower()
     meta = APP_PRODUCTS.get(pid, {})
-    out: dict = {"product": pid, "dataset": cbq._DATASET, "platforms": {}}
+    out: dict = {
+        "product": pid,
+        "source": "firebase_console_scrape",
+        "bigquery": "disabled",
+        "platforms": {},
+    }
+    try:
+        with SessionLocal() as db:
+            snap = firebase_console_payload(db) or {}
+    except Exception as exc:  # noqa: BLE001
+        out["error"] = str(exc)[:300]
+        return JSONResponse(out)
+    out["updated_at"] = snap.get("updated_at")
+    out["sync_ok"] = snap.get("sync_ok", True)
+    out["sync_message"] = snap.get("sync_message") or ""
+    plats = snap.get("platforms") if isinstance(snap.get("platforms"), dict) else {}
     for plat in ("android", "ios"):
+        block = plats.get(plat) if isinstance(plats.get(plat), dict) else {}
         bundle = (
             meta.get("android_package") if plat == "android" else meta.get("ios_bundle_id")
         ) or ""
-        plat_block = cbq.diagnose_platform(plat)
-        plat_block["bundle_id"] = bundle
-        plat_block["expected_table_standard"] = (
-            f"{bundle.replace('.', '_')}_{plat.upper()}" if bundle else None
-        )
-        if bundle:
-            try:
-                plat_block["discovered_table"] = cbq._discover_table_id(plat, bundle)
-            except Exception as exc:  # noqa: BLE001
-                plat_block["discovery_error"] = str(exc)[:300]
-        out["platforms"][plat] = plat_block
-    try:
-        out["platform_analysis"] = cbq.analyze_platform_parity(pid, days=7)
-    except Exception as exc:  # noqa: BLE001
-        out["platform_analysis_error"] = str(exc)[:500]
+        out["platforms"][plat] = {
+            "bundle_id": bundle,
+            "ok": bool(block),
+            "latest_version": block.get("latest_version"),
+            "issue_count": len(block.get("issues") or []),
+            "anr_count": len(block.get("anr_issues") or []),
+            "version_count": len(block.get("by_version") or []),
+            "device_count": len(block.get("by_device") or []),
+        }
     return JSONResponse(out)
 
 
 @app.get("/api/app/crashlytics/platform-analysis")
 def api_crash_platform_analysis(product: str = "doviz", days: int = 7):
-    """iOS vs Android veri farkı ve crash-free teşhisi."""
-    from backend.services import crashlytics_bq as cbq
+    """iOS vs Android — Firebase Console scrape özeti (BigQuery yok)."""
+    from backend.services.firebase_from_store_tabs import build_firebase_tab_payload
 
     pid = (product or "doviz").strip().lower()
     try:
@@ -16669,7 +16625,26 @@ def api_crash_platform_analysis(product: str = "doviz", days: int = 7):
         d = 7
     if d not in (1, 7, 14, 30, 90):
         d = 7
-    return JSONResponse(cbq.analyze_platform_parity(pid, days=d))
+    payload = build_firebase_tab_payload(pid, days=d)
+    if not payload or not payload.get("ok"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "source": "firebase_console_scrape",
+                "message": (payload or {}).get("message") or "scrape verisi yok",
+            }
+        )
+    out: dict[str, Any] = {"ok": True, "source": "firebase_console_scrape", "platforms": {}}
+    for plat in ("android", "ios"):
+        summ = (payload.get("summary_by_platform") or {}).get(plat) or {}
+        cf = (payload.get("crash_free_by_platform") or {}).get(plat) or {}
+        out["platforms"][plat] = {
+            "fatal": summ.get("fatal"),
+            "anr": summ.get("anr"),
+            "crash_free_pct": cf.get("crash_free_pct") or cf.get("crash_free_sessions_pct"),
+            "issues": len((payload.get("issues_by_platform") or {}).get(plat) or []),
+        }
+    return JSONResponse(out)
 
 
 @app.get("/api/app/crashlytics/progress")
@@ -16680,11 +16655,11 @@ def api_crash_progress(product: str = "doviz"):
         {
             "running": False,
             "pct": 100,
-            "step": "Play / ASC verisi hazır",
+            "step": "Firebase Console scrape hazır",
             "done": True,
             "error": None,
             "cache_warm": True,
-            "source": "android_ios_store_tabs",
+            "source": "firebase_console_scrape",
             "product": pid,
         }
     )
@@ -16700,11 +16675,8 @@ def api_crash_issue_detail(
 ):
     """Tek bir issue için drill-down: trend, versiyon, OS, cihaz, stack frame.
 
-    Frontend modal'ı bu endpoint'i çağırır. Tablolar yokken/credential eksikken
-    JSON ok=false döner; frontend hata mesajını gösterir.
+    Firebase Console scrape (BigQuery kapalı).
     """
-    from backend.services import crashlytics_bq as cbq
-
     plat = (platform or "").strip().lower()
     if plat not in ("ios", "android"):
         return JSONResponse({"ok": False, "error": "invalid_platform"}, status_code=400)
@@ -16826,32 +16798,18 @@ def api_crash_issue_detail(
             }
         )
 
-    data = cbq.get_issue_detail_for_product(
-        product,
-        plat,
-        iid,
-        d,
-        versions=ver_list or None,
-        version=fp.get("version"),
+    return JSONResponse(
+        {
+            "ok": False,
+            "error": "not_found",
+            "message": (
+                "Issue bulunamadı. Veri sabah Firebase Console scrape'inden gelir; "
+                "Mac bridge /sync-firebase ile manuel tarama yapılabilir."
+            ),
+            "source": "firebase_console_scrape",
+        },
+        status_code=404,
     )
-    if not data.get("ok"):
-        return JSONResponse(
-            {
-                "ok": False,
-                "error": data.get("error") or "not_found",
-                "message": (
-                    "Issue detayı yok. Android sorunları için Play Console vitals sync; "
-                    "iOS için App Store / stability-free kaynakları kullanılır."
-                ),
-                "source": "android_ios_store_tabs",
-            }
-        )
-    if ver_list and data.get("ok"):
-        total = int((data.get("summary") or {}).get("total_events") or 0)
-        if total == 0:
-            data["filter_empty"] = True
-            data["filter_versions"] = ver_list
-    return JSONResponse(data)
 
 
 @app.get("/api/app/crashlytics/issue-event")
@@ -16862,39 +16820,35 @@ def api_crash_issue_event(
     event_timestamp: str = "",
     days: int = 7,
 ):
-    """Tek crash olayı — stack, breadcrumbs, keys."""
-    from backend.services import crashlytics_bq as cbq
-    from backend.services.app_intel import APP_PRODUCTS
-
+    """Tek crash olayı — BigQuery kapalı; Firebase Console linki kullanın."""
     plat = (platform or "").strip().lower()
     if plat not in ("ios", "android"):
         return JSONResponse({"ok": False, "error": "invalid_platform"}, status_code=400)
     pid = (product or "doviz").strip().lower()
+    from backend.services.app_intel import APP_PRODUCTS
+
     if pid not in APP_PRODUCTS:
         return JSONResponse({"ok": False, "error": "unknown_product"}, status_code=400)
-    try:
-        d = int(days)
-    except (TypeError, ValueError):
-        d = 7
-    if d not in (1, 7, 14, 30, 90):
-        d = 7
     iid = (issue_id or "").strip()
-    ts = (event_timestamp or "").strip()
-    if not iid or not ts:
+    if not iid:
         return JSONResponse({"ok": False, "error": "missing_params"}, status_code=400)
-
-    meta = APP_PRODUCTS[pid]
-    bundle = (meta.get("android_package") if plat == "android" else meta.get("ios_bundle_id")) or ""
-    batch_ref = cbq._batch_table_ref(plat, bundle)
-    data = cbq.query_issue_event_raw(plat, batch_ref, iid, ts, d)
-    return JSONResponse(data)
+    return JSONResponse(
+        {
+            "ok": False,
+            "error": "bigquery_disabled",
+            "message": "Olay düzeyi stack trace BigQuery ile gelmiyordu; artık kapalı. Issue özeti için modal veya Firebase Console.",
+            "issue_id": iid,
+            "platform": plat,
+        },
+        status_code=410,
+    )
 
 
 @app.post("/api/app/crashlytics/issue-ai-summary")
 async def api_crash_issue_ai_summary(request: Request):
-    """Issue için AI özet."""
+    """Issue için AI özet — Firebase Console scrape kaynağı."""
     from backend.services.crashlytics_detail import summarize_issue_tr
-    from backend.services import crashlytics_bq as cbq
+    from backend.services.firebase_from_store_tabs import get_firebase_console_issue_detail
 
     try:
         body = await request.json()
@@ -16906,24 +16860,36 @@ async def api_crash_issue_ai_summary(request: Request):
     product = str(body.get("product") or "doviz")
     platform = str(body.get("platform") or "android")
     issue_id = str(body.get("issue_id") or "")
-    days = int(body.get("days") or 7)
 
-    detail = cbq.get_issue_detail_for_product(product, platform, issue_id, days)
-    if not detail.get("ok"):
-        return JSONResponse({"ok": False, "error": detail.get("error", "detail_failed")}, status_code=400)
+    detail = get_firebase_console_issue_detail(issue_id, platform=platform) or {}
+    if not detail:
+        return JSONResponse({"ok": False, "error": "detail_failed"}, status_code=400)
 
-    s = detail.get("summary") or {}
+    cards = detail.get("summary_cards") or []
+    title = str(detail.get("title") or "")
+    et = str(detail.get("error_type") or "FATAL")
+    from backend.services.firebase_from_store_tabs import _parse_count
+
+    events_i = 0
+    users_i = 0
+    for c in cards:
+        t = str((c or {}).get("title") or "").lower()
+        v = (c or {}).get("value")
+        if "event" in t:
+            events_i = _parse_count(v)
+        if "user" in t:
+            users_i = _parse_count(v)
     try:
         text = summarize_issue_tr(
-            issue_title=s.get("issue_title") or "",
-            error_type=s.get("error_type") or "",
-            total_events=int(s.get("total_events") or 0),
-            affected_users=int(s.get("affected_users") or 0),
-            blame_frames=detail.get("blame_frames") or [],
-            trend=detail.get("trend") or [],
-            process_states=detail.get("process_states"),
+            issue_title=title,
+            error_type=et,
+            total_events=events_i,
+            affected_users=users_i,
+            blame_frames=[],
+            trend=[],
+            process_states=None,
         )
-        return JSONResponse({"ok": True, "summary": text})
+        return JSONResponse({"ok": True, "summary": text, "source": "firebase_console_scrape"})
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)[:200]}, status_code=500)
 
@@ -16955,9 +16921,9 @@ def api_crash_refresh(product: str = "doviz"):
     return JSONResponse(
         {
             "ok": True,
-            "job_id": "store_tabs",
-            "source": "android_ios_store_tabs",
-            "message": "Play / ASC + stability-free yenilendi.",
+            "job_id": "firebase_scrape_cache",
+            "source": "firebase_console_scrape",
+            "message": "Firebase Console scrape önbelleği yenilendi. Yeni tarama: sabah 06:10 (Mac bridge).",
         }
     )
 
