@@ -120,16 +120,46 @@ def _kw_rank_index(keywords: list[Any]) -> dict[str, dict[str, int]]:
     return index
 
 
+def _prev_keywords_map(prev: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for kw in prev.get("keywords") or []:
+        if not isinstance(kw, dict):
+            continue
+        name = str(kw.get("keyword") or "").strip()
+        if name:
+            out[name] = kw
+    return out
+
+
 def _enrich_serp(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     out = _strip_shots(incoming)
     prev_idx = _kw_rank_index(prev.get("keywords") or [])
+    prev_kws = _prev_keywords_map(prev)
     keywords = out.get("keywords") if isinstance(out.get("keywords"), list) else []
     for kw in keywords:
         if not isinstance(kw, dict):
             continue
         name = str(kw.get("keyword") or "")
         old_map = prev_idx.get(name) or {}
-        rows = kw.get("rows") if isinstance(kw.get("rows"), list) else []
+        rows = [r for r in (kw.get("rows") if isinstance(kw.get("rows"), list) else []) if isinstance(r, dict)]
+        if not rows:
+            prev_kw = prev_kws.get(name) or {}
+            prev_rows = [dict(r) for r in (prev_kw.get("rows") or []) if isinstance(r, dict)]
+            if prev_rows:
+                kw["rows"] = prev_rows
+                kw["rows_stale"] = True
+                kw["our_rank"] = prev_kw.get("our_rank")
+                kw["row_count"] = len(prev_rows)
+            else:
+                kw["rows"] = []
+                kw["row_count"] = 0
+            kw["entered"] = []
+            kw["dropped"] = []
+            kw["climbed"] = []
+            kw["fell"] = []
+            kw["moves"] = {"entered": 0, "dropped": 0, "up": 0, "down": 0}
+            continue
+        kw.pop("rows_stale", None)
         current: set[str] = set()
         entered: list[dict[str, Any]] = []
         climbed: list[dict[str, Any]] = []
@@ -191,6 +221,7 @@ def _enrich_serp(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, An
     }
     runs.append(snap)
     out["runs"] = runs[-_RUNS_KEEP:]
+    out["row_count"] = snap["row_count"]
     return out
 
 

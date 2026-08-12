@@ -197,16 +197,35 @@
         chip("doviz.com: " + (kw.our_rank || "—"), "pml-chip-doviz") +
         chip("+" + (mv.entered || 0) + " in", "pml-chip-new") +
         chip((mv.dropped || 0) + " out", "pml-chip-down");
-      var drop = (kw.dropped || [])
-        .map(function (d) {
-          return esc(d.domain) + " (prev #" + d.prev_rank + ")";
-        })
-        .join(" · ");
-      if (drop) {
-        var p = document.createElement("p");
-        p.className = "pml-note";
-        p.textContent = "Dropped: " + drop;
-        meta.appendChild(p);
+      if (kw.rows_stale) {
+        var staleNote = document.createElement("p");
+        staleNote.className = "pml-note text-amber-800 dark:text-amber-200";
+        staleNote.textContent =
+          "Son tarama boş geldi; tablo önceki kayıtlı SERP listesini gösteriyor. Refresh ile yeniden tarayın.";
+        meta.appendChild(staleNote);
+      }
+      var dropped = kw.dropped || [];
+      if (dropped.length) {
+        var dropWrap = document.createElement("div");
+        dropWrap.className = "pml-serp-dropped mb-2";
+        var dropTitle = document.createElement("p");
+        dropTitle.className = "pml-note mb-1";
+        dropTitle.textContent = "Dropped (" + dropped.length + ")";
+        dropWrap.appendChild(dropTitle);
+        var dropList = document.createElement("div");
+        dropList.className = "flex flex-wrap gap-1";
+        dropped.slice(0, 24).forEach(function (d) {
+          dropList.appendChild(
+            el(
+              chip(esc(d.domain) + " (prev #" + d.prev_rank + ")", "pml-chip-down")
+            )
+          );
+        });
+        if (dropped.length > 24) {
+          dropList.appendChild(el(chip("+" + (dropped.length - 24) + " more", "")));
+        }
+        dropWrap.appendChild(dropList);
+        meta.appendChild(dropWrap);
       }
       var rows = (kw.rows || []).map(function (r) {
         var heat = r.delta === "up" ? "pml-heat-up" : r.delta === "down" ? "pml-heat-down" : r.delta === "new" ? "pml-heat-new" : "";
@@ -223,6 +242,13 @@
         );
       });
       stage.appendChild(meta);
+      if (!rows.length) {
+        var empty = document.createElement("p");
+        empty.className = "pml-note text-slate-500 dark:text-slate-400";
+        empty.textContent = "Bu kelime için SERP satırı yok. Refresh ile yeniden tarayın.";
+        stage.appendChild(empty);
+        return;
+      }
       stage.appendChild(sortableTable(["Rank", "Page", "Domain", "Title / meta", "Snippet"], rows));
     }
 

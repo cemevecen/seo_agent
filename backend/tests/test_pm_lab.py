@@ -51,6 +51,7 @@ def test_live_sections():
         "Google News showcase",
     ]
     assert not any(s["id"] == "sikayet" for s in SECTION_DEFS)
+    assert "store_charts" not in [s["id"] for s in _pm_lab_page_specs()]
     assert not any("şikayetvar" in (s.get("title") or "").lower() for s in SECTION_DEFS)
 
 
@@ -129,6 +130,67 @@ def test_ingest_serp_history_and_no_shots():
         assert len(serp["runs"]) == 2
         assert "boot_json" in ctx
         assert "gram altın" in ctx["boot_json"]
+    finally:
+        db.close()
+
+
+def test_serp_empty_scan_keeps_previous_rows():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        ingest_pm_lab_payload(
+            db,
+            {
+                "sections": {
+                    "serp": {
+                        "ok": True,
+                        "keywords": [
+                            {
+                                "keyword": "çeyrek altın",
+                                "our_rank": 5,
+                                "rows": [
+                                    {
+                                        "rank": 1,
+                                        "page": 1,
+                                        "domain": "bigpara.hurriyet.com.tr",
+                                        "title": "Bigpara",
+                                        "url": "https://bigpara.hurriyet.com.tr/",
+                                        "snippet": "snippet",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                }
+            },
+        )
+        ingest_pm_lab_payload(
+            db,
+            {
+                "sections": {
+                    "serp": {
+                        "ok": False,
+                        "message": "SERP boş",
+                        "keywords": [
+                            {
+                                "keyword": "çeyrek altın",
+                                "our_rank": None,
+                                "rows": [],
+                            }
+                        ],
+                    }
+                }
+            },
+        )
+        ctx = page_context(db)
+        serp = __import__("json").loads(ctx["boot_json"])["sections"]["serp"]
+        kw = serp["keywords"][0]
+        assert kw["rows_stale"] is True
+        assert len(kw["rows"]) == 1
+        assert kw["rows"][0]["domain"] == "bigpara.hurriyet.com.tr"
+        assert kw["dropped"] == []
+        assert kw["moves"]["dropped"] == 0
+        assert serp["row_count"] == 1
     finally:
         db.close()
 
@@ -571,7 +633,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com rank:" in js
-    assert "pm_lab.js?v=30" in html
+    assert "pm_lab.js?v=33" in html
     assert "pingBridge" in js
     assert "127.0.0.1:18765/sync-pm-lab" in js
     assert "position:static" in html

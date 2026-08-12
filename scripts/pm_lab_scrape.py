@@ -486,29 +486,45 @@ def _extract_serp(page: Any) -> dict[str, Any]:
         """() => {
           const organic = [];
           const seen = new Set();
-          document.querySelectorAll('h3').forEach((h3) => {
-            const a = h3.closest('a');
-            if (!a || !a.href) return;
-            const href = a.href;
-            if (href.includes('google.com/search') || href.includes('webcache')) return;
-            if (seen.has(href)) return;
-            seen.add(href);
+          const skipHref = (href) => {
+            if (!href || href.startsWith('javascript:')) return true;
+            const low = href.toLowerCase();
+            return low.includes('google.com/search') || low.includes('webcache') || low.includes('accounts.google');
+          };
+          const snippetFrom = (block, title) => {
+            if (!block) return '';
+            const t = (block.innerText || '').split('\\n').map((x) => x.trim()).filter(Boolean);
+            const rest = t.filter((line) => line !== title);
+            return rest.slice(0, 4).join(' ').slice(0, 320);
+          };
+          const push = (a, h3) => {
+            if (!a || !a.href || skipHref(a.href) || seen.has(a.href)) return;
+            seen.add(a.href);
+            const title = ((h3 && h3.innerText) || a.innerText || '').trim();
+            if (!title) return;
             let host = '';
-            try { host = new URL(href).hostname.replace(/^www\\./, ''); } catch (e) {}
-            const block = h3.closest('div.g, div[data-hveid], div[data-sokoban-container]') || h3.parentElement;
-            let snippet = '';
-            if (block) {
-              const t = (block.innerText || '').split('\\n').filter(Boolean);
-              snippet = t.slice(1, 5).join(' ').slice(0, 320);
-            }
+            try { host = new URL(a.href).hostname.replace(/^www\\./, ''); } catch (e) {}
+            const block =
+              (h3 && h3.closest('div[data-sokoban-container], div.g, div.Gx5Zad, div.MjjYud, div[data-hveid], div.tF2Cxc')) ||
+              a.closest('div[data-sokoban-container], div.g, div.Gx5Zad, div.MjjYud, div[data-hveid], div.tF2Cxc') ||
+              a.parentElement;
             organic.push({
               rank: organic.length + 1,
-              title: (h3.innerText || '').trim(),
-              url: href,
+              title,
+              url: a.href,
               domain: host,
-              snippet
+              snippet: snippetFrom(block, title)
             });
+          };
+          document.querySelectorAll('#search a h3, #rso a h3, div.g a h3, div[data-sokoban-container] a h3').forEach((h3) => {
+            push(h3.closest('a'), h3);
           });
+          if (!organic.length) {
+            document.querySelectorAll('#search a[href^="http"], #rso a[href^="http"]').forEach((a) => {
+              if (a.querySelector('h3')) return;
+              push(a, a.querySelector('h3'));
+            });
+          }
           const paa = [];
           document.querySelectorAll('div[jsname] span, div[role="button"] span').forEach((el) => {
             const t = (el.innerText || '').trim();

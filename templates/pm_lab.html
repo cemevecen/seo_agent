@@ -116,6 +116,7 @@
   .pml-card-wrap.is-open .pml-fold svg{transform:rotate(90deg)}
   .pml-fold-panel{display:none}
   .pml-card-wrap.is-open .pml-fold-panel{display:block}
+  .pml-serp-dropped{max-height:6.5rem;overflow-y:auto;-webkit-overflow-scrolling:touch}
   .pml-store-split{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:.75rem;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .pml-store-col{min-width:260px}
   .pml-store-col .pml-shell{max-height:min(68vh,640px);margin-top:.5rem}
@@ -180,5 +181,5 @@
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=31"></script>
+<script src="/static/js/pm_lab.js?v=33"></script>
 {% endblock %}
