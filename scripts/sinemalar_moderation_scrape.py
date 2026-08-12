@@ -227,6 +227,52 @@ def fetch_summary_for_day(page, day: date) -> list[dict[str, Any]]:
     return rows if isinstance(rows, list) else []
 
 
+_EXTRACT_DETAIL_CHUNK_JS = r"""
+({ start, size }) => {
+  const trs = Array.from(document.querySelectorAll('table tr')).slice(1);
+  return trs.slice(start, start + size).map(tr => {
+    const cells = Array.from(tr.querySelectorAll('td'));
+    if (!cells.length) return null;
+    return {
+      cells: cells.map(td => {
+        const a = td.querySelector('a');
+        return {
+          text: td.textContent.replace(/\s+/g, ' ').trim(),
+          href: a ? a.href : null,
+        };
+      }),
+    };
+  }).filter(Boolean);
+}
+"""
+
+_DETAIL_ROW_CHUNK = 250
+
+
+def _safe_close_context(context) -> None:
+    if context is None:
+        return
+    try:
+        context.close()
+    except Exception:
+        pass
+
+
+def _extract_detail_rows(page) -> list[dict[str, Any]]:
+    """Büyük tablolar için parça parça çıkar — tarayıcı çökmesini azaltır."""
+    all_rows: list[dict[str, Any]] = []
+    start = 0
+    while True:
+        chunk = page.evaluate(_EXTRACT_DETAIL_CHUNK_JS, {"start": start, "size": _DETAIL_ROW_CHUNK})
+        if not isinstance(chunk, list) or not chunk:
+            break
+        all_rows.extend(chunk)
+        if len(chunk) < _DETAIL_ROW_CHUNK:
+            break
+        start += _DETAIL_ROW_CHUNK
+    return all_rows
+
+
 def fetch_detail_page(
     page,
     *,
@@ -239,19 +285,42 @@ def fetch_detail_page(
     from backend.services.sinemalar_moderation import detail_url
 
     url = detail_url(user_id, start=start_d, end=end_d, metric_type=metric_type)
-    page.goto(url, wait_until="networkidle", timeout=180000)
-    time.sleep(0.4)
-    rows = page.evaluate(_EXTRACT_DETAIL_JS) or []
-    count = len(rows) if isinstance(rows, list) else 0
+    page.goto(url, wait_until="domcontentloaded", timeout=180000)
+    time.sleep(0.6)
+    rows = _extract_detail_rows(page)
+    count = len(rows)
     print(f"    {username} · {metric_type} · {count} kayıt", flush=True)
     return {
         "user_id": user_id,
         "username": username,
         "metric_type": metric_type,
         "source_url": url,
-        "items": rows if isinstance(rows, list) else [],
+        "items": rows,
         "item_count": count,
     }
+
+
+def _open_logged_in_page(headed: bool):
+    from playwright.sync_api import sync_playwright
+
+    from backend.services.scrape_browser import launch_persistent
+
+    p = sync_playwright().start()
+    context = launch_persistent(
+        p, sinemalar_profile_dir(), headed=headed, viewport={"width": 1400, "height": 900}
+    )
+    page = context.pages[0] if context.pages else context.new_page()
+    page.goto(SUMMARY_URL, wait_until="domcontentloaded", timeout=90000)
+    time.sleep(0.8)
+    if not _looks_logged_in(page):
+        _try_form_login(page)
+        page.goto(SUMMARY_URL, wait_until="domcontentloaded", timeout=90000)
+        time.sleep(0.8)
+    if not _looks_logged_in(page):
+        _safe_close_context(context)
+        p.stop()
+        return None, None, None
+    return p, context, page
 
 
 def _ingest_detail_batch(
@@ -303,6 +372,31 @@ def _ingest_detail_batch(
     return last
 
 
+def purge_remote_moderation() -> dict[str, Any]:
+    token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
+    if not token:
+        return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+    url = INGEST_URL.rsplit("/", 1)[0] + "/purge"
+    req = urllib.request.Request(
+        url,
+        data=b"{}",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+            return {"ok": True, "purge": payload}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:500]
+        return {"ok": False, "message": f"HTTP {exc.code}: {detail}"}
+    except Exception as exc:
+        return {"ok": False, "message": str(exc)}
+
+
 def scrape_detail_range(
     start_d: date,
     end_d: date,
@@ -310,40 +404,40 @@ def scrape_detail_range(
     headed: bool = True,
     delay_sec: float = SCRAPE_DELAY_SEC,
     ingest_per_batch: bool = False,
+    purge_first: bool = False,
 ) -> dict[str, Any]:
-    from playwright.sync_api import sync_playwright
-
-    from backend.services.scrape_browser import launch_persistent
     from backend.services.sinemalar_moderation import METRIC_TYPE_KEYS, TRACKED_MODERATORS
+
+    if purge_first and ingest_per_batch:
+        print("Moderasyon verisi siliniyor (purge)…", flush=True)
+        purged = purge_remote_moderation()
+        if not purged.get("ok"):
+            return {"ok": False, "message": purged.get("message") or "purge failed", "detail_batches": []}
+        print(f"  purge OK: {purged.get('purge')}", flush=True)
 
     batches: list[dict[str, Any]] = []
     total_items = 0
+    total_batches = len(TRACKED_MODERATORS) * len(METRIC_TYPE_KEYS)
+    n = 0
+    scraped_at = datetime.now(timezone.utc).isoformat()
 
-    with sync_playwright() as p:
-        context = launch_persistent(
-            p, sinemalar_profile_dir(), headed=headed, viewport={"width": 1400, "height": 900}
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        try:
-            page.goto(SUMMARY_URL, wait_until="networkidle", timeout=90000)
-            time.sleep(1.0)
-            if not _looks_logged_in(page):
-                _try_form_login(page)
-                page.goto(SUMMARY_URL, wait_until="networkidle", timeout=90000)
-                time.sleep(1.0)
-            if not _looks_logged_in(page):
-                return {
-                    "ok": False,
-                    "needs_login": True,
-                    "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
-                    "detail_batches": [],
-                }
-
-            n = 0
-            for user_id, username in TRACKED_MODERATORS:
-                for metric_type in METRIC_TYPE_KEYS:
-                    if n > 0 and delay_sec > 0:
-                        time.sleep(delay_sec)
+    for user_id, username in TRACKED_MODERATORS:
+        for metric_type in METRIC_TYPE_KEYS:
+            if n > 0 and delay_sec > 0:
+                time.sleep(delay_sec)
+            n += 1
+            batch: dict[str, Any] | None = None
+            for attempt in range(2):
+                pw = ctx = page = None
+                try:
+                    pw, ctx, page = _open_logged_in_page(headed)
+                    if page is None:
+                        return {
+                            "ok": False,
+                            "needs_login": True,
+                            "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
+                            "detail_batches": batches,
+                        }
                     batch = fetch_detail_page(
                         page,
                         user_id=user_id,
@@ -352,35 +446,58 @@ def scrape_detail_range(
                         start_d=start_d,
                         end_d=end_d,
                     )
-                    batches.append(batch)
-                    total_items += int(batch.get("item_count") or 0)
-                    n += 1
-                    if ingest_per_batch:
-                        ing = _ingest_detail_batch(
-                            batch,
-                            start_d=start_d,
-                            end_d=end_d,
-                            scraped_at=datetime.now(timezone.utc).isoformat(),
-                            backfill_complete=n >= len(TRACKED_MODERATORS) * len(METRIC_TYPE_KEYS),
-                        )
-                        if not ing.get("ok"):
-                            print(f"    ingest hata: {ing.get('message')}", flush=True)
+                    break
+                except Exception as exc:
+                    print(f"    ! {username}/{metric_type} hata (deneme {attempt + 1}): {exc}", flush=True)
+                    batch = None
+                finally:
+                    _safe_close_context(ctx)
+                    if pw is not None:
+                        try:
+                            pw.stop()
+                        except Exception:
+                            pass
+            if batch is None:
+                batch = {
+                    "user_id": user_id,
+                    "username": username,
+                    "metric_type": metric_type,
+                    "source_url": "",
+                    "items": [],
+                    "item_count": 0,
+                }
 
-            return {
-                "ok": True,
-                "needs_login": False,
-                "source": "sinemalar_moderation",
-                "mode": "detail_range",
-                "scraped_at": datetime.now(timezone.utc).isoformat(),
-                "range_start": start_d.isoformat(),
-                "range_end": end_d.isoformat(),
-                "detail_batches": batches,
-                "item_count": total_items,
-                "batch_count": len(batches),
-                "message": f"detail_range {start_d} → {end_d} · {total_items} kayıt",
-            }
-        finally:
-            context.close()
+            batches.append(batch)
+            total_items += int(batch.get("item_count") or 0)
+            if ingest_per_batch:
+                body: dict[str, Any] = {
+                    "source": "sinemalar_moderation",
+                    "mode": "detail_range",
+                    "scraped_at": scraped_at,
+                    "range_start": start_d.isoformat(),
+                    "range_end": end_d.isoformat(),
+                    "detail_batches": [{**batch, "_recompute_daily": True}],
+                    "backfill_complete": n >= total_batches,
+                }
+                if purge_first and n == 1:
+                    body["purge_first"] = True
+                ing = ingest_result(body, mode="detail_range")
+                if not ing.get("ok"):
+                    print(f"    ingest hata: {ing.get('message')}", flush=True)
+
+    return {
+        "ok": True,
+        "needs_login": False,
+        "source": "sinemalar_moderation",
+        "mode": "detail_range",
+        "scraped_at": scraped_at,
+        "range_start": start_d.isoformat(),
+        "range_end": end_d.isoformat(),
+        "detail_batches": batches,
+        "item_count": total_items,
+        "batch_count": len(batches),
+        "message": f"detail_range {start_d} → {end_d} · {total_items} kayıt",
+    }
 
 
 def scrape_days(
@@ -433,7 +550,7 @@ def scrape_days(
                 "message": f"{len(blocks)} gün çekildi",
             }
         finally:
-            context.close()
+            _safe_close_context(context)
 
 
 def fetch_remote_meta() -> dict[str, Any]:
@@ -605,6 +722,11 @@ def main() -> int:
         action="store_true",
         help="detail-range: her user×type sonrası hemen ingest",
     )
+    parser.add_argument(
+        "--purge",
+        action="store_true",
+        help="detail-range: ingest öncesi tüm moderasyon verisini sil",
+    )
     parser.add_argument("--ingest", action="store_true", help="Railway ingest")
     parser.add_argument("--headless", action="store_true")
     args = parser.parse_args()
@@ -673,6 +795,7 @@ def main() -> int:
             end_d,
             headed=headed,
             ingest_per_batch=bool(args.detail_ingest_each and args.ingest),
+            purge_first=bool(args.purge),
         )
         if args.ingest and out.get("ok") and not args.detail_ingest_each:
             ing = ingest_result(out, mode="detail_range")

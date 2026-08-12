@@ -59,6 +59,7 @@ class ModerationIngestBody(BaseModel):
     range_end: str | None = None
     backfill_complete: bool = False
     backfill_cursor: str | None = None
+    purge_first: bool = False
 
 
 @router.post("/sinemalar-moderation/ingest")
@@ -78,6 +79,7 @@ def sinemalar_moderation_ingest(
             "metric_type": b["metric_type"],
             "source_url": b.get("source_url"),
             "items": b.get("items") or [],
+            "_recompute_daily": b.get("_recompute_daily"),
         }
         for b in payload.get("detail_batches") or []
     ]
@@ -115,6 +117,16 @@ def sinemalar_moderation_details(
         limit=limit,
         offset=offset,
     )
+
+
+@router.post("/sinemalar-moderation/purge")
+def sinemalar_moderation_purge(
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    return mod.purge_all_data(db)
 
 
 @router.get("/sinemalar-moderation/meta")

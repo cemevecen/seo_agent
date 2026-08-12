@@ -191,6 +191,35 @@ def test_ingest_detail_batch_rebuilds_daily():
     assert row.count == 2
 
 
+def test_purge_all_data():
+    db = _session()
+    mod.ingest_detail_batch(
+        db,
+        user_id=883754,
+        username="berend",
+        metric_type="movie",
+        items=mod.parse_detail_rows(
+            [{
+                "cells": [
+                    {"text": "1", "href": "/m/1"},
+                    {"text": "X", "href": "/m/1"},
+                    {"text": "2026-03-01 10:00:00", "href": None},
+                ]
+            }],
+            user_id=883754,
+            username="berend",
+            metric_type="movie",
+        ),
+        range_start=date(2026, 3, 1),
+        range_end=date(2026, 3, 31),
+        recompute_daily=True,
+    )
+    out = mod.purge_all_data(db)
+    assert out["ok"] is True
+    assert out["deleted_details"] >= 1
+    assert db.query(SinemalarModerationDetailItem).count() == 0
+
+
 def test_backfill_payload_updates_meta():
     db = _session()
     payload = {

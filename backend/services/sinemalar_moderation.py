@@ -490,6 +490,9 @@ def ingest_backfill_payload(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     """Çok günlük ingest, detail_batches veya tek gün."""
+    if payload.get("purge_first"):
+        purge_all_data(db)
+
     detail_batches = payload.get("detail_batches")
     if isinstance(detail_batches, list) and detail_batches:
         try:
@@ -509,6 +512,9 @@ def ingest_backfill_payload(
             mtype = str(batch.get("metric_type") or "")
             if not uid or not mtype:
                 continue
+            recompute = batch.get("_recompute_daily")
+            if recompute is None:
+                recompute = True
             res = ingest_detail_batch(
                 db,
                 user_id=uid,
@@ -519,7 +525,7 @@ def ingest_backfill_payload(
                 range_end=range_end,
                 source_url=batch.get("source_url"),
                 scraped_at=scraped_at,
-                recompute_daily=bool(batch.get("_recompute_daily", True)),
+                recompute_daily=bool(recompute),
             )
             if res.get("ok"):
                 total_items += int(res.get("items_upserted") or 0)
@@ -614,6 +620,23 @@ def mark_backfill_progress(db: Session, *, last_date: date, complete: bool = Fal
     else:
         meta.backfill_cursor = (last_date + timedelta(days=1)).isoformat()
     db.commit()
+
+
+def purge_all_data(db: Session) -> dict[str, Any]:
+    """Tüm moderasyon verisini sil — sıfırdan çekim öncesi."""
+    deleted_details = db.query(SinemalarModerationDetailItem).delete(synchronize_session=False)
+    deleted_daily = db.query(SinemalarModerationDailyRow).delete(synchronize_session=False)
+    meta = _meta(db)
+    meta.backfill_complete = False
+    meta.backfill_cursor = None
+    meta.last_mode = "purged"
+    meta.message = f"silindi · {deleted_details} detay · {deleted_daily} günlük"
+    db.commit()
+    return {
+        "ok": True,
+        "deleted_details": int(deleted_details or 0),
+        "deleted_daily": int(deleted_daily or 0),
+    }
 
 
 def get_meta_summary(db: Session) -> dict[str, Any]:
@@ -749,6 +772,41 @@ def get_panel_payload(
         key = f"{uname}|{r.metric_type}"
         daily[day_key][key] = daily[day_key].get(key, 0) + int(r.count or 0)
 
+    detail_total = (
+        db.query(SinemalarModerationDetailItem)
+        .filter(
+            SinemalarModerationDetailItem.event_at >= datetime.combine(start_d, datetime.min.time()),
+            SinemalarModerationDetailItem.event_at
+            < datetime.combine(end_d + timedelta(days=1), datetime.min.time()),
+        )
+        .count()
+    )
+
+    if detail_total > 0:
+        users = {}
+        detail_rows = (
+            db.query(SinemalarModerationDetailItem)
+            .filter(
+                SinemalarModerationDetailItem.event_at >= datetime.combine(start_d, datetime.min.time()),
+                SinemalarModerationDetailItem.event_at
+                < datetime.combine(end_d + timedelta(days=1), datetime.min.time()),
+            )
+            .all()
+        )
+        for r in detail_rows:
+            if not is_tracked_user_id(r.user_id):
+                continue
+            uname = r.username or resolve_username(r.user_id)
+            if uname not in users:
+                users[uname] = {
+                    "username": uname,
+                    "user_id": r.user_id,
+                    "totals": {k: 0 for k, _ in METRIC_TYPES},
+                    "total_all": 0,
+                }
+            users[uname]["totals"][r.metric_type] = users[uname]["totals"].get(r.metric_type, 0) + 1
+            users[uname]["total_all"] += 1
+
     ordered_users = []
     for uid, want in TRACKED_MODERATORS:
         for uname, block in users.items():
@@ -764,15 +822,6 @@ def get_panel_payload(
                     "total_all": 0,
                 }
             )
-
-    detail_total = (
-        db.query(SinemalarModerationDetailItem)
-        .filter(
-            SinemalarModerationDetailItem.event_at >= datetime.combine(start_d, datetime.min.time()),
-            SinemalarModerationDetailItem.event_at < datetime.combine(end_d + timedelta(days=1), datetime.min.time()),
-        )
-        .count()
-    )
 
     return {
         "ok": True,
