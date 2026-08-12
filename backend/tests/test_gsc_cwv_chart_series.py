@@ -356,6 +356,21 @@ def test_parse_gsc_tooltip_aug_10_matches_cards():
     assert parsed["good"] == 3123
 
 
+def test_tooltip_year_bumps_when_prefer_after():
+    """Yıl yokken yanlış eski yıl seçilirse önceki noktaya göre +1 yıl."""
+    text = (
+        "31 Mayıs\n"
+        "Yetersiz URL'ler 0\n"
+        "URL'ler iyileştirme gerektiriyor 10\n"
+        "İyi URL'ler 5"
+    )
+    parsed = mod._parse_gsc_chart_tooltip(
+        text, prefer_after="2026-04-15", default_year=2025
+    )
+    assert parsed is not None
+    assert parsed["date"] == "2026-05-31"
+
+
 def test_svg_bar_path_bins_height_not_sawtooth():
     dates = [f"2026-08-{d:02d}" for d in range(1, 9)]
     pts = []

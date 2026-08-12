@@ -997,30 +997,53 @@ def _interp_y(by_x: dict[float, float], x: float) -> float:
     return by_x[xs[-1]]
 
 
-def _parse_gsc_chart_tooltip(text: str) -> dict[str, Any] | None:
+def _parse_gsc_chart_tooltip(
+    text: str,
+    *,
+    prefer_after: str | None = None,
+    default_year: int | None = None,
+) -> dict[str, Any] | None:
     raw = _clean(text)
     if not raw or len(raw) < 8:
         return None
     t = _fold_tr(raw)
+    year_hint = default_year
+    if prefer_after and re.match(r"^\d{4}-\d{2}-\d{2}$", str(prefer_after)[:10]):
+        try:
+            year_hint = int(str(prefer_after)[:4])
+        except ValueError:
+            year_hint = default_year
     date = ""
     for line in raw.splitlines():
-        iso = _gsc_label_to_iso(line)
+        iso = _gsc_label_to_iso(line, default_year=year_hint)
         if iso:
             date = iso
             break
     if not date:
         m = re.search(r"(\d{1,2}[./]\d{1,2}[./]\d{2,4})", raw)
         if m:
-            date = _gsc_label_to_iso(m.group(1))
+            date = _gsc_label_to_iso(m.group(1), default_year=year_hint)
     if not date:
         m = re.search(
             r"(\d{1,2}\s+[A-Za-zçğıöşüÇĞİÖŞÜ]{3,}(?:\s+\d{2,4})?|[A-Za-z]{3,}\s+\d{1,2}(?:,?\s+\d{2,4})?)",
             raw,
         )
         if m:
-            date = _gsc_label_to_iso(m.group(0))
+            date = _gsc_label_to_iso(m.group(0), default_year=year_hint)
     if not date:
         return None
+    # Yıl yokken yanlış (eski) yıla düşerse: önceki noktadan sonra olmalı
+    if prefer_after and re.match(r"^\d{4}-\d{2}-\d{2}$", str(prefer_after)[:10]):
+        try:
+            d = datetime.strptime(date[:10], "%Y-%m-%d")
+            prev = datetime.strptime(str(prefer_after)[:10], "%Y-%m-%d")
+            # Aynı ay/gün bir yıl geriye kaçtıysa düzelt
+            if d < prev - timedelta(days=14):
+                bumped = d.replace(year=d.year + 1)
+                if bumped >= prev - timedelta(days=2):
+                    date = bumped.strftime("%Y-%m-%d")
+        except ValueError:
+            pass
 
     def grab(*pats: str) -> int:
         for pat in pats:
@@ -1068,8 +1091,13 @@ _TIP_TEXT_JS = r"""() => {
 }"""
 
 
-def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
-    """Grafik üzerinde gezerek GSC tooltip'inden günlük tam sayıları oku."""
+def _harvest_overview_tooltips(page, *, end_iso: str = "") -> list[dict[str, Any]]:
+    """Grafik üzerinde sol→sağ tek geçiş: her noktayı oku, son güne kadar git.
+
+    Eski davranış: 2 y_frac × 110 adım + 20 örnekte erken çıkış → fare iki kez
+    Mayıs 31’e kadar gidip bitiyordu. Artık plot alanını bulur, ~1px adımlarla
+    sağ kenara kadar tarar; aynı tarihte takılırsa adımı artırır ama bitirmez.
+    """
     charts: list[dict[str, Any]] = []
     try:
         n_charts = int(
@@ -1084,6 +1112,8 @@ def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
     except Exception:
         n_charts = 0
     n_charts = max(0, min(n_charts, 2))
+    target_end = str(end_iso or "")[:10]
+
     for idx in range(n_charts):
         try:
             box = page.evaluate(
@@ -1096,7 +1126,30 @@ def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
                   if (!svg) return null;
                   svg.scrollIntoView({block: 'center', inline: 'nearest'});
                   const bb = svg.getBoundingClientRect();
-                  return {x: bb.x, y: bb.y, width: bb.width, height: bb.height};
+                  // Plot alanı: clipPath / iç rect (eksen etiketlerini çıkar)
+                  let plot = null;
+                  const clips = [...svg.querySelectorAll('clipPath rect, rect')];
+                  for (const r of clips) {
+                    const rb = r.getBoundingClientRect();
+                    if (rb.width >= bb.width * 0.55 && rb.height >= bb.height * 0.45) {
+                      if (!plot || rb.width * rb.height > plot.w * plot.h) {
+                        plot = {x: rb.x, y: rb.y, w: rb.width, h: rb.height};
+                      }
+                    }
+                  }
+                  const padL = 48, padR = 12, padT = 16, padB = 28;
+                  if (!plot) {
+                    plot = {
+                      x: bb.x + padL,
+                      y: bb.y + padT,
+                      w: Math.max(40, bb.width - padL - padR),
+                      h: Math.max(40, bb.height - padT - padB),
+                    };
+                  }
+                  return {
+                    x: plot.x, y: plot.y, width: plot.w, height: plot.h,
+                    svgX: bb.x, svgY: bb.y, svgW: bb.width, svgH: bb.height
+                  };
                 }""",
                 idx,
             )
@@ -1106,35 +1159,147 @@ def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
             continue
         w = float(box.get("width") or 0)
         h = float(box.get("height") or 0)
-        if w < 320 or h < 120:
+        if w < 200 or h < 80:
             continue
-        time.sleep(0.2)
+        time.sleep(0.25)
         samples: dict[str, dict[str, Any]] = {}
-        n = 110
-        y_fracs = (0.55, 0.72)
-        for y_frac in y_fracs:
+        # Tek yatay geçiş — çift tarama yok. Adım ~1px (min 280 örnek, max ~chart width).
+        n = max(280, min(int(round(w)) + 1, 900))
+        y = float(box["y"]) + h * 0.62
+        x0 = float(box["x"]) + 2.0
+        x1 = float(box["x"]) + w - 2.0
+        last_date = ""
+        same_streak = 0
+        empty_streak = 0
+        i = 0
+        print(
+            f"    tooltip sweep chart#{idx + 1}: {n} steps · plot {w:.0f}×{h:.0f}px"
+            + (f" · target_end={target_end}" if target_end else ""),
+            flush=True,
+        )
+        while i < n:
+            t = i / max(n - 1, 1)
+            x = x0 + (x1 - x0) * t
+            try:
+                page.mouse.move(x, y)
+            except Exception:
+                i += 1
+                continue
+            time.sleep(0.028)
+            try:
+                text = page.evaluate(_TIP_TEXT_JS)
+            except Exception:
+                text = ""
+            parsed = _parse_gsc_chart_tooltip(
+                str(text or ""),
+                prefer_after=last_date or (sorted(samples)[-1] if samples else None),
+            )
+            if parsed and parsed.get("date"):
+                empty_streak = 0
+                d = str(parsed["date"])[:10]
+                samples[d] = parsed
+                if d == last_date:
+                    same_streak += 1
+                    # Aynı günde takılma (sticky tooltip) — birkaç adım atla, durma
+                    if same_streak >= 4:
+                        i += max(2, n // 120)
+                        same_streak = 0
+                        continue
+                else:
+                    same_streak = 0
+                    last_date = d
+            else:
+                empty_streak += 1
+                # Başta boşsa yavaş ilerle; ortada boşsa devam et
+                if i < 40 and empty_streak >= 30 and not samples:
+                    # İlk y bandı tutmadı — tek yedek y ile baştan (sadece bir kez)
+                    break
+            i += 1
+
+        # İlk bant başarısızsa tek alternatif y ile bir kez daha (çift tam tarama değil)
+        if len(samples) < 12:
+            samples = {}
+            last_date = ""
+            y2 = float(box["y"]) + h * 0.48
+            print(f"    tooltip sweep chart#{idx + 1}: retry y-band", flush=True)
             for i in range(n):
-                x = float(box["x"]) + 8 + (w - 16) * i / max(n - 1, 1)
-                y = float(box["y"]) + h * y_frac
+                t = i / max(n - 1, 1)
+                x = x0 + (x1 - x0) * t
                 try:
-                    page.mouse.move(x, y)
+                    page.mouse.move(x, y2)
                 except Exception:
                     continue
-                time.sleep(0.045)
+                time.sleep(0.028)
                 try:
                     text = page.evaluate(_TIP_TEXT_JS)
                 except Exception:
                     text = ""
-                parsed = _parse_gsc_chart_tooltip(str(text or ""))
+                parsed = _parse_gsc_chart_tooltip(
+                    str(text or ""),
+                    prefer_after=last_date or (sorted(samples)[-1] if samples else None),
+                )
                 if parsed and parsed.get("date"):
-                    samples[str(parsed["date"])] = parsed
-                if i == 24 and not samples:
-                    break
-            if len(samples) >= 20:
-                break
+                    d = str(parsed["date"])[:10]
+                    samples[d] = parsed
+                    last_date = d
+
+        # Sağ kenarı sıkılaştır: son %12’yi 2× yoğun tara (son güne ulaşmak için)
+        if samples:
+            dense_n = max(40, int(w * 0.12))
+            x_dense0 = x0 + (x1 - x0) * 0.88
+            prefer = sorted(samples)[-1]
+            for i in range(dense_n):
+                t = i / max(dense_n - 1, 1)
+                x = x_dense0 + (x1 - x_dense0) * t
+                try:
+                    page.mouse.move(x, y)
+                except Exception:
+                    continue
+                time.sleep(0.032)
+                try:
+                    text = page.evaluate(_TIP_TEXT_JS)
+                except Exception:
+                    text = ""
+                parsed = _parse_gsc_chart_tooltip(str(text or ""), prefer_after=prefer)
+                if parsed and parsed.get("date"):
+                    d = str(parsed["date"])[:10]
+                    samples[d] = parsed
+                    prefer = d
+
+            # Hâlâ target_end yoksa sağdan sola kısa geri süpürme
+            tip_last = sorted(samples)[-1] if samples else ""
+            if target_end and tip_last and tip_last < target_end:
+                print(
+                    f"    tooltip end gap: last={tip_last} < target={target_end} · reverse densify",
+                    flush=True,
+                )
+                for i in range(dense_n):
+                    t = 1.0 - (i / max(dense_n - 1, 1))
+                    x = x0 + (x1 - x0) * (0.75 + 0.25 * t)
+                    try:
+                        page.mouse.move(x, y)
+                    except Exception:
+                        continue
+                    time.sleep(0.032)
+                    try:
+                        text = page.evaluate(_TIP_TEXT_JS)
+                    except Exception:
+                        text = ""
+                    parsed = _parse_gsc_chart_tooltip(str(text or ""), prefer_after=prefer)
+                    if parsed and parsed.get("date"):
+                        d = str(parsed["date"])[:10]
+                        samples[d] = parsed
+                        prefer = max(prefer, d) if prefer else d
+
         if len(samples) < 8:
+            print(f"    tooltip chart#{idx + 1}: only {len(samples)} pts — skip", flush=True)
             continue
         dates = sorted(samples)
+        print(
+            f"    tooltip chart#{idx + 1}: {len(dates)} unique days "
+            f"{dates[0]} → {dates[-1]}",
+            flush=True,
+        )
         charts.append(
             {
                 "dates": dates,
@@ -1375,7 +1540,7 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
 
     tip_charts: list[dict[str, Any]] = []
     try:
-        tip_charts = _harvest_overview_tooltips(page)
+        tip_charts = _harvest_overview_tooltips(page, end_iso=end_iso or "")
     except Exception as exc:  # noqa: BLE001
         print(f"    tooltip harvest skip: {exc}", flush=True)
     if tip_charts:
