@@ -342,6 +342,22 @@
     gap: 0.5rem;
     min-width: 0;
   }
+  #mz-overlay-controls #mz-play-metric-overlay-bar:not(.hidden) {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+  }
+  .mz-virgul-mode #mz-overlay-controls {
+    justify-content: flex-end;
+  }
+  .mz-virgul-mode #mz-play-metric-overlay-bar [data-play-metric-overlay-root] {
+    width: 100%;
+  }
+  .mz-virgul-mode #mz-play-metric-overlay-bar [data-play-metric-overlay-trigger] {
+    min-width: 21rem;
+    max-width: min(100%, 32rem);
+    width: 21rem;
+  }
   #mz-overlay-controls #mz-market-overlay-section,
   #mz-overlay-controls #mz-empower-overlay-bar:not(.hidden),
   #mz-overlay-controls #mz-peer-toggle-kpi:not(.hidden) {
@@ -1382,27 +1398,26 @@
         </div>
       </details>
       <div id="mz-overlay-controls" class="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2" data-mz-hide-single-day>
+        {% if ad_mode != 'virgul' %}
         <div class="mz-overlay-controls-left min-w-0">
           <div id="mz-market-overlay-section" class="shrink-0">
             {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz', market_overlay_on_change='mzOnMarketOverlayChange' %}
             {% include 'partials/market_overlay_select.html' %}
             {% endwith %}
           </div>
-          {% if ad_mode == 'virgul' %}
-          <div id="mz-play-metric-overlay-bar" class="hidden shrink-0">
-            {% with play_metric_overlay_control_id='mz-play-metric-overlay-root', play_metric_overlay_storage_key='mz-play-metric', play_metric_overlay_on_change='mzOnPlayMetricOverlayChange' %}
-            {% include 'partials/play_metric_overlay_select.html' %}
-            {% endwith %}
-          </div>
-          {% endif %}
-          {% if ad_mode != 'virgul' %}
           <div id="mz-empower-overlay-bar" class="hidden shrink-0">
             {% with app_empower_overlay_control_id='mz-empower-overlay-root', app_empower_overlay_storage_key='mz-empower', app_empower_overlay_on_change='mzOnEmpowerOverlayChange' %}
             {% include 'partials/app_empower_overlay_select.html' %}
             {% endwith %}
           </div>
-          {% endif %}
         </div>
+        {% else %}
+        <div id="mz-play-metric-overlay-bar" class="hidden ml-auto shrink-0">
+          {% with play_metric_overlay_control_id='mz-play-metric-overlay-root', play_metric_overlay_storage_key='mz-play-metric', play_metric_overlay_on_change='mzOnPlayMetricOverlayChange' %}
+          {% include 'partials/play_metric_overlay_select.html' %}
+          {% endwith %}
+        </div>
+        {% endif %}
         <div id="mz-peer-toggle-kpi" class="hidden shrink-0"></div>
       </div>
 
@@ -7792,7 +7807,7 @@
   }
 
   async function mzMaybeApplyMarketOverlay(traces, layoutExtra, dateKeys, opts) {
-    if (mzIsVirgulMode() && mzIsMobileAppStream()) return false;
+    if (mzIsVirgulMode()) return false;
     var modes = window.SeoMarketOverlay ? SeoMarketOverlay.modes("mz-market-overlay-root") : [];
     if (!modes.length || !dateKeys || !dateKeys.length || !window.SeoMarketOverlay) return false;
     var o = Object.assign({}, opts || {});
@@ -7834,12 +7849,10 @@
   };
 
   function syncPlayMetricOverlayBarVisibility() {
-    var marketSec = document.getElementById("mz-market-overlay-section");
     var playBar = document.getElementById("mz-play-metric-overlay-bar");
     var onMobileApp = mzIsVirgulMode() && mzIsMobileAppStream();
     var plat = mzActivePlatform();
     var showMetric = onMobileApp && (plat === "android" || plat === "ios");
-    if (marketSec) marketSec.classList.toggle("hidden", onMobileApp);
     if (playBar) playBar.classList.toggle("hidden", !showMetric);
     if (showMetric && window.PlayMetricOverlay) {
       var root = document.getElementById("mz-play-metric-overlay-root");
