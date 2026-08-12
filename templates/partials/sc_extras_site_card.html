@@ -54,13 +54,14 @@
     <div id="sc-inspection-result-{{ site_id }}" class="mt-3"></div>
   {% elif sc_view_item.kind == 'sitemaps' and report %}
     {% set sc_preview_limit = 15 %}
+    {% set sc_table_scroll = sc_table_scroll | default(false) %}
     {% set sc_sitemap_rows = report.sitemaps or [] %}
     {% if sc_sitemap_rows %}
       <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
         {{ sc_sitemap_rows|length|tr_int }} records
-        {% if sc_sitemap_rows|length > sc_preview_limit %} · showing first {{ sc_preview_limit }}{% endif %}
+        {% if sc_sitemap_rows|length > sc_preview_limit and not sc_table_scroll %} · showing first {{ sc_preview_limit }}{% endif %}
       </p>
-      <div class="sc-extra-table-wrap rounded-2xl border border-slate-200 dark:border-slate-700" data-sc-extra-table data-sc-mobile-cards>
+      <div class="sc-extra-table-wrap rounded-2xl border border-slate-200 dark:border-slate-700{% if sc_table_scroll %} sc-extra-table-wrap--scroll{% endif %}" data-sc-extra-table data-sc-mobile-cards>
         <table class="sc-extra-table w-full text-left text-[11px] sm:text-xs" data-sc-cols="5" data-sc-mobile-cards data-search-console-table>
           <colgroup>
             <col class="sc-extra-col-text">
@@ -77,7 +78,7 @@
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             {% for row in sc_sitemap_rows %}
-            <tr class="text-slate-700 dark:text-slate-200" data-sc-sort-row data-dimension="{{ (row.path or '')|lower }}" data-status="{% if row.error %}2{% elif row.isPending %}1{% else %}0{% endif %}" data-warnings="{{ row.warnings|default(0) }}" data-errors="{{ row.errors|default(0) }}" data-last-submitted="{{ row.lastSubmitted or '' }}"{% if loop.index > sc_preview_limit %} data-sc-extra-row-more{% endif %}>
+            <tr class="text-slate-700 dark:text-slate-200" data-sc-sort-row data-dimension="{{ (row.path or '')|lower }}" data-status="{% if row.error %}2{% elif row.isPending %}1{% else %}0{% endif %}" data-warnings="{{ row.warnings|default(0) }}" data-errors="{{ row.errors|default(0) }}" data-last-submitted="{{ row.lastSubmitted or '' }}"{% if loop.index > sc_preview_limit and not sc_table_scroll %} data-sc-extra-row-more{% endif %}>
               <td class="sc-extra-td-text sc-extra-td-primary px-2 py-1.5 font-medium sm:px-3 sm:py-2" data-label="Sitemap" title="{{ row.path }}">{{ row.path or '—' }}</td>
               <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Status">
                 {% if row.error %}
@@ -93,7 +94,7 @@
               <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2" data-label="Last submitted">{{ row.lastSubmitted or '—' }}</td>
             </tr>
             {% if row.error %}
-            <tr data-sc-extra-row-error{% if loop.index > sc_preview_limit %} data-sc-extra-row-more{% endif %}>
+            <tr data-sc-extra-row-error{% if loop.index > sc_preview_limit and not sc_table_scroll %} data-sc-extra-row-more{% endif %}>
               <td colspan="5" class="px-3 pb-2 text-[11px] text-red-600 dark:text-red-400">{{ row.error }}</td>
             </tr>
             {% endif %}
@@ -101,7 +102,7 @@
           </tbody>
         </table>
       </div>
-      {% if sc_sitemap_rows|length > sc_preview_limit %}
+      {% if sc_sitemap_rows|length > sc_preview_limit and not sc_table_scroll %}
       <div class="mt-3 space-y-2" data-sc-extra-table-actions>
         <button
           type="button"
@@ -126,6 +127,7 @@
     {% endif %}
   {% elif sc_view_item.kind == 'analytics' and report %}
     {% set sc_preview_limit = 15 %}
+    {% set sc_table_scroll = sc_table_scroll | default(false) %}
     {% set sc_all_rows = report.rows or [] %}
     {% set sc_show_position = sc_view_item.get('position_supported', True) %}
     {% set sc_show_page_date = sc_view_item.get('page_date_column') %}
@@ -137,12 +139,12 @@
       {{ report.start_date|ga4_iso_ddmmyyyy }} – {{ report.end_date|ga4_iso_ddmmyyyy }}
       · {{ report.row_count|tr_int }} rows
       {% if report.search_type %} · {{ report.search_type }}{% endif %}
-      {% if sc_all_rows|length > sc_preview_limit %}
+      {% if sc_all_rows|length > sc_preview_limit and not sc_table_scroll %}
       · showing first {{ sc_preview_limit }}
       {% endif %}
     </p>
     {% if sc_all_rows %}
-      <div class="sc-extra-table-wrap rounded-2xl border border-slate-200 dark:border-slate-700" data-sc-extra-table data-sc-mobile-cards>
+      <div class="sc-extra-table-wrap rounded-2xl border border-slate-200 dark:border-slate-700{% if sc_table_scroll %} sc-extra-table-wrap--scroll{% endif %}" data-sc-extra-table data-sc-mobile-cards>
         <table class="sc-extra-table w-full text-left text-[11px] sm:text-xs" data-sc-cols="{{ sc_table_cols }}" data-sc-mobile-cards data-search-console-table{% if sc_view_item.secondary_col %} data-sc-has-secondary{% endif %}{% if sc_show_position %} data-sc-has-position{% endif %}>
           <colgroup>
             <col class="sc-extra-col-text">
@@ -171,7 +173,7 @@
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             {% for row in sc_all_rows %}
             {% set _dim = row.get('page') or row.get(sc_view_item.primary_col) or '' %}
-            <tr class="text-slate-700 dark:text-slate-200" data-sc-sort-row data-dimension="{{ _dim|lower }}"{% if sc_view_item.secondary_col %} data-secondary="{{ (row.get(sc_view_item.secondary_col) or '')|lower }}"{% endif %}{% if sc_show_page_date %} data-page-date="{{ row.page_date or '' }}"{% endif %} data-clicks="{{ row.get('clicks') or 0 }}" data-impressions="{{ row.get('impressions') or 0 }}" data-ctr="{{ row.get('ctr') or 0 }}"{% if sc_show_position %} data-position="{{ row.get('position') if row.get('position') is not none else '' }}"{% endif %}{% if loop.index > sc_preview_limit %} data-sc-extra-row-more{% endif %}>
+            <tr class="text-slate-700 dark:text-slate-200" data-sc-sort-row data-dimension="{{ _dim|lower }}"{% if sc_view_item.secondary_col %} data-secondary="{{ (row.get(sc_view_item.secondary_col) or '')|lower }}"{% endif %}{% if sc_show_page_date %} data-page-date="{{ row.page_date or '' }}"{% endif %} data-clicks="{{ row.get('clicks') or 0 }}" data-impressions="{{ row.get('impressions') or 0 }}" data-ctr="{{ row.get('ctr') or 0 }}"{% if sc_show_position %} data-position="{{ row.get('position') if row.get('position') is not none else '' }}"{% endif %}{% if loop.index > sc_preview_limit and not sc_table_scroll %} data-sc-extra-row-more{% endif %}>
               <td class="sc-extra-td-text sc-extra-td-primary px-2 py-1.5 font-medium sm:px-3 sm:py-2" data-label="{{ sc_view_item.primary_label or 'Dimension' }}" title="{{ row.get('page') or row.get(sc_view_item.primary_col) or '' }}">
                 {% if sc_view_item.primary_col == 'page' and row.get('page') %}
                   <a href="{{ row.page }}" target="_blank" rel="noopener" class="text-sky-700 hover:underline dark:text-sky-400">{{ row.page | sc_extra_page_label(domain) }}</a>
@@ -196,7 +198,7 @@
           </tbody>
         </table>
       </div>
-      {% if sc_all_rows|length > sc_preview_limit %}
+      {% if sc_all_rows|length > sc_preview_limit and not sc_table_scroll %}
       <div class="mt-3 space-y-2" data-sc-extra-table-actions>
         <button
           type="button"

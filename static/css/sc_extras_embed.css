@@ -18,6 +18,35 @@
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
 }
+.sc-extra-table-wrap--scroll {
+  --sc-extra-row-h: 2rem;
+  max-height: min(calc(var(--sc-extra-row-h) * 14 + 2.5rem), 68vh);
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  padding-right: 0.1rem;
+}
+.sc-extra-table-wrap--scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.sc-extra-table-wrap--scroll::-webkit-scrollbar-thumb {
+  background: #a1a1aa;
+  border-radius: 99px;
+}
+html.dark .sc-extra-table-wrap--scroll::-webkit-scrollbar-thumb { background: #52525b; }
+.sc-extra-table-wrap--scroll .sc-extra-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.sc-extra-table-wrap--scroll .sc-extra-table thead th {
+  background: rgb(248 250 252);
+  box-shadow: 0 1px 0 rgb(226 232 240);
+}
+html.dark .sc-extra-table-wrap--scroll .sc-extra-table thead th {
+  background: rgb(30 41 59 / 0.96);
+  box-shadow: 0 1px 0 rgb(51 65 85);
+}
 .sc-extra-table {
   width: 100%;
   min-width: 20rem;
@@ -58,6 +87,19 @@ tr[data-sc-extra-row-more].sc-extra-row-visible { display: table-row; }
     overflow: visible;
     border: 0;
     background: transparent;
+  }
+  .sc-extra-table-wrap--scroll[data-sc-mobile-cards] {
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: min(28rem, 65vh);
+    border: 1px solid rgb(226 232 240);
+    border-radius: 0.75rem;
+    background: rgb(248 250 252 / 0.45);
+    padding: 0.35rem 0.25rem;
+  }
+  html.dark .sc-extra-table-wrap--scroll[data-sc-mobile-cards] {
+    border-color: rgb(51 65 85);
+    background: rgb(15 23 42 / 0.45);
   }
   .sc-extra-table[data-sc-mobile-cards] {
     display: block;

@@ -19004,6 +19004,7 @@ def search_console_extras_site_card(request: Request, view_slug: str, site_id: i
                 "sc_view_item": spec,
                 "report": report,
                 "error": error,
+                "sc_table_scroll": view_slug == "news",
             },
             headers=_SC_HTML_NO_CACHE_HEADERS,
         )
