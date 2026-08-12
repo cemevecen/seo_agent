@@ -50,6 +50,7 @@ SECTION_DEFS: list[dict[str, Any]] = [
         "no": 17,
         "title": "Google News showcase",
         "hint": "",
+        "pm_lab_page": False,
     },
 ]
 

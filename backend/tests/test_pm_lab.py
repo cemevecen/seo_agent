@@ -52,6 +52,7 @@ def test_live_sections():
     ]
     assert not any(s["id"] == "sikayet" for s in SECTION_DEFS)
     assert "store_charts" not in [s["id"] for s in _pm_lab_page_specs()]
+    assert "google_news" not in [s["id"] for s in _pm_lab_page_specs()]
     assert not any("şikayetvar" in (s.get("title") or "").lower() for s in SECTION_DEFS)
 
 
@@ -116,8 +117,9 @@ def test_ingest_serp_history_and_no_shots():
         )
         ctx = page_context(db)
         by_id = {c["id"]: c for c in ctx["cards"]}
-        assert len(ctx["cards"]) == 3
+        assert len(ctx["cards"]) == 2
         assert "store_charts" not in by_id
+        assert "google_news" not in by_id
         assert "sikayet" not in by_id
         serp = by_id["serp"]["data"]
         assert "shots" not in serp
@@ -633,7 +635,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com rank:" in js
-    assert "pm_lab.js?v=33" in html
+    assert "pm_lab.js?v=34" in html
     assert "pingBridge" in js
     assert "127.0.0.1:18765/sync-pm-lab" in js
     assert "position:static" in html

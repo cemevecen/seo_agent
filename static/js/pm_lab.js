@@ -1,9 +1,42 @@
 (function () {
   var bootEl = document.getElementById("pml-boot");
-  var embedRoot = document.getElementById("app-store-charts-root");
-  if (!bootEl && !embedRoot) return;
-  var isEmbed = !bootEl && !!embedRoot;
-  var embedSectionId = "store_charts";
+  var embedProfiles = {
+    store_charts: {
+      rootId: "app-store-charts-root",
+      mountId: "app-store-charts-mount",
+      whenId: "app-store-charts-when",
+      refreshId: "app-store-charts-refresh",
+      headerId: "app-store-charts-header",
+      bodyId: "app-store-charts-body",
+      chevronId: "app-store-charts-chevron",
+      fetchUrl: "/api/app/store-charts",
+      refreshUrl: "/api/app/store-charts/refresh",
+      defaultOpen: true,
+    },
+    google_news: {
+      rootId: "dn-google-news-root",
+      mountId: "dn-google-news-mount",
+      whenId: "dn-google-news-when",
+      refreshId: "dn-google-news-refresh",
+      headerId: "dn-google-news-header",
+      bodyId: "dn-google-news-body",
+      chevronId: "dn-google-news-chevron",
+      fetchUrl: "/api/doviz-news/google-news-showcase",
+      refreshUrl: "/api/doviz-news/google-news-showcase/refresh",
+      defaultOpen: true,
+    },
+  };
+  var embedSectionId = "";
+  var embedCfg = null;
+  Object.keys(embedProfiles).forEach(function (id) {
+    var profile = embedProfiles[id];
+    if (document.getElementById(profile.rootId)) {
+      embedSectionId = id;
+      embedCfg = profile;
+    }
+  });
+  if (!bootEl && !embedCfg) return;
+  var isEmbed = !bootEl && !!embedCfg;
   var boot = {};
   if (bootEl) {
     try {
@@ -912,14 +945,16 @@
   }
 
   function fetchLabState() {
-    if (isEmbed) {
-      return fetch("/api/app/store-charts", { credentials: "same-origin", headers: { Accept: "application/json" } }).then(
+    if (isEmbed && embedCfg) {
+      return fetch(embedCfg.fetchUrl, { credentials: "same-origin", headers: { Accept: "application/json" } }).then(
         function (resp) {
           if (!resp.ok) throw new Error("Could not load status");
           return resp.json().then(function (data) {
             var block = (data && data.section) || {};
+            var sectionsOut = {};
+            sectionsOut[embedSectionId] = block;
             return {
-              sections: { store_charts: block },
+              sections: sectionsOut,
               queued: data && data.queued ? data.queued : [],
               running: data && data.running ? data.running : "",
             };
@@ -936,7 +971,7 @@
   }
 
   function queueLabRefresh(id) {
-    var url = isEmbed ? "/api/app/store-charts/refresh" : "/api/pm-lab/refresh";
+    var url = isEmbed && embedCfg ? embedCfg.refreshUrl : "/api/pm-lab/refresh";
     var body = isEmbed ? "{}" : JSON.stringify({ job: id });
     return fetch(url, {
       method: "POST",
@@ -1005,7 +1040,7 @@
       })
       .then(function (state) {
         var block = ((state || {}).sections || {})[id] || {};
-        if (isEmbed) paintEmbedStoreCharts(block);
+        if (isEmbed) paintEmbedSection(block);
         else {
           paintCard(id, block);
           renderStatus();
@@ -1041,17 +1076,20 @@
     });
   }
 
-  function paintEmbedStoreCharts(block) {
-    sections.store_charts = block || {};
-    var mount = document.getElementById("app-store-charts-mount");
+  function paintEmbedSection(block) {
+    if (!embedCfg) return;
+    sections[embedSectionId] = block || {};
+    var mount = document.getElementById(embedCfg.mountId);
     if (!mount) return;
     mount.innerHTML = "";
+    var fn = renderers[embedSectionId];
     try {
-      renderStore(mount, block || {});
+      if (fn) fn(mount, block || {});
+      else mount.textContent = (block && block.message) || "This section is empty.";
     } catch (err) {
       mount.textContent = "Render error: " + err;
     }
-    var timeEl = document.getElementById("app-store-charts-when");
+    var timeEl = document.getElementById(embedCfg.whenId);
     if (timeEl) {
       if (block && block.scraped_at) {
         timeEl.hidden = false;
@@ -1064,23 +1102,25 @@
     }
   }
 
-  function loadEmbedStoreCharts() {
-    var mount = document.getElementById("app-store-charts-mount");
+  function loadEmbedSection() {
+    if (!embedCfg) return Promise.resolve();
+    var mount = document.getElementById(embedCfg.mountId);
     if (mount) mount.textContent = "Loading…";
     return fetchLabState()
       .then(function (state) {
-        paintEmbedStoreCharts((((state || {}).sections || {})[embedSectionId]) || {});
+        paintEmbedSection((((state || {}).sections || {})[embedSectionId]) || {});
       })
       .catch(function (err) {
         if (mount) mount.textContent = String((err && err.message) || err || "Load failed");
       });
   }
 
-  function wireEmbedStoreChartsShell() {
-    var hdr = document.getElementById("app-store-charts-header");
-    var body = document.getElementById("app-store-charts-body");
-    var chev = document.getElementById("app-store-charts-chevron");
-    var refreshBtn = document.getElementById("app-store-charts-refresh");
+  function wireEmbedShell() {
+    if (!embedCfg) return;
+    var hdr = document.getElementById(embedCfg.headerId);
+    var body = document.getElementById(embedCfg.bodyId);
+    var chev = document.getElementById(embedCfg.chevronId);
+    var refreshBtn = document.getElementById(embedCfg.refreshId);
     function setOpen(open) {
       if (!body || !hdr) return;
       body.hidden = !open;
@@ -1089,7 +1129,7 @@
     }
     if (hdr && body) {
       hdr.addEventListener("click", function (ev) {
-        if (ev.target.closest("#app-store-charts-refresh")) return;
+        if (ev.target.closest("#" + embedCfg.refreshId)) return;
         setOpen(body.hidden);
       });
       hdr.addEventListener("keydown", function (ev) {
@@ -1106,12 +1146,12 @@
         refreshSection(embedSectionId, refreshBtn);
       });
     }
-    loadEmbedStoreCharts();
-    setOpen(true);
+    loadEmbedSection();
+    setOpen(!!embedCfg.defaultOpen);
   }
 
   if (isEmbed) {
-    wireEmbedStoreChartsShell();
+    wireEmbedShell();
   } else {
     renderStatus();
     document.querySelectorAll(".pml-body[data-pml]").forEach(function (node) {

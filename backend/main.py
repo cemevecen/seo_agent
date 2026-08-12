@@ -15915,6 +15915,36 @@ def api_app_store_charts_refresh(request: Request, db: Session = Depends(get_db)
     return enqueue_pm_lab_refresh(db, "store_charts")
 
 
+@app.get("/api/doviz-news/google-news-showcase")
+def api_doviz_news_google_news_showcase(db: Session = Depends(get_db)):
+    """PM Lab google_news snapshot — /doviz-news embed."""
+    from backend.services.pm_lab_store import load_payload, pm_lab_refresh_status
+
+    payload = load_payload(db)
+    sections = payload.get("sections") if isinstance(payload.get("sections"), dict) else {}
+    raw = sections.get("google_news") if isinstance(sections.get("google_news"), dict) else {}
+    block = dict(raw)
+    block.pop("shots", None)
+    status = pm_lab_refresh_status(payload)
+    return {
+        "ok": True,
+        "section": block,
+        "updated_at": payload.get("updated_at"),
+        "queued": status.get("queued") or [],
+        "running": status.get("running") or "",
+    }
+
+
+@app.post("/api/doviz-news/google-news-showcase/refresh")
+def api_doviz_news_google_news_refresh(request: Request, db: Session = Depends(get_db)):
+    """Mac bridge google_news taraması — owner only."""
+    if not _pm_lab_owner_ok(request):
+        return JSONResponse({"ok": False, "detail": "Owner only"}, status_code=403)
+    from backend.services.pm_lab_store import enqueue_pm_lab_refresh
+
+    return enqueue_pm_lab_refresh(db, "google_news")
+
+
 @app.get("/api/app/version-releases")
 def api_app_version_releases(product: str = "doviz", since: str = "2025-01-01"):
     from datetime import date as date_cls
