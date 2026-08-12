@@ -66,13 +66,64 @@
   <script type="application/json" id="app-intel-products-json">{{ app_products | tojson }}</script>
   <style>
     .app-intel-metric-card-title {
-      min-height: 20px;
+      min-height: 0;
+      margin-bottom: 0.25rem;
+      font-size: 0.625rem;
+      line-height: 1.25;
+      letter-spacing: 0.06em;
     }
     .app-intel-metric-area-stars {
-      min-height: 220px;
+      min-height: 170px;
     }
     .app-intel-metric-area-cats {
-      min-height: 260px;
+      min-height: 200px;
+    }
+    .app-intel-sat-grid {
+      gap: 0.375rem;
+    }
+    .app-intel-sat-box {
+      min-height: 4.25rem;
+      border-radius: 0.625rem;
+      padding: 0.375rem 0.5rem;
+    }
+    .app-intel-sat-box-title {
+      font-size: 0.5625rem;
+      line-height: 1.2;
+    }
+    .app-intel-sat-box-value {
+      margin-top: 0.125rem;
+      font-size: 0.9375rem;
+      line-height: 1.15;
+    }
+    .app-intel-sat-box-pct {
+      font-size: 0.6875rem;
+      line-height: 1.2;
+    }
+    .app-intel-latest-list {
+      max-height: 14rem;
+      gap: 0.375rem;
+    }
+    .app-intel-review-card {
+      border-radius: 0.5rem;
+      padding: 0.375rem 0.5rem;
+    }
+    .app-intel-review-meta {
+      margin-bottom: 0.125rem;
+      font-size: 0.625rem;
+    }
+    .app-intel-review-score {
+      font-size: 0.8125rem;
+    }
+    .app-intel-review-text {
+      font-size: 0.6875rem;
+      line-height: 1.35;
+    }
+    .app-intel-rank-chart {
+      min-height: 8.75rem;
+      height: 9.5rem;
+    }
+    .app-intel-panel-stack {
+      gap: 0.625rem;
     }
     .app-intel-skeleton {
       position: relative;
@@ -267,9 +318,9 @@
 
   {% include "partials/app_store_compare_panel.html" %}
 
-  <div id="app-intel-panels" class="grid grid-cols-1 gap-5 xl:grid-cols-2">
-    <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5" aria-label="Google Play">
-      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+  <div id="app-intel-panels" class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <section class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-4" aria-label="Google Play">
+      <div class="mb-3 flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="app-intel-head-play" class="text-base font-bold text-slate-900 dark:text-slate-100">Google Play</h2>
           <a id="app-intel-link-android" href="#" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-medium text-sky-600 hover:underline dark:text-sky-400">Store page</a>
@@ -277,36 +328,36 @@
         <div id="app-intel-android-meta" class="w-full sm:w-auto"></div>
       </div>
       <p id="app-intel-android-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
-      <div class="space-y-4">
+      <div class="app-intel-panel-stack flex flex-col">
         <div>
-          <p id="app-intel-play-stars-title" class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Star distribution</p>
-          <div id="app-chart-play-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
-          <div id="app-intel-play-star-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
-          <p id="app-intel-play-star-source-note" class="hidden mt-1.5 text-[10px] text-slate-400 dark:text-slate-500 italic"></p>
+          <p id="app-intel-play-stars-title" class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Star distribution</p>
+          <div id="app-chart-play-stars" class="app-intel-metric-area-stars h-[170px] w-full min-h-[150px]"></div>
+          <div id="app-intel-play-star-drilldown" class="mt-1.5 hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
+          <p id="app-intel-play-star-source-note" class="hidden mt-1 text-[10px] text-slate-400 dark:text-slate-500 italic"></p>
         </div>
         <div>
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
-          <div id="app-chart-play-cats" class="app-intel-metric-area-cats h-[260px] w-full min-h-[220px]"></div>
-          <div id="app-intel-play-cat-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
+          <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
+          <div id="app-chart-play-cats" class="app-intel-metric-area-cats h-[200px] w-full min-h-[180px]"></div>
+          <div id="app-intel-play-cat-drilldown" class="mt-1.5 hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
         </div>
         <div>
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
-          <div id="app-intel-play-sat" class="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm"></div>
+          <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
+          <div id="app-intel-play-sat" class="app-intel-sat-grid grid grid-cols-3 text-center"></div>
         </div>
         <div>
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Last 100 reviews (newest first)</p>
-          <div id="app-intel-play-latest" class="max-h-[360px] space-y-2 overflow-y-auto pr-1"></div>
-          <div id="app-intel-play-latest-pagination" class="mt-2 flex flex-wrap items-center gap-1.5"></div>
+          <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Last 100 reviews (newest first)</p>
+          <div id="app-intel-play-latest" class="app-intel-latest-list flex max-h-[224px] flex-col overflow-y-auto pr-1"></div>
+          <div id="app-intel-play-latest-pagination" class="mt-1.5 flex flex-wrap items-center gap-1"></div>
         </div>
         <div id="app-intel-play-rank-wrap" class="hidden">
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Category rank trend (7d)</p>
-          <div id="app-chart-play-rank" class="h-[210px] w-full min-h-[180px]"></div>
+          <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Category rank trend (7d)</p>
+          <div id="app-chart-play-rank" class="app-intel-rank-chart h-[152px] w-full min-h-[140px]"></div>
         </div>
       </div>
     </section>
 
-    <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5" aria-label="App Store">
-      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <section class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-4" aria-label="App Store">
+      <div class="mb-3 flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="app-intel-head-ios" class="text-base font-bold text-slate-900 dark:text-slate-100">App Store</h2>
           <a id="app-intel-link-ios" href="#" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-medium text-sky-600 hover:underline dark:text-sky-400">Store page</a>
@@ -315,30 +366,30 @@
       </div>
       <p id="app-intel-ios-note" class="mb-3 hidden rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800"></p>
       <p id="app-intel-ios-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
-      <div class="space-y-4">
+      <div class="app-intel-panel-stack flex flex-col">
         <div>
-          <p id="app-intel-ios-stars-title" class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Star distribution</p>
-          <div id="app-chart-ios-stars" class="app-intel-metric-area-stars h-[220px] w-full min-h-[180px]"></div>
-          <div id="app-intel-ios-star-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
-          <p id="app-intel-ios-star-source-note" class="hidden mt-1.5 text-[10px] text-slate-400 dark:text-slate-500 italic"></p>
+          <p id="app-intel-ios-stars-title" class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Star distribution</p>
+          <div id="app-chart-ios-stars" class="app-intel-metric-area-stars h-[170px] w-full min-h-[150px]"></div>
+          <div id="app-intel-ios-star-drilldown" class="mt-1.5 hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
+          <p id="app-intel-ios-star-source-note" class="hidden mt-1 text-[10px] text-slate-400 dark:text-slate-500 italic"></p>
         </div>
         <div>
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
-          <div id="app-chart-ios-cats" class="app-intel-metric-area-cats h-[260px] w-full min-h-[220px]"></div>
-          <div id="app-intel-ios-cat-drilldown" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
+          <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
+          <div id="app-chart-ios-cats" class="app-intel-metric-area-cats h-[200px] w-full min-h-[180px]"></div>
+          <div id="app-intel-ios-cat-drilldown" class="mt-1.5 hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
         </div>
         <div>
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
-          <div id="app-intel-ios-sat" class="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm"></div>
+          <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Memnuniyet</p>
+          <div id="app-intel-ios-sat" class="app-intel-sat-grid grid grid-cols-3 text-center"></div>
         </div>
         <div>
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Last 100 reviews (newest first)</p>
-          <div id="app-intel-ios-latest" class="max-h-[360px] space-y-2 overflow-y-auto pr-1"></div>
-          <div id="app-intel-ios-latest-pagination" class="mt-2 flex flex-wrap items-center gap-1.5"></div>
+          <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Last 100 reviews (newest first)</p>
+          <div id="app-intel-ios-latest" class="app-intel-latest-list flex max-h-[224px] flex-col overflow-y-auto pr-1"></div>
+          <div id="app-intel-ios-latest-pagination" class="mt-1.5 flex flex-wrap items-center gap-1"></div>
         </div>
         <div id="app-intel-ios-rank-wrap" class="hidden">
-          <p class="app-intel-metric-card-title mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Category rank trend (7d)</p>
-          <div id="app-chart-ios-rank" class="h-[210px] w-full min-h-[180px]"></div>
+          <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Category rank trend (7d)</p>
+          <div id="app-chart-ios-rank" class="app-intel-rank-chart h-[152px] w-full min-h-[140px]"></div>
         </div>
       </div>
     </section>
@@ -2837,8 +2888,8 @@
       ],
       {
         autosize: true,
-        height: 220,
-        margin: { l: 44, r: 12, t: 24, b: 40 },
+        height: 170,
+        margin: { l: 40, r: 10, t: 16, b: 32 },
         paper_bgcolor: th.paper,
         plot_bgcolor: th.plot,
         xaxis: { tickfont: { color: th.tick } },
@@ -2935,8 +2986,8 @@
       traces,
       {
         autosize: true,
-        height: 210,
-        margin: { l: 52, r: 16, t: 14, b: rel.length ? 52 : 42 },
+        height: 152,
+        margin: { l: 46, r: 12, t: 8, b: rel.length ? 44 : 34 },
         paper_bgcolor: th.paper,
         plot_bgcolor: th.plot,
         xaxis: {
@@ -3045,8 +3096,8 @@
       ],
       {
         autosize: true,
-        height: 260,
-        margin: { l: 180, r: 20, t: 8, b: 40 },
+        height: 200,
+        margin: { l: 156, r: 16, t: 6, b: 32 },
         paper_bgcolor: th.paper,
         plot_bgcolor: th.plot,
         xaxis: {
@@ -3108,16 +3159,16 @@
     }
     function box(title, n, pct, cls) {
       return (
-        '<div class="min-h-[96px] rounded-xl border px-2 py-3 ' +
+        '<div class="app-intel-sat-box border ' +
         cls +
         '">' +
-        '<div class="text-[11px] font-semibold uppercase tracking-wide text-current/90">' +
+        '<div class="app-intel-sat-box-title font-semibold uppercase tracking-wide text-current/90">' +
         title +
         "</div>" +
-        '<div class="mt-1 text-xl font-bold text-current">' +
+        '<div class="app-intel-sat-box-value font-bold text-current">' +
         n +
         "</div>" +
-        '<div class="text-sm text-current/90">' +
+        '<div class="app-intel-sat-box-pct text-current/90">' +
         pct +
         "%</div></div>"
       );
@@ -3155,7 +3206,7 @@
     var pageRows = list.slice(start, start + perPage);
     if (!list.length) {
       el.innerHTML =
-        '<p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300">No reviews.</p>';
+        '<p class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300">No reviews.</p>';
       renderLatestPagination(pageKey, 1, 1);
       return;
     }
@@ -3205,12 +3256,12 @@
         });
         if (!txt) txt = "—";
         return (
-          '<article class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900 ' + tone.card + '">' +
-          '<div class="mb-1 flex items-center justify-between gap-2 text-[12px]">' +
-          '<span class="inline-flex items-center font-semibold text-base ' + tone.badge + '">' + (r.score || 0) + "★</span>" +
+          '<article class="app-intel-review-card bg-slate-50 dark:bg-slate-900 ' + tone.card + '">' +
+          '<div class="app-intel-review-meta flex items-center justify-between gap-2">' +
+          '<span class="app-intel-review-score inline-flex items-center font-semibold ' + tone.badge + '">' + (r.score || 0) + "★</span>" +
           '<span class="text-slate-500 dark:text-slate-300">' + d + "</span>" +
           "</div>" +
-          '<p class="line-clamp-3 text-sm leading-relaxed text-slate-700 dark:text-slate-100">' + txt + "</p>" +
+          '<p class="app-intel-review-text line-clamp-2 text-slate-700 dark:text-slate-100">' + txt + "</p>" +
           "</article>"
         );
       })
@@ -3238,7 +3289,7 @@
         pageKey +
         '" data-latest-page="' +
         p +
-        '" class="rounded-md border px-2 py-0.5 text-xs font-semibold ' +
+        '" class="rounded border px-1.5 py-0.5 text-[10px] font-semibold leading-none ' +
         cls +
         '">' +
         p +
@@ -4074,13 +4125,18 @@
     ["app-chart-play-stars", "app-chart-play-rank", "app-chart-play-cats", "app-chart-ios-stars", "app-chart-ios-rank", "app-chart-ios-cats"].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
-      var h = id.indexOf("cats") >= 0 ? 260 : (id.indexOf("rank") >= 0 ? 210 : 220);
+      var h = id.indexOf("cats") >= 0 ? 200 : (id.indexOf("rank") >= 0 ? 152 : 170);
       el.innerHTML = skeletonBlock(h);
     });
-    ["app-intel-play-sat", "app-intel-ios-sat", "app-intel-play-latest", "app-intel-ios-latest"].forEach(function (id) {
+    ["app-intel-play-sat", "app-intel-ios-sat"].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
-      el.innerHTML = skeletonBlock(96);
+      el.innerHTML = skeletonBlock(68);
+    });
+    ["app-intel-play-latest", "app-intel-ios-latest"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = skeletonBlock(72);
     });
     [
       "app-intel-play-latest-pagination",
@@ -4136,7 +4192,7 @@
   function flagIntelPanelsFailed(hint) {
     var msg = hint || "Could not load data.";
     var chartFail =
-      '<p class="flex min-h-[120px] items-center justify-center px-2 text-center text-sm text-rose-600 dark:text-rose-300">' +
+      '<p class="flex min-h-[88px] items-center justify-center px-2 text-center text-[11px] text-rose-600 dark:text-rose-300">' +
       esc(msg) +
       "</p>";
     [
