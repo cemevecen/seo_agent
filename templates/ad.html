@@ -388,16 +388,16 @@
   }
   .mz-page .mz-ad-target-kpis {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
     gap: 0.4rem;
-    flex: 2 1 18rem;
-    min-width: min(100%, 16rem);
+    flex: 3 1 22rem;
+    min-width: min(100%, 18rem);
     max-width: 100%;
   }
   @media (min-width: 768px) {
     .mz-page .mz-ad-target-kpis {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      max-width: min(100%, 42rem);
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      max-width: min(100%, 52rem);
     }
   }
   .mz-page .mz-ad-target-kpi {
@@ -3036,32 +3036,40 @@
       el.innerHTML = "";
       return;
     }
+    // Sheet cols: Hedef, Hedef(%80), Kazanç, Tamamlama%, Günlük Kazanç,
+    // Kalan, Kalan(%80), Günlük Kalan, Günlük Kalan(%80)
     var rem80 = kpi.remaining_80;
     var rem100 = kpi.remaining_100 != null ? kpi.remaining_100 : kpi.remaining;
     var need80 = kpi.needed_daily_80;
     var need100 = kpi.needed_daily_100 != null ? kpi.needed_daily_100 : kpi.needed_daily;
     var cards = [
       {
-        label: "Target 80–100%",
-        value: mzAdTargetFmtPct(kpi.completion_pct_100),
-        sub: "",
+        label: "Target",
+        value: mzAdTargetFmtMoney(kpi.target_100),
+        sub: "%80: " + mzAdTargetFmtMoney(kpi.target_80),
       },
       {
-        label: "Achieved / remaining",
+        label: "Achieved",
         value: mzAdTargetFmtMoney(kpi.achieved),
+        sub: mzAdTargetFmtPct(kpi.completion_pct_100),
+      },
+      {
+        label: "Remaining",
+        value: mzAdTargetFmtMoney(rem100),
         sub:
           "%80: " +
           mzAdTargetFmtMoney(rem80) +
-          " · %100: " +
-          mzAdTargetFmtMoney(rem100),
+          (kpi.remaining_pct_100 != null
+            ? " · " + mzAdTargetFmtPct(kpi.remaining_pct_100)
+            : ""),
       },
       {
-        label: "Daily average (MTD)",
+        label: "Daily earnings",
         value: mzAdTargetFmtMoney(kpi.daily_avg),
-        sub: "Days elapsed " + (kpi.days_elapsed != null ? kpi.days_elapsed : "—"),
+        sub: "",
       },
       {
-        label: "Needed daily left",
+        label: "Needed daily",
         value:
           "%80: " +
           mzAdTargetFmtMoney(need80) +

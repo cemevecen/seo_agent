@@ -116,3 +116,42 @@ def test_enrich_month_target_kpi_needed_daily():
     assert abs(kpi["remaining_80"] - max(0.0, 248_000.0 - 100_000.0)) < 0.01
     assert abs(kpi["needed_daily_80"] - ((248_000.0 - 100_000.0) / 20)) < 0.01
     assert abs(kpi["needed_daily_100"] - (210_000 / 20)) < 0.01
+
+    row_sheet = dict(row)
+    row_sheet["kalan_80"] = 140_000.0
+    row_sheet["gunluk_kalan"] = 9_000.0
+    row_sheet["gunluk_kalan_80"] = 7_000.0
+    kpi2 = enrich_month_target_kpi(row_sheet, today=date(2026, 8, 12))
+    assert kpi2 is not None
+    assert kpi2["needed_daily"] == 9_000.0
+    assert kpi2["needed_daily_80"] == 7_000.0
+    assert kpi2["remaining_80"] == 140_000.0
+    assert abs((kpi2["remaining_pct_100"] or 0) - (100.0 - 32.26)) < 0.01
+
+
+def test_parse_mcm_sheet_row_columns():
+    from backend.services.revenue_targets_sheet import parse_revenue_targets_csv
+
+    csv_text = (
+        "Ağustos 2026,Hedef,Hedef (%80),Kazanç,HEDEF TAMAMLANMA ORANI,"
+        "Günlük Kazanç,Kalan,Kalan (%80),Günlük Kalan,Günlük Kalan (%80)\n"
+        "Doviz.com,  7.000.000   ,  5.600.000   ,  2.109.277   ,\"30,13%\","
+        "  191.752   ,  4.890.723   ,  3.490.723   ,  244.536   ,  174.536\n"
+        "Sinemalar.com,  2.000.000   ,  1.600.000   ,  334.553   ,\"16,73%\","
+        "  30.414   ,  1.665.447   ,  1.265.447   ,  83.272   ,  63.272\n"
+    )
+    rows = parse_revenue_targets_csv(csv_text)
+    assert len(rows) == 2
+    d = rows[0]
+    assert d["project"] == "doviz"
+    assert d["hedef"] == 7_000_000.0
+    assert d["hedef_80"] == 5_600_000.0
+    assert d["kazanc"] == 2_109_277.0
+    assert d["tamamlama_orani"] == 30.13
+    assert d["gunluk_kazanc"] == 191_752.0
+    assert d["kalan"] == 4_890_723.0
+    assert d["kalan_80"] == 3_490_723.0
+    assert d["gunluk_kalan"] == 244_536.0
+    assert d["gunluk_kalan_80"] == 174_536.0
+    assert rows[1]["project"] == "sinemalar"
+    assert rows[1]["gunluk_kalan_80"] == 63_272.0

@@ -185,6 +185,9 @@ def parse_revenue_targets_csv(csv_text: str) -> list[dict[str, Any]]:
                     "tamamlama_orani": _parse_pct(cells[4]),
                     "gunluk_kazanc": _parse_tr_money(cells[5]),
                     "kalan": _parse_tr_money(cells[6]),
+                    "kalan_80": _parse_tr_money(cells[7]),
+                    "gunluk_kalan": _parse_tr_money(cells[8]),
+                    "gunluk_kalan_80": _parse_tr_money(cells[9]),
                     "sheet_row": i + 1,
                 }
             )
@@ -435,6 +438,14 @@ def enrich_month_target_kpi(
     if rem is None and h is not None and k is not None:
         rem = max(0.0, h - k)
 
+    kalan_80_raw = row.get("kalan_80")
+    try:
+        rem80 = float(kalan_80_raw) if kalan_80_raw is not None else None
+    except (TypeError, ValueError):
+        rem80 = None
+    if rem80 is None and h80 is not None and k is not None:
+        rem80 = max(0.0, h80 - k)
+
     gunluk = row.get("gunluk_kazanc")
     try:
         daily = float(gunluk) if gunluk is not None else None
@@ -445,25 +456,34 @@ def enrich_month_target_kpi(
     if daily is None and k is not None and days_elapsed > 0:
         daily = k / days_elapsed
 
-    needed_daily = None
-    if rem is not None and days_remaining > 0:
-        needed_daily = rem / days_remaining
-    elif rem is not None and days_remaining == 0:
-        needed_daily = 0.0
-
-    rem80 = None
-    if h80 is not None and k is not None:
-        rem80 = max(0.0, h80 - k)
-    needed_daily_80 = None
-    if rem80 is not None and days_remaining > 0:
-        needed_daily_80 = rem80 / days_remaining
-    elif rem80 is not None and days_remaining == 0:
-        needed_daily_80 = 0.0
+    # Sheet «Günlük Kalan» / «Günlük Kalan (%80)» — yoksa hesapla
+    gk = row.get("gunluk_kalan")
+    gk80 = row.get("gunluk_kalan_80")
+    try:
+        needed_daily = float(gk) if gk is not None else None
+    except (TypeError, ValueError):
+        needed_daily = None
+    try:
+        needed_daily_80 = float(gk80) if gk80 is not None else None
+    except (TypeError, ValueError):
+        needed_daily_80 = None
+    if needed_daily is None:
+        if rem is not None and days_remaining > 0:
+            needed_daily = rem / days_remaining
+        elif rem is not None and days_remaining == 0:
+            needed_daily = 0.0
+    if needed_daily_80 is None:
+        if rem80 is not None and days_remaining > 0:
+            needed_daily_80 = rem80 / days_remaining
+        elif rem80 is not None and days_remaining == 0:
+            needed_daily_80 = 0.0
 
     pct100 = _completion_pct(row)
     pct80 = None
     if h80 and h80 > 0 and k is not None:
         pct80 = (k / h80) * 100.0
+    remaining_pct_100 = (100.0 - pct100) if pct100 is not None else None
+    remaining_pct_80 = (100.0 - pct80) if pct80 is not None else None
 
     return {
         "project": row.get("project"),
@@ -485,6 +505,8 @@ def enrich_month_target_kpi(
         "remaining_100": rem,
         "completion_pct_100": pct100,
         "completion_pct_80": pct80,
+        "remaining_pct_100": remaining_pct_100,
+        "remaining_pct_80": remaining_pct_80,
         "daily_avg": daily,
         "needed_daily": needed_daily,
         "needed_daily_80": needed_daily_80,
