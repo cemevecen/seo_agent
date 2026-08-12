@@ -66,23 +66,54 @@
     });
   }
 
+  function modTitleStyle(title) {
+    if (!title) return null;
+    var t = typeof title === "string" ? { text: title } : title;
+    if (!t.text) return t;
+    return Object.assign(
+      {
+        x: 0,
+        xanchor: "left",
+        automargin: true,
+        pad: { t: 2, b: 6 },
+        font: { size: 12, color: th().tick },
+      },
+      t
+    );
+  }
+
+  function modLegendLayout(legendCount, chartWidth) {
+    if (!legendCount || legendCount <= 0) return null;
+    var entryW = Math.max(84, Math.floor(chartWidth * 0.32));
+    var perRow = Math.max(2, Math.floor(chartWidth / entryW));
+    var rows = Math.ceil(legendCount / perRow);
+    var marginBottom = Math.min(112, 32 + rows * 22);
+    return {
+      legend: {
+        orientation: "h",
+        x: 0,
+        xanchor: "left",
+        y: -0.02,
+        yanchor: "top",
+        font: { size: 10, color: th().legend },
+        tracegroupgap: 4,
+        entrywidth: entryW,
+        itemwidth: 26,
+        groupclick: "toggleitem",
+      },
+      marginBottom: marginBottom,
+    };
+  }
+
   function baseLayout(extra) {
     var t = th();
     var lay = {
       paper_bgcolor: t.paper,
       plot_bgcolor: t.plot,
-      font: { family: "Inter, system-ui, sans-serif", size: 11, color: t.text },
-      margin: { l: 52, r: 20, t: 44, b: 48 },
+      font: { family: "Inter, system-ui, sans-serif", size: 11, color: t.text || t.tick },
+      margin: { l: 52, r: 20, t: 40, b: 48 },
       autosize: true,
       uniformtext: { mode: "hide", minsize: 9 },
-      legend: {
-        orientation: "h",
-        y: 1.14,
-        x: 0,
-        xanchor: "left",
-        font: { size: 10, color: t.legend },
-        tracegroupgap: 4,
-      },
     };
     if (extra) {
       Object.keys(extra).forEach(function (k) {
@@ -96,11 +127,20 @@
     opts = opts || {};
     var w = chartW(el);
     var lay = baseLayout(layout);
-    if (window.seoPlotlyCompactLegend && opts.legendCount > 0) {
-      var leg = window.seoPlotlyCompactLegend({ legendCount: opts.legendCount, chartWidth: w });
-      lay.legend = leg.legend;
+
+    if (lay.title) {
+      lay.title = modTitleStyle(lay.title);
       lay.margin = lay.margin || {};
-      lay.margin.t = Math.max(lay.margin.t || 44, leg.marginTop);
+      lay.margin.t = Math.max(lay.margin.t || 40, 44);
+    }
+
+    var legendCount = opts.legendCount || 0;
+    if (legendCount > 0) {
+      var leg = modLegendLayout(legendCount, w);
+      if (leg) {
+        lay.legend = Object.assign({}, lay.legend || {}, leg.legend);
+        lay.margin.b = Math.max(lay.margin.b || 48, leg.marginBottom);
+      }
     }
     var heightOpts = opts.heightOpts || {};
     if (opts.minHeight && el) el.style.minHeight = opts.minHeight + "px";
@@ -541,7 +581,6 @@
         barmode: "stack",
         xaxis: { tickangle: chartW(el) < 480 ? -25 : 0, tickfont: axisTickFont(), automargin: true },
         yaxis: { title: "Gün sayısı", gridcolor: th().grid, automargin: true },
-        legend: { orientation: "h", y: 1.12, x: 0 },
       },
       { legendCount: 2, heightOpts: { minPlot: 200, maxTotal: 340, fallback: 280 }, minHeight: 240 }
     );
