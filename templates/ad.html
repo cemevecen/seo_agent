@@ -187,6 +187,27 @@
       grid-template-columns: repeat(6, minmax(0, 1fr));
     }
   }
+  #mz-overlay-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 0.75rem;
+    width: 100%;
+  }
+  #mz-overlay-controls > .mz-overlay-controls-left {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  #mz-overlay-controls #mz-market-overlay-section,
+  #mz-overlay-controls #mz-empower-overlay-bar:not(.hidden),
+  #mz-overlay-controls #mz-peer-toggle-kpi:not(.hidden) {
+    display: flex;
+    align-items: center;
+  }
   html.mz-range-single-day .mz-bd-pill[data-v="period_6"],
   html.mz-range-single-day .mz-bd-pill[data-v="period_9"],
   html.mz-range-single-day #mz-market-overlay-section,
@@ -1263,19 +1284,20 @@
           </div>
         </div>
       </details>
-      <div id="mz-peer-toggle-kpi" class="hidden flex flex-wrap justify-end"></div>
-
-      <div id="mz-overlay-controls" class="flex flex-wrap items-center gap-2" data-mz-hide-single-day>
-        <div id="mz-market-overlay-section" class="shrink-0">
-          {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz', market_overlay_on_change='mzOnMarketOverlayChange' %}
-          {% include 'partials/market_overlay_select.html' %}
-          {% endwith %}
+      <div id="mz-overlay-controls" class="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2" data-mz-hide-single-day>
+        <div class="mz-overlay-controls-left min-w-0">
+          <div id="mz-market-overlay-section" class="shrink-0">
+            {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz', market_overlay_on_change='mzOnMarketOverlayChange' %}
+            {% include 'partials/market_overlay_select.html' %}
+            {% endwith %}
+          </div>
+          <div id="mz-empower-overlay-bar" class="hidden shrink-0">
+            {% with app_empower_overlay_control_id='mz-empower-overlay-root', app_empower_overlay_storage_key='mz-empower', app_empower_overlay_on_change='mzOnEmpowerOverlayChange' %}
+            {% include 'partials/app_empower_overlay_select.html' %}
+            {% endwith %}
+          </div>
         </div>
-        <div id="mz-empower-overlay-bar" class="hidden shrink-0">
-          {% with app_empower_overlay_control_id='mz-empower-overlay-root', app_empower_overlay_storage_key='mz-empower', app_empower_overlay_on_change='mzOnEmpowerOverlayChange' %}
-          {% include 'partials/app_empower_overlay_select.html' %}
-          {% endwith %}
-        </div>
+        <div id="mz-peer-toggle-kpi" class="hidden shrink-0"></div>
       </div>
 
       <div id="mz-compare-panels-wrap" class="hidden grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
@@ -7291,8 +7313,7 @@
       return;
     }
     host.dataset.peerMountToken = mountToken;
-    host.className = (hostId.indexOf("mz-peer-toggle-kpi") >= 0 ? "flex flex-wrap justify-end gap-1.5 " : "") +
-      "flex flex-wrap items-center gap-1.5 shrink-0";
+    host.className = "flex flex-wrap items-center gap-1.5 shrink-0";
     var chip =
       "rounded-md border px-2 py-1 text-[10px] font-semibold dark:border-zinc-600";
     host.innerHTML =
@@ -13878,6 +13899,9 @@
     setMzMainView("targets");
   }
 
+  on("mz-main-view-revenue", "click", function () {
+    setMzMainView("revenue");
+  });
   on("mz-main-view-targets", "click", function () {
     setMzMainView("targets");
   });
