@@ -2561,7 +2561,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
     raw = get_raw_product_data(product_id, force_refresh=force_refresh, cache_only=cache_only)
     if raw.get("error"):
         return raw
-    raw = _enrich_raw_category_ranks(product_id, raw, allow_live_fetch=True)
+    raw = _enrich_raw_category_ranks(product_id, raw, allow_live_fetch=not cache_only)
 
     intel: dict[str, Any] = {
         "product_id": product_id,

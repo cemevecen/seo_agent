@@ -1343,6 +1343,7 @@
     requestSeq: 0,
     /** product:period → true: bu seçim için cache_only miss sonrası otomatik tam çekim denendi */
     intelAutoFullFetched: {},
+    categoryRankRefreshTried: {},
     latestPage: { play: 1, ios: 1 },
     compLabel: "",
     compAndroid: "",
@@ -4652,10 +4653,22 @@
   }
 
   function maybeRefreshCategoryRanks(payload) {
-    if (!categoryRanksMissing(payload)) return Promise.resolve();
-    return fetch(
-      '/api/app/category-ranks/refresh?product=' + encodeURIComponent(state.product),
-      { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } }
+    if (!categoryRanksMissing(payload)) return;
+    var key = state.product;
+    if (state.categoryRankRefreshTried[key]) return;
+    state.categoryRankRefreshTried[key] = true;
+    var ac = new AbortController();
+    var timer = window.setTimeout(function () {
+      ac.abort();
+    }, 25000);
+    fetch(
+      "/api/app/category-ranks/refresh?product=" + encodeURIComponent(state.product),
+      {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal: ac.signal,
+      }
     )
       .then(function (r) {
         return r.json().then(function (j) {
@@ -4666,7 +4679,10 @@
         if (!x.ok || !x.j || x.j.ok === false) return;
         return loadIntel({ cacheOnly: true, keepProgress: true });
       })
-      .catch(function () {});
+      .catch(function () {})
+      .finally(function () {
+        window.clearTimeout(timer);
+      });
   }
 
   function loadIntel(opts) {
@@ -4800,7 +4816,7 @@
           schedulePlotlyCatchup();
           loadAscPreview();
           loadStoreRollout();
-          return maybeRefreshCategoryRanks(x.j).then(function () {
+          maybeRefreshCategoryRanks(x.j);
           // ASO verisi ağır olabildiği için ana ekranı bekletmeden arkada yükle.
           return fetch(asoUrl, Object.assign({ cache: "no-store" }, jsonCred))
             .then(function (r2) {
@@ -4818,7 +4834,6 @@
               state.lastAsoPayload = null;
               renderAso(null);
             });
-          });
         });
       })
       .then(function () {
