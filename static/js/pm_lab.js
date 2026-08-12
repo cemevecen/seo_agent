@@ -196,6 +196,14 @@
       chip("out " + (m.dropped || 0), "pml-chip-down") +
       chip("up " + (m.up || 0), "pml-chip-up") +
       chip("down " + (m.down || 0), "pml-chip-down");
+    if (data.rows_stale) {
+      var staleHead = document.createElement("p");
+      staleHead.className = "pml-note mb-2 text-amber-800 dark:text-amber-200";
+      staleHead.textContent =
+        data.message ||
+        "Son tarama boş geldi; tablo önceki kayıtlı SERP listesini gösteriyor. Refresh ile yeniden tarayın.";
+      head.appendChild(staleHead);
+    }
     var spark = document.createElement("div");
     spark.className = "pml-spark mb-3";
     (data.runs || []).slice(-16).forEach(function (r) {

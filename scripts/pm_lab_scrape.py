@@ -516,13 +516,18 @@ def _extract_serp(page: Any) -> dict[str, Any]:
               snippet: snippetFrom(block, title)
             });
           };
-          document.querySelectorAll('#search a h3, #rso a h3, div.g a h3, div[data-sokoban-container] a h3').forEach((h3) => {
+          document.querySelectorAll('#search a h3, #rso a h3, div.g a h3, div[data-sokoban-container] a h3, div.MjjYud a h3, div.Gx5Zad a h3, div.tF2Cxc a h3, div.WZkRb a h3').forEach((h3) => {
             push(h3.closest('a'), h3);
           });
           if (!organic.length) {
-            document.querySelectorAll('#search a[href^="http"], #rso a[href^="http"]').forEach((a) => {
+            document.querySelectorAll('#search a[href^="http"], #rso a[href^="http"], div[data-sokoban-container] a[href^="http"]').forEach((a) => {
               if (a.querySelector('h3')) return;
-              push(a, a.querySelector('h3'));
+              push(a, a.querySelector('h3, [role="heading"]'));
+            });
+          }
+          if (!organic.length) {
+            document.querySelectorAll('div#rso div[data-hveid] a[href^="http"], main a[href^="http"]').forEach((a) => {
+              push(a, a.querySelector('h3, [role="heading"]'));
             });
           }
           const paa = [];
@@ -546,8 +551,22 @@ def job_serp(page: Any) -> dict[str, Any]:
             url = f"https://www.google.com/search?q={quote(kw)}&hl=tr&gl=tr&pws=0&num=10&start={start}"
             try:
                 _goto(page, url, timeout=75_000)
-                page.wait_for_timeout(900)
+                try:
+                    page.wait_for_selector(
+                        "#search, #rso, div.g, div[data-sokoban-container], div.MjjYud",
+                        timeout=12_000,
+                    )
+                except Exception:
+                    pass
+                page.wait_for_timeout(1200)
                 parsed = _extract_serp(page)
+                if not (parsed.get("organic") or []):
+                    try:
+                        page.evaluate("window.scrollTo(0, Math.min(900, document.body.scrollHeight))")
+                    except Exception:
+                        pass
+                    page.wait_for_timeout(900)
+                    parsed = _extract_serp(page)
             except Exception:
                 break
             organic = parsed.get("organic") or []

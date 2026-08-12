@@ -9,6 +9,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from copy import deepcopy
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -132,6 +133,60 @@ def _prev_keywords_map(prev: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def _serp_keywords_row_count(keywords: list[Any]) -> int:
+    return sum(len(kw.get("rows") or []) for kw in keywords if isinstance(kw, dict))
+
+
+def _serp_has_rows(keywords: list[Any]) -> bool:
+    return _serp_keywords_row_count(keywords) > 0
+
+
+def _serp_last_good_source(prev: dict[str, Any]) -> dict[str, Any] | None:
+    lg = prev.get("last_good")
+    if isinstance(lg, dict) and _serp_has_rows(lg.get("keywords") or []):
+        return lg
+    kws = prev.get("keywords") if isinstance(prev.get("keywords"), list) else []
+    if not _serp_has_rows(kws):
+        return None
+    clean = [deepcopy(kw) for kw in kws if isinstance(kw, dict)]
+    return {
+        "keywords": clean,
+        "row_count": _serp_keywords_row_count(clean),
+        "scraped_at": prev.get("scraped_at"),
+    }
+
+
+def _serp_restore_last_good(block: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
+    out = dict(block)
+    restored = [deepcopy(kw) for kw in (source.get("keywords") or []) if isinstance(kw, dict)]
+    for kw in restored:
+        kw["rows_stale"] = True
+        kw.pop("entered", None)
+        kw.pop("dropped", None)
+        kw.pop("climbed", None)
+        kw.pop("fell", None)
+        kw["moves"] = {"entered": 0, "dropped": 0, "up": 0, "down": 0}
+    out["keywords"] = restored
+    out["rows_stale"] = True
+    out["row_count"] = int(source.get("row_count") or _serp_keywords_row_count(restored))
+    out["ok"] = bool(out["row_count"])
+    note = "Son tarama boş; önceki SERP listesi gösteriliyor."
+    out["message"] = note
+    return out
+
+
+def _serp_apply_last_good_if_empty(block: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(block, dict):
+        return block
+    kws = block.get("keywords") if isinstance(block.get("keywords"), list) else []
+    if _serp_has_rows(kws):
+        return block
+    source = _serp_last_good_source(block)
+    if not source:
+        return block
+    return _serp_restore_last_good(block, source)
+
+
 def _enrich_serp(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     out = _strip_shots(incoming)
     prev_idx = _kw_rank_index(prev.get("keywords") or [])
@@ -223,6 +278,40 @@ def _enrich_serp(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, An
     runs.append(snap)
     out["runs"] = runs[-_RUNS_KEEP:]
     out["row_count"] = snap["row_count"]
+
+    fresh_rows = sum(
+        len(kw.get("rows") or [])
+        for kw in keywords
+        if isinstance(kw, dict) and not kw.get("rows_stale")
+    )
+    if fresh_rows > 0:
+        clean_keywords = [deepcopy(kw) for kw in keywords if isinstance(kw, dict)]
+        for kw in clean_keywords:
+            kw.pop("rows_stale", None)
+        out["last_good"] = {
+            "keywords": clean_keywords,
+            "row_count": fresh_rows,
+            "scraped_at": out.get("scraped_at"),
+        }
+        out.pop("rows_stale", None)
+    elif not _serp_has_rows(keywords):
+        last_good = _serp_last_good_source(prev)
+        if last_good:
+            out = _serp_restore_last_good(out, last_good)
+            out["last_good"] = deepcopy(last_good)
+            snap = dict(snap)
+            snap["row_count"] = out["row_count"]
+            snap["ok"] = bool(out["row_count"])
+            if out["runs"]:
+                out["runs"][-1] = snap
+        elif isinstance(prev.get("last_good"), dict):
+            out["last_good"] = deepcopy(prev["last_good"])
+    elif isinstance(prev.get("last_good"), dict):
+        out["last_good"] = deepcopy(prev["last_good"])
+
+    if any(isinstance(kw, dict) and kw.get("rows_stale") for kw in (out.get("keywords") or [])):
+        out["rows_stale"] = True
+
     return out
 
 
@@ -880,6 +969,8 @@ def page_context(db: Session) -> dict[str, Any]:
         block = raw_sections.get(spec["id"])
         if not isinstance(block, dict):
             block = {}
+        if spec["id"] == "serp":
+            block = _serp_apply_last_good_if_empty(block)
         data = _strip_shots(block)
         boot_sections[spec["id"]] = data
         if not spec.get("pm_lab_page", True):

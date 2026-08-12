@@ -197,6 +197,63 @@ def test_serp_empty_scan_keeps_previous_rows():
         db.close()
 
 
+def test_serp_all_empty_restores_last_good_snapshot():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        ingest_pm_lab_payload(
+            db,
+            {
+                "sections": {
+                    "serp": {
+                        "ok": True,
+                        "keywords": [
+                            {
+                                "keyword": "gram altın",
+                                "our_rank": 2,
+                                "rows": [
+                                    {
+                                        "rank": 2,
+                                        "page": 1,
+                                        "domain": "www.doviz.com",
+                                        "title": "Döviz",
+                                        "url": "https://www.doviz.com/",
+                                        "snippet": "snippet",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                }
+            },
+        )
+        ingest_pm_lab_payload(
+            db,
+            {
+                "sections": {
+                    "serp": {
+                        "ok": False,
+                        "message": "SERP boş",
+                        "keywords": [
+                            {"keyword": "gram altın", "our_rank": None, "rows": []},
+                            {"keyword": "usd", "our_rank": None, "rows": []},
+                        ],
+                    }
+                }
+            },
+        )
+        ctx = page_context(db)
+        serp = __import__("json").loads(ctx["boot_json"])["sections"]["serp"]
+        assert serp["rows_stale"] is True
+        assert serp["row_count"] >= 1
+        kw_ga = next(k for k in serp["keywords"] if k.get("keyword") == "gram altın")
+        assert len(kw_ga["rows"]) == 1
+        assert kw_ga["rows"][0]["domain"] == "www.doviz.com"
+        assert isinstance(serp.get("last_good"), dict)
+    finally:
+        db.close()
+
+
 def test_template_has_no_photos_and_js_shell():
     html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
     assert "<img" not in html
@@ -635,7 +692,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com rank:" in js
-    assert "pm_lab.js?v=35" in html
+    assert "pm_lab.js?v=37" in html
     assert "pingBridge" in js
     assert "127.0.0.1:18765/sync-pm-lab" in js
     assert "position:static" in html
