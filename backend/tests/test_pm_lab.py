@@ -72,7 +72,7 @@ def test_serp_keyword_batches():
     assert serp_keywords_for_batch(99) == batches[-1]
 
 
-def test_serp_partial_batch_merge_keeps_other_keywords():
+def test_serp_batch_cycle_keeps_published_until_complete():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
@@ -83,6 +83,7 @@ def test_serp_partial_batch_merge_keeps_other_keywords():
                 "sections": {
                     "serp": {
                         "ok": True,
+                        "scraped_at": "2026-01-01T10:00:00+00:00",
                         "keywords": [
                             {
                                 "keyword": "altın",
@@ -110,6 +111,8 @@ def test_serp_partial_batch_merge_keeps_other_keywords():
                     "serp": {
                         "ok": True,
                         "batch_index": 1,
+                        "batch_total": SERP_BATCH_COUNT,
+                        "scraped_at": "2026-01-01T10:15:00+00:00",
                         "keywords": [
                             {
                                 "keyword": "dolar",
@@ -134,10 +137,49 @@ def test_serp_partial_batch_merge_keeps_other_keywords():
         serp = __import__("json").loads(ctx["boot_json"])["sections"]["serp"]
         names = {k["keyword"] for k in serp["keywords"]}
         assert "altın" in names
+        assert "dolar" not in names
+        assert serp.get("refresh_in_progress") is True
+        assert serp.get("refresh_progress") == "1/4"
+
+        for batch_index in (0, 2, 3):
+            kws = [
+                {
+                    "keyword": name,
+                    "our_rank": 1,
+                    "rows": [
+                        {
+                            "rank": 1,
+                            "page": 1,
+                            "domain": "doviz.com",
+                            "title": "Doviz",
+                            "url": "https://www.doviz.com/",
+                            "snippet": "z",
+                        }
+                    ],
+                }
+                for name in serp_keywords_for_batch(batch_index)
+            ]
+            ingest_pm_lab_payload(
+                db,
+                {
+                    "sections": {
+                        "serp": {
+                            "ok": True,
+                            "batch_index": batch_index,
+                            "batch_total": SERP_BATCH_COUNT,
+                            "scraped_at": f"2026-01-01T10:{15 * (batch_index + 1):02d}:00+00:00",
+                            "keywords": kws,
+                        }
+                    }
+                },
+            )
+
+        ctx = page_context(db)
+        serp = __import__("json").loads(ctx["boot_json"])["sections"]["serp"]
+        names = {k["keyword"] for k in serp["keywords"]}
         assert "dolar" in names
-        altin = next(k for k in serp["keywords"] if k["keyword"] == "altın")
-        assert altin.get("rows_stale") is True
-        assert serp.get("partial_batch") is True
+        assert serp.get("refresh_in_progress") is not True
+        assert serp.get("serp_refresh_pending") is None
     finally:
         db.close()
 

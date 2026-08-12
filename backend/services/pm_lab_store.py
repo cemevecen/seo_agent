@@ -248,11 +248,11 @@ def _serp_apply_last_good_if_empty(block: dict[str, Any]) -> dict[str, Any]:
     return _serp_restore_last_good(block, source)
 
 
-def _enrich_serp(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
-    out = _strip_shots(incoming)
-    prev_idx = _kw_rank_index(prev.get("keywords") or [])
-    prev_kws = _prev_keywords_map(prev)
-    keywords = out.get("keywords") if isinstance(out.get("keywords"), list) else []
+def _serp_apply_keyword_deltas(
+    prev_idx: dict[str, dict[str, int]],
+    prev_kws: dict[str, dict[str, Any]],
+    keywords: list[Any],
+) -> None:
     for kw in keywords:
         if not isinstance(kw, dict):
             continue
@@ -322,41 +322,168 @@ def _enrich_serp(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, An
             "down": len(fell),
         }
 
-    incoming_names = {str(kw.get("keyword") or "") for kw in keywords if isinstance(kw, dict)}
-    batch_index = incoming.get("batch_index")
-    if batch_index is not None and incoming_names and len(incoming_names) < len(SERP_KEYWORDS):
-        merged: list[dict[str, Any]] = []
-        for name in SERP_KEYWORDS:
-            hit = next((kw for kw in keywords if isinstance(kw, dict) and str(kw.get("keyword") or "") == name), None)
-            if hit is not None:
-                merged.append(hit)
+
+def _published_serp_base(prev: dict[str, Any]) -> dict[str, Any]:
+    out = deepcopy(prev)
+    for key in ("serp_refresh_pending", "refresh_in_progress", "refresh_progress"):
+        out.pop(key, None)
+    return out
+
+
+def _merge_pending_serp_keywords(pending: dict[str, Any]) -> list[dict[str, Any]]:
+    by_name: dict[str, dict[str, Any]] = {}
+    batches = pending.get("batches") if isinstance(pending.get("batches"), dict) else {}
+    for batch in batches.values():
+        if not isinstance(batch, dict):
+            continue
+        for kw in batch.get("keywords") or []:
+            if not isinstance(kw, dict):
                 continue
-            prev_kw = prev_kws.get(name)
-            if isinstance(prev_kw, dict) and (prev_kw.get("rows") or []):
-                carry = deepcopy(prev_kw)
-                carry["rows_stale"] = True
-                carry.setdefault(
-                    "moves",
-                    {"entered": 0, "dropped": 0, "up": 0, "down": 0},
-                )
-                merged.append(carry)
-            else:
-                merged.append(
-                    {
-                        "keyword": name,
-                        "our_rank": None,
-                        "row_count": 0,
-                        "rows": [],
-                        "rows_stale": True,
-                        "moves": {"entered": 0, "dropped": 0, "up": 0, "down": 0},
-                    }
-                )
-        keywords = merged
-        out["keywords"] = keywords
-        out["partial_batch"] = True
-        out["keywords_pending"] = sum(
-            1 for kw in keywords if isinstance(kw, dict) and kw.get("rows_stale")
-        )
+            name = str(kw.get("keyword") or "").strip()
+            if name:
+                by_name[name] = deepcopy(kw)
+    merged: list[dict[str, Any]] = []
+    for name in SERP_KEYWORDS:
+        if name in by_name:
+            merged.append(by_name[name])
+    for name, kw in by_name.items():
+        if name not in SERP_KEYWORDS:
+            merged.append(kw)
+    return merged
+
+
+def _enrich_serp_finalize(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    out = _strip_shots(incoming)
+    prev_published = _published_serp_base(prev)
+    prev_idx = _kw_rank_index(prev_published.get("keywords") or [])
+    prev_kws = _prev_keywords_map(prev_published)
+    keywords = out.get("keywords") if isinstance(out.get("keywords"), list) else []
+    _serp_apply_keyword_deltas(prev_idx, prev_kws, keywords)
+    out["keywords"] = keywords
+
+    runs = list(prev_published.get("runs") or []) if isinstance(prev_published.get("runs"), list) else []
+    snap = {
+        "at": out.get("scraped_at") or datetime.utcnow().isoformat(),
+        "ok": bool(out.get("ok")),
+        "summary": out.get("summary") or "",
+        "moves": {
+            "entered": sum(int((kw.get("moves") or {}).get("entered") or 0) for kw in keywords if isinstance(kw, dict)),
+            "dropped": sum(int((kw.get("moves") or {}).get("dropped") or 0) for kw in keywords if isinstance(kw, dict)),
+            "up": sum(int((kw.get("moves") or {}).get("up") or 0) for kw in keywords if isinstance(kw, dict)),
+            "down": sum(int((kw.get("moves") or {}).get("down") or 0) for kw in keywords if isinstance(kw, dict)),
+        },
+        "keyword_count": len(keywords),
+        "row_count": sum(len(kw.get("rows") or []) for kw in keywords if isinstance(kw, dict)),
+    }
+    runs.append(snap)
+    out["runs"] = runs[-_RUNS_KEEP:]
+    out["row_count"] = snap["row_count"]
+
+    fresh_rows = sum(
+        len(kw.get("rows") or [])
+        for kw in keywords
+        if isinstance(kw, dict) and not kw.get("rows_stale")
+    )
+    if fresh_rows > 0:
+        clean_keywords = [deepcopy(kw) for kw in keywords if isinstance(kw, dict)]
+        for kw in clean_keywords:
+            kw.pop("rows_stale", None)
+        out["last_good"] = {
+            "keywords": clean_keywords,
+            "row_count": fresh_rows,
+            "scraped_at": out.get("scraped_at"),
+        }
+        out.pop("rows_stale", None)
+    elif not _serp_has_rows(keywords):
+        out["message"] = out.get("message") or "SERP boş — Google headless engeli; Mac bridge headed tarama gerekir."
+        last_good = _serp_last_good_source(prev_published)
+        if last_good:
+            out = _serp_restore_last_good(out, last_good)
+            out["last_good"] = deepcopy(last_good)
+            snap = dict(snap)
+            snap["row_count"] = out["row_count"]
+            snap["ok"] = bool(out["row_count"])
+            if out["runs"]:
+                out["runs"][-1] = snap
+        elif isinstance(prev_published.get("last_good"), dict):
+            out["last_good"] = deepcopy(prev_published["last_good"])
+    elif isinstance(prev_published.get("last_good"), dict):
+        out["last_good"] = deepcopy(prev_published["last_good"])
+
+    if any(isinstance(kw, dict) and kw.get("rows_stale") for kw in (out.get("keywords") or [])):
+        out["rows_stale"] = True
+
+    out.pop("serp_refresh_pending", None)
+    out.pop("refresh_in_progress", None)
+    out.pop("refresh_progress", None)
+    return out
+
+
+def _enrich_serp_batch_cycle(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    batch_index = int(incoming.get("batch_index") or 0)
+    batch_total = max(1, int(incoming.get("batch_total") or SERP_BATCH_COUNT))
+    published = _published_serp_base(prev)
+
+    pending_raw = prev.get("serp_refresh_pending")
+    cycle_active = isinstance(pending_raw, dict) and bool(prev.get("refresh_in_progress"))
+    if batch_index == 0 and not cycle_active:
+        pending = {
+            "started_at": str(incoming.get("scraped_at") or datetime.utcnow().isoformat()),
+            "batch_total": batch_total,
+            "batches": {},
+        }
+    elif isinstance(pending_raw, dict):
+        pending = deepcopy(pending_raw)
+    else:
+        pending = {
+            "started_at": str(incoming.get("scraped_at") or datetime.utcnow().isoformat()),
+            "batch_total": batch_total,
+            "batches": {},
+        }
+
+    raw_kws = [deepcopy(kw) for kw in (incoming.get("keywords") or []) if isinstance(kw, dict)]
+    pending.setdefault("batches", {})
+    if isinstance(pending["batches"], dict):
+        pending["batches"][str(batch_index)] = {
+            "keywords": raw_kws,
+            "scraped_at": incoming.get("scraped_at"),
+            "ok": bool(incoming.get("ok")),
+            "blocked": bool(incoming.get("blocked")),
+        }
+
+    have = set(pending.get("batches") or {})
+    need = {str(i) for i in range(batch_total)}
+    if have >= need:
+        merged = _merge_pending_serp_keywords(pending)
+        finalized_incoming = {
+            **incoming,
+            "keywords": merged,
+            "scraped_at": str(incoming.get("scraped_at") or datetime.utcnow().isoformat()),
+            "summary": f"{batch_total} batch · {len(merged)} kelime · tamamlandı",
+            "ok": _serp_has_rows(merged),
+            "batch_index": None,
+        }
+        return _enrich_serp_finalize(prev, finalized_incoming)
+
+    published["serp_refresh_pending"] = pending
+    published["refresh_in_progress"] = True
+    published["refresh_progress"] = f"{len(have)}/{batch_total}"
+    published["message"] = (
+        f"SERP yenileniyor ({len(have)}/{batch_total}) — tablo önceki tam taramayı gösteriyor."
+    )
+    return published
+
+
+def _enrich_serp(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    if incoming.get("batch_index") is not None:
+        return _enrich_serp_batch_cycle(prev, incoming)
+
+    out = _strip_shots(incoming)
+    prev_idx = _kw_rank_index(prev.get("keywords") or [])
+    prev_kws = _prev_keywords_map(prev)
+    keywords = out.get("keywords") if isinstance(out.get("keywords"), list) else []
+    _serp_apply_keyword_deltas(prev_idx, prev_kws, keywords)
+    out["keywords"] = keywords
 
     runs = list(prev.get("runs") or []) if isinstance(prev.get("runs"), list) else []
     snap = {
@@ -410,6 +537,9 @@ def _enrich_serp(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, An
     if any(isinstance(kw, dict) and kw.get("rows_stale") for kw in (out.get("keywords") or [])):
         out["rows_stale"] = True
 
+    out.pop("serp_refresh_pending", None)
+    out.pop("refresh_in_progress", None)
+    out.pop("refresh_progress", None)
     return out
 
 
@@ -992,8 +1122,14 @@ def ingest_pm_lab_payload(db: Session, body: dict[str, Any]) -> dict[str, Any]:
     existing["scraped_at"] = str(body.get("scraped_at") or now.isoformat())
     running = str(existing.get("refresh_running") or "").strip()
     if running and running in incoming:
-        existing["refresh_running"] = ""
-        existing["refresh_running_at"] = ""
+        keep_running = False
+        if running == "serp":
+            serp = existing["sections"].get("serp")
+            if isinstance(serp, dict) and serp.get("refresh_in_progress"):
+                keep_running = True
+        if not keep_running:
+            existing["refresh_running"] = ""
+            existing["refresh_running_at"] = ""
     row.payload_json = json.dumps(existing, ensure_ascii=False)
     row.source = str(body.get("source") or "pm_lab_scrape")[:64]
     row.sync_ok = bool(body.get("sync_ok", True))

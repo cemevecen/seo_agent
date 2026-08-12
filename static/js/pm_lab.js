@@ -257,6 +257,13 @@
         data.message ||
         "Son tarama boş geldi; tablo önceki kayıtlı SERP listesini gösteriyor. Refresh ile yeniden tarayın.";
       head.appendChild(staleHead);
+    } else if (data.refresh_in_progress) {
+      var progHead = document.createElement("p");
+      progHead.className = "pml-note mb-2 text-sky-800 dark:text-sky-200";
+      progHead.textContent =
+        data.message ||
+        ("SERP yenileniyor" + (data.refresh_progress ? " (" + data.refresh_progress + ")" : "") + " — tablo önceki tam taramayı gösteriyor.");
+      head.appendChild(progHead);
     }
     var spark = document.createElement("div");
     spark.className = "pml-spark mb-3";
