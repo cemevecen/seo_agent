@@ -5,6 +5,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="min-w-0">
         <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-300">Notification Analytics</h1>
+        <p id="nt-last-fetch" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">Last fetch: —</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <span data-page-tarama-slot></span>
@@ -1239,6 +1240,38 @@
     return day + " " + mon + " " + year + " - " + hour + ":" + minute + ":" + second;
   }
 
+  function ntFormatLastFetch(iso) {
+    if (!iso) return "";
+    var d = ntParseApiUtcIso(iso);
+    if (!d || isNaN(d.getTime())) return "";
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    var parts = new Intl.DateTimeFormat("tr-TR", {
+      timeZone: "Europe/Istanbul",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(d);
+    var map = {};
+    parts.forEach(function (p) {
+      if (p.type !== "literal") map[p.type] = p.value;
+    });
+    if (!map.day || !map.month || !map.year) {
+      return pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() +
+        " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+    }
+    return map.day + "." + map.month + "." + map.year + " " + (map.hour || "00") + ":" + (map.minute || "00");
+  }
+
+  function updateNtLastFetch() {
+    var el = document.getElementById("nt-last-fetch");
+    if (!el) return;
+    var stamp = ntFormatLastFetch(ntDbUpdatedAt);
+    el.textContent = stamp ? ("Last fetch: " + stamp) : "Last fetch: —";
+  }
+
   function renderSheetMeta(meta) {
     var el = document.getElementById("nt-sheet-meta");
     if (!el) return;
@@ -1266,6 +1299,7 @@
       ntLastFileUploadAt = meta.last_sheet_sync_at || "";
     }
     renderSheetMeta(meta || {});
+    updateNtLastFetch();
   }
 
   function ntSessionCacheKey(updatedAt, range) {
@@ -1568,6 +1602,7 @@
         if (data && data.last_sheet_sync_at) ntLastFileUploadAt = data.last_sheet_sync_at;
         else if (data && data.last_file_upload_at) ntLastFileUploadAt = data.last_file_upload_at;
         applyLastFileUploadFromMeta(data || {});
+        updateNtLastFetch();
         if (data && (data.synced || data.ok)) clearNtSessionCache();
         return data;
       })
@@ -1662,6 +1697,7 @@
   function loadServerState() {
     return apiFetch("/api/notification-analytics/state?include_rows=false").then(function (meta) {
       ntDbUpdatedAt = meta.updated_at || "";
+      updateNtLastFetch();
       applyLastFileUploadFromMeta(meta);
       applyServerState(meta, { keepRows: false });
       var totalAll = n(meta.row_count);
@@ -2597,7 +2633,7 @@
       rawPage = 0;
       if (!skipServerSave && serverReady) {
         savePrefsOnly({ start: "", end: "", preset: "all" }).then(function (data) {
-          if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
+          if (data && data.updated_at) { ntDbUpdatedAt = data.updated_at; updateNtLastFetch(); }
           return reloadRowsForCurrentFilters(true);
         }).catch(function (err) {
           status((err && err.detail) || (err && err.message) || "Could not save preset range.");
@@ -2625,7 +2661,7 @@
     rawPage = 0;
     if (!skipServerSave && serverReady) {
       savePrefsOnly({ start: start, end: end, preset: preset || "1y" }).then(function (data) {
-        if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
+        if (data && data.updated_at) { ntDbUpdatedAt = data.updated_at; updateNtLastFetch(); }
         return reloadRowsForCurrentFilters(true);
       }).catch(function (err) {
         status((err && err.detail) || (err && err.message) || "Could not save preset range.");
@@ -2761,7 +2797,7 @@
     rawPage = 0;
     savePrefsOnly({ start: startVal, end: endVal, preset: "custom" })
       .then(function (data) {
-        if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
+        if (data && data.updated_at) { ntDbUpdatedAt = data.updated_at; updateNtLastFetch(); }
         return reloadRowsForCurrentFilters(true);
       })
       .then(function () {

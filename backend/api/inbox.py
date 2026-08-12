@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import json
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
@@ -254,6 +255,14 @@ def _latest_message_body_by_thread(db: Session, thread_ids: list[int]) -> dict[i
 @limiter.limit("120/minute")
 def inbox_status(request: Request, db: Session = Depends(get_db)) -> dict[str, Any]:
     row = inbox_gmail_auth.get_inbox_credential_row(db)
+    max_thread_sync = db.query(func.max(SupportInboxThread.last_synced_at)).scalar()
+    cred_success = row.scheduled_sync_last_success_at if row else None
+    candidates = [t for t in (max_thread_sync, cred_success) if isinstance(t, datetime)]
+    best = max(candidates) if candidates else None
+    last_synced_at = best.isoformat() if best else None
+    scheduled_sync_last_success_at = (
+        cred_success.isoformat() if isinstance(cred_success, datetime) else None
+    )
 
     return {
         "oauth_client_configured": inbox_gmail_auth.inbox_oauth_is_configured(),
@@ -267,6 +276,8 @@ def inbox_status(request: Request, db: Session = Depends(get_db)) -> dict[str, A
         "client_id_suffix": (
             settings.google_client_id.strip()[-12:] if settings.google_client_id.strip() else ""
         ),
+        "last_synced_at": last_synced_at,
+        "scheduled_sync_last_success_at": scheduled_sync_last_success_at,
     }
 
 

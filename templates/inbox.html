@@ -379,7 +379,10 @@
   <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div class="flex items-center gap-3">
       <span class="inbox-motion-mail" aria-hidden="true"><span></span></span>
-      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Inbox</h1>
+      <div class="min-w-0">
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Inbox</h1>
+        <p id="inbox-last-fetch" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">Last fetch: —</p>
+      </div>
     </div>
     <div class="flex flex-wrap gap-2" id="inbox-toolbar">
       <a
@@ -1451,6 +1454,24 @@
     var connect = document.getElementById("inbox-connect-btn");
     var sync = document.getElementById("inbox-sync-btn");
     var disc = document.getElementById("inbox-disconnect-btn");
+    var lastFetchEl = document.getElementById("inbox-last-fetch");
+    if (lastFetchEl) {
+      var raw =
+        status.last_synced_at ||
+        status.scheduled_sync_last_success_at ||
+        "";
+      var stamp = "";
+      if (raw) {
+        var d = new Date(raw);
+        if (!isNaN(d.getTime())) {
+          var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+          stamp =
+            pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() +
+            " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+        }
+      }
+      lastFetchEl.textContent = stamp ? ("Last fetch: " + stamp) : "Last fetch: —";
+    }
     if (acc) {
       acc.textContent = status.connected ? status.account_email || "Connected" : "Not connected";
     }
@@ -1802,6 +1823,7 @@
       return;
     }
     try {
+      await loadStatus();
       await loadThreads({ preserveScroll: true });
     } catch (e) {
       showBanner("List could not refresh (Gmail sync complete): " + String(e.message || e));

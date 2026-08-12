@@ -14950,12 +14950,21 @@ def get_intelligence_page(request: Request):
 
 @app.get("/ga4")
 def ga4_page(request: Request):
+    from sqlalchemy import func as sa_func
+
     with SessionLocal() as db:
         default_site_id = _default_active_site_id(db)
+        latest_ts = db.query(sa_func.max(Ga4ReportSnapshot.collected_at)).scalar()
+        last_fetch_label = (
+            format_local_datetime(latest_ts, fmt="%d.%m.%Y %H:%M", fallback="", include_suffix=False)
+            if isinstance(latest_ts, datetime)
+            else ""
+        )
     payload = {
         "site_name": "GA4",
         "sites": get_sidebar_sites(),
         "default_site_id": default_site_id,
+        "last_fetch_label": last_fetch_label or "",
     }
     return templates.TemplateResponse(request, "ga4.html", context={"request": request, **payload})
 
@@ -15703,7 +15712,18 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
         except Exception:
             LOGGER.exception("OMDB merge hatası (sayfa yüklenmesini engellemez)")
 
-    from backend.services.tmdb import streaming_provider_filters
+    from backend.services.tmdb import streaming_provider_filters, get_cache_fetched_at
+
+    cached_at = None
+    if isinstance(data, dict):
+        cached_at = data.get("cached_at") or data.get("fetched_at")
+    if not cached_at:
+        wall = get_cache_fetched_at()
+        if wall is not None:
+            cached_at = wall.isoformat().replace("+00:00", "Z")
+    last_fetch_label = format_datetime_like(
+        cached_at, fmt="%d.%m.%Y %H:%M", fallback="", include_suffix=False
+    ) if cached_at else ""
 
     payload = {
         "site_name": "Movie",
@@ -15712,6 +15732,7 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
         "error": error,
         "current_month": date.today().strftime("%Y-%m"),
         "streaming_provider_filters": streaming_provider_filters(),
+        "last_fetch_label": last_fetch_label or "",
     }
     return templates.TemplateResponse(request, "tmdb_upcoming.html",
                                       context={"request": request, **payload})
@@ -15749,6 +15770,7 @@ def app_intel_page(request: Request):
 def firebase_page(request: Request):
     """Firebase Crashlytics izleme — /android + /ios scrape kaynakları."""
     from backend.services.app_intel import APP_PRODUCTS
+    from backend.services.play_console_store import play_console_payload
 
     crash_products = [
         {"id": k, "label": v.get("label") or k}
@@ -15758,10 +15780,22 @@ def firebase_page(request: Request):
     if not crash_products and "doviz" in APP_PRODUCTS:
         crash_products = [{"id": "doviz", "label": APP_PRODUCTS["doviz"].get("label") or "Döviz"}]
 
+    last_fetch_label = ""
+    try:
+        with SessionLocal() as db:
+            pc = play_console_payload(db)
+        raw = (pc or {}).get("updated_at") or (pc or {}).get("background_synced_at")
+        last_fetch_label = format_datetime_like(
+            raw, fmt="%d.%m.%Y %H:%M", fallback="", include_suffix=False
+        )
+    except Exception:
+        LOGGER.exception("firebase last_fetch_label (play console) atlandı")
+
     payload = {
         "site_name": "Firebase",
         "sites": get_sidebar_sites(),
         "crash_products": crash_products,
+        "last_fetch_label": last_fetch_label or "",
     }
     template_name = "partials/firebase_content.html" if request.headers.get("HX-Request") == "true" else "firebase.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -16408,6 +16442,9 @@ def api_crash_bundle(request: Request):
             "product": params.get("product"),
             "platform": params.get("platform"),
             "days": params.get("days"),
+            "fetched_at": (data or {}).get("fetched_at"),
+            "updated_at": (data or {}).get("updated_at"),
+            "background_synced_at": (data or {}).get("background_synced_at"),
         }
     )
 
@@ -18886,6 +18923,14 @@ def backlinks_page(request: Request):
 
 
 def _search_console_page_context(db: Session) -> dict[str, Any]:
+    from sqlalchemy import func as sa_func
+
+    latest_ts = db.query(sa_func.max(SearchConsoleQuerySnapshot.collected_at)).scalar()
+    last_fetch_label = (
+        format_local_datetime(latest_ts, fmt="%d.%m.%Y %H:%M", fallback="", include_suffix=False)
+        if isinstance(latest_ts, datetime)
+        else ""
+    )
     return {
         "site_name": "Search Console",
         "sites": get_sidebar_sites(),
@@ -18894,6 +18939,7 @@ def _search_console_page_context(db: Session) -> dict[str, Any]:
         "site_list_mode": "lazy",
         "sc_extra_views": sc_extra_views_for_nav(),
         "default_site_id": _default_active_site_id(db),
+        "last_fetch_label": last_fetch_label or "",
     }
 
 

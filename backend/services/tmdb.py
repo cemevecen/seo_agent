@@ -5,7 +5,7 @@ import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import requests
@@ -126,11 +126,25 @@ _refresh_lock      = threading.Lock()   # aynı anda sadece bir yenileme
 _bg_refresh_active = threading.Event()  # birden fazla bg thread spawn olmasın
 _cache_data:   dict | None = None
 _cache_mono:   float | None = None  # time.monotonic() snapshots
+_cache_wall:   datetime | None = None  # wall-clock when cache was populated
 _CACHE_TTL_S   = 6 * 3600           # 6 saat TTL
 
 
 def _cache_fresh() -> bool:
     return _cache_mono is not None and time.monotonic() - _cache_mono < _CACHE_TTL_S
+
+
+def _set_cache(fresh: dict) -> None:
+    global _cache_data, _cache_mono, _cache_wall
+    _cache_data = fresh
+    _cache_mono = time.monotonic()
+    _cache_wall = datetime.now(timezone.utc)
+
+
+def get_cache_fetched_at() -> datetime | None:
+    """Wall-clock datetime when the combined TMDB cache was last populated."""
+    with _cache_lock:
+        return _cache_wall
 
 
 def _enrich_missing_countries(movies: list[dict], limit: int = 25) -> None:
@@ -162,7 +176,7 @@ def _enrich_missing_countries(movies: list[dict], limit: int = 25) -> None:
 
 def _do_refresh(months_ahead: int) -> None:
     """Refresh lock altında cache'i yeniler (hem sync hem bg thread kullanır)."""
-    global _cache_data, _cache_mono
+    global _cache_data, _cache_mono, _cache_wall
     with _refresh_lock:
         with _cache_lock:
             if _cache_fresh():
@@ -175,8 +189,7 @@ def _do_refresh(months_ahead: int) -> None:
         except Exception:
             logger.exception("Sinemalar önbellek (TMDB cache refresh) atlandı")
         with _cache_lock:
-            _cache_data = fresh
-            _cache_mono = time.monotonic()
+            _set_cache(fresh)
 
 
 def get_combined_upcoming(months_ahead: int = 5) -> dict:
@@ -186,7 +199,7 @@ def get_combined_upcoming(months_ahead: int = 5) -> dict:
     • Cache eski ama veri var → eskiyi anında dön, arka planda yenile.
     • Cache hiç yok (ilk başlatma) → bekle, prewarm thread bitene kadar.
     """
-    global _cache_data, _cache_mono
+    global _cache_data, _cache_mono, _cache_wall
     months_ahead = max(1, min(int(months_ahead), TMDB_MAX_CACHE_MONTHS))
     fetch_months = TMDB_MAX_CACHE_MONTHS
     with _cache_lock:
@@ -216,12 +229,11 @@ def get_combined_upcoming(months_ahead: int = 5) -> dict:
 
 def refresh_combined_cache(months_ahead: int = 5) -> dict:
     """Scheduler job'u veya manuel tetik için: cache'i zorunlu yeniler."""
-    global _cache_data, _cache_mono
+    global _cache_data, _cache_mono, _cache_wall
     fetch_months = TMDB_MAX_CACHE_MONTHS
     fresh = fetch_combined_upcoming(TMDB_MAX_CACHE_MONTHS)
     with _cache_lock:
-        _cache_data = fresh
-        _cache_mono = time.monotonic()
+        _set_cache(fresh)
     logger.info("TMDB combined cache yenilendi — theatrical=%d streaming=%d tv=%d",
                 len(fresh.get("theatrical", [])),
                 len(fresh.get("streaming", [])),
@@ -527,6 +539,11 @@ def _filter_combined_horizon(data: dict[str, Any], months_ahead: int) -> dict[st
         "total_turkish": len(turkish_only),
         "total_tv": len(tv_series),
     })
+    wall = get_cache_fetched_at()
+    if wall is not None:
+        iso = wall.isoformat().replace("+00:00", "Z")
+        out["cached_at"] = iso
+        out["fetched_at"] = iso
     return out
 
 

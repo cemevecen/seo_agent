@@ -7,6 +7,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">Error Monitor</h2>
+        <p id="err-page-last-fetch" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-500">Last fetch: —</p>
         <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">CSV / HTTP scan · 03:00 and 13:00 · real page errors</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
@@ -190,7 +191,12 @@ function _renderSummary(d) {
       ? ('Most-affected users · ' + listed + ' records (limit ' + (d.fetch_limit || '—') + ')')
       : ('Last ' + _errDays + ' days detected');
   }
-  if (d.fetched_at) document.getElementById('fetched-at').textContent = d.fetched_at;
+  if (d.fetched_at) {
+    var fa = document.getElementById('fetched-at');
+    if (fa) fa.textContent = d.fetched_at;
+    var pageFa = document.getElementById('err-page-last-fetch');
+    if (pageFa) pageFa.textContent = 'Last fetch: ' + d.fetched_at;
+  }
 
   var errors = d.errors || [];
   document.getElementById('err-loading').classList.add('hidden');

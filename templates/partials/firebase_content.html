@@ -229,6 +229,7 @@
           <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Crashlytics</h2>
         </div>
         <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Source: /android Play Console · /ios stability-free</p>
+        <p id="fb-last-fetch" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-500">Last fetch: {% if last_fetch_label %}{{ last_fetch_label }}{% else %}—{% endif %}</p>
       </div>
       <div class="flex flex-wrap items-stretch gap-2 sm:items-center">
         <span data-page-tarama-slot></span>
@@ -765,6 +766,27 @@
     });
   }
 
+  function fmtFbLastFetch(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return (
+      pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() +
+      " " + pad(d.getHours()) + ":" + pad(d.getMinutes())
+    );
+  }
+
+  function setFbLastFetch(data) {
+    var el = document.getElementById("fb-last-fetch");
+    if (!el) return;
+    data = data || {};
+    var stamp = fmtFbLastFetch(
+      data.updated_at || data.background_synced_at || data.fetched_at || ""
+    );
+    el.textContent = stamp ? ("Last fetch: " + stamp) : "Last fetch: —";
+  }
+
   function secLoadingHtml(name, pct, step) {
     pct = Math.max(0, Math.min(100, Math.round(pct || 0)));
     var text = step || ((SECTION_LABELS[name] || name) + " loading…");
@@ -1045,6 +1067,9 @@
       .then(function (j) {
         var sections = (j && j.sections) || {};
         var any = false;
+        if (j && (j.updated_at || j.background_synced_at || j.fetched_at)) {
+          setFbLastFetch(j);
+        }
         SECTIONS.forEach(function (n) {
           var sk = seqKey(n, plat);
           if (crashState.seqs[sk] !== seqSnapshot[n]) return;

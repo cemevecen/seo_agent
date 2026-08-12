@@ -7202,7 +7202,7 @@
     if (isNaN(d.getTime())) return "";
     var pad = function (n) { return (n < 10 ? "0" : "") + n; };
     return (
-      pad(d.getDate()) + "-" + pad(d.getMonth() + 1) + "-" + d.getFullYear() +
+      pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() +
       " " + pad(d.getHours()) + ":" + pad(d.getMinutes())
     );
   }
@@ -7461,7 +7461,15 @@
       if (devicesLink && data.panels && data.panels.pages && data.panels.pages.devices && data.panels.pages.devices.url) {
         devicesLink.href = data.panels.pages.devices.url;
       }
-      setPcLine(metaEl, data.empty ? "No data — bridge login + sync gerekli" : "");
+      setPcLine(
+        metaEl,
+        data.empty
+          ? "No data — bridge login + sync gerekli"
+          : (function () {
+              var stamp = fmtStoreSyncTime(data.updated_at || data.background_synced_at || "");
+              return stamp ? ("Last fetch: " + stamp) : "";
+            })()
+      );
       applyVitalsSnapshot(data, { force: true });
       renderRating(data.rating_summary);
       renderMetricGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m, { withInfo: true }); });

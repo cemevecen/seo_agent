@@ -427,7 +427,10 @@
 <div id="search-console-page" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-sc-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
     <div class="sc-analytics-toolbar mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Search Console summary</p>
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Search Console summary</p>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">Last fetch: {% if last_fetch_label %}{{ last_fetch_label }}{% else %}—{% endif %}</p>
+      </div>
       <button
         id="refresh-search-console-sites-button"
         type="button"
