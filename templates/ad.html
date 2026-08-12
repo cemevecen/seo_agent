@@ -13434,8 +13434,10 @@
 
   function mzTargetsBuildPieData(row) {
     if (!row) return null;
-    var hedef = row.hedef;
-    var kazanc = row.kazanc;
+    var hedef = row.hedef != null ? Number(row.hedef) : null;
+    var kazanc = row.kazanc != null ? Number(row.kazanc) : null;
+    if (hedef != null && !isFinite(hedef)) hedef = null;
+    if (kazanc != null && !isFinite(kazanc)) kazanc = null;
     if (kazanc == null || kazanc <= 0) return null;
 
     var pieLabels = [];
@@ -13456,7 +13458,8 @@
       pieLabels.push("Earnings");
       pieVals.push(kazanc);
       pieColors.push("#4f46e5");
-      var kalan = row.kalan;
+      var kalan = row.kalan != null ? Number(row.kalan) : null;
+      if (kalan != null && !isFinite(kalan)) kalan = null;
       if ((kalan == null || kalan <= 0) && hedef != null && kazanc < hedef) {
         kalan = hedef - kazanc;
       }
@@ -13485,7 +13488,7 @@
         var oldCap = slot.querySelector(".mz-targets-pie-caption");
         if (oldCap) oldCap.remove();
       }
-      return;
+      return Promise.resolve();
     }
     if (slot) {
       slot.classList.remove("hidden");
@@ -13500,13 +13503,17 @@
     var pie = mzTargetsBuildPieData(row);
     if (!pie || !window.Plotly || !plotEl) {
       if (slot && !pie) slot.classList.add("hidden");
-      return;
+      return Promise.resolve();
     }
-    var pieLay = plotTheme({ margin: { l: 4, r: 4, t: 8, b: 28 } });
+    // Cartesian eksenler pasta grafiği bozar — pie teması kullan
+    var pieLay = plotThemePie({ margin: { l: 4, r: 4, t: 6, b: 36 } });
+    delete pieLay.xaxis;
+    delete pieLay.yaxis;
+    delete pieLay.yaxis2;
     pieLay.showlegend = true;
-    pieLay.legend = { orientation: "h", y: -0.12, font: { size: 9 } };
+    pieLay.legend = { orientation: "h", y: -0.15, font: { size: 9 } };
     pieLay.autosize = true;
-    pieLay.height = 200;
+    pieLay.height = 210;
     var pieTrace = {
       type: "pie",
       labels: pie.labels,
@@ -13516,6 +13523,7 @@
       insidetextorientation: "radial",
       hovertemplate: "%{label}: %{value:,.0f} TL<extra></extra>",
       sort: false,
+      hole: 0,
     };
     if (pie.text) {
       pieTrace.text = pie.text;
@@ -13524,13 +13532,14 @@
       pieTrace.textinfo = "percent";
     }
     if (pie.pull) pieTrace.pull = pie.pull;
-    Plotly.newPlot(plotEl, [pieTrace], pieLay, plotlyCfg()).then(function () {
-      try { Plotly.Plots.resize(plotEl); } catch (_) { /* ignore */ }
-    });
+    return Plotly.newPlot(plotEl, [pieTrace], pieLay, plotlyCfg())
+      .then(function () {
+        try { return Plotly.Plots.resize(plotEl); } catch (_) { return null; }
+      })
+      .catch(function () { return null; });
   }
 
   function mzTargetsRenderPieSection(rows) {
-    if (!window.Plotly) return;
     var chartRows = mzTargetsChartRows(rows);
     var projLabel = mzTargetsUi.project === "sinemalar" ? "Sinemalar.com" : "Doviz.com";
     var groups = mzTargetsPopulatePieGroups(rows);
@@ -13542,14 +13551,36 @@
         ? mzTargetsPieGroupLabel(groups[gIdx] || [], gIdx) + " · " + projLabel
         : projLabel;
     }
-    mzTargetsPurgePieCharts();
+
+    // Slotları baştan görünür bırak (Plotly gecikse bile boş gizli kutu olmasın)
+    document.querySelectorAll(".mz-targets-pie-slot").forEach(function (el) {
+      el.classList.remove("hidden");
+    });
+
     if (!groups.length) {
+      mzTargetsPurgePieCharts();
       document.querySelectorAll(".mz-targets-pie-slot").forEach(function (el) { el.classList.add("hidden"); });
       return;
     }
-    for (var i = 0; i < 6; i++) {
-      mzTargetsRenderPieSlot(groupRows[i] || null, i);
-    }
+
+    mzTargetsWaitForPlotly()
+      .then(function () {
+        return mzTargetsPlotReady(document.getElementById("mz-targets-pie-grid"));
+      })
+      .then(function () {
+        mzTargetsPurgePieCharts();
+        var jobs = [];
+        for (var i = 0; i < 6; i++) {
+          jobs.push(mzTargetsRenderPieSlot(groupRows[i] || null, i));
+        }
+        return Promise.all(jobs);
+      })
+      .then(function () {
+        scheduleMzChartsResizeBurst();
+      })
+      .catch(function () {
+        /* soft-fail */
+      });
   }
 
   function mzTargetsWaitForPlotly(timeoutMs) {
