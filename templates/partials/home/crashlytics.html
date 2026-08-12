@@ -236,7 +236,7 @@
     color: #0f172a;
   }
   html.dark .home-store-theme b { color: #e4e4e7; }
-  /* /android + /ios stability — platform-specific crash-free cards (+16px height) */
+  /* /android + /ios stability — crash-free hero % + muted meta */
   .home-sf-metrics {
     display: grid;
     gap: 0.45rem;
@@ -259,8 +259,8 @@
     border-radius: 0.75rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(248 250 252 / 0.85);
-    padding: 0.625rem 0.65rem 0.7rem;
-    min-height: calc(6rem + 16px);
+    padding: 0.5rem 0.55rem 0.55rem;
+    min-height: calc(5.5rem + 16px);
     container-type: inline-size;
     container-name: home-sf-metric;
   }
@@ -269,203 +269,147 @@
     border-color: rgb(63 63 70);
     background: rgb(24 24 27 / 0.55);
   }
-  .home-sf-metric__value.is-up,
-  .home-sf-metric__col-val.is-up { color: #059669; }
-  .home-sf-metric__value.is-mid,
-  .home-sf-metric__col-val.is-mid { color: #d97706; }
-  .home-sf-metric__value.is-down,
-  .home-sf-metric__col-val.is-down { color: #e11d48; }
-  html.dark .home-sf-metric__value,
-  html.dark .home-sf-metric__col-val { color: #e2e8f0; }
-  html.dark .home-sf-metric__value.is-up,
-  html.dark .home-sf-metric__col-val.is-up { color: #34d399; }
-  html.dark .home-sf-metric__value.is-mid,
-  html.dark .home-sf-metric__col-val.is-mid { color: #fbbf24; }
-  html.dark .home-sf-metric__value.is-down,
-  html.dark .home-sf-metric__col-val.is-down { color: #fb7185; }
-
-  /* iOS — mockup: chips · 3 columns (oran | dönem Δ | oturum) */
-  .home-sf-metric--ios .home-sf-metric__head {
+  .home-sf-metric__head {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.2rem 0.35rem;
+    min-width: 0;
   }
-  .home-sf-metric--ios .home-sf-metric__chip {
+  .home-sf-metric__kind {
+    margin: 0;
+    font-size: clamp(9px, 2.2cqi, 10px);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(148 163 184 / 0.95);
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  html.dark .home-sf-metric__kind { color: rgb(161 161 170 / 0.88); }
+  .home-sf-metric__ver {
     display: inline-flex;
     align-items: center;
     max-width: 100%;
-    min-height: 22px;
-    padding: 0.12rem 0.45rem;
+    padding: 0.06rem 0.32rem;
     border-radius: 999px;
-    font-size: clamp(11px, 2.8cqi, 12px);
-    font-weight: 800;
-    letter-spacing: 0.03em;
+    background: rgb(241 245 249 / 0.9);
+    font-size: clamp(9px, 2.1cqi, 10px);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgb(100 116 139 / 0.92);
     line-height: 1.15;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .home-sf-metric--ios .home-sf-metric__chip.is-title {
-    text-transform: uppercase;
-    background: #0f172a;
-    color: #f8fafc;
+  html.dark .home-sf-metric__ver {
+    background: rgb(39 39 42 / 0.85);
+    color: rgb(161 161 170 / 0.82);
   }
-  html.dark .home-sf-metric--ios .home-sf-metric__chip.is-title {
-    background: #f4f4f5;
-    color: #18181b;
-  }
-  .home-sf-metric--ios .home-sf-metric__chip.is-ver {
-    background: rgb(241 245 249);
-    color: #475569;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-  html.dark .home-sf-metric--ios .home-sf-metric__chip.is-ver {
-    background: rgb(39 39 42);
-    color: #d4d4d8;
-  }
-  .home-sf-metric--ios .home-sf-metric__rule {
-    height: 1px;
-    margin: 0.38rem 0 0.42rem;
-    background: rgb(226 232 240 / 0.95);
-  }
-  html.dark .home-sf-metric--ios .home-sf-metric__rule {
-    background: rgb(63 63 70 / 0.95);
-  }
-  .home-sf-metric--ios .home-sf-metric__cols {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.25rem 0.35rem;
-    flex: 1 1 auto;
-    align-content: start;
-  }
-  .home-sf-metric--ios .home-sf-metric__col {
-    min-width: 0;
-    text-align: center;
-  }
-  .home-sf-metric--ios .home-sf-metric__col-val {
-    margin: 0;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.05;
-    white-space: nowrap;
-    overflow: hidden;
-    font-size: clamp(11px, 5.2cqi, 1.05rem);
-    letter-spacing: -0.02em;
-  }
-  .home-sf-metric--ios .home-sf-metric__col-val.is-muted {
-    color: #475569;
-    font-weight: 700;
-  }
-  html.dark .home-sf-metric--ios .home-sf-metric__col-val.is-muted { color: #a1a1aa; }
-  .home-sf-metric--ios .home-sf-metric__col-lab {
-    margin: 0.12rem 0 0;
-    font-size: clamp(10px, 2.4cqi, 11px);
-    font-weight: 600;
-    line-height: 1.15;
-    color: #94a3b8;
-  }
-  .home-sf-metric--ios .home-sf-metric__foot {
-    margin: 0.38rem 0 0;
-    font-size: clamp(10px, 2.4cqi, 11px);
-    font-weight: 600;
-    color: #94a3b8;
-    line-height: 1.2;
-  }
-
-  /* Android — mockup #5: title · version chip · big value · bottom chips */
-  .home-sf-metric--android .home-sf-metric__title {
-    margin: 0;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #64748b;
-    line-height: 1.15;
-    font-size: clamp(10px, 2.8cqi, 11px);
-    white-space: nowrap;
-    overflow: hidden;
-  }
-  .home-sf-metric--android .home-sf-metric__ver-chip {
-    margin-top: 0.22rem;
-    font-size: clamp(11px, 3cqi, 12px);
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: #64748b;
-    line-height: 1.15;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-  .home-sf-metric--android .home-sf-metric__ver-chip a {
-    color: inherit;
-    text-decoration: none;
-  }
-  .home-sf-metric--android .home-sf-metric__ver-chip a:hover {
-    text-decoration: underline;
-  }
-  .home-sf-metric--android .home-sf-metric__value {
-    margin: 0.28rem 0;
+  .home-sf-metric__hero {
+    margin: 0.12rem 0 0.08rem;
     flex: 1 1 auto;
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 2rem;
+    font-size: clamp(1.05rem, 11.5cqi, 1.9rem);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     line-height: 1;
+    letter-spacing: -0.03em;
     white-space: nowrap;
     overflow: hidden;
-    min-height: 1.75rem;
-    font-size: clamp(11px, 7cqi, 1rem);
-    letter-spacing: -0.02em;
+    text-align: center;
   }
-  .home-sf-metric--android .home-sf-metric__chips {
+  .home-sf-metric__hero.is-up { color: #059669; }
+  .home-sf-metric__hero.is-mid { color: #d97706; }
+  .home-sf-metric__hero.is-down { color: #e11d48; }
+  html.dark .home-sf-metric__hero { color: #e2e8f0; }
+  html.dark .home-sf-metric__hero.is-up { color: #34d399; }
+  html.dark .home-sf-metric__hero.is-mid { color: #fbbf24; }
+  html.dark .home-sf-metric__hero.is-down { color: #fb7185; }
+  .home-sf-metric__meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.22rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.12rem 0.35rem;
     margin-top: auto;
-    align-items: center;
+    padding-top: 0.18rem;
+    min-width: 0;
+    font-size: clamp(9px, 2.15cqi, 10px);
+    font-weight: 600;
+    line-height: 1.2;
+    color: rgb(148 163 184 / 0.88);
   }
-  .home-sf-metric--android .home-sf-metric__chip {
-    display: inline-flex;
-    align-items: center;
-    min-height: 22px;
-    max-width: 100%;
-    padding: 0.14rem 0.42rem;
-    border-radius: 999px;
-    border: 1px solid rgb(226 232 240);
-    background: rgb(255 255 255 / 0.92);
-    font-size: clamp(11px, 3cqi, 12px);
-    font-weight: 700;
+  html.dark .home-sf-metric__meta { color: rgb(161 161 170 / 0.72); }
+  .home-sf-metric__meta-item {
     font-variant-numeric: tabular-nums;
-    line-height: 1.15;
-    color: #475569;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 100%;
   }
-  html.dark .home-sf-metric--android .home-sf-metric__chip {
-    border-color: rgb(63 63 70);
-    background: rgb(15 23 42 / 0.55);
-    color: #cbd5e1;
+  .home-sf-metric__meta-src {
+    font-size: clamp(8px, 1.9cqi, 9px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(100 116 139 / 0.78);
+    white-space: nowrap;
   }
-  .home-sf-metric--android .home-sf-metric__chip.is-src {
-    min-height: 11px;
-    padding: 0.06rem 0.2rem;
-    font-size: clamp(6px, 1.4cqi, 6px);
-    font-weight: 800;
-    color: #334155;
+  html.dark .home-sf-metric__meta-src { color: rgb(113 113 122 / 0.78); }
+  .home-sf-metric__meta-sep {
+    opacity: 0.45;
+    user-select: none;
   }
-  html.dark .home-sf-metric--android .home-sf-metric__chip.is-src { color: #e2e8f0; }
+
+  @container home-sf-metric (max-width: 5.75rem) {
+    .home-sf-metric__hero {
+      font-size: clamp(0.95rem, 10cqi, 1.35rem);
+      min-height: 1.65rem;
+    }
+    .home-sf-metric__meta {
+      flex-direction: column;
+      gap: 0.08rem;
+    }
+    .home-sf-metric__meta-sep { display: none; }
+  }
 
   @media (max-width: 640px) {
     .home-sf-metrics--ios,
     .home-sf-metrics--android {
-      grid-template-columns: repeat(var(--sf-n, 2), minmax(4.75rem, 1fr));
+      grid-template-columns: repeat(var(--sf-n, 2), minmax(5.25rem, 1fr));
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
   }
 </style>
+
+{% macro sf_metric_meta(m) -%}
+  <div class="home-sf-metric__meta">
+    {% if m.delta_fmt %}
+      <span class="home-sf-metric__meta-item" title="dönem Δ">{{ m.delta_fmt }}</span>
+    {% endif %}
+    {% if m.delta_fmt and (m.users_fmt or m.rate_fmt) %}<span class="home-sf-metric__meta-sep" aria-hidden="true">·</span>{% endif %}
+    {% if m.users_fmt %}
+      <span class="home-sf-metric__meta-item" title="oturum">{{ m.users_fmt }}</span>
+    {% endif %}
+    {% if m.users_fmt and m.rate_fmt %}<span class="home-sf-metric__meta-sep" aria-hidden="true">·</span>{% endif %}
+    {% if m.rate_fmt %}
+      <span class="home-sf-metric__meta-item" title="ANR oranı">{{ m.rate_fmt }}</span>
+    {% endif %}
+    {% if m.source_label and (m.delta_fmt or m.users_fmt or m.rate_fmt) %}<span class="home-sf-metric__meta-sep" aria-hidden="true">·</span>{% endif %}
+    {% if m.source_label %}
+      <span class="home-sf-metric__meta-src">{{ m.source_label }}</span>
+    {% endif %}
+  </div>
+{%- endmacro %}
 
 {% macro sf_metrics_ios(side) -%}
   {% set items = (side.metrics if side and side.metrics else []) %}
@@ -474,27 +418,11 @@
       {% for m in items %}
         <div class="home-sf-metric home-sf-metric--ios" title="{{ m.title }}{% if m.period_label %} · {{ m.period_label }}{% endif %}">
           <div class="home-sf-metric__head">
-            <span class="home-sf-metric__chip is-title">{{ m.title }}</span>
-            {% if m.sub %}<span class="home-sf-metric__chip is-ver">{{ m.sub|striptags }}</span>{% endif %}
+            <p class="home-sf-metric__kind">{{ m.title }}</p>
+            {% if m.sub %}<span class="home-sf-metric__ver">{{ m.sub|striptags }}</span>{% endif %}
           </div>
-          <div class="home-sf-metric__rule" aria-hidden="true"></div>
-          <div class="home-sf-metric__cols">
-            <div class="home-sf-metric__col">
-              <p class="home-sf-metric__col-val{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
-              <p class="home-sf-metric__col-lab">oran</p>
-            </div>
-            <div class="home-sf-metric__col">
-              <p class="home-sf-metric__col-val is-muted">{{ m.delta_fmt or '—' }}</p>
-              <p class="home-sf-metric__col-lab">dönem Δ</p>
-            </div>
-            <div class="home-sf-metric__col">
-              <p class="home-sf-metric__col-val is-muted">{{ m.users_fmt or '—' }}</p>
-              <p class="home-sf-metric__col-lab">oturum</p>
-            </div>
-          </div>
-          {% if m.source_label %}
-            <p class="home-sf-metric__foot">Kaynak · {{ m.source_label }}</p>
-          {% endif %}
+          <p class="home-sf-metric__hero{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
+          {{ sf_metric_meta(m) }}
         </div>
       {% endfor %}
     {% else %}
@@ -509,14 +437,12 @@
     {% if items %}
       {% for m in items %}
         <div class="home-sf-metric home-sf-metric--android" title="{{ m.title }}{% if m.period_label %} · {{ m.period_label }}{% endif %}">
-          <p class="home-sf-metric__title">{{ m.title }}</p>
-          <p class="home-sf-metric__value{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
-          <div class="home-sf-metric__chips">
-            {% if m.delta_fmt %}<span class="home-sf-metric__chip">{{ m.delta_fmt }}</span>{% endif %}
-            {% if m.users_fmt %}<span class="home-sf-metric__chip">{{ m.users_fmt }}</span>{% endif %}
-            {% if m.rate_fmt %}<span class="home-sf-metric__chip">{{ m.rate_fmt }}</span>{% endif %}
-            {% if m.source_label %}<span class="home-sf-metric__chip is-src">{{ m.source_label }}</span>{% endif %}
+          <div class="home-sf-metric__head">
+            <p class="home-sf-metric__kind">{{ m.title }}</p>
+            {% if m.sub %}<span class="home-sf-metric__ver">{{ m.sub|striptags }}</span>{% endif %}
           </div>
+          <p class="home-sf-metric__hero{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
+          {{ sf_metric_meta(m) }}
         </div>
       {% endfor %}
     {% else %}
@@ -744,19 +670,13 @@
     root.setAttribute('data-crash-shell-wired', '1');
     function fitHomeSfValues() {
       var ux = window.SeoMetricTableUx;
-      if (ux && ux.fitCardTexts) {
-        ux.fitCardTexts(root);
-        return;
-      }
-      var sel = '.home-sf-metric__title, .home-sf-metric__ver-chip, .home-sf-metric__value, .home-sf-metric__chip, .home-sf-metric__col-val, .home-sf-metric__col-lab, .home-sf-metric__chip.is-title, .home-sf-metric__chip.is-ver, .home-store-kpi__l, .home-store-kpi__v';
-      root.querySelectorAll(sel).forEach(function (el) {
+      function fitEl(el, minPx, maxPx) {
         el.style.whiteSpace = 'nowrap';
         el.style.overflow = 'hidden';
         el.style.fontSize = '';
-        var minPx = 11;
         var boxW = el.clientWidth;
         if (!(boxW > 1)) return;
-        var maxPx = parseFloat(window.getComputedStyle(el).fontSize) || 22;
+        maxPx = maxPx || parseFloat(window.getComputedStyle(el).fontSize) || 22;
         if (!(maxPx > minPx)) {
           el.style.fontSize = minPx + 'px';
           return;
@@ -774,6 +694,22 @@
           }
         }
         el.style.fontSize = Math.max(minPx, best) + 'px';
+      }
+      if (ux && ux.fitCardTexts) {
+        ux.fitCardTexts(root);
+        return;
+      }
+      root.querySelectorAll('.home-sf-metric__hero').forEach(function (el) {
+        fitEl(el, 13, 30);
+      });
+      root.querySelectorAll('.home-sf-metric__kind, .home-sf-metric__ver').forEach(function (el) {
+        fitEl(el, 8, 11);
+      });
+      root.querySelectorAll('.home-sf-metric__meta-item, .home-sf-metric__meta-src').forEach(function (el) {
+        fitEl(el, 8, 10);
+      });
+      root.querySelectorAll('.home-store-kpi__l, .home-store-kpi__v').forEach(function (el) {
+        fitEl(el, 11, 22);
       });
       if (ux && ux.fitSideChips) ux.fitSideChips(root);
     }
