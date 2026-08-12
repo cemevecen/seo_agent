@@ -1,5 +1,5 @@
 /**
- * Sinemalar moderasyon — özet tablo, Plotly analitik, drill-down.
+ * Sinemalar moderasyon — özet tablo, Plotly analitik (responsive), drill-down.
  */
 (function () {
   "use strict";
@@ -18,15 +18,52 @@
   var MODS = RAW.moderators || [];
   var ANALYTICS = RAW.analytics || {};
   var PALETTE = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
+  var CHART_IDS = [
+    "mod-chart-rank-total",
+    "mod-chart-daily-volume",
+    "mod-chart-activity-heat",
+    "mod-chart-metric-stack",
+    "mod-chart-rank-matrix",
+    "mod-chart-focus-profile",
+    "mod-chart-weekday",
+    "mod-chart-cumulative",
+    "mod-chart-inactive-summary",
+  ];
 
   function th() {
     return window.seoPlotlyTheme
       ? window.seoPlotlyTheme()
-      : { paper: "#fff", plot: "#fff", text: "#334155", grid: "#e2e8f0", legend: "#64748b" };
+      : { paper: "#fff", plot: "#fff", text: "#334155", grid: "#e2e8f0", legend: "#64748b", tick: "#64748b" };
   }
 
   function plotCfg() {
     return { responsive: true, displayModeBar: false, displaylogo: false };
+  }
+
+  function chartW(el) {
+    if (!el) return 640;
+    var w = el.clientWidth || el.offsetWidth || 0;
+    if (w < 40 && el.parentElement) w = el.parentElement.clientWidth || 640;
+    return Math.max(280, w || 640);
+  }
+
+  function fmtNum(n) {
+    return Number(n || 0).toLocaleString("tr-TR");
+  }
+
+  function tickStep(count) {
+    if (count > 120) return 14;
+    if (count > 60) return 7;
+    if (count > 30) return 3;
+    return 1;
+  }
+
+  function sparseTicks(days) {
+    var step = tickStep(days.length);
+    if (step <= 1) return days;
+    return days.filter(function (_, i) {
+      return i % step === 0 || i === days.length - 1;
+    });
   }
 
   function baseLayout(extra) {
@@ -35,8 +72,17 @@
       paper_bgcolor: t.paper,
       plot_bgcolor: t.plot,
       font: { family: "Inter, system-ui, sans-serif", size: 11, color: t.text },
-      margin: { l: 48, r: 16, t: 36, b: 40 },
-      legend: { orientation: "h", y: 1.12, x: 0, font: { size: 10, color: t.legend } },
+      margin: { l: 52, r: 20, t: 44, b: 48 },
+      autosize: true,
+      uniformtext: { mode: "hide", minsize: 9 },
+      legend: {
+        orientation: "h",
+        y: 1.14,
+        x: 0,
+        xanchor: "left",
+        font: { size: 10, color: t.legend },
+        tracegroupgap: 4,
+      },
     };
     if (extra) {
       Object.keys(extra).forEach(function (k) {
@@ -44,6 +90,36 @@
       });
     }
     return lay;
+  }
+
+  function responsiveLayout(el, layout, opts) {
+    opts = opts || {};
+    var w = chartW(el);
+    var lay = baseLayout(layout);
+    if (window.seoPlotlyCompactLegend && opts.legendCount > 0) {
+      var leg = window.seoPlotlyCompactLegend({ legendCount: opts.legendCount, chartWidth: w });
+      lay.legend = leg.legend;
+      lay.margin = lay.margin || {};
+      lay.margin.t = Math.max(lay.margin.t || 44, leg.marginTop);
+    }
+    var heightOpts = opts.heightOpts || {};
+    if (opts.minHeight && el) el.style.minHeight = opts.minHeight + "px";
+    if (window.seoPlotlyResolveHeight) {
+      lay.height = window.seoPlotlyResolveHeight(el, lay, heightOpts);
+    } else if (opts.height) {
+      lay.height = opts.height;
+    }
+    return lay;
+  }
+
+  function plotResponsive(el, traces, layout, opts) {
+    if (!el || !window.Plotly) return Promise.resolve();
+    var lay = responsiveLayout(el, layout, opts || {});
+    return Plotly.newPlot(el, traces, lay, plotCfg()).then(function () {
+      try {
+        Plotly.Plots.resize(el);
+      } catch (_) {}
+    });
   }
 
   function purgePlot(id) {
@@ -67,6 +143,11 @@
     return 0;
   }
 
+  function axisTickFont() {
+    var w = window.innerWidth || 1024;
+    return { size: w < 480 ? 9 : w < 768 ? 10 : 11, color: th().tick };
+  }
+
   function drawRankTotal() {
     var el = purgePlot("mod-chart-rank-total");
     if (!el || !window.Plotly) return;
@@ -81,27 +162,39 @@
     var colors = rank.map(function (r) {
       return modColor(modIndex(r.user_id));
     });
-    Plotly.newPlot(
+    var revNames = names.slice().reverse();
+    var revCounts = counts.slice().reverse();
+    var revColors = colors.slice().reverse();
+    plotResponsive(
       el,
       [
         {
           type: "bar",
           orientation: "h",
-          y: names.slice().reverse(),
-          x: counts.slice().reverse(),
-          marker: { color: colors.slice().reverse() },
-          text: counts.slice().reverse().map(String),
-          textposition: "outside",
-          hovertemplate: "%{y}<br>%{x} iş<extra></extra>",
+          y: revNames,
+          x: revCounts,
+          marker: { color: revColors },
+          text: revCounts.map(fmtNum),
+          textposition: "inside",
+          insidetextanchor: "middle",
+          textfont: { color: "#fff", size: 11 },
+          cliponaxis: true,
+          hovertemplate: "%{y}<br>%{x:,} iş<extra></extra>",
         },
       ],
-      baseLayout({
+      {
         title: { text: "Dönem toplamı · moderatör sıralaması", x: 0, font: { size: 12 } },
-        xaxis: { title: "İş sayısı", gridcolor: th().grid },
-        yaxis: { automargin: true },
-        height: 260,
-      }),
-      plotCfg()
+        xaxis: {
+          title: { text: "İş sayısı", standoff: 8 },
+          gridcolor: th().grid,
+          rangemode: "tozero",
+          tickformat: ",.0f",
+          automargin: true,
+        },
+        yaxis: { automargin: true, tickfont: axisTickFont() },
+        margin: { l: 8, r: 16, t: 44, b: 40 },
+      },
+      { heightOpts: { minPlot: 180, maxTotal: 360, fallback: 260 }, minHeight: 220 }
     );
   }
 
@@ -110,6 +203,7 @@
     if (!el || !window.Plotly) return;
     var days = ANALYTICS.calendar_days || [];
     if (!days.length) return;
+    var ticks = sparseTicks(days);
     var traces = MODS.map(function (m, i) {
       var series = (ANALYTICS.daily_by_user || {})[String(m.user_id)] || [];
       return {
@@ -121,19 +215,25 @@
         y: series,
         line: { width: 1.2, color: modColor(i) },
         fillcolor: modColor(i),
-        hovertemplate: "%{x}<br>" + m.username + ": %{y}<extra></extra>",
+        hovertemplate: "%{x}<br>" + m.username + ": %{y:,}<extra></extra>",
       };
     });
-    Plotly.newPlot(
+    plotResponsive(
       el,
       traces,
-      baseLayout({
+      {
         title: { text: "Günlük moderasyon hacmi · moderatör kırılımı", x: 0, font: { size: 12 } },
-        xaxis: { title: "Tarih", gridcolor: th().grid, tickangle: -45 },
-        yaxis: { title: "Günlük iş", gridcolor: th().grid },
-        height: 320,
-      }),
-      plotCfg()
+        xaxis: {
+          title: "Tarih",
+          gridcolor: th().grid,
+          tickvals: ticks,
+          tickangle: chartW(el) < 520 ? -65 : -40,
+          tickfont: axisTickFont(),
+          automargin: true,
+        },
+        yaxis: { title: "Günlük iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
+      },
+      { legendCount: MODS.length, heightOpts: { minPlot: 240, maxTotal: 420, fallback: 320 }, minHeight: 280 }
     );
   }
 
@@ -144,6 +244,10 @@
     var cals = ANALYTICS.calendars || {};
     if (!days.length || !MODS.length) return;
 
+    var minW = Math.max(chartW(el), Math.min(days.length * 10, 1400));
+    el.style.minWidth = minW + "px";
+
+    var ticks = sparseTicks(days);
     var traces = [];
     MODS.forEach(function (m, mi) {
       var cal = cals[String(m.user_id)] || { days: [] };
@@ -168,26 +272,28 @@
           [1, "#0c4a6e"],
         ],
         showscale: mi === 0,
-        colorbar: mi === 0 ? { title: "iş/gün", len: 0.5 } : undefined,
-        hovertemplate: m.username + "<br>%{x}<br>%{z} iş<extra></extra>",
+        colorbar: mi === 0 ? { title: { text: "iş/gün" }, len: 0.45, thickness: 12 } : undefined,
+        hovertemplate: m.username + "<br>%{x}<br>%{z:,} iş<extra></extra>",
       });
     });
 
-    Plotly.newPlot(
+    plotResponsive(
       el,
       traces,
-      baseLayout({
+      {
         title: {
           text: "Aktivite takvimi · boş günler açık gri (0 iş)",
           x: 0,
           font: { size: 12 },
         },
-        xaxis: { tickangle: -90, tickfont: { size: 8 } },
-        yaxis: { automargin: true },
-        height: 40 + MODS.length * 36,
-        margin: { l: 100, r: 16, t: 40, b: 80 },
-      }),
-      plotCfg()
+        xaxis: { tickvals: ticks, tickangle: -90, tickfont: { size: 8 }, automargin: true },
+        yaxis: { automargin: true, tickfont: axisTickFont() },
+        margin: { l: 96, r: 48, t: 44, b: 72 },
+      },
+      {
+        heightOpts: { minPlot: 36 * MODS.length, maxTotal: 48 + MODS.length * 40, fallback: 40 + MODS.length * 36 },
+        minHeight: 40 + MODS.length * 36,
+      }
     );
   }
 
@@ -196,31 +302,35 @@
     if (!el || !window.Plotly) return;
     var users = RAW.users || [];
     if (!users.length) return;
+    var names = users.map(function (u) {
+      return u.username;
+    });
     var traces = METRICS.map(function (mt, mi) {
       return {
         type: "bar",
         name: mt.label,
-        x: users.map(function (u) {
-          return u.username;
-        }),
+        x: names,
         y: users.map(function (u) {
           return (u.totals || {})[mt.key] || 0;
         }),
         marker: { color: PALETTE[mi % PALETTE.length] },
-        hovertemplate: "%{x}<br>" + mt.label + ": %{y}<extra></extra>",
+        hovertemplate: "%{x}<br>" + mt.label + ": %{y:,}<extra></extra>",
       };
     });
-    Plotly.newPlot(
+    plotResponsive(
       el,
       traces,
-      baseLayout({
+      {
         title: { text: "İş türü dağılımı · moderatör bazında", x: 0, font: { size: 12 } },
         barmode: "stack",
-        xaxis: { tickangle: -20 },
-        yaxis: { title: "Adet", gridcolor: th().grid },
-        height: 340,
-      }),
-      plotCfg()
+        xaxis: {
+          tickangle: chartW(el) < 480 ? -35 : -20,
+          tickfont: axisTickFont(),
+          automargin: true,
+        },
+        yaxis: { title: "Adet", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
+      },
+      { legendCount: METRICS.length, heightOpts: { minPlot: 260, maxTotal: 460, fallback: 340 }, minHeight: 300 }
     );
   }
 
@@ -244,12 +354,13 @@
       });
     });
     var text = MODS.map(function (m, yi) {
-      return METRICS.map(function (mt, xi) {
-        var v = z[yi][xi];
+      return METRICS.map(function (mt) {
+        var v = z[yi][METRICS.indexOf(mt)];
         return v ? "#" + v : "—";
       });
     });
-    Plotly.newPlot(
+    el.style.minWidth = Math.max(chartW(el), xLabels.length * 52) + "px";
+    plotResponsive(
       el,
       [
         {
@@ -259,7 +370,7 @@
           z: z,
           text: text,
           texttemplate: "%{text}",
-          textfont: { size: 10 },
+          textfont: { size: chartW(el) < 480 ? 8 : 10 },
           colorscale: [
             [0, "#f8fafc"],
             [0.2, "#fde68a"],
@@ -270,12 +381,13 @@
           hovertemplate: "%{y} · %{x}<br>Sıra: %{text}<extra></extra>",
         },
       ],
-      baseLayout({
+      {
         title: { text: "Metrik bazında liderlik sırası (#1 en iyi)", x: 0, font: { size: 12 } },
-        xaxis: { tickangle: -35 },
-        height: 300,
-      }),
-      plotCfg()
+        xaxis: { tickangle: -35, tickfont: axisTickFont(), automargin: true },
+        yaxis: { automargin: true, tickfont: axisTickFont() },
+        margin: { l: 88, r: 16, t: 44, b: 88 },
+      },
+      { heightOpts: { minPlot: 220, maxTotal: 380, fallback: 300 }, minHeight: 260 }
     );
   }
 
@@ -298,18 +410,21 @@
         fillcolor: modColor(i),
         opacity: 0.15,
         line: { color: modColor(i) },
-        hovertemplate: m.username + "<br>%{theta}: %{r}%<extra></extra>",
+        hovertemplate: m.username + "<br>%{theta}: %{r:.1f}%<extra></extra>",
       };
     });
-    Plotly.newPlot(
+    plotResponsive(
       el,
       traces,
-      baseLayout({
+      {
         title: { text: "Odak profili · iş türü payı (%)", x: 0, font: { size: 12 } },
-        polar: { radialaxis: { ticksuffix: "%", gridcolor: th().grid } },
-        height: 380,
-      }),
-      plotCfg()
+        polar: {
+          radialaxis: { ticksuffix: "%", gridcolor: th().grid, tickfont: { size: 9 } },
+          angularaxis: { tickfont: { size: chartW(el) < 480 ? 8 : 9 } },
+        },
+        margin: { l: 44, r: 44, t: 56, b: 24 },
+      },
+      { legendCount: MODS.length, heightOpts: { minPlot: 280, maxTotal: 440, fallback: 380 }, minHeight: 320 }
     );
   }
 
@@ -325,19 +440,20 @@
         x: labels,
         y: w,
         marker: { color: modColor(i) },
-        hovertemplate: m.username + "<br>%{x}: %{y} iş<extra></extra>",
+        hovertemplate: m.username + "<br>%{x}: %{y:,} iş<extra></extra>",
       };
     });
-    Plotly.newPlot(
+    plotResponsive(
       el,
       traces,
-      baseLayout({
+      {
         title: { text: "Haftanın günü · iş dağılımı", x: 0, font: { size: 12 } },
         barmode: "group",
-        yaxis: { title: "Toplam iş", gridcolor: th().grid },
-        height: 300,
-      }),
-      plotCfg()
+        bargap: chartW(el) < 480 ? 0.15 : 0.3,
+        xaxis: { automargin: true, tickfont: axisTickFont() },
+        yaxis: { title: "Toplam iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
+      },
+      { legendCount: MODS.length, heightOpts: { minPlot: 220, maxTotal: 380, fallback: 300 }, minHeight: 260 }
     );
   }
 
@@ -347,6 +463,7 @@
     var days = ANALYTICS.calendar_days || [];
     var cum = ANALYTICS.cumulative_by_user || {};
     if (!days.length) return;
+    var ticks = sparseTicks(days);
     var traces = MODS.map(function (m, i) {
       var series = cum[String(m.user_id)] || [];
       return {
@@ -358,19 +475,24 @@
           return p.cumulative;
         }),
         line: { color: modColor(i), width: 2 },
-        hovertemplate: m.username + "<br>%{x}<br>Birikim: %{y}<extra></extra>",
+        hovertemplate: m.username + "<br>%{x}<br>Birikim: %{y:,}<extra></extra>",
       };
     });
-    Plotly.newPlot(
+    plotResponsive(
       el,
       traces,
-      baseLayout({
+      {
         title: { text: "Kümülatif katkı · dönem içi birikim", x: 0, font: { size: 12 } },
-        xaxis: { tickangle: -45, gridcolor: th().grid },
-        yaxis: { title: "Biriken iş", gridcolor: th().grid },
-        height: 300,
-      }),
-      plotCfg()
+        xaxis: {
+          tickvals: ticks,
+          tickangle: chartW(el) < 520 ? -65 : -40,
+          gridcolor: th().grid,
+          tickfont: axisTickFont(),
+          automargin: true,
+        },
+        yaxis: { title: "Biriken iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
+      },
+      { legendCount: MODS.length, heightOpts: { minPlot: 220, maxTotal: 400, fallback: 300 }, minHeight: 260 }
     );
   }
 
@@ -387,7 +509,7 @@
       active.push(cal.active_days || 0);
       inactive.push(cal.inactive_days || 0);
     });
-    Plotly.newPlot(
+    plotResponsive(
       el,
       [
         {
@@ -396,6 +518,7 @@
           x: names,
           y: active,
           marker: { color: "#0ea5e9" },
+          hovertemplate: "Aktif<br>%{x}: %{y} gün<extra></extra>",
         },
         {
           type: "bar",
@@ -403,19 +526,21 @@
           x: names,
           y: inactive,
           marker: { color: "#cbd5e1" },
+          hovertemplate: "Boş<br>%{x}: %{y} gün<extra></extra>",
         },
       ],
-      baseLayout({
+      {
         title: {
-          text: "Çalışılan vs boş gün · seçili dönem (" + (RAW.start || "") + " → " + (RAW.end || "") + ")",
+          text: "Çalışılan vs boş gün · " + (RAW.start || "") + " → " + (RAW.end || ""),
           x: 0,
           font: { size: 12 },
         },
         barmode: "stack",
-        yaxis: { title: "Gün sayısı", gridcolor: th().grid },
-        height: 280,
-      }),
-      plotCfg()
+        xaxis: { tickangle: chartW(el) < 480 ? -25 : 0, tickfont: axisTickFont(), automargin: true },
+        yaxis: { title: "Gün sayısı", gridcolor: th().grid, automargin: true },
+        legend: { orientation: "h", y: 1.12, x: 0 },
+      },
+      { legendCount: 2, heightOpts: { minPlot: 200, maxTotal: 340, fallback: 280 }, minHeight: 240 }
     );
   }
 
@@ -445,6 +570,28 @@
         if (window.Plotly) renderCharts();
       }
     }, 150);
+  }
+
+  function resizeAllCharts() {
+    CHART_IDS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && window.Plotly && el.querySelector(".js-plotly-plot")) {
+        try {
+          Plotly.Plots.resize(el);
+        } catch (_) {}
+      }
+    });
+  }
+
+  if (typeof ResizeObserver !== "undefined") {
+    var chartsRoot = document.getElementById("mod-charts");
+    if (chartsRoot) {
+      var roTimer;
+      new ResizeObserver(function () {
+        clearTimeout(roTimer);
+        roTimer = setTimeout(resizeAllCharts, 120);
+      }).observe(chartsRoot);
+    }
   }
 
   /* —— drill-down —— */
@@ -538,23 +685,7 @@
 
   scheduleCharts();
   window.addEventListener("resize", function () {
-    [
-      "mod-chart-rank-total",
-      "mod-chart-daily-volume",
-      "mod-chart-activity-heat",
-      "mod-chart-metric-stack",
-      "mod-chart-rank-matrix",
-      "mod-chart-focus-profile",
-      "mod-chart-weekday",
-      "mod-chart-cumulative",
-      "mod-chart-inactive-summary",
-    ].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el && window.Plotly) {
-        try {
-          Plotly.Plots.resize(el);
-        } catch (_) {}
-      }
-    });
+    clearTimeout(window.__modChartResizeT);
+    window.__modChartResizeT = setTimeout(resizeAllCharts, 150);
   });
 })();
