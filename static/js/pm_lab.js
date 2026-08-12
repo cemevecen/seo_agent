@@ -706,17 +706,21 @@
 
   function renderNews(root, data) {
     var kws = data.keywords || [];
-    var avgs = data.source_averages || data.source_counts || [];
+    var avgs = (data.source_averages || data.source_counts || []).filter(function (s) {
+      return Number(s && s.count) >= 3;
+    });
+    var primary = avgs.filter(function (s) { return Number(s.count) > 3; });
+    var atThree = avgs.filter(function (s) { return Number(s.count) === 3; });
     var head = document.createElement("div");
     head.className = "mb-3";
     head.innerHTML = chip((data.article_total || 0) + " stories") + " " + chip((data.runs || []).length + " scans");
     var bars = document.createElement("div");
     bars.className = "mb-4";
     var max = 1;
-    avgs.slice(0, 15).forEach(function (s) {
+    avgs.forEach(function (s) {
       max = Math.max(max, s.count || 0, s.avg || 0);
     });
-    avgs.slice(0, 15).forEach(function (s) {
+    function appendBar(parent, s) {
       var row = document.createElement("div");
       row.className = "pml-bar";
       var w = Math.round((100 * (s.count || 0)) / max);
@@ -727,8 +731,16 @@
         w +
         '%"></div></div>' +
         chip((s.count || 0) + " · avg " + (s.avg != null ? s.avg : s.count), "");
-      bars.appendChild(row);
-    });
+      parent.appendChild(row);
+    }
+    primary.forEach(function (s) { appendBar(bars, s); });
+    if (atThree.length) {
+      var scroll = document.createElement("div");
+      scroll.className = "pml-news-bars-scroll";
+      scroll.setAttribute("aria-label", "Sources with 3 stories");
+      atThree.forEach(function (s) { appendBar(scroll, s); });
+      bars.appendChild(scroll);
+    }
     var spark = document.createElement("div");
     spark.className = "pml-spark mb-3";
     (data.runs || []).slice(-16).forEach(function (r) {
