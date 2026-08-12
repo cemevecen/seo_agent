@@ -1,5 +1,5 @@
 {% if lazy_site_ids %}
-  <div class="grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2 xl:items-start" data-sc-extras-root data-sc-split-root>
+  <div class="grid grid-cols-1 gap-4 sm:gap-5 {% if sc_layout != 'stack' %}xl:grid-cols-2 xl:items-start{% endif %}" data-sc-extras-root data-sc-split-root>
     {% for site_id, display_name in lazy_site_ids %}
       {% set delay_ms = loop.index0 * 250 %}
       <div

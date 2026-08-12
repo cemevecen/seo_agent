@@ -1,5 +1,16 @@
 /* Search Console extras — embed (doviz-news Google News section) */
 .sc-extra-section { scroll-margin-top: 7rem; }
+.sc-extra-section--dn-embed { scroll-margin-top: 0; }
+.sc-extra-section--dn-embed .sc-extra-section-body,
+.sc-extra-section--dn-embed [data-sc-extras-root],
+.sc-extra-section--dn-embed [data-sc-extra-card],
+.sc-extra-section--dn-embed .sc-extra-table-wrap {
+  width: 100%;
+  max-width: none;
+}
+.sc-extra-section--dn-embed [data-sc-extras-root] {
+  grid-template-columns: minmax(0, 1fr);
+}
 .sc-extra-table-wrap {
   width: 100%;
   max-width: 100%;

@@ -19138,6 +19138,9 @@ def search_console_site_list(request: Request):
     """Site listesini anlık render eder; her kart lazy HTMX ile ayrı yüklenir."""
     mode = str(request.query_params.get("mode") or "lazy").strip().lower()
     view = str(request.query_params.get("view") or "performance").strip() or "performance"
+    sc_layout = str(request.query_params.get("layout") or "").strip().lower()
+    if sc_layout not in ("stack",):
+        sc_layout = ""
     if view not in SC_VIEW_SPECS:
         return HTMLResponse("Gecersiz gorunum", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
     view_spec = SC_VIEW_SPECS[view]
@@ -19157,6 +19160,7 @@ def search_console_site_list(request: Request):
                     "oauth_ready": oauth_is_configured(),
                     "sc_view": view,
                     "sc_view_item": view_spec,
+                    "sc_layout": sc_layout,
                 },
                 headers=_SC_HTML_NO_CACHE_HEADERS,
             )

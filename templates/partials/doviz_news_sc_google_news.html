@@ -1,19 +1,23 @@
 {# Search Console — 3. Google News (same cards as /search-console#sc-news) #}
-<link rel="stylesheet" href="/static/css/sc_extras_embed.css?v=1" />
-<section id="dn-sc-google-news" class="sc-extra-section mt-6 w-full" aria-label="Search Console Google News">
-  <div class="mb-4 border-b border-slate-200 pb-3 dark:border-slate-700">
+<link rel="stylesheet" href="/static/css/sc_extras_embed.css?v=2" />
+<section
+  id="dn-sc-google-news"
+  class="sc-extra-section sc-extra-section--dn-embed mt-6 w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-[#0b0f19] dark:ring-slate-800/80"
+  aria-label="Search Console Google News"
+>
+  <header class="border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:px-5">
     <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Performance</p>
-    <h2 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">3. Google News</h2>
-    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Live Search Console API · last 28 days</p>
-  </div>
+    <h2 class="mt-1 text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">3. Google News</h2>
+    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Live Search Console API · last 28 days</p>
+  </header>
   <div
     id="dn-sc-google-news-body"
-    class="sc-extra-section-body min-h-[6rem]"
-    hx-get="/search-console/site-list?view=news&mode=lazy"
+    class="sc-extra-section-body min-h-[6rem] px-4 py-4 sm:px-5"
+    hx-get="/search-console/site-list?view=news&mode=lazy&layout=stack"
     hx-trigger="load once"
     hx-swap="innerHTML"
   >
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4">
       {% for _ in [0, 1] %}
       {% include "partials/sc_extras_loading_card.html" %}
       {% endfor %}
