@@ -1081,6 +1081,7 @@
       });
     }
     loadEmbedStoreCharts();
+    setOpen(true);
   }
 
   if (isEmbed) {

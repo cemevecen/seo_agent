@@ -1749,11 +1749,7 @@ def _filter_by_period_or_anchor(
     anchor = max(r["at"] for r in rows)
     start = anchor - timedelta(days=days)
     anchored = [r for r in rows if r["at"] >= start]
-    note = (
-        f"Bu aralıkta (TSİ takviminde son {days} gün) örnek yorum yok; "
-        f"grafikler en güncel örnek tarihine göre ({_at_report_tz_date(anchor).isoformat()} yerel gün) kaydırıldı."
-    )
-    return anchored, anchor, note
+    return anchored, anchor, None
 
 
 def _daily_rating_series(
@@ -2591,18 +2587,15 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
             fi = list(raw["ios"]["reviews"])
             fa_anchor = None
             fi_anchor = None
-            fa_note = "Tüm zaman görünümünde detaylar çekilen örnek yorum havuzundan hesaplanır."
-            fi_note = "Tüm zaman görünümünde detaylar çekilen örnek yorum havuzundan hesaplanır."
         else:
-            fa, fa_anchor, fa_note = _filter_by_period_or_anchor(raw["android"]["reviews"], p)
-            fi, fi_anchor, fi_note = _filter_by_period_or_anchor(raw["ios"]["reviews"], p)
+            fa, fa_anchor, _ = _filter_by_period_or_anchor(raw["android"]["reviews"], p)
+            fi, fi_anchor, _ = _filter_by_period_or_anchor(raw["ios"]["reviews"], p)
         fa = _dedupe_reviews(fa)
         fi = _dedupe_reviews(fi)
         intel["windows"][str(p)] = {
             "period_days": p,
             "android": {
                 "review_count_period": len(fa),
-                "period_note_tr": fa_note,
                 "rating_series": _daily_rating_series(fa, p, fa_anchor),
                 "star_distribution_period": _histogram_counts(fa),
                 "star_distribution_overall": raw["android"]["meta"].get("histogram"),
@@ -2623,7 +2616,6 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
             },
             "ios": {
                 "review_count_period": len(fi),
-                "period_note_tr": fi_note,
                 "rating_series": _daily_rating_series(fi, p, fi_anchor),
                 "star_distribution_period": _histogram_counts(fi),
                 "star_distribution_overall": (raw["ios"]["meta"] or {}).get("star_histogram"),
