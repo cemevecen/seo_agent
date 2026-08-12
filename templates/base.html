@@ -1152,6 +1152,37 @@
       pointer-events: auto;
       z-index: 10100 !important;
     }
+    /* Play metric overlay (/android katalog — ad-virgul Android) */
+    [data-play-metric-overlay-root] {
+      position: relative;
+      z-index: 120;
+      isolation: isolate;
+      pointer-events: auto;
+    }
+    [data-play-metric-overlay-trigger] {
+      cursor: pointer;
+      position: relative;
+      z-index: 1;
+      pointer-events: auto;
+      background-color: #ffffff !important;
+    }
+    html.dark [data-play-metric-overlay-trigger],
+    html.midnight [data-play-metric-overlay-trigger] {
+      background-color: #18181b !important;
+    }
+    html.midnight .mz-page [data-play-metric-overlay-trigger] {
+      background-color: #09090b !important;
+    }
+    #mz-play-metric-overlay-bar {
+      position: relative;
+      z-index: 60;
+      isolation: isolate;
+      pointer-events: auto;
+    }
+    [data-play-metric-overlay-panel]:not(.hidden) {
+      pointer-events: auto;
+      z-index: 10100 !important;
+    }
     .mz-page .mz-chart-card > div:first-of-type {
       position: relative;
       z-index: 25;
@@ -2401,6 +2432,7 @@
   <script src="/static/js/page_tarama.js?v=13" defer></script>
   <script src="/static/js/market_chart_overlay.js?v=25" defer></script>
   <script src="/static/js/app_empower_overlay.js?v=10" defer></script>
+  <script src="/static/js/play_metric_overlay.js?v=1" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
   <script src="/static/js/analytics_date_compare.js?v=8" defer></script>
 </head>

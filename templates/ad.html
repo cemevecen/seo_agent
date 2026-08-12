@@ -1388,6 +1388,13 @@
             {% include 'partials/market_overlay_select.html' %}
             {% endwith %}
           </div>
+          {% if ad_mode == 'virgul' %}
+          <div id="mz-play-metric-overlay-bar" class="hidden shrink-0">
+            {% with play_metric_overlay_control_id='mz-play-metric-overlay-root', play_metric_overlay_storage_key='mz-play-metric', play_metric_overlay_on_change='mzOnPlayMetricOverlayChange' %}
+            {% include 'partials/play_metric_overlay_select.html' %}
+            {% endwith %}
+          </div>
+          {% endif %}
           {% if ad_mode != 'virgul' %}
           <div id="mz-empower-overlay-bar" class="hidden shrink-0">
             {% with app_empower_overlay_control_id='mz-empower-overlay-root', app_empower_overlay_storage_key='mz-empower', app_empower_overlay_on_change='mzOnEmpowerOverlayChange' %}
@@ -7785,6 +7792,7 @@
   }
 
   async function mzMaybeApplyMarketOverlay(traces, layoutExtra, dateKeys, opts) {
+    if (mzIsVirgulMode() && mzActivePlatform() === "android") return false;
     var modes = window.SeoMarketOverlay ? SeoMarketOverlay.modes("mz-market-overlay-root") : [];
     if (!modes.length || !dateKeys || !dateKeys.length || !window.SeoMarketOverlay) return false;
     var o = Object.assign({}, opts || {});
@@ -7802,6 +7810,40 @@
       });
     }
   };
+
+  async function mzMaybeApplyPlayMetricOverlay(traces, layoutExtra, dateKeys, opts) {
+    if (!mzIsVirgulMode() || mzActivePlatform() !== "android" || !window.PlayMetricOverlay) return false;
+    var keys = PlayMetricOverlay.modes("mz-play-metric-overlay-root");
+    if (!keys.length || !dateKeys || !dateKeys.length) return false;
+    var r = selectedDateRange();
+    var o = Object.assign({}, opts || {}, { start: r.start, end: r.end });
+    if (!o.yaxisId) o.yaxisId = mzPickMarketYaxisId(layoutExtra);
+    return PlayMetricOverlay.apply(traces, layoutExtra, dateKeys, "android", keys, o);
+  }
+
+  window.mzOnPlayMetricOverlayChange = function mzOnPlayMetricOverlayChange() {
+    if (window.PlayMetricOverlay) PlayMetricOverlay.clearCache();
+    refreshChartLine();
+    if (state.lastSummary) {
+      renderExtendedCharts(state.lastSummary).then(function () {
+        scheduleMzChartsResizeBurst();
+      });
+    }
+  };
+
+  function syncPlayMetricOverlayBarVisibility() {
+    var marketSec = document.getElementById("mz-market-overlay-section");
+    var playBar = document.getElementById("mz-play-metric-overlay-bar");
+    var onAndroid = mzIsVirgulMode() && mzIsMobileAppStream() && mzActivePlatform() === "android";
+    if (marketSec) marketSec.classList.toggle("hidden", onAndroid);
+    if (playBar) playBar.classList.toggle("hidden", !onAndroid);
+    if (onAndroid && window.PlayMetricOverlay) {
+      if (PlayMetricOverlay.autoBindPlayMetricOverlays) PlayMetricOverlay.autoBindPlayMetricOverlays();
+      else if (PlayMetricOverlay.bindWhenReady) {
+        PlayMetricOverlay.bindWhenReady("mz-play-metric-overlay-root", mzOnPlayMetricOverlayChange);
+      }
+    }
+  }
 
   async function mzMaybeApplyEmpowerOverlay(traces, layoutExtra, dateKeys, opts) {
     if (mzIsVirgulMode() || !mzIsMobileAppStream() || !window.AppEmpowerOverlay) return false;
@@ -7835,6 +7877,7 @@
   }
 
   async function mzMaybeApplyChartOverlays(traces, layoutExtra, dateKeys, opts) {
+    await mzMaybeApplyPlayMetricOverlay(traces, layoutExtra, dateKeys, opts);
     await mzMaybeApplyMarketOverlay(traces, layoutExtra, dateKeys, opts);
     await mzMaybeApplyEmpowerOverlay(traces, layoutExtra, dateKeys, opts);
   }
@@ -9069,6 +9112,7 @@
       window.__mzChartsRelayout();
     }
     syncEmpowerOverlayBarVisibility();
+    syncPlayMetricOverlayBarVisibility();
     mzReflowChartRows();
   }
 
@@ -14172,6 +14216,7 @@
   loadFacets().then(function () {
     refreshMzEmpowerImports().catch(function () {});
     syncEmpowerOverlayBarVisibility();
+    syncPlayMetricOverlayBarVisibility();
     loadMzSheetsStatus().catch(function () {});
     var keepDrills = applyMzUrlDrillState(mzUrlState);
     mzUrlBootPending = false;
