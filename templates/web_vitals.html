@@ -490,12 +490,28 @@ function _stopPoll() {
   if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
 }
 
+function _pageTaramaBusy() {
+  var el = document.getElementById('pc-page-tarama-overlay');
+  if (!el) return false;
+  if (el.classList.contains('hidden')) return false;
+  var d = (el.style && el.style.display) || '';
+  return d !== 'none';
+}
+
+function _isIdleCwvMessage(msg) {
+  msg = String(msg || '').trim().toLowerCase();
+  return !msg || msg === 'henüz çalışmadı' || msg === 'not run yet' || msg === 'idle';
+}
+
 function _pollBridge() {
   if (_pollTimer) return;
   _pollTimer = setInterval(function() {
+    // Update page overlay owns the scan — don't fight it with alert()/reload
+    if (_pageTaramaBusy()) return;
     fetch(_healthUrl, { mode: 'cors', cache: 'no-store' })
       .then(function(r){ return r.json(); })
       .then(function(j){
+        if (_pageTaramaBusy()) return;
         var p = (j && j.gsc_cwv_progress) || {};
         var last = (j && j.last_gsc_cwv) || {};
         if (p.running) {
@@ -509,8 +525,17 @@ function _pollBridge() {
           return;
         }
         _setRunUi(false, '');
-        if (p.phase === 'error' || (last && last.ok === false && last.message)) {
-          var msg = p.message || last.message || 'error';
+        // Default last_gsc_cwv is {ok:false, message:"henüz çalışmadı"} — not a real failure
+        if (p.phase === 'error') {
+          var err = p.message || last.message || 'error';
+          if (/oturumu yok|login/i.test(err)) {
+            err += '\n\nFix: refresh the GSC session on the Mac bridge, then Scan again.';
+          }
+          alert('Web Vitals: ' + err);
+          return;
+        }
+        if (last && last.ok === false && last.message && !_isIdleCwvMessage(last.message)) {
+          var msg = last.message;
           if (/oturumu yok|login/i.test(msg)) {
             msg += '\n\nFix: refresh the GSC session on the Mac bridge, then Scan again.';
           }
@@ -621,6 +646,7 @@ function runWebVitals() {
   fetch(_healthUrl, { mode: 'cors', cache: 'no-store' })
     .then(function(r){ return r.json(); })
     .then(function(j){
+      if (_pageTaramaBusy()) return;
       var p = (j && j.gsc_cwv_progress) || {};
       if (p.running) {
         _setRunUi(true, p.message || 'Bridge scan running…');
