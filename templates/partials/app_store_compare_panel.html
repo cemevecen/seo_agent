@@ -545,6 +545,62 @@
   html.dark .rt-viv-compare-wrap .rt-viv-ghost-btn:hover {
     background: rgb(63, 63, 70);
   }
+
+  .rt-viv-cmp-analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  @media (min-width: 768px) {
+    .rt-viv-cmp-analysis-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .rt-viv-cmp-analysis-col {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+  }
+  .rt-viv-analysis-card {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    min-width: 0;
+  }
+  .rt-viv-analysis-card-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .rt-viv-analysis-reviews-scroll {
+    flex: 1 1 auto;
+    min-height: 10rem;
+    max-height: min(22rem, 42vh);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 0.2rem;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .rt-viv-analysis-reviews-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .rt-viv-analysis-reviews-scroll::-webkit-scrollbar-thumb {
+    background: rgb(148 163 184);
+    border-radius: 99px;
+  }
+  html.dark .rt-viv-analysis-reviews-scroll::-webkit-scrollbar-thumb {
+    background: rgb(82 82 91);
+  }
+  .rt-viv-analysis-dismiss {
+    margin-top: 0;
+    flex-shrink: 0;
+  }
 </style>
 
 <section class="rt-viv-panel mb-4 sm:mb-5" aria-label="Store tools" data-rt-viv-root>
@@ -567,11 +623,11 @@
           <option value="de">Country: DE</option>
           <option value="gb">Country: GB</option>
         </select>
-        <select id="rt-viv-lang-store" class="rt-viv-select" title="Dil">
-          <option value="tr">Dil: tr</option>
-          <option value="en">Dil: en</option>
+        <select id="rt-viv-lang-store" class="rt-viv-select" title="Language">
+          <option value="tr">Lang: tr</option>
+          <option value="en">Lang: en</option>
         </select>
-        <button type="button" class="rt-viv-btn" id="rt-viv-btn-store" onclick="rtVivSearchStore()">Ara</button>
+        <button type="button" class="rt-viv-btn" id="rt-viv-btn-store" onclick="rtVivSearchStore()">Search</button>
       </div>
     </div>
 
@@ -587,7 +643,7 @@
           <p id="rt-viv-store-sel-name" class="text-sm font-bold text-slate-900 dark:text-slate-100 truncate"></p>
           <p id="rt-viv-store-sel-meta" class="text-[11px] text-slate-500 dark:text-slate-400 truncate"></p>
         </div>
-        <button type="button" onclick="rtVivClearStoreAnalysis()" class="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0">✕ Remove</button>
+        <button type="button" onclick="rtVivClearStoreAnalysis()" class="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0">Clear selection</button>
       </div>
       <div class="mt-3 flex flex-wrap items-center gap-2">
         <select id="rt-viv-store-days" class="rt-viv-select">
@@ -599,10 +655,10 @@
           <option value="730">Last 2 years</option>
         </select>
         <select id="rt-viv-store-limit" class="rt-viv-select">
-          <option value="200">200 yorum</option>
-          <option value="300">300 yorum</option>
-          <option value="500">500 yorum</option>
-          <option value="1000" selected>1000 yorum</option>
+          <option value="200">200 reviews</option>
+          <option value="300">300 reviews</option>
+          <option value="500">500 reviews</option>
+          <option value="1000" selected>1000 reviews</option>
         </select>
         <button type="button" id="rt-viv-store-analyze-btn" class="rt-viv-btn" onclick="rtVivRunStoreAnalysis()">
           Fetch &amp; analyze reviews
@@ -621,13 +677,13 @@
       <div>
         <h3 class="mb-2 text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">App 1</h3>
         <div class="rt-viv-row">
-          <input id="rt-viv-q-a" type="search" class="rt-viv-input" placeholder="Ara…" autocomplete="off" />
+          <input id="rt-viv-q-a" type="search" class="rt-viv-input" placeholder="Search…" autocomplete="off" />
           <select id="rt-viv-pl-a" class="rt-viv-select">
             <option value="google_play">Android</option>
             <option value="app_store">iOS</option>
-            <option value="both">Her ikisi</option>
+            <option value="both">Both</option>
           </select>
-          <button type="button" class="rt-viv-btn" onclick="rtVivSearchCompare('a')">Ara</button>
+          <button type="button" class="rt-viv-btn" onclick="rtVivSearchCompare('a')">Search</button>
         </div>
         <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500" id="rt-viv-msg-a"></p>
         <div class="rt-viv-sel" id="rt-viv-sel-a">Nothing selected yet — click a result row.</div>
@@ -636,13 +692,13 @@
       <div>
         <h3 class="mb-2 text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">App 2</h3>
         <div class="rt-viv-row">
-          <input id="rt-viv-q-b" type="search" class="rt-viv-input" placeholder="Ara…" autocomplete="off" />
+          <input id="rt-viv-q-b" type="search" class="rt-viv-input" placeholder="Search…" autocomplete="off" />
           <select id="rt-viv-pl-b" class="rt-viv-select">
             <option value="google_play">Android</option>
             <option value="app_store">iOS</option>
-            <option value="both">Her ikisi</option>
+            <option value="both">Both</option>
           </select>
-          <button type="button" class="rt-viv-btn" onclick="rtVivSearchCompare('b')">Ara</button>
+          <button type="button" class="rt-viv-btn" onclick="rtVivSearchCompare('b')">Search</button>
         </div>
         <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500" id="rt-viv-msg-b"></p>
         <div class="rt-viv-sel" id="rt-viv-sel-b">Nothing selected yet — click a result row.</div>
@@ -661,7 +717,7 @@
       <!-- Analiz kontrolleri (her iki uygulama selectednce görünür) -->
       <div id="rt-viv-cmp-analyze-controls" class="hidden mt-3 pt-3 border-t border-indigo-100 dark:border-indigo-900/40">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Yorum analizi:</span>
+          <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Review analysis:</span>
           <select id="rt-viv-cmp-days" class="rt-viv-select">
             <option value="7">Last 7 days</option>
             <option value="30" selected>Last 30 days</option>
@@ -671,10 +727,10 @@
             <option value="730">Last 2 years</option>
           </select>
           <select id="rt-viv-cmp-limit" class="rt-viv-select">
-            <option value="200">200 yorum</option>
-            <option value="300">300 yorum</option>
-            <option value="500">500 yorum</option>
-            <option value="1000" selected>1000 yorum</option>
+            <option value="200">200 reviews</option>
+            <option value="300">300 reviews</option>
+            <option value="500">500 reviews</option>
+            <option value="1000" selected>1000 reviews</option>
           </select>
           <button type="button" id="rt-viv-cmp-analyze-btn" class="rt-viv-btn" onclick="rtVivRunCompareAnalysis()">
             Analyze two apps
@@ -742,7 +798,7 @@
       plat +
       ' · ★ ' +
       rat +
-      ' · yorum: ' +
+      ' · reviews: ' +
       rev +
       '</p></div>'
     );
@@ -780,7 +836,7 @@
     if (metaEl) {
       var plat = it.platform === 'google_play' ? 'Google Play' : 'App Store';
       var rat = it.rating != null ? '★ ' + Number(it.rating).toFixed(2) : '';
-      var rev = it.review_count != null ? it.review_count + ' yorum' : '';
+      var rev = it.review_count != null ? it.review_count + ' reviews' : '';
       metaEl.textContent = [it.id, plat, rat, rev].filter(Boolean).join(' · ');
     }
     if (iconEl && it.icon) {
@@ -796,14 +852,29 @@
   }
   window.rtVivApplyStorePick = rtVivApplyStorePick;
 
+  function rtVivClearStoreAnalysisResults() {
+    var res = document.getElementById('rt-viv-store-analysis-result');
+    if (res) { res.innerHTML = ''; res.classList.add('hidden'); }
+    var msg = document.getElementById('rt-viv-store-analyze-msg');
+    if (msg) msg.textContent = '';
+  }
+  window.rtVivClearStoreAnalysisResults = rtVivClearStoreAnalysisResults;
+
   function rtVivClearStoreAnalysis() {
     _rtVivStoreSelApp = null;
     var wrap = document.getElementById('rt-viv-store-sel-wrap');
     if (wrap) wrap.classList.add('hidden');
-    var res = document.getElementById('rt-viv-store-analysis-result');
-    if (res) { res.innerHTML = ''; res.classList.add('hidden'); }
+    rtVivClearStoreAnalysisResults();
   }
   window.rtVivClearStoreAnalysis = rtVivClearStoreAnalysis;
+
+  function rtVivClearCompareAnalysisResults() {
+    var res = document.getElementById('rt-viv-compare-analysis-result');
+    if (res) { res.innerHTML = ''; res.classList.add('hidden'); }
+    var msg = document.getElementById('rt-viv-cmp-analyze-msg');
+    if (msg) msg.textContent = '';
+  }
+  window.rtVivClearCompareAnalysisResults = rtVivClearCompareAnalysisResults;
 
   // ── Analiz HTML üretici ────────────────────────────────────────────────────
 
@@ -831,14 +902,14 @@
     return (
       '<div class="space-y-1 text-[11px]">' +
       '<div class="flex h-3 overflow-hidden rounded-full">' +
-      '<div class="bg-emerald-500" style="width:' + posW + '%" title="Pozitif ' + posW + '%"></div>' +
+      '<div class="bg-emerald-500" style="width:' + posW + '%" title="Positive ' + posW + '%"></div>' +
       '<div class="bg-amber-400" style="width:' + neuW + '%" title="Neutral ' + neuW + '%"></div>' +
-      '<div class="bg-rose-500" style="width:' + negW + '%" title="Negatif ' + negW + '%"></div>' +
+      '<div class="bg-rose-500" style="width:' + negW + '%" title="Negative ' + negW + '%"></div>' +
       '</div>' +
       '<div class="flex flex-wrap gap-x-3 gap-y-0.5 text-slate-500 dark:text-slate-400">' +
-      '<span class="text-emerald-600 dark:text-emerald-400 font-semibold">▲ Pozitif ' + posW + '%</span>' +
+      '<span class="text-emerald-600 dark:text-emerald-400 font-semibold">▲ Positive ' + posW + '%</span>' +
       '<span class="text-amber-600 dark:text-amber-400 font-semibold">– Neutral ' + neuW + '%</span>' +
-      '<span class="text-rose-600 dark:text-rose-400 font-semibold">▼ Negatif ' + negW + '%</span>' +
+      '<span class="text-rose-600 dark:text-rose-400 font-semibold">▼ Negative ' + negW + '%</span>' +
       '</div></div>'
     );
   }
@@ -849,7 +920,7 @@
     return keywords.slice(0, 20).map(function(kw) {
       var w = Math.max(0.75, kw.count / max);
       var sz = Math.round(10 + w * 6);
-      return '<span class="inline-block px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200 font-semibold cursor-default" style="font-size:' + sz + 'px" title="' + kw.count + ' kez">' + _esc(kw.word) + '</span>';
+      return '<span class="inline-block px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200 font-semibold cursor-default" style="font-size:' + sz + 'px" title="' + kw.count + ' times">' + _esc(kw.word) + '</span>';
     }).join(' ');
   }
 
@@ -889,10 +960,10 @@
       '<span class="text-[10px] text-slate-400 dark:text-slate-500">All analyzed reviews</span>' +
       '</div>' +
       '<div id="' + cardKey + '-reviews-all" class="hidden mt-3">' +
-      '<div class="mb-2 flex flex-wrap gap-1.5" role="tablist" aria-label="Yorum filtresi">' +
+      '<div class="mb-2 flex flex-wrap gap-1.5" role="tablist" aria-label="Review filter">' +
       '<button type="button" class="rt-viv-review-filter rt-viv-review-filter--on rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-slate-200" data-card="' + cardKey + '" data-filter="all" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'all\')">All</button>' +
-      '<button type="button" class="rt-viv-review-filter rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-emerald-300" data-card="' + cardKey + '" data-filter="positive" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'positive\')">Olumlu (4–5★)</button>' +
-      '<button type="button" class="rt-viv-review-filter rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-rose-300" data-card="' + cardKey + '" data-filter="negative" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'negative\')">Olumsuz (1–2★)</button>' +
+      '<button type="button" class="rt-viv-review-filter rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-emerald-300" data-card="' + cardKey + '" data-filter="positive" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'positive\')">Positive (4–5★)</button>' +
+      '<button type="button" class="rt-viv-review-filter rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-rose-300" data-card="' + cardKey + '" data-filter="negative" onclick="rtVivFilterAllReviews(\'' + cardKey + '\', \'negative\')">Negative (1–2★)</button>' +
       '</div>' +
       '<div id="' + cardKey + '-reviews-list" class="max-h-[28rem] overflow-y-auto space-y-2 pr-1">' +
       _rtVivRenderFilteredReviews(cardKey, 'all') +
@@ -937,7 +1008,8 @@
     });
   };
 
-  function _rtVivBuildAnalysisCard(appName, platform, days, data, cardKey) {
+  function _rtVivBuildAnalysisCard(appName, platform, days, data, cardKey, opts) {
+    opts = opts || {};
     cardKey = cardKey || _rtVivReviewCardKey('rv');
     var a = data.analysis || {};
     var n = a.total_reviews || 0;
@@ -947,25 +1019,50 @@
     var platLabel = platform === 'google_play' ? 'Google Play' : 'App Store';
     var reviews = data.reviews || a.all_reviews || [];
     var daysLabel = _rtVivDaysLabel(days);
+    var dismissFn = opts.dismissFn || 'rtVivClearStoreAnalysisResults';
     if (a.error || n === 0) {
       return (
-        '<div class="rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">' +
+        '<div class="rt-viv-analysis-card rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">' +
+        '<div class="flex flex-wrap items-start justify-between gap-2">' +
         '<p class="text-xs font-bold text-slate-800 dark:text-slate-100">' + _esc(appName) + ' — ' + platLabel + '</p>' +
+        (opts.showDismiss ? '<button type="button" class="rt-viv-ghost-btn rt-viv-analysis-dismiss" onclick="' + dismissFn + '()">Clear results</button>' : '') +
+        '</div>' +
         '<p class="mt-2 text-sm text-slate-500 dark:text-slate-400">' + _esc(a.error || daysLabel + ' period: no reviews found.') + '</p>' +
         '</div>'
       );
     }
 
+    var sampleBlocks = '';
+    if (a.best_samples && a.best_samples.length) {
+      sampleBlocks +=
+        '<div><p class="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-1.5">Positive reviews (summary)</p>' +
+        '<div class="space-y-2">' + _rtVivSampleReviews(a.best_samples, 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50') + '</div></div>';
+    }
+    if (a.worst_samples && a.worst_samples.length) {
+      sampleBlocks +=
+        '<div><p class="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400 mb-1.5">Negative reviews (summary)</p>' +
+        '<div class="space-y-2">' + _rtVivSampleReviews(a.worst_samples, 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50') + '</div></div>';
+    }
+    if (sampleBlocks && opts.compareMode) {
+      sampleBlocks = '<div class="rt-viv-analysis-reviews-scroll space-y-4">' + sampleBlocks + '</div>';
+    } else if (sampleBlocks) {
+      sampleBlocks = '<div class="space-y-4">' + sampleBlocks + '</div>';
+    }
+
     return (
-      '<div class="rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 space-y-4">' +
+      '<div class="rt-viv-analysis-card rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">' +
+      '<div class="rt-viv-analysis-card-body space-y-4">' +
       '<div class="flex flex-wrap items-center justify-between gap-2">' +
       '<div>' +
       '<p class="text-sm font-extrabold text-slate-900 dark:text-slate-100">' + _esc(appName) + '</p>' +
-      '<p class="text-[11px] text-slate-500 dark:text-slate-400">' + platLabel + ' · ' + daysLabel + ' · ' + n + ' yorum</p>' +
+      '<p class="text-[11px] text-slate-500 dark:text-slate-400">' + platLabel + ' · ' + daysLabel + ' · ' + n + ' reviews</p>' +
       '</div>' +
+      '<div class="flex flex-wrap items-center gap-2">' +
       '<div class="flex items-baseline gap-1">' +
       '<span class="text-3xl font-black text-amber-500 dark:text-amber-400">' + avg.toFixed(1) + '</span>' +
       '<span class="text-sm text-slate-400">/ 5</span>' +
+      '</div>' +
+      (opts.showDismiss ? '<button type="button" class="rt-viv-ghost-btn rt-viv-analysis-dismiss" onclick="' + dismissFn + '()">Clear results</button>' : '') +
       '</div>' +
       '</div>' +
       '<div>' +
@@ -981,14 +1078,9 @@
       '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Frequent words</p>' +
       '<div class="flex flex-wrap gap-1">' + _rtVivKeywordCloud(a.top_keywords) + '</div>' +
       '</div>' +
-      (a.best_samples && a.best_samples.length ?
-      '<div><p class="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-1.5">Positive reviews (summary)</p>' +
-      '<div class="space-y-2">' + _rtVivSampleReviews(a.best_samples, 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50') + '</div></div>' : '') +
-      (a.worst_samples && a.worst_samples.length ?
-      '<div><p class="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400 mb-1.5">Negative reviews (summary)</p>' +
-      '<div class="space-y-2">' + _rtVivSampleReviews(a.worst_samples, 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50') + '</div></div>' : '') +
+      sampleBlocks +
       _rtVivAllReviewsSection(cardKey, reviews) +
-      '</div>'
+      '</div></div>'
     );
   }
 
@@ -1027,10 +1119,15 @@
     .then(function(d) {
       if (d.detail) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
       if (res) {
-        res.innerHTML = _rtVivBuildAnalysisCard(it.name, platform, days, d, _rtVivReviewCardKey('store'));
+        res.innerHTML =
+          '<div class="mb-3 flex flex-wrap items-center justify-between gap-2">' +
+          '<h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200">Review analysis</h4>' +
+          '<button type="button" class="rt-viv-ghost-btn rt-viv-analysis-dismiss" onclick="rtVivClearStoreAnalysisResults()">Clear results</button>' +
+          '</div>' +
+          _rtVivBuildAnalysisCard(it.name, platform, days, d, _rtVivReviewCardKey('store'));
         res.classList.remove('hidden');
       }
-      if (msg) msg.textContent = d.reviews_fetched + ' yorum analiz edildi.';
+      if (msg) msg.textContent = d.reviews_fetched + ' reviews analyzed.';
     })
     .catch(function(e) {
       if (msg) msg.textContent = 'Error: ' + (e.message || 'unknown error');
@@ -1077,16 +1174,23 @@
 
       if (res) {
         res.innerHTML =
-          '<div class="mb-3"><h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200">Review analysis comparison</h4></div>' +
-          '<div class="grid gap-4 md:grid-cols-2">' +
-          '<div>' + _rtVivBuildAnalysisCard(selA.name, platA, days, dA, _rtVivReviewCardKey('cmp-a')) + '</div>' +
-          '<div>' + _rtVivBuildAnalysisCard(selB.name, platB, days, dB, _rtVivReviewCardKey('cmp-b')) + '</div>' +
+          '<div class="mb-3 flex flex-wrap items-center justify-between gap-2">' +
+          '<h4 class="text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200">Review analysis comparison</h4>' +
+          '<button type="button" class="rt-viv-ghost-btn rt-viv-analysis-dismiss" onclick="rtVivClearCompareAnalysisResults()">Clear results</button>' +
+          '</div>' +
+          '<div class="rt-viv-cmp-analysis-grid">' +
+          '<div class="rt-viv-cmp-analysis-col">' +
+          _rtVivBuildAnalysisCard(selA.name, platA, days, dA, _rtVivReviewCardKey('cmp-a'), { compareMode: true }) +
+          '</div>' +
+          '<div class="rt-viv-cmp-analysis-col">' +
+          _rtVivBuildAnalysisCard(selB.name, platB, days, dB, _rtVivReviewCardKey('cmp-b'), { compareMode: true }) +
+          '</div>' +
           '</div>';
         res.classList.remove('hidden');
       }
       var fetchedA = dA.reviews_fetched || 0;
       var fetchedB = dB.reviews_fetched || 0;
-      if (msg) msg.textContent = selA.name + ': ' + fetchedA + ' yorum · ' + selB.name + ': ' + fetchedB + ' yorum analiz edildi.';
+      if (msg) msg.textContent = selA.name + ': ' + fetchedA + ' reviews · ' + selB.name + ': ' + fetchedB + ' reviews analyzed.';
     })
     .catch(function(e) {
       if (msg) msg.textContent = 'Error: ' + (e.message || 'unknown error');
@@ -1103,7 +1207,7 @@
     if (!qEl || !box) return;
     var q = (qEl.value || '').trim();
     if (q.length < 2) {
-      if (msg) msg.textContent = 'En az 2 karakter girin.';
+      if (msg) msg.textContent = 'Enter at least 2 characters.';
       return;
     }
     var pl = document.getElementById('rt-viv-pl-store');
@@ -1176,7 +1280,7 @@
     if (!qEl || !list) return;
     var q = (qEl.value || '').trim();
     if (q.length < 2) {
-      if (msg) msg.textContent = 'En az 2 karakter.';
+      if (msg) msg.textContent = 'Enter at least 2 characters.';
       return;
     }
     var pl = document.getElementById('rt-viv-pl-' + side);
@@ -1262,7 +1366,7 @@
       '<div class="min-w-0 flex-1">' +
       '<strong class="block truncate">' + _esc(it.name) + '</strong>' +
       '<span class="block text-[11px] opacity-90 truncate">' +
-      dev + ' · ' + plat + ' · ★ ' + rat + ' · yorum: ' + rev +
+      dev + ' · ' + plat + ' · ★ ' + rat + ' · reviews: ' + rev +
       ' · id: <code>' + _esc(it.id) + '</code></span>' +
       '<a class="mt-1 inline-block text-indigo-600 underline dark:text-indigo-300" href="' +
       _esc(it.store_url) +
@@ -1374,6 +1478,7 @@
   function rtVivClearCompare() {
     _rtVivSel.a = null;
     _rtVivSel.b = null;
+    rtVivClearCompareAnalysisResults();
     ['a', 'b'].forEach(function (side) {
       var el = document.getElementById('rt-viv-sel-' + side);
       if (el) {
