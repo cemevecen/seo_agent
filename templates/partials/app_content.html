@@ -1067,14 +1067,31 @@
   </section>
 
   {# ── Firebase Crashlytics ── #}
-  <section id="app-crashlytics-root" class="mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-slate-800/80">
-    {# Başlık + kontroller #}
-    <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+  <section id="app-crashlytics-root" class="mt-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-slate-800/80" aria-label="Firebase Crashlytics">
+    <header
+      id="app-crashlytics-header"
+      role="button"
+      tabindex="0"
+      aria-expanded="false"
+      aria-controls="app-crashlytics-body"
+      class="flex cursor-pointer select-none flex-col gap-3 border-b border-slate-100 px-4 py-4 transition hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+    >
       <div class="min-w-0">
         <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Firebase Crashlytics</h2>
         <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">/android + /ios · vitals · stability-free (BQ iOS peek only)</p>
       </div>
-    </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="crash-refresh-btn" type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
+          <span id="crash-refresh-icon">↺</span> Refresh
+        </button>
+        <svg id="app-crashlytics-chevron" class="h-4 w-4 text-slate-400 transition-transform dark:text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+        </svg>
+      </div>
+    </header>
+
+    <div id="app-crashlytics-body" hidden>
 
     {# Filtre bar #}
     <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
@@ -1135,6 +1152,7 @@
     <div id="crash-content" class="app-page-shell-body min-h-0">
       <p class="text-sm text-slate-400 dark:text-slate-500">Select a tab to load data.</p>
     </div>
+    </div>{# /app-crashlytics-body #}
   </section>
 </div>
 
@@ -1144,7 +1162,7 @@
   if (!crashRoot || crashRoot.dataset.crashBound) return;
   crashRoot.dataset.crashBound = "1";
 
-  var crashState = { platform: "all", days: 7, type: "", tab: "summary", product: "doviz", seq: 0, pollTimer: null };
+  var crashState = { platform: "all", days: 7, type: "", tab: "summary", product: "doviz", seq: 0, pollTimer: null, loaded: false };
 
   function crashActiveClass(on) {
     return on
@@ -1296,15 +1314,60 @@
   var refreshBtn = document.getElementById("crash-refresh-btn");
   if (refreshBtn) refreshBtn.addEventListener("click", triggerRefresh);
 
-  // First yükleme — otomatik, ama lazy (Intersection Observer ile)
-  var observer = new IntersectionObserver(function (entries) {
-    if (entries[0].isIntersecting) {
-      observer.disconnect();
+  function ensureCrashLoaded() {
+    if (!crashState.loaded) {
+      crashState.loaded = true;
       updateFilterBtns();
       loadCrashTab();
     }
-  }, { threshold: 0.1 });
-  observer.observe(crashRoot);
+  }
+
+  window.__seoCrashEnsureLoaded = ensureCrashLoaded;
+  window.__seoCrashSetProduct = function (product) {
+    if (!product) return;
+    if (crashState.product === product && crashState.loaded) return;
+    crashState.product = product;
+    crashState.loaded = false;
+    var body = document.getElementById("app-crashlytics-body");
+    if (body && !body.hasAttribute("hidden")) ensureCrashLoaded();
+  };
+
+  try {
+    var crashQp = new URLSearchParams(window.location.search);
+    var crashProduct = (crashQp.get("product") || "doviz").toLowerCase();
+    if (/^[a-z0-9_-]+$/.test(crashProduct)) crashState.product = crashProduct;
+  } catch (eCrashQp) {}
+
+  // Dropdown toggle — varsayılan kapalı, ilk açılışta lazy load
+  var crashHdr = document.getElementById("app-crashlytics-header");
+  var crashBody = document.getElementById("app-crashlytics-body");
+  var crashChev = document.getElementById("app-crashlytics-chevron");
+  function crashToggle() {
+    if (!crashBody) return;
+    var isHidden = crashBody.hasAttribute("hidden");
+    if (isHidden) {
+      crashBody.removeAttribute("hidden");
+      if (crashChev) crashChev.style.transform = "rotate(180deg)";
+      if (crashHdr) crashHdr.setAttribute("aria-expanded", "true");
+      ensureCrashLoaded();
+    } else {
+      crashBody.setAttribute("hidden", "");
+      if (crashChev) crashChev.style.transform = "";
+      if (crashHdr) crashHdr.setAttribute("aria-expanded", "false");
+    }
+  }
+  if (crashHdr) {
+    crashHdr.addEventListener("click", function (ev) {
+      if (ev.target.closest("#crash-refresh-btn")) return;
+      crashToggle();
+    });
+    crashHdr.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        crashToggle();
+      }
+    });
+  }
 })();
 </script>
 <script src="/static/js/app_release_markers.js?v=3"></script>
@@ -1805,9 +1868,8 @@
         if (ascBody && !ascBody.hasAttribute('hidden')) loadAscPreview();
         var gpBody = document.getElementById('app-gp-body');
         if (gpBody && !gpBody.hasAttribute('hidden')) loadGpPreview();
-        var cDet = document.getElementById("app-crashlytics-details");
-        if (cDet && cDet.open) {
-          loadCrashlyticsPreview();
+        if (typeof window.__seoCrashSetProduct === "function") {
+          window.__seoCrashSetProduct(state.product);
         }
       });
       nav.appendChild(b);
