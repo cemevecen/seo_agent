@@ -15,8 +15,8 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync       → notification (30 dk)
   POST /sync-news  → news (1 saat)
   POST /sync-virgul → Virgül (00/06/12/18 TR)
-  POST /sync-play   → Play / Android (3 saatte bir, :00)
-  POST /sync-asc    → ASC / iOS (3 saatte bir, :05)
+  POST /sync-play   → Play / Android (3 saatte bir, :02)
+  POST /sync-asc    → ASC / iOS (3 saatte bir, :10)
   POST /sync-firebase → Firebase Console Crashlytics (günde bir sabah, varsayılan 06:10 TR)
   POST /sync-gsc-links → Backlinks (01:00 + 13:00 TR)
   POST /sync-revenue-targets → Ad hedef sheet (05:05 + 13:05 TR, sistem Firefox)
@@ -98,36 +98,38 @@ VIRGUL_AUTO_INTERVAL_SEC = int(
 GSC_LINKS_AUTO_INTERVAL_SEC = int(
     os.environ.get("GSC_LINKS_BRIDGE_INTERVAL_SEC") or str(12 * 60 * 60)
 )
-# Slot pencereleri Europe/Istanbul
+# Slot pencereleri Europe/Istanbul — dakikalar birbirinden ≥4 dk ayrı (scrape çakışması azaltılır)
 VIRGUL_SLOT_HOURS = (0, 6, 12, 18)  # gece 00’dan 6 saatte bir → 4 tur
-VIRGUL_SLOT_MINUTE = int(os.environ.get("VIRGUL_BRIDGE_MINUTE") or "0")
+VIRGUL_SLOT_MINUTE = int(os.environ.get("VIRGUL_BRIDGE_MINUTE") or "8")
 PLAY_SLOT_HOURS = (0, 3, 6, 9, 12, 15, 18, 21)
-PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "0")
-ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "5")
+PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "2")
+ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "11")
 FIREBASE_SLOT_HOURS = (6,)  # günde bir — sabah Firebase Console scrape
 _FIREBASE_HOURS_RAW = (os.environ.get("FIREBASE_CONSOLE_BRIDGE_HOURS") or "").strip()
 if _FIREBASE_HOURS_RAW:
     FIREBASE_SLOT_HOURS = tuple(
         int(h.strip()) for h in _FIREBASE_HOURS_RAW.split(",") if h.strip().isdigit()
     ) or FIREBASE_SLOT_HOURS
-FIREBASE_SLOT_MINUTE = int(os.environ.get("FIREBASE_CONSOLE_BRIDGE_MINUTE") or "10")
-TWICE_DAILY_HOURS = (1, 13)  # 01:00 + 13:00
-REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:05 + 13:05 TR — son ay; 1–2'de + biten ay
-GSC_SLOT_MINUTE = int(os.environ.get("GSC_LINKS_BRIDGE_MINUTE") or "0")
-REVENUE_TARGETS_SLOT_MINUTE = int(os.environ.get("REVENUE_TARGETS_BRIDGE_MINUTE") or "5")
-POLICY_SLOT_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "5")
-SPEED_SLOT_MINUTE = int(os.environ.get("PAGESPEED_BRIDGE_MINUTE") or "10")
-NOADS_SLOT_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "15")
-# SEO audit: pagespeed/noAds sonrası — 02:45 + 14:45 TR
+FIREBASE_SLOT_MINUTE = int(os.environ.get("FIREBASE_CONSOLE_BRIDGE_MINUTE") or "46")
+TWICE_DAILY_HOURS = (1, 13)  # 01:xx + 13:xx
+REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:34 + 13:34 TR
+GSC_SLOT_MINUTE = int(os.environ.get("GSC_LINKS_BRIDGE_MINUTE") or "14")
+REVENUE_TARGETS_SLOT_MINUTE = int(os.environ.get("REVENUE_TARGETS_BRIDGE_MINUTE") or "40")
+POLICY_SLOT_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "24")
+SPEED_SLOT_MINUTE = int(os.environ.get("PAGESPEED_BRIDGE_MINUTE") or "28")
+NOADS_SLOT_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "32")
+# SEO audit: pagespeed/noAds sonrası — 02:38 + 14:38 TR
 SEO_AUDIT_SLOT_HOURS = (2, 14)
-SEO_AUDIT_SLOT_MINUTE = int(os.environ.get("SEO_AUDIT_BRIDGE_MINUTE") or "45")
-# GSC CWV + AMP — SEO scrape sonrası — 03:00 + 15:00 TR
+SEO_AUDIT_SLOT_MINUTE = int(os.environ.get("SEO_AUDIT_BRIDGE_MINUTE") or "38")
+# GSC CWV + AMP — 03:42 + 15:42 TR
 GSC_CWV_SLOT_HOURS = (3, 15)
-GSC_CWV_SLOT_MINUTE = int(os.environ.get("GSC_CWV_BRIDGE_MINUTE") or "0")
-# Piyasa tablo taraması — günde bir, 00:05 TR
+GSC_CWV_SLOT_MINUTE = int(os.environ.get("GSC_CWV_BRIDGE_MINUTE") or "42")
+# Piyasa tablo taraması — günde bir, 00:16 TR
 MARKET_SLOT_HOURS = (0,)
-MARKET_SLOT_MINUTE = int(os.environ.get("MARKET_TARAMA_BRIDGE_MINUTE") or "5")
-SLOT_WINDOW_MIN = int(os.environ.get("BRIDGE_SLOT_WINDOW_MIN") or "20")
+MARKET_SLOT_MINUTE = int(os.environ.get("MARKET_TARAMA_BRIDGE_MINUTE") or "16")
+SLOT_WINDOW_MIN = int(os.environ.get("BRIDGE_SLOT_WINDOW_MIN") or "35")
+# Tarayıcı scrape'leri arası minimum boşluk (aynı 2–3 dk içinde ikinci scrape başlamasın)
+BRIDGE_SCRAPE_MIN_GAP_SEC = int(os.environ.get("BRIDGE_SCRAPE_MIN_GAP_SEC") or "180")
 # Başarısız otomatik tur → en fazla 3 yeniden deneme, 10'ar dk arayla
 BRIDGE_RETRY_MAX = int(os.environ.get("BRIDGE_RETRY_MAX") or "3")
 BRIDGE_RETRY_GAP_SEC = int(os.environ.get("BRIDGE_RETRY_GAP_SEC") or str(10 * 60))
@@ -233,12 +235,23 @@ _last_pagespeed_auto_slot = ""
 _last_seo_audit_auto_slot = ""
 _last_gsc_cwv_auto_slot = ""
 _last_market_auto_slot = ""
+_last_pm_lab_auto_slot = ""
+_last_pm_lab_competitors_slot = ""
 # Restart sonrası tam interval bekle; ilk dolum manuel --ingest / /sync-pm-lab.
 _last_pm_lab_auto_at = time.time()
 _last_pm_lab_competitors_auto_at = time.time()
 PM_LAB_AUTO_INTERVAL_SEC = int(os.environ.get("PM_LAB_AUTO_INTERVAL_SEC") or str(3 * 3600))
 PM_LAB_COMPETITORS_INTERVAL_SEC = int(os.environ.get("PM_LAB_COMPETITORS_INTERVAL_SEC") or "600")
-# SERP: 20 kelime → 4×5; her 3 saatte bir döngü, 15 dk arayla batch
+_PM_LAB_HOURS_RAW = (os.environ.get("PM_LAB_SLOT_HOURS") or "1,4,7,10,13,16,19,22").strip()
+PM_LAB_SLOT_HOURS = tuple(
+    int(h.strip()) for h in _PM_LAB_HOURS_RAW.split(",") if h.strip().isdigit()
+) or (1, 4, 7, 10, 13, 16, 19, 22)
+PM_LAB_SLOT_MINUTE = int(os.environ.get("PM_LAB_SLOT_MINUTE") or "54")
+_PM_LAB_COMP_MINUTES_RAW = (os.environ.get("PM_LAB_COMPETITORS_SLOT_MINUTES") or "24,34,44,54").strip()
+PM_LAB_COMPETITORS_SLOT_MINUTES = tuple(
+    int(m.strip()) for m in _PM_LAB_COMP_MINUTES_RAW.split(",") if m.strip().isdigit()
+) or (24, 34, 44, 54)
+# SERP: 20 kelime → 4×5; her 3 saatte bir döngü, 15 dk arayla batch (Play/ASC ile çakışmaz)
 _SERP_HOURS_RAW = (os.environ.get("PM_LAB_SERP_CYCLE_HOURS") or "3,6,9,12,15,18,21").strip()
 SERP_CYCLE_HOURS = tuple(int(h.strip()) for h in _SERP_HOURS_RAW.split(",") if h.strip().isdigit()) or (
     3,
@@ -249,10 +262,10 @@ SERP_CYCLE_HOURS = tuple(int(h.strip()) for h in _SERP_HOURS_RAW.split(",") if h
     18,
     21,
 )
-_SERP_BATCH_MINUTES_RAW = (os.environ.get("PM_LAB_SERP_BATCH_MINUTES") or "0,15,30,45").strip()
+_SERP_BATCH_MINUTES_RAW = (os.environ.get("PM_LAB_SERP_BATCH_MINUTES") or "50,5,20,35").strip()
 SERP_BATCH_MINUTES = tuple(
     int(m.strip()) for m in _SERP_BATCH_MINUTES_RAW.split(",") if m.strip().isdigit()
-) or (0, 15, 30, 45)
+) or (50, 5, 20, 35)
 SERP_BATCH_GAP_SEC = int(os.environ.get("PM_LAB_SERP_BATCH_GAP_SEC") or str(15 * 60))
 _last_serp_batch_slots: list[str] = [""] * max(1, len(SERP_BATCH_MINUTES))
 _pending_serp_batches: list[int] = []
@@ -288,6 +301,141 @@ _last_fail_email_at: dict[str, float] = {}
 _fail_streak: dict[str, int] = {}
 # kind → {attempt: 1..MAX, next_at: float, name: str}
 _job_retries: dict[str, dict[str, Any]] = {}
+# Tarayıcı scrape kuyruğu — aynı anda / çok kısa aralıkta ikinci scrape başlamasın
+_last_browser_scrape_at = 0.0
+_scrape_deferred_jobs: dict[str, dict[str, Any]] = {}
+_BROWSER_SCRAPE_KINDS = frozenset(
+    {
+        "play",
+        "asc",
+        "firebase",
+        "gsc_links",
+        "revenue_targets",
+        "admanager_policy",
+        "pagespeed",
+        "sinemalar_noads",
+        "seo_audit",
+        "gsc_cwv",
+        "market",
+        "pm_lab",
+        "pm_lab_competitors",
+    }
+)
+
+
+def _is_browser_scrape_kind(kind: str) -> bool:
+    return kind.startswith("serp_batch_") or kind in _BROWSER_SCRAPE_KINDS
+
+
+def browser_scrape_slot_defs() -> tuple[tuple[str, tuple[int, ...], int], ...]:
+    """Test / health: tarayıcı slot tanımları (ad, saatler, dakika)."""
+    return (
+        ("play", PLAY_SLOT_HOURS, PLAY_SLOT_MINUTE),
+        ("asc", PLAY_SLOT_HOURS, ASC_SLOT_MINUTE),
+        ("virgul", VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE),
+        ("market", MARKET_SLOT_HOURS, MARKET_SLOT_MINUTE),
+        ("gsc_links", TWICE_DAILY_HOURS, GSC_SLOT_MINUTE),
+        ("policy", TWICE_DAILY_HOURS, POLICY_SLOT_MINUTE),
+        ("pagespeed", TWICE_DAILY_HOURS, SPEED_SLOT_MINUTE),
+        ("noads", TWICE_DAILY_HOURS, NOADS_SLOT_MINUTE),
+        ("revenue_targets", REVENUE_TARGETS_SLOT_HOURS, REVENUE_TARGETS_SLOT_MINUTE),
+        ("seo_audit", SEO_AUDIT_SLOT_HOURS, SEO_AUDIT_SLOT_MINUTE),
+        ("gsc_cwv", GSC_CWV_SLOT_HOURS, GSC_CWV_SLOT_MINUTE),
+        ("firebase", FIREBASE_SLOT_HOURS, FIREBASE_SLOT_MINUTE),
+        ("pm_lab", PM_LAB_SLOT_HOURS, PM_LAB_SLOT_MINUTE),
+    )
+
+
+def _can_start_browser_scrape() -> bool:
+    if _last_browser_scrape_at <= 0:
+        return True
+    return (time.time() - _last_browser_scrape_at) >= max(60, BRIDGE_SCRAPE_MIN_GAP_SEC)
+
+
+def _defer_browser_scrape(
+    kind: str,
+    *,
+    name: str,
+    lock: threading.Lock,
+    runner,
+    on_done: Any | None = None,
+) -> None:
+    if kind in _scrape_deferred_jobs:
+        return
+    _scrape_deferred_jobs[kind] = {
+        "name": name,
+        "lock": lock,
+        "runner": runner,
+        "on_done": on_done,
+    }
+    print(
+        f"Auto {name} ertelendi — son scrape'ten sonra "
+        f"{max(0, int(BRIDGE_SCRAPE_MIN_GAP_SEC - (time.time() - _last_browser_scrape_at)))}s bekleniyor",
+        flush=True,
+    )
+
+
+def _flush_deferred_browser_scrapes() -> None:
+    global _last_browser_scrape_at
+    if not _scrape_deferred_jobs or not _can_start_browser_scrape():
+        return
+    kind = next(iter(_scrape_deferred_jobs))
+    meta = _scrape_deferred_jobs.pop(kind)
+    _last_browser_scrape_at = time.time()
+    result = _run_locked_job(
+        name=str(meta["name"]),
+        lock=meta["lock"],
+        runner=meta["runner"],
+        kind=kind,
+        notify=False,
+    )
+    if result is None:
+        _scrape_deferred_jobs[kind] = meta
+        return
+    _last_browser_scrape_at = time.time()
+    on_done = meta.get("on_done")
+    if callable(on_done):
+        on_done(result)
+
+
+def _run_browser_scrape_job(
+    *,
+    kind: str,
+    name: str,
+    lock: threading.Lock,
+    runner,
+    on_done: Any | None = None,
+    notify: bool = False,
+) -> dict[str, Any] | None:
+    global _last_browser_scrape_at
+    if _is_browser_scrape_kind(kind) and not _can_start_browser_scrape():
+        _defer_browser_scrape(kind, name=name, lock=lock, runner=runner, on_done=on_done)
+        return None
+    if _is_browser_scrape_kind(kind):
+        _last_browser_scrape_at = time.time()
+    result = _run_locked_job(
+        name=name,
+        lock=lock,
+        runner=runner,
+        kind=kind,
+        notify=notify,
+    )
+    if result is not None and _is_browser_scrape_kind(kind):
+        _last_browser_scrape_at = time.time()
+        if callable(on_done):
+            on_done(result)
+    return result
+
+
+def _competitors_slot_due() -> tuple[bool, str]:
+    now = _now_tr()
+    minute = now.minute
+    if minute not in PM_LAB_COMPETITORS_SLOT_MINUTES:
+        return False, ""
+    slot = f"{now.strftime('%Y-%m-%d-%H')}-{minute:02d}"
+    if _last_pm_lab_competitors_slot == slot:
+        return False, slot
+    return True, slot
 
 
 def _failure_message(result: dict[str, Any] | None = None, exc: BaseException | None = None) -> str:
@@ -2267,6 +2415,22 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "market_slots_tr": [
                             f"{h:02d}:{MARKET_SLOT_MINUTE:02d}" for h in MARKET_SLOT_HOURS
                         ],
+                        "pm_lab_slots_tr": [
+                            f"{h:02d}:{PM_LAB_SLOT_MINUTE:02d}" for h in PM_LAB_SLOT_HOURS
+                        ],
+                        "pm_lab_competitors_slots_tr": [
+                            f":{m:02d}" for m in PM_LAB_COMPETITORS_SLOT_MINUTES
+                        ],
+                        "serp_batch_slots_tr": [
+                            f"{h:02d}:{m:02d}" for h in SERP_CYCLE_HOURS for m in (SERP_BATCH_MINUTES[0],)
+                        ]
+                        + [
+                            f"{(h + 1) % 24:02d}:{m:02d}"
+                            for h in SERP_CYCLE_HOURS
+                            for m in SERP_BATCH_MINUTES[1:]
+                        ],
+                        "scrape_min_gap_sec": BRIDGE_SCRAPE_MIN_GAP_SEC,
+                        "scrape_deferred": sorted(_scrape_deferred_jobs.keys()),
                         "pm_lab_sec": PM_LAB_AUTO_INTERVAL_SEC,
                         "pm_lab_competitors_sec": PM_LAB_COMPETITORS_INTERVAL_SEC,
                         "retry_max": BRIDGE_RETRY_MAX,
@@ -2825,10 +2989,12 @@ def _auto_loop() -> None:
     global _last_gsc_links_auto_slot, _last_policy_auto_slot
     global _last_noads_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
     global _last_gsc_cwv_auto_slot, _last_market_auto_slot
+    global _last_pm_lab_auto_slot, _last_pm_lab_competitors_slot
 
     while True:
         _auto_cycle += 1
         _process_due_retries()
+        _flush_deferred_browser_scrapes()
 
         # Notification 30 dk + News 1 saat (aynı admin kilidi)
         # Pending retry varken planlı tur atlanır (retry bitene / başarılı olana kadar)
@@ -2874,25 +3040,15 @@ def _auto_loop() -> None:
             else:
                 print("Auto notification/news atlandı (manuel sync sürüyor)", flush=True)
 
-        pm_due = (
-            _interval_due(_last_pm_lab_auto_at, PM_LAB_AUTO_INTERVAL_SEC, min_sec=120)
-            and "pm_lab" not in _job_retries
-        )
-        pm_comp_due = (
-            _interval_due(_last_pm_lab_competitors_auto_at, PM_LAB_COMPETITORS_INTERVAL_SEC, min_sec=60)
-            and "pm_lab_competitors" not in _job_retries
-        )
+        pm_due, pm_slot = _slot_due(_last_pm_lab_auto_slot, PM_LAB_SLOT_HOURS, PM_LAB_SLOT_MINUTE)
+        pm_due = pm_due and "pm_lab" not in _job_retries
+        comp_due, comp_slot = _competitors_slot_due()
+        comp_due = comp_due and "pm_lab_competitors" not in _job_retries
         if pm_due:
-            result = _run_locked_job(
-                name="PM lab",
-                lock=_pm_lab_lock,
-                runner=run_pm_lab_bridge_once,
-                kind="pm_lab",
-                notify=False,
-            )
-            if result is None:
-                print("Auto PM lab atlandı (manuel sync sürüyor)", flush=True)
-            else:
+
+            def _pm_lab_done(result: dict[str, Any]) -> None:
+                global _last_pm_lab_auto_slot, _last_pm_lab_auto_at, _last_pm_lab_competitors_auto_at
+                _last_pm_lab_auto_slot = pm_slot
                 _last_pm_lab_auto_at = time.time()
                 _last_pm_lab_competitors_auto_at = time.time()
                 if result.get("ok"):
@@ -2902,17 +3058,22 @@ def _auto_loop() -> None:
                 else:
                     _notify_auto_failure("pm_lab", result)
                     _arm_job_retry("pm_lab", name="PM lab")
-        elif pm_comp_due:
-            result = _run_locked_job(
-                name="PM lab fiyat",
+
+            result = _run_browser_scrape_job(
+                kind="pm_lab",
+                name="PM lab",
                 lock=_pm_lab_lock,
-                runner=run_pm_lab_competitors_once,
-                kind="pm_lab_competitors",
+                runner=run_pm_lab_bridge_once,
+                on_done=_pm_lab_done,
                 notify=False,
             )
-            if result is None:
-                print("Auto PM lab fiyat atlandı (manuel sync sürüyor)", flush=True)
-            else:
+            if result is None and "pm_lab" not in _scrape_deferred_jobs:
+                print("Auto PM lab atlandı (manuel sync sürüyor)", flush=True)
+        elif comp_due:
+
+            def _pm_comp_done(result: dict[str, Any]) -> None:
+                global _last_pm_lab_competitors_slot, _last_pm_lab_competitors_auto_at
+                _last_pm_lab_competitors_slot = comp_slot
                 _last_pm_lab_competitors_auto_at = time.time()
                 if result.get("ok"):
                     _note_auto_success("pm_lab_competitors")
@@ -2920,6 +3081,17 @@ def _auto_loop() -> None:
                 else:
                     _notify_auto_failure("pm_lab_competitors", result)
                     _arm_job_retry("pm_lab_competitors", name="PM lab fiyat")
+
+            result = _run_browser_scrape_job(
+                kind="pm_lab_competitors",
+                name="PM lab fiyat",
+                lock=_pm_lab_lock,
+                runner=run_pm_lab_competitors_once,
+                on_done=_pm_comp_done,
+                notify=False,
+            )
+            if result is None and "pm_lab_competitors" not in _scrape_deferred_jobs:
+                print("Auto PM lab fiyat atlandı (manuel sync sürüyor)", flush=True)
 
         _maybe_run_pending_serp_batch()
 
@@ -2932,21 +3104,28 @@ def _auto_loop() -> None:
             due, slot = _slot_due(_last_serp_batch_slots[batch_idx], SERP_CYCLE_HOURS, minute)
             if not due:
                 continue
-            result = _run_locked_job(
+
+            def _serp_done(result: dict[str, Any], *, _slot: str = slot, _idx: int = batch_idx) -> None:
+                _last_serp_batch_slots[_idx] = _slot
+                kind_local = f"serp_batch_{_idx}"
+                if result.get("ok"):
+                    _clear_job_retry(kind_local)
+                else:
+                    _notify_auto_failure(kind_local, result)
+                    _arm_job_retry(kind_local, name=f"SERP {_idx + 1}/{len(SERP_BATCH_MINUTES)}")
+
+            result = _run_browser_scrape_job(
+                kind=kind,
                 name=f"SERP batch {batch_idx + 1}/{len(SERP_BATCH_MINUTES)}",
                 lock=_pm_lab_lock,
                 runner=lambda b=batch_idx: run_serp_batch_once(b),
-                kind=kind,
+                on_done=_serp_done,
                 notify=False,
             )
             if result is None:
+                if kind in _scrape_deferred_jobs:
+                    break
                 continue
-            _last_serp_batch_slots[batch_idx] = slot
-            if result.get("ok"):
-                _clear_job_retry(kind)
-            else:
-                _notify_auto_failure(kind, result)
-                _arm_job_retry(kind, name=f"SERP {batch_idx + 1}/{len(SERP_BATCH_MINUTES)}")
             break
 
         def _slot_job(
@@ -2957,30 +3136,53 @@ def _auto_loop() -> None:
             last_attr: str,
             hours: tuple[int, ...] | list[int],
             minute: int,
+            *,
+            browser: bool = True,
         ) -> None:
             nonlocal_last = globals()[last_attr]
-            # Retry beklerken aynı slot penceresinde tekrar tetikleme
             if kind in _job_retries:
                 return
             due, slot = _slot_due(nonlocal_last, hours, minute)
             if not due:
                 return
             _clear_job_retry(kind)
-            result = _run_locked_job(
-                name=name, lock=lock, runner=runner, kind=kind, notify=False
-            )
-            if result is None:
-                return
-            globals()[last_attr] = slot
-            if result.get("ok"):
-                _clear_job_retry(kind)
+
+            def _mark_slot(result: dict[str, Any], *, _slot: str = slot) -> None:
+                globals()[last_attr] = _slot
+                if result.get("ok"):
+                    _clear_job_retry(kind)
+                else:
+                    _notify_auto_failure(kind, result)
+                    _arm_job_retry(kind, name=name)
+
+            if browser and _is_browser_scrape_kind(kind):
+                result = _run_browser_scrape_job(
+                    kind=kind,
+                    name=name,
+                    lock=lock,
+                    runner=runner,
+                    on_done=_mark_slot,
+                    notify=False,
+                )
+                if result is None:
+                    return
             else:
-                _notify_auto_failure(kind, result)
-                _arm_job_retry(kind, name=name)
+                result = _run_locked_job(
+                    name=name, lock=lock, runner=runner, kind=kind, notify=False
+                )
+                if result is None:
+                    return
+                globals()[last_attr] = slot
+                if result.get("ok"):
+                    _clear_job_retry(kind)
+                else:
+                    _notify_auto_failure(kind, result)
+                    _arm_job_retry(kind, name=name)
 
         _slot_job(
             "virgul", "Virgul", _virgul_lock, run_virgul_bridge_once,
             "_last_virgul_auto_slot", VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE,
+            browser=False,
         )
         _slot_job(
             "play", "Play", _play_lock, run_play_bridge_once,
