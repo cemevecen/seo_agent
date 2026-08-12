@@ -2632,7 +2632,7 @@
               <a href="/backlinks" data-nav-match="/backlinks" data-nav-priority class="header-nav-link">backlinks</a>
               <a href="/sinemalar" data-nav-match="/sinemalar,/policy" data-nav-priority class="header-nav-link">sinemalar</a>
               <a href="/inbox" data-nav-match="/inbox" data-nav-priority class="header-nav-link">inbox</a>
-              <div class="header-nav-dropdown" id="header-trend-dropdown" data-nav-match="/trend,/karma" data-nav-priority data-nav-label="trend">
+              <div class="header-nav-dropdown" id="header-trend-dropdown" data-nav-match="/trend,/karma" data-nav-priority data-nav-label="trend" data-nav-href="/trend">
                 <button type="button" class="header-nav-link header-nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">trend ▾</button>
                 <div class="header-nav-dropdown-backdrop" aria-hidden="true" tabindex="-1"></div>
                 <div class="header-nav-dropdown-menu" role="menu">
@@ -2943,17 +2943,18 @@
             moreMenu.appendChild(a);
           } else {
             var label = el.getAttribute('data-nav-label') || 'more';
-            var group = document.createElement('div');
-            group.className = 'header-nav-more-group';
-            group.textContent = label;
-            moreMenu.appendChild(group);
-            el.querySelectorAll('.header-nav-dropdown-menu a').forEach(function (src) {
-              var copy = document.createElement('a');
-              copy.href = src.getAttribute('href') || '#';
-              copy.textContent = (src.textContent || '').trim();
-              copy.setAttribute('role', 'menuitem');
-              moreMenu.appendChild(copy);
-            });
+            var a = document.createElement('a');
+            var overflowHref = el.getAttribute('data-nav-href');
+            if (!overflowHref) {
+              var first = el.querySelector('.header-nav-dropdown-menu a[href]');
+              overflowHref = first ? first.getAttribute('href') : '/trend';
+            }
+            a.href = overflowHref;
+            a.textContent = label;
+            a.setAttribute('role', 'menuitem');
+            var match = el.getAttribute('data-nav-match');
+            if (match) a.setAttribute('data-nav-match', match);
+            moreMenu.appendChild(a);
           }
         }
 
