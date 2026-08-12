@@ -115,11 +115,17 @@
   function plotResponsive(el, traces, layout, opts) {
     if (!el || !window.Plotly) return Promise.resolve();
     var lay = responsiveLayout(el, layout, opts || {});
-    return Plotly.newPlot(el, traces, lay, plotCfg()).then(function () {
-      try {
-        Plotly.Plots.resize(el);
-      } catch (_) {}
-    });
+    return Plotly.newPlot(el, traces, lay, plotCfg())
+      .then(function () {
+        try {
+          Plotly.Plots.resize(el);
+        } catch (_) {}
+      })
+      .catch(function (err) {
+        console.error("[mod-chart]", el.id, err);
+        el.innerHTML =
+          '<p class="flex h-full min-h-[180px] items-center justify-center px-3 text-center text-xs text-rose-600 dark:text-rose-400">Grafik yüklenemedi</p>';
+      });
   }
 
   function purgePlot(id) {
@@ -174,11 +180,6 @@
           y: revNames,
           x: revCounts,
           marker: { color: revColors },
-          text: revCounts.map(fmtNum),
-          textposition: "inside",
-          insidetextanchor: "middle",
-          textfont: { color: "#fff", size: 11 },
-          cliponaxis: true,
           hovertemplate: "%{y}<br>%{x:,} iş<extra></extra>",
         },
       ],
@@ -248,38 +249,40 @@
     el.style.minWidth = minW + "px";
 
     var ticks = sparseTicks(days);
-    var traces = [];
-    MODS.forEach(function (m, mi) {
+    var yLabels = MODS.map(function (m) {
+      return m.username;
+    });
+    var zMatrix = MODS.map(function (m) {
       var cal = cals[String(m.user_id)] || { days: [] };
-      var zRow = days.map(function (day) {
+      return days.map(function (day) {
         var found = cal.days.filter(function (d) {
           return d.date === day;
         })[0];
         return found ? found.count : 0;
       });
-      traces.push({
-        type: "heatmap",
-        x: days,
-        y: [m.username],
-        z: [zRow],
-        xgap: 1,
-        ygap: 1,
-        colorscale: [
-          [0, "#f1f5f9"],
-          [0.001, "#bae6fd"],
-          [0.35, "#38bdf8"],
-          [0.7, "#0284c7"],
-          [1, "#0c4a6e"],
-        ],
-        showscale: mi === 0,
-        colorbar: mi === 0 ? { title: { text: "iş/gün" }, len: 0.45, thickness: 12 } : undefined,
-        hovertemplate: m.username + "<br>%{x}<br>%{z:,} iş<extra></extra>",
-      });
     });
 
     plotResponsive(
       el,
-      traces,
+      [
+        {
+          type: "heatmap",
+          x: days,
+          y: yLabels,
+          z: zMatrix,
+          xgap: 1,
+          ygap: 2,
+          colorscale: [
+            [0, "#f1f5f9"],
+            [0.001, "#bae6fd"],
+            [0.35, "#38bdf8"],
+            [0.7, "#0284c7"],
+            [1, "#0c4a6e"],
+          ],
+          colorbar: { title: { text: "iş/gün" }, len: 0.45, thickness: 12 },
+          hovertemplate: "%{y}<br>%{x}<br>%{z:,} iş<extra></extra>",
+        },
+      ],
       {
         title: {
           text: "Aktivite takvimi · boş günler açık gri (0 iş)",
@@ -350,13 +353,13 @@
         for (var i = 0; i < list.length; i++) {
           if (String(list[i].user_id) === String(m.user_id)) return list[i].rank;
         }
-        return null;
+        return MODS.length + 1;
       });
     });
     var text = MODS.map(function (m, yi) {
-      return METRICS.map(function (mt) {
-        var v = z[yi][METRICS.indexOf(mt)];
-        return v ? "#" + v : "—";
+      return METRICS.map(function (mt, xi) {
+        var v = z[yi][xi];
+        return v && v <= MODS.length ? "#" + v : "—";
       });
     });
     el.style.minWidth = Math.max(chartW(el), xLabels.length * 52) + "px";
@@ -546,29 +549,52 @@
 
   function renderCharts() {
     if (!ANALYTICS.calendar_days || !window.Plotly) return;
-    drawRankTotal();
-    drawDailyVolume();
-    drawActivityHeatmaps();
-    drawMetricStack();
-    drawRankMatrix();
-    drawFocusProfile();
-    drawWeekday();
-    drawCumulative();
-    drawInactiveSummary();
+    var drawers = [
+      drawRankTotal,
+      drawInactiveSummary,
+      drawDailyVolume,
+      drawActivityHeatmaps,
+      drawMetricStack,
+      drawWeekday,
+      drawRankMatrix,
+      drawFocusProfile,
+      drawCumulative,
+    ];
+    var chain = Promise.resolve();
+    drawers.forEach(function (drawFn) {
+      chain = chain.then(function () {
+        return new Promise(function (resolve) {
+          requestAnimationFrame(function () {
+            try {
+              drawFn();
+            } catch (err) {
+              console.error("[mod-chart] draw failed", err);
+            }
+            setTimeout(resolve, 40);
+          });
+        });
+      });
+    });
+    return chain.then(function () {
+      setTimeout(resizeAllCharts, 120);
+    });
   }
 
   function scheduleCharts() {
-    if (window.Plotly) {
-      renderCharts();
-      return;
+    function runWhenReady() {
+      if (!window.Plotly) return false;
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          renderCharts();
+        });
+      });
+      return true;
     }
+    if (runWhenReady()) return;
     var tries = 0;
     var t = setInterval(function () {
       tries += 1;
-      if (window.Plotly || tries > 40) {
-        clearInterval(t);
-        if (window.Plotly) renderCharts();
-      }
+      if (runWhenReady() || tries > 40) clearInterval(t);
     }, 150);
   }
 
