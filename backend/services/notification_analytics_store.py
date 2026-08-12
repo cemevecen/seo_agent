@@ -529,7 +529,7 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "last_id": int(row.last_id or 0),
         "start": row.filter_start or "",
         "end": row.filter_end or "",
-        "preset": row.preset or "1y",
+        "preset": row.preset or "1d",
         "row_count": len(rows),
         "data_min_date": _min_d or "",
         "data_max_date": _max_d or "",
@@ -572,7 +572,7 @@ def save_workspace(
     if end is not None:
         row.filter_end = str(end or "")[:10]
     if preset is not None:
-        row.preset = str(preset or "1y")[:10]
+        row.preset = str(preset or "1d")[:10]
     row.updated_at = datetime.utcnow()
     db.commit()
     return workspace_state(db)

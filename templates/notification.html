@@ -41,12 +41,12 @@
               <select id="nt-range-preset" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
                 <option value="custom">Custom range</option>
                 <option value="all">All</option>
-                <option value="1d">Yesterday</option>
+                <option value="1d" selected>Yesterday</option>
                 <option value="1w">Last 1 week</option>
                 <option value="1m">Last 1 month</option>
                 <option value="3m">Last 3 months</option>
                 <option value="6m">Last 6 months</option>
-                <option value="1y" selected>Last 1 year</option>
+                <option value="1y">Last 1 year</option>
                 <option value="2y">Last 2 years</option>
                 <option value="3y">Last 3 years</option>
                 <option value="4y">Last 4 years</option>
@@ -152,12 +152,12 @@
         <select id="nt-range-preset-secondary" class="nt-metric-bar-select rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
           <option value="custom">Custom range</option>
           <option value="all">All</option>
-          <option value="1d">Yesterday</option>
+          <option value="1d" selected>Yesterday</option>
           <option value="1w">Last 1 week</option>
           <option value="1m">Last 1 month</option>
           <option value="3m">Last 3 months</option>
           <option value="6m">Last 6 months</option>
-          <option value="1y" selected>Last 1 year</option>
+          <option value="1y">Last 1 year</option>
           <option value="2y">Last 2 years</option>
           <option value="3y">Last 3 years</option>
           <option value="4y">Last 4 years</option>
@@ -1131,7 +1131,7 @@
     });
   }
   function setPresetSelectors(preset) {
-    var val = isNtCustomPreset(preset) ? "custom" : (preset || "1y");
+    var val = isNtCustomPreset(preset) ? "custom" : (preset || "1d");
     var primary = document.getElementById("nt-range-preset");
     var secondary = document.getElementById("nt-range-preset-secondary");
     if (primary) primary.value = val;
@@ -1659,7 +1659,7 @@
     var start = (meta.start || "").slice(0, 10);
     var end = (meta.end || "").slice(0, 10);
     if (start || end) return { start: start, end: end };
-    var preset = String(meta.preset || "1y").toLowerCase();
+    var preset = String(meta.preset || "1d").toLowerCase();
     if (preset === "all") return { start: "", end: "" };
     end = todayKey();
     var dataMax = (meta.data_max_date || "").slice(0, 10);
@@ -1771,7 +1771,7 @@
       return savePrefsOnly({
         start: localStorage.getItem(START_KEY) || "",
         end: localStorage.getItem(END_KEY) || "",
-        preset: localStorage.getItem("notification_analytics_preset_v1") || "1y",
+        preset: localStorage.getItem("notification_analytics_preset_v1") || "1d",
       });
     }).then(function () {
       localStorage.removeItem(STORE_KEY);
@@ -2767,7 +2767,7 @@
     document.getElementById("nt-end-date").value = end;
     rawPage = 0;
     if (!skipServerSave && serverReady) {
-      savePrefsOnly({ start: start, end: end, preset: preset || "1y" }).then(function (data) {
+      savePrefsOnly({ start: start, end: end, preset: preset || "1d" }).then(function (data) {
         if (data && data.updated_at) { ntDbUpdatedAt = data.updated_at; updateNtLastFetch(); }
         return reloadRowsForCurrentFilters(true);
       }).catch(function (err) {
@@ -2886,12 +2886,12 @@
             );
             rawPage = 0;
             if (!isNtCustomPreset(full.preset)) {
-              applyPresetRange(full.preset || "1y", true);
+              applyPresetRange(full.preset || "1d", true);
             } else if (full.start || full.end) {
               setPresetSelectors("custom");
               redrawAll();
             } else {
-              applyPresetRange("1y", true);
+              applyPresetRange("1d", true);
             }
           });
         })
@@ -2973,13 +2973,12 @@
       return migrateLocalStorageIfEmpty(data.row_count).then(function () { return data; });
     })
     .then(function (data) {
-      if (!isNtCustomPreset(data.preset)) {
-        applyPresetRange(data.preset || "1y", true);
-      } else if (data.start || data.end) {
+      // Varsayılan açılış: Yesterday. Özel tarih aralığı (custom) korunur.
+      if (data.preset === "custom" && (data.start || data.end)) {
         setPresetSelectors("custom");
         redrawAll();
       } else {
-        applyPresetRange("1y", true);
+        applyPresetRange("1d", false);
       }
       if (hamListFilterActive()) {
         applyRawSearchFilter();
