@@ -449,6 +449,9 @@
     color: #cbd5e1;
   }
   .home-sf-metric--android .home-sf-metric__chip.is-src {
+    min-height: 11px;
+    padding: 0.06rem 0.2rem;
+    font-size: clamp(6px, 1.4cqi, 6px);
     font-weight: 800;
     color: #334155;
   }
@@ -797,7 +800,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=34';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=35';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
