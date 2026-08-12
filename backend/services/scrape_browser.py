@@ -60,7 +60,46 @@ def sinemalar_profile_dir() -> Path:
     return _from_env_or_fx(("SINEMALAR_NOADS_PROFILE_DIR",), "fx-sinemalar")
 
 
+def profile_login_lock_path(profile: Path) -> Path:
+    return profile.expanduser().resolve().parent / f"{profile.expanduser().resolve().name}.login-lock"
+
+
+def acquire_profile_login_lock(profile: Path, *, reason: str = "login") -> Path:
+    """Manuel --login sırasında diğer scrape'lerin SIGTERM atmasını engelle."""
+    lock = profile_login_lock_path(profile)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text(f"{reason}\npid={os.getpid()}\nts={time.time():.0f}\n", encoding="utf-8")
+    return lock
+
+
+def release_profile_login_lock(profile: Path) -> None:
+    try:
+        profile_login_lock_path(profile).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def profile_login_lock_active(profile: Path) -> bool:
+    lock = profile_login_lock_path(profile)
+    if not lock.is_file():
+        return False
+    try:
+        age = time.time() - lock.stat().st_mtime
+    except Exception:
+        return True
+    # 20 dk'dan eski kilitleri yok say (çökmüş login)
+    if age > 20 * 60:
+        try:
+            lock.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return False
+    return True
+
+
 def kill_profile_browsers(profile: Path) -> int:
+    if profile_login_lock_active(profile):
+        return 0
     marker = str(profile.resolve())
     killed = 0
     try:
@@ -222,9 +261,24 @@ def launch_persistent(
     viewport: dict[str, int] | None = None,
     locale: str = "tr-TR",
     extra: dict[str, Any] | None = None,
+    kill_existing: bool = True,
 ) -> Any:
     assert_firefox_only(pw)
-    kill_profile_browsers(profile)
+    # Manuel --login kilidi varken scrape yeni pencere açmasın (profil çakışması).
+    if kill_existing and profile_login_lock_active(profile):
+        raise RuntimeError(
+            f"Login kilidi aktif: {profile_login_lock_path(profile)} — "
+            "manuel giriş bitene kadar scrapeyi ertele"
+        )
+    # Login sırasında False: başka scrape SIGTERM ile pencereyi 2–3 sn'de kapatmasın.
+    if kill_existing:
+        kill_profile_browsers(profile)
+    else:
+        for name in (".parentlock", "lock", "SingletonLock"):
+            try:
+                (profile / name).unlink(missing_ok=True)
+            except Exception:
+                pass
     kwargs = _persistent_kwargs(
         profile, headed=headed, viewport=viewport, locale=locale, extra=extra
     )
