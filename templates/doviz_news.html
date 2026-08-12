@@ -1017,10 +1017,6 @@
     </div>
 
     <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-      <div id="dn-card-cat" class="dn-card dn-card--fill lg:col-span-2">
-        <div class="dn-card-head"><div><h3>Category mix</h3></div></div>
-        <div id="dn-chart-cat" class="dn-hbar-list dn-hbar-list--fill" aria-label="Category bar list"></div>
-      </div>
       <div id="dn-card-sources" class="dn-card dn-card--fill">
         <div class="dn-card-head"><div><h3>Sources (most used)</h3></div></div>
         <div id="dn-table-sources" class="dn-table-host--fill"></div>
@@ -2438,25 +2434,6 @@
   }
 
   function renderHBarCharts(data) {
-    var showCat = !state.category || state.category === "all";
-    var catCard = $("dn-card-cat");
-    if (catCard) catCard.classList.toggle("hidden", !showCat);
-    if (showCat) {
-      var cats = (data.by_category || []).map(function (c) {
-        return {
-          label: c.label || shortCat(c.key),
-          count: c.count,
-          share_pct: c.share_pct
-        };
-      });
-      renderHBarList("dn-chart-cat", cats, {
-        nameKey: "label",
-        countKey: "count",
-        shareKey: "share_pct",
-        empty: "No categories"
-      });
-    }
-
     var kwLimit = DN_PAIR_ROWS;
     var kws = (data.top_keywords || []).slice(0, kwLimit).map(function (k) {
       return { label: k.word, count: k.count, share_pct: k.share_pct };
