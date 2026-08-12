@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v57-rt-plat">
+<style id="home-site-borders" data-home-css="v58-load-rings">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -56,17 +56,20 @@
     --tw-ring-color: rgba(190, 18, 60, 0.45) !important;    /* rose-700 @ 45% */
   }
 
-  /* Dönem filtresi (7g/60g/90g) — waiting Lottie overlay */
-  section.home-readable.is-period-loading {
+  /* Dönem filtresi / yenileme — iç içe dönen halkalar overlay */
+  section.home-readable.is-period-loading,
+  section.home-readable.is-home-loading {
     position: relative;
     min-height: 11rem;
   }
-  section.home-readable.is-period-loading > :not([data-home-period-wait]) {
+  section.home-readable.is-period-loading > :not([data-home-period-wait]):not([data-home-load-wait]),
+  section.home-readable.is-home-loading > :not([data-home-load-wait]):not([data-home-period-wait]) {
     opacity: 0.28;
     pointer-events: none;
     filter: saturate(0.7);
   }
-  .home-period-wait {
+  .home-period-wait,
+  .home-load-overlay {
     position: absolute;
     inset: 0;
     z-index: 6;
@@ -81,14 +84,80 @@
     -webkit-backdrop-filter: blur(2px);
   }
   html.dark .home-period-wait,
-  html.midnight .home-period-wait {
+  html.dark .home-load-overlay,
+  html.midnight .home-period-wait,
+  html.midnight .home-load-overlay {
     background: rgba(15, 23, 42, 0.72);
   }
-  .home-period-wait lottie-player {
-    width: 5.5rem;
-    height: 5.5rem;
+  @keyframes home-load-spin {
+    to { transform: rotate(360deg); }
   }
-  .home-period-wait-label {
+  .home-load-rings {
+    position: relative;
+    width: 3.25rem;
+    height: 3.25rem;
+    flex-shrink: 0;
+  }
+  .home-load-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    animation: home-load-spin linear infinite;
+  }
+  .home-load-ring--outer {
+    inset: 0;
+    border-top-color: #6366f1;
+    border-right-color: rgba(99, 102, 241, 0.22);
+    animation-duration: 1.35s;
+  }
+  .home-load-ring--mid {
+    inset: 0.42rem;
+    border-top-color: #0ea5e9;
+    border-left-color: rgba(14, 165, 233, 0.2);
+    animation-duration: 1.05s;
+    animation-direction: reverse;
+  }
+  .home-load-ring--inner {
+    inset: 0.84rem;
+    border-top-color: #8b5cf6;
+    border-right-color: rgba(139, 92, 246, 0.18);
+    animation-duration: 0.82s;
+  }
+  html.dark .home-load-ring--outer,
+  html.midnight .home-load-ring--outer {
+    border-top-color: #818cf8;
+    border-right-color: rgba(129, 140, 248, 0.25);
+  }
+  html.dark .home-load-ring--mid,
+  html.midnight .home-load-ring--mid {
+    border-top-color: #38bdf8;
+    border-left-color: rgba(56, 189, 248, 0.22);
+  }
+  html.dark .home-load-ring--inner,
+  html.midnight .home-load-ring--inner {
+    border-top-color: #a78bfa;
+    border-right-color: rgba(167, 139, 250, 0.2);
+  }
+  .home-load-placeholder {
+    margin-top: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    border-radius: 0.75rem;
+    background: rgb(248 250 252 / 0.55);
+    box-shadow: inset 0 0 0 1px rgb(226 232 240 / 0.85);
+  }
+  html.dark .home-load-placeholder,
+  html.midnight .home-load-placeholder {
+    background: rgb(15 23 42 / 0.35);
+    box-shadow: inset 0 0 0 1px rgb(51 65 85 / 0.65);
+  }
+  .home-load-placeholder--short { min-height: 7rem; }
+  .home-load-placeholder--mid { min-height: 8rem; }
+  .home-load-placeholder--tall { min-height: 10rem; }
+  .home-period-wait-label,
+  .home-load-overlay-label {
     margin: 0;
     font-size: var(--home-text, 0.8125rem);
     font-weight: 700;
@@ -97,7 +166,9 @@
     color: #64748b;
   }
   html.dark .home-period-wait-label,
-  html.midnight .home-period-wait-label {
+  html.dark .home-load-overlay-label,
+  html.midnight .home-period-wait-label,
+  html.midnight .home-load-overlay-label {
     color: #94a3b8;
   }
 
@@ -2084,9 +2155,10 @@
     </div>
   </div>
 
-  {% set _placeholder_short = '<div class="mt-4 h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
-  {% set _placeholder_mid   = '<div class="mt-4 h-32 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
-  {% set _placeholder_tall  = '<div class="mt-4 h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
+  {% set _home_rings_core = '<div class="home-load-rings" aria-hidden="true"><span class="home-load-ring home-load-ring--outer"></span><span class="home-load-ring home-load-ring--mid"></span><span class="home-load-ring home-load-ring--inner"></span></div>' %}
+  {% set _placeholder_short = '<div class="home-load-placeholder home-load-placeholder--short" role="status" aria-label="Loading">' ~ _home_rings_core ~ '</div>' %}
+  {% set _placeholder_mid   = '<div class="home-load-placeholder home-load-placeholder--mid" role="status" aria-label="Loading">' ~ _home_rings_core ~ '</div>' %}
+  {% set _placeholder_tall  = '<div class="home-load-placeholder home-load-placeholder--tall" role="status" aria-label="Loading">' ~ _home_rings_core ~ '</div>' %}
 
   {# Anlık aktif kullanıcı — Günün Özeti başlığının hemen altında, tek container / tek row #}
   <link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=2">
@@ -2516,9 +2588,11 @@
     var key = sec.getAttribute('data-home-container') || '';
     sec.classList.add('is-home-refreshing');
     if (btn) btn.classList.add('is-busy');
+    showHomeLoadOverlay(sec);
 
     function done() {
       sec.classList.remove('is-home-refreshing');
+      clearHomeLoadOverlay(sec);
       if (btn) btn.classList.remove('is-busy');
     }
 
@@ -2597,7 +2671,42 @@
     }
   });
 
-  var HOME_PERIOD_LOTTIE = 'https://assets9.lottiefiles.com/packages/lf20_p8bfn5to.json';
+  var HOME_LOAD_RINGS_HTML =
+    '<div class="home-load-rings" aria-hidden="true">' +
+      '<span class="home-load-ring home-load-ring--outer"></span>' +
+      '<span class="home-load-ring home-load-ring--mid"></span>' +
+      '<span class="home-load-ring home-load-ring--inner"></span>' +
+    '</div>';
+
+  function homeLoadOverlayHtml(label) {
+    var html = HOME_LOAD_RINGS_HTML;
+    if (label) {
+      html += '<p class="home-load-overlay-label">' + String(label) + '</p>';
+    }
+    return html;
+  }
+
+  function clearHomeLoadOverlay(section) {
+    if (!section) return;
+    section.classList.remove('is-home-loading');
+    var wait = section.querySelector('[data-home-load-wait]');
+    if (wait) wait.remove();
+  }
+
+  function showHomeLoadOverlay(section, label) {
+    if (!section) return;
+    section.classList.add('is-home-loading');
+    var wait = section.querySelector('[data-home-load-wait]');
+    if (!wait) {
+      wait = document.createElement('div');
+      wait.setAttribute('data-home-load-wait', '');
+      wait.className = 'home-load-overlay';
+      wait.setAttribute('role', 'status');
+      wait.setAttribute('aria-live', 'polite');
+      section.appendChild(wait);
+    }
+    wait.innerHTML = homeLoadOverlayHtml(label || 'Loading');
+  }
 
   function clearHomePeriodWait(section) {
     if (!section) return;
@@ -2619,8 +2728,7 @@
       section.appendChild(wait);
     }
     wait.innerHTML =
-      '<lottie-player src="' + HOME_PERIOD_LOTTIE + '" background="transparent" speed="1" loop autoplay></lottie-player>' +
-      '<p class="home-period-wait-label">' + (daysLabel || 'Period') + ' loading</p>';
+      homeLoadOverlayHtml((daysLabel || 'Period') + ' loading');
   }
 
   document.body.addEventListener('click', function (ev) {
@@ -2649,16 +2757,19 @@
 
   function onHomePeriodSwap(ev) {
     var t = ev && ev.detail && ev.detail.target;
-    if (!t || !t.classList || !t.classList.contains('is-period-loading')) return;
-    clearHomePeriodWait(t);
+    if (!t) return;
+    if (t.classList.contains('is-period-loading')) clearHomePeriodWait(t);
+    if (t.classList.contains('is-home-loading')) clearHomeLoadOverlay(t);
   }
   document.body.addEventListener('htmx:afterSwap', onHomePeriodSwap);
   document.body.addEventListener('htmx:afterSettle', onHomePeriodSwap);
   document.body.addEventListener('htmx:responseError', function (ev) {
     clearHomePeriodWait(ev && ev.detail && ev.detail.target);
+    clearHomeLoadOverlay(ev && ev.detail && ev.detail.target);
   });
   document.body.addEventListener('htmx:swapError', function (ev) {
     clearHomePeriodWait(ev && ev.detail && ev.detail.target);
+    clearHomeLoadOverlay(ev && ev.detail && ev.detail.target);
   });
 
   window.__pcPageContext = function () {
