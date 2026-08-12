@@ -145,7 +145,7 @@ def _is_meaningful_keyword(key: str) -> bool:
     return True
 
 
-def _top_title_keywords(rows: list[dict[str, Any]], *, limit: int = 15) -> list[dict[str, Any]]:
+def _top_title_keywords(rows: list[dict[str, Any]], *, limit: int = 9) -> list[dict[str, Any]]:
     counter: Counter[str] = Counter()
     display: dict[str, str] = {}
     for r in rows:
@@ -1042,7 +1042,7 @@ def _kpi_compare(cur_summary: dict[str, Any], prev_summary: dict[str, Any] | Non
     }
 
 
-def _build_analytics(rows: list[dict[str, Any]], *, keyword_limit: int = 15) -> dict[str, Any]:
+def _build_analytics(rows: list[dict[str, Any]], *, keyword_limit: int = 9) -> dict[str, Any]:
     total = len(rows)
     active = sum(1 for r in rows if r.get("active"))
     own = sum(1 for r in rows if r.get("is_own"))
@@ -1271,8 +1271,7 @@ def doviz_news_payload(
     # Son 1 hafta + bugün boş: önceki aynı günden düne (boş bugünü basma)
     period_info = _shift_last_7d_if_today_empty(period_info, cat_rows)
     rows = _filter_by_date_range(cat_rows, period_info["start"], period_info["end"])
-    keyword_limit = 30 if period_info["key"] == "all" else 15
-    analytics = _build_analytics(rows, keyword_limit=keyword_limit)
+    analytics = _build_analytics(rows, keyword_limit=9)
 
     if period_info["key"] == "all":
         rvp = analytics["summary"].get("recent_vs_prev") or {}

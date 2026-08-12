@@ -280,16 +280,22 @@
     max-height: none;
     overflow: auto;
   }
-  /* Kaynaklar + kelimeler: ~10 satır görünür, fazlası kart içinde scroll */
+  /* Kaynaklar + kelimeler: 9 satır, yan yana hizalı */
+  :root {
+    --dn-pair-rows: 9;
+    --dn-pair-table-row: 2.45rem;
+    --dn-pair-hbar-row: 2.14rem;
+    --dn-pair-hbar-gap: 0.45rem;
+  }
   #dn-card-sources.dn-card--fill,
   #dn-card-keywords.dn-card--fill {
     overflow: hidden;
   }
   #dn-card-sources .dn-table-host--fill .dn-table-wrap {
-    /* thead (~2.25rem) + 10 satır (~2.45rem) */
-    max-height: calc(2.25rem + 10 * 2.45rem);
+    /* thead (~2.25rem) + 9 satır */
+    max-height: calc(2.25rem + var(--dn-pair-rows) * var(--dn-pair-table-row));
     overflow-x: auto;
-    overflow-y: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
   }
   #dn-card-keywords #dn-chart-keywords {
@@ -297,11 +303,14 @@
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    gap: 0.45rem;
+    gap: var(--dn-pair-hbar-gap);
     min-height: 0;
-    max-height: calc(13 * 2.14rem);
+    max-height: calc(
+      var(--dn-pair-rows) * var(--dn-pair-hbar-row) +
+      (var(--dn-pair-rows) - 1) * var(--dn-pair-hbar-gap)
+    );
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
   }
   #dn-card-keywords #dn-chart-keywords .dn-hbar-row {
@@ -2350,6 +2359,8 @@
     }).join("");
   }
 
+  var DN_PAIR_ROWS = 9;
+
   function renderSourceTable(data) {
     var list = data.by_source || [];
     var maxShare = Math.max.apply(null, list.map(function (s) { return s.share_pct || 0 }).concat([1]));
@@ -2357,6 +2368,7 @@
       rows: list,
       defaultSort: "count",
       defaultDir: "desc",
+      limit: DN_PAIR_ROWS,
       searchable: false,
       showMeta: false,
       empty: "No sources",
@@ -2395,7 +2407,7 @@
     kw.style.maxHeight = "";
     kw.style.height = "";
     if (window.matchMedia && !window.matchMedia("(min-width: 1024px)").matches) return;
-    // ~10 satır scroll alanları; kartları yan yana aynı yükseklikte tut
+    // 9 satır içerik; kartları yan yana aynı yükseklikte tut
     var h = Math.max(src.offsetHeight, kw.offsetHeight, 280);
     src.style.height = h + "px";
     src.style.maxHeight = h + "px";
@@ -2475,7 +2487,7 @@
       });
     }
 
-    var kwLimit = (data.period === "all" || state.period === "all") ? 30 : 15;
+    var kwLimit = DN_PAIR_ROWS;
     var kws = (data.top_keywords || []).slice(0, kwLimit).map(function (k) {
       return { label: k.word, count: k.count, share_pct: k.share_pct };
     });
