@@ -1,0 +1,23 @@
+{# Search Console — 3. Google News (same cards as /search-console#sc-news) #}
+<link rel="stylesheet" href="/static/css/sc_extras_embed.css?v=1" />
+<section id="dn-sc-google-news" class="sc-extra-section mt-6 w-full" aria-label="Search Console Google News">
+  <div class="mb-4 border-b border-slate-200 pb-3 dark:border-slate-700">
+    <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Performance</p>
+    <h2 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">3. Google News</h2>
+    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Live Search Console API · last 28 days</p>
+  </div>
+  <div
+    id="dn-sc-google-news-body"
+    class="sc-extra-section-body min-h-[6rem]"
+    hx-get="/search-console/site-list?view=news&mode=lazy"
+    hx-trigger="load once"
+    hx-swap="innerHTML"
+  >
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {% for _ in [0, 1] %}
+      {% include "partials/sc_extras_loading_card.html" %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+<script src="/static/js/sc_extras_embed.js?v=1"></script>
