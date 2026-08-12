@@ -3362,6 +3362,7 @@ def _snapshot_branch(
     end: str | None,
     project: str,
     branch: str,
+    warehouse: str | None = "sheets",
 ) -> dict[str, Any]:
     data = query_summary(
         db,
@@ -3370,6 +3371,7 @@ def _snapshot_branch(
         project=project,
         branch=branch,
         compare_mode="previous_period",
+        warehouse=warehouse,
     )
     kpis = data.get("kpis") or {}
     deltas = (data.get("compare") or {}).get("deltas") or {}
@@ -3435,11 +3437,14 @@ def _surface_rows_for_branches(
     end: str | None,
     project: str,
     branches: tuple[str, ...],
+    warehouse: str | None = "sheets",
 ) -> tuple[list[dict[str, Any]], float]:
     surface_rows: list[dict[str, Any]] = []
     total_rev = 0.0
     for br in branches:
-        snap = _snapshot_branch(db, start=start, end=end, project=project, branch=br)
+        snap = _snapshot_branch(
+            db, start=start, end=end, project=project, branch=br, warehouse=warehouse
+        )
         kp = snap.get("kpis") or {}
         rev = float(kp.get("net_revenue") or 0)
         total_rev += rev
@@ -3464,6 +3469,7 @@ def query_app_lab_preview(
     end: str | None = None,
     project: str = "doviz",
     branch: str = "desktop",
+    warehouse: str | None = "sheets",
 ) -> dict[str, Any]:
     """/ad sayfası altı — peer önizleme (web↔mweb veya iOS↔Android, aktif projeye göre)."""
     project = (project or "doviz").strip().lower()
@@ -3471,14 +3477,22 @@ def query_app_lab_preview(
     peer_mode = "app" if branch in ("ios", "android") else "web"
 
     if peer_mode == "web":
-        left = _snapshot_branch(db, start=start, end=end, project=project, branch="desktop")
-        right = _snapshot_branch(db, start=start, end=end, project=project, branch="mweb")
+        left = _snapshot_branch(
+            db, start=start, end=end, project=project, branch="desktop", warehouse=warehouse
+        )
+        right = _snapshot_branch(
+            db, start=start, end=end, project=project, branch="mweb", warehouse=warehouse
+        )
         left_label = _BRANCH_LABELS["desktop"]
         right_label = _BRANCH_LABELS["mweb"]
         surface_branches: tuple[str, ...] = ("desktop", "mweb")
     else:
-        left = _snapshot_branch(db, start=start, end=end, project=project, branch="ios")
-        right = _snapshot_branch(db, start=start, end=end, project=project, branch="android")
+        left = _snapshot_branch(
+            db, start=start, end=end, project=project, branch="ios", warehouse=warehouse
+        )
+        right = _snapshot_branch(
+            db, start=start, end=end, project=project, branch="android", warehouse=warehouse
+        )
         left_label = _BRANCH_LABELS["ios"]
         right_label = _BRANCH_LABELS["android"]
         if project == "doviz":
@@ -3487,7 +3501,12 @@ def query_app_lab_preview(
             surface_branches = ("desktop", "mweb")
 
     surface_rows, total_rev = _surface_rows_for_branches(
-        db, start=start, end=end, project=project, branches=surface_branches
+        db,
+        start=start,
+        end=end,
+        project=project,
+        branches=surface_branches,
+        warehouse=warehouse,
     )
 
     section_4: dict[str, Any] = {

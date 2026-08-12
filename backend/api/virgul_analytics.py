@@ -252,6 +252,25 @@ def virgul_sheets_status(db: Session = Depends(get_db)):
     return virgul_sync_status(db)
 
 
+@router.get("/virgul-analytics/app-lab-preview")
+def get_virgul_app_lab_preview(
+    db: Session = Depends(get_db),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    project: str | None = Query(None),
+    branch: str | None = Query(None),
+):
+    """Monetizasyon lab önizleme kartları (/ad-virgul sayfa altı; Virgül warehouse)."""
+    return store.query_app_lab_preview(
+        db,
+        start=start,
+        end=end,
+        project=(project or "doviz").strip().lower(),
+        branch=(branch or "desktop").strip().lower(),
+        warehouse=_WAREHOUSE,
+    )
+
+
 @router.get("/virgul-analytics/revenue-targets")
 def get_virgul_revenue_targets(
     project: str | None = Query(None, description="doviz | sinemalar"),

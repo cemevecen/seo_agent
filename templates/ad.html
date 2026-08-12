@@ -3021,18 +3021,28 @@
 
     var q = mzLabQsDates();
     var preview = null;
+    var previewErr = "";
     try {
-      var pr = await fetch("/api/mz-analytics/app-lab-preview?" + q.toString(), { credentials: "same-origin" });
+      var labUrl =
+        (window.MZ_AD_MODE === "virgul" ? "/api/virgul-analytics" : "/api/mz-analytics") +
+        "/app-lab-preview?" +
+        q.toString();
+      var pr = await fetch(labUrl, { credentials: "same-origin" });
       if (pr.ok) preview = await pr.json();
+      else previewErr = "HTTP " + pr.status;
     } catch (e) {
       preview = null;
+      previewErr = (e && e.message) || "network error";
     }
     if (token !== mzAppLabToken) return;
 
     if (!preview) {
+      var failMsg = previewErr
+        ? "Preview API failed (" + previewErr + ")."
+        : "Preview API did not respond.";
       ids.forEach(function (id) {
         var el = document.getElementById(id);
-        if (el) el.textContent = "Preview API did not respond.";
+        if (el) el.textContent = failMsg;
       });
       return;
     }
