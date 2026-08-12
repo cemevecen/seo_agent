@@ -203,11 +203,12 @@
   .mz-skel--line .mz-skel-path {
     fill: none;
     stroke: #94a3b8;
-    stroke-width: 1.15;
+    stroke-width: 0.7;
     stroke-linecap: round;
-    stroke-dasharray: 2.2 4.8;
+    stroke-dasharray: 1.1 1.65;
+    vector-effect: non-scaling-stroke;
     opacity: 0.66;
-    animation: mz-skel-dash 3s linear infinite, mz-skel-path-pulse 5s ease-in-out infinite;
+    animation: mz-skel-dash 2.4s linear infinite, mz-skel-path-pulse 5s ease-in-out infinite;
   }
   html.dark .mz-skel--line .mz-skel-path,
   html.midnight .mz-skel--line .mz-skel-path {
@@ -223,7 +224,7 @@
     opacity: 0.22;
   }
   @keyframes mz-skel-dash {
-    to { stroke-dashoffset: -21; }
+    to { stroke-dashoffset: -11; } /* 4 × (1.1 + 1.65) */
   }
   @keyframes mz-skel-path-pulse {
     0%, 100% { opacity: 0.19; }
@@ -235,7 +236,7 @@
   }
   html.dark .mz-skel--line .mz-skel-path,
   html.midnight .mz-skel--line .mz-skel-path {
-    animation: mz-skel-dash 3s linear infinite, mz-skel-path-pulse-dark 5s ease-in-out infinite;
+    animation: mz-skel-dash 2.4s linear infinite, mz-skel-path-pulse-dark 5s ease-in-out infinite;
   }
   html.dark .mz-skel--line .mz-skel-fill,
   html.midnight .mz-skel--line .mz-skel-fill {
