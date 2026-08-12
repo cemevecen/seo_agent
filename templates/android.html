@@ -222,11 +222,11 @@
     width: 100%;
     min-width: 0;
     gap: clamp(0.28rem, 1.15vw, 0.65rem);
-    align-items: stretch;
+    align-items: start;
     grid-template-columns: repeat(var(--kpi-n, 1), minmax(0, 1fr));
   }
   #pa-metric-kpis.metric-kpi-grid--ss2 > .metric-kpi-ss2 {
-    align-self: stretch;
+    align-self: start;
     height: auto;
     min-height: 0;
     min-width: 0;
@@ -408,7 +408,7 @@
     line-height: 1.15;
     font-size: clamp(0.48rem, 7.8cqi, 0.65rem);
     letter-spacing: clamp(0.01em, 0.35cqi, 0.05em);
-    padding: 0.12rem clamp(0.28rem, 3.2cqi, 0.55rem);
+    padding: calc(0.12rem + 1px) clamp(0.28rem, 3.2cqi, 0.55rem);
     background: color-mix(in srgb, var(--kpi-color, #2563eb) 12%, white);
     color: var(--kpi-color, #2563eb);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #2563eb) 30%, transparent);
@@ -425,7 +425,7 @@
     gap: clamp(0.22rem, 3.2cqi, 0.55rem);
     margin-top: clamp(0.22rem, 3.2cqi, 0.45rem);
     min-height: clamp(2.2rem, 38cqi, 3.25rem);
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-width: 0;
   }
   .metric-kpi-ss2-metrics {
@@ -531,7 +531,7 @@
   @container kpi-ss2 (max-width: 7.5rem) {
     .metric-kpi-ss2-head .metric-kpi-chip {
       font-size: clamp(0.42rem, 9.2cqi, 0.55rem);
-      padding: 0.08rem 0.28rem;
+      padding: calc(0.08rem + 1px) 0.28rem;
     }
     .metric-kpi-info {
       width: 0.95rem;
@@ -544,12 +544,13 @@
     width: 100%;
     align-items: center;
     justify-content: center;
-    margin-top: 0.45rem;
-    padding: 0.28rem 0 0.1rem;
+    margin-top: 0.28rem;
+    padding: 0.1rem 0 0;
     border-top: 1px solid rgba(148, 163, 184, 0.28);
     background: transparent;
     color: #64748b;
     cursor: pointer;
+    order: 10;
   }
   .metric-kpi-ss2-expand:hover { color: #0f172a; }
   html.dark .metric-kpi-ss2-expand,
@@ -561,18 +562,22 @@
   html.midnight .metric-kpi-ss2-expand:hover { color: #e2e8f0; }
   .metric-kpi-ss2-panel {
     display: none;
-    margin-top: 0.45rem;
-    padding-top: 0.45rem;
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
     border-top: 1px solid rgba(148, 163, 184, 0.28);
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.4rem 0.65rem;
+    order: 5;
   }
   html.dark .metric-kpi-ss2-panel,
   html.midnight .metric-kpi-ss2-panel {
     border-top-color: rgba(148, 163, 184, 0.16);
   }
   .metric-kpi-ss2.is-open .metric-kpi-ss2-panel { display: grid; }
-  .metric-kpi-ss2.is-open .metric-kpi-ss2-expand { border-bottom: none; margin-bottom: 0; }
+  .metric-kpi-ss2.is-open .metric-kpi-ss2-expand {
+    border-top-color: rgba(148, 163, 184, 0.28);
+    margin-top: 0.28rem;
+  }
   .metric-kpi-ss2.is-open .metric-kpi-ss2-expand .metric-kpi-chev { transform: rotate(180deg); }
   .metric-kpi-ss2-panel .metric-kpi-kicker { color: #94a3b8; }
   html.dark .metric-kpi-ss2-panel .metric-kpi-kicker,
@@ -4001,9 +4006,6 @@
             "</div>" +
             '<div class="metric-kpi-ss2-spark">' + spark + "</div>" +
           "</div>" +
-          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Open details">' +
-            '<svg class="metric-kpi-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-          "</button>" +
           '<div class="metric-kpi-ss2-panel">' +
             '<div><p class="metric-kpi-kicker">Total</p><strong>' + esc(totalVal) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Ortalama</p><strong>' + esc(fmtNum(avg, false)) + "</strong></div>" +
@@ -4012,6 +4014,9 @@
             '<div><p class="metric-kpi-kicker">Last</p><strong>' + esc(fmtNum(st.last, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Nokta</p><strong>' + esc(String(st.n || 0)) + "</strong></div>" +
           "</div>" +
+          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Open details">' +
+            '<svg class="metric-kpi-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          "</button>" +
         "</article>"
       );
     }).join("");
