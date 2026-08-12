@@ -43,6 +43,7 @@ SECTION_DEFS: list[dict[str, Any]] = [
         "no": 12,
         "title": "Play / App Store category charts",
         "hint": "",
+        "pm_lab_page": False,
     },
     {
         "id": "google_news",
@@ -51,6 +52,10 @@ SECTION_DEFS: list[dict[str, Any]] = [
         "hint": "",
     },
 ]
+
+
+def _pm_lab_page_specs() -> list[dict[str, Any]]:
+    return [{k: v for k, v in spec.items() if k != "pm_lab_page"} for spec in SECTION_DEFS if spec.get("pm_lab_page", True)]
 
 
 def _get_or_create(db: Session) -> OwnerPmLabWorkspace:
@@ -845,10 +850,12 @@ def page_context(db: Session) -> dict[str, Any]:
             block = {}
         data = _strip_shots(block)
         boot_sections[spec["id"]] = data
+        if not spec.get("pm_lab_page", True):
+            continue
         scraped_at = str(data.get("scraped_at") or payload.get("scraped_at") or "")
         cards.append(
             {
-                **spec,
+                **{k: v for k, v in spec.items() if k != "pm_lab_page"},
                 "ok": data.get("ok"),
                 "message": data.get("message") or "",
                 "scraped_at": scraped_at,
@@ -871,7 +878,7 @@ def page_context(db: Session) -> dict[str, Any]:
         "sync_ok": payload.get("sync_ok", True),
         "sync_message": payload.get("sync_message") or "",
         "sections": boot_sections,
-        "defs": SECTION_DEFS,
+        "defs": _pm_lab_page_specs(),
     }
     return {
         "updated_at": payload.get("updated_at"),

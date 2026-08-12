@@ -11,6 +11,7 @@ from backend.services.pm_lab_access import (
 from backend.services.pm_lab_store import (
     COMPETITORS_INTERVAL_MIN,
     SECTION_DEFS,
+    _pm_lab_page_specs,
     _prune_refresh_state,
     claim_pm_lab_refresh,
     enqueue_pm_lab_refresh,
@@ -114,7 +115,8 @@ def test_ingest_serp_history_and_no_shots():
         )
         ctx = page_context(db)
         by_id = {c["id"]: c for c in ctx["cards"]}
-        assert len(ctx["cards"]) == 4
+        assert len(ctx["cards"]) == 3
+        assert "store_charts" not in by_id
         assert "sikayet" not in by_id
         serp = by_id["serp"]["data"]
         assert "shots" not in serp
@@ -207,7 +209,8 @@ def test_store_chart_rank_deltas():
             },
         )
         ctx = page_context(db)
-        chart = next(c["data"]["charts"][0] for c in ctx["cards"] if c["id"] == "store_charts")
+        store = __import__("json").loads(ctx["boot_json"])["sections"]["store_charts"]
+        chart = store["charts"][0]
         by_id = {a["id"]: a for a in chart["apps"]}
         assert by_id["465599322"]["delta"] == "up"
         assert by_id["465599322"]["delta_n"] == 2
@@ -227,7 +230,8 @@ def test_store_chart_skips_delta_when_top_slice_shifted():
         ingest_pm_lab_payload(db, {"sections": {"store_charts": {"ok": True, "charts": [{"id": "ios", "apps": old_apps}]}}})
         ingest_pm_lab_payload(db, {"sections": {"store_charts": {"ok": True, "charts": [{"id": "ios", "apps": new_apps}]}}})
         ctx = page_context(db)
-        chart = next(c["data"]["charts"][0] for c in ctx["cards"] if c["id"] == "store_charts")
+        store = __import__("json").loads(ctx["boot_json"])["sections"]["store_charts"]
+        chart = store["charts"][0]
         assert chart["moves"].get("reset") is True
         assert chart["apps"][0]["delta"] is None
         assert chart["dropped"] == []
@@ -294,11 +298,11 @@ def test_store_icons_remembered_across_ingest():
             },
         )
         ctx = page_context(db)
-        card = next(c for c in ctx["cards"] if c["id"] == "store_charts")
-        by_plat = {c["id"]: c for c in card["data"]["charts"]}
+        store = __import__("json").loads(ctx["boot_json"])["sections"]["store_charts"]
+        by_plat = {c["id"]: c for c in store["charts"]}
         assert by_plat["android"]["apps"][0]["icon"] == "https://example.com/doviz.png"
         assert by_plat["ios"]["apps"][0]["icon"] == "https://example.com/doviz-ios.png"
-        assert card["data"]["icon_map"]["android:com.doviz.android"] == "https://example.com/doviz.png"
+        assert store["icon_map"]["android:com.doviz.android"] == "https://example.com/doviz.png"
     finally:
         db.close()
 
