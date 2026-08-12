@@ -109,6 +109,30 @@ def _normalize_project(raw: str | None) -> tuple[str, str] | None:
     return None
 
 
+_TR_MONTH_LABELS: dict[int, str] = {
+    1: "Ocak",
+    2: "Şubat",
+    3: "Mart",
+    4: "Nisan",
+    5: "Mayıs",
+    6: "Haziran",
+    7: "Temmuz",
+    8: "Ağustos",
+    9: "Eylül",
+    10: "Ekim",
+    11: "Kasım",
+    12: "Aralık",
+}
+
+# Eski hedef paneli zaman aralığı (çok aylık grafik/liste) — Şubat 2023+
+REVENUE_TARGETS_HISTORY_FROM = "2023-02"
+
+
+def _period_tuple(year: int, month: int) -> tuple[str, int, int, str]:
+    label = f"{_TR_MONTH_LABELS.get(month, str(month))} {year}"
+    return label, year, month, f"{year:04d}-{month:02d}"
+
+
 def _parse_period_cell(raw: str | None) -> tuple[str, int, int, str] | None:
     s = str(raw or "").strip()
     if not s:
@@ -124,30 +148,66 @@ def _parse_period_cell(raw: str | None) -> tuple[str, int, int, str] | None:
     mon = _TR_MONTHS.get(_norm_header(month_name))
     if not mon:
         return None
-    period_key = f"{year:04d}-{mon:02d}"
-    return s, year, mon, period_key
+    return _period_tuple(year, mon)
 
 
-def parse_revenue_targets_csv(csv_text: str) -> list[dict[str, Any]]:
+def parse_sheet_tab_period(name: str | None) -> tuple[str, int, int, str] | None:
+    """Sekme adı → dönem. Örn. «Ağustos'26», «Temmuz'26», «Şubat 2023»."""
+    raw = str(name or "").strip()
+    if not raw:
+        return None
+    low = _norm_header(raw)
+    if low in ("site_settings", "settings") or "ordino" in low:
+        return None
+    # «Ağustos 2026»
+    direct = _parse_period_cell(raw)
+    if direct:
+        return direct
+    # «Ağustos'26» / «Mayıs’26»
+    m = re.match(
+        r"^(?P<mon>.+?)(?:['\u2019\u2032]\s*|\s+)(?P<y>\d{2}|\d{4})\s*$",
+        raw,
+    )
+    if not m:
+        return None
+    mon = _TR_MONTHS.get(_norm_header(m.group("mon")))
+    if not mon:
+        return None
+    y_raw = m.group("y")
+    year = int(y_raw) if len(y_raw) == 4 else 2000 + int(y_raw)
+    if year < 2000 or year > 2100:
+        return None
+    return _period_tuple(year, mon)
+
+
+def parse_revenue_targets_csv(
+    csv_text: str,
+    *,
+    period_hint: str | None = None,
+) -> list[dict[str, Any]]:
     """CSV satırlarını normalize edilmiş hedef kayıtlarına çevirir.
 
     İki düzen:
       A) Eski: dönem | proje | hedef | …
-      B) MCM (gid=244461752): satır0 = «Ağustos 2026,Hedef,…»; proje col0
+      B) MCM aylık sekme: satır0 = «Ağustos 2026,Hedef,…» veya «,Hedef,…» + period_hint
     """
     reader = csv.reader(io.StringIO(csv_text or ""))
     rows_in = list(reader)
     if not rows_in:
         return []
 
-    # MCM başlık: ilk hücre dönem, ikinci "Hedef"
+    # MCM başlık: ikinci hücre "Hedef"; dönem col0 veya sekme adından
     mcm = False
     header_period: tuple[str, int, int, str] | None = None
     if rows_in:
         h0 = list(rows_in[0]) + [""] * 4
-        header_period = _parse_period_cell(h0[0])
-        if header_period and _norm_header(h0[1]) in ("hedef", "target"):
+        if _norm_header(h0[1]) in ("hedef", "target"):
             mcm = True
+            header_period = _parse_period_cell(h0[0])
+            if header_period is None and period_hint:
+                header_period = parse_sheet_tab_period(period_hint) or _parse_period_cell(
+                    period_hint
+                )
 
     out: list[dict[str, Any]] = []
     current_period: tuple[str, int, int, str] | None = header_period if mcm else None
@@ -292,18 +352,38 @@ def load_ingested_revenue_targets(
 
 
 def save_ingested_revenue_targets(
-    csv_text: str,
+    csv_text: str | None = None,
     *,
+    rows: list[dict[str, Any]] | None = None,
     source: str = "mac_firefox_selenium",
+    source_url: str | None = None,
 ) -> dict[str, Any]:
-    rows = parse_revenue_targets_csv(csv_text)
+    """CSV ve/veya hazır satır listesini cache’e yazar (çok aylık MCM birleşimi)."""
+    parsed_rows: list[dict[str, Any]] = list(rows or [])
+    if not parsed_rows and csv_text:
+        parsed_rows = parse_revenue_targets_csv(csv_text)
+    if not parsed_rows:
+        raise ValueError("No Doviz/Sinemalar rows to ingest")
+
+    # Aynı period+project için son gelen kazanır
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for r in parsed_rows:
+        pk = str(r.get("period_key") or "")
+        proj = str(r.get("project") or "")
+        if not pk or proj not in ("doviz", "sinemalar"):
+            continue
+        by_key[(pk, proj)] = r
+    merged = sorted(by_key.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or ""))
+
+    url = source_url or REVENUE_TARGETS_SHEET_URL
     payload = {
         "fetched_at": datetime.now(_TR).isoformat(),
         "source": source,
-        "source_url": REVENUE_TARGETS_SHEET_URL,
-        "row_count": len(rows),
-        "rows": rows,
-        "csv": csv_text,
+        "source_url": url,
+        "row_count": len(merged),
+        "rows": merged,
+        "period_keys": sorted({str(r.get("period_key") or "") for r in merged if r.get("period_key")}),
+        "csv": csv_text if csv_text and len(csv_text) < 500_000 else None,
     }
     payload_json = json.dumps(payload, ensure_ascii=False)
 
@@ -338,8 +418,8 @@ def save_ingested_revenue_targets(
     global _CACHE
     _CACHE = {
         "ts": time.monotonic(),
-        "rows": rows,
-        "source_url": REVENUE_TARGETS_SHEET_URL,
+        "rows": merged,
+        "source_url": url,
         "warning": None,
         "pending_error": None,
         "fetched_at": payload["fetched_at"],
@@ -347,11 +427,11 @@ def save_ingested_revenue_targets(
     }
     return {
         "ok": True,
-        "rows": len(rows),
+        "rows": len(merged),
         "fetched_at": payload["fetched_at"],
         "path": str(_INGEST_PATH),
         "postgres": pg_ok,
-        "period_keys": sorted({str(r.get("period_key") or "") for r in rows if r.get("period_key")}),
+        "period_keys": payload["period_keys"],
     }
 
 

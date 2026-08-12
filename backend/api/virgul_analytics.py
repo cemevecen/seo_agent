@@ -269,8 +269,12 @@ def get_virgul_revenue_targets(
 
 
 class RevenueTargetsIngestBody(BaseModel):
-    csv: str = Field(..., min_length=20, description="Sheet CSV text")
+    csv: str | None = Field(default=None, description="Sheet CSV text (tek ay)")
+    rows: list[dict] | None = Field(
+        default=None, description="Çok aylık normalize satırlar (MCM sekmeleri)"
+    )
     source: str = Field(default="mac_firefox_selenium")
+    source_url: str | None = Field(default=None)
 
 
 @router.post("/virgul-analytics/revenue-targets/ingest")
@@ -279,12 +283,19 @@ def ingest_virgul_revenue_targets(
     authorization: str | None = Header(default=None),
     x_notification_ingest_token: str | None = Header(default=None),
 ):
-    """Mac sistem-Firefox scrape → private sheet CSV ingest."""
+    """Mac sistem-Firefox scrape → private sheet CSV / satır ingest."""
     _check_ingest_token(authorization, x_notification_ingest_token)
     from backend.services.revenue_targets_sheet import save_ingested_revenue_targets
 
+    if not body.csv and not body.rows:
+        raise HTTPException(status_code=400, detail="csv or rows required")
     try:
-        return save_ingested_revenue_targets(body.csv, source=body.source or "mac_firefox_selenium")
+        return save_ingested_revenue_targets(
+            body.csv,
+            rows=body.rows,
+            source=body.source or "mac_firefox_selenium",
+            source_url=body.source_url,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.exception("revenue-targets ingest failed")
         raise HTTPException(status_code=400, detail=str(exc)[:300]) from exc

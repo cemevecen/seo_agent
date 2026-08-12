@@ -155,3 +155,30 @@ def test_parse_mcm_sheet_row_columns():
     assert d["gunluk_kalan_80"] == 174_536.0
     assert rows[1]["project"] == "sinemalar"
     assert rows[1]["gunluk_kalan_80"] == 63_272.0
+
+
+def test_parse_sheet_tab_period_and_empty_header():
+    from backend.services.revenue_targets_sheet import (
+        parse_revenue_targets_csv,
+        parse_sheet_tab_period,
+    )
+
+    assert parse_sheet_tab_period("Ağustos'26")[3] == "2026-08"
+    assert parse_sheet_tab_period("Şubat'23")[3] == "2023-02"
+    assert parse_sheet_tab_period("Mayıs'25")[3] == "2025-05"
+    assert parse_sheet_tab_period("site_settings") is None
+
+    csv_text = (
+        ",Hedef,Hedef (%80),Kazanç,HEDEF TAMAMLANMA ORANI,"
+        "Günlük Kazanç,Kalan,Kalan (%80),Günlük Kalan,Günlük Kalan (%80)\n"
+        "Doviz.com,  550.000   ,  440.000   ,  343.681   ,\"62,49%\","
+        "  12.274   ,  206.319   ,  96.319   ,  10.000   ,  5.000\n"
+        "Sinemalar.com,  45.000   ,  36.000   ,  25.677   ,\"57,06%\","
+        "  917   ,  19.323   ,  10.323   ,  900   ,  500\n"
+    )
+    assert parse_revenue_targets_csv(csv_text) == []
+    rows = parse_revenue_targets_csv(csv_text, period_hint="Şubat'23")
+    assert len(rows) == 2
+    assert rows[0]["period_key"] == "2023-02"
+    assert rows[0]["hedef"] == 550_000.0
+    assert rows[1]["project"] == "sinemalar"

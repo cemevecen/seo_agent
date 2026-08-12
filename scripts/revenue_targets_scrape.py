@@ -3,13 +3,12 @@
 
 Akış (manuel yok):
   1) Günlük Firefox.app profilinden Google çerezlerini oku
-  2) Sheet CSV export'u HTTP ile çek
-  3) İsteğe bağlı Railway ingest
-
-Selenium yalnızca yedek (headed); Playwright Nightly hiç kullanılmaz.
+  2) MCM workbook aylık sekmelerini (Şubat 2023+) CSV export
+  3) Doviz/Sinemalar satırlarını birleştir → lokal + Railway ingest
 
   .venv/bin/python scripts/revenue_targets_scrape.py --sync
   .venv/bin/python scripts/revenue_targets_scrape.py --sync --ingest
+  .venv/bin/python scripts/revenue_targets_scrape.py --sync --current-only
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -35,15 +35,17 @@ from backend.services.system_firefox_driver import (  # noqa: E402
     default_firefox_profile_dir,
 )
 from backend.services.revenue_targets_sheet import (  # noqa: E402
+    REVENUE_TARGETS_HISTORY_FROM,
     REVENUE_TARGETS_SHEET_URL,
     parse_revenue_targets_csv,
+    parse_sheet_tab_period,
     save_ingested_revenue_targets,
 )
 
 SHEET_ID = "1ITl0rUlLylTspsztMtaaFGEdvT_gINoUHDPodspEa5Y"
-GID = "244461752"
-EXPORT_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
+GID_CURRENT = "244461752"
 OUT_CSV = Path.home() / ".seo-agent" / "cache" / "revenue-targets.csv"
+OUT_ROWS = Path.home() / ".seo-agent" / "cache" / "revenue-targets-rows.json"
 _SESSION_NAMES = {
     "SID",
     "HSID",
@@ -54,6 +56,10 @@ _SESSION_NAMES = {
     "__Secure-3PSID",
     "LSID",
 }
+_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:147.0) "
+    "Gecko/20100101 Firefox/147.0"
+)
 
 
 def _profiles_root() -> Path:
@@ -70,7 +76,6 @@ def best_firefox_google_profile() -> Path | None:
     for p in root.iterdir():
         if not p.is_dir():
             continue
-        # Playwright / ms-playwright profili değil
         cookies = _read_google_cookies(p)
         names = {c["name"] for c in cookies}
         score = len(names & _SESSION_NAMES) * 100 + len(cookies)
@@ -78,7 +83,6 @@ def best_firefox_google_profile() -> Path | None:
             best_score = score
             best = p
     if best_score < 100:
-        # Session cookie yok
         return default_firefox_profile_dir()
     return best
 
@@ -117,35 +121,135 @@ def _cookie_jar_from_profile(profile: Path) -> CookieJar:
     return jar
 
 
-def export_csv_via_firefox_cookies(profile: Path) -> str | None:
-    jar = _cookie_jar_from_profile(profile)
-    opener = build_opener(HTTPCookieProcessor(jar))
-    req = Request(
-        EXPORT_URL,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:147.0) "
-                "Gecko/20100101 Firefox/147.0"
-            ),
-            "Accept": "text/csv,text/plain,*/*",
-        },
-    )
+def _opener(profile: Path):
+    return build_opener(HTTPCookieProcessor(_cookie_jar_from_profile(profile)))
+
+
+def export_gid_csv(opener, gid: str) -> str | None:
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={gid}"
+    req = Request(url, headers={"User-Agent": _UA, "Accept": "text/csv,text/plain,*/*"})
     try:
         with opener.open(req, timeout=90) as resp:
             data = resp.read()
-            ctype = (resp.headers.get("Content-Type") or "").lower()
-            print(f"export HTTP {getattr(resp, 'status', 200)} ctype={ctype} bytes={len(data)}", flush=True)
     except urllib.error.HTTPError as exc:
-        print(f"export HTTP {exc.code}", flush=True)
-        data = exc.read() if exc.fp else b""
-    except Exception as exc:
-        print(f"export fail: {exc}", flush=True)
+        print(f"export gid={gid} HTTP {exc.code}", flush=True)
         return None
-
+    except Exception as exc:
+        print(f"export gid={gid} fail: {exc}", flush=True)
+        return None
     text = data.decode("utf-8", errors="replace")
     if not text.strip() or "<html" in text[:500].lower() or "accounts.google" in text[:2000].lower():
         return None
     return text
+
+
+def _decode_js_string(raw: str) -> str:
+    """htmlview items.push name/url — UTF-8 bozmadan \\x27 / \\uXXXX çöz."""
+    s = (raw or "").replace("\\/", "/")
+    s = s.replace("\\x27", "'").replace("\\'", "'")
+
+    def _hex(m: re.Match[str]) -> str:
+        return chr(int(m.group(1), 16))
+
+    s = re.sub(r"\\x([0-9a-fA-F]{2})", _hex, s)
+    s = re.sub(r"\\u([0-9a-fA-F]{4})", _hex, s)
+    return s
+
+
+def discover_month_tabs(opener) -> list[tuple[str, str, str]]:
+    """htmlview → [(tab_name, gid, period_key), ...] Şubat 2023+."""
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/htmlview"
+    req = Request(url, headers={"User-Agent": _UA})
+    with opener.open(req, timeout=60) as resp:
+        html = resp.read().decode("utf-8", errors="replace")
+
+    items = re.findall(
+        r'items\.push\(\{name:\s*"([^"]+)",\s*pageUrl:\s*"([^"]+)"',
+        html,
+    )
+    out: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for name_raw, url_raw in items:
+        name = _decode_js_string(name_raw)
+        page = _decode_js_string(url_raw)
+        m = re.search(r"gid=(\d+)", page)
+        if not m:
+            continue
+        gid = m.group(1)
+        period = parse_sheet_tab_period(name)
+        if not period:
+            continue
+        _label, _y, _mon, period_key = period
+        if period_key < REVENUE_TARGETS_HISTORY_FROM:
+            continue
+        if period_key in seen:
+            continue
+        seen.add(period_key)
+        out.append((name, gid, period_key))
+
+    out.sort(key=lambda t: t[2])
+    return out
+
+
+def scrape_history_rows(
+    profile: Path,
+    *,
+    current_only: bool = False,
+) -> tuple[list[dict], str | None, list[str]]:
+    """Tüm aylık sekmelerden Doviz/Sinemalar satırları."""
+    opener = _opener(profile)
+    current_csv: str | None = None
+    errors: list[str] = []
+
+    if current_only:
+        tabs = [("Ağustos'26", GID_CURRENT, "current")]
+        # period from CSV header
+        text = export_gid_csv(opener, GID_CURRENT)
+        if not text:
+            return [], None, ["current month export failed"]
+        current_csv = text
+        rows = parse_revenue_targets_csv(text)
+        return rows, current_csv, errors
+
+    tabs = discover_month_tabs(opener)
+    if not tabs:
+        # Fallback: en azından güncel sekme
+        tabs = [("current", GID_CURRENT, "9999-99")]
+        errors.append("tab discovery empty — current gid only")
+
+    print(f"month tabs={len(tabs)} from={REVENUE_TARGETS_HISTORY_FROM}", flush=True)
+    merged: dict[tuple[str, str], dict] = {}
+    for i, (name, gid, period_key) in enumerate(tabs, 1):
+        t0 = time.time()
+        text = export_gid_csv(opener, gid)
+        if not text:
+            errors.append(f"{name}/{gid}: export failed")
+            print(f"[{i}/{len(tabs)}] FAIL {name} gid={gid}", flush=True)
+            continue
+        if gid == GID_CURRENT or period_key.endswith("-08") and "2026-08" == period_key:
+            current_csv = text
+        rows = parse_revenue_targets_csv(text, period_hint=name)
+        for r in rows:
+            pk = str(r.get("period_key") or "")
+            proj = str(r.get("project") or "")
+            if pk and proj:
+                merged[(pk, proj)] = r
+        print(
+            f"[{i}/{len(tabs)}] OK {name} gid={gid} rows={len(rows)} "
+            f"{round(time.time() - t0, 1)}s",
+            flush=True,
+        )
+        time.sleep(0.15)
+
+    if current_csv is None:
+        text = export_gid_csv(opener, GID_CURRENT)
+        if text:
+            current_csv = text
+            for r in parse_revenue_targets_csv(text):
+                merged[(str(r.get("period_key")), str(r.get("project")))] = r
+
+    rows_out = sorted(merged.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or ""))
+    return rows_out, current_csv, errors
 
 
 def _save_csv(text: str) -> Path:
@@ -165,13 +269,23 @@ def _ingest_token() -> str:
     return (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
 
 
-def post_ingest(csv_text: str) -> dict:
+def post_ingest(rows: list[dict], csv_text: str | None) -> dict:
     token = _ingest_token()
-    # Her zaman lokal disk cache (Railway erişilemese bile)
     try:
-        local = save_ingested_revenue_targets(csv_text, source="mac_firefox_cookies")
+        local = save_ingested_revenue_targets(
+            csv_text,
+            rows=rows,
+            source="mac_firefox_cookies",
+            source_url=REVENUE_TARGETS_SHEET_URL,
+        )
     except Exception as exc:
         local = {"ok": False, "message": str(exc)[:200]}
+
+    OUT_ROWS.parent.mkdir(parents=True, exist_ok=True)
+    OUT_ROWS.write_text(
+        json.dumps({"rows": rows, "count": len(rows)}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     if not token:
         return {
@@ -180,7 +294,15 @@ def post_ingest(csv_text: str) -> dict:
             "message": "NOTIFICATION_INGEST_TOKEN yok — yalnız lokal cache",
         }
 
-    payload = json.dumps({"csv": csv_text, "source": "mac_firefox_cookies"}).encode("utf-8")
+    payload = json.dumps(
+        {
+            "rows": rows,
+            "csv": csv_text,
+            "source": "mac_firefox_cookies",
+            "source_url": REVENUE_TARGETS_SHEET_URL,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
     last_err = ""
     for attempt in range(3):
         req = Request(
@@ -194,7 +316,7 @@ def post_ingest(csv_text: str) -> dict:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=90) as resp:
+            with urllib.request.urlopen(req, timeout=120) as resp:
                 body = resp.read().decode("utf-8", errors="replace")
                 return {
                     "ok": True,
@@ -211,9 +333,14 @@ def post_ingest(csv_text: str) -> dict:
     return {"ok": False, "message": last_err, "local": local}
 
 
-def run_sync(*, ingest: bool = False, headed: bool = False) -> dict:
-    """Sistem Firefox oturumu ile CSV — Nightly yok, manuel yok."""
-    _ = headed  # Selenium yedek kaldırıldı; API uyumu
+def run_sync(
+    *,
+    ingest: bool = False,
+    headed: bool = False,
+    current_only: bool = False,
+) -> dict:
+    """Sistem Firefox oturumu ile aylık sekmeler — Nightly yok, manuel yok."""
+    _ = headed
     ban_playwright_nightly_processes()
     profile = best_firefox_google_profile()
     if not profile:
@@ -235,31 +362,39 @@ def run_sync(*, ingest: bool = False, headed: bool = False) -> dict:
             "profile": str(profile),
         }
 
-    text = export_csv_via_firefox_cookies(profile)
-    if not text:
+    rows, current_csv, errors = scrape_history_rows(profile, current_only=current_only)
+    if not rows:
         return {
             "ok": False,
-            "message": "CSV export 401/HTML — sheet erişimi yok veya oturum eksik",
+            "message": "Hiç satır parse edilemedi",
+            "errors": errors,
             "profile": str(profile),
             "sheet": REVENUE_TARGETS_SHEET_URL,
         }
 
-    _save_csv(text)
-    rows = parse_revenue_targets_csv(text)
-    print(f"OK · lines={len(text.splitlines())} parsed={len(rows)} → {OUT_CSV}", flush=True)
-    for i, line in enumerate(text.splitlines(), 1):
-        if i <= 4 or 22 <= i <= 30:
-            print(f"{i:03d}|{line[:200]}", flush=True)
+    if current_csv:
+        _save_csv(current_csv)
+
+    period_keys = sorted({str(r.get("period_key") or "") for r in rows if r.get("period_key")})
+    print(
+        f"OK · parsed={len(rows)} periods={len(period_keys)} "
+        f"from={period_keys[0] if period_keys else '?'} to={period_keys[-1] if period_keys else '?'}",
+        flush=True,
+    )
+    if errors:
+        print(f"warnings={len(errors)} sample={errors[:5]}", flush=True)
 
     out: dict = {
         "ok": True,
-        "csv": str(OUT_CSV),
+        "csv": str(OUT_CSV) if current_csv else None,
         "parsed": len(rows),
+        "period_keys": period_keys,
+        "errors": errors,
         "browser": "system_firefox_cookies",
         "profile": str(profile),
     }
     if ingest:
-        ing = post_ingest(text)
+        ing = post_ingest(rows, current_csv)
         out["ingest"] = ing
         print(f"ingest={ing}", flush=True)
     return out
@@ -267,17 +402,21 @@ def run_sync(*, ingest: bool = False, headed: bool = False) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Revenue targets — sistem Firefox cookies (no Nightly)"
+        description="Revenue targets — MCM aylık sekmeler (system Firefox cookies)"
     )
     parser.add_argument("--sync", action="store_true")
     parser.add_argument("--ingest", action="store_true")
+    parser.add_argument(
+        "--current-only",
+        action="store_true",
+        help="Sadece güncel ay sekmesi (hızlı KPI)",
+    )
     parser.add_argument("--headless", action="store_true", help="(uyumluluk, yok sayılır)")
     parser.add_argument("--login", action="store_true", help="(kaldırıldı) --sync ile aynı")
     args = parser.parse_args()
     if not (args.sync or args.login or args.ingest):
         args.sync = True
 
-    # Load .env token if present
     env_path = ROOT / ".env"
     if env_path.is_file():
         for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
@@ -289,7 +428,11 @@ def main() -> int:
             if k and k not in os.environ:
                 os.environ[k] = v
 
-    result = run_sync(ingest=bool(args.ingest or args.sync), headed=not args.headless)
+    result = run_sync(
+        ingest=bool(args.ingest or args.sync),
+        headed=not args.headless,
+        current_only=bool(args.current_only),
+    )
     print(result, flush=True)
     return 0 if result.get("ok") else 1
 
