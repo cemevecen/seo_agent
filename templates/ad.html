@@ -472,69 +472,57 @@
   .mz-page .mz-project-total-card[hidden] {
     display: none !important;
   }
+  /* Total + platform: her genişlikte sabit sütun (doviz 5, sinemalar 3) */
   .mz-page .mz-project-break {
     display: grid;
     gap: 0.35rem;
     margin-top: 0;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
-  .mz-page .mz-project-break--wide {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .mz-page .mz-project-break[data-cols="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  @media (min-width: 480px) {
-    .mz-page .mz-project-break--wide {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
+  .mz-page .mz-project-break[data-cols="4"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-  @media (min-width: 1280px) {
-    .mz-page .mz-project-break--wide {
-      grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr));
-    }
-  }
-  /* Tek kart: kırılım kutuları tüm genişliği kullanır */
-  .mz-page #mz-project-totals.is-single .mz-project-break,
-  .mz-page #mz-project-totals.is-single .mz-project-break--wide {
-    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
-    gap: 0.5rem;
-  }
-  @media (min-width: 640px) {
-    .mz-page #mz-project-totals.is-single .mz-project-break,
-    .mz-page #mz-project-totals.is-single .mz-project-break--wide {
-      grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-    }
-  }
-  @media (min-width: 1024px) {
-    .mz-page #mz-project-totals.is-single .mz-project-break,
-    .mz-page #mz-project-totals.is-single .mz-project-break--wide {
-      grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-    }
-  }
-  .mz-page #mz-project-totals.is-single .mz-project-break-item {
-    padding: 0.5rem 0.65rem;
-  }
-  .mz-page #mz-project-totals.is-single .mz-project-break-value {
-    font-size: clamp(0.75rem, 0.65rem + 0.35vw, 0.95rem);
+  .mz-page .mz-project-break-platforms {
+    display: contents;
   }
   .mz-page .mz-project-break-item {
     min-width: 0;
+    overflow: hidden;
     border-radius: 0.5rem;
     border: 1px solid rgb(226 232 240);
-    background: rgb(248 250 252);
-    padding: 0.35rem 0.45rem;
+    background: rgb(255 255 255);
+    padding: 0.4rem 0.45rem;
   }
   html.dark .mz-page .mz-project-break-item,
   html.midnight .mz-page .mz-project-break-item {
     border-color: rgb(63 63 70);
     background: rgb(24 24 27);
   }
+  .mz-page .mz-project-break-item--total {
+    background: rgb(226 232 240);
+    border-color: rgb(203 213 225);
+  }
+  html.dark .mz-page .mz-project-break-item--total,
+  html.midnight .mz-page .mz-project-break-item--total {
+    background: rgb(39 39 42);
+    border-color: rgb(82 82 91);
+  }
   .mz-page .mz-project-break-label {
     display: block;
-    font-size: 0.5625rem;
+    font-size: clamp(0.42rem, 1vw, 0.5625rem);
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
     text-transform: uppercase;
     color: rgb(100 116 139);
     line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   html.dark .mz-page .mz-project-break-label,
   html.midnight .mz-page .mz-project-break-label {
@@ -542,17 +530,32 @@
   }
   .mz-page .mz-project-break-value {
     display: block;
-    margin-top: 0.125rem;
-    font-size: 0.6875rem;
+    margin-top: 0.15rem;
+    font-size: clamp(0.55rem, 1.4vw, 0.9rem);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: rgb(15 23 42);
-    line-height: 1.25;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
     word-break: break-word;
   }
   html.dark .mz-page .mz-project-break-value,
   html.midnight .mz-page .mz-project-break-value {
     color: rgb(244 244 245);
+  }
+  .mz-page .mz-project-break-delta {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: clamp(0.4rem, 0.95vw, 0.5625rem);
+    line-height: 1.2;
+    color: rgb(100 116 139);
+  }
+  html.dark .mz-page .mz-project-break-delta,
+  html.midnight .mz-page .mz-project-break-delta {
+    color: rgb(161 161 170);
+  }
+  .mz-page .mz-project-break-delta.hidden {
+    display: none;
   }
   .mz-page .mz-chart-plot--pie-flat {
     border-radius: 0.75rem;
@@ -1203,12 +1206,14 @@
             <div id="mz-ad-target-kpis-doviz" class="mz-ad-target-kpis is-empty" aria-label="Doviz ad target KPIs"></div>
           </div>
           <div class="mz-project-total-foot">
-            <div class="mz-project-total-main">
-              <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Doviz total revenue</p>
-              <p id="mz-total-doviz" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100 sm:text-xl">—</p>
-              <p id="mz-total-doviz-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
+            <div id="mz-total-doviz-break" class="mz-project-break" data-cols="5" aria-label="Doviz total and breakdown">
+              <div class="mz-project-break-item mz-project-break-item--total">
+                <span class="mz-project-break-label">Doviz total revenue</span>
+                <span id="mz-total-doviz" class="mz-project-break-value">—</span>
+                <span id="mz-total-doviz-delta" class="mz-project-break-delta hidden"></span>
+              </div>
+              <div id="mz-total-doviz-platforms" class="mz-project-break-platforms"></div>
             </div>
-            <div id="mz-total-doviz-break" class="mz-project-break mz-project-break--wide" aria-label="Doviz breakdown"></div>
           </div>
         </div>
         <div data-mz-project="sinemalar" class="mz-project-total-card is-mz-hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black sm:p-4" hidden aria-hidden="true">
@@ -1216,12 +1221,14 @@
             <div id="mz-ad-target-kpis-sinemalar" class="mz-ad-target-kpis is-empty" aria-label="Sinemalar ad target KPIs"></div>
           </div>
           <div class="mz-project-total-foot">
-            <div class="mz-project-total-main">
-              <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sinemalar total revenue</p>
-              <p id="mz-total-sinemalar" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100 sm:text-xl">—</p>
-              <p id="mz-total-sinemalar-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
+            <div id="mz-total-sinemalar-break" class="mz-project-break" data-cols="3" aria-label="Sinemalar total and breakdown">
+              <div class="mz-project-break-item mz-project-break-item--total">
+                <span class="mz-project-break-label">Sinemalar total revenue</span>
+                <span id="mz-total-sinemalar" class="mz-project-break-value">—</span>
+                <span id="mz-total-sinemalar-delta" class="mz-project-break-delta hidden"></span>
+              </div>
+              <div id="mz-total-sinemalar-platforms" class="mz-project-break-platforms"></div>
             </div>
-            <div id="mz-total-sinemalar-break" class="mz-project-break mz-project-break--wide" aria-label="Sinemalar breakdown"></div>
           </div>
         </div>
       </div>
@@ -3196,16 +3203,19 @@
     return rows;
   }
 
-  function renderProjectTotalBreakdown(breakElId, sum, project) {
-    var el = document.getElementById(breakElId);
-    if (!el) return;
+  function renderProjectTotalBreakdown(platformsElId, breakElId, sum, project) {
+    var platformsEl = document.getElementById(platformsElId);
+    var breakEl = document.getElementById(breakElId);
+    if (!platformsEl) return;
     var rows = mzProjectAreaRows(sum, project);
+    var cols = 1 + Math.max(rows.length, project === "sinemalar" ? 2 : 4);
+    if (breakEl) breakEl.setAttribute("data-cols", String(Math.min(Math.max(cols, 3), 5)));
     if (!rows.length) {
-      el.innerHTML =
-        '<p class="col-span-full text-[10px] text-slate-400 dark:text-zinc-500">No breakdown data</p>';
+      platformsEl.innerHTML =
+        '<p class="text-[10px] text-slate-400 dark:text-zinc-500">No breakdown data</p>';
       return;
     }
-    el.innerHTML = rows
+    platformsEl.innerHTML = rows
       .map(function (r) {
         return (
           '<div class="mz-project-break-item">' +
@@ -3221,13 +3231,13 @@
       .join("");
   }
 
-  function renderProjectTotalCard(sum, valueElId, deltaElId, breakElId, project) {
+  function renderProjectTotalCard(sum, valueElId, deltaElId, platformsElId, breakElId, project) {
     var valueEl = document.getElementById(valueElId);
     var deltaEl = document.getElementById(deltaElId);
     if (!valueEl) return;
     var rev = sum && sum.kpis ? sum.kpis.net_revenue : null;
     valueEl.textContent = rev == null ? "—" : fmt(rev, 2);
-    if (breakElId) renderProjectTotalBreakdown(breakElId, sum, project);
+    if (platformsElId) renderProjectTotalBreakdown(platformsElId, breakElId, sum, project);
     if (!deltaEl) return;
     var cmp = sum ? compareBlock(sum) : null;
     var d = cmp && cmp.deltas ? cmp.deltas.net_revenue : null;
@@ -3246,12 +3256,12 @@
     var project = mzActiveProjectKey();
     var dovizEl = document.getElementById("mz-total-doviz");
     var sinEl = document.getElementById("mz-total-sinemalar");
-    var dovizBreak = document.getElementById("mz-total-doviz-break");
-    var sinBreak = document.getElementById("mz-total-sinemalar-break");
+    var dovizPlatforms = document.getElementById("mz-total-doviz-platforms");
+    var sinPlatforms = document.getElementById("mz-total-sinemalar-platforms");
     var valueEl = project === "sinemalar" ? sinEl : dovizEl;
-    var breakEl = project === "sinemalar" ? sinBreak : dovizBreak;
+    var platformsEl = project === "sinemalar" ? sinPlatforms : dovizPlatforms;
     if (valueEl) valueEl.textContent = "…";
-    if (breakEl) breakEl.innerHTML = "";
+    if (platformsEl) platformsEl.innerHTML = "";
     try {
       var resp = await fetch(
         "/api/mz-analytics/summary?" + qsForProjectTotal(project).toString()
@@ -3262,6 +3272,7 @@
           sum,
           "mz-total-sinemalar",
           "mz-total-sinemalar-delta",
+          "mz-total-sinemalar-platforms",
           "mz-total-sinemalar-break",
           "sinemalar"
         );
@@ -3270,13 +3281,14 @@
           sum,
           "mz-total-doviz",
           "mz-total-doviz-delta",
+          "mz-total-doviz-platforms",
           "mz-total-doviz-break",
           "doviz"
         );
       }
     } catch (_) {
       if (valueEl) valueEl.textContent = "—";
-      if (breakEl) breakEl.innerHTML = "";
+      if (platformsEl) platformsEl.innerHTML = "";
       var deltaId =
         project === "sinemalar" ? "mz-total-sinemalar-delta" : "mz-total-doviz-delta";
       var deltaEl = document.getElementById(deltaId);
