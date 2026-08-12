@@ -3,13 +3,13 @@
 <div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-5" data-page-tarama="seo">
 
   {# Başlık #}
+  {% set sched = seo_audit_scheduler_health or {} %}
   <div class="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div class="min-w-0">
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">SEO Audit</h2>
         <p class="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
           {% if summary.last_crawled %}Last scan: {{ summary.last_crawled[:16].replace("T"," ") }}{% else %}No scan yet{% endif %}
-          {% if seo_audit_scrape_primary %} · Mac bridge scan · GA4 top {{ seo_audit_top_limit|default(500) }}{% endif %}
           · <a href="/static/docs/seo-audit-denetim-kriterleri.md" download="seo-audit-denetim-kriterleri.md"
                class="text-sky-600 hover:underline dark:text-sky-400">Audit criteria (download)</a>
           · <a href="/api/seo-audit/{{ selected_site_id }}/export.xlsx?filter={{ filter }}"
@@ -18,7 +18,26 @@
                class="text-sky-600 hover:underline dark:text-sky-400">CSV</a>
         </p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center justify-start gap-2 lg:max-w-[min(100%,52rem)] lg:justify-end">
+        <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] sm:text-xs whitespace-nowrap {% if sched.scheduler_running %}border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200{% endif %}">
+          {% if sched.scrape_primary %}Mac bridge{% else %}Scheduler{% endif %}:
+          {% if sched.scheduler_running %}active{% else %}idle / no job{% endif %}
+        </span>
+        {% if sched.enabled and sched.schedule %}
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] sm:text-xs text-slate-700 whitespace-nowrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          Schedule: {{ sched.schedule }} TR
+        </span>
+        {% endif %}
+        {% if sched.top_limit %}
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] sm:text-xs text-violet-800 whitespace-nowrap dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200">
+          Top {{ sched.top_limit }}
+        </span>
+        {% endif %}
+        {% if sched.next_run and sched.next_run != '—' %}
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] sm:text-xs text-sky-800 whitespace-nowrap dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+          Next: {{ sched.next_run|e }}
+        </span>
+        {% endif %}
         <span data-page-tarama-slot></span>
         <select onchange="window.location='/seo-audit?site_id='+this.value+'&filter={{ filter }}'"
                 class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-400">
@@ -46,48 +65,6 @@
       <span class="text-rose-500"><span id="prog-err">0</span> errors</span>
     </div>
   </div>
-
-  {# Otomatik yenileme durumu #}
-  {% set sched = seo_audit_scheduler_health or {} %}
-  <section class="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-zinc-900 dark:ring-0 sm:px-5">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-zinc-500">Automatic scan</p>
-        <p class="mt-1 text-sm text-slate-600 dark:text-zinc-400">
-          {% if sched.scrape_primary %}
-          Mac bridge scan · GA4 top traffic {{ sched.top_limit|default(seo_audit_top_limit)|default(500) }} URL
-          (Railway HTTP crawl off). Schedule: 02:45 + 14:45 TR.
-          {% else %}
-          Daily GA4 top URL meta audit (manual Scan here does not count).
-          {% endif %}
-          {% if seo_audit_last_auto_run and seo_audit_last_auto_run != '—' %}
-          Last automatic: <span class="font-medium text-slate-800 dark:text-zinc-300">{{ seo_audit_last_auto_run|e }}</span>
-          {% endif %}
-        </p>
-      </div>
-      <div class="flex flex-wrap gap-2 text-[11px] sm:text-xs">
-        <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 {% if sched.scheduler_running %}border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200{% endif %}">
-          {% if sched.scrape_primary %}Mac bridge{% else %}Scheduler{% endif %}:
-          {% if sched.scheduler_running %}aktif{% else %}idle / no job{% endif %}
-        </span>
-        {% if sched.enabled and sched.schedule %}
-        <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-          Schedule: {{ sched.schedule }} TR
-        </span>
-        {% endif %}
-        {% if sched.top_limit %}
-        <span class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200">
-          Top {{ sched.top_limit }}
-        </span>
-        {% endif %}
-        {% if sched.next_run and sched.next_run != '—' %}
-        <span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
-          Next: {{ sched.next_run|e }}
-        </span>
-        {% endif %}
-      </div>
-    </div>
-  </section>
 
   {# Özet Kartlar #}
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
