@@ -58,6 +58,35 @@
     gap: 0.5rem;
     align-items: center;
   }
+  /* Virgül header: Revenue / Targets — tam genişlik %50-%50 uzun chip */
+  .mz-virgul-mode #mz-main-view-chips.mz-main-view-chips--header {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+    margin-bottom: 0.75rem;
+  }
+  .mz-virgul-mode #mz-main-view-chips.mz-main-view-chips--header .mz-main-view-chip {
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+    padding: 0.625rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+  }
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-main-view-chips.mz-main-view-chips--header {
+    margin-bottom: 0;
+  }
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-header-revenue-bar,
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-stream-tabs,
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-sidebar,
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-boot-hint,
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-import-audit,
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-range-empty,
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-compare-period-banner,
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-view-revenue {
+    display: none !important;
+  }
   .mz-main-view-chip {
     border-radius: 0.65rem;
     border: 1px solid rgb(203 213 225);
@@ -989,9 +1018,15 @@
   <div class="mz-skel-bone mz-skel-cap"></div>
 </div>
 {%- endmacro %}
-<div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page{% if ad_mode == 'virgul' %} mz-virgul-mode max-w-[1920px]{% endif %}" data-header-title="{% if ad_mode == 'virgul' %}Virgül{% else %}Ad{% endif %}" data-page-tarama="virgul">
+<div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page{% if ad_mode == 'virgul' %} mz-virgul-mode max-w-[1920px]{% endif %}" data-header-title="{% if ad_mode == 'virgul' %}Virgül{% else %}Ad{% endif %}" data-page-tarama="virgul"{% if ad_mode == 'virgul' %} data-mz-main-view="revenue"{% endif %}>
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-    <div class="flex flex-wrap items-center justify-between gap-2">
+    {% if ad_mode == 'virgul' %}
+    <nav id="mz-main-view-chips" class="mz-main-view-chips mz-main-view-chips--header" role="tablist" aria-label="Main view">
+      <button type="button" id="mz-main-view-revenue" data-mz-main-view="revenue" class="mz-main-view-chip is-active" role="tab" aria-selected="true" aria-controls="mz-view-revenue">Revenue</button>
+      <button type="button" id="mz-main-view-targets" data-mz-main-view="targets" class="mz-main-view-chip" role="tab" aria-selected="false" aria-controls="mz-view-targets">Targets</button>
+    </nav>
+    {% endif %}
+    <div id="mz-header-revenue-bar" class="flex flex-wrap items-center justify-between gap-2">
       <div class="min-w-0">
         <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">{% if ad_mode == 'virgul' %}Monetization · Virgül{% else %}Monetization Analytics{% endif %}</h1>
         <div id="mz-header-meta" class="mz-header-meta mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] text-slate-500 dark:text-zinc-400">
@@ -1227,10 +1262,12 @@
         <p id="mz-compare-period-lines" class="mt-1.5 text-sm leading-snug text-slate-800 dark:text-zinc-100"></p>
         <p id="mz-compare-period-mode" class="mt-1 text-[10px] text-indigo-700 dark:text-indigo-400"></p>
       </div>
+      {% if ad_mode != 'virgul' %}
       <nav id="mz-main-view-chips" class="mz-main-view-chips" role="tablist" aria-label="Main view">
         <button type="button" id="mz-main-view-revenue" data-mz-main-view="revenue" class="mz-main-view-chip is-active" role="tab" aria-selected="true" aria-controls="mz-view-revenue">Revenue</button>
         <button type="button" id="mz-main-view-targets" data-mz-main-view="targets" class="mz-main-view-chip" role="tab" aria-selected="false" aria-controls="mz-view-targets">Targets</button>
       </nav>
+      {% endif %}
       <div id="mz-view-revenue" class="mz-main-view-pane space-y-4" data-mz-main-pane="revenue" role="tabpanel" aria-labelledby="mz-main-view-revenue">
       <div id="mz-project-totals" class="is-single" aria-label="Project total revenue">
         <div data-mz-project="doviz" class="mz-project-total-card rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black sm:p-4">
@@ -13842,6 +13879,8 @@
     view = view === "targets" ? "targets" : "revenue";
     var stack = document.getElementById("mz-analytics-stack");
     if (stack) stack.setAttribute("data-mz-main-view", view);
+    var page = document.querySelector(".mz-page");
+    if (page) page.setAttribute("data-mz-main-view", view);
     var rev = document.getElementById("mz-view-revenue");
     var tgt = document.getElementById("mz-view-targets");
     if (rev) {
