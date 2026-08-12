@@ -178,5 +178,10 @@ def sinemalar_moderation_gaps(
 
 
 @router.get("/sinemalar-moderation/meta")
-def sinemalar_moderation_meta(db: Session = Depends(get_db)) -> dict[str, Any]:
+def sinemalar_moderation_meta(
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _check_ingest_token(authorization, x_notification_ingest_token)
     return mod.get_meta_summary(db)

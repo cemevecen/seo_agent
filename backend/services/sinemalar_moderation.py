@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.models import (
@@ -498,7 +499,18 @@ def ingest_detail_batch(
         f"detail {canonical_name}/{metric_type} · +{items_inserted} yeni"
         + (f" · {items_skipped} mevcut" if items_skipped else "")
     )
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return {
+            "ok": False,
+            "message": f"duplicate constraint · {canonical_name}/{metric_type}",
+            "user_id": user_id,
+            "metric_type": metric_type,
+            "items_inserted": 0,
+            "items_skipped": items_skipped,
+        }
     return {
         "ok": True,
         "user_id": user_id,

@@ -435,7 +435,7 @@ def fetch_remote_coverage(start_d: date, end_d: date) -> dict[str, Any]:
         return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
     qs = urllib.parse.urlencode({"start": start_d.isoformat(), "end": end_d.isoformat()})
     url = INGEST_URL.rsplit("/", 1)[0] + "/coverage?" + qs
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"}, method="GET")
+    req = urllib.request.Request(url, headers=_auth_headers(), method="GET")
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
@@ -468,7 +468,7 @@ def post_remote_gaps(
     req = urllib.request.Request(
         url,
         data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        headers={"Content-Type": "application/json", **_auth_headers()},
         method="POST",
     )
     try:
@@ -482,6 +482,23 @@ def post_remote_gaps(
         return {"ok": False, "message": str(exc)}
 
 
+def _auth_headers() -> dict[str, str]:
+    token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
+    headers = {"Accept": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _parse_remote_body(raw: str) -> Any:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    if text.lstrip().startswith("<"):
+        raise ValueError("HTML yanıt — endpoint auth middleware arkasında olabilir (deploy bekleyin)")
+    return json.loads(text)
+
+
 def purge_remote_moderation() -> dict[str, Any]:
     token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
     if not token:
@@ -490,10 +507,7 @@ def purge_remote_moderation() -> dict[str, Any]:
     req = urllib.request.Request(
         url,
         data=b"{}",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        },
+        headers={"Content-Type": "application/json", **_auth_headers()},
         method="POST",
     )
     try:
@@ -501,13 +515,15 @@ def purge_remote_moderation() -> dict[str, Any]:
             raw = resp.read().decode("utf-8", errors="replace")
             if not raw.strip():
                 return {"ok": True, "purge": {"ok": True, "message": "empty response"}}
-            payload = json.loads(raw)
-            return {"ok": True, "purge": payload}
+            payload = _parse_remote_body(raw)
+            return {"ok": True, "purge": payload if isinstance(payload, dict) else {"result": payload}}
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:500]
         return {"ok": False, "message": f"HTTP {exc.code}: {detail}"}
     except json.JSONDecodeError as exc:
         return {"ok": False, "message": f"JSON parse: {exc}"}
+    except ValueError as exc:
+        return {"ok": False, "message": str(exc)}
     except Exception as exc:
         return {"ok": False, "message": str(exc)}
 
@@ -615,17 +631,23 @@ def run_detail_monthly_2026(
     purge_first: bool = False,
 ) -> dict[str, Any]:
     """2026 moderasyon — 7 aylık pencere, append-only dedup ingest."""
+    purge_via_first_ingest = False
     if purge_first and ingest:
         print("Railway moderasyon verisi siliniyor (detay + günlük)…", flush=True)
         pr = purge_remote_moderation()
         if not pr.get("ok"):
-            return {"ok": False, "message": pr.get("message") or "purge failed"}
-        payload = pr.get("purge") or {}
-        print(
-            f"  silindi · {payload.get('deleted_details', 0)} detay · "
-            f"{payload.get('deleted_daily', 0)} günlük",
-            flush=True,
-        )
+            print(
+                f"  purge API başarısız ({pr.get('message')}) — ilk ingest batch purge_first ile denenecek",
+                flush=True,
+            )
+            purge_via_first_ingest = True
+        else:
+            payload = pr.get("purge") or {}
+            print(
+                f"  silindi · {payload.get('deleted_details', 0)} detay · "
+                f"{payload.get('deleted_daily', 0)} günlük",
+                flush=True,
+            )
 
     windows = DETAIL_MONTHLY_WINDOWS_2026
     scraped_total = 0
@@ -640,7 +662,7 @@ def run_detail_monthly_2026(
             end_d,
             headed=headed,
             ingest_per_batch=bool(ingest),
-            purge_first=False,
+            purge_first=purge_via_first_ingest and idx == 1,
         )
         if not out.get("ok"):
             out["failed_window"] = {"start": start_d.isoformat(), "end": end_d.isoformat()}
@@ -908,7 +930,7 @@ def scrape_days(
 
 
 def fetch_remote_meta() -> dict[str, Any]:
-    req = urllib.request.Request(META_URL, headers={"Accept": "application/json"}, method="GET")
+    req = urllib.request.Request(META_URL, headers=_auth_headers(), method="GET")
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
