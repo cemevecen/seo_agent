@@ -63,6 +63,7 @@ ADMIN_PASSWORD = (os.environ.get("SINEMALAR_ADMIN_PASSWORD") or "").strip()
 BACKFILL_START = date(2026, 1, 1)
 SCRAPE_DELAY_SEC = float(os.environ.get("SINEMALAR_MODERATION_DELAY_SEC") or "2.0")
 BACKFILL_CHUNK_DAYS = int(os.environ.get("SINEMALAR_MODERATION_BACKFILL_CHUNK") or "7")
+DETAIL_INGEST_CHUNK = int(os.environ.get("SINEMALAR_MODERATION_DETAIL_CHUNK") or "400")
 META_URL = INGEST_URL.rsplit("/", 1)[0] + "/meta"
 
 _EXTRACT_ROWS_JS = r"""
@@ -253,6 +254,55 @@ def fetch_detail_page(
     }
 
 
+def _ingest_detail_batch(
+    batch: dict[str, Any],
+    *,
+    start_d: date,
+    end_d: date,
+    scraped_at: str,
+    backfill_complete: bool,
+) -> dict[str, Any]:
+    items = list(batch.get("items") or [])
+    if len(items) <= DETAIL_INGEST_CHUNK:
+        return ingest_result(
+            {
+                "source": "sinemalar_moderation",
+                "mode": "detail_range",
+                "scraped_at": scraped_at,
+                "range_start": start_d.isoformat(),
+                "range_end": end_d.isoformat(),
+                "detail_batches": [{**batch, "items": items}],
+                "backfill_complete": backfill_complete,
+            },
+            mode="detail_range",
+        )
+    last: dict[str, Any] = {"ok": False}
+    for i in range(0, len(items), DETAIL_INGEST_CHUNK):
+        chunk = items[i : i + DETAIL_INGEST_CHUNK]
+        is_last = i + DETAIL_INGEST_CHUNK >= len(items)
+        last = ingest_result(
+            {
+                "source": "sinemalar_moderation",
+                "mode": "detail_range",
+                "scraped_at": scraped_at,
+                "range_start": start_d.isoformat(),
+                "range_end": end_d.isoformat(),
+                "detail_batches": [
+                    {
+                        **batch,
+                        "items": chunk,
+                        "_recompute_daily": is_last,
+                    }
+                ],
+                "backfill_complete": backfill_complete and is_last,
+            },
+            mode="detail_range",
+        )
+        if not last.get("ok"):
+            return last
+    return last
+
+
 def scrape_detail_range(
     start_d: date,
     end_d: date,
@@ -306,17 +356,12 @@ def scrape_detail_range(
                     total_items += int(batch.get("item_count") or 0)
                     n += 1
                     if ingest_per_batch:
-                        ing = ingest_result(
-                            {
-                                "source": "sinemalar_moderation",
-                                "mode": "detail_range",
-                                "scraped_at": datetime.now(timezone.utc).isoformat(),
-                                "range_start": start_d.isoformat(),
-                                "range_end": end_d.isoformat(),
-                                "detail_batches": [batch],
-                                "backfill_complete": n >= len(TRACKED_MODERATORS) * len(METRIC_TYPE_KEYS),
-                            },
-                            mode="detail_range",
+                        ing = _ingest_detail_batch(
+                            batch,
+                            start_d=start_d,
+                            end_d=end_d,
+                            scraped_at=datetime.now(timezone.utc).isoformat(),
+                            backfill_complete=n >= len(TRACKED_MODERATORS) * len(METRIC_TYPE_KEYS),
                         )
                         if not ing.get("ok"):
                             print(f"    ingest hata: {ing.get('message')}", flush=True)

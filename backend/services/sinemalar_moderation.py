@@ -272,6 +272,54 @@ def _upsert_daily_count(
     existing.scraped_at = scraped_at
 
 
+def _rebuild_daily_from_details(
+    db: Session,
+    *,
+    user_id: int,
+    username: str,
+    metric_type: str,
+    range_start: date,
+    range_end: date,
+    source_url: str | None,
+    scraped_at: datetime,
+) -> int:
+    db.query(SinemalarModerationDailyRow).filter(
+        SinemalarModerationDailyRow.user_id == user_id,
+        SinemalarModerationDailyRow.metric_type == metric_type,
+        SinemalarModerationDailyRow.report_date >= range_start,
+        SinemalarModerationDailyRow.report_date <= range_end,
+    ).delete(synchronize_session=False)
+
+    rows = (
+        db.query(SinemalarModerationDetailItem)
+        .filter(
+            SinemalarModerationDetailItem.user_id == user_id,
+            SinemalarModerationDetailItem.metric_type == metric_type,
+            SinemalarModerationDetailItem.event_at >= datetime.combine(range_start, datetime.min.time()),
+            SinemalarModerationDetailItem.event_at
+            < datetime.combine(range_end + timedelta(days=1), datetime.min.time()),
+        )
+        .all()
+    )
+    day_counts: dict[date, int] = {}
+    for r in rows:
+        d = r.event_at.date()
+        day_counts[d] = day_counts.get(d, 0) + 1
+    src = source_url or detail_url(user_id, start=range_start, end=range_end, metric_type=metric_type)
+    for d, cnt in day_counts.items():
+        _upsert_daily_count(
+            db,
+            report_date=d,
+            user_id=user_id,
+            username=username,
+            metric_type=metric_type,
+            count=cnt,
+            detail_url=src,
+            scraped_at=scraped_at,
+        )
+    return len(day_counts)
+
+
 def ingest_detail_batch(
     db: Session,
     *,
@@ -283,7 +331,8 @@ def ingest_detail_batch(
     range_end: date,
     source_url: str | None = None,
     scraped_at: datetime | None = None,
-    rebuild_daily: bool = True,
+    rebuild_daily: bool = False,
+    recompute_daily: bool = False,
 ) -> dict[str, Any]:
     now = scraped_at or datetime.utcnow()
     if items and isinstance(items[0], dict) and "cells" in items[0]:
@@ -335,7 +384,18 @@ def ingest_detail_batch(
         item_upserted += 1
 
     daily_upserted = 0
-    if rebuild_daily:
+    if recompute_daily:
+        daily_upserted = _rebuild_daily_from_details(
+            db,
+            user_id=user_id,
+            username=username,
+            metric_type=metric_type,
+            range_start=range_start,
+            range_end=range_end,
+            source_url=source_url,
+            scraped_at=now,
+        )
+    elif rebuild_daily:
         db.query(SinemalarModerationDailyRow).filter(
             SinemalarModerationDailyRow.user_id == user_id,
             SinemalarModerationDailyRow.metric_type == metric_type,
@@ -459,7 +519,7 @@ def ingest_backfill_payload(
                 range_end=range_end,
                 source_url=batch.get("source_url"),
                 scraped_at=scraped_at,
-                rebuild_daily=True,
+                recompute_daily=bool(batch.get("_recompute_daily", True)),
             )
             if res.get("ok"):
                 total_items += int(res.get("items_upserted") or 0)
