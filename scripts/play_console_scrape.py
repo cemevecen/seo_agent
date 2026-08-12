@@ -59,13 +59,19 @@ _load_dotenv()
 DEV_ID = (os.environ.get("PLAY_CONSOLE_DEVELOPER_ID") or "7587799419591090593").strip()
 APP_ID = (os.environ.get("PLAY_CONSOLE_APP_ID") or "4974102243818231576").strip()
 PACKAGE = (os.environ.get("PLAY_CONSOLE_PACKAGE") or "com.Doviz").strip()
-from backend.services.scrape_browser import google_profile_dir
+from backend.services.scrape_browser import (
+    google_blocks_automation_text,
+    google_profile_dir,
+    normalize_nav_url,
+)
 
 PROFILE_DIR = google_profile_dir()
 BASE_APP = f"https://play.google.com/console/u/0/developers/{DEV_ID}/app/{APP_ID}"
-DASHBOARD_URL = (
-    os.environ.get("PLAY_CONSOLE_DASHBOARD_URL") or f"{BASE_APP}/app-dashboard"
-).strip()
+_DEFAULT_DASHBOARD = f"{BASE_APP}/app-dashboard"
+DASHBOARD_URL = normalize_nav_url(
+    os.environ.get("PLAY_CONSOLE_DASHBOARD_URL") or _DEFAULT_DASHBOARD,
+    fallback=_DEFAULT_DASHBOARD,
+)
 REVIEWS_URL = (
     os.environ.get("PLAY_CONSOLE_REVIEWS_URL") or f"{BASE_APP}/user-feedback/reviews"
 ).strip()
@@ -703,43 +709,31 @@ def _release_context(pw, context) -> None:
 
 
 def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
-    """Headed browser — kullanıcı cemevecen@nokta.com ile giriş yapar."""
-    pw, context = _launch_context(headed=True)
-    try:
-        page = context.pages[0] if context.pages else context.new_page()
-        page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=120_000)
-        print(
-            f"Tarayıcıda giriş yap (cemevecen@nokta.com). "
-            f"Dashboard açılınca beklemeye gerek yok — {timeout_sec}s içinde otomatik kapanır.",
-            flush=True,
-        )
-        deadline = time.time() + max(60, timeout_sec)
-        while time.time() < deadline:
-            url = page.url or ""
-            title = ""
-            try:
-                title = page.title() or ""
-            except Exception:
-                pass
-            if "play.google.com/console" in url and "accounts.google.com" not in url:
-                # Cookie’lerin diske yazılması için biraz bekle
-                time.sleep(5)
-                try:
-                    page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=60_000)
-                    time.sleep(2)
-                except Exception:
-                    pass
-                print(f"Login OK · {url}", flush=True)
-                return {"ok": True, "url": url, "title": title, "profile": str(PROFILE_DIR)}
-            time.sleep(2)
-        return {
-            "ok": False,
-            "message": "Login zaman aşımı — tekrar --login dene",
-            "url": page.url,
-            "profile": str(PROFILE_DIR),
-        }
-    finally:
-        _release_context(pw, context)
+    """Gerçek Firefox.app — Google Playwright otomasyonunu 'güvenli değil' diye reddeder."""
+    from backend.services.scrape_browser import launch_system_firefox_login
+
+    print(
+        "Play Console girişi gerçek Firefox.app ile açılıyor "
+        "(Playwright penceresinde Google girişi çalışmaz).\n"
+        "E-postayı adres çubuğuna değil, Google formundaki alana yazın.",
+        flush=True,
+    )
+    return launch_system_firefox_login(
+        PROFILE_DIR,
+        DASHBOARD_URL,
+        timeout_sec=max(120, timeout_sec),
+    )
+
+
+def _system_firefox_relogin(*, timeout_sec: int = 900) -> dict[str, Any]:
+    from backend.services.scrape_browser import launch_system_firefox_login
+
+    print(
+        "Google 'güvenli değil' dedi — Playwright penceresi kapatılıyor, "
+        "gerçek Firefox.app ile giriş açılıyor.",
+        flush=True,
+    )
+    return launch_system_firefox_login(PROFILE_DIR, DASHBOARD_URL, timeout_sec=timeout_sec)
 
 
 def _attach_network_capture(page, bag: list[dict[str, Any]]) -> None:
@@ -2633,10 +2627,17 @@ def _wait_until_console(page, *, timeout_sec: int = 600) -> bool:
         if not need and "play.google.com/console" in (url or ""):
             time.sleep(2)
             return True
+        try:
+            body = page.inner_text("body")[:2000]
+        except Exception:
+            body = ""
+        if google_blocks_automation_text(body):
+            return False
         if not printed:
             print(
-                "Play oturumu yok — açılan Chromium’da cemevecen@nokta.com ile giriş yap. "
-                f"Dashboard gelince devam ({timeout_sec}s).",
+                "Play oturumu yok — bu pencerede Google girişi çalışmayabilir. "
+                "Önce: .venv/bin/python scripts/play_console_scrape.py --login "
+                f"(gerçek Firefox, {timeout_sec}s).",
                 flush=True,
             )
             printed = True
@@ -4240,19 +4241,34 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                     "rating_summary": {},
                     "raw_network": [],
                 }
-            # Tarayıcıyı kapatma — kullanıcı giriş yapsın
-            if not _wait_until_console(page, timeout_sec=600):
-                return {
-                    "ok": False,
-                    "needs_login": True,
-                    "message": "Login zaman aşımı — tekrar dene",
-                    "url": page.url if page else url,
-                    "metrics": [],
-                    "reviews": [],
-                    "rating_summary": {},
-                    "raw_network": [],
-                }
-            # Dashboard’a tekrar bas
+            try:
+                body = page.inner_text("body")[:2000]
+            except Exception:
+                body = ""
+            blocked = google_blocks_automation_text(body)
+            waited = False if blocked else _wait_until_console(page, timeout_sec=120)
+            if blocked or not waited:
+                _release_context(pw, context)
+                pw = context = None
+                if not _system_firefox_relogin().get("ok"):
+                    return {
+                        "ok": False,
+                        "needs_login": True,
+                        "message": (
+                            "Play login gerekli — "
+                            ".venv/bin/python scripts/play_console_scrape.py --login "
+                            "(gerçek Firefox.app; Playwright penceresinde Google çalışmaz)"
+                        ),
+                        "url": url,
+                        "metrics": [],
+                        "reviews": [],
+                        "rating_summary": {},
+                        "raw_network": [],
+                    }
+                pw, context = _launch_context(headed=True)
+                _attach_network_capture_context(context, network)
+                page = context.pages[0] if context.pages else context.new_page()
+                _attach_network_capture(page, network)
             page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=120_000)
             _settle(page, seconds=4.0)
 

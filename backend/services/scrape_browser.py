@@ -7,6 +7,7 @@ Chrome / Chromium / Chrome for Testing açılmaz. Google oturumu
 from __future__ import annotations
 
 import os
+import re
 import signal
 import subprocess
 import time
@@ -14,6 +15,38 @@ from pathlib import Path
 from typing import Any
 
 STATE_DIR = Path.home() / ".seo-agent"
+
+_NAV_URL_BAD_PREFIX = re.compile(r"^[a-z0-9._+-]+(?=https?://)", re.I)
+
+
+def normalize_nav_url(raw: str, *, fallback: str = "") -> str:
+    """Geçersiz önekleri temizle (örn. cemhttps:// → https://)."""
+    u = (raw or "").strip()
+    if not u:
+        fb = (fallback or "").strip()
+        if not fb:
+            raise ValueError("nav url empty")
+        return normalize_nav_url(fb)
+    u = _NAV_URL_BAD_PREFIX.sub("", u)
+    if u.startswith("//"):
+        return "https:" + u
+    if not re.match(r"https?://", u, re.I):
+        u = "https://" + u.lstrip("/")
+    return u
+
+
+def google_blocks_automation_text(body: str) -> bool:
+    low = (body or "")[:4000].lower()
+    needles = (
+        "may not be secure",
+        "couldn't sign you in",
+        "couldn’t sign you in",
+        "güvenli olmayabilir",
+        "güvenli değil",
+        "oturum açmanız mümkün değil",
+        "this browser or app",
+    )
+    return any(n in low for n in needles)
 
 _BROWSER_MARKERS = (
     "chrome",
