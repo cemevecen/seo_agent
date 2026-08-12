@@ -5113,6 +5113,40 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         misfire_grace_time=3600,
     )
 
+    def _run_ad_revenue_targets_prefetch() -> None:
+        try:
+            from backend.services.revenue_targets_sheet import prefetch_revenue_targets
+
+            result = prefetch_revenue_targets(force=True)
+            logging.getLogger(__name__).info(
+                "Ad revenue targets prefetch: ok=%s rows=%s fallback=%s",
+                result.get("ok"),
+                result.get("rows"),
+                result.get("using_fallback"),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).warning("Ad revenue targets prefetch: %s", exc)
+
+    # /ad-virgul aylık hedef KPI — her gece 05:00 ve öğlen 13:00 (TR)
+    scheduler.add_job(
+        _run_ad_revenue_targets_prefetch,
+        trigger=_NtAlertCron(hour=5, minute=0),
+        id="ad-revenue-targets-prefetch-05",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+    scheduler.add_job(
+        _run_ad_revenue_targets_prefetch,
+        trigger=_NtAlertCron(hour=13, minute=0),
+        id="ad-revenue-targets-prefetch-13",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+
     def _run_notification_sheet_sync() -> None:
         try:
             from backend.services.notification_analytics_store import sync_notification_analytics

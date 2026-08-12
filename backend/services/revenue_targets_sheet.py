@@ -2,27 +2,33 @@
 
 from __future__ import annotations
 
+import calendar
 import csv
 import io
 import logging
 import re
 import time
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from backend.services.backlink_csv import fetch_public_sheet_csv
 from backend.services.market_sheets_sync import _norm_header, _parse_tr_number
 
 logger = logging.getLogger(__name__)
+_TR = ZoneInfo("Europe/Istanbul")
 
-# Güncel tablo (herkese açık görüntüleyici).
+# Ad target KPI kaynağı (gid=244461752 — satır 26/27 Doviz & Sinemalar).
 REVENUE_TARGETS_SHEET_URL = (
+    "https://docs.google.com/spreadsheets/d/1ITl0rUlLylTspsztMtaaFGEdvT_gINoUHDPodspEa5Y/edit?gid=244461752#gid=244461752"
+)
+# Önceki herkese açık tablolar (erişim yoksa yedek).
+REVENUE_TARGETS_SHEET_URL_FALLBACK = (
     "https://docs.google.com/spreadsheets/d/11IWNTk3mjjX0N-4LO03wyeSPkLoW4jagc2Prcs9ifcY/edit?gid=0#gid=0"
 )
-# Eski herkese açık yedek.
-REVENUE_TARGETS_SHEET_URL_FALLBACK = (
+REVENUE_TARGETS_SHEET_URL_FALLBACK_2 = (
     "https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit#gid=0"
 )
-# Geriye dönük isim (fetch sırası: primary → fallback).
 REVENUE_TARGETS_SHEET_URL_PENDING = REVENUE_TARGETS_SHEET_URL
 
 _CACHE: dict[str, Any] | None = None
@@ -48,6 +54,10 @@ _TR_MONTHS: dict[str, int] = {
     "aralik": 12,
     "aralık": 12,
 }
+
+
+def _today_tr() -> date:
+    return datetime.now(_TR).date()
 
 
 def _parse_pct(raw: str | None) -> float | None:
@@ -160,6 +170,7 @@ def parse_revenue_targets_csv(csv_text: str) -> list[dict[str, Any]]:
                 "tamamlama_orani": _parse_pct(cells[5]),
                 "gunluk_kazanc": _parse_tr_money(cells[6]),
                 "kalan": _parse_tr_money(cells[7]),
+                "sheet_row": i + 1,
             }
         )
 
@@ -183,8 +194,11 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
         if cached is not None:
             return cached
 
-    # Önce güncel sheet; kapalıysa eski yedek tabloya düş.
-    urls = [REVENUE_TARGETS_SHEET_URL, REVENUE_TARGETS_SHEET_URL_FALLBACK]
+    urls = [
+        REVENUE_TARGETS_SHEET_URL,
+        REVENUE_TARGETS_SHEET_URL_FALLBACK,
+        REVENUE_TARGETS_SHEET_URL_FALLBACK_2,
+    ]
     last_err: Exception | None = None
     csv_text = ""
     used_url = REVENUE_TARGETS_SHEET_URL
@@ -206,9 +220,9 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
     warning = None
     if used_url != REVENUE_TARGETS_SHEET_URL and primary_error:
         warning = (
-            "Güncel Google Sheet okunamadı (paylaşım kapalı). "
-            "Yedek tablo gösteriliyor — Temmuz/Ağustos gibi yeni satırlar eksik olabilir. "
-            "Sheet’te: Paylaş → Bağlantısı olan herkes → Görüntüleyici."
+            "Primary ad-target sheet is private or unreachable. "
+            "Showing fallback table — share the sheet with the GA4 service account "
+            "(viewer) or set link sharing to Anyone with the link → Viewer."
         )
     _CACHE = {
         "ts": time.monotonic(),
@@ -216,8 +230,156 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
         "source_url": used_url,
         "warning": warning,
         "pending_error": primary_error,
+        "fetched_at": datetime.now(_TR).isoformat(),
     }
     return rows
+
+
+def _completion_pct(row: dict[str, Any]) -> float | None:
+    raw = row.get("tamamlama_orani")
+    if raw is not None:
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            pass
+    hedef = row.get("hedef")
+    kazanc = row.get("kazanc")
+    try:
+        h = float(hedef) if hedef is not None else 0.0
+        k = float(kazanc) if kazanc is not None else None
+    except (TypeError, ValueError):
+        return None
+    if h > 0 and k is not None:
+        return (k / h) * 100.0
+    return None
+
+
+def enrich_month_target_kpi(
+    row: dict[str, Any] | None,
+    *,
+    today: date | None = None,
+) -> dict[str, Any] | None:
+    """Aylık hedef satırından panel KPI alanları (EN etiketler UI’da)."""
+    if not row:
+        return None
+    today = today or _today_tr()
+    year = int(row.get("year") or 0)
+    month = int(row.get("month") or 0)
+    if year < 2000 or month < 1 or month > 12:
+        return None
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    in_month = today.year == year and today.month == month
+    day_of_month = today.day if in_month else days_in_month
+    days_elapsed = max(1, min(day_of_month, days_in_month))
+    days_remaining = max(0, days_in_month - day_of_month + (1 if in_month else 0))
+    if not in_month and today > date(year, month, days_in_month):
+        days_remaining = 0
+    if not in_month and today < date(year, month, 1):
+        days_elapsed = 0
+        days_remaining = days_in_month
+
+    hedef = row.get("hedef")
+    hedef_80 = row.get("hedef_80")
+    kazanc = row.get("kazanc")
+    try:
+        h = float(hedef) if hedef is not None else None
+    except (TypeError, ValueError):
+        h = None
+    try:
+        h80 = float(hedef_80) if hedef_80 is not None else (h * 0.8 if h is not None else None)
+    except (TypeError, ValueError):
+        h80 = h * 0.8 if h is not None else None
+    try:
+        k = float(kazanc) if kazanc is not None else None
+    except (TypeError, ValueError):
+        k = None
+
+    kalan = row.get("kalan")
+    try:
+        rem = float(kalan) if kalan is not None else None
+    except (TypeError, ValueError):
+        rem = None
+    if rem is None and h is not None and k is not None:
+        rem = max(0.0, h - k)
+
+    gunluk = row.get("gunluk_kazanc")
+    try:
+        daily = float(gunluk) if gunluk is not None else None
+    except (TypeError, ValueError):
+        daily = None
+    if daily is not None and k is not None and abs(daily - k) < 0.5:
+        daily = None
+    if daily is None and k is not None and days_elapsed > 0:
+        daily = k / days_elapsed
+
+    needed_daily = None
+    if rem is not None and days_remaining > 0:
+        needed_daily = rem / days_remaining
+    elif rem is not None and days_remaining == 0:
+        needed_daily = 0.0
+
+    pct100 = _completion_pct(row)
+    pct80 = None
+    if h80 and h80 > 0 and k is not None:
+        pct80 = (k / h80) * 100.0
+
+    return {
+        "project": row.get("project"),
+        "project_label": row.get("project_label"),
+        "period": row.get("period"),
+        "period_key": row.get("period_key"),
+        "year": year,
+        "month": month,
+        "sheet_row": row.get("sheet_row"),
+        "in_current_month": in_month,
+        "days_in_month": days_in_month,
+        "days_elapsed": days_elapsed,
+        "days_remaining": days_remaining,
+        "target_100": h,
+        "target_80": h80,
+        "achieved": k,
+        "remaining": rem,
+        "completion_pct_100": pct100,
+        "completion_pct_80": pct80,
+        "daily_avg": daily,
+        "needed_daily": needed_daily,
+    }
+
+
+def current_month_target_rows(
+    all_rows: list[dict[str, Any]],
+    *,
+    today: date | None = None,
+) -> dict[str, dict[str, Any] | None]:
+    """İçinde bulunulan ayın Doviz / Sinemalar satırlarını seç (yoksa en son ay)."""
+    today = today or _today_tr()
+    want_key = f"{today.year:04d}-{today.month:02d}"
+    by_proj: dict[str, dict[str, Any]] = {}
+    for r in all_rows:
+        pk = str(r.get("project") or "")
+        if pk not in ("doviz", "sinemalar"):
+            continue
+        if str(r.get("period_key") or "") == want_key:
+            by_proj[pk] = r
+    if len(by_proj) < 2:
+        # Ay henüz sheet’te yoksa en güncel period_key
+        latest = ""
+        for r in all_rows:
+            pk = str(r.get("period_key") or "")
+            if pk > latest:
+                latest = pk
+        if latest:
+            for r in all_rows:
+                if str(r.get("period_key") or "") != latest:
+                    continue
+                proj = str(r.get("project") or "")
+                if proj in ("doviz", "sinemalar") and proj not in by_proj:
+                    by_proj[proj] = r
+    return {
+        "doviz": enrich_month_target_kpi(by_proj.get("doviz"), today=today),
+        "sinemalar": enrich_month_target_kpi(by_proj.get("sinemalar"), today=today),
+    }
 
 
 def revenue_targets_payload(
@@ -229,10 +391,12 @@ def revenue_targets_payload(
     all_rows = fetch_revenue_targets_rows(force=force)
     source_url = REVENUE_TARGETS_SHEET_URL
     warning = None
+    fetched_at = None
     if _CACHE:
         if _CACHE.get("source_url"):
             source_url = str(_CACHE["source_url"])
         warning = _CACHE.get("warning")
+        fetched_at = _CACHE.get("fetched_at")
     rows = all_rows
     pk = (project or "").strip().lower()
     if pk in ("doviz", "sinemalar"):
@@ -241,15 +405,35 @@ def revenue_targets_payload(
         rows = [r for r in rows if int(r.get("year") or 0) == int(year)]
 
     years = sorted({int(r["year"]) for r in all_rows if r.get("year")})
+    current = current_month_target_rows(all_rows)
     return {
         "source_url": source_url,
         "source_pending_url": REVENUE_TARGETS_SHEET_URL,
         "using_fallback": source_url != REVENUE_TARGETS_SHEET_URL,
         "warning": warning,
+        "fetched_at": fetched_at,
         "rows": rows,
         "years": years,
+        "current_month": current,
         "projects": [
             {"key": "doviz", "label": "Doviz.com"},
             {"key": "sinemalar", "label": "Sinemalar.com"},
         ],
     }
+
+
+def prefetch_revenue_targets(*, force: bool = True) -> dict[str, Any]:
+    """05:00 / 13:00 cron — sheet cache yenile."""
+    try:
+        payload = revenue_targets_payload(force=force)
+        return {
+            "ok": True,
+            "rows": len(payload.get("rows") or []),
+            "source_url": payload.get("source_url"),
+            "using_fallback": payload.get("using_fallback"),
+            "warning": payload.get("warning"),
+            "fetched_at": payload.get("fetched_at"),
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("revenue targets prefetch failed: %s", exc)
+        return {"ok": False, "error": str(exc)[:240]}

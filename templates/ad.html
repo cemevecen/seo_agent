@@ -375,11 +375,85 @@
     width: 100%;
     max-width: 100%;
   }
-  .mz-page .mz-project-total-card {
+  .mz-page .mz-project-total-head {
     display: flex;
-    flex-direction: column;
-    min-width: 0;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
   }
+  .mz-page .mz-project-total-main {
+    min-width: min(100%, 12rem);
+    flex: 1 1 10rem;
+  }
+  .mz-page .mz-ad-target-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));
+    gap: 0.4rem;
+    flex: 2 1 18rem;
+    min-width: min(100%, 16rem);
+    max-width: 100%;
+  }
+  @media (min-width: 768px) {
+    .mz-page .mz-ad-target-kpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      max-width: min(100%, 42rem);
+    }
+  }
+  .mz-page .mz-ad-target-kpi {
+    min-width: 0;
+    border-radius: 0.65rem;
+    border: 1px solid rgb(204 251 241);
+    background: linear-gradient(180deg, rgb(240 253 250), rgb(255 255 255));
+    padding: 0.45rem 0.55rem;
+  }
+  html.dark .mz-page .mz-ad-target-kpi,
+  html.midnight .mz-page .mz-ad-target-kpi {
+    border-color: rgb(19 78 74);
+    background: linear-gradient(180deg, rgb(4 47 46 / 0.55), rgb(24 24 27));
+  }
+  .mz-page .mz-ad-target-kpi-label {
+    display: block;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(13 148 136);
+    line-height: 1.25;
+  }
+  html.dark .mz-page .mz-ad-target-kpi-label,
+  html.midnight .mz-page .mz-ad-target-kpi-label {
+    color: rgb(94 234 212);
+  }
+  .mz-page .mz-ad-target-kpi-value {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: clamp(0.72rem, 0.65rem + 0.35vw, 0.95rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: rgb(15 23 42);
+    line-height: 1.2;
+    word-break: break-word;
+  }
+  html.dark .mz-page .mz-ad-target-kpi-value,
+  html.midnight .mz-page .mz-ad-target-kpi-value {
+    color: rgb(244 244 245);
+  }
+  .mz-page .mz-ad-target-kpi-sub {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.5625rem;
+    line-height: 1.3;
+    color: rgb(100 116 139);
+  }
+  html.dark .mz-page .mz-ad-target-kpi-sub,
+  html.midnight .mz-page .mz-ad-target-kpi-sub {
+    color: rgb(161 161 170);
+  }
+  .mz-page .mz-ad-target-kpis.is-empty {
+    display: none;
+  }
+
   /* display:flex yukarıda Tailwind .hidden'ı eziyordu — bilinçli gizleme */
   .mz-page .mz-project-total-card.is-mz-hidden,
   .mz-page .mz-project-total-card[hidden] {
@@ -1112,15 +1186,25 @@
       </div>
       <div id="mz-project-totals" class="is-single" aria-label="Project total revenue">
         <div data-mz-project="doviz" class="mz-project-total-card rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black sm:p-4">
-          <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Doviz total revenue</p>
-          <p id="mz-total-doviz" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100 sm:text-xl">—</p>
-          <p id="mz-total-doviz-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
+          <div class="mz-project-total-head">
+            <div class="mz-project-total-main">
+              <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Doviz total revenue</p>
+              <p id="mz-total-doviz" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100 sm:text-xl">—</p>
+              <p id="mz-total-doviz-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
+            </div>
+            <div id="mz-ad-target-kpis-doviz" class="mz-ad-target-kpis is-empty" aria-label="Doviz ad target KPIs"></div>
+          </div>
           <div id="mz-total-doviz-break" class="mz-project-break mz-project-break--wide" aria-label="Doviz breakdown"></div>
         </div>
         <div data-mz-project="sinemalar" class="mz-project-total-card is-mz-hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black sm:p-4" hidden aria-hidden="true">
-          <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sinemalar total revenue</p>
-          <p id="mz-total-sinemalar" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100 sm:text-xl">—</p>
-          <p id="mz-total-sinemalar-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
+          <div class="mz-project-total-head">
+            <div class="mz-project-total-main">
+              <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sinemalar total revenue</p>
+              <p id="mz-total-sinemalar" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100 sm:text-xl">—</p>
+              <p id="mz-total-sinemalar-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
+            </div>
+            <div id="mz-ad-target-kpis-sinemalar" class="mz-ad-target-kpis is-empty" aria-label="Sinemalar ad target KPIs"></div>
+          </div>
           <div id="mz-total-sinemalar-break" class="mz-project-break mz-project-break--wide" aria-label="Sinemalar breakdown"></div>
         </div>
       </div>
@@ -2922,6 +3006,118 @@
       "aria-label",
       project === "sinemalar" ? "Sinemalar total revenue" : "Doviz total revenue"
     );
+    renderAdTargetKpisForActiveProject();
+  }
+
+  var mzAdTargetMonthCache = null;
+
+  function mzAdTargetFmtMoney(v) {
+    if (v == null || isNaN(Number(v))) return "—";
+    return fmt(Number(v), 0);
+  }
+
+  function mzAdTargetFmtPct(v) {
+    if (v == null || isNaN(Number(v))) return "—";
+    return fmt(Number(v), 1) + "%";
+  }
+
+  function mzAdTargetEsc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderAdTargetKpiCards(el, kpi) {
+    if (!el) return;
+    if (!kpi) {
+      el.classList.add("is-empty");
+      el.innerHTML = "";
+      return;
+    }
+    var period = kpi.period || kpi.period_key || "This month";
+    var cards = [
+      {
+        label: "Target 80–100%",
+        value: mzAdTargetFmtPct(kpi.completion_pct_100),
+        sub:
+          "80%: " +
+          mzAdTargetFmtMoney(kpi.target_80) +
+          " · 100%: " +
+          mzAdTargetFmtMoney(kpi.target_100) +
+          (kpi.completion_pct_80 != null ? " · vs 80%: " + mzAdTargetFmtPct(kpi.completion_pct_80) : ""),
+      },
+      {
+        label: "Achieved / remaining",
+        value: mzAdTargetFmtMoney(kpi.achieved),
+        sub: "Remaining " + mzAdTargetFmtMoney(kpi.remaining) + " · " + mzAdTargetEsc(period),
+      },
+      {
+        label: "Daily average (MTD)",
+        value: mzAdTargetFmtMoney(kpi.daily_avg),
+        sub: "Days elapsed " + (kpi.days_elapsed != null ? kpi.days_elapsed : "—"),
+      },
+      {
+        label: "Needed daily left",
+        value: mzAdTargetFmtMoney(kpi.needed_daily),
+        sub: "Days left " + (kpi.days_remaining != null ? kpi.days_remaining : "—"),
+      },
+    ];
+    el.classList.remove("is-empty");
+    el.innerHTML = cards
+      .map(function (c) {
+        return (
+          '<div class="mz-ad-target-kpi">' +
+          '<span class="mz-ad-target-kpi-label">' +
+          mzAdTargetEsc(c.label) +
+          "</span>" +
+          '<span class="mz-ad-target-kpi-value">' +
+          mzAdTargetEsc(c.value) +
+          "</span>" +
+          '<span class="mz-ad-target-kpi-sub">' +
+          c.sub +
+          "</span>" +
+          "</div>"
+        );
+      })
+      .join("");
+  }
+
+  function renderAdTargetKpisForActiveProject() {
+    var project = mzActiveProjectKey();
+    var month = mzAdTargetMonthCache || {};
+    renderAdTargetKpiCards(
+      document.getElementById("mz-ad-target-kpis-doviz"),
+      project === "doviz" ? month.doviz : null
+    );
+    renderAdTargetKpiCards(
+      document.getElementById("mz-ad-target-kpis-sinemalar"),
+      project === "sinemalar" ? month.sinemalar : null
+    );
+  }
+
+  function loadAdTargetMonthKpis(force) {
+    var url =
+      (window.MZ_AD_MODE === "virgul"
+        ? "/api/virgul-analytics/revenue-targets"
+        : "/api/mz-analytics/revenue-targets") + (force ? "?force=1" : "");
+    return fetch(url, { credentials: "same-origin" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        mzAdTargetMonthCache = (data && data.current_month) || null;
+        if (data && data.rows) {
+          mzTargetsCache = data;
+        }
+        renderAdTargetKpisForActiveProject();
+        return data;
+      })
+      .catch(function () {
+        /* soft-fail: totals still work without sheet */
+      });
   }
 
   var MZ_PROJECT_AREA_ORDER = {
@@ -13404,6 +13600,8 @@
           throw new Error(detail || ("Could not load targets table (" + r.status + ")"));
         }
         mzTargetsCache = await r.json();
+        mzAdTargetMonthCache = (mzTargetsCache && mzTargetsCache.current_month) || null;
+        renderAdTargetKpisForActiveProject();
         if (mzTargetsCache && mzTargetsCache.source_pending_url) {
           var src = document.getElementById("mz-targets-source-link");
           if (src) src.setAttribute("href", mzTargetsCache.source_pending_url);
