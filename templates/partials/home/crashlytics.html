@@ -507,7 +507,6 @@
       {% for m in items %}
         <div class="home-sf-metric home-sf-metric--android" title="{{ m.title }}{% if m.period_label %} · {{ m.period_label }}{% endif %}">
           <p class="home-sf-metric__title">{{ m.title }}</p>
-          {% if m.sub %}<div class="home-sf-metric__ver-chip">{{ m.sub|safe }}</div>{% endif %}
           <p class="home-sf-metric__value{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
           <div class="home-sf-metric__chips">
             {% if m.delta_fmt %}<span class="home-sf-metric__chip">{{ m.delta_fmt }}</span>{% endif %}
@@ -798,7 +797,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=31';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=34';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;

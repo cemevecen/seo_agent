@@ -2403,7 +2403,7 @@
 
     {# Mobil mağaza / Firebase — odak projesine göre (doviz | sinemalar) #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=31" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=34" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              data-home-app-product="doviz"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -2477,7 +2477,7 @@
     var product = mode === 'sinemalar' ? 'sinemalar' : 'doviz';
     var sec = board.querySelector('[data-home-container="crashlytics"]');
     if (!sec) return;
-    var url = '/api/home/crashlytics?product=' + product + '&v=31';
+    var url = '/api/home/crashlytics?product=' + product + '&v=34';
     var root = null;
     try { root = sec.querySelector('[data-home-crash-root]'); } catch (e) {}
     var loaded = (root && root.getAttribute('data-home-app-product')) || '';
