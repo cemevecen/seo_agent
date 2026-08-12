@@ -3036,22 +3036,24 @@
       el.innerHTML = "";
       return;
     }
-    var period = kpi.period || kpi.period_key || "This month";
+    var rem80 = kpi.remaining_80;
+    var rem100 = kpi.remaining_100 != null ? kpi.remaining_100 : kpi.remaining;
+    var need80 = kpi.needed_daily_80;
+    var need100 = kpi.needed_daily_100 != null ? kpi.needed_daily_100 : kpi.needed_daily;
     var cards = [
       {
         label: "Target 80–100%",
         value: mzAdTargetFmtPct(kpi.completion_pct_100),
-        sub:
-          "80%: " +
-          mzAdTargetFmtMoney(kpi.target_80) +
-          " · 100%: " +
-          mzAdTargetFmtMoney(kpi.target_100) +
-          (kpi.completion_pct_80 != null ? " · vs 80%: " + mzAdTargetFmtPct(kpi.completion_pct_80) : ""),
+        sub: "",
       },
       {
         label: "Achieved / remaining",
         value: mzAdTargetFmtMoney(kpi.achieved),
-        sub: "Remaining " + mzAdTargetFmtMoney(kpi.remaining) + " · " + mzAdTargetEsc(period),
+        sub:
+          "%80: " +
+          mzAdTargetFmtMoney(rem80) +
+          " · %100: " +
+          mzAdTargetFmtMoney(rem100),
       },
       {
         label: "Daily average (MTD)",
@@ -3060,8 +3062,12 @@
       },
       {
         label: "Needed daily left",
-        value: mzAdTargetFmtMoney(kpi.needed_daily),
-        sub: "Days left " + (kpi.days_remaining != null ? kpi.days_remaining : "—"),
+        value:
+          "%80: " +
+          mzAdTargetFmtMoney(need80) +
+          " · %100: " +
+          mzAdTargetFmtMoney(need100),
+        sub: "",
       },
     ];
     el.classList.remove("is-empty");
@@ -3075,9 +3081,9 @@
           '<span class="mz-ad-target-kpi-value">' +
           mzAdTargetEsc(c.value) +
           "</span>" +
-          '<span class="mz-ad-target-kpi-sub">' +
-          c.sub +
-          "</span>" +
+          (c.sub
+            ? '<span class="mz-ad-target-kpi-sub">' + c.sub + "</span>"
+            : "") +
           "</div>"
         );
       })

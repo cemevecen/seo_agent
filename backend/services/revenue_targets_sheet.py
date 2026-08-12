@@ -451,6 +451,15 @@ def enrich_month_target_kpi(
     elif rem is not None and days_remaining == 0:
         needed_daily = 0.0
 
+    rem80 = None
+    if h80 is not None and k is not None:
+        rem80 = max(0.0, h80 - k)
+    needed_daily_80 = None
+    if rem80 is not None and days_remaining > 0:
+        needed_daily_80 = rem80 / days_remaining
+    elif rem80 is not None and days_remaining == 0:
+        needed_daily_80 = 0.0
+
     pct100 = _completion_pct(row)
     pct80 = None
     if h80 and h80 > 0 and k is not None:
@@ -472,10 +481,14 @@ def enrich_month_target_kpi(
         "target_80": h80,
         "achieved": k,
         "remaining": rem,
+        "remaining_80": rem80,
+        "remaining_100": rem,
         "completion_pct_100": pct100,
         "completion_pct_80": pct80,
         "daily_avg": daily,
         "needed_daily": needed_daily,
+        "needed_daily_80": needed_daily_80,
+        "needed_daily_100": needed_daily,
     }
 
 

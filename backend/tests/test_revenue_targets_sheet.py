@@ -113,3 +113,6 @@ def test_enrich_month_target_kpi_needed_daily():
     assert kpi["days_remaining"] == 20  # 31-12+1
     assert abs(kpi["needed_daily"] - (210_000 / 20)) < 0.01
     assert kpi["completion_pct_80"] is not None
+    assert abs(kpi["remaining_80"] - max(0.0, 248_000.0 - 100_000.0)) < 0.01
+    assert abs(kpi["needed_daily_80"] - ((248_000.0 - 100_000.0) / 20)) < 0.01
+    assert abs(kpi["needed_daily_100"] - (210_000 / 20)) < 0.01
