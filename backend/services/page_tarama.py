@@ -457,7 +457,7 @@ def _public_run_locked(run: dict[str, Any], now: float) -> dict[str, Any]:
     ]
     done = sum(1 for j in jobs if j.get("status") in ("ok", "fail"))
     total = max(1, len(jobs))
-    pct = int(round(100 * done / total)) if not active else int(round(100 * (done + 0.35) / total))
+    pct = int(round(100 * done / total))
     age = None if _bridge_seen_at is None else max(0.0, now - _bridge_seen_at)
     failed = sum(1 for j in jobs if j.get("status") == "fail")
     running = bool(active)
@@ -478,7 +478,7 @@ def _public_run_locked(run: dict[str, Any], now: float) -> dict[str, Any]:
         "id": run["id"],
         "page": run["page"],
         "running": running,
-        "pct": min(99, pct) if running else (100 if done else 0),
+        "pct": pct if not running else min(99, pct) if done < total else 100,
         "jobs": jobs,
         "bridge_seen_at": _bridge_seen_at,
         "bridge_age_sec": age,

@@ -57,6 +57,8 @@
 
   var running = false;
   var lastQuota = { remaining: 3, retry_after_sec: 0, limit: 3, message: "", unlimited: false };
+  var activeSteps = [];
+  var activeTotal = 0;
 
   function pageKey() {
     var el = document.querySelector("[data-page-tarama]");
@@ -82,11 +84,31 @@
     if (closeBtn && show) closeBtn.classList.add("hidden");
   }
 
-  function setBar(pct) {
+  function setProgress(done, total) {
+    total = Math.max(0, Number(total) || 0);
+    done = Math.max(0, Math.min(total || 0, Number(done) || 0));
     var bar = $("pc-page-tarama-bar");
     var pctEl = $("pc-page-tarama-pct");
-    if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + "%";
-    if (pctEl) pctEl.textContent = Math.round(pct) + "%";
+    var pct = total > 0 ? Math.round((100 * done) / total) : 0;
+    if (bar) {
+      bar.style.width = pct + "%";
+      bar.setAttribute("aria-valuenow", String(done));
+      bar.setAttribute("aria-valuemax", String(Math.max(1, total)));
+      bar.setAttribute("aria-valuetext", done + "/" + total);
+    }
+    if (pctEl) pctEl.textContent = total > 0 ? done + "/" + total : "0/0";
+  }
+
+  function countFinished(steps) {
+    var n = 0;
+    (steps || []).forEach(function (s) {
+      if (s && (s.status === "ok" || s.status === "fail")) n += 1;
+    });
+    return n;
+  }
+
+  function syncProgressFromSteps(steps, total) {
+    setProgress(countFinished(steps), total != null ? total : (steps || []).length);
   }
 
   function setStatus(text) {
@@ -264,7 +286,9 @@
     running = false;
     setButtonsBusy(false);
     setStatus(summary);
-    setBar(100);
+    if (activeTotal > 0) {
+      setProgress(countFinished(activeSteps), activeTotal);
+    }
     var closeBtn = $("pc-page-tarama-close");
     if (closeBtn) closeBtn.classList.toggle("hidden", !!ok);
     setTimeout(function () {
@@ -321,7 +345,10 @@
     if (!runId) return Promise.reject(new Error("No queue id"));
     applyServerJobs(initial.jobs, steps, jobs);
     setStatus(initial.message || "Waiting for Mac bridge…");
-    setBar(initial.pct || 4);
+    syncProgressFromSteps(steps, jobs.length);
+    if (typeof initial.done === "number" && typeof initial.total === "number") {
+      setProgress(initial.done, initial.total);
+    }
     var started = Date.now();
     function poll() {
       if (Date.now() - started > 3 * 60 * 60 * 1000) {
@@ -340,7 +367,11 @@
         }
         var d = p.data || {};
         applyServerJobs(d.jobs, steps, jobs);
-        setBar(typeof d.pct === "number" ? d.pct : 10);
+        if (typeof d.done === "number" && typeof d.total === "number") {
+          setProgress(d.done, d.total);
+        } else {
+          syncProgressFromSteps(steps, jobs.length);
+        }
         setStatus(d.message || "Scanning…");
         if (d.running) return sleep(1200).then(poll);
         return d;
@@ -358,6 +389,7 @@
     });
     function next() {
       if (i >= jobs.length) {
+        syncProgressFromSteps(steps, jobs.length);
         var someOk = failed < jobs.length;
         finish(someOk, failed === 0
           ? "All scans finished — refreshing page…"
@@ -379,7 +411,7 @@
       var job = jobs[i];
       steps[i].status = "run";
       renderSteps(steps, i);
-      setBar(((i + 0.15) / jobs.length) * 100);
+      syncProgressFromSteps(steps, jobs.length);
       setStatus(job.label + " running…");
       runJob(job)
         .then(function (data) {
@@ -397,7 +429,7 @@
         })
         .then(function () {
           renderSteps(steps, i);
-          setBar(((i + 1) / jobs.length) * 100);
+          syncProgressFromSteps(steps, jobs.length);
           i += 1;
           next();
         });
@@ -423,8 +455,10 @@
     var steps = jobs.map(function (j) {
       return { label: j.label, status: "wait", detail: "" };
     });
+    activeSteps = steps;
+    activeTotal = jobs.length;
     renderSteps(steps, 0);
-    setBar(2);
+    setProgress(0, jobs.length);
     setStatus("Starting…");
 
     var bridgeJobs = jobs.filter(function (j) { return j.kind === "bridge"; });

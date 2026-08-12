@@ -2766,7 +2766,7 @@ def _page_tarama_claim_loop() -> None:
                         "run_id": job.get("run_id"),
                         "job_id": job_id,
                         "ok": False,
-                        "message": "Bilinmeyen iş",
+                        "message": "Unknown job",
                     }
                 )
                 continue
@@ -2776,7 +2776,7 @@ def _page_tarama_claim_loop() -> None:
                     "run_id": job.get("run_id"),
                     "job_id": job_id,
                     "running": True,
-                    "message": "Mac tarama çalışıyor",
+                    "message": "Mac scan running",
                 }
             )
             result = None
@@ -2796,7 +2796,7 @@ def _page_tarama_claim_loop() -> None:
                     "run_id": job.get("run_id"),
                     "job_id": job_id,
                     "ok": bool(result.get("ok")),
-                    "message": str(result.get("message") or ("Tamam" if result.get("ok") else "Hata"))[:180],
+                    "message": str(result.get("message") or ("Done" if result.get("ok") else "Error"))[:180],
                 }
             )
         except Exception:

@@ -2398,7 +2398,7 @@
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=3" defer></script>
   <script src="/static/js/app-refresh.js?v=2" defer></script>
-  <script src="/static/js/page_tarama.js?v=7" defer></script>
+  <script src="/static/js/page_tarama.js?v=8" defer></script>
   <script src="/static/js/market_chart_overlay.js?v=25" defer></script>
   <script src="/static/js/app_empower_overlay.js?v=10" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
@@ -2415,10 +2415,10 @@
     <div class="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
       <div class="mb-4 flex items-center justify-between gap-3">
         <h3 id="pc-page-tarama-title" class="text-sm font-bold text-slate-800 dark:text-zinc-200">Scanning page</h3>
-        <span id="pc-page-tarama-pct" class="text-xs font-bold text-sky-600 dark:text-sky-400">0%</span>
+        <span id="pc-page-tarama-pct" class="text-xs font-bold tabular-nums text-sky-600 dark:text-sky-400">0/0</span>
       </div>
       <div class="mb-4 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
-        <div id="pc-page-tarama-bar" class="h-full rounded-full bg-sky-500 transition-all duration-300" style="width:0%"></div>
+        <div id="pc-page-tarama-bar" class="h-full rounded-full bg-sky-500 transition-all duration-300" style="width:0%" role="progressbar" aria-valuemin="0" aria-valuenow="0" aria-valuemax="0" aria-valuetext="0/0"></div>
       </div>
       <p id="pc-page-tarama-status" class="mb-3 truncate text-xs text-slate-500 dark:text-zinc-400">Starting…</p>
       <div id="pc-page-tarama-steps" class="max-h-48 space-y-1 overflow-y-auto text-[11px] text-slate-600 dark:text-zinc-400"></div>

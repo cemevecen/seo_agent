@@ -68,6 +68,8 @@ def test_all_listed_pages_have_slot_and_key():
 
 def test_js_uses_railway_queue_on_remote():
     js = (ROOT / "static/js/page_tarama.js").read_text(encoding="utf-8")
+    assert "setProgress" in js
+    assert "done + \"/\" + total" in js or 'done + "/" + total' in js
     assert "Update page" in js
     assert "/api/page-tarama/manual" in js
     assert "/api/page-tarama/quota" in js
