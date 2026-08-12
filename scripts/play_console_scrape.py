@@ -4177,6 +4177,24 @@ def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[
         primary_anr.get("issue_detail_count") or 0
     )
     print(f"    · issue_details total={detail_n} by_version={list(by_version.keys())}", flush=True)
+
+    anr_latest_7d: dict[str, Any] | None = None
+    if primary_vc:
+        print(f"  · vitals ANR 7d versionCode={primary_vc} …", flush=True)
+        anr_7d = _scrape_vitals_crashes_error_type(
+            page,
+            error_type="ANR",
+            days=7,
+            headed=headed,
+            version_code=str(primary_vc),
+            scrape_details=False,
+        )
+        anr_latest_7d = {
+            "days": 7,
+            "version_code": str(primary_vc),
+            "block": anr_7d,
+        }
+
     return {
         "version": 3,
         "days": days,
@@ -4188,6 +4206,7 @@ def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[
         "metrics_overview": overview,
         "metrics_overview_by_version": overview_by_version,
         "version_name_map": version_name_map,
+        "anr_latest_7d": anr_latest_7d,
         "scraped_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 

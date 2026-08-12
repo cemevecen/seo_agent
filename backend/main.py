@@ -8951,6 +8951,19 @@ def _home_sf_fb_tip(*, period_label: str, version: str = "") -> str:
     return " · ".join(b for b in bits if b)
 
 
+def _home_sf_period_label_tr(raw: str | None) -> str:
+    p = str(raw or "").strip().lower()
+    if p in ("24h", "24s"):
+        return "son 24 saat"
+    if p in ("7d", "7g"):
+        return "son 7 gün"
+    if p in ("28d", "28g"):
+        return "son 28 gün"
+    if p in ("30d", "30g"):
+        return "son 30 gün"
+    return p or ""
+
+
 def _home_sf_play_all_sub() -> str:
     return _home_sf_a(
         "Play Console",
@@ -8959,12 +8972,15 @@ def _home_sf_play_all_sub() -> str:
     )
 
 
-def _home_sf_play_latest_sub(*, version_label: str, version_code: str | None) -> str:
+def _home_sf_play_latest_sub(
+    *, version_label: str, version_code: str | None, period: str = "7d"
+) -> str:
     from urllib.parse import quote
 
+    days = 7 if str(period or "").strip().lower() in ("7d", "7g", "") else 28
     href = (
         f"{_PLAY_CONSOLE_APP}/vitals/crashes"
-        f"?errorType=ANR&isUserPerceived=true&days=28"
+        f"?errorType=ANR&isUserPerceived=true&days={days}"
     )
     if version_code:
         href += f"&versionCode={quote(str(version_code))}"
@@ -9105,11 +9121,15 @@ def _home_store_firebase_card_from_tabs(
         _home_sf_metric(
             "ANR-free",
             play_latest.get("anr_free_fmt"),
-            sub=_home_sf_play_latest_sub(version_label=lv_label, version_code=play_code),
+            sub=_home_sf_play_latest_sub(
+                version_label=lv_label,
+                version_code=play_code,
+                period="7d",
+            ),
             pct=play_latest.get("anr_free_pct"),
             extra=str(play_latest.get("extra") or ""),
-            period_label="son 28 gün",
-            tip_context=f"son 28 gün · {lv_label}",
+            period_label="son 7 gün",
+            tip_context=f"son 7 gün · {lv_label}",
             rate_fmt=play_latest.get("anr_rate_fmt"),
             source_label="Play",
         ),
@@ -9134,8 +9154,8 @@ def _home_store_firebase_card_from_tabs(
                 else fall_label
             ),
             pct=latest.get("anr_free_pct"),
-            period_label="son 28 gün",
-            tip_context=f"son 28 gün · {fall_label}",
+            period_label="son 7 gün",
+            tip_context=f"son 7 gün · {fall_label}",
             rate_fmt=latest.get("anr_rate_fmt"),
             source_label="Firebase",
         )

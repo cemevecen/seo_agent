@@ -6648,8 +6648,10 @@
     return PA_PLAY_APP + "/vitals/metrics/overview";
   }
 
-  function paPlayAnrUrl(versionCode) {
-    var u = PA_PLAY_APP + "/vitals/crashes?errorType=ANR&isUserPerceived=true&days=28";
+  function paPlayAnrUrl(versionCode, days) {
+    var d = parseInt(days, 10);
+    if (!d || d < 1) d = 28;
+    var u = PA_PLAY_APP + "/vitals/crashes?errorType=ANR&isUserPerceived=true&days=" + d;
     if (versionCode) u += "&versionCode=" + encodeURIComponent(String(versionCode));
     return u;
   }
@@ -6864,15 +6866,17 @@
       });
     var latestAnr = (playLatest && playLatest.anr_free_fmt) || null;
     var latestAnrPct = playLatest && playLatest.anr_free_pct != null ? playLatest.anr_free_pct : null;
+    var playLatestPeriod = "7d";
+    var playLatestDays = 7;
     var playRepSubHtml;
     if (latestAnr) {
       playRepSubHtml =
-        paSfLink("Play Console", paPlayAnrUrl(playCode), {
+        paSfLink("Play Console", paPlayAnrUrl(playCode, playLatestDays), {
           external: true,
           title: "Play Console · ANR vitals"
         }) +
         " · " +
-        paSfLink(lvLabel, paPlayAnrUrl(playCode), {
+        paSfLink(lvLabel, paPlayAnrUrl(playCode, playLatestDays), {
           external: true,
           title: "Play Console · ANR · " + lvLabel
         });
@@ -6923,7 +6927,7 @@
       subHtml: staleSub && !paSfHas(latestAnr) ? "" : playRepSubHtml,
       value: latestAnr || "—",
       extra: (playLatest && playLatest.extra) || "",
-      tipContext: paSfPeriodLabel("28d") + (lvLabel ? (" · " + lvLabel) : ""),
+      tipContext: paSfPeriodLabel(playLatestPeriod) + (lvLabel ? (" · " + lvLabel) : ""),
       toneClass: stabilityToneClass(latestAnrPct),
       showRefresh: !paSfHas(latestAnr)
     }));

@@ -406,6 +406,76 @@ def fetch_anr_rate(package_name: str, *, days: int = 30) -> dict[str, Any] | Non
         return None
 
 
+def fetch_version_anr_rate_7d(
+    package_name: str,
+    *,
+    version_code: str | None = None,
+) -> dict[str, Any] | None:
+    """En yeni (veya verilen) sürüm için 7g user-perceived ANR oranı (yüzde puanı)."""
+    svc = _reporting_service()
+    if svc is None:
+        return None
+    fresh_a = _get_metric_freshness(svc, kind="anr", package_name=package_name)
+    start_a, _, end_a = _clip_reporting_range(None, None, freshness_exclusive=fresh_a)
+    if not end_a:
+        return None
+    if start_a:
+        start_a = max(start_a, end_a - timedelta(days=7))
+    else:
+        start_a = end_a - timedelta(days=7)
+    name = f"apps/{package_name}/anrRateMetricSet"
+    metric_keys = [
+        "userPerceivedAnrRate7dUserWeighted",
+        "anrRate7dUserWeighted",
+        "userPerceivedAnrRate",
+        "anrRate",
+    ]
+    body = {
+        "timelineSpec": {
+            "aggregationPeriod": "DAILY",
+            "startTime": _date_to_gp(start_a),
+            "endTime": _date_to_gp(end_a),
+        },
+        "dimensions": ["versionCode"],
+        "metrics": metric_keys + ["distinctUsers"],
+        "pageSize": 100000,
+    }
+    try:
+        resp = svc.vitals().anrrate().query(name=name, body=body).execute()
+    except Exception as exc:
+        logger.warning("GP ANR 7d version rate (%s): %s", package_name, exc)
+        return None
+    by_ver = _latest_metric_by_version(resp, metric_keys)
+    if not by_ver:
+        return None
+    code = str(version_code or "").strip() or None
+    if not code:
+        numeric = [c for c in by_ver if str(c).isdigit()]
+        code = max(numeric, key=lambda x: int(x)) if numeric else next(iter(by_ver), None)
+    if not code or code not in by_ver:
+        return None
+    ar = by_ver[code] or {}
+    rate = ar.get("rate")
+    if rate is None:
+        return None
+    try:
+        rate_f = float(rate)
+    except (TypeError, ValueError):
+        return None
+    anr_rate_pct = (
+        round(rate_f * 100, 4) if rate_f <= 1 else round(rate_f, 4)
+    )
+    name_map = fetch_android_version_name_map(package_name) or {}
+    return {
+        "version_code": code,
+        "version_name": name_map.get(code) or None,
+        "anr_rate_pct": anr_rate_pct,
+        "users": ar.get("users"),
+        "as_of": ar.get("date"),
+        "period": "7d",
+    }
+
+
 def _rate_to_free_pct(rate_fraction: float | None) -> float | None:
     """Reporting API oranı (0–1 kesir) → crash/ANR-free yüzde."""
     if rate_fraction is None:

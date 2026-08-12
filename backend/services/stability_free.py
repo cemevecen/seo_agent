@@ -388,6 +388,7 @@ def _anr_item_from_rate(
     name: str | None,
     anr_rate: float,
     source: str,
+    period: str = "28d",
 ) -> dict[str, Any]:
     anr_free = _free_from_rate_pct(anr_rate)
     anr_rate_fmt = _fmt_rate_pct(anr_rate)
@@ -400,7 +401,7 @@ def _anr_item_from_rate(
         "anr_rate_fmt": anr_rate_fmt,
         "extra": _compact_extra(anr_rate_fmt) or None,
         "label": f"v{name}" if name else (f"code {code}" if code else "latest"),
-        "period": "28d",
+        "period": period,
         "source": source,
         "crash_free_pct": None,
         "crash_free_fmt": None,
@@ -484,8 +485,72 @@ def play_versions_anr_from_vitals(vitals: dict[str, Any] | None) -> list[dict[st
     return items
 
 
-def play_latest_anr_from_vitals(vitals: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Son sürüm ANR-free — vitals tarama (overview-by-version, ANR kartları)."""
+def _play_latest_anr_7d_from_vitals(
+    vitals: dict[str, Any],
+    *,
+    code: str | None,
+    name: str | None,
+) -> dict[str, Any] | None:
+    raw7 = vitals.get("anr_latest_7d")
+    if not isinstance(raw7, dict):
+        return None
+    vc7 = str(raw7.get("version_code") or "").strip() or None
+    block7 = raw7.get("block") if isinstance(raw7.get("block"), dict) else None
+    if not block7:
+        return None
+    if code and vc7 and str(vc7) != str(code):
+        return None
+    rate, _ = _anr_rate_from_crash_block(block7)
+    if rate is None:
+        return None
+    use_code = vc7 or code
+    return _anr_item_from_rate(
+        code=use_code,
+        name=name,
+        anr_rate=rate,
+        source="play_vitals_scrape_7d",
+        period="7d",
+    )
+
+
+def _play_latest_anr_7d_from_gp(
+    package_name: str,
+    *,
+    code: str | None,
+    name: str | None,
+) -> dict[str, Any] | None:
+    pkg = (package_name or "").strip()
+    if not pkg:
+        return None
+    try:
+        from backend.services.gp_client import fetch_version_anr_rate_7d
+
+        row = fetch_version_anr_rate_7d(pkg, version_code=code)
+    except Exception:
+        logger.debug("GP 7d ANR fallback failed", exc_info=True)
+        return None
+    if not isinstance(row, dict):
+        return None
+    rate = row.get("anr_rate_pct")
+    if rate is None:
+        return None
+    try:
+        rate_f = float(rate)
+    except (TypeError, ValueError):
+        return None
+    use_code = str(row.get("version_code") or code or "").strip() or code
+    use_name = str(row.get("version_name") or name or "").strip() or name
+    return _anr_item_from_rate(
+        code=use_code,
+        name=use_name,
+        anr_rate=rate_f,
+        source="reporting_api_7d",
+        period="7d",
+    )
+
+
+def _play_latest_anr_28d_from_vitals(vitals: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Son sürüm ANR-free — vitals tarama (overview-by-version, ANR kartları, 28g)."""
     vitals = vitals if isinstance(vitals, dict) else {}
     items = play_versions_anr_from_vitals(vitals)
     code, name = _latest_version_from_vitals(vitals)
@@ -516,6 +581,7 @@ def play_latest_anr_from_vitals(vitals: dict[str, Any] | None) -> dict[str, Any]
                     name=name,
                     anr_rate=rate,
                     source="play_vitals_scrape",
+                    period="28d",
                 )
         return None
     if items:
@@ -534,7 +600,25 @@ def play_latest_anr_from_vitals(vitals: dict[str, Any] | None) -> dict[str, Any]
         name=name,
         anr_rate=rate,
         source="play_vitals_scrape",
+        period="28d",
     )
+
+
+def play_latest_anr_from_vitals(
+    vitals: dict[str, Any] | None,
+    *,
+    package_name: str | None = None,
+) -> dict[str, Any] | None:
+    """Son sürüm ANR-free — önce 7g vitals/API, yoksa 28g vitals."""
+    vitals = vitals if isinstance(vitals, dict) else {}
+    code, name = _latest_version_from_vitals(vitals)
+    item7 = _play_latest_anr_7d_from_vitals(vitals, code=code, name=name)
+    if item7:
+        return item7
+    item7 = _play_latest_anr_7d_from_gp(package_name or "", code=code, name=name)
+    if item7:
+        return item7
+    return _play_latest_anr_28d_from_vitals(vitals)
 
 
 def free_rates_from_vitals_overview(vitals: dict[str, Any] | None) -> dict[str, Any]:
@@ -623,7 +707,7 @@ def build_stability_free_payload(
 ) -> dict[str, Any]:
     """Android/iOS stability kartları — CF: S-Firebase; ANR: Play."""
     vitals = vitals if isinstance(vitals, dict) else {}
-    cache_key = f"{product_id}:{package_name}:sf:v5-play-anr-vitals"
+    cache_key = f"{product_id}:{package_name}:sf:v6-play-anr-7d"
     if force_refresh:
         invalidate_stability_cache(product_id)
     else:
@@ -664,7 +748,7 @@ def _build_stability_free_payload_locked(
     }
 
     play_versions = play_versions_anr_from_vitals(vitals)
-    play_latest = play_latest_anr_from_vitals(vitals)
+    play_latest = play_latest_anr_from_vitals(vitals, package_name=package_name)
     if play_latest:
         play_latest = _strip_play_latest_crash_free(play_latest)
     play_err = None

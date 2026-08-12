@@ -594,6 +594,19 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
         if not row.get("name") and row["code"] in vmap:
             row["name"] = vmap[row["code"]][:40]
 
+    anr_latest_7d_out: dict[str, Any] | None = None
+    raw_anr_7d = d.get("anr_latest_7d")
+    if isinstance(raw_anr_7d, dict):
+        block_in = raw_anr_7d.get("block") if isinstance(raw_anr_7d.get("block"), dict) else {}
+        norm_block, _, _ = _normalize_vitals_crashes_map({"ANR": block_in})
+        anr_block = norm_block.get("ANR") if isinstance(norm_block.get("ANR"), dict) else {}
+        if anr_block.get("summary_rate") or anr_block.get("categories"):
+            anr_latest_7d_out = {
+                "days": 7,
+                "version_code": str(raw_anr_7d.get("version_code") or "")[:32] or None,
+                "block": anr_block,
+            }
+
     return {
         "version": int(d.get("version") or 1),
         "days": int(d.get("days") or 28),
@@ -603,6 +616,7 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
         "is_user_perceived": bool(d.get("is_user_perceived", True)),
         "scraped_at": str(d.get("scraped_at") or "")[:40] or None,
         "error": str(d.get("error") or "")[:240] or None,
+        "anr_latest_7d": anr_latest_7d_out,
         "crashes": crashes_out,
         "metrics_overview": {
             "url": str(ov_in.get("url") or "")[:512],

@@ -71,6 +71,26 @@ def test_latest_anr_prefers_version_overview():
     assert latest["anr_free_pct"] == 99.97
     assert latest["anr_free_fmt"] == "99,97%"
     assert latest["source"] == "play_vitals_overview"
+    assert latest["period"] == "28d"
+
+
+def test_latest_anr_prefers_7d_scrape_block():
+    vitals = dict(_vitals_fixture())
+    vitals["anr_latest_7d"] = {
+        "days": 7,
+        "version_code": "290",
+        "block": {
+            "summary_rate": "%0,02",
+            "categories": [],
+        },
+    }
+    latest = play_latest_anr_from_vitals(vitals)
+    assert latest is not None
+    assert latest["version_code"] == "290"
+    assert latest["anr_rate_pct"] == 0.02
+    assert latest["anr_free_fmt"] == "99,98%"
+    assert latest["period"] == "7d"
+    assert latest["source"] == "play_vitals_scrape_7d"
 
 
 def test_latest_anr_from_summary_rate_cards():

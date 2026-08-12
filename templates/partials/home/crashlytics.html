@@ -260,7 +260,7 @@
     border: 1px solid rgb(226 232 240);
     background: rgb(248 250 252 / 0.85);
     padding: 0.625rem 0.65rem 0.7rem;
-    min-height: calc(5.25rem + 16px);
+    min-height: calc(6rem + 16px);
     container-type: inline-size;
     container-name: home-sf-metric;
   }
@@ -798,7 +798,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=30';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=31';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
