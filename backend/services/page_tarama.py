@@ -129,8 +129,35 @@ def _fmt_retry(sec: int) -> str:
     return f"{hours} h"
 
 
-def _quota_locked(now: float) -> dict[str, Any]:
+def is_manual_limit_exempt(email: str | None = None, *, unlimited: bool = False) -> bool:
+    """Owner/admin hesaplar (cemevecen@gmail.com, cemevecen@nokta.com) saatte 3 sınırına tabi değil."""
+    if unlimited:
+        return True
+    em = (email or "").strip()
+    if not em:
+        return False
+    try:
+        from backend.services.panel_visitor_alerts import is_owner_email
+
+        return bool(is_owner_email(em))
+    except Exception:  # noqa: BLE001
+        from backend.services.app_member_auth import ADMIN_MEMBER_EMAILS
+
+        return em.lower() in {e.lower() for e in ADMIN_MEMBER_EMAILS}
+
+
+def _quota_locked(now: float, *, unlimited: bool = False) -> dict[str, Any]:
     _prune_manual_locked(now)
+    if unlimited:
+        return {
+            "limit": 0,
+            "used": 0,
+            "remaining": 999,
+            "window_sec": int(MANUAL_WINDOW_SEC),
+            "retry_after_sec": 0,
+            "unlimited": True,
+            "message": "Unlimited Update page (admin)",
+        }
     used = len(_manual_starts)
     remaining = max(0, MANUAL_LIMIT - used)
     retry_after = 0
@@ -150,29 +177,38 @@ def _quota_locked(now: float) -> dict[str, Any]:
         "remaining": remaining,
         "window_sec": int(MANUAL_WINDOW_SEC),
         "retry_after_sec": retry_after,
+        "unlimited": False,
         "message": message,
     }
 
 
-def quota_status() -> dict[str, Any]:
+def quota_status(*, email: str | None = None, unlimited: bool = False) -> dict[str, Any]:
+    exempt = is_manual_limit_exempt(email, unlimited=unlimited)
     now = time.time()
     with _state():
-        return _quota_locked(now)
+        return _quota_locked(now, unlimited=exempt)
 
 
-def begin_manual(page: str) -> dict[str, Any]:
-    """Kotadan 1 hak düş; köprü işi varsa kuyruğa yaz."""
+def begin_manual(
+    page: str,
+    *,
+    email: str | None = None,
+    unlimited: bool = False,
+) -> dict[str, Any]:
+    """Kotadan 1 hak düş; köprü işi varsa kuyruğa yaz. Admin e-postaları kotadan muaf."""
     page = (page or "").strip()
     if page not in PAGES:
         raise ValueError("unknown_page")
     specs = [s for s in jobs_for(page) if s.get("kind") == "bridge"]
+    exempt = is_manual_limit_exempt(email, unlimited=unlimited)
     now = time.time()
     with _state():
-        quota = _quota_locked(now)
-        if quota["remaining"] <= 0:
-            raise ManualLimitExceeded(quota)
-        _manual_starts.append(now)
-        quota = _quota_locked(now)
+        quota = _quota_locked(now, unlimited=exempt)
+        if not exempt:
+            if quota["remaining"] <= 0:
+                raise ManualLimitExceeded(quota)
+            _manual_starts.append(now)
+            quota = _quota_locked(now, unlimited=False)
         run = None
         if specs:
             run_id = uuid.uuid4().hex[:16]

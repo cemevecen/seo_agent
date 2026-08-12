@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -35,6 +35,29 @@ def _check_ingest_token(
         raise HTTPException(status_code=401, detail="Geçersiz ingest token.")
 
 
+def _caller_quota_context(request: Request) -> tuple[str | None, bool]:
+    """(email, unlimited). Owner/admin e-postaları + panel admin şifre oturumu limitsiz."""
+    email: str | None = None
+    try:
+        from backend.services import app_member_auth as ama
+
+        member = ama.member_from_request(request)
+        if member and member.email:
+            email = str(member.email).strip()
+    except Exception:  # noqa: BLE001
+        member = None
+    if store.is_manual_limit_exempt(email):
+        return email, True
+    try:
+        from backend.main import _is_admin_authenticated
+
+        if _is_admin_authenticated(request):
+            return email, True
+    except Exception:  # noqa: BLE001
+        pass
+    return email, False
+
+
 class StartBody(BaseModel):
     page: str = ""
 
@@ -52,13 +75,13 @@ def _manual_limit_response(exc: store.ManualLimitExceeded) -> JSONResponse:
     retry = int(quota.get("retry_after_sec") or 1)
     return JSONResponse(
         status_code=429,
-        content={"ok": False, "detail": quota.get("message") or "Saatte en fazla 3 tarama", **quota},
+        content={"ok": False, "detail": quota.get("message") or "At most 3 scans per hour", **quota},
         headers={"Retry-After": str(max(1, retry))},
     )
 
 
-def _begin_payload(page: str) -> dict[str, Any]:
-    out = store.begin_manual(page)
+def _begin_payload(page: str, *, email: str | None = None, unlimited: bool = False) -> dict[str, Any]:
+    out = store.begin_manual(page, email=email, unlimited=unlimited)
     payload: dict[str, Any] = {"ok": True, **(out.get("quota") or {})}
     run = out.get("run")
     if run:
@@ -72,30 +95,33 @@ def catalog() -> dict[str, Any]:
 
 
 @router.get("/page-tarama/quota")
-def quota() -> dict[str, Any]:
-    return {"ok": True, **store.quota_status()}
+def quota(request: Request) -> dict[str, Any]:
+    email, unlimited = _caller_quota_context(request)
+    return {"ok": True, **store.quota_status(email=email, unlimited=unlimited)}
 
 
 @router.post("/page-tarama/manual")
-def manual(body: StartBody) -> Any:
+def manual(body: StartBody, request: Request) -> Any:
     page = (body.page or "").strip()
     if page not in store.PAGES:
         raise HTTPException(status_code=400, detail="Bilinmeyen sayfa")
+    email, unlimited = _caller_quota_context(request)
     try:
-        return _begin_payload(page)
+        return _begin_payload(page, email=email, unlimited=unlimited)
     except store.ManualLimitExceeded as exc:
         return _manual_limit_response(exc)
 
 
 @router.post("/page-tarama/start")
-def start(body: StartBody) -> Any:
+def start(body: StartBody, request: Request) -> Any:
     page = (body.page or "").strip()
     if page not in store.PAGES:
         raise HTTPException(status_code=400, detail="Bilinmeyen sayfa")
     if not any(s.get("kind") == "bridge" for s in store.jobs_for(page)):
         raise HTTPException(status_code=400, detail="no_bridge_jobs")
+    email, unlimited = _caller_quota_context(request)
     try:
-        return _begin_payload(page)
+        return _begin_payload(page, email=email, unlimited=unlimited)
     except store.ManualLimitExceeded as exc:
         return _manual_limit_response(exc)
 

@@ -153,6 +153,32 @@ def test_manual_limit_three_per_hour():
         assert "3" in (exc.quota["message"] or "")
 
 
+def test_manual_limit_exempt_for_admin_emails():
+    store.reset_for_tests()
+    for _ in range(store.MANUAL_LIMIT):
+        store.begin_manual("news")
+    # Shared pool exhausted for normal users…
+    try:
+        store.begin_manual("android")
+        assert False, "member should still be blocked"
+    except store.ManualLimitExceeded:
+        pass
+    # …but owner/admin emails stay unlimited and do not consume the pool.
+    for email in ("cemevecen@gmail.com", "cemevecen@nokta.com"):
+        q = store.quota_status(email=email)
+        assert q["unlimited"] is True
+        assert q["remaining"] > 0
+        out = store.begin_manual("news", email=email)
+        assert out["run"] is not None
+        assert out["quota"]["unlimited"] is True
+    # Exhausted pool still blocks non-admins after admin runs.
+    try:
+        store.begin_manual("ios")
+        assert False, "non-admin should remain blocked"
+    except store.ManualLimitExceeded:
+        pass
+
+
 def test_manual_limit_expires_after_window():
     store.reset_for_tests()
     store.begin_manual("news")

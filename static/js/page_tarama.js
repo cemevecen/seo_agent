@@ -56,7 +56,7 @@
   };
 
   var running = false;
-  var lastQuota = { remaining: 3, retry_after_sec: 0, limit: 3, message: "" };
+  var lastQuota = { remaining: 3, retry_after_sec: 0, limit: 3, message: "", unlimited: false };
 
   function pageKey() {
     var el = document.querySelector("[data-page-tarama]");
@@ -234,14 +234,17 @@
     if (typeof data.retry_after_sec === "number") lastQuota.retry_after_sec = data.retry_after_sec;
     if (typeof data.limit === "number") lastQuota.limit = data.limit;
     if (data.message) lastQuota.message = data.message;
+    lastQuota.unlimited = !!data.unlimited;
     var left = lastQuota.remaining;
-    var title = left <= 0
+    var title = lastQuota.unlimited
+      ? (lastQuota.message || "Unlimited Update page (admin)")
+      : left <= 0
       ? (lastQuota.message || ("At most " + lastQuota.limit + " scans per hour. "
         + fmtRetry(lastQuota.retry_after_sec) + " later."))
       : ("Run scans on this page · " + lastQuota.limit + " per hour, " + left + " left");
     document.querySelectorAll(".js-page-tarama").forEach(function (btn) {
       btn.title = title;
-      if (!running) btn.disabled = left <= 0;
+      if (!running) btn.disabled = !lastQuota.unlimited && left <= 0;
     });
   }
 
@@ -253,7 +256,7 @@
 
   function setButtonsBusy(busy) {
     document.querySelectorAll(".js-page-tarama").forEach(function (btn) {
-      btn.disabled = !!busy || lastQuota.remaining <= 0;
+      btn.disabled = !!busy || (!lastQuota.unlimited && lastQuota.remaining <= 0);
     });
   }
 
@@ -410,7 +413,7 @@
       return;
     }
     if (running) return;
-    if (lastQuota.remaining <= 0) {
+    if (!lastQuota.unlimited && lastQuota.remaining <= 0) {
       window.alert(lastQuota.message || "At most 3 Update page runs per hour.");
       return;
     }
