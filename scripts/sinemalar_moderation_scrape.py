@@ -386,6 +386,7 @@ def main() -> int:
         help="2026 backfill — en fazla N gün (meta cursor; bridge varsayılanı)",
     )
     parser.add_argument("--from-date", help="Backfill chunk başlangıcı YYYY-MM-DD (cursor override)")
+    parser.add_argument("--max-days", type=int, default=0, help="Backfill'de en fazla N gün (test)")
     parser.add_argument("--incremental", choices=("yesterday", "today"), help="Tek gün incremental")
     parser.add_argument("--date", help="Tek gün YYYY-MM-DD")
     parser.add_argument("--ingest", action="store_true", help="Railway ingest")
