@@ -55,12 +55,20 @@ INGEST_URL = (
 SERP_KEYWORDS = (
     "gram gümüş",
     "usd",
+    "altın",
+    "altın fiyatları",
     "çeyrek altın",
+    "gram altın",
+    "gram altın fiyatı",
     "harem çeyrek altın",
     "harem gram altın",
     "harem dolar",
     "kapalıçarşı gram altın",
-    "gram altın",
+    "bitcoin",
+    "kripto para",
+    "brent petrol",
+    "benzin fiyatı",
+    "motorin fiyatı",
 )
 SERP_PAGES = 4
 

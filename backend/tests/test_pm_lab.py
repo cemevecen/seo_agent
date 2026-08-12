@@ -264,7 +264,7 @@ def test_template_has_no_photos_and_js_shell():
     js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
     assert "renderSerp" in js
     assert "renderCompetitors" in js
-    assert 'concat(["Total"])' in js
+    assert '["Total"].concat' in js
     assert "missRank" in js
     assert "function tabs(labels, onPick, active)" in js
     assert "rankDeltaHtml" in js
@@ -692,7 +692,9 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com rank:" in js
-    assert "pm_lab.js?v=37" in html
+    assert "pm_lab.js?v=38" in html
+    assert "SERP_TAB_KEYWORDS" in js
+    assert '["Total"].concat' in js
     assert "pingBridge" in js
     assert "127.0.0.1:18765/sync-pm-lab" in js
     assert "position:static" in html

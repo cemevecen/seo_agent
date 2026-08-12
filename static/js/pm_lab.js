@@ -180,12 +180,51 @@
     return bar;
   }
 
+  var SERP_TAB_KEYWORDS = [
+    "gram gümüş",
+    "usd",
+    "altın",
+    "altın fiyatları",
+    "çeyrek altın",
+    "gram altın",
+    "gram altın fiyatı",
+    "harem çeyrek altın",
+    "harem gram altın",
+    "harem dolar",
+    "kapalıçarşı gram altın",
+    "bitcoin",
+    "kripto para",
+    "brent petrol",
+    "benzin fiyatı",
+    "motorin fiyatı",
+  ];
+
   function renderSerp(root, data) {
-    var kws = data.keywords || [];
-    if (!kws.length) {
+    var incoming = data.keywords || [];
+    if (!incoming.length && !(data.runs || []).length) {
       root.textContent = "No SERP scan yet.";
       return;
     }
+    var byName = {};
+    incoming.forEach(function (k) {
+      if (k && k.keyword) byName[String(k.keyword)] = k;
+    });
+    var kws = SERP_TAB_KEYWORDS.map(function (name) {
+      return (
+        byName[name] || {
+          keyword: name,
+          rows: [],
+          our_rank: null,
+          row_count: 0,
+          moves: { entered: 0, dropped: 0, up: 0, down: 0 },
+        }
+      );
+    });
+    incoming.forEach(function (k) {
+      if (k && k.keyword && SERP_TAB_KEYWORDS.indexOf(k.keyword) < 0) {
+        kws.push(k);
+      }
+    });
     var moves = (data.runs || []).slice(-1)[0];
     var head = document.createElement("div");
     head.className = "flex flex-wrap gap-1.5 mb-3";
@@ -340,7 +379,9 @@
       var note = document.createElement("p");
       note.className = "pml-note";
       note.textContent =
-        "Average = best rank across 8 queries. Missing from the first " +
+        "Average = best rank across " +
+        kws.length +
+        " queries. Missing from the first " +
         pages +
         " pages counts as " +
         missRank +
@@ -373,21 +414,21 @@
 
     function paint(idx) {
       stage.innerHTML = "";
-      if (idx >= kws.length) {
+      if (idx === 0) {
         paintTotal();
         return;
       }
-      paintKeyword(kws[idx]);
+      paintKeyword(kws[idx - 1]);
     }
     root.appendChild(head);
     root.appendChild(spark);
     root.appendChild(
       tabs(
-        kws
-          .map(function (k) {
+        ["Total"].concat(
+          kws.map(function (k) {
             return k.keyword;
           })
-          .concat(["Total"]),
+        ),
         paint
       )
     );
