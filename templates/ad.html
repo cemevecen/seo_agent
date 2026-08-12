@@ -1025,13 +1025,10 @@
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="min-w-0">
         <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">{% if ad_mode == 'virgul' %}Monetization · Virgül{% else %}Monetization Analytics{% endif %}</h1>
-        <p id="mz-sheets-sync-hint" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">{% if ad_mode == 'virgul' %}Source: Virgül panel (6 sid) · last sync: —{% else %}Source: Google Sheets · last sync: —{% endif %}</p>
-        <div
-          id="mz-range-label"
-          class="mt-1.5 hidden max-w-full rounded-md border border-slate-200/90 bg-slate-50 px-2 py-0.5 text-[10px] font-medium leading-snug text-slate-600 dark:border-zinc-700 dark:bg-zinc-950/70 dark:text-zinc-400 midnight:border-zinc-800 midnight:bg-black/50"
-          role="status"
-          aria-live="polite"
-        ></div>
+        <div id="mz-header-meta" class="mz-header-meta mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] text-slate-500 dark:text-zinc-400">
+          <span id="mz-sheets-sync-hint">{% if ad_mode == 'virgul' %}last sync: —{% else %}Source: Google Sheets · last sync: —{% endif %}</span>
+          <span id="mz-range-label" class="min-w-0 font-medium text-slate-600 dark:text-zinc-300" role="status" aria-live="polite"></span>
+        </div>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <span data-page-tarama-slot></span>
@@ -11460,7 +11457,6 @@
     }
     var txt = parts.join(" · ");
     rangeLbl.textContent = txt;
-    rangeLbl.classList.toggle("hidden", !txt);
     rangeLbl.title = txt;
   }
 
@@ -12114,12 +12110,7 @@
     if (!status || !hint) return;
     var last = status.last_sync_at ? fmtMzSyncAt(status.last_sync_at) : "—";
     if (window.MZ_AD_MODE === "virgul") {
-      var n =
-        status.source_count ||
-        (Array.isArray(status.sources) && status.sources.length) ||
-        (window.MZ_VIRGUL_SOURCES && window.MZ_VIRGUL_SOURCES.length) ||
-        6;
-      hint.textContent = "Source: Virgül panel (" + n + " sid) · last sync: " + last;
+      hint.textContent = "last sync: " + last;
       return;
     }
     if (!status.last_sync_at) last = "none yet";
