@@ -1241,6 +1241,7 @@
         if (typeof window.__dnLoadStats === "function") window.__dnLoadStats(false);
       } else if (typeof Plotly !== "undefined") {
         try { window.dispatchEvent(new Event("resize")); } catch (_) {}
+        if (typeof window.__dnRerenderCharts === "function") window.__dnRerenderCharts();
       }
     }
   }
@@ -2507,10 +2508,17 @@
     return syncPeriodCardVisibility(period).hideWeekly;
   }
 
-  function renderCharts(data) {
-    if (typeof Plotly === "undefined") return;
-    var period = data.period || state.period || "last_7d";
-    var vis = syncPeriodCardVisibility(period);
+  function ensurePlotly(fn, attemptsLeft) {
+    if (typeof Plotly !== "undefined" && typeof Plotly.newPlot === "function") {
+      fn();
+      return;
+    }
+    var left = attemptsLeft == null ? 100 : attemptsLeft;
+    if (left <= 0) return;
+    setTimeout(function () { ensurePlotly(fn, left - 1); }, 50);
+  }
+
+  function renderHBarCharts(data) {
     var showCat = !state.category || state.category === "all";
     var catCard = $("dn-card-cat");
     if (catCard) catCard.classList.toggle("hidden", !showCat);
@@ -2541,8 +2549,14 @@
       empty: "Kelime yok",
       limit: kwLimit
     });
-
     requestAnimationFrame(syncPairCardHeights);
+  }
+
+  function renderPlotlyCharts(data, vis) {
+    if (typeof Plotly === "undefined" || typeof Plotly.newPlot !== "function") return;
+    if (!vis) {
+      vis = syncPeriodCardVisibility(data.period || state.period || "last_7d");
+    }
 
     if (!vis.hideDaySeries) {
       var days = data.by_day || [];
@@ -2628,6 +2642,13 @@
       { type: "bar", name: "Sourced", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.sourced; }), marker: { color: palO.blue }, hovertemplate: "%{x}<br>Sourced: %{y}<extra></extra>" }
     ], plotLayout({ barmode: "stack", margin: { t: 28, r: 16, b: 70, l: 40 }, xaxis: { tickangle: -20 } }), plotCfg());
     requestAnimationFrame(syncOwnVsTopDaysHeights);
+  }
+
+  function renderCharts(data) {
+    var period = data.period || state.period || "last_7d";
+    var vis = syncPeriodCardVisibility(period);
+    renderHBarCharts(data);
+    ensurePlotly(function () { renderPlotlyCharts(data, vis); });
   }
 
   function renderTables(data) {
@@ -3148,6 +3169,10 @@
     load(false, { reason: "Date range" });
   });
   window.__dnLoadStats = load;
+  window.__dnRerenderCharts = function () {
+    if (!state.data) return;
+    renderCharts(state.data);
+  };
   window.addEventListener("resize", function () {
     if (window.__dnResizeTimer) clearTimeout(window.__dnResizeTimer);
     window.__dnResizeTimer = setTimeout(function () {
