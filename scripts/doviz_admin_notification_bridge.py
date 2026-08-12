@@ -246,6 +246,8 @@ _gsc_cwv_progress: dict[str, Any] = {
     "phase": "idle",
     "site": "",
     "message": "",
+    "step": 0,
+    "total_steps": 8,
     "started_at": 0.0,
     "finished_at": 0.0,
 }
@@ -1489,11 +1491,13 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = 
         running=True,
         phase="scrape",
         site=site_key or "all",
+        step=0,
+        total_steps=8,
         message=f"GSC CWV tarama · {site_key or 'all'}",
         started_at=time.time(),
         finished_at=0.0,
     )
-    cmd = [sys.executable, str(script), "--sync", "--ingest", "--headed"]
+    cmd = [sys.executable, "-u", str(script), "--sync", "--ingest", "--headed"]
     if charts_only:
         cmd.append("--charts-only")
     if site_key:
@@ -1506,27 +1510,79 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = 
             or "https://projectcontrol.up.railway.app/api/gsc-cwv/ingest"
         ).strip(),
     )
+    env["PYTHONUNBUFFERED"] = "1"
     timeout_sec = int(os.environ.get("GSC_CWV_BRIDGE_TIMEOUT_SEC") or "7200")
+    lines: list[str] = []
+    step_guess = 0
+
+    def _bump(phase: str, message: str, step: int | None = None) -> None:
+        nonlocal step_guess
+        if step is not None:
+            step_guess = max(step_guess, step)
+        _set_gsc_cwv_progress(
+            running=True,
+            phase=phase,
+            site=site_key or "all",
+            step=step_guess,
+            total_steps=8,
+            message=message[:200],
+        )
+
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
             cwd=str(ROOT),
             env=env,
-            timeout=max(300, timeout_sec),
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,
         )
-    except subprocess.TimeoutExpired:
-        out = {
-            "ok": False,
-            "kind": "gsc_cwv",
-            "message": f"GSC CWV tarama zaman aşımı ({timeout_sec}s)",
-        }
-        _last_gsc_cwv_result = out
-        _set_gsc_cwv_progress(
-            running=False, phase="error", message=out["message"], finished_at=time.time()
-        )
-        return out
+        assert proc.stdout is not None
+        deadline = time.time() + max(300, timeout_sec)
+        while True:
+            if time.time() > deadline:
+                proc.kill()
+                try:
+                    proc.wait(timeout=15)
+                except Exception:
+                    pass
+                out = {
+                    "ok": False,
+                    "kind": "gsc_cwv",
+                    "message": f"GSC CWV tarama zaman aşımı ({timeout_sec}s)",
+                }
+                _last_gsc_cwv_result = out
+                _set_gsc_cwv_progress(
+                    running=False, phase="error", message=out["message"], finished_at=time.time()
+                )
+                return out
+            line = proc.stdout.readline()
+            if not line:
+                if proc.poll() is not None:
+                    break
+                time.sleep(0.05)
+                continue
+            s = line.rstrip()
+            if s:
+                lines.append(s)
+                print(s, flush=True)
+                low = s.lower()
+                if "login" in low or "oturum" in low:
+                    _bump("login", s, 1)
+                elif "overview chart" in low or "chart series" in low:
+                    _bump("charts", s, 3)
+                elif "tooltip" in low:
+                    _bump("tooltips", s, 4)
+                elif "amp" in low:
+                    _bump("amp", s, 5)
+                elif "ingest" in low:
+                    _bump("ingest", s, 7)
+                elif "cwv scrape" in low or "summary" in low or "issue " in low:
+                    _bump("scrape", s, 2)
+                else:
+                    _bump(_gsc_cwv_progress.get("phase") or "scrape", s)
+        returncode = proc.wait(timeout=30)
     except Exception as exc:  # noqa: BLE001
         out = {"ok": False, "kind": "gsc_cwv", "message": f"GSC CWV subprocess: {exc}"}
         _last_gsc_cwv_result = out
@@ -1535,14 +1591,9 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = 
         )
         return out
 
-    combined = "\n".join(
-        x for x in ((proc.stdout or ""), (proc.stderr or "")) if x
-    ).strip()
-    if combined:
-        for line in combined.splitlines()[-40:]:
-            print(line, flush=True)
+    combined = "\n".join(lines).strip()
     detail = ""
-    for line in reversed(combined.splitlines() if combined else []):
+    for line in reversed(lines):
         s = line.strip()
         if not s:
             continue
@@ -1558,16 +1609,21 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = 
         if "oturumu yok" in low or s.startswith("FAIL ") or "login" in low:
             detail = s[:240]
             break
-    if not detail and combined:
-        detail = combined.splitlines()[-1].strip()[:240]
+    if not detail and lines:
+        detail = lines[-1].strip()[:240]
 
-    if proc.returncode == 0:
+    if returncode == 0:
         out = {"ok": True, "kind": "gsc_cwv", "message": "GSC CWV tarama tamam", "site": site_key}
         _set_gsc_cwv_progress(
-            running=False, phase="done", message=out["message"], finished_at=time.time()
+            running=False,
+            phase="done",
+            step=8,
+            total_steps=8,
+            message=out["message"],
+            finished_at=time.time(),
         )
     else:
-        msg = f"GSC CWV tarama çıkış {proc.returncode}"
+        msg = f"GSC CWV tarama çıkış {returncode}"
         if detail:
             msg = f"{msg}: {detail}"
         out = {
@@ -2759,10 +2815,24 @@ def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
 
 def _post_page_tarama_result(payload: dict[str, Any]) -> None:
     url = _page_tarama_api_base() + "/api/page-tarama/result"
-    try:
-        requests.post(url, headers=_page_tarama_auth_headers(), json=payload, timeout=20)
-    except Exception as exc:  # noqa: BLE001
-        print(f"page-tarama result hata: {exc}", flush=True)
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            resp = requests.post(
+                url, headers=_page_tarama_auth_headers(), json=payload, timeout=20
+            )
+            if resp.status_code < 400:
+                return
+            print(
+                f"page-tarama result HTTP {resp.status_code} (try {attempt}/3)",
+                flush=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            print(f"page-tarama result hata (try {attempt}/3): {exc}", flush=True)
+        time.sleep(1.5 * attempt)
+    if last_exc:
+        print(f"page-tarama result vazgeçildi: {last_exc}", flush=True)
 
 
 def _pm_lab_claim_loop() -> None:
@@ -2810,6 +2880,9 @@ def _page_tarama_claim_loop() -> None:
     registry = _remote_claim_job_registry()
     print(f"Uzaktan tarama kuyruğu: {url}", flush=True)
     while True:
+        run_id = ""
+        job_id = ""
+        final_posted = False
         try:
             if not _ingest_token():
                 time.sleep(12)
@@ -2900,6 +2973,8 @@ def _page_tarama_claim_loop() -> None:
                         _progress_post(
                             {
                                 "phase": _gsc_cwv_progress.get("phase") or "scrape",
+                                "step": _gsc_cwv_progress.get("step") or 0,
+                                "total_steps": _gsc_cwv_progress.get("total_steps") or 8,
                                 "message": _gsc_cwv_progress.get("message") or "GSC CWV scrape",
                             }
                         )
@@ -2919,7 +2994,7 @@ def _page_tarama_claim_loop() -> None:
                     return run_firebase_bridge_once(on_progress=_progress_post)
                 return meta["runner"]()
 
-            result = None
+            result: dict[str, Any] | None = None
             try:
                 while result is None:
                     result = _run_locked_job(
@@ -2941,16 +3016,33 @@ def _page_tarama_claim_loop() -> None:
             finally:
                 stop_hb.set()
 
+            if not isinstance(result, dict):
+                result = {"ok": False, "message": "Mac scan returned empty result"}
             _post_page_tarama_result(
                 {
                     "run_id": run_id,
                     "job_id": job_id,
                     "ok": bool(result.get("ok")),
-                    "message": str(result.get("message") or ("Done" if result.get("ok") else "Error"))[:180],
+                    "message": str(
+                        result.get("message") or ("Done" if result.get("ok") else "Error")
+                    )[:180],
                 }
             )
-        except Exception:
+            final_posted = True
+        except Exception as exc:
             traceback.print_exc()
+            if run_id and job_id and not final_posted:
+                try:
+                    _post_page_tarama_result(
+                        {
+                            "run_id": run_id,
+                            "job_id": job_id,
+                            "ok": False,
+                            "message": f"Mac error: {exc}"[:180],
+                        }
+                    )
+                except Exception:
+                    pass
             time.sleep(5)
 
 

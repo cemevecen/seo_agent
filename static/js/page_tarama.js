@@ -358,7 +358,37 @@
     return untilPromise;
   }
 
-  function runBridge(job) {
+  /** Arka planda başlayan köprü işleri (CWV/SEO/…) bitene kadar progress poll. */
+  function waitBridgeUntilIdle(job, steps, index) {
+    if (!job.progressPath) {
+      return Promise.resolve({ ok: true, message: "Started (no progress endpoint)" });
+    }
+    var started = Date.now();
+    var maxMs = Math.max(60000, Number(job.timeoutMs) || 90 * 60 * 1000);
+    function tick() {
+      if (Date.now() - started > maxMs) {
+        throw new Error("Scan timed out waiting for Mac bridge");
+      }
+      return fetchJson(BRIDGE + job.progressPath, { mode: "cors" }, 8000).then(
+        function (out) {
+          var d = (out && out.data) || {};
+          if (!(out.resp && out.resp.ok)) return sleep(2000).then(tick);
+          applyBridgeLiveProgress(job, steps, index, d);
+          if (d.running) return sleep(1500).then(tick);
+          if (d.phase === "error" || d.ok === false) {
+            throw new Error(d.message || (job.label + " failed"));
+          }
+          return d;
+        },
+        function () {
+          return sleep(2000).then(tick);
+        }
+      );
+    }
+    return sleep(800).then(tick);
+  }
+
+  function runBridge(job, steps, index) {
     var url = BRIDGE + job.path;
     var tries = 0;
     function attempt() {
@@ -375,7 +405,18 @@
         return out.data;
       });
     }
-    return attempt();
+    return attempt().then(function (data) {
+      // /sync-gsc-cwv vb. hemen {started:true} döner — bitene kadar bekle
+      if (data && data.started && job.progressPath) {
+        return waitBridgeUntilIdle(job, steps, index).then(function (prog) {
+          return Object.assign({}, data, prog || {}, {
+            ok: true,
+            message: (prog && prog.message) || data.message || "Done",
+          });
+        });
+      }
+      return data;
+    });
   }
 
   function runApi(job) {
@@ -430,7 +471,7 @@
   function runJob(job, steps, index) {
     var p;
     if (job.kind === "bridge") {
-      p = pollBridgeProgressWhile(job, steps, index, runBridge(job));
+      p = pollBridgeProgressWhile(job, steps, index, runBridge(job, steps, index));
     } else if (job.kind === "poll") {
       p = runPoll(job);
     } else {
@@ -499,15 +540,14 @@
       syncProgressFromSteps(activeSteps, activeTotal, { status: summary });
     }
     var closeBtn = $("pc-page-tarama-close");
+    // Başarısızda da kısa süre sonra kapat+yenile — popup asılı kalmasın
     if (closeBtn) closeBtn.classList.toggle("hidden", !!ok);
     setTimeout(function () {
-      if (ok) {
-        showOverlay(false);
-        try {
-          window.location.reload();
-        } catch (e) {}
-      }
-    }, ok ? 1400 : 0);
+      showOverlay(false);
+      try {
+        window.location.reload();
+      } catch (e) {}
+    }, ok ? 1200 : 2800);
   }
 
   function isLocalHost() {

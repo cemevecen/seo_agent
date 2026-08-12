@@ -77,6 +77,7 @@ def test_js_uses_railway_queue_on_remote():
     assert "Load failed" in js
     assert "skipBridge" in js
     assert "useQueue" in js
+    assert "waitBridgeUntilIdle" in js
     assert "runSequential(jobs, steps, 0, { skipBridge: true })" in js
     assert "At most 3" in js
     for key in PAGES:
@@ -88,7 +89,7 @@ def test_js_remote_does_not_fall_back_to_localhost_bridge():
     js = (ROOT / "static/js/page_tarama.js").read_text(encoding="utf-8")
     start_idx = js.find("function start(")
     assert start_idx > 0
-    chunk = js[start_idx : start_idx + 1800]
+    chunk = js[start_idx : start_idx + 2800]
     assert "skipBridge: true" in chunk
     assert "chain.then" not in chunk
 
