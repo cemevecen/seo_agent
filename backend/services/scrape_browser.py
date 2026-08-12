@@ -105,7 +105,7 @@ def kill_legacy_chrome_scrapers() -> int:
         "fx-sinemalar",
     ):
         n += kill_profile_browsers(STATE_DIR / name)
-    n += kill_profile_browsers(STATE_DIR)
+    # STATE_DIR'in tamamını tarama — ~/.seo-agent yolu canlı Firefox'u da SIGTERM eder.
 
     try:
         out = subprocess.check_output(["ps", "ax", "-o", "pid=,command="], text=True)
@@ -147,6 +147,44 @@ def assert_firefox_only(pw: Any) -> None:
         raise RuntimeError("Playwright Firefox yok — `playwright install firefox`")
 
 
+def resolve_firefox_executable() -> str | None:
+    """Opsiyonel Firefox binary.
+
+    PLAYWRIGHT_FIREFOX_EXECUTABLE verilirse onu kullan.
+    Aksi halde Playwright'ın kendi sürümünü bırak (juggler uyumu için);
+    farklı revision zorlamak TargetClosed / NS_ERROR_FAILURE üretebiliyor.
+    """
+    env = (os.environ.get("PLAYWRIGHT_FIREFOX_EXECUTABLE") or "").strip()
+    if env:
+        p = Path(env).expanduser()
+        if p.is_file():
+            return str(p)
+    return None
+
+
+def align_firefox_profile_compatibility(profile: Path) -> None:
+    """Profil daha yeni Firefox ile açıldıysa, mevcut Playwright binary'sine izin ver."""
+    ini = profile / "compatibility.ini"
+    if not ini.is_file():
+        return
+    try:
+        text = ini.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return
+    # Downgrade engelini kaldır — bir sonraki açılış LastVersion'ı yeniden yazar
+    if "LastVersion=" not in text:
+        return
+    try:
+        ini.write_text(
+            "[Compatibility]\n"
+            "LastVersion=0\n"
+            "LastOSABI=Darwin_aarch64-gcc3\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
 def _persistent_kwargs(
     profile: Path,
     *,
@@ -156,6 +194,7 @@ def _persistent_kwargs(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     profile.mkdir(parents=True, exist_ok=True)
+    align_firefox_profile_compatibility(profile)
     kwargs: dict[str, Any] = {
         "user_data_dir": str(profile),
         "headless": not headed,
@@ -163,6 +202,9 @@ def _persistent_kwargs(
         "locale": locale,
         "accept_downloads": True,
     }
+    exe = resolve_firefox_executable()
+    if exe:
+        kwargs["executable_path"] = exe
     if extra:
         extra = dict(extra)
         extra.pop("channel", None)
@@ -196,7 +238,11 @@ def launch_ephemeral(
     **context_kwargs: Any,
 ) -> tuple[Any, Any]:
     assert_firefox_only(pw)
-    browser = pw.firefox.launch(headless=not headed)
+    launch_kwargs: dict[str, Any] = {"headless": not headed}
+    exe = resolve_firefox_executable()
+    if exe:
+        launch_kwargs["executable_path"] = exe
+    browser = pw.firefox.launch(**launch_kwargs)
     context_kwargs.pop("channel", None)
     context_kwargs.pop("args", None)
     ctx = browser.new_context(**context_kwargs)
