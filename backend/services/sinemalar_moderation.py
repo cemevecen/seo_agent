@@ -64,6 +64,10 @@ TRACKED_MODERATORS: tuple[tuple[int, str], ...] = (
 TRACKED_USERNAMES: tuple[str, ...] = tuple(u for _, u in TRACKED_MODERATORS)
 KNOWN_USER_IDS: dict[str, int] = {_norm_key(u): uid for uid, u in TRACKED_MODERATORS}
 USER_ID_TO_NAME: dict[int, str] = {uid: u for uid, u in TRACKED_MODERATORS}
+# Sinemalar özet tablosundaki yazım varyantları
+USERNAME_ALIASES: dict[str, int] = {
+    "aquuamarine": 245939,
+}
 
 
 def resolve_user_id(username: str, raw_id: Any = None) -> int:
@@ -73,6 +77,9 @@ def resolve_user_id(username: str, raw_id: Any = None) -> int:
         uid = 0
     if uid:
         return uid
+    alias = USERNAME_ALIASES.get(_norm_username(username))
+    if alias:
+        return alias
     return int(KNOWN_USER_IDS.get(_norm_username(username), 0))
 
 
@@ -93,7 +100,9 @@ def is_tracked_user_id(user_id: int | Any) -> bool:
 
 def is_tracked_username(name: str) -> bool:
     n = _norm_username(name)
-    return n in {_norm_username(u) for u in TRACKED_USERNAMES}
+    if n in {_norm_username(u) for u in TRACKED_USERNAMES}:
+        return True
+    return n in USERNAME_ALIASES
 
 
 def detail_url(

@@ -255,7 +255,18 @@ def test_backfill_payload_updates_meta():
     assert panel["users"][2]["total_all"] == 1
 
 
-def test_compute_gaps_and_coverage():
+def test_aquuamarine_alias():
+    assert mod.resolve_user_id("Aquuamarine", None) == 245939
+    assert mod.is_tracked_username("Aquuamarine")
+    raw = [
+        {
+            "moderator": "Aquuamarine",
+            "metrics": {"Film": {"type": "movie", "userId": "245939", "count": 9}},
+        }
+    ]
+    parsed = mod.parse_summary_rows(raw)
+    assert len(parsed) == 1
+    assert parsed[0]["user_id"] == 245939
     db = _session()
     mod.ingest_detail_batch(
         db,
