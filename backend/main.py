@@ -8874,6 +8874,11 @@ def _home_sf_metric(
     extra: str = "",
     period_label: str = "",
     tip_context: str = "",
+    delta_fmt: str | None = None,
+    users_fmt: str | None = None,
+    sessions_fmt: str | None = None,
+    rate_fmt: str | None = None,
+    source_label: str = "",
 ) -> dict:
     return {
         "title": title,
@@ -8883,6 +8888,11 @@ def _home_sf_metric(
         "extra": extra,
         "period_label": period_label,
         "tip_context": tip_context or period_label,
+        "delta_fmt": (delta_fmt or "").strip() if delta_fmt else "",
+        "users_fmt": (users_fmt or "").strip() if users_fmt else "",
+        "sessions_fmt": (sessions_fmt or "").strip() if sessions_fmt else "",
+        "rate_fmt": (rate_fmt or "").strip() if rate_fmt else "",
+        "source_label": (source_label or "").strip(),
         "tone": (
             "up"
             if pct is not None and pct >= 99
@@ -9063,6 +9073,10 @@ def _home_store_firebase_card_from_tabs(
             extra=str(fb24.get("extra") or ""),
             period_label="son 24 saat",
             tip_context=_home_sf_fb_tip(period_label="son 24 saat", version=fb_ver),
+            delta_fmt=fb24.get("delta_fmt"),
+            users_fmt=fb24.get("users_fmt"),
+            sessions_fmt=fb24.get("crash_free_sessions_fmt"),
+            source_label="Firebase",
         ),
         _home_sf_metric(
             "Crash-free",
@@ -9072,6 +9086,10 @@ def _home_store_firebase_card_from_tabs(
             extra=str(fb7.get("extra") or ""),
             period_label="son 7 gün",
             tip_context=_home_sf_fb_tip(period_label="son 7 gün", version=fb_ver),
+            delta_fmt=fb7.get("delta_fmt"),
+            users_fmt=fb7.get("users_fmt"),
+            sessions_fmt=fb7.get("crash_free_sessions_fmt"),
+            source_label="Firebase",
         ),
         _home_sf_metric(
             "ANR-free",
@@ -9081,6 +9099,8 @@ def _home_store_firebase_card_from_tabs(
             extra=str(play.get("extra") or ""),
             period_label="son 28 gün",
             tip_context="all · son 28 gün",
+            rate_fmt=play.get("anr_rate_fmt"),
+            source_label="Play",
         ),
         _home_sf_metric(
             "ANR-free",
@@ -9090,6 +9110,8 @@ def _home_store_firebase_card_from_tabs(
             extra=str(play_latest.get("extra") or ""),
             period_label="son 28 gün",
             tip_context=f"son 28 gün · {lv_label}",
+            rate_fmt=play_latest.get("anr_rate_fmt"),
+            source_label="Play",
         ),
     ]
     if android_metrics[3]["value"] == "—" and (and_cf.get("latest") or {}).get("anr_free_fmt"):
@@ -9114,6 +9136,8 @@ def _home_store_firebase_card_from_tabs(
             pct=latest.get("anr_free_pct"),
             period_label="son 28 gün",
             tip_context=f"son 28 gün · {fall_label}",
+            rate_fmt=latest.get("anr_rate_fmt"),
+            source_label="Firebase",
         )
 
     ios_ver = (
@@ -9133,6 +9157,10 @@ def _home_store_firebase_card_from_tabs(
             extra=str(ios24.get("extra") or ""),
             period_label="son 24 saat",
             tip_context=_home_sf_fb_tip(period_label="son 24 saat", version=str(ios_ver)),
+            delta_fmt=ios24.get("delta_fmt"),
+            users_fmt=ios24.get("users_fmt"),
+            sessions_fmt=ios24.get("crash_free_sessions_fmt"),
+            source_label="Firebase",
         ),
         _home_sf_metric(
             "Crash-free",
@@ -9142,6 +9170,10 @@ def _home_store_firebase_card_from_tabs(
             extra=str(ios7.get("extra") or ""),
             period_label="son 7 gün",
             tip_context=_home_sf_fb_tip(period_label="son 7 gün", version=str(ios_ver)),
+            delta_fmt=ios7.get("delta_fmt"),
+            users_fmt=ios7.get("users_fmt"),
+            sessions_fmt=ios7.get("crash_free_sessions_fmt"),
+            source_label="Firebase",
         ),
     ]
 
