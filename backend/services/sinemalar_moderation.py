@@ -33,13 +33,31 @@ METRIC_TYPE_BY_LABEL = {v: k for k, v in METRIC_TYPES}
 # Panelde gösterilecek moderatörler (kullanıcı adı eşleşmesi normalize)
 TRACKED_USERNAMES: tuple[str, ...] = ("gezginozlem", "berend", "Gözde.")
 
+# href'te userId yoksa (sıfır sayım vb.) yedek
+KNOWN_USER_IDS: dict[str, int] = {
+    "gezginozlem": 873391,
+    "berend": 883754,
+    "gözde": 935786,
+}
+
 BACKFILL_START = date(2026, 1, 1)
 
 
 def _norm_username(name: str) -> str:
     s = (name or "").strip().lower()
+    s = re.sub(r"\s+", "", s)
     s = s.rstrip(".")
     return s
+
+
+def resolve_user_id(username: str, raw_id: Any = None) -> int:
+    try:
+        uid = int(raw_id) if raw_id not in (None, "") else 0
+    except (TypeError, ValueError):
+        uid = 0
+    if uid:
+        return uid
+    return int(KNOWN_USER_IDS.get(_norm_username(username), 0))
 
 
 def is_tracked_username(name: str) -> bool:
@@ -68,17 +86,16 @@ def parse_summary_rows(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         metrics = row.get("metrics") or {}
         if not isinstance(metrics, dict):
             continue
+        row_uid = resolve_user_id(moderator, row.get("moderatorUserId"))
         for label, block in metrics.items():
             if not isinstance(block, dict):
                 continue
             mtype = str(block.get("type") or METRIC_TYPE_BY_LABEL.get(label) or "").strip()
             if not mtype:
                 continue
-            uid_raw = block.get("userId")
-            try:
-                user_id = int(uid_raw) if uid_raw is not None else 0
-            except (TypeError, ValueError):
-                user_id = 0
+            user_id = resolve_user_id(moderator, block.get("userId")) or row_uid
+            if not user_id:
+                continue
             try:
                 count = int(block.get("count") or 0)
             except (TypeError, ValueError):
@@ -114,7 +131,7 @@ def ingest_daily_batch(
     parsed = parse_summary_rows(rows)
     upserted = 0
     for item in parsed:
-        uid = int(item.get("user_id") or 0)
+        uid = resolve_user_id(str(item.get("username") or ""), item.get("user_id"))
         mtype = str(item.get("metric_type") or "")
         if not uid or not mtype:
             continue
@@ -255,18 +272,25 @@ def get_panel_payload(
     start: str | None = None,
     end: str | None = None,
 ) -> dict[str, Any]:
+    meta = get_meta_summary(db)
     end_d = today_tr()
-    start_d = end_d - timedelta(days=30)
     if end:
         try:
             end_d = date.fromisoformat(str(end)[:10])
         except ValueError:
             pass
+
     if start:
         try:
             start_d = date.fromisoformat(str(start)[:10])
         except ValueError:
-            pass
+            start_d = BACKFILL_START if not meta.get("backfill_complete") else end_d - timedelta(days=30)
+    elif not meta.get("backfill_complete"):
+        # Backfill sürerken yalnız son 30 gün değil, çekilen tüm 2026 aralığı gösterilsin
+        start_d = BACKFILL_START
+    else:
+        start_d = end_d - timedelta(days=30)
+
     if start_d > end_d:
         start_d, end_d = end_d, start_d
 

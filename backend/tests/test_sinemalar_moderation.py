@@ -19,6 +19,11 @@ def _session():
     return Session()
 
 
+def test_resolve_user_id_fallback():
+    assert mod.resolve_user_id("Gözde.", None) == 935786
+    assert mod.resolve_user_id("berend", "883754") == 883754
+
+
 def test_parse_summary_rows_tracks_only_target_users():
     raw = [
         {
@@ -42,6 +47,42 @@ def test_parse_summary_rows_tracks_only_target_users():
     assert all(mod.is_tracked_username(p["username"]) for p in parsed)
     assert parsed[0]["metric_type"] == "movie"
     assert parsed[0]["count"] == 3
+
+
+def test_parse_without_href_user_id():
+    raw = [
+        {
+            "moderator": "berend",
+            "metrics": {
+                "Film": {"type": "movie", "count": 2},
+            },
+        }
+    ]
+    parsed = mod.parse_summary_rows(raw)
+    assert len(parsed) == 1
+    assert parsed[0]["user_id"] == 883754
+
+
+def test_panel_backfill_shows_from_january():
+    db = _session()
+    mod.ingest_daily_batch(
+        db,
+        report_date="2026-01-03",
+        rows=[
+            {
+                "moderator": "gezginozlem",
+                "metrics": {"Film": {"type": "movie", "userId": "873391", "count": 5}},
+            }
+        ],
+        mode="backfill",
+    )
+    meta = db.query(SinemalarModerationMeta).filter(SinemalarModerationMeta.id == 1).one()
+    meta.backfill_complete = False
+    meta.backfill_cursor = "2026-01-04"
+    db.commit()
+    panel = mod.get_panel_payload(db)
+    assert panel["start"] == "2026-01-01"
+    assert panel["row_count"] >= 1
 
 
 def test_ingest_daily_batch_upserts():

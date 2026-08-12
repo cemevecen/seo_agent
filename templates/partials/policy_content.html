@@ -12,20 +12,20 @@
       class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
         {% if _tab == 'policy' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
         {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
-      Policy
+      Sinemalar
     </a>
     <a href="/policy?tab=sinemalar"
       class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
         {% if _tab == 'sinemalar' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
         {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
-      Sinemalar
+      Moderasyon
     </a>
   </div>
 
   {% if _tab == 'sinemalar' %}
   <div class="flex flex-col gap-2 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
     <div>
-      <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100">Sinemalar Moderasyon</h3>
+      <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100">Moderasyon</h3>
       <p class="text-[11px] text-slate-400 dark:text-slate-500">
         Kaynak: <span class="font-mono">getModerationSummary</span>
         · gezginozlem, berend, Gözde.
@@ -104,7 +104,8 @@
   <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
     <h4 class="mb-1 font-semibold text-slate-700 dark:text-slate-300">Moderasyon verisi henüz yok</h4>
     <p class="text-sm text-slate-500 dark:text-slate-400">
-      Mac bridge 03:04 ve 14:17’de otomatik çeker; «Sayfayı güncelle» ile moderasyon sync de tetiklenebilir.
+      Backfill sürüyorsa veriler 2026-01-01’den itibaren birikir (cursor: {{ _mm.get("backfill_cursor") or "2026-01-01" }}).
+      Mac bridge 03:04 / 14:17’de otomatik devam eder; «Update page» moderasyon sync’i de tetikler.
     </p>
   </div>
   {% endif %}

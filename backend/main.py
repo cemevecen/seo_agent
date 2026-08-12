@@ -21374,6 +21374,8 @@ def policy_page(
     if host_key not in ("all", "sinemalar.com", "m.sinemalar.com"):
         host_key = "all"
     tab_key = (tab or "policy").strip().lower()
+    if tab_key in ("moderation", "mod"):
+        tab_key = "sinemalar"
     if tab_key not in ("policy", "sinemalar"):
         tab_key = "policy"
 

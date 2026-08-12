@@ -73,6 +73,13 @@ _EXTRACT_ROWS_JS = r"""
     const cells = Array.from(tr.querySelectorAll('td'));
     if (!cells.length) return null;
     const row = { moderator: cells[0].textContent.replace(/\s+/g,' ').trim(), metrics: {} };
+    const modLink = cells[0].querySelector('a');
+    if (modLink && modLink.href) {
+      try {
+        const mu = new URL(modLink.href);
+        row.moderatorUserId = mu.searchParams.get('userId') || mu.searchParams.get('userid');
+      } catch (e) { /* ignore */ }
+    }
     cells.slice(1).forEach((td, i) => {
       const a = td.querySelector('a');
       const label = headers[i] || ('c' + i);
@@ -83,7 +90,7 @@ _EXTRACT_ROWS_JS = r"""
         try {
           const u = new URL(href);
           type = u.searchParams.get('type');
-          userId = u.searchParams.get('userId');
+          userId = u.searchParams.get('userId') || u.searchParams.get('userid');
         } catch (e) { /* ignore */ }
       }
       row.metrics[label] = {
@@ -263,13 +270,15 @@ def run_backfill_chunk(
     headed: bool = True,
     ingest: bool = False,
     max_days: int | None = None,
+    from_date: str | None = None,
 ) -> dict[str, Any]:
     """2026 backfill — her çağrıda en fazla N gün (management yükünü dağıtır)."""
     chunk = max(1, int(max_days or BACKFILL_CHUNK_DAYS))
     meta = fetch_remote_meta()
-    if meta.get("backfill_complete"):
+    if meta.get("backfill_complete") and not from_date:
         return {"ok": True, "skipped": True, "message": "backfill zaten tamam", "mode": "backfill"}
-    days = _days_from_cursor(meta.get("backfill_cursor"), max_days=chunk)
+    cursor = from_date or meta.get("backfill_cursor")
+    days = _days_from_cursor(cursor, max_days=chunk)
     if not days:
         return {"ok": True, "skipped": True, "message": "backfill için gün yok", "mode": "backfill"}
     print(
@@ -376,7 +385,7 @@ def main() -> int:
         action="store_true",
         help="2026 backfill — en fazla N gün (meta cursor; bridge varsayılanı)",
     )
-    parser.add_argument("--max-days", type=int, default=0, help="Backfill'de en fazla N gün (test)")
+    parser.add_argument("--from-date", help="Backfill chunk başlangıcı YYYY-MM-DD (cursor override)")
     parser.add_argument("--incremental", choices=("yesterday", "today"), help="Tek gün incremental")
     parser.add_argument("--date", help="Tek gün YYYY-MM-DD")
     parser.add_argument("--ingest", action="store_true", help="Railway ingest")
@@ -406,6 +415,7 @@ def main() -> int:
             headed=headed,
             ingest=args.ingest,
             max_days=args.max_days if args.max_days > 0 else None,
+            from_date=args.from_date,
         )
         print(json.dumps({k: v for k, v in out.items() if k != "days"}, ensure_ascii=False, indent=2))
         return 0 if out.get("ok") else 1
