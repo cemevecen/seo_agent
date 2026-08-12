@@ -800,15 +800,10 @@
         chip((s.count || 0) + " · avg " + (s.avg != null ? s.avg : s.count), "");
       parent.appendChild(row);
     }
-    var topBars = avgs.slice(0, NEWS_BARS_TOP);
-    var restBars = avgs.slice(NEWS_BARS_TOP);
-    topBars.forEach(function (s) { appendBar(bars, s); });
-    if (restBars.length) {
-      var overflow = document.createElement("div");
-      overflow.className = "pml-news-bars-overflow";
-      overflow.setAttribute("aria-label", "More sources");
-      restBars.forEach(function (s) { appendBar(overflow, s); });
-      bars.appendChild(overflow);
+    avgs.forEach(function (s) { appendBar(bars, s); });
+    if (avgs.length > NEWS_BARS_TOP) {
+      bars.classList.add("pml-news-bars--scroll");
+      bars.setAttribute("aria-label", "News sources");
     }
     var spark = document.createElement("div");
     spark.className = "pml-spark mb-3";
