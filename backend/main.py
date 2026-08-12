@@ -1572,6 +1572,16 @@ def _record_session(request: Request) -> None:
     try:
         from backend.services import panel_visit_log as pvl
 
+        # OAuth callback visit satırı yazamadıysa ilk istekte aç
+        pvl.ensure_auth_visit_open(
+            session_key=key,
+            email=email,
+            display_name=label,
+            session_kind=session_kind,
+            ip=ip,
+            device=_parse_device(ua),
+            path=path,
+        )
         # allow_open=False: sayfa yükü / presence «Signed in» satırı açmaz
         pvl.touch_visit(
             session_key=key,

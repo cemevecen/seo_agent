@@ -97,9 +97,124 @@ def _open_row(db: Session, session_key: str) -> PanelVisitLog | None:
         db.query(PanelVisitLog)
         .filter(PanelVisitLog.session_key == session_key, PanelVisitLog.logged_out_at.is_(None))
         .order_by(PanelVisitLog.id.desc())
-        .with_for_update()
         .first()
     )
+
+
+def _close_open_row(row: PanelVisitLog, *, reason: str, when: datetime | None = None) -> None:
+    now = when or _utcnow()
+    row.logged_out_at = now
+    row.last_seen_at = now
+    row.end_reason = (reason or "logout")[:20]
+
+
+def _insert_auth_visit_row(
+    db: Session,
+    *,
+    session_key: str,
+    email: str = "",
+    display_name: str = "",
+    session_kind: str = "",
+    ip: str = "",
+    device: str = "",
+    path: str = "/",
+    logged_in_at: datetime | None = None,
+    close_previous: bool = True,
+) -> PanelVisitLog | None:
+    key = (session_key or "").strip()
+    if not key:
+        return None
+    now = logged_in_at or _utcnow()
+    page_path = (path or "/").split("?")[0] or "/"
+    if close_previous:
+        prev = _open_row(db, key)
+        if prev is not None:
+            _close_open_row(prev, reason="relogin", when=now)
+    row = PanelVisitLog(
+        session_key=key[:80],
+        email=(email or "")[:255],
+        display_name=(display_name or "")[:255],
+        session_kind=(session_kind or "")[:20],
+        ip=(ip or "")[:64],
+        device_label=(device or "")[:120],
+        logged_in_at=now,
+        last_seen_at=now,
+        pages_json="[]",
+        start_reason="auth",
+        end_reason="",
+    )
+    db.add(row)
+    db.flush()
+    if should_track_admin_path(page_path):
+        _append_activity(
+            row,
+            path=page_path,
+            label=admin_path_label(page_path),
+            kind="page",
+        )
+    if email:
+        try:
+            from backend.services import app_member_auth as ama
+
+            ama.touch_member_last_login(db, email, now)
+        except Exception:  # noqa: BLE001
+            LOGGER.debug("üye son giriş güncellenemedi", exc_info=True)
+    return row
+
+
+def _sync_visits_from_login_events(db: Session, *, limit: int = 60) -> int:
+    """OAuth visit satırı hiç yazılmadıysa admin_login_events'ten geriye dönük doldur."""
+    from backend.models import AdminLoginEvent
+
+    events = (
+        db.query(AdminLoginEvent)
+        .filter(AdminLoginEvent.event_type.in_(("member_login_ok", "member_register_ok")))
+        .order_by(AdminLoginEvent.created_at.desc(), AdminLoginEvent.id.desc())
+        .limit(max(1, min(int(limit), 200)))
+        .all()
+    )
+    created = 0
+    window = timedelta(minutes=5)
+    for ev in events:
+        email = (ev.actor_email or "").strip()
+        if not email:
+            continue
+        backfill_key = f"login:{ev.id}"[:80]
+        if db.query(PanelVisitLog.id).filter(PanelVisitLog.session_key == backfill_key).first():
+            continue
+        t0 = ev.created_at - window
+        t1 = ev.created_at + window
+        live = (
+            db.query(PanelVisitLog.id)
+            .filter(
+                PanelVisitLog.email == email,
+                PanelVisitLog.logged_in_at >= t0,
+                PanelVisitLog.logged_in_at <= t1,
+                PanelVisitLog.start_reason == "auth",
+                ~PanelVisitLog.session_key.like("login:%"),
+            )
+            .first()
+        )
+        if live:
+            continue
+        db.add(
+            PanelVisitLog(
+                session_key=backfill_key,
+                email=email[:255],
+                display_name=email[:255],
+                session_kind="member",
+                ip=(ev.ip or "")[:64],
+                device_label=(ev.device_label or "")[:120],
+                logged_in_at=ev.created_at,
+                last_seen_at=ev.created_at,
+                logged_out_at=ev.created_at,
+                pages_json="[]",
+                start_reason="auth",
+                end_reason="sync",
+            )
+        )
+        created += 1
+    return created
 
 
 def _append_activity(
@@ -138,48 +253,57 @@ def open_auth_visit(
     key = (session_key or "").strip()
     if not key:
         return
-    now = _utcnow()
-    page_path = (path or "/").split("?")[0] or "/"
     try:
         with SessionLocal() as db:
-            # Önceki açık oturumu kapat (aynı cookie yeniden giriş)
-            prev = _open_row(db, key)
-            if prev is not None:
-                prev.logged_out_at = now
-                prev.last_seen_at = now
-                prev.end_reason = "relogin"
-            row = PanelVisitLog(
-                session_key=key[:80],
-                email=(email or "")[:255],
-                display_name=(display_name or "")[:255],
-                session_kind=(session_kind or "")[:20],
-                ip=(ip or "")[:64],
-                device_label=(device or "")[:120],
-                logged_in_at=now,
-                last_seen_at=now,
-                pages_json="[]",
-                start_reason="auth",
-                end_reason="",
+            _insert_auth_visit_row(
+                db,
+                session_key=key,
+                email=email,
+                display_name=display_name,
+                session_kind=session_kind,
+                ip=ip,
+                device=device,
+                path=path,
             )
-            db.add(row)
-            db.flush()
-            if should_track_admin_path(page_path):
-                _append_activity(
-                    row,
-                    path=page_path,
-                    label=admin_path_label(page_path),
-                    kind="page",
-                )
-            if email:
-                try:
-                    from backend.services import app_member_auth as ama
-
-                    ama.touch_member_last_login(db, email, now)
-                except Exception:  # noqa: BLE001
-                    LOGGER.debug("üye son giriş güncellenemedi", exc_info=True)
             db.commit()
     except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("panel auth visit open failed: %s", exc)
+        LOGGER.warning("panel auth visit open failed: %s", exc, exc_info=True)
+
+
+def ensure_auth_visit_open(
+    *,
+    session_key: str,
+    email: str = "",
+    display_name: str = "",
+    session_kind: str = "",
+    ip: str = "",
+    device: str = "",
+    path: str = "/",
+) -> bool:
+    """OAuth callback kaçırdıysa ilk panel isteğinde auth ziyaret satırı aç."""
+    key = (session_key or "").strip()
+    if not key or not key.startswith(("m:", "a:")):
+        return False
+    try:
+        with SessionLocal() as db:
+            if _open_row(db, key) is not None:
+                return False
+            _insert_auth_visit_row(
+                db,
+                session_key=key,
+                email=email,
+                display_name=display_name,
+                session_kind=session_kind,
+                ip=ip,
+                device=device,
+                path=path,
+                close_previous=False,
+            )
+            db.commit()
+            return True
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("ensure auth visit open failed: %s", exc, exc_info=True)
+        return False
 
 
 def touch_visit(
@@ -286,9 +410,7 @@ def close_visit(session_key: str, *, reason: str = "logout") -> None:
             row = _open_row(db, key)
             if row is None:
                 return
-            row.logged_out_at = now
-            row.last_seen_at = now
-            row.end_reason = why
+            _close_open_row(row, reason=why, when=now)
             db.commit()
     except Exception as exc:  # noqa: BLE001
         LOGGER.debug("panel visit close atlandı: %s", exc)
@@ -324,6 +446,7 @@ def recent_visits(*, limit: int = 80, auth_only: bool = True) -> list[dict[str, 
     try:
         with SessionLocal() as db:
             _trim_old(db)
+            _sync_visits_from_login_events(db)
             db.commit()
             q = db.query(PanelVisitLog).order_by(
                 PanelVisitLog.logged_in_at.desc(), PanelVisitLog.id.desc()
@@ -344,6 +467,8 @@ def recent_visits(*, limit: int = 80, auth_only: bool = True) -> list[dict[str, 
                 end_label = "Open" if open_now else ("Logout" if reason == "logout" else "Idle")
                 if reason == "relogin":
                     end_label = "Re-login"
+                elif reason == "sync":
+                    end_label = "Synced"
                 out.append(
                     {
                         "id": row.id,

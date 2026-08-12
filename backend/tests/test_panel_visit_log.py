@@ -108,6 +108,54 @@ def test_legacy_open_hidden_when_auth_only():
     assert len(pvl.recent_visits(auth_only=False)) == 1
 
 
+def test_ensure_auth_visit_open_on_first_request():
+    _wipe()
+    assert pvl.ensure_auth_visit_open(
+        session_key="m:req1",
+        email="req@nokta.com",
+        display_name="Req",
+        session_kind="member",
+        ip="2.2.2.2",
+        device="Firefox",
+        path="/settings",
+    )
+    assert not pvl.ensure_auth_visit_open(session_key="m:req1", email="req@nokta.com", path="/home")
+    pvl.touch_visit(session_key="m:req1", email="req@nokta.com", path="/android")
+    rows = pvl.recent_visits()
+    assert len(rows) == 1
+    assert rows[0]["email"] == "req@nokta.com"
+    assert rows[0]["is_open"] is True
+    assert "/settings" in [p["path"] for p in rows[0]["pages"]]
+    assert "/android" in [p["path"] for p in rows[0]["pages"]]
+
+
+def test_backfill_visit_from_login_event():
+    from backend.models import AdminLoginEvent
+
+    _wipe()
+    with SessionLocal() as db:
+        ev = AdminLoginEvent(
+            event_type="member_login_ok",
+            ip="78.187.20.15",
+            device_label="Masaüstü / Firefox",
+            user_agent="Mozilla/5.0 Firefox",
+            fingerprint="test-fp",
+            actor_email="uye@nokta.com",
+        )
+        db.add(ev)
+        db.commit()
+        event_id = int(ev.id)
+    rows = pvl.recent_visits()
+    assert len(rows) == 1
+    assert rows[0]["email"] == "uye@nokta.com"
+    assert rows[0]["ip"] == "78.187.20.15"
+    assert "Firefox" in rows[0]["device"]
+    assert rows[0]["end_reason"] == "sync"
+    with SessionLocal() as db:
+        row = db.query(PanelVisitLog).filter(PanelVisitLog.session_key == f"login:{event_id}").one()
+        assert row.start_reason == "auth"
+
+
 def test_settings_template_has_visit_and_login_log():
     from pathlib import Path
 
