@@ -158,6 +158,27 @@ def _read_google_cookies(profile: Path) -> list[dict[str, Any]]:
     return out
 
 
+_GOOGLE_SESSION_COOKIE_NAMES = frozenset(
+    {
+        "SID",
+        "HSID",
+        "SSID",
+        "APISID",
+        "SAPISID",
+        "__Secure-1PSID",
+        "__Secure-3PSID",
+        "LSID",
+    }
+)
+
+
+def google_profile_has_session(profile: Path) -> bool:
+    """Profilde geçerli Google oturum çerezi var mı?"""
+    cookies = _read_google_cookies(profile.expanduser())
+    names = {str(c.get("name") or "") for c in cookies}
+    return bool(names & _GOOGLE_SESSION_COOKIE_NAMES)
+
+
 def bootstrap_google_cookies_into_profile(target_profile: Path) -> int:
     """Eski sqlite kopya yolu — profil şemasını bozmamak için no-op.
 

@@ -252,11 +252,13 @@ def launch_system_firefox_login(
     url: str,
     *,
     timeout_sec: int = 900,
+    success_hint: str = "",
+    verify_session: bool = True,
 ) -> dict[str, Any]:
     """Google hesabı için gerçek Firefox.app + aynı fx-* profil.
 
     Playwright Nightly / juggler Google'da 'This browser may not be secure' alır.
-    Kullanıcı sheet'i görüp pencereyi kapatınca döner.
+    Firefox kapanınca (verify_session) Google oturum çerezi kontrol edilir.
     """
     exe = resolve_system_firefox_executable()
     if not exe:
@@ -282,15 +284,29 @@ def launch_system_firefox_login(
         print(f"Sistem Firefox · {exe}\nprofil={profile}\nurl={url}", flush=True)
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         deadline = time.time() + max(120, timeout_sec)
-        print(
-            "cemevecen@nokta.com ile giriş yap → sheet açılsın → Firefox penceresini KAPAT.\n"
-            f"(en fazla {int(deadline - time.time())}s)",
-            flush=True,
+        hint = (success_hint or "").strip() or (
+            "cemevecen@nokta.com ile giriş yap → hedef sayfa açılsın → Firefox penceresini KAPAT."
         )
+        print(f"{hint}\n(en fazla {int(deadline - time.time())}s)", flush=True)
         while time.time() < deadline:
             rc = proc.poll()
             if rc is not None:
                 align_firefox_profile_compatibility(profile)
+                if verify_session:
+                    from backend.services.system_firefox_driver import google_profile_has_session
+
+                    if not google_profile_has_session(profile):
+                        return {
+                            "ok": False,
+                            "exit_code": rc,
+                            "profile": str(profile),
+                            "mode": "system_firefox",
+                            "message": (
+                                "Firefox kapandı ama Google oturumu kaydedilmedi. "
+                                "Giriş formunda cemevecen@nokta.com + 2FA tamamla; "
+                                "hedef sayfa (Play Console dashboard) görünmeden kapatma."
+                            ),
+                        }
                 return {"ok": True, "exit_code": rc, "profile": str(profile), "mode": "system_firefox"}
             time.sleep(1.5)
         try:

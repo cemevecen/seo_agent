@@ -722,6 +722,10 @@ def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
         PROFILE_DIR,
         DASHBOARD_URL,
         timeout_sec=max(120, timeout_sec),
+        success_hint=(
+            "cemevecen@nokta.com ile giriş yap → Play Console dashboard görünsün → "
+            "Firefox penceresini KAPAT. (E-postayı adres çubuğuna yazma.)"
+        ),
     )
 
 
@@ -733,7 +737,15 @@ def _system_firefox_relogin(*, timeout_sec: int = 900) -> dict[str, Any]:
         "gerçek Firefox.app ile giriş açılıyor.",
         flush=True,
     )
-    return launch_system_firefox_login(PROFILE_DIR, DASHBOARD_URL, timeout_sec=timeout_sec)
+    return launch_system_firefox_login(
+        PROFILE_DIR,
+        DASHBOARD_URL,
+        timeout_sec=timeout_sec,
+        success_hint=(
+            "Google 'güvenli değil' dedi — gerçek Firefox'ta giriş yap, "
+            "Play Console dashboard görünce kapat."
+        ),
+    )
 
 
 def _attach_network_capture(page, bag: list[dict[str, Any]]) -> None:
