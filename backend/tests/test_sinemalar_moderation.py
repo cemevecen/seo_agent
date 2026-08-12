@@ -175,6 +175,7 @@ def test_ingest_detail_batch_rebuilds_daily():
         items=items,
         range_start=date(2026, 3, 1),
         range_end=date(2026, 3, 31),
+        recompute_daily=True,
     )
     assert res["ok"] is True
     assert res["items_upserted"] == 2
