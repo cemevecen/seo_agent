@@ -2135,6 +2135,62 @@ def ensure_android_category_rank_on_raw(
     return {**raw, "android": {**android, "meta": meta}}
 
 
+def _enrich_raw_category_ranks(
+    product_id: str,
+    raw: dict[str, Any],
+    *,
+    allow_live_fetch: bool = True,
+) -> dict[str, Any]:
+    """Cache-only dahil: kategori sıralarını DB snapshot ve gerekirse canlı chart'tan doldur."""
+    spec = APP_PRODUCTS.get(product_id)
+    if not spec or not isinstance(raw, dict) or raw.get("error"):
+        return raw
+
+    raw = ensure_android_category_rank_on_raw(product_id, raw, allow_live_fetch=allow_live_fetch)
+
+    ios = raw.get("ios")
+    if not isinstance(ios, dict):
+        return raw
+    meta = ios.get("meta") if isinstance(ios.get("meta"), dict) else {}
+    cr = meta.get("category_rank")
+    if isinstance(cr, dict) and cr.get("rank") is not None:
+        return raw
+
+    fb = _latest_stored_category_rank(product_id, "ios")
+    if fb:
+        meta = {**meta, "category_rank": fb}
+        return {**raw, "ios": {**ios, "meta": meta}}
+
+    if allow_live_fetch:
+        genre_id = meta.get("primary_genre_id")
+        if genre_id is None:
+            lookup = _fetch_ios_lookup_meta(spec["ios_app_id"])
+            if lookup:
+                meta = {**meta, **{k: v for k, v in lookup.items() if v is not None}}
+                genre_id = meta.get("primary_genre_id")
+
+        def _ios_rank_job() -> dict[str, Any] | None:
+            return _fetch_ios_category_rank(
+                spec["ios_app_id"],
+                country="tr",
+                genre_id=genre_id,
+            )
+
+        fetched = _bounded_rank_call(_ios_rank_job, _ios_store_rank_call_budget_sec())
+        if isinstance(fetched, dict) and fetched.get("rank") is not None:
+            meta = {**meta, "category_rank": fetched}
+            at_iso = str(raw.get("fetched_at") or datetime.now(tz=_UTC).isoformat())
+            _append_rank_snapshot(
+                product_id,
+                "ios",
+                {**fetched, "category_name": meta.get("primary_genre_name")},
+                at_iso=at_iso,
+            )
+            _save_rank_history()
+
+    return {**raw, "ios": {**ios, "meta": meta}}
+
+
 def _refresh_obsolete_android_rank_in_payload(
     product_id: str, spec: dict[str, str], payload: dict[str, Any]
 ) -> bool:
@@ -2505,6 +2561,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
     raw = get_raw_product_data(product_id, force_refresh=force_refresh, cache_only=cache_only)
     if raw.get("error"):
         return raw
+    raw = _enrich_raw_category_ranks(product_id, raw, allow_live_fetch=True)
 
     intel: dict[str, Any] = {
         "product_id": product_id,
@@ -2626,70 +2683,75 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
     return intel
 
 
+def refresh_category_ranks_for_product(product_id: str) -> dict[str, Any]:
+    """Tek ürün için kategori sıralarını günceller (yorum çekmez)."""
+    pid = (product_id or "").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return {"error": "unknown_product"}
+    spec = APP_PRODUCTS[pid]
+    now_iso = datetime.now(tz=_UTC).isoformat()
+    block: dict[str, Any] = {"product": pid}
+
+    ios_genre_id: int | None = None
+    with _CACHE_LOCK:
+        for cache_val in _RAW_CACHE.values():
+            if isinstance(cache_val, tuple) and len(cache_val) == 2:
+                cached_payload = cache_val[1]
+                if (cached_payload or {}).get("product_id") == pid:
+                    ios_genre_id = (
+                        (cached_payload.get("ios") or {}).get("meta") or {}
+                    ).get("primary_genre_id")
+                    break
+    if ios_genre_id is None:
+        lookup = _fetch_ios_lookup_meta(spec["ios_app_id"])
+        ios_genre_id = lookup.get("primary_genre_id")
+
+    i_rank = _fetch_ios_category_rank(spec["ios_app_id"], country="tr", genre_id=ios_genre_id)
+    if i_rank:
+        _append_rank_snapshot(
+            pid,
+            "ios",
+            {**i_rank, "category_name": i_rank.get("chart_label") or "Finans"},
+            at_iso=now_iso,
+        )
+    block["ios"] = i_rank
+    logger.info("Rank refresh (%s) iOS: %s", pid, i_rank)
+
+    meta_play, _, _ = _fetch_google_bundle(spec["android_package"], 0)
+    a_rank = _fetch_android_category_rank(
+        spec["android_package"],
+        country="tr",
+        lang="tr",
+        category_id=str((meta_play or {}).get("genreId") or "") or None,
+        skip_playwright=True,
+        genre_name_hint=(str((meta_play or {}).get("genre") or "").strip() or None),
+    )
+    if a_rank and a_rank.get("rank") is not None:
+        _append_rank_snapshot(pid, "android", a_rank, at_iso=now_iso)
+    block["android"] = a_rank
+    logger.info("Rank refresh (%s) Android: %s", pid, a_rank)
+
+    _save_rank_history()
+    invalidate_raw_cache(pid)
+    return block
+
+
 def refresh_category_ranks() -> dict[str, Any]:
     """Tüm ürünler için sadece kategori sırasını çekip DB'ye kaydeder.
 
     Tam yorum yenileme yapmaz — sadece iOS ve Android chart sıralarını
     günceller. 3 saatlik cron job tarafından çağrılır.
     """
-    now_iso = datetime.now(tz=_UTC).isoformat()
     results: dict[str, Any] = {}
 
-    for product_id, spec in APP_PRODUCTS.items():
+    for product_id in APP_PRODUCTS:
         try:
-            # iOS: genre_id'yi lookup'tan al (cache varsa oradan, yoksa API'den)
-            ios_genre_id: int | None = None
-            with _CACHE_LOCK:
-                for cache_val in _RAW_CACHE.values():
-                    if isinstance(cache_val, tuple) and len(cache_val) == 2:
-                        cached_payload = cache_val[1]
-                        if (cached_payload or {}).get("product_id") == product_id:
-                            ios_genre_id = (
-                                (cached_payload.get("ios") or {})
-                                .get("meta") or {}
-                            ).get("primary_genre_id")
-                            break
-
-            if ios_genre_id is None:
-                # Cache boşsa lookup'tan çek
-                lookup = _fetch_ios_lookup_meta(spec["ios_app_id"])
-                ios_genre_id = lookup.get("primary_genre_id")
-
-            i_rank = _fetch_ios_category_rank(
-                spec["ios_app_id"], country="tr", genre_id=ios_genre_id
-            )
-            if i_rank:
-                _append_rank_snapshot(
-                    product_id, "ios",
-                    {**i_rank, "category_name": i_rank.get("chart_label") or "Finans"},
-                    at_iso=now_iso,
-                )
-            results[product_id] = {"ios": i_rank}
-            logger.info("Rank refresh (%s) iOS: %s", product_id, i_rank)
-
-            # Android: chart API (vyAe2) öncelikli; Playwright isteğe bağlı.
-            meta_play, _, _ = _fetch_google_bundle(spec["android_package"], 1)
-            a_rank = _fetch_android_category_rank(
-                spec["android_package"],
-                country="tr",
-                lang="tr",
-                category_id=str((meta_play or {}).get("genreId") or "") or None,
-                skip_playwright=True,
-                genre_name_hint=(str((meta_play or {}).get("genre") or "").strip() or None),
-            )
-            if a_rank and a_rank.get("rank") is not None:
-                _append_rank_snapshot(product_id, "android", a_rank, at_iso=now_iso)
-            results[product_id]["android"] = a_rank
-            logger.info("Rank refresh (%s) Android: %s", product_id, a_rank)
-
+            block = refresh_category_ranks_for_product(product_id)
+            results[product_id] = block
         except Exception as exc:  # noqa: BLE001
             logger.warning("Rank refresh hatası (%s): %s", product_id, exc)
             results[product_id] = {"error": str(exc)}
 
-    _save_rank_history()
-    for pid, block in results.items():
-        if isinstance(block, dict) and block.get("android"):
-            invalidate_raw_cache(pid)
     return results
 
 

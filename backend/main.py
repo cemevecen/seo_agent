@@ -15970,7 +15970,7 @@ def api_app_asc_preview(
 
 
 @app.get("/api/app/store-rollout")
-def api_app_store_rollout(product: str = "doviz"):
+def api_app_store_rollout(product: str = "doviz", refresh: int = 0):
     """iOS phased release + Android production staged rollout yüzdesi (canlı API)."""
     from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
     from backend.services.store_rollout import fetch_store_rollout
@@ -15978,7 +15978,23 @@ def api_app_store_rollout(product: str = "doviz"):
     pid = (product or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
         return JSONResponse({"error": "unknown_product"}, status_code=400)
-    return JSONResponse(intel_json_safe(fetch_store_rollout(pid)))
+    return JSONResponse(intel_json_safe(fetch_store_rollout(pid, skip_cache=bool(refresh))))
+
+
+@app.post("/api/app/category-ranks/refresh")
+def api_app_category_ranks_refresh(product: str = "doviz"):
+    """Tek ürün kategori sırası — cache/DB güncelle (yorum çekmez)."""
+    from backend.services.app_intel import APP_PRODUCTS, intel_json_safe, refresh_category_ranks_for_product
+
+    pid = (product or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return JSONResponse({"error": "unknown_product"}, status_code=400)
+    try:
+        out = refresh_category_ranks_for_product(pid)
+        return JSONResponse(intel_json_safe({"ok": True, **out}))
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("category-ranks refresh failed: %s", exc)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 @app.get("/api/app/asc-stream")

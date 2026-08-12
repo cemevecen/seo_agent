@@ -170,6 +170,23 @@
       #app-intel-panels .app-intel-latest-list {
         min-height: 14rem;
       }
+      #app-intel-panels .app-intel-panel-head {
+        margin-bottom: 0;
+      }
+      /* Subgrid: satır sayısı sabit kalsın diye hidden yerine collapse */
+      #app-intel-panels .app-intel-panel-row.hidden {
+        display: block !important;
+        visibility: hidden;
+        height: 0;
+        min-height: 0;
+        overflow: hidden;
+        padding: 0 !important;
+        margin: 0;
+        pointer-events: none;
+      }
+      #app-intel-panels .app-intel-panel-row.hidden > * {
+        display: none !important;
+      }
     }
     @media (max-width: 1279px) {
       #app-intel-panels > .app-intel-panel {
@@ -1855,13 +1872,15 @@
       rolloutCard('Android (Google Play)', '', j.android || {});
   }
 
-  function loadStoreRollout() {
+  function loadStoreRollout(opts) {
     var box = document.getElementById('app-rollout-content');
     if (!box) return;
+    var force = !!(opts && opts.refresh);
     rolloutState.seq += 1;
     var req = rolloutState.seq;
     box.innerHTML = '<p class="col-span-full text-sm text-slate-500 dark:text-slate-400">Querying store API…</p>';
-    fetch('/api/app/store-rollout?product=' + encodeURIComponent(state.product), { cache: 'no-store', credentials: 'same-origin' })
+    var url = '/api/app/store-rollout?product=' + encodeURIComponent(state.product) + (force ? '&refresh=1' : '');
+    fetch(url, { cache: 'no-store', credentials: 'same-origin' })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (x) {
         if (req !== rolloutState.seq) return;
@@ -1879,7 +1898,7 @@
     var btn = document.getElementById('app-rollout-refresh');
     if (btn && !btn.dataset.bound) {
       btn.dataset.bound = '1';
-      btn.addEventListener('click', loadStoreRollout);
+      btn.addEventListener('click', function () { loadStoreRollout({ refresh: true }); });
     }
   })();
 
@@ -4622,6 +4641,34 @@
     });
   }
 
+  function categoryRanksMissing(payload) {
+    var w = payload && payload.active_window;
+    if (!w) return true;
+    var am = w.android || {};
+    var im = w.ios || {};
+    var ar = am.store_category_rank || {};
+    var ir = im.store_category_rank || {};
+    return ar.rank == null && ir.rank == null;
+  }
+
+  function maybeRefreshCategoryRanks(payload) {
+    if (!categoryRanksMissing(payload)) return Promise.resolve();
+    return fetch(
+      '/api/app/category-ranks/refresh?product=' + encodeURIComponent(state.product),
+      { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } }
+    )
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, j: j };
+        });
+      })
+      .then(function (x) {
+        if (!x.ok || !x.j || x.j.ok === false) return;
+        return loadIntel({ cacheOnly: true, keepProgress: true });
+      })
+      .catch(function () {});
+  }
+
   function loadIntel(opts) {
     try {
       window.__seoAppIntelLoadStarted = true;
@@ -4753,6 +4800,7 @@
           schedulePlotlyCatchup();
           loadAscPreview();
           loadStoreRollout();
+          return maybeRefreshCategoryRanks(x.j).then(function () {
           // ASO verisi ağır olabildiği için ana ekranı bekletmeden arkada yükle.
           return fetch(asoUrl, Object.assign({ cache: "no-store" }, jsonCred))
             .then(function (r2) {
@@ -4770,6 +4818,7 @@
               state.lastAsoPayload = null;
               renderAso(null);
             });
+          });
         });
       })
       .then(function () {

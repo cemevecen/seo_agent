@@ -111,18 +111,23 @@ def fetch_ios_rollout(*, bundle_id: str) -> dict[str, Any]:
 
     picked: dict | None = None
     for v in versions:
-        attr = v.get("attributes") or {}
-        state = (attr.get("appStoreState") or "").upper()
-        if state in (
-            "READY_FOR_SALE",
-            "PENDING_DEVELOPER_RELEASE",
-            "PROCESSING_FOR_APP_STORE",
-            "PREPARE_FOR_SUBMISSION",
-            "WAITING_FOR_REVIEW",
-            "IN_REVIEW",
-        ):
+        state = ((v.get("attributes") or {}).get("appStoreState") or "").upper()
+        if state == "READY_FOR_SALE":
             picked = v
             break
+    if not picked:
+        for v in versions:
+            attr = v.get("attributes") or {}
+            state = (attr.get("appStoreState") or "").upper()
+            if state in (
+                "PENDING_DEVELOPER_RELEASE",
+                "PROCESSING_FOR_APP_STORE",
+                "PREPARE_FOR_SUBMISSION",
+                "WAITING_FOR_REVIEW",
+                "IN_REVIEW",
+            ):
+                picked = v
+                break
     if not picked:
         picked = versions[0]
 
@@ -272,15 +277,16 @@ def fetch_android_rollout(*, package_name: str) -> dict[str, Any]:
     }
 
 
-def fetch_store_rollout(product_id: str) -> dict[str, Any]:
+def fetch_store_rollout(product_id: str, *, skip_cache: bool = False) -> dict[str, Any]:
     pid = (product_id or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
         return {"error": "unknown_product"}
 
     cache_key = f"rollout:{pid}"
-    cached = _cache_get(cache_key)
-    if cached:
-        return cached
+    if not skip_cache:
+        cached = _cache_get(cache_key)
+        if cached:
+            return cached
 
     meta = APP_PRODUCTS[pid]
     bundle = (meta.get("ios_bundle_id") or "").strip()
