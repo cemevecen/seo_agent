@@ -21367,6 +21367,8 @@ def sinemalar_policy_page(
     request: Request,
     host: str = Query(default="all"),
     tab: str = Query(default="policy"),
+    mod_start: str | None = Query(default=None),
+    mod_end: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
     from backend.services import policy_csv as pcsv
@@ -21400,7 +21402,11 @@ def sinemalar_policy_page(
         noads_summary = noads.get_noads_summary(db)
         from backend.services import sinemalar_moderation as sin_mod
 
-        moderation_panel = sin_mod.get_panel_payload(db)
+        moderation_panel = sin_mod.get_panel_payload(
+            db,
+            start=mod_start,
+            end=mod_end,
+        )
     except Exception as _e:
         LOGGER.exception("policy_page hata: %s", _e)
         stats = {

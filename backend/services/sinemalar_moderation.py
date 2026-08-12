@@ -284,12 +284,10 @@ def get_panel_payload(
         try:
             start_d = date.fromisoformat(str(start)[:10])
         except ValueError:
-            start_d = BACKFILL_START if not meta.get("backfill_complete") else end_d - timedelta(days=30)
-    elif not meta.get("backfill_complete"):
-        # Backfill sürerken yalnız son 30 gün değil, çekilen tüm 2026 aralığı gösterilsin
-        start_d = BACKFILL_START
+            start_d = BACKFILL_START
     else:
-        start_d = end_d - timedelta(days=30)
+        # 2026 yılı boyunca günlük birikim — Sinemalar’daki gibi geniş aralık seçilebilsin
+        start_d = BACKFILL_START
 
     if start_d > end_d:
         start_d, end_d = end_d, start_d
