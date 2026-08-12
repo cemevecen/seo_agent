@@ -13286,10 +13286,31 @@
     btn.textContent = on ? "Remove coloring" : "Renklendir";
   }
 
+  function mzTargetsTrMonthKey() {
+    try {
+      var parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Istanbul",
+        year: "numeric",
+        month: "2-digit",
+      }).formatToParts(new Date());
+      var y = "";
+      var m = "";
+      parts.forEach(function (p) {
+        if (p.type === "year") y = p.value;
+        if (p.type === "month") m = p.value;
+      });
+      if (y && m) return y + "-" + m;
+    } catch (_) {}
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+
   function mzTargetsFilteredRows() {
     if (!mzTargetsCache || !mzTargetsCache.rows) return [];
+    // İçinde bulunulan ay henüz bitmedi — tablo/grafikte gösterme (ayın 1–2'sinde eklenir)
+    var curKey = mzTargetsTrMonthKey();
     var rows = mzTargetsCache.rows.filter(function (r) {
-      return r.project === mzTargetsUi.project;
+      return r.project === mzTargetsUi.project && String(r.period_key || "") < curKey;
     });
     if (mzTargetsUi.year) {
       var y = parseInt(mzTargetsUi.year, 10);
@@ -13387,9 +13408,12 @@
 
   function mzTargetsPieGroupLabel(group, idx) {
     if (!group || !group.length) return "—";
-    if (idx === 0 && group.length < 6) return "Son " + group.length + " ay";
-    if (idx === 0) return "Last 6 months";
-    if (group.length < 6) return "Previous " + group.length + " ay";
+    if (idx === 0) {
+      return group.length < 6 ? ("Last " + group.length + " months") : "Last 6 months";
+    }
+    if (idx === 1) {
+      return group.length < 6 ? ("Previous " + group.length + " months") : "Previous 6 months";
+    }
     var oldest = group[0].period || group[0].period_key || "—";
     var newest = group[group.length - 1].period || group[group.length - 1].period_key || "—";
     return newest + " — " + oldest;

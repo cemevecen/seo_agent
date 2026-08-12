@@ -126,6 +126,26 @@ _TR_MONTH_LABELS: dict[int, str] = {
 
 # Eski hedef paneli zaman aralığı (çok aylık grafik/liste) — Şubat 2023+
 REVENUE_TARGETS_HISTORY_FROM = "2023-02"
+# Biten ayı sheet'ten panoya yazma: her ayın 1 ve 2'si (TR)
+REVENUE_TARGETS_CLOSED_MONTH_DAYS = frozenset({1, 2})
+
+
+def previous_month_period_key(today: date | None = None) -> str:
+    """Takvimde bir önceki ay (TR). Örn. Ağustos → 2026-07 değil; Eylül'de → 2026-08."""
+    today = today or _today_tr()
+    if today.month == 1:
+        return f"{today.year - 1:04d}-12"
+    return f"{today.year:04d}-{today.month - 1:02d}"
+
+
+def is_closed_month_sync_day(today: date | None = None) -> bool:
+    today = today or _today_tr()
+    return int(today.day) in REVENUE_TARGETS_CLOSED_MONTH_DAYS
+
+
+def current_month_period_key(today: date | None = None) -> str:
+    today = today or _today_tr()
+    return f"{today.year:04d}-{today.month:02d}"
 
 
 def _period_tuple(year: int, month: int) -> tuple[str, int, int, str]:

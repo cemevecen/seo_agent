@@ -106,7 +106,7 @@ PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "0")
 ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "5")
 FIREBASE_SLOT_MINUTE = int(os.environ.get("FIREBASE_CONSOLE_BRIDGE_MINUTE") or "10")
 TWICE_DAILY_HOURS = (1, 13)  # 01:00 + 13:00
-REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:00 + 13:00 TR — ad-virgul hedef sheet
+REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:05 + 13:05 TR — yalnız ayın 1–2'sinde biten ay
 GSC_SLOT_MINUTE = int(os.environ.get("GSC_LINKS_BRIDGE_MINUTE") or "0")
 REVENUE_TARGETS_SLOT_MINUTE = int(os.environ.get("REVENUE_TARGETS_BRIDGE_MINUTE") or "5")
 POLICY_SLOT_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "5")
@@ -856,12 +856,39 @@ def run_gsc_links_bridge_once() -> dict[str, Any]:
 
 
 def run_revenue_targets_bridge_once() -> dict[str, Any]:
-    """Ad-virgul hedef sheet — sistem Firefox (Selenium), Nightly yok → Railway ingest."""
+    """Ad-virgul hedef sheet — yalnız ayın 1 ve 2'sinde biten ayı scrape → ingest.
+
+    Örn. Eylül 1–2: Ağustos sekmesini ekler/günceller; eski ayları yeniden tarmaz.
+    """
     global _last_revenue_targets_result
     if not _ingest_token():
         err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
         _last_revenue_targets_result = err
         return err
+
+    try:
+        from backend.services.revenue_targets_sheet import (
+            is_closed_month_sync_day,
+            previous_month_period_key,
+        )
+    except Exception as exc:  # noqa: BLE001
+        err = {"ok": False, "kind": "revenue_targets", "message": f"import: {exc}"[:300]}
+        _last_revenue_targets_result = err
+        return err
+
+    if not is_closed_month_sync_day():
+        out = {
+            "ok": True,
+            "kind": "revenue_targets",
+            "skipped": True,
+            "message": (
+                "Revenue targets: skip (yalnız ayın 1–2'sinde biten ay "
+                f"{previous_month_period_key()} güncellenir)"
+            ),
+        }
+        _last_revenue_targets_result = out
+        print(out["message"], flush=True)
+        return out
 
     script = ROOT / "scripts" / "revenue_targets_scrape.py"
     if not script.is_file():
@@ -869,7 +896,11 @@ def run_revenue_targets_bridge_once() -> dict[str, Any]:
         _last_revenue_targets_result = err
         return err
 
-    print("Revenue targets scrape (sistem Firefox) başlıyor…", flush=True)
+    closed = previous_month_period_key()
+    print(
+        f"Revenue targets closed-month scrape · {closed} (sistem Firefox)…",
+        flush=True,
+    )
     env = os.environ.copy()
     env.setdefault(
         "REVENUE_TARGETS_INGEST_URL",
@@ -880,7 +911,7 @@ def run_revenue_targets_bridge_once() -> dict[str, Any]:
         "true",
         "yes",
     )
-    cmd = [sys.executable, str(script), "--sync", "--ingest"]
+    cmd = [sys.executable, str(script), "--sync", "--ingest", "--closed-month"]
     if not headed:
         cmd.append("--headless")
     try:
@@ -903,6 +934,7 @@ def run_revenue_targets_bridge_once() -> dict[str, Any]:
     out = {
         "ok": ok,
         "kind": "revenue_targets",
+        "closed_month": closed,
         "message": last[:400] if last else ("OK" if ok else f"exit={proc.returncode}"),
         "returncode": proc.returncode,
     }

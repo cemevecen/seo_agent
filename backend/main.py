@@ -5115,9 +5115,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
 
     def _run_ad_revenue_targets_prefetch() -> None:
+        """Cache warm — sheet scrape Mac bridge'te (ayın 1–2'si, biten ay)."""
         try:
-            from backend.services.revenue_targets_sheet import prefetch_revenue_targets
+            from backend.services.revenue_targets_sheet import (
+                is_closed_month_sync_day,
+                prefetch_revenue_targets,
+            )
 
+            if not is_closed_month_sync_day():
+                logging.getLogger(__name__).info(
+                    "Ad revenue targets prefetch: skip (not day 1–2 TR)"
+                )
+                return
             result = prefetch_revenue_targets(force=True)
             logging.getLogger(__name__).info(
                 "Ad revenue targets prefetch: ok=%s rows=%s fallback=%s",
@@ -5128,7 +5137,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).warning("Ad revenue targets prefetch: %s", exc)
 
-    # /ad-virgul aylık hedef KPI — her gece 05:00 ve öğlen 13:00 (TR)
+    # /ad-virgul gelir hedefleri — ayın 1 ve 2'sinde cache warm (TR 05:00 / 13:00)
     scheduler.add_job(
         _run_ad_revenue_targets_prefetch,
         trigger=_NtAlertCron(hour=5, minute=0),

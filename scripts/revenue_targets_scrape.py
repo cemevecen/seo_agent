@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """Ad-virgul aylık hedef sheet — sistem Firefox oturumu (Nightly yok).
 
-Akış (manuel yok):
-  1) Günlük Firefox.app profilinden Google çerezlerini oku
-  2) MCM workbook aylık sekmelerini (Şubat 2023+) CSV export
-  3) Doviz/Sinemalar satırlarını birleştir → lokal + Railway ingest
+Akış:
+  • İlk kurulum / eksik: --sync --missing-only (veya --full)
+  • Ayın 1–2'si (TR): --closed-month → yalnız biten ayı ekle/güncelle
+  • KPI (opsiyonel): --current-only
 
-  .venv/bin/python scripts/revenue_targets_scrape.py --sync
-  .venv/bin/python scripts/revenue_targets_scrape.py --sync --ingest
-  .venv/bin/python scripts/revenue_targets_scrape.py --sync --current-only
+  .venv/bin/python scripts/revenue_targets_scrape.py --sync --missing-only --ingest
+  .venv/bin/python scripts/revenue_targets_scrape.py --sync --closed-month --ingest
 """
 
 from __future__ import annotations
@@ -182,42 +181,24 @@ def scrape_history_rows(
     profile: Path,
     *,
     current_only: bool = False,
+    closed_month: bool = False,
+    missing_only: bool = False,
 ) -> tuple[list[dict], str | None, list[str]]:
-    """Tüm aylık sekmelerden Doviz/Sinemalar satırları."""
+    """MCM aylık sekmelerinden Doviz/Sinemalar.
+
+    - full (default): Şubat 2023+ tüm sekmeler
+    - current_only: yalnız içinde bulunulan ay (KPI)
+    - closed_month: yalnız bir önceki (biten) ay — ayın 1–2'si için
+    - missing_only: cache'te olmayan sekmeler (tek seferlik tamamla)
+    """
+    from backend.services.revenue_targets_sheet import (
+        current_month_period_key,
+        previous_month_period_key,
+    )
+
     opener = _opener(profile)
     current_csv: str | None = None
     errors: list[str] = []
-
-    if current_only:
-        text = export_gid_csv(opener, GID_CURRENT)
-        if not text:
-            return [], None, ["current month export failed"]
-        current_csv = text
-        rows = parse_revenue_targets_csv(text)
-        # merge over existing so history stays
-        merged: dict[tuple[str, str], dict] = {}
-        for r in _load_existing_rows():
-            pk = str(r.get("period_key") or "")
-            proj = str(r.get("project") or "")
-            if pk and proj:
-                merged[(pk, proj)] = r
-        for r in rows:
-            pk = str(r.get("period_key") or "")
-            proj = str(r.get("project") or "")
-            if pk and proj:
-                merged[(pk, proj)] = r
-        return (
-            sorted(merged.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or "")),
-            current_csv,
-            errors,
-        )
-
-    tabs = discover_month_tabs(opener)
-    if not tabs:
-        tabs = [("current", GID_CURRENT, "9999-99")]
-        errors.append("tab discovery empty — current gid only")
-
-    print(f"month tabs={len(tabs)} from={REVENUE_TARGETS_HISTORY_FROM}", flush=True)
     merged: dict[tuple[str, str], dict] = {}
     for r in _load_existing_rows():
         pk = str(r.get("period_key") or "")
@@ -227,6 +208,50 @@ def scrape_history_rows(
     if merged:
         print(f"seed existing rows={len(merged)}", flush=True)
 
+    existing_keys = {pk for (pk, _p) in merged.keys()}
+    cur_key = current_month_period_key()
+
+    if current_only:
+        tabs = discover_month_tabs(opener)
+        tabs = [t for t in tabs if t[2] == cur_key] or [
+            (cur_key, GID_CURRENT, cur_key)
+        ]
+    elif closed_month:
+        closed_key = previous_month_period_key()
+        tabs = discover_month_tabs(opener)
+        tabs = [t for t in tabs if t[2] == closed_key]
+        if not tabs:
+            return (
+                sorted(merged.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or "")),
+                None,
+                [f"closed month tab not found: {closed_key}"],
+            )
+        print(f"closed-month sync · period={closed_key}", flush=True)
+    else:
+        tabs = discover_month_tabs(opener)
+        if not tabs:
+            tabs = [("current", GID_CURRENT, cur_key)]
+            errors.append("tab discovery empty — current gid only")
+        if missing_only:
+            before = len(tabs)
+            tabs = [t for t in tabs if t[2] not in existing_keys]
+            print(
+                f"missing-only · need={len(tabs)}/{before} from={REVENUE_TARGETS_HISTORY_FROM}",
+                flush=True,
+            )
+            if not tabs:
+                print("nothing missing — skip scrape", flush=True)
+                return (
+                    sorted(
+                        merged.values(),
+                        key=lambda r: (r.get("period_key") or "", r.get("project") or ""),
+                    ),
+                    None,
+                    [],
+                )
+        else:
+            print(f"month tabs={len(tabs)} from={REVENUE_TARGETS_HISTORY_FROM}", flush=True)
+
     for i, (name, gid, period_key) in enumerate(tabs, 1):
         t0 = time.time()
         text = export_gid_csv(opener, gid)
@@ -235,7 +260,7 @@ def scrape_history_rows(
             print(f"[{i}/{len(tabs)}] FAIL {name} gid={gid}", flush=True)
             time.sleep(1.0)
             continue
-        if gid == GID_CURRENT or period_key == "2026-08":
+        if period_key == cur_key or gid == GID_CURRENT:
             current_csv = text
         rows = parse_revenue_targets_csv(text, period_hint=name)
         for r in rows:
@@ -249,13 +274,6 @@ def scrape_history_rows(
             flush=True,
         )
         time.sleep(0.85)
-
-    if current_csv is None:
-        text = export_gid_csv(opener, GID_CURRENT)
-        if text:
-            current_csv = text
-            for r in parse_revenue_targets_csv(text):
-                merged[(str(r.get("period_key")), str(r.get("project")))] = r
 
     rows_out = sorted(merged.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or ""))
     return rows_out, current_csv, errors
@@ -395,6 +413,8 @@ def run_sync(
     ingest: bool = False,
     headed: bool = False,
     current_only: bool = False,
+    closed_month: bool = False,
+    missing_only: bool = False,
 ) -> dict:
     """Sistem Firefox oturumu ile aylık sekmeler — Nightly yok, manuel yok."""
     _ = headed
@@ -419,7 +439,12 @@ def run_sync(
             "profile": str(profile),
         }
 
-    rows, current_csv, errors = scrape_history_rows(profile, current_only=current_only)
+    rows, current_csv, errors = scrape_history_rows(
+        profile,
+        current_only=current_only,
+        closed_month=closed_month,
+        missing_only=missing_only,
+    )
     if not rows:
         return {
             "ok": False,
@@ -447,6 +472,15 @@ def run_sync(
         "parsed": len(rows),
         "period_keys": period_keys,
         "errors": errors,
+        "mode": (
+            "closed_month"
+            if closed_month
+            else "current_only"
+            if current_only
+            else "missing_only"
+            if missing_only
+            else "full"
+        ),
         "browser": "system_firefox_cookies",
         "profile": str(profile),
     }
@@ -466,8 +500,19 @@ def main() -> int:
     parser.add_argument(
         "--current-only",
         action="store_true",
-        help="Sadece güncel ay sekmesi (hızlı KPI)",
+        help="Sadece içinde bulunulan ay sekmesi (KPI)",
     )
+    parser.add_argument(
+        "--closed-month",
+        action="store_true",
+        help="Sadece bir önceki (biten) ay — ayın 1 ve 2'si için",
+    )
+    parser.add_argument(
+        "--missing-only",
+        action="store_true",
+        help="Cache'te olmayan ayları tamamla (eski ayları yeniden tarama)",
+    )
+    parser.add_argument("--full", action="store_true", help="Tüm ayları tara (Şubat 2023+)")
     parser.add_argument("--headless", action="store_true", help="(uyumluluk, yok sayılır)")
     parser.add_argument("--login", action="store_true", help="(kaldırıldı) --sync ile aynı")
     args = parser.parse_args()
@@ -485,10 +530,24 @@ def main() -> int:
             if k and k not in os.environ:
                 os.environ[k] = v
 
+    # Varsayılan otomatik: eksik varsa tamamla; yoksa no-op tarama yok
+    current_only = bool(args.current_only)
+    closed_month = bool(args.closed_month)
+    missing_only = bool(args.missing_only)
+    if args.full:
+        missing_only = False
+        closed_month = False
+        current_only = False
+    elif not (current_only or closed_month or missing_only or args.full):
+        # --sync varsayılanı: yalnız eksik aylar (rate-limit / süre dostu)
+        missing_only = True
+
     result = run_sync(
         ingest=bool(args.ingest or args.sync),
         headed=not args.headless,
-        current_only=bool(args.current_only),
+        current_only=current_only,
+        closed_month=closed_month,
+        missing_only=missing_only,
     )
     print(result, flush=True)
     return 0 if result.get("ok") else 1

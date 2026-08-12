@@ -182,3 +182,19 @@ def test_parse_sheet_tab_period_and_empty_header():
     assert rows[0]["period_key"] == "2023-02"
     assert rows[0]["hedef"] == 550_000.0
     assert rows[1]["project"] == "sinemalar"
+
+
+def test_closed_month_sync_helpers():
+    from datetime import date
+
+    from backend.services.revenue_targets_sheet import (
+        is_closed_month_sync_day,
+        previous_month_period_key,
+    )
+
+    assert previous_month_period_key(date(2026, 9, 1)) == "2026-08"
+    assert previous_month_period_key(date(2026, 1, 2)) == "2025-12"
+    assert is_closed_month_sync_day(date(2026, 9, 1)) is True
+    assert is_closed_month_sync_day(date(2026, 9, 2)) is True
+    assert is_closed_month_sync_day(date(2026, 9, 3)) is False
+    assert is_closed_month_sync_day(date(2026, 8, 12)) is False
