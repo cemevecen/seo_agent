@@ -24,7 +24,7 @@
     { prefix: '/seo-audit', page_id: 'seo-audit', label: 'SEO Audit', tool: null },
     { prefix: '/tmdb-upcoming', page_id: 'tmdb-upcoming', label: 'Movie', tool: null },
     { prefix: '/boards', page_id: 'boards', label: 'GitLab Boards', tool: null },
-    { prefix: '/policy', page_id: 'policy', label: 'Policy', tool: null },
+    { prefix: '/sinemalar', page_id: 'policy', label: 'Sinemalar', tool: null },
     { prefix: '/alerts', page_id: 'alerts', label: 'Alerts', tool: null },
     { prefix: '/ai', page_id: 'ai', label: 'AI Brief', tool: null },
     { prefix: '/settings', page_id: 'settings', label: 'Settings', tool: null },

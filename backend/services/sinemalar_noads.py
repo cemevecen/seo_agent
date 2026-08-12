@@ -283,7 +283,7 @@ def maybe_send_noads_alarm(
       <p><b>Sinemalar Policy ↔ noAds uyumsuzluğu</b></p>
       <p>{_esc(' · '.join(reasons))}</p>
       <p>noAds kayıt: <b>{entry_count}</b> · eksik policy: <b>{len(missing_rows)}</b> · tarama: {_esc(scraped_at)}</p>
-      <p>Panel: <a href="https://projectcontrol.up.railway.app/policy">/policy</a>
+      <p>Panel: <a href="https://projectcontrol.up.railway.app/sinemalar">/sinemalar</a>
          · noAds: <a href="https://www.sinemalar.com/management/noAds">management/noAds</a></p>
       <table style="border-collapse:collapse;width:100%;margin-top:12px">
         <thead>

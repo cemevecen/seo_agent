@@ -21361,8 +21361,9 @@ async def api_boards_move(request: Request):
 
 # ── Policy Center CSV Import ──────────────────────────────────────────────────
 
+@app.get("/sinemalar", response_class=HTMLResponse)
 @app.get("/policy", response_class=HTMLResponse)
-def policy_page(
+def sinemalar_policy_page(
     request: Request,
     host: str = Query(default="all"),
     tab: str = Query(default="policy"),
