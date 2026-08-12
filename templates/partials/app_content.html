@@ -61,7 +61,7 @@
   }
 </style>
 
-<div id="app-intel-root" class="app-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-5" data-page-tarama="app">
+<div id="app-intel-root" class="app-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-5" data-page-tarama="app" style="container-type: inline-size">
   {# JSON'u data-* içinde |e ile vermek bazı tarayıcılarda parse hatasına yol açabiliyor #}
   <script type="application/json" id="app-intel-products-json">{{ app_products | tojson }}</script>
   <style>
@@ -242,6 +242,71 @@
       flex-direction: column;
       gap: clamp(0.75rem, 2.5cqi, 1.5rem);
       min-height: 0;
+    }
+    .app-intel-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.375rem 0.5rem;
+    }
+    .app-intel-toolbar-title {
+      flex: 0 1 auto;
+      min-width: 0;
+      font-size: clamp(0.9375rem, 2.4cqi, 1.25rem);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .app-intel-toolbar-hero {
+      border-radius: 0.625rem;
+      border: 1px solid rgb(203 213 225 / 0.85);
+      background: rgb(248 250 252);
+      padding: 0.25rem 0.4375rem;
+    }
+    .dark .app-intel-toolbar-hero {
+      border-color: rgb(71 85 105);
+      background: rgb(30 41 59 / 0.55);
+    }
+    .app-intel-toolbar-hero-badge {
+      width: 1.625rem;
+      height: 1.625rem;
+      font-size: 0.6875rem;
+    }
+    .app-intel-toolbar-hero-label {
+      font-size: clamp(0.6875rem, 1.8cqi, 0.8125rem);
+      font-weight: 700;
+      line-height: 1.15;
+    }
+    .app-intel-toolbar-hero-sub {
+      font-size: clamp(0.5625rem, 1.4cqi, 0.6875rem);
+      line-height: 1.15;
+    }
+    .app-intel-period-select {
+      border-radius: 0.5rem;
+      border: 1px solid rgb(226 232 240);
+      background: rgb(255 255 255);
+      padding: 0.3125rem 1.75rem 0.3125rem 0.5rem;
+      font-size: clamp(0.6875rem, 1.6cqi, 0.75rem);
+      font-weight: 600;
+      color: rgb(51 65 85);
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.35rem center;
+      background-size: 1rem;
+      min-width: 4.25rem;
+    }
+    .dark .app-intel-period-select {
+      border-color: rgb(71 85 105);
+      background-color: rgb(15 23 42);
+      color: rgb(226 232 240);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+    }
+    .app-intel-period-select:focus {
+      outline: none;
+      border-color: rgb(56 189 248);
+      box-shadow: 0 0 0 2px rgb(56 189 248 / 0.25);
     }
     .app-aso-section {
       padding: 0.75rem;
@@ -515,46 +580,38 @@
       }
     }
   </style>
-  <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-4">
-    <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-      <div class="min-w-0">
-        <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">Mobile app store analytics</h1>
-      </div>
-      <div class="flex flex-col items-start gap-2 lg:items-end">
-        <div class="flex flex-wrap items-center gap-2">
-          <nav id="app-intel-product-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="App selection"></nav>
-          <div
-            id="app-intel-hero"
-            class="rounded-xl border border-slate-300/80 bg-slate-50 px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-800/80"
-            data-app-active=""
-          >
-            <div class="flex items-center gap-2">
-              <span
-                id="app-intel-hero-badge"
-                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white shadow-sm"
-                aria-hidden="true"
-              >·</span>
-              <div class="leading-tight">
-                <p id="app-intel-hero-label" class="text-sm font-bold text-slate-900 dark:text-slate-100">—</p>
-                <p id="app-intel-hero-sub" class="text-[11px] text-slate-500 dark:text-slate-300">Google Play ve App Store</p>
-              </div>
-            </div>
+  <div class="rounded-2xl bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-4 sm:py-3">
+    <div class="app-intel-toolbar">
+      <h1 class="app-intel-toolbar-title shrink-0 text-slate-900 dark:text-slate-100">Mobile app store analytics</h1>
+      <nav id="app-intel-product-nav" class="inline-flex shrink-0 flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="App selection"></nav>
+      <div
+        id="app-intel-hero"
+        class="app-intel-toolbar-hero shrink-0"
+        data-app-active=""
+      >
+        <div class="flex items-center gap-1.5">
+          <span
+            id="app-intel-hero-badge"
+            class="app-intel-toolbar-hero-badge flex shrink-0 items-center justify-center rounded-md font-bold text-white shadow-sm"
+            aria-hidden="true"
+          >·</span>
+          <div class="min-w-0 leading-tight">
+            <p id="app-intel-hero-label" class="app-intel-toolbar-hero-label truncate text-slate-900 dark:text-slate-100">—</p>
+            <p id="app-intel-hero-sub" class="app-intel-toolbar-hero-sub truncate text-slate-500 dark:text-slate-300">Google Play ve App Store</p>
           </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <span data-page-tarama-slot></span>
-          <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Period</span>
-          <nav id="app-intel-period-nav" class="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800/80" aria-label="Day range">
-            <button type="button" data-app-period="7" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">7g</button>
-            <button type="button" data-app-period="30" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">30g</button>
-            <button type="button" data-app-period="90" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">3a</button>
-            <button type="button" data-app-period="180" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">6a</button>
-            <button type="button" data-app-period="365" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">1y</button>
-            <button type="button" data-app-period="730" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">2y</button>
-            <button type="button" data-app-period="0" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">all</button>
-          </nav>
-        </div>
       </div>
+      <span data-page-tarama-slot class="shrink-0"></span>
+      <label for="app-intel-period-select" class="sr-only">Period</label>
+      <select id="app-intel-period-select" class="app-intel-period-select shrink-0" aria-label="Day range">
+        <option value="7">7g</option>
+        <option value="30">30g</option>
+        <option value="90">3a</option>
+        <option value="180">6a</option>
+        <option value="365">1y</option>
+        <option value="730">2y</option>
+        <option value="0">all</option>
+      </select>
     </div>
     <p id="app-intel-status" class="mt-1 text-xs text-slate-700 dark:text-white">
       Checking cache…
@@ -1209,7 +1266,7 @@
 
   var state = {
     product: "doviz",
-    period: 30,
+    period: 7,
     lastPayload: null,
     lastAsoPayload: null,
     loadingStartedAt: 0,
@@ -3126,19 +3183,20 @@
   }
 
   function renderPeriodNav() {
-    document.querySelectorAll(".app-intel-period-btn").forEach(function (b) {
-      var v = parseInt(b.getAttribute("data-app-period"), 10);
-      var on = v === state.period;
-      b.className = "app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition " + periodClass(on);
-      if (!b.dataset.bound) {
-        b.dataset.bound = "1";
-        b.addEventListener("click", function () {
+    var sel = document.getElementById("app-intel-period-select");
+    if (!sel) return;
+    sel.value = String(state.period);
+    if (!sel.dataset.bound) {
+      sel.dataset.bound = "1";
+      sel.addEventListener("change", function () {
+        var v = parseInt(sel.value, 10);
+        if (v === 0 || v === 7 || v === 30 || v === 90 || v === 180 || v === 365 || v === 730) {
           state.period = v;
           renderPeriodNav();
           loadIntel({ cacheOnly: true });
-        });
-      }
-    });
+        }
+      });
+    }
   }
 
   function theme() {
@@ -4065,7 +4123,7 @@
         var initial = (p.label || "?").trim().charAt(0);
         bd.textContent = initial;
         bd.className =
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white shadow-sm " +
+          "app-intel-toolbar-hero-badge flex shrink-0 items-center justify-center rounded-md font-bold text-white shadow-sm " +
           (pk === "doviz" ? "bg-emerald-600" : pk === "sinemalar" ? "bg-violet-600" : "bg-slate-600");
       }
     }
@@ -4150,12 +4208,12 @@
       if (!bd) return;
       var safeFallback = fallback || "?";
       if (iconUrl) {
-        bd.innerHTML = '<img src="' + iconUrl + '" alt="App logo" class="h-8 w-8 rounded-lg object-cover" loading="lazy" />';
-        bd.className = "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 shadow-sm dark:bg-slate-700";
+        bd.innerHTML = '<img src="' + iconUrl + '" alt="App logo" class="h-full w-full rounded-md object-cover" loading="lazy" />';
+        bd.className = "app-intel-toolbar-hero-badge flex shrink-0 items-center justify-center rounded-md bg-slate-100 shadow-sm dark:bg-slate-700";
       } else {
         bd.textContent = safeFallback;
         bd.className =
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white shadow-sm " +
+          "app-intel-toolbar-hero-badge flex shrink-0 items-center justify-center rounded-md font-bold text-white shadow-sm " +
           (pk === "doviz" ? "bg-emerald-600" : pk === "sinemalar" ? "bg-violet-600" : "bg-slate-600");
       }
     }
@@ -4416,7 +4474,7 @@
     var hs = document.getElementById("app-intel-hero-sub");
     if (hs) hs.innerHTML = '<span class="app-intel-skeleton inline-block h-4 w-36 align-middle"></span>';
     var hb = document.getElementById("app-intel-hero-badge");
-    if (hb) hb.innerHTML = '<span class="app-intel-skeleton inline-block h-8 w-8 rounded-lg"></span>';
+    if (hb) hb.innerHTML = '<span class="app-intel-skeleton inline-block h-[1.625rem] w-[1.625rem] rounded-md"></span>';
 
     var am = document.getElementById("app-intel-android-meta");
     if (am) am.innerHTML = skeletonBlock(108);
@@ -4784,7 +4842,7 @@
     if (bd) {
       bd.textContent = (def.label || "?").trim().charAt(0);
       bd.className =
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white shadow-sm " +
+        "app-intel-toolbar-hero-badge flex shrink-0 items-center justify-center rounded-md font-bold text-white shadow-sm " +
         (def.id === "doviz" ? "bg-emerald-600" : def.id === "sinemalar" ? "bg-violet-600" : "bg-slate-600");
     }
     var hp = document.getElementById("app-intel-head-play");
