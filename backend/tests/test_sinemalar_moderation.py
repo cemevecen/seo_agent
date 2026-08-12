@@ -178,6 +178,7 @@ def test_ingest_detail_batch_rebuilds_daily():
         recompute_daily=True,
     )
     assert res["ok"] is True
+    assert res["items_inserted"] == 2
     assert res["items_upserted"] == 2
     row = (
         db.query(SinemalarModerationDailyRow)
@@ -189,6 +190,55 @@ def test_ingest_detail_batch_rebuilds_daily():
         .one()
     )
     assert row.count == 2
+
+
+def test_detail_ingest_skips_duplicates_append_only():
+    db = _session()
+    items = mod.parse_detail_rows(
+        [
+            {
+                "cells": [
+                    {"text": "99", "href": "/m/99"},
+                    {"text": "Tek", "href": "/m/99"},
+                    {"text": "2026-04-01 09:00:00", "href": None},
+                ]
+            }
+        ],
+        user_id=873391,
+        username="gezginozlem",
+        metric_type="news",
+    )
+    first = mod.ingest_detail_batch(
+        db,
+        user_id=873391,
+        username="gezginozlem",
+        metric_type="news",
+        items=items,
+        range_start=date(2026, 4, 1),
+        range_end=date(2026, 4, 1),
+        sync_daily_date=date(2026, 4, 1),
+    )
+    assert first["items_inserted"] == 1
+    second = mod.ingest_detail_batch(
+        db,
+        user_id=873391,
+        username="gezginozlem",
+        metric_type="news",
+        items=items,
+        range_start=date(2026, 4, 1),
+        range_end=date(2026, 4, 1),
+        sync_daily_date=date(2026, 4, 1),
+    )
+    assert second["items_inserted"] == 0
+    assert second["items_skipped"] == 1
+    assert db.query(SinemalarModerationDetailItem).count() == 1
+    row = (
+        db.query(SinemalarModerationDetailItem)
+        .filter(SinemalarModerationDetailItem.item_id == "99")
+        .one()
+    )
+    assert row.username == "gezginozlem"
+    assert row.title == "Tek"
 
 
 def test_purge_all_data():

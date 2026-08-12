@@ -236,7 +236,7 @@ def parse_summary_rows(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 count = 0
             out.append(
                 {
-                    "username": moderator,
+                    "username": resolve_username(user_id) or moderator,
                     "user_id": user_id,
                     "metric_type": mtype,
                     "metric_label": METRIC_LABEL_BY_TYPE.get(mtype, label),
@@ -329,6 +329,44 @@ def _rebuild_daily_from_details(
     return len(day_counts)
 
 
+def _sync_daily_for_day_from_details(
+    db: Session,
+    *,
+    user_id: int,
+    username: str,
+    metric_type: str,
+    report_date: date,
+    source_url: str | None,
+    scraped_at: datetime,
+) -> int:
+    """Tek günün daily satırını mevcut detay kayıtlarından say — silme yok."""
+    start = datetime.combine(report_date, datetime.min.time())
+    end = datetime.combine(report_date + timedelta(days=1), datetime.min.time())
+    cnt = (
+        db.query(SinemalarModerationDetailItem)
+        .filter(
+            SinemalarModerationDetailItem.user_id == user_id,
+            SinemalarModerationDetailItem.metric_type == metric_type,
+            SinemalarModerationDetailItem.event_at >= start,
+            SinemalarModerationDetailItem.event_at < end,
+        )
+        .count()
+    )
+    canonical = resolve_username(user_id) or username
+    src = source_url or detail_url(user_id, start=report_date, end=report_date, metric_type=metric_type)
+    _upsert_daily_count(
+        db,
+        report_date=report_date,
+        user_id=user_id,
+        username=canonical,
+        metric_type=metric_type,
+        count=int(cnt),
+        detail_url=src,
+        scraped_at=scraped_at,
+    )
+    return 1
+
+
 def ingest_detail_batch(
     db: Session,
     *,
@@ -342,20 +380,23 @@ def ingest_detail_batch(
     scraped_at: datetime | None = None,
     rebuild_daily: bool = False,
     recompute_daily: bool = False,
+    sync_daily_date: date | None = None,
 ) -> dict[str, Any]:
     now = scraped_at or datetime.utcnow()
+    canonical_name = resolve_username(user_id) or username
     if items and isinstance(items[0], dict) and "cells" in items[0]:
         parsed = parse_detail_rows(
             items,
             user_id=user_id,
-            username=username,
+            username=canonical_name,
             metric_type=metric_type,
             source_url=source_url,
         )
     else:
         parsed = list(items or [])
 
-    item_upserted = 0
+    items_inserted = 0
+    items_skipped = 0
     for item in parsed:
         event_at = item.get("event_at")
         if isinstance(event_at, str):
@@ -374,30 +415,42 @@ def ingest_detail_batch(
             )
             .first()
         )
-        if existing is None:
-            existing = SinemalarModerationDetailItem(
-                user_id=user_id,
-                metric_type=metric_type,
-                item_id=str(item.get("item_id") or "")[:32],
-                event_at=event_at,
-                subtitle=subtitle,
-            )
-            db.add(existing)
-        existing.username = str(item.get("username") or username)[:64]
-        existing.metric_label = str(item.get("metric_label") or METRIC_LABEL_BY_TYPE.get(metric_type, metric_type))[:64]
-        existing.title = str(item.get("title") or "")[:512]
+        if existing is not None:
+            items_skipped += 1
+            continue
+        row = SinemalarModerationDetailItem(
+            user_id=user_id,
+            metric_type=metric_type,
+            item_id=str(item.get("item_id") or "")[:32],
+            event_at=event_at,
+            subtitle=subtitle,
+        )
+        db.add(row)
+        row.username = canonical_name[:64]
+        row.metric_label = str(item.get("metric_label") or METRIC_LABEL_BY_TYPE.get(metric_type, metric_type))[:64]
+        row.title = str(item.get("title") or "")[:512]
         admin = item.get("admin_url") or item.get("source_url")
-        existing.admin_url = str(admin)[:512] if admin else None
-        existing.source_url = str(source_url or item.get("source_url") or "")[:512] or None
-        existing.scraped_at = now
-        item_upserted += 1
+        row.admin_url = str(admin)[:512] if admin else None
+        row.source_url = str(source_url or item.get("source_url") or "")[:512] or None
+        row.scraped_at = now
+        items_inserted += 1
 
     daily_upserted = 0
-    if recompute_daily:
+    if sync_daily_date is not None:
+        daily_upserted = _sync_daily_for_day_from_details(
+            db,
+            user_id=user_id,
+            username=canonical_name,
+            metric_type=metric_type,
+            report_date=sync_daily_date,
+            source_url=source_url,
+            scraped_at=now,
+        )
+    elif recompute_daily:
         daily_upserted = _rebuild_daily_from_details(
             db,
             user_id=user_id,
-            username=username,
+            username=canonical_name,
             metric_type=metric_type,
             range_start=range_start,
             range_end=range_end,
@@ -430,7 +483,7 @@ def ingest_detail_batch(
                 db,
                 report_date=d,
                 user_id=user_id,
-                username=username,
+                username=canonical_name,
                 metric_type=metric_type,
                 count=cnt,
                 detail_url=src,
@@ -440,14 +493,19 @@ def ingest_detail_batch(
 
     meta = _meta(db)
     meta.last_scraped_at = now
-    meta.last_mode = "detail_range"
-    meta.message = f"detail {username}/{metric_type} · {item_upserted} kayıt"
+    meta.last_mode = "detail_incremental" if sync_daily_date else "detail_range"
+    meta.message = (
+        f"detail {canonical_name}/{metric_type} · +{items_inserted} yeni"
+        + (f" · {items_skipped} mevcut" if items_skipped else "")
+    )
     db.commit()
     return {
         "ok": True,
         "user_id": user_id,
         "metric_type": metric_type,
-        "items_upserted": item_upserted,
+        "items_inserted": items_inserted,
+        "items_skipped": items_skipped,
+        "items_upserted": items_inserted,
         "daily_upserted": daily_upserted,
     }
 
@@ -478,7 +536,7 @@ def ingest_daily_batch(
             db,
             report_date=day,
             user_id=uid,
-            username=str(item.get("username") or resolve_username(uid)),
+            username=resolve_username(uid) or str(item.get("username") or ""),
             metric_type=mtype,
             count=int(item.get("count") or 0),
             detail_url=item.get("detail_url"),
@@ -522,7 +580,16 @@ def ingest_backfill_payload(
             if not uid or not mtype:
                 continue
             recompute = batch.get("_recompute_daily")
-            if recompute is None:
+            sync_raw = batch.get("_sync_daily_date")
+            sync_day: date | None = None
+            if sync_raw:
+                try:
+                    sync_day = date.fromisoformat(str(sync_raw)[:10])
+                except ValueError:
+                    sync_day = None
+            if sync_day is not None:
+                recompute = False
+            elif recompute is None:
                 recompute = True
             res = ingest_detail_batch(
                 db,
@@ -535,9 +602,10 @@ def ingest_backfill_payload(
                 source_url=batch.get("source_url"),
                 scraped_at=scraped_at,
                 recompute_daily=bool(recompute),
+                sync_daily_date=sync_day,
             )
             if res.get("ok"):
-                total_items += int(res.get("items_upserted") or 0)
+                total_items += int(res.get("items_inserted") or res.get("items_upserted") or 0)
                 total_daily += int(res.get("daily_upserted") or 0)
 
         meta = _meta(db)
@@ -870,7 +938,7 @@ def build_panel_analytics(
         by_day_total[day] = by_day_total.get(day, 0) + 1
         if day not in by_day_user:
             by_day_user[day] = {}
-        uname = r.username or resolve_username(uid)
+        uname = resolve_username(uid) or r.username or resolve_username(uid)
         by_day_user[day][uname] = by_day_user[day].get(uname, 0) + 1
 
     all_days: list[str] = []
@@ -1029,7 +1097,7 @@ def get_panel_payload(
         for r in detail_rows:
             if not is_tracked_user_id(r.user_id):
                 continue
-            uname = r.username or resolve_username(r.user_id)
+            uname = resolve_username(r.user_id) or r.username
             if uname not in users:
                 users[uname] = {
                     "username": uname,

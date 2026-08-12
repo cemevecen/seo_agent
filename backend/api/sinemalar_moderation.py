@@ -80,6 +80,7 @@ def sinemalar_moderation_ingest(
             "source_url": b.get("source_url"),
             "items": b.get("items") or [],
             "_recompute_daily": b.get("_recompute_daily"),
+            "_sync_daily_date": b.get("_sync_daily_date"),
         }
         for b in payload.get("detail_batches") or []
     ]

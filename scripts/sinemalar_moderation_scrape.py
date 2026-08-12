@@ -923,6 +923,109 @@ def run_incremental(which: str = "yesterday", *, headed: bool = True, ingest: bo
     return result
 
 
+def scrape_incremental_detail_day(
+    day: date,
+    *,
+    headed: bool = True,
+    delay_sec: float = SCRAPE_DELAY_SEC,
+    ingest_per_batch: bool = False,
+) -> dict[str, Any]:
+    """Tek gün getModerationDetail — append-only ingest, purge yok."""
+    from backend.services.sinemalar_moderation import METRIC_TYPE_KEYS, TRACKED_MODERATORS
+
+    batches: list[dict[str, Any]] = []
+    total_items = 0
+    total_batches = len(TRACKED_MODERATORS) * len(METRIC_TYPE_KEYS)
+    n = 0
+    scraped_at = datetime.now(timezone.utc).isoformat()
+
+    for user_id, username in TRACKED_MODERATORS:
+        for metric_type in METRIC_TYPE_KEYS:
+            if n > 0 and delay_sec > 0:
+                time.sleep(delay_sec)
+            n += 1
+            batch: dict[str, Any] | None = None
+            for attempt in range(2):
+                pw = ctx = page = None
+                try:
+                    pw, ctx, page = _open_logged_in_page(headed)
+                    if page is None:
+                        return {
+                            "ok": False,
+                            "needs_login": True,
+                            "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
+                            "detail_batches": batches,
+                        }
+                    batch = fetch_detail_page(
+                        page,
+                        user_id=user_id,
+                        username=username,
+                        metric_type=metric_type,
+                        start_d=day,
+                        end_d=day,
+                    )
+                    break
+                except Exception as exc:
+                    print(f"    ! {username}/{metric_type} hata (deneme {attempt + 1}): {exc}", flush=True)
+                    batch = None
+                finally:
+                    _safe_close_context(ctx)
+                    if pw is not None:
+                        try:
+                            pw.stop()
+                        except Exception:
+                            pass
+            if batch is None:
+                continue
+            item_count = int(batch.get("item_count") or 0)
+            if item_count <= 0:
+                continue
+            batches.append(batch)
+            total_items += item_count
+            if ingest_per_batch:
+                body: dict[str, Any] = {
+                    "source": "sinemalar_moderation",
+                    "mode": "detail_incremental",
+                    "scraped_at": scraped_at,
+                    "range_start": day.isoformat(),
+                    "range_end": day.isoformat(),
+                    "detail_batches": [
+                        {
+                            **batch,
+                            "_sync_daily_date": day.isoformat(),
+                            "_recompute_daily": False,
+                        }
+                    ],
+                    "backfill_complete": n >= total_batches,
+                }
+                ing = ingest_result(body, mode="detail_incremental")
+                if not ing.get("ok"):
+                    print(f"    ingest hata: {ing.get('message')}", flush=True)
+
+    return {
+        "ok": True,
+        "needs_login": False,
+        "source": "sinemalar_moderation",
+        "mode": "detail_incremental",
+        "scraped_at": scraped_at,
+        "report_date": day.isoformat(),
+        "range_start": day.isoformat(),
+        "range_end": day.isoformat(),
+        "detail_batches": batches,
+        "item_count": total_items,
+        "batch_count": len(batches),
+        "message": f"detail_incremental {day.isoformat()} · {total_items} kayıt · {len(batches)} batch",
+    }
+
+
+def run_incremental_detail(which: str = "yesterday", *, headed: bool = True, ingest: bool = False) -> dict[str, Any]:
+    day = _yesterday_tr() if which == "yesterday" else _today_tr()
+    result = scrape_incremental_detail_day(day, headed=headed, ingest_per_batch=bool(ingest))
+    if result.get("ok") and ingest and not result.get("detail_batches"):
+        result["message"] = f"detail_incremental {day.isoformat()} · yeni kayıt yok"
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sinemalar moderasyon özeti scrape")
     parser.add_argument("--login", action="store_true", help="Yalnızca admin oturumu aç")
@@ -934,7 +1037,12 @@ def main() -> int:
     )
     parser.add_argument("--from-date", help="Backfill chunk başlangıcı YYYY-MM-DD (cursor override)")
     parser.add_argument("--max-days", type=int, default=0, help="Backfill'de en fazla N gün (test)")
-    parser.add_argument("--incremental", choices=("yesterday", "today"), help="Tek gün incremental")
+    parser.add_argument("--incremental", choices=("yesterday", "today"), help="Tek gün özet (legacy)")
+    parser.add_argument(
+        "--incremental-detail",
+        choices=("yesterday", "today"),
+        help="Tek gün getModerationDetail append-only ingest",
+    )
     parser.add_argument("--date", help="Tek gün YYYY-MM-DD (endDate otomatik +1 gün)")
     parser.add_argument(
         "--range",
@@ -1004,6 +1112,11 @@ def main() -> int:
             max_days=args.max_days if args.max_days > 0 else None,
         )
         print(json.dumps({k: v for k, v in out.items() if k != "days"}, ensure_ascii=False, indent=2))
+        return 0 if out.get("ok") else 1
+
+    if args.incremental_detail:
+        out = run_incremental_detail(args.incremental_detail, headed=headed, ingest=args.ingest)
+        print(json.dumps({k: v for k, v in out.items() if k != "detail_batches"}, ensure_ascii=False, indent=2))
         return 0 if out.get("ok") else 1
 
     if args.incremental:

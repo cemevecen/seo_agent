@@ -1353,9 +1353,9 @@ def run_sinemalar_moderation_bridge_once(*, incremental_which: str = "yesterday"
         mode = "backfill"
     else:
         which = incremental_which if incremental_which in ("yesterday", "today") else "yesterday"
-        print(f"Sinemalar moderasyon incremental ({which})…", flush=True)
-        result = mod.run_incremental(which, headed=headed, ingest=True)
-        mode = "incremental"
+        print(f"Sinemalar moderasyon detail incremental ({which})…", flush=True)
+        result = mod.run_incremental_detail(which, headed=headed, ingest=True)
+        mode = "detail_incremental"
 
     if result.get("needs_login"):
         out = {
