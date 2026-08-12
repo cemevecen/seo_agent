@@ -95,7 +95,7 @@ from backend.models import (
     RealtimeAlarmLog, RealtimeNewsSnapshot, RealtimePageSnapshot, RealtimeSnapshot,
     SearchConsoleQuerySnapshot, Site, SiteCredential, SiteErrorLog, UrlAuditRecord, UrlInspectionSnapshot, AdminAuthSetting,
     AppMember,
-    AppStoreRankSnapshot, AiDailyBriefReport, AiBriefRunLog, AppIntelRawCache,
+    AppStoreRankSnapshot, AiDailyBriefReport, AiBriefRunLog, AppIntelRawCache, RevenueTargetsCache,
     SupportInboxThread, SupportInboxMessage,
 )
 from backend.rate_limiter import limiter

@@ -249,14 +249,31 @@ def load_ingested_revenue_targets(
     *,
     max_age_sec: float = _INGEST_MAX_AGE_SEC,
 ) -> dict[str, Any] | None:
-    """Mac sistem-Firefox scrape ingest dosyası."""
-    if not _INGEST_PATH.is_file():
-        return None
+    """Mac Firefox scrape ingest — önce Postgres, sonra lokal dosya."""
+    data: dict[str, Any] | None = None
+
     try:
-        data = json.loads(_INGEST_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    if not isinstance(data, dict):
+        from backend.database import SessionLocal
+        from backend.models import RevenueTargetsCache
+
+        with SessionLocal() as db:
+            row = db.get(RevenueTargetsCache, "current")
+            if row and row.payload_json:
+                parsed = json.loads(row.payload_json)
+                if isinstance(parsed, dict):
+                    data = parsed
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("revenue targets postgres cache read failed: %s", exc)
+
+    if data is None and _INGEST_PATH.is_file():
+        try:
+            parsed = json.loads(_INGEST_PATH.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                data = parsed
+        except Exception:
+            data = None
+
+    if not data:
         return None
     fetched_at = str(data.get("fetched_at") or "")
     try:
@@ -288,8 +305,36 @@ def save_ingested_revenue_targets(
         "rows": rows,
         "csv": csv_text,
     }
-    _INGEST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _INGEST_PATH.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    payload_json = json.dumps(payload, ensure_ascii=False)
+
+    # Lokal dosya (Mac / docker volume)
+    try:
+        _INGEST_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _INGEST_PATH.write_text(payload_json, encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("revenue targets file cache write failed: %s", exc)
+
+    # Postgres — Railway deploy disk silinse de kalsın
+    pg_ok = False
+    try:
+        from datetime import datetime as _dt
+
+        from backend.database import SessionLocal
+        from backend.models import RevenueTargetsCache
+
+        with SessionLocal() as db:
+            row = db.get(RevenueTargetsCache, "current")
+            if row is None:
+                row = RevenueTargetsCache(cache_key="current", payload_json=payload_json)
+                db.add(row)
+            else:
+                row.payload_json = payload_json
+                row.updated_at = _dt.utcnow()
+            db.commit()
+            pg_ok = True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("revenue targets postgres cache write failed: %s", exc)
+
     global _CACHE
     _CACHE = {
         "ts": time.monotonic(),
@@ -305,6 +350,8 @@ def save_ingested_revenue_targets(
         "rows": len(rows),
         "fetched_at": payload["fetched_at"],
         "path": str(_INGEST_PATH),
+        "postgres": pg_ok,
+        "period_keys": sorted({str(r.get("period_key") or "") for r in rows if r.get("period_key")}),
     }
 
 
@@ -519,7 +566,10 @@ def current_month_target_rows(
     *,
     today: date | None = None,
 ) -> dict[str, dict[str, Any] | None]:
-    """İçinde bulunulan ayın Doviz / Sinemalar satırlarını seç (yoksa en son ay)."""
+    """İçinde bulunulan ayın Doviz / Sinemalar satırları (önceki aya düşme yok).
+
+    Fallback sheet Temmuz gösterirken Ağustos KPI’sı uydurulmasın.
+    """
     today = today or _today_tr()
     want_key = f"{today.year:04d}-{today.month:02d}"
     by_proj: dict[str, dict[str, Any]] = {}
@@ -529,20 +579,6 @@ def current_month_target_rows(
             continue
         if str(r.get("period_key") or "") == want_key:
             by_proj[pk] = r
-    if len(by_proj) < 2:
-        # Ay henüz sheet’te yoksa en güncel period_key
-        latest = ""
-        for r in all_rows:
-            pk = str(r.get("period_key") or "")
-            if pk > latest:
-                latest = pk
-        if latest:
-            for r in all_rows:
-                if str(r.get("period_key") or "") != latest:
-                    continue
-                proj = str(r.get("project") or "")
-                if proj in ("doviz", "sinemalar") and proj not in by_proj:
-                    by_proj[proj] = r
     return {
         "doviz": enrich_month_target_kpi(by_proj.get("doviz"), today=today),
         "sinemalar": enrich_month_target_kpi(by_proj.get("sinemalar"), today=today),
@@ -573,12 +609,19 @@ def revenue_targets_payload(
 
     years = sorted({int(r["year"]) for r in all_rows if r.get("year")})
     current = current_month_target_rows(all_rows)
+    if not warning and (current.get("doviz") is None and current.get("sinemalar") is None):
+        want = f"{_today_tr().year:04d}-{_today_tr().month:02d}"
+        warning = (
+            f"No {want} rows in the loaded sheet (often an older fallback month). "
+            "Run Mac Firefox scrape for the current-month tab."
+        )
     return {
         "source_url": source_url,
         "source_pending_url": REVENUE_TARGETS_SHEET_URL,
         "using_fallback": source_url != REVENUE_TARGETS_SHEET_URL,
         "warning": warning,
         "fetched_at": fetched_at,
+        "ingest_source": (_CACHE or {}).get("ingest_source"),
         "rows": rows,
         "years": years,
         "current_month": current,

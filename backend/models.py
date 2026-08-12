@@ -616,6 +616,16 @@ class AppIntelRawCache(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
+class RevenueTargetsCache(Base):
+    """Ad-virgul aylık hedef sheet scrape — ephemeral disk yerine Postgres."""
+
+    __tablename__ = "revenue_targets_cache"
+
+    cache_key: Mapped[str] = mapped_column(String(32), primary_key=True, default="current")
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class GscCwvScreenshot(Base):
     """Search Console CWV manuel ekran görüntüleri (Railway kalıcılığı için Postgres)."""
 
