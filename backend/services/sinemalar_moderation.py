@@ -590,7 +590,9 @@ def ingest_backfill_payload(
             if sync_day is not None:
                 recompute = False
             elif recompute is None:
-                recompute = True
+                # Panel totals come from detail rows; per-batch daily rebuild is slow and
+                # caused Railway 500s on large ingests.
+                recompute = False
             res = ingest_detail_batch(
                 db,
                 user_id=uid,

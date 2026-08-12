@@ -586,8 +586,23 @@
     );
   }
 
+  function showChartEmpty(id, msg) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML =
+      '<p class="flex h-full min-h-[180px] items-center justify-center px-3 text-center text-xs text-slate-400 dark:text-slate-500">' +
+      (msg || "Veri yok") +
+      "</p>";
+  }
+
   function renderCharts() {
-    if (!ANALYTICS.calendar_days || !window.Plotly) return;
+    if (!window.Plotly) return;
+    if (!ANALYTICS.calendar_days || !ANALYTICS.calendar_days.length) {
+      CHART_IDS.forEach(function (id) {
+        showChartEmpty(id, "Veri henüz yok — scrape tamamlanınca grafikler dolacak");
+      });
+      return;
+    }
     var drawers = [
       drawRankTotal,
       drawInactiveSummary,

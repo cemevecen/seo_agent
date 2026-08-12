@@ -88,7 +88,11 @@ def sinemalar_moderation_ingest(
         }
         for b in payload.get("detail_batches") or []
     ]
-    result = mod.ingest_backfill_payload(db, payload)
+    try:
+        result = mod.ingest_backfill_payload(db, payload)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)[:800]) from exc
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("message") or "ingest failed")
     return result

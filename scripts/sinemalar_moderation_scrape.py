@@ -64,7 +64,19 @@ ADMIN_PASSWORD = (os.environ.get("SINEMALAR_ADMIN_PASSWORD") or "").strip()
 BACKFILL_START = date(2026, 1, 1)
 SCRAPE_DELAY_SEC = float(os.environ.get("SINEMALAR_MODERATION_DELAY_SEC") or "2.0")
 BACKFILL_CHUNK_DAYS = int(os.environ.get("SINEMALAR_MODERATION_BACKFILL_CHUNK") or "7")
-DETAIL_INGEST_CHUNK = int(os.environ.get("SINEMALAR_MODERATION_DETAIL_CHUNK") or "400")
+DETAIL_INGEST_CHUNK = int(os.environ.get("SINEMALAR_MODERATION_DETAIL_CHUNK") or "100")
+DETAIL_INGEST_CHUNK_MIN = int(os.environ.get("SINEMALAR_MODERATION_DETAIL_CHUNK_MIN") or "25")
+
+# 2026 backfill — aylık pencereler (üst üste binmez; dedup ingest birleştirir)
+DETAIL_MONTHLY_WINDOWS_2026: list[tuple[date, date]] = [
+    (date(2026, 1, 1), date(2026, 2, 1)),
+    (date(2026, 2, 2), date(2026, 3, 1)),
+    (date(2026, 3, 2), date(2026, 4, 1)),
+    (date(2026, 4, 2), date(2026, 5, 1)),
+    (date(2026, 5, 2), date(2026, 6, 1)),
+    (date(2026, 6, 2), date(2026, 7, 1)),
+    (date(2026, 7, 2), date(2026, 8, 13)),
+]
 META_URL = INGEST_URL.rsplit("/", 1)[0] + "/meta"
 
 _EXTRACT_ROWS_JS = r"""
@@ -337,6 +349,31 @@ def _open_logged_in_page(headed: bool):
     return p, context, page
 
 
+def _ingest_detail_chunk(
+    batch: dict[str, Any],
+    chunk: list[dict[str, Any]],
+    *,
+    start_d: date,
+    end_d: date,
+    scraped_at: str,
+    backfill_complete: bool,
+    mode: str,
+    purge_first: bool = False,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "source": "sinemalar_moderation",
+        "mode": mode,
+        "scraped_at": scraped_at,
+        "range_start": start_d.isoformat(),
+        "range_end": end_d.isoformat(),
+        "detail_batches": [{**batch, "items": chunk, "_recompute_daily": False}],
+        "backfill_complete": backfill_complete,
+    }
+    if purge_first:
+        body["purge_first"] = True
+    return ingest_result(body, mode=mode)
+
+
 def _ingest_detail_batch(
     batch: dict[str, Any],
     *,
@@ -348,44 +385,48 @@ def _ingest_detail_batch(
     purge_first: bool = False,
 ) -> dict[str, Any]:
     items = list(batch.get("items") or [])
-    if len(items) <= DETAIL_INGEST_CHUNK:
-        body: dict[str, Any] = {
-            "source": "sinemalar_moderation",
-            "mode": mode,
-            "scraped_at": scraped_at,
-            "range_start": start_d.isoformat(),
-            "range_end": end_d.isoformat(),
-            "detail_batches": [{**batch, "items": items, "_recompute_daily": True}],
-            "backfill_complete": backfill_complete,
-        }
-        if purge_first:
-            body["purge_first"] = True
-        return ingest_result(body, mode=mode)
-    last: dict[str, Any] = {"ok": False}
-    for i in range(0, len(items), DETAIL_INGEST_CHUNK):
-        chunk = items[i : i + DETAIL_INGEST_CHUNK]
-        is_last = i + DETAIL_INGEST_CHUNK >= len(items)
-        body = {
-            "source": "sinemalar_moderation",
-            "mode": mode,
-            "scraped_at": scraped_at,
-            "range_start": start_d.isoformat(),
-            "range_end": end_d.isoformat(),
-            "detail_batches": [
-                {
-                    **batch,
-                    "items": chunk,
-                    "_recompute_daily": is_last,
-                }
-            ],
-            "backfill_complete": backfill_complete and is_last,
-        }
-        if purge_first and i == 0:
-            body["purge_first"] = True
-        last = ingest_result(body, mode=mode)
-        if not last.get("ok"):
+    if not items:
+        return {"ok": True, "ingest": {"items_upserted": 0}}
+
+    def ingest_slice(
+        slice_items: list[dict[str, Any]],
+        *,
+        pf: bool,
+        complete: bool,
+    ) -> dict[str, Any]:
+        if not slice_items:
+            return {"ok": True}
+        if len(slice_items) > DETAIL_INGEST_CHUNK:
+            last: dict[str, Any] = {"ok": False}
+            for i in range(0, len(slice_items), DETAIL_INGEST_CHUNK):
+                part = slice_items[i : i + DETAIL_INGEST_CHUNK]
+                is_last = i + DETAIL_INGEST_CHUNK >= len(slice_items)
+                last = ingest_slice(part, pf=pf and i == 0, complete=complete and is_last)
+                if not last.get("ok"):
+                    return last
             return last
-    return last
+        res = _ingest_detail_chunk(
+            batch,
+            slice_items,
+            start_d=start_d,
+            end_d=end_d,
+            scraped_at=scraped_at,
+            backfill_complete=complete,
+            mode=mode,
+            purge_first=pf,
+        )
+        if res.get("ok"):
+            return res
+        msg = str(res.get("message") or "")
+        if "500" in msg and len(slice_items) > DETAIL_INGEST_CHUNK_MIN:
+            mid = max(1, len(slice_items) // 2)
+            left = ingest_slice(slice_items[:mid], pf=pf, complete=False)
+            if not left.get("ok"):
+                return left
+            return ingest_slice(slice_items[mid:], pf=False, complete=complete)
+        return res
+
+    return ingest_slice(items, pf=purge_first, complete=backfill_complete)
 
 
 def fetch_remote_coverage(start_d: date, end_d: date) -> dict[str, Any]:
@@ -457,11 +498,16 @@ def purge_remote_moderation() -> dict[str, Any]:
     )
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
+            raw = resp.read().decode("utf-8", errors="replace")
+            if not raw.strip():
+                return {"ok": True, "purge": {"ok": True, "message": "empty response"}}
+            payload = json.loads(raw)
             return {"ok": True, "purge": payload}
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:500]
         return {"ok": False, "message": f"HTTP {exc.code}: {detail}"}
+    except json.JSONDecodeError as exc:
+        return {"ok": False, "message": f"JSON parse: {exc}"}
     except Exception as exc:
         return {"ok": False, "message": str(exc)}
 
@@ -562,6 +608,75 @@ def scrape_detail_range(
     }
 
 
+def run_detail_monthly_2026(
+    *,
+    headed: bool = True,
+    ingest: bool = False,
+    purge_first: bool = False,
+) -> dict[str, Any]:
+    """2026 moderasyon — 7 aylık pencere, append-only dedup ingest."""
+    if purge_first and ingest:
+        print("Railway moderasyon verisi siliniyor (detay + günlük)…", flush=True)
+        pr = purge_remote_moderation()
+        if not pr.get("ok"):
+            return {"ok": False, "message": pr.get("message") or "purge failed"}
+        payload = pr.get("purge") or {}
+        print(
+            f"  silindi · {payload.get('deleted_details', 0)} detay · "
+            f"{payload.get('deleted_daily', 0)} günlük",
+            flush=True,
+        )
+
+    windows = DETAIL_MONTHLY_WINDOWS_2026
+    scraped_total = 0
+    window_stats: list[dict[str, Any]] = []
+    for idx, (start_d, end_d) in enumerate(windows, start=1):
+        print(
+            f"\n=== Pencere {idx}/{len(windows)}: {start_d.isoformat()} → {end_d.isoformat()} ===",
+            flush=True,
+        )
+        out = scrape_detail_range(
+            start_d,
+            end_d,
+            headed=headed,
+            ingest_per_batch=bool(ingest),
+            purge_first=False,
+        )
+        if not out.get("ok"):
+            out["failed_window"] = {"start": start_d.isoformat(), "end": end_d.isoformat()}
+            return out
+        n = int(out.get("item_count") or 0)
+        scraped_total += n
+        window_stats.append({"start": start_d.isoformat(), "end": end_d.isoformat(), "item_count": n})
+
+    return {
+        "ok": True,
+        "needs_login": False,
+        "source": "sinemalar_moderation",
+        "mode": "detail_monthly_2026",
+        "scraped_at": datetime.now(timezone.utc).isoformat(),
+        "range_start": windows[0][0].isoformat(),
+        "range_end": windows[-1][1].isoformat(),
+        "window_count": len(windows),
+        "windows": window_stats,
+        "item_count": scraped_total,
+        "message": f"detail_monthly_2026 · {len(windows)} pencere · {scraped_total} kayıt çekildi",
+    }
+
+
+def run_purge_only() -> dict[str, Any]:
+    print("Railway moderasyon verisi siliniyor…", flush=True)
+    pr = purge_remote_moderation()
+    if pr.get("ok"):
+        payload = pr.get("purge") or {}
+        print(
+            f"  silindi · {payload.get('deleted_details', 0)} detay · "
+            f"{payload.get('deleted_daily', 0)} günlük",
+            flush=True,
+        )
+    return pr
+
+
 def scrape_fill_gaps(
     start_d: date,
     end_d: date,
@@ -604,31 +719,46 @@ def scrape_fill_gaps(
     gaps_resp = post_remote_gaps(start_d, end_d, expected, user_ids=user_ids)
     gaps = gaps_resp.get("gaps") or [] if gaps_resp.get("ok") else []
     if not gaps_resp.get("ok"):
-        print(f"gaps API yok ({gaps_resp.get('message')}) — özet > 0 batch'ler taranacak", flush=True)
-        allowed = set(user_ids) if user_ids else None
-        for key, exp in expected.items():
-            if exp <= 0:
-                continue
-            parts = key.split("|", 1)
-            if len(parts) != 2:
-                continue
-            try:
-                uid = int(parts[0])
-            except ValueError:
-                continue
-            if allowed is not None and uid not in allowed:
-                continue
-            gaps.append(
-                {
-                    "user_id": uid,
-                    "username": resolve_username(uid),
-                    "metric_type": parts[1],
-                    "metric_label": METRIC_LABEL_BY_TYPE.get(parts[1], parts[1]),
-                    "expected": exp,
-                    "actual": 0,
-                    "missing": exp,
-                }
+        from backend.services.sinemalar_moderation import compute_gaps
+
+        cov = fetch_remote_coverage(start_d, end_d)
+        actual = cov.get("counts") or {} if cov.get("ok") else {}
+        if cov.get("ok"):
+            gaps = compute_gaps(expected, actual, user_ids=user_ids)
+            print(
+                f"gaps API yok ({gaps_resp.get('message')}) — coverage ile {len(gaps)} eksik batch",
+                flush=True,
             )
+        else:
+            print(
+                f"gaps/coverage API yok ({gaps_resp.get('message')} / {cov.get('message')}) "
+                f"— özet > 0 batch'ler taranacak",
+                flush=True,
+            )
+            allowed = set(user_ids) if user_ids else None
+            for key, exp in expected.items():
+                if exp <= 0:
+                    continue
+                parts = key.split("|", 1)
+                if len(parts) != 2:
+                    continue
+                try:
+                    uid = int(parts[0])
+                except ValueError:
+                    continue
+                if allowed is not None and uid not in allowed:
+                    continue
+                gaps.append(
+                    {
+                        "user_id": uid,
+                        "username": resolve_username(uid),
+                        "metric_type": parts[1],
+                        "metric_label": METRIC_LABEL_BY_TYPE.get(parts[1], parts[1]),
+                        "expected": exp,
+                        "actual": int(actual.get(key) or 0),
+                        "missing": exp - int(actual.get(key) or 0),
+                    }
+                )
     if not gaps:
         return {
             "ok": True,
@@ -1058,7 +1188,17 @@ def main() -> int:
     parser.add_argument(
         "--purge",
         action="store_true",
-        help="detail-range: ingest öncesi tüm moderasyon verisini sil",
+        help="detail-range / detail-monthly-2026: ingest öncesi tüm moderasyon verisini sil",
+    )
+    parser.add_argument(
+        "--purge-only",
+        action="store_true",
+        help="Yalnızca Railway moderasyon verisini sil (scrape yok)",
+    )
+    parser.add_argument(
+        "--detail-monthly-2026",
+        action="store_true",
+        help="2026 moderasyon — 7 aylık pencere ile detail çek + birleştir (dedup)",
     )
     parser.add_argument(
         "--fill-gaps",
@@ -1092,6 +1232,20 @@ def main() -> int:
                 pass
             ctx.close()
         return 0
+
+    if args.purge_only:
+        out = run_purge_only()
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0 if out.get("ok") else 1
+
+    if args.detail_monthly_2026:
+        out = run_detail_monthly_2026(
+            headed=headed,
+            ingest=args.ingest,
+            purge_first=bool(args.purge),
+        )
+        print(json.dumps({k: v for k, v in out.items() if k != "detail_batches"}, ensure_ascii=False, indent=2))
+        return 0 if out.get("ok") else 1
 
     if args.backfill_chunk:
         out = run_backfill_chunk(
