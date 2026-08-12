@@ -2070,6 +2070,16 @@ def _run_deferred_startup() -> None:
 
     try:
         from sqlalchemy import text
+        from backend.database import engine, _ensure_auth_log_columns
+
+        with engine.connect() as _conn:
+            _ensure_auth_log_columns(_conn)
+            _conn.commit()
+    except Exception as e:
+        LOGGER.warning("Deferred startup auth-log columns: %s", e)
+
+    try:
+        from sqlalchemy import text
         from backend.database import engine
 
         # Kısa kilit/statement timeout: eski deploy sync kilidinde sonsuz bekleme olmasın
@@ -8773,26 +8783,26 @@ def _home_cf_fmt(pct: float | None) -> str:
 def _home_crash_latest_version(
     payload: dict, plat: str, store_version: str | None = None
 ) -> str | None:
-    """Son sürüm: mağaza ile Crashlytics semver-max'ın yükseği (stale mağaza cache'ine karşı)."""
-    from backend.services import crashlytics_bq as cbq
+    """Son sürüm: mağaza ile scrape semver-max'ın yükseği (stale mağaza cache'ine karşı)."""
+    from backend.services.crashlytics_payload import pick_higher_version, semver_sort_versions
 
     store_v = (store_version or "").strip() or None
     crash_v = None
     versions = (payload.get("filter_versions_by_platform") or {}).get(plat) or []
     if versions:
-        ranked = cbq._semver_sort_versions([str(v).strip() for v in versions if str(v).strip()])
+        ranked = semver_sort_versions([str(v).strip() for v in versions if str(v).strip()])
         crash_v = ranked[0] if ranked else None
     if not crash_v:
         for key in ("versions_7d_by_platform", "versions_by_platform"):
             rows = (payload.get(key) or {}).get(plat) or []
             vers = [str(r.get("app_version") or "").strip() for r in rows if r.get("app_version")]
             if vers:
-                ranked = cbq._semver_sort_versions(vers)
+                ranked = semver_sort_versions(vers)
                 crash_v = ranked[0] if ranked else None
                 if crash_v:
                     break
     if store_v and crash_v:
-        return cbq._pick_higher_version(store_v, crash_v)
+        return pick_higher_version(store_v, crash_v)
     return store_v or crash_v
 
 
@@ -9178,180 +9188,6 @@ def _home_store_firebase_card_from_tabs(
         out["warming"] = True
         out["ok"] = False
         out["message"] = "Crash / ANR verisi henüz yok — /android veya /ios açıldığında ısınır."
-    return out
-
-
-def _home_crashlytics_card(product_id: str, store_by_key: dict | None = None) -> dict:
-    """Ana sayfa Firebase/Crashlytics mini kart — cache varsa anında; yoksa arka planda ısıt.
-
-    Metrikler (fatal/ANR/cihaz/issue) mümkün olduğunca mağaza/Crashlytics son sürümüne
-    scoped edilir; crash-free sessions hâlâ platform geneli (BQ sessions join sürüm filtresi yok).
-    """
-    from backend.services import crashlytics_bq as cbq
-    from backend.services.app_intel import APP_PRODUCTS
-
-    pid = (product_id or "doviz").strip().lower()
-    label = APP_PRODUCTS.get(pid, {}).get("label") or pid
-    store_by_key = store_by_key or {}
-    out: dict = {
-        "product_id": pid,
-        "product_label": label,
-        "ok": False,
-        "warming": False,
-        "days": 7,
-    }
-    if pid not in APP_PRODUCTS:
-        out["message"] = "Ürün tanımlı değil"
-        return out
-
-    payload = cbq.peek_cached_payload(pid, days=7, platform_filter="all")
-    if not payload:
-        # Soğuk cache: ana sayfada BQ senkron bekletme — arka planda ısıt, hızlı shell dön
-        try:
-            cbq.prewarm_cache(pid)
-        except Exception:
-            LOGGER.debug("Home Crashlytics prewarm failed product=%s", pid, exc_info=True)
-        out["warming"] = True
-        out["message"] = "Crashlytics verisi hazırlanıyor…"
-        return out
-
-    if not payload or payload.get("ok") is False:
-        out["message"] = (payload or {}).get("message") or "BigQuery verisi yok"
-        out["configured"] = (payload or {}).get("configured", True)
-        return out
-
-    totals = payload.get("totals") or {}
-    summary_by = payload.get("summary_by_platform") or {}
-    cf_by = payload.get("crash_free_by_platform") or {}
-    issues_by = payload.get("issues_by_platform") or {}
-    devices_by = payload.get("device_breakdown_by_platform") or {}
-    os_by = payload.get("os_breakdown_by_platform") or {}
-    latest_stats_by = payload.get("latest_version_stats_by_platform") or {}
-    has_scoped_cache = bool(latest_stats_by) or bool(payload.get("versions_7d_by_platform"))
-    if not has_scoped_cache:
-        # Eski cache — arka planda sürüm-scoped veri için ısıt (kart yine mevcut veriyle dolsun)
-        try:
-            cbq.prewarm_cache(pid)
-        except Exception:
-            pass
-
-    platforms: list[dict] = []
-    for plat, plat_label in (("ios", "iOS"), ("android", "Android")):
-        summ = summary_by.get(plat) or {}
-        cf = cf_by.get(plat) or {}
-        cf_pct = cf.get("crash_free_sessions_pct")
-        if cf_pct is None:
-            cf_pct = cf.get("crash_free_pct")
-        store_ver = (store_by_key.get(plat) or {}).get("version")
-        store_ver = str(store_ver).strip() if store_ver else None
-        latest_ver = _home_crash_latest_version(payload, plat, store_version=store_ver)
-        ver_fatal, ver_anr = _home_crash_version_counts(payload, plat, latest_ver)
-
-        scoped = latest_stats_by.get(plat) or {}
-        scoped_ver = str(scoped.get("version") or "").strip() or None
-        use_scoped = bool(latest_ver and scoped_ver and latest_ver == scoped_ver)
-
-        top_devices: list[dict] = []
-        if use_scoped and scoped.get("devices"):
-            for d in (scoped.get("devices") or [])[:5]:
-                top_devices.append(
-                    {
-                        "label": (d.get("label") or d.get("label_raw") or d.get("model") or "—")[:48],
-                        "events_fmt": _home_format_int(d.get("event_count") or 0),
-                        "pct": d.get("pct"),
-                    }
-                )
-        elif not has_scoped_cache or not latest_ver:
-            # Eski cache veya sürüm yok: all-version (geçici)
-            for d in (devices_by.get(plat) or [])[:5]:
-                top_devices.append(
-                    {
-                        "label": (d.get("label") or d.get("label_raw") or d.get("model") or "—")[:48],
-                        "events_fmt": _home_format_int(d.get("event_count") or 0),
-                        "pct": d.get("pct"),
-                    }
-                )
-
-        top_issues: list[dict] = []
-        if use_scoped:
-            issue_src = scoped.get("issues") or []
-        elif latest_ver:
-            issue_src = []
-        else:
-            issue_src = issues_by.get(plat) or []
-        for iss in issue_src[:5]:
-            title = (iss.get("title") or iss.get("issue_title") or "").strip()
-            if not title:
-                continue
-            top_issues.append(
-                {
-                    "label": title[:56],
-                    "events_fmt": _home_format_int(iss.get("event_count") or 0),
-                }
-            )
-
-        top_os: list[dict] = []
-        # OS kırılımı sürüm filtresiz cache'de; son sürüm seçiliyken gösterme
-        if not latest_ver:
-            for o in (os_by.get(plat) or [])[:5]:
-                ver = (o.get("os_version") or o.get("label") or "—").strip()
-                top_os.append(
-                    {
-                        "label": ("iOS " if plat == "ios" else "") + ver[:40],
-                        "events_fmt": _home_format_int(o.get("event_count") or 0),
-                    }
-                )
-
-        top = (top_issues[0] if top_issues else None)
-        platforms.append(
-            {
-                "key": plat,
-                "label": plat_label,
-                "latest_version": latest_ver,
-                "version_scoped": bool(latest_ver),
-                "crash_free_fmt": _home_cf_fmt(cf_pct),
-                "crash_free_all_versions": True,
-                "fatal_fmt": _home_format_int(ver_fatal),
-                "anr_fmt": _home_format_int(ver_anr),
-                "top_issue_title": (top["label"] if top else None),
-                "top_issue_events_fmt": (top["events_fmt"] if top else None),
-                "top_devices": top_devices,
-                "top_issues": top_issues,
-                "top_os": top_os,
-                "has_data": bool(
-                    ver_fatal or ver_anr or top_devices or top_issues or latest_ver or summ.get("fatal")
-                ),
-            }
-        )
-
-    # Şablon: solda iOS, sağda Android
-    ios_plat = next((p for p in platforms if p["key"] == "ios"), platforms[0] if platforms else None)
-    android_plat = next((p for p in platforms if p["key"] == "android"), None)
-
-    top_all = (payload.get("issues") or [])[:1]
-    top_global = top_all[0] if top_all else None
-
-    out.update(
-        {
-            "ok": True,
-            "days": payload.get("days") or 7,
-            "crash_free_fmt": _home_cf_fmt(
-                payload.get("crash_free_sessions_pct") or payload.get("crash_free_pct")
-            ),
-            "fatal_fmt": _home_format_int(totals.get("fatal") or 0),
-            "anr_fmt": _home_format_int(totals.get("anr") or 0),
-            "non_fatal_fmt": _home_format_int(totals.get("non_fatal") or 0),
-            "platforms": platforms,
-            "ios": ios_plat,
-            "android": android_plat,
-            "top_issue_title": (
-                (top_global.get("title") or top_global.get("issue_title") or "")[:72] if top_global else None
-            ),
-            "top_issue_events_fmt": (
-                _home_format_int(top_global.get("event_count") or 0) if top_global else None
-            ),
-        }
-    )
     return out
 
 
@@ -13496,16 +13332,11 @@ def settings_page(request: Request):
     with SessionLocal() as db:
         admin_password_configured = _admin_password_configured(db)
         membership_admin = _is_membership_admin(request)
-        payload = {
-            "site_name": "Settings",
-            "sites": get_sidebar_sites(),
-            "alert_rules": get_alert_rules(db),
-            "quota_status": get_quota_status(db),
-            "oauth_ready": oauth_is_configured(),
-            "oauth_redirect_uri": settings.google_oauth_redirect_uri,
-            "admin_password_configured": admin_password_configured,
-            "login_history": (
-                aal.recent_login_history(
+        login_history: list = []
+        visit_logs: list = []
+        if admin_password_configured:
+            try:
+                login_history = aal.recent_login_history(
                     db,
                     event_types=(
                         "member_login_ok",
@@ -13514,10 +13345,22 @@ def settings_page(request: Request):
                         "member_login_fail",
                     ),
                 )
-                if admin_password_configured
-                else []
-            ),
-            "visit_logs": pvl.recent_visits(limit=80, auth_only=True) if admin_password_configured else [],
+            except Exception:
+                LOGGER.exception("settings login_history")
+            try:
+                visit_logs = pvl.recent_visits(limit=80, auth_only=True)
+            except Exception:
+                LOGGER.exception("settings visit_logs")
+        payload = {
+            "site_name": "Settings",
+            "sites": get_sidebar_sites(),
+            "alert_rules": get_alert_rules(db),
+            "quota_status": get_quota_status(db),
+            "oauth_ready": oauth_is_configured(),
+            "oauth_redirect_uri": settings.google_oauth_redirect_uri,
+            "admin_password_configured": admin_password_configured,
+            "login_history": login_history,
+            "visit_logs": visit_logs,
             "membership_admin": membership_admin,
             "app_members": ama.member_list_payload(db) if membership_admin else [],
             "current_app_member": _app_member_from_request(request),
@@ -16127,7 +15970,7 @@ def api_app_gp_preview(
 
 @app.get("/api/app/crashlytics")
 def api_app_crashlytics(product: str = "doviz", days: int = 7):
-    """Eski endpoint — Firebase Console scrape (BigQuery kapalı)."""
+    """Eski endpoint — Firebase Console scrape."""
     from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
     from backend.services.firebase_from_store_tabs import build_firebase_tab_payload
 
@@ -16238,175 +16081,8 @@ def _crash_fetch_filter_lock(key: str) -> threading.Lock:
         return _CRASH_FETCH_FILTER_LOCKS[key]
 
 
-def _refetch_filtered_payload(data: dict, params: dict) -> dict:
-    """Sürüm/tür seçiliyken BQ'da filtreli sorgu — tüm görünüm alanları tutarlı olsun."""
-    from backend.services import crashlytics_bq as cbq
-    from backend.services.crashlytics_detail import enrich_issue_row
-
-    ver_list = _version_list_from_params(params)
-    error_type = (params.get("error_type") or "").strip().upper() or None
-    if not ver_list and not error_type:
-        return data
-
-    pid = params["product"]
-    days = int(data.get("days") or params.get("days") or 7)
-    plat_filter = (params.get("platform") or "all").strip().lower()
-    scope = plat_filter if plat_filter in ("ios", "android") else "all"
-    platforms = cbq._platforms_for(pid, scope)
-    if not platforms:
-        return data
-
-    meta = cbq.APP_PRODUCTS.get(pid, {})
-    filt_kw = {"error_type": error_type, "versions": ver_list or None}
-
-    data = dict(data)
-    issues_all: list[tuple[str, list[dict]]] = []
-    anr_all: list[tuple[str, list[dict]]] = []
-    summary_by_plat: dict[str, dict] = {}
-    trend_all: list[tuple[str, list[dict]]] = []
-    device_all: list[tuple[str, list[dict]]] = []
-    os_all: list[tuple[str, list[dict]]] = []
-    process_all: list[tuple[str, list[dict]]] = []
-    ver_all: list[tuple[str, list[dict]]] = []
-    version_trend_all: list[tuple[str, list[dict]]] = []
-
-    def _fetch_filtered_platform(plat_key: str, tbl: str) -> dict[str, Any]:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
-        bundle = (meta.get("android_package") if plat_key == "android" else meta.get("ios_bundle_id")) or ""
-        batch_ref = cbq._batch_table_ref(plat_key, bundle) if bundle else None
-        out: dict[str, Any] = {"platform": plat_key}
-        sub_tasks = {
-            "summary": lambda: ("summary", cbq.query_summary(plat_key, tbl, days, **filt_kw), None),
-            "issues": lambda: ("issues", *cbq.query_top_issues(
-                plat_key, tbl, days, error_type, None, versions=ver_list or None
-            )),
-            "anr": lambda: ("anr", *cbq.query_anr_list(plat_key, tbl, days, versions=ver_list or None)),
-            "trend": lambda: ("trend", *cbq.query_daily_trend(plat_key, tbl, days, **filt_kw)),
-            "devices": lambda: ("devices", *cbq.query_device_breakdown(plat_key, tbl, days, **filt_kw)),
-            "os": lambda: ("os", *cbq.query_os_breakdown(plat_key, tbl, days, **filt_kw)),
-            "process_state": lambda: (
-                "process_state",
-                *cbq.query_process_state_breakdown(plat_key, batch_ref, days, **filt_kw),
-            ),
-            "versions": lambda: ("versions", *cbq.query_version_breakdown(plat_key, tbl, days, **filt_kw)),
-            "version_trend": lambda: (
-                "version_trend",
-                *cbq.query_version_time_series(plat_key, tbl, days, **filt_kw),
-            ),
-        }
-        if error_type and error_type != "ANR":
-            sub_tasks.pop("anr", None)
-        with ThreadPoolExecutor(max_workers=min(8, len(sub_tasks)), thread_name_prefix="crash-filt") as pool:
-            futs = {pool.submit(fn): name for name, fn in sub_tasks.items()}
-            for fut in as_completed(futs):
-                try:
-                    key, payload, err = fut.result()
-                    if key == "summary":
-                        out["summary"] = payload or {}
-                    elif key == "issues":
-                        out["issues"] = payload or []
-                        out["issues_err"] = err
-                    elif key == "anr":
-                        out["anr"] = payload or []
-                        out["anr_err"] = err
-                    else:
-                        out[key] = payload or []
-                        out[f"{key}_err"] = err
-                except Exception as exc:  # noqa: BLE001
-                    name = futs[fut]
-                    out[name] = [] if name != "summary" else {}
-                    if name != "summary":
-                        out[f"{name}_err"] = str(exc)[:200]
-        return out
-
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    with ThreadPoolExecutor(max_workers=min(2, len(platforms)), thread_name_prefix="crash-filt-plat") as pool:
-        plat_futs = {pool.submit(_fetch_filtered_platform, plat_key, tbl): plat_key for plat_key, tbl in platforms}
-        for fut in as_completed(plat_futs):
-            try:
-                res = fut.result()
-                plat_key = res["platform"]
-                summary_by_plat[plat_key] = res.get("summary") or {}
-                if res.get("issues"):
-                    issues_all.append((plat_key, res["issues"]))
-                if res.get("anr"):
-                    anr_all.append((plat_key, res["anr"]))
-                if res.get("trend"):
-                    trend_all.append((plat_key, res["trend"]))
-                if res.get("devices"):
-                    device_all.append((plat_key, res["devices"]))
-                if res.get("os"):
-                    os_all.append((plat_key, res["os"]))
-                if res.get("process_state"):
-                    process_all.append((plat_key, res["process_state"]))
-                if res.get("versions"):
-                    ver_all.append((plat_key, res["versions"]))
-                if res.get("version_trend"):
-                    version_trend_all.append((plat_key, res["version_trend"]))
-            except Exception:  # noqa: BLE001
-                continue
-
-    data["summary_by_platform"] = summary_by_plat
-    totals = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0}
-    for s in summary_by_plat.values():
-        totals["fatal"] += int(s.get("fatal") or 0)
-        totals["anr"] += int(s.get("anr") or 0)
-        totals["non_fatal"] += int(s.get("non_fatal") or 0)
-        totals["affected_users"] += int(s.get("affected_users") or 0)
-    data["totals"] = totals
-
-    data["issues"] = cbq._merge_issues(issues_all, days=days) if issues_all else []
-    data["issues_by_platform"] = {
-        plat: sorted(
-            [enrich_issue_row({**r, "platform": plat}, days=days) for r in rows],
-            key=lambda x: -x["event_count"],
-        )
-        for plat, rows in issues_all
-    }
-    data["anr"] = cbq._merge_issues(anr_all, days=days) if anr_all else []
-    data["anr_by_platform"] = {
-        plat: sorted(
-            [enrich_issue_row({**r, "platform": plat}, days=days) for r in rows],
-            key=lambda x: -x["event_count"],
-        )
-        for plat, rows in anr_all
-    }
-
-    data.update(
-        cbq.assemble_breakdown_payload(
-            trend_all=trend_all,
-            device_all=device_all,
-            os_all=os_all,
-            process_all=process_all,
-            ver_all=ver_all,
-            version_trend_all=version_trend_all,
-        )
-    )
-
-    if ver_list:
-        data["crash_free_pct"] = None
-        data["crash_free_sessions_pct"] = None
-        data["crash_free_users_pct"] = None
-        hints = list(data.get("crash_free_hints") or [])
-        hint = (
-            "Crash-free, seçili app sürümüne göre hesaplanmaz "
-            "(oturum tablosu sürüm kırılımı içermez)."
-        )
-        if hint not in hints:
-            hints.append(hint)
-        data["crash_free_hints"] = hints
-
-    data["active_filters"] = {
-        "versions": ver_list,
-        "error_type": error_type,
-    }
-    return data
-
-
 def _crash_fetch(params: dict) -> dict:
-    """BQ cache + seçili sürüm/tür için filtreli yeniden sorgu (doğru olay sayıları)."""
+    """Firebase Console scrape + bellek içi sürüm/tür filtresi."""
     filter_key = _crash_fetch_filter_cache_key(params)
     if filter_key:
         cached = _crash_fetch_filter_cache_get(filter_key)
@@ -16425,7 +16101,7 @@ def _crash_fetch(params: dict) -> dict:
 
 def _crash_fetch_impl(params: dict) -> dict:
     """Firebase Crashlytics HTMX — Firebase Console scrape."""
-    from backend.services.crashlytics_bq import slice_payload_for_platform
+    from backend.services.crashlytics_payload import slice_payload_for_platform
     from backend.services.firebase_from_store_tabs import build_firebase_tab_payload
 
     ver_list = _version_list_from_params(params)
@@ -16573,7 +16249,7 @@ def api_crash_bundle(request: Request):
 
 @app.get("/api/app/crashlytics/diagnose")
 def api_crash_diagnose(product: str = "doviz"):
-    """Firebase Console scrape teşhisi — BigQuery kullanılmaz."""
+    """Firebase Console scrape teşhisi."""
     from backend.database import SessionLocal
     from backend.services.app_intel import APP_PRODUCTS
     from backend.services.firebase_console_store import firebase_console_payload
@@ -16583,7 +16259,6 @@ def api_crash_diagnose(product: str = "doviz"):
     out: dict = {
         "product": pid,
         "source": "firebase_console_scrape",
-        "bigquery": "disabled",
         "platforms": {},
     }
     try:
@@ -16615,7 +16290,7 @@ def api_crash_diagnose(product: str = "doviz"):
 
 @app.get("/api/app/crashlytics/platform-analysis")
 def api_crash_platform_analysis(product: str = "doviz", days: int = 7):
-    """iOS vs Android — Firebase Console scrape özeti (BigQuery yok)."""
+    """iOS vs Android — Firebase Console scrape özeti."""
     from backend.services.firebase_from_store_tabs import build_firebase_tab_payload
 
     pid = (product or "doviz").strip().lower()
@@ -16649,7 +16324,7 @@ def api_crash_platform_analysis(product: str = "doviz", days: int = 7):
 
 @app.get("/api/app/crashlytics/progress")
 def api_crash_progress(product: str = "doviz"):
-    """Store-tabs kaynağı anlık — BigQuery job beklemesi yok."""
+    """Store-tabs kaynağı anlık — scrape snapshot."""
     pid = (product or "doviz").strip().lower()
     return JSONResponse(
         {
@@ -16675,7 +16350,7 @@ def api_crash_issue_detail(
 ):
     """Tek bir issue için drill-down: trend, versiyon, OS, cihaz, stack frame.
 
-    Firebase Console scrape (BigQuery kapalı).
+    Firebase Console scrape.
     """
     plat = (platform or "").strip().lower()
     if plat not in ("ios", "android"):
@@ -16820,7 +16495,7 @@ def api_crash_issue_event(
     event_timestamp: str = "",
     days: int = 7,
 ):
-    """Tek crash olayı — BigQuery kapalı; Firebase Console linki kullanın."""
+    """Tek crash olayı — yalnızca Firebase Console scrape; olay düzeyi detay yok."""
     plat = (platform or "").strip().lower()
     if plat not in ("ios", "android"):
         return JSONResponse({"ok": False, "error": "invalid_platform"}, status_code=400)
@@ -16835,8 +16510,8 @@ def api_crash_issue_event(
     return JSONResponse(
         {
             "ok": False,
-            "error": "bigquery_disabled",
-            "message": "Olay düzeyi stack trace BigQuery ile gelmiyordu; artık kapalı. Issue özeti için modal veya Firebase Console.",
+            "error": "event_detail_unavailable",
+            "message": "Olay düzeyi stack trace scrape'te yok. Issue özeti için modal veya Firebase Console.",
             "issue_id": iid,
             "platform": plat,
         },

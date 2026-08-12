@@ -108,6 +108,59 @@ def ensure_indexes_background() -> None:
 
     threading.Thread(target=_runner, daemon=True, name="db-ensure-indexes").start()
 
+def _ensure_auth_log_columns(conn) -> None:
+    """Settings / giriş geçmişi için zorunlu sütunlar — index DDL'den önce çalışmalı."""
+    _txt = __import__("sqlalchemy").text
+
+    def _ensure_simple_col(table: str, name: str, sqlite_ddl: str, pg_ddl: str) -> None:
+        try:
+            cols: set[str] = set()
+            if _IS_SQLITE:
+                rc = conn.execute(
+                    _txt(f"SELECT 1 FROM sqlite_master WHERE type='table' AND name='{table}'")
+                )
+                if not rc.fetchone():
+                    return
+                cols = {row[1] for row in conn.execute(_txt(f"PRAGMA table_info({table})")).fetchall()}
+            else:
+                inspector = __import__("sqlalchemy").inspect(conn)
+                if table not in inspector.get_table_names():
+                    return
+                cols = {c["name"] for c in inspector.get_columns(table)}
+            if name in cols:
+                return
+            if _IS_SQLITE:
+                conn.execute(_txt(f"ALTER TABLE {table} ADD COLUMN {name} {sqlite_ddl}"))
+            else:
+                try:
+                    conn.execute(
+                        _txt(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {pg_ddl}")
+                    )
+                except Exception:
+                    conn.execute(_txt(f"ALTER TABLE {table} ADD COLUMN {name} {pg_ddl}"))
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("ALTER TABLE %s ADD COLUMN %s atlandı: %s", table, name, exc)
+
+    _ensure_simple_col(
+        "admin_login_events",
+        "actor_email",
+        "VARCHAR(255) NOT NULL DEFAULT ''",
+        "VARCHAR(255) NOT NULL DEFAULT ''",
+    )
+    _ensure_simple_col(
+        "panel_visit_logs",
+        "start_reason",
+        "VARCHAR(20) NOT NULL DEFAULT ''",
+        "VARCHAR(20) NOT NULL DEFAULT ''",
+    )
+    _ensure_simple_col(
+        "panel_visit_logs",
+        "end_reason",
+        "VARCHAR(20) NOT NULL DEFAULT ''",
+        "VARCHAR(20) NOT NULL DEFAULT ''",
+    )
+
+
 def ensure_indexes() -> None:
     """Sık kullanılan sorgular için eksik composite index'leri oluşturur.
 
@@ -147,6 +200,7 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_scrape_ingest_received ON scrape_ingest_logs(received_at)",
     ]
     with engine.connect() as conn:
+        _ensure_auth_log_columns(conn)
         for ddl in index_ddl:
             try:
                 conn.execute(__import__("sqlalchemy").text(ddl))
@@ -296,12 +350,15 @@ def ensure_indexes() -> None:
         _ensure_ad_report_col("extra_metrics", "TEXT NOT NULL DEFAULT '{}'", "TEXT NOT NULL DEFAULT '{}'")
         _ensure_ad_report_col("project", "VARCHAR(32) NOT NULL DEFAULT ''", "VARCHAR(32) NOT NULL DEFAULT ''")
         _ensure_ad_report_col("branch", "VARCHAR(32) NOT NULL DEFAULT ''", "VARCHAR(32) NOT NULL DEFAULT ''")
-        conn.execute(
-            _txt(
-                "CREATE INDEX IF NOT EXISTS ix_ad_report_project_branch_date "
-                "ON ad_report_rows(project, branch, report_date)"
+        try:
+            conn.execute(
+                _txt(
+                    "CREATE INDEX IF NOT EXISTS ix_ad_report_project_branch_date "
+                    "ON ad_report_rows(project, branch, report_date)"
+                )
             )
-        )
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.debug("ix_ad_report_project_branch_date atlandı: %s", exc)
 
         def _ensure_doviz_asset_run_col(name: str, sqlite_ddl: str, pg_ddl: str) -> None:
             try:
@@ -405,12 +462,15 @@ def ensure_indexes() -> None:
             "VARCHAR(120) NOT NULL DEFAULT ''",
             "VARCHAR(120) NOT NULL DEFAULT ''",
         )
-        conn.execute(
-            _txt(
-                "CREATE INDEX IF NOT EXISTS ix_home_drive_uploads_container_key "
-                "ON home_drive_uploads(container_key)"
+        try:
+            conn.execute(
+                _txt(
+                    "CREATE INDEX IF NOT EXISTS ix_home_drive_uploads_container_key "
+                    "ON home_drive_uploads(container_key)"
+                )
             )
-        )
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.debug("ix_home_drive_uploads_container_key atlandı: %s", exc)
 
         # asc_console_workspace.reviews_json — iOS Yorumlar paneli
         def _ensure_asc_reviews_col() -> None:
@@ -500,48 +560,13 @@ def ensure_indexes() -> None:
 
         _ensure_backlink_import_cols()
 
-        def _ensure_simple_col(table: str, name: str, sqlite_ddl: str, pg_ddl: str) -> None:
-            try:
-                cols: set[str] = set()
-                if _IS_SQLITE:
-                    cols = {
-                        row[1]
-                        for row in conn.execute(_txt(f"PRAGMA table_info({table})")).fetchall()
-                    }
-                else:
-                    inspector = __import__("sqlalchemy").inspect(conn)
-                    cols = {c["name"] for c in inspector.get_columns(table)}
-                if name in cols:
-                    return
-                if _IS_SQLITE:
-                    conn.execute(_txt(f"ALTER TABLE {table} ADD COLUMN {name} {sqlite_ddl}"))
-                else:
-                    try:
-                        conn.execute(
-                            _txt(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {pg_ddl}")
-                        )
-                    except Exception:
-                        conn.execute(_txt(f"ALTER TABLE {table} ADD COLUMN {name} {pg_ddl}"))
-            except Exception as exc:  # noqa: BLE001
-                LOGGER.debug("ALTER TABLE %s ADD COLUMN %s atlandı: %s", table, name, exc)
-
-        _ensure_simple_col(
-            "admin_login_events",
-            "actor_email",
-            "VARCHAR(255) NOT NULL DEFAULT ''",
-            "VARCHAR(255) NOT NULL DEFAULT ''",
-        )
-        _ensure_simple_col(
-            "panel_visit_logs",
-            "start_reason",
-            "VARCHAR(20) NOT NULL DEFAULT ''",
-            "VARCHAR(20) NOT NULL DEFAULT ''",
-        )
-
-        conn.execute(
-            _txt(
-                "CREATE INDEX IF NOT EXISTS ix_doviz_asset_runs_kind_collected "
-                "ON doviz_asset_monitor_runs(run_kind, collected_at DESC)"
+        try:
+            conn.execute(
+                _txt(
+                    "CREATE INDEX IF NOT EXISTS ix_doviz_asset_runs_kind_collected "
+                    "ON doviz_asset_monitor_runs(run_kind, collected_at DESC)"
+                )
             )
-        )
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.debug("ix_doviz_asset_runs_kind_collected atlandı: %s", exc)
         conn.commit()
