@@ -21,7 +21,6 @@ DETAIL_BASE_URL = "https://www.sinemalar.com/management/getModerationDetail"
 METRIC_TYPES: tuple[tuple[str, str], ...] = (
     ("movie", "Film"),
     ("person", "Sanatçı"),
-    ("news", "Haber"),
     ("list", "Liste"),
     ("trailer", "Fragman"),
     ("summary", "Film Özeti"),
@@ -30,6 +29,7 @@ METRIC_TYPES: tuple[tuple[str, str], ...] = (
     ("movie_cast_remove", "Kadrodan Çıkarma"),
     ("movie_poster", "Film Afişi"),
     ("person_image", "Sanatçı Fotoğrafı"),
+    ("news", "Haber"),
 )
 
 METRIC_LABEL_BY_TYPE = {k: v for k, v in METRIC_TYPES}

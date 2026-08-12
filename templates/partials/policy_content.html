@@ -79,16 +79,17 @@
         <thead>
           <tr class="border-b-2 border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
             <th class="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800">Moderatör</th>
+            <th class="sticky left-[7.5rem] z-10 bg-slate-100 px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800">Toplam</th>
             {% for mt in _mp.get("metric_types") or [] %}
             <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">{{ mt.label }}</th>
             {% endfor %}
-            <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500">Toplam</th>
           </tr>
         </thead>
         <tbody>
           {% for u in _mp.users %}
           <tr class="border-b border-slate-100 hover:bg-sky-50/30 dark:border-slate-800 dark:hover:bg-slate-800/30">
             <td class="sticky left-0 z-10 bg-white px-3 py-2 font-semibold text-slate-800 dark:bg-slate-900 dark:text-slate-100">{{ u.username }}</td>
+            <td class="sticky left-[7.5rem] z-10 bg-white px-2 py-2 text-right font-mono font-bold tabular-nums text-slate-800 dark:bg-slate-900 dark:text-slate-100">{{ u.total_all }}</td>
             {% for mt in _mp.get("metric_types") or [] %}
               {% set cnt = (u.totals or {}).get(mt.key, 0) %}
             <td class="px-2 py-1.5 text-right">
@@ -105,7 +106,6 @@
               {% endif %}
             </td>
             {% endfor %}
-            <td class="px-2 py-2 text-right font-mono font-bold tabular-nums text-slate-800 dark:text-slate-100">{{ u.total_all }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -146,7 +146,7 @@
     .mod-count-btn { cursor: pointer; border: none; background: transparent; }
     #mod-summary-table .sticky { box-shadow: 1px 0 0 rgba(148,163,184,.25); }
   </style>
-  <script src="/static/js/sinemalar_moderation_dashboard.js?v=3" defer></script>
+  <script src="/static/js/sinemalar_moderation_dashboard.js?v=4" defer></script>
   {% else %}
   <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
     <h4 class="mb-1 font-semibold text-slate-700 dark:text-slate-300">Bu dönemde moderasyon verisi yok</h4>
