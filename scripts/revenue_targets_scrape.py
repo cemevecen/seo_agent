@@ -125,22 +125,140 @@ def _opener(profile: Path):
     return build_opener(HTTPCookieProcessor(_cookie_jar_from_profile(profile)))
 
 
-def export_gid_csv(opener, gid: str) -> str | None:
+def export_gid_csv(opener, gid: str, *, retries: int = 6) -> str | None:
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={gid}"
     req = Request(url, headers={"User-Agent": _UA, "Accept": "text/csv,text/plain,*/*"})
+    for attempt in range(retries):
+        try:
+            with opener.open(req, timeout=90) as resp:
+                data = resp.read()
+            text = data.decode("utf-8", errors="replace")
+            if (
+                not text.strip()
+                or "<html" in text[:500].lower()
+                or "accounts.google" in text[:2000].lower()
+            ):
+                return None
+            return text
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429 and attempt + 1 < retries:
+                wait = min(90.0, 4.0 * (2**attempt))
+                print(f"export gid={gid} HTTP 429 — wait {wait:.0f}s", flush=True)
+                time.sleep(wait)
+                continue
+            print(f"export gid={gid} HTTP {exc.code}", flush=True)
+            return None
+        except Exception as exc:
+            if attempt + 1 < retries:
+                time.sleep(2.0 * (attempt + 1))
+                continue
+            print(f"export gid={gid} fail: {exc}", flush=True)
+            return None
+    return None
+
+
+def _load_existing_rows() -> list[dict]:
+    """Önceki ingest — 429 ile kaçan aylar silinmesin."""
     try:
-        with opener.open(req, timeout=90) as resp:
-            data = resp.read()
-    except urllib.error.HTTPError as exc:
-        print(f"export gid={gid} HTTP {exc.code}", flush=True)
-        return None
-    except Exception as exc:
-        print(f"export gid={gid} fail: {exc}", flush=True)
-        return None
-    text = data.decode("utf-8", errors="replace")
-    if not text.strip() or "<html" in text[:500].lower() or "accounts.google" in text[:2000].lower():
-        return None
-    return text
+        from backend.services.revenue_targets_sheet import load_ingested_revenue_targets
+
+        data = load_ingested_revenue_targets(max_age_sec=365 * 24 * 3600.0)
+        if data and isinstance(data.get("rows"), list):
+            return list(data["rows"])
+    except Exception:
+        pass
+    if OUT_ROWS.is_file():
+        try:
+            parsed = json.loads(OUT_ROWS.read_text(encoding="utf-8"))
+            rows = parsed.get("rows") if isinstance(parsed, dict) else None
+            if isinstance(rows, list):
+                return rows
+        except Exception:
+            pass
+    return []
+
+
+def scrape_history_rows(
+    profile: Path,
+    *,
+    current_only: bool = False,
+) -> tuple[list[dict], str | None, list[str]]:
+    """Tüm aylık sekmelerden Doviz/Sinemalar satırları."""
+    opener = _opener(profile)
+    current_csv: str | None = None
+    errors: list[str] = []
+
+    if current_only:
+        text = export_gid_csv(opener, GID_CURRENT)
+        if not text:
+            return [], None, ["current month export failed"]
+        current_csv = text
+        rows = parse_revenue_targets_csv(text)
+        # merge over existing so history stays
+        merged: dict[tuple[str, str], dict] = {}
+        for r in _load_existing_rows():
+            pk = str(r.get("period_key") or "")
+            proj = str(r.get("project") or "")
+            if pk and proj:
+                merged[(pk, proj)] = r
+        for r in rows:
+            pk = str(r.get("period_key") or "")
+            proj = str(r.get("project") or "")
+            if pk and proj:
+                merged[(pk, proj)] = r
+        return (
+            sorted(merged.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or "")),
+            current_csv,
+            errors,
+        )
+
+    tabs = discover_month_tabs(opener)
+    if not tabs:
+        tabs = [("current", GID_CURRENT, "9999-99")]
+        errors.append("tab discovery empty — current gid only")
+
+    print(f"month tabs={len(tabs)} from={REVENUE_TARGETS_HISTORY_FROM}", flush=True)
+    merged: dict[tuple[str, str], dict] = {}
+    for r in _load_existing_rows():
+        pk = str(r.get("period_key") or "")
+        proj = str(r.get("project") or "")
+        if pk and proj in ("doviz", "sinemalar"):
+            merged[(pk, proj)] = r
+    if merged:
+        print(f"seed existing rows={len(merged)}", flush=True)
+
+    for i, (name, gid, period_key) in enumerate(tabs, 1):
+        t0 = time.time()
+        text = export_gid_csv(opener, gid)
+        if not text:
+            errors.append(f"{name}/{gid}: export failed")
+            print(f"[{i}/{len(tabs)}] FAIL {name} gid={gid}", flush=True)
+            time.sleep(1.0)
+            continue
+        if gid == GID_CURRENT or period_key == "2026-08":
+            current_csv = text
+        rows = parse_revenue_targets_csv(text, period_hint=name)
+        for r in rows:
+            pk = str(r.get("period_key") or "")
+            proj = str(r.get("project") or "")
+            if pk and proj:
+                merged[(pk, proj)] = r
+        print(
+            f"[{i}/{len(tabs)}] OK {name} gid={gid} rows={len(rows)} "
+            f"{round(time.time() - t0, 1)}s",
+            flush=True,
+        )
+        time.sleep(0.85)
+
+    if current_csv is None:
+        text = export_gid_csv(opener, GID_CURRENT)
+        if text:
+            current_csv = text
+            for r in parse_revenue_targets_csv(text):
+                merged[(str(r.get("period_key")), str(r.get("project")))] = r
+
+    rows_out = sorted(merged.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or ""))
+    return rows_out, current_csv, errors
 
 
 def _decode_js_string(raw: str) -> str:
@@ -189,67 +307,6 @@ def discover_month_tabs(opener) -> list[tuple[str, str, str]]:
 
     out.sort(key=lambda t: t[2])
     return out
-
-
-def scrape_history_rows(
-    profile: Path,
-    *,
-    current_only: bool = False,
-) -> tuple[list[dict], str | None, list[str]]:
-    """Tüm aylık sekmelerden Doviz/Sinemalar satırları."""
-    opener = _opener(profile)
-    current_csv: str | None = None
-    errors: list[str] = []
-
-    if current_only:
-        tabs = [("Ağustos'26", GID_CURRENT, "current")]
-        # period from CSV header
-        text = export_gid_csv(opener, GID_CURRENT)
-        if not text:
-            return [], None, ["current month export failed"]
-        current_csv = text
-        rows = parse_revenue_targets_csv(text)
-        return rows, current_csv, errors
-
-    tabs = discover_month_tabs(opener)
-    if not tabs:
-        # Fallback: en azından güncel sekme
-        tabs = [("current", GID_CURRENT, "9999-99")]
-        errors.append("tab discovery empty — current gid only")
-
-    print(f"month tabs={len(tabs)} from={REVENUE_TARGETS_HISTORY_FROM}", flush=True)
-    merged: dict[tuple[str, str], dict] = {}
-    for i, (name, gid, period_key) in enumerate(tabs, 1):
-        t0 = time.time()
-        text = export_gid_csv(opener, gid)
-        if not text:
-            errors.append(f"{name}/{gid}: export failed")
-            print(f"[{i}/{len(tabs)}] FAIL {name} gid={gid}", flush=True)
-            continue
-        if gid == GID_CURRENT or period_key.endswith("-08") and "2026-08" == period_key:
-            current_csv = text
-        rows = parse_revenue_targets_csv(text, period_hint=name)
-        for r in rows:
-            pk = str(r.get("period_key") or "")
-            proj = str(r.get("project") or "")
-            if pk and proj:
-                merged[(pk, proj)] = r
-        print(
-            f"[{i}/{len(tabs)}] OK {name} gid={gid} rows={len(rows)} "
-            f"{round(time.time() - t0, 1)}s",
-            flush=True,
-        )
-        time.sleep(0.15)
-
-    if current_csv is None:
-        text = export_gid_csv(opener, GID_CURRENT)
-        if text:
-            current_csv = text
-            for r in parse_revenue_targets_csv(text):
-                merged[(str(r.get("period_key")), str(r.get("project")))] = r
-
-    rows_out = sorted(merged.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or ""))
-    return rows_out, current_csv, errors
 
 
 def _save_csv(text: str) -> Path:
