@@ -1,9 +1,115 @@
 <div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-4 px-2" data-page-tarama="policy">
+  {% set _tab = policy_tab or "policy" %}
   {% set _total = stats.get("total", 0) if stats else 0 %}
   {% set _new_import = (violations | selectattr("is_new_import") | list | length) if violations else 0 %}
   {% set _by_host = stats.get("by_host") if stats else {} %}
   {% set _hf = host_filter or "all" %}
+  {% set _mp = moderation_panel or {} %}
+  {% set _mm = _mp.get("meta") or {} %}
 
+  <div class="flex flex-wrap gap-1.5">
+    <a href="/policy?tab=policy&host={{ _hf }}"
+      class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
+        {% if _tab == 'policy' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
+        {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
+      Policy
+    </a>
+    <a href="/policy?tab=sinemalar"
+      class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
+        {% if _tab == 'sinemalar' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
+        {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
+      Sinemalar
+    </a>
+  </div>
+
+  {% if _tab == 'sinemalar' %}
+  <div class="flex flex-col gap-2 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100">Sinemalar Moderasyon</h3>
+      <p class="text-[11px] text-slate-400 dark:text-slate-500">
+        Kaynak: <span class="font-mono">getModerationSummary</span>
+        · gezginozlem, berend, Gözde.
+        · 03:04 + 14:17 TR
+        {% if _mm.get("last_scraped_at") %}
+          · Son çekim: <b class="text-slate-600 dark:text-slate-300">{{ _mm.last_scraped_at[:16]|replace('T',' ') }} UTC</b>
+        {% endif %}
+      </p>
+      <p class="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+        Dönem: <b>{{ _mp.get("start") or "—" }}</b> → <b>{{ _mp.get("end") or "—" }}</b>
+        · {{ _mp.get("row_count") or 0 }} hücre
+        {% if not _mm.get("backfill_complete") %}
+          · Backfill devam: cursor <b class="text-amber-700 dark:text-amber-300">{{ _mm.get("backfill_cursor") or "2026-01-01" }}</b>
+        {% else %}
+          · Backfill tamam
+        {% endif %}
+      </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <span data-page-tarama-slot></span>
+    </div>
+  </div>
+
+  {% if _mp.get("users") %}
+  <div class="grid gap-3 sm:grid-cols-3">
+    {% for u in _mp.users %}
+    <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Moderatör</div>
+      <div class="mt-1 text-lg font-bold text-slate-800 dark:text-slate-100">{{ u.username }}</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ u.total_all }}</div>
+      <div class="text-[10px] text-slate-400">toplam (seçili dönem)</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="mod-table-shell max-w-full min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div class="mod-table-scroll min-w-0 w-full overflow-x-auto">
+      <table id="mod-table" class="mod-table w-full border-collapse text-xs">
+        <thead>
+          <tr class="border-b-2 border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
+            <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">Tarih</th>
+            <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">Moderatör</th>
+            {% for mt in _mp.get("metric_types") or [] %}
+            <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500">{{ mt.label }}</th>
+            {% endfor %}
+            <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500">Toplam</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set _daily = _mp.get("daily") or {} %}
+          {% set _dates = _daily.keys() | list | sort(reverse=True) %}
+          {% for day in _dates %}
+            {% for u in _mp.users %}
+            {% set row_total = namespace(v=0) %}
+            <tr class="border-b border-slate-100 hover:bg-sky-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40">
+              <td class="px-2 py-1.5 font-mono text-[11px] tabular-nums text-slate-600 dark:text-slate-300 whitespace-nowrap">{{ day }}</td>
+              <td class="px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-200">{{ u.username }}</td>
+              {% for mt in _mp.get("metric_types") or [] %}
+                {% set key = u.username ~ '|' ~ mt.key %}
+                {% set cnt = (_daily.get(day) or {}).get(key, 0) %}
+                {% set row_total.v = row_total.v + cnt %}
+              <td class="px-2 py-1.5 text-right font-mono tabular-nums {% if cnt %}text-slate-800 dark:text-slate-100 font-semibold{% else %}text-slate-300 dark:text-slate-600{% endif %}">{{ cnt or "—" }}</td>
+              {% endfor %}
+              <td class="px-2 py-1.5 text-right font-mono font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ row_total.v }}</td>
+            </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="border-t border-slate-100 px-4 py-1.5 text-right text-[11px] text-slate-400 dark:border-slate-800">
+      {{ (_dates | length) * (_mp.users | length) }} satır · 11 metrik kırılımı
+    </div>
+  </div>
+  {% else %}
+  <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
+    <h4 class="mb-1 font-semibold text-slate-700 dark:text-slate-300">Moderasyon verisi henüz yok</h4>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      Mac bridge 03:04 ve 14:17’de otomatik çeker; «Sayfayı güncelle» ile moderasyon sync de tetiklenebilir.
+    </p>
+  </div>
+  {% endif %}
+
+  {% else %}
   <div class="flex flex-col gap-2 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
     <div>
       <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100">Ad Manager Policy</h3>
@@ -65,7 +171,7 @@
       ("m.sinemalar.com", "m.sinemalar.com", (_by_host or {}).get("m.sinemalar.com", 0)),
     ] %}
     {% for key, label, cnt in tabs %}
-    <a href="/policy?host={{ key }}"
+    <a href="/policy?tab=policy&host={{ key }}"
       class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
         {% if _hf == key %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
         {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
@@ -216,6 +322,7 @@
   <div class="rounded-xl border border-slate-200 py-12 text-center text-sm text-slate-400 dark:border-slate-800">
     No records for this host filter.
   </div>
+  {% endif %}
   {% endif %}
   {% endif %}
 </div>

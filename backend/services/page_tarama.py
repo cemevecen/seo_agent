@@ -28,6 +28,12 @@ JOBS: dict[str, dict[str, Any]] = {
     "links": {"id": "links", "label": "Backlinks (GSC)", "kind": "bridge", "path": "/sync-gsc-links"},
     "policy": {"id": "policy", "label": "Ad Manager Policy", "kind": "bridge", "path": "/sync-policy"},
     "noads": {"id": "noads", "label": "Sinemalar noAds", "kind": "bridge", "path": "/sync-noads"},
+    "moderation": {
+        "id": "moderation",
+        "label": "Sinemalar Moderasyon",
+        "kind": "bridge",
+        "path": "/sync-sinemalar-moderation",
+    },
     "seo": {"id": "seo", "label": "SEO Audit", "kind": "bridge", "path": "/sync-seo-audit"},
     "errors": {
         "id": "errors",
@@ -59,7 +65,7 @@ PAGES: dict[str, list[str]] = {
     "seo": ["seo"],
     "s-firebase": ["firebase"],
     "backlinks": ["links"],
-    "policy": ["policy", "noads"],
+    "policy": ["policy", "noads", "moderation"],
     "errors": ["errors"],
 }
 

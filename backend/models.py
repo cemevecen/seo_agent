@@ -942,6 +942,46 @@ class SinemalarNoAdsSnapshot(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
+class SinemalarModerationMeta(Base):
+    """Moderasyon scrape durumu (tek satır id=1)."""
+
+    __tablename__ = "sinemalar_moderation_meta"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    backfill_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    backfill_cursor: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    last_scraped_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    message: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class SinemalarModerationDailyRow(Base):
+    """Günlük moderasyon sayıları — getModerationSummary kırılımları."""
+
+    __tablename__ = "sinemalar_moderation_daily_rows"
+    __table_args__ = (
+        UniqueConstraint(
+            "report_date",
+            "user_id",
+            "metric_type",
+            name="uq_sin_mod_day_user_metric",
+        ),
+        Index("ix_sin_mod_day", "report_date"),
+        Index("ix_sin_mod_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    report_date: Mapped[date] = mapped_column(Date, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    username: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    metric_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    metric_label: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    detail_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class PolicyCSVUpload(Base):
     """En son yüklenen Policy Center CSV'si — geriye dönük kontrol için."""
     __tablename__ = "policy_csv_uploads"

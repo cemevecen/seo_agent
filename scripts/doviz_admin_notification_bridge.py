@@ -22,6 +22,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-revenue-targets → Ad hedef sheet (05:05 + 13:05 TR, sistem Firefox)
   POST /sync-policy → Ad Manager Policy (01:05 + 13:05 TR)
   POST /sync-noads  → Sinemalar noAds (01:15 + 13:15 TR)
+  POST /sync-sinemalar-moderation → Moderasyon özeti (03:04 + 14:17 TR)
   POST /sync-pagespeed → pagespeed.web.dev (01:10 + 13:10 TR)
   POST /sync-seo-audit → SEO meta audit scrape (02:45 + 14:45 TR, GA4 top 500)
   POST /sync-gsc-cwv → GSC Core Web Vitals + AMP (03:00 + 15:00 TR)
@@ -140,6 +141,10 @@ POLICY_AUTO_HOUR = TWICE_DAILY_HOURS[0]
 POLICY_AUTO_MINUTE = POLICY_SLOT_MINUTE
 NOADS_AUTO_HOURS = list(TWICE_DAILY_HOURS)
 NOADS_AUTO_MINUTE = NOADS_SLOT_MINUTE
+MODERATION_SLOTS: tuple[tuple[int, int, str], ...] = (
+    (3, 4, "yesterday"),
+    (14, 17, "today"),
+)
 BRIDGE_ALERT_TO = (
     os.environ.get("BRIDGE_ALERT_EMAIL")
     or os.environ.get("OPERATIONS_MAIL_TO")
@@ -190,6 +195,7 @@ _firebase_lock = threading.Lock()
 _gsc_links_lock = threading.Lock()
 _policy_lock = threading.Lock()
 _noads_lock = threading.Lock()
+_moderation_lock = threading.Lock()
 _pagespeed_lock = threading.Lock()
 _seo_audit_lock = threading.Lock()
 _gsc_cwv_lock = threading.Lock()
@@ -216,6 +222,7 @@ _last_gsc_links_result: dict[str, Any] = {"ok": False, "message": "henüz çalı
 _last_revenue_targets_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_policy_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_moderation_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_pagespeed_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_seo_audit_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_gsc_cwv_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -231,6 +238,7 @@ _last_gsc_links_auto_slot = ""
 _last_revenue_targets_auto_slot = ""
 _last_policy_auto_slot = ""
 _last_noads_auto_slot = ""
+_last_moderation_auto_slot = ""
 _last_pagespeed_auto_slot = ""
 _last_seo_audit_auto_slot = ""
 _last_gsc_cwv_auto_slot = ""
@@ -314,6 +322,7 @@ _BROWSER_SCRAPE_KINDS = frozenset(
         "admanager_policy",
         "pagespeed",
         "sinemalar_noads",
+        "sinemalar_moderation",
         "seo_audit",
         "gsc_cwv",
         "market",
@@ -436,6 +445,21 @@ def _competitors_slot_due() -> tuple[bool, str]:
     if _last_pm_lab_competitors_slot == slot:
         return False, slot
     return True, slot
+
+
+def _moderation_slot_due() -> tuple[bool, str, str]:
+    """03:04 → dün; 14:17 → bugün."""
+    now = _now_tr()
+    cur = now.hour * 60 + now.minute
+    window = max(5, SLOT_WINDOW_MIN)
+    for hour, minute, which in MODERATION_SLOTS:
+        start = int(hour) * 60 + int(minute)
+        if start <= cur < start + window:
+            slot = f"{now.strftime('%Y-%m-%d')}-{int(hour):02d}{int(minute):02d}"
+            if _last_moderation_auto_slot == slot:
+                return False, slot, which
+            return True, slot, which
+    return False, "", ""
 
 
 def _failure_message(result: dict[str, Any] | None = None, exc: BaseException | None = None) -> str:
@@ -1291,6 +1315,81 @@ def run_sinemalar_noads_bridge_once() -> dict[str, Any]:
     }
     _last_noads_result = out
     print(f"Sinemalar noAds sync · {out['message']}", flush=True)
+    return out
+
+
+def _load_sinemalar_moderation_mod():
+    import importlib.util
+
+    path = ROOT / "scripts" / "sinemalar_moderation_scrape.py"
+    spec = importlib.util.spec_from_file_location("sinemalar_moderation_scrape", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("sinemalar_moderation_scrape.py yüklenemedi")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def run_sinemalar_moderation_bridge_once(*, incremental_which: str = "yesterday") -> dict[str, Any]:
+    """Sinemalar getModerationSummary → Railway /api/sinemalar-moderation/ingest."""
+    global _last_moderation_result
+    if not _ingest_token():
+        err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_moderation_result = err
+        return err
+    try:
+        mod = _load_sinemalar_moderation_mod()
+    except Exception as exc:  # noqa: BLE001
+        err = {"ok": False, "message": f"moderation import: {exc}"}
+        _last_moderation_result = err
+        return err
+
+    env_hl = (os.environ.get("SINEMALAR_MODERATION_HEADLESS") or "").strip().lower()
+    headed = env_hl not in ("1", "true", "yes")
+    meta = mod.fetch_remote_meta()
+    if not meta.get("backfill_complete"):
+        print("Sinemalar moderasyon backfill chunk…", flush=True)
+        result = mod.run_backfill_chunk(headed=headed, ingest=True)
+        mode = "backfill"
+    else:
+        which = incremental_which if incremental_which in ("yesterday", "today") else "yesterday"
+        print(f"Sinemalar moderasyon incremental ({which})…", flush=True)
+        result = mod.run_incremental(which, headed=headed, ingest=True)
+        mode = "incremental"
+
+    if result.get("needs_login"):
+        out = {
+            "ok": False,
+            "kind": "sinemalar_moderation",
+            "needs_login": True,
+            "message": result.get("message") or "Sinemalar admin login gerekli",
+        }
+        _last_moderation_result = out
+        return out
+    if not result.get("ok"):
+        out = {
+            "ok": False,
+            "kind": "sinemalar_moderation",
+            "message": result.get("message") or "moderation scrape başarısız",
+            "mode": mode,
+        }
+        _last_moderation_result = out
+        return out
+
+    ing = (result.get("ingest") or {}).get("ingest") or result.get("ingest") or {}
+    out = {
+        "ok": True,
+        "kind": "sinemalar_moderation",
+        "mode": mode,
+        "skipped": bool(result.get("skipped")),
+        "days": len(result.get("days") or []),
+        "upserted": ing.get("upserted"),
+        "backfill_complete": bool(result.get("backfill_complete") or meta.get("backfill_complete")),
+        "message": result.get("message") or ing.get("message") or "moderation sync",
+        "ingest": ing,
+    }
+    _last_moderation_result = out
+    print(f"Sinemalar moderasyon sync · {out['message']}", flush=True)
     return out
 
 
@@ -2391,6 +2490,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_gsc_links": _last_gsc_links_result,
                     "last_policy": _last_policy_result,
                     "last_noads": _last_noads_result,
+                    "last_moderation": _last_moderation_result,
                     "pm_lab_interval_sec": PM_LAB_AUTO_INTERVAL_SEC,
                     "pm_lab_competitors_interval_sec": PM_LAB_COMPETITORS_INTERVAL_SEC,
                     "play_interval_sec": PLAY_AUTO_INTERVAL_SEC,
@@ -2406,6 +2506,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "pagespeed_slots_tr": [f"{h:02d}:{SPEED_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "noads_slots_tr": [f"{h:02d}:{NOADS_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+                        "moderation_slots_tr": [f"{h:02d}:{m:02d}" for h, m, _ in MODERATION_SLOTS],
                         "seo_audit_slots_tr": [
                             f"{h:02d}:{SEO_AUDIT_SLOT_MINUTE:02d}" for h in SEO_AUDIT_SLOT_HOURS
                         ],
@@ -2538,6 +2639,23 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 _noads_lock,
                 "Sinemalar noAds sync zaten çalışıyor, bekleyin.",
                 run_sinemalar_noads_bridge_once,
+            )
+        elif path in (
+            "/sync-sinemalar-moderation",
+            "/sync-moderation",
+            "/moderation",
+        ):
+            which = (qs.get("which") or ["yesterday"])[0].strip().lower()
+            if which not in ("yesterday", "today"):
+                which = "yesterday"
+
+            def _mod_runner() -> dict[str, Any]:
+                return run_sinemalar_moderation_bridge_once(incremental_which=which)
+
+            lock, busy, runner = (
+                _moderation_lock,
+                "Sinemalar moderasyon sync zaten çalışıyor, bekleyin.",
+                _mod_runner,
             )
         elif path in ("/sync-asc", "/asc", "/sync-ios"):
             lock, busy, runner = (
@@ -2910,6 +3028,11 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
             "lock": _noads_lock,
             "runner": run_sinemalar_noads_bridge_once,
         },
+        "sinemalar_moderation": {
+            "name": "Moderation",
+            "lock": _moderation_lock,
+            "runner": run_sinemalar_moderation_bridge_once,
+        },
     }
 
 
@@ -2987,7 +3110,7 @@ def _auto_loop() -> None:
     global _last_nt_auto_at, _last_news_auto_at, _last_pm_lab_auto_at, _last_pm_lab_competitors_auto_at
     global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
     global _last_gsc_links_auto_slot, _last_policy_auto_slot
-    global _last_noads_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
+    global _last_noads_auto_slot, _last_moderation_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
     global _last_gsc_cwv_auto_slot, _last_market_auto_slot
     global _last_pm_lab_auto_slot, _last_pm_lab_competitors_slot
 
@@ -3221,6 +3344,30 @@ def _auto_loop() -> None:
             "sinemalar_noads", "noAds", _noads_lock, run_sinemalar_noads_bridge_once,
             "_last_noads_auto_slot", TWICE_DAILY_HOURS, NOADS_SLOT_MINUTE,
         )
+        if "sinemalar_moderation" not in _job_retries:
+            mod_due, mod_slot, mod_which = _moderation_slot_due()
+            if mod_due:
+
+                def _mark_mod_slot(result: dict[str, Any], *, _slot: str = mod_slot) -> None:
+                    global _last_moderation_auto_slot
+                    _last_moderation_auto_slot = _slot
+                    if result.get("ok"):
+                        _clear_job_retry("sinemalar_moderation")
+                    else:
+                        _notify_auto_failure("sinemalar_moderation", result)
+                        _arm_job_retry("sinemalar_moderation", name="Moderation")
+
+                def _mod_auto_runner() -> dict[str, Any]:
+                    return run_sinemalar_moderation_bridge_once(incremental_which=mod_which)
+
+                _run_browser_scrape_job(
+                    kind="sinemalar_moderation",
+                    name="Moderation",
+                    lock=_moderation_lock,
+                    runner=_mod_auto_runner,
+                    on_done=_mark_mod_slot,
+                    notify=False,
+                )
         _slot_job(
             "seo_audit", "SEO Audit", _seo_audit_lock, run_seo_audit_bridge_once,
             "_last_seo_audit_auto_slot", SEO_AUDIT_SLOT_HOURS, SEO_AUDIT_SLOT_MINUTE,
@@ -3267,6 +3414,11 @@ def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
         "links": {"name": "GSC Links", "lock": _gsc_links_lock, "runner": run_gsc_links_bridge_once},
         "policy": {"name": "Policy", "lock": _policy_lock, "runner": run_admanager_policy_bridge_once},
         "noads": {"name": "noAds", "lock": _noads_lock, "runner": run_sinemalar_noads_bridge_once},
+        "moderation": {
+            "name": "Moderation",
+            "lock": _moderation_lock,
+            "runner": run_sinemalar_moderation_bridge_once,
+        },
         "seo": {"name": "SEO Audit", "lock": _seo_audit_lock, "runner": run_seo_audit_bridge_once},
     }
 
@@ -3553,6 +3705,7 @@ def run_daemon() -> int:
         f"virgul={list(VIRGUL_SLOT_HOURS)}:00 play={list(PLAY_SLOT_HOURS)}:{PLAY_SLOT_MINUTE:02d} "
         f"asc=:{ASC_SLOT_MINUTE:02d} firebase=:{FIREBASE_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
         f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d} "
+        f"moderation=03:04,14:17 "
         f"seo={list(SEO_AUDIT_SLOT_HOURS)}:{SEO_AUDIT_SLOT_MINUTE:02d} "
         f"cwv={list(GSC_CWV_SLOT_HOURS)}:{GSC_CWV_SLOT_MINUTE:02d} "
         f"market={list(MARKET_SLOT_HOURS)}:{MARKET_SLOT_MINUTE:02d} "

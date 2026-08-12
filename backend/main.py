@@ -65,6 +65,7 @@ from backend.api.seo_audit_scrape import router as seo_audit_scrape_router
 from backend.api.gsc_cwv import router as gsc_cwv_router
 from backend.api.gsc_links import router as gsc_links_router
 from backend.api.policy_ingest import router as policy_ingest_router
+from backend.api.sinemalar_moderation import router as sinemalar_moderation_router
 from backend.api.scrape_telemetry import router as scrape_telemetry_router
 from backend.api.market_quotes import router as market_quotes_router
 from backend.api.page_tarama import router as page_tarama_router
@@ -1053,6 +1054,7 @@ app.include_router(seo_audit_scrape_router, prefix="/api")
 app.include_router(gsc_cwv_router, prefix="/api")
 app.include_router(gsc_links_router, prefix="/api")
 app.include_router(policy_ingest_router, prefix="/api")
+app.include_router(sinemalar_moderation_router, prefix="/api")
 app.include_router(scrape_telemetry_router, prefix="/api")
 app.include_router(play_analytics_router, prefix="/api")
 app.include_router(asc_metrics_router, prefix="/api")
@@ -1924,6 +1926,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/gsc-links/ingest",
         "/api/policy/ingest",
         "/api/policy/noads/ingest",
+        "/api/sinemalar-moderation/ingest",
         "/api/seo-audit/ingest",
         "/api/seo-audit/urls",
         "/api/seo-audit/progress",
@@ -21362,6 +21365,7 @@ async def api_boards_move(request: Request):
 def policy_page(
     request: Request,
     host: str = Query(default="all"),
+    tab: str = Query(default="policy"),
     db: Session = Depends(get_db),
 ):
     from backend.services import policy_csv as pcsv
@@ -21369,6 +21373,9 @@ def policy_page(
     host_key = (host or "all").strip().lower()
     if host_key not in ("all", "sinemalar.com", "m.sinemalar.com"):
         host_key = "all"
+    tab_key = (tab or "policy").strip().lower()
+    if tab_key not in ("policy", "sinemalar"):
+        tab_key = "policy"
 
     try:
         stats = pcsv.get_stats(db)
@@ -21388,6 +21395,9 @@ def policy_page(
         from backend.services import sinemalar_noads as noads
 
         noads_summary = noads.get_noads_summary(db)
+        from backend.services import sinemalar_moderation as sin_mod
+
+        moderation_panel = sin_mod.get_panel_payload(db)
     except Exception as _e:
         LOGGER.exception("policy_page hata: %s", _e)
         stats = {
@@ -21405,6 +21415,7 @@ def policy_page(
         last_upload = None
         title_job = {"running": False, "done": 0, "total": 0}
         noads_summary = {"has_data": False, "entry_count": 0, "matched": 0, "missing": 0}
+        moderation_panel = {"ok": False, "users": [], "metric_types": [], "meta": {}}
 
     last_upload_info = None
     last_upload_iso = None
@@ -21430,6 +21441,8 @@ def policy_page(
         "title_job": title_job,
         "host_filter": host_key,
         "noads_summary": noads_summary,
+        "policy_tab": tab_key,
+        "moderation_panel": moderation_panel,
     }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse("partials/policy_content.html", ctx)
