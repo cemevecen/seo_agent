@@ -12,7 +12,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 LOGGER = logging.getLogger(__name__)
 _TR = ZoneInfo("Europe/Istanbul")
-_LOGIN_HISTORY_LIMIT = 10
+_LOGIN_HISTORY_LIMIT = 40
 _nav_lock = threading.Lock()
 _nav_watch: dict[str, dict[str, Any]] = {}
 
@@ -322,6 +322,7 @@ def _event_label(event_type: str) -> str:
         "member_login_ok": "Google üye girişi",
         "member_register_ok": "Google üye kaydı (ilk giriş)",
         "member_login_fail": "Google üye girişi (başarısız)",
+        "member_logout_ok": "Google üye çıkışı",
         "login_fail": "Başarısız giriş",
         "settings_ok": "Settings erişimi",
         "settings_fail": "Settings — hatalı şifre",
@@ -754,6 +755,7 @@ def record_access_event(
         user_agent=ua,
         fingerprint=fp,
         is_trusted=trusted,
+        actor_email=(actor_email or "").strip()[:255],
     )
     db.add(row)
     db.flush()
@@ -824,10 +826,17 @@ def record_access_event(
     return row
 
 
-def recent_login_history(db: Session, *, limit: int = _LOGIN_HISTORY_LIMIT) -> list[dict]:
+def recent_login_history(
+    db: Session,
+    *,
+    limit: int = _LOGIN_HISTORY_LIMIT,
+    event_types: tuple[str, ...] | None = None,
+) -> list[dict]:
+    q = db.query(AdminLoginEvent)
+    if event_types:
+        q = q.filter(AdminLoginEvent.event_type.in_(event_types))
     rows = (
-        db.query(AdminLoginEvent)
-        .order_by(AdminLoginEvent.created_at.desc(), AdminLoginEvent.id.desc())
+        q.order_by(AdminLoginEvent.created_at.desc(), AdminLoginEvent.id.desc())
         .limit(limit)
         .all()
     )
@@ -838,6 +847,7 @@ def recent_login_history(db: Session, *, limit: int = _LOGIN_HISTORY_LIMIT) -> l
                 "id": r.id,
                 "event_type": r.event_type,
                 "event_label": _event_label(r.event_type),
+                "actor_email": getattr(r, "actor_email", "") or "",
                 "ip": r.ip,
                 "device": r.device_label,
                 "fingerprint": r.fingerprint,
@@ -846,8 +856,50 @@ def recent_login_history(db: Session, *, limit: int = _LOGIN_HISTORY_LIMIT) -> l
                 "created_at": r.created_at,
                 "created_at_tr": format_tr(r.created_at),
                 "is_success": r.event_type.endswith("_ok"),
+                "is_logout": r.event_type.endswith("logout_ok"),
             }
         )
+    return out
+
+
+def recent_auth_arrivals(*, within_sec: int = 90, limit: int = 12) -> list[dict]:
+    """Owner toast için: son N sn içindeki gerçek Google girişleri (owner hariç)."""
+    from backend.database import SessionLocal
+
+    try:
+        from backend.services.panel_visitor_alerts import is_owner_email
+    except Exception:  # noqa: BLE001
+        def is_owner_email(_e: str) -> bool:  # type: ignore
+            return False
+
+    cutoff = datetime.utcnow() - timedelta(seconds=max(15, int(within_sec)))
+    out: list[dict] = []
+    try:
+        with SessionLocal() as db:
+            rows = (
+                db.query(AdminLoginEvent)
+                .filter(
+                    AdminLoginEvent.event_type.in_(("member_login_ok", "member_register_ok")),
+                    AdminLoginEvent.created_at >= cutoff,
+                )
+                .order_by(AdminLoginEvent.created_at.desc(), AdminLoginEvent.id.desc())
+                .limit(max(1, min(int(limit), 40)))
+                .all()
+            )
+            for r in rows:
+                em = (getattr(r, "actor_email", "") or "").strip()
+                if not em or is_owner_email(em):
+                    continue
+                out.append(
+                    {
+                        "id": r.id,
+                        "email": em,
+                        "event_type": r.event_type,
+                        "at_tr": format_tr(r.created_at),
+                    }
+                )
+    except Exception:  # noqa: BLE001
+        return []
     return out
 
 

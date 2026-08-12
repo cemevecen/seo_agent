@@ -1,7 +1,8 @@
-"""Panel ziyaret günlüğü — giriş, gezilen sayfalar, çıkış."""
+"""Panel ziyaret günlüğü — gerçek auth girişi, gezilen sayfalar/özellikler, çıkış."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -16,7 +17,7 @@ from backend.services.admin_access_log import admin_path_label, should_track_adm
 
 LOGGER = logging.getLogger(__name__)
 _TR = ZoneInfo("Europe/Istanbul")
-_MAX_PAGES = 80
+_MAX_PAGES = 120
 _KEEP_ROWS = 400
 
 
@@ -31,6 +32,20 @@ def format_tr_sec(dt: datetime | None) -> str:
     return aware.astimezone(_TR).strftime("%d.%m.%Y %H:%M:%S")
 
 
+def member_session_key_from_token(token: str) -> str:
+    tok = (token or "").strip()
+    if not tok:
+        return ""
+    return "m:" + hashlib.sha256(tok.encode()).hexdigest()[:16]
+
+
+def admin_session_key_from_token(token: str) -> str:
+    tok = (token or "").strip()
+    if not tok:
+        return ""
+    return "a:" + hashlib.sha256(tok.encode()).hexdigest()[:16]
+
+
 def _load_pages(raw: str) -> list[dict[str, str]]:
     try:
         data = json.loads(raw or "[]")
@@ -43,13 +58,16 @@ def _load_pages(raw: str) -> list[dict[str, str]]:
         if not isinstance(item, dict):
             continue
         path = str(item.get("path") or "").strip()
-        if not path:
+        label = str(item.get("label") or path).strip()
+        if not path and not label:
             continue
+        kind = str(item.get("kind") or "page").strip() or "page"
         out.append(
             {
-                "path": path[:120],
-                "label": str(item.get("label") or path)[:80],
+                "path": (path or label)[:120],
+                "label": (label or path)[:80],
                 "at_tr": str(item.get("at_tr") or "")[:32],
+                "kind": kind[:20],
             }
         )
     return out
@@ -84,6 +102,86 @@ def _open_row(db: Session, session_key: str) -> PanelVisitLog | None:
     )
 
 
+def _append_activity(
+    row: PanelVisitLog,
+    *,
+    path: str,
+    label: str,
+    kind: str = "page",
+) -> None:
+    pages = _load_pages(row.pages_json)
+    last = pages[-1] if pages else None
+    if last and last.get("path") == path and last.get("kind") == kind:
+        return
+    pages.append(
+        {
+            "path": path[:120],
+            "label": (label or path)[:80],
+            "at_tr": datetime.now(_TR).strftime("%H:%M:%S"),
+            "kind": (kind or "page")[:20],
+        }
+    )
+    row.pages_json = _dump_pages(pages)
+
+
+def open_auth_visit(
+    *,
+    session_key: str,
+    email: str = "",
+    display_name: str = "",
+    session_kind: str = "",
+    ip: str = "",
+    device: str = "",
+    path: str = "/",
+) -> None:
+    """Yalnızca gerçek Google/admin girişi sonrası çağrılır — Visit log «Signed in»."""
+    key = (session_key or "").strip()
+    if not key:
+        return
+    now = _utcnow()
+    page_path = (path or "/").split("?")[0] or "/"
+    try:
+        with SessionLocal() as db:
+            # Önceki açık oturumu kapat (aynı cookie yeniden giriş)
+            prev = _open_row(db, key)
+            if prev is not None:
+                prev.logged_out_at = now
+                prev.last_seen_at = now
+                prev.end_reason = "relogin"
+            row = PanelVisitLog(
+                session_key=key[:80],
+                email=(email or "")[:255],
+                display_name=(display_name or "")[:255],
+                session_kind=(session_kind or "")[:20],
+                ip=(ip or "")[:64],
+                device_label=(device or "")[:120],
+                logged_in_at=now,
+                last_seen_at=now,
+                pages_json="[]",
+                start_reason="auth",
+                end_reason="",
+            )
+            db.add(row)
+            db.flush()
+            if should_track_admin_path(page_path):
+                _append_activity(
+                    row,
+                    path=page_path,
+                    label=admin_path_label(page_path),
+                    kind="page",
+                )
+            if email:
+                try:
+                    from backend.services import app_member_auth as ama
+
+                    ama.touch_member_last_login(db, email, now)
+                except Exception:  # noqa: BLE001
+                    LOGGER.debug("üye son giriş güncellenemedi", exc_info=True)
+            db.commit()
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.debug("panel auth visit open atlandı: %s", exc)
+
+
 def touch_visit(
     *,
     session_key: str,
@@ -93,7 +191,12 @@ def touch_visit(
     ip: str = "",
     device: str = "",
     path: str = "",
+    allow_open: bool = False,
 ) -> None:
+    """Mevcut açık ziyarete sayfa ekle / last_seen güncelle.
+
+    allow_open=False (varsayılan): yeni «Signed in» satırı açmaz — yanlış pozitif yok.
+    """
     key = (session_key or "").strip()
     if not key:
         return
@@ -104,6 +207,9 @@ def touch_visit(
         with SessionLocal() as db:
             row = _open_row(db, key)
             if row is None:
+                if not allow_open:
+                    return
+                # Geriye dönük / test uyumu — üretim middleware allow_open=False kullanır
                 row = PanelVisitLog(
                     session_key=key[:80],
                     email=(email or "")[:255],
@@ -114,16 +220,10 @@ def touch_visit(
                     logged_in_at=now,
                     last_seen_at=now,
                     pages_json="[]",
+                    start_reason="legacy",
                 )
                 db.add(row)
                 db.flush()
-                if email:
-                    try:
-                        from backend.services import app_member_auth as ama
-
-                        ama.touch_member_last_login(db, email, now)
-                    except Exception:  # noqa: BLE001
-                        LOGGER.debug("üye son giriş güncellenemedi", exc_info=True)
             else:
                 row.last_seen_at = now
                 if ip:
@@ -135,20 +235,44 @@ def touch_visit(
                 if display_name:
                     row.display_name = display_name[:255]
             if track:
-                pages = _load_pages(row.pages_json)
-                last = pages[-1]["path"] if pages else None
-                if last != page_path:
-                    pages.append(
-                        {
-                            "path": page_path[:120],
-                            "label": admin_path_label(page_path),
-                            "at_tr": datetime.now(_TR).strftime("%H:%M:%S"),
-                        }
-                    )
-                    row.pages_json = _dump_pages(pages)
+                _append_activity(
+                    row,
+                    path=page_path,
+                    label=admin_path_label(page_path),
+                    kind="page",
+                )
             db.commit()
     except Exception as exc:  # noqa: BLE001
         LOGGER.debug("panel visit touch atlandı: %s", exc)
+
+
+def record_feature_activity(
+    *,
+    session_key: str,
+    feature: str,
+    label: str = "",
+    path: str = "",
+) -> bool:
+    """Menü / özellik kullanımı — açık auth ziyaretine eklenir."""
+    key = (session_key or "").strip()
+    feat = (feature or "").strip()
+    if not key or not feat:
+        return False
+    now = _utcnow()
+    lab = (label or feat).strip() or feat
+    p = (path or f"feature:{feat}").split("?")[0][:120] or f"feature:{feat}"
+    try:
+        with SessionLocal() as db:
+            row = _open_row(db, key)
+            if row is None:
+                return False
+            row.last_seen_at = now
+            _append_activity(row, path=p, label=lab[:80], kind="feature")
+            db.commit()
+            return True
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.debug("panel feature activity atlandı: %s", exc)
+        return False
 
 
 def close_visit(session_key: str, *, reason: str = "logout") -> None:
@@ -194,27 +318,32 @@ def expire_idle(*, idle_minutes: int = 30) -> None:
         LOGGER.debug("panel visit idle expire atlandı: %s", exc)
 
 
-def recent_visits(*, limit: int = 80) -> list[dict[str, Any]]:
+def recent_visits(*, limit: int = 80, auth_only: bool = True) -> list[dict[str, Any]]:
     expire_idle()
     cap = max(1, min(int(limit), 200))
     try:
         with SessionLocal() as db:
             _trim_old(db)
             db.commit()
-            rows = (
-                db.query(PanelVisitLog)
-                .order_by(PanelVisitLog.logged_in_at.desc(), PanelVisitLog.id.desc())
-                .limit(cap)
-                .all()
+            q = db.query(PanelVisitLog).order_by(
+                PanelVisitLog.logged_in_at.desc(), PanelVisitLog.id.desc()
             )
+            if auth_only:
+                # Middleware ile açılmış yanlış «Signed in» satırlarını gizle
+                q = q.filter(PanelVisitLog.start_reason == "auth")
+            rows = q.limit(cap).all()
             out: list[dict[str, Any]] = []
             for row in rows:
                 pages = _load_pages(row.pages_json)
                 open_now = row.logged_out_at is None
                 reason = row.end_reason or ("open" if open_now else "logout")
+                start = (row.start_reason or "").strip() or "auth"
                 who = (row.display_name or "").strip() or (row.email or "").strip() or (
                     "Admin şifre" if row.session_kind == "admin" else "Üye"
                 )
+                end_label = "Open" if open_now else ("Logout" if reason == "logout" else "Idle")
+                if reason == "relogin":
+                    end_label = "Re-login"
                 out.append(
                     {
                         "id": row.id,
@@ -229,10 +358,15 @@ def recent_visits(*, limit: int = 80) -> list[dict[str, Any]]:
                         "logged_out_tr": format_tr_sec(row.logged_out_at) if not open_now else "Open",
                         "is_open": open_now,
                         "end_reason": reason,
-                        "end_label": "Open" if open_now else ("Logout" if reason == "logout" else "Idle"),
+                        "end_label": end_label,
+                        "start_reason": start,
+                        "start_label": "Google sign-in" if start == "auth" else start,
                         "pages": pages,
                         "page_count": len(pages),
-                        "page_summary": " · ".join(p["label"] for p in pages[:12]),
+                        "page_summary": " · ".join(
+                            (p["label"] + (" ★" if p.get("kind") == "feature" else ""))
+                            for p in pages[:12]
+                        ),
                     }
                 )
             return out

@@ -3474,10 +3474,14 @@
         _onlineToastTimer = setTimeout(startOnlinePresenceToastFade, 2000);
       }
       function noteOnlinePresenceArrivals(visitors) {
-        var others = visitors || [];
-        var keys = others
-          .map(function (u) {
-            return String(u.email || "").toLowerCase();
+        /* Presence delta toast kapalı — yanlış «giriş» algısı yaratıyordu.
+           Toast yalnızca auth_arrivals (gerçek Google OAuth) ile. */
+      }
+      function noteAuthArrivals(arrivals) {
+        var list = arrivals || [];
+        var keys = list
+          .map(function (a) {
+            return String(a.id || "") + ":" + String(a.email || "").toLowerCase();
           })
           .filter(Boolean)
           .sort()
@@ -3486,14 +3490,13 @@
           _onlinePresenceOtherKeys = keys;
           return;
         }
-        if (!keys || keys === _onlinePresenceOtherKeys) {
-          _onlinePresenceOtherKeys = keys;
+        if (!keys) {
           return;
         }
         var prev = _onlinePresenceOtherKeys ? _onlinePresenceOtherKeys.split("|") : [];
-        others.forEach(function (u) {
-          var k = String(u.email || "").toLowerCase();
-          if (k && prev.indexOf(k) < 0) showOnlinePresenceToast(u);
+        list.forEach(function (a) {
+          var k = String(a.id || "") + ":" + String(a.email || "").toLowerCase();
+          if (k && prev.indexOf(k) < 0) showOnlinePresenceToast(a);
         });
         _onlinePresenceOtherKeys = keys;
       }
@@ -3525,13 +3528,12 @@
           title.textContent = privacy
             ? "Online (" + visitors.length + ") · meeting"
             : "Online (" + visitors.length + ")";
-          noteOnlinePresenceArrivals(visitors);
         } else {
           if (ping) ping.classList.add("hidden");
           dot.className = "relative inline-flex h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-zinc-600";
           title.textContent = privacy ? "Online · meeting" : "Online";
-          _onlinePresenceOtherKeys = "";
         }
+        noteAuthArrivals(data.auth_arrivals || []);
         if (!users.length) {
           list.innerHTML = '<li class="text-slate-500 dark:text-zinc-400">No other members online</li>';
         } else if (privacy) {
@@ -3546,7 +3548,7 @@
                 ? ' <span class="text-emerald-700 dark:text-emerald-300">(visitor)</span>'
                 : "";
               var when = u.is_visitor && u.first_seen_tr
-                ? '<span class="online-login-time">Signed in ' + esc(u.first_seen_tr) + "</span>"
+                ? '<span class="online-login-time">Online ' + esc(u.first_seen_tr) + "</span>"
                 : "";
               return "<li>Teammate " + nOther + tag + when + "</li>";
             })
@@ -3564,7 +3566,7 @@
                 line = line + ' <span class="text-emerald-700 dark:text-emerald-300">(visitor)</span>';
               }
               if (u.is_visitor && u.first_seen_tr) {
-                line = line + '<span class="online-login-time">Signed in ' + esc(u.first_seen_tr) + "</span>";
+                line = line + '<span class="online-login-time">Online ' + esc(u.first_seen_tr) + "</span>";
               }
               return "<li>" + line + "</li>";
             })
@@ -3623,6 +3625,54 @@
         pollOnlinePresence();
         window.setInterval(pollOnlinePresence, 20000);
       });
+    })();
+  </script>
+  <script>
+    (function () {
+      var lastFeat = "";
+      var lastAt = 0;
+      function logPanelFeature(feature, label, path) {
+        var feat = String(feature || label || "").trim();
+        if (!feat) return;
+        var now = Date.now();
+        if (feat === lastFeat && now - lastAt < 1500) return;
+        lastFeat = feat;
+        lastAt = now;
+        var body = JSON.stringify({
+          feature: feat,
+          label: String(label || feat).trim(),
+          path: String(path || window.location.pathname || "").trim(),
+        });
+        try {
+          if (navigator.sendBeacon) {
+            var blob = new Blob([body], { type: "application/json" });
+            navigator.sendBeacon("/api/panel/activity", blob);
+            return;
+          }
+        } catch (e) {}
+        fetch("/api/panel/activity", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: body,
+          keepalive: true,
+        }).catch(function () {});
+      }
+      document.addEventListener(
+        "click",
+        function (ev) {
+          var t = ev.target;
+          if (!t || !t.closest) return;
+          var a = t.closest("a.header-nav-link, .header-nav-dropdown [role='menuitem'], a[data-nav-match]");
+          if (!a) return;
+          var href = a.getAttribute("href") || "";
+          if (!href || href.indexOf("#") === 0 || href.indexOf("javascript:") === 0) return;
+          var label = (a.getAttribute("data-nav-label") || a.textContent || "").replace(/\s+/g, " ").trim();
+          if (!label) label = href;
+          logPanelFeature("nav:" + label.toLowerCase(), label, href.split("?")[0]);
+        },
+        true
+      );
     })();
   </script>
   <script src="/static/alerts_page.js" defer></script>

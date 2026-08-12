@@ -76,11 +76,40 @@
     </form>
     {% endif %}
 
-    {# Ziyaret günlüğü: giriş / sayfalar / çıkış #}
+    {# Gerçek Google giriş / çıkış olayları #}
     <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
       <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Visit log</h4>
-        <span class="text-[11px] text-slate-400 dark:text-slate-500">Sign-in · pages visited · sign-out · TR time</span>
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">User logins</h4>
+        <span class="text-[11px] text-slate-400 dark:text-slate-500">Google sign-in / sign-out only · TR time</span>
+      </div>
+      {% if login_history is defined and login_history %}
+      <div class="space-y-2">
+        {% for e in login_history %}
+        <div class="flex flex-col gap-1 rounded-lg border px-3 py-2 text-xs
+          {% if e.is_logout %}border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-900/40
+          {% elif e.is_success %}border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/15
+          {% else %}border-rose-200 bg-rose-50/60 dark:border-rose-900/40 dark:bg-rose-950/20{% endif %}">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="font-semibold text-slate-800 dark:text-slate-200">{{ e.event_label }}</span>
+            {% if e.actor_email %}
+            <span class="text-slate-600 dark:text-slate-300">{{ e.actor_email }}</span>
+            {% endif %}
+            <span class="text-slate-400 dark:text-slate-500 sm:ml-auto tabular-nums">{{ e.created_at_tr }}</span>
+          </div>
+          <div class="text-slate-500 dark:text-slate-400">{{ e.ip }} · {{ e.device }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">No Google sign-in events yet.</p>
+      {% endif %}
+    </div>
+
+    {# Ziyaret günlüğü: yalnızca gerçek auth oturumu + sayfalar / özellikler / çıkış #}
+    <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+      <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Visit &amp; activity log</h4>
+        <span class="text-[11px] text-slate-400 dark:text-slate-500">Real sign-in · menus / features · sign-out · TR time</span>
       </div>
       {% if visit_logs is defined and visit_logs %}
       <div class="space-y-2">
@@ -104,16 +133,16 @@
           </div>
           {% if v.pages %}
           <p class="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-            {% for p in v.pages %}{% if not loop.first %} → {% endif %}<span title="{{ p.path }}">{{ p.label }}</span> <span class="tabular-nums text-slate-400">{{ p.at_tr }}</span>{% endfor %}
+            {% for p in v.pages %}{% if not loop.first %} → {% endif %}<span title="{{ p.path }}">{% if p.kind == 'feature' %}★ {% endif %}{{ p.label }}</span> <span class="tabular-nums text-slate-400">{{ p.at_tr }}</span>{% endfor %}
           </p>
           {% else %}
-          <p class="mt-1 text-[11px] text-slate-400">No page records.</p>
+          <p class="mt-1 text-[11px] text-slate-400">No page or feature records.</p>
           {% endif %}
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">No visits yet. They accumulate as you browse the panel.</p>
+      <p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">No sessions yet. Rows appear only after a real Google sign-in.</p>
       {% endif %}
     </div>
     </div>

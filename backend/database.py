@@ -138,6 +138,7 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_rt_page_snaps_site_profile_collected ON realtime_page_snapshots(site_id, profile, collected_at DESC)",
         "CREATE INDEX IF NOT EXISTS ix_rt_news_snaps_site_profile_collected ON realtime_news_snapshots(site_id, profile, collected_at DESC)",
         "CREATE INDEX IF NOT EXISTS ix_admin_login_events_created ON admin_login_events(created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_admin_login_events_actor_created ON admin_login_events(actor_email, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS ix_backlink_imports_site_type_created ON backlink_imports(site_id, report_type, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS ix_backlink_rows_import_domain ON backlink_rows(import_id, domain)",
         "CREATE INDEX IF NOT EXISTS ix_ad_report_date_income ON ad_report_rows(report_date, income_type)",
@@ -498,6 +499,44 @@ def ensure_indexes() -> None:
                 LOGGER.debug("backlink_imports resource index atlandı: %s", exc)
 
         _ensure_backlink_import_cols()
+
+        def _ensure_simple_col(table: str, name: str, sqlite_ddl: str, pg_ddl: str) -> None:
+            try:
+                cols: set[str] = set()
+                if _IS_SQLITE:
+                    cols = {
+                        row[1]
+                        for row in conn.execute(_txt(f"PRAGMA table_info({table})")).fetchall()
+                    }
+                else:
+                    inspector = __import__("sqlalchemy").inspect(conn)
+                    cols = {c["name"] for c in inspector.get_columns(table)}
+                if name in cols:
+                    return
+                if _IS_SQLITE:
+                    conn.execute(_txt(f"ALTER TABLE {table} ADD COLUMN {name} {sqlite_ddl}"))
+                else:
+                    try:
+                        conn.execute(
+                            _txt(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {pg_ddl}")
+                        )
+                    except Exception:
+                        conn.execute(_txt(f"ALTER TABLE {table} ADD COLUMN {name} {pg_ddl}"))
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.debug("ALTER TABLE %s ADD COLUMN %s atlandı: %s", table, name, exc)
+
+        _ensure_simple_col(
+            "admin_login_events",
+            "actor_email",
+            "VARCHAR(255) NOT NULL DEFAULT ''",
+            "VARCHAR(255) NOT NULL DEFAULT ''",
+        )
+        _ensure_simple_col(
+            "panel_visit_logs",
+            "start_reason",
+            "VARCHAR(20) NOT NULL DEFAULT ''",
+            "VARCHAR(20) NOT NULL DEFAULT ''",
+        )
 
         conn.execute(
             _txt(

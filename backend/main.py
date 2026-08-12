@@ -1493,7 +1493,6 @@ def _current_panel_session_key(request: Request | None) -> str:
 
 def _record_session(request: Request) -> None:
     from backend.services import app_member_auth as ama
-    from backend.services import panel_visitor_alerts as pva
 
     member = _app_member_from_request(request)
     member_tok = str(request.cookies.get(ama.APP_MEMBER_COOKIE) or "")
@@ -1574,6 +1573,7 @@ def _record_session(request: Request) -> None:
     try:
         from backend.services import panel_visit_log as pvl
 
+        # allow_open=False: sayfa yükü / presence «Signed in» satırı açmaz
         pvl.touch_visit(
             session_key=key,
             email=email,
@@ -1582,6 +1582,7 @@ def _record_session(request: Request) -> None:
             ip=ip,
             device=_parse_device(ua),
             path=path,
+            allow_open=False,
         )
     except Exception:  # noqa: BLE001
         pass
@@ -1590,29 +1591,25 @@ def _record_session(request: Request) -> None:
 
     fp = aal.device_fingerprint(ip, ua)
     aal.record_admin_nav(fp, (request.url.path or ""))
-
-    if is_new and email and not pva.is_owner_email(email, ama.ADMIN_MEMBER_EMAILS):
-        try:
-            pva.maybe_alert_visitor_joined(
-                _active_sessions,
-                email=email,
-                session=sess,
-                owner_emails=ama.ADMIN_MEMBER_EMAILS,
-            )
-        except Exception:  # noqa: BLE001
-            pass
+    # Ziyaretçi e-posta uyarısı / toast yalnızca gerçek OAuth girişinde (member_auth)
 
 
 def get_online_presence_api_payload(request: Request | None = None) -> dict:
+    from backend.services import admin_access_log as aal
     from backend.services import app_member_auth as ama
     from backend.services.panel_presence import build_online_presence_api_payload
 
     sessions = _get_active_sessions(request)
-    return build_online_presence_api_payload(
+    payload = build_online_presence_api_payload(
         sessions,
         owner_emails=ama.ADMIN_MEMBER_EMAILS,
         tracked_emails=None,
     )
+    try:
+        payload["auth_arrivals"] = aal.recent_auth_arrivals(within_sec=120, limit=12)
+    except Exception:  # noqa: BLE001
+        payload["auth_arrivals"] = []
+    return payload
 
 
 def _get_active_sessions(request: Request | None = None) -> list[dict]:
@@ -13461,6 +13458,8 @@ def settings_page(request: Request):
     from backend.services import app_member_auth as ama
     from backend.services import panel_visit_log as pvl
 
+    from backend.services import admin_access_log as aal
+
     with SessionLocal() as db:
         admin_password_configured = _admin_password_configured(db)
         membership_admin = _is_membership_admin(request)
@@ -13472,7 +13471,20 @@ def settings_page(request: Request):
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
             "admin_password_configured": admin_password_configured,
-            "visit_logs": pvl.recent_visits(limit=80) if admin_password_configured else [],
+            "login_history": (
+                aal.recent_login_history(
+                    db,
+                    event_types=(
+                        "member_login_ok",
+                        "member_register_ok",
+                        "member_logout_ok",
+                        "member_login_fail",
+                    ),
+                )
+                if admin_password_configured
+                else []
+            ),
+            "visit_logs": pvl.recent_visits(limit=80, auth_only=True) if admin_password_configured else [],
             "membership_admin": membership_admin,
             "app_members": ama.member_list_payload(db) if membership_admin else [],
             "current_app_member": _app_member_from_request(request),

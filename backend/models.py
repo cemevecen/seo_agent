@@ -960,7 +960,7 @@ class AiTalkHistory(Base):
 
 
 class AdminLoginEvent(Base):
-    """Admin giriş denemeleri — sunucu yeniden başlasa da kalır."""
+    """Admin / üye giriş-çıkış denemeleri — sunucu yeniden başlasa da kalır."""
 
     __tablename__ = "admin_login_events"
 
@@ -972,6 +972,7 @@ class AdminLoginEvent(Base):
     fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, default="", index=True)
     is_trusted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     alert_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    actor_email: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
@@ -1324,6 +1325,7 @@ class PanelVisitLog(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     logged_out_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     end_reason: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    start_reason: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     pages_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
 
 

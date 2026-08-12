@@ -136,13 +136,49 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
     if ama.is_tmdb_only_member_email(member.email):
         dest = ama.tmdb_only_home_path()
     resp = RedirectResponse(url=dest, status_code=303)
-    ama.set_member_session_cookie(resp, request, member)
+    token = ama.set_member_session_cookie(resp, request, member)
     _record_member_access_event(
         db,
         request,
         event_type="member_register_ok" if is_new_member else "member_login_ok",
         actor_email=member.email,
     )
+    try:
+        from backend.services import admin_access_log as aal
+        from backend.services import panel_visit_log as pvl
+        from backend.services import panel_visitor_alerts as pva
+        import backend.main as main_mod
+
+        ip = aal.client_ip_from_request(request)
+        ua = (request.headers.get("user-agent") or "")[:512]
+        sk = pvl.member_session_key_from_token(token)
+        pvl.open_auth_visit(
+            session_key=sk,
+            email=member.email,
+            display_name=(member.display_name or member.email or "").strip(),
+            session_kind="member",
+            ip=ip,
+            device=aal.parse_device_label(ua),
+            path=dest,
+        )
+        # Owner toast / mail: yalnızca gerçek Google girişi
+        if not pva.is_owner_email(member.email, ama.ADMIN_MEMBER_EMAILS):
+            sess = {
+                "email": member.email,
+                "label": (member.display_name or member.email or "").strip(),
+                "ip": ip,
+                "device": aal.parse_device_label(ua),
+                "user_agent": ua,
+                "first_seen": __import__("datetime").datetime.utcnow(),
+            }
+            pva.maybe_alert_visitor_joined(
+                getattr(main_mod, "_active_sessions", {}),
+                email=member.email,
+                session=sess,
+                owner_emails=ama.ADMIN_MEMBER_EMAILS,
+            )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Auth visit open failed: %s", exc)
     return resp
 
 
@@ -156,6 +192,38 @@ def api_panel_online_users(request: Request) -> JSONResponse:
     return JSONResponse(payload)
 
 
+@router.post("/api/panel/activity")
+async def api_panel_activity(request: Request) -> JSONResponse:
+    """Menü / özellik kullanımı — açık auth ziyaretine eklenir."""
+    import backend.main as main_mod
+
+    if not main_mod._is_app_panel_authenticated(request):
+        return JSONResponse(status_code=401, content={"ok": False})
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    feature = str((body or {}).get("feature") or "").strip()
+    label = str((body or {}).get("label") or feature).strip()
+    path = str((body or {}).get("path") or "").strip()
+    if not feature and not label:
+        return JSONResponse({"ok": False, "detail": "feature required"}, status_code=400)
+    try:
+        from backend.services import panel_visit_log as pvl
+
+        key = main_mod._current_panel_session_key(request)
+        ok = pvl.record_feature_activity(
+            session_key=key,
+            feature=feature or label,
+            label=label or feature,
+            path=path or f"feature:{feature or label}",
+        )
+        return JSONResponse({"ok": bool(ok)})
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.debug("panel activity: %s", exc)
+        return JSONResponse({"ok": False})
+
+
 def _close_member_visit(request: Request) -> None:
     try:
         import backend.main as main_mod
@@ -166,10 +234,34 @@ def _close_member_visit(request: Request) -> None:
         pass
 
 
+def _record_member_logout(request: Request) -> None:
+    member = ama.member_from_request(request)
+    email = (member.email if member else "") or ""
+    _close_member_visit(request)
+    if not email:
+        return
+    try:
+        from backend.database import SessionLocal
+        from backend.services import admin_access_log as aal
+
+        with SessionLocal() as db:
+            aal.record_access_event(
+                db,
+                event_type="member_logout_ok",
+                ip=aal.client_ip_from_request(request),
+                user_agent=(request.headers.get("user-agent") or "")[:512],
+                referer=(request.headers.get("referer") or "")[:512],
+                accept_language=(request.headers.get("accept-language") or "")[:120],
+                actor_email=email,
+            )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Üye çıkış kaydı başarısız: %s", exc)
+
+
 @router.post("/auth/logout")
 def member_logout_post(request: Request):
-    _close_member_visit(request)
     _send_logout_usage_summary(request)
+    _record_member_logout(request)
     resp = RedirectResponse(url="/admin/login", status_code=303)
     ama.clear_member_session_cookie(resp)
     return resp
@@ -177,8 +269,8 @@ def member_logout_post(request: Request):
 
 @router.get("/auth/logout")
 def member_logout_get(request: Request):
-    _close_member_visit(request)
     _send_logout_usage_summary(request)
+    _record_member_logout(request)
     resp = RedirectResponse(url="/admin/login", status_code=303)
     ama.clear_member_session_cookie(resp)
     return resp

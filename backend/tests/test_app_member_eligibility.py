@@ -110,6 +110,7 @@ def test_member_last_login_uses_later_panel_visit():
                 session_kind="member",
                 logged_in_at=fresh,
                 last_seen_at=fresh,
+                start_reason="auth",
             )
         )
         db.commit()
@@ -140,7 +141,7 @@ def test_new_panel_visit_bumps_member_last_login():
             )
         )
         db.commit()
-    pvl.touch_visit(session_key="m:visit-bump", email=email, path="/settings")
+    pvl.open_auth_visit(session_key="m:visit-bump", email=email, path="/settings")
     with SessionLocal() as db:
         stored = db.query(AppMember).filter(AppMember.email == email).one()
         assert stored.last_login_at > stale

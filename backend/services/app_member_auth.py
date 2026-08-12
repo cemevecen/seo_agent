@@ -318,7 +318,10 @@ def _latest_visit_login_by_email(db: Session) -> dict[str, datetime]:
 
         rows = (
             db.query(PanelVisitLog.email, func.max(PanelVisitLog.logged_in_at))
-            .filter(PanelVisitLog.email != "")
+            .filter(
+                PanelVisitLog.email != "",
+                PanelVisitLog.start_reason == "auth",
+            )
             .group_by(PanelVisitLog.email)
             .all()
         )
@@ -488,7 +491,7 @@ def member_cookie_secure(request: Request) -> bool:
     return request.url.scheme == "https"
 
 
-def set_member_session_cookie(response, request: Request, member: AppMember) -> None:
+def set_member_session_cookie(response, request: Request, member: AppMember) -> str:
     token = build_member_session_token(member.id, member.email)
     response.set_cookie(
         key=APP_MEMBER_COOKIE,
@@ -500,6 +503,7 @@ def set_member_session_cookie(response, request: Request, member: AppMember) -> 
         path="/",
     )
     set_panel_member_seen_cookie(response, request)
+    return token
 
 
 def clear_member_session_cookie(response) -> None:
