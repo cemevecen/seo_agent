@@ -746,15 +746,38 @@
     margin-bottom: 0.55rem;
   }
   #dn-card-week-summary,
-  #dn-card-top-days {
+  #dn-card-top-days,
+  #dn-card-own-vs {
     display: flex;
     flex-direction: column;
     min-width: 0;
     width: 100%;
   }
+  @media (min-width: 1024px) {
+    #dn-card-own-vs:not(.dn-span-2),
+    #dn-card-top-days:not(.dn-span-2) {
+      align-self: stretch;
+      min-height: 0;
+    }
+    #dn-card-own-vs:not(.dn-span-2) #dn-chart-own {
+      flex: 1 1 auto;
+      min-height: 240px;
+    }
+    #dn-card-top-days:not(.dn-span-2) #dn-table-top-days {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    #dn-card-top-days:not(.dn-span-2) .dn-table-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+    }
+  }
   #dn-card-top-days .dn-table-wrap {
-    max-height: min(22rem, 50vh);
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
   }
   #dn-card-week-summary .dn-table-wrap {
     /* thead + 5 satır; fazlası scroll */
@@ -1106,14 +1129,14 @@
         <div class="dn-card-head"><div><h3>Original vs sourced (category)</h3></div></div>
         <div id="dn-chart-own" class="dn-chart"></div>
       </div>
+      <div id="dn-card-top-days" class="dn-card">
+        <div class="dn-card-head"><div><h3>Daily counts</h3></div></div>
+        <div id="dn-table-top-days"></div>
+      </div>
       <div id="dn-card-week-summary" class="dn-card">
         <div class="dn-card-head"><div><h3>Weekly summary</h3></div></div>
         <div id="dn-chart-week-mini" class="dn-chart dn-chart--mini" aria-label="Weekly summary chart"></div>
         <div id="dn-table-week"></div>
-      </div>
-      <div id="dn-card-top-days" class="dn-card">
-        <div class="dn-card-head"><div><h3>Daily counts</h3></div></div>
-        <div id="dn-table-top-days"></div>
       </div>
       <div id="dn-card-own-cat" class="dn-card dn-card--fill dn-span-2">
         <div class="dn-card-head"><div><h3>Original content — category</h3></div></div>
@@ -2415,6 +2438,26 @@
     kw.style.maxHeight = h + "px";
   }
 
+  function syncOwnVsTopDaysHeights() {
+    var ownVs = $("dn-card-own-vs");
+    var topDays = $("dn-card-top-days");
+    if (!ownVs || !topDays) return;
+    ownVs.style.minHeight = "";
+    ownVs.style.maxHeight = "";
+    ownVs.style.height = "";
+    topDays.style.minHeight = "";
+    topDays.style.maxHeight = "";
+    topDays.style.height = "";
+    if (ownVs.classList.contains("hidden") || topDays.classList.contains("hidden")) return;
+    if (topDays.classList.contains("dn-span-2") || ownVs.classList.contains("dn-span-2")) return;
+    if (window.matchMedia && !window.matchMedia("(min-width: 1024px)").matches) return;
+    var h = Math.max(ownVs.offsetHeight, topDays.offsetHeight, 280);
+    ownVs.style.height = h + "px";
+    ownVs.style.maxHeight = h + "px";
+    topDays.style.height = h + "px";
+    topDays.style.maxHeight = h + "px";
+  }
+
   function syncPeriodCardVisibility(period) {
     var p = period || "last_7d";
     var hideWeekly = p === "today" || p === "yesterday" || p === "last_7d" || p === "prev_week";
@@ -2584,6 +2627,7 @@
       { type: "bar", name: "Original", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.own; }), marker: { color: palO.green }, hovertemplate: "%{x}<br>Original: %{y}<extra></extra>" },
       { type: "bar", name: "Sourced", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.sourced; }), marker: { color: palO.blue }, hovertemplate: "%{x}<br>Sourced: %{y}<extra></extra>" }
     ], plotLayout({ barmode: "stack", margin: { t: 28, r: 16, b: 70, l: 40 }, xaxis: { tickangle: -20 } }), plotCfg());
+    requestAnimationFrame(syncOwnVsTopDaysHeights);
   }
 
   function renderTables(data) {
@@ -2632,14 +2676,14 @@
       }),
       defaultSort: "count",
       defaultDir: "desc",
-      searchable: true,
-      searchPlaceholder: "Search days…",
-      searchKeys: ["day", "day_label"],
+      searchable: false,
+      showMeta: false,
       columns: [
         { key: "day", label: "Day", render: function (r) { return esc(r.day_label || formatDayWithWeekday(r.day)); } },
         { key: "count", label: "Count", num: true, render: function (r) { return fmt(r.count); } }
       ]
     });
+    requestAnimationFrame(syncOwnVsTopDaysHeights);
 
     renderOwnByCategory(data.own_by_category || []);
 
@@ -3106,7 +3150,10 @@
   window.__dnLoadStats = load;
   window.addEventListener("resize", function () {
     if (window.__dnResizeTimer) clearTimeout(window.__dnResizeTimer);
-    window.__dnResizeTimer = setTimeout(syncPairCardHeights, 120);
+    window.__dnResizeTimer = setTimeout(function () {
+      syncPairCardHeights();
+      syncOwnVsTopDaysHeights();
+    }, 120);
   });
   renderPeriodTabs(null, null);
   syncTrafficButton();
