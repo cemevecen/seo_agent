@@ -4,6 +4,7 @@
   class="play-metric-overlay-root relative min-w-0 text-left"
   id="{{ _pmoid }}"
   data-play-metric-overlay-root
+  data-overlay-platform="android"
   data-overlay-storage-key="{{ play_metric_overlay_storage_key|default('mz-play-metric') }}"
   {% if play_metric_overlay_on_change is defined and play_metric_overlay_on_change %}
   data-overlay-on-change="{{ play_metric_overlay_on_change }}"

@@ -11,7 +11,7 @@
         "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B",
       ];
 
-  var METRIC_GROUPS = [
+  var METRIC_GROUPS_ANDROID = [
     {
       label: "Quality",
       items: [
@@ -73,28 +73,78 @@
         { key: "virgul:coverage_pct", label: "Virgül · Coverage (%)" },
       ],
     },
+  ];
+
+  var METRIC_GROUPS_IOS = [
     {
-      label: "Market",
+      label: "Acquisition",
       items: [
-        { key: "market:usd_try", label: "USD/TRY close" },
-        { key: "market:eur_try", label: "EUR/TRY close" },
-        { key: "market:gram_altin", label: "Gold gram close" },
-        { key: "market:ceyrek_altin", label: "Quarter gold close" },
-        { key: "market:gram_gumus", label: "Silver gram close" },
-        { key: "market:bist100", label: "BIST 100 close" },
-        { key: "market:brent", label: "Brent close" },
-        { key: "market:bitcoin", label: "Bitcoin close" },
-        { key: "market:all_indexed", label: "All (range start=100)" },
+        { key: "units", label: "First-time downloads" },
+        { key: "redownloads", label: "Redownloads" },
+        { key: "total_downloads", label: "Total downloads" },
+        { key: "installs", label: "Installs" },
+        { key: "impressions", label: "Impressions" },
+        { key: "page_views", label: "Product page views" },
+        { key: "conversion_rate", label: "Conversion rate (%)" },
+        { key: "active_devices", label: "Active devices" },
+        { key: "sessions", label: "Sessions" },
+        { key: "uninstalls", label: "Uninstalls" },
+        { key: "crashes", label: "Crashes" },
+      ],
+    },
+    {
+      label: "Revenue / subscriptions",
+      items: [
+        { key: "iap", label: "In-app purchases" },
+        { key: "paying_users", label: "Paying users" },
+        { key: "proceeds", label: "Proceeds (USD)" },
+        { key: "sales", label: "Sales" },
+        { key: "active_subscriptions", label: "Active subscriptions" },
+        { key: "subscription_renewals", label: "Subscription renewals" },
+        { key: "subscription_churned", label: "Subscription churn" },
+        { key: "free_trials", label: "Free trials" },
+      ],
+    },
+    {
+      label: "GA4 (iOS)",
+      items: [
+        { key: "ga4:sessions", label: "GA4 · Sessions" },
+        { key: "ga4:users", label: "GA4 · Users" },
+        { key: "ga4:engaged_sessions", label: "GA4 · Engaged sessions" },
+        { key: "ga4:new_users", label: "GA4 · New users" },
+        { key: "ga4:avg_session", label: "GA4 · Avg. session" },
+        { key: "ga4:page_views", label: "GA4 · Page views" },
+      ],
+    },
+    {
+      label: "Virgül (iOS)",
+      items: [
+        { key: "virgul:net_revenue", label: "Virgül · Net revenue (TL)" },
+        { key: "virgul:ad_request", label: "Virgül · Ad request" },
+        { key: "virgul:matched_request", label: "Virgül · Matched request" },
+        { key: "virgul:impression", label: "Virgül · Impression" },
+        { key: "virgul:click", label: "Virgül · Click" },
+        { key: "virgul:ad_request_ecpm", label: "Virgül · Ad request eCPM (TL)" },
+        { key: "virgul:ad_ecpm", label: "Virgül · Ad impression eCPM (TL)" },
+        { key: "virgul:viewability_pct", label: "Virgül · Viewability (%)" },
+        { key: "virgul:ctr_pct", label: "Virgül · CTR (%)" },
+        { key: "virgul:coverage_pct", label: "Virgül · Coverage (%)" },
       ],
     },
   ];
 
+  var METRIC_GROUPS = METRIC_GROUPS_ANDROID;
+
   var LABEL_BY_KEY = {};
-  METRIC_GROUPS.forEach(function (g) {
-    (g.items || []).forEach(function (it) {
-      LABEL_BY_KEY[it.key] = it.label;
+  function rebuildLabelIndex() {
+    LABEL_BY_KEY = {};
+    METRIC_GROUPS_ANDROID.concat(METRIC_GROUPS_IOS).forEach(function (g) {
+      (g.items || []).forEach(function (it) {
+        LABEL_BY_KEY[it.key] = it.label;
+      });
     });
-  });
+  }
+  rebuildLabelIndex();
 
   var MARKET_KEYS = [
     "usd_try", "eur_try", "gram_altin", "ceyrek_altin",
@@ -112,7 +162,18 @@
   }
 
   function storageKeyForRoot(root) {
-    return "play-metric-overlay-keys-v1-" + ((root && root.getAttribute("data-overlay-storage-key")) || "play");
+    var base = (root && root.getAttribute("data-overlay-storage-key")) || "play";
+    var plat = platformForRoot(root);
+    return "play-metric-overlay-keys-v2-" + base + "-" + plat;
+  }
+
+  function platformForRoot(root) {
+    var p = (root && root.getAttribute("data-overlay-platform")) || "android";
+    return p === "ios" ? "ios" : "android";
+  }
+
+  function groupsForPlatform(platform) {
+    return platform === "ios" ? METRIC_GROUPS_IOS : METRIC_GROUPS_ANDROID;
   }
 
   function readStored(root) {
@@ -296,6 +357,27 @@
     return { label: data.label || metricLabel(metricKey), series: data.series || [] };
   }
 
+  async function fetchAscSeries(metricKey, startIso, endIso) {
+    var qs = new URLSearchParams({
+      start: startIso || "",
+      end: endIso || "",
+      metric: metricKey,
+      breakdown: "date",
+      dim: "overview",
+      segment: "all",
+    });
+    var r = await fetch("/api/asc-metrics/query?" + qs.toString(), {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(data.message || data.detail || "ASC HTTP " + r.status);
+    if (data.configured === false || (data.ok === false && !Array.isArray(data.series))) {
+      throw new Error(data.message || "No ASC series");
+    }
+    return { label: data.label || metricLabel(metricKey), series: data.series || [] };
+  }
+
   async function fetchPlaySeries(metricKey, startIso, endIso) {
     var qs = new URLSearchParams({
       start: startIso || "",
@@ -321,6 +403,7 @@
     if (isMarketKey(metricKey)) p = fetchMarketSeries(metricKey, startIso, endIso);
     else if (isGa4Key(metricKey)) p = fetchGa4Series(metricKey, startIso, endIso, platform);
     else if (isVirgulKey(metricKey)) p = fetchVirgulSeries(metricKey, startIso, endIso, platform);
+    else if (platform === "ios") p = fetchAscSeries(metricKey, startIso, endIso);
     else p = fetchPlaySeries(metricKey, startIso, endIso);
     cache[ck] = p;
     return p;
@@ -432,9 +515,9 @@
     return true;
   }
 
-  function buildPanelHtml() {
+  function buildPanelHtml(platform) {
     var html = "";
-    METRIC_GROUPS.forEach(function (g) {
+    groupsForPlatform(platform).forEach(function (g) {
       html +=
         '<p class="px-2.5 pb-0.5 pt-1.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' +
         g.label +
@@ -519,14 +602,46 @@
     if (trigger) trigger.setAttribute("aria-expanded", "false");
   }
 
+  function setPlatform(controlId, platform) {
+    var root = rootEl(controlId);
+    if (!root) return;
+    var plat = platform === "ios" ? "ios" : "android";
+    if (platformForRoot(root) === plat && root.dataset.playMetricPlatformReady === plat) return;
+    root.setAttribute("data-overlay-platform", plat);
+    root.dataset.playMetricPlatformReady = plat;
+    var panel = panelForRoot(root);
+    if (panel) {
+      panel.innerHTML = buildPanelHtml(plat);
+      panel.dataset.playMetricBuilt = "1";
+      var stored = readStored(root);
+      panel.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
+        cb.checked = stored.indexOf(cb.value) >= 0;
+      });
+    }
+    updateTriggerLabel(root);
+    clearCache();
+    if (typeof root._playMetricFire === "function") {
+      wirePanelInputs(panel, root._playMetricFire);
+    }
+  }
+
+  function wirePanelInputs(panel, fire) {
+    if (!panel || typeof fire !== "function") return;
+    panel.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
+      cb.addEventListener("change", fire);
+    });
+  }
+
   function bindRoot(root, onChange) {
     if (!root || root.dataset.playMetricOverlayBound === "1") return;
     root.dataset.playMetricOverlayBound = "1";
+    var plat = platformForRoot(root);
     var panel = panelForRoot(root);
     var trigger = root.querySelector("[data-play-metric-overlay-trigger]");
     if (panel && !panel.dataset.playMetricBuilt) {
-      panel.innerHTML = buildPanelHtml();
+      panel.innerHTML = buildPanelHtml(plat);
       panel.dataset.playMetricBuilt = "1";
+      root.dataset.playMetricPlatformReady = plat;
     }
     if (panel && root.id) panel.setAttribute("data-play-metric-overlay-for", root.id);
     var stored = readStored(root);
@@ -544,11 +659,8 @@
       var attr = root.getAttribute("data-overlay-on-change");
       if (attr && typeof global[attr] === "function") global[attr]();
     }
-    if (panel) {
-      panel.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
-        cb.addEventListener("change", fire);
-      });
-    }
+    root._playMetricFire = fire;
+    wirePanelInputs(panel, fire);
     if (trigger && panel) {
       trigger.addEventListener("click", function (ev) {
         ev.preventDefault();
@@ -615,11 +727,15 @@
 
   global.PlayMetricOverlay = {
     METRIC_GROUPS: METRIC_GROUPS,
+    METRIC_GROUPS_ANDROID: METRIC_GROUPS_ANDROID,
+    METRIC_GROUPS_IOS: METRIC_GROUPS_IOS,
     modes: modes,
     clearCache: clearCache,
     apply: apply,
     bindWhenReady: bindWhenReady,
     autoBindPlayMetricOverlays: autoBindPlayMetricOverlays,
     metricLabel: metricLabel,
+    setPlatform: setPlatform,
+    platformForRoot: platformForRoot,
   };
 })(window);
