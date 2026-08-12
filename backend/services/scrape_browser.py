@@ -90,8 +90,12 @@ def kill_profile_browsers(profile: Path) -> int:
 
 
 def kill_legacy_chrome_scrapers() -> int:
-    """Eski Chrome tarama pencerelerini kapat (kişisel Chrome’a dokunma)."""
-    names = (
+    """Eski Chrome / Chromium / Chrome for Testing tarama süreçlerini kapat.
+
+    Kişisel Google Chrome.app ve Cursor Browser DevTools profiline dokunmaz.
+    """
+    n = 0
+    for name in (
         "play-console-profile",
         "asc-console-profile",
         "firebase-console-profile",
@@ -99,11 +103,48 @@ def kill_legacy_chrome_scrapers() -> int:
         "fx-google",
         "fx-asc",
         "fx-sinemalar",
-    )
-    n = 0
-    for name in names:
+    ):
         n += kill_profile_browsers(STATE_DIR / name)
+    n += kill_profile_browsers(STATE_DIR)
+
+    try:
+        out = subprocess.check_output(["ps", "ax", "-o", "pid=,command="], text=True)
+    except Exception:
+        return n
+    for line in out.splitlines():
+        low = line.lower()
+        is_pw_chrome = (
+            "chrome for testing" in low
+            or "ms-playwright/chromium" in low
+            or "chromium_headless_shell" in low
+        )
+        if not is_pw_chrome:
+            continue
+        # Cursor MCP: Google Chrome.app + playwright_chromiumdev_profile — dokunma
+        if "playwright_chromiumdev_profile" in low:
+            continue
+        if "/applications/google chrome.app" in low and "chrome for testing" not in low:
+            continue
+        try:
+            pid = int(line.split(None, 1)[0])
+        except Exception:
+            continue
+        if pid <= 1 or pid == os.getpid():
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+            n += 1
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    if n:
+        time.sleep(0.6)
     return n
+
+
+def assert_firefox_only(pw: Any) -> None:
+    """Yanlışlıkla chromium API'sine düşülmesin diye koruma."""
+    if not hasattr(pw, "firefox"):
+        raise RuntimeError("Playwright Firefox yok — `playwright install firefox`")
 
 
 def _persistent_kwargs(
@@ -140,6 +181,7 @@ def launch_persistent(
     locale: str = "tr-TR",
     extra: dict[str, Any] | None = None,
 ) -> Any:
+    assert_firefox_only(pw)
     kill_profile_browsers(profile)
     kwargs = _persistent_kwargs(
         profile, headed=headed, viewport=viewport, locale=locale, extra=extra
@@ -153,6 +195,7 @@ def launch_ephemeral(
     headed: bool = False,
     **context_kwargs: Any,
 ) -> tuple[Any, Any]:
+    assert_firefox_only(pw)
     browser = pw.firefox.launch(headless=not headed)
     context_kwargs.pop("channel", None)
     context_kwargs.pop("args", None)

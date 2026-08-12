@@ -1,4 +1,4 @@
-# Railway Nixpacks: varsayılan pip install sonrası Playwright Chromium (Android kategori sırası).
+# Railway Nixpacks: tarama yalnızca Firefox (Chrome/Chromium yok).
 [phases.build]
 dependsOn = ["install"]
-cmds = ["playwright install chromium"]
+cmds = ["playwright install firefox"]
