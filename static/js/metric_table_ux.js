@@ -409,7 +409,7 @@
 
   var SF_FIT_SEL =
     ".sf-card__title, .sf-card__sub, .sf-card__value, " +
-    ".home-sf-metric__title, .home-sf-metric__sub, .home-sf-metric__value, " +
+    ".home-sf-metric__title, .home-sf-metric__sub, .home-sf-metric__value:not(.is-hero), " +
     ".home-store-kpi__l, .home-store-kpi__v";
 
   function fitSideChips(root) {
