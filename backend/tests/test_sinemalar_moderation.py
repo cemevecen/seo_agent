@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.database import Base
-from backend.models import SinemalarModerationDailyRow, SinemalarModerationMeta
+from backend.models import SinemalarModerationDailyRow, SinemalarModerationDetailItem, SinemalarModerationMeta
 from backend.services import sinemalar_moderation as mod
 
 
@@ -127,6 +127,69 @@ def test_summary_url_for_day_uses_next_day_end():
     assert "endDate=2026-03-01" not in u
 
 
+def test_parse_detail_rows_movie():
+    raw = [
+        {
+            "cells": [
+                {"text": "299129", "href": "https://www.sinemalar.com/management/movie/299129"},
+                {"text": "Amerika Deneyi", "href": "https://www.sinemalar.com/management/movie/299129"},
+                {"text": "2026-06-03 18:45:20", "href": None},
+            ]
+        }
+    ]
+    parsed = mod.parse_detail_rows(raw, user_id=873391, username="gezginozlem", metric_type="movie")
+    assert len(parsed) == 1
+    assert parsed[0]["item_id"] == "299129"
+    assert parsed[0]["title"] == "Amerika Deneyi"
+    assert parsed[0]["metric_type"] == "movie"
+
+
+def test_ingest_detail_batch_rebuilds_daily():
+    db = _session()
+    items = mod.parse_detail_rows(
+        [
+            {
+                "cells": [
+                    {"text": "1", "href": "/m/1"},
+                    {"text": "Film A", "href": "/m/1"},
+                    {"text": "2026-03-01 10:00:00", "href": None},
+                ]
+            },
+            {
+                "cells": [
+                    {"text": "2", "href": "/m/2"},
+                    {"text": "Film B", "href": "/m/2"},
+                    {"text": "2026-03-01 11:00:00", "href": None},
+                ]
+            },
+        ],
+        user_id=883754,
+        username="berend",
+        metric_type="movie",
+    )
+    res = mod.ingest_detail_batch(
+        db,
+        user_id=883754,
+        username="berend",
+        metric_type="movie",
+        items=items,
+        range_start=date(2026, 3, 1),
+        range_end=date(2026, 3, 31),
+    )
+    assert res["ok"] is True
+    assert res["items_upserted"] == 2
+    row = (
+        db.query(SinemalarModerationDailyRow)
+        .filter(
+            SinemalarModerationDailyRow.report_date == date(2026, 3, 1),
+            SinemalarModerationDailyRow.user_id == 883754,
+            SinemalarModerationDailyRow.metric_type == "movie",
+        )
+        .one()
+    )
+    assert row.count == 2
+
+
 def test_backfill_payload_updates_meta():
     db = _session()
     payload = {
@@ -157,5 +220,6 @@ def test_backfill_payload_updates_meta():
     panel = mod.get_panel_payload(db, start="2026-03-01", end="2026-03-01")
     assert panel["ok"] is True
     assert panel["row_count"] == 1
-    assert len(panel["users"]) == 1
-    assert panel["users"][0]["username"] == "gezginozlem"
+    assert len(panel["users"]) == 6
+    assert panel["users"][2]["username"] == "gezginozlem"
+    assert panel["users"][2]["total_all"] == 1

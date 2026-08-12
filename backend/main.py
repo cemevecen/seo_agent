@@ -21367,8 +21367,8 @@ def sinemalar_policy_page(
     request: Request,
     host: str = Query(default="all"),
     tab: str = Query(default="policy"),
-    mod_start: str | None = Query(default=None),
-    mod_end: str | None = Query(default=None),
+    mod_start: str | None = Query(default="2026-01-01"),
+    mod_end: str | None = Query(default="2026-08-13"),
     db: Session = Depends(get_db),
 ):
     from backend.services import policy_csv as pcsv

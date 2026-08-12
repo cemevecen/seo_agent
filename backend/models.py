@@ -982,6 +982,37 @@ class SinemalarModerationDailyRow(Base):
     scraped_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class SinemalarModerationDetailItem(Base):
+    """Tekil moderasyon kaydı — getModerationDetail satırları."""
+
+    __tablename__ = "sinemalar_moderation_detail_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "metric_type",
+            "item_id",
+            "event_at",
+            "subtitle",
+            name="uq_sin_mod_detail_item",
+        ),
+        Index("ix_sin_mod_detail_user_type", "user_id", "metric_type"),
+        Index("ix_sin_mod_detail_event", "event_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    username: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    metric_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    metric_label: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    item_id: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    title: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    subtitle: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    event_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    admin_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class PolicyCSVUpload(Base):
     """En son yüklenen Policy Center CSV'si — geriye dönük kontrol için."""
     __tablename__ = "policy_csv_uploads"

@@ -53,6 +53,7 @@ from backend.services.scrape_browser import sinemalar_profile_dir
 
 TR = ZoneInfo("Europe/Istanbul")
 SUMMARY_URL = "https://www.sinemalar.com/management/getModerationSummary"
+DETAIL_URL = "https://www.sinemalar.com/management/getModerationDetail"
 INGEST_URL = (
     os.environ.get("SINEMALAR_MODERATION_INGEST_URL")
     or "https://projectcontrol.up.railway.app/api/sinemalar-moderation/ingest"
@@ -101,6 +102,26 @@ _EXTRACT_ROWS_JS = r"""
       };
     });
     return row;
+  }).filter(Boolean);
+}
+"""
+
+_EXTRACT_DETAIL_JS = r"""
+() => {
+  const t = document.querySelector('table');
+  if (!t) return [];
+  return Array.from(t.querySelectorAll('tr')).slice(1).map(tr => {
+    const cells = Array.from(tr.querySelectorAll('td'));
+    if (!cells.length) return null;
+    return {
+      cells: cells.map(td => {
+        const a = td.querySelector('a');
+        return {
+          text: td.textContent.replace(/\s+/g, ' ').trim(),
+          href: a ? a.href : null,
+        };
+      }),
+    };
   }).filter(Boolean);
 }
 """
@@ -203,6 +224,118 @@ def fetch_summary_for_day(page, day: date) -> list[dict[str, Any]]:
         brief = ", ".join(f"{k}={v}" for k, v in sorted(totals.items()))
         print(f"    tracked totals · {brief}", flush=True)
     return rows if isinstance(rows, list) else []
+
+
+def fetch_detail_page(
+    page,
+    *,
+    user_id: int,
+    username: str,
+    metric_type: str,
+    start_d: date,
+    end_d: date,
+) -> dict[str, Any]:
+    from backend.services.sinemalar_moderation import detail_url
+
+    url = detail_url(user_id, start=start_d, end=end_d, metric_type=metric_type)
+    page.goto(url, wait_until="networkidle", timeout=180000)
+    time.sleep(0.4)
+    rows = page.evaluate(_EXTRACT_DETAIL_JS) or []
+    count = len(rows) if isinstance(rows, list) else 0
+    print(f"    {username} · {metric_type} · {count} kayıt", flush=True)
+    return {
+        "user_id": user_id,
+        "username": username,
+        "metric_type": metric_type,
+        "source_url": url,
+        "items": rows if isinstance(rows, list) else [],
+        "item_count": count,
+    }
+
+
+def scrape_detail_range(
+    start_d: date,
+    end_d: date,
+    *,
+    headed: bool = True,
+    delay_sec: float = SCRAPE_DELAY_SEC,
+    ingest_per_batch: bool = False,
+) -> dict[str, Any]:
+    from playwright.sync_api import sync_playwright
+
+    from backend.services.scrape_browser import launch_persistent
+    from backend.services.sinemalar_moderation import METRIC_TYPE_KEYS, TRACKED_MODERATORS
+
+    batches: list[dict[str, Any]] = []
+    total_items = 0
+
+    with sync_playwright() as p:
+        context = launch_persistent(
+            p, sinemalar_profile_dir(), headed=headed, viewport={"width": 1400, "height": 900}
+        )
+        page = context.pages[0] if context.pages else context.new_page()
+        try:
+            page.goto(SUMMARY_URL, wait_until="networkidle", timeout=90000)
+            time.sleep(1.0)
+            if not _looks_logged_in(page):
+                _try_form_login(page)
+                page.goto(SUMMARY_URL, wait_until="networkidle", timeout=90000)
+                time.sleep(1.0)
+            if not _looks_logged_in(page):
+                return {
+                    "ok": False,
+                    "needs_login": True,
+                    "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
+                    "detail_batches": [],
+                }
+
+            n = 0
+            for user_id, username in TRACKED_MODERATORS:
+                for metric_type in METRIC_TYPE_KEYS:
+                    if n > 0 and delay_sec > 0:
+                        time.sleep(delay_sec)
+                    batch = fetch_detail_page(
+                        page,
+                        user_id=user_id,
+                        username=username,
+                        metric_type=metric_type,
+                        start_d=start_d,
+                        end_d=end_d,
+                    )
+                    batches.append(batch)
+                    total_items += int(batch.get("item_count") or 0)
+                    n += 1
+                    if ingest_per_batch:
+                        ing = ingest_result(
+                            {
+                                "source": "sinemalar_moderation",
+                                "mode": "detail_range",
+                                "scraped_at": datetime.now(timezone.utc).isoformat(),
+                                "range_start": start_d.isoformat(),
+                                "range_end": end_d.isoformat(),
+                                "detail_batches": [batch],
+                                "backfill_complete": n >= len(TRACKED_MODERATORS) * len(METRIC_TYPE_KEYS),
+                            },
+                            mode="detail_range",
+                        )
+                        if not ing.get("ok"):
+                            print(f"    ingest hata: {ing.get('message')}", flush=True)
+
+            return {
+                "ok": True,
+                "needs_login": False,
+                "source": "sinemalar_moderation",
+                "mode": "detail_range",
+                "scraped_at": datetime.now(timezone.utc).isoformat(),
+                "range_start": start_d.isoformat(),
+                "range_end": end_d.isoformat(),
+                "detail_batches": batches,
+                "item_count": total_items,
+                "batch_count": len(batches),
+                "message": f"detail_range {start_d} → {end_d} · {total_items} kayıt",
+            }
+        finally:
+            context.close()
 
 
 def scrape_days(
@@ -332,6 +465,9 @@ def ingest_result(result: dict[str, Any], *, mode: str = "incremental") -> dict[
         "mode": mode,
         "scraped_at": result.get("scraped_at") or "",
         "days": result.get("days") or [],
+        "detail_batches": result.get("detail_batches") or [],
+        "range_start": result.get("range_start"),
+        "range_end": result.get("range_end"),
         "backfill_complete": bool(result.get("backfill_complete")),
         "backfill_cursor": result.get("backfill_cursor"),
     }
@@ -345,7 +481,8 @@ def ingest_result(result: dict[str, Any], *, mode: str = "incremental") -> dict[
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        timeout = 600 if body.get("detail_batches") else 120
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
             return {"ok": True, "ingest": payload}
     except urllib.error.HTTPError as exc:
@@ -414,6 +551,15 @@ def main() -> int:
         "--range",
         help="Aralık YYYY-MM-DD:YYYY-MM-DD (tek blok; günlük değil özet — doğrulama için)",
     )
+    parser.add_argument(
+        "--detail-range",
+        help="getModerationDetail aralığı YYYY-MM-DD:YYYY-MM-DD (6 moderatör × 11 tip)",
+    )
+    parser.add_argument(
+        "--detail-ingest-each",
+        action="store_true",
+        help="detail-range: her user×type sonrası hemen ingest",
+    )
     parser.add_argument("--ingest", action="store_true", help="Railway ingest")
     parser.add_argument("--headless", action="store_true")
     args = parser.parse_args()
@@ -458,6 +604,39 @@ def main() -> int:
     if args.incremental:
         out = run_incremental(args.incremental, headed=headed, ingest=args.ingest)
         print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0 if out.get("ok") else 1
+
+    if args.detail_range:
+        raw = str(args.detail_range).strip()
+        if ":" not in raw:
+            print("Geçersiz --detail-range (YYYY-MM-DD:YYYY-MM-DD)", file=sys.stderr)
+            return 1
+        start_s, end_s = raw.split(":", 1)
+        try:
+            start_d = date.fromisoformat(start_s[:10])
+            end_d = date.fromisoformat(end_s[:10])
+        except ValueError:
+            print("Geçersiz --detail-range tarihleri", file=sys.stderr)
+            return 1
+        print(
+            f"Detail range: {start_d.isoformat()} → {end_d.isoformat()} "
+            f"(6 moderatör × 11 tip = 66 istek)",
+            flush=True,
+        )
+        out = scrape_detail_range(
+            start_d,
+            end_d,
+            headed=headed,
+            ingest_per_batch=bool(args.detail_ingest_each and args.ingest),
+        )
+        if args.ingest and out.get("ok") and not args.detail_ingest_each:
+            ing = ingest_result(out, mode="detail_range")
+            out["ingest"] = ing
+            if not ing.get("ok"):
+                out["ok"] = False
+                out["message"] = ing.get("message") or "ingest failed"
+        summary = {k: v for k, v in out.items() if k != "detail_batches"}
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0 if out.get("ok") else 1
 
     if args.range:

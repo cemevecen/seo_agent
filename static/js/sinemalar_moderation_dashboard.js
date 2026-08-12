@@ -22,12 +22,21 @@
   var USERS = (RAW.users || []).map(function (u) {
     return { username: u.username, user_id: u.user_id };
   });
+  if ((!USERS.length) && RAW.moderators) {
+    USERS = RAW.moderators.map(function (m) {
+      return { username: m.username, user_id: m.user_id };
+    });
+  }
 
   var MOD_COLORS = {
     gezginozlem: "#0ea5e9",
     berend: "#8b5cf6",
     "gözde.": "#f59e0b",
     gözde: "#f59e0b",
+    sinemalar_yonetim: "#64748b",
+    ivicincim: "#10b981",
+    aquamarine: "#ec4899",
+    aquuamarine: "#ec4899",
   };
   var METRIC_PALETTE = [
     "#0ea5e9", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444",
@@ -600,6 +609,56 @@
 
   bindControls();
   waitPlotly(renderAll);
+  loadDetailItems();
+
+  function loadDetailItems() {
+    var btn = document.getElementById("mod-detail-load");
+    if (!btn) return;
+    btn.addEventListener("click", fetchDetailItems);
+    fetchDetailItems();
+  }
+
+  function fetchDetailItems() {
+    var tbody = document.getElementById("mod-detail-body");
+    var foot = document.getElementById("mod-detail-foot");
+    if (!tbody) return;
+    var uid = (document.getElementById("mod-detail-user") || {}).value || "";
+    var mtype = (document.getElementById("mod-detail-type") || {}).value || "";
+    var qs = new URLSearchParams({
+      start: RAW.start || "",
+      end: RAW.end || "",
+      limit: "150",
+    });
+    if (uid) qs.set("user_id", uid);
+    if (mtype) qs.set("metric_type", mtype);
+    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">Yükleniyor…</td></tr>';
+    fetch("/api/sinemalar-moderation/details?" + qs.toString(), { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var items = data.items || [];
+        if (!items.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">Kayıt yok</td></tr>';
+          if (foot) foot.textContent = "0 kayıt";
+          return;
+        }
+        tbody.innerHTML = items.map(function (it) {
+          var link = it.admin_url
+            ? '<a href="' + it.admin_url + '" target="_blank" rel="noopener" class="text-sky-600 hover:underline">Panel</a>'
+            : "—";
+          return '<tr class="border-b border-slate-100 dark:border-slate-800">' +
+            '<td class="px-2 py-1.5 font-mono text-[11px] whitespace-nowrap">' + (it.event_at || "") + '</td>' +
+            '<td class="px-2 py-1.5 font-semibold">' + (it.username || "") + '</td>' +
+            '<td class="px-2 py-1.5">' + (it.metric_label || it.metric_type || "") + '</td>' +
+            '<td class="px-2 py-1.5 max-w-[240px] truncate" title="' + (it.title || "").replace(/"/g, "&quot;") + '">' + (it.title || "—") + '</td>' +
+            '<td class="px-2 py-1.5 max-w-[160px] truncate text-slate-500">' + (it.subtitle || "—") + '</td>' +
+            '<td class="px-2 py-1.5 text-center">' + link + '</td></tr>';
+        }).join("");
+        if (foot) foot.textContent = items.length + " / " + (data.total || items.length) + " kayıt gösteriliyor";
+      })
+      .catch(function () {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-rose-500">Detay yüklenemedi</td></tr>';
+      });
+  }
 
   window.addEventListener("resize", function () {
     ["mod-chart-trend", "mod-chart-metric", "mod-chart-moderator", "mod-chart-stacked", "mod-chart-heatmap", "mod-chart-pie"].forEach(function (id) {
