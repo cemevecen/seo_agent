@@ -414,15 +414,9 @@
     line-height: 1;
     white-space: nowrap;
     overflow: hidden;
-    min-height: 3.5rem;
-    font-size: clamp(11px, 14cqi, 2rem);
+    min-height: 1.75rem;
+    font-size: clamp(11px, 7cqi, 1rem);
     letter-spacing: -0.02em;
-  }
-  .home-sf-metric--android .home-sf-metric__value.is-hero {
-    min-height: 4.25rem;
-    font-size: clamp(20px, 24cqi, 2.75rem);
-    font-weight: 900;
-    letter-spacing: -0.03em;
   }
   .home-sf-metric--android .home-sf-metric__chips {
     display: flex;
@@ -514,7 +508,7 @@
         <div class="home-sf-metric home-sf-metric--android" title="{{ m.title }}{% if m.period_label %} · {{ m.period_label }}{% endif %}">
           <p class="home-sf-metric__title">{{ m.title }}</p>
           {% if m.sub %}<div class="home-sf-metric__ver-chip">{{ m.sub|safe }}</div>{% endif %}
-          <p class="home-sf-metric__value is-hero{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
+          <p class="home-sf-metric__value{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
           <div class="home-sf-metric__chips">
             {% if m.delta_fmt %}<span class="home-sf-metric__chip">{{ m.delta_fmt }}</span>{% endif %}
             {% if m.users_fmt %}<span class="home-sf-metric__chip">{{ m.users_fmt }}</span>{% endif %}
@@ -752,7 +746,7 @@
         ux.fitCardTexts(root);
         return;
       }
-      var sel = '.home-sf-metric__title, .home-sf-metric__ver-chip, .home-sf-metric__value:not(.is-hero), .home-sf-metric__chip, .home-sf-metric__col-val, .home-sf-metric__col-lab, .home-sf-metric__chip.is-title, .home-sf-metric__chip.is-ver, .home-store-kpi__l, .home-store-kpi__v';
+      var sel = '.home-sf-metric__title, .home-sf-metric__ver-chip, .home-sf-metric__value, .home-sf-metric__chip, .home-sf-metric__col-val, .home-sf-metric__col-lab, .home-sf-metric__chip.is-title, .home-sf-metric__chip.is-ver, .home-store-kpi__l, .home-store-kpi__v';
       root.querySelectorAll(sel).forEach(function (el) {
         el.style.whiteSpace = 'nowrap';
         el.style.overflow = 'hidden';
@@ -804,7 +798,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=33';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=31';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;

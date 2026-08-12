@@ -2164,7 +2164,7 @@
   <link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=2">
   <script src="/static/js/rt_slot_fx.js?v=3"></script>
   <script src="/static/js/home_top_pages.js?v=1"></script>
-  <script src="/static/js/metric_table_ux.js?v=10"></script>
+  <script src="/static/js/metric_table_ux.js?v=9"></script>
   <div data-home-container-slot="realtime">
   <section id="home-realtime-section" data-home-container="realtime" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -2403,7 +2403,7 @@
 
     {# Mobil mağaza / Firebase — odak projesine göre (doviz | sinemalar) #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=33" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=31" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              data-home-app-product="doviz"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -2477,7 +2477,7 @@
     var product = mode === 'sinemalar' ? 'sinemalar' : 'doviz';
     var sec = board.querySelector('[data-home-container="crashlytics"]');
     if (!sec) return;
-    var url = '/api/home/crashlytics?product=' + product + '&v=33';
+    var url = '/api/home/crashlytics?product=' + product + '&v=31';
     var root = null;
     try { root = sec.querySelector('[data-home-crash-root]'); } catch (e) {}
     var loaded = (root && root.getAttribute('data-home-app-product')) || '';
