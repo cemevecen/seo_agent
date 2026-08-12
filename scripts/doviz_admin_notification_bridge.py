@@ -238,6 +238,25 @@ _last_pm_lab_auto_at = time.time()
 _last_pm_lab_competitors_auto_at = time.time()
 PM_LAB_AUTO_INTERVAL_SEC = int(os.environ.get("PM_LAB_AUTO_INTERVAL_SEC") or str(3 * 3600))
 PM_LAB_COMPETITORS_INTERVAL_SEC = int(os.environ.get("PM_LAB_COMPETITORS_INTERVAL_SEC") or "600")
+# SERP: 20 kelime → 4×5; her 3 saatte bir döngü, 15 dk arayla batch
+_SERP_HOURS_RAW = (os.environ.get("PM_LAB_SERP_CYCLE_HOURS") or "3,6,9,12,15,18,21").strip()
+SERP_CYCLE_HOURS = tuple(int(h.strip()) for h in _SERP_HOURS_RAW.split(",") if h.strip().isdigit()) or (
+    3,
+    6,
+    9,
+    12,
+    15,
+    18,
+    21,
+)
+_SERP_BATCH_MINUTES_RAW = (os.environ.get("PM_LAB_SERP_BATCH_MINUTES") or "0,15,30,45").strip()
+SERP_BATCH_MINUTES = tuple(
+    int(m.strip()) for m in _SERP_BATCH_MINUTES_RAW.split(",") if m.strip().isdigit()
+) or (0, 15, 30, 45)
+SERP_BATCH_GAP_SEC = int(os.environ.get("PM_LAB_SERP_BATCH_GAP_SEC") or str(15 * 60))
+_last_serp_batch_slots: list[str] = [""] * max(1, len(SERP_BATCH_MINUTES))
+_pending_serp_batches: list[int] = []
+_last_pending_serp_batch_at = 0.0
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -1369,7 +1388,7 @@ def run_pagespeed_bridge_once() -> dict[str, Any]:
     return out
 
 
-def _run_pm_lab_script(*, jobs: str = "", label: str = "PM lab") -> dict[str, Any]:
+def _run_pm_lab_script(*, jobs: str = "", label: str = "PM lab", serp_batch: int | None = None) -> dict[str, Any]:
     """Owner PM lab taramaları → Railway ingest."""
     global _last_pm_lab_result
     kind = "pm_lab_competitors" if jobs == "competitors" else "pm_lab"
@@ -1392,8 +1411,12 @@ def _run_pm_lab_script(*, jobs: str = "", label: str = "PM lab") -> dict[str, An
         cmd.extend(["--jobs", jobs, "--ingest"])
         if "serp" in {j.strip() for j in jobs.split(",") if j.strip()}:
             cmd.append("--headed")
+            if serp_batch is not None:
+                cmd.extend(["--serp-batch", str(int(serp_batch))])
         if jobs == "competitors":
             timeout_sec = int(os.environ.get("PM_LAB_COMPETITORS_TIMEOUT_SEC") or "540")
+        elif jobs.strip() == "serp":
+            timeout_sec = int(os.environ.get("PM_LAB_SERP_BATCH_TIMEOUT_SEC") or "900")
         else:
             timeout_sec = int(os.environ.get("PM_LAB_JOB_TIMEOUT_SEC") or "1200")
     else:
@@ -1432,8 +1455,53 @@ def _run_pm_lab_script(*, jobs: str = "", label: str = "PM lab") -> dict[str, An
 
 
 def run_pm_lab_bridge_once() -> dict[str, Any]:
-    """SERP / rakip / store / news — 3 saatte bir."""
-    return _run_pm_lab_script(jobs="", label="PM lab")
+    """Rakip / store / news — SERP ayrı batch slotlarında."""
+    return _run_pm_lab_script(jobs="competitors,store_charts,google_news", label="PM lab")
+
+
+def run_serp_batch_once(batch_index: int) -> dict[str, Any]:
+    """SERP — 5 kelime dilimi (headed Firefox)."""
+    idx = int(batch_index)
+    return _run_pm_lab_script(
+        jobs="serp",
+        label=f"PM lab SERP batch {idx + 1}/{len(SERP_BATCH_MINUTES)}",
+        serp_batch=idx,
+    )
+
+
+def _queue_manual_serp_batches() -> None:
+    global _pending_serp_batches, _last_pending_serp_batch_at
+    rest = list(range(1, len(SERP_BATCH_MINUTES)))
+    _pending_serp_batches = [b for b in rest if b not in _pending_serp_batches]
+    _last_pending_serp_batch_at = time.time()
+
+
+def run_serp_manual_refresh() -> dict[str, Any]:
+    """Panel Refresh: batch 1 hemen, kalan batch'ler 15 dk arayla."""
+    _queue_manual_serp_batches()
+    return run_serp_batch_once(0)
+
+
+def _maybe_run_pending_serp_batch() -> None:
+    global _pending_serp_batches, _last_pending_serp_batch_at
+    if not _pending_serp_batches:
+        return
+    if (time.time() - _last_pending_serp_batch_at) < max(60, SERP_BATCH_GAP_SEC):
+        return
+    batch = _pending_serp_batches.pop(0)
+    _last_pending_serp_batch_at = time.time()
+    result = _run_locked_job(
+        name=f"SERP batch {batch + 1}/{len(SERP_BATCH_MINUTES)} (kuyruk)",
+        lock=_pm_lab_lock,
+        runner=lambda b=batch: run_serp_batch_once(b),
+        kind="serp_batch",
+        notify=False,
+    )
+    if result is None:
+        _pending_serp_batches.insert(0, batch)
+        return
+    if not result.get("ok"):
+        _notify_auto_failure("serp_batch", result)
 
 
 def run_pm_lab_competitors_once() -> dict[str, Any]:
@@ -1452,6 +1520,8 @@ def run_pm_lab_jobs_once(jobs: str = "") -> dict[str, Any]:
     parts = [p.strip() for p in raw.split(",") if p.strip()]
     if parts == ["competitors"]:
         return run_pm_lab_competitors_once()
+    if parts == ["serp"]:
+        return run_serp_manual_refresh()
     label = "PM lab " + " · ".join(parts)
     return _run_pm_lab_script(jobs=",".join(parts), label=label)
 
@@ -2850,6 +2920,34 @@ def _auto_loop() -> None:
                 else:
                     _notify_auto_failure("pm_lab_competitors", result)
                     _arm_job_retry("pm_lab_competitors", name="PM lab fiyat")
+
+        _maybe_run_pending_serp_batch()
+
+        for batch_idx, minute in enumerate(SERP_BATCH_MINUTES):
+            kind = f"serp_batch_{batch_idx}"
+            if kind in _job_retries:
+                continue
+            while len(_last_serp_batch_slots) <= batch_idx:
+                _last_serp_batch_slots.append("")
+            due, slot = _slot_due(_last_serp_batch_slots[batch_idx], SERP_CYCLE_HOURS, minute)
+            if not due:
+                continue
+            result = _run_locked_job(
+                name=f"SERP batch {batch_idx + 1}/{len(SERP_BATCH_MINUTES)}",
+                lock=_pm_lab_lock,
+                runner=lambda b=batch_idx: run_serp_batch_once(b),
+                kind=kind,
+                notify=False,
+            )
+            if result is None:
+                continue
+            _last_serp_batch_slots[batch_idx] = slot
+            if result.get("ok"):
+                _clear_job_retry(kind)
+            else:
+                _notify_auto_failure(kind, result)
+                _arm_job_retry(kind, name=f"SERP {batch_idx + 1}/{len(SERP_BATCH_MINUTES)}")
+            break
 
         def _slot_job(
             kind: str,

@@ -11,6 +11,8 @@ from backend.services.pm_lab_access import (
 from backend.services.pm_lab_store import (
     COMPETITORS_INTERVAL_MIN,
     SECTION_DEFS,
+    SERP_BATCH_COUNT,
+    SERP_BATCH_SIZE,
     SERP_KEYWORDS,
     SERP_KEYWORDS_RAW,
     _pm_lab_page_specs,
@@ -20,6 +22,8 @@ from backend.services.pm_lab_store import (
     format_pm_lab_when,
     ingest_pm_lab_payload,
     page_context,
+    serp_keyword_batches,
+    serp_keywords_for_batch,
 )
 
 
@@ -59,6 +63,85 @@ def test_serp_keywords_alphabetical_and_boot():
         db.close()
 
 
+def test_serp_keyword_batches():
+    batches = serp_keyword_batches()
+    assert len(batches) == SERP_BATCH_COUNT
+    assert SERP_BATCH_SIZE == 5
+    assert sum(len(b) for b in batches) == len(SERP_KEYWORDS)
+    assert serp_keywords_for_batch(0) == batches[0]
+    assert serp_keywords_for_batch(99) == batches[-1]
+
+
+def test_serp_partial_batch_merge_keeps_other_keywords():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        _reset_pm_lab_db(db)
+        ingest_pm_lab_payload(
+            db,
+            {
+                "sections": {
+                    "serp": {
+                        "ok": True,
+                        "keywords": [
+                            {
+                                "keyword": "altın",
+                                "our_rank": 2,
+                                "rows": [
+                                    {
+                                        "rank": 2,
+                                        "page": 1,
+                                        "domain": "doviz.com",
+                                        "title": "Doviz",
+                                        "url": "https://www.doviz.com/",
+                                        "snippet": "x",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                }
+            },
+        )
+        ingest_pm_lab_payload(
+            db,
+            {
+                "sections": {
+                    "serp": {
+                        "ok": True,
+                        "batch_index": 1,
+                        "keywords": [
+                            {
+                                "keyword": "dolar",
+                                "our_rank": 5,
+                                "rows": [
+                                    {
+                                        "rank": 5,
+                                        "page": 1,
+                                        "domain": "doviz.com",
+                                        "title": "Doviz",
+                                        "url": "https://www.doviz.com/",
+                                        "snippet": "y",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                }
+            },
+        )
+        ctx = page_context(db)
+        serp = __import__("json").loads(ctx["boot_json"])["sections"]["serp"]
+        names = {k["keyword"] for k in serp["keywords"]}
+        assert "altın" in names
+        assert "dolar" in names
+        altin = next(k for k in serp["keywords"] if k["keyword"] == "altın")
+        assert altin.get("rows_stale") is True
+        assert serp.get("partial_batch") is True
+    finally:
+        db.close()
+
+
 def test_owner_emails_only():
     assert is_pm_lab_allowed_email("cemevecen@nokta.com")
     assert is_pm_lab_allowed_email("CEMEVECEN@Gmail.com")
@@ -94,10 +177,20 @@ def test_live_sections():
     assert not any("şikayetvar" in (s.get("title") or "").lower() for s in SECTION_DEFS)
 
 
+def _reset_pm_lab_db(db) -> None:
+    from backend.models import OwnerPmLabWorkspace
+
+    row = db.get(OwnerPmLabWorkspace, 1)
+    if row is not None:
+        db.delete(row)
+        db.commit()
+
+
 def test_ingest_serp_history_and_no_shots():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
+        _reset_pm_lab_db(db)
         ingest_pm_lab_payload(
             db,
             {
@@ -161,7 +254,7 @@ def test_ingest_serp_history_and_no_shots():
         assert "sikayet" not in by_id
         serp = by_id["serp"]["data"]
         assert "shots" not in serp
-        rows = serp["keywords"][0]["rows"]
+        rows = next(k["rows"] for k in serp["keywords"] if k["keyword"] == "gram altın")
         ours = next(r for r in rows if "doviz.com" in r["domain"])
         assert ours["delta"] == "up"
         assert ours["delta_n"] == 2
@@ -178,6 +271,7 @@ def test_serp_empty_scan_keeps_previous_rows():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
+        _reset_pm_lab_db(db)
         ingest_pm_lab_payload(
             db,
             {
@@ -224,7 +318,7 @@ def test_serp_empty_scan_keeps_previous_rows():
         )
         ctx = page_context(db)
         serp = __import__("json").loads(ctx["boot_json"])["sections"]["serp"]
-        kw = serp["keywords"][0]
+        kw = next(k for k in serp["keywords"] if k["keyword"] == "çeyrek altın")
         assert kw["rows_stale"] is True
         assert len(kw["rows"]) == 1
         assert kw["rows"][0]["domain"] == "bigpara.hurriyet.com.tr"

@@ -68,6 +68,25 @@ except locale.Error:
 
 SERP_KEYWORDS: tuple[str, ...] = tuple(sorted(SERP_KEYWORDS_RAW, key=_tr_collate_key))
 
+SERP_BATCH_SIZE = 5
+SERP_BATCH_COUNT = max(1, (len(SERP_KEYWORDS) + SERP_BATCH_SIZE - 1) // SERP_BATCH_SIZE)
+
+
+def serp_keyword_batches() -> tuple[tuple[str, ...], ...]:
+    out: list[tuple[str, ...]] = []
+    items = list(SERP_KEYWORDS)
+    for i in range(0, len(items), SERP_BATCH_SIZE):
+        out.append(tuple(items[i : i + SERP_BATCH_SIZE]))
+    return tuple(out)
+
+
+def serp_keywords_for_batch(batch_index: int) -> tuple[str, ...]:
+    batches = serp_keyword_batches()
+    if not batches:
+        return ()
+    idx = int(batch_index) % len(batches)
+    return batches[idx]
+
 SECTION_DEFS: list[dict[str, Any]] = [
     {
         "id": "serp",
@@ -302,6 +321,42 @@ def _enrich_serp(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, An
             "up": len(climbed),
             "down": len(fell),
         }
+
+    incoming_names = {str(kw.get("keyword") or "") for kw in keywords if isinstance(kw, dict)}
+    batch_index = incoming.get("batch_index")
+    if batch_index is not None and incoming_names and len(incoming_names) < len(SERP_KEYWORDS):
+        merged: list[dict[str, Any]] = []
+        for name in SERP_KEYWORDS:
+            hit = next((kw for kw in keywords if isinstance(kw, dict) and str(kw.get("keyword") or "") == name), None)
+            if hit is not None:
+                merged.append(hit)
+                continue
+            prev_kw = prev_kws.get(name)
+            if isinstance(prev_kw, dict) and (prev_kw.get("rows") or []):
+                carry = deepcopy(prev_kw)
+                carry["rows_stale"] = True
+                carry.setdefault(
+                    "moves",
+                    {"entered": 0, "dropped": 0, "up": 0, "down": 0},
+                )
+                merged.append(carry)
+            else:
+                merged.append(
+                    {
+                        "keyword": name,
+                        "our_rank": None,
+                        "row_count": 0,
+                        "rows": [],
+                        "rows_stale": True,
+                        "moves": {"entered": 0, "dropped": 0, "up": 0, "down": 0},
+                    }
+                )
+        keywords = merged
+        out["keywords"] = keywords
+        out["partial_batch"] = True
+        out["keywords_pending"] = sum(
+            1 for kw in keywords if isinstance(kw, dict) and kw.get("rows_stale")
+        )
 
     runs = list(prev.get("runs") or []) if isinstance(prev.get("runs"), list) else []
     snap = {

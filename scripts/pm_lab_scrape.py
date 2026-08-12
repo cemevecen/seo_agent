@@ -52,8 +52,16 @@ INGEST_URL = (
     or "https://projectcontrol.up.railway.app/api/pm-lab/ingest"
 ).strip()
 
-from backend.services.pm_lab_store import SERP_KEYWORDS  # noqa: E402
+from backend.services.pm_lab_store import (  # noqa: E402
+    SERP_KEYWORDS,
+    SERP_BATCH_COUNT,
+    serp_keyword_batches,
+    serp_keywords_for_batch,
+)
 SERP_PAGES = 4
+SERP_PAGE_SLEEP_SEC = float(os.environ.get("PM_LAB_SERP_PAGE_SLEEP_SEC") or "3.5")
+SERP_KEYWORD_SLEEP_SEC = float(os.environ.get("PM_LAB_SERP_KEYWORD_SLEEP_SEC") or "5.0")
+SERP_BATCH_GAP_SEC = int(os.environ.get("PM_LAB_SERP_BATCH_GAP_SEC") or str(15 * 60))
 
 NEWS_KEYWORDS = (
     "dolar",
@@ -554,6 +562,8 @@ def _load_serp_page(page: Any, url: str) -> dict[str, Any]:
     parsed: dict[str, Any] = {}
     for attempt in range(3):
         _goto(page, url, timeout=75_000)
+        if _google_blocked(page):
+            return {"organic": [], "blocked": True}
         try:
             page.wait_for_selector(
                 "#search, #rso, div.g, div[data-sokoban-container], div.MjjYud",
@@ -566,8 +576,7 @@ def _load_serp_page(page: Any, url: str) -> dict[str, Any]:
         if parsed.get("organic"):
             return parsed
         if _google_blocked(page):
-            page.wait_for_timeout(4500 + attempt * 2500)
-            continue
+            return {"organic": [], "blocked": True}
         try:
             page.evaluate("window.scrollTo(0, Math.min(900, document.body.scrollHeight))")
         except Exception:
@@ -576,14 +585,25 @@ def _load_serp_page(page: Any, url: str) -> dict[str, Any]:
         parsed = _extract_serp(page)
         if parsed.get("organic"):
             return parsed
+        if _google_blocked(page):
+            return {"organic": [], "blocked": True}
         if attempt < 2:
             page.wait_for_timeout(2200 + attempt * 1800)
     return parsed if isinstance(parsed, dict) else {}
 
 
-def job_serp(page: Any) -> dict[str, Any]:
+def job_serp(page: Any, *, batch_index: int | None = None) -> dict[str, Any]:
+    batches = serp_keyword_batches()
+    batch_total = len(batches) or 1
+    if batch_index is None:
+        target_keywords = list(SERP_KEYWORDS)
+        batch_idx = None
+    else:
+        batch_idx = int(batch_index) % batch_total
+        target_keywords = list(serp_keywords_for_batch(batch_idx))
     keywords: list[dict[str, Any]] = []
-    for kw in SERP_KEYWORDS:
+    blocked = False
+    for kw in target_keywords:
         rows: list[dict[str, Any]] = []
         our = None
         for pno in range(SERP_PAGES):
@@ -592,6 +612,9 @@ def job_serp(page: Any) -> dict[str, Any]:
             try:
                 parsed = _load_serp_page(page, url)
             except Exception:
+                break
+            if parsed.get("blocked"):
+                blocked = True
                 break
             organic = parsed.get("organic") or []
             if not organic and pno == 0:
@@ -611,7 +634,7 @@ def job_serp(page: Any) -> dict[str, Any]:
                 if rec["ours"] and our is None:
                     our = rec["rank"]
                 rows.append(rec)
-            time.sleep(2.2)
+            time.sleep(SERP_PAGE_SLEEP_SEC)
         keywords.append(
             {
                 "keyword": kw,
@@ -620,21 +643,34 @@ def job_serp(page: Any) -> dict[str, Any]:
                 "rows": rows,
             }
         )
-        time.sleep(1.8)
+        if blocked:
+            break
+        time.sleep(SERP_KEYWORD_SLEEP_SEC)
     total = sum(k.get("row_count") or 0 for k in keywords)
     empty_kw = sum(1 for k in keywords if not (k.get("rows") or []))
     message = ""
-    if not total:
+    if blocked:
+        message = (
+            f"Google captcha/limit — batch durdu ({len(keywords)}/{len(target_keywords)} kelime). "
+            f"{SERP_BATCH_GAP_SEC // 60} dk bekleyip sonraki batch."
+        )
+    elif not total:
         message = "SERP boş"
     elif empty_kw:
-        message = f"{empty_kw} kelime boş (Google limiti) — birkaç dk sonra Refresh"
+        message = f"{empty_kw} kelime boş (Google limiti) — sonraki batch'i bekleyin"
+    summary = f"{len(keywords)} kelime · {SERP_PAGES} sayfa · {total} sonuç"
+    if batch_idx is not None:
+        summary = f"batch {batch_idx + 1}/{batch_total} · {summary}"
     return {
-        "ok": total > 0,
+        "ok": total > 0 and not blocked,
         "scraped_at": _now(),
-        "summary": f"{len(keywords)} kelime · {SERP_PAGES} sayfa · {total} sonuç",
+        "summary": summary,
         "message": message,
         "keywords": keywords,
         "pages": SERP_PAGES,
+        "batch_index": batch_idx,
+        "batch_total": batch_total,
+        "blocked": blocked,
     }
 
 
@@ -2138,12 +2174,25 @@ def _run_job(name: str, fn, page: Any, *, ingest: bool) -> dict[str, Any]:
         result = fn(page)
     except Exception as exc:  # noqa: BLE001
         result = {"ok": False, "scraped_at": _now(), "message": str(exc)[:240], "summary": "hata"}
-    _write_scratch(name, result)
+    scratch_name = name
+    if name == "serp" and isinstance(result, dict) and result.get("batch_index") is not None:
+        scratch_name = f"serp_batch_{int(result['batch_index']) + 1}"
+    _write_scratch(scratch_name, result)
     print(f"  · {result.get('summary') or result.get('message') or ''} · ok={result.get('ok')}", flush=True)
     if ingest:
         ing = post_ingest({name: result}, message=f"{name} tarama")
         print(f"  · ingest: {ing}", flush=True)
     return result
+
+
+def _parse_serp_batch_arg(raw: str | None) -> int | None:
+    text = str(raw or "").strip()
+    if not text or text.lower() in ("all", "-1", "none"):
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2152,16 +2201,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ingest", action="store_true")
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--jobs", default="")
+    parser.add_argument(
+        "--serp-batch",
+        default="",
+        help="SERP dilimi 0..N-1 (5'er kelime). Boş = tüm kelimeler (manuel/test).",
+    )
     args = parser.parse_args(argv)
 
     wanted = [j.strip() for j in (args.jobs or "").split(",") if j.strip()]
-    if args.sync or not wanted:
-        wanted = list(JOB_IDS)
+    if args.sync:
+        wanted = [j for j in JOB_IDS if j != "serp"]
+    elif not wanted:
+        wanted = [j for j in JOB_IDS if j != "serp"]
     for j in wanted:
         if j not in JOB_IDS:
             print(f"bilinmeyen job: {j}", flush=True)
             return 2
 
+    serp_batch = _parse_serp_batch_arg(args.serp_batch or os.environ.get("PM_LAB_SERP_BATCH"))
     # Google SERP headless'ta sonuç dönmüyor; fx-google profili headed gerekir.
     google_jobs = [j for j in wanted if j in ("serp",)]
     public = [j for j in wanted if j in ("competitors", "store_charts", "google_news")]
@@ -2177,8 +2234,12 @@ def main(argv: list[str] | None = None) -> int:
 
     from playwright.sync_api import sync_playwright
 
+    if serp_batch is not None:
+        serp_fn = lambda page, b=serp_batch: job_serp(page, batch_index=b)  # noqa: E731
+    else:
+        serp_fn = lambda page: job_serp(page, batch_index=None)  # noqa: E731
     fns = {
-        "serp": job_serp,
+        "serp": serp_fn,
         "competitors": job_competitors,
         "store_charts": job_store_charts,
         "google_news": job_google_news,
