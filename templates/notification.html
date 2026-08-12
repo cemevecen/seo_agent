@@ -1106,12 +1106,37 @@
   function isNtCustomPreset(preset) {
     return !preset || preset === "custom";
   }
+  function formatNtDateTr(iso) {
+    var s = String(iso || "").slice(0, 10);
+    var p = s.split("-");
+    if (p.length !== 3 || !p[0] || !p[1] || !p[2]) return s;
+    return p[2] + "." + p[1] + "." + p[0];
+  }
+  function syncNtPresetCustomLabel() {
+    var start = (document.getElementById("nt-start-date") && document.getElementById("nt-start-date").value) || "";
+    var end = (document.getElementById("nt-end-date") && document.getElementById("nt-end-date").value) || "";
+    start = String(start).slice(0, 10);
+    end = String(end).slice(0, 10);
+    var label =
+      start && end
+        ? formatNtDateTr(start) + " – " + formatNtDateTr(end)
+        : start || end
+          ? formatNtDateTr(start || end)
+          : "Custom range";
+    ["nt-range-preset", "nt-range-preset-secondary"].forEach(function (id) {
+      var sel = document.getElementById(id);
+      if (!sel) return;
+      var opt = sel.querySelector('option[value="custom"]');
+      if (opt) opt.textContent = label;
+    });
+  }
   function setPresetSelectors(preset) {
     var val = isNtCustomPreset(preset) ? "custom" : (preset || "1y");
     var primary = document.getElementById("nt-range-preset");
     var secondary = document.getElementById("nt-range-preset-secondary");
     if (primary) primary.value = val;
     if (secondary) secondary.value = val;
+    syncNtPresetCustomLabel();
   }
   var rowsCache = [];
   var serverLastId = 0;
@@ -1177,11 +1202,13 @@
     if (data.end !== undefined) {
       document.getElementById("nt-end-date").value = data.end || "";
     }
-    if (data.start || data.end) {
-      setPresetSelectors("custom");
-    } else if (data.preset) {
+    // Kayıtlı preset varsa (1w, 1y…) dropdown’da o kalsın — start/end dolu diye custom’a düşürme
+    if (data.preset !== undefined && data.preset !== null && String(data.preset).trim() !== "") {
       setPresetSelectors(data.preset);
+    } else if (data.start || data.end) {
+      setPresetSelectors("custom");
     }
+    syncNtPresetCustomLabel();
     serverReady = true;
     applyLastFileUploadFromMeta(data);
   }
@@ -2858,10 +2885,13 @@
                 (full.row_count != null ? full.row_count : rowsCache.length).toLocaleString("tr-TR")
             );
             rawPage = 0;
-            if (!full.start && !full.end) {
+            if (!isNtCustomPreset(full.preset)) {
               applyPresetRange(full.preset || "1y", true);
-            } else {
+            } else if (full.start || full.end) {
+              setPresetSelectors("custom");
               redrawAll();
+            } else {
+              applyPresetRange("1y", true);
             }
           });
         })
@@ -2943,11 +2973,13 @@
       return migrateLocalStorageIfEmpty(data.row_count).then(function () { return data; });
     })
     .then(function (data) {
-      if (data.start || data.end) {
+      if (!isNtCustomPreset(data.preset)) {
+        applyPresetRange(data.preset || "1y", true);
+      } else if (data.start || data.end) {
         setPresetSelectors("custom");
         redrawAll();
       } else {
-        applyPresetRange(data.preset || "1y", true);
+        applyPresetRange("1y", true);
       }
       if (hamListFilterActive()) {
         applyRawSearchFilter();
