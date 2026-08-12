@@ -106,7 +106,7 @@ PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "0")
 ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "5")
 FIREBASE_SLOT_MINUTE = int(os.environ.get("FIREBASE_CONSOLE_BRIDGE_MINUTE") or "10")
 TWICE_DAILY_HOURS = (1, 13)  # 01:00 + 13:00
-REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:05 + 13:05 TR — yalnız ayın 1–2'sinde biten ay
+REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:05 + 13:05 TR — son ay; 1–2'de + biten ay
 GSC_SLOT_MINUTE = int(os.environ.get("GSC_LINKS_BRIDGE_MINUTE") or "0")
 REVENUE_TARGETS_SLOT_MINUTE = int(os.environ.get("REVENUE_TARGETS_BRIDGE_MINUTE") or "5")
 POLICY_SLOT_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "5")
@@ -856,9 +856,11 @@ def run_gsc_links_bridge_once() -> dict[str, Any]:
 
 
 def run_revenue_targets_bridge_once() -> dict[str, Any]:
-    """Ad-virgul hedef sheet — yalnız ayın 1 ve 2'sinde biten ayı scrape → ingest.
+    """Ad-virgul hedef sheet scrape → Railway ingest.
 
-    Örn. Eylül 1–2: Ağustos sekmesini ekler/günceller; eski ayları yeniden tarmaz.
+    • Her çalıştırmada: dokümandaki son (içinde bulunulan) ay
+    • Ayın 1–2'sinde ayrıca: bir önceki biten ay (final rakam)
+    Eski aylar yeniden taranmaz.
     """
     global _last_revenue_targets_result
     if not _ingest_token():
@@ -868,6 +870,7 @@ def run_revenue_targets_bridge_once() -> dict[str, Any]:
 
     try:
         from backend.services.revenue_targets_sheet import (
+            current_month_period_key,
             is_closed_month_sync_day,
             previous_month_period_key,
         )
@@ -876,31 +879,12 @@ def run_revenue_targets_bridge_once() -> dict[str, Any]:
         _last_revenue_targets_result = err
         return err
 
-    if not is_closed_month_sync_day():
-        out = {
-            "ok": True,
-            "kind": "revenue_targets",
-            "skipped": True,
-            "message": (
-                "Revenue targets: skip (yalnız ayın 1–2'sinde biten ay "
-                f"{previous_month_period_key()} güncellenir)"
-            ),
-        }
-        _last_revenue_targets_result = out
-        print(out["message"], flush=True)
-        return out
-
     script = ROOT / "scripts" / "revenue_targets_scrape.py"
     if not script.is_file():
         err = {"ok": False, "kind": "revenue_targets", "message": "revenue_targets_scrape.py yok"}
         _last_revenue_targets_result = err
         return err
 
-    closed = previous_month_period_key()
-    print(
-        f"Revenue targets closed-month scrape · {closed} (sistem Firefox)…",
-        flush=True,
-    )
     env = os.environ.copy()
     env.setdefault(
         "REVENUE_TARGETS_INGEST_URL",
@@ -911,32 +895,47 @@ def run_revenue_targets_bridge_once() -> dict[str, Any]:
         "true",
         "yes",
     )
-    cmd = [sys.executable, str(script), "--sync", "--ingest", "--closed-month"]
-    if not headed:
-        cmd.append("--headless")
-    try:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(ROOT),
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=600,
-        )
-    except Exception as exc:  # noqa: BLE001
-        out = {"ok": False, "kind": "revenue_targets", "message": str(exc)[:300]}
-        _last_revenue_targets_result = out
-        return out
 
-    tail = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip().splitlines()
-    last = tail[-1] if tail else ""
-    ok = proc.returncode == 0
+    def _run(extra_flags: list[str], label: str) -> dict[str, Any]:
+        cmd = [sys.executable, str(script), "--sync", "--ingest", *extra_flags]
+        if not headed:
+            cmd.append("--headless")
+        print(f"Revenue targets scrape · {label}…", flush=True)
+        try:
+            proc = subprocess.run(
+                cmd,
+                cwd=str(ROOT),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "label": label, "message": str(exc)[:300]}
+        tail = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip().splitlines()
+        last = tail[-1] if tail else ""
+        return {
+            "ok": proc.returncode == 0,
+            "label": label,
+            "message": last[:400] if last else ("OK" if proc.returncode == 0 else f"exit={proc.returncode}"),
+            "returncode": proc.returncode,
+        }
+
+    steps: list[dict[str, Any]] = []
+    # Son ay (güncel sekme) — otomatik + manuel her seferinde
+    steps.append(_run(["--current-only"], f"current {current_month_period_key()}"))
+    if is_closed_month_sync_day():
+        steps.append(
+            _run(["--closed-month"], f"closed {previous_month_period_key()}")
+        )
+
+    ok = all(bool(s.get("ok")) for s in steps)
+    msg = " | ".join(f"{s.get('label')}: {s.get('message')}" for s in steps)
     out = {
         "ok": ok,
         "kind": "revenue_targets",
-        "closed_month": closed,
-        "message": last[:400] if last else ("OK" if ok else f"exit={proc.returncode}"),
-        "returncode": proc.returncode,
+        "steps": steps,
+        "message": msg[:500],
     }
     _last_revenue_targets_result = out
     print(f"Revenue targets sync · {out['message']}", flush=True)

@@ -9224,7 +9224,7 @@
       clearTimeout(roTimer);
       roTimer = setTimeout(scheduleMzChartsResizeBurst, 80);
     });
-    ["mz-body-grid", "mz-main", "mz-kpi-grid", "mz-chart-line-card", "mz-dashboard-cards"].forEach(function (id) {
+    ["mz-body-grid", "mz-main", "mz-kpi-grid", "mz-chart-line-card", "mz-dashboard-cards", "mz-targets-panel", "mz-targets-charts", "mz-targets-pie-section"].forEach(function (id) {
       var node = document.getElementById(id);
       if (node) window.__mzChartHostRo.observe(node);
     });
@@ -13286,31 +13286,10 @@
     btn.textContent = on ? "Remove coloring" : "Renklendir";
   }
 
-  function mzTargetsTrMonthKey() {
-    try {
-      var parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Europe/Istanbul",
-        year: "numeric",
-        month: "2-digit",
-      }).formatToParts(new Date());
-      var y = "";
-      var m = "";
-      parts.forEach(function (p) {
-        if (p.type === "year") y = p.value;
-        if (p.type === "month") m = p.value;
-      });
-      if (y && m) return y + "-" + m;
-    } catch (_) {}
-    var d = new Date();
-    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-  }
-
   function mzTargetsFilteredRows() {
     if (!mzTargetsCache || !mzTargetsCache.rows) return [];
-    // İçinde bulunulan ay henüz bitmedi — tablo/grafikte gösterme (ayın 1–2'sinde eklenir)
-    var curKey = mzTargetsTrMonthKey();
     var rows = mzTargetsCache.rows.filter(function (r) {
-      return r.project === mzTargetsUi.project && String(r.period_key || "") < curKey;
+      return r.project === mzTargetsUi.project;
     });
     if (mzTargetsUi.year) {
       var y = parseInt(mzTargetsUi.year, 10);
@@ -13497,21 +13476,37 @@
   function mzTargetsRenderPieSlot(row, slotIdx) {
     var slot = document.querySelector('.mz-targets-pie-slot[data-slot="' + slotIdx + '"]');
     var plotId = "mz-targets-chart-pie-" + slotIdx;
+    var plotEl = document.getElementById(plotId);
     mzPurgePlot(plotId);
+    if (plotEl) plotEl.innerHTML = "";
     if (!row) {
-      if (slot) slot.classList.add("hidden");
+      if (slot) {
+        slot.classList.add("hidden");
+        var oldCap = slot.querySelector(".mz-targets-pie-caption");
+        if (oldCap) oldCap.remove();
+      }
       return;
     }
-    if (slot) slot.classList.remove("hidden");
+    if (slot) {
+      slot.classList.remove("hidden");
+      var cap = slot.querySelector(".mz-targets-pie-caption");
+      if (!cap) {
+        cap = document.createElement("p");
+        cap.className = "mz-targets-pie-caption mt-1 text-center text-[10px] font-bold text-slate-600 dark:text-zinc-300";
+        slot.appendChild(cap);
+      }
+      cap.textContent = row.period || row.period_key || "—";
+    }
     var pie = mzTargetsBuildPieData(row);
-    if (!pie || !window.Plotly) {
-      if (slot) slot.classList.add("hidden");
+    if (!pie || !window.Plotly || !plotEl) {
+      if (slot && !pie) slot.classList.add("hidden");
       return;
     }
-    var pieLay = plotTheme({ margin: { l: 4, r: 4, t: 28, b: 4 } });
-    pieLay.title = { text: row.period || row.period_key || "", font: plotFont(), x: 0.5, xanchor: "center" };
+    var pieLay = plotTheme({ margin: { l: 4, r: 4, t: 8, b: 28 } });
     pieLay.showlegend = true;
-    pieLay.legend = { orientation: "h", y: -0.08, font: { size: 9 } };
+    pieLay.legend = { orientation: "h", y: -0.12, font: { size: 9 } };
+    pieLay.autosize = true;
+    pieLay.height = 200;
     var pieTrace = {
       type: "pie",
       labels: pie.labels,
@@ -13529,7 +13524,9 @@
       pieTrace.textinfo = "percent";
     }
     if (pie.pull) pieTrace.pull = pie.pull;
-    Plotly.newPlot(plotId, [pieTrace], pieLay, plotlyCfg());
+    Plotly.newPlot(plotEl, [pieTrace], pieLay, plotlyCfg()).then(function () {
+      try { Plotly.Plots.resize(plotEl); } catch (_) { /* ignore */ }
+    });
   }
 
   function mzTargetsRenderPieSection(rows) {
@@ -13540,8 +13537,9 @@
     var groupRows = mzTargetsPieGroupRows(chartRows);
     var subtitle = document.getElementById("mz-targets-pie-subtitle");
     if (subtitle) {
+      var gIdx = Number(mzTargetsUi.pieGroupIndex) || 0;
       subtitle.textContent = groupRows.length
-        ? mzTargetsPieGroupLabel(groupRows, mzTargetsUi.pieGroupIndex) + " · " + projLabel
+        ? mzTargetsPieGroupLabel(groups[gIdx] || [], gIdx) + " · " + projLabel
         : projLabel;
     }
     mzTargetsPurgePieCharts();
@@ -13554,36 +13552,119 @@
     }
   }
 
+  function mzTargetsWaitForPlotly(timeoutMs) {
+    timeoutMs = timeoutMs || 8000;
+    if (window.Plotly) return Promise.resolve();
+    return new Promise(function (resolve, reject) {
+      var t0 = Date.now();
+      var id = setInterval(function () {
+        if (window.Plotly) {
+          clearInterval(id);
+          resolve();
+        } else if (Date.now() - t0 > timeoutMs) {
+          clearInterval(id);
+          reject(new Error("Plotly did not load"));
+        }
+      }, 50);
+    });
+  }
+
+  function mzTargetsPlotReady(el) {
+    return new Promise(function (resolve) {
+      if (!el) return resolve();
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          resolve();
+        });
+      });
+    });
+  }
+
   function mzTargetsRenderCharts(rows) {
-    if (!window.Plotly) return;
     var chartRows = mzTargetsChartRows(rows);
-    var labels = chartRows.map(function (r) { return r.period; });
+    var labels = chartRows.map(function (r) { return r.period || r.period_key || ""; });
     var hedef = chartRows.map(function (r) { return r.hedef; });
     var hedef80 = chartRows.map(function (r) { return r.hedef_80; });
     var kazanc = chartRows.map(function (r) { return r.kazanc; });
     var projLabel = mzTargetsUi.project === "sinemalar" ? "Sinemalar.com" : "Doviz.com";
+    var lineEl = document.getElementById("mz-targets-chart-line");
+    var barEl = document.getElementById("mz-targets-chart-bar");
 
     mzPurgePlot("mz-targets-chart-line");
     mzPurgePlot("mz-targets-chart-bar");
+    if (lineEl) lineEl.innerHTML = "";
+    if (barEl) barEl.innerHTML = "";
 
     if (!chartRows.length) return;
 
-    var lineTraces = [
-      { x: labels, y: hedef, name: "Target", type: "scatter", mode: "lines+markers", line: { color: "#94a3b8", width: 2 }, marker: { size: 5 } },
-      { x: labels, y: hedef80, name: "Target (80%)", type: "scatter", mode: "lines+markers", line: { color: "#f59e0b", width: 2, dash: "dot" }, marker: { size: 5 } },
-      { x: labels, y: kazanc, name: "Earnings", type: "scatter", mode: "lines+markers", line: { color: "#4f46e5", width: 2.5 }, marker: { size: 6 } },
-    ];
-    var lineLay = plotTheme({ yTitle: "TL", margin: { l: 56, r: 12, t: 24, b: 72 }, legend: { orientation: "h", y: 1.12 } });
-    lineLay.title = { text: projLabel, font: plotFont(), x: 0 };
-    Plotly.newPlot("mz-targets-chart-line", lineTraces, lineLay, plotlyCfg());
+    mzTargetsWaitForPlotly()
+      .then(function () {
+        return Promise.all([mzTargetsPlotReady(lineEl), mzTargetsPlotReady(barEl)]);
+      })
+      .then(function () {
+        if (!window.Plotly) return;
+        var tickAngle = labels.length > 8 ? -45 : -30;
+        var xAxis = {
+          tickangle: tickAngle,
+          automargin: true,
+          type: "category",
+          categoryorder: "array",
+          categoryarray: labels,
+          tickfont: { size: labels.length > 18 ? 9 : 11 },
+          tickmode: "linear",
+        };
+        var lineTraces = [
+          { x: labels, y: hedef, name: "Target", type: "scatter", mode: "lines+markers", line: { color: "#94a3b8", width: 2 }, marker: { size: 5 } },
+          { x: labels, y: hedef80, name: "Target (80%)", type: "scatter", mode: "lines+markers", line: { color: "#f59e0b", width: 2, dash: "dot" }, marker: { size: 5 } },
+          { x: labels, y: kazanc, name: "Earnings", type: "scatter", mode: "lines+markers", line: { color: "#4f46e5", width: 2.5 }, marker: { size: 6 } },
+        ];
+        var lineLay = plotTheme({
+          yTitle: "TL",
+          margin: { l: 56, r: 16, t: 36, b: 88 },
+          legend: { orientation: "h", y: 1.14 },
+          xaxis: xAxis,
+        });
+        lineLay.title = { text: projLabel, font: plotFont(), x: 0 };
+        lineLay.autosize = true;
+        lineLay.height = 300;
 
-    var barTraces = [
-      { x: labels, y: hedef, name: "Target", type: "bar", marker: { color: "#cbd5e1" } },
-      { x: labels, y: kazanc, name: "Earnings", type: "bar", marker: { color: "#6366f1" } },
-    ];
-    var barLay = plotTheme({ yTitle: "TL", barmode: "group", margin: { l: 56, r: 8, t: 28, b: 72 } });
-    barLay.title = { text: projLabel + " — monthly", font: plotFont(), x: 0 };
-    Plotly.newPlot("mz-targets-chart-bar", barTraces, barLay, plotlyCfg());
+        var barTraces = [
+          { x: labels, y: hedef, name: "Target", type: "bar", marker: { color: "#cbd5e1" } },
+          { x: labels, y: kazanc, name: "Earnings", type: "bar", marker: { color: "#6366f1" } },
+        ];
+        var barLay = plotTheme({
+          yTitle: "TL",
+          barmode: "group",
+          margin: { l: 56, r: 12, t: 36, b: 88 },
+          xaxis: xAxis,
+        });
+        barLay.title = { text: projLabel + " — monthly", font: plotFont(), x: 0 };
+        barLay.autosize = true;
+        barLay.height = 300;
+
+        var jobs = [];
+        if (lineEl) {
+          jobs.push(
+            Plotly.newPlot(lineEl, lineTraces, lineLay, plotlyCfg()).then(function () {
+              return Plotly.Plots.resize(lineEl);
+            })
+          );
+        }
+        if (barEl) {
+          jobs.push(
+            Plotly.newPlot(barEl, barTraces, barLay, plotlyCfg()).then(function () {
+              return Plotly.Plots.resize(barEl);
+            })
+          );
+        }
+        return Promise.all(jobs);
+      })
+      .then(function () {
+        scheduleMzChartsResizeBurst();
+      })
+      .catch(function () {
+        /* soft-fail: table still visible */
+      });
   }
 
   function mzTargetsRenderAll() {
@@ -13687,10 +13768,13 @@
       if (tableWrap) tableWrap.classList.remove("hidden");
       if (charts) charts.classList.remove("hidden");
       if (pieSection) pieSection.classList.remove("hidden");
-      mzShowChartSkeleton("mz-targets-chart-line", "line", { force: true });
-      mzShowChartSkeleton("mz-targets-chart-bar", "bar", { force: true });
-      for (var ti = 0; ti < 6; ti++) mzShowChartSkeleton("mz-targets-chart-pie-" + ti, "pie", { force: true });
-      mzTargetsSetProject(mzTargetsUi.project);
+      // Skeleton sonra çizim — layout ölçüsü gelsin diye bir frame bekle
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          mzTargetsSetProject(mzTargetsUi.project);
+          scheduleMzChartsResizeBurst();
+        });
+      });
     } catch (e) {
       if (loading) loading.classList.add("hidden");
       if (err) {
