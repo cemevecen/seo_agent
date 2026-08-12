@@ -349,35 +349,42 @@
     min-width: 0;
   }
   .metric-kpi-ss2-metrics {
-    flex: 0 1 auto;
-    max-width: min(48%, 10rem);
+    flex: 0 0 30%;
+    width: 30%;
+    max-width: 30%;
     min-width: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
     gap: 0.08rem;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
   }
   .metric-kpi-ss2-value {
     margin: 0;
-    font-size: clamp(0.72rem, 16cqi, 1.45rem);
+    font-size: clamp(0.36rem, 8cqi, 0.725rem);
     font-weight: 800;
     letter-spacing: -0.03em;
     line-height: 1.05;
     font-variant-numeric: tabular-nums;
     color: #0f172a;
     white-space: nowrap;
-    overflow: visible;
+    overflow: hidden;
+    text-overflow: ellipsis;
     max-width: 100%;
   }
   html.dark .metric-kpi-ss2-value,
   html.midnight .metric-kpi-ss2-value { color: #fff; }
   .metric-kpi-ss2-delta {
     margin: 0;
-    font-size: clamp(0.52rem, 8.5cqi, 0.72rem);
+    font-size: clamp(0.26rem, 4.25cqi, 0.36rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    overflow: visible;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
   .metric-kpi-ss2-delta.is-up { color: #059669; }
   .metric-kpi-ss2-delta.is-down { color: #e11d48; }
@@ -389,14 +396,18 @@
   html.dark .metric-kpi-ss2-delta.is-flat,
   html.midnight .metric-kpi-ss2-delta.is-flat { color: #94a3b8; }
   .metric-kpi-ss2-spark {
-    flex: 1 1 0;
+    flex: 0 0 70%;
+    width: 70%;
+    max-width: 70%;
     min-width: 0;
-    width: auto;
     height: clamp(1.85rem, 36cqi, 3.15rem);
     display: flex;
     align-items: stretch;
     align-self: stretch;
     cursor: pointer;
+    position: relative;
+    z-index: 0;
+    overflow: hidden;
   }
   .metric-kpi-ss2.is-chart-focus {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--kpi-color) 42%, transparent);
@@ -431,6 +442,7 @@
     }
     .metric-kpi-ss2-spark {
       width: 100%;
+      max-width: none;
       min-width: 0;
       flex: 1 1 auto;
       height: clamp(1.65rem, 42cqi, 2.7rem);
@@ -1966,7 +1978,8 @@
     var hi = Math.max(minPx, maxPx);
     var best = minPx;
     el.style.whiteSpace = "nowrap";
-    el.style.overflow = "visible";
+    el.style.overflow = "hidden";
+    el.style.textOverflow = "ellipsis";
     for (var i = 0; i < 14; i++) {
       var mid = (lo + hi) / 2;
       el.style.fontSize = mid + "px";
@@ -1987,9 +2000,9 @@
       var val = card.querySelector(".metric-kpi-ss2-value");
       var dlt = card.querySelector(".metric-kpi-ss2-delta");
       var metrics = card.querySelector(".metric-kpi-ss2-metrics");
-      var availVal = (metrics && metrics.clientWidth) || w;
-      fitOneKpiText(val, Math.max(9, w * 0.09), Math.min(23, Math.max(12, availVal * 0.34)));
-      fitOneKpiText(dlt, Math.max(8, w * 0.055), Math.min(13, Math.max(10, availVal * 0.16)));
+      var availVal = (metrics && metrics.clientWidth) || Math.max(8, w * 0.3);
+      fitOneKpiText(val, Math.max(8, w * 0.045), Math.min(11.5, Math.max(9, availVal * 0.17)));
+      fitOneKpiText(dlt, Math.max(7, w * 0.028), Math.min(9, Math.max(7, availVal * 0.08)));
     });
   }
   function unbindMetricKpiFit() {
@@ -2048,11 +2061,19 @@
     opts = opts || {};
     if (!iaMetricKpis) return;
     var list = Array.isArray(packs) ? packs.filter(function (p) { return p && p.metric; }) : [];
-    if (iaSelectedMetrics.length >= 2 && list.length < 2) {
-      hideIaMetricKpiStrip();
-      return;
-    }
-    if (!list.length) {
+    // Tek (veya sıfır) metrik: üst spark kartını kapat, basit total alanını normalize et
+    if (list.length < 2) {
+      if (list.length === 1) {
+        var one = list[0];
+        var oneLike = isCountLike(one.metric);
+        var oneMode = one.total_mode || "sum";
+        var oneSt = seriesStats(one.series);
+        var oneTotal = one.total != null && Number.isFinite(Number(one.total))
+          ? one.total
+          : oneSt.sum;
+        if (iaTotal) iaTotal.textContent = fmtNum(oneTotal, oneLike && oneMode !== "avg");
+        if (iaTotalLabel) iaTotalLabel.textContent = one.label || one.metric || "Total / selected";
+      }
       showIaSimpleKpi();
       return;
     }
