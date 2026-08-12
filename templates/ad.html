@@ -128,8 +128,14 @@
   }
   @media (min-width: 1024px) {
     #mz-targets-controls {
-      grid-template-columns: 2fr 1fr 1fr auto;
+      grid-template-columns: minmax(0, 1.4fr) auto minmax(0, 1fr) minmax(0, 1fr) auto;
     }
+  }
+  #mz-targets-controls-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
   }
   .mz-targets-proj-group {
     display: inline-flex;
@@ -1759,20 +1765,6 @@
       </div>
 
       <section id="mz-targets-panel" class="w-full min-w-0 space-y-4" aria-label="Revenue targets">
-        <div class="flex flex-col gap-3 rounded-2xl border border-teal-200 bg-teal-50/50 p-3 sm:p-4 dark:border-teal-900/50 dark:bg-teal-950/20 lg:flex-row lg:items-center lg:justify-between">
-          <div class="min-w-0 flex-1">
-            <h2 class="text-sm font-bold text-teal-900 dark:text-teal-100">Revenue targets</h2>
-            <p class="mt-0.5 text-[11px] font-medium text-teal-800/80 dark:text-teal-300/80">Monthly target · earnings table</p>
-          </div>
-          <div class="flex shrink-0 flex-wrap items-center gap-2 self-start lg:self-center">
-            <button
-              type="button"
-              id="mz-targets-refresh"
-              class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200 dark:hover:bg-teal-950/40"
-            >Refresh</button>
-            <a id="mz-targets-source-link" href="https://docs.google.com/spreadsheets/d/1ITl0rUlLylTspsztMtaaFGEdvT_gINoUHDPodspEa5Y/edit?gid=244461752#gid=244461752" target="_blank" rel="noopener" class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200">Source table ↗</a>
-          </div>
-        </div>
         <p id="mz-targets-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
         <p id="mz-targets-warning" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="status"></p>
         <p id="mz-targets-loading" class="text-xs text-slate-500 dark:text-zinc-400">Loading data…</p>
@@ -1782,6 +1774,17 @@
             <div class="flex flex-wrap gap-1.5">
               <button type="button" data-mz-target-project="doviz" class="mz-targets-proj rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white">Doviz.com</button>
               <button type="button" data-mz-target-project="sinemalar" class="mz-targets-proj rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200">Sinemalar.com</button>
+            </div>
+          </div>
+          <div id="mz-targets-controls-actions" class="min-w-0">
+            <p class="mb-1 text-[10px] font-bold uppercase text-slate-500 sm:invisible sm:select-none" aria-hidden="true">&nbsp;</p>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                id="mz-targets-refresh"
+                class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200 dark:hover:bg-teal-950/40"
+              >Refresh</button>
+              <a id="mz-targets-source-link" href="https://docs.google.com/spreadsheets/d/1ITl0rUlLylTspsztMtaaFGEdvT_gINoUHDPodspEa5Y/edit?gid=244461752#gid=244461752" target="_blank" rel="noopener" class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200">Source table ↗</a>
             </div>
           </div>
           <label class="min-w-0 text-xs">
