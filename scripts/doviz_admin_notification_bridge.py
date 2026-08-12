@@ -2875,13 +2875,29 @@ def _pm_lab_claim_loop() -> None:
 
 
 def _page_tarama_keepalive_loop() -> None:
-    """Uzun tarama sırasında claim thread bloklansa bile Railway'e canlılık sinyali."""
-    url = _page_tarama_api_base() + "/api/page-tarama/bridge-ping"
-    print(f"Uzaktan tarama keepalive: {url}", flush=True)
+    """Uzun tarama sırasında claim thread bloklansa bile Railway'e canlılık sinyali.
+
+    Önce bridge-ping; 404/401 olursa claim GET (zaten public) ile touch eder.
+    """
+    ping_url = _page_tarama_api_base() + "/api/page-tarama/bridge-ping"
+    claim_url = _page_tarama_api_base() + "/api/page-tarama/claim"
+    print(f"Uzaktan tarama keepalive: {ping_url}", flush=True)
+    use_ping = True
     while True:
         try:
             if _ingest_token():
-                requests.post(url, headers=_page_tarama_auth_headers(), timeout=15)
+                headers = _page_tarama_auth_headers()
+                if use_ping:
+                    resp = requests.post(ping_url, headers=headers, timeout=15)
+                    if resp.status_code in (401, 403, 404):
+                        use_ping = False
+                        print(
+                            f"page-tarama keepalive: ping HTTP {resp.status_code} → claim fallback",
+                            flush=True,
+                        )
+                        requests.get(claim_url, headers=headers, timeout=15)
+                else:
+                    requests.get(claim_url, headers=headers, timeout=15)
         except Exception as exc:  # noqa: BLE001
             print(f"page-tarama keepalive: {exc}", flush=True)
         time.sleep(20)
