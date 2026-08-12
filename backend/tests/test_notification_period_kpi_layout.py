@@ -22,7 +22,7 @@ def test_notification_css_keeps_3_and_4_cols_at_all_widths():
     assert "repeat(3, minmax(0, 1fr))" in html
     assert "nt-cmp-grid-plats" in html
     assert "repeat(4, minmax(0, 1fr))" in html
-    assert "notification_extras.js?v=10" in html
+    assert "notification_extras.js?v=11" in html
     # Eski kırılımlı 1/2/3 kolon grid'i geri gelmesin
     assert "grid-template-columns: 1fr;" not in html.split(".nt-cmp-grid {")[1].split("}")[0]
 
@@ -42,6 +42,21 @@ def test_period_compare_uses_merged_trend_and_weight():
     assert 'plotTrendChart("nt-trend-clicks", PLATFORM_KEYS, rows)' in html
     assert 'uniformtext: { minsize: 10, mode: "hide" }' in html
     assert "textposition: \"inside\"" in html
+    assert "is-single-day" in html
+    assert "function isSingleDayRange()" in html
+    assert "function plotWeightBar(" in html
+    assert "previous week, same weekday" in js
+    assert "wow.setDate(wow.getDate() - 7)" in js
+
+
+def test_single_day_hides_trend_and_uses_weight_bar():
+    html = (ROOT / "templates/notification.html").read_text(encoding="utf-8")
+    assert 'id="nt-trend-card"' in html
+    assert 'id="nt-weight-card"' in html
+    assert 'id="nt-cmp-charts"' in html
+    assert ".nt-cmp-charts.is-single-day #nt-trend-card" in html
+    assert "if (isSingleDayRange())" in html
+    assert "Plotly.purge(el)" in html
 
 
 def test_notification_boot_loads_db_without_blocking_sync():

@@ -442,19 +442,33 @@
     };
   }
 
+  function ymdLocal(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
   function previousPeriodRange(start, end) {
     if (!start || !end) return null;
-    var s = new Date(start + "T00:00:00");
-    var e = new Date(end + "T00:00:00");
-    if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
+    var s = new Date(String(start).slice(0, 10) + "T12:00:00");
+    var e = new Date(String(end).slice(0, 10) + "T12:00:00");
+    if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return null;
     var span = Math.round((e - s) / 86400000) + 1;
+    // Single day (e.g. Yesterday): same weekday previous week — not adjacent day.
+    if (span === 1) {
+      var wow = new Date(s);
+      wow.setDate(wow.getDate() - 7);
+      var key = ymdLocal(wow);
+      return { start: key, end: key };
+    }
     var prevEnd = new Date(s);
     prevEnd.setDate(prevEnd.getDate() - 1);
     var prevStart = new Date(prevEnd);
     prevStart.setDate(prevStart.getDate() - span + 1);
     return {
-      start: prevStart.toISOString().slice(0, 10),
-      end: prevEnd.toISOString().slice(0, 10),
+      start: ymdLocal(prevStart),
+      end: ymdLocal(prevEnd),
     };
   }
 
@@ -501,7 +515,10 @@
         return periodPlatCard(sparkIds[k], labels[k], c, p, delta(c, p), share, sparkForKey(curDaily, prevDaily, k));
       }).join("");
       el.innerHTML = '<p class="mb-2 text-xs text-slate-500 dark:text-slate-400">'
-        + range.start + " – " + range.end + " vs " + prev.start + " – " + prev.end + "</p>"
+        + (range.start === range.end
+          ? (range.start + " vs " + prev.start + " (previous week, same weekday)")
+          : (range.start + " – " + range.end + " vs " + prev.start + " – " + prev.end))
+        + "</p>"
         + '<div class="nt-cmp-grid nt-cmp-grid-totals">'
         + periodKpiCard("nt-spark-rows", "Total count", curStats.rows, prevStats.rows, rowsD, { spark: sparkForKey(curDaily, prevDaily, "rows") })
         + periodKpiCard("nt-spark-clicks", "Total clicks", curStats.clicks, prevStats.clicks, clickD, { spark: sparkForKey(curDaily, prevDaily, "clicks") })
