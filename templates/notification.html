@@ -2976,19 +2976,18 @@
       if (data.preset === "custom" && (data.start || data.end)) {
         setPresetSelectors("custom");
         redrawAll();
-        return;
+      } else {
+        var migrated = localStorage.getItem("nt_default_1d_v1") === "1";
+        var preset = data.preset || "1d";
+        // Tek sefer: eski varsayılan Last 1 year → Yesterday
+        if (!migrated && (preset === "1y" || !data.preset)) {
+          localStorage.setItem("nt_default_1d_v1", "1");
+          applyPresetRange("1d", false);
+        } else {
+          if (!migrated) localStorage.setItem("nt_default_1d_v1", "1");
+          applyPresetRange(isNtCustomPreset(preset) ? "1d" : preset, true);
+        }
       }
-      var migrated = localStorage.getItem("nt_default_1d_v1") === "1";
-      var preset = data.preset || "1d";
-      // Tek sefer: eski varsayılan Last 1 year → Yesterday
-      if (!migrated && (preset === "1y" || !data.preset)) {
-        localStorage.setItem("nt_default_1d_v1", "1");
-        applyPresetRange("1d", false);
-        return;
-      }
-      if (!migrated) localStorage.setItem("nt_default_1d_v1", "1");
-      applyPresetRange(isNtCustomPreset(preset) ? "1d" : preset, true);
-    })
       if (hamListFilterActive()) {
         applyRawSearchFilter();
       } else {
