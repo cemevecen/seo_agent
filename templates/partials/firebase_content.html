@@ -1067,7 +1067,7 @@
       .then(function (j) {
         var sections = (j && j.sections) || {};
         var any = false;
-        if (j && (j.updated_at || j.background_synced_at || j.fetched_at)) {
+        if (j && (j.updated_at || j.background_synced_at || j.snap_at || j.fetched_at)) {
           setFbLastFetch(j);
         }
         SECTIONS.forEach(function (n) {
