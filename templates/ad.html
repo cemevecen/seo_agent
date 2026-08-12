@@ -857,10 +857,12 @@
       grid-template-columns: repeat(5, minmax(0, 1fr));
     }
   }
-  /* Virgül modu: sheet sync + manuel yükleme gizle (gelir hedefleri açık kalır) */
+  /* Virgül modu: sheet sync + manuel yükleme + Empower overlay gizle (gelir hedefleri açık kalır) */
   .mz-virgul-mode #mz-upload-panel,
   .mz-virgul-mode #mz-empower-upload,
   .mz-virgul-mode #mz-imports-wrap,
+  .mz-virgul-mode #mz-empower-overlay-bar,
+  .mz-virgul-mode [data-app-empower-overlay-root],
   .mz-virgul-mode [data-mz-sheets-only],
   .mz-virgul-mode #mz-cancel-sheets-sync,
   .mz-virgul-mode #mz-cancel-sheets-sync-top {
@@ -1386,11 +1388,13 @@
             {% include 'partials/market_overlay_select.html' %}
             {% endwith %}
           </div>
+          {% if ad_mode != 'virgul' %}
           <div id="mz-empower-overlay-bar" class="hidden shrink-0">
             {% with app_empower_overlay_control_id='mz-empower-overlay-root', app_empower_overlay_storage_key='mz-empower', app_empower_overlay_on_change='mzOnEmpowerOverlayChange' %}
             {% include 'partials/app_empower_overlay_select.html' %}
             {% endwith %}
           </div>
+          {% endif %}
         </div>
         <div id="mz-peer-toggle-kpi" class="hidden shrink-0"></div>
       </div>
@@ -1983,6 +1987,15 @@
     var orig = window.fetch.bind(window);
     window.fetch = function (input, init) {
       var url = typeof input === "string" ? input : (input && input.url) || "";
+      if (url && url.indexOf("/app-empower/") >= 0) {
+        var stub = url.indexOf("/overlay") >= 0
+          ? { series: {} }
+          : { imports: [], ok: true };
+        return Promise.resolve(new Response(JSON.stringify(stub), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
       if (url && url.indexOf("/api/mz-analytics") >= 0) {
         url = url.split("/api/mz-analytics").join("/api/virgul-analytics");
         if (typeof input === "string") input = url;
@@ -2084,6 +2097,11 @@
   })();
 
   window.__seoAdPageScriptRan = true;
+
+  function mzIsVirgulMode() {
+    return window.MZ_AD_MODE === "virgul";
+  }
+
   var KPI_DEFS = [
     { key: "net_revenue", label: "Net Revenue (TL)", dec: 2, axis: "TL" },
     { key: "empower_pageview", label: "Empower Pageview", dec: 0, axis: "" },
@@ -7786,7 +7804,7 @@
   };
 
   async function mzMaybeApplyEmpowerOverlay(traces, layoutExtra, dateKeys, opts) {
-    if (!mzIsMobileAppStream() || !window.AppEmpowerOverlay) return false;
+    if (mzIsVirgulMode() || !mzIsMobileAppStream() || !window.AppEmpowerOverlay) return false;
     var plat = mzActivePlatform();
     if (!plat) return false;
     var keys = AppEmpowerOverlay.modes("mz-empower-overlay-root");
@@ -7805,6 +7823,7 @@
   };
 
   function syncEmpowerOverlayBarVisibility() {
+    if (mzIsVirgulMode()) return;
     var bar = document.getElementById("mz-empower-overlay-bar");
     if (bar) bar.classList.toggle("hidden", !mzIsMobileAppStream());
     if (window.AppEmpowerOverlay) {
@@ -13045,6 +13064,7 @@
   }
 
   async function refreshMzEmpowerImports() {
+    if (mzIsVirgulMode()) return;
     var countEl = document.getElementById("mz-empower-imports-count");
     var root = document.getElementById("mz-empower-imports");
     var bulkBar = document.getElementById("mz-empower-bulk-bar");
