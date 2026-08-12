@@ -2,7 +2,7 @@
 
 Android ANR: Play Console vitals tarama (overview + sürüm ANR sayfası).
 Crash-free (son sürüm 24h + 7d): yalnızca S-Firebase Console tarama —
-Play Reporting API ve BigQuery yok.
+Play Reporting API yok.
 """
 
 from __future__ import annotations

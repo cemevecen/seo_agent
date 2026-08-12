@@ -337,6 +337,7 @@ def _enrich_serp(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str, An
         }
         out.pop("rows_stale", None)
     elif not _serp_has_rows(keywords):
+        out["message"] = out.get("message") or "SERP boş — Google headless engeli; Mac bridge headed tarama gerekir."
         last_good = _serp_last_good_source(prev)
         if last_good:
             out = _serp_restore_last_good(out, last_good)

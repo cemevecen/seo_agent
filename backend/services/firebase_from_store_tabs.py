@@ -1,7 +1,7 @@
 """Firebase sekmesi — yalnızca Firebase Console scrape (S-Firebase ile aynı depo).
 
 Kaynak: `firebase_console_workspace` ← Mac bridge `firebase_console_scrape.py`.
-Play Console / Reporting API / BigQuery bu sekmenin ana verisi değildir.
+Play Console / Reporting API bu sekmenin ana verisi değildir.
 """
 
 from __future__ import annotations

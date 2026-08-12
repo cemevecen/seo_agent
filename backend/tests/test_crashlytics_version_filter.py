@@ -1,27 +1,11 @@
-"""Crashlytics sürüm filtresi — SQL ve bellek içi filtre tutarlılığı."""
+"""Crashlytics sürüm filtresi — scrape payload helpers."""
 
 from backend.main import (
     _crash_fetch_filter_cache_key,
-    _refetch_filtered_payload,
     _version_list_from_params,
 )
-from backend.services.crashlytics_bq import (
-    _event_filters_sql,
-    _pick_higher_version,
-    _versions_filter_sql,
-)
-
-
-def test_versions_filter_sql_single():
-    assert "9.5.5" in _versions_filter_sql(version="9.5.5")
-    assert "IN" not in _versions_filter_sql(version="9.5.5")
-
-
-def test_versions_filter_sql_multi():
-    sql = _versions_filter_sql(versions=["9.5.5", "9.5.4"])
-    assert "IN" in sql
-    assert "'9.5.5'" in sql
-    assert "'9.5.4'" in sql
+from backend.services.crashlytics_payload import pick_higher_version, semver_sort_versions
+from backend.services.firebase_from_store_tabs import _filter_payload
 
 
 def test_version_list_from_params():
@@ -32,20 +16,30 @@ def test_version_list_from_params():
 
 
 def test_pick_higher_version_semver():
-    assert _pick_higher_version("9.5.4", "9.5.5") == "9.5.5"
-    assert _pick_higher_version("9.5.10", "9.5.5") == "9.5.10"
+    assert pick_higher_version("9.5.4", "9.5.5") == "9.5.5"
+    assert pick_higher_version("9.5.10", "9.5.5") == "9.5.10"
 
 
-def test_event_filters_sql_combines_type_and_version():
-    sql = _event_filters_sql(error_type="FATAL", versions=["9.5.5"])
-    assert "error_type = 'FATAL'" in sql
-    assert "9.5.5" in sql
+def test_semver_sort_versions():
+    assert semver_sort_versions(["9.5.4", "9.5.10", "9.5.5"])[0] == "9.5.10"
 
 
-def test_refetch_filtered_payload_no_filters_passthrough():
-    base = {"ok": True, "days": 7, "issues": [{"issue_id": "a", "event_count": 10}]}
-    out = _refetch_filtered_payload(base, {"product": "doviz", "platform": "all"})
-    assert out is base or out.get("issues") == base.get("issues")
+def test_filter_payload_by_version():
+    base = {
+        "ok": True,
+        "issues": [
+            {"issue_id": "a", "event_count": 10, "error_type": "FATAL", "latest_version": "9.5.5"},
+            {"issue_id": "b", "event_count": 3, "error_type": "FATAL", "latest_version": "9.5.4"},
+        ],
+        "anr": [],
+        "issues_by_platform": {},
+        "anr_by_platform": {},
+        "versions": [],
+        "versions_by_platform": {},
+    }
+    out = _filter_payload(base, versions=["9.5.5"], error_type=None)
+    assert len(out["issues"]) == 1
+    assert out["issues"][0]["issue_id"] == "a"
 
 
 def test_crash_fetch_filter_cache_key_includes_versions_and_type():

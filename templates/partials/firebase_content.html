@@ -1697,7 +1697,7 @@
         + '<p class="text-sm font-semibold text-amber-900 dark:text-amber-200">No events in the selected version</p>'
         + '<p class="mt-2 text-xs leading-relaxed text-amber-800 dark:text-amber-300">'
         + escapeHtml(vers ? "v" + vers + " has no records for this issue in the period." : "No records for the selected version filter.")
-        + " BigQuery export may lag; data for new versions often completes in 24–48 hours."
+        + " Sabah Firebase scrape sonrası güncellenir."
         + '</p></div>';
     }
     var s = j.summary || {};
@@ -1879,7 +1879,7 @@
       var j = arr[0], pa = arr[1];
       var bodyEl = document.getElementById("crash-detail-body");
       var titleEl = document.getElementById("crash-detail-title");
-      if (titleEl) titleEl.textContent = "BigQuery diagnostics · iOS/Android";
+      if (titleEl) titleEl.textContent = "Firebase scrape · iOS/Android";
       var html = "";
       if (pa && pa.findings && pa.findings.length) {
         html += '<div class="mb-3 space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">';

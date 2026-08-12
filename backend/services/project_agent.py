@@ -22,7 +22,7 @@ _SYSTEM_PROMPT = """sen ProjectControl'ün kıdemli teknik danışmanı ve göm�
 - **proje**: seo_agent — FastAPI + PostgreSQL + Railway deploy
 - **github**: cemevecen/seo_agent (default branch: main)
 - **dil**: Python 3.11 (backend), Jinja2 + Tailwind CSS (frontend), vanilla JS
-- **servisler**: Google Analytics 4, Search Console, App Store Connect (ASC), Google Play Reports, Firebase Crashlytics → BigQuery, Google Cloud Storage
+- **servisler**: Google Analytics 4, Search Console, App Store Connect (ASC), Google Play Reports, Firebase Console scrape (Crashlytics), Google Cloud Storage
 - **deploy**: Railway (production), main'e push edince otomatik deploy
 
 ## araçlar ve hangi soruda hangisini kullanırsın

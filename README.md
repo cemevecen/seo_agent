@@ -5,7 +5,7 @@
 Birden fazla web sitesi ve mobil uygulamadan SEO sinyallerini, gerçek zamanlı trafik verilerini, hata loglarını, meta tag denetimlerini, mağaza analitiklerini ve crash raporlarını tek bir panoda toplayan; otomatik mail uyarıları gönderen monolitik bir **SEO + uygulama izleme sistemi**.
 
 **Teknoloji yığını:**
-FastAPI · Jinja2 · HTMX · Tailwind CSS (CDN) · SQLAlchemy 2.0 · PostgreSQL (Railway) · APScheduler · Google Analytics Data API · Google Search Console API · Google PageSpeed Insights · CrUX History API · BigQuery (Firebase Crashlytics export) · Gmail API (OAuth, send) · iTunes/Google Play scrapers · TMDB · Çoklu LLM (Groq · Gemini · OpenAI) · Plotly
+FastAPI · Jinja2 · HTMX · Tailwind CSS (CDN) · SQLAlchemy 2.0 · PostgreSQL (Railway) · APScheduler · Google Analytics Data API · Google Search Console API · Google PageSpeed Insights · CrUX History API · Firebase Console scrape · Gmail API (OAuth, send) · iTunes/Google Play scrapers · TMDB · Çoklu LLM (Groq · Gemini · OpenAI) · Plotly
 
 ---
 
@@ -24,7 +24,7 @@ FastAPI · Jinja2 · HTMX · Tailwind CSS (CDN) · SQLAlchemy 2.0 · PostgreSQL 
 11. [Threshold Alarm Sistemi](#11-threshold-alarm-sistemi)
 12. [SEO Denetim Sistemi](#12-seo-denetim-sistemi)
 13. [404 / 5xx Hata İzleme](#13-404--5xx-hata-i̇zleme)
-14. [Firebase Crashlytics Entegrasyonu](#14-firebase-crashlytics-entegrasyonu)
+14. [Firebase Crashlytics (Console scrape)](#14-firebase-crashlytics-console-scrape)
 15. [App Intelligence (Mağaza Analitiği)](#15-app-intelligence-mağaza-analitiği)
 16. [Gmail Inbox + İki Aşamalı Auth](#16-gmail-inbox--i̇ki-aşamalı-auth)
 17. [News Intelligence (Çok Kanallı Haber)](#17-news-intelligence-çok-kanallı-haber)
@@ -88,7 +88,7 @@ Sistem birden fazla siteyi eş zamanlı yönetir. Her sitenin birden fazla GA4 p
 
 **External Sites (`external_sites` tablosu):** Sisteme bağlı ancak tam izleme yapılmayan partner siteler. 404 raporları, SEO denetimi ve threshold alarmlarından **hariç tutulur**; yalnızca bazı widget'larda referans olarak gösterilir.
 
-**Mağaza hesapları:** `APP_PRODUCTS` sözlüğü (`backend/services/app_intel.py`) iki mobil ürün için bundle id / package name / app store id / play store id eşleştirmesi tutar. Her ürünün ayrı bir Firebase projesi ve BigQuery export'u vardır.
+**Mağaza hesapları:** `APP_PRODUCTS` sözlüğü (`backend/services/app_intel.py`) iki mobil ürün için bundle id / package name / app store id / play store id eşleştirmesi tutar. Her ürünün ayrı Firebase projesi vardır; Crashlytics verisi Console scrape ile okunur.
 
 ---
 
@@ -221,19 +221,13 @@ En üstte hero card:
 - **Metrikler:** LCP, INP, CLS, FCP, TTFB (mobile + desktop ayrı)
 - **Saklanan:** `crux_history_snapshots` — chart serileri (40+ haftalık tarih)
 
-### 5.6 BigQuery (Firebase Crashlytics Export)
+### 5.6 Firebase Console scrape (Crashlytics)
 
-- **Dataset:** `firebase_crashlytics` (Firebase tarafından otomatik oluşturulur)
-- **Tablo şablonu:** `{bundle_id_underscored}_{PLATFORM}` (örn. `com_X_ANDROID`, `com_X_IOS`)
-- **Auth:** Platform başına ayrı service account JSON
-  - `CRASHLYTICS_IOS_SERVICE_ACCOUNT_JSON`
-  - `CRASHLYTICS_ANDROID_SERVICE_ACCOUNT_JSON`
-- **Auto-discovery:** `_discover_table_id()` farklı naming convention'larda tablo arar (`{bundle}_PLATFORM`, `{bundle}_REALTIME_PLATFORM`, eski `{bundle}`)
-- **Location detection:** `_get_dataset_location()` ile dataset bölgesi (US/EU) tespit edilir, tüm query'ler doğru location'a gönderilir
-- **Circuit breaker:** Dataset boşsa 1 saat boyunca yeni query gönderilmez (BigQuery kotasını korur)
-- **Query budget:** 200 MB/sorgu (dry-run ile tahmin); aşılırsa hata döner
-- **Concurrency:** Eş zamanlı max 2 sorgu (`threading.Semaphore`)
-- **Cache:** 4 saat in-memory (product + days + platform anahtar)
+- **Kaynak:** Mac bridge → `scripts/firebase_console_scrape.py` → Railway ingest
+- **Zamanlama:** Günde bir sabah (varsayılan 06:10 TR, `FIREBASE_CONSOLE_BRIDGE_HOURS`)
+- **Veri:** Crash-free, issue listesi, sürüm/cihaz kırılımı, Release Monitoring (Android + iOS)
+- **Panel:** `/firebase`, `/s-firebase`, ana sayfa stability-free kartları
+- **BigQuery:** kullanılmıyor (export kapalı)
 
 ### 5.7 RSS / Web Crawl
 
@@ -286,7 +280,7 @@ Ortak parametreler:
 | **03:00** | `daily-seo-audit` | GA4 top 250 web + 250 mweb sayfası crawl edilir, UrlAuditRecord güncellenir |
 | **03:30** | `daily-db-retention-cleanup` | 90 günü aşan snapshot ve loglar silinir |
 | **05:00** | `daily-data-explorer-refresh` | PSI + CrUX otomatik yenileme (her aktif site için mobile + desktop) |
-| **06:15** | `daily-crashlytics-refresh` | Firebase Crashlytics BigQuery'den tam veri çekimi (her ürün için) |
+| **06:10** | Mac bridge `sync-firebase` | Firebase Console Crashlytics scrape (günde bir) |
 
 ### 6.2 Sabah Search Console Refresh
 
@@ -681,79 +675,29 @@ Filtre chip'leri sadece DB'den okur, GA4 çağrısı yapmaz. Periyot değiştirm
 
 ---
 
-## 14. Firebase Crashlytics Entegrasyonu
+## 14. Firebase Crashlytics (Console scrape)
 
-### 14.1 Genel Yapı
+### 14.1 Genel yapı
 
-- Her mobil ürün için ayrı Firebase project ve BigQuery dataset
-- Service account JSON env değişkenlerinde tutulur
-- Code GCP project ID'sini service account JSON'undan okur (`_effective_project`)
-- Dataset location otomatik tespit edilir (US/EU) — query'ler doğru bölgeye gönderilir
+- **Kaynak:** Mac bridge → `scripts/firebase_console_scrape.py` → `/api/firebase-console/ingest`
+- **Zamanlama:** Günde bir sabah (varsayılan 06:10 TR)
+- **Ürünler:** Döviz Android (`doviz-android`) + iOS (`doviz-ios`)
+- **Panel:** `/firebase`, `/s-firebase`, ana sayfa + `/android` / `/ios` stability-free
+- **BigQuery:** kullanılmıyor
 
-### 14.2 Tablo Discovery
+### 14.2 Scrape verisi
 
-`_discover_table_id()` farklı naming convention'ları dener:
+| Alan | Açıklama |
+|------|----------|
+| Crash-free | 24s / 7g / 30g / 90g pencereleri |
+| Issues | FATAL, ANR, non-fatal listeleri |
+| Sürümler | `by_version`, son 3 sürüm varsayılan filtre |
+| Cihaz / OS | `by_device`, `by_os` kırılımı |
+| Release Monitoring | Firebase Console RPC parse |
 
-```
-{bundle}_PLATFORM            (standart, örn. com_X_ANDROID)
-{bundle}_REALTIME_PLATFORM    (realtime export)
-{bundle}                     (legacy)
-{bundle.lower()}_PLATFORM     (case varyasyonu)
-```
+### 14.3 Diagnose
 
-Exact match bulunamazsa substring fuzzy match. Sonuç process-içi cache'lenir.
-
-### 14.3 Query Tipleri
-
-| Sekme | SQL Özeti | Kaynak Fonksiyon |
-|-------|-----------|------------------|
-| Özet | error_type bazlı COUNT + DISTINCT users | `query_summary` |
-| Crash'ler | issue_id + issue_title + event_count + affected_users | `query_top_issues` |
-| ANR | error_type='ANR' ile aynı | `query_top_anr` |
-| Versiyonlar | app_version bazlı dağılım | `query_versions` |
-
-### 14.4 Güvenlik ve Optimizasyon
-
-- **Query budget:** 200 MB/sorgu (dry-run ile tahmin); aşılırsa hata mesajı
-- **Concurrency:** Eş zamanlı max 2 sorgu (`threading.Semaphore(2)`)
-- **Cache:** 4 saat in-memory
-- **Circuit breaker:** Dataset boşsa 1 saat boyunca yeni query gönderilmez (`_circuit_trip()` / `_circuit_open()`)
-- **Manuel refresh:** Circuit breaker + location cache'i sıfırlar
-
-### 14.5 Diagnose Endpoint
-
-`/api/app/crashlytics/diagnose?product=X` — production troubleshooting için JSON yanıt:
-
-```json
-{
-  "product": "...",
-  "platforms": {
-    "android": {
-      "service_account_email": "...",
-      "effective_project_id": "...",
-      "dataset_location": "US",
-      "all_datasets_in_project": [...],
-      "all_datasets_status": {
-        "firebase_crashlytics": {
-          "location": "US",
-          "created": "...",
-          "modified": "...",
-          "table_count": 0,
-          "tables": []
-        },
-        "firebase_performance": {...},
-        "firebase_sessions": {...}
-      },
-      "dataset_exists": true,
-      "dataset_tables": [...],
-      "discovered_table": "com_X_ANDROID"
-    },
-    "ios": {...}
-  }
-}
-```
-
-Her adımda hata varsa ayrı alanlarda raporlanır (`list_datasets_error`, `dataset_check_error`, `list_tables_error`).
+`/api/app/crashlytics/diagnose?product=doviz` — son scrape snapshot özeti (platform, issue/version/device sayıları).
 
 ---
 
@@ -1024,12 +968,12 @@ Aynı dark mode matlaştırma `home-de-card` scope'unda uygulanır.
 - **Tüketim:** Mobile + desktop = 2/site/refresh; cooldown sistemi tekrarı önler
 - **Risk:** Düşük
 
-### 21.5 BigQuery (Crashlytics)
+### 21.5 Firebase Console scrape
 
-- **Query budget:** 200 MB/sorgu (dry-run kontrolü)
-- **Concurrency:** 2 eş zamanlı sorgu max
-- **Circuit breaker:** Dataset boşsa 1 saat dondurma
-- **Cache:** 4 saat in-memory
+- **Zamanlama:** Mac bridge günde bir (06:10 TR)
+- **Cache:** `firebase_console_store` DB + process içi okuma
+- **Manuel:** Panel Refresh yalnızca son ingest'i yeniden yükler; yeni veri için bridge scrape gerekir
+- **BigQuery:** yok
 
 ### 21.6 TMDB
 
@@ -1161,9 +1105,9 @@ SEARCH_CONSOLE_CLIENT_ID=...
 SEARCH_CONSOLE_CLIENT_SECRET=...
 PAGESPEED_API_KEY=...
 
-# Firebase Crashlytics (BigQuery)
-CRASHLYTICS_IOS_SERVICE_ACCOUNT_JSON=...
-CRASHLYTICS_ANDROID_SERVICE_ACCOUNT_JSON=...
+# Firebase Console scrape (Mac bridge → /api/firebase-console/ingest)
+FIREBASE_CONSOLE_SCRAPE_INGEST_URL=https://projectcontrol.up.railway.app/api/firebase-console/ingest
+FIREBASE_CONSOLE_SCRAPE_INGEST_TOKEN=...
 
 # Mail (SMTP veya Gmail OAuth)
 SMTP_HOST=smtp.gmail.com
@@ -1238,7 +1182,7 @@ GMAIL_REDIRECT_URI=...
 03:00  ── SEO audit crawl
 03:30  ── DB retention cleanup
 05:00  ── Data Explorer (PSI + CrUX) refresh
-06:15  ── Firebase Crashlytics BigQuery refresh
+06:10  ── Firebase Console scrape (Mac bridge → ingest)
 07:30  ── Search Console refresh-all
 08:00  ── Alerts scheduled refresh
 09:00  ── AI Daily Brief (eğer aktif)
@@ -1278,9 +1222,9 @@ Tam dump: SA email, project ID, dataset location, mevcut tablolar, discovered ta
 
 `/admin/scheduler` (planlı) — aktif job'lar, son çalışma zamanı, next-run.
 
-### 26.3 BigQuery Test
+### 26.3 Firebase scrape durumu
 
-`/admin/test-bigquery-crashlytics?product=X&platform=android` — manuel BQ erişim testi (yetki + tablo kontrolü).
+`/api/app/crashlytics/diagnose?product=doviz` — son ingest snapshot özeti (platform, issue/version/device sayıları).
 
 ### 26.4 Mail Test
 

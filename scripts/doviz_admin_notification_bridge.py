@@ -104,7 +104,7 @@ VIRGUL_SLOT_MINUTE = int(os.environ.get("VIRGUL_BRIDGE_MINUTE") or "0")
 PLAY_SLOT_HOURS = (0, 3, 6, 9, 12, 15, 18, 21)
 PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "0")
 ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "5")
-FIREBASE_SLOT_HOURS = (6,)  # günde bir — sabah tarama (BigQuery yok)
+FIREBASE_SLOT_HOURS = (6,)  # günde bir — sabah Firebase Console scrape
 _FIREBASE_HOURS_RAW = (os.environ.get("FIREBASE_CONSOLE_BRIDGE_HOURS") or "").strip()
 if _FIREBASE_HOURS_RAW:
     FIREBASE_SLOT_HOURS = tuple(
@@ -1390,6 +1390,8 @@ def _run_pm_lab_script(*, jobs: str = "", label: str = "PM lab") -> dict[str, An
     cmd = [sys.executable, str(script)]
     if jobs:
         cmd.extend(["--jobs", jobs, "--ingest"])
+        if "serp" in {j.strip() for j in jobs.split(",") if j.strip()}:
+            cmd.append("--headed")
         if jobs == "competitors":
             timeout_sec = int(os.environ.get("PM_LAB_COMPETITORS_TIMEOUT_SEC") or "540")
         else:

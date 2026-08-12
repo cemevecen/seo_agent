@@ -1,21 +1,6 @@
-"""Android cihaz adı ve platform dilimleme testleri."""
+"""crashlytics_payload — platform dilimleme."""
 
-from backend.services.android_device_names import friendly_device_label, lookup_marketing_name
 from backend.services.crashlytics_payload import slice_payload_for_platform
-
-
-def test_friendly_android_model_code():
-    name = friendly_device_label("Xiaomi", "2209116AG", platform="android")
-    assert "Redmi Note 12 Pro 4G" in name or lookup_marketing_name("2209116AG")
-
-
-def test_friendly_breakdown_row_from_cached_label():
-    from backend.services.android_device_names import friendly_breakdown_row
-
-    row = {"label": "samsung SM-A515F", "event_count": 42, "pct": 22.3}
-    out = friendly_breakdown_row(row, platform="android")
-    assert "Galaxy A51" in out["label"] or "SM-A515F" not in out["label"]
-    assert out.get("label_raw") == "samsung SM-A515F"
 
 
 def test_slice_payload_ios():

@@ -3103,13 +3103,10 @@
     var note = document.getElementById("app-crashlytics-note");
     if (!box) return;
     if (note) {
-      if (j && j.ok && j.bigquery_project) {
-        note.textContent =
-          "Proje: " +
-          j.bigquery_project +
-          " · Dataset: " +
-          (j.bigquery_dataset || "firebase_crashlytics") +
-          " · Table names are bundle id / package (dot → underscore).";
+      if (j && j.ok && j.source) {
+        note.textContent = "Kaynak: Firebase Console scrape · " + (j.scraped_at_label || j.updated_at || "");
+      } else if (j && j.ok) {
+        note.textContent = "Kaynak: Firebase Console scrape";
       } else {
         note.textContent = "";
       }

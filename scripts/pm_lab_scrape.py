@@ -532,6 +532,55 @@ def _extract_serp(page: Any) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _google_blocked(page: Any) -> bool:
+    try:
+        body = (page.inner_text("body") or "").lower()[:5000]
+    except Exception:
+        return False
+    markers = (
+        "unusual traffic",
+        "automated queries",
+        "captcha",
+        "recaptcha",
+        "olağandışı trafik",
+        "robot olmadığınız",
+        "robot değil",
+        "/sorry/",
+    )
+    return any(m in body for m in markers)
+
+
+def _load_serp_page(page: Any, url: str) -> dict[str, Any]:
+    parsed: dict[str, Any] = {}
+    for attempt in range(3):
+        _goto(page, url, timeout=75_000)
+        try:
+            page.wait_for_selector(
+                "#search, #rso, div.g, div[data-sokoban-container], div.MjjYud",
+                timeout=12_000,
+            )
+        except Exception:
+            pass
+        page.wait_for_timeout(1200 + attempt * 700)
+        parsed = _extract_serp(page)
+        if parsed.get("organic"):
+            return parsed
+        if _google_blocked(page):
+            page.wait_for_timeout(4500 + attempt * 2500)
+            continue
+        try:
+            page.evaluate("window.scrollTo(0, Math.min(900, document.body.scrollHeight))")
+        except Exception:
+            pass
+        page.wait_for_timeout(900 + attempt * 500)
+        parsed = _extract_serp(page)
+        if parsed.get("organic"):
+            return parsed
+        if attempt < 2:
+            page.wait_for_timeout(2200 + attempt * 1800)
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def job_serp(page: Any) -> dict[str, Any]:
     keywords: list[dict[str, Any]] = []
     for kw in SERP_KEYWORDS:
@@ -541,26 +590,12 @@ def job_serp(page: Any) -> dict[str, Any]:
             start = pno * 10
             url = f"https://www.google.com/search?q={quote(kw)}&hl=tr&gl=tr&pws=0&num=10&start={start}"
             try:
-                _goto(page, url, timeout=75_000)
-                try:
-                    page.wait_for_selector(
-                        "#search, #rso, div.g, div[data-sokoban-container], div.MjjYud",
-                        timeout=12_000,
-                    )
-                except Exception:
-                    pass
-                page.wait_for_timeout(1200)
-                parsed = _extract_serp(page)
-                if not (parsed.get("organic") or []):
-                    try:
-                        page.evaluate("window.scrollTo(0, Math.min(900, document.body.scrollHeight))")
-                    except Exception:
-                        pass
-                    page.wait_for_timeout(900)
-                    parsed = _extract_serp(page)
+                parsed = _load_serp_page(page, url)
             except Exception:
                 break
             organic = parsed.get("organic") or []
+            if not organic and pno == 0:
+                break
             for i, row in enumerate(organic, 1):
                 rec = {
                     "keyword": kw,
@@ -576,7 +611,7 @@ def job_serp(page: Any) -> dict[str, Any]:
                 if rec["ours"] and our is None:
                     our = rec["rank"]
                 rows.append(rec)
-            time.sleep(1.6)
+            time.sleep(2.2)
         keywords.append(
             {
                 "keyword": kw,
@@ -585,12 +620,19 @@ def job_serp(page: Any) -> dict[str, Any]:
                 "rows": rows,
             }
         )
+        time.sleep(1.8)
     total = sum(k.get("row_count") or 0 for k in keywords)
+    empty_kw = sum(1 for k in keywords if not (k.get("rows") or []))
+    message = ""
+    if not total:
+        message = "SERP boş"
+    elif empty_kw:
+        message = f"{empty_kw} kelime boş (Google limiti) — birkaç dk sonra Refresh"
     return {
         "ok": total > 0,
         "scraped_at": _now(),
         "summary": f"{len(keywords)} kelime · {SERP_PAGES} sayfa · {total} sonuç",
-        "message": "" if total else "SERP boş",
+        "message": message,
         "keywords": keywords,
         "pages": SERP_PAGES,
     }
@@ -2120,14 +2162,21 @@ def main(argv: list[str] | None = None) -> int:
             print(f"bilinmeyen job: {j}", flush=True)
             return 2
 
-    headed = bool(args.headed)
-    if os.environ.get("PM_LAB_HEADLESS", "").strip() in ("1", "true", "yes"):
-        headed = False
+    # Google SERP headless'ta sonuç dönmüyor; fx-google profili headed gerekir.
+    google_jobs = [j for j in wanted if j in ("serp",)]
+    public = [j for j in wanted if j in ("competitors", "store_charts", "google_news")]
+    if args.headed:
+        headed_serp = True
+        headed_public = True
+    elif os.environ.get("PM_LAB_HEADLESS", "").strip() in ("1", "true", "yes"):
+        headed_serp = False
+        headed_public = False
+    else:
+        headed_serp = bool(google_jobs)
+        headed_public = False
 
     from playwright.sync_api import sync_playwright
 
-    public = [j for j in wanted if j in ("competitors", "store_charts", "google_news")]
-    google_jobs = [j for j in wanted if j in ("serp",)]
     fns = {
         "serp": job_serp,
         "competitors": job_competitors,
@@ -2140,7 +2189,7 @@ def main(argv: list[str] | None = None) -> int:
         if public:
             browser, ctx = launch_ephemeral(
                 pw,
-                headed=headed,
+                headed=headed_public,
                 locale="tr-TR",
                 viewport={"width": 1280, "height": 900},
                 user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0",
@@ -2158,7 +2207,7 @@ def main(argv: list[str] | None = None) -> int:
             ctx = launch_persistent(
                 pw,
                 google_profile_dir(),
-                headed=headed,
+                headed=headed_serp,
                 viewport={"width": 1440, "height": 1100},
             )
             page = ctx.pages[0] if ctx.pages else ctx.new_page()

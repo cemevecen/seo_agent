@@ -91,7 +91,7 @@ def page_fetch_crashlytics_summary(
     days: int = 7,
     limit_issues: int = 8,
 ) -> dict[str, Any]:
-    """Firebase/Crashlytics özet — Firebase Console scrape (BigQuery kapalı)."""
+    """Firebase/Crashlytics özet — Firebase Console scrape."""
     from backend.services.firebase_from_store_tabs import build_firebase_tab_payload
 
     pid = (product or "doviz").strip().lower()
@@ -114,7 +114,7 @@ def page_fetch_crashlytics_summary(
         }
 
     if plat in ("ios", "android"):
-        from backend.services.crashlytics_bq import slice_payload_for_platform
+        from backend.services.crashlytics_payload import slice_payload_for_platform
 
         payload = slice_payload_for_platform(payload, plat)
 
