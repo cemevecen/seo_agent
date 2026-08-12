@@ -145,7 +145,7 @@
 
 <div class="space-y-4">
   {# Hata banner'ı — store-tabs kaynağında soft uyarı gösterme #}
-  {% if data.errors and data.source != 'android_ios_store_tabs' %}
+  {% if data.errors and data.source not in ('android_ios_store_tabs', 'firebase_console_scrape') %}
     {% set _seen = [] %}
     {% set _unique = [] %}
     {% for e in data.errors %}
@@ -169,7 +169,7 @@
   </div>
 
   {# Crash-free yoksa açıklama — store-tabs soft hint yok #}
-  {% if cf is none and data.crash_free_hints and data.source != 'android_ios_store_tabs' %}
+  {% if cf is none and data.crash_free_hints and data.source not in ('android_ios_store_tabs', 'firebase_console_scrape') %}
     <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5 dark:border-indigo-900/50 dark:bg-indigo-950/30">
       {% for hint in data.crash_free_hints %}
         <p class="text-xs leading-snug text-indigo-800 dark:text-indigo-300">{{ hint }}</p>

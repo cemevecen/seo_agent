@@ -209,6 +209,9 @@ def query_firebase_console(
         anr_issues = [
             i for i in (block.get("anr_issues") or []) if isinstance(i, dict) and _keep_fact(i)
         ]
+        nonfatal_issues = [
+            i for i in (block.get("nonfatal_issues") or []) if isinstance(i, dict) and _keep_fact(i)
+        ]
         release = block.get("release_monitoring") if isinstance(block.get("release_monitoring"), dict) else {}
         if ver and release.get("version") and str(release.get("version")) != ver:
             release = {**release, "filter_mismatch": True}
@@ -226,7 +229,9 @@ def query_firebase_console(
                     "series",
                     "by_version",
                     "by_device",
+                    "by_os",
                     "anr_issues",
+                    "nonfatal_issues",
                     "crash_free_pct",
                     "crash_free_fmt",
                     "crash_free_sessions_pct",
@@ -241,9 +246,15 @@ def query_firebase_console(
             "window": win or None,
             "issues": issues[:200],
             "anr_issues": anr_issues[:80],
+            "nonfatal_issues": nonfatal_issues[:80],
             "series": series[-days_i:] if series else [],
             "by_version": by_version[:50],
             "by_device": by_device[:50],
+            "by_os": [
+                r
+                for r in (block.get("by_os") or [])
+                if isinstance(r, dict)
+            ][:50],
             "release_monitoring": release,
             "latest_24h": block.get("latest_24h") or windows.get("24h"),
             "latest_7d": block.get("latest_7d") or windows.get("7d"),

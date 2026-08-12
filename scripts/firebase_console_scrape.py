@@ -773,6 +773,11 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
     crash_urls = _urls(plat, time_param="90d", version=version, issue_types="crash")
     _goto_collect(page, crash_urls["crashlytics"], captured, wait_ms=7000)
     crash_net = _parse_releasemon_network(captured[before:], plat=plat)
+    crash_issues = crash_net.get("issues") or []
+    for iss in crash_issues:
+        if isinstance(iss, dict):
+            iss["error_type"] = "FATAL"
+            iss.setdefault("version", version)
 
     anr_issues: list[dict[str, Any]] = []
     if plat == "android":
@@ -782,6 +787,28 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
         _goto_collect(page, anr_urls["crashlytics"], captured, wait_ms=7000)
         anr_net = _parse_releasemon_network(captured[before:], plat=plat)
         anr_issues = anr_net.get("issues") or []
+        for iss in anr_issues:
+            if isinstance(iss, dict):
+                iss["error_type"] = "ANR"
+                iss.setdefault("version", version)
+
+    print(f"  · {plat}/crashlytics_nonfatal@90d …", flush=True)
+    before = len(captured)
+    nf_urls = _urls(plat, time_param="90d", version=version, issue_types="all")
+    # types=all can mix; prefer explicit nonfatal when Console accepts it
+    nf_urls_nf = _urls(plat, time_param="90d", version=version, issue_types="nonfatal")
+    _goto_collect(page, nf_urls_nf["crashlytics"], captured, wait_ms=7000)
+    nf_net = _parse_releasemon_network(captured[before:], plat=plat)
+    nonfatal_issues = nf_net.get("issues") or []
+    if not nonfatal_issues:
+        before = len(captured)
+        _goto_collect(page, nf_urls["crashlytics"], captured, wait_ms=5000)
+        # ignore mixed dump — keep empty rather than pollute FATAL
+        nonfatal_issues = []
+    for iss in nonfatal_issues:
+        if isinstance(iss, dict):
+            iss["error_type"] = "NON_FATAL"
+            iss.setdefault("version", version)
 
     print(f"  · {plat}/analytics …", flush=True)
     ov_urls = _urls(plat, time_param="90d", version=version)
@@ -806,13 +833,17 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
     print(f"  · {plat}/overview …", flush=True)
     _goto_collect(page, ov_urls["overview"], captured, wait_ms=5000)
 
+    # FATAL only — ANR / NON_FATAL ayrı listelerde (UI karışmasın)
     issues = _merge_issues(
         windows.get("90d", {}).get("issues") or [],
         windows.get("7d", {}).get("issues") or [],
         windows.get("30d", {}).get("issues") or [],
-        crash_net.get("issues") or [],
-        anr_issues,
+        crash_issues,
     )
+    for iss in issues:
+        if isinstance(iss, dict):
+            iss.setdefault("error_type", "FATAL")
+            iss.setdefault("version", version)
     by_version = windows.get("90d", {}).get("by_version") or net90.get("by_version") or []
     series = windows.get("90d", {}).get("series") or []
     if len(release_all.get("series") or []) > len(series):
@@ -850,8 +881,10 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
         "release_all": release_all,
         "issues": issues,
         "anr_issues": anr_issues[:40],
+        "nonfatal_issues": nonfatal_issues[:40],
         "by_version": by_version[:40],
         "by_device": [],
+        "by_os": [],
         "series": series,
         "sessions_series": sessions_series,
         "release_monitoring": {

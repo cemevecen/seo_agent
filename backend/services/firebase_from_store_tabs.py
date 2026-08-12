@@ -1,7 +1,7 @@
-"""Firebase sekmesi — /android + /ios tarama / stability-free kaynakları.
+"""Firebase sekmesi — yalnızca Firebase Console scrape (S-Firebase ile aynı depo).
 
-Play Console vitals + stability-free. Reporting API ve BigQuery peek yedek kapalı.
-Sentetik veri yok.
+Kaynak: `firebase_console_workspace` ← Mac bridge `firebase_console_scrape.py`.
+Play Console / Reporting API / BigQuery bu sekmenin ana verisi değildir.
 """
 
 from __future__ import annotations
@@ -672,7 +672,7 @@ def _filter_payload(
 
 
 def get_vitals_issue_detail(issue_id: str) -> dict[str, Any] | None:
-    """Play vitals scrape issue_details — modal için."""
+    """Geriye dönük: Play vitals detayı (artık birincil değil)."""
     from backend.database import SessionLocal
     from backend.services.play_console_store import play_console_payload
 
@@ -693,12 +693,10 @@ def get_vitals_issue_detail(issue_id: str) -> dict[str, Any] | None:
         details = block.get("issue_details") if isinstance(block.get("issue_details"), dict) else {}
         if iid in details and isinstance(details[iid], dict):
             return {**details[iid], "error_type": "FATAL" if et == "CRASH" else "ANR"}
-        # id prefix / suffix match
         for k, det in details.items():
             if str(k) == iid or str(k).endswith(iid) or iid.endswith(str(k)):
                 if isinstance(det, dict):
                     return {**det, "error_type": "FATAL" if et == "CRASH" else "ANR"}
-    # listeden bul
     for et in ("CRASH", "ANR"):
         for iss in _flatten_vitals_issues(crashes, et):
             if iss.get("issue_id") == iid:
@@ -708,15 +706,288 @@ def get_vitals_issue_detail(issue_id: str) -> dict[str, Any] | None:
                     "url": iss.get("detail_url"),
                     "error_type": iss.get("error_type"),
                     "summary_cards": [
-                        {"title": "Olay", "value": str(iss.get("event_count") or "—")},
-                        {"title": "Kullanıcı", "value": str(iss.get("affected_users") or "—")},
-                        {"title": "Sürüm", "value": str(iss.get("latest_version") or "—")},
+                        {"title": "Events", "value": str(iss.get("event_count") or "—")},
+                        {"title": "Users", "value": str(iss.get("affected_users") or "—")},
+                        {"title": "Version", "value": str(iss.get("latest_version") or "—")},
                     ],
-                    "insights": ["Kaynak: Play Console vitals (/android)"],
+                    "insights": ["Source: Play Console vitals (legacy)"],
                     "stack_trace": "",
                     "sections": [],
                 }
     return None
+
+
+def get_firebase_console_issue_detail(
+    issue_id: str,
+    *,
+    platform: str | None = None,
+) -> dict[str, Any] | None:
+    """Firebase Console scrape içinden issue özeti (modal)."""
+    from backend.database import SessionLocal
+    from backend.services.firebase_console_store import firebase_console_payload
+
+    iid = (issue_id or "").strip()
+    if not iid:
+        return None
+    plat_f = (platform or "").strip().lower()
+    try:
+        with SessionLocal() as db:
+            snap = firebase_console_payload(db) or {}
+    except Exception:
+        logger.debug("firebase console issue detail failed", exc_info=True)
+        return None
+    platforms = snap.get("platforms") if isinstance(snap.get("platforms"), dict) else {}
+    plats = [plat_f] if plat_f in ("android", "ios") else ["android", "ios"]
+    for plat in plats:
+        block = platforms.get(plat) if isinstance(platforms.get(plat), dict) else {}
+        if not block:
+            continue
+        pages = block.get("pages") if isinstance(block.get("pages"), dict) else {}
+        detail_base = str(pages.get("crashlytics") or "").split("?")[0]
+        pools: list[tuple[str, list]] = [
+            ("FATAL", list(block.get("issues") or [])),
+            ("ANR", list(block.get("anr_issues") or [])),
+            ("NON_FATAL", list(block.get("nonfatal_issues") or [])),
+        ]
+        windows = block.get("windows") if isinstance(block.get("windows"), dict) else {}
+        for win in windows.values():
+            if isinstance(win, dict) and win.get("issues"):
+                pools.append(("FATAL", list(win.get("issues") or [])))
+        for et, rows in pools:
+            for iss in rows:
+                if not isinstance(iss, dict):
+                    continue
+                sid = str(iss.get("id") or iss.get("issue_id") or "").strip()
+                if not sid or (sid != iid and not sid.endswith(iid) and not iid.endswith(sid)):
+                    continue
+                title = str(iss.get("title") or iss.get("issue_title") or sid)[:240]
+                events = _parse_count(iss.get("event_count") or iss.get("events"))
+                users = _parse_count(iss.get("affected_users") or iss.get("users"))
+                ver = str(
+                    iss.get("version")
+                    or iss.get("app_version")
+                    or iss.get("latest_version")
+                    or block.get("latest_version")
+                    or "—"
+                )[:80]
+                url = str(iss.get("url") or iss.get("detail_url") or "").strip()
+                if not url and detail_base and sid:
+                    url = f"{detail_base}/{sid}"
+                mapped_et = str(iss.get("error_type") or et).upper()
+                if mapped_et in ("CRASH", "FATAL"):
+                    mapped_et = "FATAL"
+                elif mapped_et in ("ANR",):
+                    mapped_et = "ANR"
+                elif "NON" in mapped_et:
+                    mapped_et = "NON_FATAL"
+                return {
+                    "issue_id": sid,
+                    "title": title,
+                    "url": url or None,
+                    "error_type": mapped_et,
+                    "summary_cards": [
+                        {"title": "Events", "value": str(events or "—")},
+                        {"title": "Users", "value": str(users or "—")},
+                        {"title": "Version", "value": ver},
+                        {"title": "Platform", "value": plat},
+                    ],
+                    "insights": [
+                        str(iss.get("detail") or iss.get("exception") or "").strip()
+                        or "Source: Firebase Console scrape",
+                        "Source: Firebase Console scrape (/firebase)",
+                    ],
+                    "stack_trace": str(iss.get("stack_trace") or "")[:8000],
+                    "sections": [],
+                    "platform": plat,
+                }
+    return None
+
+
+def _map_scrape_issue(
+    iss: dict[str, Any],
+    *,
+    platform: str,
+    error_type: str,
+    default_version: str | None = None,
+    days: int = 7,
+) -> dict[str, Any] | None:
+    from backend.services.crashlytics_detail import enrich_issue_row
+
+    if not isinstance(iss, dict):
+        return None
+    iid = str(iss.get("id") or iss.get("issue_id") or "").strip()
+    title = str(iss.get("title") or iss.get("issue_title") or "").strip()
+    if not title and not iid:
+        return None
+    if not title:
+        title = f"Issue {iid[:12]}"
+    events = _parse_count(iss.get("event_count") or iss.get("events"))
+    users = _parse_count(iss.get("affected_users") or iss.get("users"))
+    ver = (
+        str(iss.get("version") or iss.get("app_version") or iss.get("latest_version") or "").strip()
+        or (default_version or "—")
+    )
+    et = str(iss.get("error_type") or error_type or "FATAL").upper()
+    if et in ("CRASH",):
+        et = "FATAL"
+    if "NON" in et:
+        et = "NON_FATAL"
+    row = {
+        "issue_id": iid or title[:64],
+        "issue_title": title[:240],
+        "error_type": et,
+        "event_count": events,
+        "affected_users": users,
+        "latest_version": ver[:80],
+        "platform": platform,
+        "detail_url": str(iss.get("url") or iss.get("detail_url") or "")[:512] or None,
+        "source": "firebase_console_scrape",
+        "badges": list(iss.get("badges") or iss.get("tags") or [])[:4],
+        "exception": str(iss.get("exception") or iss.get("detail") or "")[:200] or None,
+    }
+    return enrich_issue_row(row, days=days)
+
+
+def _versions_from_scrape_block(
+    block: dict[str, Any],
+    *,
+    fatal_issues: list[dict[str, Any]],
+    anr_issues: list[dict[str, Any]],
+    nonfatal_issues: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_v = block.get("by_version") if isinstance(block.get("by_version"), list) else []
+    agg: dict[str, dict[str, Any]] = {}
+
+    def _bucket(ver: str) -> dict[str, Any]:
+        key = ver.strip() or "—"
+        if key not in agg:
+            agg[key] = {
+                "app_version": key,
+                "fatal_count": 0,
+                "anr_count": 0,
+                "non_fatal_count": 0,
+                "total_events": 0,
+                "affected_users": 0,
+            }
+        return agg[key]
+
+    for iss in fatal_issues:
+        b = _bucket(str(iss.get("latest_version") or "—"))
+        b["fatal_count"] += int(iss.get("event_count") or 0) or 1
+        b["affected_users"] += int(iss.get("affected_users") or 0)
+    for iss in anr_issues:
+        b = _bucket(str(iss.get("latest_version") or "—"))
+        b["anr_count"] += int(iss.get("event_count") or 0) or 1
+        b["affected_users"] += int(iss.get("affected_users") or 0)
+    for iss in nonfatal_issues:
+        b = _bucket(str(iss.get("latest_version") or "—"))
+        b["non_fatal_count"] += int(iss.get("event_count") or 0) or 1
+        b["affected_users"] += int(iss.get("affected_users") or 0)
+
+    for row in by_v:
+        if not isinstance(row, dict):
+            continue
+        ver = str(row.get("version") or row.get("label") or "").strip()
+        if not ver:
+            continue
+        b = _bucket(ver)
+        if row.get("build") and not b.get("version_code"):
+            b["version_code"] = str(row.get("build"))
+        # Scrape satırında event varsa kullan
+        for src_key, dst in (
+            ("fatal_count", "fatal_count"),
+            ("anr_count", "anr_count"),
+            ("non_fatal_count", "non_fatal_count"),
+            ("event_count", "fatal_count"),
+            ("events", "fatal_count"),
+            ("affected_users", "affected_users"),
+        ):
+            n = _parse_count(row.get(src_key))
+            if n > 0 and dst == "affected_users":
+                b[dst] = max(int(b.get(dst) or 0), n)
+            elif n > 0 and int(b.get(dst) or 0) <= 0:
+                b[dst] = n
+
+    out = list(agg.values())
+    for r in out:
+        r["total_events"] = int(r.get("fatal_count") or 0) + int(r.get("anr_count") or 0) + int(
+            r.get("non_fatal_count") or 0
+        )
+    out.sort(key=lambda r: -int(r.get("total_events") or 0))
+    return out
+
+
+def _trend_from_cf_series(series: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Crash-free günlük seriden özet spark için trend satırları."""
+    out: list[dict[str, Any]] = []
+    for s in series or []:
+        if not isinstance(s, dict):
+            continue
+        day = str(s.get("date") or s.get("day") or "")[:10]
+        if len(day) < 10:
+            continue
+        cf = s.get("crash_free_pct")
+        users = _parse_count(s.get("users"))
+        try:
+            cf_f = float(cf) if cf is not None else None
+        except (TypeError, ValueError):
+            cf_f = None
+        if cf_f is None:
+            fatal = 0
+        else:
+            # CF düştükçe “risk” artar; kullanıcı hacmiyle ölçekle
+            risk = max(0.0, 100.0 - cf_f)
+            fatal = int(round(risk * max(users, 1) / 100.0)) if users else int(round(risk * 10))
+        out.append(
+            {
+                "date": day,
+                "fatal": fatal,
+                "anr": 0,
+                "non_fatal": 0,
+                "crash_free_pct": cf_f,
+            }
+        )
+    return out
+
+
+def _device_breakdown_from_scrape(block: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = block.get("by_device") if isinstance(block.get("by_device"), list) else []
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        label = str(r.get("label") or r.get("device") or r.get("device_model") or "").strip()
+        if not label:
+            continue
+        out.append(
+            {
+                "label": label,
+                "manufacturer": str(r.get("manufacturer") or "")[:80] or None,
+                "model": str(r.get("model") or label)[:120],
+                "event_count": _parse_count(r.get("event_count") or r.get("events") or r.get("count")),
+            }
+        )
+    out.sort(key=lambda x: -int(x.get("event_count") or 0))
+    return out[:40]
+
+
+def _os_breakdown_from_scrape(block: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = block.get("by_os") if isinstance(block.get("by_os"), list) else []
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        label = str(r.get("os_version") or r.get("label") or r.get("os") or "").strip()
+        if not label:
+            continue
+        out.append(
+            {
+                "os_version": label,
+                "event_count": _parse_count(r.get("event_count") or r.get("events") or r.get("count")),
+            }
+        )
+    out.sort(key=lambda x: -int(x.get("event_count") or 0))
+    return out[:40]
 
 
 def build_firebase_tab_payload(
@@ -727,9 +998,9 @@ def build_firebase_tab_payload(
     versions: list[str] | None = None,
     error_type: str | None = None,
 ) -> dict[str, Any]:
-    """Firebase HTMX partials için scrape/stability-free payload."""
+    """Firebase HTMX partials — Firebase Console scrape payload."""
     pid = (product_id or "doviz").strip().lower()
-    cache_key = f"{pid}:{int(days)}:store_tabs:v4"
+    cache_key = f"{pid}:{int(days)}:firebase_console_scrape:v1"
 
     if not force_refresh:
         cached = _cache_get(cache_key)
@@ -766,12 +1037,10 @@ def _build_firebase_tab_payload_uncached(
     error_type: str | None,
     cache_key: str,
 ) -> dict[str, Any]:
-    """Firebase HTMX partials için scrape/stability-free payload (lock altında)."""
+    """Firebase HTMX — yalnızca Firebase Console scrape (lock altında)."""
     from backend.database import SessionLocal
     from backend.services.app_intel import APP_PRODUCTS
-    from backend.services.crashlytics_detail import enrich_issue_row
-    from backend.services.play_console_store import play_console_payload
-    from backend.services.stability_free import build_stability_free_payload, invalidate_stability_cache
+    from backend.services.firebase_console_store import query_firebase_console
 
     pid = product_id
     if pid not in APP_PRODUCTS:
@@ -779,210 +1048,246 @@ def _build_firebase_tab_payload_uncached(
 
     if force_refresh:
         invalidate_firebase_store_cache(pid)
-        try:
-            invalidate_stability_cache(pid)
-        except Exception:
-            pass
 
-    package = "com.Doviz"
-    vitals: dict[str, Any] = {}
-    snap_at = None
+    try:
+        days_i = int(days or 7)
+    except (TypeError, ValueError):
+        days_i = 7
+    days_i = min(max(days_i, 1), 90)
+
     try:
         with SessionLocal() as db:
-            snap = play_console_payload(db) or {}
-        package = (snap.get("package_name") or package).strip() or package
-        panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
-        vitals = panels.get("vitals") if isinstance(panels.get("vitals"), dict) else {}
-        snap_at = snap.get("updated_at") or snap.get("fetched_at")
+            q = query_firebase_console(db, platform="all", days=days_i)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("firebase store-tabs snapshot: %s", exc)
-
-    try:
-        sf = build_stability_free_payload(
-            package_name=package,
-            product_id=pid,
-            vitals=vitals,
-            force_refresh=force_refresh,
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("firebase store-tabs stability-free failed")
+        logger.exception("firebase console query failed")
         return {
             "ok": False,
             "configured": True,
             "product": pid,
-            "message": f"Android/iOS stability verisi alınamadı: {str(exc)[:120]}",
+            "message": f"Firebase Console scrape okunamadı: {str(exc)[:140]}",
             "errors": [str(exc)[:200]],
+            "source": "firebase_console_scrape",
         }
 
-    play_overall = sf.get("play_overall") if isinstance(sf.get("play_overall"), dict) else {}
-    play_latest = sf.get("play_latest") if isinstance(sf.get("play_latest"), dict) else {}
-    cf_root = sf.get("crashlytics") if isinstance(sf.get("crashlytics"), dict) else {}
-    cf_plats = cf_root.get("platforms") if isinstance(cf_root.get("platforms"), dict) else {}
-    and_cf = cf_plats.get("android") if isinstance(cf_plats.get("android"), dict) else {}
-    ios_cf = cf_plats.get("ios") if isinstance(cf_plats.get("ios"), dict) else {}
+    platforms = q.get("platforms") if isinstance(q.get("platforms"), dict) else {}
+    snap_at = q.get("updated_at") or q.get("background_synced_at") or q.get("fetched_at")
+    empty = bool(q.get("empty")) or not platforms
 
-    crashes = vitals.get("crashes") if isinstance(vitals.get("crashes"), dict) else {}
-    fatal_issues_raw = _flatten_vitals_issues(crashes, "CRASH")
-    anr_issues_raw = _flatten_vitals_issues(crashes, "ANR")
+    if empty:
+        return {
+            "ok": False,
+            "configured": True,
+            "product": pid,
+            "days": days_i,
+            "requested_days": days,
+            "message": (
+                "No Firebase Console scrape yet. "
+                "Run Update page → Firebase or Mac bridge /sync-firebase."
+            ),
+            "errors": [],
+            "source": "firebase_console_scrape",
+            "snap_at": snap_at,
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+        }
 
-    period_days = 28
-    for et in ("CRASH", "ANR"):
-        block = crashes.get(et) if isinstance(crashes.get(et), dict) else {}
-        if block.get("days"):
-            try:
-                period_days = int(block["days"])
-            except (TypeError, ValueError):
-                pass
-            break
-    ov = vitals.get("metrics_overview") if isinstance(vitals.get("metrics_overview"), dict) else {}
-    if ov.get("period") == "28d":
-        period_days = 28
-
-    fatal_issues = [enrich_issue_row({**r}, days=period_days) for r in fatal_issues_raw]
-    anr_issues = [enrich_issue_row({**r}, days=period_days) for r in anr_issues_raw]
-
-    fatal_events = sum(int(r.get("event_count") or 0) for r in fatal_issues) or len(fatal_issues)
-    anr_events = sum(int(r.get("event_count") or 0) for r in anr_issues) or len(anr_issues)
-    affected = sum(int(r.get("affected_users") or 0) for r in fatal_issues + anr_issues)
-
-    # Crash-free: Android = Play scrape; iOS = /ios stability-free (Crashlytics peek)
-    android_cf = _cf_from_sf_block(
-        {
-            "crash_free_pct": play_overall.get("crash_free_pct"),
-            "crash_free_sessions_pct": play_overall.get("crash_free_pct"),
-            "crash_free_users_pct": play_overall.get("crash_free_pct"),
-            "anr_free_pct": play_overall.get("anr_free_pct"),
-            "crash_free_fmt": play_overall.get("crash_free_fmt"),
-            "anr_free_fmt": play_overall.get("anr_free_fmt"),
-        },
-        method="play_vitals_overview",
-    )
-    if not android_cf and (and_cf.get("overall") or {}):
-        android_cf = _cf_from_sf_block(and_cf.get("overall"), method="android_crashlytics_peek")
-
-    ios_overall = ios_cf.get("overall") if isinstance(ios_cf.get("overall"), dict) else None
-    ios_latest = ios_cf.get("latest") if isinstance(ios_cf.get("latest"), dict) else None
-    ios_cf_block = _cf_from_sf_block(ios_latest or ios_overall, method="ios_stability_free")
-
+    issues_by_plat: dict[str, list] = {"android": [], "ios": []}
+    anr_by_plat: dict[str, list] = {"android": [], "ios": []}
+    nf_by_plat: dict[str, list] = {"android": [], "ios": []}
+    versions_by_plat: dict[str, list] = {"android": [], "ios": []}
+    filter_versions_by_plat: dict[str, list] = {"android": [], "ios": []}
     crash_free_by_plat: dict[str, Any] = {}
-    if android_cf:
-        crash_free_by_plat["android"] = android_cf
-    if ios_cf_block:
-        crash_free_by_plat["ios"] = ios_cf_block
+    summary_by_plat: dict[str, Any] = {}
+    trend_by_plat: dict[str, list] = {"android": [], "ios": []}
+    version_trend_by_plat: dict[str, list] = {"android": [], "ios": []}
+    device_by_plat: dict[str, list] = {"android": [], "ios": []}
+    os_by_plat: dict[str, list] = {"android": [], "ios": []}
+    latest_by_plat: dict[str, Any] = {}
 
-    # iOS issue/sürüm — yalnızca /ios stability kaynağı (Crashlytics peek); Play vitals karışmaz
-    ios_issues: list[dict[str, Any]] = []
-    ios_anr: list[dict[str, Any]] = []
-    ios_version_rows: list[dict[str, Any]] = []
-    ios_filter_versions: list[str] = []
-    ios_device: list[dict[str, Any]] = []
-    ios_os: list[dict[str, Any]] = []
-    ios_process: list[dict[str, Any]] = []
-    ios_trend: list[dict[str, Any]] = []
-    ios_version_trend: list[dict[str, Any]] = []
-    android_version_trend: list[dict[str, Any]] = []
-    android_device: list[dict[str, Any]] = []
-    android_os: list[dict[str, Any]] = []
-    ios_fatal = int(ios_cf.get("fatal") or 0) if isinstance(ios_cf.get("fatal"), (int, float)) else 0
-    ios_anr_n = int(ios_cf.get("anr") or 0) if isinstance(ios_cf.get("anr"), (int, float)) else 0
-    ios_affected = 0
-    bd_days = max(int(period_days or 28), int(days or 7))
-
-    try:
-        android_device, android_os = _android_breakdowns_from_scrape(days=bd_days)
-    except Exception:
-        logger.debug("firebase android scrape breakdown failed", exc_info=True)
-
-    try:
-        android_version_trend = _android_version_trend_from_scrape(days=bd_days)
-    except Exception:
-        logger.debug("firebase android version trend failed", exc_info=True)
-
-    for v in (ios_cf.get("versions") or [])[:3]:
-        if not isinstance(v, dict) or not v.get("version"):
+    for plat in ("android", "ios"):
+        block = platforms.get(plat) if isinstance(platforms.get(plat), dict) else {}
+        if not block:
+            summary_by_plat[plat] = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0}
             continue
-        ver = str(v["version"]).strip()
-        ios_filter_versions.append(ver)
-        fatal_c = int(v.get("fatal") or 0)
-        total_c = int(v.get("total_events") or fatal_c or 0)
-        users_c = int(v.get("affected_users") or 0)
-        ios_version_rows.append(
-            {
-                "app_version": ver,
-                "fatal_count": fatal_c,
-                "anr_count": 0,
-                "non_fatal_count": 0,
-                "total_events": total_c,
-                "affected_users": users_c,
-            }
+
+        latest_ver = str(block.get("latest_version") or "").strip() or None
+        anr_ids = {
+            str(i.get("id") or i.get("issue_id") or "").strip()
+            for i in (block.get("anr_issues") or [])
+            if isinstance(i, dict)
+        }
+        nf_ids = {
+            str(i.get("id") or i.get("issue_id") or "").strip()
+            for i in (block.get("nonfatal_issues") or [])
+            if isinstance(i, dict)
+        }
+
+        fatal_rows: list[dict[str, Any]] = []
+        for iss in block.get("issues") or []:
+            if not isinstance(iss, dict):
+                continue
+            sid = str(iss.get("id") or iss.get("issue_id") or "").strip()
+            if sid and (sid in anr_ids or sid in nf_ids):
+                continue
+            # Eski scrape: ANR title karışmış olabilir
+            title_l = str(iss.get("title") or "").lower()
+            et_hint = str(iss.get("error_type") or iss.get("page") or "").lower()
+            if "anr" in et_hint or title_l.startswith("anr"):
+                continue
+            mapped = _map_scrape_issue(
+                iss,
+                platform=plat,
+                error_type="FATAL",
+                default_version=latest_ver,
+                days=days_i,
+            )
+            if mapped:
+                fatal_rows.append(mapped)
+
+        anr_rows: list[dict[str, Any]] = []
+        for iss in block.get("anr_issues") or []:
+            mapped = _map_scrape_issue(
+                iss,
+                platform=plat,
+                error_type="ANR",
+                default_version=latest_ver,
+                days=days_i,
+            )
+            if mapped:
+                anr_rows.append(mapped)
+
+        nf_rows: list[dict[str, Any]] = []
+        for iss in block.get("nonfatal_issues") or []:
+            mapped = _map_scrape_issue(
+                iss,
+                platform=plat,
+                error_type="NON_FATAL",
+                default_version=latest_ver,
+                days=days_i,
+            )
+            if mapped:
+                nf_rows.append(mapped)
+
+        # NON_FATAL filtresi için fatal listesine de ekle (tür filtresi)
+        issues_combined = fatal_rows + nf_rows
+        issues_by_plat[plat] = issues_combined
+        anr_by_plat[plat] = anr_rows
+        nf_by_plat[plat] = nf_rows
+
+        ver_rows = _versions_from_scrape_block(
+            block,
+            fatal_issues=fatal_rows,
+            anr_issues=anr_rows,
+            nonfatal_issues=nf_rows,
         )
-    if ios_version_rows:
-        ios_fatal = sum(int(r.get("fatal_count") or 0) for r in ios_version_rows)
-        ios_affected = sum(int(r.get("affected_users") or 0) for r in ios_version_rows)
+        versions_by_plat[plat] = ver_rows
+        filter_versions_by_plat[plat] = [
+            str(r.get("app_version") or "")
+            for r in ver_rows
+            if r.get("app_version") and r.get("app_version") != "—"
+        ][:40]
+        if latest_ver and latest_ver not in filter_versions_by_plat[plat]:
+            filter_versions_by_plat[plat].insert(0, latest_ver)
 
-    if not ios_filter_versions and ios_cf.get("latest_version"):
-        ios_filter_versions = [str(ios_cf["latest_version"])]
+        cf_pct = block.get("crash_free_pct")
+        sess_pct = block.get("crash_free_sessions_pct")
+        if cf_pct is None and isinstance(block.get("window"), dict):
+            cf_pct = block["window"].get("crash_free_pct")
+            sess_pct = block["window"].get("crash_free_sessions_pct", sess_pct)
+        android_cf = _cf_from_sf_block(
+            {
+                "crash_free_pct": cf_pct,
+                "crash_free_sessions_pct": sess_pct if sess_pct is not None else cf_pct,
+                "crash_free_users_pct": cf_pct,
+                "crash_free_fmt": block.get("crash_free_fmt"),
+            },
+            method="firebase_console_scrape",
+        )
+        if android_cf:
+            crash_free_by_plat[plat] = android_cf
 
-    version_rows = _version_rows_from_vitals(vitals)
-    filter_versions = [str(r.get("app_version") or "") for r in version_rows if r.get("app_version")]
-    for pv in sf.get("play_versions") or []:
-        if not isinstance(pv, dict):
-            continue
-        name = str(pv.get("version_name") or "").strip()
-        if name and name not in filter_versions:
-            filter_versions.append(name)
+        fatal_n = sum(int(r.get("event_count") or 0) for r in fatal_rows) or len(fatal_rows)
+        anr_n = sum(int(r.get("event_count") or 0) for r in anr_rows) or len(anr_rows)
+        nf_n = sum(int(r.get("event_count") or 0) for r in nf_rows) or len(nf_rows)
+        users_n = sum(int(r.get("affected_users") or 0) for r in fatal_rows + anr_rows + nf_rows)
+        summary_by_plat[plat] = {
+            "fatal": fatal_n,
+            "anr": anr_n,
+            "non_fatal": nf_n,
+            "affected_users": users_n,
+        }
 
-    summary_by_plat = {
-        "android": {
-            "fatal": fatal_events,
-            "anr": anr_events,
-            "non_fatal": 0,
-            "affected_users": affected,
-        },
-        "ios": {
-            "fatal": ios_fatal,
-            "anr": ios_anr_n,
-            "non_fatal": 0,
-            "affected_users": ios_affected,
-        },
-    }
+        trend_by_plat[plat] = _trend_from_cf_series(block.get("series") or [])
+        device_by_plat[plat] = _device_breakdown_from_scrape(block)
+        os_by_plat[plat] = _os_breakdown_from_scrape(block)
 
-    # Platform birleşik CF yalnızca yan yana özet için; sütun diliminde kendi CF'si kullanılır
+        # Version × time: CF serisi + en güncel sürüm (scrape günlük issue kırılımı yok)
+        vt: list[dict[str, Any]] = []
+        top_ver = latest_ver or (filter_versions_by_plat[plat][0] if filter_versions_by_plat[plat] else None)
+        if top_ver:
+            for t in trend_by_plat[plat]:
+                vt.append(
+                    {
+                        "date": t.get("date"),
+                        "app_version": top_ver,
+                        "event_count": int(t.get("fatal") or 0),
+                    }
+                )
+        version_trend_by_plat[plat] = vt
+
+        latest_by_plat[plat] = {
+            "version": latest_ver,
+            "fatal": fatal_n,
+            "anr": anr_n,
+            "crash_free": android_cf,
+        }
+
+    all_issues = issues_by_plat["android"] + issues_by_plat["ios"]
+    all_anr = anr_by_plat["android"] + anr_by_plat["ios"]
+    all_versions = versions_by_plat["android"] + versions_by_plat["ios"]
+    all_trend = (trend_by_plat.get("android") or []) or (trend_by_plat.get("ios") or [])
+
     crash_free_pct = None
     crash_free_sessions_pct = None
     crash_free_users_pct = None
     crash_free_method = None
-    if android_cf and ios_cf_block:
-        # İkisinin ortalamasını yazma — yanıltır; all görünümünde boş bırak
+    and_cf = crash_free_by_plat.get("android")
+    ios_cf = crash_free_by_plat.get("ios")
+    if and_cf and ios_cf:
         crash_free_method = "per_platform"
-    elif android_cf:
-        crash_free_pct = android_cf.get("crash_free_pct")
-        crash_free_sessions_pct = android_cf.get("crash_free_sessions_pct")
-        crash_free_users_pct = android_cf.get("crash_free_users_pct")
-        crash_free_method = android_cf.get("method")
-    elif ios_cf_block:
-        crash_free_pct = ios_cf_block.get("crash_free_pct")
-        crash_free_sessions_pct = ios_cf_block.get("crash_free_sessions_pct")
-        crash_free_users_pct = ios_cf_block.get("crash_free_users_pct")
-        crash_free_method = ios_cf_block.get("method")
+    elif and_cf:
+        crash_free_pct = and_cf.get("crash_free_pct")
+        crash_free_sessions_pct = and_cf.get("crash_free_sessions_pct")
+        crash_free_users_pct = and_cf.get("crash_free_users_pct")
+        crash_free_method = and_cf.get("method")
+    elif ios_cf:
+        crash_free_pct = ios_cf.get("crash_free_pct")
+        crash_free_sessions_pct = ios_cf.get("crash_free_sessions_pct")
+        crash_free_users_pct = ios_cf.get("crash_free_users_pct")
+        crash_free_method = ios_cf.get("method")
+
+    totals = {
+        "fatal": sum(int((summary_by_plat.get(p) or {}).get("fatal") or 0) for p in ("android", "ios")),
+        "anr": sum(int((summary_by_plat.get(p) or {}).get("anr") or 0) for p in ("android", "ios")),
+        "non_fatal": sum(
+            int((summary_by_plat.get(p) or {}).get("non_fatal") or 0) for p in ("android", "ios")
+        ),
+        "affected_users": sum(
+            int((summary_by_plat.get(p) or {}).get("affected_users") or 0) for p in ("android", "ios")
+        ),
+    }
 
     result: dict[str, Any] = {
         "ok": True,
         "configured": True,
         "product": pid,
-        "days": period_days,
-        "data_days": period_days,
+        "days": days_i,
+        "data_days": days_i,
         "requested_days": days,
         "platform_filter": "all",
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "snap_at": snap_at,
-        "source": "android_ios_store_tabs",
-        "totals": {
-            "fatal": fatal_events + ios_fatal,
-            "anr": anr_events + ios_anr_n,
-            "non_fatal": 0,
-            "affected_users": affected + ios_affected,
-        },
+        "source": "firebase_console_scrape",
+        "totals": totals,
         "crash_free_pct": crash_free_pct,
         "crash_free_sessions_pct": crash_free_sessions_pct,
         "crash_free_users_pct": crash_free_users_pct,
@@ -990,70 +1295,29 @@ def _build_firebase_tab_payload_uncached(
         "crash_free_hints": [],
         "crash_free_by_platform": crash_free_by_plat,
         "summary_by_platform": summary_by_plat,
-        # Birleşik listeler: dilimlemede platform kırılımı kullanılır
-        "issues": fatal_issues + ios_issues,
-        "issues_by_platform": {
-            "android": fatal_issues,
-            "ios": ios_issues,
-        },
-        "anr": anr_issues + ios_anr,
-        "anr_by_platform": {
-            "android": anr_issues,
-            "ios": ios_anr,
-        },
-        "versions": version_rows + ios_version_rows,
-        "versions_by_platform": {
-            "android": version_rows,
-            "ios": ios_version_rows,
-        },
-        "versions_7d_by_platform": {
-            "android": version_rows,
-            "ios": ios_version_rows,
-        },
-        "latest_version_stats_by_platform": {
-            "android": {
-                "version": (play_latest or {}).get("version_name")
-                or (and_cf.get("latest_version") if and_cf else None),
-                "fatal": fatal_events,
-                "anr": anr_events,
-                "crash_free": _cf_from_sf_block(play_latest, method="play_reporting")
-                if play_latest
-                else None,
-            },
-            "ios": {
-                "version": ios_cf.get("latest_version")
-                or (ios_filter_versions[0] if ios_filter_versions else None),
-                "fatal": ios_fatal,
-                "anr": ios_anr_n,
-                "crash_free": ios_cf_block,
-            },
-        },
-        "filter_versions_by_platform": {
-            "android": filter_versions[:30],
-            "ios": ios_filter_versions[:12],
-        },
-        "trend": ios_trend,
-        "trend_by_platform": {"android": [], "ios": ios_trend},
-        "version_trend": (android_version_trend or []) + (ios_version_trend or []),
-        "version_trend_by_platform": {
-            "android": android_version_trend or [],
-            "ios": ios_version_trend or [],
-        },
-        "device_breakdown": android_device or ios_device,
-        "device_breakdown_by_platform": {"android": android_device, "ios": ios_device},
-        "os_breakdown": android_os or ios_os,
-        "os_breakdown_by_platform": {"android": android_os, "ios": ios_os},
-        "process_state_breakdown": ios_process,
-        "process_state_breakdown_by_platform": {"android": [], "ios": ios_process},
+        "issues": all_issues,
+        "issues_by_platform": issues_by_plat,
+        "anr": all_anr,
+        "anr_by_platform": anr_by_plat,
+        "versions": all_versions,
+        "versions_by_platform": versions_by_plat,
+        "versions_7d_by_platform": versions_by_plat,
+        "latest_version_stats_by_platform": latest_by_plat,
+        "filter_versions_by_platform": filter_versions_by_plat,
+        "trend": all_trend,
+        "trend_by_platform": trend_by_plat,
+        "version_trend": (version_trend_by_plat.get("android") or [])
+        + (version_trend_by_plat.get("ios") or []),
+        "version_trend_by_platform": version_trend_by_plat,
+        "device_breakdown": device_by_plat.get("android") or device_by_plat.get("ios") or [],
+        "device_breakdown_by_platform": device_by_plat,
+        "os_breakdown": os_by_plat.get("android") or os_by_plat.get("ios") or [],
+        "os_breakdown_by_platform": os_by_plat,
+        "process_state_breakdown": [],
+        "process_state_breakdown_by_platform": {"android": [], "ios": []},
         "storage_mb": {},
-        # Soft uyarı yok — sütunlarda sarı banner / "çekilemedi" üretmesin
         "errors": [],
-        "play_overall": play_overall,
-        "play_latest": play_latest,
-        "stability_free": {
-            "ok": bool(sf.get("ok")),
-            "play_error": sf.get("play_error"),
-        },
+        "filter_options": q.get("filter_options") or {},
     }
 
     try:

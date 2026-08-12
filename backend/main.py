@@ -15768,9 +15768,9 @@ def app_intel_page(request: Request):
 
 @app.get("/firebase")
 def firebase_page(request: Request):
-    """Firebase Crashlytics izleme — /android + /ios scrape kaynakları."""
+    """Firebase Crashlytics — Firebase Console scrape (S-Firebase ile aynı depo)."""
     from backend.services.app_intel import APP_PRODUCTS
-    from backend.services.play_console_store import play_console_payload
+    from backend.services.firebase_console_store import firebase_console_payload
 
     crash_products = [
         {"id": k, "label": v.get("label") or k}
@@ -15783,13 +15783,13 @@ def firebase_page(request: Request):
     last_fetch_label = ""
     try:
         with SessionLocal() as db:
-            pc = play_console_payload(db)
-        raw = (pc or {}).get("updated_at") or (pc or {}).get("background_synced_at")
+            fc = firebase_console_payload(db)
+        raw = (fc or {}).get("updated_at") or (fc or {}).get("background_synced_at")
         last_fetch_label = format_datetime_like(
             raw, fmt="%d.%m.%Y %H:%M", fallback="", include_suffix=False
         )
     except Exception:
-        LOGGER.exception("firebase last_fetch_label (play console) atlandı")
+        LOGGER.exception("firebase last_fetch_label (firebase console) atlandı")
 
     payload = {
         "site_name": "Firebase",
@@ -16303,7 +16303,7 @@ def _crash_fetch(params: dict) -> dict:
 
 
 def _crash_fetch_impl(params: dict) -> dict:
-    """Firebase /app Crashlytics HTMX — /android + /ios scrape & stability-free."""
+    """Firebase Crashlytics HTMX — Firebase Console scrape."""
     from backend.services import crashlytics_bq as cbq
     from backend.services.firebase_from_store_tabs import build_firebase_tab_payload
 
@@ -16443,7 +16443,8 @@ def api_crash_bundle(request: Request):
             "platform": params.get("platform"),
             "days": params.get("days"),
             "fetched_at": (data or {}).get("fetched_at"),
-            "updated_at": (data or {}).get("updated_at"),
+            "snap_at": (data or {}).get("snap_at"),
+            "updated_at": (data or {}).get("updated_at") or (data or {}).get("snap_at"),
             "background_synced_at": (data or {}).get("background_synced_at"),
         }
     )
@@ -16546,8 +16547,60 @@ def api_crash_issue_detail(
     fp = _crash_params(request)
     ver_list = _version_list_from_params(fp)
 
-    # Önce Play vitals scrape detayı (/android ile aynı)
-    from backend.services.firebase_from_store_tabs import get_vitals_issue_detail
+    # Önce Firebase Console scrape; yoksa Play vitals (legacy)
+    from backend.services.firebase_from_store_tabs import (
+        get_firebase_console_issue_detail,
+        get_vitals_issue_detail,
+    )
+
+    scrape_det = get_firebase_console_issue_detail(iid, platform=plat)
+    if scrape_det:
+        cards = scrape_det.get("summary_cards") or []
+        events = 0
+        users = 0
+        for c in cards:
+            t = str((c or {}).get("title") or "").lower()
+            v = (c or {}).get("value")
+            if "event" in t or "olay" in t:
+                try:
+                    from backend.services.firebase_from_store_tabs import _parse_count
+
+                    events = _parse_count(v)
+                except Exception:
+                    pass
+            if "user" in t or "kullan" in t:
+                try:
+                    from backend.services.firebase_from_store_tabs import _parse_count
+
+                    users = _parse_count(v)
+                except Exception:
+                    pass
+        return JSONResponse(
+            {
+                "ok": True,
+                "platform": scrape_det.get("platform") or plat,
+                "issue_id": iid,
+                "source": "firebase_console_scrape",
+                "summary": {
+                    "issue_title": scrape_det.get("title") or "",
+                    "error_type": scrape_det.get("error_type") or "FATAL",
+                    "total_events": events,
+                    "affected_users": users,
+                    "first_seen": None,
+                    "last_seen": None,
+                },
+                "trend": [],
+                "versions": [],
+                "os": [],
+                "devices": [],
+                "blame": [],
+                "stack_trace": scrape_det.get("stack_trace") or "",
+                "insights": scrape_det.get("insights") or [],
+                "sections": scrape_det.get("sections") or [],
+                "detail_url": scrape_det.get("url") or None,
+                "filter_versions": ver_list or None,
+            }
+        )
 
     vitals_det = get_vitals_issue_detail(iid) if plat == "android" else None
     if vitals_det:

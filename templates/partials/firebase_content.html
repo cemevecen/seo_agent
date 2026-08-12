@@ -228,7 +228,7 @@
           <span class="crash-motion-pulse" aria-hidden="true"></span>
           <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Crashlytics</h2>
         </div>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Source: /android Play Console · /ios stability-free</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Source: Firebase Console scrape (same store as S-Firebase)</p>
         <p id="fb-last-fetch" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-500">Last fetch: {% if last_fetch_label %}{{ last_fetch_label }}{% else %}—{% endif %}</p>
       </div>
       <div class="flex flex-wrap items-stretch gap-2 sm:items-center">
@@ -782,7 +782,7 @@
     if (!el) return;
     data = data || {};
     var stamp = fmtFbLastFetch(
-      data.updated_at || data.background_synced_at || data.fetched_at || ""
+      data.updated_at || data.background_synced_at || data.snap_at || data.fetched_at || ""
     );
     el.textContent = stamp ? ("Last fetch: " + stamp) : "Last fetch: —";
   }
