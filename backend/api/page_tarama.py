@@ -149,6 +149,17 @@ def claim(
     return {"ok": True, "job": job}
 
 
+@router.post("/page-tarama/bridge-ping")
+def bridge_ping(
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Mac keepalive — uzun scrape sırasında claim loop bloklansa bile bridge canlı kalsın."""
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    store.touch_bridge()
+    return {"ok": True}
+
+
 @router.post("/page-tarama/result")
 def result(
     body: ResultBody,

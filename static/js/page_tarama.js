@@ -637,6 +637,21 @@
         }
         var d = p.data || {};
         applyServerProgress(d, steps, jobs);
+        // Bridge 90sn+ sessiz ve iş hâlâ queued → daemon claim etmiyor
+        var bridgeAge = d.bridge_age_sec;
+        var elapsedMs = Date.now() - started;
+        if (d.running && elapsedMs > 100000
+            && typeof bridgeAge === "number" && bridgeAge >= 90) {
+          var stillQueued = (d.jobs || []).some(function (j) {
+            return j && j.kind === "bridge" && (j.status === "queued" || j.status === "wait");
+          });
+          if (stillQueued) {
+            throw new Error(
+              "Mac bridge offline (last seen " + Math.round(bridgeAge) + "s ago). "
+              + "Restart: python scripts/doviz_admin_notification_bridge.py --daemon"
+            );
+          }
+        }
         if (d.running) return sleep(900).then(poll);
         return d;
       });

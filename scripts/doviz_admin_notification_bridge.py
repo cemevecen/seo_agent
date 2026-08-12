@@ -2874,6 +2874,19 @@ def _pm_lab_claim_loop() -> None:
             time.sleep(5)
 
 
+def _page_tarama_keepalive_loop() -> None:
+    """Uzun tarama sırasında claim thread bloklansa bile Railway'e canlılık sinyali."""
+    url = _page_tarama_api_base() + "/api/page-tarama/bridge-ping"
+    print(f"Uzaktan tarama keepalive: {url}", flush=True)
+    while True:
+        try:
+            if _ingest_token():
+                requests.post(url, headers=_page_tarama_auth_headers(), timeout=15)
+        except Exception as exc:  # noqa: BLE001
+            print(f"page-tarama keepalive: {exc}", flush=True)
+        time.sleep(20)
+
+
 def _page_tarama_claim_loop() -> None:
     """Mobil/Railway «Sayfayı güncelle» kuyruğunu Mac’te çalıştır."""
     url = _page_tarama_api_base() + "/api/page-tarama/claim"
@@ -3057,6 +3070,7 @@ def run_daemon() -> int:
         print(f"Oturum bekçi başlatılamadı: {exc}", flush=True)
     threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()
     threading.Thread(target=_page_tarama_claim_loop, name="page-tarama-claim", daemon=True).start()
+    threading.Thread(target=_page_tarama_keepalive_loop, name="page-tarama-keepalive", daemon=True).start()
     threading.Thread(target=_pm_lab_claim_loop, name="pm-lab-claim", daemon=True).start()
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), _BridgeHandler)
     print(

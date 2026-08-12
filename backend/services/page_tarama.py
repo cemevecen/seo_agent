@@ -58,6 +58,8 @@ PAGES: dict[str, list[str]] = {
 }
 
 BRIDGE_STALE_SEC = 90.0
+# Claimed/running iş progress göndermezse (daemon çöktü / claim loop kilitli) kuyruk açılsın
+PROGRESS_STALE_SEC = 180.0
 CLAIM_STALE_SEC = 2 * 60 * 60
 RUN_TTL_SEC = 3 * 60 * 60
 MANUAL_LIMIT = 3
@@ -367,23 +369,22 @@ def claim_next() -> dict[str, Any] | None:
     with _state():
         _bridge_seen_at = now
         _prune_locked(now)
+        _reap_stale_inflight_locked(now)
         for run in _runs.values():
             _expire_locked(run, now)
             for job in run["jobs"]:
                 if job.get("kind") != "bridge":
                     continue
                 if job.get("status") in ("claimed", "running"):
-                    age = now - float(job.get("claimed_at") or now)
-                    if age < CLAIM_STALE_SEC:
-                        return None
-                    job["status"] = "fail"
-                    job["detail"] = "Mac scan timed out"
+                    # Hâlâ canlı in-flight — yeni claim yok
+                    return None
         for run in sorted(_runs.values(), key=lambda r: float(r.get("started_at") or 0)):
             _expire_locked(run, now)
             for job in run["jobs"]:
                 if job.get("kind") == "bridge" and job.get("status") == "queued":
                     job["status"] = "claimed"
                     job["claimed_at"] = now
+                    job["progress_at"] = now
                     job["detail"] = "Mac scan started"
                     return {
                         "run_id": run["id"],
@@ -450,6 +451,28 @@ def mark_running(
                 return
 
 
+def _reap_stale_inflight_locked(now: float) -> None:
+    """İlerleme kalp atışı kesilen claimed/running işleri fail et — kuyruk kilitlenmesin."""
+    for run in _runs.values():
+        for job in run["jobs"]:
+            if job.get("kind") != "bridge":
+                continue
+            if job.get("status") not in ("claimed", "running"):
+                continue
+            claimed_at = float(job.get("claimed_at") or now)
+            progress_at = float(job.get("progress_at") or claimed_at)
+            age = now - claimed_at
+            quiet = now - progress_at
+            if age >= CLAIM_STALE_SEC:
+                job["status"] = "fail"
+                job["detail"] = "Mac scan timed out"
+                job["finished_at"] = now
+            elif quiet >= PROGRESS_STALE_SEC:
+                job["status"] = "fail"
+                job["detail"] = "Mac scan lost progress — restart bridge --daemon"
+                job["finished_at"] = now
+
+
 def _any_in_flight_locked() -> bool:
     for run in _runs.values():
         for job in run["jobs"]:
@@ -459,6 +482,8 @@ def _any_in_flight_locked() -> bool:
 
 
 def _expire_locked(run: dict[str, Any], now: float) -> None:
+    """Bridge yoksa / sessizse bekleyen işleri fail et. Önce stale in-flight temizlenir."""
+    _reap_stale_inflight_locked(now)
     if _any_in_flight_locked():
         return
     age = None if _bridge_seen_at is None else now - _bridge_seen_at
@@ -472,6 +497,7 @@ def _expire_locked(run: dict[str, Any], now: float) -> None:
         if job.get("kind") == "bridge" and job.get("status") == "queued":
             job["status"] = "fail"
             job["detail"] = "Mac bridge missing — daemon is not running"
+            job["finished_at"] = now
 
 
 def _fmt_elapsed(sec: float) -> str:
