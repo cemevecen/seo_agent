@@ -1907,6 +1907,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/notification-analytics/ingest",
         "/api/doviz-news/ingest",
         "/api/virgul-analytics/ingest",
+        "/api/virgul-analytics/revenue-targets/ingest",
         "/api/play-console/ingest",
         "/api/asc-console/ingest",
         "/api/firebase-console/ingest",
