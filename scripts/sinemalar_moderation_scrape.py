@@ -409,11 +409,7 @@ def scrape_detail_range(
     from backend.services.sinemalar_moderation import METRIC_TYPE_KEYS, TRACKED_MODERATORS
 
     if purge_first and ingest_per_batch:
-        print("Moderasyon verisi siliniyor (purge)…", flush=True)
-        purged = purge_remote_moderation()
-        if not purged.get("ok"):
-            return {"ok": False, "message": purged.get("message") or "purge failed", "detail_batches": []}
-        print(f"  purge OK: {purged.get('purge')}", flush=True)
+        print("İlk batch ingest ile purge (purge_first)…", flush=True)
 
     batches: list[dict[str, Any]] = []
     total_items = 0
