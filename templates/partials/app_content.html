@@ -73,10 +73,12 @@
       letter-spacing: 0.06em;
     }
     .app-intel-metric-area-stars {
-      min-height: 170px;
+      min-height: clamp(7.5rem, 28cqi, 10.625rem);
+      height: clamp(7.5rem, 30cqi, 10.625rem);
     }
     .app-intel-metric-area-cats {
-      min-height: 200px;
+      min-height: clamp(8.5rem, 32cqi, 12.5rem);
+      height: clamp(8.5rem, 34cqi, 12.5rem);
     }
     .app-intel-sat-grid {
       gap: 0.375rem;
@@ -119,11 +121,127 @@
       line-height: 1.35;
     }
     .app-intel-rank-chart {
-      min-height: 8.75rem;
-      height: 9.5rem;
+      min-height: clamp(6.5rem, 24cqi, 9.5rem);
+      height: clamp(6.5rem, 26cqi, 9.5rem);
     }
     .app-intel-panel-stack {
       gap: 0.625rem;
+    }
+    .app-intel-panel {
+      container-type: inline-size;
+    }
+    .app-intel-panel-head {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+      margin-bottom: 0.625rem;
+    }
+    @container (min-width: 28rem) {
+      .app-intel-panel-head {
+        flex-direction: row;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+    }
+    .app-intel-store-summary-slot {
+      width: 100%;
+      min-width: 0;
+    }
+    @container (min-width: 28rem) {
+      .app-intel-store-summary-slot {
+        flex: 1 1 52%;
+        max-width: 26rem;
+      }
+    }
+    .app-intel-store-summary {
+      border-radius: 0.625rem;
+      border: 1px solid rgb(203 213 225);
+      background: linear-gradient(to bottom right, #fff, #f8fafc);
+      padding: 0.3125rem 0.4375rem 0.375rem;
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+    }
+    .dark .app-intel-store-summary {
+      border-color: rgb(100 116 139);
+      background: linear-gradient(to bottom right, rgb(30 41 59), rgb(15 23 42));
+    }
+    .app-intel-store-summary-title {
+      margin-bottom: 0.25rem;
+      font-size: clamp(0.5625rem, 2cqi, 0.6875rem);
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgb(71 85 105);
+    }
+    .dark .app-intel-store-summary-title {
+      color: rgb(203 213 225);
+    }
+    .app-intel-store-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.3125rem;
+    }
+    @container (min-width: 22rem) {
+      .app-intel-store-summary-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+    .app-intel-store-summary-cell {
+      border-radius: 0.4375rem;
+      border: 1px solid rgb(203 213 225);
+      background: rgb(255 255 255 / 0.85);
+      padding: 0.25rem 0.375rem;
+      min-width: 0;
+    }
+    .dark .app-intel-store-summary-cell {
+      border-color: rgb(71 85 105);
+      background: rgb(15 23 42 / 0.65);
+    }
+    .app-intel-store-summary-cell--accent {
+      border-color: rgb(110 231 183 / 0.45);
+      background: rgb(236 253 245 / 0.85);
+    }
+    .dark .app-intel-store-summary-cell--accent {
+      border-color: rgb(6 78 59);
+      background: rgb(6 38 29 / 0.55);
+    }
+    .app-intel-store-summary-label {
+      font-size: clamp(0.5rem, 1.8cqi, 0.625rem);
+      font-weight: 600;
+      line-height: 1.2;
+      text-transform: uppercase;
+      color: rgb(100 116 139);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .app-intel-store-summary-value {
+      margin-top: 0.0625rem;
+      font-size: clamp(0.6875rem, 2.4cqi, 0.8125rem);
+      font-weight: 700;
+      line-height: 1.15;
+      color: rgb(15 23 42);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dark .app-intel-store-summary-value {
+      color: rgb(241 245 249);
+    }
+    .app-intel-store-summary-cell--accent .app-intel-store-summary-label {
+      color: rgb(6 95 70);
+    }
+    .dark .app-intel-store-summary-cell--accent .app-intel-store-summary-label {
+      color: rgb(110 231 183);
+    }
+    .app-page-shell-body {
+      padding: clamp(0.75rem, 2cqi, 1.25rem);
+    }
+    .app-page-shell-content {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(0.75rem, 2.5cqi, 1.5rem);
+      min-height: 0;
     }
     .app-aso-section {
       padding: 0.75rem;
@@ -460,25 +578,25 @@
   {% include "partials/app_store_compare_panel.html" %}
 
   <div id="app-intel-panels" class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-    <section class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-4" aria-label="Google Play">
-      <div class="mb-3 flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 id="app-intel-head-play" class="text-base font-bold text-slate-900 dark:text-slate-100">Google Play</h2>
-          <a id="app-intel-link-android" href="#" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-medium text-sky-600 hover:underline dark:text-sky-400">Store page</a>
+    <section class="app-intel-panel rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-4" aria-label="Google Play">
+      <div class="app-intel-panel-head">
+        <div class="min-w-0">
+          <h2 id="app-intel-head-play" class="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">Google Play</h2>
+          <a id="app-intel-link-android" href="#" target="_blank" rel="noopener noreferrer" class="mt-0.5 inline-block text-[11px] font-medium text-sky-600 hover:underline sm:text-xs dark:text-sky-400">Store page</a>
         </div>
-        <div id="app-intel-android-meta" class="w-full sm:w-auto"></div>
+        <div id="app-intel-android-meta" class="app-intel-store-summary-slot"></div>
       </div>
       <p id="app-intel-android-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
       <div class="app-intel-panel-stack flex flex-col">
         <div>
           <p id="app-intel-play-stars-title" class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Star distribution</p>
-          <div id="app-chart-play-stars" class="app-intel-metric-area-stars h-[170px] w-full min-h-[150px]"></div>
+          <div id="app-chart-play-stars" class="app-intel-metric-area-stars w-full min-w-0"></div>
           <div id="app-intel-play-star-drilldown" class="mt-1.5 hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
           <p id="app-intel-play-star-source-note" class="hidden mt-1 text-[10px] text-slate-400 dark:text-slate-500 italic"></p>
         </div>
         <div>
           <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
-          <div id="app-chart-play-cats" class="app-intel-metric-area-cats h-[200px] w-full min-h-[180px]"></div>
+          <div id="app-chart-play-cats" class="app-intel-metric-area-cats w-full min-w-0"></div>
           <div id="app-intel-play-cat-drilldown" class="mt-1.5 hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
         </div>
         <div>
@@ -492,31 +610,31 @@
         </div>
         <div id="app-intel-play-rank-wrap" class="hidden">
           <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Category rank trend (7d)</p>
-          <div id="app-chart-play-rank" class="app-intel-rank-chart h-[152px] w-full min-h-[140px]"></div>
+          <div id="app-chart-play-rank" class="app-intel-rank-chart w-full min-w-0"></div>
         </div>
       </div>
     </section>
 
-    <section class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-4" aria-label="App Store">
-      <div class="mb-3 flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 id="app-intel-head-ios" class="text-base font-bold text-slate-900 dark:text-slate-100">App Store</h2>
-          <a id="app-intel-link-ios" href="#" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm font-medium text-sky-600 hover:underline dark:text-sky-400">Store page</a>
+    <section class="app-intel-panel rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-4" aria-label="App Store">
+      <div class="app-intel-panel-head">
+        <div class="min-w-0">
+          <h2 id="app-intel-head-ios" class="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">App Store</h2>
+          <a id="app-intel-link-ios" href="#" target="_blank" rel="noopener noreferrer" class="mt-0.5 inline-block text-[11px] font-medium text-sky-600 hover:underline sm:text-xs dark:text-sky-400">Store page</a>
         </div>
-        <div id="app-intel-ios-meta" class="w-full sm:w-auto"></div>
+        <div id="app-intel-ios-meta" class="app-intel-store-summary-slot"></div>
       </div>
       <p id="app-intel-ios-note" class="mb-3 hidden rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800"></p>
       <p id="app-intel-ios-period-note" class="mb-3 hidden rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:ring-slate-600"></p>
       <div class="app-intel-panel-stack flex flex-col">
         <div>
           <p id="app-intel-ios-stars-title" class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Star distribution</p>
-          <div id="app-chart-ios-stars" class="app-intel-metric-area-stars h-[170px] w-full min-h-[150px]"></div>
+          <div id="app-chart-ios-stars" class="app-intel-metric-area-stars w-full min-w-0"></div>
           <div id="app-intel-ios-star-drilldown" class="mt-1.5 hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
           <p id="app-intel-ios-star-source-note" class="hidden mt-1 text-[10px] text-slate-400 dark:text-slate-500 italic"></p>
         </div>
         <div>
           <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Yorum kategorileri</p>
-          <div id="app-chart-ios-cats" class="app-intel-metric-area-cats h-[200px] w-full min-h-[180px]"></div>
+          <div id="app-chart-ios-cats" class="app-intel-metric-area-cats w-full min-w-0"></div>
           <div id="app-intel-ios-cat-drilldown" class="mt-1.5 hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300"></div>
         </div>
         <div>
@@ -530,7 +648,7 @@
         </div>
         <div id="app-intel-ios-rank-wrap" class="hidden">
           <p class="app-intel-metric-card-title font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Category rank trend (7d)</p>
-          <div id="app-chart-ios-rank" class="app-intel-rank-chart h-[152px] w-full min-h-[140px]"></div>
+          <div id="app-chart-ios-rank" class="app-intel-rank-chart w-full min-w-0"></div>
         </div>
       </div>
     </section>
@@ -690,7 +808,7 @@
     {# Content area #}
     <div
       id="app-asc-content"
-      class="min-h-[200px] space-y-6 p-4 text-slate-900 dark:text-slate-100 sm:p-5"
+      class="app-page-shell-content app-page-shell-body min-h-0 text-slate-900 dark:text-slate-100"
       style="overflow-anchor: none"
     >
       <p class="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
@@ -769,7 +887,7 @@
       <p id="app-gp-source-note" class="hidden border-b border-amber-200/60 bg-amber-50/70 px-4 py-2 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200/85 sm:px-5"></p>
 
       {# Content area #}
-      <div id="app-gp-content" class="min-h-[200px] space-y-6 p-4 text-slate-900 dark:text-slate-100 sm:p-5" style="overflow-anchor: none">
+      <div id="app-gp-content" class="app-page-shell-content app-page-shell-body min-h-0 text-slate-900 dark:text-slate-100" style="overflow-anchor: none">
         <p class="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       </div>
     </div>{# /app-gp-body #}
@@ -814,7 +932,7 @@
       </div>
     </header>
     <div id="app-store-charts-body" hidden>
-      <div id="app-store-charts-mount" class="pml-body p-4 text-slate-900 dark:text-slate-100 sm:p-5">Loading…</div>
+      <div id="app-store-charts-mount" class="pml-body app-page-shell-body min-w-0 text-slate-900 dark:text-slate-100">Loading…</div>
     </div>
   </section>
 
@@ -884,7 +1002,7 @@
     </div>
 
     {# Content area — HTMX yükler #}
-    <div id="crash-content" class="min-h-[120px] p-4 sm:p-5">
+    <div id="crash-content" class="app-page-shell-body min-h-0">
       <p class="text-sm text-slate-400 dark:text-slate-500">Select a tab to load data.</p>
     </div>
   </section>
@@ -4017,15 +4135,14 @@
         rankValue = rankText.slice(iRank + 1).trim();
       }
       return (
-        '<div class="min-h-[140px] rounded-xl border-2 border-slate-300 bg-gradient-to-br from-white to-slate-100 px-2.5 py-2 text-left shadow-sm ring-1 ring-slate-300 dark:border-slate-500 dark:from-slate-800 dark:to-slate-900 dark:ring-slate-500">' +
-        '<div class="mb-1 text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300">Store summary</div>' +
-        '<div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">' +
-        '<div class="min-h-[56px] rounded-lg border border-slate-300 bg-white/80 px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900/60"><div class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">' + storeLabel + '</div><div class="truncate text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + (storeValue || "—") + "</div></div>" +
-        '<div class="min-h-[56px] rounded-lg border border-slate-300 bg-white/80 px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900/60"><div class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">' + rankLabel + '</div><div class="truncate text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + (rankValue || "—") + "</div></div>" +
-        '<div class="min-h-[56px] rounded-lg border border-slate-300 bg-white/80 px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900/60"><div class="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">Period yorumu</div><div class="text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + reviewCount + "</div></div>" +
-        '<div class="min-h-[56px] rounded-lg border border-emerald-300 bg-emerald-50/80 px-2.5 py-1.5 dark:border-emerald-700 dark:bg-emerald-950/50"><div class="text-[10px] font-semibold uppercase text-emerald-800 dark:text-emerald-300">Valuelendirme</div><div class="text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">' + (ratingsText || "—") + "</div></div>" +
-        "</div>" +
-        "</div>"
+        '<div class="app-intel-store-summary">' +
+        '<div class="app-intel-store-summary-title">Store summary</div>' +
+        '<div class="app-intel-store-summary-grid">' +
+        '<div class="app-intel-store-summary-cell"><div class="app-intel-store-summary-label">' + storeLabel + '</div><div class="app-intel-store-summary-value">' + (storeValue || "—") + "</div></div>" +
+        '<div class="app-intel-store-summary-cell"><div class="app-intel-store-summary-label">' + rankLabel + '</div><div class="app-intel-store-summary-value">' + (rankValue || "—") + "</div></div>" +
+        '<div class="app-intel-store-summary-cell"><div class="app-intel-store-summary-label">Period yorumu</div><div class="app-intel-store-summary-value">' + reviewCount + "</div></div>" +
+        '<div class="app-intel-store-summary-cell app-intel-store-summary-cell--accent"><div class="app-intel-store-summary-label">Valuelendirme</div><div class="app-intel-store-summary-value">' + (ratingsText || "—") + "</div></div>" +
+        "</div></div>"
       );
     }
     function setHeroIcon(iconUrl, fallback) {
