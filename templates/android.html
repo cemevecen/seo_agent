@@ -1834,28 +1834,45 @@
     return kept.join("\n");
   }
 
+  function vitalsEtypeHasRows(block) {
+    block = block || {};
+    var cats = Array.isArray(block.categories) ? block.categories : [];
+    return cats.some(function (c) {
+      if (!c) return false;
+      if (Array.isArray(c.issues) && c.issues.length) return true;
+      var n = parseInt(String(c.issue_count != null ? c.issue_count : c.issue_row_count || ""), 10);
+      return !isNaN(n) && n > 0;
+    });
+  }
+
   function vitalsCrashesHasRows(crashes) {
     crashes = crashes || {};
     return ["CRASH", "ANR"].some(function (et) {
-      var cats = ((crashes[et] || {}).categories) || [];
-      return cats.some(function (c) {
-        if (!c) return false;
-        if (Array.isArray(c.issues) && c.issues.length) return true;
-        var n = parseInt(String(c.issue_count != null ? c.issue_count : c.issue_row_count || ""), 10);
-        return !isNaN(n) && n > 0;
-      });
+      return vitalsEtypeHasRows(crashes[et] || {});
     });
+  }
+
+  function vitalsCrashesHasRowsForEtype(crashes, etype) {
+    crashes = crashes || {};
+    return vitalsEtypeHasRows(crashes[etype] || {});
   }
 
   function resolveVitalsVersions(vitals) {
     vitals = vitals || {};
     var vmap = vitals.version_name_map || {};
     var byv = vitals.by_version || {};
+    var etype = vitalsState.etype || "ANR";
     // Chip yalnızca by_version’da gerçekten toplanmış versionsler için
     // (290’dan 289/288 uydurmak → boş ANR listesi üretiyordu)
     var codes = Object.keys(byv).filter(function (k) {
-      return k !== "all" && /^\d+$/.test(k) && byv[k] && byv[k].crashes && vitalsCrashesHasRows(byv[k].crashes);
+      return k !== "all" && /^\d+$/.test(k) && byv[k] && byv[k].crashes &&
+        vitalsCrashesHasRowsForEtype(byv[k].crashes, etype);
     }).sort(function (a, b) { return parseInt(b, 10) - parseInt(a, 10); }).slice(0, 3);
+    if (!codes.length) {
+      codes = Object.keys(byv).filter(function (k) {
+        return k !== "all" && /^\d+$/.test(k) && byv[k] && byv[k].crashes && vitalsCrashesHasRows(byv[k].crashes);
+      }).sort(function (a, b) { return parseInt(b, 10) - parseInt(a, 10); }).slice(0, 3);
+    }
     if (!codes.length) {
       // Eski payload: tek versions
       var only = String(vitals.version_code || "").trim();
@@ -1901,50 +1918,58 @@
     return Object.assign({}, block, { categories: filtered });
   }
 
+  function pickVitalsEtypeBlock(crashesMap, etype, vc) {
+    crashesMap = crashesMap || {};
+    etype = etype || "ANR";
+    vc = String(vc || "").trim();
+    var block = crashesMap[etype] || {};
+    if (vitalsEtypeHasRows(block)) {
+      if (vc && block.version_code && String(block.version_code) !== vc) {
+        var filteredOwn = filterVitalsBlockByVersion(block, vc);
+        if (vitalsEtypeHasRows(filteredOwn)) return filteredOwn;
+      }
+      return block;
+    }
+    if (vc) {
+      var filtered = filterVitalsBlockByVersion(block, vc);
+      if (vitalsEtypeHasRows(filtered)) return filtered;
+    }
+    return null;
+  }
+
   function getActiveVitalsCrashes() {
     var vitals = vitalsState.data || {};
     var vc = String(vitalsState.selectedVersion || "").trim();
+    var etype = vitalsState.etype || "ANR";
     var byv = vitals.by_version || {};
     var crashes = vitals.crashes || {};
-
-    function packFiltered(srcCrashes) {
-      srcCrashes = srcCrashes || {};
-      if (!vc) return srcCrashes;
-      return {
-        CRASH: filterVitalsBlockByVersion(srcCrashes.CRASH || {}, vc),
-        ANR: filterVitalsBlockByVersion(srcCrashes.ANR || {}, vc)
-      };
+    var crashMaps = [];
+    if (vc && byv[vc] && byv[vc].crashes) crashMaps.push(byv[vc].crashes);
+    if (byv.all && byv.all.crashes) crashMaps.push(byv.all.crashes);
+    crashMaps.push(crashes);
+    for (var i = 0; i < crashMaps.length; i++) {
+      if (pickVitalsEtypeBlock(crashMaps[i], etype, vc)) return crashMaps[i];
     }
-
-    // Her sürüm kendi Play listesi — ama boş sürüm bloğu top-level / all'ı ezmesin
-    if (vc && byv[vc] && byv[vc].crashes && vitalsCrashesHasRows(byv[vc].crashes)) {
-      return byv[vc].crashes;
-    }
-    if (vc && byv.all && byv.all.crashes && vitalsCrashesHasRows(byv.all.crashes)) {
-      var filteredAll = packFiltered(byv.all.crashes);
-      if (vitalsCrashesHasRows(filteredAll)) return filteredAll;
-      return byv.all.crashes;
-    }
-    if (!vc) return crashes;
-    if (vitalsCrashesHasRows(crashes)) {
-      var topVc = String(
-        ((crashes.ANR || {}).version_code) ||
-        ((crashes.CRASH || {}).version_code) ||
-        vitals.version_code ||
-        ""
-      ).trim();
-      if (!topVc || topVc === vc) return crashes;
-      var filteredTop = packFiltered(crashes);
-      if (vitalsCrashesHasRows(filteredTop)) return filteredTop;
-      return crashes;
-    }
-    // Son çare: boş sürüm bloğu varsa bile top-level'i göster (0 sorun zorlaması yok)
     if (vc && byv[vc] && byv[vc].crashes) return byv[vc].crashes;
     return crashes;
   }
 
   function getActiveVitalsBlock() {
-    return (getActiveVitalsCrashes()[vitalsState.etype]) || {};
+    var vitals = vitalsState.data || {};
+    var vc = String(vitalsState.selectedVersion || "").trim();
+    var etype = vitalsState.etype || "ANR";
+    var byv = vitals.by_version || {};
+    var crashes = vitals.crashes || {};
+    var sources = [];
+    if (vc && byv[vc] && byv[vc].crashes) sources.push(byv[vc].crashes);
+    if (byv.all && byv.all.crashes) sources.push(byv.all.crashes);
+    sources.push(crashes);
+    for (var i = 0; i < sources.length; i++) {
+      var picked = pickVitalsEtypeBlock(sources[i], etype, vc);
+      if (picked) return picked;
+    }
+    if (vc && byv[vc] && byv[vc].crashes) return (byv[vc].crashes[etype] || {});
+    return (crashes[etype] || {});
   }
 
   function findVitalsIssue(iid) {
