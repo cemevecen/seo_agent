@@ -573,7 +573,13 @@ def scrape_fill_gaps(
     user_ids: list[int] | None = None,
 ) -> dict[str, Any]:
     """Sinemalar özet vs DB karşılaştırması — yalnızca eksik user×type detail çeker (purge yok)."""
-    from backend.services.sinemalar_moderation import METRIC_TYPE_KEYS, parse_summary_rows, summary_totals_map
+    from backend.services.sinemalar_moderation import (
+        METRIC_LABEL_BY_TYPE,
+        METRIC_TYPE_KEYS,
+        parse_summary_rows,
+        resolve_username,
+        summary_totals_map,
+    )
 
     scraped_at = datetime.now(timezone.utc).isoformat()
     pw = ctx = page = None
@@ -597,9 +603,33 @@ def scrape_fill_gaps(
     parsed = parse_summary_rows(summary_rows)
     expected = summary_totals_map(parsed)
     gaps_resp = post_remote_gaps(start_d, end_d, expected, user_ids=user_ids)
+    gaps = gaps_resp.get("gaps") or [] if gaps_resp.get("ok") else []
     if not gaps_resp.get("ok"):
-        return {"ok": False, "message": gaps_resp.get("message") or "gaps API failed"}
-    gaps = gaps_resp.get("gaps") or []
+        print(f"gaps API yok ({gaps_resp.get('message')}) — özet > 0 batch'ler taranacak", flush=True)
+        allowed = set(user_ids) if user_ids else None
+        for key, exp in expected.items():
+            if exp <= 0:
+                continue
+            parts = key.split("|", 1)
+            if len(parts) != 2:
+                continue
+            try:
+                uid = int(parts[0])
+            except ValueError:
+                continue
+            if allowed is not None and uid not in allowed:
+                continue
+            gaps.append(
+                {
+                    "user_id": uid,
+                    "username": resolve_username(uid),
+                    "metric_type": parts[1],
+                    "metric_label": METRIC_LABEL_BY_TYPE.get(parts[1], parts[1]),
+                    "expected": exp,
+                    "actual": 0,
+                    "missing": exp,
+                }
+            )
     if not gaps:
         return {
             "ok": True,
