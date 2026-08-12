@@ -11,6 +11,8 @@ from backend.services.pm_lab_access import (
 from backend.services.pm_lab_store import (
     COMPETITORS_INTERVAL_MIN,
     SECTION_DEFS,
+    SERP_KEYWORDS,
+    SERP_KEYWORDS_RAW,
     _pm_lab_page_specs,
     _prune_refresh_state,
     claim_pm_lab_refresh,
@@ -19,6 +21,42 @@ from backend.services.pm_lab_store import (
     ingest_pm_lab_payload,
     page_context,
 )
+
+
+def test_serp_keywords_alphabetical_and_boot():
+    expected = (
+        "altın",
+        "altın fiyatları",
+        "benzin fiyatı",
+        "bitcoin",
+        "brent petrol",
+        "çeyrek altın",
+        "dolar",
+        "döviz",
+        "döviz çevirici",
+        "gram altın",
+        "gram altın fiyatı",
+        "gram gümüş",
+        "harem çeyrek altın",
+        "harem dolar",
+        "harem gram altın",
+        "kapalıçarşı gram altın",
+        "kripto para",
+        "motorin fiyatı",
+        "ons altın",
+        "usd",
+    )
+    assert len(SERP_KEYWORDS) == 20
+    assert set(SERP_KEYWORDS) == set(SERP_KEYWORDS_RAW)
+    assert SERP_KEYWORDS == expected
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        ctx = page_context(db)
+        boot = __import__("json").loads(ctx["boot_json"])
+        assert boot["serp_tab_keywords"] == list(SERP_KEYWORDS)
+    finally:
+        db.close()
 
 
 def test_owner_emails_only():
@@ -692,8 +730,9 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com rank:" in js
-    assert "pm_lab.js?v=38" in html
+    assert "pm_lab.js?v=39" in html
     assert "SERP_TAB_KEYWORDS" in js
+    assert "serpTabKeywords" in js
     assert '["Total"].concat' in js
     assert "pingBridge" in js
     assert "127.0.0.1:18765/sync-pm-lab" in js

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import locale
 import logging
 import os
 import threading
@@ -25,6 +26,47 @@ _WORKSPACE_ID = 1
 _RUNS_KEEP = 48
 _INTERVAL_HOURS = 3
 COMPETITORS_INTERVAL_MIN = 10
+
+SERP_KEYWORDS_RAW: tuple[str, ...] = (
+    "gram gümüş",
+    "usd",
+    "altın",
+    "altın fiyatları",
+    "çeyrek altın",
+    "gram altın",
+    "gram altın fiyatı",
+    "harem çeyrek altın",
+    "harem gram altın",
+    "harem dolar",
+    "kapalıçarşı gram altın",
+    "bitcoin",
+    "kripto para",
+    "brent petrol",
+    "benzin fiyatı",
+    "motorin fiyatı",
+    "döviz",
+    "döviz çevirici",
+    "dolar",
+    "ons altın",
+)
+
+
+def _tr_collate_key(text: str) -> str:
+    try:
+        return locale.strxfrm(text)
+    except Exception:
+        return text.casefold()
+
+
+try:
+    locale.setlocale(locale.LC_COLLATE, "tr_TR.UTF-8")
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_COLLATE, "tr_TR")
+    except locale.Error:
+        pass
+
+SERP_KEYWORDS: tuple[str, ...] = tuple(sorted(SERP_KEYWORDS_RAW, key=_tr_collate_key))
 
 SECTION_DEFS: list[dict[str, Any]] = [
     {
@@ -1002,6 +1044,7 @@ def page_context(db: Session) -> dict[str, Any]:
         "sync_message": payload.get("sync_message") or "",
         "sections": boot_sections,
         "defs": _pm_lab_page_specs(),
+        "serp_tab_keywords": list(SERP_KEYWORDS),
     }
     return {
         "updated_at": payload.get("updated_at"),

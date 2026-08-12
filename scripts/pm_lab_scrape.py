@@ -52,24 +52,7 @@ INGEST_URL = (
     or "https://projectcontrol.up.railway.app/api/pm-lab/ingest"
 ).strip()
 
-SERP_KEYWORDS = (
-    "gram gümüş",
-    "usd",
-    "altın",
-    "altın fiyatları",
-    "çeyrek altın",
-    "gram altın",
-    "gram altın fiyatı",
-    "harem çeyrek altın",
-    "harem gram altın",
-    "harem dolar",
-    "kapalıçarşı gram altın",
-    "bitcoin",
-    "kripto para",
-    "brent petrol",
-    "benzin fiyatı",
-    "motorin fiyatı",
-)
+from backend.services.pm_lab_store import SERP_KEYWORDS  # noqa: E402
 SERP_PAGES = 4
 
 NEWS_KEYWORDS = (

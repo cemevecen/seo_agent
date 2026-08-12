@@ -180,7 +180,7 @@
     return bar;
   }
 
-  var SERP_TAB_KEYWORDS = [
+  var SERP_TAB_KEYWORDS_RAW = [
     "gram gümüş",
     "usd",
     "altın",
@@ -197,7 +197,21 @@
     "brent petrol",
     "benzin fiyatı",
     "motorin fiyatı",
+    "döviz",
+    "döviz çevirici",
+    "dolar",
+    "ons altın",
   ];
+  var SERP_TAB_KEYWORDS = SERP_TAB_KEYWORDS_RAW.slice().sort(function (a, b) {
+    return a.localeCompare(b, "tr");
+  });
+
+  function serpTabKeywords() {
+    if (boot.serp_tab_keywords && boot.serp_tab_keywords.length) {
+      return boot.serp_tab_keywords;
+    }
+    return SERP_TAB_KEYWORDS;
+  }
 
   function renderSerp(root, data) {
     var incoming = data.keywords || [];
@@ -209,7 +223,8 @@
     incoming.forEach(function (k) {
       if (k && k.keyword) byName[String(k.keyword)] = k;
     });
-    var kws = SERP_TAB_KEYWORDS.map(function (name) {
+    var tabKeywords = serpTabKeywords();
+    var kws = tabKeywords.map(function (name) {
       return (
         byName[name] || {
           keyword: name,
@@ -221,7 +236,7 @@
       );
     });
     incoming.forEach(function (k) {
-      if (k && k.keyword && SERP_TAB_KEYWORDS.indexOf(k.keyword) < 0) {
+      if (k && k.keyword && tabKeywords.indexOf(k.keyword) < 0) {
         kws.push(k);
       }
     });
