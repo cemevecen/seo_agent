@@ -187,16 +187,16 @@ def assert_firefox_only(pw: Any) -> None:
 
 
 def resolve_firefox_executable() -> str | None:
-    """Opsiyonel Firefox binary.
+    """Opsiyonel Firefox binary (Playwright).
 
-    PLAYWRIGHT_FIREFOX_EXECUTABLE verilirse onu kullan.
-    Aksi halde Playwright'ın kendi sürümünü bırak (juggler uyumu için);
-    farklı revision zorlamak TargetClosed / NS_ERROR_FAILURE üretebiliyor.
+    PLAYWRIGHT_FIREFOX_EXECUTABLE verilirse onu kullan — ms-playwright/Nightly
+    path'leri reddedilir. Google Sheets scrape için `system_firefox_driver`
+    (Selenium + Firefox.app) kullanın; Playwright Nightly Google'da engellenir.
     """
     env = (os.environ.get("PLAYWRIGHT_FIREFOX_EXECUTABLE") or "").strip()
     if env:
         p = Path(env).expanduser()
-        if p.is_file():
+        if p.is_file() and "ms-playwright" not in str(p) and "Nightly" not in str(p):
             return str(p)
     return None
 

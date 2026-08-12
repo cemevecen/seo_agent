@@ -76,6 +76,7 @@ def test_fetch_falls_back_when_pending_sheet_private(monkeypatch):
         return SAMPLE_CSV
 
     monkeypatch.setattr(mod, "fetch_public_sheet_csv", _fake_fetch)
+    monkeypatch.setattr(mod, "load_ingested_revenue_targets", lambda **_k: None)
     monkeypatch.setattr(mod, "_CACHE", None)
     rows = mod.fetch_revenue_targets_rows(force=True)
     assert len(rows) == 6

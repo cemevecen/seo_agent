@@ -35,3 +35,4 @@ data/app_intel_raw/
 # Lokal scratch / yedek / test scriptleri (deploy edilmez)
 scratch/
 tmp/
+data/revenue_targets_ingest.json

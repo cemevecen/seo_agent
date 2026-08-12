@@ -19,6 +19,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-asc    → ASC / iOS (3 saatte bir, :05)
   POST /sync-firebase → Firebase Console Crashlytics (3 saatte bir, :10)
   POST /sync-gsc-links → Backlinks (01:00 + 13:00 TR)
+  POST /sync-revenue-targets → Ad hedef sheet (05:05 + 13:05 TR, sistem Firefox)
   POST /sync-policy → Ad Manager Policy (01:05 + 13:05 TR)
   POST /sync-noads  → Sinemalar noAds (01:15 + 13:15 TR)
   POST /sync-pagespeed → pagespeed.web.dev (01:10 + 13:10 TR)
@@ -35,6 +36,7 @@ from __future__ import annotations
 import json
 import os
 import smtplib
+import subprocess
 import sys
 import threading
 import time
@@ -104,7 +106,9 @@ PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "0")
 ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "5")
 FIREBASE_SLOT_MINUTE = int(os.environ.get("FIREBASE_CONSOLE_BRIDGE_MINUTE") or "10")
 TWICE_DAILY_HOURS = (1, 13)  # 01:00 + 13:00
+REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:00 + 13:00 TR — ad-virgul hedef sheet
 GSC_SLOT_MINUTE = int(os.environ.get("GSC_LINKS_BRIDGE_MINUTE") or "0")
+REVENUE_TARGETS_SLOT_MINUTE = int(os.environ.get("REVENUE_TARGETS_BRIDGE_MINUTE") or "5")
 POLICY_SLOT_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "5")
 SPEED_SLOT_MINUTE = int(os.environ.get("PAGESPEED_BRIDGE_MINUTE") or "10")
 NOADS_SLOT_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "15")
@@ -184,6 +188,7 @@ _gsc_cwv_lock = threading.Lock()
 _market_lock = threading.Lock()
 _pm_lab_lock = threading.Lock()
 _noads_open_lock = threading.Lock()
+_revenue_targets_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -200,6 +205,7 @@ _firebase_progress: dict[str, Any] = {
     "message": "",
 }
 _last_gsc_links_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_revenue_targets_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_policy_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_pagespeed_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -214,6 +220,7 @@ _last_play_auto_slot = ""
 _last_asc_auto_slot = ""
 _last_firebase_auto_slot = ""
 _last_gsc_links_auto_slot = ""
+_last_revenue_targets_auto_slot = ""
 _last_policy_auto_slot = ""
 _last_noads_auto_slot = ""
 _last_pagespeed_auto_slot = ""
@@ -845,6 +852,62 @@ def run_gsc_links_bridge_once() -> dict[str, Any]:
     }
     _last_gsc_links_result = out
     print(f"GSC Links sync · {out['message']}", flush=True)
+    return out
+
+
+def run_revenue_targets_bridge_once() -> dict[str, Any]:
+    """Ad-virgul hedef sheet — sistem Firefox (Selenium), Nightly yok → Railway ingest."""
+    global _last_revenue_targets_result
+    if not _ingest_token():
+        err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_revenue_targets_result = err
+        return err
+
+    script = ROOT / "scripts" / "revenue_targets_scrape.py"
+    if not script.is_file():
+        err = {"ok": False, "kind": "revenue_targets", "message": "revenue_targets_scrape.py yok"}
+        _last_revenue_targets_result = err
+        return err
+
+    print("Revenue targets scrape (sistem Firefox) başlıyor…", flush=True)
+    env = os.environ.copy()
+    env.setdefault(
+        "REVENUE_TARGETS_INGEST_URL",
+        "https://projectcontrol.up.railway.app/api/virgul-analytics/revenue-targets/ingest",
+    )
+    headed = (os.environ.get("REVENUE_TARGETS_HEADLESS") or "").strip().lower() not in (
+        "1",
+        "true",
+        "yes",
+    )
+    cmd = [sys.executable, str(script), "--sync", "--ingest"]
+    if not headed:
+        cmd.append("--headless")
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "revenue_targets", "message": str(exc)[:300]}
+        _last_revenue_targets_result = out
+        return out
+
+    tail = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip().splitlines()
+    last = tail[-1] if tail else ""
+    ok = proc.returncode == 0
+    out = {
+        "ok": ok,
+        "kind": "revenue_targets",
+        "message": last[:400] if last else ("OK" if ok else f"exit={proc.returncode}"),
+        "returncode": proc.returncode,
+    }
+    _last_revenue_targets_result = out
+    print(f"Revenue targets sync · {out['message']}", flush=True)
     return out
 
 
@@ -2181,6 +2244,16 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "GSC Links sync zaten çalışıyor, bekleyin.",
                 run_gsc_links_bridge_once,
             )
+        elif path in (
+            "/sync-revenue-targets",
+            "/revenue-targets",
+            "/sync-ad-targets",
+        ):
+            lock, busy, runner = (
+                _revenue_targets_lock,
+                "Revenue targets sync zaten çalışıyor, bekleyin.",
+                run_revenue_targets_bridge_once,
+            )
         elif path in ("/sync-policy", "/policy", "/sync-admanager-policy"):
             lock, busy, runner = (
                 _policy_lock,
@@ -2787,6 +2860,15 @@ def _auto_loop() -> None:
         _slot_job(
             "gsc_links", "GSC Links", _gsc_links_lock, run_gsc_links_bridge_once,
             "_last_gsc_links_auto_slot", TWICE_DAILY_HOURS, GSC_SLOT_MINUTE,
+        )
+        _slot_job(
+            "revenue_targets",
+            "RevenueTargets",
+            _revenue_targets_lock,
+            run_revenue_targets_bridge_once,
+            "_last_revenue_targets_auto_slot",
+            REVENUE_TARGETS_SLOT_HOURS,
+            REVENUE_TARGETS_SLOT_MINUTE,
         )
         _slot_job(
             "admanager_policy", "Policy", _policy_lock, run_admanager_policy_bridge_once,

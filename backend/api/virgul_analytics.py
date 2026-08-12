@@ -268,6 +268,28 @@ def get_virgul_revenue_targets(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+class RevenueTargetsIngestBody(BaseModel):
+    csv: str = Field(..., min_length=20, description="Sheet CSV text")
+    source: str = Field(default="mac_firefox_selenium")
+
+
+@router.post("/virgul-analytics/revenue-targets/ingest")
+def ingest_virgul_revenue_targets(
+    body: RevenueTargetsIngestBody,
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+):
+    """Mac sistem-Firefox scrape → private sheet CSV ingest."""
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    from backend.services.revenue_targets_sheet import save_ingested_revenue_targets
+
+    try:
+        return save_ingested_revenue_targets(body.csv, source=body.source or "mac_firefox_selenium")
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("revenue-targets ingest failed")
+        raise HTTPException(status_code=400, detail=str(exc)[:300]) from exc
+
+
 @router.post("/virgul-analytics/upload")
 def virgul_upload_forbidden():
     raise HTTPException(status_code=403, detail="Virgül sekmesinde manuel yükleme kapalı")

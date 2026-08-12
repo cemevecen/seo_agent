@@ -5,10 +5,12 @@ from __future__ import annotations
 import calendar
 import csv
 import io
+import json
 import logging
 import re
 import time
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -33,6 +35,10 @@ REVENUE_TARGETS_SHEET_URL_PENDING = REVENUE_TARGETS_SHEET_URL
 
 _CACHE: dict[str, Any] | None = None
 _CACHE_TTL_SEC = 900.0
+
+# Mac Firefox scrape ingest (Railway disk)
+_INGEST_PATH = Path(__file__).resolve().parents[2] / "data" / "revenue_targets_ingest.json"
+_INGEST_MAX_AGE_SEC = 36 * 3600.0
 
 _TR_MONTHS: dict[str, int] = {
     "ocak": 1,
@@ -95,10 +101,11 @@ def _normalize_project(raw: str | None) -> tuple[str, str] | None:
     if not name:
         return None
     low = _norm_header(name)
-    if "doviz" in low or "döviz" in name.lower():
-        return "doviz", "Doviz.com"
+    # Canlidoviz vb. eşleşmesin
     if "sinema" in low:
         return "sinemalar", "Sinemalar.com"
+    if low in ("doviz.com", "doviz", "www.doviz.com") or low.startswith("doviz.com"):
+        return "doviz", "Doviz.com"
     return None
 
 
@@ -122,19 +129,67 @@ def _parse_period_cell(raw: str | None) -> tuple[str, int, int, str] | None:
 
 
 def parse_revenue_targets_csv(csv_text: str) -> list[dict[str, Any]]:
-    """CSV satırlarını normalize edilmiş hedef kayıtlarına çevirir."""
+    """CSV satırlarını normalize edilmiş hedef kayıtlarına çevirir.
+
+    İki düzen:
+      A) Eski: dönem | proje | hedef | …
+      B) MCM (gid=244461752): satır0 = «Ağustos 2026,Hedef,…»; proje col0
+    """
     reader = csv.reader(io.StringIO(csv_text or ""))
     rows_in = list(reader)
     if not rows_in:
         return []
 
+    # MCM başlık: ilk hücre dönem, ikinci "Hedef"
+    mcm = False
+    header_period: tuple[str, int, int, str] | None = None
+    if rows_in:
+        h0 = list(rows_in[0]) + [""] * 4
+        header_period = _parse_period_cell(h0[0])
+        if header_period and _norm_header(h0[1]) in ("hedef", "target"):
+            mcm = True
+
     out: list[dict[str, Any]] = []
-    current_period: tuple[str, int, int, str] | None = None
+    current_period: tuple[str, int, int, str] | None = header_period if mcm else None
 
     for i, row in enumerate(rows_in):
         if not row or len(row) < 2:
             continue
         cells = list(row) + [""] * (12 - len(row))
+
+        if mcm:
+            if i == 0:
+                continue
+            # TOPLAM / network satırları — sadece doviz/sinemalar
+            proj = _normalize_project(cells[0])
+            if not proj or current_period is None:
+                continue
+            project_key, project_label = proj
+            period_label, year, month, period_key = current_period
+            hedef = _parse_tr_money(cells[1])
+            hedef_80 = _parse_tr_money(cells[2])
+            kazanc = _parse_tr_money(cells[3])
+            if hedef is None and kazanc is None:
+                continue
+            out.append(
+                {
+                    "period": period_label,
+                    "period_key": period_key,
+                    "year": year,
+                    "month": month,
+                    "project": project_key,
+                    "project_label": project_label,
+                    "hedef": hedef,
+                    "hedef_80": hedef_80,
+                    "kazanc": kazanc,
+                    "tamamlama_orani": _parse_pct(cells[4]),
+                    "gunluk_kazanc": _parse_tr_money(cells[5]),
+                    "kalan": _parse_tr_money(cells[6]),
+                    "sheet_row": i + 1,
+                }
+            )
+            continue
+
         if i == 0 and _norm_header(cells[1]) == "proje":
             continue
 
@@ -187,12 +242,89 @@ def _cache_rows() -> list[dict[str, Any]] | None:
     return rows if isinstance(rows, list) else None
 
 
+def load_ingested_revenue_targets(
+    *,
+    max_age_sec: float = _INGEST_MAX_AGE_SEC,
+) -> dict[str, Any] | None:
+    """Mac sistem-Firefox scrape ingest dosyası."""
+    if not _INGEST_PATH.is_file():
+        return None
+    try:
+        data = json.loads(_INGEST_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    fetched_at = str(data.get("fetched_at") or "")
+    try:
+        ts = datetime.fromisoformat(fetched_at.replace("Z", "+00:00"))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=_TR)
+        age = (datetime.now(tz=ts.tzinfo) - ts).total_seconds()
+        if age > max_age_sec:
+            return None
+    except Exception:
+        pass
+    rows = data.get("rows")
+    if not isinstance(rows, list) or not rows:
+        return None
+    return data
+
+
+def save_ingested_revenue_targets(
+    csv_text: str,
+    *,
+    source: str = "mac_firefox_selenium",
+) -> dict[str, Any]:
+    rows = parse_revenue_targets_csv(csv_text)
+    payload = {
+        "fetched_at": datetime.now(_TR).isoformat(),
+        "source": source,
+        "source_url": REVENUE_TARGETS_SHEET_URL,
+        "row_count": len(rows),
+        "rows": rows,
+        "csv": csv_text,
+    }
+    _INGEST_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _INGEST_PATH.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    global _CACHE
+    _CACHE = {
+        "ts": time.monotonic(),
+        "rows": rows,
+        "source_url": REVENUE_TARGETS_SHEET_URL,
+        "warning": None,
+        "pending_error": None,
+        "fetched_at": payload["fetched_at"],
+        "ingest_source": source,
+    }
+    return {
+        "ok": True,
+        "rows": len(rows),
+        "fetched_at": payload["fetched_at"],
+        "path": str(_INGEST_PATH),
+    }
+
+
 def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
     global _CACHE
     if not force:
         cached = _cache_rows()
         if cached is not None:
             return cached
+
+    ingested = load_ingested_revenue_targets()
+    if ingested and isinstance(ingested.get("rows"), list):
+        rows = ingested["rows"]
+        _CACHE = {
+            "ts": time.monotonic(),
+            "rows": rows,
+            "source_url": ingested.get("source_url") or REVENUE_TARGETS_SHEET_URL,
+            "warning": None,
+            "pending_error": None,
+            "fetched_at": ingested.get("fetched_at"),
+            "ingest_source": ingested.get("source"),
+        }
+        return rows
 
     urls = [
         REVENUE_TARGETS_SHEET_URL,
@@ -221,8 +353,8 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
     if used_url != REVENUE_TARGETS_SHEET_URL and primary_error:
         warning = (
             "Primary ad-target sheet is private or unreachable. "
-            "Showing fallback table — share the sheet with the GA4 service account "
-            "(viewer) or set link sharing to Anyone with the link → Viewer."
+            "Showing fallback table — Mac Firefox scrape "
+            "(`revenue_targets_scrape.py --sync`) or share the sheet with the GA4 service account."
         )
     _CACHE = {
         "ts": time.monotonic(),
