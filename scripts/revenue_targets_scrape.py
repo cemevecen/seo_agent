@@ -24,10 +24,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.services.scrape_browser import (  # noqa: E402
-    acquire_profile_login_lock,
     google_profile_dir,
     launch_persistent,
-    release_profile_login_lock,
+    launch_system_firefox_login,
 )
 from backend.services.revenue_targets_sheet import (  # noqa: E402
     REVENUE_TARGETS_SHEET_URL,
@@ -67,61 +66,35 @@ def _launch(*, kill_existing: bool):
 
 
 def run_login(timeout_sec: int = 900) -> dict:
-    """Firefox'u açık tut — giriş için kill yok, pencere timeout'a kadar kalır."""
+    """Google login: gerçek Firefox.app (Playwright Nightly engelleniyor).
+
+    Nightly/juggler → 'This browser or app may not be secure'.
+    Aynı ~/.seo-agent/fx-google profiline sistem Firefox ile giriş;
+    pencere kapanınca Playwright ile CSV export.
+    """
     print(
-        f"Firefox açılıyor (kill yok + login-lock) · profil={PROFILE_DIR}\n"
-        f"cemevecen@nokta.com ile giriş yap — pencere ~{timeout_sec}s açık kalır.\n"
-        f"Bridge/Play scrape bu sırada bu pencereyi öldüremez.",
+        "Playwright Nightly Google girişini reddediyor → sistem Firefox.app açılıyor.\n"
+        f"profil={PROFILE_DIR}",
         flush=True,
     )
-    acquire_profile_login_lock(PROFILE_DIR, reason="revenue_targets_login")
-    pw, context = _launch(kill_existing=False)
+    login = launch_system_firefox_login(
+        PROFILE_DIR,
+        REVENUE_TARGETS_SHEET_URL,
+        timeout_sec=timeout_sec,
+    )
+    if not login.get("ok"):
+        return login
+
+    print("Firefox kapandı — oturumla CSV deneniyor…", flush=True)
     try:
-        page = context.pages[0] if context.pages else context.new_page()
-        try:
-            page.goto(REVENUE_TARGETS_SHEET_URL, wait_until="domcontentloaded", timeout=120_000)
-        except Exception as exc:
-            print(f"goto warn: {exc}", flush=True)
-        print(f"url={page.url}", flush=True)
-
-        deadline = time.time() + max(120, timeout_sec)
-        while time.time() < deadline:
-            try:
-                if page.is_closed():
-                    print("Pencere kapandı (dışarıdan kill?).", flush=True)
-                    return {"ok": False, "message": "browser closed"}
-            except Exception:
-                pass
-            if _looks_on_sheet(page):
-                time.sleep(2)
-                print(f"Login OK · {page.url}", flush=True)
-                csv_text = _export_csv(page)
-                if csv_text:
-                    _save_csv(csv_text)
-                    rows = parse_revenue_targets_csv(csv_text) if csv_text else []
-                    print(f"CSV kaydedildi · satır≈{len(csv_text.splitlines())} → {OUT_CSV}", flush=True)
-                    return {"ok": True, "url": page.url, "csv": str(OUT_CSV), "parsed": len(rows)}
-                return {"ok": True, "url": page.url, "message": "login ok, export failed"}
-            left = int(deadline - time.time())
-            if left % 30 < 3:
-                try:
-                    u = page.url
-                except Exception:
-                    u = "?"
-                print(f"… giriş bekleniyor ({left}s) · {u[:90]}", flush=True)
-            time.sleep(2)
-
-        return {"ok": False, "message": "login timeout", "url": getattr(page, "url", "")}
-    finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
-        release_profile_login_lock(PROFILE_DIR)
+        return run_sync()
+    except Exception as exc:
+        return {
+            "ok": True,
+            "message": f"login OK; sync later: {exc}",
+            "profile": str(PROFILE_DIR),
+            "mode": "system_firefox",
+        }
 
 
 def _export_csv(page) -> str | None:

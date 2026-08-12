@@ -201,6 +201,75 @@ def resolve_firefox_executable() -> str | None:
     return None
 
 
+def resolve_system_firefox_executable() -> str | None:
+    """Gerçek Firefox.app — Google login için (Playwright Nightly'yi 'insecure' sayıyor)."""
+    env = (os.environ.get("SYSTEM_FIREFOX_EXECUTABLE") or "").strip()
+    if env:
+        p = Path(env).expanduser()
+        if p.is_file():
+            return str(p)
+    mac = Path("/Applications/Firefox.app/Contents/MacOS/firefox")
+    if mac.is_file():
+        return str(mac)
+    return None
+
+
+def launch_system_firefox_login(
+    profile: Path,
+    url: str,
+    *,
+    timeout_sec: int = 900,
+) -> dict[str, Any]:
+    """Google hesabı için gerçek Firefox.app + aynı fx-* profil.
+
+    Playwright Nightly / juggler Google'da 'This browser may not be secure' alır.
+    Kullanıcı sheet'i görüp pencereyi kapatınca döner.
+    """
+    exe = resolve_system_firefox_executable()
+    if not exe:
+        raise RuntimeError(
+            "Gerçek Firefox.app yok — /Applications/Firefox.app kurulu olmalı "
+            "(Playwright Nightly ile Google giriş engelleniyor)"
+        )
+    profile = profile.expanduser()
+    profile.mkdir(parents=True, exist_ok=True)
+    # Önce Playwright Nightly'yi kapat (kilit henüz yok)
+    kill_profile_browsers(profile)
+    time.sleep(0.4)
+    for name in (".parentlock", "lock", "SingletonLock"):
+        try:
+            (profile / name).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    # Login sırasında scrapeler bu profili öldürmesin / çakışmasın
+    acquire_profile_login_lock(profile, reason="system_firefox_login")
+    try:
+        cmd = [exe, "-no-remote", "-profile", str(profile), url]
+        print(f"Sistem Firefox · {exe}\nprofil={profile}\nurl={url}", flush=True)
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        deadline = time.time() + max(120, timeout_sec)
+        print(
+            "cemevecen@nokta.com ile giriş yap → sheet açılsın → Firefox penceresini KAPAT.\n"
+            f"(en fazla {int(deadline - time.time())}s)",
+            flush=True,
+        )
+        while time.time() < deadline:
+            rc = proc.poll()
+            if rc is not None:
+                align_firefox_profile_compatibility(profile)
+                return {"ok": True, "exit_code": rc, "profile": str(profile), "mode": "system_firefox"}
+            time.sleep(1.5)
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+        align_firefox_profile_compatibility(profile)
+        return {"ok": False, "message": "login timeout — Firefox kapatılmadı", "profile": str(profile)}
+    finally:
+        release_profile_login_lock(profile)
+
+
 def align_firefox_profile_compatibility(profile: Path) -> None:
     """Profil daha yeni Firefox ile açıldıysa, mevcut Playwright binary'sine izin ver."""
     ini = profile / "compatibility.ini"
