@@ -414,8 +414,8 @@
     line-height: 1;
     white-space: nowrap;
     overflow: hidden;
-    min-height: 1.75rem;
-    font-size: clamp(11px, 7cqi, 1rem);
+    min-height: 3.5rem;
+    font-size: clamp(11px, 14cqi, 2rem);
     letter-spacing: -0.02em;
   }
   .home-sf-metric--android .home-sf-metric__chips {
@@ -798,7 +798,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=31';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=32';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
