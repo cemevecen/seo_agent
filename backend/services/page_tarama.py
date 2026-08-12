@@ -410,7 +410,17 @@ def record_result(run_id: str, job_id: str, *, ok: bool, message: str = "") -> b
         return False
 
 
-def mark_running(run_id: str, job_id: str, detail: str = "") -> None:
+def mark_running(
+    run_id: str,
+    job_id: str,
+    detail: str = "",
+    *,
+    phase: str = "",
+    step: int | None = None,
+    total_steps: int | None = None,
+    platform: str = "",
+    sub_label: str = "",
+) -> None:
     with _state():
         run = _runs.get(run_id)
         if not run:
@@ -419,7 +429,24 @@ def mark_running(run_id: str, job_id: str, detail: str = "") -> None:
             if job.get("id") == job_id:
                 job["status"] = "running"
                 if detail:
-                    job["detail"] = detail[:180]
+                    job["detail"] = detail[:400]
+                if phase:
+                    job["phase"] = str(phase)[:80]
+                if platform:
+                    job["platform"] = str(platform)[:40]
+                if sub_label:
+                    job["sub_label"] = str(sub_label)[:160]
+                if step is not None:
+                    try:
+                        job["step"] = max(0, int(step))
+                    except (TypeError, ValueError):
+                        pass
+                if total_steps is not None:
+                    try:
+                        job["total_steps"] = max(0, int(total_steps))
+                    except (TypeError, ValueError):
+                        pass
+                job["progress_at"] = time.time()
                 return
 
 
@@ -447,6 +474,17 @@ def _expire_locked(run: dict[str, Any], now: float) -> None:
             job["detail"] = "Mac bridge missing — daemon is not running"
 
 
+def _fmt_elapsed(sec: float) -> str:
+    sec = max(0, int(sec or 0))
+    if sec < 60:
+        return f"{sec}s"
+    m, s = divmod(sec, 60)
+    if m < 60:
+        return f"{m}m {s:02d}s"
+    h, m = divmod(m, 60)
+    return f"{h}h {m:02d}m"
+
+
 def _public_run_locked(run: dict[str, Any], now: float) -> dict[str, Any]:
     jobs = [dict(j) for j in run["jobs"]]
     bridge_jobs = [j for j in jobs if j.get("kind") == "bridge"]
@@ -455,30 +493,81 @@ def _public_run_locked(run: dict[str, Any], now: float) -> dict[str, Any]:
         for j in jobs
         if j.get("status") in ("queued", "claimed", "running", "wait")
     ]
-    done = sum(1 for j in jobs if j.get("status") in ("ok", "fail"))
+    waiting = [j for j in jobs if j.get("status") in ("queued", "wait")]
+    done_ok = sum(1 for j in jobs if j.get("status") == "ok")
+    done_fail = sum(1 for j in jobs if j.get("status") == "fail")
+    done = done_ok + done_fail
     total = max(1, len(jobs))
-    pct = int(round(100 * done / total))
     age = None if _bridge_seen_at is None else max(0.0, now - _bridge_seen_at)
-    failed = sum(1 for j in jobs if j.get("status") == "fail")
+    failed = done_fail
     running = bool(active)
-    msg = ""
     current = next((j for j in jobs if j.get("status") in ("running", "claimed")), None)
+    elapsed = max(0.0, now - float(run.get("started_at") or now))
+
+    # Ağırlıklı yüzde: biten işler + mevcut işin alt adımları
+    frac = float(done)
     if current:
-        msg = (current.get("label") or "") + " running…"
-    elif running and age is None:
-        msg = "Waiting for Mac bridge…"
-    elif running and age is not None:
-        msg = "Queued on Mac · bridge connected"
-    elif failed:
-        msg = f"{failed} scans failed."
+        st = current.get("step")
+        ts = current.get("total_steps")
+        try:
+            st_i = int(st) if st is not None else 0
+            ts_i = int(ts) if ts is not None else 0
+        except (TypeError, ValueError):
+            st_i, ts_i = 0, 0
+        if ts_i > 0:
+            frac += min(0.99, max(0.0, st_i / ts_i))
+        else:
+            frac += 0.15  # çalışıyor ama alt adım yok
+    pct = int(round(100 * frac / total)) if total else 0
+    if running:
+        pct = min(99, max(1, pct)) if done < total else min(99, pct)
     else:
-        msg = "All scans finished"
+        pct = 100 if not failed else int(round(100 * done / total))
+
+    waiting_labels = [str(j.get("label") or j.get("id") or "") for j in waiting]
+    current_label = str((current or {}).get("label") or "") if current else ""
+    current_detail = str((current or {}).get("detail") or "") if current else ""
+    current_phase = str((current or {}).get("phase") or "") if current else ""
+    current_sub = str((current or {}).get("sub_label") or "") if current else ""
+    current_plat = str((current or {}).get("platform") or "") if current else ""
+    cur_step = (current or {}).get("step")
+    cur_total_steps = (current or {}).get("total_steps")
+
+    if current:
+        bits = [current_label or "Scan"]
+        if current_plat:
+            bits.append(current_plat)
+        if current_phase:
+            bits.append(current_phase)
+        if current_sub:
+            bits.append(current_sub)
+        elif current_detail:
+            bits.append(current_detail[:120])
+        if cur_step is not None and cur_total_steps:
+            bits.append(f"step {cur_step}/{cur_total_steps}")
+        msg = " · ".join(bits)
+    elif running and age is None:
+        msg = (
+            f"Waiting for Mac bridge… {len(waiting)} job(s) queued"
+            + (f" ({', '.join(waiting_labels[:4])})" if waiting_labels else "")
+        )
+    elif running and age is not None:
+        msg = (
+            f"Queued on Mac · bridge seen {_fmt_elapsed(age)} ago · "
+            f"{len(waiting)} waiting"
+            + (f": {', '.join(waiting_labels[:4])}" if waiting_labels else "")
+        )
+    elif failed:
+        msg = f"Finished with {failed} failure(s) · {done_ok} ok · {_fmt_elapsed(elapsed)}"
+    else:
+        msg = f"All {total} scan(s) finished · {_fmt_elapsed(elapsed)}"
         pct = 100
+
     return {
         "id": run["id"],
         "page": run["page"],
         "running": running,
-        "pct": pct if not running else min(99, pct) if done < total else 100,
+        "pct": pct,
         "jobs": jobs,
         "bridge_seen_at": _bridge_seen_at,
         "bridge_age_sec": age,
@@ -486,5 +575,20 @@ def _public_run_locked(run: dict[str, Any], now: float) -> dict[str, Any]:
         "message": msg,
         "failed": failed,
         "done": done,
+        "done_ok": done_ok,
+        "done_fail": done_fail,
         "total": len(jobs),
+        "waiting": len(waiting),
+        "waiting_labels": waiting_labels,
+        "current_job_id": (current or {}).get("id"),
+        "current_label": current_label,
+        "current_detail": current_detail,
+        "current_phase": current_phase,
+        "current_sub_label": current_sub,
+        "current_platform": current_plat,
+        "current_step": cur_step,
+        "current_total_steps": cur_total_steps,
+        "elapsed_sec": int(elapsed),
+        "elapsed_label": _fmt_elapsed(elapsed),
+        "started_at": run.get("started_at"),
     }

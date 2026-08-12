@@ -68,6 +68,11 @@ class ResultBody(BaseModel):
     ok: bool = False
     message: str = ""
     running: bool = False
+    phase: str = ""
+    step: int | None = None
+    total_steps: int | None = None
+    platform: str = ""
+    sub_label: str = ""
 
 
 def _manual_limit_response(exc: store.ManualLimitExceeded) -> JSONResponse:
@@ -153,7 +158,16 @@ def result(
     _check_ingest_token(authorization, x_notification_ingest_token)
     store.touch_bridge()
     if body.running:
-        store.mark_running(body.run_id, body.job_id, body.message)
+        store.mark_running(
+            body.run_id,
+            body.job_id,
+            body.message,
+            phase=body.phase or "",
+            step=body.step,
+            total_steps=body.total_steps,
+            platform=body.platform or "",
+            sub_label=body.sub_label or "",
+        )
         return {"ok": True}
     found = store.record_result(body.run_id, body.job_id, ok=body.ok, message=body.message)
     if not found:

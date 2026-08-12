@@ -2398,7 +2398,7 @@
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=3" defer></script>
   <script src="/static/js/app-refresh.js?v=2" defer></script>
-  <script src="/static/js/page_tarama.js?v=8" defer></script>
+  <script src="/static/js/page_tarama.js?v=9" defer></script>
   <script src="/static/js/market_chart_overlay.js?v=25" defer></script>
   <script src="/static/js/app_empower_overlay.js?v=10" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
@@ -2412,16 +2412,29 @@
     aria-live="polite"
   >Release to refresh</div>
   <div id="pc-page-tarama-overlay" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/50 backdrop-blur-sm" style="display:none" aria-hidden="true" role="dialog" aria-labelledby="pc-page-tarama-title">
-    <div class="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
-      <div class="mb-4 flex items-center justify-between gap-3">
-        <h3 id="pc-page-tarama-title" class="text-sm font-bold text-slate-800 dark:text-zinc-200">Scanning page</h3>
-        <span id="pc-page-tarama-pct" class="text-xs font-bold tabular-nums text-sky-600 dark:text-sky-400">0/0</span>
+    <div class="mx-4 w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-zinc-900 sm:p-6">
+      <div class="mb-3 flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h3 id="pc-page-tarama-title" class="text-sm font-bold text-slate-800 dark:text-zinc-200">Update page</h3>
+          <p id="pc-page-tarama-meta" class="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-zinc-400">—</p>
+        </div>
+        <div class="shrink-0 text-right">
+          <p id="pc-page-tarama-pct" class="text-sm font-bold tabular-nums text-sky-600 dark:text-sky-400">0%</p>
+          <p id="pc-page-tarama-counts" class="mt-0.5 text-[10px] font-semibold tabular-nums text-slate-500 dark:text-zinc-400">0 done · 0 wait</p>
+        </div>
       </div>
-      <div class="mb-4 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
-        <div id="pc-page-tarama-bar" class="h-full rounded-full bg-sky-500 transition-all duration-300" style="width:0%" role="progressbar" aria-valuemin="0" aria-valuenow="0" aria-valuemax="0" aria-valuetext="0/0"></div>
+      <div class="mb-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
+        <div id="pc-page-tarama-bar" class="h-full rounded-full bg-sky-500 transition-all duration-300" style="width:0%" role="progressbar" aria-valuemin="0" aria-valuenow="0" aria-valuemax="100" aria-valuetext="0%"></div>
       </div>
-      <p id="pc-page-tarama-status" class="mb-3 truncate text-xs text-slate-500 dark:text-zinc-400">Starting…</p>
-      <div id="pc-page-tarama-steps" class="max-h-48 space-y-1 overflow-y-auto text-[11px] text-slate-600 dark:text-zinc-400"></div>
+      <div class="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-50 dark:bg-zinc-800/80">
+        <div id="pc-page-tarama-subbar" class="h-full rounded-full bg-sky-300/90 transition-all duration-300 dark:bg-sky-600/70" style="width:0%" title="Current job sub-steps"></div>
+      </div>
+      <div class="mb-3 space-y-1 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-950/50">
+        <p id="pc-page-tarama-status" class="text-xs font-semibold leading-snug text-slate-700 dark:text-zinc-200">Starting…</p>
+        <p id="pc-page-tarama-detail" class="text-[11px] leading-snug text-slate-500 dark:text-zinc-400">—</p>
+        <p id="pc-page-tarama-queue" class="text-[11px] leading-snug text-slate-400 dark:text-zinc-500">Queue: —</p>
+      </div>
+      <div id="pc-page-tarama-steps" class="max-h-56 space-y-1.5 overflow-y-auto text-[11px] text-slate-600 dark:text-zinc-400"></div>
       <button id="pc-page-tarama-close" type="button" class="mt-4 hidden w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">Close</button>
     </div>
   </div>

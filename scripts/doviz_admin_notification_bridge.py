@@ -190,6 +190,15 @@ _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışm
 _last_play_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_asc_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_firebase_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_firebase_progress: dict[str, Any] = {
+    "running": False,
+    "phase": "idle",
+    "step": 0,
+    "total_steps": 0,
+    "platform": "",
+    "sub_label": "",
+    "message": "",
+}
 _last_gsc_links_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_policy_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -1052,7 +1061,12 @@ def run_asc_bridge_once() -> dict[str, Any]:
     return out
 
 
-def run_firebase_bridge_once() -> dict[str, Any]:
+def _set_firebase_progress(**kwargs: Any) -> None:
+    _firebase_progress.update(kwargs)
+    _firebase_progress["ts"] = time.time()
+
+
+def run_firebase_bridge_once(on_progress=None) -> dict[str, Any]:
     """Firebase Console Crashlytics scrape → Railway ingest."""
     global _last_firebase_result
     if not _ingest_token():
@@ -1077,10 +1091,36 @@ def run_firebase_bridge_once() -> dict[str, Any]:
         _last_firebase_result = err
         return err
 
+    def _cb(info: dict[str, Any]) -> None:
+        info = info if isinstance(info, dict) else {}
+        _set_firebase_progress(
+            running=True,
+            phase=str(info.get("phase") or "scrape"),
+            step=int(info.get("step") or 0),
+            total_steps=int(info.get("total_steps") or 0),
+            platform=str(info.get("platform") or ""),
+            sub_label=str(info.get("sub_label") or ""),
+            message=str(info.get("message") or "")[:200],
+        )
+        if callable(on_progress):
+            try:
+                on_progress(info)
+            except Exception:
+                pass
+
     print("Firebase Console scrape başlıyor…", flush=True)
+    _set_firebase_progress(
+        running=True,
+        phase="starting",
+        step=0,
+        total_steps=24,
+        platform="",
+        sub_label="",
+        message="Firebase Console scrape starting",
+    )
     env_hl = (os.environ.get("FIREBASE_CONSOLE_HEADLESS") or "").strip().lower()
     headed = env_hl not in ("1", "true", "yes")
-    result = scrape_firebase_console(headed=headed)
+    result = scrape_firebase_console(headed=headed, on_progress=_cb)
     if not result.get("sync_ok") and "login" in str(result.get("sync_message") or "").lower():
         out = {
             "ok": False,
@@ -1089,8 +1129,18 @@ def run_firebase_bridge_once() -> dict[str, Any]:
             "message": result.get("sync_message") or "Firebase login gerekli (--login)",
         }
         _last_firebase_result = out
+        _set_firebase_progress(running=False, phase="error", message=out["message"])
         return out
     try:
+        _cb(
+            {
+                "phase": "ingest",
+                "sub_label": "Railway ingest",
+                "step": 23,
+                "total_steps": 24,
+                "message": "Ingesting Firebase scrape",
+            }
+        )
         os.environ.setdefault("FIREBASE_CONSOLE_INGEST_URL", _firebase_console_ingest_url())
         if hasattr(mod, "INGEST_URL"):
             mod.INGEST_URL = _firebase_console_ingest_url()
@@ -1098,6 +1148,7 @@ def run_firebase_bridge_once() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         out = {"ok": False, "kind": "firebase", "message": f"Ingest hata: {exc}"}
         _last_firebase_result = out
+        _set_firebase_progress(running=False, phase="error", message=out["message"])
         return out
     plats = ((result.get("panels") or {}).get("platforms") or {})
     out = {
@@ -1110,6 +1161,13 @@ def run_firebase_bridge_once() -> dict[str, Any]:
         "ingest": ing,
     }
     _last_firebase_result = out
+    _set_firebase_progress(
+        running=False,
+        phase="done" if out["ok"] else "error",
+        step=24,
+        total_steps=24,
+        message=out["message"],
+    )
     print(f"Firebase sync · {out['message']}", flush=True)
     return out
 
@@ -1974,6 +2032,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         if path in ("/nt-progress", "/notification-progress", "/progress-nt"):
             self._send(200, {"ok": True, **dict(_nt_progress)})
             return
+        if path in ("/firebase-progress", "/progress-firebase"):
+            self._send(200, {"ok": True, **dict(_firebase_progress)})
+            return
+        if path in ("/gsc-cwv-progress", "/progress-gsc-cwv"):
+            self._send(200, {"ok": True, **dict(_gsc_cwv_progress)})
+            return
         self._send(404, {"ok": False, "message": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -2771,29 +2835,115 @@ def _page_tarama_claim_loop() -> None:
                 )
                 continue
             print(f"Uzaktan tarama başladı: {meta['name']}", flush=True)
-            _post_page_tarama_result(
-                {
-                    "run_id": job.get("run_id"),
+            run_id = str(job.get("run_id") or "")
+            started_mono = time.time()
+
+            def _progress_post(info: dict[str, Any] | None = None) -> None:
+                info = info if isinstance(info, dict) else {}
+                elapsed = int(time.time() - started_mono)
+                msg = str(
+                    info.get("message")
+                    or info.get("sub_label")
+                    or f"Mac scan running · {elapsed}s"
+                )[:200]
+                payload = {
+                    "run_id": run_id,
                     "job_id": job_id,
                     "running": True,
-                    "message": "Mac scan running",
+                    "message": msg,
+                    "phase": str(info.get("phase") or "running")[:80],
+                    "platform": str(info.get("platform") or "")[:40],
+                    "sub_label": str(info.get("sub_label") or "")[:160],
                 }
-            )
+                if info.get("step") is not None:
+                    try:
+                        payload["step"] = int(info["step"])
+                    except (TypeError, ValueError):
+                        pass
+                if info.get("total_steps") is not None:
+                    try:
+                        payload["total_steps"] = int(info["total_steps"])
+                    except (TypeError, ValueError):
+                        pass
+                _post_page_tarama_result(payload)
+
+            _progress_post({"message": "Mac scan claimed · starting", "phase": "claimed", "step": 0})
+
+            stop_hb = threading.Event()
+
+            def _heartbeat() -> None:
+                while not stop_hb.wait(5.0):
+                    # Firebase already posts fine steps; heartbeat fills gaps for other jobs
+                    if job_id == "firebase" and _firebase_progress.get("running"):
+                        _progress_post(dict(_firebase_progress))
+                    elif job_id == "news" and _news_progress.get("running"):
+                        _progress_post(
+                            {
+                                "phase": _news_progress.get("phase") or "scrape",
+                                "step": _news_progress.get("page") or _news_progress.get("step") or 0,
+                                "total_steps": _news_progress.get("total_pages")
+                                or _news_progress.get("total_steps")
+                                or 0,
+                                "message": _news_progress.get("message") or "News scrape",
+                            }
+                        )
+                    elif job_id == "notification" and _nt_progress.get("running"):
+                        _progress_post(
+                            {
+                                "phase": _nt_progress.get("phase") or "fetch",
+                                "step": _nt_progress.get("step") or 0,
+                                "total_steps": _nt_progress.get("total_steps") or 0,
+                                "message": _nt_progress.get("message") or "Notification scrape",
+                            }
+                        )
+                    elif job_id == "cwv" and _gsc_cwv_progress.get("running"):
+                        _progress_post(
+                            {
+                                "phase": _gsc_cwv_progress.get("phase") or "scrape",
+                                "message": _gsc_cwv_progress.get("message") or "GSC CWV scrape",
+                            }
+                        )
+                    else:
+                        _progress_post(
+                            {
+                                "phase": "running",
+                                "message": f"{meta['name']} · Mac scan · {int(time.time() - started_mono)}s elapsed",
+                            }
+                        )
+
+            hb = threading.Thread(target=_heartbeat, name=f"pt-hb-{job_id}", daemon=True)
+            hb.start()
+
+            def _runner():
+                if job_id == "firebase":
+                    return run_firebase_bridge_once(on_progress=_progress_post)
+                return meta["runner"]()
+
             result = None
-            while result is None:
-                result = _run_locked_job(
-                    name=meta["name"],
-                    lock=meta["lock"],
-                    runner=meta["runner"],
-                    kind=job_id,
-                    notify=False,
-                )
-                if result is None:
-                    print(f"Uzaktan {meta['name']}: kilit meşgul, 8 sn…", flush=True)
-                    time.sleep(8)
+            try:
+                while result is None:
+                    result = _run_locked_job(
+                        name=meta["name"],
+                        lock=meta["lock"],
+                        runner=_runner,
+                        kind=job_id,
+                        notify=False,
+                    )
+                    if result is None:
+                        _progress_post(
+                            {
+                                "phase": "waiting_lock",
+                                "message": f"{meta['name']} · another scan holds the lock, retrying…",
+                            }
+                        )
+                        print(f"Uzaktan {meta['name']}: kilit meşgul, 8 sn…", flush=True)
+                        time.sleep(8)
+            finally:
+                stop_hb.set()
+
             _post_page_tarama_result(
                 {
-                    "run_id": job.get("run_id"),
+                    "run_id": run_id,
                     "job_id": job_id,
                     "ok": bool(result.get("ok")),
                     "message": str(result.get("message") or ("Done" if result.get("ok") else "Error"))[:180],

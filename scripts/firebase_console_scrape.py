@@ -726,14 +726,32 @@ def _merge_issues(*lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
+def _scrape_platform(page, plat: str, days: int, on_progress=None) -> dict[str, Any]:
     meta = dict(PLATFORMS[plat])
     captured: list[dict[str, Any]] = _capture_network(page)
     version = meta["latest_version"]
     windows: dict[str, Any] = {}
 
+    def _prog(phase: str, sub: str, step: int, total: int = 12) -> None:
+        if not callable(on_progress):
+            return
+        try:
+            on_progress(
+                {
+                    "platform": plat,
+                    "phase": phase,
+                    "sub_label": sub,
+                    "step": step,
+                    "total_steps": total,
+                    "message": f"{plat} · {sub}",
+                }
+            )
+        except Exception:
+            pass
+
     urls90 = _urls(plat, time_param="90d", version=version)
     print(f"  · {plat}/release@90d …", flush=True)
+    _prog("release", "release@90d", 1)
     go = _goto_collect(page, urls90["release"], captured)
     if go.get("error") == "login_required":
         return {
@@ -754,6 +772,7 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
     for t in ("24h", "7d", "30d"):
         urls = _urls(plat, time_param=t, version=version)
         print(f"  · {plat}/release@{t} …", flush=True)
+        _prog("release", f"release@{t}", {"24h": 2, "7d": 3, "30d": 4}[t])
         before = len(captured)
         _goto_collect(page, urls["release"], captured, wait_ms=6500)
         slice_hits = captured[before:]
@@ -763,12 +782,14 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
         windows[t] = _window_summary(net_t, version=version, time_param=t, plat=plat)
 
     print(f"  · {plat}/release_all@90d …", flush=True)
+    _prog("release", "release_all@90d", 5)
     before = len(captured)
     _goto_collect(page, urls90["release_all"], captured, wait_ms=6500)
     net_all = _parse_releasemon_network(captured[before:], plat=plat)
     release_all = _window_summary(net_all, version="all", time_param="90d", plat=plat)
 
     print(f"  · {plat}/crashlytics@90d …", flush=True)
+    _prog("crashlytics", "issues crash", 6)
     before = len(captured)
     crash_urls = _urls(plat, time_param="90d", version=version, issue_types="crash")
     _goto_collect(page, crash_urls["crashlytics"], captured, wait_ms=7000)
@@ -782,6 +803,7 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
     anr_issues: list[dict[str, Any]] = []
     if plat == "android":
         print(f"  · {plat}/crashlytics_anr@90d …", flush=True)
+        _prog("crashlytics", "issues ANR", 7)
         before = len(captured)
         anr_urls = _urls(plat, time_param="90d", version=version, issue_types="anr")
         _goto_collect(page, anr_urls["crashlytics"], captured, wait_ms=7000)
@@ -793,6 +815,7 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
                 iss.setdefault("version", version)
 
     print(f"  · {plat}/crashlytics_nonfatal@90d …", flush=True)
+    _prog("crashlytics", "issues nonfatal", 8)
     before = len(captured)
     nf_urls = _urls(plat, time_param="90d", version=version, issue_types="all")
     # types=all can mix; prefer explicit nonfatal when Console accepts it
@@ -811,6 +834,7 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
             iss.setdefault("version", version)
 
     print(f"  · {plat}/analytics …", flush=True)
+    _prog("analytics", "dashboard cards", 9)
     ov_urls = _urls(plat, time_param="90d", version=version)
     before_analytics = len(captured)
     _goto_collect(page, ov_urls["analytics"], captured, wait_ms=20000)
@@ -831,7 +855,9 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
     )
 
     print(f"  · {plat}/overview …", flush=True)
+    _prog("overview", "project overview", 10)
     _goto_collect(page, ov_urls["overview"], captured, wait_ms=5000)
+    _prog("done", f"{plat} platform done", 12)
 
     # FATAL only — ANR / NON_FATAL ayrı listelerde (UI karışmasın)
     issues = _merge_issues(
@@ -914,7 +940,7 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
 
 
 
-def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
+def scrape_firebase_console(*, headed: bool | None = None, on_progress=None) -> dict[str, Any]:
     from playwright.sync_api import sync_playwright
 
     days = _scrape_days()
@@ -927,6 +953,14 @@ def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
     raw_network: list[dict[str, Any]] = []
     errors: list[str] = []
 
+    def _top_prog(info: dict[str, Any]) -> None:
+        if not callable(on_progress):
+            return
+        try:
+            on_progress(info)
+        except Exception:
+            pass
+
     with sync_playwright() as p:
         from backend.services.scrape_browser import launch_persistent
 
@@ -936,6 +970,16 @@ def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
         page = context.pages[0] if context.pages else context.new_page()
         try:
             # login probe — dashboard açıksa Enter beklemeden devam
+            _top_prog(
+                {
+                    "platform": "android",
+                    "phase": "login",
+                    "sub_label": "session probe",
+                    "step": 0,
+                    "total_steps": 24,
+                    "message": "Firebase login / session probe",
+                }
+            )
             probe = _urls("android", time_param="90d")["overview"]
             page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
             page.wait_for_timeout(2000)
@@ -964,9 +1008,20 @@ def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
                         "scrape_days": days,
                     }
 
+            plat_index = 0
             for plat in ("android", "ios"):
+                plat_index += 1
+
+                def _plat_prog(info, _pi=plat_index):
+                    base = (_pi - 1) * 12
+                    step = base + int(info.get("step") or 0)
+                    payload = dict(info)
+                    payload["step"] = step
+                    payload["total_steps"] = 24
+                    _top_prog(payload)
+
                 try:
-                    block = _scrape_platform(page, plat, days)
+                    block = _scrape_platform(page, plat, days, on_progress=_plat_prog)
                     platforms_out[plat] = block
                     if block.get("raw_hints"):
                         raw_network.extend(block.get("raw_hints") or [])
