@@ -129,6 +129,45 @@ def sinemalar_moderation_purge(
     return mod.purge_all_data(db)
 
 
+@router.get("/sinemalar-moderation/coverage")
+def sinemalar_moderation_coverage(
+    db: Session = Depends(get_db),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    return mod.get_detail_coverage(db, start=start, end=end)
+
+
+class ModerationGapCompareBody(BaseModel):
+    start: str = ""
+    end: str = ""
+    expected: dict[str, int] = Field(default_factory=dict)
+    user_ids: list[int] = Field(default_factory=list)
+
+
+@router.post("/sinemalar-moderation/gaps")
+def sinemalar_moderation_gaps(
+    body: ModerationGapCompareBody,
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    coverage = mod.get_detail_coverage(db, start=body.start or None, end=body.end or None)
+    user_ids = body.user_ids or None
+    gaps = mod.compute_gaps(body.expected, coverage.get("counts") or {}, user_ids=user_ids)
+    return {
+        "ok": True,
+        "start": coverage.get("start"),
+        "end": coverage.get("end"),
+        "gap_count": len(gaps),
+        "gaps": gaps,
+    }
+
+
 @router.get("/sinemalar-moderation/meta")
 def sinemalar_moderation_meta(db: Session = Depends(get_db)) -> dict[str, Any]:
     return mod.get_meta_summary(db)

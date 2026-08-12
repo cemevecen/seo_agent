@@ -712,20 +712,13 @@ def get_detail_payload(
     }
 
 
-def get_panel_payload(
-    db: Session,
-    *,
-    start: str | None = None,
-    end: str | None = None,
-) -> dict[str, Any]:
-    meta = get_meta_summary(db)
+def _parse_range(start: str | None, end: str | None) -> tuple[date, date]:
     end_d = today_tr()
     if end:
         try:
             end_d = date.fromisoformat(str(end)[:10])
         except ValueError:
             pass
-
     if start:
         try:
             start_d = date.fromisoformat(str(start)[:10])
@@ -733,9 +726,237 @@ def get_panel_payload(
             start_d = BACKFILL_START
     else:
         start_d = BACKFILL_START
-
     if start_d > end_d:
         start_d, end_d = end_d, start_d
+    return start_d, end_d
+
+
+def summary_totals_map(rows: list[dict[str, Any]]) -> dict[str, int]:
+    """parse_summary_rows çıktısını user_id|metric_type → count haritasına çevir."""
+    out: dict[str, int] = {}
+    for item in rows or []:
+        uid = int(item.get("user_id") or 0)
+        mtype = str(item.get("metric_type") or "")
+        if not uid or not mtype:
+            continue
+        out[f"{uid}|{mtype}"] = int(item.get("count") or 0)
+    return out
+
+
+def get_detail_coverage(
+    db: Session,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, Any]:
+    """DB'deki detay kayıt sayıları — gap-fill karşılaştırması için."""
+    start_d, end_d = _parse_range(start, end)
+    from sqlalchemy import func
+
+    rows = (
+        db.query(
+            SinemalarModerationDetailItem.user_id,
+            SinemalarModerationDetailItem.metric_type,
+            func.count().label("cnt"),
+        )
+        .filter(
+            SinemalarModerationDetailItem.event_at >= datetime.combine(start_d, datetime.min.time()),
+            SinemalarModerationDetailItem.event_at
+            < datetime.combine(end_d + timedelta(days=1), datetime.min.time()),
+        )
+        .group_by(
+            SinemalarModerationDetailItem.user_id,
+            SinemalarModerationDetailItem.metric_type,
+        )
+        .all()
+    )
+    counts = {f"{int(r.user_id)}|{r.metric_type}": int(r.cnt or 0) for r in rows}
+    items: list[dict[str, Any]] = []
+    for uid, uname in TRACKED_MODERATORS:
+        for mkey, mlabel in METRIC_TYPES:
+            key = f"{uid}|{mkey}"
+            items.append(
+                {
+                    "user_id": uid,
+                    "username": uname,
+                    "metric_type": mkey,
+                    "metric_label": mlabel,
+                    "detail_count": counts.get(key, 0),
+                }
+            )
+    return {
+        "ok": True,
+        "start": start_d.isoformat(),
+        "end": end_d.isoformat(),
+        "counts": counts,
+        "items": items,
+    }
+
+
+def compute_gaps(
+    expected: dict[str, int],
+    actual: dict[str, int],
+    *,
+    user_ids: list[int] | None = None,
+) -> list[dict[str, Any]]:
+    """Sinemalar özet sayıları ile DB detay sayılarını karşılaştır."""
+    allowed = set(user_ids) if user_ids else None
+    gaps: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for key, exp in expected.items():
+        if key in seen:
+            continue
+        seen.add(key)
+        parts = key.split("|", 1)
+        if len(parts) != 2:
+            continue
+        try:
+            uid = int(parts[0])
+        except ValueError:
+            continue
+        if allowed is not None and uid not in allowed:
+            continue
+        mtype = parts[1]
+        got = int(actual.get(key) or 0)
+        if exp > got:
+            gaps.append(
+                {
+                    "user_id": uid,
+                    "username": resolve_username(uid),
+                    "metric_type": mtype,
+                    "metric_label": METRIC_LABEL_BY_TYPE.get(mtype, mtype),
+                    "expected": exp,
+                    "actual": got,
+                    "missing": exp - got,
+                }
+            )
+    gaps.sort(key=lambda g: (-int(g.get("missing") or 0), g.get("username") or ""))
+    return gaps
+
+
+def build_panel_analytics(
+    detail_rows: list[SinemalarModerationDetailItem],
+    *,
+    start_d: date,
+    end_d: date,
+) -> dict[str, Any]:
+    """Detay satırlarından grafik verisi üret."""
+    by_user_day: dict[int, dict[str, int]] = {uid: {} for uid, _ in TRACKED_MODERATORS}
+    by_user_metric: dict[int, dict[str, int]] = {uid: {k: 0 for k, _ in METRIC_TYPES} for uid, _ in TRACKED_MODERATORS}
+    by_user_weekday: dict[int, dict[int, int]] = {uid: {w: 0 for w in range(7)} for uid, _ in TRACKED_MODERATORS}
+    by_day_total: dict[str, int] = {}
+    by_day_user: dict[str, dict[str, int]] = {}
+
+    for r in detail_rows:
+        if not is_tracked_user_id(r.user_id):
+            continue
+        uid = int(r.user_id)
+        day = r.event_at.date().isoformat()
+        by_user_day.setdefault(uid, {})
+        by_user_day[uid][day] = by_user_day[uid].get(day, 0) + 1
+        by_user_metric.setdefault(uid, {k: 0 for k, _ in METRIC_TYPES})
+        by_user_metric[uid][r.metric_type] = by_user_metric[uid].get(r.metric_type, 0) + 1
+        by_user_weekday.setdefault(uid, {w: 0 for w in range(7)})
+        by_user_weekday[uid][r.event_at.weekday()] = by_user_weekday[uid].get(r.event_at.weekday(), 0) + 1
+        by_day_total[day] = by_day_total.get(day, 0) + 1
+        if day not in by_day_user:
+            by_day_user[day] = {}
+        uname = r.username or resolve_username(uid)
+        by_day_user[day][uname] = by_day_user[day].get(uname, 0) + 1
+
+    all_days: list[str] = []
+    d = start_d
+    while d <= end_d:
+        all_days.append(d.isoformat())
+        d += timedelta(days=1)
+
+    weekday_labels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
+
+    rankings_by_metric: dict[str, list[dict[str, Any]]] = {}
+    for mkey, mlabel in METRIC_TYPES:
+        ranked = sorted(
+            [(uid, by_user_metric.get(uid, {}).get(mkey, 0)) for uid, _ in TRACKED_MODERATORS],
+            key=lambda x: (-x[1], resolve_username(x[0])),
+        )
+        rankings_by_metric[mkey] = [
+            {
+                "user_id": uid,
+                "username": resolve_username(uid),
+                "metric_label": mlabel,
+                "count": cnt,
+                "rank": i + 1,
+            }
+            for i, (uid, cnt) in enumerate(ranked)
+            if cnt > 0
+        ]
+
+    overall_ranked = sorted(
+        [(uid, sum(by_user_metric.get(uid, {}).values())) for uid, _ in TRACKED_MODERATORS],
+        key=lambda x: (-x[1], resolve_username(x[0])),
+    )
+    overall_rank = [
+        {"user_id": uid, "username": resolve_username(uid), "count": cnt, "rank": i + 1}
+        for i, (uid, cnt) in enumerate(overall_ranked)
+        if cnt > 0
+    ]
+
+    calendars: dict[str, dict[str, Any]] = {}
+    for uid, uname in TRACKED_MODERATORS:
+        days_data = [{"date": day, "count": by_user_day.get(uid, {}).get(day, 0)} for day in all_days]
+        active = sum(1 for x in days_data if x["count"] > 0)
+        calendars[str(uid)] = {
+            "username": uname,
+            "days": days_data,
+            "active_days": active,
+            "inactive_days": len(all_days) - active,
+        }
+
+    shares: dict[str, dict[str, float]] = {}
+    for uid, uname in TRACKED_MODERATORS:
+        total = sum(by_user_metric.get(uid, {}).values())
+        if total <= 0:
+            shares[str(uid)] = {k: 0.0 for k, _ in METRIC_TYPES}
+        else:
+            shares[str(uid)] = {
+                k: round(100.0 * by_user_metric[uid].get(k, 0) / total, 1) for k, _ in METRIC_TYPES
+            }
+
+    cumulative: dict[str, list[dict[str, Any]]] = {}
+    for uid, uname in TRACKED_MODERATORS:
+        running = 0
+        series: list[dict[str, Any]] = []
+        for day in all_days:
+            running += by_user_day.get(uid, {}).get(day, 0)
+            series.append({"date": day, "cumulative": running})
+        cumulative[str(uid)] = series
+
+    return {
+        "calendar_days": all_days,
+        "calendars": calendars,
+        "rankings_by_metric": rankings_by_metric,
+        "overall_rank": overall_rank,
+        "shares_by_metric": shares,
+        "weekday_labels": weekday_labels,
+        "weekday_by_user": {
+            str(uid): [by_user_weekday.get(uid, {}).get(w, 0) for w in range(7)] for uid, _ in TRACKED_MODERATORS
+        },
+        "daily_totals": by_day_total,
+        "daily_by_user": {
+            str(uid): [by_user_day.get(uid, {}).get(day, 0) for day in all_days] for uid, _ in TRACKED_MODERATORS
+        },
+        "cumulative_by_user": cumulative,
+        "usernames": {str(uid): uname for uid, uname in TRACKED_MODERATORS},
+    }
+
+
+def get_panel_payload(
+    db: Session,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, Any]:
+    meta = get_meta_summary(db)
+    start_d, end_d = _parse_range(start, end)
 
     q = (
         db.query(SinemalarModerationDailyRow)
@@ -782,6 +1003,8 @@ def get_panel_payload(
         .count()
     )
 
+    detail_rows: list[SinemalarModerationDetailItem] = []
+    analytics: dict[str, Any] = {}
     if detail_total > 0:
         users = {}
         detail_rows = (
@@ -793,6 +1016,7 @@ def get_panel_payload(
             )
             .all()
         )
+        analytics = build_panel_analytics(detail_rows, start_d=start_d, end_d=end_d)
         for r in detail_rows:
             if not is_tracked_user_id(r.user_id):
                 continue
@@ -831,6 +1055,7 @@ def get_panel_payload(
         "moderators": [{"user_id": uid, "username": uname} for uid, uname in TRACKED_MODERATORS],
         "users": ordered_users,
         "daily": daily,
+        "analytics": analytics,
         "meta": get_meta_summary(db),
         "row_count": len(rows),
         "detail_item_count": detail_total,

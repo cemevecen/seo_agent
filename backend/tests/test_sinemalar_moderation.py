@@ -253,3 +253,74 @@ def test_backfill_payload_updates_meta():
     assert len(panel["users"]) == 6
     assert panel["users"][2]["username"] == "gezginozlem"
     assert panel["users"][2]["total_all"] == 1
+
+
+def test_compute_gaps_and_coverage():
+    db = _session()
+    mod.ingest_detail_batch(
+        db,
+        user_id=245939,
+        username="Aquamarine",
+        metric_type="movie",
+        items=[
+            {
+                "user_id": 245939,
+                "username": "Aquamarine",
+                "metric_type": "movie",
+                "item_id": "1",
+                "title": "A",
+                "subtitle": "",
+                "event_at": "2026-02-01 10:00:00",
+            }
+        ],
+        range_start=date(2026, 1, 1),
+        range_end=date(2026, 8, 13),
+        recompute_daily=True,
+    )
+    cov = mod.get_detail_coverage(db, start="2026-01-01", end="2026-08-13")
+    assert cov["counts"]["245939|movie"] == 1
+    gaps = mod.compute_gaps(
+        {"245939|movie": 5, "245939|person": 3},
+        cov["counts"],
+        user_ids=[245939],
+    )
+    assert len(gaps) == 2
+    assert gaps[0]["missing"] == 4
+
+
+def test_build_panel_analytics_from_details():
+    db = _session()
+    mod.ingest_detail_batch(
+        db,
+        user_id=873391,
+        username="gezginozlem",
+        metric_type="movie",
+        items=[
+            {
+                "user_id": 873391,
+                "username": "gezginozlem",
+                "metric_type": "movie",
+                "item_id": "10",
+                "title": "Film",
+                "subtitle": "",
+                "event_at": "2026-03-01 12:00:00",
+            },
+            {
+                "user_id": 873391,
+                "username": "gezginozlem",
+                "metric_type": "movie",
+                "item_id": "11",
+                "title": "Film2",
+                "subtitle": "",
+                "event_at": "2026-03-02 12:00:00",
+            },
+        ],
+        range_start=date(2026, 3, 1),
+        range_end=date(2026, 3, 3),
+        recompute_daily=True,
+    )
+    panel = mod.get_panel_payload(db, start="2026-03-01", end="2026-03-03")
+    analytics = panel.get("analytics") or {}
+    assert analytics.get("calendar_days")
+    assert analytics["calendars"]["873391"]["active_days"] == 2
+    assert analytics["overall_rank"][0]["username"] == "gezginozlem"

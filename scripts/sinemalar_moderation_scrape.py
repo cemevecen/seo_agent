@@ -21,6 +21,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -203,6 +204,19 @@ def summary_url_for_day(day: date) -> str:
     return f"{SUMMARY_URL}?startDate={day.isoformat()}&endDate={end.isoformat()}"
 
 
+def summary_url_for_range(start_d: date, end_d: date) -> str:
+    """Aralık özeti — getModerationSummary."""
+    return f"{SUMMARY_URL}?startDate={start_d.isoformat()}&endDate={end_d.isoformat()}"
+
+
+def fetch_summary_for_range(page, start_d: date, end_d: date) -> list[dict[str, Any]]:
+    url = summary_url_for_range(start_d, end_d)
+    page.goto(url, wait_until="networkidle", timeout=120000)
+    time.sleep(0.6)
+    rows = page.evaluate(_EXTRACT_ROWS_JS) or []
+    return rows if isinstance(rows, list) else []
+
+
 def _tracked_day_total(rows: list[dict[str, Any]]) -> dict[str, int]:
     from backend.services.sinemalar_moderation import is_tracked_username, parse_summary_rows
 
@@ -372,6 +386,59 @@ def _ingest_detail_batch(
     return last
 
 
+def fetch_remote_coverage(start_d: date, end_d: date) -> dict[str, Any]:
+    token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
+    if not token:
+        return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+    qs = urllib.parse.urlencode({"start": start_d.isoformat(), "end": end_d.isoformat()})
+    url = INGEST_URL.rsplit("/", 1)[0] + "/coverage?" + qs
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"}, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+            return {"ok": True, **payload}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:500]
+        return {"ok": False, "message": f"HTTP {exc.code}: {detail}"}
+    except Exception as exc:
+        return {"ok": False, "message": str(exc)}
+
+
+def post_remote_gaps(
+    start_d: date,
+    end_d: date,
+    expected: dict[str, int],
+    *,
+    user_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
+    if not token:
+        return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+    url = INGEST_URL.rsplit("/", 1)[0] + "/gaps"
+    body: dict[str, Any] = {
+        "start": start_d.isoformat(),
+        "end": end_d.isoformat(),
+        "expected": expected,
+    }
+    if user_ids:
+        body["user_ids"] = user_ids
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+            return {"ok": True, **payload}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:500]
+        return {"ok": False, "message": f"HTTP {exc.code}: {detail}"}
+    except Exception as exc:
+        return {"ok": False, "message": str(exc)}
+
+
 def purge_remote_moderation() -> dict[str, Any]:
     token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
     if not token:
@@ -493,6 +560,140 @@ def scrape_detail_range(
         "item_count": total_items,
         "batch_count": len(batches),
         "message": f"detail_range {start_d} → {end_d} · {total_items} kayıt",
+    }
+
+
+def scrape_fill_gaps(
+    start_d: date,
+    end_d: date,
+    *,
+    headed: bool = True,
+    delay_sec: float = SCRAPE_DELAY_SEC,
+    ingest_per_batch: bool = False,
+    user_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    """Sinemalar özet vs DB karşılaştırması — yalnızca eksik user×type detail çeker (purge yok)."""
+    from backend.services.sinemalar_moderation import METRIC_TYPE_KEYS, parse_summary_rows, summary_totals_map
+
+    scraped_at = datetime.now(timezone.utc).isoformat()
+    pw = ctx = page = None
+    try:
+        pw, ctx, page = _open_logged_in_page(headed)
+        if page is None:
+            return {
+                "ok": False,
+                "needs_login": True,
+                "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
+            }
+        summary_rows = fetch_summary_for_range(page, start_d, end_d)
+    finally:
+        _safe_close_context(ctx)
+        if pw is not None:
+            try:
+                pw.stop()
+            except Exception:
+                pass
+
+    parsed = parse_summary_rows(summary_rows)
+    expected = summary_totals_map(parsed)
+    gaps_resp = post_remote_gaps(start_d, end_d, expected, user_ids=user_ids)
+    if not gaps_resp.get("ok"):
+        return {"ok": False, "message": gaps_resp.get("message") or "gaps API failed"}
+    gaps = gaps_resp.get("gaps") or []
+    if not gaps:
+        return {
+            "ok": True,
+            "mode": "fill_gaps",
+            "scraped_at": scraped_at,
+            "range_start": start_d.isoformat(),
+            "range_end": end_d.isoformat(),
+            "gap_count": 0,
+            "item_count": 0,
+            "message": "Eksik batch yok — DB özet ile uyumlu",
+        }
+
+    print(f"Eksik batch: {len(gaps)} (purge yok, dedup ingest)", flush=True)
+    for g in gaps:
+        print(
+            f"  · {g.get('username')} / {g.get('metric_type')} "
+            f"beklenen {g.get('expected')} · DB {g.get('actual')} · eksik {g.get('missing')}",
+            flush=True,
+        )
+
+    batches: list[dict[str, Any]] = []
+    total_items = 0
+    n = 0
+    for gap in gaps:
+        if n > 0 and delay_sec > 0:
+            time.sleep(delay_sec)
+        n += 1
+        user_id = int(gap.get("user_id") or 0)
+        username = str(gap.get("username") or "")
+        metric_type = str(gap.get("metric_type") or "")
+        if not user_id or not metric_type:
+            continue
+        batch: dict[str, Any] | None = None
+        for attempt in range(2):
+            pw = ctx = page = None
+            try:
+                pw, ctx, page = _open_logged_in_page(headed)
+                if page is None:
+                    return {
+                        "ok": False,
+                        "needs_login": True,
+                        "message": "Sinemalar admin oturumu yok.",
+                        "detail_batches": batches,
+                    }
+                batch = fetch_detail_page(
+                    page,
+                    user_id=user_id,
+                    username=username,
+                    metric_type=metric_type,
+                    start_d=start_d,
+                    end_d=end_d,
+                )
+                break
+            except Exception as exc:
+                print(f"    ! {username}/{metric_type} hata (deneme {attempt + 1}): {exc}", flush=True)
+                batch = None
+            finally:
+                _safe_close_context(ctx)
+                if pw is not None:
+                    try:
+                        pw.stop()
+                    except Exception:
+                        pass
+        if batch is None:
+            continue
+        batches.append(batch)
+        total_items += int(batch.get("item_count") or 0)
+        if ingest_per_batch:
+            body: dict[str, Any] = {
+                "source": "sinemalar_moderation",
+                "mode": "fill_gaps",
+                "scraped_at": scraped_at,
+                "range_start": start_d.isoformat(),
+                "range_end": end_d.isoformat(),
+                "detail_batches": [{**batch, "_recompute_daily": True}],
+                "backfill_complete": n >= len(gaps),
+            }
+            ing = ingest_result(body, mode="fill_gaps")
+            if not ing.get("ok"):
+                print(f"    ingest hata: {ing.get('message')}", flush=True)
+
+    return {
+        "ok": True,
+        "needs_login": False,
+        "source": "sinemalar_moderation",
+        "mode": "fill_gaps",
+        "scraped_at": scraped_at,
+        "range_start": start_d.isoformat(),
+        "range_end": end_d.isoformat(),
+        "gap_count": len(gaps),
+        "detail_batches": batches,
+        "item_count": total_items,
+        "batch_count": len(batches),
+        "message": f"fill_gaps {start_d} → {end_d} · {len(gaps)} eksik batch · {total_items} kayıt",
     }
 
 
@@ -723,6 +924,17 @@ def main() -> int:
         action="store_true",
         help="detail-range: ingest öncesi tüm moderasyon verisini sil",
     )
+    parser.add_argument(
+        "--fill-gaps",
+        help="Sinemalar özet vs DB — yalnızca eksik user×type detail çeker YYYY-MM-DD:YYYY-MM-DD",
+    )
+    parser.add_argument(
+        "--user-id",
+        type=int,
+        action="append",
+        dest="user_ids",
+        help="fill-gaps: yalnız bu moderatör(ler) (tekrarlanabilir)",
+    )
     parser.add_argument("--ingest", action="store_true", help="Railway ingest")
     parser.add_argument("--headless", action="store_true")
     args = parser.parse_args()
@@ -767,6 +979,35 @@ def main() -> int:
     if args.incremental:
         out = run_incremental(args.incremental, headed=headed, ingest=args.ingest)
         print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0 if out.get("ok") else 1
+
+    if args.fill_gaps:
+        raw = str(args.fill_gaps).strip()
+        if ":" not in raw:
+            print("Geçersiz --fill-gaps (YYYY-MM-DD:YYYY-MM-DD)", file=sys.stderr)
+            return 1
+        start_s, end_s = raw.split(":", 1)
+        try:
+            start_d = date.fromisoformat(start_s[:10])
+            end_d = date.fromisoformat(end_s[:10])
+        except ValueError:
+            print("Geçersiz --fill-gaps tarihleri", file=sys.stderr)
+            return 1
+        user_ids = args.user_ids or None
+        print(
+            f"Fill gaps: {start_d.isoformat()} → {end_d.isoformat()}"
+            + (f" · user_ids={user_ids}" if user_ids else ""),
+            flush=True,
+        )
+        out = scrape_fill_gaps(
+            start_d,
+            end_d,
+            headed=headed,
+            ingest_per_batch=bool(args.ingest),
+            user_ids=user_ids,
+        )
+        summary = {k: v for k, v in out.items() if k != "detail_batches"}
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0 if out.get("ok") else 1
 
     if args.detail_range:
