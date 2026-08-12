@@ -98,17 +98,17 @@ def test_js_remote_does_not_fall_back_to_localhost_bridge():
 def test_android_queue_claim_result():
     store.reset_for_tests()
     run = store.start_run("android")
-    assert [j["id"] for j in run["jobs"]] == ["play", "firebase", "market"]
+    assert [j["id"] for j in run["jobs"]] == ["play_vitals", "play", "firebase", "market"]
     assert all(j["status"] == "queued" for j in run["jobs"])
     first = store.claim_next()
     assert first is not None
-    assert first["job_id"] == "play"
+    assert first["job_id"] == "play_vitals"
     assert store.claim_next() is None
-    store.mark_running(run["id"], "play", "Mac tarama çalışıyor")
-    store.record_result(run["id"], "play", ok=True, message="ok")
+    store.mark_running(run["id"], "play_vitals", "Mac tarama çalışıyor")
+    store.record_result(run["id"], "play_vitals", ok=True, message="ok")
     second = store.claim_next()
     assert second is not None
-    assert second["job_id"] == "firebase"
+    assert second["job_id"] == "play"
 
 
 def test_ios_and_news_and_notification_catalog():

@@ -57,6 +57,87 @@ def _unpack_metrics_blob(raw: str) -> tuple[list[dict[str, Any]], dict[str, Any]
     return [], {}
 
 
+def _vitals_has_usable_data(vitals: Any) -> bool:
+    """Overview satırı veya en az bir sorun satırı / pozitif issue_count var mı?"""
+    if not isinstance(vitals, dict) or vitals.get("error"):
+        return False
+    ov = vitals.get("metrics_overview") if isinstance(vitals.get("metrics_overview"), dict) else {}
+    if len(ov.get("rows") or []) > 0:
+        return True
+    crashes = vitals.get("crashes") if isinstance(vitals.get("crashes"), dict) else {}
+    for et in ("CRASH", "ANR"):
+        block = crashes.get(et) if isinstance(crashes.get(et), dict) else {}
+        for cat in block.get("categories") or []:
+            if not isinstance(cat, dict):
+                continue
+            if cat.get("issues"):
+                return True
+            raw_n = cat.get("issue_count") or cat.get("issue_row_count")
+            try:
+                if int(str(raw_n).replace(".", "").replace(",", "").split()[0]) > 0:
+                    return True
+            except (TypeError, ValueError, IndexError):
+                pass
+    byv = vitals.get("by_version") if isinstance(vitals.get("by_version"), dict) else {}
+    for payload in byv.values():
+        if not isinstance(payload, dict):
+            continue
+        nested = {"crashes": payload.get("crashes") or payload, "metrics_overview": {}}
+        # Avoid infinite recursion via by_version: only inspect crashes map
+        cr = nested.get("crashes") if isinstance(nested.get("crashes"), dict) else {}
+        for et in ("CRASH", "ANR"):
+            block = cr.get(et) if isinstance(cr.get(et), dict) else {}
+            for cat in block.get("categories") or []:
+                if not isinstance(cat, dict):
+                    continue
+                if cat.get("issues"):
+                    return True
+                raw_n = cat.get("issue_count") or cat.get("issue_row_count")
+                try:
+                    if int(str(raw_n).replace(".", "").replace(",", "").split()[0]) > 0:
+                        return True
+                except (TypeError, ValueError, IndexError):
+                    pass
+            if block.get("summary_rate"):
+                return True
+    return False
+
+
+def _preserve_existing_vitals_if_incoming_empty(
+    panels: dict[str, Any] | None,
+    existing_panels: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(panels, dict):
+        return panels
+    incoming = panels.get("vitals") if isinstance(panels.get("vitals"), dict) else None
+    existing = (
+        existing_panels.get("vitals")
+        if isinstance(existing_panels, dict) and isinstance(existing_panels.get("vitals"), dict)
+        else None
+    )
+    if incoming is None:
+        return panels
+    if _vitals_has_usable_data(incoming):
+        return panels
+    if not _vitals_has_usable_data(existing):
+        return panels
+    LOGGER.warning(
+        "Boş/hatalı vitals ingest engellendi — mevcut Android Vitals korundu "
+        "(incoming error=%s)",
+        str((incoming or {}).get("error") or "")[:120],
+    )
+    out = dict(panels)
+    out["vitals"] = existing
+    if isinstance(existing_panels, dict):
+        if existing_panels.get("vitals_category_count") is not None:
+            out["vitals_category_count"] = existing_panels.get("vitals_category_count")
+        if existing_panels.get("vitals_overview_row_count") is not None:
+            out["vitals_overview_row_count"] = existing_panels.get(
+                "vitals_overview_row_count"
+            )
+    return out
+
+
 def ingest_play_console_payload(
     db: Session,
     *,
@@ -139,6 +220,16 @@ def ingest_play_console_payload(
         vitals = incoming.get("vitals") if isinstance(incoming.get("vitals"), dict) else None
         if not vitals:
             raise ValueError("merge_vitals: panels.vitals gerekli")
+        if not _vitals_has_usable_data(vitals):
+            existing_v = (
+                existing_panels.get("vitals")
+                if isinstance(existing_panels.get("vitals"), dict)
+                else None
+            )
+            if _vitals_has_usable_data(existing_v):
+                raise ValueError(
+                    "merge_vitals: boş vitals — mevcut Android Vitals korundu; yeniden tarama gerekir"
+                )
         merged_panels = dict(existing_panels) if isinstance(existing_panels, dict) else {}
         merged_panels["vitals"] = vitals
         pages = (
@@ -273,6 +364,8 @@ def ingest_play_console_payload(
                 + (f" (mevcut {existing_n} fact korunuyor)" if existing_n else "")
                 + ". Play Console stats views başarısız — yeniden sync gerekir."
             )
+        # Boş vitals full sync ile dolu vitals'i ezmesin
+        panels = _preserve_existing_vitals_if_incoming_empty(panels, existing_panels)
 
     if metrics is not None or panels is not None:
         row.metrics_json = _pack_metrics_blob(metrics, panels)

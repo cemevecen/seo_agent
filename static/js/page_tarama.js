@@ -9,6 +9,7 @@
 
   var JOBS = {
     play: { id: "play", label: "Play Console", kind: "bridge", path: "/sync-play", timeoutMs: 90 * 60 * 1000 },
+    play_vitals: { id: "play_vitals", label: "Android Vitals", kind: "bridge", path: "/sync-play-vitals", timeoutMs: 45 * 60 * 1000 },
     asc: { id: "asc", label: "App Store Connect", kind: "bridge", path: "/sync-asc", timeoutMs: 90 * 60 * 1000 },
     firebase: { id: "firebase", label: "Firebase Console", kind: "bridge", path: "/sync-firebase", timeoutMs: 40 * 60 * 1000, progressPath: "/firebase-progress" },
     cwv: { id: "cwv", label: "Web Vitals (GSC)", kind: "bridge", path: "/sync-gsc-cwv", timeoutMs: 90 * 60 * 1000, progressPath: "/gsc-cwv-progress" },

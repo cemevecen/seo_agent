@@ -3231,13 +3231,15 @@ def _extract_vitals_issue_snapshot(page) -> dict[str, Any]:
       const anchors = Array.from(document.querySelectorAll('a[href]'));
       for (const a of anchors) {
         const href = String(a.href || a.getAttribute('href') || '');
-        const m = href.match(/\\/vitals\\/crashes\\/([a-f0-9]{16,})\\/(?:details|detail)/i);
+        const m = href.match(/\\/vitals\\/crashes\\/([A-Za-z0-9_-]{8,})\\/(?:details|detail)(?:[/?#]|$)/i)
+          || href.match(/\\/vitals\\/crashes\\/([A-Za-z0-9_-]{12,})(?:[/?#]|$)/i);
         if (!m) continue;
         const issueId = m[1];
+        if (!issueId || /^(details|detail|overview)$/i.test(issueId)) continue;
         if (seen.has(issueId)) continue;
-        const row = a.closest('tr, [role="row"], mat-row, [class*="row"]') || a.parentElement;
+        const row = a.closest('tr, [role="row"], mat-row, [class*="row"], [class*="issue"]') || a.parentElement;
         if (!row) continue;
-        const cellEls = Array.from(row.querySelectorAll('[role="cell"], [role="gridcell"], td'));
+        const cellEls = Array.from(row.querySelectorAll('[role="cell"], [role="gridcell"], td, [class*="cell"]'));
         let rowLines = [];
         if (cellEls.length >= 2) {
           for (const c of cellEls) {
@@ -3715,6 +3717,14 @@ def _scrape_vitals_crashes_error_type(
             if selected_ok:
                 _settle(page, seconds=3.5)
                 _wait_page_text(page, labels[:2], timeout_sec=12.0)
+                try:
+                    page.wait_for_selector(
+                        'a[href*="/vitals/crashes/"]',
+                        timeout=12_000,
+                    )
+                except Exception:
+                    pass
+                _scroll_full_page(page)
             else:
                 # Menüyü Escape ile kapat
                 try:
@@ -3801,6 +3811,22 @@ def _scrape_vitals_crashes_error_type(
             f"    · {error_type}/{cat_id}: issues={len(clean_issues)} "
             f"count={snap.get('issue_count')} selected={selected_ok}",
             flush=True,
+        )
+
+    # Sürüm filtresi 0 sorun döndürdüyse — filtresiz geçiş (issue satırlarını kaçırma)
+    total_issues = sum(int(c.get("issue_row_count") or 0) for c in categories_out)
+    if total_issues == 0 and str(vc or "").strip():
+        print(
+            f"    · {error_type}: versionCode={vc} boş — filtresiz yeniden tarama …",
+            flush=True,
+        )
+        return _scrape_vitals_crashes_error_type(
+            page,
+            error_type=error_type,
+            days=days,
+            headed=headed,
+            version_code="",
+            scrape_details=scrape_details,
         )
 
     issue_details: dict[str, dict[str, Any]] = {}

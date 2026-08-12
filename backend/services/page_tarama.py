@@ -12,6 +12,12 @@ from typing import Any, Iterator
 
 JOBS: dict[str, dict[str, Any]] = {
     "play": {"id": "play", "label": "Play Console", "kind": "bridge", "path": "/sync-play"},
+    "play_vitals": {
+        "id": "play_vitals",
+        "label": "Android Vitals",
+        "kind": "bridge",
+        "path": "/sync-play-vitals",
+    },
     "asc": {"id": "asc", "label": "App Store Connect", "kind": "bridge", "path": "/sync-asc"},
     "firebase": {"id": "firebase", "label": "Firebase Console", "kind": "bridge", "path": "/sync-firebase"},
     "cwv": {"id": "cwv", "label": "Web Vitals (GSC)", "kind": "bridge", "path": "/sync-gsc-cwv"},
@@ -41,7 +47,7 @@ JOBS: dict[str, dict[str, Any]] = {
 
 PAGES: dict[str, list[str]] = {
     "home": ["play", "asc", "firebase", "cwv", "notification", "virgul", "market"],
-    "android": ["play", "firebase", "market"],
+    "android": ["play_vitals", "play", "firebase", "market"],
     "ios": ["asc", "firebase"],
     "news": ["news"],
     "virgul": ["virgul"],

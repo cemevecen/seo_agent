@@ -1906,21 +1906,41 @@
     var vc = String(vitalsState.selectedVersion || "").trim();
     var byv = vitals.by_version || {};
     var crashes = vitals.crashes || {};
-    // Her versions kendi Play Console listesi (versionCode=…) — istemci süzmesi değil
-    if (vc && byv[vc] && byv[vc].crashes) {
+
+    function packFiltered(srcCrashes) {
+      srcCrashes = srcCrashes || {};
+      if (!vc) return srcCrashes;
+      return {
+        CRASH: filterVitalsBlockByVersion(srcCrashes.CRASH || {}, vc),
+        ANR: filterVitalsBlockByVersion(srcCrashes.ANR || {}, vc)
+      };
+    }
+
+    // Her sürüm kendi Play listesi — ama boş sürüm bloğu top-level / all'ı ezmesin
+    if (vc && byv[vc] && byv[vc].crashes && vitalsCrashesHasRows(byv[vc].crashes)) {
       return byv[vc].crashes;
     }
+    if (vc && byv.all && byv.all.crashes && vitalsCrashesHasRows(byv.all.crashes)) {
+      var filteredAll = packFiltered(byv.all.crashes);
+      if (vitalsCrashesHasRows(filteredAll)) return filteredAll;
+      return byv.all.crashes;
+    }
     if (!vc) return crashes;
-    // Seçili versions top-level ile aynıysa (eski tek-sürüm payload) olduğu gibi göster
-    var topVc = String(
-      ((crashes.ANR || {}).version_code) ||
-      ((crashes.CRASH || {}).version_code) ||
-      vitals.version_code ||
-      ""
-    ).trim();
-    if (topVc && topVc === vc) return crashes;
-    // Aksi halde boş — yanlış süzülmüş “0 sorun” gösterme
-    return { CRASH: { categories: [] }, ANR: { categories: [] } };
+    if (vitalsCrashesHasRows(crashes)) {
+      var topVc = String(
+        ((crashes.ANR || {}).version_code) ||
+        ((crashes.CRASH || {}).version_code) ||
+        vitals.version_code ||
+        ""
+      ).trim();
+      if (!topVc || topVc === vc) return crashes;
+      var filteredTop = packFiltered(crashes);
+      if (vitalsCrashesHasRows(filteredTop)) return filteredTop;
+      return crashes;
+    }
+    // Son çare: boş sürüm bloğu varsa bile top-level'i göster (0 sorun zorlaması yok)
+    if (vc && byv[vc] && byv[vc].crashes) return byv[vc].crashes;
+    return crashes;
   }
 
   function getActiveVitalsBlock() {
@@ -7279,7 +7299,7 @@
         try {
           var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
           var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 2500) : null;
-          await fetch("http://127.0.0.1:18765/sync-play", {
+          await fetch("http://127.0.0.1:18765/sync-play-vitals", {
             method: "POST",
             headers: { Accept: "application/json" },
             signal: ctrl ? ctrl.signal : undefined
@@ -7537,7 +7557,7 @@
       try {
         var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
         var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 1500) : null;
-        var br = await fetch("http://127.0.0.1:18765/sync-play", {
+        var br = await fetch("http://127.0.0.1:18765/sync-play-vitals", {
           method: "POST",
           headers: { Accept: "application/json" },
           signal: ctrl ? ctrl.signal : undefined

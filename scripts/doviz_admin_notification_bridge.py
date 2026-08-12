@@ -647,9 +647,37 @@ def run_play_bridge_once() -> dict[str, Any]:
     Subprocess ile çalışır: sync Playwright'ın asyncio/greenlet state'i
     bridge auto thread'ini kirletmesin (Sync API inside asyncio loop).
     """
+    return _run_play_scrape_subprocess(
+        args=["--sync", "--ingest"],
+        kind="play",
+        timeout_env="PLAY_BRIDGE_TIMEOUT_SEC",
+        timeout_default=1200,
+        label="Play Console",
+    )
+
+
+def run_play_vitals_bridge_once() -> dict[str, Any]:
+    """Sadece Android Vitals (crashes + metrics overview) → merge_vitals ingest."""
+    return _run_play_scrape_subprocess(
+        args=["--vitals-only", "--sync", "--ingest"],
+        kind="play_vitals",
+        timeout_env="PLAY_VITALS_BRIDGE_TIMEOUT_SEC",
+        timeout_default=900,
+        label="Play Vitals",
+    )
+
+
+def _run_play_scrape_subprocess(
+    *,
+    args: list[str],
+    kind: str,
+    timeout_env: str,
+    timeout_default: int,
+    label: str,
+) -> dict[str, Any]:
     global _last_play_result
     if not _ingest_token():
-        err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        err = {"ok": False, "kind": kind, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
         _last_play_result = err
         return err
 
@@ -657,19 +685,19 @@ def run_play_bridge_once() -> dict[str, Any]:
 
     script = ROOT / "scripts" / "play_console_scrape.py"
     if not script.is_file():
-        err = {"ok": False, "kind": "play", "message": "Play tarama betiği yok"}
+        err = {"ok": False, "kind": kind, "message": "Play tarama betiği yok"}
         _last_play_result = err
         return err
 
-    print("Play Console scrape başlıyor…", flush=True)
+    print(f"{label} scrape başlıyor…", flush=True)
     env_hl = (os.environ.get("PLAY_CONSOLE_HEADLESS") or "").strip().lower()
     headed = env_hl not in ("1", "true", "yes")
-    cmd = [sys.executable, str(script), "--sync", "--ingest"]
+    cmd = [sys.executable, str(script), *args]
     if not headed:
         cmd.append("--headless")
     env = os.environ.copy()
     env.setdefault("PLAY_CONSOLE_INGEST_URL", _play_console_ingest_url())
-    timeout_sec = int(os.environ.get("PLAY_BRIDGE_TIMEOUT_SEC") or "1200")
+    timeout_sec = int(os.environ.get(timeout_env) or str(timeout_default))
     try:
         proc = subprocess.run(
             cmd,
@@ -682,20 +710,18 @@ def run_play_bridge_once() -> dict[str, Any]:
     except subprocess.TimeoutExpired as exc:
         out = {
             "ok": False,
-            "kind": "play",
-            "message": f"Play tarama zaman aşımı ({timeout_sec}s) — takılı Chromium olabilir",
+            "kind": kind,
+            "message": f"{label} tarama zaman aşımı ({timeout_sec}s)",
         }
         _last_play_result = out
-        # Best-effort: leave cleanup to next launch's stale-browser kill
         print(str(exc)[:300], flush=True)
         return out
     except Exception as exc:  # noqa: BLE001
-        out = {"ok": False, "kind": "play", "message": f"Play subprocess: {exc}"}
+        out = {"ok": False, "kind": kind, "message": f"{label} subprocess: {exc}"}
         _last_play_result = out
         return out
 
     combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
-    # Propagate child logs (last chunk) for debugging
     if combined:
         for line in combined.splitlines()[-40:]:
             print(line, flush=True)
@@ -703,7 +729,7 @@ def run_play_bridge_once() -> dict[str, Any]:
     if proc.returncode == 2 or "needs_login" in combined.lower():
         out = {
             "ok": False,
-            "kind": "play",
+            "kind": kind,
             "needs_login": True,
             "message": "Play login gerekli (--login)",
         }
@@ -711,19 +737,23 @@ def run_play_bridge_once() -> dict[str, Any]:
         return out
 
     if proc.returncode == 0:
-        # Prefer a concise success line from child stdout
-        msg = "Play sync OK"
+        msg = f"{label} sync OK"
         for line in reversed((proc.stdout or "").splitlines()):
             s = line.strip()
-            if s.startswith("Play tarama") or s.startswith("Play scrape") or s.startswith("INGEST"):
+            if (
+                s.startswith("Play tarama")
+                or s.startswith("Play scrape")
+                or s.startswith("Vitals")
+                or s.startswith("INGEST")
+            ):
                 msg = s[:400]
                 break
-        out = {"ok": True, "kind": "play", "message": msg, "needs_login": False}
+        out = {"ok": True, "kind": kind, "message": msg, "needs_login": False}
         _last_play_result = out
-        print(f"Play sync · {out['message']}", flush=True)
+        print(f"{label} sync · {out['message']}", flush=True)
         return out
 
-    err_msg = ""
+    err_msg = f"{label} tarama çıkış {proc.returncode}"
     for line in reversed(combined.splitlines()):
         s = line.strip()
         if not s:
@@ -731,20 +761,21 @@ def run_play_bridge_once() -> dict[str, Any]:
         if "Sync API inside the asyncio loop" in s:
             err_msg = (
                 "Playwright Sync API / asyncio conflict "
-                "(önceki Chromium kapanmamış olabilir)"
+                "(önceki tarayıcı kapanmamış olabilir)"
             )
             break
         if "SingletonLock" in s or "ProcessSingleton" in s:
-            err_msg = "Play profile SingletonLock — başka Chromium oturumu açık"
+            err_msg = "Play profile SingletonLock — başka tarayıcı oturumu açık"
             break
         if "Error:" in s or "error:" in s or s.startswith("playwright."):
             err_msg = s[:400]
             break
-    if not err_msg:
-        err_msg = (combined[-400:] if combined else f"exit {proc.returncode}")[:400]
-    out = {"ok": False, "kind": "play", "message": err_msg, "needs_login": False}
+        if s:
+            err_msg = s[:400]
+            break
+    out = {"ok": False, "kind": kind, "message": err_msg, "needs_login": False}
     _last_play_result = out
-    print(f"Play sync · {out['message']}", flush=True)
+    print(f"{label} sync · {out['message']}", flush=True)
     return out
 
 
@@ -2137,6 +2168,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 _play_lock,
                 "Play Console sync zaten çalışıyor, bekleyin.",
                 run_play_bridge_once,
+            )
+        elif path in ("/sync-play-vitals", "/play-vitals", "/sync-android-vitals"):
+            lock, busy, runner = (
+                _play_lock,
+                "Play Console sync zaten çalışıyor, bekleyin.",
+                run_play_vitals_bridge_once,
             )
         elif path in ("/sync-gsc-links", "/gsc-links", "/sync-backlinks"):
             lock, busy, runner = (
