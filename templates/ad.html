@@ -371,12 +371,15 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
-  .mz-page #mz-project-totals.is-single .mz-project-total-card {
-    width: 100%;
-    max-width: 100%;
+  .mz-page .mz-project-total-card {
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
+    min-width: 0;
+  }
+  .mz-page #mz-project-totals.is-single .mz-project-total-card {
+    width: 100%;
+    max-width: 100%;
   }
   .mz-page .mz-project-total-head {
     display: block;
@@ -472,7 +475,7 @@
   .mz-page .mz-project-break {
     display: grid;
     gap: 0.35rem;
-    margin-top: 0.5rem;
+    margin-top: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .mz-page .mz-project-break--wide {
