@@ -635,7 +635,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com rank:" in js
-    assert "pm_lab.js?v=34" in html
+    assert "pm_lab.js?v=35" in html
     assert "pingBridge" in js
     assert "127.0.0.1:18765/sync-pm-lab" in js
     assert "position:static" in html

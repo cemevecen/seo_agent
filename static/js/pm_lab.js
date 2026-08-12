@@ -770,16 +770,19 @@
 
   function renderNews(root, data) {
     var kws = data.keywords || [];
+    var NEWS_BARS_TOP = 10;
     var avgs = (data.source_averages || data.source_counts || []).filter(function (s) {
       return Number(s && s.count) >= 3;
     });
-    var primary = avgs.filter(function (s) { return Number(s.count) > 3; });
-    var atThree = avgs.filter(function (s) { return Number(s.count) === 3; });
+    avgs.sort(function (a, b) {
+      return (b.count || 0) - (a.count || 0) ||
+        String(a.source || "").localeCompare(String(b.source || ""), "tr");
+    });
     var head = document.createElement("div");
     head.className = "mb-3";
     head.innerHTML = chip((data.article_total || 0) + " stories") + " " + chip((data.runs || []).length + " scans");
     var bars = document.createElement("div");
-    bars.className = "mb-4";
+    bars.className = "pml-news-bars mb-4";
     var max = 1;
     avgs.forEach(function (s) {
       max = Math.max(max, s.count || 0, s.avg || 0);
@@ -797,12 +800,17 @@
         chip((s.count || 0) + " · avg " + (s.avg != null ? s.avg : s.count), "");
       parent.appendChild(row);
     }
-    primary.forEach(function (s) { appendBar(bars, s); });
-    if (atThree.length) {
+    var topBars = avgs.slice(0, NEWS_BARS_TOP);
+    var restBars = avgs.slice(NEWS_BARS_TOP);
+    var visibleWrap = document.createElement("div");
+    visibleWrap.className = "pml-news-bars-visible";
+    topBars.forEach(function (s) { appendBar(visibleWrap, s); });
+    bars.appendChild(visibleWrap);
+    if (restBars.length) {
       var scroll = document.createElement("div");
       scroll.className = "pml-news-bars-scroll";
-      scroll.setAttribute("aria-label", "Sources with 3 stories");
-      atThree.forEach(function (s) { appendBar(scroll, s); });
+      scroll.setAttribute("aria-label", "More sources");
+      restBars.forEach(function (s) { appendBar(scroll, s); });
       bars.appendChild(scroll);
     }
     var spark = document.createElement("div");
