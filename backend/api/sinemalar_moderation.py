@@ -47,6 +47,10 @@ class ModerationDetailBatch(BaseModel):
     metric_type: str
     source_url: str | None = None
     items: list[dict[str, Any]] = Field(default_factory=list)
+    recompute_daily: bool | None = Field(default=None, alias="_recompute_daily")
+    sync_daily_date: str | None = Field(default=None, alias="_sync_daily_date")
+
+    model_config = {"populate_by_name": True}
 
 
 class ModerationIngestBody(BaseModel):
@@ -79,8 +83,8 @@ def sinemalar_moderation_ingest(
             "metric_type": b["metric_type"],
             "source_url": b.get("source_url"),
             "items": b.get("items") or [],
-            "_recompute_daily": b.get("_recompute_daily"),
-            "_sync_daily_date": b.get("_sync_daily_date"),
+            "_recompute_daily": b.get("recompute_daily", b.get("_recompute_daily")),
+            "_sync_daily_date": b.get("sync_daily_date", b.get("_sync_daily_date")),
         }
         for b in payload.get("detail_batches") or []
     ]

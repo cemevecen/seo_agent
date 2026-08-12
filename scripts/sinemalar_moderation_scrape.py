@@ -344,43 +344,45 @@ def _ingest_detail_batch(
     end_d: date,
     scraped_at: str,
     backfill_complete: bool,
+    mode: str = "detail_range",
+    purge_first: bool = False,
 ) -> dict[str, Any]:
     items = list(batch.get("items") or [])
     if len(items) <= DETAIL_INGEST_CHUNK:
-        return ingest_result(
-            {
-                "source": "sinemalar_moderation",
-                "mode": "detail_range",
-                "scraped_at": scraped_at,
-                "range_start": start_d.isoformat(),
-                "range_end": end_d.isoformat(),
-                "detail_batches": [{**batch, "items": items}],
-                "backfill_complete": backfill_complete,
-            },
-            mode="detail_range",
-        )
+        body: dict[str, Any] = {
+            "source": "sinemalar_moderation",
+            "mode": mode,
+            "scraped_at": scraped_at,
+            "range_start": start_d.isoformat(),
+            "range_end": end_d.isoformat(),
+            "detail_batches": [{**batch, "items": items, "_recompute_daily": True}],
+            "backfill_complete": backfill_complete,
+        }
+        if purge_first:
+            body["purge_first"] = True
+        return ingest_result(body, mode=mode)
     last: dict[str, Any] = {"ok": False}
     for i in range(0, len(items), DETAIL_INGEST_CHUNK):
         chunk = items[i : i + DETAIL_INGEST_CHUNK]
         is_last = i + DETAIL_INGEST_CHUNK >= len(items)
-        last = ingest_result(
-            {
-                "source": "sinemalar_moderation",
-                "mode": "detail_range",
-                "scraped_at": scraped_at,
-                "range_start": start_d.isoformat(),
-                "range_end": end_d.isoformat(),
-                "detail_batches": [
-                    {
-                        **batch,
-                        "items": chunk,
-                        "_recompute_daily": is_last,
-                    }
-                ],
-                "backfill_complete": backfill_complete and is_last,
-            },
-            mode="detail_range",
-        )
+        body = {
+            "source": "sinemalar_moderation",
+            "mode": mode,
+            "scraped_at": scraped_at,
+            "range_start": start_d.isoformat(),
+            "range_end": end_d.isoformat(),
+            "detail_batches": [
+                {
+                    **batch,
+                    "items": chunk,
+                    "_recompute_daily": is_last,
+                }
+            ],
+            "backfill_complete": backfill_complete and is_last,
+        }
+        if purge_first and i == 0:
+            body["purge_first"] = True
+        last = ingest_result(body, mode=mode)
         if not last.get("ok"):
             return last
     return last
@@ -533,18 +535,15 @@ def scrape_detail_range(
             batches.append(batch)
             total_items += int(batch.get("item_count") or 0)
             if ingest_per_batch:
-                body: dict[str, Any] = {
-                    "source": "sinemalar_moderation",
-                    "mode": "detail_range",
-                    "scraped_at": scraped_at,
-                    "range_start": start_d.isoformat(),
-                    "range_end": end_d.isoformat(),
-                    "detail_batches": [{**batch, "_recompute_daily": True}],
-                    "backfill_complete": n >= total_batches,
-                }
-                if purge_first and n == 1:
-                    body["purge_first"] = True
-                ing = ingest_result(body, mode="detail_range")
+                ing = _ingest_detail_batch(
+                    batch,
+                    start_d=start_d,
+                    end_d=end_d,
+                    scraped_at=scraped_at,
+                    backfill_complete=n >= total_batches,
+                    mode="detail_range",
+                    purge_first=bool(purge_first and n == 1),
+                )
                 if not ing.get("ok"):
                     print(f"    ingest hata: {ing.get('message')}", flush=True)
 
@@ -698,16 +697,14 @@ def scrape_fill_gaps(
         batches.append(batch)
         total_items += int(batch.get("item_count") or 0)
         if ingest_per_batch:
-            body: dict[str, Any] = {
-                "source": "sinemalar_moderation",
-                "mode": "fill_gaps",
-                "scraped_at": scraped_at,
-                "range_start": start_d.isoformat(),
-                "range_end": end_d.isoformat(),
-                "detail_batches": [{**batch, "_recompute_daily": True}],
-                "backfill_complete": n >= len(gaps),
-            }
-            ing = ingest_result(body, mode="fill_gaps")
+            ing = _ingest_detail_batch(
+                batch,
+                start_d=start_d,
+                end_d=end_d,
+                scraped_at=scraped_at,
+                backfill_complete=n >= len(gaps),
+                mode="fill_gaps",
+            )
             if not ing.get("ok"):
                 print(f"    ingest hata: {ing.get('message')}", flush=True)
 
@@ -859,6 +856,7 @@ def ingest_result(result: dict[str, Any], *, mode: str = "incremental") -> dict[
         "range_end": result.get("range_end"),
         "backfill_complete": bool(result.get("backfill_complete")),
         "backfill_cursor": result.get("backfill_cursor"),
+        "purge_first": bool(result.get("purge_first")),
     }
     req = urllib.request.Request(
         INGEST_URL,
