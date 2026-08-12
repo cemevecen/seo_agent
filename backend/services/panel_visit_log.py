@@ -179,7 +179,7 @@ def open_auth_visit(
                     LOGGER.debug("üye son giriş güncellenemedi", exc_info=True)
             db.commit()
     except Exception as exc:  # noqa: BLE001
-        LOGGER.debug("panel auth visit open atlandı: %s", exc)
+        LOGGER.warning("panel auth visit open failed: %s", exc)
 
 
 def touch_visit(
@@ -371,5 +371,5 @@ def recent_visits(*, limit: int = 80, auth_only: bool = True) -> list[dict[str, 
                 )
             return out
     except Exception as exc:  # noqa: BLE001
-        LOGGER.debug("panel visit list atlandı: %s", exc)
+        LOGGER.warning("panel visit list failed: %s", exc)
         return []

@@ -2056,6 +2056,12 @@ def on_startup() -> None:
     import threading as _threading
 
     LOGGER.info("Startup: healthcheck-safe — DB/scheduler arka planda başlatılıyor")
+    try:
+        from backend.database import ensure_auth_log_tables_ready
+
+        ensure_auth_log_tables_ready()
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Startup auth-log tables: %s", exc)
     _threading.Thread(
         target=_run_deferred_startup,
         daemon=True,
@@ -2070,8 +2076,9 @@ def _run_deferred_startup() -> None:
 
     try:
         from sqlalchemy import text
-        from backend.database import engine, _ensure_auth_log_columns
+        from backend.database import engine, _ensure_auth_log_columns, ensure_auth_log_tables_ready
 
+        ensure_auth_log_tables_ready()
         with engine.connect() as _conn:
             _ensure_auth_log_columns(_conn)
             _conn.commit()
@@ -13319,6 +13326,36 @@ def alerts_refresh(request: Request):
 @app.get("/alerts/refresh/status")
 def alerts_refresh_status(request: Request):
     return JSONResponse(_alerts_refresh_status)
+
+
+@app.get("/api/settings/activity-logs")
+def api_settings_activity_logs(request: Request):
+    """Settings — ziyaret + Google giriş geçmişi (canlı yenileme)."""
+    if not _is_settings_authenticated(request):
+        return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+    from backend.services import admin_access_log as aal
+    from backend.services import panel_visit_log as pvl
+
+    with SessionLocal() as db:
+        login_history = aal.recent_login_history(
+            db,
+            event_types=(
+                "member_login_ok",
+                "member_register_ok",
+                "member_logout_ok",
+                "member_login_fail",
+            ),
+        )
+    visit_logs = pvl.recent_visits(limit=80, auth_only=True)
+    from fastapi.encoders import jsonable_encoder
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "login_history": jsonable_encoder(login_history),
+            "visit_logs": jsonable_encoder(visit_logs),
+        }
+    )
 
 
 @app.get("/settings")

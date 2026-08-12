@@ -82,9 +82,8 @@
         <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">User logins</h4>
         <span class="text-[11px] text-slate-400 dark:text-slate-500">Google sign-in / sign-out only · TR time</span>
       </div>
-      {% if login_history is defined and login_history %}
-      <div class="space-y-2">
-        {% for e in login_history %}
+      <div id="settings-login-history" class="space-y-2"{% if not (login_history is defined and login_history) %} hidden{% endif %}>
+        {% for e in login_history or [] %}
         <div class="flex flex-col gap-1 rounded-lg border px-3 py-2 text-xs
           {% if e.is_logout %}border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-900/40
           {% elif e.is_success %}border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/15
@@ -100,9 +99,7 @@
         </div>
         {% endfor %}
       </div>
-      {% else %}
-      <p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">No Google sign-in events yet.</p>
-      {% endif %}
+      <p id="settings-login-history-empty" class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"{% if login_history is defined and login_history %} hidden{% endif %}>No Google sign-in events yet.</p>
     </div>
 
     {# Ziyaret günlüğü: yalnızca gerçek auth oturumu + sayfalar / özellikler / çıkış #}
@@ -111,9 +108,8 @@
         <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Visit &amp; activity log</h4>
         <span class="text-[11px] text-slate-400 dark:text-slate-500">Real sign-in · menus / features · sign-out · TR time</span>
       </div>
-      {% if visit_logs is defined and visit_logs %}
-      <div class="space-y-2">
-        {% for v in visit_logs %}
+      <div id="settings-visit-logs" class="space-y-2"{% if not (visit_logs is defined and visit_logs) %} hidden{% endif %}>
+        {% for v in visit_logs or [] %}
         <div class="rounded-lg border px-3 py-2 text-xs
           {% if v.is_open %}border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/15
           {% else %}border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40{% endif %}">
@@ -141,9 +137,7 @@
         </div>
         {% endfor %}
       </div>
-      {% else %}
-      <p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">No sessions yet. Rows appear only after a real Google sign-in.</p>
-      {% endif %}
+      <p id="settings-visit-logs-empty" class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"{% if visit_logs is defined and visit_logs %} hidden{% endif %}>No sessions yet. Rows appear only after a real Google sign-in.</p>
     </div>
     </div>
   </details>
@@ -769,4 +763,145 @@
       });
   }
 </script>
+{% if admin_password_configured %}
+<script>
+  (function () {
+    function esc(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    function renderLoginHistory(items) {
+      var box = document.getElementById("settings-login-history");
+      var empty = document.getElementById("settings-login-history-empty");
+      if (!items || !items.length) {
+        if (box) {
+          box.innerHTML = "";
+          box.hidden = true;
+        }
+        if (empty) empty.hidden = false;
+        return;
+      }
+      if (empty) empty.hidden = true;
+      if (!box) return;
+      box.hidden = false;
+      box.innerHTML = items
+        .map(function (e) {
+          var cls = e.is_logout
+            ? "border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-900/40"
+            : e.is_success
+              ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/15"
+              : "border-rose-200 bg-rose-50/60 dark:border-rose-900/40 dark:bg-rose-950/20";
+          return (
+            '<div class="flex flex-col gap-1 rounded-lg border px-3 py-2 text-xs ' +
+            cls +
+            '"><div class="flex flex-wrap items-center gap-2"><span class="font-semibold text-slate-800 dark:text-slate-200">' +
+            esc(e.event_label) +
+            "</span>" +
+            (e.actor_email
+              ? '<span class="text-slate-600 dark:text-slate-300">' + esc(e.actor_email) + "</span>"
+              : "") +
+            '<span class="text-slate-400 dark:text-slate-500 sm:ml-auto tabular-nums">' +
+            esc(e.created_at_tr) +
+            '</span></div><div class="text-slate-500 dark:text-slate-400">' +
+            esc(e.ip) +
+            " · " +
+            esc(e.device) +
+            "</div></div>"
+          );
+        })
+        .join("");
+    }
+    function renderVisitLogs(items) {
+      var box = document.getElementById("settings-visit-logs");
+      var empty = document.getElementById("settings-visit-logs-empty");
+      if (!items || !items.length) {
+        if (box) {
+          box.innerHTML = "";
+          box.hidden = true;
+        }
+        if (empty) empty.hidden = false;
+        return;
+      }
+      if (empty) empty.hidden = true;
+      if (!box) return;
+      box.hidden = false;
+      box.innerHTML = items
+        .map(function (v) {
+          var cls = v.is_open
+            ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/15"
+            : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40";
+          var badge = v.is_open
+            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
+            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+          var pages = (v.pages || [])
+            .map(function (p, i) {
+              var star = p.kind === "feature" ? "★ " : "";
+              return (
+                (i ? " → " : "") +
+                '<span title="' +
+                esc(p.path) +
+                '">' +
+                star +
+                esc(p.label) +
+                '</span> <span class="tabular-nums text-slate-400">' +
+                esc(p.at_tr) +
+                "</span>"
+              );
+            })
+            .join("");
+          return (
+            '<div class="rounded-lg border px-3 py-2 text-xs ' +
+            cls +
+            '"><div class="flex flex-wrap items-center gap-2"><span class="font-semibold text-slate-800 dark:text-slate-200">' +
+            esc(v.who) +
+            "</span>" +
+            (v.email && v.email !== v.who
+              ? '<span class="text-slate-500 dark:text-slate-400">' + esc(v.email) + "</span>"
+              : "") +
+            '<span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ' +
+            badge +
+            '">' +
+            esc(v.end_label) +
+            '</span><span class="text-slate-400 dark:text-slate-500 sm:ml-auto">' +
+            esc(v.ip) +
+            " · " +
+            esc(v.device) +
+            '</span></div><div class="mt-1 flex flex-col gap-0.5 text-slate-600 dark:text-slate-300 sm:flex-row sm:gap-4"><span>Signed in ' +
+            esc(v.logged_in_tr) +
+            "</span><span>Signed out " +
+            esc(v.logged_out_tr) +
+            "</span></div>" +
+            (pages
+              ? '<p class="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">' +
+                pages +
+                "</p>"
+              : '<p class="mt-1 text-[11px] text-slate-400">No page or feature records.</p>') +
+            "</div>"
+          );
+        })
+        .join("");
+    }
+    function refreshActivityLogs() {
+      fetch("/api/settings/activity-logs", { credentials: "same-origin" })
+        .then(function (r) {
+          if (!r.ok) return null;
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          renderLoginHistory(data.login_history || []);
+          renderVisitLogs(data.visit_logs || []);
+        })
+        .catch(function () {});
+    }
+    document.addEventListener("DOMContentLoaded", function () {
+      refreshActivityLogs();
+      window.setInterval(refreshActivityLogs, 30000);
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}
