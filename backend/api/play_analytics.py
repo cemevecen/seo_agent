@@ -56,6 +56,44 @@ _VIRGUL_AVG_METRICS = frozenset({
     "coverage_pct",
 })
 
+@router.get("/play-analytics/viz20/meta")
+def get_play_viz20_meta() -> dict[str, Any]:
+    from backend.services.play_viz20 import build_viz20_meta
+
+    return build_viz20_meta()
+
+
+@router.get("/play-analytics/viz20/{viz_id}")
+def get_play_viz20_data(
+    viz_id: str,
+    db: Session = Depends(get_db),
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    metric: str | None = Query(default=None),
+    dim: str | None = Query(default=None),
+    metric_left: str | None = Query(default=None),
+    metric_right: str | None = Query(default=None),
+    metrics: str | None = Query(default=None),
+    etype: str = Query(default="CRASH"),
+    limit: int = Query(default=15, ge=3, le=50),
+) -> dict[str, Any]:
+    from backend.services.play_viz20 import build_viz20_data
+
+    return build_viz20_data(
+        db,
+        viz_id=viz_id,
+        start=start,
+        end=end,
+        metric=metric,
+        dim=dim,
+        metric_left=metric_left,
+        metric_right=metric_right,
+        metrics=metrics,
+        etype=etype,
+        limit=limit,
+    )
+
+
 @router.get("/play-analytics/status")
 def get_play_analytics_status() -> dict[str, Any]:
     scrape = query_scrape_analytics(metric="active_devices", breakdown="segment", dim="country")

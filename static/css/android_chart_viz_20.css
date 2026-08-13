@@ -102,12 +102,15 @@ html.midnight #pa-viz20 .pa-viz20-meta {
   color: rgb(161 161 170);
 }
 
-#pa-viz20 .pa-viz20-meta strong {
-  font-weight: 600;
-  color: rgb(51 65 85);
+.pa-viz20-body .pa-viz20-ctrl {
+  min-width: 7rem;
 }
 
-html.dark #pa-viz20 .pa-viz20-meta strong,
-html.midnight #pa-viz20 .pa-viz20-meta strong {
-  color: rgb(228 228 231);
+.pa-viz20-body .pa-viz20-refresh:active {
+  transform: scale(0.98);
+}
+
+.pa-viz20-chart .js-plotly-plot,
+.pa-viz20-chart .plot-container.plotly {
+  width: 100% !important;
 }
