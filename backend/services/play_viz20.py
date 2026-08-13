@@ -1,4 +1,4 @@
-"""Android viz20 — 20 interaktif grafik için veri toplayıcı."""
+"""Android viz20 — seçili interaktif grafikler için veri toplayıcı."""
 
 from __future__ import annotations
 
@@ -42,146 +42,74 @@ DIMS = ["overview", "country", "app_version", "device", "os_version"]
 
 VIZ_META: list[dict[str, Any]] = [
     {
-        "id": "funnel",
-        "n": 1,
-        "title": "Funnel",
-        "blurb": "Store ziyaret → install → day-7 active",
-        "controls": ["start", "end"],
-    },
-    {
-        "id": "waterfall",
-        "n": 2,
-        "title": "Waterfall",
-        "blurb": "Haftalık metrik değişimi · segment katkıları",
-        "controls": ["start", "end", "metric", "dim"],
-    },
-    {
-        "id": "heatmap",
-        "n": 3,
-        "title": "Heatmap (Gün × Hafta)",
-        "blurb": "Gün-of-week × ISO hafta yoğunluğu",
-        "controls": ["start", "end", "metric"],
-    },
-    {
-        "id": "cohort",
-        "n": 4,
-        "title": "Cohort retention",
-        "blurb": "Haftalık install cohort → retention",
-        "controls": ["start", "end"],
-    },
-    {
         "id": "treemap",
-        "n": 5,
         "title": "Treemap",
-        "blurb": "Crash / ANR issue hacmi",
-        "controls": ["etype"],
-    },
-    {
-        "id": "bump",
-        "n": 6,
-        "title": "Bump chart",
-        "blurb": "Segment sıralaması zaman içinde",
-        "controls": ["start", "end", "metric", "dim"],
+        "blurb": "Crash / ANR issue hacmi · Vitals / Firebase",
+        "detail": (
+            "Issue başlıklarını olay hacmine göre alan payı olarak gösterir. "
+            "Kategori seçimi yok — seçili issue tipindeki (Crash veya ANR) tüm satırlar "
+            "birleştirilir. Veri: Play Console vitals scrape + Firebase Android fallback."
+        ),
+        "controls": ["etype", "limit"],
     },
     {
         "id": "combo",
-        "n": 7,
         "title": "Dual-axis combo",
-        "blurb": "GA4 sessions + Virgül net revenue",
+        "blurb": "GA4 oturum + Virgül net gelir · aynı tarih ekseni",
+        "detail": (
+            "Sol eksende GA4 metrik (varsayılan sessions), sağ eksende Virgül metrik "
+            "(varsayılan net revenue TL). Günlük seriler üst üste bindirilir; "
+            "tarih aralığı Preset ile ana grafikle aynı mantıkta seçilir."
+        ),
         "controls": ["start", "end", "metric_left", "metric_right"],
     },
     {
-        "id": "stacked100",
-        "n": 8,
-        "title": "Stacked %100 area",
-        "blurb": "Segment payı · haftalık %100",
-        "controls": ["start", "end", "metric", "dim"],
-    },
-    {
-        "id": "boxplot",
-        "n": 9,
-        "title": "Box plot",
-        "blurb": "Sürüm bazlı günlük dağılım",
-        "controls": ["start", "end", "metric"],
-    },
-    {
-        "id": "scatter",
-        "n": 10,
-        "title": "Scatter (bubble)",
-        "blurb": "ANR vs crash-free · sürüm",
-        "controls": [],
-    },
-    {
-        "id": "calendar",
-        "n": 11,
-        "title": "Calendar heatmap",
-        "blurb": "Günlük takvim",
-        "controls": ["start", "end", "metric"],
-    },
-    {
-        "id": "sankey",
-        "n": 12,
-        "title": "Sankey",
-        "blurb": "Store → Install → DAU akışı",
-        "controls": ["start", "end"],
-    },
-    {
         "id": "horizon",
-        "n": 13,
         "title": "Horizon chart",
-        "blurb": "Çoklu metrik kompakt bant",
+        "blurb": "Çoklu metrik · kompakt normalize bant",
+        "detail": (
+            "Aynı grafikte 4–6 metrik (Play + GA4) günlük/haftalık seri olarak bindirilir; "
+            "her seri kendi maksimumuna göre 0–1 normalize edilir. "
+            "Metrik listesi virgülle düzenlenebilir (ör. anrs,crashes,dau,ga4:sessions)."
+        ),
         "controls": ["start", "end", "metrics"],
     },
     {
         "id": "barrace",
-        "n": 14,
         "title": "Bar race",
-        "blurb": "Top issue events",
+        "blurb": "Top crash / ANR issue · events sıralaması",
+        "detail": (
+            "Seçili issue tipinde olay sayısına göre sıralı yatay çubuklar. "
+            "Limit ile gösterilen satır sayısı ayarlanır. "
+            "Veri anlık vitals snapshot — haftalık animasyon için ayrı scrape geçmişi gerekir."
+        ),
         "controls": ["etype", "limit"],
-    },
-    {
-        "id": "marimekko",
-        "n": 15,
-        "title": "Marimekko",
-        "blurb": "Device × OS payı",
-        "controls": ["start", "end", "metric"],
     },
     {
         "id": "control",
-        "n": 16,
         "title": "Control chart (SPC)",
-        "blurb": "Günlük metrik · UCL/LCL",
-        "controls": ["start", "end", "metric"],
-    },
-    {
-        "id": "pareto",
-        "n": 17,
-        "title": "Pareto",
-        "blurb": "Issue events + kümülatif %",
-        "controls": ["etype", "limit"],
-    },
-    {
-        "id": "multiples",
-        "n": 18,
-        "title": "Small multiples",
-        "blurb": "4 kırılımda aynı metrik",
+        "blurb": "Günlük metrik · ortalama + UCL/LCL",
+        "detail": (
+            "Shewhart kontrol grafiği: seçili Play metriğinin günlük serisi, "
+            " süreç ortalaması ve ±3σ kontrol limitleri (UCL/LCL). "
+            "Limit dışı noktalar alarm olarak işaretlenir."
+        ),
         "controls": ["start", "end", "metric"],
     },
     {
         "id": "timeline",
-        "n": 19,
         "title": "Timeline / Gantt",
-        "blurb": "Release + crash spike",
+        "blurb": "Release çizgisi + crash spike overlay",
+        "detail": (
+            "Seçili metriğin günlük serisi üzerinde yüksek değer günleri dikey çizgi ile vurgulanır. "
+            "Play snapshot’taki sürüm / release kartları üst bantta listelenir. "
+            "Spike tespiti seri içi en yüksek günlerden türetilir."
+        ),
         "controls": ["start", "end", "metric"],
     },
-    {
-        "id": "matrix",
-        "n": 20,
-        "title": "Comparison matrix",
-        "blurb": "Metrik × hafta ısı tablosu",
-        "controls": ["start", "end", "metrics"],
-    },
 ]
+
+VIZ_IDS = frozenset(v["id"] for v in VIZ_META)
 
 
 def _table(columns: list[str], rows: list[list[Any]]) -> dict[str, Any]:
@@ -324,10 +252,18 @@ def build_viz20_data(
     etype: str = "CRASH",
     limit: int = 15,
 ) -> dict[str, Any]:
+    vid = (viz_id or "").strip().lower()
+    if vid not in VIZ_IDS:
+        return {
+            "ok": False,
+            "viz": vid,
+            "message": f"Bilinmeyen veya kaldırılmış grafik: {vid}",
+            "chart": {},
+            "table": _table([], []),
+        }
     if not start or not end:
         start, end = _default_range(28)
     facts, meta = load_scrape_facts()
-    vid = (viz_id or "").strip().lower()
     m = (metric or "crashes").strip()
     d = (dim or "country").strip()
     lim = max(3, min(int(limit or 15), 50))

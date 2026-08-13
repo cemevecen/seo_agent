@@ -166,6 +166,64 @@
     return null;
   }
 
+  var CHART_HEIGHTS = { "1": 220, "2": 340, "3": 480 };
+  var DEFAULT_HEIGHT_TIER = "2";
+  var HEIGHT_STORAGE_PREFIX = "paViz20H:";
+
+  function readHeightTier(vizId) {
+    try {
+      var v = localStorage.getItem(HEIGHT_STORAGE_PREFIX + vizId);
+      if (v === "1" || v === "2" || v === "3") return v;
+    } catch (_) {}
+    return DEFAULT_HEIGHT_TIER;
+  }
+
+  function storeHeightTier(vizId, tier) {
+    try {
+      localStorage.setItem(HEIGHT_STORAGE_PREFIX + vizId, tier);
+    } catch (_) {}
+  }
+
+  function heightPx(tier) {
+    return CHART_HEIGHTS[tier] || CHART_HEIGHTS[DEFAULT_HEIGHT_TIER];
+  }
+
+  function heightControlsHtml(vizId) {
+    var tier = readHeightTier(vizId);
+    var labels = { "1": "Alçak", "2": "Orta", "3": "Yüksek" };
+    var btns = ["1", "2", "3"]
+      .map(function (t) {
+        var on = tier === t;
+        return (
+          '<button type="button" class="pa-viz20-h-btn' +
+          (on ? " is-active" : "") +
+          '" data-height-tier="' +
+          t +
+          '" aria-pressed="' +
+          (on ? "true" : "false") +
+          '">' +
+          labels[t] +
+          "</button>"
+        );
+      })
+      .join("");
+    return (
+      '<div class="pa-viz20-height" role="group" aria-label="Grafik yüksekliği">' +
+      '<span class="pa-viz20-height-label">Yükseklik</span>' +
+      '<div class="pa-viz20-height-btns">' +
+      btns +
+      "</div></div>"
+    );
+  }
+
+  function applyChartShellHeight(chartEl, tier) {
+    if (!chartEl) return;
+    var px = heightPx(tier);
+    chartEl.style.minHeight = px + "px";
+    chartEl.style.height = px + "px";
+    chartEl.setAttribute("data-height-tier", tier);
+  }
+
   function defaultParams(viz, meta) {
     var dr = meta.default_range || {};
     var pageDr = pageDateRange();
@@ -174,24 +232,14 @@
       end: (pageDr && pageDr.end) || dr.end || isoToday(),
       preset: pagePreset(),
       metric: "crashes",
-      dim: "country",
       metric_left: "ga4:sessions",
       metric_right: "virgul:net_revenue",
       metrics: "anrs,crashes,dau,ga4:sessions",
       etype: "CRASH",
       limit: "15",
     };
-    if (viz.id === "funnel" || viz.id === "sankey" || viz.id === "cohort") {
-      p.metric = "device_acquisition";
-    }
-    if (viz.id === "combo") {
-      /* defaults above */
-    }
-    if (viz.id === "heatmap" || viz.id === "calendar") p.metric = "dau";
-    if (viz.id === "stacked100") p.metric = "active_devices";
-    if (viz.id === "marimekko") p.metric = "active_devices";
-    if (viz.id === "matrix") p.metrics = "anrs,crashes,dau,revenue";
-    if (viz.id === "horizon") p.metrics = "anrs,crashes,dau,ga4:sessions";
+    if (viz.id === "timeline") p.metric = "crashes";
+    if (viz.id === "control") p.metric = "crashes";
     return p;
   }
 
@@ -228,6 +276,7 @@
     return (
       '<div class="mb-3 flex flex-wrap items-end gap-2">' +
       parts.join("") +
+      heightControlsHtml(viz.id) +
       '<button type="button" class="pa-viz20-refresh shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white">Yenile</button>' +
       "</div>"
     );
@@ -272,11 +321,11 @@
     el.innerHTML = h + "</tbody></table></div>";
   }
 
-  function plotChart(chartEl, payload) {
+  function plotChart(chartEl, payload, heightPxVal) {
     var c = payload.chart || {};
     var type = c.type;
     var traces = [];
-    var layout = baseLayout({ title: { text: "", font: { size: 12 } } });
+    var layout = baseLayout({ title: { text: "", font: { size: 12 } }, height: heightPxVal });
 
     if (type === "funnel") {
       traces = [
@@ -570,7 +619,7 @@
         });
       });
       layout.grid = { rows: 2, columns: 2, pattern: "independent" };
-      layout.height = 420;
+      layout.height = heightPxVal;
       panels.forEach(function (pn, i) {
         var n = i + 1;
         layout["xaxis" + n] = { title: pn.title, anchor: "y" + n };
@@ -629,6 +678,8 @@
     var chartEl = details.querySelector(".pa-viz20-chart");
     var tableEl = details.querySelector(".pa-viz20-table");
     if (!chartEl) return;
+    var hTier = readHeightTier(vizId);
+    applyChartShellHeight(chartEl, hTier);
     setStatus(details, "Yükleniyor…");
     chartEl.innerHTML =
       '<div class="flex h-48 items-center justify-center text-xs text-slate-400">Veri çekiliyor…</div>';
@@ -650,7 +701,7 @@
           return;
         }
         setStatus(details, body.params ? JSON.stringify(body.params).replace(/[{}"]/g, "").replace(/,/g, " · ") : "");
-        plotChart(chartEl, body);
+        plotChart(chartEl, body, heightPx(hTier));
         renderTable(tableEl, body.table);
       })
       .catch(function (err) {
@@ -682,6 +733,25 @@
           if (endEl) endEl.value = range.end;
         }
         if (details.open) loadViz(details);
+      });
+    });
+    details.querySelectorAll(".pa-viz20-h-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var tier = btn.getAttribute("data-height-tier") || DEFAULT_HEIGHT_TIER;
+        var vizId = details.getAttribute("data-viz-id");
+        if (vizId) storeHeightTier(vizId, tier);
+        details.querySelectorAll(".pa-viz20-h-btn").forEach(function (b) {
+          var on = b === btn;
+          b.classList.toggle("is-active", on);
+          b.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        var chartEl = details.querySelector(".pa-viz20-chart");
+        applyChartShellHeight(chartEl, tier);
+        if (chartEl && chartEl.data && window.Plotly) {
+          Plotly.relayout(chartEl, { height: heightPx(tier) });
+        } else if (details.open) {
+          loadViz(details);
+        }
       });
     });
   }
@@ -716,7 +786,7 @@
         '<span class="pa-viz20-chevron shrink-0" aria-hidden="true">▸</span>' +
         '<div class="min-w-0">' +
         '<p class="truncate text-sm font-semibold text-slate-800 dark:text-zinc-100">' +
-        esc("#" + viz.n + " · " + viz.title) +
+        esc(viz.title) +
         "</p>" +
         '<p class="truncate text-[11px] text-slate-500 dark:text-zinc-400">' +
         esc(viz.blurb) +
@@ -725,9 +795,14 @@
         '<span class="pa-viz20-badge pa-viz20-badge-closed">kapalı</span>' +
         "</summary>" +
         '<div class="pa-viz20-body">' +
+        (viz.detail
+          ? '<p class="pa-viz20-detail mb-3 text-[11px] leading-relaxed text-slate-600 dark:text-zinc-400">' +
+            esc(viz.detail) +
+            "</p>"
+          : "") +
         controlsHtml(viz, meta, params) +
         '<p class="pa-viz20-status mb-1 min-h-[1rem] text-[11px] text-slate-500"></p>' +
-        '<div class="pa-viz20-chart min-h-[12rem] rounded-lg border border-slate-200/80 bg-slate-50/50 dark:border-zinc-700 dark:bg-zinc-950/40"></div>' +
+        '<div class="pa-viz20-chart rounded-lg border border-slate-200/80 bg-slate-50/50 dark:border-zinc-700 dark:bg-zinc-950/40"></div>' +
         '<div class="pa-viz20-table"></div>' +
         "</div>";
       bindDetails(details);
