@@ -790,8 +790,8 @@
           compactLegend: true,
           tickAngle: chartW(el) < 480 ? -35 : -20,
         },
-        heightOpts: { minPlot: 180, maxTotal: 800, fallback: 300 },
-        minHeight: 300,
+        heightOpts: { minPlot: 160, maxTotal: 340, fallback: 280 },
+        minHeight: 280,
       }
     );
   }
@@ -823,7 +823,7 @@
         return v && v <= MODS.length ? "#" + v : "—";
       });
     });
-    el.style.minWidth = Math.max(chartW(el), xLabels.length * 52) + "px";
+    el.style.minWidth = Math.max(chartW(el), Math.min(xLabels.length * 44, chartW(el) * 1.4)) + "px";
     plotResponsive(
       el,
       [
@@ -851,7 +851,7 @@
         yaxis: { automargin: true, tickfont: axisTickFont() },
         margin: { l: 88, r: 16, t: 44, b: 88 },
       },
-      { heightOpts: { minPlot: 220, maxTotal: 380, fallback: 300 }, minHeight: 260 }
+      { heightOpts: { minPlot: 180, maxTotal: 320, fallback: 260 }, minHeight: 260 }
     );
   }
 
@@ -909,8 +909,8 @@
       {
         legendCount: MODS.length,
         htmlLegend: "mods",
-        heightOpts: { minPlot: 200, maxTotal: 800, fallback: 320 },
-        minHeight: 320,
+        heightOpts: { minPlot: 180, maxTotal: 340, fallback: 280 },
+        minHeight: 280,
       }
     ).then(function () {
       renderHtmlLegend(el, "mods");
@@ -946,7 +946,7 @@
         xaxis: { automargin: true, tickfont: axisTickFont() },
         yaxis: { title: "Toplam iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
       },
-      { legendCount: MODS.length, htmlLegend: "mods", heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 }, minHeight: 280 }
+      { legendCount: MODS.length, htmlLegend: "mods", heightOpts: { minPlot: 160, maxTotal: 340, fallback: 280 }, minHeight: 280 }
     );
   }
 
