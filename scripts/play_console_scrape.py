@@ -693,6 +693,14 @@ _CDP_ATTACHED: set[int] = set()
 
 
 def _launch_context(*, headed: bool):
+    from backend.services.selenium_playwright_shim import (
+        launch_selenium_context,
+        play_console_use_selenium,
+    )
+
+    if play_console_use_selenium():
+        return launch_selenium_context(PROFILE_DIR, headed=headed)
+
     from backend.services.store_session_cdp import attach_or_launch
 
     pw, context, attached = attach_or_launch("play", headed=headed)
@@ -703,6 +711,12 @@ def _launch_context(*, headed: bool):
 
 
 def _release_context(pw, context) -> None:
+    if getattr(context, "_selenium_mode", False):
+        from backend.services.selenium_playwright_shim import release_selenium_context
+
+        release_selenium_context(pw, context)
+        return
+
     from backend.services.store_session_cdp import release_browser
 
     attached = id(context) in _CDP_ATTACHED
@@ -2658,12 +2672,21 @@ def _wait_until_console(page, *, timeout_sec: int = 600) -> bool:
         if google_blocks_automation_text(body):
             return False
         if not printed:
-            print(
-                "Play oturumu yok — bu pencerede Google girişi çalışmayabilir. "
-                "Önce: .venv/bin/python scripts/play_console_scrape.py --login "
-                f"(gerçek Firefox, {timeout_sec}s).",
-                flush=True,
-            )
+            from backend.services.selenium_playwright_shim import play_console_use_selenium
+
+            if play_console_use_selenium():
+                print(
+                    "Play oturumu yok — açık Firefox penceresinde girişi tamamla "
+                    f"(Play Console dashboard görünsün, en fazla {timeout_sec}s).",
+                    flush=True,
+                )
+            else:
+                print(
+                    "Play oturumu yok — bu pencerede Google girişi çalışmayabilir. "
+                    "Önce: .venv/bin/python scripts/play_console_scrape.py --login "
+                    f"(gerçek Firefox, {timeout_sec}s).",
+                    flush=True,
+                )
             printed = True
         time.sleep(2)
     return False
@@ -5077,12 +5100,14 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                     "rating_summary": {},
                     "raw_network": [],
                 }
+            from backend.services.selenium_playwright_shim import play_console_use_selenium
+
             try:
                 body = page.inner_text("body")[:2000]
             except Exception:
                 body = ""
-            blocked = google_blocks_automation_text(body)
-            waited = False if blocked else _wait_until_console(page, timeout_sec=120)
+            blocked = (not play_console_use_selenium()) and google_blocks_automation_text(body)
+            waited = False if blocked else _wait_until_console(page, timeout_sec=300)
             if blocked or not waited:
                 _release_context(pw, context)
                 pw = context = None

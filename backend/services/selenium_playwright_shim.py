@@ -1,0 +1,417 @@
+"""Selenium WebDriver → Playwright Page API uyumluluk katmanı.
+
+Google Play Console, Playwright Nightly'de oturumu reddeder; gerçek Firefox.app
+(Selenium) aynı fx-google profilinde çalışır. play_console_scrape.py page.* çağrıları
+bu shim üzerinden gider.
+"""
+
+from __future__ import annotations
+
+import re
+import shutil
+import time
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Callable, Pattern
+
+from backend.services.scrape_browser import STATE_DIR
+from backend.services.system_firefox_driver import (
+    launch_system_firefox_driver,
+    quit_system_firefox_driver,
+)
+
+
+def _norm_timeout_ms(timeout: int | float | None, default: int = 5000) -> float:
+    if timeout is None:
+        return default / 1000.0
+    return max(0.1, float(timeout) / 1000.0)
+
+
+class _DownloadHandle:
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    def save_as(self, dest: str) -> None:
+        shutil.move(str(self._path), dest)
+
+
+class SeleniumLocator:
+    def __init__(
+        self,
+        page: "SeleniumPage",
+        *,
+        css: str = "*",
+        elements: list[Any] | None = None,
+        role: str | None = None,
+        name: str | Pattern[str] | None = None,
+        exact: bool = False,
+        label: str | None = None,
+    ) -> None:
+        self._page = page
+        self._css = css
+        self._cached = elements
+        self._role = role
+        self._name = name
+        self._exact = exact
+        self._label = label
+
+    def _resolve(self) -> list[Any]:
+        if self._cached is not None:
+            return self._cached
+        driver = self._page._driver
+        out: list[Any] = []
+        if self._label:
+            needles = [self._label.lower()]
+            for el in driver.find_elements("css selector", "label, [aria-label]"):
+                try:
+                    txt = (el.text or el.get_attribute("aria-label") or "").strip().lower()
+                    if any(n in txt for n in needles):
+                        fid = el.get_attribute("for")
+                        if fid:
+                            try:
+                                out.append(driver.find_element("id", fid))
+                                continue
+                            except Exception:
+                                pass
+                        out.append(el)
+                except Exception:
+                    continue
+            self._cached = out
+            return out
+
+        if self._role:
+            sel = f"[role='{self._role}']"
+            candidates = driver.find_elements("css selector", sel)
+            if self._name is not None:
+                filtered = []
+                for el in candidates:
+                    try:
+                        txt = (el.text or el.get_attribute("aria-label") or "").strip()
+                        if isinstance(self._name, Pattern):
+                            if self._name.search(txt):
+                                filtered.append(el)
+                        elif self._exact:
+                            if txt == self._name:
+                                filtered.append(el)
+                        elif self._name.lower() in txt.lower():
+                            filtered.append(el)
+                    except Exception:
+                        continue
+                candidates = filtered
+            self._cached = candidates
+            return candidates
+
+        if self._css != "*":
+            self._cached = driver.find_elements("css selector", self._css)
+            return self._cached
+
+        self._cached = driver.find_elements("css selector", "*")
+        return self._cached
+
+    def filter(self, *, has_text: str | Pattern[str] | None = None, **_: Any) -> SeleniumLocator:
+        base = self._resolve()
+        if has_text is None:
+            return SeleniumLocator(self._page, elements=list(base))
+        filtered: list[Any] = []
+        for el in base:
+            try:
+                txt = (el.text or "").strip()
+                if isinstance(has_text, Pattern):
+                    if has_text.search(txt):
+                        filtered.append(el)
+                elif has_text in txt:
+                    filtered.append(el)
+            except Exception:
+                continue
+        return SeleniumLocator(self._page, elements=filtered)
+
+    def count(self) -> int:
+        return len(self._resolve())
+
+    @property
+    def first(self) -> SeleniumLocator:
+        els = self._resolve()
+        return SeleniumLocator(self._page, elements=els[:1] if els else [])
+
+    def nth(self, index: int) -> SeleniumLocator:
+        els = self._resolve()
+        if 0 <= index < len(els):
+            return SeleniumLocator(self._page, elements=[els[index]])
+        return SeleniumLocator(self._page, elements=[])
+
+    def locator(self, css: str) -> SeleniumLocator:
+        nested: list[Any] = []
+        for el in self._resolve():
+            try:
+                nested.extend(el.find_elements("css selector", css))
+            except Exception:
+                continue
+        return SeleniumLocator(self._page, elements=nested)
+
+    def click(self, *, timeout: int | float | None = None) -> None:
+        _ = timeout
+        els = self._resolve()
+        if not els:
+            raise RuntimeError("locator.click: element yok")
+        els[0].click()
+
+    def inner_text(self, *, timeout: int | float | None = None) -> str:
+        _ = timeout
+        els = self._resolve()
+        if not els:
+            return ""
+        return (els[0].text or "").strip()
+
+    def is_visible(self) -> bool:
+        els = self._resolve()
+        if not els:
+            return False
+        try:
+            return els[0].is_displayed()
+        except Exception:
+            return False
+
+    def scroll_into_view_if_needed(self, *, timeout: int | float | None = None) -> None:
+        _ = timeout
+        els = self._resolve()
+        if not els:
+            return
+        self._page._driver.execute_script(
+            "arguments[0].scrollIntoView({block:'center',inline:'nearest'});", els[0]
+        )
+
+    def element_handle(self) -> Any:
+        els = self._resolve()
+        return els[0] if els else None
+
+
+class _Keyboard:
+    def __init__(self, page: SeleniumPage) -> None:
+        self._page = page
+
+    def press(self, key: str) -> None:
+        from selenium.webdriver.common.action_chains import ActionChains
+        from selenium.webdriver.common.keys import Keys
+
+        mapping = {"Escape": Keys.ESCAPE, "Enter": Keys.ENTER, "Tab": Keys.TAB}
+        ActionChains(self._page._driver).send_keys(mapping.get(key, key)).perform()
+
+
+class _Mouse:
+    def __init__(self, page: SeleniumPage) -> None:
+        self._page = page
+
+    def move(self, x: float, y: float) -> None:
+        from selenium.webdriver.common.action_chains import ActionChains
+
+        ActionChains(self._page._driver).move_by_offset(int(x), int(y)).perform()
+
+
+class SeleniumPage:
+    def __init__(self, driver: Any, *, download_dir: Path) -> None:
+        self._driver = driver
+        self._download_dir = download_dir
+        self.keyboard = _Keyboard(self)
+        self.mouse = _Mouse(self)
+
+    @property
+    def url(self) -> str:
+        try:
+            return self._driver.current_url or ""
+        except Exception:
+            return ""
+
+    def title(self) -> str:
+        try:
+            return self._driver.title or ""
+        except Exception:
+            return ""
+
+    def is_closed(self) -> bool:
+        try:
+            _ = self._driver.current_url
+            return False
+        except Exception:
+            return True
+
+    def goto(
+        self,
+        url: str,
+        *,
+        wait_until: str = "load",
+        timeout: int | float = 30_000,
+    ) -> None:
+        _ = wait_until
+        self._driver.set_page_load_timeout(max(5, int(timeout / 1000)))
+        self._driver.get(url)
+
+    def evaluate(self, expression: str, *_args: Any) -> Any:
+        script = (expression or "").strip()
+        if script.startswith("async"):
+            payload = f"""
+            const done = arguments[arguments.length - 1];
+            (async () => {{
+              const fn = {script};
+              try {{ done(await fn()); }}
+              catch (e) {{ done(null); }}
+            }})();
+            """
+            return self._driver.execute_async_script(payload)
+        if "=>" in script and not script.startswith("return"):
+            return self._driver.execute_script(f"return ({script})()")
+        if not script.startswith("return"):
+            script = f"return {script}"
+        return self._driver.execute_script(script)
+
+    def inner_text(self, selector: str) -> str:
+        if selector in ("body", "html"):
+            return (self._driver.find_element("tag name", selector).text or "").strip()
+        el = self._driver.find_element("css selector", selector)
+        return (el.text or "").strip()
+
+    def wait_for_timeout(self, ms: int | float) -> None:
+        time.sleep(max(0.0, float(ms) / 1000.0))
+
+    def wait_for_load_state(self, state: str = "load", *, timeout: int | float = 30_000) -> None:
+        _ = state
+        deadline = time.time() + _norm_timeout_ms(timeout, default=30_000)
+        while time.time() < deadline:
+            try:
+                ready = self._driver.execute_script("return document.readyState")
+                if ready in ("interactive", "complete"):
+                    return
+            except Exception:
+                pass
+            time.sleep(0.15)
+
+    def wait_for_selector(self, selector: str, *, timeout: int | float = 30_000) -> None:
+        deadline = time.time() + _norm_timeout_ms(timeout, default=30_000)
+        while time.time() < deadline:
+            try:
+                if self._driver.find_elements("css selector", selector):
+                    return
+            except Exception:
+                pass
+            time.sleep(0.2)
+        raise TimeoutError(f"wait_for_selector timeout: {selector}")
+
+    def locator(self, css: str) -> SeleniumLocator:
+        return SeleniumLocator(self, css=css)
+
+    def get_by_role(
+        self,
+        role: str,
+        *,
+        name: str | Pattern[str] | None = None,
+        exact: bool = False,
+    ) -> SeleniumLocator:
+        return SeleniumLocator(self, role=role, name=name, exact=exact)
+
+    def get_by_label(self, text: str, *, exact: bool = False) -> SeleniumLocator:
+        _ = exact
+        return SeleniumLocator(self, label=text)
+
+    def get_by_text(
+        self,
+        text: str | Pattern[str],
+        *,
+        exact: bool = False,
+    ) -> SeleniumLocator:
+        loc = SeleniumLocator(self, css="body *")
+        if isinstance(text, Pattern):
+            return loc.filter(has_text=text)
+        if exact:
+            pat = re.compile(rf"^{re.escape(text)}$", re.I)
+            return loc.filter(has_text=pat)
+        return loc.filter(has_text=text)
+
+    def on(self, event: str, handler: Callable[..., Any]) -> None:
+        _ = (event, handler)
+
+    @contextmanager
+    def expect_download(self, *, timeout: int | float = 30_000):
+        dl_dir = self._download_dir
+        dl_dir.mkdir(parents=True, exist_ok=True)
+        before = {p.name for p in dl_dir.iterdir() if p.is_file()}
+
+        class _DI:
+            value: _DownloadHandle | None = None
+
+        di = _DI()
+        yield di
+
+        deadline = time.time() + _norm_timeout_ms(timeout, default=30_000)
+        while time.time() < deadline:
+            for p in dl_dir.iterdir():
+                if not p.is_file() or p.name in before:
+                    continue
+                if p.name.endswith(".part") or p.name.endswith(".crdownload"):
+                    continue
+                # Firefox indirmesi tamamlanana kadar bekle
+                time.sleep(0.3)
+                if p.stat().st_size > 0:
+                    di.value = _DownloadHandle(p)
+                    return
+            time.sleep(0.25)
+
+    @contextmanager
+    def expect_response(self, predicate: Callable[[Any], bool], *, timeout: int | float = 30_000):
+        class _Resp:
+            url = ""
+            status = 200
+
+            def json(self):
+                return {}
+
+        class _RI:
+            value: _Resp | None = None
+
+        ri = _RI()
+        yield ri
+        _ = (predicate, timeout)
+
+
+class SeleniumContext:
+    _selenium_mode = True
+
+    def __init__(self, driver: Any, *, download_dir: Path) -> None:
+        self._driver = driver
+        self._download_dir = download_dir
+        self.pages: list[SeleniumPage] = [SeleniumPage(driver, download_dir=download_dir)]
+
+    def new_page(self) -> SeleniumPage:
+        page = SeleniumPage(self._driver, download_dir=self._download_dir)
+        self.pages.append(page)
+        return page
+
+    def on(self, event: str, handler: Callable[..., Any]) -> None:
+        _ = (event, handler)
+
+    def close(self) -> None:
+        quit_system_firefox_driver(self._driver)
+
+
+def play_console_use_selenium() -> bool:
+    import os
+
+    raw = (os.environ.get("PLAY_CONSOLE_USE_SELENIUM") or "1").strip().lower()
+    if raw in ("0", "false", "no"):
+        return False
+    from backend.services.scrape_browser import resolve_system_firefox_executable
+
+    return resolve_system_firefox_executable() is not None
+
+
+def launch_selenium_context(profile: Path, *, headed: bool) -> tuple[None, SeleniumContext, bool]:
+    dl = STATE_DIR / "cache" / "play-downloads"
+    driver = launch_system_firefox_driver(profile, headed=headed, download_dir=dl)
+    ctx = SeleniumContext(driver, download_dir=dl)
+    print("Play: sistem Firefox.app (Selenium) · profil oturumu korunur", flush=True)
+    return None, ctx, False
+
+
+def release_selenium_context(_pw: Any, context: SeleniumContext) -> None:
+    try:
+        context.close()
+    except Exception:
+        pass
