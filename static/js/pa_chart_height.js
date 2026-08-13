@@ -158,6 +158,14 @@
     });
   }
 
+  function decorateEdgeHandle(handle, side) {
+    if (!handle || handle.querySelector(".pa-chart-edge-grip")) return;
+    handle.innerHTML =
+      '<span class="pa-chart-edge-grip" aria-hidden="true"></span>' +
+      '<span class="pa-chart-edge-hint">Genişlik</span>';
+    handle.removeAttribute("title");
+  }
+
   function ensureChartStage(t) {
     var svg = document.getElementById(t.svgId);
     if (!svg || !t.wrap.contains(svg)) return null;
@@ -174,13 +182,17 @@
       leftHandle.type = "button";
       leftHandle.className = "pa-chart-edge-handle pa-chart-edge-handle--left";
       leftHandle.setAttribute("aria-label", "Grafiği soldan genişlet veya daralt");
-      leftHandle.title = "Soldan sürükleyerek genişlik ayarla · çift tıkla sıfırla";
+      leftHandle.innerHTML =
+        '<span class="pa-chart-edge-grip" aria-hidden="true"></span>' +
+        '<span class="pa-chart-edge-hint">Genişlik</span>';
 
       var rightHandle = document.createElement("button");
       rightHandle.type = "button";
       rightHandle.className = "pa-chart-edge-handle pa-chart-edge-handle--right";
       rightHandle.setAttribute("aria-label", "Grafiği sağdan genişlet veya daralt");
-      rightHandle.title = "Sağdan sürükleyerek genişlik ayarla · çift tıkla sıfırla";
+      rightHandle.innerHTML =
+        '<span class="pa-chart-edge-grip" aria-hidden="true"></span>' +
+        '<span class="pa-chart-edge-hint">Genişlik</span>';
 
       t.wrap.insertBefore(stage, svg);
       viewport.appendChild(svg);
@@ -196,6 +208,8 @@
     t.viewport = stage.querySelector(".pa-chart-viewport");
     t.handleLeft = stage.querySelector(".pa-chart-edge-handle--left");
     t.handleRight = stage.querySelector(".pa-chart-edge-handle--right");
+    decorateEdgeHandle(t.handleLeft, "left");
+    decorateEdgeHandle(t.handleRight, "right");
     return stage;
   }
 
