@@ -91,8 +91,8 @@
         x: 0,
         xanchor: "left",
         automargin: true,
-        pad: { t: 2, b: 6 },
-        font: { size: 12, color: th().tick },
+        pad: { t: 0, b: 0 },
+        font: { size: 11, color: th().tick },
       },
       t
     );
@@ -102,27 +102,23 @@
     legendOpts = legendOpts || {};
     if (!legendCount || legendCount <= 0) return null;
 
-    var w = Math.max(chartWidth, 280);
-    var entryW = legendOpts.compactLegend
-      ? Math.max(64, Math.min(118, Math.floor(w * 0.19)))
-      : Math.max(72, Math.min(136, Math.floor(w * 0.26)));
-    var perRow = Math.max(2, Math.floor(w / entryW));
+    var w = Math.max(chartWidth, 240);
+    var perItem = legendOpts.compactLegend ? 68 : 76;
+    var perRow = Math.min(legendCount, Math.max(2, Math.floor(w / perItem)));
     var rows = Math.ceil(legendCount / perRow);
-    var legendH = rows * 20 + 6;
+    var entryW = Math.max(56, Math.floor(w / perRow) - 4);
+    var legendH = rows * 18 + 4;
 
     var hasTitle = legendOpts.hasTitle !== false;
-    var titleH = hasTitle ? 30 : 0;
+    var marginTop = hasTitle ? 28 : 10;
 
     var tickPad = 0;
     if (legendOpts.angledX || legendOpts.tickAngle) {
-      var angle = Math.abs(legendOpts.tickAngle != null ? legendOpts.tickAngle : 40);
-      tickPad = angle >= 60 ? 84 : angle >= 40 ? 64 : angle >= 20 ? 40 : 0;
+      var angle = Math.abs(legendOpts.tickAngle != null ? legendOpts.tickAngle : 0);
+      tickPad = angle >= 60 ? 76 : angle >= 40 ? 56 : angle >= 20 ? 32 : 0;
     }
-    var xTitlePad = legendOpts.xaxisTitle ? 22 : 0;
-    var marginBottom = 36 + tickPad + xTitlePad;
-    var marginTop = 14 + titleH + legendH + 12;
-    var estHeight = Math.max(legendOpts.estHeight || 360, 220);
-    var legendY = 1 - (titleH + 4) / estHeight;
+    var xTitlePad = legendOpts.xaxisTitle ? 18 : 0;
+    var marginBottom = legendH + 6 + xTitlePad + tickPad + 4;
 
     return {
       legend: {
@@ -130,12 +126,12 @@
         x: 0,
         xanchor: "left",
         yref: "paper",
-        y: legendY,
-        yanchor: "top",
+        y: 0,
+        yanchor: "bottom",
         font: { size: 10, color: th().legend },
-        tracegroupgap: 2,
+        tracegroupgap: 0,
         entrywidth: entryW,
-        itemwidth: 22,
+        itemwidth: 20,
         groupclick: "toggleitem",
         bgcolor: "rgba(0,0,0,0)",
       },
@@ -145,13 +141,34 @@
     };
   }
 
+  function modChartHeight(el, lay, heightOpts) {
+    heightOpts = heightOpts || {};
+    var minPlot = heightOpts.minPlot != null ? heightOpts.minPlot : 160;
+    var card = el && el.closest ? el.closest(".mod-chart-card") : null;
+    var containerH = 0;
+    if (card && card.clientHeight > 72) containerH = card.clientHeight;
+    else if (el && el.clientHeight > 72) containerH = el.clientHeight;
+    else if (heightOpts.minHeight) containerH = heightOpts.minHeight;
+    else containerH = heightOpts.fallback || 280;
+
+    var m = (lay && lay.margin) || {};
+    var need = minPlot + (m.t || 28) + (m.b || 40);
+    var h = Math.max(need, containerH);
+    if (heightOpts.maxTotal) h = Math.min(heightOpts.maxTotal, h);
+    if (el) {
+      el.style.height = h + "px";
+      el.style.minHeight = Math.max(heightOpts.minHeight || 0, h) + "px";
+    }
+    return h;
+  }
+
   function baseLayout(extra) {
     var t = th();
     var lay = {
       paper_bgcolor: t.paper,
       plot_bgcolor: t.plot,
       font: { family: "Inter, system-ui, sans-serif", size: 11, color: t.text || t.tick },
-      margin: { l: 52, r: 20, t: 40, b: 48 },
+      margin: { l: 44, r: 8, t: 20, b: 28 },
       autosize: true,
       uniformtext: { mode: "hide", minsize: 9 },
     };
@@ -173,29 +190,24 @@
     }
 
     var legendCount = opts.legendCount || 0;
-    var heightOpts = opts.heightOpts || {};
-    if (opts.minHeight && el) el.style.minHeight = opts.minHeight + "px";
-    var estHeight =
-      opts.height ||
-      (window.seoPlotlyResolveHeight
-        ? window.seoPlotlyResolveHeight(el, lay, heightOpts)
-        : heightOpts.fallback || 360);
     if (legendCount > 0) {
-      var legOpts = Object.assign({ hasTitle: !!lay.title, estHeight: estHeight }, opts.legendOpts || {});
+      var legOpts = Object.assign({ hasTitle: !!lay.title }, opts.legendOpts || {});
       var leg = modLegendLayout(legendCount, w, legOpts);
       if (leg) {
         lay.legend = Object.assign({}, lay.legend || {}, leg.legend);
         lay.margin = lay.margin || {};
-        lay.margin.t = Math.max(lay.margin.t || 40, leg.marginTop);
-        lay.margin.b = Math.max(lay.margin.b || 48, leg.marginBottom);
+        lay.margin.t = Math.max(lay.margin.t || 20, leg.marginTop);
+        lay.margin.b = Math.max(lay.margin.b || 28, leg.marginBottom);
       }
     }
-    if (window.seoPlotlyResolveHeight) {
+
+    var heightOpts = opts.heightOpts || {};
+    if (opts.fillContainer !== false) {
+      lay.height = modChartHeight(el, lay, Object.assign({ minHeight: opts.minHeight }, heightOpts));
+    } else if (window.seoPlotlyResolveHeight) {
       lay.height = window.seoPlotlyResolveHeight(el, lay, heightOpts);
-    } else if (opts.height) {
-      lay.height = opts.height;
-    } else if (estHeight) {
-      lay.height = estHeight;
+    } else {
+      lay.height = heightOpts.fallback || 320;
     }
     return lay;
   }
@@ -436,8 +448,8 @@
           xaxisTitle: true,
           tickAngle: chartW(el) < 520 ? -65 : -40,
         },
-        heightOpts: { minPlot: 260, maxTotal: 480, fallback: 360 },
-        minHeight: 300,
+        heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 },
+        minHeight: 280,
       }
     );
   }
@@ -551,8 +563,8 @@
           compactLegend: true,
           tickAngle: chartW(el) < 480 ? -35 : -20,
         },
-        heightOpts: { minPlot: 280, maxTotal: 520, fallback: 380 },
-        minHeight: 340,
+        heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 },
+        minHeight: 280,
       }
     );
   }
@@ -666,7 +678,7 @@
         },
         margin: { l: 48, r: 48, t: 56, b: 48 },
       },
-      { legendCount: MODS.length, heightOpts: { minPlot: 300, maxTotal: 480, fallback: 400 }, minHeight: 360 }
+      { legendCount: MODS.length, heightOpts: { minPlot: 180, maxTotal: 800, fallback: 300 }, minHeight: 300 }
     ).then(function () {
       setupFocusZoomToolbar();
       updateFocusZoomLabel();
@@ -699,7 +711,7 @@
         xaxis: { automargin: true, tickfont: axisTickFont() },
         yaxis: { title: "Toplam iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
       },
-      { legendCount: MODS.length, heightOpts: { minPlot: 220, maxTotal: 380, fallback: 300 }, minHeight: 260 }
+      { legendCount: MODS.length, heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 }, minHeight: 280 }
     );
   }
 
@@ -747,8 +759,8 @@
           xaxisTitle: true,
           tickAngle: chartW(el) < 520 ? -65 : -40,
         },
-        heightOpts: { minPlot: 260, maxTotal: 480, fallback: 360 },
-        minHeight: 300,
+        heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 },
+        minHeight: 280,
       }
     );
   }
@@ -817,7 +829,7 @@
       {
         legendCount: 2,
         legendOpts: { tickAngle: chartW(el) < 480 ? -25 : 0 },
-        heightOpts: { minPlot: 200, maxTotal: 340, fallback: 280 },
+        heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 },
         minHeight: 260,
       }
     );
@@ -832,7 +844,7 @@
       "</p>";
   }
 
-  function renderCharts() {
+  function renderCharts(secondPass) {
     if (!window.Plotly) return;
     if (!ANALYTICS.calendar_days || !ANALYTICS.calendar_days.length) {
       CHART_IDS.forEach(function (id) {
@@ -869,6 +881,11 @@
     return chain.then(function () {
       attachModLegendSync();
       setTimeout(resizeAllCharts, 120);
+      if (!secondPass) {
+        setTimeout(function () {
+          renderCharts(true);
+        }, 200);
+      }
     });
   }
 
