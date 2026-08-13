@@ -211,6 +211,11 @@ html.midnight .pa-viz20-h-btn.is-active {
   white-space: nowrap;
 }
 
+.pa-viz20-metric-title {
+  cursor: pointer;
+  user-select: none;
+}
+
 html.dark .pa-viz20-metric-field,
 html.midnight .pa-viz20-metric-field {
   color: rgb(212 212 216);
