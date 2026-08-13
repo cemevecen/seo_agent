@@ -87,8 +87,7 @@ VIZ_META: list[dict[str, Any]] = [
     },
     {
         "id": "timeline",
-        "title": "Timeline / Gantt",
-        "blurb": "Release çizgisi + crash spike overlay",
+        "title": "Release / Metrik etkisi",
         "detail": (
             "Seçili metriğin günlük serisi üzerinde yüksek değer günleri kırmızı dikey çizgi ile vurgulanır; "
             "Android release günleri yeşil çizgi ve üst elmas ile işaretlenir. "

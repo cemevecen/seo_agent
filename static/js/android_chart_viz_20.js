@@ -1133,9 +1133,9 @@
         '<p class="truncate text-sm font-semibold text-slate-800 dark:text-zinc-100">' +
         esc(viz.title) +
         "</p>" +
-        '<p class="truncate text-[11px] text-slate-500 dark:text-zinc-400">' +
-        esc(viz.blurb) +
-        "</p>" +
+        (viz.blurb
+          ? '<p class="truncate text-[11px] text-slate-500 dark:text-zinc-400">' + esc(viz.blurb) + "</p>"
+          : "") +
         "</div></div>" +
         '<span class="pa-viz20-badge pa-viz20-badge-closed">kapalı</span>' +
         "</summary>" +
