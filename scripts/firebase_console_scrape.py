@@ -989,12 +989,29 @@ def _scrape_platform(page, plat: str, days: int, on_progress=None) -> dict[str, 
 
 
 
-def scrape_firebase_console(*, headed: bool | None = None, on_progress=None) -> dict[str, Any]:
+def scrape_firebase_console(
+    *,
+    headed: bool | None = None,
+    on_progress=None,
+    platforms: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any]:
     from playwright.sync_api import sync_playwright
 
     days = _scrape_days()
     if headed is None:
         headed = (os.environ.get("FIREBASE_CONSOLE_HEADLESS") or "").strip() != "1"
+
+    want: list[str] = []
+    for p in platforms or ():
+        key = str(p or "").strip().lower()
+        if key in PLATFORMS and key not in want:
+            want.append(key)
+    if not want:
+        want = ["android", "ios"]
+    plat_list = tuple(want)
+    steps_per = 12
+    total_steps = steps_per * len(plat_list)
+    partial = len(plat_list) < 2
 
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     platforms_out: dict[str, Any] = {}
@@ -1018,18 +1035,24 @@ def scrape_firebase_console(*, headed: bool | None = None, on_progress=None) -> 
         )
         page = context.pages[0] if context.pages else context.new_page()
         try:
-            # login probe — dashboard açıksa Enter beklemeden devam
+            probe_plat = plat_list[0]
+            # login probe — seçilen platformun overview’ı
             _top_prog(
                 {
-                    "platform": "android",
+                    "platform": probe_plat,
                     "phase": "login",
                     "sub_label": "session probe",
                     "step": 0,
-                    "total_steps": 24,
-                    "message": "Firebase login / session probe",
+                    "total_steps": total_steps,
+                    "message": f"Firebase login / session probe ({','.join(plat_list)})",
                 }
             )
-            probe = _urls("android", time_param="90d")["overview"]
+            print(
+                f"Firebase scrape platforms={list(plat_list)}"
+                + (" · kısmi (diğer platform korunur)" if partial else ""),
+                flush=True,
+            )
+            probe = _urls(probe_plat, time_param="90d")["overview"]
             page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
             page.wait_for_timeout(2000)
             if _page_needs_login(page) or "console.firebase.google.com" not in (page.url or "").lower():
@@ -1041,6 +1064,7 @@ def scrape_firebase_console(*, headed: bool | None = None, on_progress=None) -> 
                         "metrics": [],
                         "panels": {},
                         "scrape_days": days,
+                        "merge_platforms": partial,
                     }
                 print("Firebase giriş OK — aynı pencerede Crashlytics tarama devam ediyor.", flush=True)
                 try:
@@ -1056,18 +1080,19 @@ def scrape_firebase_console(*, headed: bool | None = None, on_progress=None) -> 
                         "metrics": [],
                         "panels": {},
                         "scrape_days": days,
+                        "merge_platforms": partial,
                     }
 
             plat_index = 0
-            for plat in ("android", "ios"):
+            for plat in plat_list:
                 plat_index += 1
 
                 def _plat_prog(info, _pi=plat_index):
-                    base = (_pi - 1) * 12
+                    base = (_pi - 1) * steps_per
                     step = base + int(info.get("step") or 0)
                     payload = dict(info)
                     payload["step"] = step
-                    payload["total_steps"] = 24
+                    payload["total_steps"] = total_steps
                     _top_prog(payload)
 
                 try:
@@ -1124,7 +1149,11 @@ def scrape_firebase_console(*, headed: bool | None = None, on_progress=None) -> 
             context.close()
 
     ok = any(isinstance(v, dict) and v.get("ok") for v in platforms_out.values())
-    msg = "Firebase Console tarama tamam" if ok else (" · ".join(errors) or "tarama başarısız")
+    msg = (
+        f"Firebase Console tarama tamam ({','.join(plat_list)})"
+        if ok
+        else (" · ".join(errors) or "tarama başarısız")
+    )
     return {
         "sync_ok": ok,
         "sync_message": msg[:500],
@@ -1132,11 +1161,13 @@ def scrape_firebase_console(*, headed: bool | None = None, on_progress=None) -> 
         "source": "firebase_console_bridge",
         "source_url": "https://console.firebase.google.com/",
         "scrape_days": days,
+        "merge_platforms": partial,
         "metrics": metrics,
         "panels": {
             "platforms": platforms_out,
             "explorer_facts": metrics,
             "scraped_at": datetime.now(timezone.utc).isoformat(),
+            "scrape_platforms": list(plat_list),
         },
         "raw_network": raw_network[:80],
     }
@@ -1168,11 +1199,17 @@ def main() -> int:
     ap.add_argument("--sync", action="store_true", help="Scrape çalıştır")
     ap.add_argument("--ingest", action="store_true", help="Railway'e gönder")
     ap.add_argument("--headless", action="store_true")
+    ap.add_argument(
+        "--platform",
+        action="append",
+        choices=("android", "ios"),
+        help="Yalnız bu platform(lar); tekrarlanabilir. Varsayılan: ikisi",
+    )
     args = ap.parse_args()
 
     if args.login:
         print(f"Profil: {PROFILE_DIR}", flush=True)
-        result = scrape_firebase_console(headed=True)
+        result = scrape_firebase_console(headed=True, platforms=args.platform)
         print(json.dumps({k: result.get(k) for k in ("sync_ok", "sync_message")}, ensure_ascii=False))
         return 0 if result.get("sync_ok") else 2
 
@@ -1181,8 +1218,8 @@ def main() -> int:
         return 1
 
     headed = not args.headless and (os.environ.get("FIREBASE_CONSOLE_HEADLESS") or "").strip() != "1"
-    print(f"Firebase scrape days={_scrape_days()} headed={headed}", flush=True)
-    result = scrape_firebase_console(headed=headed)
+    print(f"Firebase scrape days={_scrape_days()} headed={headed} platforms={args.platform or ['android','ios']}", flush=True)
+    result = scrape_firebase_console(headed=headed, platforms=args.platform)
     print(
         f"sync_ok={result.get('sync_ok')} msg={result.get('sync_message')} "
         f"metrics={len(result.get('metrics') or [])}",

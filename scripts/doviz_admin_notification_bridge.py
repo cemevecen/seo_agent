@@ -1518,7 +1518,20 @@ def _set_firebase_progress(**kwargs: Any) -> None:
     _firebase_progress["ts"] = time.time()
 
 
-def run_firebase_bridge_once(on_progress=None) -> dict[str, Any]:
+def _firebase_platforms_for_page(page: str) -> tuple[str, ...] | None:
+    """Update page kaynağına göre Firebase platform filtresi.
+
+    ios → yalnız iOS projesi; android → yalnız Android; diğer/auto → ikisi (None).
+    """
+    p = (page or "").strip().lower()
+    if p == "ios":
+        return ("ios",)
+    if p == "android":
+        return ("android",)
+    return None
+
+
+def run_firebase_bridge_once(on_progress=None, platforms=None) -> dict[str, Any]:
     """Firebase Console Crashlytics scrape → Railway ingest."""
     global _last_firebase_result
     if not _ingest_token():
@@ -1543,13 +1556,19 @@ def run_firebase_bridge_once(on_progress=None) -> dict[str, Any]:
         _last_firebase_result = err
         return err
 
+    plat_arg = None
+    if platforms:
+        plat_arg = [str(x).strip().lower() for x in platforms if str(x).strip()]
+        plat_arg = [x for x in plat_arg if x in ("android", "ios")] or None
+    total_hint = 12 * len(plat_arg) if plat_arg else 24
+
     def _cb(info: dict[str, Any]) -> None:
         info = info if isinstance(info, dict) else {}
         _set_firebase_progress(
             running=True,
             phase=str(info.get("phase") or "scrape"),
             step=int(info.get("step") or 0),
-            total_steps=int(info.get("total_steps") or 0),
+            total_steps=int(info.get("total_steps") or total_hint),
             platform=str(info.get("platform") or ""),
             sub_label=str(info.get("sub_label") or ""),
             message=str(info.get("message") or "")[:200],
@@ -1560,19 +1579,20 @@ def run_firebase_bridge_once(on_progress=None) -> dict[str, Any]:
             except Exception:
                 pass
 
-    print("Firebase Console scrape başlıyor…", flush=True)
+    scope = ",".join(plat_arg) if plat_arg else "android+ios"
+    print(f"Firebase Console scrape başlıyor… ({scope})", flush=True)
     _set_firebase_progress(
         running=True,
         phase="starting",
         step=0,
-        total_steps=24,
-        platform="",
+        total_steps=total_hint,
+        platform=(plat_arg[0] if plat_arg else ""),
         sub_label="",
-        message="Firebase Console scrape starting",
+        message=f"Firebase Console scrape starting ({scope})",
     )
     env_hl = (os.environ.get("FIREBASE_CONSOLE_HEADLESS") or "").strip().lower()
     headed = env_hl not in ("1", "true", "yes")
-    result = scrape_firebase_console(headed=headed, on_progress=_cb)
+    result = scrape_firebase_console(headed=headed, on_progress=_cb, platforms=plat_arg)
     if not result.get("sync_ok") and "login" in str(result.get("sync_message") or "").lower():
         out = {
             "ok": False,
@@ -1588,8 +1608,8 @@ def run_firebase_bridge_once(on_progress=None) -> dict[str, Any]:
             {
                 "phase": "ingest",
                 "sub_label": "Railway ingest",
-                "step": 23,
-                "total_steps": 24,
+                "step": max(1, total_hint - 1),
+                "total_steps": total_hint,
                 "message": "Ingesting Firebase scrape",
             }
         )
@@ -1616,8 +1636,8 @@ def run_firebase_bridge_once(on_progress=None) -> dict[str, Any]:
     _set_firebase_progress(
         running=False,
         phase="done" if out["ok"] else "error",
-        step=24,
-        total_steps=24,
+        step=total_hint,
+        total_steps=total_hint,
         message=out["message"],
     )
     print(f"Firebase sync · {out['message']}", flush=True)
@@ -3732,9 +3752,14 @@ def _page_tarama_claim_loop() -> None:
                     }
                 )
                 continue
-            print(f"Uzaktan tarama başladı: {meta['name']}", flush=True)
+            print(
+                f"Uzaktan tarama başladı: {meta['name']}"
+                + (f" · page={job.get('page')}" if job.get("page") else ""),
+                flush=True,
+            )
             run_id = str(job.get("run_id") or "")
             started_mono = time.time()
+            page_key = str(job.get("page") or "")
 
             def _progress_post(info: dict[str, Any] | None = None) -> None:
                 info = info if isinstance(info, dict) else {}
@@ -3817,7 +3842,11 @@ def _page_tarama_claim_loop() -> None:
 
             def _runner():
                 if job_id == "firebase":
-                    return run_firebase_bridge_once(on_progress=_progress_post)
+                    plats = _firebase_platforms_for_page(page_key)
+                    return run_firebase_bridge_once(
+                        on_progress=_progress_post,
+                        platforms=plats,
+                    )
                 if job_id == "virgul":
                     return run_virgul_bridge_once(on_progress=_progress_post)
                 return meta["runner"]()

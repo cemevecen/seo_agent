@@ -414,6 +414,7 @@ def claim_next() -> dict[str, Any] | None:
                         "job_id": job["id"],
                         "path": job.get("path") or "",
                         "label": job.get("label") or job["id"],
+                        "page": str(run.get("page") or ""),
                     }
         return None
 

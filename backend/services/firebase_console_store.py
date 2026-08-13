@@ -61,6 +61,37 @@ def ingest_firebase_console_payload(db: Session, body: dict[str, Any]) -> dict[s
         days = 365
     days = min(max(days, 1), 365)
 
+    # Kısmi platform taraması (ios-only / android-only): diğer platformu silme
+    incoming_panels = panels
+    new_plats = (
+        incoming_panels.get("platforms")
+        if isinstance(incoming_panels.get("platforms"), dict)
+        else {}
+    )
+    merge = bool(body.get("merge_platforms"))
+    if not merge and isinstance(new_plats, dict) and 0 < len(new_plats) < 2:
+        merge = True
+    if merge and new_plats:
+        old_metrics, old_panels = _unpack_blob(row.metrics_json or "")
+        old_plats = (
+            old_panels.get("platforms") if isinstance(old_panels.get("platforms"), dict) else {}
+        )
+        merged_plats = dict(old_plats)
+        merged_plats.update(new_plats)
+        panels = dict(old_panels)
+        for k, v in incoming_panels.items():
+            if k == "platforms":
+                continue
+            panels[k] = v
+        panels["platforms"] = merged_plats
+        scraped = {str(k).lower() for k in new_plats.keys()}
+        kept = [
+            m
+            for m in old_metrics
+            if isinstance(m, dict) and str(m.get("platform") or "").lower() not in scraped
+        ]
+        metrics = kept + [m for m in metrics if isinstance(m, dict)]
+
     row.metrics_json = _pack_blob(metrics, panels)
     row.raw_network_json = json.dumps(raw_network[:200], ensure_ascii=False)
     row.source = str(body.get("source") or "firebase_console_bridge")[:64]
@@ -79,6 +110,8 @@ def ingest_firebase_console_payload(db: Session, body: dict[str, Any]) -> dict[s
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         "metric_count": len(metrics),
         "scrape_days": days,
+        "merged_platforms": bool(merge),
+        "platforms": list(new_plats.keys()) if isinstance(new_plats, dict) else [],
     }
 
 
