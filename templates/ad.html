@@ -13975,26 +13975,6 @@
     });
   }
 
-  var mzTargetsPollTimer = null;
-  var mzTargetsLastFetchMs = 0;
-  var MZ_TARGETS_POLL_MS = 10 * 60 * 1000;
-  var MZ_TARGETS_VISIBILITY_MIN_MS = 5 * 60 * 1000;
-
-  function mzTargetsRevenueApiUrl(force) {
-    var base =
-      window.MZ_AD_MODE === "virgul"
-        ? "/api/virgul-analytics/revenue-targets"
-        : "/api/mz-analytics/revenue-targets";
-    return base + (force ? "?force=1" : "");
-  }
-
-  function mzTargetsSchedulePoll() {
-    if (mzTargetsPollTimer) clearInterval(mzTargetsPollTimer);
-    mzTargetsPollTimer = setInterval(function () {
-      mzTargetsLoad(true).catch(function () {});
-    }, MZ_TARGETS_POLL_MS);
-  }
-
   async function mzTargetsLoad(force) {
     var loading = document.getElementById("mz-targets-loading");
     var controls = document.getElementById("mz-targets-controls");
@@ -14010,7 +13990,8 @@
     if (refreshBtn) refreshBtn.disabled = true;
     try {
       if (!mzTargetsCache || force) {
-        var url = mzTargetsRevenueApiUrl(!!force);
+        var url = "/api/mz-analytics/revenue-targets";
+        if (force) url += (url.indexOf("?") >= 0 ? "&" : "?") + "force=1";
         var r = await fetch(url, { credentials: "same-origin" });
         if (!r.ok) {
           var detail = "";
@@ -14021,7 +14002,6 @@
           throw new Error(detail || ("Could not load targets table (" + r.status + ")"));
         }
         mzTargetsCache = await r.json();
-        mzTargetsLastFetchMs = Date.now();
         mzAdTargetMonthCache = (mzTargetsCache && mzTargetsCache.current_month) || null;
         renderAdTargetKpisForActiveProject();
         if (mzTargetsCache && mzTargetsCache.source_pending_url) {
@@ -14244,19 +14224,12 @@
   });
 
   mzTargetsLoad(false).then(function () {
-    mzTargetsSchedulePoll();
     try {
       var u = new URL(window.location.href);
       if (u.searchParams.get("view") === "targets" || u.hash === "#mz-targets-panel") {
         setMzMainView("targets", { skipScroll: false });
       }
     } catch (_) { /* ignore */ }
-  });
-
-  document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState !== "visible") return;
-    if (Date.now() - mzTargetsLastFetchMs < MZ_TARGETS_VISIBILITY_MIN_MS) return;
-    mzTargetsLoad(true).catch(function () {});
   });
 
   window.addEventListener("resize", scheduleMzChartsResizeBurst);

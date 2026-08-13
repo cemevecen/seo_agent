@@ -64,28 +64,32 @@ def test_revenue_targets_payload_filter(monkeypatch):
     assert cur["doviz"]["remaining"] == 1_200_000.0
 
 
-def test_fetch_falls_back_when_pending_sheet_private(monkeypatch):
+def test_fetch_uses_ingest_when_primary_sheet_private(monkeypatch):
     from backend.services import revenue_targets_sheet as mod
 
-    calls: list[str] = []
+    ingested_rows = mod.parse_revenue_targets_csv(SAMPLE_CSV)
 
     def _fake_fetch(url: str, **_kwargs):
-        calls.append(url)
-        if "1ITl0rUl" in url or "11IWNTk3" in url:
+        if "1ITl0rUl" in url:
             raise ValueError("Sayfa erişilemedi (HTTP 401)")
-        return SAMPLE_CSV
+        raise AssertionError(f"unexpected sheet url: {url}")
 
     monkeypatch.setattr(mod, "fetch_public_sheet_csv", _fake_fetch)
-    monkeypatch.setattr(mod, "load_ingested_revenue_targets", lambda **_k: None)
+    monkeypatch.setattr(
+        mod,
+        "load_ingested_revenue_targets",
+        lambda **_k: {
+            "fetched_at": mod.datetime.now(mod._TR).isoformat(),
+            "source_url": mod.REVENUE_TARGETS_SHEET_URL,
+            "source": "mac_firefox_cookies",
+            "rows": ingested_rows,
+        },
+    )
     monkeypatch.setattr(mod, "_CACHE", None)
     rows = mod.fetch_revenue_targets_rows(force=True)
     assert len(rows) == 6
-    assert any("1ITl0rUl" in u for u in calls)
-    assert any("1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA" in u for u in calls)
-    assert mod._CACHE and "1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA" in str(
-        mod._CACHE.get("source_url")
-    )
-    assert mod._CACHE.get("warning")
+    assert mod._CACHE and mod._CACHE.get("warning")
+    assert mod._CACHE.get("source_url") == mod.REVENUE_TARGETS_SHEET_URL
 
 
 def test_enrich_month_target_kpi_needed_daily():
@@ -182,57 +186,6 @@ def test_parse_sheet_tab_period_and_empty_header():
     assert rows[0]["period_key"] == "2023-02"
     assert rows[0]["hedef"] == 550_000.0
     assert rows[1]["project"] == "sinemalar"
-
-
-def test_live_achieved_overlay(monkeypatch):
-    from datetime import date
-
-    from backend.services.revenue_targets_sheet import (
-        apply_live_achieved_overlay,
-        parse_revenue_targets_csv,
-        revenue_targets_payload,
-    )
-
-    csv_text = (
-        "Ağustos 2026,Hedef,Hedef (%80),Kazanç,HEDEF TAMAMLANMA ORANI,"
-        "Günlük Kazanç,Kalan,Kalan (%80),Günlük Kalan,Günlük Kalan (%80)\n"
-        "Doviz.com,  7.000.000   ,  5.600.000   ,  2.109.277   ,\"30,13%\","
-        "  191.752   ,  4.890.723   ,  3.490.723   ,  244.536   ,  174.536\n"
-        "Sinemalar.com,  2.000.000   ,  1.600.000   ,  334.553   ,\"16,73%\","
-        "  30.414   ,  1.665.447   ,  1.265.447   ,  83.272   ,  63.272\n"
-    )
-
-    def _fetch(**kwargs):
-        return parse_revenue_targets_csv(csv_text)
-
-    def _fake_query(_db, **kwargs):
-        proj = kwargs.get("project")
-        rev = 2_500_000.0 if proj == "doviz" else 400_000.0
-        return {"rows_in_range": 42, "kpis": {"net_revenue": rev}}
-
-    monkeypatch.setattr(
-        "backend.services.revenue_targets_sheet.fetch_revenue_targets_rows",
-        _fetch,
-    )
-    monkeypatch.setattr(
-        "backend.services.ad_analytics_store.query_summary",
-        _fake_query,
-    )
-    monkeypatch.setattr(
-        "backend.services.revenue_targets_sheet._today_tr",
-        lambda: date(2026, 8, 13),
-    )
-
-    payload = revenue_targets_payload(db=object())
-    cur = payload["current_month"]["doviz"]
-    assert cur["achieved"] == 2_500_000.0
-    assert cur["achieved_sheet"] == 2_109_277.0
-    assert cur["achieved_live"] == 2_500_000.0
-    assert payload.get("live_achieved_source") == "ad_analytics_mtd:sheets"
-    aug_doviz = next(r for r in payload["rows"] if r["project"] == "doviz")
-    assert aug_doviz["kazanc"] == 2_500_000.0
-    assert aug_doviz["kazanc_sheet"] == 2_109_277.0
-    assert abs(aug_doviz["tamamlama_orani"] - (2_500_000 / 7_000_000 * 100)) < 0.01
 
 
 def test_closed_month_sync_helpers():

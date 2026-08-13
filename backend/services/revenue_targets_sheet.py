@@ -24,13 +24,6 @@ _TR = ZoneInfo("Europe/Istanbul")
 REVENUE_TARGETS_SHEET_URL = (
     "https://docs.google.com/spreadsheets/d/1ITl0rUlLylTspsztMtaaFGEdvT_gINoUHDPodspEa5Y/edit?gid=244461752#gid=244461752"
 )
-# Önceki herkese açık tablolar (erişim yoksa yedek).
-REVENUE_TARGETS_SHEET_URL_FALLBACK = (
-    "https://docs.google.com/spreadsheets/d/11IWNTk3mjjX0N-4LO03wyeSPkLoW4jagc2Prcs9ifcY/edit?gid=0#gid=0"
-)
-REVENUE_TARGETS_SHEET_URL_FALLBACK_2 = (
-    "https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit#gid=0"
-)
 REVENUE_TARGETS_SHEET_URL_PENDING = REVENUE_TARGETS_SHEET_URL
 
 _CACHE: dict[str, Any] | None = None
@@ -462,59 +455,47 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
         if cached is not None:
             return cached
 
+    primary_error: str | None = None
+    try:
+        csv_text = fetch_public_sheet_csv(REVENUE_TARGETS_SHEET_URL)
+        rows = parse_revenue_targets_csv(csv_text)
+        _CACHE = {
+            "ts": time.monotonic(),
+            "rows": rows,
+            "source_url": REVENUE_TARGETS_SHEET_URL,
+            "warning": None,
+            "pending_error": None,
+            "fetched_at": datetime.now(_TR).isoformat(),
+        }
+        return rows
+    except Exception as exc:  # noqa: BLE001
+        primary_error = str(exc)
+        logger.warning(
+            "revenue targets primary sheet fetch failed url=%s: %s",
+            REVENUE_TARGETS_SHEET_URL,
+            exc,
+        )
+
     ingested = load_ingested_revenue_targets()
     if ingested and isinstance(ingested.get("rows"), list):
         rows = ingested["rows"]
+        warning = (
+            "Primary ad-target sheet is private or unreachable. "
+            "Showing last Mac Firefox scrape of the same sheet — run "
+            "`revenue_targets_scrape.py --sync --current-only --ingest` to refresh."
+        )
         _CACHE = {
             "ts": time.monotonic(),
             "rows": rows,
             "source_url": ingested.get("source_url") or REVENUE_TARGETS_SHEET_URL,
-            "warning": None,
-            "pending_error": None,
+            "warning": warning,
+            "pending_error": primary_error,
             "fetched_at": ingested.get("fetched_at"),
             "ingest_source": ingested.get("source"),
         }
         return rows
 
-    urls = [
-        REVENUE_TARGETS_SHEET_URL,
-        REVENUE_TARGETS_SHEET_URL_FALLBACK,
-        REVENUE_TARGETS_SHEET_URL_FALLBACK_2,
-    ]
-    last_err: Exception | None = None
-    csv_text = ""
-    used_url = REVENUE_TARGETS_SHEET_URL
-    primary_error: str | None = None
-    for url in urls:
-        try:
-            csv_text = fetch_public_sheet_csv(url)
-            used_url = url
-            break
-        except Exception as exc:  # noqa: BLE001
-            last_err = exc
-            logger.warning("revenue targets sheet fetch failed url=%s: %s", url, exc)
-            if url == REVENUE_TARGETS_SHEET_URL:
-                primary_error = str(exc)
-    else:
-        raise ValueError(str(last_err) if last_err else "Sheet okunamadı") from last_err
-
-    rows = parse_revenue_targets_csv(csv_text)
-    warning = None
-    if used_url != REVENUE_TARGETS_SHEET_URL and primary_error:
-        warning = (
-            "Primary ad-target sheet is private or unreachable. "
-            "Showing fallback table — Mac Firefox scrape "
-            "(`revenue_targets_scrape.py --sync`) or share the sheet with the GA4 service account."
-        )
-    _CACHE = {
-        "ts": time.monotonic(),
-        "rows": rows,
-        "source_url": used_url,
-        "warning": warning,
-        "pending_error": primary_error,
-        "fetched_at": datetime.now(_TR).isoformat(),
-    }
-    return rows
+    raise ValueError(primary_error or "Sheet okunamadı")
 
 
 def _completion_pct(row: dict[str, Any]) -> float | None:
@@ -661,127 +642,6 @@ def enrich_month_target_kpi(
     }
 
 
-def _refresh_row_derived_metrics(row: dict[str, Any], *, today: date | None = None) -> None:
-    """Güncel ay kazancı değişince tablo satırı türev alanlarını yeniden hesapla."""
-    today = today or _today_tr()
-    year = int(row.get("year") or 0)
-    month = int(row.get("month") or 0)
-    if year < 2000 or month < 1 or month > 12:
-        return
-    if today.year != year or today.month != month:
-        return
-    try:
-        k = float(row.get("kazanc") or 0)
-        h = float(row.get("hedef") or 0)
-        h80 = float(row.get("hedef_80") or (h * 0.8 if h else 0))
-    except (TypeError, ValueError):
-        return
-    days_in_month = calendar.monthrange(year, month)[1]
-    days_elapsed = max(1, min(today.day, days_in_month))
-    days_remaining = max(0, days_in_month - today.day + 1)
-    if h > 0:
-        row["tamamlama_orani"] = (k / h) * 100.0
-        row["kalan"] = max(0.0, h - k)
-    if h80 > 0:
-        row["kalan_80"] = max(0.0, h80 - k)
-    row["gunluk_kazanc"] = k / days_elapsed if days_elapsed > 0 else None
-    rem = row.get("kalan")
-    rem80 = row.get("kalan_80")
-    if rem is not None:
-        row["gunluk_kalan"] = (float(rem) / days_remaining) if days_remaining > 0 else 0.0
-    if rem80 is not None:
-        row["gunluk_kalan_80"] = (float(rem80) / days_remaining) if days_remaining > 0 else 0.0
-
-
-def _kpi_to_sheet_row(kpi: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "project": kpi.get("project"),
-        "project_label": kpi.get("project_label"),
-        "period": kpi.get("period"),
-        "period_key": kpi.get("period_key"),
-        "year": kpi.get("year"),
-        "month": kpi.get("month"),
-        "hedef": kpi.get("target_100"),
-        "hedef_80": kpi.get("target_80"),
-        "kazanc": kpi.get("achieved"),
-        "sheet_row": kpi.get("sheet_row"),
-    }
-
-
-def apply_live_achieved_overlay(
-    payload: dict[str, Any],
-    db: Any,
-    *,
-    warehouse: str = "sheets",
-) -> dict[str, Any]:
-    """Güncel ay Kazanç — sheet scrape gecikse bile ad warehouse MTD net gelir."""
-    if db is None:
-        return payload
-    try:
-        from backend.services import ad_analytics_store as ad_store
-    except ImportError:
-        return payload
-
-    today = _today_tr()
-    start = date(today.year, today.month, 1).isoformat()
-    end = today.isoformat()
-    want_key = f"{today.year:04d}-{today.month:02d}"
-    live_by_proj: dict[str, float] = {}
-
-    for proj in ("doviz", "sinemalar"):
-        try:
-            summ = ad_store.query_summary(
-                db,
-                start=start,
-                end=end,
-                project=proj,
-                warehouse=warehouse,
-            )
-        except Exception as exc:
-            logger.debug("live mtd overlay %s failed: %s", proj, exc)
-            continue
-        rows_in_range = int(summ.get("rows_in_range") or 0)
-        rev = float((summ.get("kpis") or {}).get("net_revenue") or 0)
-        if rows_in_range <= 0 and rev <= 0:
-            continue
-        live_by_proj[proj] = rev
-
-    if not live_by_proj:
-        return payload
-
-    current = dict(payload.get("current_month") or {})
-    for proj, live_rev in live_by_proj.items():
-        kpi = current.get(proj)
-        if not kpi or not kpi.get("in_current_month"):
-            continue
-        sheet_achieved = kpi.get("achieved")
-        base_row = _kpi_to_sheet_row(kpi)
-        base_row["kazanc"] = live_rev
-        enriched = enrich_month_target_kpi(base_row, today=today)
-        if enriched:
-            enriched["achieved_sheet"] = sheet_achieved
-            enriched["achieved_live"] = live_rev
-            current[proj] = enriched
-    payload["current_month"] = current
-
-    rows = payload.get("rows")
-    if isinstance(rows, list):
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            pk = str(row.get("project") or "")
-            if str(row.get("period_key") or "") != want_key or pk not in live_by_proj:
-                continue
-            live_rev = live_by_proj[pk]
-            row["kazanc_sheet"] = row.get("kazanc")
-            row["kazanc"] = live_rev
-            _refresh_row_derived_metrics(row, today=today)
-
-    payload["live_achieved_at"] = datetime.now(_TR).isoformat()
-    payload["live_achieved_source"] = f"ad_analytics_mtd:{warehouse}"
-    return payload
-
-
 def current_month_target_rows(
     all_rows: list[dict[str, Any]],
     *,
@@ -811,8 +671,6 @@ def revenue_targets_payload(
     project: str | None = None,
     year: int | None = None,
     force: bool = False,
-    db: Any = None,
-    warehouse: str = "sheets",
 ) -> dict[str, Any]:
     all_rows = fetch_revenue_targets_rows(force=force)
     source_url = REVENUE_TARGETS_SHEET_URL
@@ -838,10 +696,10 @@ def revenue_targets_payload(
             f"No {want} rows in the loaded sheet (often an older fallback month). "
             "Run Mac Firefox scrape for the current-month tab."
         )
-    payload = {
+    return {
         "source_url": source_url,
         "source_pending_url": REVENUE_TARGETS_SHEET_URL,
-        "using_fallback": source_url != REVENUE_TARGETS_SHEET_URL,
+        "using_fallback": False,
         "warning": warning,
         "fetched_at": fetched_at,
         "ingest_source": (_CACHE or {}).get("ingest_source"),
@@ -853,7 +711,6 @@ def revenue_targets_payload(
             {"key": "sinemalar", "label": "Sinemalar.com"},
         ],
     }
-    return apply_live_achieved_overlay(payload, db, warehouse=warehouse)
 
 
 def prefetch_revenue_targets(*, force: bool = True) -> dict[str, Any]:

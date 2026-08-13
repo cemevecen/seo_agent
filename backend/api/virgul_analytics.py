@@ -276,17 +276,10 @@ def get_virgul_revenue_targets(
     project: str | None = Query(None, description="doviz | sinemalar"),
     year: int | None = Query(None, ge=2000, le=2100),
     force: bool = Query(False, description="Hedef tablo önbelleğini atla"),
-    db: Session = Depends(get_db),
 ):
     """Aylık gelir hedef / kazanç tablosu (ad-virgul gelir hedefleri paneli)."""
     try:
-        return revenue_targets_payload(
-            project=project,
-            year=year,
-            force=force,
-            db=db,
-            warehouse="virgul",
-        )
+        return revenue_targets_payload(project=project, year=year, force=force)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
