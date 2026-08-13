@@ -780,6 +780,18 @@
     background-color: #0f0f11 !important;
     color: #b0b0b8 !important;
   }
+  #pc-vitals-issues {
+    width: 100%;
+  }
+  #pc-vitals-issues table {
+    width: 100%;
+    table-layout: fixed;
+  }
+  #pc-vitals-issues th,
+  #pc-vitals-issues td {
+    overflow: hidden;
+    vertical-align: middle;
+  }
   html.dark .android-play-page tr.hover\:bg-slate-50:hover,
   html.dark .android-play-page tr[class*="hover:bg-slate-50"]:hover,
   html.dark .android-play-page tr[class*="hover:bg-slate-50/80"]:hover {
@@ -7464,7 +7476,15 @@
         '<input type="text" id="pc-vitals-issue-search" class="w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200" placeholder="Search issue titles..." />' +
         '<span class="shrink-0 text-[10px] text-slate-400 dark:text-zinc-500">' + issues.length + " results</span>" +
       "</div>" +
-      '<table class="min-w-full text-left text-xs">' +
+      '<table class="w-full table-fixed text-left text-xs">' +
+        '<colgroup>' +
+          '<col style="width:48%">' +
+          '<col style="width:10%">' +
+          '<col style="width:10%">' +
+          '<col style="width:9%">' +
+          '<col style="width:9%">' +
+          '<col style="width:14%">' +
+        "</colgroup>" +
         '<thead class="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">' +
           "<tr>" +
             '<th class="px-3 py-2 font-bold">Issue</th>' +
@@ -7498,21 +7518,21 @@
             : "";
           return (
             '<tr class="pc-vitals-issue cursor-pointer ' + (on ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-zinc-800") + '" data-issue="' + esc(iid) + '" data-issue-title-lc="' + esc(String(title).toLowerCase()) + '" title="Click for details">' +
-              '<td class="max-w-[280px] px-3 py-2">' +
+              '<td class="min-w-0 px-3 py-2">' +
                 '<div class="flex items-start gap-1.5">' +
                   linkIcon +
-                  '<div class="min-w-0">' +
+                  '<div class="min-w-0 flex-1">' +
                     (tags ? '<div class="mb-1">' + tags + "</div>" : "") +
                     '<p class="truncate font-semibold text-slate-800 dark:text-zinc-100">' + esc(title) + "</p>" +
                     (iss.subtitle ? '<p class="mt-0.5 truncate font-mono text-[10px] text-slate-400">' + esc(cleanIssueTitle(iss.subtitle)) + "</p>" : "") +
                   "</div>" +
                 "</div>" +
               "</td>" +
-              '<td class="px-2 py-2">' + vitalsTypePill(iss) + "</td>" +
-              '<td class="px-2 py-2 text-right"><span class="text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(iss.events || "—") + "</span></td>" +
-              '<td class="px-2 py-2 text-right tabular-nums text-slate-600 dark:text-zinc-300">' + esc(iss.users || "0") + "</td>" +
-              '<td class="px-2 py-2 text-right tabular-nums text-slate-500 dark:text-zinc-400">' + esc(vitalsIssueEu(iss)) + "</td>" +
-              '<td class="px-2 py-2 text-xs text-slate-500 dark:text-zinc-400">' + ver + "</td>" +
+              '<td class="whitespace-nowrap px-2 py-2">' + vitalsTypePill(iss) + "</td>" +
+              '<td class="whitespace-nowrap px-2 py-2 text-right"><span class="text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(iss.events || "—") + "</span></td>" +
+              '<td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-600 dark:text-zinc-300">' + esc(iss.users || "0") + "</td>" +
+              '<td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-500 dark:text-zinc-400">' + esc(vitalsIssueEu(iss)) + "</td>" +
+              '<td class="truncate px-2 py-2 text-xs text-slate-500 dark:text-zinc-400" title="' + ver + '">' + ver + "</td>" +
             "</tr>"
           );
         }).join("") +
