@@ -1,5 +1,5 @@
 <div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-4 px-2" data-page-tarama="policy">
-  {% set _tab = policy_tab or "policy" %}
+  {% set _tab = policy_tab or "sinemalar" %}
   {% set _total = stats.get("total", 0) if stats else 0 %}
   {% set _new_import = (violations | selectattr("is_new_import") | list | length) if violations else 0 %}
   {% set _by_host = stats.get("by_host") if stats else {} %}
