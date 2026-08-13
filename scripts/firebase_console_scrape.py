@@ -146,16 +146,30 @@ def _urls(
     }
 
 
+def _url_is_google_login(url: str) -> bool:
+    u = (url or "").lower()
+    if "accounts.google.com" in u:
+        return True
+    if "signin" in u and "google" in u:
+        return True
+    return False
+
+
+def _url_is_firebase_console(url: str) -> bool:
+    u = (url or "").lower()
+    return "console.firebase.google.com" in u and "/project/" in u
+
+
 def _page_needs_login(page) -> bool:
     """True only on Google Accounts / explicit login form — not Firebase dashboard HTML."""
     try:
         url = (page.url or "").lower()
     except Exception:
         url = ""
-    if "accounts.google.com" in url:
+    if _url_is_google_login(url):
         return True
     # Firebase overview/crashlytics already loaded → session OK
-    if "console.firebase.google.com" in url and "/project/" in url:
+    if _url_is_firebase_console(url):
         return False
     try:
         title = (page.title() or "").lower()
@@ -175,28 +189,58 @@ def _page_needs_login(page) -> bool:
     return False
 
 
-def _wait_until_firebase(page, *, timeout_sec: int = 600) -> bool:
-    """Oturum yoksa kullanıcı girene kadar poll et; Enter gerekmez."""
-    deadline = time.time() + max(60, timeout_sec)
-    printed = False
+def _wait_until_firebase(page, *, timeout_sec: int = 900, on_progress=None) -> bool:
+    """Google girişi bitene kadar bekle — DOM okuma yok (odak çalınmasın)."""
+    timeout_sec = max(120, int(timeout_sec))
+    print(
+        "Firebase oturumu yok — bu Google girişi (ASC/Apple oturumundan ayrı).\n"
+        "Açılan Firefox penceresine bir kez tıklayın, sonra Google hesabıyla giriş yapın.\n"
+        f"Overview gelince otomatik devam eder (en fazla {timeout_sec}s).\n"
+        "Beklerken sayfayı yenilemiyoruz / odak çalmıyoruz.",
+        flush=True,
+    )
+    try:
+        page.bring_to_front()
+    except Exception:
+        pass
+    deadline = time.time() + timeout_sec
+    last_status = 0.0
     while time.time() < deadline:
         try:
             url = (page.url or "").lower()
         except Exception:
             url = ""
-        if not _page_needs_login(page) and "console.firebase.google.com" in url and "/project/" in url:
-            page.wait_for_timeout(1500)
+        # Yalnızca URL — inner_text yok
+        if _url_is_firebase_console(url) and not _url_is_google_login(url):
+            try:
+                page.wait_for_timeout(1500)
+            except Exception:
+                time.sleep(1.5)
             return True
-        if not printed:
-            print(
-                "Firebase oturumu yok — açılan Chromium’da Google ile giriş yapın. "
-                f"Overview gelince otomatik devam ({timeout_sec}s). Enter’a basmaya gerek yok.",
-                flush=True,
-            )
-            printed = True
-        else:
-            print(f"  … bekleniyor ({url[:80] or '—'})", flush=True)
-        page.wait_for_timeout(2500)
+        now = time.time()
+        if now - last_status >= 12:
+            left = max(0, int(deadline - now))
+            msg = f"Firebase Google login bekleniyor · kalan≈{left}s · url={(url or '—')[:100]}"
+            print(f"  · {msg}", flush=True)
+            if callable(on_progress):
+                try:
+                    on_progress(
+                        {
+                            "platform": "android",
+                            "phase": "login",
+                            "sub_label": "waiting for Google login",
+                            "step": 0,
+                            "total_steps": 24,
+                            "message": msg[:200],
+                        }
+                    )
+                except Exception:
+                    pass
+            last_status = now
+        try:
+            page.wait_for_timeout(3000)
+        except Exception:
+            time.sleep(3)
     return False
 
 
@@ -984,7 +1028,7 @@ def scrape_firebase_console(*, headed: bool | None = None, on_progress=None) -> 
             page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
             page.wait_for_timeout(2000)
             if _page_needs_login(page) or "console.firebase.google.com" not in (page.url or "").lower():
-                if not _wait_until_firebase(page, timeout_sec=600):
+                if not _wait_until_firebase(page, timeout_sec=900, on_progress=_top_prog):
                     context.close()
                     return {
                         "sync_ok": False,
