@@ -453,3 +453,50 @@ def test_parse_drilldown_chart_tooltip_tr():
     parsed = mod._parse_drilldown_chart_tooltip(tip, default_year=2026)
     assert parsed is not None
     assert parsed["count"] == 6179
+
+
+def test_tooltip_tail_forward_fill_last_two_weeks():
+    """Ağustos sonu: tooltip boşluğu 0'a düşmesin — son bilinen gün taşınır."""
+    samples = {
+        f"2026-07-{d:02d}": {"poor": 0, "needs_improvement": 15000, "good": 5000}
+        for d in range(20, 32)
+    }
+    samples.update(
+        {
+            f"2026-08-{d:02d}": {"poor": 0, "needs_improvement": 15192, "good": 5073}
+            for d in range(1, 7)
+        }
+    )
+    ser = mod._series_from_tooltip_samples(
+        samples,
+        start_iso="2026-07-20",
+        end_iso="2026-08-11",
+    )
+    assert ser is not None
+    tail_ni = ser["needs_improvement"][-14:]
+    tail_good = ser["good"][-14:]
+    assert 0 not in tail_ni
+    assert 0 not in tail_good
+    assert ser["needs_improvement"][-1] == 15192
+    assert ser["good"][-1] == 5073
+
+
+def test_fix_series_tail_repairs_svg_zeros_in_august():
+    from backend.services.gsc_cwv_scrape_store import _fix_series_tail
+
+    dates = [f"2026-07-{d:02d}" for d in range(25, 32)] + [f"2026-08-{d:02d}" for d in range(1, 12)]
+    n = len(dates)
+    ni = [15100] * (n - 5) + [0, 0, 0, 0, 0]
+    good = [5000] * (n - 5) + [0, 0, 0, 0, 0]
+    ser = {
+        "dates": dates,
+        "poor": [0] * n,
+        "needs_improvement": ni,
+        "good": good,
+    }
+    kpis = {"poor": 0, "needs_improvement": 15349, "good": 3170}
+    out = _fix_series_tail(ser, kpis, tail_days=14)
+    assert out is not None
+    assert out["needs_improvement"][-5:] == [15100, 15100, 15100, 15100, 15349]
+    assert out["good"][-1] == 3170
+    assert 0 not in out["needs_improvement"][-14:]

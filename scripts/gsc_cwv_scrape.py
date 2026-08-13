@@ -1339,6 +1339,17 @@ def _series_from_tooltip_samples(
                 out.append(by[nxt[0]])
             else:
                 out.append(0)
+        # Son 14 gün: eksik tooltip günlerinde 0 bırakma (GSC kartıyla uyumlu düz kuyruk).
+        if len(out) >= 4:
+            tail_start = max(0, len(out) - 14)
+            anchor_idx = tail_start - 1
+            while anchor_idx >= 0 and out[anchor_idx] <= 0:
+                anchor_idx -= 1
+            if anchor_idx >= 0:
+                anchor = out[anchor_idx]
+                for i in range(tail_start, len(out)):
+                    if out[i] <= 0:
+                        out[i] = anchor
         return out
 
     return {
@@ -1945,13 +1956,8 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
             t1 = datetime.strptime(iso_dates[-1], "%Y-%m-%d")
         else:
             t0 = t1 = datetime.now(timezone.utc).replace(tzinfo=None)
-        if end_iso:
-            try:
-                t_end = datetime.strptime(end_iso, "%Y-%m-%d")
-                if t_end >= t0:
-                    t1 = t_end
-            except ValueError:
-                pass
+        # SVG eksen etiketleri dışına uzatma — sağ kenar boş bucket → Ağustos'ta 0 uçurumu.
+        # Son günlere tooltip serisi bakar (end_iso orada işlenir).
         dates = _daily_iso_range(t0, t1)
         if not dates:
             continue
@@ -2027,11 +2033,21 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
             start_iso = str(svg_ch["dates"][0])[:10]
             if not end_iso_use:
                 end_iso_use = str(svg_ch["dates"][-1])[:10]
+        elif tip_ch and (tip_ch.get("dates") or []):
+            tds = [str(d)[:10] for d in (tip_ch.get("dates") or [])]
+            if tds:
+                if not start_iso:
+                    start_iso = tds[0]
+                if not end_iso_use:
+                    end_iso_use = tds[-1]
         from_tip = _series_from_tooltip_samples(
             samples, start_iso=start_iso, end_iso=end_iso_use
         )
         if from_tip:
             return from_tip
+        # Yeterli tooltip yoksa SVG — ama SVG son günlerinde 0 uçurumu olabilir; tercih etme.
+        if len(samples) >= 8:
+            return None
         return svg_ch or tip_ch
 
     merged_m = _merge(

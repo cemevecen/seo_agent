@@ -252,6 +252,53 @@ def _suppress_false_poor_spikes(arr: list[int]) -> list[int]:
     return out
 
 
+def _fix_series_tail(
+    ser: dict[str, Any] | None,
+    kpis: dict[str, Any] | None = None,
+    *,
+    tail_days: int = 14,
+) -> dict[str, Any] | None:
+    """Son 2 hafta: SVG sağ kenarındaki 0'ları son gerçek GSC gününe çek; son gün = KPI."""
+    if not isinstance(ser, dict):
+        return ser
+    dates = list(ser.get("dates") or [])
+    n = len(dates)
+    if n < 4:
+        return ser
+    tail_start = max(0, n - max(1, int(tail_days)))
+    out = dict(ser)
+    for metric in ("poor", "needs_improvement", "good"):
+        arr = [int(x or 0) for x in (out.get(metric) or [])]
+        if len(arr) != n:
+            continue
+        kpi_v: int | None = None
+        if isinstance(kpis, dict):
+            try:
+                kpi_v = int(kpis.get(metric))
+            except (TypeError, ValueError):
+                kpi_v = None
+        anchor_idx = tail_start - 1
+        while anchor_idx >= 0 and arr[anchor_idx] <= 0:
+            anchor_idx -= 1
+        if anchor_idx < 0:
+            if kpi_v is not None and arr:
+                arr[-1] = kpi_v
+            out[metric] = arr
+            continue
+        anchor = arr[anchor_idx]
+        if anchor <= 0 and kpi_v is not None:
+            anchor = kpi_v
+        if anchor <= 0:
+            continue
+        for i in range(tail_start, n):
+            if arr[i] <= 0:
+                arr[i] = anchor
+        if kpi_v is not None:
+            arr[-1] = kpi_v
+        out[metric] = arr
+    return out
+
+
 def _apply_kpis_to_series(ser: dict[str, Any], kpis: dict[str, Any] | None) -> dict[str, Any]:
     """Son noktayı GSC kartına kilitle. Tüm seriyi oranla çarpma — testereyi şişirir."""
     if not isinstance(kpis, dict):
@@ -295,6 +342,7 @@ def _repair_gsc_values(ser: dict[str, Any] | None, kpis: dict[str, Any] | None =
         if out["poor"] == poor:
             out["poor"] = _fill_interior_zeros(poor)
         out["poor"] = _desawtooth(out["poor"])
+    out = _fix_series_tail(out, kpis, tail_days=14)
     out = _apply_kpis_to_series(out, kpis)
     if _is_zero_cross_jagged(list(out.get("needs_improvement") or [])) or _is_zero_cross_jagged(
         list(out.get("good") or [])
