@@ -273,12 +273,18 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.2rem 0.35rem;
+    gap: 0.35rem 0.65rem;
     min-width: 0;
+    transform: scale(0.5);
+    transform-origin: top left;
+    width: 200%;
+    max-width: 200%;
+    margin-bottom: -0.42rem;
+    line-height: 1.1;
   }
   .home-sf-metric__kind {
     margin: 0;
-    font-size: clamp(4px, 1.1cqi, 5px);
+    font-size: clamp(9px, 2.2cqi, 10px);
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -294,10 +300,10 @@
     display: inline-flex;
     align-items: center;
     max-width: 100%;
-    padding: 0.04rem 0.22rem;
+    padding: 0.06rem 0.32rem;
     border-radius: 999px;
     background: rgb(241 245 249 / 0.9);
-    font-size: clamp(4px, 1.05cqi, 5px);
+    font-size: clamp(9px, 2.1cqi, 10px);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: rgb(100 116 139 / 0.92);
@@ -356,7 +362,12 @@
     max-width: 100%;
   }
   .home-sf-metric__meta-src {
-    font-size: clamp(4px, 0.95cqi, 4.5px);
+    display: inline-block;
+    font-size: clamp(8px, 1.9cqi, 10px);
+    transform: scale(0.5);
+    transform-origin: center center;
+    vertical-align: middle;
+    line-height: 1;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -697,19 +708,9 @@
       }
       if (ux && ux.fitCardTexts) {
         ux.fitCardTexts(root);
-        return;
       }
       root.querySelectorAll('.home-sf-metric__hero').forEach(function (el) {
         fitEl(el, 13, 30);
-      });
-      root.querySelectorAll('.home-sf-metric__kind, .home-sf-metric__ver').forEach(function (el) {
-        fitEl(el, 4, 5.5);
-      });
-      root.querySelectorAll('.home-sf-metric__meta-src').forEach(function (el) {
-        fitEl(el, 4, 5);
-      });
-      root.querySelectorAll('.home-sf-metric__meta-item').forEach(function (el) {
-        fitEl(el, 8, 10);
       });
       root.querySelectorAll('.home-store-kpi__l, .home-store-kpi__v').forEach(function (el) {
         fitEl(el, 11, 22);
