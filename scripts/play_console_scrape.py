@@ -19,6 +19,8 @@ Env:
   PLAY_CONSOLE_PROFILE_DIR   (default ~/.seo-agent/fx-google)
   PLAY_CONSOLE_INGEST_URL
   NOTIFICATION_INGEST_TOKEN
+  PLAY_CONSOLE_VITALS_ROW_NAV=1   # sorun tablosu satır satır gez (varsayılan açık)
+  PLAY_CONSOLE_VITALS_DETAIL_LIMIT=40
 """
 
 from __future__ import annotations
@@ -3444,6 +3446,15 @@ def _vitals_crashes_url(
     return f"{VITALS_CRASHES_BASE}?{qs}"
 
 
+def _vitals_issue_id_from_url(url: str) -> str:
+    m = re.search(
+        r"/vitals/crashes/(?:issues/)?([a-f0-9]{12,32})(?:/(?:details|detail))?(?:[/?#]|$)",
+        str(url or ""),
+        re.I,
+    )
+    return m.group(1) if m else ""
+
+
 def _vitals_issue_detail_url(
     issue_id: str, *, days: int = 28, version_code: str | None = None
 ) -> str:
@@ -3451,7 +3462,237 @@ def _vitals_issue_detail_url(
     vc = (version_code if version_code is not None else _vitals_version_code()).strip()
     if vc:
         qs += f"&versionCode={vc}"
+    iid = str(issue_id or "").strip()
+    return f"{VITALS_CRASHES_BASE}/issues/{iid}/details?{qs}"
+
+
+def _vitals_issue_detail_url_legacy(
+    issue_id: str, *, days: int = 28, version_code: str | None = None
+) -> str:
+    qs = f"days={int(days)}&isUserPerceived=true"
+    vc = (version_code if version_code is not None else _vitals_version_code()).strip()
+    if vc:
+        qs += f"&versionCode={vc}"
     return f"{VITALS_CRASHES_BASE}/{issue_id}/details?{qs}"
+
+
+def _vitals_row_nav_enabled() -> bool:
+    raw = (os.environ.get("PLAY_CONSOLE_VITALS_ROW_NAV") or "1").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
+def _scroll_vitals_issues_table(page) -> None:
+    """Sorun tablosu lazy-load — aşağı kaydır."""
+    try:
+        page.evaluate(
+            """async () => {
+              const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+              const nodes = Array.from(document.querySelectorAll(
+                'mat-table, [role="grid"], table, [class*="issue"], [class*="table"], c-wiz'
+              ));
+              for (let r = 0; r < 8; r++) {
+                window.scrollTo(0, document.body.scrollHeight);
+                for (const el of nodes) {
+                  try { el.scrollTop = el.scrollHeight; } catch (_) {}
+                }
+                await sleep(420);
+              }
+              window.scrollTo(0, 0);
+              await sleep(280);
+            }"""
+        )
+    except Exception:
+        _scroll_full_page(page)
+
+
+def _parse_vitals_row_text(text: str, *, issue_id: str, detail_url: str) -> dict[str, Any]:
+    lines = [re.sub(r"\s+", " ", ln).strip() for ln in (text or "").splitlines() if ln.strip()]
+    issue_type = ""
+    affected_versions = ""
+    users = ""
+    events = ""
+    events_share = ""
+    last_occurrence = ""
+    title = ""
+    subtitle = ""
+    tags: list[str] = []
+    ver_re = re.compile(r"^(\d{2,8})\s*\(([^)]+)\)$")
+    ago_re = re.compile(
+        r"(\d+)\s*(saat|gün|dakika|hour|day|minute|week|month|year)s?\s*(önce|ago)",
+        re.I,
+    )
+    type_re = re.compile(r"^(Kilitlenme|ANR|Crash|Application Not Responding)$", re.I)
+    exc_re = re.compile(
+        r"Exception|Error|SIGSEGV|SIGABRT|ANR|SourceFile|Native method|Input dispatching",
+        re.I,
+    )
+    tag_re = re.compile(r"sdk|kilit anlaşmazlığı|binder|olası düzeltme|potential fix|analiz", re.I)
+    nums: list[str] = []
+    for ln in lines:
+        if type_re.match(ln):
+            issue_type = ln
+            continue
+        if ver_re.match(ln):
+            affected_versions = ln
+            continue
+        if ago_re.search(ln) and len(ln) < 48:
+            last_occurrence = ln
+            continue
+        if tag_re.search(ln) and len(ln) < 80:
+            tags.append(ln)
+            continue
+        if re.match(r"^%?\d", ln) and "%" in ln:
+            events_share = ln
+            continue
+        if re.match(r"^\d{1,7}([.,]\d+)?$", ln.replace(".", "").replace(",", "")):
+            nums.append(ln)
+            continue
+        if exc_re.search(ln) and len(ln) < 220:
+            if not title:
+                title = ln
+            elif not subtitle:
+                subtitle = ln
+        elif len(ln) > 4 and len(ln) < 220 and not title:
+            title = ln
+    if len(nums) >= 1:
+        users = nums[0]
+    if len(nums) >= 2:
+        events = nums[1]
+    title = re.sub(
+        r"\s*(ayrıntısını göster|show details?|view details?)\s*$",
+        "",
+        title,
+        flags=re.I,
+    ).strip()
+    if not title and subtitle:
+        title = subtitle
+    if not title:
+        title = f"Issue {issue_id[:12]}"
+    return {
+        "issue_id": issue_id,
+        "detail_url": detail_url,
+        "title": title[:240],
+        "subtitle": (subtitle or "")[:240],
+        "tags": tags[:6],
+        "issue_type": issue_type[:64],
+        "affected_versions": affected_versions[:80],
+        "version_track": "",
+        "users": users[:32],
+        "events": events[:32],
+        "events_share": events_share[:32],
+        "last_occurrence": last_occurrence[:64],
+        "extra": "",
+    }
+
+
+def _scrape_vitals_issues_via_table_rows(
+    page,
+    *,
+    list_url: str,
+    days: int,
+    version_code: str | None,
+    scrape_details: bool,
+    headed: bool,
+    limit: int | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Kilitlenme/ANR tablosu — satır satır tıkla, detay sayfasını gez."""
+    if limit is None:
+        limit = _vitals_detail_limit()
+    issues_out: list[dict[str, Any]] = []
+    details_out: dict[str, dict[str, Any]] = {}
+    seen: set[str] = set()
+
+    _scroll_vitals_issues_table(page)
+    row_filter = re.compile(
+        r"Exception|Error|ANR|SourceFile|SIGSEGV|SIGABRT|Native method|Input dispatching|Kilitlenme",
+        re.I,
+    )
+    try:
+        row_loc = page.locator("mat-row, table tbody tr, [role='row']").filter(has_text=row_filter)
+        n = min(row_loc.count(), max(limit, 1))
+    except Exception:
+        return issues_out, details_out
+
+    if n <= 0:
+        return issues_out, details_out
+
+    print(f"    · tablo satır gezintisi: {n} satır (max {limit}) …", flush=True)
+
+    for i in range(n):
+        if len(seen) >= limit:
+            break
+        try:
+            row = row_loc.nth(i)
+            row_text = (row.inner_text(timeout=4_000) or "").strip()
+            if not row_text:
+                continue
+            if re.search(r"sorun kategorisi|issue category|etkilenen kullanıcılar|affected users", row_text, re.I):
+                continue
+            if not row_filter.search(row_text):
+                continue
+
+            click_target = row.locator(
+                'a[href*="/vitals/crashes"], button[aria-label*="Ayrınt"], '
+                'button[aria-label*="detail"], button[aria-label*="Show"], [data-test-id*="issue"]'
+            ).first
+            if click_target.count() > 0:
+                click_target.click(timeout=10_000)
+            else:
+                row.click(timeout=10_000)
+            page.wait_for_load_state("domcontentloaded", timeout=90_000)
+            _settle(page, seconds=2.5)
+
+            iid = _vitals_issue_id_from_url(page.url)
+            if not iid:
+                page.goto(list_url, wait_until="domcontentloaded", timeout=120_000)
+                _settle(page, seconds=1.5)
+                continue
+            if iid in seen:
+                page.goto(list_url, wait_until="domcontentloaded", timeout=120_000)
+                _settle(page, seconds=1.5)
+                continue
+            seen.add(iid)
+
+            detail_url = _vitals_issue_detail_url(iid, days=days, version_code=version_code)
+            row_issue = _parse_vitals_row_text(row_text, issue_id=iid, detail_url=detail_url)
+            issues_out.append(row_issue)
+            print(f"    · satır {len(issues_out)}/{limit} {iid[:12]}… {row_issue.get('title', '')[:48]}", flush=True)
+
+            if scrape_details:
+                if "/details" not in page.url.lower():
+                    page.goto(detail_url, wait_until="domcontentloaded", timeout=120_000)
+                    _settle(page, seconds=2.5)
+                need, _, _ = _page_needs_login(page)
+                if need and headed:
+                    _wait_until_console(page, timeout_sec=300)
+                    page.goto(detail_url, wait_until="domcontentloaded", timeout=120_000)
+                    _settle(page, seconds=2.5)
+                _wait_page_text(
+                    page,
+                    ("Stack", "Yığın", "Exception", "ANR", "Kilitlenme", iid[:8]),
+                    timeout_sec=20.0,
+                )
+                _scroll_full_page(page)
+                detail = _extract_vitals_issue_detail(page) or {}
+                detail["issue_id"] = iid
+                detail["url"] = detail_url
+                detail["list_title"] = str(row_issue.get("title") or "")[:240]
+                detail["list_subtitle"] = str(row_issue.get("subtitle") or "")[:240]
+                details_out[iid] = detail
+
+            page.goto(list_url, wait_until="domcontentloaded", timeout=120_000)
+            _settle(page, seconds=2.0)
+            _scroll_vitals_issues_table(page)
+            row_loc = page.locator("mat-row, table tbody tr, [role='row']").filter(has_text=row_filter)
+        except Exception as exc:  # noqa: BLE001
+            print(f"    · satır {i + 1} gezinti hata: {exc}", flush=True)
+            try:
+                page.goto(list_url, wait_until="domcontentloaded", timeout=120_000)
+                _settle(page, seconds=1.5)
+            except Exception:
+                pass
+
+    return issues_out, details_out
 
 
 def _extract_vitals_issue_snapshot(page) -> dict[str, Any]:
@@ -3583,9 +3824,9 @@ def _extract_vitals_issue_snapshot(page) -> dict[str, Any]:
       const anchors = Array.from(document.querySelectorAll('a[href]'));
       for (const a of anchors) {
         const href = String(a.href || a.getAttribute('href') || '');
-        const m = href.match(/\\/vitals\\/crashes\\/(?:issues\\/)?([A-Za-z0-9_-]{8,})(?:\\/(?:details|detail))?(?:[/?#]|$)/i)
-          || href.match(/[?&]issue[Ii]d=([A-Za-z0-9_-]{8,})/i)
-          || href.match(/\\/vitals\\/crashes\\/([A-Za-z0-9_-]{12,})(?:[/?#]|$)/i);
+        const m = href.match(/\\/vitals\\/crashes\\/issues\\/([a-f0-9]{12,32})(?:\\/(?:details|detail))?(?:[/?#]|$)/i)
+          || href.match(/\\/vitals\\/crashes\\/([a-f0-9]{12,32})(?:\\/(?:details|detail))?(?:[/?#]|$)/i)
+          || href.match(/[?&]issue[Ii]d=([a-f0-9]{12,32})/i);
         if (!m) continue;
         const issueId = m[1];
         if (!issueId || /^(details|detail|overview)$/i.test(issueId)) continue;
@@ -3643,7 +3884,8 @@ def _extract_vitals_issue_snapshot(page) -> dict[str, Any]:
           const link = row.querySelector('a[href*="/vitals/crashes/"]');
           if (link) {
             const href = String(link.href || link.getAttribute('href') || '');
-            const m = href.match(/\\/vitals\\/crashes\\/([a-f0-9]{16,})/i);
+            const m = href.match(/\\/vitals\\/crashes\\/issues\\/([a-f0-9]{12,32})/i)
+              || href.match(/\\/vitals\\/crashes\\/([a-f0-9]{12,32})/i);
             if (m) {
               issueId = m[1];
               detailUrl = href.startsWith('http') ? href.split('#')[0] : (location.origin + href.split('#')[0]);
@@ -3712,7 +3954,8 @@ def _extract_vitals_issue_detail(page) -> dict[str, Any]:
       const body = (document.body && document.body.innerText) || '';
       const lines = body.split(/\\n+/).map(clean).filter(Boolean);
       const href = location.href || '';
-      const idm = href.match(/\\/vitals\\/crashes\\/([a-f0-9]{16,})/i);
+      const idm = href.match(/\\/vitals\\/crashes\\/issues\\/([a-f0-9]{12,32})/i)
+        || href.match(/\\/vitals\\/crashes\\/([a-f0-9]{12,32})/i);
       const issueId = idm ? idm[1] : '';
 
       let title = '';
@@ -3857,41 +4100,55 @@ def _scrape_vitals_issue_details(
             iid, days=days, version_code=version_code
         )
         print(f"    · detail {idx}/{len(ranked)} {iid[:12]}…", flush=True)
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=120_000)
-            _settle(page, seconds=3.5)
-            need, _, _ = _page_needs_login(page)
-            if need and headed:
-                _wait_until_console(page, timeout_sec=300)
-                page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+        urls = [url]
+        legacy = _vitals_issue_detail_url_legacy(iid, days=days, version_code=version_code)
+        if legacy not in urls:
+            urls.append(legacy)
+        detail: dict[str, Any] = {}
+        last_exc: Exception | None = None
+        for try_url in urls:
+            try:
+                page.goto(try_url, wait_until="domcontentloaded", timeout=120_000)
                 _settle(page, seconds=3.5)
-            _wait_page_text(
-                page,
-                (
-                    "Stack",
-                    "Yığın",
-                    "Exception",
-                    "ANR",
-                    "Kilitlenme",
-                    "Crash",
-                    "vitals",
-                    iid[:8],
-                ),
-                timeout_sec=25.0,
-            )
-            _scroll_full_page(page)
-            detail = _extract_vitals_issue_detail(page) or {}
+                need, _, _ = _page_needs_login(page)
+                if need and headed:
+                    _wait_until_console(page, timeout_sec=300)
+                    page.goto(try_url, wait_until="domcontentloaded", timeout=120_000)
+                    _settle(page, seconds=3.5)
+                _wait_page_text(
+                    page,
+                    (
+                        "Stack",
+                        "Yığın",
+                        "Exception",
+                        "ANR",
+                        "Kilitlenme",
+                        "Crash",
+                        "vitals",
+                        iid[:8],
+                    ),
+                    timeout_sec=25.0,
+                )
+                _scroll_full_page(page)
+                detail = _extract_vitals_issue_detail(page) or {}
+                if detail.get("issue_id") or detail.get("title") or detail.get("stack_trace"):
+                    url = try_url
+                    break
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                continue
+        if detail:
             if not detail.get("issue_id"):
                 detail["issue_id"] = iid
             detail["url"] = url
             detail["list_title"] = str(iss.get("title") or "")[:240]
             detail["list_subtitle"] = str(iss.get("subtitle") or "")[:240]
             out[iid] = detail
-        except Exception as exc:  # noqa: BLE001
+        else:
             out[iid] = {
                 "issue_id": iid,
                 "url": url,
-                "error": str(exc)[:200],
+                "error": str(last_exc)[:200] if last_exc else "detail empty",
             }
     return out
 
@@ -4058,7 +4315,10 @@ def _scrape_vitals_crashes_error_type(
     categories_out: list[dict[str, Any]] = []
     all_issues_for_details: list[dict[str, Any]] = []
     seen_detail_ids: set[str] = set()
+    prefetched_details: dict[str, dict[str, Any]] = {}
     summary_rate: str | None = None
+    list_url = page.url
+    row_nav_done = False
     for cat in VITALS_ISSUE_CATEGORIES:
         cat_id = str(cat["id"])
         labels = tuple(cat["labels"])
@@ -4077,7 +4337,7 @@ def _scrape_vitals_crashes_error_type(
                     )
                 except Exception:
                     pass
-                _scroll_full_page(page)
+                _scroll_vitals_issues_table(page)
             else:
                 # Menüyü Escape ile kapat
                 try:
@@ -4086,6 +4346,8 @@ def _scrape_vitals_crashes_error_type(
                     pass
                 time.sleep(0.3)
 
+        list_url = page.url
+        _scroll_vitals_issues_table(page)
         snap = _extract_vitals_issue_snapshot(page) or {}
         issues = snap.get("issues") if isinstance(snap.get("issues"), list) else []
         cards = snap.get("cards") if isinstance(snap.get("cards"), list) else []
@@ -4145,6 +4407,25 @@ def _scrape_vitals_crashes_error_type(
             if iid and iid not in seen_detail_ids:
                 seen_detail_ids.add(iid)
                 all_issues_for_details.append(row)
+        if len(clean_issues) == 0 and _vitals_row_nav_enabled() and not row_nav_done:
+            row_issues, row_details = _scrape_vitals_issues_via_table_rows(
+                page,
+                list_url=list_url,
+                days=days,
+                version_code=vc,
+                scrape_details=scrape_details,
+                headed=headed,
+            )
+            row_nav_done = True
+            if row_issues:
+                clean_issues = row_issues
+                for ri in row_issues:
+                    iid = str(ri.get("issue_id") or "").strip()
+                    if iid and iid not in seen_detail_ids:
+                        seen_detail_ids.add(iid)
+                        all_issues_for_details.append(ri)
+            if row_details:
+                prefetched_details.update(row_details)
         if clean_issues:
             count_raw = str(len(clean_issues))
         elif count_raw is None:
@@ -4184,21 +4465,35 @@ def _scrape_vitals_crashes_error_type(
             scrape_details=scrape_details,
         )
 
-    issue_details: dict[str, dict[str, Any]] = {}
+    issue_details: dict[str, dict[str, Any]] = dict(prefetched_details)
     if scrape_details and all_issues_for_details:
-        print(
-            f"  · vitals issue details ({error_type}) "
-            f"candidates={len(all_issues_for_details)} …",
-            flush=True,
-        )
-        issue_details = _scrape_vitals_issue_details(
-            page,
-            all_issues_for_details,
-            days=days,
-            version_code=vc,
-            headed=headed,
-        )
+        remaining = [
+            iss
+            for iss in all_issues_for_details
+            if str(iss.get("issue_id") or "").strip() not in issue_details
+        ]
+        if remaining:
+            print(
+                f"  · vitals issue details ({error_type}) "
+                f"candidates={len(remaining)} …",
+                flush=True,
+            )
+            issue_details.update(
+                _scrape_vitals_issue_details(
+                    page,
+                    remaining,
+                    days=days,
+                    version_code=vc,
+                    headed=headed,
+                )
+            )
         # Listeye geri dön — sonraki error type / overview için temiz bağlam
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+            _settle(page, seconds=2.5)
+        except Exception:
+            pass
+    elif prefetched_details:
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=120_000)
             _settle(page, seconds=2.5)
