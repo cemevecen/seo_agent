@@ -36,6 +36,12 @@
     "mod-chart-metric-stack",
     "mod-chart-inactive-summary",
   ];
+  var MOD_TRACE_CHART_IDS = [
+    "mod-chart-daily-volume",
+    "mod-chart-weekday",
+    "mod-chart-cumulative",
+    "mod-chart-focus-profile",
+  ];
   var CHART_IDS = [
     "mod-chart-rank-total",
     "mod-chart-daily-volume",
@@ -128,6 +134,76 @@
     var perRow = Math.min(legendCount, Math.max(2, Math.floor(w / perItem)));
     var rows = Math.ceil(legendCount / perRow);
     return rows * 22 + 10;
+  }
+
+  function modTraceIndex(userId) {
+    for (var i = 0; i < MODS.length; i++) {
+      if (String(MODS[i].user_id) === String(userId)) return i;
+    }
+    return -1;
+  }
+
+  function updateModLegendButtonStates() {
+    document.querySelectorAll(".mod-chart-legend-bar--mods .mod-legend-item[data-user-id]").forEach(function (btn) {
+      btn.classList.toggle("is-off", !isModVisible(btn.getAttribute("data-user-id")));
+    });
+  }
+
+  function restyleModTraceCharts() {
+    var visibility = MODS.map(function (m) {
+      return isModVisible(m.user_id);
+    });
+    MOD_TRACE_CHART_IDS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el || !el.data || !el.data.length) return;
+      try {
+        Plotly.restyle(el, { visible: visibility });
+      } catch (_) {}
+    });
+    var focusEl = document.getElementById("mod-chart-focus-profile");
+    if (focusEl && focusEl.querySelector(".js-plotly-plot")) {
+      var shares = ANALYTICS.shares_by_metric || {};
+      var baseMax = focusRadialMax(shares);
+      if (focusZoomBaseMax != null && focusZoomMax != null && focusZoomBaseMax > 0) {
+        var ratio = focusZoomMax / focusZoomBaseMax;
+        focusZoomBaseMax = baseMax;
+        focusZoomMax = Math.max(FOCUS_ZOOM_MIN, Math.min(baseMax, baseMax * ratio));
+      }
+      try {
+        Plotly.relayout(focusEl, { "polar.radialaxis.range": [0, focusZoomMax || baseMax] });
+      } catch (_) {}
+      updateFocusZoomLabel();
+    }
+  }
+
+  function redrawModFilteredCharts() {
+    var fns = [drawRankTotal, drawInactiveSummary, drawActivityHeatmaps, drawMetricStack, drawRankMatrix];
+    fns.forEach(function (fn) {
+      try {
+        fn();
+      } catch (err) {
+        console.error("[mod-chart] filter redraw failed", err);
+      }
+    });
+  }
+
+  function toggleModVisibility(userId) {
+    modVisibility[String(userId)] = !isModVisible(userId);
+    updateModLegendButtonStates();
+    restyleModTraceCharts();
+    redrawModFilteredCharts();
+  }
+
+  function bindModLegendDelegation() {
+    var root = document.getElementById("mod-charts");
+    if (!root || root.__modLegendBound) return;
+    root.__modLegendBound = true;
+    root.addEventListener("click", function (ev) {
+      var btn = ev.target.closest(".mod-chart-legend-bar--mods .mod-legend-item[data-user-id]");
+      if (!btn) return;
+      ev.preventDefault();
+      toggleModVisibility(btn.getAttribute("data-user-id"));
+    });
   }
 
   function clearHtmlLegends() {
