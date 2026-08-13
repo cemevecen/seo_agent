@@ -198,6 +198,8 @@ html.midnight .pa-viz20-h-btn.is-active {
 
 .pa-viz20-metrics-wrap {
   min-width: 11rem;
+  position: relative;
+  z-index: 5;
 }
 
 .pa-viz20-metrics-title {
@@ -242,6 +244,11 @@ html.midnight .pa-viz20-metrics-title:hover {
 
 .pa-viz20-metric-list {
   pointer-events: auto;
+  z-index: 220;
+}
+
+.pa-viz20-metric-list:not(.hidden) {
+  display: block;
 }
 
 html.dark .pa-viz20-metric-trigger,

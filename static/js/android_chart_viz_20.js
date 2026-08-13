@@ -157,6 +157,9 @@
 
   function metricListFor(details) {
     if (!details) return null;
+    // Kapalıyken liste details içinde — portaled hayalet listelerden önce onu kullan.
+    var local = details.querySelector(".pa-viz20-metric-list");
+    if (local) return local;
     var id = details.id;
     if (id) {
       var portaled = document.body.querySelector(
@@ -164,7 +167,19 @@
       );
       if (portaled) return portaled;
     }
-    return details.querySelector(".pa-viz20-metric-list");
+    return null;
+  }
+
+  function cleanupStaleMetricListPortals() {
+    document.body.querySelectorAll(".pa-viz20-metric-list[data-viz20-portal]").forEach(function (list) {
+      var id = list.getAttribute("data-viz20-details-id");
+      if (!id) {
+        list.remove();
+        return;
+      }
+      var owner = document.getElementById(id);
+      if (!owner || !owner.isConnected) list.remove();
+    });
   }
 
   function metricListScrollFor(details) {
@@ -260,6 +275,7 @@
     var dd = metricDdFor(details);
     var list = metricListFor(details);
     if (!dd || !list) return;
+    if (details.id) list.setAttribute("data-viz20-details-id", details.id);
     if (on) {
       if (list.parentElement !== document.body) document.body.appendChild(list);
     } else if (list.parentElement !== dd) {
@@ -1107,7 +1123,7 @@
 
   function bindViz20MetricsDropdown(details, meta) {
     var trigger = details.querySelector(".pa-viz20-metric-trigger");
-    var list = metricListFor(details);
+    var list = details.querySelector(".pa-viz20-metric-list");
     var wrap = details.querySelector(".pa-viz20-metrics-wrap");
     if (!trigger || !list) return;
     if (details.id) list.setAttribute("data-viz20-details-id", details.id);
@@ -1116,8 +1132,10 @@
     trigger.setAttribute("data-viz20-metric-bound", "1");
 
     function openToggle(ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
+      if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
       toggleViz20MetricDropdown(details, meta);
     }
 
@@ -1217,6 +1235,7 @@
   }
 
   function buildUi(meta) {
+    cleanupStaleMetricListPortals();
     root.innerHTML = "";
     (meta.viz || []).forEach(function (viz) {
       var params = defaultParams(viz, meta);
@@ -1256,7 +1275,7 @@
     if (!document.body.getAttribute("data-viz20-metrics-outside")) {
       document.body.setAttribute("data-viz20-metrics-outside", "1");
       document.addEventListener(
-        "mousedown",
+        "click",
         function (ev) {
           root.querySelectorAll("details.pa-viz20-drop").forEach(function (details) {
             var list = metricListFor(details);
