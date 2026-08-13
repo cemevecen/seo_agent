@@ -212,18 +212,22 @@ def _looks_signed_in(page) -> bool:
 
 
 def _login_wait_sec() -> int:
-    try:
-        return max(120, int(os.environ.get("GSC_CWV_LOGIN_WAIT_SEC") or "900"))
-    except (TypeError, ValueError):
-        return 900
+    from backend.services.scrape_browser import login_wait_sec
+
+    return login_wait_sec(env_key="GSC_CWV_LOGIN_WAIT_SEC")
 
 
 def _wait_until_signed_in(page, *, timeout_sec: int | None = None) -> bool:
-    """Headed sync: tarayıcıyı kapatma — kullanıcı şifre/2FA bitirene kadar bekle."""
-    timeout_sec = _login_wait_sec() if timeout_sec is None else max(120, int(timeout_sec))
+    """Headed sync: tarayıcıyı kapatma — kullanıcı şifre/2FA bitirene kadar bekle.
+
+    True → aynı page ile kazıma devam eder.
+    """
+    from backend.services.scrape_browser import LOGIN_WAIT_SEC
+
+    timeout_sec = _login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
     print(
         "LOGIN BEKLENIYOR — açık tarayıcıda Google / GSC girişi yapın (şifre/2FA).\n"
-        f"Giriş tamamlanınca tüm siteler otomatik taranır (en fazla {timeout_sec}s).\n"
+        f"Giriş tamamlanınca aynı pencerede tüm siteler taranır (en fazla {timeout_sec // 60} dk).\n"
         "Pencereyi kapatmayın.",
         flush=True,
     )
@@ -361,8 +365,11 @@ def _launch_context(*, headed: bool):
     return pw, context
 
 
-def run_login_interactive(timeout_sec: int = 900) -> dict[str, Any]:
+def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
     """Headed login — şifre/2FA sırasında tarayıcıyı kapatma; profil kilidini önce temizle."""
+    from backend.services.scrape_browser import LOGIN_WAIT_SEC, login_wait_sec
+
+    timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
     url = _cwv_url("sc-domain:doviz.com")
     print(f"Profil: {PROFILE_DIR}", flush=True)
     print(
@@ -381,7 +388,7 @@ def run_login_interactive(timeout_sec: int = 900) -> dict[str, Any]:
             print(f"İlk goto uyarısı (devam): {exc}", flush=True)
         print(
             f"Tarayıcıda Google ile GSC girişi yapın (şifre/2FA).\n"
-            f"Search Console açılınca oturum otomatik kaydedilir (en fazla {timeout_sec}s).\n"
+            f"Search Console açılınca oturum otomatik kaydedilir (en fazla {timeout_sec // 60} dk).\n"
             f"Takılırsa Ctrl+C ile çıkıp: .venv/bin/python scripts/gsc_cwv_scrape.py --sync --ingest --charts-only",
             flush=True,
         )

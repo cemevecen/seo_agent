@@ -16,7 +16,25 @@ from typing import Any
 
 STATE_DIR = Path.home() / ".seo-agent"
 
+# Elle giriş bekleyen tüm taramalar (ASC / Play / Firebase / GSC / Policy…)
+# Update page & headed sync: 15 dakika; giriş sonrası aynı pencerede kazıma devam eder.
+LOGIN_WAIT_SEC = 900
+
 _NAV_URL_BAD_PREFIX = re.compile(r"^[a-z0-9._+-]+(?=https?://)", re.I)
+
+
+def login_wait_sec(*, env_key: str | None = None, default: int = LOGIN_WAIT_SEC) -> int:
+    """Giriş bekleme süresi (sn). Env varsa onu kullanır; taban en az 900 (15 dk)."""
+    raw = ""
+    if env_key:
+        raw = (os.environ.get(env_key) or "").strip()
+    if not raw:
+        raw = (os.environ.get("SCRAPE_LOGIN_WAIT_SEC") or "").strip()
+    try:
+        val = int(raw) if raw else int(default)
+    except ValueError:
+        val = int(default)
+    return max(LOGIN_WAIT_SEC, val)
 
 
 def normalize_nav_url(raw: str, *, fallback: str = "") -> str:
@@ -251,7 +269,7 @@ def launch_system_firefox_login(
     profile: Path,
     url: str,
     *,
-    timeout_sec: int = 900,
+    timeout_sec: int = LOGIN_WAIT_SEC,
     success_hint: str = "",
     verify_session: bool = True,
 ) -> dict[str, Any]:
@@ -283,11 +301,13 @@ def launch_system_firefox_login(
         cmd = [exe, "-no-remote", "-profile", str(profile), url]
         print(f"Sistem Firefox · {exe}\nprofil={profile}\nurl={url}", flush=True)
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        deadline = time.time() + max(120, timeout_sec)
+        timeout_sec = max(LOGIN_WAIT_SEC, int(timeout_sec or LOGIN_WAIT_SEC))
+        deadline = time.time() + timeout_sec
         hint = (success_hint or "").strip() or (
-            "cemevecen@nokta.com ile giriş yap → hedef sayfa açılsın → Firefox penceresini KAPAT."
+            f"cemevecen@nokta.com ile giriş yap → hedef sayfa açılsın → Firefox penceresini KAPAT "
+            f"(en fazla {timeout_sec // 60} dk)."
         )
-        print(f"{hint}\n(en fazla {int(deadline - time.time())}s)", flush=True)
+        print(f"{hint}\n(en fazla {timeout_sec // 60} dk)", flush=True)
         while time.time() < deadline:
             rc = proc.poll()
             if rc is not None:

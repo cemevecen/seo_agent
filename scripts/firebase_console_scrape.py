@@ -189,14 +189,19 @@ def _page_needs_login(page) -> bool:
     return False
 
 
-def _wait_until_firebase(page, *, timeout_sec: int = 900, on_progress=None) -> bool:
-    """Google girişi bitene kadar bekle — DOM okuma yok (odak çalınmasın)."""
-    timeout_sec = max(120, int(timeout_sec))
+def _wait_until_firebase(page, *, timeout_sec: int | None = None, on_progress=None) -> bool:
+    """Google girişi bitene kadar bekle — DOM okuma yok (odak çalınmasın).
+
+    True dönünce çağıran aynı pencerede taramaya devam eder (kapatılmaz).
+    """
+    from backend.services.scrape_browser import LOGIN_WAIT_SEC, login_wait_sec
+
+    timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
     print(
         "Firebase oturumu yok — bu Google girişi (ASC/Apple oturumundan ayrı).\n"
         "Açılan Firefox penceresine bir kez tıklayın, sonra Google hesabıyla giriş yapın.\n"
-        f"Overview gelince otomatik devam eder (en fazla {timeout_sec}s).\n"
-        "Beklerken sayfayı yenilemiyoruz / odak çalmıyoruz.",
+        f"Overview gelince aynı pencerede tarama devam eder (en fazla {timeout_sec // 60} dk).\n"
+        "Beklerken sayfayı yenilemiyoruz / odak çalmıyoruz / tarayıcı kapatılmıyor.",
         flush=True,
     )
     try:
@@ -1028,15 +1033,16 @@ def scrape_firebase_console(*, headed: bool | None = None, on_progress=None) -> 
             page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
             page.wait_for_timeout(2000)
             if _page_needs_login(page) or "console.firebase.google.com" not in (page.url or "").lower():
-                if not _wait_until_firebase(page, timeout_sec=900, on_progress=_top_prog):
+                if not _wait_until_firebase(page, on_progress=_top_prog):
                     context.close()
                     return {
                         "sync_ok": False,
-                        "sync_message": "Firebase Console login zaman aşımı (--login)",
+                        "sync_message": "Firebase Console login zaman aşımı (15 dk)",
                         "metrics": [],
                         "panels": {},
                         "scrape_days": days,
                     }
+                print("Firebase giriş OK — aynı pencerede Crashlytics tarama devam ediyor.", flush=True)
                 try:
                     page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
                     page.wait_for_timeout(2000)

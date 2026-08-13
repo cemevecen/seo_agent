@@ -105,17 +105,20 @@ def _launch_context(*, headed: bool):
     return pw, context
 
 
-def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
+def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
+    from backend.services.scrape_browser import LOGIN_WAIT_SEC, login_wait_sec
+
+    timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
     pw, context = _launch_context(headed=True)
     try:
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(_policy_url(), wait_until="domcontentloaded", timeout=120_000)
         print(
             f"Tarayıcıda Ad Manager giriş yap (cemevecen@nokta.com). "
-            f"Policy Center açılınca {timeout_sec}s içinde otomatik kapanır.",
+            f"Policy Center açılınca kaydedilir (en fazla {timeout_sec // 60} dk).",
             flush=True,
         )
-        deadline = time.time() + max(60, timeout_sec)
+        deadline = time.time() + timeout_sec
         while time.time() < deadline:
             if _looks_signed_in(page) and (
                 "policy" in (page.url or "").lower()
@@ -128,7 +131,7 @@ def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
             time.sleep(2)
         return {
             "ok": False,
-            "message": "Login zaman aşımı — tekrar --login dene",
+            "message": "Login zaman aşımı (15 dk) — tekrar --login dene",
             "url": page.url,
             "profile": str(PROFILE_DIR),
         }

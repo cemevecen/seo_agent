@@ -263,14 +263,21 @@ def _focus_apple_login_once(page) -> None:
             continue
 
 
-def _wait_for_asc_session(page, ctx, *, timeout_sec: int = 900) -> bool:
-    """Kullanıcı giriş yapana kadar bekle — sayfa DOM’una dokunma (odak bozulmasın)."""
-    timeout_sec = max(120, int(timeout_sec))
+def _wait_for_asc_session(page, ctx, *, timeout_sec: int | None = None) -> bool:
+    """Kullanıcı giriş yapana kadar bekle — sayfa DOM’una dokunma (odak bozulmasın).
+
+    Giriş OK olunca True döner; çağıran aynı page/ctx ile taramaya devam etmeli
+    (tarayıcı burada kapatılmaz).
+    """
+    from backend.services.scrape_browser import LOGIN_WAIT_SEC, login_wait_sec
+
+    timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
     print(
         "ASC oturumu yok / düşmüş — açılan Firefox penceresinde Apple ID ile giriş yapın.\n"
         "ÖNEMLİ: Önce pencereye bir kez tıklayın, sonra e-posta alanına yazın.\n"
         "Tarama arka planda bekler; giriş sırasında sayfayı yenilemez / odak çalmaz.\n"
-        f"(en fazla {timeout_sec}s)",
+        f"Girişten sonra tarayıcı KAPANMAZ — aynı pencerede kazıma devam eder "
+        f"(en fazla {timeout_sec // 60} dk).",
         flush=True,
     )
     _focus_apple_login_once(page)
@@ -292,7 +299,8 @@ def _wait_for_asc_session(page, ctx, *, timeout_sec: int = 900) -> bool:
             info = _cookie_debug(ctx)
             print(
                 f"ASC oturumu OK · api=settings/all · myacinfo={info.get('has_myacinfo')} · "
-                f"itctx={info.get('has_itctx')} — profil kaydedildi.",
+                f"itctx={info.get('has_itctx')} — profil kaydedildi.\n"
+                "→ Aynı pencerede ASC tarama devam ediyor (tarayıcı açık kalır).",
                 flush=True,
             )
             time.sleep(5)  # cookie’lerin diske yazılması
@@ -313,13 +321,14 @@ def _wait_for_asc_session(page, ctx, *, timeout_sec: int = 900) -> bool:
                 info = _cookie_debug(ctx)
                 print(
                     f"ASC oturumu OK · myacinfo={info.get('has_myacinfo')} · "
-                    f"itctx={info.get('has_itctx')} — profil kaydedildi.",
+                    f"itctx={info.get('has_itctx')} — profil kaydedildi.\n"
+                    "→ Aynı pencerede ASC tarama devam ediyor (tarayıcı açık kalır).",
                     flush=True,
                 )
                 time.sleep(5)
                 return True
         time.sleep(3)
-    print("Login zaman aşımı — tekrar Update page veya --login deneyin.", flush=True)
+    print("Login zaman aşımı (15 dk) — tekrar Update page veya --login deneyin.", flush=True)
     return False
 
 
@@ -363,9 +372,10 @@ def run_login_interactive() -> None:
             wait_until="domcontentloaded",
             timeout=120_000,
         )
-        ok = _wait_for_asc_session(page, ctx, timeout_sec=900)
+        ok = _wait_for_asc_session(page, ctx)
         if not ok:
             return
+        print("Login kaydedildi. --login bitti; Update page ile aynı profilde tarama yapılır.", flush=True)
     finally:
         _release_context(pw, ctx)
 
@@ -1087,17 +1097,42 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             flush=True,
         )
         session_ok = bool(probe.get("ok"))
-        if not session_ok and _page_needs_login(page):
+        # Başlık/URL login gibi görünmese bile API oturumu yoksa headed'de BEKLE.
+        # Eski bug: kullanıcı giriş yapınca needs_login=False oluyor, session_ok hâlâ False
+        # → erken return + tarayıcı kapanıyordu.
+        if not session_ok:
             if headed:
-                if not _wait_for_asc_session(page, ctx, timeout_sec=900):
+                if not _wait_for_asc_session(page, ctx):
                     return {
                         "ok": False,
                         "needs_login": True,
-                        "message": "ASC girişi gerekli — Mac köprüde oturum açın",
+                        "message": "ASC girişi gerekli — Mac köprüde oturum açın (15 dk doldu)",
                         "panels": {"explorer_facts": []},
                         "raw_network": [],
                     }
-                session_ok = True
+                probe = _probe_analytics_session(page)
+                session_ok = bool(probe.get("ok"))
+                if not session_ok:
+                    # Cookie yazıldı ama API gecikmeli — analytics’e bir kez daha git
+                    try:
+                        page.goto(
+                            f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics/metrics",
+                            wait_until="domcontentloaded",
+                            timeout=90_000,
+                        )
+                        time.sleep(3)
+                    except Exception:
+                        pass
+                    probe = _probe_analytics_session(page)
+                    session_ok = bool(probe.get("ok"))
+                if not session_ok:
+                    return {
+                        "ok": False,
+                        "needs_login": True,
+                        "message": "ASC analytics oturumu doğrulanamadı — tekrar Update page",
+                        "panels": {"explorer_facts": []},
+                        "raw_network": [],
+                    }
             else:
                 return {
                     "ok": False,
@@ -1106,7 +1141,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                     "panels": {"explorer_facts": []},
                     "raw_network": [],
                 }
-        elif session_ok and _page_needs_login(page):
+        elif _page_needs_login(page):
             # API ayakta ama UI login’e düşmüş — analytics’e geri dön, devam et
             print(
                 "ASC: settings/all OK — UI login görünümü yok sayılıyor, measures’a devam",
@@ -1121,14 +1156,6 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 time.sleep(2)
             except Exception:
                 pass
-        if not session_ok:
-            return {
-                "ok": False,
-                "needs_login": True,
-                "message": "ASC analytics oturumu yok — --login ile cemevecen@gmail.com girin",
-                "panels": {"explorer_facts": []},
-                "raw_network": [],
-            }
 
         end_d = date.today() - timedelta(days=1)
         scrape_days = _scrape_days()

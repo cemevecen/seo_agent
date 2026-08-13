@@ -231,7 +231,10 @@ def _launch_context(*, headed: bool):
     return pw, context
 
 
-def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
+def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
+    from backend.services.scrape_browser import LOGIN_WAIT_SEC, login_wait_sec
+
+    timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
     url = _drilldown_url("sc-domain:doviz.com", "EXTERNAL")
     pw, context = _launch_context(headed=True)
     try:
@@ -239,10 +242,10 @@ def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
         page.goto(url, wait_until="domcontentloaded", timeout=120_000)
         print(
             f"Tarayıcıda GSC giriş yap (cemevecen@nokta.com). "
-            f"Links tablosu açılınca {timeout_sec}s içinde otomatik kapanır.",
+            f"Links tablosu açılınca kaydedilir (en fazla {timeout_sec // 60} dk).",
             flush=True,
         )
-        deadline = time.time() + max(60, timeout_sec)
+        deadline = time.time() + timeout_sec
         while time.time() < deadline:
             if _looks_signed_in(page):
                 try:
@@ -255,7 +258,7 @@ def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
             time.sleep(2)
         return {
             "ok": False,
-            "message": "Login zaman aşımı — tekrar --login dene",
+            "message": "Login zaman aşımı (15 dk) — tekrar --login dene",
             "url": page.url,
             "profile": str(PROFILE_DIR),
         }

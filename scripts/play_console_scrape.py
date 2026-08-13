@@ -734,10 +734,11 @@ def _page_is_alive(page) -> bool:
         return False
 
 
-def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
+def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
     """Gerçek Firefox.app — Google Playwright otomasyonunu 'güvenli değil' diye reddeder."""
-    from backend.services.scrape_browser import launch_system_firefox_login
+    from backend.services.scrape_browser import LOGIN_WAIT_SEC, launch_system_firefox_login, login_wait_sec
 
+    timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
     print(
         "Play Console girişi gerçek Firefox.app ile açılıyor "
         "(Playwright penceresinde Google girişi çalışmaz).\n"
@@ -747,16 +748,19 @@ def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
     return launch_system_firefox_login(
         PROFILE_DIR,
         DASHBOARD_URL,
-        timeout_sec=max(120, timeout_sec),
+        timeout_sec=timeout_sec,
         success_hint=(
-            "cemevecen@nokta.com ile giriş yap → Play Console dashboard görünsün → "
-            "Firefox penceresini KAPAT. (E-postayı adres çubuğuna yazma.)"
+            f"cemevecen@nokta.com ile giriş yap → Play Console dashboard görünsün "
+            f"(en fazla {timeout_sec // 60} dk) → Firefox penceresini KAPAT. "
+            "(E-postayı adres çubuğuna yazma.)"
         ),
     )
 
 
-def _system_firefox_relogin(*, timeout_sec: int = 900) -> dict[str, Any]:
-    from backend.services.scrape_browser import launch_system_firefox_login
+def _system_firefox_relogin(*, timeout_sec: int | None = None) -> dict[str, Any]:
+    from backend.services.scrape_browser import LOGIN_WAIT_SEC, launch_system_firefox_login, login_wait_sec
+
+    timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
 
     print(
         "Google 'güvenli değil' dedi — Playwright penceresi kapatılıyor, "
@@ -768,8 +772,8 @@ def _system_firefox_relogin(*, timeout_sec: int = 900) -> dict[str, Any]:
         DASHBOARD_URL,
         timeout_sec=timeout_sec,
         success_hint=(
-            "Google 'güvenli değil' dedi — gerçek Firefox'ta giriş yap, "
-            "Play Console dashboard görünce kapat."
+            f"Google 'güvenli değil' dedi — gerçek Firefox'ta giriş yap "
+            f"(en fazla {timeout_sec // 60} dk), Play Console dashboard görünce kapat."
         ),
     )
 
@@ -2656,14 +2660,21 @@ def _page_needs_login(page) -> tuple[bool, str, str]:
     return _need_login(url, title, body_sample), url, title
 
 
-def _wait_until_console(page, *, timeout_sec: int = 600) -> bool:
-    """Login ekranındaysa kullanıcı girene kadar bekle; console URL gelince True."""
-    deadline = time.time() + max(60, timeout_sec)
+def _wait_until_console(page, *, timeout_sec: int | None = None) -> bool:
+    """Login ekranındaysa kullanıcı girene kadar bekle; console URL gelince True.
+
+    True → aynı pencerede tarama devam eder (kapatılmaz).
+    """
+    from backend.services.scrape_browser import LOGIN_WAIT_SEC, login_wait_sec
+
+    timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
+    deadline = time.time() + timeout_sec
     printed = False
     while time.time() < deadline:
         need, url, _title = _page_needs_login(page)
         if not need and "play.google.com/console" in (url or ""):
             time.sleep(2)
+            print("Play giriş OK — aynı pencerede tarama devam ediyor.", flush=True)
             return True
         try:
             body = page.inner_text("body")[:2000]
@@ -2677,14 +2688,15 @@ def _wait_until_console(page, *, timeout_sec: int = 600) -> bool:
             if play_console_use_selenium():
                 print(
                     "Play oturumu yok — açık Firefox penceresinde girişi tamamla "
-                    f"(Play Console dashboard görünsün, en fazla {timeout_sec}s).",
+                    f"(Play Console dashboard görünsün, en fazla {timeout_sec // 60} dk). "
+                    "Girişten sonra pencere kapanmaz.",
                     flush=True,
                 )
             else:
                 print(
                     "Play oturumu yok — bu pencerede Google girişi çalışmayabilir. "
                     "Önce: .venv/bin/python scripts/play_console_scrape.py --login "
-                    f"(gerçek Firefox, {timeout_sec}s).",
+                    f"(gerçek Firefox, {timeout_sec // 60} dk).",
                     flush=True,
                 )
             printed = True
@@ -3103,7 +3115,7 @@ def _scrape_one_stats_page(
     _settle(page, seconds=5.0)
     need, _, _ = _page_needs_login(page)
     if need and headed:
-        _wait_until_console(page, timeout_sec=300)
+        _wait_until_console(page)
         try:
             with page.expect_response(
                 lambda r: "statsfrontend" in (r.url or "").lower(),
@@ -3687,7 +3699,7 @@ def _scrape_vitals_issues_via_table_rows(
                     _settle(page, seconds=2.5)
                 need, _, _ = _page_needs_login(page)
                 if need and headed:
-                    _wait_until_console(page, timeout_sec=300)
+                    _wait_until_console(page)
                     page.goto(detail_url, wait_until="domcontentloaded", timeout=120_000)
                     _settle(page, seconds=2.5)
                 _wait_page_text(
@@ -4312,7 +4324,7 @@ def _scrape_vitals_issue_details(
                 _settle(page, seconds=3.5)
                 need, _, _ = _page_needs_login(page)
                 if need and headed:
-                    _wait_until_console(page, timeout_sec=300)
+                    _wait_until_console(page)
                     page.goto(try_url, wait_until="domcontentloaded", timeout=120_000)
                     _settle(page, seconds=3.5)
                 _wait_page_text(
@@ -4495,7 +4507,7 @@ def _scrape_vitals_crashes_error_type(
     _settle(page, seconds=5.0)
     need, _, _ = _page_needs_login(page)
     if need and headed:
-        _wait_until_console(page, timeout_sec=300)
+        _wait_until_console(page)
         page.goto(url, wait_until="domcontentloaded", timeout=120_000)
         _settle(page, seconds=5.0)
     _wait_page_text(
@@ -4755,7 +4767,7 @@ def _scrape_vitals_metrics_overview(
     _settle(page, seconds=5.0)
     need, _, _ = _page_needs_login(page)
     if need and headed:
-        _wait_until_console(page, timeout_sec=300)
+        _wait_until_console(page)
         page.goto(url, wait_until="domcontentloaded", timeout=120_000)
         _settle(page, seconds=5.0)
     _wait_page_text(
@@ -5107,7 +5119,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             except Exception:
                 body = ""
             blocked = (not play_console_use_selenium()) and google_blocks_automation_text(body)
-            waited = False if blocked else _wait_until_console(page, timeout_sec=300)
+            waited = False if blocked else _wait_until_console(page)
             if blocked or not waited:
                 _release_context(pw, context)
                 pw = context = None
@@ -5464,7 +5476,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         _settle(page, seconds=6.0)
         need_rt, _, _ = _page_needs_login(page)
         if need_rt and headed:
-            _wait_until_console(page, timeout_sec=300)
+            _wait_until_console(page)
             page.goto(RATINGS_URL, wait_until="domcontentloaded", timeout=120_000)
             _settle(page, seconds=6.0)
         rating_summary = _extract_rating_summary_dom(page) or {}
@@ -5617,7 +5629,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         except Exception:
             need_r = True
         if need_r and headed:
-            _wait_until_console(page, timeout_sec=300)
+            _wait_until_console(page)
         reviews = _scrape_reviews_list(page, days=_reviews_days())
         # Ratings özeti reviews’ta da olabilir — boşsa doldur
         if not rating_summary.get("default_rating"):
@@ -5712,7 +5724,7 @@ def scrape_vitals_only(*, headed: bool | None = None) -> dict[str, Any]:
         _settle(page, seconds=3.0)
         need, _, _ = _page_needs_login(page)
         if need and headed:
-            _wait_until_console(page, timeout_sec=300)
+            _wait_until_console(page)
             page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=120_000)
             _settle(page, seconds=3.0)
         elif need:
@@ -5786,7 +5798,7 @@ def scrape_reviews_only(*, headed: bool | None = None) -> dict[str, Any]:
         _settle(page, seconds=3.0)
         need, _, _ = _page_needs_login(page)
         if need and headed:
-            _wait_until_console(page, timeout_sec=300)
+            _wait_until_console(page)
         elif need:
             return {
                 "ok": False,
@@ -5876,7 +5888,7 @@ def scrape_ratings_dist_only(*, headed: bool | None = None) -> dict[str, Any]:
         _settle(page, seconds=2.5)
         need, _, _ = _page_needs_login(page)
         if need and headed:
-            _wait_until_console(page, timeout_sec=300)
+            _wait_until_console(page)
         elif need:
             return {
                 "ok": False,
