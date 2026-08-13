@@ -281,6 +281,7 @@
       ],
       {
         title: { text: "Dönem toplamı · moderatör sıralaması", x: 0, font: { size: 12 } },
+        hovermode: "y",
         xaxis: {
           title: { text: "İş sayısı", standoff: 8 },
           gridcolor: th().grid,
@@ -288,7 +289,7 @@
           tickformat: ",.0f",
           automargin: true,
         },
-        yaxis: { automargin: true, tickfont: axisTickFont() },
+        yaxis: { automargin: true, tickfont: axisTickFont(), type: "category" },
         margin: { l: 8, r: 16, t: 44, b: 40 },
       },
       { heightOpts: { minPlot: 180, maxTotal: 360, fallback: 260 }, minHeight: 220 }
