@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=1">
+<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=2">
 <style>
   .pa-filters {
     display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.65rem 0.75rem; width: 100%;
@@ -1242,7 +1242,7 @@
       </div>
       <div id="ia-metric-kpis" class="hidden grid grid-cols-1 gap-3" aria-label="Selected metric KPI cards"></div>
       <div id="ia-chart-card" class="pa-chart-card mt-4 overflow-visible rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800">
-        <div id="ia-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2" data-chart-height="2">
+        <div id="ia-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2" data-chart-height="2" data-chart-compress="1">
           <div class="pa-chart-card__toolbar mb-1 flex flex-wrap items-start justify-between gap-2 px-2">
             <div id="ia-legend" class="flex min-w-0 flex-1 flex-wrap gap-2 text-[11px] text-slate-600 dark:text-zinc-300"></div>
             <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -1255,6 +1255,17 @@
               </button>
               <button type="button" data-chart-height="3" title="Alçak grafik" aria-label="Alçak grafik yüksekliği">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 12 L7 9.5 L9.5 10.5 L12 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+            <div id="ia-chart-compress" class="pa-chart-compress" role="group" aria-label="Chart vertical compress">
+              <button type="button" data-chart-compress="1" title="Normal sıkıştırma" aria-label="Normal dikey sıkıştırma" class="is-active">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 3.5 L8 1.5 L10.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 12.5 L8 14.5 L10.5 12.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="5.5" width="9" height="5" rx="1" fill="currentColor" fill-opacity="0.28"/></svg>
+              </button>
+              <button type="button" data-chart-compress="2" title="Orta sıkıştırma" aria-label="Orta dikey sıkıştırma">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4 L8 2.5 L10.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 12 L8 13.5 L10.5 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="6.5" width="9" height="3" rx="1" fill="currentColor" fill-opacity="0.28"/></svg>
+              </button>
+              <button type="button" data-chart-compress="3" title="Yoğun sıkıştırma" aria-label="Yoğun dikey sıkıştırma">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4.5 L8 3.5 L10.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 11.5 L8 12.5 L10.5 11.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="7.5" width="9" height="1.5" rx="0.6" fill="currentColor" fill-opacity="0.35"/></svg>
               </button>
             </div>
             <div id="ia-chart-style" class="pa-chart-style shrink-0" role="group" aria-label="Chart style">
@@ -1295,7 +1306,7 @@
   </section>
 </div>
 <script src="/static/js/resizable_data_list.js?v=6"></script>
-<script src="/static/js/pa_chart_height.js?v=1"></script>
+<script src="/static/js/pa_chart_height.js?v=2"></script>
 <script src="/static/js/metric_table_ux.js?v=9"></script>
 <script>
 (function () {
