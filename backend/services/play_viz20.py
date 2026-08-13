@@ -130,7 +130,7 @@ def _version_code_for_name(name: str, vitals: dict[str, Any]) -> str:
 
 
 def _timeline_releases(db: Session | None, start: str, end: str) -> list[dict[str, Any]]:
-    """Android release tarihleri — Sheets / yorum tahmini + vitals sürüm kodu eşlemesi."""
+    """Android release tarihleri — Google Sheets (önbellek); vitals sürüm kodu eşlemesi."""
     start_d = _parse_iso_date(start)
     end_d = _parse_iso_date(end)
     if not start_d or not end_d:
@@ -142,11 +142,12 @@ def _timeline_releases(db: Session | None, start: str, end: str) -> list[dict[st
         panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
         vitals = panels.get("vitals") if isinstance(panels.get("vitals"), dict) else {}
 
+    android: list[dict[str, Any]] = []
     try:
-        from backend.services.store_version_releases import fetch_version_releases_for_product
+        # Yalnızca Sheets — fetch_version_releases_for_product app_intel taramasına düşer (30sn+).
+        from backend.services.app_release_sheet import fetch_releases_from_sheet
 
-        rel_payload = fetch_version_releases_for_product("doviz", since=since_d, use_cache=True)
-        android = rel_payload.get("android") if isinstance(rel_payload.get("android"), list) else []
+        _, android = fetch_releases_from_sheet("doviz", since=since_d, use_cache=True)
     except Exception:
         android = []
 

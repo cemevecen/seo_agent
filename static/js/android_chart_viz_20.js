@@ -1023,8 +1023,13 @@
           return;
         }
         setStatus(details, body.params ? JSON.stringify(body.params).replace(/[{}"]/g, "").replace(/,/g, " · ") : "");
-        plotChart(chartEl, body, heightPx(hTier));
-        renderTable(tableEl, body.table);
+        try {
+          plotChart(chartEl, body, heightPx(hTier));
+          renderTable(tableEl, body.table);
+        } catch (plotErr) {
+          chartEl.innerHTML = "";
+          setStatus(details, (plotErr && plotErr.message) || "Grafik çizilemedi", true);
+        }
       })
       .catch(function (err) {
         chartEl.innerHTML = "";

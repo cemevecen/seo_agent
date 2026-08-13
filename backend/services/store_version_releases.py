@@ -128,6 +128,7 @@ def fetch_version_releases_for_product(
     *,
     since: date | None = None,
     use_cache: bool = True,
+    fast: bool = False,
 ) -> dict[str, Any]:
     pid = (product_id or "doviz").strip().lower()
     since_d = since or _DEFAULT_SINCE
@@ -150,6 +151,10 @@ def fetch_version_releases_for_product(
         ios = sheet_ios
         android = sheet_android
         note_tr = "Kaynak: Google Sheets «sürüm güncellemeler» tablosu (resmi yayın tarihleri)."
+    elif fast:
+        ios = []
+        android = []
+        note_tr = "Kaynak: Google Sheets (hızlı mod — yedek tarama yok)."
     else:
         ios: list[dict[str, Any]] = []
         if bundle:
