@@ -3511,26 +3511,76 @@ def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
     }
 
 
-def _post_page_tarama_result(payload: dict[str, Any]) -> None:
+def _post_page_tarama_result(
+    payload: dict[str, Any],
+    *,
+    timeout: float = 45,
+    retries: int = 3,
+) -> None:
     url = _page_tarama_api_base() + "/api/page-tarama/result"
     last_exc: Exception | None = None
-    for attempt in range(1, 4):
+    attempts = max(1, int(retries))
+    for attempt in range(1, attempts + 1):
         try:
             resp = requests.post(
-                url, headers=_page_tarama_auth_headers(), json=payload, timeout=20
+                url,
+                headers=_page_tarama_auth_headers(),
+                json=payload,
+                timeout=timeout,
             )
             if resp.status_code < 400:
                 return
             print(
-                f"page-tarama result HTTP {resp.status_code} (try {attempt}/3)",
+                f"page-tarama result HTTP {resp.status_code} (try {attempt}/{attempts})",
                 flush=True,
             )
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
-            print(f"page-tarama result hata (try {attempt}/3): {exc}", flush=True)
+            print(f"page-tarama result hata (try {attempt}/{attempts}): {exc}", flush=True)
         time.sleep(1.5 * attempt)
     if last_exc:
         print(f"page-tarama result vazgeçildi: {last_exc}", flush=True)
+
+
+_pt_progress_lock = threading.Lock()
+_pt_progress_latest: dict[str, Any] | None = None
+_pt_progress_wake = threading.Event()
+_pt_progress_worker_started = False
+
+
+def _pt_progress_worker() -> None:
+    """Progress POST'ları scrape thread'ini bloklamasın; en son durumu coalesce et."""
+    global _pt_progress_latest
+    while True:
+        _pt_progress_wake.wait(timeout=3.0)
+        with _pt_progress_lock:
+            payload = _pt_progress_latest
+            _pt_progress_latest = None
+            _pt_progress_wake.clear()
+        if not payload:
+            continue
+        # Progress: kısa retry; final result senkron kalır
+        _post_page_tarama_result(payload, timeout=45, retries=2)
+
+
+def _ensure_pt_progress_worker() -> None:
+    global _pt_progress_worker_started
+    with _pt_progress_lock:
+        if _pt_progress_worker_started:
+            return
+        _pt_progress_worker_started = True
+        threading.Thread(
+            target=_pt_progress_worker, name="page-tarama-progress", daemon=True
+        ).start()
+
+
+def _post_page_tarama_progress_async(payload: dict[str, Any]) -> None:
+    """running=True kalp atışları — kuyruğa at, scrape devam etsin."""
+    _ensure_pt_progress_worker()
+    with _pt_progress_lock:
+        global _pt_progress_latest
+        _pt_progress_latest = payload
+        _pt_progress_wake.set()
 
 
 def _pm_lab_claim_loop() -> None:
@@ -3586,16 +3636,16 @@ def _page_tarama_keepalive_loop() -> None:
             if _ingest_token():
                 headers = _page_tarama_auth_headers()
                 if use_ping:
-                    resp = requests.post(ping_url, headers=headers, timeout=15)
+                    resp = requests.post(ping_url, headers=headers, timeout=45)
                     if resp.status_code in (401, 403, 404):
                         use_ping = False
                         print(
                             f"page-tarama keepalive: ping HTTP {resp.status_code} → claim fallback",
                             flush=True,
                         )
-                        requests.get(claim_url, headers=headers, timeout=15)
+                        requests.get(claim_url, headers=headers, timeout=45)
                 else:
-                    requests.get(claim_url, headers=headers, timeout=15)
+                    requests.get(claim_url, headers=headers, timeout=45)
         except Exception as exc:  # noqa: BLE001
             print(f"page-tarama keepalive: {exc}", flush=True)
         time.sleep(20)
@@ -3665,7 +3715,8 @@ def _page_tarama_claim_loop() -> None:
                         payload["total_steps"] = int(info["total_steps"])
                     except (TypeError, ValueError):
                         pass
-                _post_page_tarama_result(payload)
+                # Progress asenkron — Railway timeout scrape'i (ve 5/24'te UI abort) kesmesin
+                _post_page_tarama_progress_async(payload)
 
             _progress_post({"message": "Mac scan claimed · starting", "phase": "claimed", "step": 0})
 

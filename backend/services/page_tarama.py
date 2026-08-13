@@ -69,8 +69,9 @@ PAGES: dict[str, list[str]] = {
 }
 
 BRIDGE_STALE_SEC = 90.0
-# Claimed/running iş progress göndermezse (daemon çöktü / claim loop kilitli) kuyruk açılsın
-PROGRESS_STALE_SEC = 180.0
+# Claimed/running iş progress göndermezse (daemon çöktü / claim loop kilitli) kuyruk açılsın.
+# Firebase/ASC uzun; Railway yavaşken progress post timeout olabilir — 3 dk çok kısa.
+PROGRESS_STALE_SEC = 900.0
 CLAIM_STALE_SEC = 2 * 60 * 60
 RUN_TTL_SEC = 3 * 60 * 60
 MANUAL_LIMIT = 3
@@ -315,10 +316,21 @@ def _prune_locked(now: float) -> None:
         _runs.pop(rid, None)
 
 
-def touch_bridge() -> None:
+def touch_bridge(*, refresh_inflight: bool = False) -> None:
+    """Mac keepalive. refresh_inflight=True → claimed/running progress_at yenilenir
+    (Railway yavaşken result POST timeout olsa bile kuyruk 'lost progress' ile kesilmesin)."""
     global _bridge_seen_at
+    now = time.time()
     with _state():
-        _bridge_seen_at = time.time()
+        _bridge_seen_at = now
+        if not refresh_inflight:
+            return
+        for run in _runs.values():
+            for job in run["jobs"]:
+                if job.get("kind") != "bridge":
+                    continue
+                if job.get("status") in ("claimed", "running"):
+                    job["progress_at"] = now
 
 
 def bridge_age_sec(now: float | None = None) -> float | None:

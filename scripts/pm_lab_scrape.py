@@ -11,6 +11,7 @@ import html as html_lib
 import json
 import os
 import random
+import re
 import sys
 import time
 import urllib.error

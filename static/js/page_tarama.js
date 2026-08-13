@@ -626,7 +626,7 @@
       }
       return fetchJson("/api/page-tarama/progress?run_id=" + encodeURIComponent(runId), {
         credentials: "same-origin",
-      }, 20000).then(function (p) {
+      }, 60000).then(function (p) {
         if (!p.resp.ok) {
           if ((p.resp.status === 404 || p.resp.status === 502 || p.resp.status === 503)
               && Date.now() - started < 90000) {
@@ -653,6 +653,15 @@
         }
         if (d.running) return sleep(900).then(poll);
         return d;
+      }).catch(function (err) {
+        // Railway yavaş / AbortController — tek poll hatasında tüm taramayı kesme
+        var msg = (err && err.message) ? String(err.message) : String(err || "");
+        if (/abort|timeout|Failed to fetch|NetworkError|Load failed|network/i.test(msg)
+            && Date.now() - started < 3 * 60 * 60 * 1000) {
+          setStatus("Queue slow — retrying…");
+          return sleep(2500).then(poll);
+        }
+        throw err;
       });
     }
     return poll();
@@ -701,7 +710,7 @@
           failed += 1;
           steps[i].status = "fail";
           var msg = (err && err.message) ? err.message : String(err);
-          if (/Failed to fetch|NetworkError|Load failed|abort/i.test(msg)) {
+          if (/Failed to fetch|NetworkError|Load failed|abort|aborted/i.test(msg)) {
             msg = "Scan unavailable — try again later";
           }
           steps[i].detail = msg.slice(0, 140);

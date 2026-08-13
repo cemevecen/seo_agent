@@ -156,7 +156,7 @@ def bridge_ping(
 ) -> dict[str, Any]:
     """Mac keepalive — uzun scrape sırasında claim loop bloklansa bile bridge canlı kalsın."""
     _check_ingest_token(authorization, x_notification_ingest_token)
-    store.touch_bridge()
+    store.touch_bridge(refresh_inflight=True)
     return {"ok": True}
 
 
