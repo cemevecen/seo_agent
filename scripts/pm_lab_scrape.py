@@ -10,7 +10,7 @@ import argparse
 import html as html_lib
 import json
 import os
-import re
+import random
 import sys
 import time
 import urllib.error
@@ -59,9 +59,16 @@ from backend.services.pm_lab_store import (  # noqa: E402
     serp_keywords_for_batch,
 )
 SERP_PAGES = 4
-SERP_PAGE_SLEEP_SEC = float(os.environ.get("PM_LAB_SERP_PAGE_SLEEP_SEC") or "3.5")
-SERP_KEYWORD_SLEEP_SEC = float(os.environ.get("PM_LAB_SERP_KEYWORD_SLEEP_SEC") or "5.0")
+SERP_PAGE_SLEEP_SEC = float(os.environ.get("PM_LAB_SERP_PAGE_SLEEP_SEC") or "4.0")
+SERP_KEYWORD_SLEEP_SEC = float(os.environ.get("PM_LAB_SERP_KEYWORD_SLEEP_SEC") or "6.0")
 SERP_BATCH_GAP_SEC = int(os.environ.get("PM_LAB_SERP_BATCH_GAP_SEC") or str(15 * 60))
+
+
+def _sleep_jitter(base_sec: float, spread: float = 0.22) -> None:
+    """Google rate-limit riskini azaltmak için küçük rastgele gecikme."""
+    lo = max(0.5, float(base_sec) * (1.0 - spread))
+    hi = float(base_sec) * (1.0 + spread)
+    time.sleep(random.uniform(lo, hi))
 
 NEWS_KEYWORDS = (
     "dolar",
@@ -634,7 +641,7 @@ def job_serp(page: Any, *, batch_index: int | None = None) -> dict[str, Any]:
                 if rec["ours"] and our is None:
                     our = rec["rank"]
                 rows.append(rec)
-            time.sleep(SERP_PAGE_SLEEP_SEC)
+            _sleep_jitter(SERP_PAGE_SLEEP_SEC)
         keywords.append(
             {
                 "keyword": kw,
@@ -645,7 +652,7 @@ def job_serp(page: Any, *, batch_index: int | None = None) -> dict[str, Any]:
         )
         if blocked:
             break
-        time.sleep(SERP_KEYWORD_SLEEP_SEC)
+        _sleep_jitter(SERP_KEYWORD_SLEEP_SEC)
     total = sum(k.get("row_count") or 0 for k in keywords)
     empty_kw = sum(1 for k in keywords if not (k.get("rows") or []))
     message = ""

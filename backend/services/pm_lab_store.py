@@ -825,6 +825,74 @@ def _refresh_job_ids(raw: Any) -> list[str]:
 
 REFRESH_QUEUE_TTL_SEC = 90
 REFRESH_RUNNING_TTL_SEC = 20 * 60
+SERP_CYCLE_RESUME_SEC = int(os.environ.get("PM_LAB_SERP_CYCLE_RESUME_SEC") or str(75 * 60))
+SERP_CYCLE_STALE_SEC = int(os.environ.get("PM_LAB_SERP_CYCLE_STALE_SEC") or str(3 * 3600))
+
+
+def serp_missing_batch_indices(pending: dict[str, Any], batch_total: int) -> list[int]:
+    batches = pending.get("batches") if isinstance(pending.get("batches"), dict) else {}
+    have = {int(k) for k in batches if str(k).isdigit()}
+    total = max(1, int(batch_total))
+    return [i for i in range(total) if i not in have]
+
+
+def serp_cycle_meta(serp: dict[str, Any]) -> dict[str, Any]:
+    """Bridge resume + UI: yarım SERP döngüsü meta."""
+    if not isinstance(serp, dict) or not serp.get("refresh_in_progress"):
+        return {"missing_batches": [], "stale": False, "started_at": ""}
+    pending = serp.get("serp_refresh_pending")
+    if not isinstance(pending, dict):
+        return {"missing_batches": [], "stale": False, "started_at": ""}
+    batch_total = max(1, int(pending.get("batch_total") or SERP_BATCH_COUNT))
+    missing = serp_missing_batch_indices(pending, batch_total)
+    started_raw = str(pending.get("started_at") or "")
+    started = _parse_iso_dt(started_raw)
+    resume = False
+    stale = False
+    if started is not None:
+        age = (datetime.now(timezone.utc) - started).total_seconds()
+        resume = age >= SERP_CYCLE_RESUME_SEC
+        stale = age >= SERP_CYCLE_STALE_SEC
+    return {
+        "missing_batches": missing,
+        "resume": resume,
+        "stale": stale,
+        "started_at": started_raw,
+        "batch_total": batch_total,
+    }
+
+
+def _prune_stale_serp_cycle(prev: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Yarım kalan SERP döngüsü çok uzun sürdüyse kısmi veriyle kilidi kaldır."""
+    meta = serp_cycle_meta(prev)
+    if not meta["missing_batches"] or not meta["stale"]:
+        return prev, False
+    pending_raw = prev.get("serp_refresh_pending")
+    if not isinstance(pending_raw, dict):
+        return prev, False
+    batch_total = int(meta["batch_total"])
+    missing = meta["missing_batches"]
+    merged = _merge_pending_serp_keywords(pending_raw)
+    if not merged:
+        out = _published_serp_base(prev)
+        out["message"] = "SERP tarama yarım kaldı — yeniden başlatılıyor."
+        return out, True
+    finalized = _enrich_serp_finalize(
+        prev,
+        {
+            "ok": _serp_has_rows(merged),
+            "scraped_at": datetime.now(timezone.utc).isoformat(),
+            "keywords": merged,
+            "summary": f"{batch_total} batch · {len(merged)} kelime · kısmi ({len(missing)} batch eksik)",
+            "message": (
+                f"SERP kısmi tamamlandı — {len(missing)} batch zaman aşımı; "
+                "Mac bridge kalan batch'leri otomatik sürdürecek."
+            ),
+            "rows_stale": True,
+        },
+    )
+    finalized["rows_stale"] = True
+    return finalized, True
 
 
 def _parse_iso_dt(raw: str) -> datetime | None:
@@ -1065,7 +1133,16 @@ def _enrich_generic(prev: dict[str, Any], incoming: dict[str, Any]) -> dict[str,
 def load_payload(db: Session) -> dict[str, Any]:
     row = _get_or_create(db)
     data = _loads(row.payload_json)
-    if _prune_refresh_state(data):
+    changed = _prune_refresh_state(data)
+    sections = data.get("sections")
+    if isinstance(sections, dict):
+        serp = sections.get("serp")
+        if isinstance(serp, dict):
+            pruned, serp_changed = _prune_stale_serp_cycle(serp)
+            if serp_changed:
+                sections["serp"] = pruned
+                changed = True
+    if changed:
         row.payload_json = json.dumps(data, ensure_ascii=False)
         db.commit()
     data.setdefault("sections", {})

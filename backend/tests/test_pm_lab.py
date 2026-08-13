@@ -1,5 +1,6 @@
 """Owner PM lab — erişim, geçmiş birleştirme, şablon."""
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from backend.database import Base, SessionLocal, engine
@@ -17,11 +18,13 @@ from backend.services.pm_lab_store import (
     SERP_KEYWORDS_RAW,
     _pm_lab_page_specs,
     _prune_refresh_state,
+    _prune_stale_serp_cycle,
     claim_pm_lab_refresh,
     enqueue_pm_lab_refresh,
     format_pm_lab_when,
     ingest_pm_lab_payload,
     page_context,
+    serp_cycle_meta,
     serp_keyword_batches,
     serp_keywords_for_batch,
 )
@@ -77,13 +80,15 @@ def test_serp_batch_cycle_keeps_published_until_complete():
     db = SessionLocal()
     try:
         _reset_pm_lab_db(db)
+        t0 = (datetime.now(timezone.utc) - timedelta(minutes=45)).isoformat()
+        t1 = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
         ingest_pm_lab_payload(
             db,
             {
                 "sections": {
                     "serp": {
                         "ok": True,
-                        "scraped_at": "2026-01-01T10:00:00+00:00",
+                        "scraped_at": t0,
                         "keywords": [
                             {
                                 "keyword": "altın",
@@ -112,7 +117,7 @@ def test_serp_batch_cycle_keeps_published_until_complete():
                         "ok": True,
                         "batch_index": 1,
                         "batch_total": SERP_BATCH_COUNT,
-                        "scraped_at": "2026-01-01T10:15:00+00:00",
+                        "scraped_at": t1,
                         "keywords": [
                             {
                                 "keyword": "dolar",
@@ -159,6 +164,7 @@ def test_serp_batch_cycle_keeps_published_until_complete():
                 }
                 for name in serp_keywords_for_batch(batch_index)
             ]
+            batch_at = (datetime.now(timezone.utc) - timedelta(minutes=40 - batch_index * 5)).isoformat()
             ingest_pm_lab_payload(
                 db,
                 {
@@ -167,7 +173,7 @@ def test_serp_batch_cycle_keeps_published_until_complete():
                             "ok": True,
                             "batch_index": batch_index,
                             "batch_total": SERP_BATCH_COUNT,
-                            "scraped_at": f"2026-01-01T10:{15 * (batch_index + 1):02d}:00+00:00",
+                            "scraped_at": batch_at,
                             "keywords": kws,
                         }
                     }
@@ -182,6 +188,56 @@ def test_serp_batch_cycle_keeps_published_until_complete():
         assert serp.get("serp_refresh_pending") is None
     finally:
         db.close()
+
+
+def test_serp_cycle_meta_missing_batches():
+    serp = {
+        "refresh_in_progress": True,
+        "serp_refresh_pending": {
+            "started_at": "2026-08-13T12:00:00+00:00",
+            "batch_total": 4,
+            "batches": {"0": {}, "1": {}, "2": {}},
+        },
+    }
+    meta = serp_cycle_meta(serp)
+    assert meta["missing_batches"] == [3]
+    assert meta["batch_total"] == 4
+
+
+def test_serp_stale_cycle_finalizes_partial():
+    serp = {
+        "refresh_in_progress": True,
+        "keywords": [{"keyword": "altın", "rows": [{"rank": 1, "domain": "doviz.com"}]}],
+        "serp_refresh_pending": {
+            "started_at": "2020-01-01T10:00:00+00:00",
+            "batch_total": 4,
+            "batches": {
+                "0": {
+                    "keywords": [
+                        {
+                            "keyword": "altın",
+                            "rows": [{"rank": 2, "page": 1, "domain": "doviz.com", "title": "x", "url": "https://doviz.com/", "snippet": ""}],
+                        }
+                    ]
+                },
+                "1": {
+                    "keywords": [
+                        {
+                            "keyword": "dolar",
+                            "rows": [{"rank": 5, "page": 1, "domain": "doviz.com", "title": "y", "url": "https://doviz.com/", "snippet": ""}],
+                        }
+                    ]
+                },
+            },
+        },
+    }
+    out, changed = _prune_stale_serp_cycle(serp)
+    assert changed is True
+    assert out.get("refresh_in_progress") is not True
+    names = {k["keyword"] for k in out.get("keywords") or []}
+    assert "altın" in names
+    assert "dolar" in names
+    assert out.get("rows_stale") is True
 
 
 def test_owner_emails_only():

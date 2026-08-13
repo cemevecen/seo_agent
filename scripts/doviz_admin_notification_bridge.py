@@ -1721,11 +1721,19 @@ def run_serp_batch_once(batch_index: int) -> dict[str, Any]:
     )
 
 
-def _queue_manual_serp_batches() -> None:
+def _queue_serp_followup_batches(*, immediate: bool = False) -> None:
+    """Batch 0 bittikten sonra 1..N-1'i 15 dk arayla kuyruğa al."""
     global _pending_serp_batches, _last_pending_serp_batch_at
-    rest = list(range(1, len(SERP_BATCH_MINUTES)))
-    _pending_serp_batches = [b for b in rest if b not in _pending_serp_batches]
-    _last_pending_serp_batch_at = time.time()
+    total = len(SERP_BATCH_MINUTES)
+    _pending_serp_batches = list(range(1, total))
+    if immediate:
+        _last_pending_serp_batch_at = time.time() - max(60, SERP_BATCH_GAP_SEC)
+    else:
+        _last_pending_serp_batch_at = time.time()
+
+
+def _queue_manual_serp_batches() -> None:
+    _queue_serp_followup_batches(immediate=False)
 
 
 def run_serp_manual_refresh() -> dict[str, Any]:
@@ -1734,8 +1742,51 @@ def run_serp_manual_refresh() -> dict[str, Any]:
     return run_serp_batch_once(0)
 
 
+_last_serp_resume_check_at = 0.0
+
+
+def _maybe_resume_serp_cycle() -> None:
+    """Railway'de yarım kalan SERP döngüsünü Mac kuyruğuna al (3/4 takılması)."""
+    global _pending_serp_batches, _last_pending_serp_batch_at, _last_serp_resume_check_at
+    if _pending_serp_batches:
+        return
+    if (time.time() - _last_serp_resume_check_at) < 45:
+        return
+    _last_serp_resume_check_at = time.time()
+    try:
+        url = _page_tarama_api_base() + "/api/pm-lab/state"
+        resp = requests.get(url, timeout=20)
+        if resp.status_code != 200:
+            return
+        serp = ((resp.json() or {}).get("sections") or {}).get("serp") or {}
+        if not isinstance(serp, dict) or not serp.get("refresh_in_progress"):
+            return
+        missing = serp.get("serp_missing_batches")
+        if not isinstance(missing, list):
+            pending = serp.get("serp_refresh_pending") if isinstance(serp.get("serp_refresh_pending"), dict) else {}
+            batches = pending.get("batches") if isinstance(pending.get("batches"), dict) else {}
+            total = max(1, int(pending.get("batch_total") or len(SERP_BATCH_MINUTES)))
+            have = {int(k) for k in batches if str(k).isdigit()}
+            missing = [i for i in range(total) if i not in have]
+        else:
+            missing = [int(x) for x in missing if str(x).isdigit()]
+        if not missing:
+            return
+        stale = bool(serp.get("serp_cycle_resume") or serp.get("serp_cycle_stale"))
+        _pending_serp_batches = missing
+        if stale:
+            _last_pending_serp_batch_at = time.time() - max(60, SERP_BATCH_GAP_SEC)
+            print(f"SERP yarım döngü devam: batch {[m + 1 for m in missing]} (hemen)", flush=True)
+        else:
+            _last_pending_serp_batch_at = time.time()
+            print(f"SERP yarım döngü devam: batch {[m + 1 for m in missing]} (15 dk arayla)", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"SERP resume kontrol: {exc}", flush=True)
+
+
 def _maybe_run_pending_serp_batch() -> None:
     global _pending_serp_batches, _last_pending_serp_batch_at
+    _maybe_resume_serp_cycle()
     if not _pending_serp_batches:
         return
     if (time.time() - _last_pending_serp_batch_at) < max(60, SERP_BATCH_GAP_SEC):
@@ -1753,6 +1804,7 @@ def _maybe_run_pending_serp_batch() -> None:
         _pending_serp_batches.insert(0, batch)
         return
     if not result.get("ok"):
+        _pending_serp_batches.insert(0, batch)
         _notify_auto_failure("serp_batch", result)
 
 
@@ -3255,38 +3307,33 @@ def _auto_loop() -> None:
 
         _maybe_run_pending_serp_batch()
 
-        for batch_idx, minute in enumerate(SERP_BATCH_MINUTES):
-            kind = f"serp_batch_{batch_idx}"
-            if kind in _job_retries:
-                continue
-            while len(_last_serp_batch_slots) <= batch_idx:
-                _last_serp_batch_slots.append("")
-            due, slot = _slot_due(_last_serp_batch_slots[batch_idx], SERP_CYCLE_HOURS, minute)
-            if not due:
-                continue
+        # SERP: yalnızca batch 0 planlı (:50); 1–3 otomatik 15 dk kuyrukla (sonraki saat :05/:20/:35).
+        serp_batch0_minute = int(SERP_BATCH_MINUTES[0]) if SERP_BATCH_MINUTES else 50
+        kind = "serp_batch_0"
+        if kind not in _job_retries:
+            due, slot = _slot_due(_last_serp_batch_slots[0] if _last_serp_batch_slots else "", SERP_CYCLE_HOURS, serp_batch0_minute)
 
-            def _serp_done(result: dict[str, Any], *, _slot: str = slot, _idx: int = batch_idx) -> None:
-                _last_serp_batch_slots[_idx] = _slot
-                kind_local = f"serp_batch_{_idx}"
+            def _serp0_done(result: dict[str, Any], *, _slot: str = slot) -> None:
+                _last_serp_batch_slots[0] = _slot
                 if result.get("ok"):
-                    _clear_job_retry(kind_local)
+                    _clear_job_retry(kind)
+                    _queue_serp_followup_batches(immediate=False)
+                    print("SERP batch 1/4 bitti — kalan batch'ler 15 dk arayla kuyruğa alındı", flush=True)
                 else:
-                    _notify_auto_failure(kind_local, result)
-                    _arm_job_retry(kind_local, name=f"SERP {_idx + 1}/{len(SERP_BATCH_MINUTES)}")
+                    _notify_auto_failure(kind, result)
+                    _arm_job_retry(kind, name="SERP 1/4")
 
-            result = _run_browser_scrape_job(
-                kind=kind,
-                name=f"SERP batch {batch_idx + 1}/{len(SERP_BATCH_MINUTES)}",
-                lock=_pm_lab_lock,
-                runner=lambda b=batch_idx: run_serp_batch_once(b),
-                on_done=_serp_done,
-                notify=False,
-            )
-            if result is None:
-                if kind in _scrape_deferred_jobs:
-                    break
-                continue
-            break
+            if due:
+                result = _run_browser_scrape_job(
+                    kind=kind,
+                    name=f"SERP batch 1/{len(SERP_BATCH_MINUTES)}",
+                    lock=_pm_lab_lock,
+                    runner=lambda: run_serp_batch_once(0),
+                    on_done=_serp0_done,
+                    notify=False,
+                )
+                if result is None and kind in _scrape_deferred_jobs:
+                    pass
 
         def _slot_job(
             kind: str,

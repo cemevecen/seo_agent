@@ -17,6 +17,7 @@ from backend.services.pm_lab_store import (
     ingest_pm_lab_payload,
     load_payload,
     pm_lab_refresh_status,
+    serp_cycle_meta,
 )
 
 router = APIRouter(tags=["pm-lab"])
@@ -62,6 +63,12 @@ def pm_lab_state(db: Session = Depends(get_db)) -> dict[str, Any]:
             continue
         copy = dict(block)
         copy.pop("shots", None)
+        if key == "serp":
+            meta = serp_cycle_meta(copy)
+            if meta["missing_batches"]:
+                copy["serp_missing_batches"] = meta["missing_batches"]
+            copy["serp_cycle_resume"] = bool(meta["resume"])
+            copy["serp_cycle_stale"] = bool(meta["stale"])
         slim[key] = copy
     status = pm_lab_refresh_status(payload)
     return {
