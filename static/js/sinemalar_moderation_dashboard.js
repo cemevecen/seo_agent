@@ -18,6 +18,18 @@
   var MODS = RAW.moderators || [];
   var ANALYTICS = RAW.analytics || {};
   var PALETTE = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
+  /** Sinemalar_Yonetim (53), ivicincim (748975) — varsayılan kapalı; legend tıklanınca tüm grafiklerde açılır */
+  var DEFAULT_HIDDEN_USER_IDS = { "53": true, "748975": true };
+  var modVisibility = {};
+  MODS.forEach(function (m) {
+    modVisibility[String(m.user_id)] = !DEFAULT_HIDDEN_USER_IDS[String(m.user_id)];
+  });
+  var LEGEND_SYNC_CHART_IDS = [
+    "mod-chart-daily-volume",
+    "mod-chart-weekday",
+    "mod-chart-cumulative",
+    "mod-chart-focus-profile",
+  ];
   var CHART_IDS = [
     "mod-chart-rank-total",
     "mod-chart-daily-volume",
@@ -193,7 +205,7 @@
 
   function focusRadialMax(shares) {
     var maxR = 0;
-    MODS.forEach(function (m) {
+    visibleMods().forEach(function (m) {
       var s = shares[String(m.user_id)] || {};
       METRICS.forEach(function (mt) {
         maxR = Math.max(maxR, Number(s[mt.key] || 0));
@@ -210,6 +222,27 @@
     return 0;
   }
 
+  function isModVisible(uid) {
+    return modVisibility[String(uid)] !== false;
+  }
+
+  function modTraceVisible(m) {
+    return isModVisible(m.user_id) ? true : "legendonly";
+  }
+
+  function visibleMods() {
+    return MODS.filter(function (m) {
+      return isModVisible(m.user_id);
+    });
+  }
+
+  function modByUsername(name) {
+    for (var i = 0; i < MODS.length; i++) {
+      if (MODS[i].username === name) return MODS[i];
+    }
+    return null;
+  }
+
   function axisTickFont() {
     var w = window.innerWidth || 1024;
     return { size: w < 480 ? 9 : w < 768 ? 10 : 11, color: th().tick };
@@ -218,7 +251,9 @@
   function drawRankTotal() {
     var el = purgePlot("mod-chart-rank-total");
     if (!el || !window.Plotly) return;
-    var rank = ANALYTICS.overall_rank || [];
+    var rank = (ANALYTICS.overall_rank || []).filter(function (r) {
+      return isModVisible(r.user_id);
+    });
     if (!rank.length) return;
     var names = rank.map(function (r) {
       return "#" + r.rank + " " + r.username;
@@ -273,6 +308,7 @@
         mode: "lines",
         stackgroup: "one",
         name: m.username,
+        visible: modTraceVisible(m),
         x: days,
         y: series,
         line: { width: 1.2, color: modColor(i) },
@@ -304,16 +340,17 @@
     if (!el || !window.Plotly) return;
     var days = ANALYTICS.calendar_days || [];
     var cals = ANALYTICS.calendars || {};
-    if (!days.length || !MODS.length) return;
+    var shownMods = visibleMods();
+    if (!days.length || !shownMods.length) return;
 
     var minW = Math.max(chartW(el), Math.min(days.length * 10, 1400));
     el.style.minWidth = minW + "px";
 
     var ticks = sparseTicks(days);
-    var yLabels = MODS.map(function (m) {
+    var yLabels = shownMods.map(function (m) {
       return m.username;
     });
-    var zMatrix = MODS.map(function (m) {
+    var zMatrix = shownMods.map(function (m) {
       var cal = cals[String(m.user_id)] || { days: [] };
       return days.map(function (day) {
         var found = cal.days.filter(function (d) {
@@ -355,8 +392,12 @@
         margin: { l: 96, r: 48, t: 44, b: 72 },
       },
       {
-        heightOpts: { minPlot: 36 * MODS.length, maxTotal: 48 + MODS.length * 40, fallback: 40 + MODS.length * 36 },
-        minHeight: 40 + MODS.length * 36,
+        heightOpts: {
+          minPlot: 36 * shownMods.length,
+          maxTotal: 48 + shownMods.length * 40,
+          fallback: 40 + shownMods.length * 36,
+        },
+        minHeight: 40 + shownMods.length * 36,
       }
     );
   }
@@ -364,7 +405,9 @@
   function drawMetricStack() {
     var el = purgePlot("mod-chart-metric-stack");
     if (!el || !window.Plotly) return;
-    var users = RAW.users || [];
+    var users = (RAW.users || []).filter(function (u) {
+      return isModVisible(u.user_id);
+    });
     if (!users.length) return;
     var names = users.map(function (u) {
       return u.username;
@@ -402,13 +445,15 @@
     var el = purgePlot("mod-chart-rank-matrix");
     if (!el || !window.Plotly) return;
     var rankings = ANALYTICS.rankings_by_metric || {};
-    var yLabels = MODS.map(function (m) {
+    var shownMods = visibleMods();
+    if (!shownMods.length) return;
+    var yLabels = shownMods.map(function (m) {
       return m.username;
     });
     var xLabels = METRICS.map(function (m) {
       return m.label;
     });
-    var z = MODS.map(function (m) {
+    var z = shownMods.map(function (m) {
       return METRICS.map(function (mt) {
         var list = rankings[mt.key] || [];
         for (var i = 0; i < list.length; i++) {
@@ -417,7 +462,7 @@
         return MODS.length + 1;
       });
     });
-    var text = MODS.map(function (m, yi) {
+    var text = shownMods.map(function (m, yi) {
       return METRICS.map(function (mt, xi) {
         var v = z[yi][xi];
         return v && v <= MODS.length ? "#" + v : "—";
@@ -465,6 +510,7 @@
       return {
         type: "scatterpolar",
         name: m.username,
+        visible: modTraceVisible(m),
         r: METRICS.map(function (mt) {
           return s[mt.key] || 0;
         }),
@@ -508,6 +554,7 @@
       return {
         type: "bar",
         name: m.username,
+        visible: modTraceVisible(m),
         x: labels,
         y: w,
         marker: { color: modColor(i) },
@@ -541,6 +588,7 @@
         type: "scatter",
         mode: "lines",
         name: m.username,
+        visible: modTraceVisible(m),
         x: days,
         y: series.map(function (p) {
           return p.cumulative;
@@ -577,7 +625,7 @@
     var activeHover = [];
     var inactiveHover = [];
     var hasJoin = false;
-    MODS.forEach(function (m) {
+    visibleMods().forEach(function (m) {
       var cal = cals[String(m.user_id)] || {};
       names.push(m.username);
       active.push(cal.active_days || 0);
@@ -595,6 +643,7 @@
         inactiveHover.push("Boş<br>%{x}: %{y} gün<extra></extra>");
       }
     });
+    if (!names.length) return;
     var titleText =
       "Çalışılan vs boş gün · " +
       (RAW.start || "") +
@@ -675,7 +724,26 @@
       });
     });
     return chain.then(function () {
+      attachModLegendSync();
       setTimeout(resizeAllCharts, 120);
+    });
+  }
+
+  function attachModLegendSync() {
+    LEGEND_SYNC_CHART_IDS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el || !el.on) return;
+      if (typeof el.removeAllListeners === "function") {
+        el.removeAllListeners("plotly_legendclick");
+      }
+      el.on("plotly_legendclick", function (ev) {
+        var trace = ev.data[ev.curveNumber];
+        var mod = modByUsername(trace.name);
+        if (!mod) return true;
+        modVisibility[String(mod.user_id)] = !isModVisible(mod.user_id);
+        renderCharts();
+        return false;
+      });
     });
   }
 
