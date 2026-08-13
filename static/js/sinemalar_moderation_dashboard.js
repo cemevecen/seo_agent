@@ -101,52 +101,47 @@
   function modLegendLayout(legendCount, chartWidth, legendOpts) {
     legendOpts = legendOpts || {};
     if (!legendCount || legendCount <= 0) return null;
+
+    var w = Math.max(chartWidth, 280);
     var entryW = legendOpts.compactLegend
-      ? Math.max(72, Math.floor(chartWidth * 0.22))
-      : Math.max(84, Math.floor(chartWidth * 0.32));
-    var perRow = Math.max(2, Math.floor(chartWidth / entryW));
+      ? Math.max(64, Math.min(118, Math.floor(w * 0.19)))
+      : Math.max(72, Math.min(136, Math.floor(w * 0.26)));
+    var perRow = Math.max(2, Math.floor(w / entryW));
     var rows = Math.ceil(legendCount / perRow);
-    var legendH = rows * 22 + 10;
-    var legendGap = legendOpts.angledX ? 16 : 0;
+    var legendH = rows * 20 + 6;
+
+    var hasTitle = legendOpts.hasTitle !== false;
+    var titleH = hasTitle ? 30 : 0;
+
     var tickPad = 0;
-    if (legendOpts.angledX) {
-      var angle = legendOpts.tickAngle != null ? Math.abs(legendOpts.tickAngle) : 40;
-      tickPad = angle >= 60 ? 90 : angle >= 40 ? 70 : 50;
+    if (legendOpts.angledX || legendOpts.tickAngle) {
+      var angle = Math.abs(legendOpts.tickAngle != null ? legendOpts.tickAngle : 40);
+      tickPad = angle >= 60 ? 84 : angle >= 40 ? 64 : angle >= 20 ? 40 : 0;
     }
-    var titlePad = legendOpts.xaxisTitle ? 28 : 0;
-    var marginBottom = 36 + tickPad + titlePad + legendGap + legendH;
-    var maxBottom = legendOpts.maxBottom || (legendOpts.angledX ? 280 : 120);
-    var minBottom = legendOpts.minBottom || (legendOpts.angledX ? 160 : 0);
-    marginBottom = Math.min(maxBottom, Math.max(marginBottom, minBottom));
-
-    var legendBase = {
-      orientation: "h",
-      x: 0,
-      xanchor: "left",
-      font: { size: 10, color: th().legend },
-      tracegroupgap: 4,
-      entrywidth: entryW,
-      itemwidth: 26,
-      groupclick: "toggleitem",
-    };
-
-    if (legendOpts.angledX) {
-      return {
-        legend: Object.assign({}, legendBase, {
-          yref: "paper",
-          y: 0.01,
-          yanchor: "bottom",
-        }),
-        marginBottom: marginBottom,
-      };
-    }
+    var xTitlePad = legendOpts.xaxisTitle ? 22 : 0;
+    var marginBottom = 36 + tickPad + xTitlePad;
+    var marginTop = 14 + titleH + legendH + 12;
+    var estHeight = Math.max(legendOpts.estHeight || 360, 220);
+    var legendY = 1 - (titleH + 4) / estHeight;
 
     return {
-      legend: Object.assign({}, legendBase, {
-        y: -0.02,
+      legend: {
+        orientation: "h",
+        x: 0,
+        xanchor: "left",
+        yref: "paper",
+        y: legendY,
         yanchor: "top",
-      }),
-      marginBottom: Math.min(112, 32 + rows * 22),
+        font: { size: 10, color: th().legend },
+        tracegroupgap: 2,
+        entrywidth: entryW,
+        itemwidth: 22,
+        groupclick: "toggleitem",
+        bgcolor: "rgba(0,0,0,0)",
+      },
+      marginTop: marginTop,
+      marginBottom: marginBottom,
+      legendRows: rows,
     };
   }
 
@@ -175,24 +170,32 @@
 
     if (lay.title) {
       lay.title = modTitleStyle(lay.title);
-      lay.margin = lay.margin || {};
-      lay.margin.t = Math.max(lay.margin.t || 40, 44);
     }
 
     var legendCount = opts.legendCount || 0;
+    var heightOpts = opts.heightOpts || {};
+    if (opts.minHeight && el) el.style.minHeight = opts.minHeight + "px";
+    var estHeight =
+      opts.height ||
+      (window.seoPlotlyResolveHeight
+        ? window.seoPlotlyResolveHeight(el, lay, heightOpts)
+        : heightOpts.fallback || 360);
     if (legendCount > 0) {
-      var leg = modLegendLayout(legendCount, w, opts.legendOpts || {});
+      var legOpts = Object.assign({ hasTitle: !!lay.title, estHeight: estHeight }, opts.legendOpts || {});
+      var leg = modLegendLayout(legendCount, w, legOpts);
       if (leg) {
         lay.legend = Object.assign({}, lay.legend || {}, leg.legend);
+        lay.margin = lay.margin || {};
+        lay.margin.t = Math.max(lay.margin.t || 40, leg.marginTop);
         lay.margin.b = Math.max(lay.margin.b || 48, leg.marginBottom);
       }
     }
-    var heightOpts = opts.heightOpts || {};
-    if (opts.minHeight && el) el.style.minHeight = opts.minHeight + "px";
     if (window.seoPlotlyResolveHeight) {
       lay.height = window.seoPlotlyResolveHeight(el, lay, heightOpts);
     } else if (opts.height) {
       lay.height = opts.height;
+    } else if (estHeight) {
+      lay.height = estHeight;
     }
     return lay;
   }
@@ -432,10 +435,9 @@
           angledX: true,
           xaxisTitle: true,
           tickAngle: chartW(el) < 520 ? -65 : -40,
-          maxBottom: 280,
         },
-        heightOpts: { minPlot: 240, maxTotal: 480, fallback: 360 },
-        minHeight: 320,
+        heightOpts: { minPlot: 260, maxTotal: 480, fallback: 360 },
+        minHeight: 300,
       }
     );
   }
@@ -548,7 +550,6 @@
           angledX: true,
           compactLegend: true,
           tickAngle: chartW(el) < 480 ? -35 : -20,
-          maxBottom: 240,
         },
         heightOpts: { minPlot: 280, maxTotal: 520, fallback: 380 },
         minHeight: 340,
@@ -663,9 +664,9 @@
           angularaxis: { tickfont: { size: chartW(el) < 480 ? 8 : 9 }, rotation: 90 },
           bgcolor: "rgba(0,0,0,0)",
         },
-        margin: { l: 48, r: 48, t: 56, b: 24 },
+        margin: { l: 48, r: 48, t: 56, b: 48 },
       },
-      { legendCount: MODS.length, heightOpts: { minPlot: 300, maxTotal: 460, fallback: 400 }, minHeight: 340 }
+      { legendCount: MODS.length, heightOpts: { minPlot: 300, maxTotal: 480, fallback: 400 }, minHeight: 360 }
     ).then(function () {
       setupFocusZoomToolbar();
       updateFocusZoomLabel();
@@ -745,10 +746,9 @@
           angledX: true,
           xaxisTitle: true,
           tickAngle: chartW(el) < 520 ? -65 : -40,
-          maxBottom: 280,
         },
-        heightOpts: { minPlot: 240, maxTotal: 480, fallback: 360 },
-        minHeight: 320,
+        heightOpts: { minPlot: 260, maxTotal: 480, fallback: 360 },
+        minHeight: 300,
       }
     );
   }
@@ -814,7 +814,12 @@
         xaxis: { tickangle: chartW(el) < 480 ? -25 : 0, tickfont: axisTickFont(), automargin: true },
         yaxis: { title: "Gün sayısı", gridcolor: th().grid, automargin: true },
       },
-      { legendCount: 2, heightOpts: { minPlot: 200, maxTotal: 340, fallback: 280 }, minHeight: 240 }
+      {
+        legendCount: 2,
+        legendOpts: { tickAngle: chartW(el) < 480 ? -25 : 0 },
+        heightOpts: { minPlot: 200, maxTotal: 340, fallback: 280 },
+        minHeight: 260,
+      }
     );
   }
 
@@ -918,9 +923,19 @@
     var chartsRoot = document.getElementById("mod-charts");
     if (chartsRoot) {
       var roTimer;
+      var lastChartShellW = chartsRoot.clientWidth || 0;
       new ResizeObserver(function () {
         clearTimeout(roTimer);
-        roTimer = setTimeout(resizeAllCharts, 120);
+        roTimer = setTimeout(function () {
+          var w = chartsRoot.clientWidth || 0;
+          if (lastChartShellW && Math.abs(w - lastChartShellW) > 48) {
+            lastChartShellW = w;
+            renderCharts();
+          } else {
+            lastChartShellW = w || lastChartShellW;
+            resizeAllCharts();
+          }
+        }, 180);
       }).observe(chartsRoot);
     }
   }
