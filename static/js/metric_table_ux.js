@@ -56,6 +56,16 @@
       "html.dark .mtux-dim-cell{color:#e4e4e7;}" +
       ".mtux-avg-row td{font-weight:700;background:rgba(241,245,249,0.95)!important;}" +
       "html.dark .mtux-avg-row td{background:rgba(39,39,42,0.92)!important;}" +
+      ".mtux-avg-gap{width:0.85rem;min-width:0.85rem;max-width:0.85rem;padding:0!important;" +
+      "border:none!important;background:transparent!important;box-shadow:none!important;}" +
+      "table.mtux-grid-table th.mtux-avg-gap,table.mtux-grid-table td.mtux-avg-gap{" +
+      "border-left:none!important;border-right:none!important;}" +
+      ".mtux-avg-gap-row td{height:0.7rem;padding:0;line-height:0;font-size:0;" +
+      "border:none!important;background:transparent!important;}" +
+      ".mtux-avg-col,table.mtux-grid-table th.mtux-avg-col-header{font-weight:700;" +
+      "background:rgba(241,245,249,0.95)!important;}" +
+      "html.dark .mtux-avg-col,html.dark table.mtux-grid-table th.mtux-avg-col-header{" +
+      "background:rgba(39,39,42,0.92)!important;}" +
       ".mtux-metric-dot{width:7px;height:7px;border-radius:9999px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,0.06);}" +
       ".mtux-metric-row-label{display:inline-flex;align-items:center;gap:0.4rem;max-width:100%;min-width:0;}" +
       ".mtux-metric-row-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
@@ -332,14 +342,17 @@
     return legend;
   }
 
-  function heatCellHtml(v, color, st, esc, fmtVal, title, col) {
+  function heatCellHtml(v, color, st, esc, fmtVal, title, col, extraClass) {
     var heatOn = isHeatEnabled();
     var t = heatOn ? heatT(v, st.min, st.max) : null;
     var bg = t == null ? "" : "background:" + heatBackground(color, t) + ";";
     var txt = fmtVal(v, col);
     var tip = title != null ? title : txt;
+    var cls =
+      "mtux-heat-cell tabular-nums text-slate-900 dark:text-zinc-100" +
+      (extraClass ? " " + extraClass : "");
     return (
-      '<td class="mtux-heat-cell tabular-nums text-slate-900 dark:text-zinc-100" style="' + bg + '" title="' +
+      '<td class="' + cls + '" style="' + bg + '" title="' +
         esc(tip) + '">' + esc(txt) + "</td>"
     );
   }
@@ -387,7 +400,7 @@
 
     var pin = isPinEnabled();
     var transposed = isTransposed();
-    var colCount = 1 + (transposed ? keys.length + 1 : colItems.length);
+    var colCount = 1 + (transposed ? keys.length + 2 : colItems.length);
 
     if (!colItems.length) {
       tbody.innerHTML =
@@ -440,8 +453,10 @@
         "</td>";
       colItems.forEach(function (col, i) {
         var avg = rowAverage(col.map, keys);
-        avgCells += heatCellHtml(avg, col.color, stats[i], esc, fmtVal, null, col);
+        avgCells += heatCellHtml(avg, col.color, stats[i], esc, fmtVal, null, col, "mtux-avg-col");
       });
+      tbody.innerHTML +=
+        '<tr class="mtux-avg-gap-row" aria-hidden="true"><td colspan="' + colCount + '"></td></tr>';
       tbody.innerHTML += '<tr class="mtux-avg-row">' + avgCells + "</tr>";
     } else {
       var rowStats = colItems.map(function (col) {
@@ -459,7 +474,9 @@
           "</th>";
       });
       head +=
-        '<th class="mtux-th px-1 py-2 text-right sm:px-1.5 ' + stickyClasses(pin, false, true, false) +
+        '<th class="mtux-avg-gap" aria-hidden="true"></th>' +
+        '<th class="mtux-th mtux-avg-col-header px-1 py-2 text-right sm:px-1.5 ' +
+          stickyClasses(pin, false, true, false) +
         '" data-mtux-key="avg" data-mtux-fixed="1">' + esc(averageLabel) + "</th>";
       theadRow.innerHTML = head;
 
@@ -476,7 +493,8 @@
           cells += heatCellHtml(col.map[key], col.color, st, esc, fmtVal, null, col);
         });
         var avg = rowAverage(col.map, keys);
-        cells += heatCellHtml(avg, col.color, st, esc, fmtVal, null, col);
+        cells += '<td class="mtux-avg-gap" aria-hidden="true"></td>';
+        cells += heatCellHtml(avg, col.color, st, esc, fmtVal, null, col, "mtux-avg-col");
         return "<tr>" + cells + "</tr>";
       }).join("");
     }
