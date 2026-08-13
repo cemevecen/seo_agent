@@ -62,7 +62,7 @@ def test_normalize_vitals_overview_sections_and_recommendations():
     out = _normalize_vitals(raw)
     ov = out["metrics_overview"]
     assert ov["page_title"] == "Android vitals'a genel bakış"
-    assert ov["section_count"] == 2
+    assert ov["section_count"] == 1
     assert ov["recommendation_count"] == 1
     assert ov["summary_cards"][0]["value"] == "%0,07"
     mem = next(s for s in ov["sections"] if s["id"] == "memory")

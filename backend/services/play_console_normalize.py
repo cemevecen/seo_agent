@@ -602,6 +602,20 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
         rows.extend(by_key[k] for k in by_key if k not in ("crash", "anr", "lmk"))
         return rows
 
+    def _dedupe_overview_rate_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        by_key: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            key = str(row.get("key") or "other")
+            prev = by_key.get(key)
+            if prev is None or (
+                not str(prev.get("vs_peers_median") or "").strip()
+                and str(row.get("vs_peers_median") or "").strip()
+            ):
+                by_key[key] = row
+        out = [by_key[k] for k in ("crash", "anr", "lmk") if k in by_key]
+        out.extend(by_key[k] for k in by_key if k not in ("crash", "anr", "lmk"))
+        return out
+
     ov_in = d.get("metrics_overview") if isinstance(d.get("metrics_overview"), dict) else {}
 
     def _norm_overview_row(row: dict[str, Any], *, memory: bool = False) -> dict[str, Any]:
@@ -651,6 +665,8 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
                 norm = _norm_overview_row(row, memory=mem)
                 if norm:
                     rows_s.append(norm)
+            if not mem:
+                rows_s = _dedupe_overview_rate_rows(rows_s)
             out.append(
                 {
                     "id": sid,
@@ -670,6 +686,8 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
                         rows_out.append(row)
         rows_out = _normalize_overview_rows({"rows": rows_out})
     sections_out = _normalize_overview_sections(ov_in)
+    if rows_out:
+        sections_out = [s for s in sections_out if str(s.get("id") or "").lower() != "stability"]
     recommendations_out: list[dict[str, Any]] = []
     for rec in ov_in.get("recommendations") or []:
         if not isinstance(rec, dict):

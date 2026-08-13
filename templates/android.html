@@ -1524,7 +1524,7 @@
       <div id="pc-vitals-overview-meta" class="mt-1 hidden text-[11px] text-slate-500 dark:text-zinc-400"></div>
       <div id="pc-vitals-overview-recs" class="mt-2 hidden space-y-1"></div>
       <div id="pc-vitals-overview-sections" class="mt-3 space-y-4"></div>
-      <h3 class="mt-4 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Rates · last 28 days</h3>
+      <h3 id="pc-vitals-rates-heading" class="mt-4 hidden text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Kararlılık · son 28 gün</h3>
       <div id="pc-vitals-overview" class="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-700"></div>
       <p id="pc-vitals-overview-empty" class="mt-2 hidden text-center text-sm text-slate-400">No rates table yet — fills after vitals sync</p>
     </div>
@@ -1763,6 +1763,7 @@
   var vitalsOverviewMeta = document.getElementById("pc-vitals-overview-meta");
   var vitalsOverviewRecs = document.getElementById("pc-vitals-overview-recs");
   var vitalsOverviewSections = document.getElementById("pc-vitals-overview-sections");
+  var vitalsRatesHeading = document.getElementById("pc-vitals-rates-heading");
   var monitorImproveEl = document.getElementById("pc-monitor-improve");
   var monitorImproveEmpty = document.getElementById("pc-monitor-improve-empty");
   var monitorImprovePeriod = document.getElementById("pc-monitor-improve-period");
@@ -6660,11 +6661,73 @@
     }).join("");
   }
 
+  function vitalsOverviewRowKey(r) {
+    var k = String(r && r.key || "").trim().toLowerCase();
+    if (k === "crash" || k === "anr" || k === "lmk") return k;
+    var m = String(r && r.metric || "").toLowerCase();
+    if (/kilitlenme|crash/.test(m)) return "crash";
+    if (/\banr\b/.test(m)) return "anr";
+    if (/\blmk\b/.test(m)) return "lmk";
+    return k || m.slice(0, 80) || "other";
+  }
+
+  function isStabilityOverviewSection(sec) {
+    var sid = String(sec && sec.id || "").toLowerCase();
+    var title = String(sec && sec.title || "").toLowerCase();
+    return sid === "stability" || /kararlılık|stability/.test(title);
+  }
+
+  function dedupeVitalsOverviewRows(list) {
+    var byKey = {};
+    (list || []).forEach(function (r) {
+      if (!r || !r.metric) return;
+      var k = vitalsOverviewRowKey(r);
+      var prev = byKey[k];
+      if (!prev || (!String(prev.vs_peers_median || "").trim() && String(r.vs_peers_median || "").trim())) {
+        byKey[k] = r;
+      }
+    });
+    var order = ["crash", "anr", "lmk"];
+    var out = [];
+    order.forEach(function (k) {
+      if (byKey[k]) {
+        out.push(byKey[k]);
+        delete byKey[k];
+      }
+    });
+    Object.keys(byKey).sort().forEach(function (k) { out.push(byKey[k]); });
+    return out;
+  }
+
+  function collectUnifiedVitalsRateRows(ov) {
+    ov = ov || {};
+    var rows = Array.isArray(ov.rows) ? ov.rows.slice() : [];
+    var sections = Array.isArray(ov.sections) ? ov.sections : [];
+    if (!rows.length) {
+      sections.forEach(function (sec) {
+        if (!isStabilityOverviewSection(sec)) return;
+        (sec.rows || []).forEach(function (r) { rows.push(r); });
+      });
+    }
+    return dedupeVitalsOverviewRows(rows);
+  }
+
+  function filterExtraVitalsSections(sections, hasMainRates) {
+    return (sections || []).filter(function (sec) {
+      if (!sec || !Array.isArray(sec.rows) || !sec.rows.length) return false;
+      if (hasMainRates && isStabilityOverviewSection(sec)) return false;
+      return true;
+    });
+  }
+
   function renderVitalsOverview(vitals) {
     vitals = vitals || {};
     var ov = vitals.metrics_overview || {};
-    var rows = Array.isArray(ov.rows) ? ov.rows : [];
-    var sections = Array.isArray(ov.sections) ? ov.sections : [];
+    var unifiedRows = collectUnifiedVitalsRateRows(ov);
+    var sections = filterExtraVitalsSections(
+      Array.isArray(ov.sections) ? ov.sections : [],
+      unifiedRows.length > 0
+    );
     var recs = Array.isArray(ov.recommendations) ? ov.recommendations : [];
     var summaryCards = Array.isArray(ov.summary_cards) ? ov.summary_cards : [];
     if (vitalsOverviewLink && ov.url) vitalsOverviewLink.href = ov.url;
@@ -6742,8 +6805,9 @@
         vitalsOverviewSections.innerHTML = "";
       }
     }
-    if (!rows.length && !sections.length && !summaryCards.length) {
+    if (!unifiedRows.length && !sections.length && !summaryCards.length) {
       if (vitalsOverviewEl) vitalsOverviewEl.innerHTML = "";
+      if (vitalsRatesHeading) vitalsRatesHeading.classList.add("hidden");
       vitalsOverviewEmpty.classList.remove("hidden");
       return;
     }
@@ -6782,10 +6846,12 @@
       if (!isFinite(rate)) return null;
       return (100 - rate).toFixed(2).replace(".", ",") + "%";
     }
-    if (!rows.length) {
-      vitalsOverviewEl.innerHTML = summaryHtml;
+    if (!unifiedRows.length) {
+      if (vitalsOverviewEl) vitalsOverviewEl.innerHTML = summaryHtml;
+      if (vitalsRatesHeading) vitalsRatesHeading.classList.add("hidden");
       return;
     }
+    if (vitalsRatesHeading) vitalsRatesHeading.classList.remove("hidden");
     vitalsOverviewEl.innerHTML =
       summaryHtml +
       '<table class="min-w-full text-left text-xs">' +
@@ -6799,7 +6865,7 @@
           "</tr>" +
         "</thead>" +
         '<tbody class="divide-y divide-slate-100 dark:divide-zinc-800">' +
-        rows.map(function (r) {
+        unifiedRows.map(function (r) {
           var free = freeFromRate(r.value_28d);
           return (
             "<tr>" +
