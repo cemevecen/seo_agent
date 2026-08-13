@@ -1,0 +1,113 @@
+#pa-viz20 {
+  scroll-margin-top: 1rem;
+}
+
+#pa-viz20 .pa-viz20-drop {
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(255 255 255);
+}
+
+html.dark #pa-viz20 .pa-viz20-drop,
+html.midnight #pa-viz20 .pa-viz20-drop {
+  border-color: rgb(63 63 70);
+  background: rgb(24 24 27);
+}
+
+#pa-viz20 .pa-viz20-drop > summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+#pa-viz20 .pa-viz20-drop > summary::-webkit-details-marker {
+  display: none;
+}
+
+#pa-viz20 .pa-viz20-drop > summary .pa-viz20-chevron {
+  color: rgb(148 163 184);
+  transition: transform 0.15s ease;
+}
+
+#pa-viz20 .pa-viz20-drop[open] > summary .pa-viz20-chevron {
+  transform: rotate(90deg);
+}
+
+#pa-viz20 .pa-viz20-drop > summary .pa-viz20-badge {
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: rgb(241 245 249);
+  padding: 0.125rem 0.5rem;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+}
+
+html.dark #pa-viz20 .pa-viz20-drop > summary .pa-viz20-badge,
+html.midnight #pa-viz20 .pa-viz20-drop > summary .pa-viz20-badge {
+  background: rgb(39 39 42);
+  color: rgb(161 161 170);
+}
+
+#pa-viz20 .pa-viz20-drop[open] > summary .pa-viz20-badge-closed {
+  display: none;
+}
+
+#pa-viz20 .pa-viz20-body {
+  border-top: 1px solid rgb(241 245 249);
+  padding: 0.75rem 1rem 1rem;
+}
+
+html.dark #pa-viz20 .pa-viz20-body,
+html.midnight #pa-viz20 .pa-viz20-body {
+  border-top-color: rgb(39 39 42);
+}
+
+#pa-viz20 .pa-viz20-chart {
+  min-height: 12rem;
+  border-radius: 0.625rem;
+  background: rgb(248 250 252 / 0.8);
+  padding: 0.5rem;
+}
+
+html.dark #pa-viz20 .pa-viz20-chart,
+html.midnight #pa-viz20 .pa-viz20-chart {
+  background: rgb(9 9 11 / 0.55);
+}
+
+#pa-viz20 .pa-viz20-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+#pa-viz20 .pa-viz20-meta {
+  margin-top: 0.625rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.75rem;
+  font-size: 11px;
+  color: rgb(100 116 139);
+}
+
+html.dark #pa-viz20 .pa-viz20-meta,
+html.midnight #pa-viz20 .pa-viz20-meta {
+  color: rgb(161 161 170);
+}
+
+#pa-viz20 .pa-viz20-meta strong {
+  font-weight: 600;
+  color: rgb(51 65 85);
+}
+
+html.dark #pa-viz20 .pa-viz20-meta strong,
+html.midnight #pa-viz20 .pa-viz20-meta strong {
+  color: rgb(228 228 231);
+}
