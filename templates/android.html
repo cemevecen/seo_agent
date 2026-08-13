@@ -1967,15 +1967,49 @@
     return (crashes[etype] || {});
   }
 
+  function vitalsCatIssueCount(cat) {
+    if (!cat) return 0;
+    var issues = Array.isArray(cat.issues) ? cat.issues.length : 0;
+    if (issues > 0) return issues;
+    var rc = parseInt(String(cat.issue_row_count || "0"), 10);
+    if (rc > 0) return rc;
+    var m = String(cat.issue_count || "").match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
+  function pickBestVitalsCategory(cats, preferred) {
+    cats = cats || [];
+    if (!cats.length) return preferred || "general";
+    if (
+      preferred &&
+      cats.some(function (c) {
+        return c.id === preferred && vitalsCatIssueCount(c) > 0;
+      })
+    ) {
+      return preferred;
+    }
+    var best = cats[0];
+    var bestN = vitalsCatIssueCount(best);
+    cats.forEach(function (c) {
+      var n = vitalsCatIssueCount(c);
+      if (n > bestN) {
+        best = c;
+        bestN = n;
+      }
+    });
+    return (best && best.id) || preferred || "general";
+  }
+
   function findVitalsIssue(iid) {
     var block = getActiveVitalsBlock();
     var cats = Array.isArray(block.categories) ? block.categories : [];
-    var sel = cats.find(function (c) { return c.id === vitalsState.selectedCat; }) || cats[0];
-    var issues = sel && Array.isArray(sel.issues) ? sel.issues : [];
     if (!iid) return null;
-    for (var i = 0; i < issues.length; i++) {
-      if (String(issues[i].issue_id || "") === String(iid)) return issues[i];
-      if (("idx-" + i) === String(iid)) return issues[i];
+    for (var ci = 0; ci < cats.length; ci++) {
+      var issues = Array.isArray(cats[ci].issues) ? cats[ci].issues : [];
+      for (var i = 0; i < issues.length; i++) {
+        if (String(issues[i].issue_id || "") === String(iid)) return issues[i];
+        if (("idx-" + i) === String(iid)) return issues[i];
+      }
     }
     return null;
   }
@@ -6556,6 +6590,7 @@
     var rows = Array.isArray(ov.rows) ? ov.rows : [];
     var sections = Array.isArray(ov.sections) ? ov.sections : [];
     var recs = Array.isArray(ov.recommendations) ? ov.recommendations : [];
+    var summaryCards = Array.isArray(ov.summary_cards) ? ov.summary_cards : [];
     if (vitalsOverviewLink && ov.url) vitalsOverviewLink.href = ov.url;
     if (vitalsOverviewMeta) {
       var metaBits = [];
@@ -6631,12 +6666,37 @@
         vitalsOverviewSections.innerHTML = "";
       }
     }
-    if (!rows.length && !sections.length) {
+    if (!rows.length && !sections.length && !summaryCards.length) {
       if (vitalsOverviewEl) vitalsOverviewEl.innerHTML = "";
       vitalsOverviewEmpty.classList.remove("hidden");
       return;
     }
     vitalsOverviewEmpty.classList.add("hidden");
+    var summaryHtml = "";
+    if (summaryCards.length) {
+      summaryHtml =
+        '<div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">' +
+        summaryCards.map(function (c) {
+          return (
+            '<div class="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-950/40">' +
+              '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' +
+                esc(c.metric || c.key || "Metric") +
+              "</p>" +
+              '<p class="mt-1 text-xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' +
+                esc(c.value || "—") +
+              "</p>" +
+              (c.delta
+                ? '<p class="mt-0.5 text-[11px] font-semibold tabular-nums ' +
+                    vitalsDeltaClass(c.delta, "prev") +
+                    '">' +
+                    esc(c.delta) +
+                  "</p>"
+                : "") +
+            "</div>"
+          );
+        }).join("") +
+        "</div>";
+    }
     function freeFromRate(raw) {
       if (raw == null || raw === "") return null;
       var s = String(raw).replace("%", "").replace(/\u00a0/g, " ").trim().replace(",", ".");
@@ -6646,7 +6706,12 @@
       if (!isFinite(rate)) return null;
       return (100 - rate).toFixed(2).replace(".", ",") + "%";
     }
+    if (!rows.length) {
+      vitalsOverviewEl.innerHTML = summaryHtml;
+      return;
+    }
     vitalsOverviewEl.innerHTML =
+      summaryHtml +
       '<table class="min-w-full text-left text-xs">' +
         '<thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">' +
           "<tr>" +
@@ -7125,13 +7190,40 @@
       );
     }
     if (!cats.some(function (c) { return c.id === vitalsState.selectedCat; })) {
-      vitalsState.selectedCat = cats[0].id;
+      vitalsState.selectedCat = pickBestVitalsCategory(cats, "general");
+    } else if (!vitalsCatIssueCount(cats.find(function (c) { return c.id === vitalsState.selectedCat; }))) {
+      vitalsState.selectedCat = pickBestVitalsCategory(cats, vitalsState.selectedCat);
     }
     vitalsCatsEl.innerHTML = cats.map(function (c) {
       var on = c.id === vitalsState.selectedCat;
-      var countRaw = c.issue_count != null && c.issue_count !== "" ? String(c.issue_count) : "";
-      var rowCount = Array.isArray(c.issues) ? c.issues.length : (c.issue_row_count != null ? Number(c.issue_row_count) : 0);
-      var count = rowCount > 0 ? String(rowCount) : (countRaw || "—");
+      var rowCount = vitalsCatIssueCount(c);
+      var count = rowCount > 0 ? String(rowCount) : "—";
+      var kpiCards = Array.isArray(c.cards) ? c.cards : [];
+      var kpiHtml = "";
+      if (kpiCards.length) {
+        var seenKpi = {};
+        kpiHtml =
+          '<div class="mt-2 space-y-1">' +
+          kpiCards.slice(0, 3).map(function (card) {
+            var key = String(card.title || "") + "|" + String(card.value || "");
+            if (seenKpi[key]) return "";
+            seenKpi[key] = true;
+            return (
+              '<p class="text-[10px] leading-snug text-slate-600 dark:text-zinc-300">' +
+                '<span class="font-semibold text-slate-500 dark:text-zinc-400">' +
+                  esc(card.title || "") +
+                  ":</span> " +
+                '<span class="font-bold tabular-nums text-slate-800 dark:text-zinc-100">' +
+                  esc(card.value || "") +
+                "</span>" +
+                (card.delta
+                  ? ' <span class="' + vitalsDeltaClass(card.delta, "prev") + '">' + esc(card.delta) + "</span>"
+                  : "") +
+              "</p>"
+            );
+          }).join("") +
+          "</div>";
+      }
       return (
         '<button type="button" data-cat="' + esc(c.id) + '" class="pc-vitals-cat rounded-xl border p-3 text-left transition ' +
           (on
@@ -7140,6 +7232,7 @@
           '<p class="text-[11px] font-bold text-slate-800 dark:text-zinc-100">' + esc(c.label || c.id) + "</p>" +
           '<p class="mt-1 text-lg font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(count) +
             '<span class="ml-1 text-[10px] font-semibold text-slate-400">sorun</span></p>' +
+          kpiHtml +
           (c.description
             ? '<p class="mt-1 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">' + esc(c.description) + "</p>"
             : "") +
@@ -7150,7 +7243,19 @@
     var sel = cats.find(function (c) { return c.id === vitalsState.selectedCat; }) || cats[0];
     var issues = Array.isArray(sel.issues) ? sel.issues : [];
     if (!issues.length) {
-      vitalsIssuesEl.innerHTML = '<p class="p-3 text-center text-sm text-slate-400">No issue rows in this category</p>';
+      var alt = cats
+        .slice()
+        .sort(function (a, b) { return vitalsCatIssueCount(b) - vitalsCatIssueCount(a); })
+        .find(function (c) { return vitalsCatIssueCount(c) > 0; });
+      var hint = alt
+        ? ' <button type="button" data-cat="' + esc(alt.id) + '" class="pc-vitals-cat font-semibold text-emerald-700 underline dark:text-emerald-400">' +
+            esc(alt.label || alt.id) + " (" + vitalsCatIssueCount(alt) + ")</button>"
+        : "";
+      vitalsIssuesEl.innerHTML =
+        '<p class="p-3 text-center text-sm text-slate-400">' +
+          esc(sel.label || sel.id || "Category") + " — no issue rows." +
+          (hint ? " Try " + hint + "." : "") +
+        "</p>";
       if (vitalsDetailEl) {
         vitalsDetailEl.classList.add("hidden");
         vitalsDetailEl.innerHTML = "";
@@ -7177,7 +7282,16 @@
       return '<span class="inline-block rounded-md px-2 py-0.5 text-[10px] font-bold ' + cls + '">' + esc(et) + "</span>";
     }
     var fbSource = (vitalsState.data && vitalsState.data.issues_fallback === "firebase_console_scrape");
+    var kpiStrip = "";
+    if (block.summary_rate) {
+      kpiStrip +=
+        '<div class="border-b border-slate-100 px-3 py-2 text-[11px] dark:border-zinc-800">' +
+          '<span class="font-semibold text-slate-500 dark:text-zinc-400">Rate · </span>' +
+          '<span class="font-bold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(block.summary_rate) + "</span>" +
+        "</div>";
+    }
     vitalsIssuesEl.innerHTML =
+      kpiStrip +
       '<div class="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">' +
         '<input type="text" id="pc-vitals-issue-search" class="w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200" placeholder="Search issue titles..." />' +
         '<span class="shrink-0 text-[10px] text-slate-400 dark:text-zinc-500">' + issues.length + " results</span>" +
@@ -7320,6 +7434,40 @@
               '<p class="text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(c.value || "") + "</p></div>";
           }).join("") + "</div>"
         : "") +
+      (function () {
+        var series = Array.isArray(d.events_series) ? d.events_series : [];
+        if (series.length < 2) return "";
+        var maxEv = 1;
+        series.forEach(function (pt) {
+          var n = parseInt(String(pt.events || "0"), 10) || 0;
+          if (n > maxEv) maxEv = n;
+        });
+        var bars = series.map(function (pt) {
+          var n = parseInt(String(pt.events || "0"), 10) || 0;
+          var h = Math.max(4, Math.round((n / maxEv) * 72));
+          var label = String(pt.date || "").slice(5);
+          return (
+            '<div class="flex min-w-[1.35rem] flex-col items-center gap-0.5" title="' +
+              esc(String(pt.date || "") + " · " + n + " events") +
+              '">' +
+              '<div class="flex h-[4.5rem] w-full items-end justify-center">' +
+                '<div class="w-[70%] rounded-t bg-emerald-500/75 dark:bg-emerald-400/70" style="height:' + h + 'px"></div>' +
+              "</div>" +
+              '<span class="text-[8px] tabular-nums text-slate-400 dark:text-zinc-500">' + esc(label) + "</span>" +
+            "</div>"
+          );
+        }).join("");
+        return (
+          '<div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">' +
+            '<div class="border-b border-slate-100 px-3 py-1.5 dark:border-zinc-800">' +
+              '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Events · daily (detail scrape)</p>' +
+            "</div>" +
+            '<div class="overflow-x-auto px-2 py-2">' +
+              '<div class="flex min-w-max items-end gap-1">' + bars + "</div>" +
+            "</div>" +
+          "</div>"
+        );
+      })() +
       (function () {
         var stack = cleanStackTrace(d.stack_trace || "");
         if (stack) {
@@ -7499,7 +7647,10 @@
       var b = ev.target.closest(".pc-vitals-etype");
       if (!b) return;
       vitalsState.etype = b.getAttribute("data-etype") || "ANR";
-      vitalsState.selectedCat = "general";
+      vitalsState.selectedCat = pickBestVitalsCategory(
+        (getActiveVitalsBlock().categories || []),
+        "general"
+      );
       vitalsState.selectedIssue = null;
       renderVitalsCategories();
     });
@@ -7511,7 +7662,10 @@
       var vc = b.getAttribute("data-version") || "";
       if (!vc || String(vc) === String(vitalsState.selectedVersion)) return;
       vitalsState.selectedVersion = vc;
-      vitalsState.selectedCat = "general";
+      vitalsState.selectedCat = pickBestVitalsCategory(
+        (getActiveVitalsBlock().categories || []),
+        "general"
+      );
       vitalsState.selectedIssue = null;
       renderVitalsCategories();
     });

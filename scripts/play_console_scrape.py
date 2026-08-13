@@ -3674,6 +3674,9 @@ def _scrape_vitals_issues_via_table_rows(
                 )
                 _scroll_full_page(page)
                 detail = _extract_vitals_issue_detail(page) or {}
+                series = _scrape_vitals_issue_events_series(page)
+                if series:
+                    detail["events_series"] = series
                 detail["issue_id"] = iid
                 detail["url"] = detail_url
                 detail["list_title"] = str(row_issue.get("title") or "")[:240]
@@ -3946,6 +3949,180 @@ def _extract_vitals_issue_snapshot(page) -> dict[str, Any]:
     )
 
 
+_VITALS_CHART_TIP_JS = """() => {
+  const pick = (el) => String(el && (el.innerText || el.textContent) || '').trim();
+  const tips = [...document.querySelectorAll(
+    '[role="tooltip"], .mdc-tooltip, .mat-tooltip, .tooltip, [class*="tooltip"], google-chart tooltip'
+  )].map(pick).filter(Boolean);
+  if (tips.length) return tips.join('\\n');
+  const aria = document.querySelector('[aria-live="polite"], [aria-live="assertive"]');
+  return pick(aria);
+}"""
+
+
+def _parse_vitals_chart_tooltip(text: str) -> dict[str, Any] | None:
+    from datetime import date
+
+    raw = re.sub(r"\s+", " ", (text or "").strip())
+    if not raw or len(raw) < 3:
+        return None
+    tr_months = {
+        "oca": 1,
+        "şub": 2,
+        "sub": 2,
+        "mar": 3,
+        "nis": 4,
+        "may": 5,
+        "haz": 6,
+        "tem": 7,
+        "ağu": 8,
+        "agu": 8,
+        "eyl": 9,
+        "eki": 10,
+        "kas": 11,
+        "ara": 12,
+    }
+    en_months = {
+        "jan": 1,
+        "feb": 2,
+        "mar": 3,
+        "apr": 4,
+        "may": 5,
+        "jun": 6,
+        "jul": 7,
+        "aug": 8,
+        "sep": 9,
+        "oct": 10,
+        "nov": 11,
+        "dec": 12,
+    }
+    iso_m = re.search(r"\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b", raw)
+    if iso_m:
+        d = f"{iso_m.group(1)}-{int(iso_m.group(2)):02d}-{int(iso_m.group(3)):02d}"
+    else:
+        d = ""
+        m = re.search(
+            r"\b(\d{1,2})\s+(Oca|Şub|Sub|Mar|Nis|May|Haz|Tem|Ağu|Agu|Eyl|Eki|Kas|Ara|"
+            r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-zğüşıöç.]*"
+            r"(?:\s+(20\d{2}))?\b",
+            raw,
+            re.I,
+        )
+        if m:
+            mon_key = m.group(2).lower()[:3]
+            mon = tr_months.get(mon_key) or en_months.get(mon_key)
+            if mon:
+                yr = int(m.group(3)) if m.group(3) else date.today().year
+                d = f"{yr}-{mon:02d}-{int(m.group(1)):02d}"
+        if not d:
+            m2 = re.search(
+                r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})"
+                r"(?:,?\s+(20\d{2}))?\b",
+                raw,
+                re.I,
+            )
+            if m2:
+                mon_key = m2.group(1).lower()[:3]
+                mon = en_months.get(mon_key)
+                if mon:
+                    yr = int(m2.group(3)) if m2.group(3) else date.today().year
+                    d = f"{yr}-{mon:02d}-{int(m2.group(2)):02d}"
+    count = 0
+    for m in re.finditer(r"\b(\d[\d.,]*)\b", raw):
+        try:
+            n = int(float(m.group(1).replace(".", "").replace(",", ".")))
+        except ValueError:
+            continue
+        if n > count:
+            count = n
+    if not d and not count:
+        return None
+    return {"date": d or None, "events": count}
+
+
+def _scrape_vitals_issue_events_series(page, *, steps: int = 56) -> list[dict[str, Any]]:
+    """Detay sayfası olay grafiği — tooltip sweep ile günlük noktalar."""
+    try:
+        box = page.evaluate(
+            """() => {
+      const isPlot = (el) => {
+        if (!el || !el.getBoundingClientRect) return false;
+        const r = el.getBoundingClientRect();
+        if (r.width < 120 || r.height < 40) return false;
+        const tag = (el.tagName || '').toLowerCase();
+        if (tag === 'svg' && el.querySelector('path, rect, line')) return true;
+        if (el.querySelector && el.querySelector('svg path, svg rect, canvas')) return true;
+        return false;
+      };
+      const cands = [...document.querySelectorAll('svg, canvas, [class*="chart"], google-chart, [role="img"]')]
+        .filter(isPlot)
+        .map(el => {
+          const r = el.getBoundingClientRect();
+          return { x: r.left, y: r.top, w: r.width, h: r.height, area: r.width * r.height };
+        })
+        .sort((a, b) => b.area - a.area);
+      return cands[0] || null;
+    }"""
+        )
+    except Exception:
+        box = None
+    if not box or not box.get("w"):
+        return []
+    x0 = float(box["x"]) + float(box["w"]) * 0.06
+    x1 = float(box["x"]) + float(box["w"]) * 0.96
+    y = float(box["y"]) + float(box["h"]) * 0.42
+    samples: dict[str, int] = {}
+    n = max(24, min(steps, 96))
+    for i in range(n):
+        t = i / max(n - 1, 1)
+        x = x0 + (x1 - x0) * t
+        try:
+            page.mouse.move(x, y)
+        except Exception:
+            continue
+        time.sleep(0.03)
+        try:
+            tip = page.evaluate(_VITALS_CHART_TIP_JS)
+        except Exception:
+            tip = ""
+        parsed = _parse_vitals_chart_tooltip(str(tip or ""))
+        if not parsed:
+            continue
+        d = str(parsed.get("date") or "").strip()
+        cnt = int(parsed.get("events") or 0)
+        if d and re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+            samples[d] = max(samples.get(d, 0), cnt)
+        elif cnt and samples:
+            last = sorted(samples)[-1]
+            samples[last] = max(samples[last], cnt)
+    if len(samples) < 2:
+        y2 = float(box["y"]) + float(box["h"]) * 0.55
+        for i in range(n):
+            t = i / max(n - 1, 1)
+            x = x0 + (x1 - x0) * t
+            try:
+                page.mouse.move(x, y2)
+            except Exception:
+                continue
+            time.sleep(0.03)
+            try:
+                tip = page.evaluate(_VITALS_CHART_TIP_JS)
+            except Exception:
+                tip = ""
+            parsed = _parse_vitals_chart_tooltip(str(tip or ""))
+            if not parsed:
+                continue
+            d = str(parsed.get("date") or "").strip()
+            cnt = int(parsed.get("events") or 0)
+            if d and re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+                samples[d] = max(samples.get(d, 0), cnt)
+    if len(samples) < 2:
+        return []
+    out = [{"date": d, "events": int(samples[d])} for d in sorted(samples)]
+    print(f"    · issue chart series: {len(out)} pts", flush=True)
+    return out[:40]
+
+
 def _extract_vitals_issue_detail(page) -> dict[str, Any]:
     """Tek sorun detay sayfası: özet, stack, içgörüler."""
     return page.evaluate(
@@ -4131,6 +4308,9 @@ def _scrape_vitals_issue_details(
                 )
                 _scroll_full_page(page)
                 detail = _extract_vitals_issue_detail(page) or {}
+                series = _scrape_vitals_issue_events_series(page)
+                if series:
+                    detail["events_series"] = series
                 if detail.get("issue_id") or detail.get("title") or detail.get("stack_trace"):
                     url = try_url
                     break
@@ -4448,6 +4628,32 @@ def _scrape_vitals_crashes_error_type(
             f"count={snap.get('issue_count')} selected={selected_ok}",
             flush=True,
         )
+
+    general_cat = next((c for c in categories_out if c.get("id") == "general"), None)
+    if general_cat and not (general_cat.get("issues") or []):
+        merged: list[dict[str, Any]] = []
+        seen_merge: set[str] = set()
+        best_cards: list[dict[str, Any]] = []
+        for cat in categories_out:
+            if cat.get("id") == "general":
+                continue
+            for iss in cat.get("issues") or []:
+                if not isinstance(iss, dict):
+                    continue
+                iid = str(iss.get("issue_id") or "").strip()
+                if iid and iid in seen_merge:
+                    continue
+                if iid:
+                    seen_merge.add(iid)
+                merged.append(iss)
+            if not best_cards and cat.get("cards"):
+                best_cards = list(cat.get("cards") or [])
+        if merged:
+            general_cat["issues"] = merged[:50]
+            general_cat["issue_row_count"] = len(merged[:50])
+            general_cat["issue_count"] = str(len(merged[:50]))
+            if not general_cat.get("cards") and best_cards:
+                general_cat["cards"] = best_cards[:8]
 
     # Sürüm filtresi 0 sorun döndürdüyse — filtresiz geçiş (issue satırlarını kaçırma)
     total_issues = sum(int(c.get("issue_row_count") or 0) for c in categories_out)

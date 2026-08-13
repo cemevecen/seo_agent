@@ -363,6 +363,19 @@ def _normalize_vitals_issue_detail(det: dict[str, Any]) -> dict[str, Any] | None
                 ],
             }
         )
+    events_series = []
+    for pt in det.get("events_series") or []:
+        if not isinstance(pt, dict):
+            continue
+        d = str(pt.get("date") or "")[:10]
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+            continue
+        try:
+            ev = int(pt.get("events") or 0)
+        except (TypeError, ValueError):
+            ev = 0
+        events_series.append({"date": d, "events": ev})
+    events_series.sort(key=lambda x: x["date"])
     return {
         "issue_id": iid[:80],
         "url": str(det.get("url") or "")[:512],
@@ -376,6 +389,7 @@ def _normalize_vitals_issue_detail(det: dict[str, Any]) -> dict[str, Any] | None
         "insights": insights,
         "stack_trace": _clean_stack_trace(str(det.get("stack_trace") or "")),
         "sections": sections[:10],
+        "events_series": events_series[:40],
         "error": str(det.get("error") or "")[:200] or None,
     }
 
@@ -429,6 +443,33 @@ def _normalize_vitals_crashes_map(crashes_in: dict[str, Any]) -> tuple[dict[str,
                     "issue_row_count": len(issues),
                 }
             )
+        general_idx = next(
+            (i for i, c in enumerate(cats_out) if c.get("id") == "general"), None
+        )
+        if general_idx is not None and not (cats_out[general_idx].get("issues") or []):
+            merged_issues: list[dict[str, Any]] = []
+            seen_ids: set[str] = set()
+            best_cards: list[dict[str, Any]] = []
+            for cat in cats_out:
+                if cat.get("id") == "general":
+                    continue
+                for iss in cat.get("issues") or []:
+                    if not isinstance(iss, dict):
+                        continue
+                    iid = str(iss.get("issue_id") or "").strip()
+                    if iid and iid in seen_ids:
+                        continue
+                    if iid:
+                        seen_ids.add(iid)
+                    merged_issues.append(iss)
+                if not best_cards and cat.get("cards"):
+                    best_cards = list(cat.get("cards") or [])
+            if merged_issues:
+                cats_out[general_idx]["issues"] = merged_issues[:50]
+                cats_out[general_idx]["issue_row_count"] = len(merged_issues[:50])
+                cats_out[general_idx]["issue_count"] = str(len(merged_issues[:50]))
+                if not cats_out[general_idx].get("cards") and best_cards:
+                    cats_out[general_idx]["cards"] = best_cards[:8]
         category_count += len(cats_out)
         details_out: dict[str, Any] = {}
         for k, det in (block.get("issue_details") or {}).items():
