@@ -11639,15 +11639,26 @@ def api_home_virgul_revenue(request: Request):
     return resp
 
 
-def _home_parse_iso_date(s: str | None) -> datetime | None:
-    if not s:
+def _home_parse_iso_date(s: str | datetime | None) -> datetime | None:
+    if s is None or s == "":
+        return None
+    if isinstance(s, datetime):
+        return s
+    raw = str(s).strip()
+    if not raw:
         return None
     try:
-        if "T" in s:
-            return datetime.fromisoformat(s.replace("Z", "+00:00"))
-        return datetime.strptime(s, "%Y-%m-%d")
+        if "T" in raw or raw.endswith("Z"):
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return datetime.strptime(raw[:10], "%Y-%m-%d")
     except Exception:
-        return None
+        pass
+    for fmt in ("%d.%m.%Y", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(raw[:10], fmt)
+        except Exception:
+            continue
+    return None
 
 
 def _home_app_raw_from_db(db, product_id: str) -> dict | None:
@@ -11807,6 +11818,41 @@ def _home_ensure_android_star_hist(raw: dict, product_id: str) -> dict:
         _write_disk_raw(pid, raw)
     except Exception:
         pass
+    return raw
+
+
+def _home_ensure_ios_release_meta(raw: dict, product_id: str) -> dict:
+    """Cache’te iOS sürüm tarihi yoksa iTunes lookup ile doldur (updated · — engeli)."""
+    if not isinstance(raw, dict):
+        return raw
+    ios = raw.get("ios") if isinstance(raw.get("ios"), dict) else {}
+    meta = ios.get("meta") if isinstance(ios.get("meta"), dict) else {}
+    has_date = bool(meta.get("currentVersionReleaseDate") or meta.get("current_version_release_date"))
+    if has_date:
+        return raw
+    try:
+        from backend.services.app_intel import APP_PRODUCTS, _fetch_ios_lookup_meta, _write_disk_raw
+
+        spec = APP_PRODUCTS.get((product_id or "doviz").strip().lower()) or {}
+        app_id = str(spec.get("ios_app_id") or "").strip()
+        if not app_id:
+            return raw
+        lookup = _fetch_ios_lookup_meta(app_id) or {}
+        cvrd = lookup.get("currentVersionReleaseDate")
+        if not cvrd:
+            return raw
+        new_meta = {**meta, "currentVersionReleaseDate": cvrd}
+        if lookup.get("version") and not new_meta.get("version"):
+            new_meta["version"] = lookup["version"]
+        if not new_meta.get("current_version_release_date"):
+            new_meta["current_version_release_date"] = cvrd
+        raw = {**raw, "ios": {**ios, "meta": new_meta}}
+        try:
+            _write_disk_raw(product_id, raw)
+        except Exception:
+            pass
+    except Exception:
+        LOGGER.debug("Home iOS release meta hydrate failed", exc_info=True)
     return raw
 
 
@@ -12197,6 +12243,10 @@ def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: boo
             raw = _home_ensure_ios_star_hist(raw, product_id)
         except Exception:
             LOGGER.debug("Home iOS yıldız zenginleştirmesi atlandı", exc_info=True)
+        try:
+            raw = _home_ensure_ios_release_meta(raw, product_id)
+        except Exception:
+            LOGGER.debug("Home iOS sürüm tarihi zenginleştirmesi atlandı", exc_info=True)
         try:
             raw = _home_ensure_android_star_hist(raw, product_id)
         except Exception:
