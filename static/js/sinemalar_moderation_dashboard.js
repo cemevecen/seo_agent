@@ -97,7 +97,9 @@
   function modLegendLayout(legendCount, chartWidth, legendOpts) {
     legendOpts = legendOpts || {};
     if (!legendCount || legendCount <= 0) return null;
-    var entryW = Math.max(84, Math.floor(chartWidth * 0.32));
+    var entryW = legendOpts.compactLegend
+      ? Math.max(72, Math.floor(chartWidth * 0.22))
+      : Math.max(84, Math.floor(chartWidth * 0.32));
     var perRow = Math.max(2, Math.floor(chartWidth / entryW));
     var rows = Math.ceil(legendCount / perRow);
     var legendH = rows * 22 + 10;
@@ -472,7 +474,17 @@
         },
         yaxis: { title: "Adet", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
       },
-      { legendCount: METRICS.length, heightOpts: { minPlot: 260, maxTotal: 460, fallback: 340 }, minHeight: 300 }
+      {
+        legendCount: METRICS.length,
+        legendOpts: {
+          angledX: true,
+          compactLegend: true,
+          tickAngle: chartW(el) < 480 ? -35 : -20,
+          maxBottom: 240,
+        },
+        heightOpts: { minPlot: 280, maxTotal: 520, fallback: 380 },
+        minHeight: 340,
+      }
     );
   }
 
