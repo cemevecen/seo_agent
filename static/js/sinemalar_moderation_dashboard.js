@@ -94,26 +94,51 @@
     );
   }
 
-  function modLegendLayout(legendCount, chartWidth) {
+  function modLegendLayout(legendCount, chartWidth, legendOpts) {
+    legendOpts = legendOpts || {};
     if (!legendCount || legendCount <= 0) return null;
     var entryW = Math.max(84, Math.floor(chartWidth * 0.32));
     var perRow = Math.max(2, Math.floor(chartWidth / entryW));
     var rows = Math.ceil(legendCount / perRow);
-    var marginBottom = Math.min(112, 32 + rows * 22);
+    var legendH = rows * 22 + 10;
+    var tickPad = 0;
+    if (legendOpts.angledX) {
+      var angle = legendOpts.tickAngle != null ? Math.abs(legendOpts.tickAngle) : 40;
+      tickPad = angle >= 60 ? 72 : angle >= 40 ? 58 : 42;
+    }
+    var titlePad = legendOpts.xaxisTitle ? 26 : 0;
+    var marginBottom = 28 + tickPad + titlePad + legendH;
+    var maxBottom = legendOpts.maxBottom || (legendOpts.angledX ? 200 : 120);
+    marginBottom = Math.min(maxBottom, Math.max(marginBottom, legendOpts.minBottom || 0));
+
+    var legendBase = {
+      orientation: "h",
+      x: 0,
+      xanchor: "left",
+      font: { size: 10, color: th().legend },
+      tracegroupgap: 4,
+      entrywidth: entryW,
+      itemwidth: 26,
+      groupclick: "toggleitem",
+    };
+
+    if (legendOpts.angledX) {
+      return {
+        legend: Object.assign({}, legendBase, {
+          yref: "paper",
+          y: 0.01,
+          yanchor: "bottom",
+        }),
+        marginBottom: marginBottom,
+      };
+    }
+
     return {
-      legend: {
-        orientation: "h",
-        x: 0,
-        xanchor: "left",
+      legend: Object.assign({}, legendBase, {
         y: -0.02,
         yanchor: "top",
-        font: { size: 10, color: th().legend },
-        tracegroupgap: 4,
-        entrywidth: entryW,
-        itemwidth: 26,
-        groupclick: "toggleitem",
-      },
-      marginBottom: marginBottom,
+      }),
+      marginBottom: Math.min(112, 32 + rows * 22),
     };
   }
 
@@ -148,7 +173,7 @@
 
     var legendCount = opts.legendCount || 0;
     if (legendCount > 0) {
-      var leg = modLegendLayout(legendCount, w);
+      var leg = modLegendLayout(legendCount, w, opts.legendOpts || {});
       if (leg) {
         lay.legend = Object.assign({}, lay.legend || {}, leg.legend);
         lay.margin.b = Math.max(lay.margin.b || 48, leg.marginBottom);
@@ -323,7 +348,7 @@
       {
         title: { text: "Günlük moderasyon hacmi · moderatör kırılımı", x: 0, font: { size: 12 } },
         xaxis: {
-          title: "Tarih",
+          title: { text: "Tarih", standoff: 10 },
           gridcolor: th().grid,
           tickvals: ticks,
           tickangle: chartW(el) < 520 ? -65 : -40,
@@ -332,7 +357,16 @@
         },
         yaxis: { title: "Günlük iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
       },
-      { legendCount: MODS.length, heightOpts: { minPlot: 240, maxTotal: 420, fallback: 320 }, minHeight: 280 }
+      {
+        legendCount: MODS.length,
+        legendOpts: {
+          angledX: true,
+          xaxisTitle: true,
+          tickAngle: chartW(el) < 520 ? -65 : -40,
+        },
+        heightOpts: { minPlot: 240, maxTotal: 460, fallback: 340 },
+        minHeight: 300,
+      }
     );
   }
 
@@ -604,6 +638,7 @@
       {
         title: { text: "Kümülatif katkı · dönem içi birikim", x: 0, font: { size: 12 } },
         xaxis: {
+          title: { text: "Tarih", standoff: 10 },
           tickvals: ticks,
           tickangle: chartW(el) < 520 ? -65 : -40,
           gridcolor: th().grid,
@@ -612,7 +647,16 @@
         },
         yaxis: { title: "Biriken iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
       },
-      { legendCount: MODS.length, heightOpts: { minPlot: 220, maxTotal: 400, fallback: 300 }, minHeight: 260 }
+      {
+        legendCount: MODS.length,
+        legendOpts: {
+          angledX: true,
+          xaxisTitle: true,
+          tickAngle: chartW(el) < 520 ? -65 : -40,
+        },
+        heightOpts: { minPlot: 220, maxTotal: 440, fallback: 320 },
+        minHeight: 280,
+      }
     );
   }
 
