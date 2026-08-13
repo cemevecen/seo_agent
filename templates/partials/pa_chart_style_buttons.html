@@ -1,0 +1,32 @@
+{# Renkli grafik tipi butonları — Android: data-pa-chart-style · iOS: data-ia-chart-style #}
+{% macro chart_style_buttons(root_id, style_attr, extra_class='') %}
+<div id="{{ root_id }}" class="pa-chart-style {{ extra_class }}" role="group" aria-label="Grafik tipi">
+  <button type="button" {{ style_attr }}="line" title="Çizgi grafik" aria-label="Çizgi grafik" aria-pressed="false">
+    <svg viewBox="0 0 16 16" class="pa-cs-icon" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="2" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.65"/>
+      <path d="M2.8 11.2 L5.8 8.2 L8.2 9.6 L13.2 4.8" stroke="#2563eb" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="5.8" cy="8.2" r="0.95" fill="#2563eb"/>
+      <circle cx="8.2" cy="9.6" r="0.95" fill="#3b82f6"/>
+      <circle cx="13.2" cy="4.8" r="0.95" fill="#1d4ed8"/>
+    </svg>
+  </button>
+  <button type="button" {{ style_attr }}="area" title="Alan grafik" aria-label="Alan grafik" aria-pressed="true" class="is-active">
+    <svg viewBox="0 0 16 16" class="pa-cs-icon" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="2" fill="#f0fdf4" stroke="#86efac" stroke-width="0.65"/>
+      <path d="M2.8 11.5 L5.8 8.2 L8.2 9.7 L13.2 5.2 V11.5 Z" fill="#34d399" fill-opacity="0.52"/>
+      <path d="M2.8 11.2 L5.8 8.2 L8.2 9.6 L13.2 4.8" stroke="#059669" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+  </button>
+  <button type="button" {{ style_attr }}="bar" title="Yığılmış çubuk" aria-label="Yığılmış çubuk grafik" aria-pressed="false">
+    <svg viewBox="0 0 16 16" class="pa-cs-icon" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="2" fill="#fffbeb" stroke="#fcd34d" stroke-width="0.65"/>
+      <rect x="3.6" y="9.2" width="2.9" height="2.3" rx="0.35" fill="#93c5fd"/>
+      <rect x="3.6" y="6.4" width="2.9" height="2.5" rx="0.35" fill="#3b82f6"/>
+      <rect x="3.6" y="4.1" width="2.9" height="2" rx="0.35" fill="#1d4ed8"/>
+      <rect x="9.5" y="10.1" width="2.9" height="1.4" rx="0.35" fill="#fde68a"/>
+      <rect x="9.5" y="7.6" width="2.9" height="2.2" rx="0.35" fill="#f59e0b"/>
+      <rect x="9.5" y="4.5" width="2.9" height="2.8" rx="0.35" fill="#ea580c"/>
+    </svg>
+  </button>
+</div>
+{% endmacro %}

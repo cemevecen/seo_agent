@@ -1,6 +1,8 @@
 {% extends "base.html" %}
+{% from 'partials/pa_chart_style_buttons.html' import chart_style_buttons %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/pa_chart_height.css?v=2">
+<link rel="stylesheet" href="/static/css/pa_chart_style.css?v=1">
 <style>
   .pa-filters {
     display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.65rem 0.75rem; width: 100%;
@@ -724,16 +726,7 @@
     .pa-filters > label.pa-f--metric { flex: 1.4 1 0; }
     .pa-filters > label.pa-f--date, .pa-filters > label.pa-f--sm { flex: 0.9 1 0; min-width: 0; }
   }
-  /* Grafik çizim tarzı (çizgi / alan / çubuk) */
-  .pa-chart-style {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.2rem;
-    padding: 0.15rem;
-    border-radius: 0.5rem;
-    border: 1px solid rgb(226 232 240);
-    background: rgb(255 255 255 / 0.9);
-  }
+  /* Grafik çizim animasyonu */
   #ia-chart {
     transform-origin: 50% 88%;
     transition: opacity 0.14s ease, transform 0.14s ease;
@@ -748,10 +741,6 @@
   @keyframes ia-chart-pop {
     from { opacity: 0.3; transform: scaleY(0.94); }
     to { opacity: 1; transform: scaleY(1); }
-  }
-  html.dark .pa-chart-style {
-    border-color: rgb(63 63 70);
-    background: rgb(24 24 27 / 0.9);
   }
   /* Dark / midnight: grafik kartı açık kalmasın */
   html.dark .ios-asc-page #ia-chart-card,
@@ -774,44 +763,6 @@
   html.dark .ios-asc-page #ia-chart line.ia-grid,
   html.midnight .ios-asc-page #ia-chart line.ia-grid {
     stroke: rgba(255, 255, 255, 0.07) !important;
-  }
-  .pa-chart-style button {
-    appearance: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.7rem;
-    height: 1.7rem;
-    border-radius: 0.375rem;
-    border: 0;
-    background: transparent;
-    color: rgb(100 116 139);
-    cursor: pointer;
-    transition: background 0.12s ease, color 0.12s ease;
-  }
-  .pa-chart-style button:hover {
-    background: rgb(241 245 249);
-    color: rgb(15 23 42);
-  }
-  .pa-chart-style button.is-active {
-    background: rgb(15 23 42);
-    color: #fff;
-  }
-  html.dark .pa-chart-style button {
-    color: rgb(161 161 170);
-  }
-  html.dark .pa-chart-style button:hover {
-    background: rgb(39 39 42);
-    color: rgb(244 244 245);
-  }
-  html.dark .pa-chart-style button.is-active {
-    background: rgb(244 244 245);
-    color: rgb(24 24 27);
-  }
-  .pa-chart-style button svg {
-    width: 0.95rem;
-    height: 0.95rem;
-    display: block;
   }
   .ia-stability-grid {
     display: grid;
@@ -1268,17 +1219,7 @@
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4.5 L8 3.5 L10.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 11.5 L8 12.5 L10.5 11.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="7.5" width="9" height="1.5" rx="0.6" fill="currentColor" fill-opacity="0.35"/></svg>
               </button>
             </div>
-            <div id="ia-chart-style" class="pa-chart-style shrink-0" role="group" aria-label="Chart style">
-              <button type="button" data-ia-chart-style="line" title="Line" aria-label="Line chart" aria-pressed="false">
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11.5 L5.5 7.5 L8.5 9.5 L14 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button type="button" data-ia-chart-style="area" title="Filled area" aria-label="Filled area chart" aria-pressed="true" class="is-active">
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 12 V8.5 L5.5 5.5 L8.5 7.2 L14 3.5 V12 Z" fill="currentColor" fill-opacity="0.28"/><path d="M2 8.5 L5.5 5.5 L8.5 7.2 L14 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button type="button" data-ia-chart-style="bar" title="Stacked" aria-label="Stacked bar chart" aria-pressed="false">
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="9" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="3" y="5.5" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="3" y="3" width="3.2" height="2.5" rx="0.4" fill="currentColor"/><rect x="9.5" y="10" width="3.2" height="2.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="9.5" y="7" width="3.2" height="3" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="9.5" y="4" width="3.2" height="3" rx="0.4" fill="currentColor"/></svg>
-              </button>
-            </div>
+            {{ chart_style_buttons('ia-chart-style', 'data-ia-chart-style', 'shrink-0') }}
             </div>
           </div>
           <svg id="ia-chart" viewBox="0 0 720 260" class="block w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="iOS metrics chart"></svg>

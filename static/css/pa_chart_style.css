@@ -1,0 +1,89 @@
+/* Android / iOS — grafik tipi seçici (renkli mini önizleme) */
+.pa-chart-style {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(255 255 255 / 0.95);
+}
+
+html.dark .pa-chart-style,
+html.midnight .pa-chart-style {
+  border-color: rgb(63 63 70);
+  background: rgb(24 24 27 / 0.95);
+}
+
+.pa-chart-style button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.4rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.14s ease, box-shadow 0.14s ease, transform 0.12s ease;
+}
+
+.pa-chart-style button:hover {
+  background: rgb(248 250 252);
+  transform: translateY(-0.5px);
+}
+
+html.dark .pa-chart-style button:hover,
+html.midnight .pa-chart-style button:hover {
+  background: rgb(39 39 42);
+}
+
+.pa-chart-style button.is-active[data-pa-chart-style="line"],
+.pa-chart-style button.is-active[data-ia-chart-style="line"] {
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1.5px #2563eb;
+}
+
+.pa-chart-style button.is-active[data-pa-chart-style="area"],
+.pa-chart-style button.is-active[data-ia-chart-style="area"] {
+  background: #ecfdf5;
+  box-shadow: inset 0 0 0 1.5px #059669;
+}
+
+.pa-chart-style button.is-active[data-pa-chart-style="bar"],
+.pa-chart-style button.is-active[data-ia-chart-style="bar"] {
+  background: #fffbeb;
+  box-shadow: inset 0 0 0 1.5px #d97706;
+}
+
+html.dark .pa-chart-style button.is-active[data-pa-chart-style="line"],
+html.dark .pa-chart-style button.is-active[data-ia-chart-style="line"],
+html.midnight .pa-chart-style button.is-active[data-pa-chart-style="line"],
+html.midnight .pa-chart-style button.is-active[data-ia-chart-style="line"] {
+  background: rgb(30 58 138 / 0.35);
+  box-shadow: inset 0 0 0 1.5px #60a5fa;
+}
+
+html.dark .pa-chart-style button.is-active[data-pa-chart-style="area"],
+html.dark .pa-chart-style button.is-active[data-ia-chart-style="area"],
+html.midnight .pa-chart-style button.is-active[data-pa-chart-style="area"],
+html.midnight .pa-chart-style button.is-active[data-ia-chart-style="area"] {
+  background: rgb(6 78 59 / 0.35);
+  box-shadow: inset 0 0 0 1.5px #34d399;
+}
+
+html.dark .pa-chart-style button.is-active[data-pa-chart-style="bar"],
+html.dark .pa-chart-style button.is-active[data-ia-chart-style="bar"],
+html.midnight .pa-chart-style button.is-active[data-pa-chart-style="bar"],
+html.midnight .pa-chart-style button.is-active[data-ia-chart-style="bar"] {
+  background: rgb(120 53 15 / 0.35);
+  box-shadow: inset 0 0 0 1.5px #fbbf24;
+}
+
+.pa-chart-style button svg.pa-cs-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: block;
+  pointer-events: none;
+}
