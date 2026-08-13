@@ -124,10 +124,10 @@
   function modHtmlLegendHeight(legendCount, chartWidth, compact) {
     if (!legendCount) return 0;
     var w = Math.max(chartWidth, 240);
-    var perItem = compact ? 68 : 76;
+    var perItem = compact ? 58 : 76;
     var perRow = Math.min(legendCount, Math.max(2, Math.floor(w / perItem)));
     var rows = Math.ceil(legendCount / perRow);
-    return rows * 22 + 8;
+    return rows * 22 + 10;
   }
 
   function clearHtmlLegends() {
@@ -155,6 +155,7 @@
     bar.innerHTML = "";
 
     if (kind === "mods") {
+      bar.className = "mod-chart-legend-bar mod-chart-legend-bar--mods";
       MODS.forEach(function (m, i) {
         var btn = document.createElement("button");
         btn.type = "button";
@@ -175,6 +176,7 @@
     }
 
     if (kind === "metrics") {
+      bar.className = "mod-chart-legend-bar mod-chart-legend-bar--metrics";
       METRICS.forEach(function (mt, i) {
         var btn = document.createElement("button");
         btn.type = "button";
@@ -198,6 +200,7 @@
     }
 
     if (kind === "binary") {
+      bar.className = "mod-chart-legend-bar mod-chart-legend-bar--binary";
       [
         { name: "Aktif gün", color: "#0ea5e9" },
         { name: "İş yapılmayan gün", color: "#cbd5e1" },
@@ -304,10 +307,25 @@
 
   function plotResponsive(el, traces, layout, opts) {
     if (!el || !window.Plotly) return Promise.resolve();
-    var lay = responsiveLayout(el, layout, opts || {});
+    opts = opts || {};
+    if (opts.htmlLegend) {
+      traces = traces.map(function (tr) {
+        return Object.assign({}, tr, { showlegend: false });
+      });
+    }
+    var lay = responsiveLayout(el, layout, opts);
+    if (opts.htmlLegend) {
+      lay.showlegend = false;
+      delete lay.legend;
+    }
     return Plotly.newPlot(el, traces, lay, plotCfg())
       .then(function () {
-        if (opts.htmlLegend) renderHtmlLegend(el, opts.htmlLegend);
+        if (opts.htmlLegend) {
+          renderHtmlLegend(el, opts.htmlLegend);
+          try {
+            Plotly.relayout(el, { showlegend: false });
+          } catch (_) {}
+        }
         try {
           Plotly.Plots.resize(el);
         } catch (_) {}
@@ -635,6 +653,7 @@
       return {
         type: "bar",
         name: mt.label,
+        showlegend: false,
         x: names,
         y: users.map(function (u) {
           return (u.totals || {})[mt.key] || 0;
@@ -664,8 +683,8 @@
           compactLegend: true,
           tickAngle: chartW(el) < 480 ? -35 : -20,
         },
-        heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 },
-        minHeight: 280,
+        heightOpts: { minPlot: 180, maxTotal: 800, fallback: 300 },
+        minHeight: 300,
       }
     );
   }
