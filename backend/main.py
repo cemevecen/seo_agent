@@ -1936,6 +1936,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/page-tarama/claim",
         "/api/page-tarama/result",
         "/api/page-tarama/bridge-ping",
+        "/api/page-tarama/fail-inflight",
         "/api/scrape-runs/report",
         "/api/pm-lab/ingest",
         "/api/pm-lab/claim-refresh",

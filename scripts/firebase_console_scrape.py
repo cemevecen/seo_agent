@@ -886,15 +886,14 @@ def _scrape_platform(page, plat: str, days: int, on_progress=None) -> dict[str, 
     _prog("analytics", "dashboard cards", 9)
     ov_urls = _urls(plat, time_param="90d", version=version)
     before_analytics = len(captured)
-    _goto_collect(page, ov_urls["analytics"], captured, wait_ms=20000)
-    # iframe kartları geç gelebilir
+    # Analytics iframe yavaş; çok uzun bekleyince UI %94'te takılı sanılıyor
+    _goto_collect(page, ov_urls["analytics"], captured, wait_ms=12000)
     try:
-        page.wait_for_timeout(4000)
+        page.wait_for_timeout(2500)
     except Exception:
         pass
     analytics = _parse_analytics_cards(captured[before_analytics:], plat=plat)
     if not analytics.get("ok"):
-        # tüm buffer'da ara (listener çift kayıt / gecikme)
         analytics = _parse_analytics_cards(captured, plat=plat)
     print(
         f"    → analytics ok={analytics.get('ok')} "
