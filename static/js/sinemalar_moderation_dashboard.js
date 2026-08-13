@@ -310,13 +310,15 @@
     opts = opts || {};
     if (opts.htmlLegend) {
       traces = traces.map(function (tr) {
-        return Object.assign({}, tr, { showlegend: false });
+        var copy = Object.assign({}, tr, { showlegend: false });
+        if (opts.htmlLegend === "mods") copy.name = "";
+        return copy;
       });
     }
     var lay = responsiveLayout(el, layout, opts);
     if (opts.htmlLegend) {
       lay.showlegend = false;
-      delete lay.legend;
+      lay.legend = { visible: false, x: -2, y: -2 };
     }
     return Plotly.newPlot(el, traces, lay, plotCfg())
       .then(function () {
