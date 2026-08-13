@@ -56,12 +56,22 @@
       gap: 0.75rem 1.25rem;
       /* head · metrics · store */
       grid-template-rows: auto auto auto;
+      align-items: stretch;
     }
     .home-crash-plat {
       display: grid;
       grid-template-rows: subgrid;
       grid-row: span 3;
-      align-content: start;
+    }
+    .home-crash-zone-head { grid-row: 1; }
+    .home-sf-metrics {
+      grid-row: 2;
+      align-self: stretch;
+      height: 100%;
+    }
+    .home-crash-zone-store {
+      grid-row: 3;
+      align-self: start;
     }
   }
   .home-crash-plat {
@@ -105,15 +115,20 @@
   .home-store-kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.35rem;
-    margin-top: 0.45rem;
+    gap: 0.3rem;
+    margin-top: 0.35rem;
+    align-items: stretch;
   }
   .home-store-kpi {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.04rem;
     border-radius: 0.5rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255 / 0.9);
-    padding: 0.35rem 0.4rem;
+    padding: 0.18rem 0.35rem 0.2rem;
   }
   html.dark .home-store-kpi,
   html.midnight .home-store-kpi {
@@ -134,18 +149,18 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: #64748b;
-    line-height: 1.15;
+    line-height: 1;
     white-space: nowrap;
     overflow: hidden;
     min-width: 0;
   }
   .home-store-kpi__v {
-    margin: 0.2rem 0 0;
+    margin: 0;
     font-size: clamp(0.7rem, 4.5cqi, 0.85rem);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: #0f172a;
-    line-height: 1.1;
+    line-height: 1;
     white-space: nowrap;
     overflow: hidden;
     min-width: 0;
@@ -254,13 +269,14 @@
   .home-sf-metric {
     display: flex;
     flex-direction: column;
+    gap: 0.04rem;
     min-width: 0;
     overflow: hidden;
     border-radius: 0.75rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(248 250 252 / 0.85);
-    padding: 0.3rem 0.55rem 0.35rem;
-    min-height: calc(5.5rem + 16px - 20px);
+    padding: 0.22rem 0.55rem 0.2rem;
+    height: 100%;
     container-type: inline-size;
     container-name: home-sf-metric;
   }
@@ -279,8 +295,8 @@
     transform-origin: top left;
     width: 200%;
     max-width: 200%;
-    margin-bottom: -0.5rem;
-    line-height: 1.1;
+    margin-bottom: -0.62rem;
+    line-height: 1;
   }
   .home-sf-metric__kind {
     margin: 0;
@@ -322,7 +338,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 1.75rem;
+    min-height: 1.85rem;
     font-size: clamp(1.05rem, 11.5cqi, 1.9rem);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
@@ -344,13 +360,13 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 0.12rem 0.35rem;
+    gap: 0.08rem 0.3rem;
     margin-top: auto;
-    padding-top: 0.05rem;
+    padding-top: 0;
     min-width: 0;
     font-size: clamp(9px, 2.15cqi, 10px);
     font-weight: 600;
-    line-height: 1.2;
+    line-height: 1.1;
     color: rgb(148 163 184 / 0.88);
   }
   html.dark .home-sf-metric__meta { color: rgb(161 161 170 / 0.72); }
@@ -384,7 +400,7 @@
   .home-sf-metric--android .home-sf-metric__meta {
     transform: scale(0.6);
     transform-origin: center bottom;
-    margin-bottom: -0.28rem;
+    margin-bottom: -0.34rem;
     padding-top: 0;
   }
   .home-sf-metric--android .home-sf-metric__meta-src {
@@ -394,13 +410,13 @@
   /* Android: ana % (99,9983% vb.) — %60 büyük */
   .home-sf-metric--android .home-sf-metric__hero {
     font-size: clamp(1.68rem, 18.4cqi, 3.04rem);
-    min-height: 2.15rem;
+    min-height: 1.85rem;
   }
 
   /* iOS: ana % (99,98% vb.) — %80 büyük */
   .home-sf-metric--ios .home-sf-metric__hero {
     font-size: clamp(1.89rem, 20.7cqi, 3.42rem);
-    min-height: 2.3rem;
+    min-height: 1.85rem;
   }
 
   @container home-sf-metric (max-width: 5.75rem) {
