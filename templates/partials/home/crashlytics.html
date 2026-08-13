@@ -259,8 +259,8 @@
     border-radius: 0.75rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(248 250 252 / 0.85);
-    padding: 0.5rem 0.55rem 0.55rem;
-    min-height: calc(5.5rem + 16px);
+    padding: 0.3rem 0.55rem 0.35rem;
+    min-height: calc(5.5rem + 16px - 20px);
     container-type: inline-size;
     container-name: home-sf-metric;
   }
@@ -279,7 +279,7 @@
     transform-origin: top left;
     width: 200%;
     max-width: 200%;
-    margin-bottom: -0.42rem;
+    margin-bottom: -0.5rem;
     line-height: 1.1;
   }
   .home-sf-metric__kind {
@@ -317,12 +317,12 @@
     color: rgb(161 161 170 / 0.82);
   }
   .home-sf-metric__hero {
-    margin: 0.12rem 0 0.08rem;
+    margin: 0;
     flex: 1 1 auto;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 2rem;
+    min-height: 1.75rem;
     font-size: clamp(1.05rem, 11.5cqi, 1.9rem);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
@@ -346,7 +346,7 @@
     justify-content: center;
     gap: 0.12rem 0.35rem;
     margin-top: auto;
-    padding-top: 0.18rem;
+    padding-top: 0.05rem;
     min-width: 0;
     font-size: clamp(9px, 2.15cqi, 10px);
     font-weight: 600;
@@ -384,8 +384,8 @@
   .home-sf-metric--android .home-sf-metric__meta {
     transform: scale(0.6);
     transform-origin: center bottom;
-    margin-bottom: -0.2rem;
-    padding-top: 0.1rem;
+    margin-bottom: -0.28rem;
+    padding-top: 0;
   }
   .home-sf-metric--android .home-sf-metric__meta-src {
     transform: scale(0.833333);
@@ -394,27 +394,27 @@
   /* Android: ana % (99,9983% vb.) — %60 büyük */
   .home-sf-metric--android .home-sf-metric__hero {
     font-size: clamp(1.68rem, 18.4cqi, 3.04rem);
-    min-height: 2.35rem;
+    min-height: 2.15rem;
   }
 
   /* iOS: ana % (99,98% vb.) — %80 büyük */
   .home-sf-metric--ios .home-sf-metric__hero {
     font-size: clamp(1.89rem, 20.7cqi, 3.42rem);
-    min-height: 2.5rem;
+    min-height: 2.3rem;
   }
 
   @container home-sf-metric (max-width: 5.75rem) {
     .home-sf-metric__hero {
       font-size: clamp(0.95rem, 10cqi, 1.35rem);
-      min-height: 1.65rem;
+      min-height: 1.45rem;
     }
     .home-sf-metric--android .home-sf-metric__hero {
       font-size: clamp(1.52rem, 16cqi, 2.16rem);
-      min-height: 2rem;
+      min-height: 1.8rem;
     }
     .home-sf-metric--ios .home-sf-metric__hero {
       font-size: clamp(1.71rem, 18cqi, 2.43rem);
-      min-height: 2.15rem;
+      min-height: 1.95rem;
     }
     .home-sf-metric__meta {
       flex-direction: column;
@@ -774,7 +774,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=39';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=40';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
