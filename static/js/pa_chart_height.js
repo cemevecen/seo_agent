@@ -1,11 +1,14 @@
 (function () {
   var HEIGHT_KEY = "paChartHeight";
   var COMPRESS_KEY = "paChartCompress";
+  var MARGIN_L_KEY = "paChartMarginL";
+  var MARGIN_R_KEY = "paChartMarginR";
   var DEFAULT_HEIGHT = "2";
   var DEFAULT_COMPRESS = "1";
   var PAD_Y = 30;
   var VIEW_H = 260;
   var VIEW_W = 720;
+  var MIN_WIDTH_PCT = 15;
   var HEIGHT_BASE = { "1": 260, "2": 200, "3": 150 };
   var COMPRESS_DIVISOR = { "1": 1, "2": 1.28, "3": 1.62 };
 
@@ -15,6 +18,18 @@
       if (allowed.indexOf(v) >= 0) return v;
     } catch (_) {}
     return fallback;
+  }
+
+  function readStoredNumber(key, fallback) {
+    try {
+      var v = parseFloat(localStorage.getItem(key));
+      if (isFinite(v) && v >= 0) return v;
+    } catch (_) {}
+    return fallback;
+  }
+
+  function clamp(n, lo, hi) {
+    return Math.max(lo, Math.min(hi, n));
   }
 
   function effectiveHeight(h, c) {
@@ -47,10 +62,13 @@
 
   var height = readStored(HEIGHT_KEY, ["1", "2", "3"], DEFAULT_HEIGHT);
   var compress = readStored(COMPRESS_KEY, ["1", "2", "3"], DEFAULT_COMPRESS);
+  var marginL = readStoredNumber(MARGIN_L_KEY, 0);
+  var marginR = readStoredNumber(MARGIN_R_KEY, 0);
   var layoutSyncing = false;
   var layoutRaf = null;
   var moTimer = null;
   var lastWidths = new WeakMap();
+  var dragState = null;
 
   function syncGroup(root, attr, value) {
     if (!root) return;
@@ -71,12 +89,18 @@
     });
   }
 
+  function chartStageForSvg(svg) {
+    return svg ? svg.closest(".pa-chart-stage") : null;
+  }
+
   function siblingsAboveSvg(wrap, svg) {
+    var stage = chartStageForSvg(svg);
+    var stop = stage || svg;
     var total = 0;
     var kids = wrap.children;
     for (var i = 0; i < kids.length; i++) {
       var child = kids[i];
-      if (child === svg) break;
+      if (child === stop) break;
       if (child.id === "pa-tooltip" || child.id === "ia-tooltip") continue;
       total += child.offsetHeight || 0;
     }
@@ -98,6 +122,157 @@
       w = card.clientWidth - padCard - pad;
     }
     return Math.max(1, w);
+  }
+
+  function normalizeMargins() {
+    marginL = clamp(marginL, 0, 100 - MIN_WIDTH_PCT);
+    marginR = clamp(marginR, 0, 100 - MIN_WIDTH_PCT);
+    if (marginL + marginR > 100 - MIN_WIDTH_PCT) {
+      var overflow = marginL + marginR - (100 - MIN_WIDTH_PCT);
+      if (marginL >= marginR) marginL = Math.max(0, marginL - overflow);
+      else marginR = Math.max(0, marginR - overflow);
+    }
+  }
+
+  function persistMargins() {
+    try {
+      localStorage.setItem(MARGIN_L_KEY, String(Math.round(marginL * 100) / 100));
+      localStorage.setItem(MARGIN_R_KEY, String(Math.round(marginR * 100) / 100));
+    } catch (_) {}
+  }
+
+  function applyMargins() {
+    normalizeMargins();
+    targets.forEach(function (t) {
+      if (!t.wrap) return;
+      var ml = Math.round(marginL * 10) / 10;
+      var mr = Math.round(marginR * 10) / 10;
+      t.wrap.setAttribute("data-chart-margin-l", String(ml));
+      t.wrap.setAttribute("data-chart-margin-r", String(mr));
+      t.wrap.style.setProperty("--pa-chart-margin-l", ml + "%");
+      t.wrap.style.setProperty("--pa-chart-margin-r", mr + "%");
+      if (t.viewport) {
+        t.viewport.style.marginLeft = ml + "%";
+        t.viewport.style.marginRight = mr + "%";
+      }
+    });
+  }
+
+  function ensureChartStage(t) {
+    var svg = document.getElementById(t.svgId);
+    if (!svg || !t.wrap.contains(svg)) return null;
+
+    var stage = chartStageForSvg(svg);
+    if (!stage) {
+      stage = document.createElement("div");
+      stage.className = "pa-chart-stage";
+
+      var viewport = document.createElement("div");
+      viewport.className = "pa-chart-viewport";
+
+      var leftHandle = document.createElement("button");
+      leftHandle.type = "button";
+      leftHandle.className = "pa-chart-edge-handle pa-chart-edge-handle--left";
+      leftHandle.setAttribute("aria-label", "Grafiği soldan genişlet veya daralt");
+      leftHandle.title = "Soldan sürükleyerek genişlik ayarla · çift tıkla sıfırla";
+
+      var rightHandle = document.createElement("button");
+      rightHandle.type = "button";
+      rightHandle.className = "pa-chart-edge-handle pa-chart-edge-handle--right";
+      rightHandle.setAttribute("aria-label", "Grafiği sağdan genişlet veya daralt");
+      rightHandle.title = "Sağdan sürükleyerek genişlik ayarla · çift tıkla sıfırla";
+
+      t.wrap.insertBefore(stage, svg);
+      viewport.appendChild(svg);
+      stage.appendChild(viewport);
+      stage.appendChild(leftHandle);
+      stage.appendChild(rightHandle);
+
+      bindEdgeDrag(t, leftHandle, "left");
+      bindEdgeDrag(t, rightHandle, "right");
+    }
+
+    t.stage = stage;
+    t.viewport = stage.querySelector(".pa-chart-viewport");
+    t.handleLeft = stage.querySelector(".pa-chart-edge-handle--left");
+    t.handleRight = stage.querySelector(".pa-chart-edge-handle--right");
+    return stage;
+  }
+
+  function pointerX(ev) {
+    if (ev.touches && ev.touches.length) return ev.touches[0].clientX;
+    if (ev.changedTouches && ev.changedTouches.length) return ev.changedTouches[0].clientX;
+    return ev.clientX;
+  }
+
+  function bindEdgeDrag(t, handle, side) {
+    handle.addEventListener("dblclick", function (ev) {
+      ev.preventDefault();
+      if (side === "left") marginL = 0;
+      else marginR = 0;
+      applyMargins();
+      persistMargins();
+      scheduleLayoutSync();
+    });
+
+    function onMove(ev) {
+      if (!dragState || dragState.handle !== handle) return;
+      ev.preventDefault();
+      var wrapW = dragState.wrapW || innerWidth(t.wrap);
+      var dx = pointerX(ev) - dragState.startX;
+      var dPct = (dx / wrapW) * 100;
+      if (side === "left") {
+        marginL = clamp(
+          dragState.startMarginL + dPct,
+          0,
+          100 - dragState.startMarginR - MIN_WIDTH_PCT
+        );
+      } else {
+        marginR = clamp(
+          dragState.startMarginR - dPct,
+          0,
+          100 - dragState.startMarginL - MIN_WIDTH_PCT
+        );
+      }
+      applyMargins();
+    }
+
+    function onEnd() {
+      if (!dragState || dragState.handle !== handle) return;
+      handle.classList.remove("is-dragging");
+      t.wrap.classList.remove("pa-chart-edge-dragging");
+      dragState = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onEnd);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+      document.removeEventListener("touchcancel", onEnd);
+      persistMargins();
+      scheduleLayoutSync();
+    }
+
+    function onStart(ev) {
+      if (ev.type === "mousedown" && ev.button !== 0) return;
+      ev.preventDefault();
+      dragState = {
+        handle: handle,
+        side: side,
+        startX: pointerX(ev),
+        startMarginL: marginL,
+        startMarginR: marginR,
+        wrapW: innerWidth(t.wrap),
+      };
+      handle.classList.add("is-dragging");
+      t.wrap.classList.add("pa-chart-edge-dragging");
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onEnd);
+      document.addEventListener("touchmove", onMove, { passive: false });
+      document.addEventListener("touchend", onEnd);
+      document.addEventListener("touchcancel", onEnd);
+    }
+
+    handle.addEventListener("mousedown", onStart);
+    handle.addEventListener("touchstart", onStart, { passive: false });
   }
 
   function applySettings() {
@@ -132,9 +307,13 @@
     if (layoutSyncing) return;
     layoutSyncing = true;
 
+    applyMargins();
+
     targets.forEach(function (t) {
       var svg = document.getElementById(t.svgId);
       if (!svg || !t.wrap.contains(svg)) return;
+
+      ensureChartStage(t);
 
       t.wrap.classList.add("pa-chart-layout-sync");
 
@@ -148,6 +327,19 @@
       t.wrap.style.width = "100%";
       clearSizeLocks(t.wrap);
 
+      if (t.stage) {
+        t.stage.style.width = "100%";
+        t.stage.style.height = chartH + "px";
+        t.stage.style.position = "relative";
+        clearSizeLocks(t.stage);
+      }
+
+      if (t.viewport) {
+        t.viewport.style.width = "auto";
+        t.viewport.style.height = chartH + "px";
+        clearSizeLocks(t.viewport);
+      }
+
       svg.style.display = "block";
       svg.style.width = "100%";
       svg.style.height = chartH + "px";
@@ -155,7 +347,7 @@
       svg.style.maxHeight = "";
       svg.style.marginTop = "0";
       svg.style.marginBottom = "0";
-      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      svg.setAttribute("preserveAspectRatio", "none");
 
       var card = t.wrap.closest("#pa-chart-card, #ia-chart-card");
       if (card) {
@@ -201,7 +393,7 @@
   }
 
   function onResize(entries) {
-    if (layoutSyncing) return;
+    if (layoutSyncing || dragState) return;
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i];
       var w = entry.contentRect.width;
@@ -213,6 +405,9 @@
     }
   }
 
+  targets.forEach(function (t) {
+    ensureChartStage(t);
+  });
   applyAll();
   window.addEventListener("resize", scheduleLayoutSync);
   window.paSyncChartLayout = scheduleLayoutSync;
