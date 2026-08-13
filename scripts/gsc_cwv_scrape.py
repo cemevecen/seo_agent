@@ -635,6 +635,300 @@ def _parse_drilldown_affected_count(body: str) -> int | None:
     return None
 
 
+def _discover_item_keys_from_page(page) -> list[str]:
+    """Özet tablodaki tüm drilldown linklerinden item_key topla."""
+    try:
+        raw = page.evaluate(
+            """() => {
+          const out = new Set();
+          const grab = (href) => {
+            if (!href || !String(href).includes('item_key=')) return;
+            try {
+              const u = new URL(href, location.href);
+              const k = u.searchParams.get('item_key');
+              if (k && k.length >= 4) out.add(k);
+            } catch (_) {}
+          };
+          for (const a of document.querySelectorAll('a[href*="item_key="]')) {
+            grab(a.getAttribute('href'));
+          }
+          for (const tr of document.querySelectorAll('table tbody tr')) {
+            for (const a of tr.querySelectorAll('a[href]')) grab(a.getAttribute('href'));
+          }
+          return [...out];
+        }"""
+        )
+    except Exception:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for k in raw or []:
+        key = str(k or "").strip()
+        if key and key not in seen:
+            seen.add(key)
+            out.append(key)
+    return out
+
+
+def _parse_drilldown_chart_tooltip(
+    text: str,
+    *,
+    prefer_after: str | None = None,
+    default_year: int | None = None,
+) -> dict[str, Any] | None:
+    """Drilldown grafiği tooltip — tek etkilenen URL sayısı + tarih."""
+    # _clean önce PUA aralığında \n'yi siliyor → "2026"+"110" birleşir; satır sonunu boşluğa çevir.
+    raw = re.sub(r"[\u0000-\u001f]+", " ", text or "")
+    raw = _PUA_RE.sub("", raw)
+    raw = re.sub(r"\s+", " ", raw).strip()
+    if not raw or len(raw) < 4:
+        return None
+    t = _fold_tr(raw)
+    year_hint = default_year
+    if prefer_after and re.match(r"^\d{4}-\d{2}-\d{2}$", str(prefer_after)[:10]):
+        try:
+            year_hint = int(str(prefer_after)[:4])
+        except ValueError:
+            year_hint = default_year
+    date = ""
+    for line in raw.splitlines():
+        iso = _gsc_label_to_iso(line, default_year=year_hint)
+        if iso:
+            date = iso
+            break
+    if not date:
+        m = re.search(r"(\d{1,2}[./]\d{1,2}[./]\d{2,4})", raw)
+        if m:
+            date = _gsc_label_to_iso(m.group(1), default_year=year_hint)
+    if not date:
+        m = re.search(
+            r"(\d{1,2}\s+[A-Za-zçğıöşüÇĞİÖŞÜ]{3,}(?:\s+\d{2,4})?|[A-Za-z]{3,}\s+\d{1,2}(?:,?\s+\d{2,4})?)",
+            raw,
+        )
+        if m:
+            date = _gsc_label_to_iso(m.group(0), default_year=year_hint)
+    if prefer_after and date and re.match(r"^\d{4}-\d{2}-\d{2}$", str(prefer_after)[:10]):
+        try:
+            d = datetime.strptime(date[:10], "%Y-%m-%d")
+            prev = datetime.strptime(str(prefer_after)[:10], "%Y-%m-%d")
+            if d < prev - timedelta(days=14):
+                bumped = d.replace(year=d.year + 1)
+                if bumped >= prev - timedelta(days=2):
+                    date = bumped.strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+
+    num = r"([\d\.,]+\s*[BK]?)"
+    count = 0
+    for pat in (
+        rf"(?:etkilenen|affected)[^\d]{{0,48}}{num}",
+        rf"{num}[^\d]{{0,28}}(?:etkilenen|affected)",
+        rf"(?:url\s*sayisi|urls?)[^\d]{{0,24}}{num}",
+        rf"(?:yetersiz|kotu|poor|iyilestir|good|iyi)[^\d]{{0,28}}{num}",
+    ):
+        m = re.search(pat, t, re.I)
+        if m:
+            count = _parse_count(m.group(1))
+            if count:
+                break
+    if not count:
+        vals = [_parse_count(x) for x in re.findall(r"[\d\.,]+\s*[BK]?", raw)]
+        vals = [v for v in vals if v >= 1 and not (2000 <= v <= 2100)]
+        if vals:
+            count = max(vals)
+    if not date and not count:
+        return None
+    return {"date": date or "", "count": int(count or 0)}
+
+
+_DRILLDOWN_TIP_TEXT_JS = r"""() => {
+  const hit = (el) => {
+    const t = (el.innerText || el.textContent || '').trim();
+    if (t.length < 5 || t.length > 480) return false;
+    if (!/\d/.test(t)) return false;
+    return /affected|etkilenen|url|poor|good|yetersiz|kotu|iyilestir|improvement|iyi/i.test(t);
+  };
+  const nodes = [...document.querySelectorAll('div, span, li, p')].filter((el) => {
+    const cs = getComputedStyle(el);
+    if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) === 0) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width < 60 || r.height < 24 || r.width > 520) return false;
+    return hit(el);
+  });
+  nodes.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length);
+  return nodes.length ? (nodes[0].innerText || '') : '';
+}"""
+
+
+def _chart_plot_box(page, chart_idx: int = 0) -> dict[str, Any] | None:
+    try:
+        box = page.evaluate(
+            """(i) => {
+              const svgs = [...document.querySelectorAll('svg')].filter(svg => {
+                const bb = svg.getBoundingClientRect();
+                return bb.width >= 280 && bb.height >= 100;
+              });
+              const svg = svgs[i];
+              if (!svg) return null;
+              svg.scrollIntoView({block: 'center', inline: 'nearest'});
+              const bb = svg.getBoundingClientRect();
+              let plot = null;
+              const clips = [...svg.querySelectorAll('clipPath rect, rect')];
+              for (const r of clips) {
+                const rb = r.getBoundingClientRect();
+                if (rb.width >= bb.width * 0.55 && rb.height >= bb.height * 0.45) {
+                  if (!plot || rb.width * rb.height > plot.w * plot.h) {
+                    plot = {x: rb.x, y: rb.y, w: rb.width, h: rb.height};
+                  }
+                }
+              }
+              const padL = 48, padR = 12, padT = 16, padB = 28;
+              if (!plot) {
+                plot = {
+                  x: bb.x + padL,
+                  y: bb.y + padT,
+                  w: Math.max(40, bb.width - padL - padR),
+                  h: Math.max(40, bb.height - padT - padB),
+                };
+              }
+              return { x: plot.x, y: plot.y, width: plot.w, height: plot.h };
+            }""",
+            chart_idx,
+        )
+    except Exception:
+        return None
+    return box if isinstance(box, dict) else None
+
+
+def _harvest_drilldown_affected_series(page, *, end_iso: str = "") -> dict[str, Any] | None:
+    """Drilldown sayfası grafiğinde sütun sütun tooltip tara — ana sayfa ile aynı mantık."""
+    box = _chart_plot_box(page, 0)
+    if not box:
+        return None
+    w = float(box.get("width") or 0)
+    h = float(box.get("height") or 0)
+    if w < 160 or h < 60:
+        return None
+    time.sleep(0.2)
+    samples: dict[str, int] = {}
+    n = max(240, min(int(round(w)) + 1, 900))
+    y = float(box["y"]) + h * 0.62
+    x0 = float(box["x"]) + 2.0
+    x1 = float(box["x"]) + w - 2.0
+    last_date = ""
+    same_streak = 0
+    target_end = str(end_iso or "")[:10]
+    print(f"    drilldown tooltip sweep: {n} steps · plot {w:.0f}×{h:.0f}px", flush=True)
+    i = 0
+    while i < n:
+        t = i / max(n - 1, 1)
+        x = x0 + (x1 - x0) * t
+        try:
+            page.mouse.move(x, y)
+        except Exception:
+            i += 1
+            continue
+        time.sleep(0.028)
+        try:
+            text = page.evaluate(_DRILLDOWN_TIP_TEXT_JS)
+        except Exception:
+            text = ""
+        parsed = _parse_drilldown_chart_tooltip(
+            str(text or ""),
+            prefer_after=last_date or (sorted(samples)[-1] if samples else None),
+        )
+        if parsed and (parsed.get("date") or parsed.get("count")):
+            d = str(parsed.get("date") or last_date or "")[:10]
+            cnt = int(parsed.get("count") or 0)
+            if d and re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+                samples[d] = cnt
+                if d == last_date:
+                    same_streak += 1
+                    if same_streak >= 4:
+                        i += max(2, n // 120)
+                        same_streak = 0
+                        continue
+                else:
+                    same_streak = 0
+                    last_date = d
+            elif cnt and last_date:
+                samples[last_date] = cnt
+        i += 1
+
+    if len(samples) < 4:
+        samples = {}
+        y2 = float(box["y"]) + h * 0.48
+        print("    drilldown tooltip sweep: retry y-band", flush=True)
+        last_date = ""
+        for i in range(n):
+            t = i / max(n - 1, 1)
+            x = x0 + (x1 - x0) * t
+            try:
+                page.mouse.move(x, y2)
+            except Exception:
+                continue
+            time.sleep(0.028)
+            try:
+                text = page.evaluate(_DRILLDOWN_TIP_TEXT_JS)
+            except Exception:
+                text = ""
+            parsed = _parse_drilldown_chart_tooltip(
+                str(text or ""),
+                prefer_after=last_date or (sorted(samples)[-1] if samples else None),
+            )
+            if parsed:
+                d = str(parsed.get("date") or "")[:10]
+                cnt = int(parsed.get("count") or 0)
+                if d and re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+                    samples[d] = cnt
+                    last_date = d
+                elif cnt and last_date:
+                    samples[last_date] = cnt
+
+    if len(samples) < 3:
+        return None
+    dates = sorted(samples)
+    counts = [int(samples[d]) for d in dates]
+    tip_last = dates[-1]
+    if target_end and tip_last < target_end:
+        dense_n = max(36, int(w * 0.12))
+        x_dense0 = x0 + (x1 - x0) * 0.88
+        prefer = tip_last
+        for i in range(dense_n):
+            t = i / max(dense_n - 1, 1)
+            x = x_dense0 + (x1 - x_dense0) * t
+            try:
+                page.mouse.move(x, y)
+            except Exception:
+                continue
+            time.sleep(0.032)
+            try:
+                text = page.evaluate(_DRILLDOWN_TIP_TEXT_JS)
+            except Exception:
+                text = ""
+            parsed = _parse_drilldown_chart_tooltip(str(text or ""), prefer_after=prefer)
+            if parsed and parsed.get("date"):
+                d = str(parsed["date"])[:10]
+                if re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+                    samples[d] = int(parsed.get("count") or samples.get(d) or 0)
+                    prefer = d
+        dates = sorted(samples)
+        counts = [int(samples[d]) for d in dates]
+
+    print(
+        f"    drilldown tooltip: {len(dates)} pts {dates[0]} → {dates[-1]} "
+        f"last={counts[-1] if counts else '—'}",
+        flush=True,
+    )
+    return {
+        "dates": dates,
+        "counts": counts,
+        "affected_url_count": counts[-1] if counts else None,
+        "source": "drilldown_tooltip",
+        "tooltip_points": len(dates),
+    }
+
+
 def _kpis_from_issue_drilldowns(
     drilldowns: list[dict[str, Any]],
     *,
@@ -657,17 +951,127 @@ def _kpis_from_issue_drilldowns(
     return out
 
 
-def _enrich_drilldown_from_page(page, drill: dict[str, Any]) -> None:
-    """Drilldown sayfasından etkilenen URL sayısını oku."""
+def _enrich_drilldown_from_page(page, drill: dict[str, Any], *, end_iso: str = "") -> None:
+    """Drilldown — önce grafik tooltip sütun taraması, sonra gövde metni yedek."""
+    series = _harvest_drilldown_affected_series(page, end_iso=end_iso)
+    if series and series.get("dates"):
+        drill["affected_chart_series"] = {
+            "dates": series["dates"],
+            "counts": series["counts"],
+            "source": series.get("source"),
+            "tooltip_points": series.get("tooltip_points"),
+        }
+        if series.get("affected_url_count") is not None:
+            drill["affected_url_count"] = int(series["affected_url_count"])
+            drill["affected_count_source"] = "drilldown_tooltip"
+
     body = ""
-    try:
-        body = page.inner_text("body") or ""
-    except Exception:
-        body = str((drill.get("body_head") or ""))
-    affected = _parse_drilldown_affected_count(body)
-    if affected is not None:
-        drill["affected_url_count"] = affected
+    if drill.get("affected_url_count") is None:
+        try:
+            body = page.inner_text("body") or ""
+        except Exception:
+            body = str((drill.get("body_head") or ""))
+        affected = _parse_drilldown_affected_count(body)
+        if affected is not None:
+            drill["affected_url_count"] = affected
+            drill["affected_count_source"] = "body_text"
     drill["drilldown_url"] = drill.get("source_url") or drill.get("drilldown_url") or ""
+
+
+def _issue_title_from_drilldown_body(body: str) -> str:
+    for marker in (
+        "LCP sorunu",
+        "INP sorunu",
+        "CLS sorunu",
+        "LCP issue",
+        "INP issue",
+        "CLS issue",
+    ):
+        if marker.lower() in (body or "").lower():
+            m = re.search(re.escape(marker) + r"[^\n]{0,80}", body, re.I)
+            return (m.group(0) if m else marker).strip()
+    return ""
+
+
+def _scrape_cwv_issue_drilldown(
+    page,
+    *,
+    resource_id: str,
+    device: int,
+    item_key: str,
+    issue_hint: dict[str, Any] | None = None,
+    end_iso: str = "",
+) -> dict[str, Any]:
+    """Tek CWV drilldown URL — grafik tooltip + URL tablosu."""
+    url = _cwv_url(resource_id, "/drilldown", item_key=item_key, device=device)
+    page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+    time.sleep(3.5)
+    _wait_table(page)
+    dmeta = _extract_page_meta(page)
+    body = str(dmeta.get("body_head") or "")
+    hint = issue_hint if isinstance(issue_hint, dict) else {}
+    title = str(hint.get("title") or "").strip() or _issue_title_from_drilldown_body(body)
+    if not title:
+        title = str(dmeta.get("title") or "").strip()
+    status = str(hint.get("status") or "") or _status_from_text(body)
+    metric = str(hint.get("metric") or "") or _metric_from_issue(title or body[:120])
+    try:
+        urls = _scrape_url_table(page)
+    except Exception as exc:  # noqa: BLE001
+        print(f"    url table skip ({item_key}): {exc}", flush=True)
+        urls = []
+    for u in urls:
+        u.setdefault("metric", metric)
+    dd: dict[str, Any] = {
+        "status": status,
+        "title": title or f"{metric} ({item_key})",
+        "metric": metric,
+        "item_key": item_key,
+        "source_url": page.url or url,
+        "url_rows": urls,
+        "url_row_count": len(urls),
+        "causes": explain_causes(metric, status, title),
+    }
+    _enrich_drilldown_from_page(page, dd, end_iso=end_iso)
+    return dd
+
+
+def _scrape_amp_issue_drilldown(
+    page,
+    *,
+    resource_id: str,
+    item_key: str,
+    issue_hint: dict[str, Any] | None = None,
+    end_iso: str = "",
+) -> dict[str, Any]:
+    """Tek AMP drilldown URL — grafik tooltip + URL tablosu."""
+    url = _amp_url(resource_id, "/drilldown", item_key=item_key)
+    page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+    time.sleep(4)
+    _wait_table(page)
+    dmeta = _extract_page_meta(page)
+    body = str(dmeta.get("body_head") or "")
+    hint = issue_hint if isinstance(issue_hint, dict) else {}
+    title = str(hint.get("title") or "").strip() or _extract_amp_issue_title(
+        body, str(dmeta.get("title") or "")
+    )
+    status = str(hint.get("status") or "") or "needs_improvement"
+    if "error" in body.lower() or "kritik" in body.lower() or "not allowed" in body.lower():
+        status = "poor"
+    metric = str(hint.get("metric") or "") or _metric_from_issue(title)
+    urls = _scrape_url_table(page)
+    dd: dict[str, Any] = {
+        "status": status,
+        "title": title,
+        "metric": metric,
+        "item_key": item_key,
+        "source_url": page.url or url,
+        "url_rows": urls,
+        "url_row_count": len(urls),
+        "causes": explain_causes(metric, status, title),
+    }
+    _enrich_drilldown_from_page(page, dd, end_iso=end_iso)
+    return dd
 
 
 def _parse_overview_triplet(block: str) -> dict[str, int] | None:
@@ -1726,10 +2130,12 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
             }
         )
 
-    # Click each issue row → drilldown (discover item_key)
-    drilldowns: list[dict[str, Any]] = []
+    # Tüm drilldown item_key'leri topla (link + satır tıklama + bilinen yedek)
+    discovered_keys: list[str] = list(_discover_item_keys_from_page(page))
+    key_to_issue: dict[str, dict[str, Any]] = {}
     issue_count = len(issues)
-    for idx in range(issue_count):
+    rows_n = page.locator("table tbody tr").count()
+    for idx in range(max(issue_count, rows_n)):
         page.goto(_cwv_url(resource_id, "/summary", device=device), wait_until="domcontentloaded", timeout=120_000)
         time.sleep(3)
         _wait_table(page)
@@ -1737,92 +2143,77 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
         n = rows.count()
         if idx >= n:
             break
-        print(f"    issue {idx + 1}/{n}…", flush=True)
+        print(f"    issue row {idx + 1}/{n} (discover item_key)…", flush=True)
         try:
             rows.nth(idx).click(timeout=20_000)
             time.sleep(3.5)
         except Exception as exc:  # noqa: BLE001
             print(f"    issue click skip: {exc}", flush=True)
-            # Bilinen item_key yoksa satırı atla
             continue
         cur = page.url or ""
         if "drilldown" not in cur and "item_key" not in cur:
-            print(f"    issue drilldown açılmadı: {cur[:120]}", flush=True)
             continue
         qs = parse_qs(urlparse(cur).query)
         item_key = (qs.get("item_key") or [""])[0]
-        dmeta = _extract_page_meta(page)
-        title = issues[idx]["title"] if idx < len(issues) else (dmeta.get("title") or "")
-        status = issues[idx]["status"] if idx < len(issues) else _status_from_text(dmeta.get("body_head") or "")
-        metric = _metric_from_issue(title)
-        try:
-            urls = _scrape_url_table(page)
-        except Exception as exc:  # noqa: BLE001
-            print(f"    url table skip: {exc}", flush=True)
-            urls = []
-        for u in urls:
-            u.setdefault("metric", metric)
-        dd = {
-            "status": status,
-            "title": title,
-            "metric": metric,
-            "item_key": item_key,
-            "source_url": cur,
-            "url_rows": urls,
-            "url_row_count": len(urls),
-            "causes": explain_causes(metric, status, title),
-        }
-        _enrich_drilldown_from_page(page, dd)
-        drilldowns.append(dd)
-        if idx < len(issues):
-            issues[idx]["item_key"] = item_key
-            issues[idx]["drilldown_url"] = cur
-            if dd.get("affected_url_count") is not None:
-                issues[idx]["url_count"] = dd["affected_url_count"]
-
-    # Tıklanamayan / eksik kırılımlar için bilinen item_key fallback
-    have_keys = {str(d.get("item_key") or "") for d in drilldowns}
-    for key in KNOWN_ITEM_KEYS.get(device) or []:
-        if key in have_keys:
+        if not item_key:
             continue
-        print(f"    fallback item_key={key}…", flush=True)
+        if item_key not in discovered_keys:
+            discovered_keys.append(item_key)
+        if idx < len(issues):
+            key_to_issue[item_key] = issues[idx]
+
+    all_keys: list[str] = []
+    seen_keys: set[str] = set()
+    for k in discovered_keys + list(KNOWN_ITEM_KEYS.get(device) or []):
+        key = str(k or "").strip()
+        if key and key not in seen_keys:
+            seen_keys.add(key)
+            all_keys.append(key)
+
+    drilldowns: list[dict[str, Any]] = []
+    end_iso = ""
+    m_end = re.search(r"(\d{1,2}[./]\d{1,2}[./]\d{2,4})", str(meta.get("body_head") or ""))
+    if m_end:
+        end_iso = _gsc_label_to_iso(m_end.group(1)) or ""
+
+    print(f"    {len(all_keys)} drilldown ziyaret edilecek…", flush=True)
+    for i, item_key in enumerate(all_keys):
+        print(f"    drilldown {i + 1}/{len(all_keys)} item_key={item_key}…", flush=True)
         try:
-            page.goto(
-                _cwv_url(resource_id, "/drilldown", item_key=key),
-                wait_until="domcontentloaded",
-                timeout=120_000,
+            dd = _scrape_cwv_issue_drilldown(
+                page,
+                resource_id=resource_id,
+                device=device,
+                item_key=item_key,
+                issue_hint=key_to_issue.get(item_key),
+                end_iso=end_iso,
             )
-            time.sleep(3.5)
-            dmeta = _extract_page_meta(page)
-            body = dmeta.get("body_head") or ""
-            title = ""
-            for marker in ("LCP sorunu", "INP sorunu", "CLS sorunu", "LCP issue", "INP issue", "CLS issue"):
-                if marker.lower() in body.lower():
-                    m = re.search(re.escape(marker) + r"[^\n]{0,80}", body, re.I)
-                    title = (m.group(0) if m else marker).strip()
-                    break
-            status = _status_from_text(body)
-            metric = _metric_from_issue(title or body[:80])
-            urls = _scrape_url_table(page)
-            # Boş / anlamsız fallback satırlarını ekleme (çift kırılım gürültüsü)
-            if not urls and status in ("", "unknown", "good"):
-                print(f"    fallback skip empty {key}", flush=True)
-                continue
-            dd = {
-                "status": status,
-                "title": title or f"{metric} ({key})",
-                "metric": metric,
-                "item_key": key,
-                "source_url": page.url,
-                "url_rows": urls,
-                "url_row_count": len(urls),
-                "causes": explain_causes(metric, status, title),
-                "via": "item_key_fallback",
-            }
-            _enrich_drilldown_from_page(page, dd)
-            drilldowns.append(dd)
         except Exception as exc:  # noqa: BLE001
-            print(f"    fallback skip {key}: {exc}", flush=True)
+            print(f"    drilldown skip {item_key}: {exc}", flush=True)
+            continue
+        if not dd.get("url_rows") and dd.get("affected_url_count") is None:
+            if dd.get("status") in ("", "unknown", "good"):
+                print(f"    drilldown skip empty {item_key}", flush=True)
+                continue
+        drilldowns.append(dd)
+        hint = key_to_issue.get(item_key)
+        if hint is not None:
+            for issue in issues:
+                if issue is hint or (
+                    issue.get("title") == hint.get("title") and issue.get("status") == hint.get("status")
+                ):
+                    issue["item_key"] = item_key
+                    issue["drilldown_url"] = dd.get("source_url") or ""
+                    if dd.get("affected_url_count") is not None:
+                        issue["url_count"] = dd["affected_url_count"]
+                    break
+        else:
+            for issue in issues:
+                if issue.get("item_key") == item_key:
+                    if dd.get("affected_url_count") is not None:
+                        issue["url_count"] = dd["affected_url_count"]
+                    issue["drilldown_url"] = dd.get("source_url") or ""
+                    break
 
     # Good URLs drilldown (device-only — özet değil kırılım sayfası)
     print(f"  · {label} good URLs drilldown…", flush=True)
@@ -1839,10 +2230,14 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
         _wait_table(page)
         good_urls = _scrape_url_table(page)
         good_meta = _extract_page_meta(page)
-        try:
-            good_affected = _parse_drilldown_affected_count(page.inner_text("body") or "")
-        except Exception:
-            good_affected = None
+        good_stub: dict[str, Any] = {"source_url": page.url}
+        _enrich_drilldown_from_page(page, good_stub, end_iso=end_iso)
+        good_affected = good_stub.get("affected_url_count")
+        if good_affected is None:
+            try:
+                good_affected = _parse_drilldown_affected_count(page.inner_text("body") or "")
+            except Exception:
+                good_affected = None
     except Exception as exc:  # noqa: BLE001
         print(f"  · good URLs skip: {exc}", flush=True)
 
@@ -1909,22 +2304,19 @@ def _scrape_amp(page, *, resource_id: str) -> dict[str, Any]:
     print("  · AMP overview…", flush=True)
     page.goto(_amp_url(resource_id), wait_until="domcontentloaded", timeout=120_000)
     time.sleep(4)
-    _extract_page_meta(page)
+    meta = _extract_page_meta(page)
     issues_table = _extract_table(page)
-    amp_issues: list[dict[str, Any]] = []
-    # Prefer known drilldown + click rows
-    overview_issues = []
+    amp_issue_hints: list[dict[str, Any]] = []
     for row in issues_table.get("rows") or []:
         if len(row) < 1:
             continue
         title = row[0] if not row[0].startswith("http") else (row[1] if len(row) > 1 else row[0])
-        overview_issues.append({"title": _clean(title), "cells": row})
+        amp_issue_hints.append({"title": _clean(title), "cells": row})
 
-    # Seed with user-provided image-size issue
-    seed_keys = ["GgoIIBACIgAiACIA"]
-    discovered_keys: list[str] = list(seed_keys)
+    discovered_keys: list[str] = list(_discover_item_keys_from_page(page))
+    seed_keys = ["GgoIIBACIgAiACIA", "GgcIIhADKJ1O"]
+    key_to_hint: dict[str, dict[str, Any]] = {}
 
-    # Click issue rows on AMP summary if present
     n = page.locator("table tbody tr").count()
     for idx in range(n):
         page.goto(_amp_url(resource_id), wait_until="domcontentloaded", timeout=120_000)
@@ -1933,6 +2325,7 @@ def _scrape_amp(page, *, resource_id: str) -> dict[str, Any]:
         rows = page.locator("table tbody tr")
         if idx >= rows.count():
             break
+        print(f"  · AMP issue row {idx + 1}/{n} (discover item_key)…", flush=True)
         try:
             rows.nth(idx).click(timeout=15_000)
             time.sleep(3)
@@ -1941,34 +2334,42 @@ def _scrape_amp(page, *, resource_id: str) -> dict[str, Any]:
             continue
         qs = parse_qs(urlparse(page.url).query)
         key = (qs.get("item_key") or [""])[0]
-        if key and key not in discovered_keys:
+        if not key:
+            continue
+        if key not in discovered_keys:
             discovered_keys.append(key)
+        if idx < len(amp_issue_hints):
+            key_to_hint[key] = amp_issue_hints[idx]
 
-    for key in discovered_keys:
-        print(f"  · AMP drilldown {key}…", flush=True)
-        page.goto(_amp_url(resource_id, "/drilldown", item_key=key), wait_until="domcontentloaded", timeout=120_000)
-        time.sleep(4)
-        _wait_table(page)
-        dmeta = _extract_page_meta(page)
-        body = dmeta.get("body_head") or ""
-        title = _extract_amp_issue_title(body, str(dmeta.get("title") or ""))
-        status = "needs_improvement"
-        if "error" in body.lower() or "kritik" in body.lower() or "not allowed" in body.lower():
-            status = "poor"
-        urls = _scrape_url_table(page)
-        metric = _metric_from_issue(title)
-        amp_issues.append(
-            {
-                "status": status,
-                "title": title,
-                "metric": metric,
-                "item_key": key,
-                "source_url": page.url,
-                "url_rows": urls,
-                "url_row_count": len(urls),
-                "causes": explain_causes(metric, status, title),
-            }
-        )
+    all_keys: list[str] = []
+    seen_keys: set[str] = set()
+    for k in discovered_keys + seed_keys:
+        key = str(k or "").strip()
+        if key and key not in seen_keys:
+            seen_keys.add(key)
+            all_keys.append(key)
+
+    end_iso = ""
+    m_end = re.search(r"(\d{1,2}[./]\d{1,2}[./]\d{2,4})", str(meta.get("body_head") or ""))
+    if m_end:
+        end_iso = _gsc_label_to_iso(m_end.group(1)) or ""
+
+    amp_issues: list[dict[str, Any]] = []
+    print(f"  · {len(all_keys)} AMP drilldown ziyaret edilecek…", flush=True)
+    for i, key in enumerate(all_keys):
+        print(f"  · AMP drilldown {i + 1}/{len(all_keys)} item_key={key}…", flush=True)
+        try:
+            dd = _scrape_amp_issue_drilldown(
+                page,
+                resource_id=resource_id,
+                item_key=key,
+                issue_hint=key_to_hint.get(key),
+                end_iso=end_iso,
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"  · AMP drilldown skip {key}: {exc}", flush=True)
+            continue
+        amp_issues.append(dd)
 
     total_amp = sum(int(i.get("url_row_count") or 0) for i in amp_issues)
     return {

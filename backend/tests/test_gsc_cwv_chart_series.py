@@ -438,3 +438,18 @@ def test_kpis_from_issue_drilldowns_sums_by_status():
     assert kpis["poor"] == 110
     assert kpis["needs_improvement"] == 6180
     assert kpis["good"] == 7130
+
+
+def test_parse_drilldown_chart_tooltip_en():
+    tip = "Aug 9, 2026\n110 affected URLs"
+    parsed = mod._parse_drilldown_chart_tooltip(tip)
+    assert parsed is not None
+    assert parsed["count"] == 110
+    assert parsed["date"] == "2026-08-09"
+
+
+def test_parse_drilldown_chart_tooltip_tr():
+    tip = "9 Ağu 2026\nEtkilenen URL sayısı: 6179"
+    parsed = mod._parse_drilldown_chart_tooltip(tip, default_year=2026)
+    assert parsed is not None
+    assert parsed["count"] == 6179
