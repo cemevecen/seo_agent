@@ -122,6 +122,43 @@
     );
   }
 
+  function isoDate(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
+  var DATE_PRESETS = [
+    { v: "yesterday", l: "Yesterday" },
+    { v: "3", l: "Last 3 days" },
+    { v: "7", l: "Last 1 week" },
+    { v: "14", l: "Last 2 weeks" },
+    { v: "30", l: "Last 1 month" },
+    { v: "90", l: "Last 3 months" },
+    { v: "180", l: "Last 6 months" },
+    { v: "270", l: "Last 9 months" },
+    { v: "365", l: "Last 1 year" },
+  ];
+
+  function pagePreset() {
+    var el = document.getElementById("pa-preset");
+    return el && el.value ? el.value : "30";
+  }
+
+  function applyDatePreset(raw) {
+    var end = new Date();
+    var start = new Date();
+    if (raw === "yesterday") {
+      end.setDate(end.getDate() - 1);
+      start = new Date(end.getTime());
+    } else {
+      var days = parseInt(raw, 10) || 30;
+      start.setDate(end.getDate() - (days - 1));
+    }
+    return { start: isoDate(start), end: isoDate(end) };
+  }
+
   function pageDateRange() {
     var s = document.getElementById("pa-start");
     var e = document.getElementById("pa-end");
@@ -135,6 +172,7 @@
     var p = {
       start: (pageDr && pageDr.start) || dr.start || isoDaysAgo(27),
       end: (pageDr && pageDr.end) || dr.end || isoToday(),
+      preset: pagePreset(),
       metric: "crashes",
       dim: "country",
       metric_left: "ga4:sessions",
@@ -164,8 +202,10 @@
       return { v: d, l: d };
     });
     var parts = [];
-    if (c.indexOf("start") >= 0) parts.push(inputHtml("start", "Başlangıç", "date", params.start));
-    if (c.indexOf("end") >= 0) parts.push(inputHtml("end", "Bitiş", "date", params.end));
+    var hasDates = c.indexOf("start") >= 0 && c.indexOf("end") >= 0;
+    if (c.indexOf("start") >= 0) parts.push(inputHtml("start", "Start", "date", params.start));
+    if (c.indexOf("end") >= 0) parts.push(inputHtml("end", "End", "date", params.end));
+    if (hasDates) parts.push(selectHtml("preset", "Preset", DATE_PRESETS, params.preset || "30"));
     if (c.indexOf("metric") >= 0) parts.push(selectHtml("metric", "Metrik", mo, params.metric));
     if (c.indexOf("dim") >= 0) parts.push(selectHtml("dim", "Kırılım", dims, params.dim));
     if (c.indexOf("metric_left") >= 0) parts.push(selectHtml("metric_left", "Sol eksen", mo, params.metric_left));
@@ -634,8 +674,30 @@
     }
     details.querySelectorAll(".pa-viz20-ctrl").forEach(function (el) {
       el.addEventListener("change", function () {
+        if (el.getAttribute("data-ctrl") === "preset") {
+          var range = applyDatePreset(el.value);
+          var startEl = details.querySelector('[data-ctrl="start"]');
+          var endEl = details.querySelector('[data-ctrl="end"]');
+          if (startEl) startEl.value = range.start;
+          if (endEl) endEl.value = range.end;
+        }
         if (details.open) loadViz(details);
       });
+    });
+  }
+
+  function syncAllFromMainPreset() {
+    var mainPreset = document.getElementById("pa-preset");
+    if (!mainPreset) return;
+    var range = applyDatePreset(mainPreset.value);
+    root.querySelectorAll("details.pa-viz20-drop").forEach(function (details) {
+      var presetEl = details.querySelector('[data-ctrl="preset"]');
+      var startEl = details.querySelector('[data-ctrl="start"]');
+      var endEl = details.querySelector('[data-ctrl="end"]');
+      if (presetEl) presetEl.value = mainPreset.value;
+      if (startEl) startEl.value = range.start;
+      if (endEl) endEl.value = range.end;
+      if (details.open) loadViz(details);
     });
   }
 
@@ -671,6 +733,11 @@
       bindDetails(details);
       root.appendChild(details);
     });
+    var mainPreset = document.getElementById("pa-preset");
+    if (mainPreset && !mainPreset.getAttribute("data-viz20-bound")) {
+      mainPreset.setAttribute("data-viz20-bound", "1");
+      mainPreset.addEventListener("change", syncAllFromMainPreset);
+    }
   }
 
   fetch("/api/play-analytics/viz20/meta", { credentials: "same-origin", cache: "no-store" })
