@@ -421,11 +421,11 @@
   function toggleViz20MetricDropdown(details, meta) {
     var list = metricListFor(details);
     if (!list) return;
-    var open = list.classList.contains("hidden");
+    var isHidden = list.classList.contains("hidden");
     root.querySelectorAll("details.pa-viz20-drop").forEach(function (d) {
       if (d !== details) setViz20MetricDropdownOpen(d, metaCache, false);
     });
-    setViz20MetricDropdownOpen(details, meta, !open);
+    setViz20MetricDropdownOpen(details, meta, isHidden);
   }
 
   function metricsMultiSelectHtml(meta, metricsValue) {
@@ -1143,14 +1143,18 @@
       toggleViz20MetricDropdown(details, meta);
     }
 
-    trigger.addEventListener("click", openToggle);
+    trigger.addEventListener("pointerdown", openToggle);
+    trigger.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+    });
     trigger.addEventListener("keydown", function (ev) {
       if (ev.key === "Enter" || ev.key === " ") {
         openToggle(ev);
       }
     });
     if (wrap) {
-      wrap.addEventListener("click", function (ev) {
+      wrap.addEventListener("pointerdown", function (ev) {
         if (ev.target.closest(".pa-viz20-metric-trigger")) return;
         if (ev.target.closest(".pa-viz20-metric-list")) return;
         openToggle(ev);

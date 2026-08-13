@@ -226,6 +226,7 @@ html.midnight .pa-viz20-metric-field {
   width: 100%;
   position: relative;
   z-index: 4;
+  flex: 0 0 auto;
 }
 
 .pa-viz20-metric-trigger {
@@ -247,6 +248,8 @@ html.midnight .pa-viz20-metric-field {
   pointer-events: auto;
   position: relative;
   z-index: 2;
+  flex: 0 0 auto;
+  height: auto;
 }
 
 html.dark .pa-viz20-metric-trigger,
