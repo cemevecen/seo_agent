@@ -708,6 +708,16 @@ def _release_context(pw, context) -> None:
     release_browser(pw, context, attached=attached)
 
 
+def _page_is_alive(page) -> bool:
+    try:
+        if page is None or page.is_closed():
+            return False
+        page.evaluate("() => true")
+        return True
+    except Exception:
+        return False
+
+
 def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
     """Gerçek Firefox.app — Google Playwright otomasyonunu 'güvenli değil' diye reddeder."""
     from backend.services.scrape_browser import launch_system_firefox_login
@@ -4357,63 +4367,105 @@ def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[
     primary_crash: dict[str, Any] = {}
     primary_anr: dict[str, Any] = {}
     primary_vc: str | None = codes[0] if codes else None
+    vitals_errors: list[str] = []
 
     for idx, vc in enumerate(pass_codes):
         label = vc or "all"
+        if not _page_is_alive(page):
+            vitals_errors.append(f"{label}:browser_closed")
+            print("  · vitals durdu: tarayıcı/pencere kapalı", flush=True)
+            break
         # Detay sayfaları yalnızca en yeni sürümde (süre); diğerlerinde liste yeterli
         want_details = idx == 0
         if vc:
             print(f"  · vitals versionCode={vc} (details={want_details}) …", flush=True)
         else:
             print("  · vitals (all versions) …", flush=True)
-        print(f"  · vitals crashes (CRASH) [{label}] …", flush=True)
-        crash = _scrape_vitals_crashes_error_type(
-            page,
-            error_type="CRASH",
-            days=days,
-            headed=headed,
-            version_code=vc if vc is not None else "",
-            scrape_details=want_details,
-        )
-        version_name_map = _merge_version_name_maps(
-            version_name_map, _extract_version_name_map(page)
-        )
-        version_name_map = _harvest_version_names_from_vitals_block(crash, version_name_map)
-        print(f"  · vitals crashes (ANR) [{label}] …", flush=True)
-        anr = _scrape_vitals_crashes_error_type(
-            page,
-            error_type="ANR",
-            days=days,
-            headed=headed,
-            version_code=vc if vc is not None else "",
-            scrape_details=want_details,
-        )
-        version_name_map = _merge_version_name_maps(
-            version_name_map, _extract_version_name_map(page)
-        )
-        version_name_map = _harvest_version_names_from_vitals_block(anr, version_name_map)
-        key = str(vc) if vc else "all"
-        by_version[key] = {"crashes": {"CRASH": crash, "ANR": anr}}
-        if idx == 0:
-            primary_crash, primary_anr = crash, anr
-            if vc:
-                primary_vc = str(vc)
+        try:
+            print(f"  · vitals crashes (CRASH) [{label}] …", flush=True)
+            crash = _scrape_vitals_crashes_error_type(
+                page,
+                error_type="CRASH",
+                days=days,
+                headed=headed,
+                version_code=vc if vc is not None else "",
+                scrape_details=want_details,
+            )
+            version_name_map = _merge_version_name_maps(
+                version_name_map, _extract_version_name_map(page)
+            )
+            version_name_map = _harvest_version_names_from_vitals_block(crash, version_name_map)
+            print(f"  · vitals crashes (ANR) [{label}] …", flush=True)
+            anr = _scrape_vitals_crashes_error_type(
+                page,
+                error_type="ANR",
+                days=days,
+                headed=headed,
+                version_code=vc if vc is not None else "",
+                scrape_details=want_details,
+            )
+            version_name_map = _merge_version_name_maps(
+                version_name_map, _extract_version_name_map(page)
+            )
+            version_name_map = _harvest_version_names_from_vitals_block(anr, version_name_map)
+            key = str(vc) if vc else "all"
+            by_version[key] = {"crashes": {"CRASH": crash, "ANR": anr}}
+            if idx == 0:
+                primary_crash, primary_anr = crash, anr
+                if vc:
+                    primary_vc = str(vc)
+        except Exception as exc:  # noqa: BLE001
+            err = str(exc)[:240]
+            vitals_errors.append(f"{label}:{err}")
+            print(f"  · vitals [{label}] hata: {exc}", flush=True)
+            if not _page_is_alive(page):
+                print("  · vitals durdu: tarayıcı/pencere kapalı", flush=True)
+                break
 
-    print("  · vitals metrics overview …", flush=True)
-    overview = _scrape_vitals_metrics_overview(page, headed=headed)
-    version_name_map = _merge_version_name_maps(
-        version_name_map, _extract_version_name_map(page)
-    )
+    overview: dict[str, Any] = {}
     overview_by_version: dict[str, Any] = {}
-    if primary_vc:
-        print(f"  · vitals metrics overview versionCode={primary_vc} …", flush=True)
-        ov_v = _scrape_vitals_metrics_overview(
-            page, headed=headed, version_code=str(primary_vc)
-        )
-        overview_by_version[str(primary_vc)] = ov_v
-        version_name_map = _merge_version_name_maps(
-            version_name_map, _extract_version_name_map(page)
-        )
+    anr_latest_7d: dict[str, Any] | None = None
+    if _page_is_alive(page):
+        try:
+            print("  · vitals metrics overview …", flush=True)
+            overview = _scrape_vitals_metrics_overview(page, headed=headed)
+            version_name_map = _merge_version_name_maps(
+                version_name_map, _extract_version_name_map(page)
+            )
+            if primary_vc:
+                print(f"  · vitals metrics overview versionCode={primary_vc} …", flush=True)
+                ov_v = _scrape_vitals_metrics_overview(
+                    page, headed=headed, version_code=str(primary_vc)
+                )
+                overview_by_version[str(primary_vc)] = ov_v
+                version_name_map = _merge_version_name_maps(
+                    version_name_map, _extract_version_name_map(page)
+                )
+        except Exception as exc:  # noqa: BLE001
+            vitals_errors.append(f"overview:{str(exc)[:240]}")
+            print(f"  · vitals metrics overview hata: {exc}", flush=True)
+        if primary_vc and _page_is_alive(page):
+            try:
+                print(f"  · vitals ANR 7d versionCode={primary_vc} …", flush=True)
+                anr_7d = _scrape_vitals_crashes_error_type(
+                    page,
+                    error_type="ANR",
+                    days=7,
+                    headed=headed,
+                    version_code=str(primary_vc),
+                    scrape_details=False,
+                )
+                anr_latest_7d = {
+                    "days": 7,
+                    "version_code": str(primary_vc),
+                    "block": anr_7d,
+                }
+            except Exception as exc:  # noqa: BLE001
+                vitals_errors.append(f"anr_7d:{str(exc)[:240]}")
+                print(f"  · vitals ANR 7d hata: {exc}", flush=True)
+    else:
+        vitals_errors.append("browser_closed_before_overview")
+        print("  · vitals overview atlandı: tarayıcı/pencere kapalı", flush=True)
 
     versions: list[dict[str, str]] = []
     for c in pass_codes:
@@ -4476,24 +4528,7 @@ def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[
     )
     print(f"    · issue_details total={detail_n} by_version={list(by_version.keys())}", flush=True)
 
-    anr_latest_7d: dict[str, Any] | None = None
-    if primary_vc:
-        print(f"  · vitals ANR 7d versionCode={primary_vc} …", flush=True)
-        anr_7d = _scrape_vitals_crashes_error_type(
-            page,
-            error_type="ANR",
-            days=7,
-            headed=headed,
-            version_code=str(primary_vc),
-            scrape_details=False,
-        )
-        anr_latest_7d = {
-            "days": 7,
-            "version_code": str(primary_vc),
-            "block": anr_7d,
-        }
-
-    return {
+    out: dict[str, Any] = {
         "version": 3,
         "days": days,
         "version_code": primary_vc,
@@ -4507,6 +4542,9 @@ def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[
         "anr_latest_7d": anr_latest_7d,
         "scraped_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if vitals_errors:
+        out["error"] = "; ".join(vitals_errors[:4])[:240]
+    return out
 
 
 def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
@@ -4683,6 +4721,8 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         vitals_bundle: dict[str, Any] = {}
         try:
             vitals_bundle = _scrape_vitals_bundle(page, headed=bool(headed), days=28)
+            if vitals_bundle.get("error"):
+                print(f"  · vitals uyarı: {vitals_bundle.get('error')}", flush=True)
         except Exception as exc:  # noqa: BLE001
             vitals_bundle = {"version": 1, "error": str(exc)[:240]}
             print(f"  · vitals scrape hata: {exc}", flush=True)
@@ -4695,7 +4735,15 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         view_summaries: list[dict[str, Any]] = []
         known_stats = tuple(dict.fromkeys(list(_KNOWN_STATISTICS) + list(_KNOWN_DASHBOARD)))
 
+        if not _page_is_alive(page):
+            print(
+                "  · stats atlandı: tarayıcı/pencere kapalı — vitals/overview için "
+                "`--vitals-only --sync --ingest` yeterli",
+                flush=True,
+            )
         for view in STATISTICS_VIEWS:
+            if not _page_is_alive(page):
+                break
             view_id = str(view["id"])
             url = _stats_url(
                 metrics=str(view["metrics"]),
@@ -5411,6 +5459,19 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
     merge_reviews = bool(result.get("merge_reviews"))
     merge_ratings_counts = bool(result.get("merge_ratings_counts"))
 
+    def _vitals_usable(vitals: Any) -> bool:
+        if not isinstance(vitals, dict):
+            return False
+        ov = vitals.get("metrics_overview") if isinstance(vitals.get("metrics_overview"), dict) else {}
+        if ov.get("rows") or ov.get("sections"):
+            return True
+        crashes = vitals.get("crashes") if isinstance(vitals.get("crashes"), dict) else {}
+        for k in ("CRASH", "ANR"):
+            block = crashes.get(k) if isinstance(crashes.get(k), dict) else {}
+            if block.get("categories") or block.get("summary_rate"):
+                return True
+        return False
+
     # vitals-only: birleştirme sunucuda yapılır (snapshot admin auth ister)
     if merge_ratings_counts:
         facts = []
@@ -5516,31 +5577,52 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
                 [f for f in (panels.get("explorer_facts") or []) if isinstance(f, dict)]
             )
         if facts_n <= 0 and not result.get("merge_vitals") and not result.get("merge_reviews"):
-            return {
-                "ok": False,
-                "message": (
-                    "Ingest atlandı: explorer_facts boş — mevcut Railway snapshot korunur. "
-                    "Play tarama istatistik görünümleri başarısız; senkronu tekrar deneyin."
-                ),
-                "http_status": 0,
-                "skipped_empty_facts": True,
+            vitals = panels.get("vitals") if isinstance(panels, dict) else {}
+            if _vitals_usable(vitals):
+                payload = {
+                    "metrics": metrics if metrics is not None else [],
+                    "panels": panels if isinstance(panels, dict) else {},
+                    "reviews": [],
+                    "rating_summary": {},
+                    "raw_network": result.get("raw_network") or [],
+                    "source": result.get("source") or "play_console_bridge",
+                    "source_url": result.get("source_url") or DASHBOARD_URL,
+                    "package_name": result.get("package_name") or PACKAGE,
+                    "app_id": result.get("app_id") or APP_ID,
+                    "sync_ok": bool(result.get("ok")),
+                    "sync_message": result.get("message"),
+                    "sync_mode": "vitals_partial",
+                    "merge_vitals": True,
+                    "merge_reviews": False,
+                }
+            else:
+                return {
+                    "ok": False,
+                    "message": (
+                        "Ingest atlandı: explorer_facts boş — mevcut Railway snapshot korunur. "
+                        "Play tarama istatistik görünümleri başarısız; "
+                        "Firefox penceresini kapatmadan `--vitals-only --sync --ingest` deneyin."
+                    ),
+                    "http_status": 0,
+                    "skipped_empty_facts": True,
+                }
+        else:
+            payload = {
+                "metrics": metrics if metrics is not None else [],
+                "panels": panels if isinstance(panels, dict) else {},
+                "reviews": reviews if reviews is not None else [],
+                "rating_summary": rating_summary if rating_summary is not None else {},
+                "raw_network": result.get("raw_network") or [],
+                "source": result.get("source") or "play_console_bridge",
+                "source_url": result.get("source_url") or DASHBOARD_URL,
+                "package_name": result.get("package_name") or PACKAGE,
+                "app_id": result.get("app_id") or APP_ID,
+                "sync_ok": bool(result.get("ok")),
+                "sync_message": result.get("message"),
+                "sync_mode": result.get("sync_mode") or "dashboard_reviews",
+                "merge_vitals": False,
+                "merge_reviews": False,
             }
-        payload = {
-            "metrics": metrics if metrics is not None else [],
-            "panels": panels if isinstance(panels, dict) else {},
-            "reviews": reviews if reviews is not None else [],
-            "rating_summary": rating_summary if rating_summary is not None else {},
-            "raw_network": result.get("raw_network") or [],
-            "source": result.get("source") or "play_console_bridge",
-            "source_url": result.get("source_url") or DASHBOARD_URL,
-            "package_name": result.get("package_name") or PACKAGE,
-            "app_id": result.get("app_id") or APP_ID,
-            "sync_ok": bool(result.get("ok")),
-            "sync_message": result.get("message"),
-            "sync_mode": result.get("sync_mode") or "dashboard_reviews",
-            "merge_vitals": False,
-            "merge_reviews": False,
-        }
     resp = requests.post(
         INGEST_URL,
         headers={
