@@ -45,7 +45,10 @@
 
   var height = readStored(HEIGHT_KEY, ["1", "2", "3"], DEFAULT_HEIGHT);
   var compress = readStored(COMPRESS_KEY, ["1", "2", "3"], DEFAULT_COMPRESS);
-  var syncTimer = null;
+  var layoutSyncing = false;
+  var layoutRaf = null;
+  var moTimer = null;
+  var lastWidths = new WeakMap();
 
   function syncGroup(root, attr, value) {
     if (!root) return;
@@ -85,36 +88,7 @@
     return Math.max(1, wrap.clientWidth - pad);
   }
 
-  function syncLayout() {
-    var eff = effectiveHeight(height, compress);
-    targets.forEach(function (t) {
-      var svg = document.getElementById(t.svgId);
-      if (!svg || !t.wrap.contains(svg)) return;
-
-      var w = innerWidth(t.wrap);
-      var chartH = Math.max(48, Math.round((w * eff) / 720));
-
-      svg.style.width = "100%";
-      svg.style.height = chartH + "px";
-      svg.style.maxHeight = chartH + "px";
-      svg.style.minHeight = chartH + "px";
-
-      var above = siblingsAboveSvg(t.wrap, svg);
-      var wrapH = above + chartH + PAD_Y * 2;
-      t.wrap.style.height = wrapH + "px";
-      t.wrap.style.minHeight = wrapH + "px";
-      t.wrap.style.maxHeight = wrapH + "px";
-
-      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card");
-      if (card) {
-        card.style.height = "auto";
-        card.style.minHeight = "0";
-        card.style.maxHeight = "none";
-      }
-    });
-  }
-
-  function applyToDom() {
+  function applySettings() {
     var eff = effectiveHeight(height, compress);
     targets.forEach(function (t) {
       t.wrap.setAttribute("data-chart-height", height);
@@ -129,32 +103,107 @@
       }
     });
     syncUi();
-    syncLayout();
-    requestAnimationFrame(syncLayout);
     try {
       localStorage.setItem(HEIGHT_KEY, height);
       localStorage.setItem(COMPRESS_KEY, compress);
     } catch (_) {}
   }
 
-  function scheduleSync() {
-    if (syncTimer) clearTimeout(syncTimer);
-    syncTimer = setTimeout(function () {
-      syncTimer = null;
-      applyToDom();
-    }, 40);
+  function syncLayout() {
+    if (layoutSyncing) return;
+    layoutSyncing = true;
+
+    var eff = effectiveHeight(height, compress);
+    targets.forEach(function (t) {
+      var svg = document.getElementById(t.svgId);
+      if (!svg || !t.wrap.contains(svg)) return;
+
+      t.wrap.classList.add("pa-chart-layout-sync");
+
+      var w = innerWidth(t.wrap);
+      var chartH = Math.max(48, Math.round((w * eff) / 720));
+      var above = siblingsAboveSvg(t.wrap, svg);
+      var wrapH = above + chartH + PAD_Y * 2;
+
+      t.wrap.style.boxSizing = "border-box";
+      t.wrap.style.paddingTop = PAD_Y + "px";
+      t.wrap.style.paddingBottom = PAD_Y + "px";
+
+      svg.style.width = "100%";
+      svg.style.height = chartH + "px";
+      svg.style.maxHeight = chartH + "px";
+      svg.style.minHeight = chartH + "px";
+      svg.style.marginTop = "0";
+      svg.style.marginBottom = "0";
+
+      t.wrap.style.height = wrapH + "px";
+      t.wrap.style.minHeight = wrapH + "px";
+      t.wrap.style.maxHeight = wrapH + "px";
+
+      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card");
+      if (card) {
+        card.style.height = "auto";
+        card.style.minHeight = "0";
+        card.style.maxHeight = "none";
+      }
+
+      lastWidths.set(t.wrap, w);
+    });
+
+    requestAnimationFrame(function () {
+      targets.forEach(function (t) {
+        t.wrap.classList.remove("pa-chart-layout-sync");
+      });
+      layoutSyncing = false;
+    });
   }
 
-  applyToDom();
-  window.addEventListener("resize", scheduleSync);
-  window.paSyncChartLayout = scheduleSync;
+  function applyAll() {
+    applySettings();
+    syncLayout();
+    scheduleLayoutSync();
+  }
+
+  function scheduleLayoutSync() {
+    if (layoutRaf) cancelAnimationFrame(layoutRaf);
+    layoutRaf = requestAnimationFrame(function () {
+      layoutRaf = requestAnimationFrame(function () {
+        layoutRaf = null;
+        syncLayout();
+      });
+    });
+  }
+
+  function scheduleLayoutFromMutation() {
+    if (moTimer) clearTimeout(moTimer);
+    moTimer = setTimeout(function () {
+      moTimer = null;
+      scheduleLayoutSync();
+    }, 16);
+  }
+
+  function onWrapResize(entries) {
+    if (layoutSyncing) return;
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      var w = entry.contentRect.width;
+      var prev = lastWidths.get(entry.target) || 0;
+      if (Math.abs(w - prev) > 0.5) {
+        scheduleLayoutSync();
+        return;
+      }
+    }
+  }
+
+  applyAll();
+  window.addEventListener("resize", scheduleLayoutSync);
+  window.paSyncChartLayout = scheduleLayoutSync;
 
   if (typeof ResizeObserver !== "undefined") {
+    var ro = new ResizeObserver(onWrapResize);
     targets.forEach(function (t) {
-      var ro = new ResizeObserver(scheduleSync);
       ro.observe(t.wrap);
-      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card");
-      if (card) ro.observe(card);
+      lastWidths.set(t.wrap, innerWidth(t.wrap));
     });
   }
 
@@ -162,11 +211,9 @@
     targets.forEach(function (t) {
       var svg = document.getElementById(t.svgId);
       if (!svg) return;
-      new MutationObserver(scheduleSync).observe(svg, {
+      new MutationObserver(scheduleLayoutFromMutation).observe(svg, {
         childList: true,
         subtree: true,
-        attributes: true,
-        attributeFilter: ["viewBox", "height", "width"],
       });
     });
   }
@@ -181,7 +228,7 @@
       var next = btn.getAttribute("data-chart-height") || DEFAULT_HEIGHT;
       if (next !== "1" && next !== "2" && next !== "3") return;
       height = next;
-      applyToDom();
+      applyAll();
     });
     if (!t.compressRoot) return;
     t.compressRoot.addEventListener("click", function (ev) {
@@ -193,7 +240,7 @@
       var next = btn.getAttribute("data-chart-compress") || DEFAULT_COMPRESS;
       if (next !== "1" && next !== "2" && next !== "3") return;
       compress = next;
-      applyToDom();
+      applyAll();
     });
   });
 })();

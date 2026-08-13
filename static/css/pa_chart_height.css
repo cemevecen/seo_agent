@@ -9,7 +9,6 @@
   flex-direction: column;
   height: auto;
   min-height: 0;
-  transition: height 0.22s ease;
 }
 
 #pa-chart-wrap,
@@ -27,6 +26,11 @@
   padding-bottom: 0;
   overflow: visible;
   transition: height 0.22s ease, min-height 0.22s ease;
+}
+
+#pa-chart-wrap.pa-chart-layout-sync,
+#ia-chart-wrap.pa-chart-layout-sync {
+  transition: none !important;
 }
 
 #pa-chart-wrap[data-chart-height="1"],
@@ -65,10 +69,15 @@
   flex: 0 0 auto;
   width: 100%;
   max-width: none;
-  margin-top: var(--pa-chart-pad-y);
-  margin-bottom: var(--pa-chart-pad-y);
+  margin-top: 0;
+  margin-bottom: 0;
   aspect-ratio: unset !important;
-  transition: height 0.22s ease, margin 0.22s ease;
+  transition: height 0.22s ease;
+}
+
+#pa-chart-wrap.pa-chart-layout-sync #pa-chart,
+#ia-chart-wrap.pa-chart-layout-sync #ia-chart {
+  transition: none !important;
 }
 
 .pa-chart-height,
