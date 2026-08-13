@@ -522,7 +522,13 @@
       etype: "CRASH",
       limit: "15",
     };
-    if (viz.id === "timeline") p.metric = "crashes";
+    if (viz.id === "timeline") {
+      p.metric = "crashes";
+      p.preset = "90";
+      var range90 = applyDatePreset("90");
+      p.start = range90.start;
+      p.end = range90.end;
+    }
     if (viz.id === "control") p.metric = "crashes";
     return p;
   }
