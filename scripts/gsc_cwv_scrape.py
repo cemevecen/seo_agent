@@ -13,6 +13,7 @@ Not: --login aynı fx-google profilini kullanan eski tarayıcı süreçlerini ka
 Env:
   GSC_CWV_PROFILE_DIR / GSC_LINKS_PROFILE_DIR / PLAY_CONSOLE_PROFILE_DIR
   GSC_CWV_INGEST_URL
+  GSC_CWV_LOGIN_WAIT_SEC  (headed sync'te giriş bekleme; varsayılan 900)
   NOTIFICATION_INGEST_TOKEN
 """
 
@@ -208,6 +209,78 @@ def _looks_signed_in(page) -> bool:
         return False
     except Exception:
         return False
+
+
+def _login_wait_sec() -> int:
+    try:
+        return max(120, int(os.environ.get("GSC_CWV_LOGIN_WAIT_SEC") or "900"))
+    except (TypeError, ValueError):
+        return 900
+
+
+def _wait_until_signed_in(page, *, timeout_sec: int | None = None) -> bool:
+    """Headed sync: tarayıcıyı kapatma — kullanıcı şifre/2FA bitirene kadar bekle."""
+    timeout_sec = _login_wait_sec() if timeout_sec is None else max(120, int(timeout_sec))
+    print(
+        "LOGIN BEKLENIYOR — açık tarayıcıda Google / GSC girişi yapın (şifre/2FA).\n"
+        f"Giriş tamamlanınca tüm siteler otomatik taranır (en fazla {timeout_sec}s).\n"
+        "Pencereyi kapatmayın.",
+        flush=True,
+    )
+    deadline = time.time() + timeout_sec
+    last_status = 0.0
+    ok_streak = 0
+    while time.time() < deadline:
+        try:
+            ctx = page.context
+            if not ctx.pages:
+                print("LOGIN FAIL — tarayıcı kapandı (pencereyi kapatmayın)", flush=True)
+                return False
+            page = ctx.pages[0]
+            cur = (page.url or "").lower()
+            now = time.time()
+            if now - last_status >= 12:
+                left = max(0, int(deadline - now))
+                print(
+                    f"  · login bekleniyor · kalan≈{left}s · url={(page.url or '')[:120]}",
+                    flush=True,
+                )
+                last_status = now
+            if "accounts.google.com" in cur or "signin" in cur or "challenge" in cur:
+                ok_streak = 0
+                time.sleep(2)
+                continue
+            if _looks_signed_in(page):
+                ok_streak += 1
+                if ok_streak >= 2:
+                    time.sleep(2)
+                    print(f"LOGIN OK — tarama devam ediyor · {page.url}", flush=True)
+                    return True
+            else:
+                ok_streak = 0
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "has been closed" in msg or "target closed" in msg or "crashed" in msg:
+                print(f"LOGIN FAIL — tarayıcı kapandı: {exc}", flush=True)
+                return False
+            ok_streak = 0
+        time.sleep(2)
+    print("LOGIN FAIL — zaman aşımı (şifre/2FA bitmeden süre doldu)", flush=True)
+    return False
+
+
+def _ensure_signed_in(page, *, headed: bool) -> None:
+    """Kısa kontrol; yoksa headed ise kullanıcıyı bekle, sonra devam."""
+    if _looks_signed_in(page):
+        return
+    for _ in range(5):
+        time.sleep(1.5)
+        if _looks_signed_in(page):
+            return
+    if not headed:
+        raise RuntimeError("GSC oturumu yok — headed sync veya --login gerekli")
+    if not _wait_until_signed_in(page):
+        raise RuntimeError("GSC oturumu yok — Mac köprüde oturum açın")
 
 
 def _kill_stale_profile_browsers(profile_dir: Path) -> int:
@@ -2395,19 +2468,12 @@ def _scrape_amp(page, *, resource_id: str) -> dict[str, Any]:
     }
 
 
-def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) -> dict[str, Any]:
+def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False, headed: bool = True) -> dict[str, Any]:
     rid = prop["resource_id"]
     print(f"CWV scrape · {prop.get('label') or rid}", flush=True)
     page.goto(_cwv_url(rid), wait_until="domcontentloaded", timeout=120_000)
-    # İlk yüklemede GSC shell geç gelebilir — flaky “oturum yok” önlemi
-    signed = False
-    for _ in range(8):
-        time.sleep(2)
-        if _looks_signed_in(page):
-            signed = True
-            break
-    if not signed:
-        raise RuntimeError("GSC oturumu yok — Mac köprüde oturum açın")
+    # İlk yüklemede GSC shell geç gelebilir; oturum yoksa headed'de kullanıcıyı bekle
+    _ensure_signed_in(page, headed=headed)
     meta = _extract_page_meta(page)
     body = page.inner_text("body")
     overview = _parse_overview_counts(body)
@@ -2563,9 +2629,27 @@ def run_sync(
     snapshots: list[dict[str, Any]] = []
     try:
         page = context.pages[0] if context.pages else context.new_page()
+        # Tek seferlik oturum kapısı — giriş bitince tüm property'ler taranır
+        gate = props[0]
+        print(f"CWV login gate · {gate.get('label') or gate.get('resource_id')}", flush=True)
+        try:
+            page.goto(_cwv_url(gate["resource_id"]), wait_until="domcontentloaded", timeout=120_000)
+        except Exception as exc:
+            print(f"Login gate goto uyarısı (devam): {exc}", flush=True)
+        try:
+            _ensure_signed_in(page, headed=headed)
+        except RuntimeError as exc:
+            print(f"FAIL login gate: {exc}", flush=True)
+            return {
+                "ok": False,
+                "needs_login": True,
+                "snapshots": 0,
+                "ok_snapshots": 0,
+                "message": str(exc),
+            }
         for prop in props:
             try:
-                snap = scrape_property(page, prop, charts_only=charts_only)
+                snap = scrape_property(page, prop, charts_only=charts_only, headed=headed)
                 snapshots.append(snap)
                 print(
                     f"OK {prop['label']} · poor={snap['totals']['poor']} "

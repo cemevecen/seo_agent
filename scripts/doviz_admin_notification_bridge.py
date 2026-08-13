@@ -2075,7 +2075,11 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = 
                 lines.append(s)
                 print(s, flush=True)
                 low = s.lower()
-                if "login" in low or "oturum" in low:
+                if "login bekleniyor" in low or s.startswith("LOGIN BEKLENIYOR"):
+                    _bump("login", s, 1)
+                elif "login ok" in low or s.startswith("LOGIN OK"):
+                    _bump("scrape", s, 2)
+                elif "login" in low or "oturum" in low:
                     _bump("login", s, 1)
                 elif "overview chart" in low or "chart series" in low:
                     _bump("charts", s, 3)
