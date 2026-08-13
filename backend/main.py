@@ -21370,7 +21370,7 @@ async def api_boards_move(request: Request):
 def sinemalar_policy_page(
     request: Request,
     host: str = Query(default="all"),
-    tab: str = Query(default="policy"),
+    tab: str | None = Query(default=None),
     mod_start: str | None = Query(default="2026-01-01"),
     mod_end: str | None = Query(default="2026-08-13"),
     db: Session = Depends(get_db),
@@ -21380,11 +21380,12 @@ def sinemalar_policy_page(
     host_key = (host or "all").strip().lower()
     if host_key not in ("all", "sinemalar.com", "m.sinemalar.com"):
         host_key = "all"
-    tab_key = (tab or "policy").strip().lower()
+    default_tab = "sinemalar" if request.url.path.rstrip("/") == "/sinemalar" else "policy"
+    tab_key = (tab or default_tab).strip().lower()
     if tab_key in ("moderation", "mod"):
         tab_key = "sinemalar"
     if tab_key not in ("policy", "sinemalar"):
-        tab_key = "policy"
+        tab_key = default_tab
 
     try:
         stats = pcsv.get_stats(db)
