@@ -1790,15 +1790,19 @@
     return kept.join("\n");
   }
 
-  function vitalsEtypeHasRows(block) {
+  function vitalsBlockIssueRows(block) {
     block = block || {};
     var cats = Array.isArray(block.categories) ? block.categories : [];
-    return cats.some(function (c) {
-      if (!c) return false;
-      if (Array.isArray(c.issues) && c.issues.length) return true;
-      var n = parseInt(String(c.issue_count != null ? c.issue_count : c.issue_row_count || ""), 10);
-      return !isNaN(n) && n > 0;
+    var total = 0;
+    cats.forEach(function (c) {
+      if (!c || !Array.isArray(c.issues)) return;
+      total += c.issues.length;
     });
+    return total;
+  }
+
+  function vitalsEtypeHasRows(block) {
+    return vitalsBlockIssueRows(block) > 0;
   }
 
   function vitalsCrashesHasRows(crashes) {
@@ -1880,18 +1884,24 @@
     etype = etype || "ANR";
     vc = String(vc || "").trim();
     var block = crashesMap[etype] || {};
+    var candidates = [];
     if (vitalsEtypeHasRows(block)) {
       if (vc && block.version_code && String(block.version_code) !== vc) {
         var filteredOwn = filterVitalsBlockByVersion(block, vc);
-        if (vitalsEtypeHasRows(filteredOwn)) return filteredOwn;
+        if (vitalsEtypeHasRows(filteredOwn)) candidates.push(filteredOwn);
+      } else {
+        candidates.push(block);
       }
-      return block;
     }
     if (vc) {
       var filtered = filterVitalsBlockByVersion(block, vc);
-      if (vitalsEtypeHasRows(filtered)) return filtered;
+      if (vitalsEtypeHasRows(filtered)) candidates.push(filtered);
     }
-    return null;
+    if (!candidates.length) return null;
+    candidates.sort(function (a, b) {
+      return vitalsBlockIssueRows(b) - vitalsBlockIssueRows(a);
+    });
+    return candidates[0];
   }
 
   function getActiveVitalsCrashes() {
@@ -7060,16 +7070,40 @@
       }
       return;
     }
+    function vitalsIssueEu(iss) {
+      if (iss && iss.events_per_user != null && iss.events_per_user !== "") {
+        return String(iss.events_per_user);
+      }
+      var ev = parseInt(String((iss && iss.events) || "0").replace(/[^\d]/g, ""), 10) || 0;
+      var us = parseInt(String((iss && iss.users) || "0").replace(/[^\d]/g, ""), 10) || 0;
+      if (!us) return "—";
+      return (ev / us).toFixed(1);
+    }
+    function vitalsTypePill(iss) {
+      var et = String((iss && (iss.error_type || iss.issue_type)) || vitalsState.etype || "FATAL").toUpperCase();
+      if (et === "CRASH" || et === "KILITLENME") et = "FATAL";
+      var cls = et === "ANR"
+        ? "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-300/80"
+        : (et === "NON_FATAL"
+          ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+          : "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300/80");
+      return '<span class="inline-block rounded-md px-2 py-0.5 text-[10px] font-bold ' + cls + '">' + esc(et) + "</span>";
+    }
+    var fbSource = (vitalsState.data && vitalsState.data.issues_fallback === "firebase_console_scrape");
     vitalsIssuesEl.innerHTML =
+      '<div class="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">' +
+        '<input type="text" id="pc-vitals-issue-search" class="w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200" placeholder="Search issue titles..." />' +
+        '<span class="shrink-0 text-[10px] text-slate-400 dark:text-zinc-500">' + issues.length + " results</span>" +
+      "</div>" +
       '<table class="min-w-full text-left text-xs">' +
         '<thead class="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">' +
           "<tr>" +
             '<th class="px-3 py-2 font-bold">Issue</th>' +
             '<th class="px-3 py-2 font-bold">Type</th>' +
-            '<th class="px-3 py-2 font-bold">Affected versions</th>' +
-            '<th class="px-3 py-2 font-bold tabular-nums">Users</th>' +
-            '<th class="px-3 py-2 font-bold tabular-nums">Events</th>' +
-            '<th class="px-3 py-2 font-bold">Last</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums text-right">Events</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums text-right">Usr.</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums text-right">E/U</th>' +
+            '<th class="px-3 py-2 font-bold">Ver.</th>' +
           "</tr></thead>" +
         '<tbody class="divide-y divide-slate-100 dark:divide-zinc-800">' +
         issues.map(function (iss, idx) {
@@ -7081,45 +7115,52 @@
               esc(t) + "</span>";
           }).join("");
           var ver = esc(iss.affected_versions || "—");
-          if (iss.version_track) {
-            ver += '<div class="text-[10px] text-slate-400">' + esc(iss.version_track) + "</div>";
-          }
-          var ev = esc(iss.events || "—");
-          if (iss.events_share) {
-            ev += '<div class="text-[10px] text-slate-400">' + esc(iss.events_share) + "</div>";
-          }
           var detailHref = iss.detail_url || "";
+          var linkTitle = fbSource ? "Open in Firebase Console" : "Open in Play Console";
           var linkIcon = detailHref
             ? (
                 '<a href="' + esc(detailHref) + '" target="_blank" rel="noopener noreferrer" ' +
                 'class="pc-vitals-console-link mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40" ' +
-                'title="Open in Play Console" data-issue="' + esc(iid) + '" onclick="event.stopPropagation()">' +
+                'title="' + esc(linkTitle) + '" data-issue="' + esc(iid) + '" onclick="event.stopPropagation()">' +
                   externalLinkSvg() +
-                  '<span class="sr-only">Open in Play Console</span>' +
+                  '<span class="sr-only">' + esc(linkTitle) + "</span>" +
                 "</a>"
               )
             : "";
           return (
-            '<tr class="pc-vitals-issue cursor-pointer ' + (on ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-zinc-800") + '" data-issue="' + esc(iid) + '">' +
-              '<td class="px-3 py-2">' +
+            '<tr class="pc-vitals-issue cursor-pointer ' + (on ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-zinc-800") + '" data-issue="' + esc(iid) + '" data-issue-title-lc="' + esc(String(title).toLowerCase()) + '" title="Click for details">' +
+              '<td class="max-w-[280px] px-3 py-2">' +
                 '<div class="flex items-start gap-1.5">' +
                   linkIcon +
                   '<div class="min-w-0">' +
-                    '<p class="font-medium text-slate-800 dark:text-zinc-100">' + esc(title) + "</p>" +
-                    (iss.subtitle ? '<div class="mt-0.5 text-[11px] text-slate-500">' + esc(cleanIssueTitle(iss.subtitle)) + "</div>" : "") +
-                    (tags ? '<div class="mt-1">' + tags + "</div>" : "") +
+                    (tags ? '<div class="mb-1">' + tags + "</div>" : "") +
+                    '<p class="truncate font-semibold text-slate-800 dark:text-zinc-100">' + esc(title) + "</p>" +
+                    (iss.subtitle ? '<p class="mt-0.5 truncate font-mono text-[10px] text-slate-400">' + esc(cleanIssueTitle(iss.subtitle)) + "</p>" : "") +
                   "</div>" +
                 "</div>" +
               "</td>" +
-              '<td class="px-3 py-2 text-slate-600 dark:text-zinc-300">' + esc(iss.issue_type || vitalsState.etype) + "</td>" +
-              '<td class="px-3 py-2 text-slate-600 dark:text-zinc-300">' + ver + "</td>" +
-              '<td class="px-3 py-2 tabular-nums font-semibold text-slate-800 dark:text-zinc-100">' + esc(iss.users || "—") + "</td>" +
-              '<td class="px-3 py-2 tabular-nums text-slate-600">' + ev + "</td>" +
-              '<td class="px-3 py-2 text-slate-500">' + esc(iss.last_occurrence || "—") + "</td>" +
+              '<td class="px-2 py-2">' + vitalsTypePill(iss) + "</td>" +
+              '<td class="px-2 py-2 text-right"><span class="text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(iss.events || "—") + "</span></td>" +
+              '<td class="px-2 py-2 text-right tabular-nums text-slate-600 dark:text-zinc-300">' + esc(iss.users || "0") + "</td>" +
+              '<td class="px-2 py-2 text-right tabular-nums text-slate-500 dark:text-zinc-400">' + esc(vitalsIssueEu(iss)) + "</td>" +
+              '<td class="px-2 py-2 text-xs text-slate-500 dark:text-zinc-400">' + ver + "</td>" +
             "</tr>"
           );
         }).join("") +
-        "</tbody></table>";
+        "</tbody></table>" +
+      '<p class="px-3 py-2 text-right text-[10px] text-slate-400 dark:text-zinc-500">' +
+        issues.length + " results · last " + Math.min(issues.length, 30) + " shown · click a row for details" +
+      "</p>";
+    var vitalsSearch = document.getElementById("pc-vitals-issue-search");
+    if (vitalsSearch) {
+      vitalsSearch.oninput = function () {
+        var q = String(vitalsSearch.value || "").trim().toLowerCase();
+        Array.prototype.forEach.call(vitalsIssuesEl.querySelectorAll(".pc-vitals-issue"), function (row) {
+          var t = row.getAttribute("data-issue-title-lc") || "";
+          row.classList.toggle("hidden", !!(q && t.indexOf(q) < 0));
+        });
+      };
+    }
     renderVitalsDetail({ scroll: !!(opts && opts.scrollDetail) });
   }
 
