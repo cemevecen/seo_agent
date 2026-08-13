@@ -4,8 +4,10 @@
   var DEFAULT_HEIGHT = "2";
   var DEFAULT_COMPRESS = "1";
   var PAD_Y = 30;
+  var VIEW_H = 260;
+  var VIEW_W = 720;
   var HEIGHT_BASE = { "1": 260, "2": 200, "3": 150 };
-  var COMPRESS_FACTOR = { "1": 1, "2": 1.28, "3": 1.62 };
+  var COMPRESS_DIVISOR = { "1": 1, "2": 1.28, "3": 1.62 };
 
   function readStored(key, allowed, fallback) {
     try {
@@ -17,8 +19,8 @@
 
   function effectiveHeight(h, c) {
     var base = HEIGHT_BASE[h] || HEIGHT_BASE[DEFAULT_HEIGHT];
-    var factor = COMPRESS_FACTOR[c] || COMPRESS_FACTOR[DEFAULT_COMPRESS];
-    return Math.max(80, Math.round(base * factor));
+    var divisor = COMPRESS_DIVISOR[c] || COMPRESS_DIVISOR[DEFAULT_COMPRESS];
+    return Math.max(48, Math.min(VIEW_H, Math.round(base / divisor)));
   }
 
   function collectTargets() {
@@ -85,7 +87,17 @@
     var cs = window.getComputedStyle(wrap);
     var pad =
       (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-    return Math.max(1, wrap.clientWidth - pad);
+    var w = wrap.clientWidth - pad;
+    if (w > 1) return w;
+    var card = wrap.closest("#pa-chart-card, #ia-chart-card");
+    if (card) {
+      var csCard = window.getComputedStyle(card);
+      var padCard =
+        (parseFloat(csCard.paddingLeft) || 0) +
+        (parseFloat(csCard.paddingRight) || 0);
+      w = card.clientWidth - padCard - pad;
+    }
+    return Math.max(1, w);
   }
 
   function applySettings() {
@@ -109,11 +121,17 @@
     } catch (_) {}
   }
 
+  function clearSizeLocks(el) {
+    if (!el) return;
+    el.style.height = "";
+    el.style.minHeight = "";
+    el.style.maxHeight = "";
+  }
+
   function syncLayout() {
     if (layoutSyncing) return;
     layoutSyncing = true;
 
-    var eff = effectiveHeight(height, compress);
     targets.forEach(function (t) {
       var svg = document.getElementById(t.svgId);
       if (!svg || !t.wrap.contains(svg)) return;
@@ -121,30 +139,30 @@
       t.wrap.classList.add("pa-chart-layout-sync");
 
       var w = innerWidth(t.wrap);
-      var chartH = Math.max(48, Math.round((w * eff) / 720));
-      var above = siblingsAboveSvg(t.wrap, svg);
-      var wrapH = above + chartH + PAD_Y * 2;
+      var eff = effectiveHeight(height, compress);
+      var chartH = Math.max(48, Math.round((w * eff) / VIEW_W));
 
       t.wrap.style.boxSizing = "border-box";
       t.wrap.style.paddingTop = PAD_Y + "px";
       t.wrap.style.paddingBottom = PAD_Y + "px";
+      t.wrap.style.width = "100%";
+      clearSizeLocks(t.wrap);
 
+      svg.style.display = "block";
       svg.style.width = "100%";
       svg.style.height = chartH + "px";
-      svg.style.maxHeight = chartH + "px";
-      svg.style.minHeight = chartH + "px";
+      svg.style.minHeight = "";
+      svg.style.maxHeight = "";
       svg.style.marginTop = "0";
       svg.style.marginBottom = "0";
-
-      t.wrap.style.height = wrapH + "px";
-      t.wrap.style.minHeight = wrapH + "px";
-      t.wrap.style.maxHeight = wrapH + "px";
+      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
       var card = t.wrap.closest("#pa-chart-card, #ia-chart-card");
       if (card) {
-        card.style.height = "auto";
-        card.style.minHeight = "0";
-        card.style.maxHeight = "none";
+        card.style.display = "flex";
+        card.style.flexDirection = "column";
+        clearSizeLocks(card);
+        card.style.width = "100%";
       }
 
       lastWidths.set(t.wrap, w);
@@ -182,7 +200,7 @@
     }, 16);
   }
 
-  function onWrapResize(entries) {
+  function onResize(entries) {
     if (layoutSyncing) return;
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i];
@@ -200,9 +218,11 @@
   window.paSyncChartLayout = scheduleLayoutSync;
 
   if (typeof ResizeObserver !== "undefined") {
-    var ro = new ResizeObserver(onWrapResize);
+    var ro = new ResizeObserver(onResize);
     targets.forEach(function (t) {
       ro.observe(t.wrap);
+      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card");
+      if (card) ro.observe(card);
       lastWidths.set(t.wrap, innerWidth(t.wrap));
     });
   }
@@ -216,6 +236,12 @@
         subtree: true,
       });
     });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", scheduleLayoutSync);
+  } else {
+    scheduleLayoutSync();
   }
 
   targets.forEach(function (t) {

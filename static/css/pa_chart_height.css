@@ -1,4 +1,4 @@
-/* Android / iOS ana grafik — genişlik sabit; yükseklik JS ile px hesaplanır */
+/* Android / iOS ana grafik — genişlik %100, yükseklik JS (px) + wrap padding */
 :root {
   --pa-chart-pad-y: 30px;
 }
@@ -7,8 +7,10 @@
 #ia-chart-card {
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: auto;
   min-height: 0;
+  max-height: none;
 }
 
 #pa-chart-wrap,
@@ -17,15 +19,17 @@
   --pa-chart-h-factor: 1;
   --pa-chart-effective-h: 200;
   flex: 0 0 auto;
+  align-self: stretch;
   width: 100%;
+  height: auto;
   min-height: 0;
+  max-height: none;
   box-sizing: border-box;
   padding-left: 4px;
   padding-right: 4px;
   padding-top: 0;
   padding-bottom: 0;
-  overflow: visible;
-  transition: height 0.22s ease, min-height 0.22s ease;
+  overflow: hidden;
 }
 
 #pa-chart-wrap.pa-chart-layout-sync,
@@ -69,10 +73,10 @@
   flex: 0 0 auto;
   width: 100%;
   max-width: none;
-  margin-top: 0;
-  margin-bottom: 0;
+  margin: 0;
+  padding: 0;
   aspect-ratio: unset !important;
-  transition: height 0.22s ease;
+  vertical-align: top;
 }
 
 #pa-chart-wrap.pa-chart-layout-sync #pa-chart,
