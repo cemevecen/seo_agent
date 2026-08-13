@@ -90,9 +90,9 @@ VIZ_META: list[dict[str, Any]] = [
         "title": "Timeline / Gantt",
         "blurb": "Release çizgisi + crash spike overlay",
         "detail": (
-            "Seçili metriğin günlük serisi üzerinde yüksek değer günleri dikey çizgi ile vurgulanır. "
-            "Play snapshot’taki sürüm / release kartları üst bantta listelenir. "
-            "Spike tespiti seri içi en yüksek günlerden türetilir."
+            "Seçili metriğin günlük serisi üzerinde yüksek değer günleri kırmızı dikey çizgi ile vurgulanır; "
+            "Android release günleri yeşil çizgi ve üst elmas ile işaretlenir. "
+            "Grafik üzerine gelince sürüm adı ve versiyon kodu gösterilir."
         ),
         "controls": ["start", "end", "metric"],
     },
@@ -103,6 +103,84 @@ VIZ_IDS = frozenset(v["id"] for v in VIZ_META)
 
 def _table(columns: list[str], rows: list[list[Any]]) -> dict[str, Any]:
     return {"columns": columns, "rows": rows}
+
+
+def _parse_iso_date(raw: str | None) -> date | None:
+    s = str(raw or "").strip()[:10]
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+def _version_code_for_name(name: str, vitals: dict[str, Any]) -> str:
+    ver = str(name or "").strip()
+    if not ver:
+        return ""
+    name_map = vitals.get("version_name_map") if isinstance(vitals.get("version_name_map"), dict) else {}
+    for code, nm in name_map.items():
+        s = str(nm or "").strip()
+        if not s:
+            continue
+        if s == ver or ver in s or f"({ver})" in s:
+            return str(code).strip()
+    for row in vitals.get("versions") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("name") or "").strip() == ver:
+            return str(row.get("code") or "").strip()
+    return ""
+
+
+def _timeline_releases(db: Session | None, start: str, end: str) -> list[dict[str, Any]]:
+    """Android release tarihleri — Sheets / yorum tahmini + vitals sürüm kodu eşlemesi."""
+    start_d = _parse_iso_date(start)
+    end_d = _parse_iso_date(end)
+    if not start_d or not end_d:
+        return []
+    since_d = start_d
+    vitals: dict[str, Any] = {}
+    if db is not None:
+        snap = play_console_payload(db) or {}
+        panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
+        vitals = panels.get("vitals") if isinstance(panels.get("vitals"), dict) else {}
+
+    try:
+        from backend.services.store_version_releases import fetch_version_releases_for_product
+
+        rel_payload = fetch_version_releases_for_product("doviz", since=since_d, use_cache=True)
+        android = rel_payload.get("android") if isinstance(rel_payload.get("android"), list) else []
+    except Exception:
+        android = []
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in android:
+        if not isinstance(item, dict):
+            continue
+        day = str(item.get("released_at") or "")[:10]
+        if not day or day < start_d.isoformat() or day > end_d.isoformat():
+            continue
+        if day in seen:
+            continue
+        seen.add(day)
+        version = str(item.get("version") or "").strip()
+        build = str(item.get("build") or "").strip()
+        version_code = build.split("/")[0].strip() if build else ""
+        if not version_code:
+            version_code = _version_code_for_name(version, vitals)
+        rows.append(
+            {
+                "date": day,
+                "version": version or None,
+                "version_code": version_code or None,
+                "source": item.get("source"),
+            }
+        )
+    rows.sort(key=lambda r: str(r.get("date") or ""))
+    return rows[:24]
 
 
 def _q(
@@ -822,31 +900,29 @@ def build_viz20_data(
         }
 
     if vid == "timeline":
-        snap = play_console_payload(db) or {}
-        panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
-        release_cards = []
-        for key in ("release", "test_and_release"):
-            block = panels.get("pages", {}).get(key) if isinstance(panels.get("pages"), dict) else None
-        metrics_cards = snap.get("metrics") if isinstance(snap.get("metrics"), list) else []
-        releases: list[dict[str, Any]] = []
-        for card in metrics_cards:
-            if not isinstance(card, dict):
-                continue
-            title = str(card.get("title") or card.get("label") or "").lower()
-            if "version" in title or "release" in title or "sürüm" in title:
-                releases.append({"label": card.get("title") or card.get("value"), "detail": card.get("subtitle") or card.get("value")})
         crash_data = _q(metric=m or "crashes", start=start, end=end, facts=facts, meta=meta)
+        releases = _timeline_releases(db, start or "", end or "")
         spikes = sorted(crash_data.get("series") or [], key=lambda r: -float(r.get("value") or 0))[:5]
+        rel_rows = [
+            [r.get("date"), r.get("version") or "—", r.get("version_code") or "—"]
+            for r in releases
+        ]
+        series_rows = [[r.get("key"), r.get("value")] for r in (crash_data.get("series") or [])[:30]]
         return {
             "ok": True,
             "viz": vid,
             "chart": {
                 "type": "timeline",
-                "releases": releases[:8],
+                "releases": releases,
                 "spikes": [{"date": r.get("key"), "value": r.get("value")} for r in spikes],
                 "series": crash_data.get("series") or [],
             },
-            "table": _table(["Date", "Value"], [[r.get("key"), r.get("value")] for r in (crash_data.get("series") or [])[:30]]),
+            "table": _table(
+                ["Tarih", "Sürüm", "Versiyon kodu"],
+                rel_rows,
+            )
+            if rel_rows
+            else _table(["Date", "Value"], series_rows),
             "params": {"start": start, "end": end, "metric": m or "crashes"},
         }
 

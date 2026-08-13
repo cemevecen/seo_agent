@@ -554,6 +554,21 @@
     el.innerHTML = h + "</tbody></table></div>";
   }
 
+  function normalizeDay(x) {
+    return String(x == null ? "" : x).slice(0, 10);
+  }
+
+  function timelineReleaseHoverText(rel) {
+    if (!rel) return "";
+    return (
+      "<br><span style=\"color:#22c55e\">● Release</span><br>" +
+      "Sürüm: " +
+      esc(rel.version || "—") +
+      "<br>Versiyon: " +
+      esc(rel.version_code || "—")
+    );
+  }
+
   function plotChart(chartEl, payload, heightPxVal) {
     var c = payload.chart || {};
     var type = c.type;
@@ -859,17 +874,33 @@
         layout["yaxis" + n] = { title: "", anchor: "x" + n };
       });
     } else if (type === "timeline") {
+      var series = c.series || [];
+      var xs = series.map(function (r) {
+        return r.key;
+      });
+      var ys = series.map(function (r) {
+        return r.value;
+      });
+      var releaseByDate = {};
+      (c.releases || []).forEach(function (rel) {
+        var d = normalizeDay(rel.date);
+        if (d) releaseByDate[d] = rel;
+      });
+      var maxY = ys.reduce(function (m, v) {
+        return Math.max(m, Number(v) || 0);
+      }, 0);
+      if (!maxY) maxY = 1;
       traces.push({
         type: "scatter",
         mode: "lines",
         name: "Metrik",
-        x: (c.series || []).map(function (r) {
-          return r.key;
-        }),
-        y: (c.series || []).map(function (r) {
-          return r.value;
-        }),
+        x: xs,
+        y: ys,
         line: { color: "#3b82f6" },
+        text: xs.map(function (x) {
+          return timelineReleaseHoverText(releaseByDate[normalizeDay(x)]);
+        }),
+        hovertemplate: "%{y}<br>%{x}%{text}<extra></extra>",
       });
       (c.spikes || []).forEach(function (sp) {
         layout.shapes = layout.shapes || [];
@@ -883,6 +914,45 @@
           line: { color: "#ef4444", dash: "dot" },
         });
       });
+      var orphanRelX = [];
+      var orphanRelY = [];
+      var orphanRelCustom = [];
+      (c.releases || []).forEach(function (rel) {
+        var day = normalizeDay(rel.date);
+        if (!day) return;
+        layout.shapes = layout.shapes || [];
+        layout.shapes.push({
+          type: "line",
+          x0: day,
+          x1: day,
+          y0: 0,
+          y1: 1,
+          yref: "paper",
+          line: { color: "#22c55e", dash: "dot", width: 1 },
+        });
+        orphanRelX.push(day);
+        orphanRelY.push(maxY * 0.92);
+        orphanRelCustom.push([rel.version || "—", rel.version_code || "—", day]);
+      });
+      if (orphanRelX.length) {
+        traces.push({
+          type: "scatter",
+          mode: "markers",
+          name: "Release",
+          x: orphanRelX,
+          y: orphanRelY,
+          marker: {
+            size: 9,
+            color: "#22c55e",
+            symbol: "diamond",
+            line: { width: 1, color: "#ffffff" },
+          },
+          customdata: orphanRelCustom,
+          hovertemplate:
+            "<b>Release</b><br>Sürüm: %{customdata[0]}<br>Versiyon: %{customdata[1]}<br>%{customdata[2]}<extra></extra>",
+          showlegend: false,
+        });
+      }
     }
 
     if (!traces.length) {
