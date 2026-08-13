@@ -682,8 +682,6 @@
     width: max-content;
     max-width: none;
     min-width: 0;
-    table-layout: auto;
-    border-collapse: collapse;
     margin-right: auto;
   }
   #pa-table-wrap > table.pa-data-table th,
@@ -694,12 +692,14 @@
   #pa-table-wrap > table.pa-data-table th:first-child,
   #pa-table-wrap > table.pa-data-table td:first-child {
     text-align: left;
-    padding-right: 1.25rem;
   }
   #pa-table-wrap > table.pa-data-table th:not(:first-child),
   #pa-table-wrap > table.pa-data-table td:not(:first-child) {
     text-align: right;
-    padding-left: 1rem;
+  }
+  #pa-table-shell.mtux-layout-transposed #pa-table-wrap > table th:not(:first-child),
+  #pa-table-shell.mtux-layout-transposed #pa-table-wrap > table td:not(:first-child) {
+    text-align: right;
   }
   /* Grafik çizim animasyonu */
   #pa-chart {
@@ -1711,7 +1711,7 @@
 <script src="/static/js/android_chart_viz_20.js?v=9"></script>
 <script src="/static/js/resizable_data_list.js?v=6"></script>
 <script src="/static/js/pa_chart_height.js?v=7"></script>
-<script src="/static/js/metric_table_ux.js?v=9"></script>
+<script src="/static/js/metric_table_ux.js?v=10"></script>
 <script>
 (function () {
   var statusEl = document.getElementById("pc-status");
@@ -3518,40 +3518,6 @@
 
     var thRemoveCls =
       'inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[10px] leading-none text-slate-400 hover:bg-rose-100 hover:text-rose-600 dark:text-zinc-500 dark:hover:bg-rose-950/50 dark:hover:text-rose-300';
-    paTheadRow.innerHTML =
-      '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold sm:px-3 dark:bg-zinc-900" data-mtux-key="kirilim" data-mtux-fixed="1">Breakdown</th>' +
-      colItems.map(function (col) {
-        var b = col.bundle;
-        var color = col.color;
-        var short = shortMetricLabel(b.label, b.metric);
-        var removeAttr = col.kind === "metric"
-          ? 'data-pa-ov-col-remove="' + esc(b.metric) + '"'
-          : 'data-pa-ov-line-remove="' + col.oi + '"';
-        return (
-          '<th class="mtux-th px-1 py-2 font-bold tabular-nums sm:px-1.5" data-mtux-key="' + esc(col.key) + '" style="color:' + color + '" title="' + esc(b.label || "") + '">' +
-            '<span class="mtux-th-label">' +
-              '<span class="mtux-th-text">' + esc(short) + "</span>" +
-              '<button type="button" ' + removeAttr + ' ' +
-                'class="' + thRemoveCls + '" ' +
-                'title="Remove column" aria-label="' + esc(short) + ' remove column">×</button>' +
-            "</span>" +
-          "</th>"
-        );
-      }).join("");
-    var colCount = 1 + colItems.length;
-    if (!colItems.length) {
-      paTable.innerHTML =
-        '<tr><td class="px-3 py-4 text-center text-slate-400">All columns removed — refresh via Metrics → Select</td></tr>';
-      paFitDataList(0);
-      return;
-    }
-    if (!keys.length) {
-      paTable.innerHTML =
-        '<tr><td colspan="' + colCount +
-        '" class="px-3 py-4 text-center text-slate-400">No rows</td></tr>';
-      paFitDataList(0);
-      return;
-    }
     var maps = colItems.map(function (col) {
       var m = {};
       (col.bundle.series || []).forEach(function (r) {
@@ -3561,83 +3527,75 @@
       });
       return m;
     });
-    var stats = maps.map(function (m) {
-      return ux ? ux.colMinMax(keys.map(function (k) { return m[k]; })) : { min: 0, max: 0 };
+    var gridCols = colItems.map(function (col, i) {
+      var b = col.bundle;
+      return {
+        key: col.key,
+        label: b.label || b.metric || col.key,
+        shortLabel: shortMetricLabel(b.label, b.metric),
+        color: col.color,
+        metric: b.metric,
+        map: maps[i],
+        kind: col.kind,
+        oi: col.oi,
+      };
     });
-    function overviewColAverage(map) {
-      var sum = 0;
-      var n = 0;
-      keys.forEach(function (key) {
-        var v = map[key];
-        if (v == null || !Number.isFinite(v)) return;
-        sum += v;
-        n += 1;
-      });
-      return n ? sum / n : null;
-    }
-    var bodyRows = keys.map(function (key) {
-      var cells =
-        '<td class="sticky left-0 z-[1] bg-white px-2 py-1.5 font-medium tabular-nums text-slate-700 sm:px-3 dark:bg-zinc-950 dark:text-zinc-200">' +
-          esc(fmtAxisKey(key, dayOnly)) +
-        "</td>";
-      colItems.forEach(function (col, i) {
-        var v = maps[i][key];
-        var st = stats[i];
-        var heatOn = ux && ux.isHeatEnabled();
-        var t = heatOn && ux ? ux.heatT(v, st.min, st.max) : null;
-        var bg = t == null ? "" : "background:" + ux.heatBackground(col.color, t) + ";";
-        var countLike = metricIsCountLike(col.bundle.metric);
-        cells +=
-          '<td class="mtux-heat-cell px-1.5 py-1.5 tabular-nums font-semibold text-slate-900 sm:px-2 dark:text-zinc-100" style="' + bg + '" title="' +
-            (v == null ? "" : esc(fmtNum(v, countLike))) + '">' +
-            (v == null ? "—" : esc(fmtNum(v, countLike))) +
-          "</td>";
-      });
-      return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800">' + cells + "</tr>";
-    }).join("");
-    var avgCells =
-      '<td class="sticky left-0 z-[2] bg-slate-100 px-2 py-1.5 font-bold tabular-nums text-slate-800 sm:px-3 dark:bg-zinc-900 dark:text-zinc-100" title="Average of days that have data">Average</td>';
-    colItems.forEach(function (col, i) {
-      var avg = overviewColAverage(maps[i]);
-      avgCells +=
-        '<td class="px-1.5 py-1.5 tabular-nums font-bold text-slate-900 sm:px-2 dark:text-zinc-50" title="' +
-          (avg == null ? "" : esc(fmtNum(avg, false))) + '">' +
-          (avg == null ? "—" : esc(fmtNum(avg, false))) +
-        "</td>";
-    });
-    var avgRow =
-      '<tr class="sticky bottom-0 z-[1] border-t border-slate-200 bg-slate-100/95 dark:border-zinc-700 dark:bg-zinc-900/95">' +
-        avgCells +
-      "</tr>";
-    paTable.innerHTML = bodyRows + avgRow;
     var shell = document.getElementById("pa-table-shell");
     var tableEl = paTable.closest("table");
-    if (ux && shell && tableEl) {
-      ux.ensureLegend(shell, {
-        onHeatToggle: function () {
-          // Güncel özet/çoklu seçim listesi — closure’daki ilk bundles’a dönme
-          if (paOverviewBundles && (paOverviewActive || paSelectedMetrics.length >= 2)) {
-            var br = paActiveTimeBreakdown();
-            renderOverviewTable(applyTimeBreakdownToBundles(visibleOverviewBundles(paOverviewBundles), br));
-          } else {
-            renderOverviewTable(bundles);
-          }
-        },
-      });
-      ux.bindInteractive(tableEl, {
-        widthsKey: "pa-table-col-widths",
-        orderKey: "pa-table-col-order",
-        onOrderChange: function () {
-          if (paOverviewBundles && (paOverviewActive || paSelectedMetrics.length >= 2)) {
-            var br = paActiveTimeBreakdown();
-            renderOverviewTable(applyTimeBreakdownToBundles(visibleOverviewBundles(paOverviewBundles), br));
-          } else {
-            renderOverviewTable(bundles);
-          }
-        },
-      });
+    function refreshOverviewTable() {
+      if (paOverviewBundles && (paOverviewActive || paSelectedMetrics.length >= 2)) {
+        var br = paActiveTimeBreakdown();
+        renderOverviewTable(applyTimeBreakdownToBundles(visibleOverviewBundles(paOverviewBundles), br));
+      } else {
+        renderOverviewTable(bundles);
+      }
     }
-    paFitDataList(keys.length + 1);
+    var pinOn = ux && ux.isPinEnabled();
+    var stickyTop = pinOn ? " mtux-sticky-top" : "";
+    var gridRes = ux && tableEl
+      ? ux.renderHeatGrid({
+          shell: shell,
+          tableEl: tableEl,
+          theadRow: paTheadRow,
+          tbody: paTable,
+          keys: keys,
+          colItems: gridCols,
+          esc: esc,
+          fmtKey: function (key) { return fmtAxisKey(key, dayOnly); },
+          fmtVal: function (v, col) {
+            var countLike = col && col.metric ? metricIsCountLike(col.metric) : false;
+            return v == null ? "—" : fmtNum(v, countLike);
+          },
+          breakdownLabel: "Breakdown",
+          averageLabel: "Average",
+          onRefresh: refreshOverviewTable,
+          bindInteractive: {
+            widthsKey: "pa-table-col-widths",
+            orderKey: "pa-table-col-order",
+            onOrderChange: refreshOverviewTable,
+          },
+          renderStandardHeaderCell: function (col) {
+            var removeAttr = col.kind === "metric"
+              ? 'data-pa-ov-col-remove="' + esc(col.metric) + '"'
+              : 'data-pa-ov-line-remove="' + col.oi + '"';
+            return (
+              '<th class="mtux-th px-1 py-2 font-bold tabular-nums sm:px-1.5' + stickyTop + '" data-mtux-key="' + esc(col.key) +
+                '" style="color:' + esc(col.color) + '" title="' + esc(col.label || "") + '">' +
+                '<span class="mtux-th-label">' +
+                  '<span class="mtux-th-text">' + esc(col.shortLabel) + "</span>" +
+                  '<button type="button" ' + removeAttr + ' class="' + thRemoveCls + '" title="Remove column" aria-label="' +
+                    esc(col.shortLabel) + ' remove column">×</button>' +
+                "</span>" +
+              "</th>"
+            );
+          },
+        })
+      : { rowCount: 0 };
+    if (!gridRes.rowCount && (!colItems.length || !keys.length)) {
+      paFitDataList(0);
+      return;
+    }
+    paFitDataList(gridRes.rowCount || keys.length + 1);
   }
 
   function setCompareNote(text) {

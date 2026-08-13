@@ -1248,7 +1248,7 @@
 </div>
 <script src="/static/js/resizable_data_list.js?v=6"></script>
 <script src="/static/js/pa_chart_height.js?v=7"></script>
-<script src="/static/js/metric_table_ux.js?v=9"></script>
+<script src="/static/js/metric_table_ux.js?v=10"></script>
 <script>
 (function () {
   var iaStart = document.getElementById("ia-start");
@@ -3146,20 +3146,6 @@
       colItems = orderedKeys.map(function (k) { return byKey[k]; }).filter(Boolean);
     }
 
-    iaTheadRow.innerHTML =
-      '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold dark:bg-zinc-900" data-mtux-key="kirilim" data-mtux-fixed="1">Breakdown</th>' +
-      colItems.map(function (col) {
-        return (
-          '<th class="mtux-th px-1.5 py-2 font-bold tabular-nums" data-mtux-key="' + esc(col.key) + '" style="color:' + col.color + '" title="' + esc(col.bundle.label || col.bundle.metric || "") + '">' +
-            '<span class="mtux-th-label"><span class="mtux-th-text">' + esc(col.bundle.label || col.bundle.metric) + "</span></span>" +
-          "</th>"
-        );
-      }).join("");
-    if (!keys.length) {
-      iaTable.innerHTML = '<tr><td class="px-3 py-4 text-center text-slate-400" colspan="' + (1 + colItems.length) + '">No rows</td></tr>';
-      iaFitDataList(0);
-      return;
-    }
     var maps = colItems.map(function (col) {
       var m = {};
       (col.bundle.series || []).forEach(function (r) {
@@ -3168,61 +3154,47 @@
       });
       return m;
     });
-    var stats = maps.map(function (m) {
-      return ux ? ux.colMinMax(keys.map(function (k) { return m[k]; })) : { min: 0, max: 0 };
+    var gridCols = colItems.map(function (col, i) {
+      return {
+        key: col.key,
+        label: col.bundle.label || col.bundle.metric || col.key,
+        shortLabel: col.bundle.label || col.bundle.metric,
+        color: col.color,
+        metric: col.bundle.metric,
+        map: maps[i],
+      };
     });
-    function colAvg(map) {
-      var sum = 0, n = 0;
-      keys.forEach(function (k) {
-        var v = map[k];
-        if (v == null || !Number.isFinite(v)) return;
-        sum += v; n += 1;
-      });
-      return n ? sum / n : null;
-    }
-    var body = keys.map(function (key) {
-      var cells = '<td class="sticky left-0 bg-white px-2 py-1.5 font-medium tabular-nums dark:bg-zinc-950">' + esc(fmtAxisKey(key)) + "</td>";
-      colItems.forEach(function (col, i) {
-        var v = maps[i][key];
-        var st = stats[i];
-        var heatOn = ux && ux.isHeatEnabled();
-        var t = heatOn && ux ? ux.heatT(v, st.min, st.max) : null;
-        var bg = t == null ? "" : "background:" + ux.heatBackground(col.color, t) + ";";
-        cells +=
-          '<td class="mtux-heat-cell px-1.5 py-1.5 tabular-nums font-semibold" style="' + bg + '">' +
-            (v == null ? "—" : esc(fmtNum(v, isCountLike(col.bundle.metric)))) +
-          "</td>";
-      });
-      return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800">' + cells + "</tr>";
-    }).join("");
-    var avg = '<td class="sticky left-0 bg-slate-100 px-2 py-1.5 font-bold dark:bg-zinc-900">Ortalama</td>';
-    colItems.forEach(function (col, i) {
-      var a = colAvg(maps[i]);
-      avg += '<td class="px-1.5 py-1.5 tabular-nums font-bold">' + (a == null ? "—" : esc(fmtNum(a, false))) + "</td>";
-    });
-    iaTable.innerHTML = body + '<tr class="sticky bottom-0 border-t border-slate-200 bg-slate-100/95 dark:border-zinc-700 dark:bg-zinc-900/95">' + avg + "</tr>";
     var shell = document.getElementById("ia-table-shell");
     var tableEl = iaTable.closest("table");
-    if (ux && shell && tableEl) {
-      ux.ensureLegend(shell, {
-        onHeatToggle: function () {
-          // Güncel grafik metrikleri — ilk açılış closure’ına dönüp eklenen sütunları silme
-          renderOverviewTable(
-            (iaLastDrawBundles && iaLastDrawBundles.length) ? iaLastDrawBundles : bundles
-          );
-        },
-      });
-      ux.bindInteractive(tableEl, {
-        widthsKey: "ia-table-col-widths",
-        orderKey: "ia-table-col-order",
-        onOrderChange: function () {
-          renderOverviewTable(
-            (iaLastDrawBundles && iaLastDrawBundles.length) ? iaLastDrawBundles : bundles
-          );
-        },
-      });
+    function refreshIaOverviewTable() {
+      renderOverviewTable(
+        (iaLastDrawBundles && iaLastDrawBundles.length) ? iaLastDrawBundles : bundles
+      );
     }
-    iaFitDataList(keys.length + 1);
+    var gridRes = ux && tableEl
+      ? ux.renderHeatGrid({
+          shell: shell,
+          tableEl: tableEl,
+          theadRow: iaTheadRow,
+          tbody: iaTable,
+          keys: keys,
+          colItems: gridCols,
+          esc: esc,
+          fmtKey: fmtAxisKey,
+          fmtVal: function (v, col) {
+            return v == null ? "—" : fmtNum(v, isCountLike(col && col.metric));
+          },
+          breakdownLabel: "Breakdown",
+          averageLabel: "Ortalama",
+          onRefresh: refreshIaOverviewTable,
+          bindInteractive: {
+            widthsKey: "ia-table-col-widths",
+            orderKey: "ia-table-col-order",
+            onOrderChange: refreshIaOverviewTable,
+          },
+        })
+      : { rowCount: 0 };
+    iaFitDataList(gridRes.rowCount || keys.length + 1);
   }
   function renderSingleTable(series, metric) {
     iaTheadRow.innerHTML =

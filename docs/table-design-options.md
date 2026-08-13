@@ -23,6 +23,6 @@ Metrik KPI kartları ayrı konu; bu liste **veri tablosu** (`#pa-table-shell` / 
 
 ## Durum
 
-- Hangisi seçildi: **#6 Heat** (varsayılan) + **sütun genişletme** + **#8 Sürükle** (kolon sırası)
+- Hangisi seçildi: **#6 Heat** + **#3 Pin** (varsayılan açık) + **eksen değiştir** (Metrics on top ↔ Dates on top) + **#8 Sürükle**
 - Uygulandı: `static/js/metric_table_ux.js` · Android/iOS overview tabloları
-- Not: Heat hücre boyası + legend; header’dan sürükle sırala; sağ kenardan resize.
+- Not: Izgara heat (köşesiz hücre), zebra satır, legend’da Pin / Metrics on top / Remove colors.
