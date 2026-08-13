@@ -122,6 +122,239 @@
     );
   }
 
+  var HORIZON_METRICS_MAX = 6;
+
+  function parseMetricsCsv(s) {
+    return String(s || "")
+      .split(",")
+      .map(function (x) {
+        return x.trim();
+      })
+      .filter(Boolean);
+  }
+
+  function metricsCsv(arr) {
+    return (arr || []).join(",");
+  }
+
+  function getPaMetricCatalog() {
+    return document.getElementById("pa-metric-catalog");
+  }
+
+  function viz20MetricLabel(key, meta) {
+    if (!key) return "";
+    var cat = getPaMetricCatalog();
+    if (cat) {
+      var opt = cat.querySelector('option[value="' + String(key).replace(/"/g, '\\"') + '"]');
+      if (opt) return String(opt.textContent || key).trim();
+    }
+    var mo = metricOptions(meta || metaCache || {});
+    for (var i = 0; i < mo.length; i++) {
+      if (mo[i].v === key) return mo[i].l;
+    }
+    return key;
+  }
+
+  function updateViz20MetricsTrigger(details, meta) {
+    var labelEl = details.querySelector(".pa-viz20-metric-label");
+    var hidden = details.querySelector('[data-ctrl="metrics"]');
+    if (!labelEl || !hidden) return;
+    var selected = parseMetricsCsv(hidden.value);
+    if (!selected.length) {
+      labelEl.textContent = "Seçin";
+      return;
+    }
+    if (selected.length === 1) {
+      labelEl.textContent = viz20MetricLabel(selected[0], meta);
+      return;
+    }
+    labelEl.textContent = selected.length + " metrik seçili";
+  }
+
+  function positionViz20MetricDropdown(details) {
+    var trigger = details.querySelector(".pa-viz20-metric-trigger");
+    var list = details.querySelector(".pa-viz20-metric-list");
+    if (!trigger || !list || list.classList.contains("hidden")) return;
+    var r = trigger.getBoundingClientRect();
+    var maxW = Math.min(380, window.innerWidth - 16);
+    var w = Math.max(r.width, Math.min(maxW, 300));
+    var left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+    var spaceBelow = window.innerHeight - r.bottom - 12;
+    var spaceAbove = r.top - 12;
+    var maxH = Math.min(320, Math.max(spaceBelow, spaceAbove, 140));
+    var top = r.bottom + 4;
+    if (spaceBelow < 160 && spaceAbove > spaceBelow) {
+      top = Math.max(8, r.top - maxH - 4);
+    }
+    list.style.position = "fixed";
+    list.style.left = left + "px";
+    list.style.top = top + "px";
+    list.style.width = w + "px";
+    list.style.maxHeight = maxH + "px";
+    list.style.zIndex = "220";
+  }
+
+  function mountViz20MetricListPortal(details, on) {
+    var dd = details.querySelector(".pa-viz20-metric-dd");
+    var list = details.querySelector(".pa-viz20-metric-list");
+    if (!dd || !list) return;
+    if (on) {
+      if (list.parentElement !== document.body) document.body.appendChild(list);
+    } else if (list.parentElement !== dd) {
+      dd.appendChild(list);
+    }
+  }
+
+  function setViz20MetricDropdownOpen(details, meta, on) {
+    var trigger = details.querySelector(".pa-viz20-metric-trigger");
+    var list = details.querySelector(".pa-viz20-metric-list");
+    if (!trigger || !list) return;
+    if (on) {
+      fillViz20MetricsList(details, meta);
+      mountViz20MetricListPortal(details, true);
+      positionViz20MetricDropdown(details);
+      list.classList.remove("hidden");
+      trigger.setAttribute("aria-expanded", "true");
+    } else {
+      list.classList.add("hidden");
+      trigger.setAttribute("aria-expanded", "false");
+      mountViz20MetricListPortal(details, false);
+    }
+  }
+
+  function fillViz20MetricsList(details, meta) {
+    var listScroll = details.querySelector(".pa-viz20-metric-list-scroll");
+    var hidden = details.querySelector('[data-ctrl="metrics"]');
+    if (!listScroll || !hidden) return;
+    var scrollY = listScroll.scrollTop;
+    var selected = parseMetricsCsv(hidden.value);
+    var selectedMap = {};
+    selected.forEach(function (k) {
+      selectedMap[k] = true;
+    });
+    var html =
+      '<button type="button" role="option" aria-selected="' +
+      (!selected.length ? "true" : "false") +
+      '" data-viz20-metric-clear="1" class="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs ' +
+      (!selected.length
+        ? "bg-sky-50 font-semibold text-sky-800 dark:bg-sky-950/40 dark:text-sky-100"
+        : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") +
+      '">' +
+      '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-sky-600 dark:text-sky-400" aria-hidden="true">' +
+      (!selected.length ? "✓" : "") +
+      "</span>" +
+      '<span class="min-w-0 flex-1 truncate normal-case">Seçin</span></button>';
+    var cat = getPaMetricCatalog();
+    if (cat) {
+      Array.prototype.forEach.call(cat.children, function (node) {
+        if (node.tagName !== "OPTGROUP") return;
+        html +=
+          '<div class="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500">' +
+          esc(node.label) +
+          "</div>";
+        Array.prototype.forEach.call(node.children, function (opt) {
+          if (!opt.value) return;
+          var on = !!selectedMap[opt.value];
+          html +=
+            '<div class="pa-viz20-metric-row' +
+            (on ? " is-on" : "") +
+            '">' +
+            '<button type="button" role="option" aria-selected="' +
+            (on ? "true" : "false") +
+            '" data-viz20-metric-pick="' +
+            esc(opt.value) +
+            '" class="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-xs normal-case ' +
+            (on
+              ? "bg-transparent font-semibold text-sky-800 dark:text-sky-100"
+              : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") +
+            '">' +
+            '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-sky-600 dark:text-sky-400" aria-hidden="true">' +
+            (on ? "✓" : "") +
+            "</span>" +
+            '<span class="min-w-0 flex-1 truncate">' +
+            esc(String(opt.textContent || opt.value).trim()) +
+            "</span></button></div>";
+        });
+      });
+    } else {
+      metricOptions(meta).forEach(function (o) {
+        var on = !!selectedMap[o.v];
+        html +=
+          '<div class="pa-viz20-metric-row' +
+          (on ? " is-on" : "") +
+          '">' +
+          '<button type="button" role="option" aria-selected="' +
+          (on ? "true" : "false") +
+          '" data-viz20-metric-pick="' +
+          esc(o.v) +
+          '" class="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-xs normal-case ' +
+          (on
+            ? "bg-transparent font-semibold text-sky-800 dark:text-sky-100"
+            : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") +
+          '">' +
+          '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-sky-600 dark:text-sky-400" aria-hidden="true">' +
+          (on ? "✓" : "") +
+          "</span>" +
+          '<span class="min-w-0 flex-1 truncate">' +
+          esc(o.l) +
+          "</span></button></div>";
+      });
+    }
+    listScroll.innerHTML = html;
+    listScroll.scrollTop = scrollY;
+    updateViz20MetricsTrigger(details, meta);
+  }
+
+  function toggleViz20Metric(details, meta, key) {
+    var hidden = details.querySelector('[data-ctrl="metrics"]');
+    if (!hidden) return;
+    if (!key) {
+      hidden.value = "";
+      fillViz20MetricsList(details, meta);
+      if (details.open) loadViz(details);
+      return;
+    }
+    var arr = parseMetricsCsv(hidden.value);
+    var idx = arr.indexOf(key);
+    if (idx >= 0) {
+      arr.splice(idx, 1);
+    } else {
+      if (arr.length >= HORIZON_METRICS_MAX) return;
+      arr.push(key);
+    }
+    hidden.value = metricsCsv(arr);
+    fillViz20MetricsList(details, meta);
+    if (details.open) loadViz(details);
+  }
+
+  function metricsMultiSelectHtml(meta, metricsValue) {
+    var selected = parseMetricsCsv(metricsValue);
+    var triggerLabel = "Seçin";
+    if (selected.length === 1) {
+      triggerLabel = viz20MetricLabel(selected[0], meta);
+    } else if (selected.length > 1) {
+      triggerLabel = selected.length + " metrik seçili";
+    }
+    return (
+      '<label class="pa-viz20-metrics-wrap flex flex-col gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' +
+      "Metrikler" +
+      '<div class="pa-viz20-metric-dd relative min-w-[11rem]">' +
+      '<button type="button" class="pa-viz20-metric-trigger" aria-haspopup="listbox" aria-expanded="false">' +
+      '<span class="pa-viz20-metric-label min-w-0 flex-1 truncate normal-case">' +
+      esc(triggerLabel) +
+      "</span>" +
+      '<svg class="h-3 w-3 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>' +
+      "</button>" +
+      '<div class="pa-viz20-metric-list hidden overflow-hidden rounded-xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950" role="listbox" aria-multiselectable="true">' +
+      '<div class="pa-viz20-metric-list-scroll py-1"></div>' +
+      "</div>" +
+      '<input type="hidden" class="pa-viz20-ctrl" data-ctrl="metrics" value="' +
+      esc(metricsValue) +
+      '"/>' +
+      "</div></label>"
+    );
+  }
+
   function isoDate(d) {
     var y = d.getFullYear();
     var m = String(d.getMonth() + 1).padStart(2, "0");
@@ -259,7 +492,7 @@
     if (c.indexOf("metric_left") >= 0) parts.push(selectHtml("metric_left", "Sol eksen", mo, params.metric_left));
     if (c.indexOf("metric_right") >= 0) parts.push(selectHtml("metric_right", "Sağ eksen", mo, params.metric_right));
     if (c.indexOf("metrics") >= 0) {
-      parts.push(inputHtml("metrics", "Metrikler (virgülle)", "text", params.metrics));
+      parts.push(metricsMultiSelectHtml(meta, params.metrics));
     }
     if (c.indexOf("etype") >= 0) {
       parts.push(
@@ -710,8 +943,50 @@
       });
   }
 
-  function bindDetails(details) {
+  function bindViz20MetricsDropdown(details, meta) {
+    var trigger = details.querySelector(".pa-viz20-metric-trigger");
+    var list = details.querySelector(".pa-viz20-metric-list");
+    if (!trigger || !list) return;
+    fillViz20MetricsList(details, meta);
+    trigger.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      var open = list.classList.contains("hidden");
+      root.querySelectorAll("details.pa-viz20-drop").forEach(function (d) {
+        if (d !== details) setViz20MetricDropdownOpen(d, metaCache, false);
+      });
+      setViz20MetricDropdownOpen(details, meta, !open);
+    });
+    list.addEventListener("click", function (ev) {
+      var clearBtn = ev.target.closest("[data-viz20-metric-clear]");
+      if (clearBtn) {
+        ev.preventDefault();
+        toggleViz20Metric(details, meta, "");
+        return;
+      }
+      var pick = ev.target.closest("[data-viz20-metric-pick]");
+      if (!pick) return;
+      ev.preventDefault();
+      toggleViz20Metric(details, meta, pick.getAttribute("data-viz20-metric-pick"));
+    });
+    if (!details.getAttribute("data-viz20-metrics-bound")) {
+      details.setAttribute("data-viz20-metrics-bound", "1");
+      window.addEventListener(
+        "scroll",
+        function () {
+          if (!list.classList.contains("hidden")) positionViz20MetricDropdown(details);
+        },
+        true
+      );
+      window.addEventListener("resize", function () {
+        if (!list.classList.contains("hidden")) positionViz20MetricDropdown(details);
+      });
+    }
+  }
+
+  function bindDetails(details, meta) {
+    bindViz20MetricsDropdown(details, meta);
     details.addEventListener("toggle", function () {
+      setViz20MetricDropdownOpen(details, meta, false);
       if (details.open && !details.getAttribute("data-loaded")) {
         details.setAttribute("data-loaded", "1");
         loadViz(details);
@@ -805,9 +1080,22 @@
         '<div class="pa-viz20-chart rounded-lg border border-slate-200/80 bg-slate-50/50 dark:border-zinc-700 dark:bg-zinc-950/40"></div>' +
         '<div class="pa-viz20-table"></div>' +
         "</div>";
-      bindDetails(details);
+      bindDetails(details, meta);
       root.appendChild(details);
     });
+    if (!document.body.getAttribute("data-viz20-metrics-outside")) {
+      document.body.setAttribute("data-viz20-metrics-outside", "1");
+      document.addEventListener("click", function (ev) {
+        var t = ev.target;
+        root.querySelectorAll("details.pa-viz20-drop").forEach(function (details) {
+          var dd = details.querySelector(".pa-viz20-metric-dd");
+          var list = details.querySelector(".pa-viz20-metric-list");
+          if (!dd || !list || list.classList.contains("hidden")) return;
+          if (dd.contains(t) || list.contains(t)) return;
+          setViz20MetricDropdownOpen(details, metaCache, false);
+        });
+      });
+    }
     var mainPreset = document.getElementById("pa-preset");
     if (mainPreset && !mainPreset.getAttribute("data-viz20-bound")) {
       mainPreset.setAttribute("data-viz20-bound", "1");

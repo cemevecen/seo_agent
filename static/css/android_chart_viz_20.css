@@ -195,3 +195,71 @@ html.midnight .pa-viz20-h-btn.is-active {
   background: rgb(244 244 245);
   color: rgb(24 24 27);
 }
+
+.pa-viz20-metrics-wrap {
+  min-width: 11rem;
+}
+
+.pa-viz20-metric-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(255 255 255);
+  padding: 0.25rem 0.5rem;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+  color: rgb(30 41 59);
+  cursor: pointer;
+}
+
+html.dark .pa-viz20-metric-trigger,
+html.midnight .pa-viz20-metric-trigger {
+  border-color: rgb(63 63 70);
+  background: rgb(24 24 27);
+  color: rgb(228 228 231);
+}
+
+.pa-viz20-metric-trigger:focus {
+  outline: 2px solid rgba(14, 165, 233, 0.35);
+  outline-offset: 1px;
+}
+
+.pa-viz20-metric-list-scroll {
+  max-height: inherit;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.pa-viz20-metric-row {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+
+.pa-viz20-metric-row.is-on {
+  background: rgb(239 246 255);
+}
+
+html.dark .pa-viz20-metric-row.is-on,
+html.midnight .pa-viz20-metric-row.is-on {
+  background: rgba(30, 58, 138, 0.35);
+}
+
+.pa-viz20-metric-list [role="option"][aria-selected="true"] {
+  background: rgb(239 246 255);
+  color: rgb(30 58 138);
+  font-weight: 600;
+}
+
+html.dark .pa-viz20-metric-list [role="option"][aria-selected="true"],
+html.midnight .pa-viz20-metric-list [role="option"][aria-selected="true"] {
+  background: rgba(30, 58, 138, 0.35);
+  color: rgb(219 234 254);
+}

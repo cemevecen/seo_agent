@@ -68,9 +68,9 @@ VIZ_META: list[dict[str, Any]] = [
         "title": "Horizon chart",
         "blurb": "Çoklu metrik · kompakt normalize bant",
         "detail": (
-            "Aynı grafikte 4–6 metrik (Play + GA4) günlük/haftalık seri olarak bindirilir; "
+            "Aynı grafikte 4–6 metrik (Play + GA4 + Virgül) günlük/haftalık seri olarak bindirilir; "
             "her seri kendi maksimumuna göre 0–1 normalize edilir. "
-            "Metrik listesi virgülle düzenlenebilir (ör. anrs,crashes,dau,ga4:sessions)."
+            "Metrikler ana grafikteki gibi çoklu seçim listesinden işaretlenir (en fazla 6)."
         ),
         "controls": ["start", "end", "metrics"],
     },
