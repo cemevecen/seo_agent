@@ -327,6 +327,25 @@
     if (details.open) loadViz(details);
   }
 
+  function viz20MetricEventInside(details, t) {
+    if (!t || !t.closest) return false;
+    var wrap = details.querySelector(".pa-viz20-metrics-wrap");
+    if (wrap && wrap.contains(t)) return true;
+    var list = details.querySelector(".pa-viz20-metric-list");
+    if (list && list.contains(t)) return true;
+    return false;
+  }
+
+  function toggleViz20MetricDropdown(details, meta) {
+    var list = details.querySelector(".pa-viz20-metric-list");
+    if (!list) return;
+    var open = list.classList.contains("hidden");
+    root.querySelectorAll("details.pa-viz20-drop").forEach(function (d) {
+      if (d !== details) setViz20MetricDropdownOpen(d, metaCache, false);
+    });
+    setViz20MetricDropdownOpen(details, meta, !open);
+  }
+
   function metricsMultiSelectHtml(meta, metricsValue) {
     var selected = parseMetricsCsv(metricsValue);
     var triggerLabel = "Seçin";
@@ -336,8 +355,8 @@
       triggerLabel = selected.length + " metrik seçili";
     }
     return (
-      '<label class="pa-viz20-metrics-wrap flex flex-col gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' +
-      "Metrikler" +
+      '<div class="pa-viz20-metrics-wrap flex flex-col gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' +
+      '<span class="pa-viz20-metrics-title">Metrikler</span>' +
       '<div class="pa-viz20-metric-dd relative min-w-[11rem]">' +
       '<button type="button" class="pa-viz20-metric-trigger" aria-haspopup="listbox" aria-expanded="false">' +
       '<span class="pa-viz20-metric-label min-w-0 flex-1 truncate normal-case">' +
@@ -351,7 +370,7 @@
       '<input type="hidden" class="pa-viz20-ctrl" data-ctrl="metrics" value="' +
       esc(metricsValue) +
       '"/>' +
-      "</div></label>"
+      "</div></div>"
     );
   }
 
@@ -1016,27 +1035,41 @@
   function bindViz20MetricsDropdown(details, meta) {
     var trigger = details.querySelector(".pa-viz20-metric-trigger");
     var list = details.querySelector(".pa-viz20-metric-list");
+    var wrap = details.querySelector(".pa-viz20-metrics-wrap");
     if (!trigger || !list) return;
     fillViz20MetricsList(details, meta);
+    if (trigger.getAttribute("data-viz20-metric-bound") === "1") return;
+    trigger.setAttribute("data-viz20-metric-bound", "1");
     trigger.addEventListener("click", function (ev) {
+      ev.preventDefault();
       ev.stopPropagation();
-      var open = list.classList.contains("hidden");
-      root.querySelectorAll("details.pa-viz20-drop").forEach(function (d) {
-        if (d !== details) setViz20MetricDropdownOpen(d, metaCache, false);
-      });
-      setViz20MetricDropdownOpen(details, meta, !open);
+      toggleViz20MetricDropdown(details, meta);
     });
+    if (wrap) {
+      wrap.addEventListener("click", function (ev) {
+        if (ev.target.closest(".pa-viz20-metric-trigger")) return;
+        if (ev.target.closest(".pa-viz20-metric-list")) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        toggleViz20MetricDropdown(details, meta);
+      });
+    }
     list.addEventListener("click", function (ev) {
       var clearBtn = ev.target.closest("[data-viz20-metric-clear]");
       if (clearBtn) {
         ev.preventDefault();
+        ev.stopPropagation();
         toggleViz20Metric(details, meta, "");
         return;
       }
       var pick = ev.target.closest("[data-viz20-metric-pick]");
       if (!pick) return;
       ev.preventDefault();
+      ev.stopPropagation();
       toggleViz20Metric(details, meta, pick.getAttribute("data-viz20-metric-pick"));
+    });
+    list.addEventListener("mousedown", function (ev) {
+      ev.stopPropagation();
     });
     if (!details.getAttribute("data-viz20-metrics-bound")) {
       details.setAttribute("data-viz20-metrics-bound", "1");
@@ -1155,13 +1188,11 @@
     });
     if (!document.body.getAttribute("data-viz20-metrics-outside")) {
       document.body.setAttribute("data-viz20-metrics-outside", "1");
-      document.addEventListener("click", function (ev) {
-        var t = ev.target;
+      document.addEventListener("mousedown", function (ev) {
         root.querySelectorAll("details.pa-viz20-drop").forEach(function (details) {
-          var dd = details.querySelector(".pa-viz20-metric-dd");
           var list = details.querySelector(".pa-viz20-metric-list");
-          if (!dd || !list || list.classList.contains("hidden")) return;
-          if (dd.contains(t) || list.contains(t)) return;
+          if (!list || list.classList.contains("hidden")) return;
+          if (viz20MetricEventInside(details, ev.target)) return;
           setViz20MetricDropdownOpen(details, metaCache, false);
         });
       });

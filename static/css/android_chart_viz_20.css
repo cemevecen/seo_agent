@@ -200,6 +200,20 @@ html.midnight .pa-viz20-h-btn.is-active {
   min-width: 11rem;
 }
 
+.pa-viz20-metrics-title {
+  cursor: pointer;
+  user-select: none;
+}
+
+.pa-viz20-metrics-title:hover {
+  color: rgb(51 65 85);
+}
+
+html.dark .pa-viz20-metrics-title:hover,
+html.midnight .pa-viz20-metrics-title:hover {
+  color: rgb(228 228 231);
+}
+
 .pa-viz20-metric-trigger {
   display: flex;
   width: 100%;
