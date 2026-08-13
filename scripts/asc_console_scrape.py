@@ -180,8 +180,18 @@ def _page_needs_login(page) -> bool:
     return _need_login(url, title, body)
 
 
-def _probe_analytics_session(page) -> dict[str, Any]:
-    """settings/all JSON → gerçek oturum kanıtı (cookie isimlerinden daha güvenilir)."""
+def _probe_analytics_session(page, ctx=None) -> dict[str, Any]:
+    """settings/all JSON + Apple oturum çerezleri.
+
+    Dikkat: settings/all bazen oturumsuz HTTP 200 + measures kataloğu döner
+    (myacinfo/itctx yok). Bu yüzden yalnız JSON yetmez — auth cookie şart.
+    """
+    cookie_info: dict[str, Any] = {}
+    try:
+        cookie_info = _cookie_debug(ctx or page.context)
+    except Exception:
+        cookie_info = {}
+    has_auth = bool(cookie_info.get("has_myacinfo") or cookie_info.get("has_itctx"))
     try:
         warm = page.context.request.get(
             "https://appstoreconnect.apple.com/analytics/api/v1/settings/all",
@@ -192,20 +202,33 @@ def _probe_analytics_session(page) -> dict[str, Any]:
         )
         text = warm.text() or ""
         ctype = (warm.headers.get("content-type") or "")[:60]
-        ok = (
+        json_ok = (
             warm.status == 200
             and "json" in ctype.lower()
             and not text.lstrip().startswith("<!")
             and ('"measures"' in text or '"results"' in text or text.lstrip().startswith("{"))
         )
+        # Auth cookie olmadan JSON 200 → sahte oturum (login ekranı açıkken görüldü)
+        ok = bool(json_ok and has_auth)
         return {
             "ok": ok,
             "status": warm.status,
             "ctype": ctype,
             "preview": text[:120].replace("\n", " "),
+            "has_auth_cookie": has_auth,
+            "json_ok": json_ok,
+            "cookies": cookie_info,
         }
     except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "status": 0, "ctype": "", "preview": str(exc)[:120]}
+        return {
+            "ok": False,
+            "status": 0,
+            "ctype": "",
+            "preview": str(exc)[:120],
+            "has_auth_cookie": has_auth,
+            "json_ok": False,
+            "cookies": cookie_info,
+        }
 
 
 def _url_looks_like_login(page_url: str) -> bool:
@@ -296,6 +319,11 @@ def _wait_for_asc_session(page, ctx, *, timeout_sec: int | None = None) -> bool:
             except Exception:
                 pass
             time.sleep(2)
+            # Sahte 200'e düşmemek için tekrar doğrula (cookie + API)
+            probe2 = _probe_analytics_session(page, ctx)
+            if not probe2.get("ok"):
+                time.sleep(2)
+                continue
             info = _cookie_debug(ctx)
             print(
                 f"ASC oturumu OK · api=settings/all · myacinfo={info.get('has_myacinfo')} · "
@@ -314,9 +342,9 @@ def _wait_for_asc_session(page, ctx, *, timeout_sec: int | None = None) -> bool:
                 flush=True,
             )
             last_status = now
-        # URL login’den çıktıysa bir kez daha API dene (DOM okuma yok)
+        # URL login’den çıktıysa bir kez daha API+cookie dene (DOM okuma yok)
         if url and not _url_looks_like_login(url):
-            probe2 = _probe_analytics_session(page)
+            probe2 = _probe_analytics_session(page, ctx)
             if probe2.get("ok"):
                 info = _cookie_debug(ctx)
                 print(
@@ -1090,16 +1118,35 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             f"dqsid={cookie_info.get('has_dqsid')}",
             flush=True,
         )
-        probe = _probe_analytics_session(page)
+        probe = _probe_analytics_session(page, ctx)
         print(
             f"ASC settings/all · HTTP {probe.get('status')} · "
-            f"ctype={probe.get('ctype')} · {probe.get('preview')}",
+            f"ctype={probe.get('ctype')} · auth_cookie={probe.get('has_auth_cookie')} · "
+            f"session_ok={probe.get('ok')} · {probe.get('preview')}",
             flush=True,
         )
-        session_ok = bool(probe.get("ok"))
-        # Başlık/URL login gibi görünmese bile API oturumu yoksa headed'de BEKLE.
-        # Eski bug: kullanıcı giriş yapınca needs_login=False oluyor, session_ok hâlâ False
-        # → erken return + tarayıcı kapanıyordu.
+        ui_login = False
+        try:
+            ui_login = _page_needs_login(page) or _url_looks_like_login(_page_url_safe(page))
+        except Exception:
+            ui_login = False
+        # Gerçek oturum: API + auth cookie + UI login değil
+        session_ok = bool(probe.get("ok")) and not ui_login
+        if probe.get("json_ok") and not probe.get("has_auth_cookie"):
+            print(
+                "ASC: settings/all JSON geldi ama myacinfo/itctx yok — oturum yok sayılıyor, "
+                "giriş bekleniyor.",
+                flush=True,
+            )
+            session_ok = False
+        if ui_login:
+            print(
+                "ASC: tarayıcıda Apple giriş ekranı görünüyor — 15 dk bekleniyor "
+                "(girişten sonra aynı pencerede devam).",
+                flush=True,
+            )
+            session_ok = False
+
         if not session_ok:
             if headed:
                 if not _wait_for_asc_session(page, ctx):
@@ -1110,10 +1157,9 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                         "panels": {"explorer_facts": []},
                         "raw_network": [],
                     }
-                probe = _probe_analytics_session(page)
+                probe = _probe_analytics_session(page, ctx)
                 session_ok = bool(probe.get("ok"))
                 if not session_ok:
-                    # Cookie yazıldı ama API gecikmeli — analytics’e bir kez daha git
                     try:
                         page.goto(
                             f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics/metrics",
@@ -1123,7 +1169,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                         time.sleep(3)
                     except Exception:
                         pass
-                    probe = _probe_analytics_session(page)
+                    probe = _probe_analytics_session(page, ctx)
                     session_ok = bool(probe.get("ok"))
                 if not session_ok:
                     return {
@@ -1141,21 +1187,6 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                     "panels": {"explorer_facts": []},
                     "raw_network": [],
                 }
-        elif _page_needs_login(page):
-            # API ayakta ama UI login’e düşmüş — analytics’e geri dön, devam et
-            print(
-                "ASC: settings/all OK — UI login görünümü yok sayılıyor, measures’a devam",
-                flush=True,
-            )
-            try:
-                page.goto(
-                    f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics/metrics",
-                    wait_until="domcontentloaded",
-                    timeout=90_000,
-                )
-                time.sleep(2)
-            except Exception:
-                pass
 
         end_d = date.today() - timedelta(days=1)
         scrape_days = _scrape_days()

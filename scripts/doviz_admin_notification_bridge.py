@@ -194,16 +194,19 @@ _TRANSIENT_FAIL_MARKERS = (
 # sync'i Elle yenile'yi 409 ile kilitlemesin.
 _nt_lock = threading.Lock()
 _virgul_lock = threading.Lock()
-_play_lock = threading.Lock()
-_asc_lock = threading.Lock()
-_firebase_lock = threading.Lock()
-_gsc_links_lock = threading.Lock()
-_policy_lock = threading.Lock()
+# Play / ASC / Firebase / GSC / Policy — aynı anda tek headed Firefox
+# (login beklerken 3-4 pencere açılmasın; auto job manuel Update'i ezmesin)
+_browser_scrape_lock = threading.Lock()
+_play_lock = _browser_scrape_lock
+_asc_lock = _browser_scrape_lock
+_firebase_lock = _browser_scrape_lock
+_gsc_links_lock = _browser_scrape_lock
+_policy_lock = _browser_scrape_lock
+_gsc_cwv_lock = _browser_scrape_lock
 _noads_lock = threading.Lock()
 _moderation_lock = threading.Lock()
 _pagespeed_lock = threading.Lock()
 _seo_audit_lock = threading.Lock()
-_gsc_cwv_lock = threading.Lock()
 _market_lock = threading.Lock()
 _pm_lab_lock = threading.Lock()
 _noads_open_lock = threading.Lock()
