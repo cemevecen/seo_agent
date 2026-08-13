@@ -18,12 +18,22 @@
   var MODS = RAW.moderators || [];
   var ANALYTICS = RAW.analytics || {};
   var PALETTE = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
-  /** Sinemalar_Yonetim (53), ivicincim (748975) — varsayılan kapalı; legend tıklanınca tüm grafiklerde açılır */
+  /** Sinemalar_Yonetim (53), ivicincim (748975) — varsayılan kapalı; legend yalnızca o grafiği etkiler */
   var DEFAULT_HIDDEN_USER_IDS = { "53": true, "748975": true };
-  var modVisibility = {};
-  MODS.forEach(function (m) {
-    modVisibility[String(m.user_id)] = !DEFAULT_HIDDEN_USER_IDS[String(m.user_id)];
-  });
+  var chartModVisibility = {};
+  function defaultModVisibilityMap() {
+    var v = {};
+    MODS.forEach(function (m) {
+      v[String(m.user_id)] = !DEFAULT_HIDDEN_USER_IDS[String(m.user_id)];
+    });
+    return v;
+  }
+  function getChartModVisibility(chartId) {
+    if (!chartModVisibility[chartId]) {
+      chartModVisibility[chartId] = defaultModVisibilityMap();
+    }
+    return chartModVisibility[chartId];
+  }
   var FOCUS_ZOOM_MIN = 0.05;
   var focusZoomBaseMax = null;
   var focusZoomMax = null;
@@ -136,55 +146,77 @@
     return rows * 22 + 10;
   }
 
-  function updateModLegendButtonStates() {
-    document.querySelectorAll(".mod-chart-legend-bar--mods .mod-legend-item[data-user-id]").forEach(function (btn) {
-      btn.classList.toggle("is-off", !isModVisible(btn.getAttribute("data-user-id")));
+  var CHART_DRAWERS = {
+    "mod-chart-rank-total": drawRankTotal,
+    "mod-chart-inactive-summary": drawInactiveSummary,
+    "mod-chart-daily-volume": drawDailyVolume,
+    "mod-chart-activity-heat": drawActivityHeatmaps,
+    "mod-chart-metric-stack": drawMetricStack,
+    "mod-chart-weekday": drawWeekday,
+    "mod-chart-rank-matrix": drawRankMatrix,
+    "mod-chart-focus-profile": drawFocusProfile,
+    "mod-chart-cumulative": drawCumulative,
+  };
+
+  function updateModLegendButtonStatesForChart(chartId) {
+    var plotEl = document.getElementById(chartId);
+    if (!plotEl) return;
+    var card = plotEl.closest(".mod-chart-card");
+    if (!card) return;
+    card.querySelectorAll(".mod-chart-legend-bar--mods .mod-legend-item[data-user-id]").forEach(function (btn) {
+      btn.classList.toggle("is-off", !isModVisibleForChart(chartId, btn.getAttribute("data-user-id")));
     });
   }
 
-  function restyleModTraceCharts() {
+  function restyleSingleModTraceChart(chartId) {
+    var el = document.getElementById(chartId);
+    if (!el || !el.data || !el.data.length) {
+      redrawSingleChart(chartId);
+      return;
+    }
     var visibility = MODS.map(function (m) {
-      return isModVisible(m.user_id);
+      return modTraceVisibleForChart(chartId, m);
     });
-    MOD_TRACE_CHART_IDS.forEach(function (id) {
-      var el = document.getElementById(id);
-      if (!el || !el.data || !el.data.length) return;
-      try {
-        Plotly.restyle(el, { visible: visibility });
-      } catch (_) {}
-    });
-    var focusEl = document.getElementById("mod-chart-focus-profile");
-    if (focusEl && focusEl.querySelector(".js-plotly-plot")) {
+    try {
+      Plotly.restyle(el, { visible: visibility });
+    } catch (_) {
+      redrawSingleChart(chartId);
+      return;
+    }
+    if (chartId === "mod-chart-focus-profile") {
       var shares = ANALYTICS.shares_by_metric || {};
-      var baseMax = focusRadialMax(shares);
+      var baseMax = focusRadialMax(shares, chartId);
       if (focusZoomBaseMax != null && focusZoomMax != null && focusZoomBaseMax > 0) {
         var ratio = focusZoomMax / focusZoomBaseMax;
         focusZoomBaseMax = baseMax;
         focusZoomMax = Math.max(FOCUS_ZOOM_MIN, Math.min(baseMax, baseMax * ratio));
       }
       try {
-        Plotly.relayout(focusEl, { "polar.radialaxis.range": [0, focusZoomMax || baseMax] });
+        Plotly.relayout(el, { "polar.radialaxis.range": [0, focusZoomMax || baseMax] });
       } catch (_) {}
       updateFocusZoomLabel();
     }
   }
 
-  function redrawModFilteredCharts() {
-    var fns = [drawRankTotal, drawInactiveSummary, drawActivityHeatmaps, drawMetricStack, drawRankMatrix];
-    fns.forEach(function (fn) {
-      try {
-        fn();
-      } catch (err) {
-        console.error("[mod-chart] filter redraw failed", err);
-      }
-    });
+  function redrawSingleChart(chartId) {
+    var fn = CHART_DRAWERS[chartId];
+    if (!fn) return;
+    try {
+      fn();
+    } catch (err) {
+      console.error("[mod-chart] redraw failed", chartId, err);
+    }
   }
 
-  function toggleModVisibility(userId) {
-    modVisibility[String(userId)] = !isModVisible(userId);
-    updateModLegendButtonStates();
-    restyleModTraceCharts();
-    redrawModFilteredCharts();
+  function toggleModVisibilityForChart(chartId, userId) {
+    var vis = getChartModVisibility(chartId);
+    vis[String(userId)] = !isModVisibleForChart(chartId, userId);
+    updateModLegendButtonStatesForChart(chartId);
+    if (MOD_TRACE_CHART_IDS.indexOf(chartId) >= 0) {
+      restyleSingleModTraceChart(chartId);
+    } else {
+      redrawSingleChart(chartId);
+    }
   }
 
   function bindModLegendDelegation() {
@@ -194,8 +226,11 @@
     root.addEventListener("click", function (ev) {
       var btn = ev.target.closest(".mod-chart-legend-bar--mods .mod-legend-item[data-user-id]");
       if (!btn) return;
+      var card = btn.closest(".mod-chart-card");
+      var plotEl = card && card.querySelector(".mod-chart-plot");
+      if (!plotEl || !plotEl.id) return;
       ev.preventDefault();
-      toggleModVisibility(btn.getAttribute("data-user-id"));
+      toggleModVisibilityForChart(plotEl.id, btn.getAttribute("data-user-id"));
     });
   }
 
@@ -230,7 +265,7 @@
       MODS.forEach(function (m, i) {
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "mod-legend-item" + (isModVisible(m.user_id) ? "" : " is-off");
+        btn.className = "mod-legend-item" + (isModVisibleForChart(chartEl.id, m.user_id) ? "" : " is-off");
         btn.setAttribute("data-user-id", String(m.user_id));
         btn.innerHTML =
           '<span class="mod-legend-swatch" style="background:' +
@@ -430,9 +465,10 @@
     return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
   }
 
-  function focusRadialMax(shares) {
+  function focusRadialMax(shares, chartId) {
+    chartId = chartId || "mod-chart-focus-profile";
     var maxR = 0;
-    visibleMods().forEach(function (m) {
+    visibleModsForChart(chartId).forEach(function (m) {
       var s = shares[String(m.user_id)] || {};
       METRICS.forEach(function (mt) {
         maxR = Math.max(maxR, Number(s[mt.key] || 0));
@@ -510,17 +546,17 @@
     return 0;
   }
 
-  function isModVisible(uid) {
-    return modVisibility[String(uid)] !== false;
+  function isModVisibleForChart(chartId, uid) {
+    return getChartModVisibility(chartId)[String(uid)] !== false;
   }
 
-  function modTraceVisible(m) {
-    return isModVisible(m.user_id) ? true : false;
+  function modTraceVisibleForChart(chartId, m) {
+    return isModVisibleForChart(chartId, m.user_id) ? true : false;
   }
 
-  function visibleMods() {
+  function visibleModsForChart(chartId) {
     return MODS.filter(function (m) {
-      return isModVisible(m.user_id);
+      return isModVisibleForChart(chartId, m.user_id);
     });
   }
 
@@ -540,7 +576,7 @@
     var el = purgePlot("mod-chart-rank-total");
     if (!el || !window.Plotly) return;
     var rank = (ANALYTICS.overall_rank || []).filter(function (r) {
-      return isModVisible(r.user_id);
+      return isModVisibleForChart("mod-chart-rank-total", r.user_id);
     });
     if (!rank.length) return;
     var names = rank.map(function (r) {
@@ -598,7 +634,7 @@
         stackgroup: "one",
         name: "",
         showlegend: false,
-        visible: modTraceVisible(m),
+        visible: modTraceVisibleForChart("mod-chart-daily-volume", m),
         x: days,
         y: series,
         line: { width: 1.2, color: modColor(i) },
@@ -640,7 +676,7 @@
     if (!el || !window.Plotly) return;
     var days = ANALYTICS.calendar_days || [];
     var cals = ANALYTICS.calendars || {};
-    var shownMods = visibleMods();
+    var shownMods = visibleModsForChart("mod-chart-activity-heat");
     if (!days.length) {
       showChartEmpty("mod-chart-activity-heat", "Takvim verisi yok");
       return;
@@ -714,7 +750,7 @@
     var el = purgePlot("mod-chart-metric-stack");
     if (!el || !window.Plotly) return;
     var users = (RAW.users || []).filter(function (u) {
-      return isModVisible(u.user_id);
+      return isModVisibleForChart("mod-chart-metric-stack", u.user_id);
     });
     if (!users.length) return;
     var names = users.map(function (u) {
@@ -764,7 +800,7 @@
     var el = purgePlot("mod-chart-rank-matrix");
     if (!el || !window.Plotly) return;
     var rankings = ANALYTICS.rankings_by_metric || {};
-    var shownMods = visibleMods();
+    var shownMods = visibleModsForChart("mod-chart-rank-matrix");
     if (!shownMods.length) return;
     var yLabels = shownMods.map(function (m) {
       return m.username;
@@ -823,7 +859,7 @@
     var el = purgePlot("mod-chart-focus-profile");
     if (!el || !window.Plotly) return;
     var shares = ANALYTICS.shares_by_metric || {};
-    var baseMax = focusRadialMax(shares);
+    var baseMax = focusRadialMax(shares, "mod-chart-focus-profile");
     if (focusZoomBaseMax == null || focusZoomMax == null) {
       focusZoomBaseMax = baseMax;
       focusZoomMax = baseMax;
@@ -839,7 +875,7 @@
         type: "scatterpolar",
         name: "",
         showlegend: false,
-        visible: modTraceVisible(m),
+        visible: modTraceVisibleForChart("mod-chart-focus-profile", m),
         r: METRICS.map(function (mt) {
           return s[mt.key] || 0;
         }),
@@ -893,9 +929,7 @@
         type: "bar",
         name: "",
         showlegend: false,
-        visible: modTraceVisible(m),
-        x: labels,
-        y: w,
+        visible: modTraceVisibleForChart("mod-chart-weekday", m),
         marker: { color: modColor(i) },
         hovertemplate: m.username + "<br>%{x}: %{y:,} iş<extra></extra>",
       };
@@ -928,7 +962,7 @@
         mode: "lines",
         name: "",
         showlegend: false,
-        visible: modTraceVisible(m),
+        visible: modTraceVisibleForChart("mod-chart-cumulative", m),
         x: days,
         y: series.map(function (p) {
           return p.cumulative;
@@ -974,7 +1008,7 @@
     var active = [];
     var inactive = [];
     var hasJoin = false;
-    visibleMods().forEach(function (m) {
+    visibleModsForChart("mod-chart-inactive-summary").forEach(function (m) {
       var cal = cals[String(m.user_id)] || {};
       names.push(m.username);
       active.push(cal.active_days || 0);
