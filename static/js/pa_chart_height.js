@@ -194,18 +194,16 @@
   }
 
   function decorateEdgeHandle(handle) {
-    if (!handle || handle.querySelector(".pa-chart-edge-grip")) return;
-    handle.innerHTML =
-      '<span class="pa-chart-edge-grip" aria-hidden="true"></span>' +
-      '<span class="pa-chart-edge-hint">Genişlik</span>';
+    if (!handle) return;
+    handle.innerHTML = "";
+    handle.setAttribute("data-pa-chip", "1");
     handle.removeAttribute("title");
   }
 
   function decorateHeightHandle(handle) {
-    if (!handle || handle.querySelector(".pa-chart-height-grip")) return;
-    handle.innerHTML =
-      '<span class="pa-chart-height-grip" aria-hidden="true"></span>' +
-      '<span class="pa-chart-height-hint">Yükseklik</span>';
+    if (!handle) return;
+    handle.innerHTML = "";
+    handle.setAttribute("data-pa-chip", "1");
     handle.removeAttribute("title");
   }
 
@@ -225,25 +223,16 @@
       leftHandle.type = "button";
       leftHandle.className = "pa-chart-edge-handle pa-chart-edge-handle--left";
       leftHandle.setAttribute("aria-label", "Grafiği soldan genişlet veya daralt");
-      leftHandle.innerHTML =
-        '<span class="pa-chart-edge-grip" aria-hidden="true"></span>' +
-        '<span class="pa-chart-edge-hint">Genişlik</span>';
 
       var rightHandle = document.createElement("button");
       rightHandle.type = "button";
       rightHandle.className = "pa-chart-edge-handle pa-chart-edge-handle--right";
       rightHandle.setAttribute("aria-label", "Grafiği sağdan genişlet veya daralt");
-      rightHandle.innerHTML =
-        '<span class="pa-chart-edge-grip" aria-hidden="true"></span>' +
-        '<span class="pa-chart-edge-hint">Genişlik</span>';
 
       var bottomHandle = document.createElement("button");
       bottomHandle.type = "button";
       bottomHandle.className = "pa-chart-height-handle pa-chart-height-handle--bottom";
       bottomHandle.setAttribute("aria-label", "Grafiği dikey genişlet veya daralt");
-      bottomHandle.innerHTML =
-        '<span class="pa-chart-height-grip" aria-hidden="true"></span>' +
-        '<span class="pa-chart-height-hint">Yükseklik</span>';
 
       t.wrap.insertBefore(stage, svg);
       viewport.appendChild(svg);
@@ -267,9 +256,6 @@
       bottomHandle.type = "button";
       bottomHandle.className = "pa-chart-height-handle pa-chart-height-handle--bottom";
       bottomHandle.setAttribute("aria-label", "Grafiği dikey genişlet veya daralt");
-      bottomHandle.innerHTML =
-        '<span class="pa-chart-height-grip" aria-hidden="true"></span>' +
-        '<span class="pa-chart-height-hint">Yükseklik</span>';
       stage.appendChild(bottomHandle);
       t.handleBottom = bottomHandle;
       bindHeightDrag(t, bottomHandle);

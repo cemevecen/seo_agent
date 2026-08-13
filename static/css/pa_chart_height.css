@@ -53,54 +53,32 @@
 
 .pa-chart-edge-handle {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 50%;
   z-index: 6;
-  width: 2rem;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: ew-resize;
-  touch-action: none;
-  opacity: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.pa-chart-edge-handle--left {
-  left: calc(var(--pa-chart-margin-l, 0%) + 1rem);
-  transform: translateX(-50%);
-}
-
-.pa-chart-edge-handle--right {
-  right: calc(var(--pa-chart-margin-r, 0%) + 1rem);
-  transform: translateX(50%);
-}
-
-.pa-chart-edge-grip {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.2rem;
+  width: auto;
+  height: auto;
   min-width: 1.35rem;
+  margin: 0;
   padding: 0.45rem 0.3rem;
-  border-radius: 9999px;
   border: 1.5px solid rgb(14 165 233 / 0.55);
+  border-radius: 9999px;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.98), rgb(224 242 254 / 0.92));
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.85) inset,
     0 2px 10px rgb(14 165 233 / 0.22),
     0 0 0 3px rgb(14 165 233 / 0.1);
-  pointer-events: none;
+  cursor: ew-resize;
+  touch-action: none;
+  opacity: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
   transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
 }
 
-.pa-chart-edge-grip::before,
-.pa-chart-edge-grip::after {
+.pa-chart-edge-handle::before,
+.pa-chart-edge-handle::after {
   content: "";
   display: block;
   width: 0.22rem;
@@ -110,40 +88,20 @@
   box-shadow: 0 0.38rem 0 0 rgb(2 132 199), 0 0.76rem 0 0 rgb(2 132 199);
 }
 
-.pa-chart-edge-hint {
-  position: absolute;
-  top: 50%;
-  display: inline-flex;
-  align-items: center;
-  padding: 0.18rem 0.42rem;
-  border-radius: 0.35rem;
-  border: 1px solid rgb(14 165 233 / 0.35);
-  background: rgb(240 249 255 / 0.96);
-  color: rgb(3 105 161);
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 1;
-  white-space: nowrap;
-  pointer-events: none;
-  box-shadow: 0 1px 6px rgb(14 165 233 / 0.16);
+.pa-chart-edge-handle--left {
+  left: calc(var(--pa-chart-margin-l, 0%) + 1rem);
+  transform: translate(-50%, -50%);
 }
 
-.pa-chart-edge-handle--left .pa-chart-edge-hint {
-  left: calc(100% + 0.35rem);
-  transform: translateY(-50%);
+.pa-chart-edge-handle--right {
+  right: calc(var(--pa-chart-margin-r, 0%) + 1rem);
+  transform: translate(50%, -50%);
 }
 
-.pa-chart-edge-handle--right .pa-chart-edge-hint {
-  right: calc(100% + 0.35rem);
-  transform: translateY(-50%);
-}
-
-.pa-chart-edge-handle:hover .pa-chart-edge-grip,
-.pa-chart-edge-handle.is-dragging .pa-chart-edge-grip,
-.pa-chart-edge-handle:focus-visible .pa-chart-edge-grip {
-  transform: scale(1.06);
+.pa-chart-edge-handle:hover,
+.pa-chart-edge-handle.is-dragging,
+.pa-chart-edge-handle:focus-visible {
+  transform: translate(-50%, -50%) scale(1.06);
   border-color: rgb(2 132 199 / 0.85);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.9) inset,
@@ -151,12 +109,18 @@
     0 0 0 4px rgb(56 189 248 / 0.18);
 }
 
-.pa-chart-edge-handle.is-dragging .pa-chart-edge-grip {
+.pa-chart-edge-handle--right:hover,
+.pa-chart-edge-handle--right.is-dragging,
+.pa-chart-edge-handle--right:focus-visible {
+  transform: translate(50%, -50%) scale(1.06);
+}
+
+.pa-chart-edge-handle.is-dragging {
   background: linear-gradient(180deg, rgb(224 242 254), rgb(186 230 253));
 }
 
-html.dark .pa-chart-edge-grip,
-html.midnight .pa-chart-edge-grip {
+html.dark .pa-chart-edge-handle,
+html.midnight .pa-chart-edge-handle {
   border-color: rgb(56 189 248 / 0.55);
   background: linear-gradient(180deg, rgb(24 24 27 / 0.96), rgb(12 74 110 / 0.55));
   box-shadow:
@@ -165,20 +129,12 @@ html.midnight .pa-chart-edge-grip {
     0 0 0 3px rgb(56 189 248 / 0.12);
 }
 
-html.dark .pa-chart-edge-grip::before,
-html.dark .pa-chart-edge-grip::after,
-html.midnight .pa-chart-edge-grip::before,
-html.midnight .pa-chart-edge-grip::after {
+html.dark .pa-chart-edge-handle::before,
+html.dark .pa-chart-edge-handle::after,
+html.midnight .pa-chart-edge-handle::before,
+html.midnight .pa-chart-edge-handle::after {
   background: rgb(125 211 252);
   box-shadow: 0 0.38rem 0 0 rgb(125 211 252), 0 0.76rem 0 0 rgb(125 211 252);
-}
-
-html.dark .pa-chart-edge-hint,
-html.midnight .pa-chart-edge-hint {
-  border-color: rgb(56 189 248 / 0.35);
-  background: rgb(8 47 73 / 0.92);
-  color: rgb(186 230 253);
-  box-shadow: 0 1px 8px rgb(0 0 0 / 0.35);
 }
 
 /* Alt kenar — yükseklik sürükleme */
@@ -187,46 +143,30 @@ html.midnight .pa-chart-edge-hint {
   left: 50%;
   bottom: 0;
   z-index: 6;
-  height: 2rem;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: ns-resize;
-  touch-action: none;
-  opacity: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transform: translate(-50%, 50%);
-}
-
-.pa-chart-height-handle--bottom {
-  bottom: 0;
-}
-
-.pa-chart-height-grip {
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 0.2rem;
+  width: auto;
+  height: auto;
   min-height: 1.35rem;
+  margin: 0;
   padding: 0.3rem 0.45rem;
-  border-radius: 9999px;
   border: 1.5px solid rgb(14 165 233 / 0.55);
+  border-radius: 9999px;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.98), rgb(224 242 254 / 0.92));
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.85) inset,
     0 2px 10px rgb(14 165 233 / 0.22),
     0 0 0 3px rgb(14 165 233 / 0.1);
-  pointer-events: none;
+  cursor: ns-resize;
+  touch-action: none;
+  opacity: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, 50%);
   transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
 }
 
-.pa-chart-height-grip::before,
-.pa-chart-height-grip::after {
+.pa-chart-height-handle::before,
+.pa-chart-height-handle::after {
   content: "";
   display: block;
   width: 0.22rem;
@@ -236,32 +176,14 @@ html.midnight .pa-chart-edge-hint {
   box-shadow: 0.38rem 0 0 0 rgb(2 132 199), 0.76rem 0 0 0 rgb(2 132 199);
 }
 
-.pa-chart-height-hint {
-  position: absolute;
-  left: 50%;
-  display: inline-flex;
-  align-items: center;
-  padding: 0.18rem 0.42rem;
-  border-radius: 0.35rem;
-  border: 1px solid rgb(14 165 233 / 0.35);
-  background: rgb(240 249 255 / 0.96);
-  color: rgb(3 105 161);
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 1;
-  white-space: nowrap;
-  pointer-events: none;
-  box-shadow: 0 1px 6px rgb(14 165 233 / 0.16);
-  top: calc(100% + 0.35rem);
-  transform: translateX(-50%);
+.pa-chart-height-handle--bottom {
+  bottom: 0;
 }
 
-.pa-chart-height-handle:hover .pa-chart-height-grip,
-.pa-chart-height-handle.is-dragging .pa-chart-height-grip,
-.pa-chart-height-handle:focus-visible .pa-chart-height-grip {
-  transform: scale(1.06);
+.pa-chart-height-handle:hover,
+.pa-chart-height-handle.is-dragging,
+.pa-chart-height-handle:focus-visible {
+  transform: translate(-50%, 50%) scale(1.06);
   border-color: rgb(2 132 199 / 0.85);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.9) inset,
@@ -269,7 +191,7 @@ html.midnight .pa-chart-edge-hint {
     0 0 0 4px rgb(56 189 248 / 0.18);
 }
 
-.pa-chart-height-handle.is-dragging .pa-chart-height-grip {
+.pa-chart-height-handle.is-dragging {
   background: linear-gradient(180deg, rgb(224 242 254), rgb(186 230 253));
 }
 
@@ -278,8 +200,8 @@ html.midnight .pa-chart-edge-hint {
   transition: none !important;
 }
 
-html.dark .pa-chart-height-grip,
-html.midnight .pa-chart-height-grip {
+html.dark .pa-chart-height-handle,
+html.midnight .pa-chart-height-handle {
   border-color: rgb(56 189 248 / 0.55);
   background: linear-gradient(180deg, rgb(24 24 27 / 0.96), rgb(12 74 110 / 0.55));
   box-shadow:
@@ -288,20 +210,12 @@ html.midnight .pa-chart-height-grip {
     0 0 0 3px rgb(56 189 248 / 0.12);
 }
 
-html.dark .pa-chart-height-grip::before,
-html.dark .pa-chart-height-grip::after,
-html.midnight .pa-chart-height-grip::before,
-html.midnight .pa-chart-height-grip::after {
+html.dark .pa-chart-height-handle::before,
+html.dark .pa-chart-height-handle::after,
+html.midnight .pa-chart-height-handle::before,
+html.midnight .pa-chart-height-handle::after {
   background: rgb(125 211 252);
   box-shadow: 0.38rem 0 0 0 rgb(125 211 252), 0.76rem 0 0 0 rgb(125 211 252);
-}
-
-html.dark .pa-chart-height-hint,
-html.midnight .pa-chart-height-hint {
-  border-color: rgb(56 189 248 / 0.35);
-  background: rgb(8 47 73 / 0.92);
-  color: rgb(186 230 253);
-  box-shadow: 0 1px 8px rgb(0 0 0 / 0.35);
 }
 
 #pa-chart-wrap[data-chart-height="1"],
