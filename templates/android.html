@@ -1026,15 +1026,19 @@
     color: #6f9b86;
   }
   .pc-stability-grid .sf-card__body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
     gap: 0.3rem 0.32rem;
-    align-items: center;
     margin-top: 0.4rem;
     min-width: 0;
+    min-height: clamp(1.85rem, 13cqi, 3rem);
   }
   .pc-stability-grid .sf-card__value {
     margin: 0;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
     min-width: 0;
     width: 100%;
     max-width: 100%;
@@ -1047,13 +1051,14 @@
     letter-spacing: -0.02em;
   }
   .pc-stability-grid .sf-card__side {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.1rem;
-    align-items: stretch;
-    justify-items: stretch;
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    align-self: stretch;
+    gap: 0.12rem;
     min-width: 0;
     max-width: 36cqi;
+    width: max-content;
     justify-self: end;
     overflow: hidden;
     font-size: clamp(0.34rem, 3.1cqi, 0.48rem);
@@ -1068,15 +1073,17 @@
   }
   .pc-stability-grid .sf-card__side-row {
     display: flex;
+    flex: 1 1 0;
     align-items: center;
     justify-content: center;
     gap: 0.12em;
     width: 100%;
     min-width: 0;
+    min-height: 0;
     max-width: 100%;
     box-sizing: border-box;
-    padding: 0.08em 0.18em 0.08em 0.26em;
-    border-radius: 0.26rem;
+    padding: 0.1em 0.2em 0.1em 0.28em;
+    border-radius: 0.32rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255 / 0.85);
   }
@@ -1112,23 +1119,28 @@
   @container sf-card (max-width: 11.25rem) {
     .pc-stability-grid .sf-card__body,
     .pc-stability-grid .sf-card__body.is-chip-stack {
-      grid-template-columns: minmax(0, 1fr);
+      flex-direction: column;
       gap: 0.28rem;
     }
     .pc-stability-grid .sf-card__side {
       width: 100%;
       max-width: none;
       min-width: 0;
-      justify-self: stretch;
+      align-self: stretch;
     }
   }
   .pc-stability-grid .sf-card__body.is-chip-stack {
-    grid-template-columns: minmax(0, 1fr);
+    flex-direction: column;
   }
   .pc-stability-grid .sf-card__body.is-chip-stack .sf-card__side {
     width: 100%;
     max-width: none;
-    justify-self: stretch;
+    flex-direction: row;
+    align-self: stretch;
+  }
+  .pc-stability-grid .sf-card__body.is-chip-stack .sf-card__side-row {
+    flex: 1 1 0;
+    min-height: clamp(1.35rem, 10cqi, 2rem);
   }
   .pc-stability-grid .sf-card__side-info:hover,
   .pc-stability-grid .sf-card__side-info:focus-visible {
