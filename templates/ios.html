@@ -1822,7 +1822,10 @@
       start = new Date(end.getTime());
     } else {
       var days = parseInt(raw, 10) || 30;
-      start.setDate(end.getDate() - (days - 1));
+      // Tamamlanmış günler: bugün hariç, dün bitiş — günlük metriklerde eksik gün olmasın
+      end.setDate(end.getDate() - 1);
+      start = new Date(end.getTime());
+      start.setDate(start.getDate() - (days - 1));
     }
     iaEnd.value = isoDate(end);
     iaStart.value = isoDate(start);
@@ -2612,7 +2615,7 @@
     var mode = opts.mode || "pct";
     var max = opts.max != null ? opts.max : 1;
     var countLike = !!opts.countLike;
-    var yFs = opts.yFontSize != null ? opts.yFontSize : 8;
+    var yFs = opts.yFontSize != null ? opts.yFontSize : IA_AXIS_Y_FONT;
     var html = "";
     for (var t = 0; t <= ticks; t++) {
       var ty = top + (t / ticks) * plotH;

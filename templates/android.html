@@ -4170,7 +4170,10 @@
       start = new Date(end.getTime());
     } else {
       var days = parseInt(raw, 10) || 30;
-      start.setDate(end.getDate() - (days - 1));
+      // Tamamlanmış günler: bugün hariç, dün bitiş — günlük metriklerde eksik gün olmasın
+      end.setDate(end.getDate() - 1);
+      start = new Date(end.getTime());
+      start.setDate(start.getDate() - (days - 1));
     }
     paEnd.value = isoDate(end);
     paStart.value = isoDate(start);
