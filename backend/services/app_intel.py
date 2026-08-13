@@ -1894,9 +1894,117 @@ def _latest_reviews(rows: list[dict[str, Any]], limit: int = 100) -> list[dict[s
 
 def _android_histogram_overall(meta: dict[str, Any]) -> dict[str, int] | None:
     h = meta.get("histogram")
-    if not h or len(h) != 5:
+    if not h:
+        return None
+    if isinstance(h, dict):
+        try:
+            out = {
+                str(i): int(h.get(str(i)) if h.get(str(i)) is not None else h.get(i) or 0)
+                for i in range(1, 6)
+            }
+        except (TypeError, ValueError):
+            return None
+        return out if any(v > 0 for v in out.values()) else None
+    if not isinstance(h, (list, tuple)) or len(h) != 5:
         return None
     return {str(i + 1): int(h[i]) for i in range(5)}
+
+
+def _fetch_android_play_store_meta(package: str) -> dict[str, Any]:
+    """google-play-scraper — mağaza puanı + yıldız dağılımı (yorum çekmez)."""
+    pkg = (package or "").strip()
+    if not pkg:
+        return {}
+    try:
+        from google_play_scraper import app as gp_app
+    except ImportError:
+        return {}
+    try:
+        meta = gp_app(pkg, lang="tr", country="tr")
+    except Exception as exc:
+        logger.debug("android play store meta (%s): %s", pkg, exc)
+        return {}
+    if not isinstance(meta, dict):
+        return {}
+    hist = _android_histogram_overall(meta)
+    return {
+        "score": meta.get("score"),
+        "ratings": meta.get("ratings"),
+        "histogram": hist,
+        "play_version": meta.get("version"),
+        "play_last_updated_at": _play_updated_iso(meta.get("updated")),
+        "icon": meta.get("icon"),
+    }
+
+
+def _android_stars_from_play_console() -> dict[str, Any]:
+    """Play Console scrape — en güncel ratings_count yıldız kırılımı + özet puan."""
+    try:
+        from backend.database import SessionLocal
+        from backend.services.play_console_store import play_console_payload
+        from backend.services.play_scrape_warehouse import load_scrape_facts
+    except Exception:
+        return {}
+
+    rating_summary: dict[str, Any] = {}
+    try:
+        with SessionLocal() as db:
+            snap = play_console_payload(db) or {}
+        rs = snap.get("rating_summary")
+        if isinstance(rs, dict):
+            rating_summary = rs
+    except Exception:
+        logger.debug("android play console rating_summary read failed", exc_info=True)
+
+    latest_date = ""
+    latest_stars: dict[str, int] | None = None
+    latest_total: int | None = None
+    try:
+        facts, _meta = load_scrape_facts()
+        for f in facts:
+            if not isinstance(f, dict) or str(f.get("metric") or "") != "ratings_count":
+                continue
+            if str(f.get("dim") or "overview") not in ("overview", "", "all"):
+                continue
+            ds = str(f.get("date") or "")[:10]
+            if not ds or (latest_date and ds < latest_date):
+                continue
+            stars = f.get("stars") if isinstance(f.get("stars"), dict) else {}
+            try:
+                total = int(float(f.get("value") or 0))
+            except (TypeError, ValueError):
+                total = 0
+            star_map = {
+                str(i): int(float(stars.get(str(i)) or stars.get(i) or 0))
+                for i in range(1, 6)
+            }
+            if not any(star_map.values()) and total <= 0:
+                continue
+            latest_date = ds
+            latest_stars = star_map
+            latest_total = total if total > 0 else sum(star_map.values())
+    except Exception:
+        logger.debug("android play console explorer_facts stars failed", exc_info=True)
+
+    out: dict[str, Any] = {}
+    if latest_stars and any(latest_stars.values()):
+        out["histogram"] = latest_stars
+        if latest_total:
+            out["ratings"] = int(latest_total)
+
+    dr = str(rating_summary.get("default_rating") or "").strip().replace(",", ".")
+    try:
+        score = float(dr) if dr and dr not in ("—", "-") else None
+    except ValueError:
+        score = None
+    if score is not None and 1.0 <= score <= 5.5:
+        out["score"] = score
+    if not out.get("ratings"):
+        rw = str(rating_summary.get("ratings_with_reviews") or "").strip()
+        rw_clean = re.sub(r"[^\d]", "", rw)
+        if rw_clean.isdigit():
+            out["ratings"] = int(rw_clean)
+    return out
 
 
 

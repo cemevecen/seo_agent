@@ -11750,6 +11750,66 @@ def _home_coerce_star_hist(meta: dict | None, *, key: str) -> dict | None:
     return None
 
 
+def _home_ensure_android_star_hist(raw: dict, product_id: str) -> dict:
+    """Cache’te Android yıldız/puan yoksa Play Store + Play Console’dan doldur."""
+    if not isinstance(raw, dict):
+        return raw
+    android = raw.get("android") if isinstance(raw.get("android"), dict) else {}
+    meta = android.get("meta") if isinstance(android.get("meta"), dict) else {}
+    has_hist = bool(_home_coerce_star_hist(meta, key="android"))
+    has_score = meta.get("score") is not None
+    has_ratings = meta.get("ratings") not in (None, "")
+    if has_hist and has_score and has_ratings:
+        return raw
+
+    pid = (product_id or "doviz").strip().lower()
+    patch: dict[str, Any] = {}
+    try:
+        from backend.services.app_intel import (
+            APP_PRODUCTS,
+            _android_stars_from_play_console,
+            _fetch_android_play_store_meta,
+        )
+
+        spec = APP_PRODUCTS.get(pid) or {}
+        pkg = str(spec.get("android_package") or "").strip()
+        if pkg:
+            patch.update(_fetch_android_play_store_meta(pkg))
+        patch_pc = _android_stars_from_play_console()
+        for k, v in patch_pc.items():
+            if v is None or v == "":
+                continue
+            if k == "histogram" and not _home_coerce_star_hist({"histogram": v}, key="android"):
+                continue
+            if patch.get(k) in (None, "", {}) or k == "histogram":
+                patch[k] = v
+    except Exception:
+        LOGGER.debug("Home Android star histogram hydrate failed", exc_info=True)
+
+    if not patch:
+        return raw
+
+    new_meta = {**meta}
+    if patch.get("score") is not None and new_meta.get("score") is None:
+        new_meta["score"] = patch["score"]
+    if patch.get("ratings") not in (None, "") and new_meta.get("ratings") in (None, ""):
+        new_meta["ratings"] = patch["ratings"]
+    if patch.get("histogram") and not _home_coerce_star_hist(new_meta, key="android"):
+        new_meta["histogram"] = patch["histogram"]
+    for k in ("play_version", "play_last_updated_at", "icon"):
+        if patch.get(k) and not new_meta.get(k):
+            new_meta[k] = patch[k]
+
+    raw = {**raw, "android": {**android, "meta": new_meta}}
+    try:
+        from backend.services.app_intel import _write_disk_raw
+
+        _write_disk_raw(pid, raw)
+    except Exception:
+        pass
+    return raw
+
+
 def _home_ensure_ios_star_hist(raw: dict, product_id: str) -> dict:
     """Cache’te iOS yıldız yoksa SSR’dan bir kez doldur (ana sayfa boş kart engeli)."""
     if not isinstance(raw, dict):
@@ -12137,6 +12197,10 @@ def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: boo
             raw = _home_ensure_ios_star_hist(raw, product_id)
         except Exception:
             LOGGER.debug("Home iOS yıldız zenginleştirmesi atlandı", exc_info=True)
+        try:
+            raw = _home_ensure_android_star_hist(raw, product_id)
+        except Exception:
+            LOGGER.debug("Home Android yıldız zenginleştirmesi atlandı", exc_info=True)
         release_by_plat: dict[str, dict] = {}
         try:
             from backend.services.aso_intel import _release_impact_sections_from_raw

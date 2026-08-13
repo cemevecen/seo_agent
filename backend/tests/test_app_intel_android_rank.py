@@ -3,6 +3,7 @@
 from backend.services.app_intel import (
     _android_cached_category_rank_is_obsolete,
     _android_category_rank_is_displayable,
+    _android_histogram_overall,
     _extract_android_packages,
     _android_pkg_index,
 )
@@ -39,3 +40,21 @@ def test_extract_android_packages_and_index():
     assert pkgs[0] == "com.ziraat.ziraatmobil"
     assert _android_pkg_index(pkgs, "com.Doviz") == 2
     assert sample  # silence unused in some linters
+
+
+def test_android_histogram_overall_dict_and_list():
+    assert _android_histogram_overall({"histogram": {"1": 40, "2": 9, "3": 53, "4": 149, "5": 1800}}) == {
+        "1": 40,
+        "2": 9,
+        "3": 53,
+        "4": 149,
+        "5": 1800,
+    }
+    assert _android_histogram_overall({"histogram": [40, 9, 53, 149, 1800]}) == {
+        "1": 40,
+        "2": 9,
+        "3": 53,
+        "4": 149,
+        "5": 1800,
+    }
+    assert _android_histogram_overall({"histogram": {}}) is None
