@@ -391,10 +391,20 @@
     transform: scale(0.833333);
   }
 
+  /* Android: ana % (99,9983% vb.) — %60 büyük */
+  .home-sf-metric--android .home-sf-metric__hero {
+    font-size: clamp(1.68rem, 18.4cqi, 3.04rem);
+    min-height: 2.35rem;
+  }
+
   @container home-sf-metric (max-width: 5.75rem) {
     .home-sf-metric__hero {
       font-size: clamp(0.95rem, 10cqi, 1.35rem);
       min-height: 1.65rem;
+    }
+    .home-sf-metric--android .home-sf-metric__hero {
+      font-size: clamp(1.52rem, 16cqi, 2.16rem);
+      min-height: 2rem;
     }
     .home-sf-metric__meta {
       flex-direction: column;
@@ -720,7 +730,10 @@
       if (ux && ux.fitCardTexts) {
         ux.fitCardTexts(root);
       }
-      root.querySelectorAll('.home-sf-metric__hero').forEach(function (el) {
+      root.querySelectorAll('.home-sf-metric--android .home-sf-metric__hero').forEach(function (el) {
+        fitEl(el, 21, 48);
+      });
+      root.querySelectorAll('.home-sf-metric--ios .home-sf-metric__hero').forEach(function (el) {
         fitEl(el, 13, 30);
       });
       root.querySelectorAll('.home-store-kpi__l, .home-store-kpi__v').forEach(function (el) {
@@ -751,7 +764,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=37';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=38';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
