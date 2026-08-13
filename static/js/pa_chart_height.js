@@ -3,12 +3,15 @@
   var COMPRESS_KEY = "paChartCompress";
   var MARGIN_L_KEY = "paChartMarginL";
   var MARGIN_R_KEY = "paChartMarginR";
+  var CUSTOM_H_KEY = "paChartCustomH";
   var DEFAULT_HEIGHT = "2";
   var DEFAULT_COMPRESS = "1";
   var PAD_Y = 30;
   var VIEW_H = 260;
   var VIEW_W = 720;
   var MIN_WIDTH_PCT = 15;
+  var MIN_CHART_H = 72;
+  var MAX_CHART_H = 720;
   var HEIGHT_BASE = { "1": 260, "2": 200, "3": 150 };
   var COMPRESS_DIVISOR = { "1": 1, "2": 1.28, "3": 1.62 };
 
@@ -64,11 +67,13 @@
   var compress = readStored(COMPRESS_KEY, ["1", "2", "3"], DEFAULT_COMPRESS);
   var marginL = readStoredNumber(MARGIN_L_KEY, 0);
   var marginR = readStoredNumber(MARGIN_R_KEY, 0);
+  var customChartH = readStoredNumber(CUSTOM_H_KEY, 0);
   var layoutSyncing = false;
   var layoutRaf = null;
   var moTimer = null;
   var lastWidths = new WeakMap();
   var dragState = null;
+  var heightDragState = null;
 
   function syncGroup(root, attr, value) {
     if (!root) return;
@@ -141,6 +146,36 @@
     } catch (_) {}
   }
 
+  function persistCustomHeight() {
+    try {
+      if (customChartH > 0) {
+        localStorage.setItem(CUSTOM_H_KEY, String(Math.round(customChartH)));
+      } else {
+        localStorage.removeItem(CUSTOM_H_KEY);
+      }
+    } catch (_) {}
+  }
+
+  function computedChartHeight(w) {
+    var eff = effectiveHeight(height, compress);
+    return Math.max(MIN_CHART_H, Math.round((w * eff) / VIEW_W));
+  }
+
+  function resolveChartHeight(w) {
+    if (customChartH > 0) {
+      return clamp(customChartH, MIN_CHART_H, MAX_CHART_H);
+    }
+    return computedChartHeight(w);
+  }
+
+  function clearCustomHeight() {
+    customChartH = 0;
+    persistCustomHeight();
+    targets.forEach(function (t) {
+      if (t.wrap) t.wrap.removeAttribute("data-chart-custom-h");
+    });
+  }
+
   function applyMargins() {
     normalizeMargins();
     targets.forEach(function (t) {
@@ -158,11 +193,19 @@
     });
   }
 
-  function decorateEdgeHandle(handle, side) {
+  function decorateEdgeHandle(handle) {
     if (!handle || handle.querySelector(".pa-chart-edge-grip")) return;
     handle.innerHTML =
       '<span class="pa-chart-edge-grip" aria-hidden="true"></span>' +
       '<span class="pa-chart-edge-hint">Genişlik</span>';
+    handle.removeAttribute("title");
+  }
+
+  function decorateHeightHandle(handle) {
+    if (!handle || handle.querySelector(".pa-chart-height-grip")) return;
+    handle.innerHTML =
+      '<span class="pa-chart-height-grip" aria-hidden="true"></span>' +
+      '<span class="pa-chart-height-hint">Yükseklik</span>';
     handle.removeAttribute("title");
   }
 
@@ -194,22 +237,46 @@
         '<span class="pa-chart-edge-grip" aria-hidden="true"></span>' +
         '<span class="pa-chart-edge-hint">Genişlik</span>';
 
+      var bottomHandle = document.createElement("button");
+      bottomHandle.type = "button";
+      bottomHandle.className = "pa-chart-height-handle pa-chart-height-handle--bottom";
+      bottomHandle.setAttribute("aria-label", "Grafiği dikey genişlet veya daralt");
+      bottomHandle.innerHTML =
+        '<span class="pa-chart-height-grip" aria-hidden="true"></span>' +
+        '<span class="pa-chart-height-hint">Yükseklik</span>';
+
       t.wrap.insertBefore(stage, svg);
       viewport.appendChild(svg);
       stage.appendChild(viewport);
       stage.appendChild(leftHandle);
       stage.appendChild(rightHandle);
+      stage.appendChild(bottomHandle);
 
       bindEdgeDrag(t, leftHandle, "left");
       bindEdgeDrag(t, rightHandle, "right");
+      bindHeightDrag(t, bottomHandle);
     }
 
     t.stage = stage;
     t.viewport = stage.querySelector(".pa-chart-viewport");
     t.handleLeft = stage.querySelector(".pa-chart-edge-handle--left");
     t.handleRight = stage.querySelector(".pa-chart-edge-handle--right");
-    decorateEdgeHandle(t.handleLeft, "left");
-    decorateEdgeHandle(t.handleRight, "right");
+    t.handleBottom = stage.querySelector(".pa-chart-height-handle--bottom");
+    if (!t.handleBottom) {
+      var bottomHandle = document.createElement("button");
+      bottomHandle.type = "button";
+      bottomHandle.className = "pa-chart-height-handle pa-chart-height-handle--bottom";
+      bottomHandle.setAttribute("aria-label", "Grafiği dikey genişlet veya daralt");
+      bottomHandle.innerHTML =
+        '<span class="pa-chart-height-grip" aria-hidden="true"></span>' +
+        '<span class="pa-chart-height-hint">Yükseklik</span>';
+      stage.appendChild(bottomHandle);
+      t.handleBottom = bottomHandle;
+      bindHeightDrag(t, bottomHandle);
+    }
+    decorateEdgeHandle(t.handleLeft);
+    decorateEdgeHandle(t.handleRight);
+    decorateHeightHandle(t.handleBottom);
     return stage;
   }
 
@@ -217,6 +284,12 @@
     if (ev.touches && ev.touches.length) return ev.touches[0].clientX;
     if (ev.changedTouches && ev.changedTouches.length) return ev.changedTouches[0].clientX;
     return ev.clientX;
+  }
+
+  function pointerY(ev) {
+    if (ev.touches && ev.touches.length) return ev.touches[0].clientY;
+    if (ev.changedTouches && ev.changedTouches.length) return ev.changedTouches[0].clientY;
+    return ev.clientY;
   }
 
   function bindEdgeDrag(t, handle, side) {
@@ -278,6 +351,67 @@
       };
       handle.classList.add("is-dragging");
       t.wrap.classList.add("pa-chart-edge-dragging");
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onEnd);
+      document.addEventListener("touchmove", onMove, { passive: false });
+      document.addEventListener("touchend", onEnd);
+      document.addEventListener("touchcancel", onEnd);
+    }
+
+    handle.addEventListener("mousedown", onStart);
+    handle.addEventListener("touchstart", onStart, { passive: false });
+  }
+
+  function bindHeightDrag(t, handle) {
+    handle.addEventListener("dblclick", function (ev) {
+      ev.preventDefault();
+      clearCustomHeight();
+      scheduleLayoutSync();
+    });
+
+    function onMove(ev) {
+      if (!heightDragState || heightDragState.handle !== handle) return;
+      ev.preventDefault();
+      var dy = pointerY(ev) - heightDragState.startY;
+      customChartH = clamp(
+        heightDragState.startChartH + dy,
+        MIN_CHART_H,
+        MAX_CHART_H
+      );
+      if (t.wrap) {
+        t.wrap.setAttribute("data-chart-custom-h", String(Math.round(customChartH)));
+      }
+      syncLayout();
+    }
+
+    function onEnd() {
+      if (!heightDragState || heightDragState.handle !== handle) return;
+      handle.classList.remove("is-dragging");
+      t.wrap.classList.remove("pa-chart-height-dragging");
+      heightDragState = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onEnd);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+      document.removeEventListener("touchcancel", onEnd);
+      persistCustomHeight();
+      scheduleLayoutSync();
+    }
+
+    function onStart(ev) {
+      if (ev.type === "mousedown" && ev.button !== 0) return;
+      ev.preventDefault();
+      var w = innerWidth(t.wrap);
+      var currentH =
+        customChartH > 0 ? customChartH : computedChartHeight(w);
+      heightDragState = {
+        handle: handle,
+        startY: pointerY(ev),
+        startChartH: currentH,
+      };
+      customChartH = currentH;
+      handle.classList.add("is-dragging");
+      t.wrap.classList.add("pa-chart-height-dragging");
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onEnd);
       document.addEventListener("touchmove", onMove, { passive: false });
@@ -372,33 +506,44 @@
       t.wrap.classList.add("pa-chart-layout-sync");
 
       var w = innerWidth(t.wrap);
-      var eff = effectiveHeight(height, compress);
-      var chartH = Math.max(48, Math.round((w * eff) / VIEW_W));
+      var chartH = resolveChartHeight(w);
+      var wrapH = PAD_Y + chartH + PAD_Y;
+
+      if (customChartH > 0) {
+        t.wrap.setAttribute("data-chart-custom-h", String(Math.round(customChartH)));
+      } else {
+        t.wrap.removeAttribute("data-chart-custom-h");
+      }
 
       t.wrap.style.boxSizing = "border-box";
       t.wrap.style.paddingTop = PAD_Y + "px";
       t.wrap.style.paddingBottom = PAD_Y + "px";
       t.wrap.style.width = "100%";
-      clearSizeLocks(t.wrap);
+      t.wrap.style.height = wrapH + "px";
+      t.wrap.style.minHeight = wrapH + "px";
+      t.wrap.style.maxHeight = wrapH + "px";
 
       if (t.stage) {
         t.stage.style.width = "100%";
-        t.stage.style.height = chartH + "px";
         t.stage.style.position = "relative";
-        clearSizeLocks(t.stage);
+        t.stage.style.flex = "0 0 auto";
+        t.stage.style.height = chartH + "px";
+        t.stage.style.minHeight = chartH + "px";
+        t.stage.style.maxHeight = chartH + "px";
       }
 
       if (t.viewport) {
         t.viewport.style.width = "auto";
         t.viewport.style.height = chartH + "px";
-        clearSizeLocks(t.viewport);
+        t.viewport.style.minHeight = chartH + "px";
+        t.viewport.style.maxHeight = chartH + "px";
       }
 
       svg.style.display = "block";
       svg.style.width = "100%";
       svg.style.height = chartH + "px";
-      svg.style.minHeight = "";
-      svg.style.maxHeight = "";
+      svg.style.minHeight = chartH + "px";
+      svg.style.maxHeight = chartH + "px";
       svg.style.marginTop = "0";
       svg.style.marginBottom = "0";
       svg.setAttribute("preserveAspectRatio", "none");
@@ -448,7 +593,7 @@
   }
 
   function onResize(entries) {
-    if (layoutSyncing || dragState) return;
+    if (layoutSyncing || dragState || heightDragState) return;
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i];
       var w = entry.contentRect.width;
@@ -504,6 +649,7 @@
       var next = btn.getAttribute("data-chart-height") || DEFAULT_HEIGHT;
       if (next !== "1" && next !== "2" && next !== "3") return;
       height = next;
+      clearCustomHeight();
       applyAll();
     });
     if (!t.compressRoot) return;
@@ -516,6 +662,7 @@
       var next = btn.getAttribute("data-chart-compress") || DEFAULT_COMPRESS;
       if (next !== "1" && next !== "2" && next !== "3") return;
       compress = next;
+      clearCustomHeight();
       applyAll();
     });
   });
