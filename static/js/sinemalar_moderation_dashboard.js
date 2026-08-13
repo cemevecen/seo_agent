@@ -616,7 +616,7 @@
         yaxis: { automargin: true, tickfont: axisTickFont(), type: "category" },
         margin: { l: 8, r: 16, t: 44, b: 40 },
       },
-      { heightOpts: { minPlot: 180, maxTotal: 360, fallback: 260 }, minHeight: 220 }
+      { heightOpts: { minPlot: 140, maxTotal: 300, fallback: 240 }, minHeight: 240 }
     );
   }
 
@@ -1021,6 +1021,7 @@
       showChartEmpty("mod-chart-inactive-summary", "Görünür moderatör yok — legenddan seçin");
       return;
     }
+    var compactW = chartW(el);
     var titleText =
       "Çalışılan vs boş gün · " +
       (RAW.start || "") +
@@ -1048,17 +1049,17 @@
         },
       ],
       {
-        title: { text: titleText, x: 0, font: { size: 12 } },
+        title: { text: titleText, x: 0, font: { size: compactW < 520 ? 10 : 11 } },
         barmode: "stack",
-        xaxis: { tickangle: chartW(el) < 480 ? -25 : 0, tickfont: axisTickFont(), automargin: true },
+        xaxis: { tickangle: compactW < 520 ? -35 : -20, tickfont: axisTickFont(), automargin: true },
         yaxis: { title: "Gün sayısı", gridcolor: th().grid, automargin: true },
       },
       {
         legendCount: 2,
         htmlLegend: "binary",
-        legendOpts: { tickAngle: chartW(el) < 480 ? -25 : 0 },
-        heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 },
-        minHeight: 260,
+        legendOpts: { tickAngle: compactW < 520 ? -35 : -20 },
+        heightOpts: { minPlot: 140, maxTotal: 300, fallback: 240 },
+        minHeight: 240,
       }
     );
   }
