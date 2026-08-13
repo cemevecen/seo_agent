@@ -1,21 +1,21 @@
-#pa-viz20 {
+.chart-viz20-section {
   scroll-margin-top: 1rem;
 }
 
-#pa-viz20 .pa-viz20-drop {
+.chart-viz20-section .pa-viz20-drop {
   overflow: hidden;
   border-radius: 0.75rem;
   border: 1px solid rgb(226 232 240);
   background: rgb(255 255 255);
 }
 
-html.dark #pa-viz20 .pa-viz20-drop,
-html.midnight #pa-viz20 .pa-viz20-drop {
+html.dark .chart-viz20-section .pa-viz20-drop,
+html.midnight .chart-viz20-section .pa-viz20-drop {
   border-color: rgb(63 63 70);
   background: rgb(24 24 27);
 }
 
-#pa-viz20 .pa-viz20-drop > summary {
+.chart-viz20-section .pa-viz20-drop > summary {
   display: flex;
   cursor: pointer;
   list-style: none;
@@ -25,20 +25,20 @@ html.midnight #pa-viz20 .pa-viz20-drop {
   padding: 0.75rem 1rem;
 }
 
-#pa-viz20 .pa-viz20-drop > summary::-webkit-details-marker {
+.chart-viz20-section .pa-viz20-drop > summary::-webkit-details-marker {
   display: none;
 }
 
-#pa-viz20 .pa-viz20-drop > summary .pa-viz20-chevron {
+.chart-viz20-section .pa-viz20-drop > summary .pa-viz20-chevron {
   color: rgb(148 163 184);
   transition: transform 0.15s ease;
 }
 
-#pa-viz20 .pa-viz20-drop[open] > summary .pa-viz20-chevron {
+.chart-viz20-section .pa-viz20-drop[open] > summary .pa-viz20-chevron {
   transform: rotate(90deg);
 }
 
-#pa-viz20 .pa-viz20-drop > summary .pa-viz20-badge {
+.chart-viz20-section .pa-viz20-drop > summary .pa-viz20-badge {
   flex-shrink: 0;
   border-radius: 9999px;
   background: rgb(241 245 249);
@@ -50,45 +50,45 @@ html.midnight #pa-viz20 .pa-viz20-drop {
   color: rgb(100 116 139);
 }
 
-html.dark #pa-viz20 .pa-viz20-drop > summary .pa-viz20-badge,
-html.midnight #pa-viz20 .pa-viz20-drop > summary .pa-viz20-badge {
+html.dark .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-badge,
+html.midnight .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-badge {
   background: rgb(39 39 42);
   color: rgb(161 161 170);
 }
 
-#pa-viz20 .pa-viz20-drop[open] > summary .pa-viz20-badge-closed {
+.chart-viz20-section .pa-viz20-drop[open] > summary .pa-viz20-badge-closed {
   display: none;
 }
 
-#pa-viz20 .pa-viz20-body {
+.chart-viz20-section .pa-viz20-body {
   border-top: 1px solid rgb(241 245 249);
   padding: 0.75rem 1rem 1rem;
 }
 
-html.dark #pa-viz20 .pa-viz20-body,
-html.midnight #pa-viz20 .pa-viz20-body {
+html.dark .chart-viz20-section .pa-viz20-body,
+html.midnight .chart-viz20-section .pa-viz20-body {
   border-top-color: rgb(39 39 42);
 }
 
-#pa-viz20 .pa-viz20-chart {
+.chart-viz20-section .pa-viz20-chart {
   border-radius: 0.625rem;
   background: rgb(248 250 252 / 0.8);
   padding: 0.5rem;
   box-sizing: border-box;
 }
 
-html.dark #pa-viz20 .pa-viz20-chart,
-html.midnight #pa-viz20 .pa-viz20-chart {
+html.dark .chart-viz20-section .pa-viz20-chart,
+html.midnight .chart-viz20-section .pa-viz20-chart {
   background: rgb(9 9 11 / 0.55);
 }
 
-#pa-viz20 .pa-viz20-chart svg {
+.chart-viz20-section .pa-viz20-chart svg {
   display: block;
   width: 100%;
   height: auto;
 }
 
-#pa-viz20 .pa-viz20-meta {
+.chart-viz20-section .pa-viz20-meta {
   margin-top: 0.625rem;
   display: flex;
   flex-wrap: wrap;
@@ -97,8 +97,8 @@ html.midnight #pa-viz20 .pa-viz20-chart {
   color: rgb(100 116 139);
 }
 
-html.dark #pa-viz20 .pa-viz20-meta,
-html.midnight #pa-viz20 .pa-viz20-meta {
+html.dark .chart-viz20-section .pa-viz20-meta,
+html.midnight .chart-viz20-section .pa-viz20-meta {
   color: rgb(161 161 170);
 }
 

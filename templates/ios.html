@@ -3,6 +3,7 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/pa_chart_height.css?v=8">
 <link rel="stylesheet" href="/static/css/pa_chart_style.css?v=1">
+<link rel="stylesheet" href="/static/css/android_chart_viz_20.css?v=7">
 <style>
   .pa-filters {
     display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.65rem 0.75rem; width: 100%;
@@ -1257,7 +1258,9 @@
       </div>
     </div>
   </section>
+  {% include 'partials/ios_chart_viz_20.html' %}
 </div>
+<script src="/static/js/android_chart_viz_20.js?v=12"></script>
 <script src="/static/js/resizable_data_list.js?v=6"></script>
 <script src="/static/js/pa_chart_height.js?v=8"></script>
 <script src="/static/js/metric_table_ux.js?v=12"></script>

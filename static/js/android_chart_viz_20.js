@@ -1,11 +1,42 @@
 (function () {
   "use strict";
 
-  var root = document.getElementById("pa-viz20-list");
+  var PLATFORM_CONFIGS = [
+    {
+      listId: "pa-viz20-list",
+      metaUrl: "/api/play-analytics/viz20/meta",
+      dataBase: "/api/play-analytics/viz20/",
+      presetId: "pa-preset",
+      startId: "pa-start",
+      endId: "pa-end",
+      catalogId: "pa-metric-catalog",
+      heightKey: "paViz20H:",
+      idPrefix: "pa-viz20-",
+      defaultMetrics: "anrs,crashes,dau,ga4:sessions",
+    },
+    {
+      listId: "ia-viz20-list",
+      metaUrl: "/api/asc-metrics/viz20/meta",
+      dataBase: "/api/asc-metrics/viz20/",
+      presetId: "ia-preset",
+      startId: "ia-start",
+      endId: "ia-end",
+      catalogId: "ia-metric-catalog",
+      heightKey: "iaViz20H:",
+      idPrefix: "ia-viz20-",
+      defaultMetrics: "crashes,units,sessions,ga4:sessions",
+    },
+  ];
+
+  PLATFORM_CONFIGS.forEach(initChartViz20);
+
+  function initChartViz20(cfg) {
+  var root = document.getElementById(cfg.listId);
   if (!root) return;
 
   var metaCache = null;
   var stateById = {};
+  var HEIGHT_STORAGE_PREFIX = cfg.heightKey;
 
   function th() {
     return window.seoPlotlyTheme
@@ -168,13 +199,13 @@
     return (arr || []).join(",");
   }
 
-  function getPaMetricCatalog() {
-    return document.getElementById("pa-metric-catalog");
+  function getMetricCatalog() {
+    return document.getElementById(cfg.catalogId);
   }
 
   function viz20MetricLabel(key, meta) {
     if (!key) return "";
-    var cat = getPaMetricCatalog();
+    var cat = getMetricCatalog();
     if (cat) {
       var opt = cat.querySelector('option[value="' + String(key).replace(/"/g, '\\"') + '"]');
       if (opt) return String(opt.textContent || key).trim();
@@ -276,7 +307,7 @@
       (!selected.length ? "✓" : "") +
       "</span>" +
       '<span class="min-w-0 flex-1 truncate normal-case">Seçin</span></button>';
-    var cat = getPaMetricCatalog();
+    var cat = getMetricCatalog();
     if (cat) {
       Array.prototype.forEach.call(cat.children, function (node) {
         if (node.tagName !== "OPTGROUP") return;
@@ -426,7 +457,7 @@
   ];
 
   function pagePreset() {
-    var el = document.getElementById("pa-preset");
+    var el = document.getElementById(cfg.presetId);
     return el && el.value ? el.value : "30";
   }
 
@@ -444,15 +475,14 @@
   }
 
   function pageDateRange() {
-    var s = document.getElementById("pa-start");
-    var e = document.getElementById("pa-end");
+    var s = document.getElementById(cfg.startId);
+    var e = document.getElementById(cfg.endId);
     if (s && s.value && e && e.value) return { start: s.value, end: e.value };
     return null;
   }
 
   var CHART_HEIGHTS = { "1": 220, "2": 340, "3": 480 };
   var DEFAULT_HEIGHT_TIER = "2";
-  var HEIGHT_STORAGE_PREFIX = "paViz20H:";
 
   function readHeightTier(vizId) {
     try {
@@ -518,7 +548,7 @@
       metric: "crashes",
       metric_left: "ga4:sessions",
       metric_right: "virgul:net_revenue",
-      metrics: "anrs,crashes,dau,ga4:sessions",
+      metrics: cfg.defaultMetrics,
       etype: "CRASH",
       limit: "15",
     };
@@ -1043,7 +1073,7 @@
     setStatus(details, "Yükleniyor…");
     chartEl.innerHTML =
       '<div class="flex h-48 items-center justify-center text-xs text-slate-400">Veri çekiliyor…</div>';
-    fetch("/api/play-analytics/viz20/" + encodeURIComponent(vizId) + "?" + qsParams(params).toString(), {
+    fetch(cfg.dataBase + encodeURIComponent(vizId) + "?" + qsParams(params).toString(), {
       credentials: "same-origin",
       cache: "no-store",
     })
@@ -1172,7 +1202,7 @@
   }
 
   function syncAllFromMainPreset() {
-    var mainPreset = document.getElementById("pa-preset");
+    var mainPreset = document.getElementById(cfg.presetId);
     if (!mainPreset) return;
     var range = applyDatePreset(mainPreset.value);
     root.querySelectorAll("details.pa-viz20-drop").forEach(function (details) {
@@ -1190,10 +1220,10 @@
     root.innerHTML = "";
     (meta.viz || []).forEach(function (viz) {
       var params = defaultParams(viz, meta);
-      stateById["pa-viz20-" + viz.id] = params;
+      stateById[cfg.idPrefix + viz.id] = params;
       var details = document.createElement("details");
       details.className = "pa-viz20-drop group";
-      details.id = "pa-viz20-" + viz.id;
+      details.id = cfg.idPrefix + viz.id;
       details.setAttribute("data-viz-id", viz.id);
       details.innerHTML =
         "<summary>" +
@@ -1254,14 +1284,14 @@
         });
       });
     }
-    var mainPreset = document.getElementById("pa-preset");
+    var mainPreset = document.getElementById(cfg.presetId);
     if (mainPreset && !mainPreset.getAttribute("data-viz20-bound")) {
       mainPreset.setAttribute("data-viz20-bound", "1");
       mainPreset.addEventListener("change", syncAllFromMainPreset);
     }
   }
 
-  fetch("/api/play-analytics/viz20/meta", { credentials: "same-origin", cache: "no-store" })
+  fetch(cfg.metaUrl, { credentials: "same-origin", cache: "no-store" })
     .then(function (r) {
       return r.json();
     })
@@ -1280,4 +1310,5 @@
       }
     });
   });
+  }
 })();

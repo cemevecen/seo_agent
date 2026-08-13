@@ -5,8 +5,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
 
+from backend.database import get_db
 from backend.services.asc_metrics_warehouse import (
     asc_metrics_status,
     metric_catalog,
@@ -17,6 +19,42 @@ from backend.services.asc_metrics_warehouse import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["asc-metrics"])
+
+
+@router.get("/asc-metrics/viz20/meta")
+def get_asc_viz20_meta() -> dict[str, Any]:
+    from backend.services.asc_viz20 import build_asc_viz20_meta
+
+    return build_asc_viz20_meta()
+
+
+@router.get("/asc-metrics/viz20/{viz_id}")
+def get_asc_viz20_data(
+    viz_id: str,
+    db: Session = Depends(get_db),
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    metric: str | None = Query(default=None),
+    metric_left: str | None = Query(default=None),
+    metric_right: str | None = Query(default=None),
+    metrics: str | None = Query(default=None),
+    etype: str = Query(default="CRASH"),
+    limit: int = Query(default=15, ge=3, le=50),
+) -> dict[str, Any]:
+    from backend.services.asc_viz20 import build_asc_viz20_data
+
+    return build_asc_viz20_data(
+        db,
+        viz_id=viz_id,
+        start=start,
+        end=end,
+        metric=metric,
+        metric_left=metric_left,
+        metric_right=metric_right,
+        metrics=metrics,
+        etype=etype,
+        limit=limit,
+    )
 
 
 @router.get("/asc-metrics/status")
