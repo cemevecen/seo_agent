@@ -24,16 +24,18 @@
   MODS.forEach(function (m) {
     modVisibility[String(m.user_id)] = !DEFAULT_HIDDEN_USER_IDS[String(m.user_id)];
   });
-  var LEGEND_SYNC_CHART_IDS = [
-    "mod-chart-daily-volume",
-    "mod-chart-weekday",
-    "mod-chart-cumulative",
-    "mod-chart-focus-profile",
-  ];
   var FOCUS_ZOOM_MIN = 0.05;
   var focusZoomBaseMax = null;
   var focusZoomMax = null;
   var focusZoomWheelBound = false;
+  var HTML_LEGEND_IDS = [
+    "mod-chart-daily-volume",
+    "mod-chart-weekday",
+    "mod-chart-cumulative",
+    "mod-chart-focus-profile",
+    "mod-chart-metric-stack",
+    "mod-chart-inactive-summary",
+  ];
   var CHART_IDS = [
     "mod-chart-rank-total",
     "mod-chart-daily-volume",
@@ -98,58 +100,137 @@
     );
   }
 
-  function modLegendLayout(legendCount, chartWidth, legendOpts) {
+  function legendEsc(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function modAxisMargins(legendOpts) {
     legendOpts = legendOpts || {};
-    if (!legendCount || legendCount <= 0) return null;
-
-    var w = Math.max(chartWidth, 240);
-    var perItem = legendOpts.compactLegend ? 68 : 76;
-    var perRow = Math.min(legendCount, Math.max(2, Math.floor(w / perItem)));
-    var rows = Math.ceil(legendCount / perRow);
-    var entryW = Math.max(56, Math.floor(w / perRow) - 4);
-    var legendH = rows * 18 + 4;
-
     var hasTitle = legendOpts.hasTitle !== false;
     var marginTop = hasTitle ? 28 : 10;
-
     var tickPad = 0;
     if (legendOpts.angledX || legendOpts.tickAngle) {
       var angle = Math.abs(legendOpts.tickAngle != null ? legendOpts.tickAngle : 0);
       tickPad = angle >= 60 ? 76 : angle >= 40 ? 56 : angle >= 20 ? 32 : 0;
     }
     var xTitlePad = legendOpts.xaxisTitle ? 18 : 0;
-    var marginBottom = legendH + 6 + xTitlePad + tickPad + 4;
+    var marginBottom = 8 + xTitlePad + tickPad + 4;
+    return { marginTop: marginTop, marginBottom: marginBottom };
+  }
 
-    return {
-      legend: {
-        orientation: "h",
-        x: 0,
-        xanchor: "left",
-        yref: "paper",
-        y: 0,
-        yanchor: "bottom",
-        font: { size: 10, color: th().legend },
-        tracegroupgap: 0,
-        entrywidth: entryW,
-        itemwidth: 20,
-        groupclick: "toggleitem",
-        bgcolor: "rgba(0,0,0,0)",
-      },
-      marginTop: marginTop,
-      marginBottom: marginBottom,
-      legendRows: rows,
-    };
+  function modHtmlLegendHeight(legendCount, chartWidth, compact) {
+    if (!legendCount) return 0;
+    var w = Math.max(chartWidth, 240);
+    var perItem = compact ? 68 : 76;
+    var perRow = Math.min(legendCount, Math.max(2, Math.floor(w / perItem)));
+    var rows = Math.ceil(legendCount / perRow);
+    return rows * 22 + 8;
+  }
+
+  function clearHtmlLegends() {
+    HTML_LEGEND_IDS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      var card = el.closest(".mod-chart-card");
+      if (card) {
+        var bar = card.querySelector(".mod-chart-legend-bar");
+        if (bar) bar.remove();
+      }
+    });
+  }
+
+  function renderHtmlLegend(chartEl, kind) {
+    if (!chartEl) return;
+    var card = chartEl.closest(".mod-chart-card");
+    if (!card) return;
+    var bar = card.querySelector(".mod-chart-legend-bar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.className = "mod-chart-legend-bar";
+      card.appendChild(bar);
+    }
+    bar.innerHTML = "";
+
+    if (kind === "mods") {
+      MODS.forEach(function (m, i) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mod-legend-item" + (isModVisible(m.user_id) ? "" : " is-off");
+        btn.innerHTML =
+          '<span class="mod-legend-swatch" style="background:' +
+          modColor(i) +
+          '"></span><span>' +
+          legendEsc(m.username) +
+          "</span>";
+        btn.addEventListener("click", function () {
+          modVisibility[String(m.user_id)] = !isModVisible(m.user_id);
+          renderCharts();
+        });
+        bar.appendChild(btn);
+      });
+      return;
+    }
+
+    if (kind === "metrics") {
+      METRICS.forEach(function (mt, i) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mod-legend-item";
+        btn.innerHTML =
+          '<span class="mod-legend-swatch" style="background:' +
+          PALETTE[i % PALETTE.length] +
+          '"></span><span>' +
+          legendEsc(mt.label) +
+          "</span>";
+        btn.addEventListener("click", function () {
+          if (!chartEl.data || !chartEl.data[i]) return;
+          var vis = chartEl.data[i].visible;
+          var newVis = vis === "legendonly" || vis === false ? true : "legendonly";
+          Plotly.restyle(chartEl, { visible: newVis }, [i]);
+          btn.classList.toggle("is-off", newVis === "legendonly" || newVis === false);
+        });
+        bar.appendChild(btn);
+      });
+      return;
+    }
+
+    if (kind === "binary") {
+      [
+        { name: "Aktif gün", color: "#0ea5e9" },
+        { name: "İş yapılmayan gün", color: "#cbd5e1" },
+      ].forEach(function (item) {
+        var span = document.createElement("span");
+        span.className = "mod-legend-item mod-legend-static";
+        span.innerHTML =
+          '<span class="mod-legend-swatch" style="background:' +
+          item.color +
+          '"></span><span>' +
+          legendEsc(item.name) +
+          "</span>";
+        bar.appendChild(span);
+      });
+    }
   }
 
   function modChartHeight(el, lay, heightOpts) {
     heightOpts = heightOpts || {};
     var minPlot = heightOpts.minPlot != null ? heightOpts.minPlot : 160;
     var card = el && el.closest ? el.closest(".mod-chart-card") : null;
+    var legendReserve = heightOpts.legendReserve || 0;
+    var cardPad = 28;
     var containerH = 0;
-    if (card && card.clientHeight > 72) containerH = card.clientHeight;
-    else if (el && el.clientHeight > 72) containerH = el.clientHeight;
-    else if (heightOpts.minHeight) containerH = heightOpts.minHeight;
-    else containerH = heightOpts.fallback || 280;
+    if (card && card.clientHeight > 72) {
+      containerH = Math.max(minPlot, card.clientHeight - legendReserve - cardPad);
+    } else if (el && el.clientHeight > 72) {
+      containerH = el.clientHeight;
+    } else if (heightOpts.minHeight) {
+      containerH = Math.max(minPlot, heightOpts.minHeight - legendReserve - cardPad);
+    } else {
+      containerH = heightOpts.fallback || 280;
+    }
 
     var m = (lay && lay.margin) || {};
     var need = minPlot + (m.t || 28) + (m.b || 40);
@@ -158,7 +239,8 @@
     h = Math.max(h, need);
     if (el) {
       el.style.height = h + "px";
-      el.style.minHeight = Math.max(heightOpts.minHeight || 0, h) + "px";
+      el.style.minHeight = Math.max((heightOpts.minPlot || 160), h) + "px";
+      el.style.flex = "1 1 auto";
     }
     return h;
   }
@@ -191,18 +273,25 @@
     }
 
     var legendCount = opts.legendCount || 0;
-    if (legendCount > 0) {
-      var legOpts = Object.assign({ hasTitle: !!lay.title }, opts.legendOpts || {});
-      var leg = modLegendLayout(legendCount, w, legOpts);
-      if (leg) {
-        lay.legend = Object.assign({}, lay.legend || {}, leg.legend);
-        lay.margin = lay.margin || {};
-        lay.margin.t = Math.max(lay.margin.t || 20, leg.marginTop);
-        lay.margin.b = Math.max(lay.margin.b || 28, leg.marginBottom);
-      }
+    var legOpts = Object.assign({ hasTitle: !!lay.title }, opts.legendOpts || {});
+    if (opts.htmlLegend) {
+      var axis = modAxisMargins(legOpts);
+      lay.showlegend = false;
+      lay.margin = lay.margin || {};
+      lay.margin.t = Math.max(lay.margin.t || 20, axis.marginTop);
+      lay.margin.b = Math.max(lay.margin.b || 28, axis.marginBottom);
+    } else if (legendCount > 0) {
+      var axisOnly = modAxisMargins(legOpts);
+      lay.showlegend = false;
+      lay.margin = lay.margin || {};
+      lay.margin.t = Math.max(lay.margin.t || 20, axisOnly.marginTop);
+      lay.margin.b = Math.max(lay.margin.b || 28, axisOnly.marginBottom);
     }
 
-    var heightOpts = opts.heightOpts || {};
+    var heightOpts = Object.assign({}, opts.heightOpts || {});
+    if (opts.htmlLegend && legendCount > 0) {
+      heightOpts.legendReserve = modHtmlLegendHeight(legendCount, w, legOpts.compactLegend);
+    }
     if (opts.fillContainer !== false) {
       lay.height = modChartHeight(el, lay, Object.assign({ minHeight: opts.minHeight }, heightOpts));
     } else if (window.seoPlotlyResolveHeight) {
@@ -218,6 +307,7 @@
     var lay = responsiveLayout(el, layout, opts || {});
     return Plotly.newPlot(el, traces, lay, plotCfg())
       .then(function () {
+        if (opts.htmlLegend) renderHtmlLegend(el, opts.htmlLegend);
         try {
           Plotly.Plots.resize(el);
         } catch (_) {}
@@ -444,6 +534,7 @@
       },
       {
         legendCount: MODS.length,
+        htmlLegend: "mods",
         legendOpts: {
           angledX: true,
           xaxisTitle: true,
@@ -567,6 +658,7 @@
       },
       {
         legendCount: METRICS.length,
+        htmlLegend: "metrics",
         legendOpts: {
           angledX: true,
           compactLegend: true,
@@ -687,7 +779,7 @@
         },
         margin: { l: 48, r: 48, t: 56, b: 48 },
       },
-      { legendCount: MODS.length, heightOpts: { minPlot: 180, maxTotal: 800, fallback: 300 }, minHeight: 300 }
+      { legendCount: MODS.length, htmlLegend: "mods", heightOpts: { minPlot: 180, maxTotal: 800, fallback: 300 }, minHeight: 300 }
     ).then(function () {
       setupFocusZoomToolbar();
       updateFocusZoomLabel();
@@ -720,7 +812,7 @@
         xaxis: { automargin: true, tickfont: axisTickFont() },
         yaxis: { title: "Toplam iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
       },
-      { legendCount: MODS.length, heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 }, minHeight: 280 }
+      { legendCount: MODS.length, htmlLegend: "mods", heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 }, minHeight: 280 }
     );
   }
 
@@ -763,6 +855,7 @@
       },
       {
         legendCount: MODS.length,
+        htmlLegend: "mods",
         legendOpts: {
           angledX: true,
           xaxisTitle: true,
@@ -827,6 +920,7 @@
       },
       {
         legendCount: 2,
+        htmlLegend: "binary",
         legendOpts: { tickAngle: chartW(el) < 480 ? -25 : 0 },
         heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 },
         minHeight: 260,
@@ -851,6 +945,7 @@
       });
       return;
     }
+    clearHtmlLegends();
     var drawers = [
       drawRankTotal,
       drawInactiveSummary,
@@ -878,31 +973,12 @@
       });
     });
     return chain.then(function () {
-      attachModLegendSync();
       setTimeout(resizeAllCharts, 120);
       if (!secondPass) {
         setTimeout(function () {
           renderCharts(true);
         }, 200);
       }
-    });
-  }
-
-  function attachModLegendSync() {
-    LEGEND_SYNC_CHART_IDS.forEach(function (id) {
-      var el = document.getElementById(id);
-      if (!el || !el.on) return;
-      if (typeof el.removeAllListeners === "function") {
-        el.removeAllListeners("plotly_legendclick");
-      }
-      el.on("plotly_legendclick", function (ev) {
-        var trace = ev.data[ev.curveNumber];
-        var mod = modByUsername(trace.name);
-        if (!mod) return true;
-        modVisibility[String(mod.user_id)] = !isModVisible(mod.user_id);
-        renderCharts();
-        return false;
-      });
     });
   }
 
