@@ -19,7 +19,6 @@ PAGES = {
     "vitals": "templates/web_vitals.html",
     "alerts": "templates/partials/alerts_content.html",
     "seo": "templates/seo_audit.html",
-    "s-firebase": "templates/s_firebase.html",
     "backlinks": "templates/backlinks.html",
     "policy": "templates/partials/policy_content.html",
     "errors": "templates/errors.html",

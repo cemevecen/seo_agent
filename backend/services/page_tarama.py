@@ -63,7 +63,6 @@ PAGES: dict[str, list[str]] = {
     "vitals": ["cwv"],
     "alerts": ["alerts"],
     "seo": ["seo"],
-    "s-firebase": ["firebase"],
     "backlinks": ["links"],
     "policy": ["policy", "noads", "moderation"],
     "errors": ["errors"],

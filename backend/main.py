@@ -15832,7 +15832,7 @@ def app_intel_page(request: Request):
 
 @app.get("/firebase")
 def firebase_page(request: Request):
-    """Firebase Crashlytics — Firebase Console scrape (S-Firebase ile aynı depo)."""
+    """Firebase Crashlytics + Console scan (eski /s-firebase paneli)."""
     from backend.services.app_intel import APP_PRODUCTS
     from backend.services.firebase_console_store import firebase_console_payload
 
@@ -15866,18 +15866,9 @@ def firebase_page(request: Request):
 
 
 @app.get("/s-firebase")
-def s_firebase_page(request: Request):
-    """S-Firebase — Firebase Console Crashlytics scrape (Android + iOS)."""
-    return templates.TemplateResponse(
-        request,
-        "s_firebase.html",
-        context={
-            "request": request,
-            "site_name": "S-Firebase",
-            "sites": get_sidebar_sites(),
-        },
-        headers=_SC_HTML_NO_CACHE_HEADERS,
-    )
+def s_firebase_page_redirect():
+    """Eski S-Firebase URL — /firebase#s-firebase-scan."""
+    return RedirectResponse(url="/firebase#s-firebase-scan", status_code=301)
 
 
 @app.get("/api/app/intel")

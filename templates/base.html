@@ -2623,7 +2623,7 @@
               <a href="/ad-virgul" data-nav-match="/ad-virgul" data-nav-priority class="header-nav-link">virgül</a>
               {% endif %}
               <a href="/notification" data-nav-match="/notification" data-nav-priority class="header-nav-link">notification</a>
-              <a href="/firebase" data-nav-match="/firebase" data-nav-priority class="header-nav-link">firebase</a>
+              <a href="/firebase" data-nav-match="/firebase,/s-firebase" data-nav-priority class="header-nav-link">firebase</a>
               <a href="/app" data-nav-match="/app" data-nav-priority class="header-nav-link">app</a>
               <a href="/web-vitals" data-nav-match="/web-vitals" data-nav-priority class="header-nav-link">vitals</a>
               <a href="/alerts" data-nav-match="/alerts" data-nav-priority class="header-nav-link">alerts</a>
@@ -2636,7 +2636,6 @@
               <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" data-nav-priority class="header-nav-link">movie</a>
               <a href="/ai" data-nav-match="/ai" data-nav-priority class="header-nav-link">ai</a>
               <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" data-nav-priority class="header-nav-link">speed</a>
-              <a href="/s-firebase" data-nav-match="/s-firebase" data-nav-priority class="header-nav-link">S-Firebase</a>
               {% if settings_menu_visible(request) %}
               <a href="/settings" data-nav-match="/settings" data-nav-priority class="header-nav-link">settings</a>
               {% endif %}

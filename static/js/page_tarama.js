@@ -51,7 +51,6 @@
     vitals: ["cwv"],
     alerts: ["alerts"],
     seo: ["seo"],
-    "s-firebase": ["firebase"],
     backlinks: ["links"],
     policy: ["policy", "noads"],
     errors: ["errors"],
