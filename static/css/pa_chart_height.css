@@ -57,16 +57,12 @@
   z-index: 6;
   width: auto;
   height: auto;
-  min-width: 1.35rem;
   margin: 0;
-  padding: 0.45rem 0.3rem;
-  border: 1.5px solid rgb(14 165 233 / 0.55);
-  border-radius: 9999px;
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.98), rgb(224 242 254 / 0.92));
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.85) inset,
-    0 2px 10px rgb(14 165 233 / 0.22),
-    0 0 0 3px rgb(14 165 233 / 0.1);
+  padding: 0.35rem 0.45rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   cursor: ew-resize;
   touch-action: none;
   opacity: 1;
@@ -74,18 +70,25 @@
   align-items: center;
   justify-content: center;
   transform: translateY(-50%);
-  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+  transition: transform 0.14s ease, opacity 0.14s ease;
 }
 
-.pa-chart-edge-handle::before,
-.pa-chart-edge-handle::after {
+.pa-chart-edge-handle::before {
   content: "";
   display: block;
   width: 0.22rem;
   height: 0.22rem;
   border-radius: 9999px;
   background: rgb(2 132 199);
-  box-shadow: 0 0.38rem 0 0 rgb(2 132 199), 0 0.76rem 0 0 rgb(2 132 199);
+  box-shadow:
+    0 0.32rem 0 0 rgb(2 132 199),
+    0 0.64rem 0 0 rgb(2 132 199),
+    0 0.96rem 0 0 rgb(2 132 199);
+}
+
+.pa-chart-edge-handle::after {
+  content: none;
+  display: none;
 }
 
 .pa-chart-edge-handle--left {
@@ -101,40 +104,23 @@
 .pa-chart-edge-handle:hover,
 .pa-chart-edge-handle.is-dragging,
 .pa-chart-edge-handle:focus-visible {
-  transform: translate(-50%, -50%) scale(1.06);
-  border-color: rgb(2 132 199 / 0.85);
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.9) inset,
-    0 4px 14px rgb(14 165 233 / 0.34),
-    0 0 0 4px rgb(56 189 248 / 0.18);
+  transform: translate(-50%, -50%) scale(1.08);
+  opacity: 1;
 }
 
 .pa-chart-edge-handle--right:hover,
 .pa-chart-edge-handle--right.is-dragging,
 .pa-chart-edge-handle--right:focus-visible {
-  transform: translate(50%, -50%) scale(1.06);
-}
-
-.pa-chart-edge-handle.is-dragging {
-  background: linear-gradient(180deg, rgb(224 242 254), rgb(186 230 253));
-}
-
-html.dark .pa-chart-edge-handle,
-html.midnight .pa-chart-edge-handle {
-  border-color: rgb(56 189 248 / 0.55);
-  background: linear-gradient(180deg, rgb(24 24 27 / 0.96), rgb(12 74 110 / 0.55));
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.06) inset,
-    0 2px 12px rgb(0 0 0 / 0.45),
-    0 0 0 3px rgb(56 189 248 / 0.12);
+  transform: translate(50%, -50%) scale(1.08);
 }
 
 html.dark .pa-chart-edge-handle::before,
-html.dark .pa-chart-edge-handle::after,
-html.midnight .pa-chart-edge-handle::before,
-html.midnight .pa-chart-edge-handle::after {
+html.midnight .pa-chart-edge-handle::before {
   background: rgb(125 211 252);
-  box-shadow: 0 0.38rem 0 0 rgb(125 211 252), 0 0.76rem 0 0 rgb(125 211 252);
+  box-shadow:
+    0 0.32rem 0 0 rgb(125 211 252),
+    0 0.64rem 0 0 rgb(125 211 252),
+    0 0.96rem 0 0 rgb(125 211 252);
 }
 
 /* Alt kenar — yükseklik sürükleme */
@@ -145,16 +131,12 @@ html.midnight .pa-chart-edge-handle::after {
   z-index: 6;
   width: auto;
   height: auto;
-  min-height: 1.35rem;
   margin: 0;
-  padding: 0.3rem 0.45rem;
-  border: 1.5px solid rgb(14 165 233 / 0.55);
-  border-radius: 9999px;
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.98), rgb(224 242 254 / 0.92));
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.85) inset,
-    0 2px 10px rgb(14 165 233 / 0.22),
-    0 0 0 3px rgb(14 165 233 / 0.1);
+  padding: 0.45rem 0.35rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   cursor: ns-resize;
   touch-action: none;
   opacity: 1;
@@ -162,18 +144,25 @@ html.midnight .pa-chart-edge-handle::after {
   align-items: center;
   justify-content: center;
   transform: translate(-50%, 50%);
-  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+  transition: transform 0.14s ease, opacity 0.14s ease;
 }
 
-.pa-chart-height-handle::before,
-.pa-chart-height-handle::after {
+.pa-chart-height-handle::before {
   content: "";
   display: block;
   width: 0.22rem;
   height: 0.22rem;
   border-radius: 9999px;
   background: rgb(2 132 199);
-  box-shadow: 0.38rem 0 0 0 rgb(2 132 199), 0.76rem 0 0 0 rgb(2 132 199);
+  box-shadow:
+    0.32rem 0 0 0 rgb(2 132 199),
+    0.64rem 0 0 0 rgb(2 132 199),
+    0.96rem 0 0 0 rgb(2 132 199);
+}
+
+.pa-chart-height-handle::after {
+  content: none;
+  display: none;
 }
 
 .pa-chart-height-handle--bottom {
@@ -183,16 +172,8 @@ html.midnight .pa-chart-edge-handle::after {
 .pa-chart-height-handle:hover,
 .pa-chart-height-handle.is-dragging,
 .pa-chart-height-handle:focus-visible {
-  transform: translate(-50%, 50%) scale(1.06);
-  border-color: rgb(2 132 199 / 0.85);
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.9) inset,
-    0 4px 14px rgb(14 165 233 / 0.34),
-    0 0 0 4px rgb(56 189 248 / 0.18);
-}
-
-.pa-chart-height-handle.is-dragging {
-  background: linear-gradient(180deg, rgb(224 242 254), rgb(186 230 253));
+  transform: translate(-50%, 50%) scale(1.08);
+  opacity: 1;
 }
 
 #pa-chart-wrap.pa-chart-height-dragging,
@@ -200,22 +181,13 @@ html.midnight .pa-chart-edge-handle::after {
   transition: none !important;
 }
 
-html.dark .pa-chart-height-handle,
-html.midnight .pa-chart-height-handle {
-  border-color: rgb(56 189 248 / 0.55);
-  background: linear-gradient(180deg, rgb(24 24 27 / 0.96), rgb(12 74 110 / 0.55));
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.06) inset,
-    0 2px 12px rgb(0 0 0 / 0.45),
-    0 0 0 3px rgb(56 189 248 / 0.12);
-}
-
 html.dark .pa-chart-height-handle::before,
-html.dark .pa-chart-height-handle::after,
-html.midnight .pa-chart-height-handle::before,
-html.midnight .pa-chart-height-handle::after {
+html.midnight .pa-chart-height-handle::before {
   background: rgb(125 211 252);
-  box-shadow: 0.38rem 0 0 0 rgb(125 211 252), 0.76rem 0 0 0 rgb(125 211 252);
+  box-shadow:
+    0.32rem 0 0 0 rgb(125 211 252),
+    0.64rem 0 0 0 rgb(125 211 252),
+    0.96rem 0 0 0 rgb(125 211 252);
 }
 
 #pa-chart-wrap[data-chart-height="1"],
