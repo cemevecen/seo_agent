@@ -416,3 +416,25 @@ def test_recover_prefers_longer_previous_mobile():
     assert out["mobile"]["dates"][0] == "2026-05-13"
     assert out["mobile"]["needs_improvement"][0] == 200
     assert out["desktop"]["dates"][0] == "2026-05-13"
+
+
+def test_parse_drilldown_affected_count_tr():
+    body = "Etkilenen URL sayısı\n110\n15.05.2026"
+    assert mod._parse_drilldown_affected_count(body) == 110
+
+
+def test_parse_drilldown_affected_count_en():
+    body = "Number of affected URLs\n6179\nMay 15, 2026"
+    assert mod._parse_drilldown_affected_count(body) == 6179
+
+
+def test_kpis_from_issue_drilldowns_sums_by_status():
+    drilldowns = [
+        {"status": "poor", "affected_url_count": 110, "metric": "LCP"},
+        {"status": "needs_improvement", "affected_url_count": 5000, "metric": "LCP"},
+        {"status": "needs_improvement", "affected_url_count": 1180, "metric": "CLS"},
+    ]
+    kpis = mod._kpis_from_issue_drilldowns(drilldowns, good_affected=7130)
+    assert kpis["poor"] == 110
+    assert kpis["needs_improvement"] == 6180
+    assert kpis["good"] == 7130

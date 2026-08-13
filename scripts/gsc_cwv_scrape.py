@@ -617,6 +617,59 @@ def _parse_gsc_kpi_triplet(block: str) -> dict[str, int] | None:
     return None
 
 
+def _parse_drilldown_affected_count(body: str) -> int | None:
+    """Drilldown sayfası — «Etkilenen URL sayısı» / affected URLs grafiği üst sayı."""
+    raw = body or ""
+    if not raw.strip():
+        return None
+    t = _fold_tr(raw)
+    patterns = (
+        r"etkilenen\s*url\s*sayisi\D{0,48}(\d[\d\.,]*)",
+        r"number\s*of\s*affected\s*urls?\D{0,48}(\d[\d\.,]*)",
+        r"(\d[\d\.,]+)\D{0,24}(?:etkilenen|affected)\s*url",
+    )
+    for pat in patterns:
+        m = re.search(pat, t, re.I | re.S)
+        if m:
+            return _parse_count(m.group(1))
+    return None
+
+
+def _kpis_from_issue_drilldowns(
+    drilldowns: list[dict[str, Any]],
+    *,
+    good_affected: int | None = None,
+) -> dict[str, int]:
+    """Özet kart yerine kırılım (drilldown) sayfalarından KPI türet."""
+    out = {"poor": 0, "needs_improvement": 0, "good": 0}
+    for d in drilldowns:
+        st = str(d.get("status") or "").lower()
+        if st not in out:
+            continue
+        cnt = d.get("affected_url_count")
+        if cnt is None:
+            cnt = d.get("url_count")
+        if cnt is None:
+            continue
+        out[st] += int(cnt or 0)
+    if good_affected is not None:
+        out["good"] = int(good_affected)
+    return out
+
+
+def _enrich_drilldown_from_page(page, drill: dict[str, Any]) -> None:
+    """Drilldown sayfasından etkilenen URL sayısını oku."""
+    body = ""
+    try:
+        body = page.inner_text("body") or ""
+    except Exception:
+        body = str((drill.get("body_head") or ""))
+    affected = _parse_drilldown_affected_count(body)
+    if affected is not None:
+        drill["affected_url_count"] = affected
+    drill["drilldown_url"] = drill.get("source_url") or drill.get("drilldown_url") or ""
+
+
 def _parse_overview_triplet(block: str) -> dict[str, int] | None:
     t = _fold_tr(block or "")
     for cre in _OV_TRIPLET_RES:
@@ -1709,21 +1762,23 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
             urls = []
         for u in urls:
             u.setdefault("metric", metric)
-        drilldowns.append(
-            {
-                "status": status,
-                "title": title,
-                "metric": metric,
-                "item_key": item_key,
-                "source_url": cur,
-                "url_rows": urls,
-                "url_row_count": len(urls),
-                "causes": explain_causes(metric, status, title),
-            }
-        )
+        dd = {
+            "status": status,
+            "title": title,
+            "metric": metric,
+            "item_key": item_key,
+            "source_url": cur,
+            "url_rows": urls,
+            "url_row_count": len(urls),
+            "causes": explain_causes(metric, status, title),
+        }
+        _enrich_drilldown_from_page(page, dd)
+        drilldowns.append(dd)
         if idx < len(issues):
             issues[idx]["item_key"] = item_key
             issues[idx]["drilldown_url"] = cur
+            if dd.get("affected_url_count") is not None:
+                issues[idx]["url_count"] = dd["affected_url_count"]
 
     # Tıklanamayan / eksik kırılımlar için bilinen item_key fallback
     have_keys = {str(d.get("item_key") or "") for d in drilldowns}
@@ -1753,26 +1808,27 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
             if not urls and status in ("", "unknown", "good"):
                 print(f"    fallback skip empty {key}", flush=True)
                 continue
-            drilldowns.append(
-                {
-                    "status": status,
-                    "title": title or f"{metric} ({key})",
-                    "metric": metric,
-                    "item_key": key,
-                    "source_url": page.url,
-                    "url_rows": urls,
-                    "url_row_count": len(urls),
-                    "causes": explain_causes(metric, status, title),
-                    "via": "item_key_fallback",
-                }
-            )
+            dd = {
+                "status": status,
+                "title": title or f"{metric} ({key})",
+                "metric": metric,
+                "item_key": key,
+                "source_url": page.url,
+                "url_rows": urls,
+                "url_row_count": len(urls),
+                "causes": explain_causes(metric, status, title),
+                "via": "item_key_fallback",
+            }
+            _enrich_drilldown_from_page(page, dd)
+            drilldowns.append(dd)
         except Exception as exc:  # noqa: BLE001
             print(f"    fallback skip {key}: {exc}", flush=True)
 
-    # Good URLs drilldown
-    print(f"  · {label} good URLs…", flush=True)
+    # Good URLs drilldown (device-only — özet değil kırılım sayfası)
+    print(f"  · {label} good URLs drilldown…", flush=True)
     good_urls: list[dict[str, Any]] = []
     good_meta: dict[str, Any] = {}
+    good_affected: int | None = None
     try:
         page.goto(
             _cwv_url(resource_id, "/drilldown", device=device),
@@ -1783,19 +1839,38 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
         _wait_table(page)
         good_urls = _scrape_url_table(page)
         good_meta = _extract_page_meta(page)
+        try:
+            good_affected = _parse_drilldown_affected_count(page.inner_text("body") or "")
+        except Exception:
+            good_affected = None
     except Exception as exc:  # noqa: BLE001
         print(f"  · good URLs skip: {exc}", flush=True)
+
+    summary_kpis = dict(kpis)
+    drill_kpis = _kpis_from_issue_drilldowns(drilldowns, good_affected=good_affected)
+    kpis_source = "summary"
+    if drilldowns or good_affected is not None:
+        kpis = drill_kpis
+        kpis_source = "drilldown"
+        print(
+            f"  · {label} KPI drilldown: poor={kpis.get('poor')} ni={kpis.get('needs_improvement')} "
+            f"good={kpis.get('good')} (summary was poor={summary_kpis.get('poor')})",
+            flush=True,
+        )
 
     return {
         "device": device,
         "label": label,
         "kpis": kpis,
+        "summary_kpis": summary_kpis,
+        "kpis_source": kpis_source,
         "last_updated": "",
         "issues": issues,
         "issue_drilldowns": drilldowns,
         "good_urls": good_urls,
-        "good_url_count": len(good_urls),
-        "good_page_url": good_meta.get("url") or "",
+        "good_url_count": good_affected if good_affected is not None else len(good_urls),
+        "good_affected_url_count": good_affected,
+        "good_page_url": good_meta.get("url") or _cwv_url(resource_id, "/drilldown", device=device),
         "summary_url": _cwv_url(resource_id, "/summary", device=device),
     }
 
@@ -1937,7 +2012,6 @@ def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) ->
             pass
         time.sleep(1.2)
         chart_series = _extract_overview_chart_series(page, last_updated=last_upd)
-        _snap_series_to_kpis(chart_series, overview)
         mob_n = int(((chart_series.get("mobile") or {}).get("point_count")) or 0)
         desk_n = int(((chart_series.get("desktop") or {}).get("point_count")) or 0)
         last_d = ""
@@ -1987,24 +2061,14 @@ def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) ->
 
     mobile = _scrape_device(page, resource_id=rid, device=DEVICE_MOBILE, label="Mobil")
     desktop = _scrape_device(page, resource_id=rid, device=DEVICE_DESKTOP, label="Masaüstü")
-    # Kart KPI asıl kaynak. Grafik son dişi (testere 18k) kartı (15,6 B) ezmesin.
-    for key, dev in (("mobile", mobile), ("desktop", desktop)):
-        card = dict(dev.get("kpis") or {})
-        ov_k = overview.get(key) if isinstance(overview.get(key), dict) else {}
-        ser = chart_series.get(key) if isinstance(chart_series.get(key), dict) else {}
-        has_card = int(card.get("needs_improvement") or 0) or int(card.get("good") or 0)
-        has_ov = int((ov_k or {}).get("needs_improvement") or 0) or int((ov_k or {}).get("good") or 0)
-        if has_card:
-            kpis = card
-        elif has_ov:
-            kpis = dict(ov_k)
-        else:
-            kpis = dict(card)
-            for metric in ("poor", "needs_improvement", "good"):
-                arr = (ser or {}).get(metric) or []
-                if arr:
-                    kpis[metric] = int(round(float(arr[-1] or 0)))
-        dev["kpis"] = kpis
+    # KPI kaynağı: drilldown kırılım sayfaları (özet kart sayıları sapabiliyor)
+    _snap_series_to_kpis(
+        chart_series,
+        {
+            "mobile": mobile.get("kpis") if isinstance(mobile.get("kpis"), dict) else {},
+            "desktop": desktop.get("kpis") if isinstance(desktop.get("kpis"), dict) else {},
+        },
+    )
     mobile["last_updated"] = last_upd
     desktop["last_updated"] = last_upd
 

@@ -284,7 +284,8 @@
             <div class="min-w-0">
               <p class="text-sm font-semibold {% if d.status=='poor' %}text-rose-600{% else %}text-amber-700 dark:text-amber-400{% endif %}">{{ d.title }}</p>
               <p class="text-[11px] text-slate-500 dark:text-zinc-400" title="{{ d.item_key or '' }}">
-                {{ status_tr(d.status) }} · {{ d.metric or '—' }} · {{ fmt_int(d.url_row_count) }} group rows
+                {{ status_tr(d.status) }} · {{ d.metric or '—' }} ·
+                {% if d.affected_url_count is not none %}{{ fmt_int(d.affected_url_count) }} affected URLs{% else %}{{ fmt_int(d.url_row_count) }} group rows{% endif %}
               </p>
             </div>
             {% if d.source_url %}<a class="shrink-0 text-[11px] text-sky-600 hover:underline dark:text-sky-400" href="{{ d.source_url }}" target="_blank" rel="noopener">Breakdown</a>{% endif %}
