@@ -120,7 +120,7 @@ RELEASE_URL = (
 VITALS_CRASHES_BASE = f"{BASE_APP}/vitals/crashes"
 VITALS_METRICS_OVERVIEW_URL = (
     os.environ.get("PLAY_CONSOLE_VITALS_METRICS_URL")
-    or f"{BASE_APP}/vitals/metrics/overview?peersetKey=3%3A50984700721a5227"
+    or f"{BASE_APP}/vitals/metrics/overview?peersetKey=1%3A7f5887b4"
 ).strip()
 
 # Play Console "Sorun kategorisi" kırılımları (TR + EN etiketleri)
@@ -2685,12 +2685,341 @@ def _wait_dashboard_metrics(page, *, timeout_sec: float = 45.0) -> bool:
         page,
         (
             "Kilitlenme oranı",
+            "ANR oranı",
+            "İzleyin ve geliştirin",
+            "Monitor and improve",
             "TPG trendlerini izleyin",
             "Etkin cihazlar",
             "Cihaz edinme",
             "Toplam yükleme",
+            "Ortalama puan",
         ),
         timeout_sec=timeout_sec,
+    )
+
+
+def _extract_dashboard_monitor_improve(page) -> dict[str, Any]:
+    """app-dashboard · İzleyin ve geliştirin şeridi (kilitlenme / ANR / puan)."""
+    return page.evaluate(
+        """() => {
+      const clean = (s) => String(s || '').replace(/[\\u00a0\\u200b\\ufeff]/g, ' ').replace(/\\s+/g, ' ').trim();
+      const body = (document.body && document.body.innerText) || '';
+      const lines = body.split(/\\n+/).map(clean).filter(Boolean);
+      const sectionRe = /^(İzleyin ve geliştirin|Monitor and improve)$/i;
+      const cardTitles = [
+        { re: /^Kilitlenme oranı$/i, key: 'crash_rate' },
+        { re: /^ANR oranı$/i, key: 'anr_rate' },
+        { re: /^(Ortalama puan|Google Play puanı|Average rating)$/i, key: 'rating' },
+      ];
+      const isDelta = (s) => /^[+\\-−]/.test(s) || /yüzde puan|percentage point|puan$/i.test(s);
+      const isVal = (s) => /\\d/.test(s) && !isDelta(s) && s.length < 24;
+      let start = -1;
+      for (let i = 0; i < lines.length; i++) {
+        if (sectionRe.test(lines[i])) { start = i; break; }
+      }
+      let period = '';
+      const cards = [];
+      if (start < 0) {
+        for (const ct of cardTitles) {
+          for (let i = 0; i < lines.length; i++) {
+            if (!ct.re.test(lines[i])) continue;
+            let value = '', delta = '';
+            for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
+              const l = lines[j];
+              if (cardTitles.some((x) => x.re.test(l))) break;
+              if (/son \\d+ gün|last \\d+ days|önceki|previous/i.test(l) && !period) period = l;
+              if (!value && isVal(l)) { value = l; continue; }
+              if (value && !delta && isDelta(l)) { delta = l; break; }
+            }
+            if (value) cards.push({ key: ct.key, title: lines[i], value, delta, period: period || '' });
+            break;
+          }
+        }
+      } else {
+        for (let i = start + 1; i < Math.min(start + 40, lines.length); i++) {
+          const l = lines[i];
+          if (/^TPG trendlerini|^Track key|^Play Console politikaları|^Review changes/i.test(l)) break;
+          if (/son \\d+ gün|last \\d+ days|önceki|previous/i.test(l) && !period) { period = l; continue; }
+          for (const ct of cardTitles) {
+            if (!ct.re.test(l)) continue;
+            let value = '', delta = '';
+            for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
+              const ll = lines[j];
+              if (cardTitles.some((x) => x.re.test(ll))) break;
+              if (!value && isVal(ll)) { value = ll; continue; }
+              if (value && !delta && isDelta(ll)) { delta = ll; break; }
+            }
+            if (value) cards.push({ key: ct.key, title: l, value, delta, period: period || '' });
+          }
+        }
+      }
+      const seen = new Set();
+      const uniq = cards.filter((c) => {
+        const k = c.key + '|' + c.value;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      return {
+        section_title: start >= 0 ? lines[start] : 'İzleyin ve geliştirin',
+        period: period,
+        cards: uniq,
+        card_count: uniq.length,
+      };
+    }"""
+    )
+
+
+def _scroll_vitals_overview_deep(page) -> None:
+    """Vitals overview: lazy section'ları yükle."""
+    try:
+        page.evaluate(
+            """async () => {
+              const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+              const h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+              for (let y = 0; y <= h; y += Math.max(280, Math.floor(h / 8))) {
+                window.scrollTo(0, y);
+                await sleep(450);
+              }
+              window.scrollTo(0, 0);
+              await sleep(350);
+            }"""
+        )
+    except Exception:
+        _scroll_full_page(page)
+
+
+def _extract_vitals_metrics_overview(page) -> dict[str, Any]:
+    """Vitals metrics overview — tam sayfa: öneriler, kararlılık, bellek, açılış, oluşturma, pil."""
+    return page.evaluate(
+        """() => {
+      const clean = (s) => String(s || '').replace(/[\\u00a0\\u200b\\ufeff]/g, ' ').replace(/\\s+/g, ' ').trim();
+      const body = (document.body && document.body.innerText) || '';
+      const lines = body.split(/\\n+/).map(clean).filter(Boolean);
+
+      const sectionFromTitle = (t) => {
+        const s = clean(t).toLowerCase();
+        if (/kararlılık|^stability/.test(s)) return 'stability';
+        if (/^bellek|^memory/.test(s)) return 'memory';
+        if (/açılma|yükleme|startup|loading time/.test(s)) return 'startup';
+        if (/^oluşturma|^rendering/.test(s)) return 'rendering';
+        if (/^pil$|^battery/.test(s)) return 'battery';
+        return '';
+      };
+
+      const isDelta = (s) => {
+        const t = clean(s);
+        return /^[+\\-−]/.test(t) || /yüzde puan|percentage point/i.test(t) || /^[+\\-−]?\\s*\\d/.test(t) && /puan/i.test(t);
+      };
+      const isMetricVal = (s) => {
+        const t = clean(s);
+        if (!t || t.length > 48) return false;
+        if (!/\\d/.test(t)) return false;
+        if (/^(tem|ağu|eyl|eki|kas|ara|oca|şub|mar|nis|may|haz)\\b/i.test(t)) return false;
+        return true;
+      };
+
+      let pageTitle = '';
+      for (const l of lines.slice(0, 8)) {
+        if (/vitals|vital|android vitals|genel bakış|overview/i.test(l) && l.length < 120) {
+          pageTitle = l;
+          break;
+        }
+      }
+
+      let peerGroup = '';
+      for (const l of lines) {
+        if (/benzerler grubu|peer group|custom peer|özel benzer/i.test(l)) {
+          peerGroup = l;
+          break;
+        }
+      }
+
+      const recommendations = [];
+      const recCountM = body.match(/(\\d+)\\s*(işlem\\s*öneriliyor|actions?\\s*recommended)/i);
+      const recLimit = recCountM ? Math.min(parseInt(recCountM[1], 10) || 8, 12) : 8;
+      let inRec = false;
+      for (let i = 0; i < lines.length && recommendations.length < recLimit; i++) {
+        const l = lines[i];
+        if (/işlem\\s*öneriliyor|actions?\\s*recommended/i.test(l)) { inRec = true; continue; }
+        if (inRec) {
+          if (sectionFromTitle(l) || /^kararlılık$|^bellek$|^stability$|^memory$/i.test(l)) break;
+          if (l.length < 12 || l.length > 240) continue;
+          if (/^sürüm adı:|^version name:/i.test(l)) continue;
+          const verM = l.match(/(?:Sürüm adı|Version name)\\s*:\\s*(.+)$/i);
+          const title = verM ? lines[i - 1] || l : l;
+          if (!title || title.length < 8) continue;
+          recommendations.push({
+            title: verM ? clean(lines[i - 1] || l) : l,
+            version: verM ? clean(verM[1]) : (l.match(/\\((\\d{2,4}[^)]*)\\)/) || [])[1] || '',
+          });
+        }
+      }
+
+      const summaryCards = [];
+      const summaryRes = [
+        { re: /kullanıcı tarafından algılanan kilitlenme|user[- ]perceived crash/i, key: 'crash' },
+        { re: /kullanıcı tarafından algılanan anr|user[- ]perceived anr/i, key: 'anr' },
+      ];
+      for (const sr of summaryRes) {
+        for (let i = 0; i < lines.length; i++) {
+          if (!sr.re.test(lines[i])) continue;
+          const vals = [];
+          for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
+            const l = lines[j];
+            if (summaryRes.some((x) => x.re.test(l))) break;
+            if (isMetricVal(l) || isDelta(l)) vals.push(l);
+            if (vals.length >= 2) break;
+          }
+          if (vals.length) {
+            summaryCards.push({
+              key: sr.key,
+              metric: lines[i],
+              value: vals[0] || '',
+              delta: vals[1] || '',
+            });
+          }
+          break;
+        }
+      }
+
+      const sections = [];
+      const sectionOrder = ['stability', 'memory', 'startup', 'rendering', 'battery'];
+      const sectionTitles = {
+        stability: 'Kararlılık',
+        memory: 'Bellek',
+        startup: 'Açılma ve yükleme süreleri',
+        rendering: 'Oluşturma',
+        battery: 'Pil',
+      };
+
+      function pushRow(sectionId, row) {
+        let sec = sections.find((s) => s.id === sectionId);
+        if (!sec) {
+          sec = { id: sectionId, title: sectionTitles[sectionId] || sectionId, rows: [] };
+          sections.push(sec);
+        }
+        sec.rows.push(row);
+      }
+
+      const metricKeyFromText = (t) => {
+        const s = clean(t).toLowerCase();
+        if (/kilitlenme|crash/.test(s)) return 'crash';
+        if (/\\banr\\b/.test(s)) return 'anr';
+        if (/\\blmk\\b/.test(s)) return 'lmk';
+        return 'other';
+      };
+
+      const userMetricRe = /kullanıcı tarafından algılanan|user[- ]perceived/i;
+
+      for (const table of Array.from(document.querySelectorAll('table'))) {
+        const headers = Array.from(table.querySelectorAll('thead th, tr:first-child th, tr:first-child td'))
+          .map((c) => clean(c.innerText)).filter(Boolean);
+        if (headers.length < 2) continue;
+        let sectionId = '';
+        let el = table;
+        for (let depth = 0; depth < 8 && el; depth++) {
+          el = el.parentElement;
+          if (!el) break;
+          const heading = el.querySelector('h1,h2,h3,h4,[role="heading"]');
+          if (heading) {
+            sectionId = sectionFromTitle(clean(heading.innerText));
+            if (sectionId) break;
+          }
+          const prev = el.previousElementSibling;
+          if (prev) {
+            const pt = clean(prev.innerText || '').split(/\\n+/)[0];
+            sectionId = sectionFromTitle(pt);
+            if (sectionId) break;
+          }
+        }
+        if (!sectionId) {
+          const blob = clean(table.innerText).slice(0, 200).toLowerCase();
+          if (/bellek|memory|anonim rss|bitmap/.test(blob)) sectionId = 'memory';
+          else if (/yavaş|slow|başlatma|startup|cold|warm|hot/.test(blob)) sectionId = 'startup';
+          else if (/kare|frame|render|donmuş|frozen/.test(blob)) sectionId = 'rendering';
+          else if (/pil|battery|wakeup|wake/.test(blob)) sectionId = 'battery';
+          else sectionId = 'stability';
+        }
+        const hdr = headers.join(' ').toLowerCase();
+        const isMemory = sectionId === 'memory' || /p50|p90|percentile|yüzdelik/.test(hdr);
+        const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
+        const trs = bodyRows.length ? bodyRows : Array.from(table.querySelectorAll('tr')).slice(1);
+        for (const tr of trs) {
+          const cells = Array.from(tr.querySelectorAll('th,td')).map((c) => clean(c.innerText));
+          if (cells.length < 2) continue;
+          const metric = cells[0];
+          if (!metric || metric.length < 3 || /^(metrik|metric)$/i.test(metric)) continue;
+          if (isMemory && cells.length >= 3) {
+            pushRow(sectionId, {
+              key: metricKeyFromText(metric),
+              metric,
+              p50: cells[1] || '',
+              vs_previous_p50: cells[2] || '',
+              p90: cells[3] || '',
+              vs_previous_p90: cells[4] || '',
+            });
+          } else {
+            pushRow(sectionId, {
+              key: metricKeyFromText(metric),
+              metric,
+              value_28d: cells[1] || '',
+              vs_previous_28d: cells[2] || '',
+              vs_peers_median: cells[3] || '',
+            });
+          }
+        }
+      }
+
+      if (!sections.some((s) => s.id === 'stability')) {
+        const stabilityRows = [];
+        const metricRe = /kullanıcı tarafından algılanan\\s+(kilitlenme|anr|lmk)\\s+oranı|user[- ]perceived\\s+(crash|anr|lmk)\\s+rate/i;
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (!metricRe.test(line)) continue;
+          const vals = [];
+          for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
+            const l = lines[j];
+            if (metricRe.test(l)) break;
+            if (isMetricVal(l) || isDelta(l)) vals.push(l);
+            if (vals.length >= 3) break;
+          }
+          stabilityRows.push({
+            key: metricKeyFromText(line),
+            metric: line,
+            value_28d: vals[0] || '',
+            vs_previous_28d: vals[1] || '',
+            vs_peers_median: vals[2] || '',
+          });
+        }
+        if (stabilityRows.length) {
+          sections.unshift({ id: 'stability', title: 'Kararlılık', rows: stabilityRows });
+        }
+      }
+
+      sections.sort((a, b) => {
+        const ai = sectionOrder.indexOf(a.id);
+        const bi = sectionOrder.indexOf(b.id);
+        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+      });
+
+      const rows = (sections.find((s) => s.id === 'stability') || { rows: [] }).rows.filter((r) =>
+        userMetricRe.test(r.metric || '')
+      );
+
+      return {
+        page_title: pageTitle,
+        peer_group: peerGroup,
+        recommendations,
+        recommendation_count: recommendations.length,
+        summary_cards: summaryCards,
+        sections,
+        section_count: sections.length,
+        rows,
+        body_len: body.length,
+        line_count: lines.length,
+      };
+    }"""
     )
 
 
@@ -3880,71 +4209,6 @@ def _scrape_vitals_crashes_error_type(
     }
 
 
-def _extract_vitals_metrics_overview(page) -> dict[str, Any]:
-    """Vitals metrics overview: crash / ANR / LMK oran tablosu."""
-    return page.evaluate(
-        """() => {
-      const clean = (s) => String(s || '').replace(/[\\u00a0\\u200b\\ufeff]/g, ' ').replace(/\\s+/g, ' ').trim();
-      const body = (document.body && document.body.innerText) || '';
-      const lines = body.split(/\\n+/).map(clean).filter(Boolean);
-
-      const metricRe = /kullanıcı tarafından algılanan\\s+(kilitlenme|anr|lmk)\\s+oranı|user[- ]perceived\\s+(crash|anr|lmk)\\s+rate/i;
-      const rows = [];
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (!metricRe.test(line)) continue;
-        const vals = [];
-        for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
-          const l = lines[j];
-          if (metricRe.test(l)) break;
-          // %0,03 veya +%0,01 veya -%0,08
-          if (/^[%+\\-−]?\\s*%?\\s*\\d/.test(l) || /^\\d/.test(l) && /%/.test(l) || /^[+\\-−]%?\\d/.test(l)) {
-            vals.push(l);
-          } else if (/^\\d[,.]\\d+%?$/.test(l) || /^%\\d/.test(l)) {
-            vals.push(l);
-          }
-          if (vals.length >= 3) break;
-        }
-        let key = 'other';
-        if (/kilitlenme|crash/i.test(line)) key = 'crash';
-        else if (/\\banr\\b/i.test(line)) key = 'anr';
-        else if (/\\blmk\\b/i.test(line)) key = 'lmk';
-        rows.push({
-          key,
-          metric: line,
-          value_28d: vals[0] || '',
-          vs_previous_28d: vals[1] || '',
-          vs_peers_median: vals[2] || '',
-        });
-      }
-
-      // Tablo hücrelerinden yedek parse
-      if (!rows.length) {
-        const trs = Array.from(document.querySelectorAll('tr'));
-        for (const tr of trs) {
-          const cells = Array.from(tr.querySelectorAll('th,td')).map((c) => clean(c.innerText));
-          if (cells.length < 2) continue;
-          const title = cells[0];
-          if (!metricRe.test(title)) continue;
-          let key = 'other';
-          if (/kilitlenme|crash/i.test(title)) key = 'crash';
-          else if (/\\banr\\b/i.test(title)) key = 'anr';
-          else if (/\\blmk\\b/i.test(title)) key = 'lmk';
-          rows.push({
-            key,
-            metric: title,
-            value_28d: cells[1] || '',
-            vs_previous_28d: cells[2] || '',
-            vs_peers_median: cells[3] || '',
-          });
-        }
-      }
-
-      return { rows, body_len: body.length };
-    }"""
-    )
-
-
 def _scrape_vitals_metrics_overview(
     page, *, headed: bool = True, version_code: str | None = None
 ) -> dict[str, Any]:
@@ -3969,12 +4233,18 @@ def _scrape_vitals_metrics_overview(
             "kilitlenme",
             "LMK",
             "Vital",
+            "Kararlılık",
+            "Bellek",
+            "Stability",
+            "Memory",
         ),
-        timeout_sec=40.0,
+        timeout_sec=50.0,
     )
-    _scroll_full_page(page)
+    _scroll_vitals_overview_deep(page)
+    _settle(page, seconds=2.0)
     extracted = _extract_vitals_metrics_overview(page) or {}
     rows = extracted.get("rows") if isinstance(extracted.get("rows"), list) else []
+    sections = extracted.get("sections") if isinstance(extracted.get("sections"), list) else []
 
     # ANR satırına tıkla → kırılımlı crashes ANR görünümü (URL/context)
     anr_drill: dict[str, Any] = {}
@@ -4022,12 +4292,24 @@ def _scrape_vitals_metrics_overview(
     rows = [by_key[k] for k in ("crash", "anr", "lmk") if k in by_key]
     rows.extend(by_key[k] for k in by_key if k not in ("crash", "anr", "lmk"))
 
-    print(f"    · metrics overview rows={len(rows)}", flush=True)
+    print(
+        f"    · metrics overview rows={len(rows)} sections={len(sections)} "
+        f"recs={extracted.get('recommendation_count', 0)}",
+        flush=True,
+    )
     return {
         "url": url,
+        "page_title": str(extracted.get("page_title") or "")[:160],
+        "peer_group": str(extracted.get("peer_group") or "")[:160],
+        "recommendations": extracted.get("recommendations") or [],
+        "recommendation_count": int(extracted.get("recommendation_count") or 0),
+        "summary_cards": extracted.get("summary_cards") or [],
+        "sections": sections,
+        "section_count": len(sections),
         "rows": rows,
         "row_count": len(rows),
         "anr_drilldown": anr_drill,
+        "body_len": int(extracted.get("body_len") or 0),
     }
 
 
@@ -4306,8 +4588,11 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         _settle(page, seconds=3.0)
         _wait_dashboard_metrics(page, timeout_sec=20.0)
         structured = _extract_dashboard_structured(page) or {}
+        monitor_improve = _extract_dashboard_monitor_improve(page) or {}
         metrics = _metrics_from_structured(structured)
         debug = structured.get("debug") if isinstance(structured.get("debug"), dict) else {}
+        if isinstance(monitor_improve, dict):
+            debug = {**debug, "monitor_improve": monitor_improve}
 
         # Monetize + Grow + Statistics
         monetize = _safe_scrape_page(
@@ -4541,6 +4826,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "statistics": stats_cards,
             "vitals": vitals_bundle,
             "version_name_map": version_name_map,
+            "dashboard_monitor_improve": monitor_improve if isinstance(monitor_improve, dict) else {},
             "pages": {
                 "dashboard": {
                     "url": DASHBOARD_URL,

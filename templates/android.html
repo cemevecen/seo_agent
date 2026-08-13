@@ -1508,7 +1508,11 @@
     </div>
 
     <div class="mt-4">
-      <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Rates · last 28 days</h3>
+      <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Overview · full scrape</h3>
+      <div id="pc-vitals-overview-meta" class="mt-1 hidden text-[11px] text-slate-500 dark:text-zinc-400"></div>
+      <div id="pc-vitals-overview-recs" class="mt-2 hidden space-y-1"></div>
+      <div id="pc-vitals-overview-sections" class="mt-3 space-y-4"></div>
+      <h3 class="mt-4 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Rates · last 28 days</h3>
       <div id="pc-vitals-overview" class="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-700"></div>
       <p id="pc-vitals-overview-empty" class="mt-2 hidden text-center text-sm text-slate-400">No rates table yet — fills after vitals sync</p>
     </div>
@@ -1542,6 +1546,20 @@
     <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Play rating</h2>
     <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Store default rating · users · rated reviews</p>
     <div id="pc-rating" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"></div>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">İzleyin ve geliştirin</h2>
+        <p id="pc-monitor-improve-period" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">app-dashboard · last 28 days</p>
+      </div>
+      <a href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/app-dashboard"
+         target="_blank" rel="noopener"
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Dashboard ↗</a>
+    </div>
+    <div id="pc-monitor-improve" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"></div>
+    <p id="pc-monitor-improve-empty" class="mt-4 hidden text-center text-sm text-slate-400">No monitor strip yet — fills after sync</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-700 dark:bg-zinc-950/40">
@@ -1730,6 +1748,12 @@
   var reviewCountEl = document.getElementById("pc-review-count");
   var vitalsOverviewEl = document.getElementById("pc-vitals-overview");
   var vitalsOverviewEmpty = document.getElementById("pc-vitals-overview-empty");
+  var vitalsOverviewMeta = document.getElementById("pc-vitals-overview-meta");
+  var vitalsOverviewRecs = document.getElementById("pc-vitals-overview-recs");
+  var vitalsOverviewSections = document.getElementById("pc-vitals-overview-sections");
+  var monitorImproveEl = document.getElementById("pc-monitor-improve");
+  var monitorImproveEmpty = document.getElementById("pc-monitor-improve-empty");
+  var monitorImprovePeriod = document.getElementById("pc-monitor-improve-period");
   var stabilityFreeEl = document.getElementById("pc-stability-free");
   var stabilityFreeEmpty = document.getElementById("pc-stability-free-empty");
   var vitalsCatsEl = document.getElementById("pc-vitals-cats");
@@ -6543,13 +6567,114 @@
     return "text-slate-500";
   }
 
+  function renderDashboardMonitorImprove(panels) {
+    panels = panels || {};
+    var strip = panels.dashboard_monitor_improve || {};
+    var cards = Array.isArray(strip.cards) ? strip.cards : [];
+    if (!monitorImproveEl || !monitorImproveEmpty) return;
+    if (monitorImprovePeriod && strip.period) {
+      monitorImprovePeriod.textContent = strip.period || "app-dashboard · last 28 days";
+    }
+    if (!cards.length) {
+      monitorImproveEl.innerHTML = "";
+      monitorImproveEmpty.classList.remove("hidden");
+      return;
+    }
+    monitorImproveEmpty.classList.add("hidden");
+    monitorImproveEl.innerHTML = cards.map(function (c) {
+      return (
+        '<div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">' +
+          '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' + esc(c.title || "—") + "</p>" +
+          '<p class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(c.value || "—") + "</p>" +
+          (c.delta ? '<p class="mt-1 text-[11px] font-semibold tabular-nums ' + vitalsDeltaClass(c.delta, "prev") + '">' + esc(c.delta) + "</p>" : "") +
+        "</div>"
+      );
+    }).join("");
+  }
+
   function renderVitalsOverview(vitals) {
     vitals = vitals || {};
     var ov = vitals.metrics_overview || {};
     var rows = Array.isArray(ov.rows) ? ov.rows : [];
+    var sections = Array.isArray(ov.sections) ? ov.sections : [];
+    var recs = Array.isArray(ov.recommendations) ? ov.recommendations : [];
     if (vitalsOverviewLink && ov.url) vitalsOverviewLink.href = ov.url;
-    if (!rows.length) {
-      vitalsOverviewEl.innerHTML = "";
+    if (vitalsOverviewMeta) {
+      var metaBits = [];
+      if (ov.page_title) metaBits.push(ov.page_title);
+      if (ov.peer_group) metaBits.push(ov.peer_group);
+      if (metaBits.length) {
+        vitalsOverviewMeta.textContent = metaBits.join(" · ");
+        vitalsOverviewMeta.classList.remove("hidden");
+      } else {
+        vitalsOverviewMeta.textContent = "";
+        vitalsOverviewMeta.classList.add("hidden");
+      }
+    }
+    if (vitalsOverviewRecs) {
+      if (recs.length) {
+        vitalsOverviewRecs.classList.remove("hidden");
+        vitalsOverviewRecs.innerHTML =
+          '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' +
+          esc(String(ov.recommendation_count || recs.length)) + " öneri</p>" +
+          recs.slice(0, 6).map(function (r) {
+            return (
+              '<div class="rounded-lg border border-amber-200/70 bg-amber-50/60 px-3 py-2 text-[11px] text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">' +
+                esc(r.title || "—") +
+                (r.version ? ' <span class="text-amber-700 dark:text-amber-300">· ' + esc(r.version) + "</span>" : "") +
+              "</div>"
+            );
+          }).join("");
+      } else {
+        vitalsOverviewRecs.innerHTML = "";
+        vitalsOverviewRecs.classList.add("hidden");
+      }
+    }
+    if (vitalsOverviewSections) {
+      if (sections.length) {
+        vitalsOverviewSections.innerHTML = sections.map(function (sec) {
+          var secRows = Array.isArray(sec.rows) ? sec.rows : [];
+          if (!secRows.length) return "";
+          var isMem = sec.id === "memory";
+          var head = isMem
+            ? "<tr><th class=\"px-3 py-2 font-bold\">Metric</th><th class=\"px-3 py-2 font-bold tabular-nums\">P50</th><th class=\"px-3 py-2 font-bold tabular-nums\">vs prev</th><th class=\"px-3 py-2 font-bold tabular-nums\">P90</th><th class=\"px-3 py-2 font-bold tabular-nums\">vs prev</th></tr>"
+            : "<tr><th class=\"px-3 py-2 font-bold\">Metric</th><th class=\"px-3 py-2 font-bold tabular-nums\">Last 28d</th><th class=\"px-3 py-2 font-bold tabular-nums\">vs prev</th><th class=\"px-3 py-2 font-bold tabular-nums\">Peer</th></tr>";
+          var body = secRows.map(function (r) {
+            if (isMem) {
+              return (
+                "<tr>" +
+                  '<td class="px-3 py-2 font-medium text-slate-800 dark:text-zinc-100">' + esc(r.metric || "—") + "</td>" +
+                  '<td class="px-3 py-2 tabular-nums">' + esc(r.p50 || "—") + "</td>" +
+                  '<td class="px-3 py-2 tabular-nums ' + vitalsDeltaClass(r.vs_previous_p50, "prev") + '">' + esc(r.vs_previous_p50 || "—") + "</td>" +
+                  '<td class="px-3 py-2 tabular-nums">' + esc(r.p90 || "—") + "</td>" +
+                  '<td class="px-3 py-2 tabular-nums ' + vitalsDeltaClass(r.vs_previous_p90, "prev") + '">' + esc(r.vs_previous_p90 || "—") + "</td>" +
+                "</tr>"
+              );
+            }
+            return (
+              "<tr>" +
+                '<td class="px-3 py-2 font-medium text-slate-800 dark:text-zinc-100">' + esc(r.metric || "—") + "</td>" +
+                '<td class="px-3 py-2 tabular-nums font-semibold">' + esc(r.value_28d || "—") + "</td>" +
+                '<td class="px-3 py-2 tabular-nums ' + vitalsDeltaClass(r.vs_previous_28d, "prev") + '">' + esc(r.vs_previous_28d || "—") + "</td>" +
+                '<td class="px-3 py-2 tabular-nums ' + vitalsDeltaClass(r.vs_peers_median, "peer") + '">' + esc(r.vs_peers_median || "—") + "</td>" +
+              "</tr>"
+            );
+          }).join("");
+          return (
+            '<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-700">' +
+              '<p class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">' +
+                esc(sec.title || sec.id || "Section") + " · " + secRows.length +
+              "</p>" +
+              '<table class="min-w-full text-left text-xs"><thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">' +
+                head + "</thead><tbody class=\"divide-y divide-slate-100 dark:divide-zinc-800\">" + body + "</tbody></table></div>"
+          );
+        }).join("");
+      } else {
+        vitalsOverviewSections.innerHTML = "";
+      }
+    }
+    if (!rows.length && !sections.length) {
+      if (vitalsOverviewEl) vitalsOverviewEl.innerHTML = "";
       vitalsOverviewEmpty.classList.remove("hidden");
       return;
     }
@@ -6620,7 +6745,7 @@
   }
 
   function paPlayVitalsOverviewUrl() {
-    return PA_PLAY_APP + "/vitals/metrics/overview";
+    return PA_PLAY_APP + "/vitals/metrics/overview?peersetKey=1%3A7f5887b4";
   }
 
   function paPlayAnrUrl(versionCode, days) {
@@ -7570,6 +7695,7 @@
             })()
       );
       applyVitalsSnapshot(data, { force: true });
+      renderDashboardMonitorImprove(data.panels || {});
       renderRating(data.rating_summary);
       renderMetricGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m, { withInfo: true }); });
       renderMetricGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m, { withInfo: true }); });

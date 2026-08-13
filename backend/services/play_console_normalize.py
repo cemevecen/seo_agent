@@ -562,7 +562,98 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
         return rows
 
     ov_in = d.get("metrics_overview") if isinstance(d.get("metrics_overview"), dict) else {}
+
+    def _norm_overview_row(row: dict[str, Any], *, memory: bool = False) -> dict[str, Any]:
+        metric = str(row.get("metric") or "").strip()
+        if not metric:
+            return {}
+        key = str(row.get("key") or "").strip().lower()
+        if key not in ("crash", "anr", "lmk", "other"):
+            if re.search(r"kilitlenme|crash", metric, re.I):
+                key = "crash"
+            elif re.search(r"\banr\b", metric, re.I):
+                key = "anr"
+            elif re.search(r"\blmk\b", metric, re.I):
+                key = "lmk"
+            else:
+                key = "other"
+        if memory:
+            return {
+                "key": key,
+                "metric": metric[:200],
+                "p50": str(row.get("p50") or "")[:48],
+                "vs_previous_p50": str(row.get("vs_previous_p50") or "")[:48],
+                "p90": str(row.get("p90") or "")[:48],
+                "vs_previous_p90": str(row.get("vs_previous_p90") or "")[:48],
+            }
+        return {
+            "key": key,
+            "metric": metric[:200],
+            "value_28d": str(row.get("value_28d") or "")[:48],
+            "vs_previous_28d": str(row.get("vs_previous_28d") or "")[:48],
+            "vs_peers_median": str(row.get("vs_peers_median") or "")[:48],
+        }
+
+    def _normalize_overview_sections(ov: dict[str, Any]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for sec in ov.get("sections") or []:
+            if not isinstance(sec, dict):
+                continue
+            sid = str(sec.get("id") or "").strip()[:32]
+            if not sid:
+                continue
+            mem = sid == "memory"
+            rows_s: list[dict[str, Any]] = []
+            for row in sec.get("rows") or []:
+                if not isinstance(row, dict):
+                    continue
+                norm = _norm_overview_row(row, memory=mem)
+                if norm:
+                    rows_s.append(norm)
+            out.append(
+                {
+                    "id": sid,
+                    "title": str(sec.get("title") or sid)[:120],
+                    "rows": rows_s[:40],
+                    "row_count": len(rows_s),
+                }
+            )
+        return out
+
     rows_out = _normalize_overview_rows(ov_in)
+    if not rows_out:
+        for sec in _normalize_overview_sections(ov_in):
+            if sec.get("id") == "stability":
+                for row in sec.get("rows") or []:
+                    if re.search(r"kullanıcı tarafından algılanan|user[- ]perceived", str(row.get("metric") or ""), re.I):
+                        rows_out.append(row)
+        rows_out = _normalize_overview_rows({"rows": rows_out})
+    sections_out = _normalize_overview_sections(ov_in)
+    recommendations_out: list[dict[str, Any]] = []
+    for rec in ov_in.get("recommendations") or []:
+        if not isinstance(rec, dict):
+            continue
+        title = str(rec.get("title") or "").strip()
+        if not title:
+            continue
+        recommendations_out.append(
+            {
+                "title": title[:240],
+                "version": str(rec.get("version") or "")[:64],
+            }
+        )
+    summary_cards_out: list[dict[str, Any]] = []
+    for card in ov_in.get("summary_cards") or []:
+        if not isinstance(card, dict):
+            continue
+        summary_cards_out.append(
+            {
+                "key": str(card.get("key") or "")[:16],
+                "metric": str(card.get("metric") or "")[:200],
+                "value": str(card.get("value") or "")[:48],
+                "delta": str(card.get("delta") or "")[:48],
+            }
+        )
     ov_by_out: dict[str, Any] = {}
     raw_ov_by = (
         d.get("metrics_overview_by_version")
@@ -574,11 +665,33 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
         if not code or not isinstance(ov_v, dict):
             continue
         v_rows = _normalize_overview_rows(ov_v)
+        if not v_rows:
+            for sec in _normalize_overview_sections(ov_v):
+                if sec.get("id") == "stability":
+                    v_rows.extend(sec.get("rows") or [])
+            v_rows = _normalize_overview_rows({"rows": v_rows})
         ov_by_out[code] = {
             "url": str(ov_v.get("url") or "")[:512],
             "rows": v_rows,
             "row_count": len(v_rows),
             "version_code": code,
+            "sections": _normalize_overview_sections(ov_v),
+            "section_count": len(_normalize_overview_sections(ov_v)),
+            "recommendations": [
+                {"title": str(r.get("title") or "")[:240], "version": str(r.get("version") or "")[:64]}
+                for r in (ov_v.get("recommendations") or [])
+                if isinstance(r, dict) and str(r.get("title") or "").strip()
+            ][:12],
+            "summary_cards": [
+                {
+                    "key": str(c.get("key") or "")[:16],
+                    "metric": str(c.get("metric") or "")[:200],
+                    "value": str(c.get("value") or "")[:48],
+                    "delta": str(c.get("delta") or "")[:48],
+                }
+                for c in (ov_v.get("summary_cards") or [])
+                if isinstance(c, dict) and str(c.get("metric") or "").strip()
+            ][:6],
         }
 
     anr_drill = ov_in.get("anr_drilldown") if isinstance(ov_in.get("anr_drilldown"), dict) else {}
@@ -620,8 +733,15 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
         "crashes": crashes_out,
         "metrics_overview": {
             "url": str(ov_in.get("url") or "")[:512],
+            "page_title": str(ov_in.get("page_title") or "")[:160],
+            "peer_group": str(ov_in.get("peer_group") or "")[:160],
             "rows": rows_out,
             "row_count": len(rows_out),
+            "sections": sections_out,
+            "section_count": len(sections_out),
+            "recommendations": recommendations_out[:12],
+            "recommendation_count": len(recommendations_out[:12]),
+            "summary_cards": summary_cards_out[:6],
             "anr_drilldown": {
                 "url": str(anr_drill.get("url") or "")[:512],
                 "error": str(anr_drill.get("error") or "")[:160] or None,
@@ -765,7 +885,38 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
     vitals_in = d.get("vitals") if isinstance(d.get("vitals"), dict) else {}
     vitals = _normalize_vitals(vitals_in)
 
-    return {
+    monitor_improve_in = (
+        d.get("dashboard_monitor_improve")
+        if isinstance(d.get("dashboard_monitor_improve"), dict)
+        else {}
+    )
+    dashboard_monitor_improve: dict[str, Any] = {}
+    if monitor_improve_in:
+        cards_out: list[dict[str, str]] = []
+        for c in monitor_improve_in.get("cards") or []:
+            if not isinstance(c, dict):
+                continue
+            title = str(c.get("title") or "").strip()
+            value = str(c.get("value") or "").strip()
+            if not title or not value:
+                continue
+            cards_out.append(
+                {
+                    "key": str(c.get("key") or "")[:24],
+                    "title": title[:120],
+                    "value": value[:48],
+                    "delta": str(c.get("delta") or "")[:48],
+                }
+            )
+        if cards_out:
+            dashboard_monitor_improve = {
+                "section_title": str(monitor_improve_in.get("section_title") or "")[:120],
+                "period": str(monitor_improve_in.get("period") or "")[:160],
+                "cards": cards_out[:6],
+                "card_count": len(cards_out[:6]),
+            }
+
+    out = {
         "version": 2,
         "tpg": tpg,
         "monetize": monetize,
@@ -814,6 +965,9 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
             if str(k).strip() and str(v).strip()
         },
     }
+    if dashboard_monitor_improve:
+        out["dashboard_monitor_improve"] = dashboard_monitor_improve
+    return out
 
 
 def _strip_review_noise(text: str) -> str:
