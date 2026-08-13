@@ -832,16 +832,17 @@
     display: flex;
     flex-direction: row;
     align-items: stretch;
-    gap: 0.3rem 0.32rem;
-    margin-top: 0.4rem;
+    gap: 0.28rem 0.35rem;
+    margin-top: 0.35rem;
     min-width: 0;
-    min-height: clamp(1.85rem, 13cqi, 3rem);
+    flex: 1 1 auto;
   }
   .ia-stability-grid .sf-card__value {
     margin: 0;
     flex: 1 1 auto;
     display: flex;
     align-items: center;
+    align-self: center;
     min-width: 0;
     width: 100%;
     max-width: 100%;
@@ -856,18 +857,18 @@
   .ia-stability-grid .sf-card__side {
     display: flex;
     flex-direction: column;
-    flex: 0 0 auto;
+    flex: 0 0 clamp(3rem, 33cqi, 5.25rem);
+    width: clamp(3rem, 33cqi, 5.25rem);
     align-self: stretch;
-    gap: 0.12rem;
+    justify-content: space-evenly;
+    gap: 0;
     min-width: 0;
-    max-width: 36cqi;
-    width: max-content;
-    justify-self: end;
+    max-width: 38cqi;
     overflow: hidden;
-    font-size: clamp(0.34rem, 3.1cqi, 0.48rem);
+    font-size: clamp(0.36rem, 3cqi, 0.5rem);
     font-weight: 700;
     font-variant-numeric: lining-nums;
-    line-height: 1.05;
+    line-height: 1.1;
     color: #475569;
     text-align: center;
   }
@@ -876,23 +877,23 @@
   }
   .ia-stability-grid .sf-card__side-row {
     display: flex;
-    flex: 1 1 0;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    gap: 0.12em;
+    gap: 0.14em;
     width: 100%;
     min-width: 0;
-    min-height: 0;
     max-width: 100%;
     box-sizing: border-box;
-    padding: 0.1em 0.2em 0.1em 0.28em;
-    border-radius: 0.32rem;
+    min-height: clamp(0.92rem, 3.6cqi, 1.18rem);
+    padding: 0.14em 0.28em 0.14em 0.34em;
+    border-radius: 0.34rem;
     border: 1px solid rgb(226 232 240);
-    background: rgb(255 255 255 / 0.85);
+    background: rgb(255 255 255 / 0.92);
   }
   html.dark .ia-stability-grid .sf-card__side-row {
     border-color: rgb(63 63 70);
-    background: rgb(24 24 27 / 0.55);
+    background: rgb(24 24 27 / 0.62);
   }
   .ia-stability-grid .sf-card__side-val {
     flex: 1 1 auto;
@@ -923,27 +924,39 @@
     .ia-stability-grid .sf-card__body,
     .ia-stability-grid .sf-card__body.is-chip-stack {
       flex-direction: column;
-      gap: 0.28rem;
+      align-items: stretch;
+      gap: 0.24rem;
     }
     .ia-stability-grid .sf-card__side {
       width: 100%;
       max-width: none;
-      min-width: 0;
-      align-self: stretch;
+      flex: 0 0 auto;
+      flex-direction: row;
+      justify-content: space-between;
+      gap: 0.18rem;
     }
   }
   .ia-stability-grid .sf-card__body.is-chip-stack {
     flex-direction: column;
+    align-items: stretch;
+    gap: 0.24rem;
+  }
+  .ia-stability-grid .sf-card__body.is-chip-stack .sf-card__value {
+    align-self: auto;
   }
   .ia-stability-grid .sf-card__body.is-chip-stack .sf-card__side {
     width: 100%;
     max-width: none;
+    flex: 0 0 auto;
     flex-direction: row;
+    justify-content: space-between;
     align-self: stretch;
+    gap: 0.18rem;
   }
   .ia-stability-grid .sf-card__body.is-chip-stack .sf-card__side-row {
     flex: 1 1 0;
-    min-height: clamp(1.35rem, 10cqi, 2rem);
+    min-width: 0;
+    min-height: clamp(0.92rem, 3.4cqi, 1.12rem);
   }
   .ia-stability-grid .sf-card__side-info:hover,
   .ia-stability-grid .sf-card__side-info:focus-visible {
