@@ -385,3 +385,43 @@ def test_build_panel_analytics_from_details():
     assert analytics.get("calendar_days")
     assert analytics["calendars"]["873391"]["active_days"] == 2
     assert analytics["overall_rank"][0]["username"] == "gezginozlem"
+
+
+def test_gozde_join_date_excludes_pre_join_inactive():
+    db = _session()
+    mod.ingest_detail_batch(
+        db,
+        user_id=935786,
+        username="Gözde.",
+        metric_type="movie",
+        items=[
+            {
+                "user_id": 935786,
+                "username": "Gözde.",
+                "metric_type": "movie",
+                "item_id": "1",
+                "title": "A",
+                "subtitle": "",
+                "event_at": "2026-05-05 10:00:00",
+            },
+            {
+                "user_id": 935786,
+                "username": "Gözde.",
+                "metric_type": "movie",
+                "item_id": "2",
+                "title": "B",
+                "subtitle": "",
+                "event_at": "2026-05-06 10:00:00",
+            },
+        ],
+        range_start=date(2026, 5, 1),
+        range_end=date(2026, 5, 10),
+        recompute_daily=False,
+    )
+    panel = mod.get_panel_payload(db, start="2026-05-01", end="2026-05-10")
+    cal = (panel.get("analytics") or {}).get("calendars", {}).get("935786") or {}
+    assert cal.get("joined_at") == "2026-05-04"
+    assert cal.get("pre_join_days") == 3
+    assert cal.get("eligible_days") == 7
+    assert cal.get("active_days") == 2
+    assert cal.get("inactive_days") == 5

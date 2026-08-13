@@ -574,12 +574,33 @@
     var names = [];
     var active = [];
     var inactive = [];
+    var activeHover = [];
+    var inactiveHover = [];
+    var hasJoin = false;
     MODS.forEach(function (m) {
       var cal = cals[String(m.user_id)] || {};
       names.push(m.username);
       active.push(cal.active_days || 0);
       inactive.push(cal.inactive_days || 0);
+      if (cal.joined_at) {
+        hasJoin = true;
+        activeHover.push(
+          m.username + "<br>" + cal.joined_at + " katılım (sonrası)<br>Aktif: %{y} gün<extra></extra>"
+        );
+        inactiveHover.push(
+          m.username + "<br>" + cal.joined_at + " katılım (sonrası)<br>Boş: %{y} gün<extra></extra>"
+        );
+      } else {
+        activeHover.push("Aktif<br>%{x}: %{y} gün<extra></extra>");
+        inactiveHover.push("Boş<br>%{x}: %{y} gün<extra></extra>");
+      }
     });
+    var titleText =
+      "Çalışılan vs boş gün · " +
+      (RAW.start || "") +
+      " → " +
+      (RAW.end || "") +
+      (hasJoin ? " · katılım öncesi günler hariç" : "");
     plotResponsive(
       el,
       [
@@ -589,7 +610,7 @@
           x: names,
           y: active,
           marker: { color: "#0ea5e9" },
-          hovertemplate: "Aktif<br>%{x}: %{y} gün<extra></extra>",
+          hovertemplate: activeHover,
         },
         {
           type: "bar",
@@ -597,15 +618,11 @@
           x: names,
           y: inactive,
           marker: { color: "#cbd5e1" },
-          hovertemplate: "Boş<br>%{x}: %{y} gün<extra></extra>",
+          hovertemplate: inactiveHover,
         },
       ],
       {
-        title: {
-          text: "Çalışılan vs boş gün · " + (RAW.start || "") + " → " + (RAW.end || ""),
-          x: 0,
-          font: { size: 12 },
-        },
+        title: { text: titleText, x: 0, font: { size: 12 } },
         barmode: "stack",
         xaxis: { tickangle: chartW(el) < 480 ? -25 : 0, tickfont: axisTickFont(), automargin: true },
         yaxis: { title: "Gün sayısı", gridcolor: th().grid, automargin: true },

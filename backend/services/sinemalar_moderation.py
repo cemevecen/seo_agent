@@ -70,6 +70,23 @@ USERNAME_ALIASES: dict[str, int] = {
     "aquuamarine": 245939,
 }
 
+# Katılım tarihinden önceki günler «boş» sayılmaz (aktif/boş grafiği).
+MODERATOR_JOIN_DATES: dict[int, date] = {
+    935786: date(2026, 5, 4),  # Gözde.
+}
+
+
+def moderator_join_date(user_id: int) -> date | None:
+    return MODERATOR_JOIN_DATES.get(int(user_id))
+
+
+def _eligible_days_for_moderator(uid: int, all_days: list[str]) -> list[str]:
+    join = moderator_join_date(uid)
+    if join is None:
+        return all_days
+    join_s = join.isoformat()
+    return [d for d in all_days if d >= join_s]
+
 
 def resolve_user_id(username: str, raw_id: Any = None) -> int:
     try:
@@ -994,12 +1011,18 @@ def build_panel_analytics(
     calendars: dict[str, dict[str, Any]] = {}
     for uid, uname in TRACKED_MODERATORS:
         days_data = [{"date": day, "count": by_user_day.get(uid, {}).get(day, 0)} for day in all_days]
-        active = sum(1 for x in days_data if x["count"] > 0)
+        eligible = _eligible_days_for_moderator(uid, all_days)
+        active = sum(1 for day in eligible if by_user_day.get(uid, {}).get(day, 0) > 0)
+        inactive = len(eligible) - active
+        join_d = moderator_join_date(uid)
         calendars[str(uid)] = {
             "username": uname,
             "days": days_data,
             "active_days": active,
-            "inactive_days": len(all_days) - active,
+            "inactive_days": inactive,
+            "eligible_days": len(eligible),
+            "pre_join_days": len(all_days) - len(eligible),
+            "joined_at": join_d.isoformat() if join_d else None,
         }
 
     shares: dict[str, dict[str, float]] = {}
