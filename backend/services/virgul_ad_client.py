@@ -162,7 +162,8 @@ def fetch_report_export(
                 "Referer": VIRGUL_REPORT_URL,
                 "Origin": "https://rapor.virgul.com",
             },
-            timeout=300,
+            # connect hızlı kessin; Excel üretimi yavaş olabiliyor (yıllık rapor)
+            timeout=(30, 300),
         )
     except requests.RequestException as exc:
         return {
@@ -213,14 +214,37 @@ def fetch_all_sites_exports(
     start: date | None = None,
     end: date | None = None,
     stream_key: str | None = None,
+    on_progress=None,
 ) -> dict[str, Any]:
+    def _prog(info: dict[str, Any]) -> None:
+        if not callable(on_progress):
+            return
+        try:
+            on_progress(info)
+        except Exception:
+            pass
+
+    _prog({"phase": "login", "sub_label": "Virgül login", "step": 0, "total_steps": 0, "message": "Virgül login…"})
     sess = login_virgul()
     sources = VIRGUL_AD_SOURCES
     if stream_key:
         sources = tuple(s for s in sources if s.stream_key == stream_key)
+    total = len(sources)
     items: list[dict[str, Any]] = []
     ok_n = 0
-    for src in sources:
+    for i, src in enumerate(sources, start=1):
+        label = src.label or src.stream_key
+        print(f"  · Virgül export {i}/{total} · {label} ({src.stream_key})…", flush=True)
+        _prog(
+            {
+                "phase": "export",
+                "sub_label": f"Excel {label}",
+                "step": i,
+                "total_steps": total,
+                "message": f"Virgül Excel {i}/{total} · {label}",
+                "platform": src.stream_key,
+            }
+        )
         try:
             item = fetch_report_export(sess, src, start=start, end=end)
             item["stream_key"] = src.stream_key
@@ -229,10 +253,16 @@ def fetch_all_sites_exports(
             items.append(item)
             if item.get("ok"):
                 ok_n += 1
+                print(
+                    f"    → ok · {item.get('bytes') or 0} byte · {src.stream_key}",
+                    flush=True,
+                )
             else:
                 LOGGER.warning("Virgul export failed %s: %s", src.sid, item.get("message"))
+                print(f"    → fail · {item.get('message')}", flush=True)
         except Exception as exc:  # noqa: BLE001
             LOGGER.exception("Virgul export error %s", src.sid)
+            print(f"    → error · {exc}", flush=True)
             items.append(
                 {
                     "ok": False,

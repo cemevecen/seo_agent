@@ -751,7 +751,7 @@ def _post_virgul_ingest_files(files: list[dict[str, Any]]) -> tuple[int, dict[st
     return last_status, last_body
 
 
-def run_virgul_bridge_once() -> dict[str, Any]:
+def run_virgul_bridge_once(on_progress=None) -> dict[str, Any]:
     """Virgül 6 sid Excel/CSV → Railway /ad-virgul ingest (dal dal, retry)."""
     global _last_virgul_result
     _load_dotenv()
@@ -763,9 +763,44 @@ def run_virgul_bridge_once() -> dict[str, Any]:
     import base64
 
     from backend.services.virgul_ad_client import fetch_all_sites_exports
+    from backend.services.virgul_ad_config import VIRGUL_AD_SOURCES
 
+    def _cb(info: dict[str, Any] | None = None) -> None:
+        if not callable(on_progress):
+            return
+        try:
+            on_progress(info if isinstance(info, dict) else {})
+        except Exception:
+            pass
+
+    n_sites = len(VIRGUL_AD_SOURCES)
+    total_steps = max(1, n_sites * 2)  # export + ingest
     print("Virgül reklam export çekiliyor (6 sid)…", flush=True)
-    fetched = fetch_all_sites_exports()
+    _cb(
+        {
+            "phase": "export",
+            "sub_label": "Virgül Excel export",
+            "step": 0,
+            "total_steps": total_steps,
+            "message": "Virgül Excel export başlıyor…",
+        }
+    )
+
+    def _export_progress(info: dict[str, Any]) -> None:
+        step = int(info.get("step") or 0)
+        # export steps occupy 1..n_sites
+        _cb(
+            {
+                "phase": str(info.get("phase") or "export"),
+                "platform": str(info.get("platform") or ""),
+                "sub_label": str(info.get("sub_label") or "")[:160],
+                "step": min(n_sites, max(0, step)),
+                "total_steps": total_steps,
+                "message": str(info.get("message") or "Virgül export")[:200],
+            }
+        )
+
+    fetched = fetch_all_sites_exports(on_progress=_export_progress)
     files: list[dict[str, Any]] = []
     for item in fetched.get("items") or []:
         if not item.get("ok") or not item.get("data"):
@@ -797,9 +832,19 @@ def run_virgul_bridge_once() -> dict[str, Any]:
     total_parsed = 0
     worst_status = 200
     last_msg = ""
-    for f in files:
+    for idx, f in enumerate(files, start=1):
         sk = f.get("stream_key") or "?"
         print(f"Virgul ingest → {sk}…", flush=True)
+        _cb(
+            {
+                "phase": "ingest",
+                "platform": str(sk),
+                "sub_label": f"ingest {sk}",
+                "step": n_sites + idx,
+                "total_steps": total_steps,
+                "message": f"Virgül ingest {idx}/{len(files)} · {sk}",
+            }
+        )
         status, body = _post_virgul_ingest_files([f])
         if status and status > worst_status:
             worst_status = status
@@ -3770,6 +3815,8 @@ def _page_tarama_claim_loop() -> None:
             def _runner():
                 if job_id == "firebase":
                     return run_firebase_bridge_once(on_progress=_progress_post)
+                if job_id == "virgul":
+                    return run_virgul_bridge_once(on_progress=_progress_post)
                 return meta["runner"]()
 
             result: dict[str, Any] | None = None
