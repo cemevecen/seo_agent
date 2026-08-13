@@ -3618,9 +3618,9 @@
     if (!paTheadRow || !paTable) return;
     var ux = window.SeoMetricTableUx;
     if (ux) ux.injectStyles();
+    var fmtTableKey = ux && ux.formatTableDateKey ? ux.formatTableDateKey : function (k) { return fmtAxisKey(k, false); };
     var list = (bundles || []).slice();
     var ovs = (paOverlays || []).slice();
-    var dayOnly = (paSelectedRangeDays() != null && paSelectedRangeDays() < 30);
     var keySet = {};
     list.forEach(function (b) {
       (b.series || []).forEach(function (r) {
@@ -3633,8 +3633,6 @@
       });
     });
     var keys = Object.keys(keySet).sort();
-
-    // Sütun sırası (sürükle-bırak) — metrik + overlay
     var colItems = list.map(function (b) {
       return { kind: "metric", key: "m:" + b.metric, bundle: b, color: overviewMetricColor(b.metric) };
     }).concat(ovs.map(function (ov, oi) {
@@ -3693,7 +3691,7 @@
           keys: keys,
           colItems: gridCols,
           esc: esc,
-          fmtKey: function (key) { return fmtAxisKey(key, dayOnly); },
+          fmtKey: fmtTableKey,
           fmtVal: function (v, col) {
             var countLike = col && col.metric ? metricIsCountLike(col.metric) : false;
             return v == null ? "—" : fmtNum(v, countLike);
@@ -5584,7 +5582,9 @@
       }
     }
     setOverlayCols(showOverlay ? paOverlays : [], primaryLabel, showCompare && showOverlay, compareMeta);
-    var dayOnly = (paSelectedRangeDays() != null && paSelectedRangeDays() < 30);
+    var fmtTableKey = window.SeoMetricTableUx && window.SeoMetricTableUx.formatTableDateKey
+      ? window.SeoMetricTableUx.formatTableDateKey
+      : function (k) { return fmtAxisKey(k, false); };
     var showReviewSplit = !!(
       !showOverlay
       && (paPrimaryMetric() === "rating")
@@ -5624,7 +5624,7 @@
     paTable.innerHTML = rows.map(function (r, i) {
       var cells =
         '<td class="px-3 py-1.5 font-medium tabular-nums text-slate-700 dark:text-zinc-200">' +
-          esc(fmtAxisKey(r.key, dayOnly)) + "</td>" +
+          esc(fmtTableKey(r.key)) + "</td>" +
         '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' +
           esc(fmtNum(r.value, metricIsCountLike())) + "</td>";
       if (showCompare && showOverlay) {

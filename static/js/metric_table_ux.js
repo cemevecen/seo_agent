@@ -95,6 +95,26 @@
 
   var MIN_COL_WIDTH = 72;
   var MAX_COL_WIDTH = 420;
+  var MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  /** Tablo kırılım sütunları: ISO gün → "11 Aug" */
+  function formatTableDateKey(key) {
+    var s = String(key == null ? "" : key).trim();
+    var m = s.match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+    if (m) {
+      var mi = parseInt(m[2], 10) - 1;
+      var mon = MONTH_ABBR[mi] || m[2];
+      return String(parseInt(m[3], 10)) + " " + mon;
+    }
+    var yw = s.match(/^(20\d{2})-W(\d{2})$/i);
+    if (yw) return "W" + yw[2];
+    var ym = s.match(/^(20\d{2})-(\d{2})$/);
+    if (ym) {
+      var mi2 = parseInt(ym[2], 10) - 1;
+      return (MONTH_ABBR[mi2] || ym[2]) + " '" + ym[1].slice(2);
+    }
+    return s;
+  }
 
   function parseColor(color) {
     var c = String(color || "#2563eb").trim();
@@ -741,5 +761,6 @@
     fitTextToWidth: fitTextToWidth,
     fitSideChips: fitSideChips,
     fitCardTexts: fitCardTexts,
+    formatTableDateKey: formatTableDateKey,
   };
 })(typeof window !== "undefined" ? window : this);

@@ -3140,6 +3140,7 @@
   function renderOverviewTable(bundles) {
     var ux = window.SeoMetricTableUx;
     if (ux) ux.injectStyles();
+    var fmtTableKey = ux && ux.formatTableDateKey ? ux.formatTableDateKey : fmtAxisKey;
     var list = applyIaTimeBreakdown(bundles || [], iaActiveTimeBreakdown());
     var keySet = {};
     list.forEach(function (b) {
@@ -3192,7 +3193,7 @@
           keys: keys,
           colItems: gridCols,
           esc: esc,
-          fmtKey: fmtAxisKey,
+          fmtKey: fmtTableKey,
           fmtVal: function (v, col) {
             return v == null ? "—" : fmtNum(v, isCountLike(col && col.metric));
           },
@@ -3223,11 +3224,14 @@
       return;
     }
     var sum = 0, n = 0;
+    var fmtTableKey = window.SeoMetricTableUx && window.SeoMetricTableUx.formatTableDateKey
+      ? window.SeoMetricTableUx.formatTableDateKey
+      : fmtAxisKey;
     var body = rows.map(function (r) {
       var v = Number(r.value);
       if (Number.isFinite(v)) { sum += v; n += 1; }
       return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800"><td class="px-3 py-1.5 font-medium tabular-nums">' +
-        esc(fmtAxisKey(r.key)) + '</td><td class="px-3 py-1.5 tabular-nums font-semibold">' +
+        esc(fmtTableKey(r.key)) + '</td><td class="px-3 py-1.5 tabular-nums font-semibold">' +
         esc(fmtNum(v, isCountLike(metric))) + "</td></tr>";
     }).join("");
     var avg = n ? sum / n : null;
