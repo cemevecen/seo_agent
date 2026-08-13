@@ -44,7 +44,6 @@ VIZ_META: list[dict[str, Any]] = [
     {
         "id": "treemap",
         "title": "Treemap",
-        "blurb": "Crash / ANR issue hacmi · Vitals / Firebase",
         "detail": (
             "Issue başlıklarını olay hacmine göre alan payı olarak gösterir. "
             "Kategori seçimi yok — seçili issue tipindeki (Crash veya ANR) tüm satırlar "
@@ -55,7 +54,6 @@ VIZ_META: list[dict[str, Any]] = [
     {
         "id": "combo",
         "title": "Dual-axis combo",
-        "blurb": "GA4 oturum + Virgül net gelir · aynı tarih ekseni",
         "detail": (
             "Sol eksende GA4 metrik (varsayılan sessions), sağ eksende Virgül metrik "
             "(varsayılan net revenue TL). Günlük seriler üst üste bindirilir; "
@@ -66,7 +64,6 @@ VIZ_META: list[dict[str, Any]] = [
     {
         "id": "horizon",
         "title": "Horizon chart",
-        "blurb": "Çoklu metrik · kompakt normalize bant",
         "detail": (
             "Aynı grafikte 4–6 metrik (Play + GA4 + Virgül) günlük/haftalık seri olarak bindirilir; "
             "her seri kendi maksimumuna göre 0–1 normalize edilir. "
@@ -77,7 +74,6 @@ VIZ_META: list[dict[str, Any]] = [
     {
         "id": "control",
         "title": "Control chart (SPC)",
-        "blurb": "Günlük metrik · ortalama + UCL/LCL",
         "detail": (
             "Shewhart kontrol grafiği: seçili Play metriğinin günlük serisi, "
             " süreç ortalaması ve ±3σ kontrol limitleri (UCL/LCL). "
