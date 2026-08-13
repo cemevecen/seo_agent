@@ -736,6 +736,17 @@ SAPMA_THRESHOLDS: dict[str, tuple[float, float]] = {
 _SAPMA_DEFAULT = (0.20, 0.50)
 _SAPMA_MIN_PEERS = 2
 SAPMA_MAIL_THRESHOLD_PCT = 2.0
+# Mail eşiği (mutlak sapma %). Varsayılan ±2%; varlık bazlı override.
+SAPMA_MAIL_THRESHOLDS: dict[str, float] = {
+    "brent": 8.0,
+    "gram_altin": 3.0,
+    "ons_altin": 3.0,
+    "ceyrek_altin": 3.0,
+}
+
+
+def sapma_mail_threshold_pct(asset_id: str) -> float:
+    return float(SAPMA_MAIL_THRESHOLDS.get(asset_id, SAPMA_MAIL_THRESHOLD_PCT))
 
 
 def _parse_quote(aid: str, raw: str) -> float | None:
@@ -812,7 +823,7 @@ def format_sapma_pct(pct: float) -> str:
 
 
 def collect_sapma_alerts(matrix: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Mutlak sapması ≥ %2 olan ortalama / Foreks sapmaları (mail)."""
+    """Mutlak sapması mail eşiğini geçen ortalama / Foreks sapmaları."""
     out: list[dict[str, Any]] = []
     for row in matrix or []:
         if not isinstance(row, dict):
@@ -822,6 +833,7 @@ def collect_sapma_alerts(matrix: list[dict[str, Any]]) -> list[dict[str, Any]]:
         cells = row.get("cells") if isinstance(row.get("cells"), dict) else {}
         if not aid:
             continue
+        mail_thr = sapma_mail_threshold_pct(aid)
         avg = compute_price_sapma(aid, cells)
         foreks = compute_pair_sapma(aid, cells)
         for kind, rec, kind_label in (
@@ -831,7 +843,7 @@ def collect_sapma_alerts(matrix: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if rec.get("pct") is None:
                 continue
             pct = float(rec["pct"])
-            if abs(pct) < SAPMA_MAIL_THRESHOLD_PCT:
+            if abs(pct) < mail_thr:
                 continue
             out.append(
                 {
@@ -844,6 +856,7 @@ def collect_sapma_alerts(matrix: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "band": rec["band"],
                     "warn": rec["warn"],
                     "alert": rec["alert"],
+                    "mail_threshold": mail_thr,
                     "n": rec.get("n") or 0,
                     "subject": f"Doviz - {kind_label} - {label} - {format_sapma_pct(pct)}",
                 }

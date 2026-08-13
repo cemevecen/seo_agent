@@ -954,7 +954,10 @@ def test_competitor_sapma_vs_peer_average():
     subjects = [a["subject"] for a in alerts]
     assert any(s.startswith("Doviz - Sapma - Dolar - ") for s in subjects)
     assert any(s.startswith("Doviz - Foreks sapma - Dolar - ") for s in subjects)
-    assert all(abs(a["pct"]) >= mod.SAPMA_MAIL_THRESHOLD_PCT for a in alerts)
+    assert all(abs(a["pct"]) >= mod.sapma_mail_threshold_pct(a["asset_id"]) for a in alerts)
+    assert mod.sapma_mail_threshold_pct("brent") == 8.0
+    assert mod.sapma_mail_threshold_pct("gram_altin") == 3.0
+    assert mod.sapma_mail_threshold_pct("usd") == mod.SAPMA_MAIL_THRESHOLD_PCT
     js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
     html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
     assert 'label: "avg. deviation"' in js

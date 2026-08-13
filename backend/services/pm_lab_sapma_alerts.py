@@ -1,4 +1,4 @@
-"""Rakip fiyat sapması — |sapma| ≥ %2 olunca operasyon maili."""
+"""Rakip fiyat sapması — varlık bazlı mail eşiği aşılınca operasyon maili."""
 
 from __future__ import annotations
 
@@ -47,14 +47,19 @@ def _render_html(item: dict[str, Any]) -> str:
     tone = "rose" if item.get("band") == "hot" else "amber"
     status = "kritik sapma" if item.get("band") == "hot" else "uyarı eşiği"
     kind = "Foreks" if item.get("kind") == "foreks" else "diğer sitelerin ortalaması"
+    thr = item.get("mail_threshold")
+    try:
+        thr_txt = f"±{float(thr):g}%"
+    except (TypeError, ValueError):
+        thr_txt = "±2%"
     detail = (
         f"{item.get('asset') or ''} · {item.get('pct_text') or ''}\n"
-        f"Döviz vs {kind}. Mail eşiği ±2%."
+        f"Döviz vs {kind}. Mail eşiği {thr_txt}."
     )
     return render_email_shell(
         eyebrow="PM lab",
         title=str(item.get("subject") or "Doviz sapma"),
-        intro="Kotasyon sapması %2 eşiğini geçti.",
+        intro=f"Kotasyon sapması {thr_txt} eşiğini geçti.",
         tone=tone,
         status_label=status,
         sections=[section("Sapma", note_box("Ölçüm", detail, tone=tone))],
