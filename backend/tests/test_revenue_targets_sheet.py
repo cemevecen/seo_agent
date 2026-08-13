@@ -184,6 +184,57 @@ def test_parse_sheet_tab_period_and_empty_header():
     assert rows[1]["project"] == "sinemalar"
 
 
+def test_live_achieved_overlay(monkeypatch):
+    from datetime import date
+
+    from backend.services.revenue_targets_sheet import (
+        apply_live_achieved_overlay,
+        parse_revenue_targets_csv,
+        revenue_targets_payload,
+    )
+
+    csv_text = (
+        "Ağustos 2026,Hedef,Hedef (%80),Kazanç,HEDEF TAMAMLANMA ORANI,"
+        "Günlük Kazanç,Kalan,Kalan (%80),Günlük Kalan,Günlük Kalan (%80)\n"
+        "Doviz.com,  7.000.000   ,  5.600.000   ,  2.109.277   ,\"30,13%\","
+        "  191.752   ,  4.890.723   ,  3.490.723   ,  244.536   ,  174.536\n"
+        "Sinemalar.com,  2.000.000   ,  1.600.000   ,  334.553   ,\"16,73%\","
+        "  30.414   ,  1.665.447   ,  1.265.447   ,  83.272   ,  63.272\n"
+    )
+
+    def _fetch(**kwargs):
+        return parse_revenue_targets_csv(csv_text)
+
+    def _fake_query(_db, **kwargs):
+        proj = kwargs.get("project")
+        rev = 2_500_000.0 if proj == "doviz" else 400_000.0
+        return {"rows_in_range": 42, "kpis": {"net_revenue": rev}}
+
+    monkeypatch.setattr(
+        "backend.services.revenue_targets_sheet.fetch_revenue_targets_rows",
+        _fetch,
+    )
+    monkeypatch.setattr(
+        "backend.services.ad_analytics_store.query_summary",
+        _fake_query,
+    )
+    monkeypatch.setattr(
+        "backend.services.revenue_targets_sheet._today_tr",
+        lambda: date(2026, 8, 13),
+    )
+
+    payload = revenue_targets_payload(db=object())
+    cur = payload["current_month"]["doviz"]
+    assert cur["achieved"] == 2_500_000.0
+    assert cur["achieved_sheet"] == 2_109_277.0
+    assert cur["achieved_live"] == 2_500_000.0
+    assert payload.get("live_achieved_source") == "ad_analytics_mtd:sheets"
+    aug_doviz = next(r for r in payload["rows"] if r["project"] == "doviz")
+    assert aug_doviz["kazanc"] == 2_500_000.0
+    assert aug_doviz["kazanc_sheet"] == 2_109_277.0
+    assert abs(aug_doviz["tamamlama_orani"] - (2_500_000 / 7_000_000 * 100)) < 0.01
+
+
 def test_closed_month_sync_helpers():
     from datetime import date
 
