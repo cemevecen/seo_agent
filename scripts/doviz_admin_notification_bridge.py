@@ -19,7 +19,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-asc    → ASC / iOS (3 saatte bir, :10)
   POST /sync-firebase → Firebase Console Crashlytics (günde bir sabah, varsayılan 06:10 TR)
   POST /sync-gsc-links → Backlinks (01:00 + 13:00 TR)
-  POST /sync-revenue-targets → Ad hedef sheet (05:05 + 13:05 TR, sistem Firefox)
+  POST /sync-revenue-targets → Ad hedef sheet (05:40 + 13:40 TR; gece fail → 5×3s retry)
   POST /sync-policy → Ad Manager Policy (01:05 + 13:05 TR)
   POST /sync-noads  → Sinemalar noAds (01:15 + 13:15 TR)
   POST /sync-sinemalar-moderation → Moderasyon özeti (03:04 + 14:17 TR)
@@ -134,6 +134,11 @@ BRIDGE_SCRAPE_MIN_GAP_SEC = int(os.environ.get("BRIDGE_SCRAPE_MIN_GAP_SEC") or "
 # Başarısız otomatik tur → en fazla 3 yeniden deneme, 10'ar dk arayla
 BRIDGE_RETRY_MAX = int(os.environ.get("BRIDGE_RETRY_MAX") or "3")
 BRIDGE_RETRY_GAP_SEC = int(os.environ.get("BRIDGE_RETRY_GAP_SEC") or str(10 * 60))
+# Revenue targets gece slotu (05:xx) başarısız → 3 saatte bir, en fazla 5 yeniden deneme
+REVENUE_TARGETS_NIGHT_RETRY_MAX = int(os.environ.get("REVENUE_TARGETS_NIGHT_RETRY_MAX") or "5")
+REVENUE_TARGETS_NIGHT_RETRY_GAP_SEC = int(
+    os.environ.get("REVENUE_TARGETS_NIGHT_RETRY_GAP_SEC") or str(3 * 3600)
+)
 _NEWS_EVERY_N_RAW = (os.environ.get("NEWS_BRIDGE_EVERY_N") or "").strip()
 NEWS_AUTO_EVERY_N = int(_NEWS_EVERY_N_RAW) if _NEWS_EVERY_N_RAW.isdigit() else 0
 # Geriye dönük isimler
@@ -2918,27 +2923,44 @@ def _clear_job_retry(kind: str) -> None:
     _job_retries.pop(kind, None)
 
 
-def _arm_job_retry(kind: str, *, name: str) -> None:
-    """Başarısız tur sonrası bir sonraki yeniden denemeyi planla (max 3, 10 dk arayla)."""
+def _retry_policy(kind: str, *, failed_slot: str = "") -> tuple[int, int]:
+    """kind/slot için (max_deneme, aralık_saniye)."""
+    if kind == "revenue_targets" and failed_slot:
+        tail = failed_slot.rsplit("-", 1)[-1]
+        if len(tail) >= 2 and tail[:2].isdigit():
+            hour = int(tail[:2])
+            if hour == int(REVENUE_TARGETS_SLOT_HOURS[0]):
+                return REVENUE_TARGETS_NIGHT_RETRY_MAX, max(
+                    60, REVENUE_TARGETS_NIGHT_RETRY_GAP_SEC
+                )
+    return BRIDGE_RETRY_MAX, max(60, BRIDGE_RETRY_GAP_SEC)
+
+
+def _arm_job_retry(kind: str, *, name: str, failed_slot: str = "") -> None:
+    """Başarısız tur sonrası bir sonraki yeniden denemeyi planla."""
+    retry_max, gap = _retry_policy(kind, failed_slot=failed_slot)
     st = _job_retries.get(kind) or {"attempt": 0, "name": name}
     attempt = int(st.get("attempt") or 0)
-    if attempt >= BRIDGE_RETRY_MAX:
+    if attempt >= retry_max:
         print(
-            f"Auto {name}: {BRIDGE_RETRY_MAX} yeniden deneme tükendi — "
+            f"Auto {name}: {retry_max} yeniden deneme tükendi — "
             "sonraki planlı slota kadar bekleniyor",
             flush=True,
         )
         _clear_job_retry(kind)
         return
     attempt += 1
-    gap = max(60, BRIDGE_RETRY_GAP_SEC)
     _job_retries[kind] = {
         "attempt": attempt,
         "next_at": time.time() + gap,
         "name": name,
+        "max": retry_max,
+        "gap": gap,
+        "failed_slot": failed_slot or st.get("failed_slot") or "",
     }
+    gap_label = f"{gap // 3600} sa" if gap >= 3600 else f"{gap // 60} dk"
     print(
-        f"Auto {name}: yeniden deneme planlandı {attempt}/{BRIDGE_RETRY_MAX} · ~{gap // 60} dk sonra",
+        f"Auto {name}: yeniden deneme planlandı {attempt}/{retry_max} · ~{gap_label} sonra",
         flush=True,
     )
 
@@ -2987,6 +3009,11 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
             "name": "GSC Links",
             "lock": _gsc_links_lock,
             "runner": run_gsc_links_bridge_once,
+        },
+        "revenue_targets": {
+            "name": "RevenueTargets",
+            "lock": _revenue_targets_lock,
+            "runner": run_revenue_targets_bridge_once,
         },
         "admanager_policy": {
             "name": "Policy",
@@ -3051,15 +3078,17 @@ def _process_due_retries() -> None:
             continue
         name = str(st.get("name") or meta["name"])
         attempt = int(st.get("attempt") or 1)
+        retry_max = int(st.get("max") or BRIDGE_RETRY_MAX)
+        retry_gap = int(st.get("gap") or BRIDGE_RETRY_GAP_SEC)
         # Çalışırken çift tetiklemeyi engelle
         st["next_at"] = now + 86400
         _job_retries[kind] = st
         print(
-            f"Auto {name}: yeniden deneme çalışıyor {attempt}/{BRIDGE_RETRY_MAX}",
+            f"Auto {name}: yeniden deneme çalışıyor {attempt}/{retry_max}",
             flush=True,
         )
         # Ara denemelerde mail spam olmasın; son denemede bildir
-        is_last = attempt >= BRIDGE_RETRY_MAX
+        is_last = attempt >= retry_max
         result = _run_locked_job(
             name=name,
             lock=meta["lock"],
@@ -3088,7 +3117,7 @@ def _process_due_retries() -> None:
             continue
         if is_last:
             print(
-                f"Auto {name}: {BRIDGE_RETRY_MAX} yeniden deneme de başarısız — "
+                f"Auto {name}: {retry_max} yeniden deneme de başarısız — "
                 "sonraki planlı slota bırakıldı",
                 flush=True,
             )
@@ -3096,10 +3125,18 @@ def _process_due_retries() -> None:
             continue
         # Bir sonraki retry
         nxt = attempt + 1
-        gap = max(60, BRIDGE_RETRY_GAP_SEC)
-        _job_retries[kind] = {"attempt": nxt, "next_at": now + gap, "name": name}
+        gap = max(60, retry_gap)
+        _job_retries[kind] = {
+            "attempt": nxt,
+            "next_at": now + gap,
+            "name": name,
+            "max": retry_max,
+            "gap": gap,
+            "failed_slot": st.get("failed_slot") or "",
+        }
+        gap_label = f"{gap // 3600} sa" if gap >= 3600 else f"{gap // 60} dk"
         print(
-            f"Auto {name}: retry #{attempt} başarısız → #{nxt}/{BRIDGE_RETRY_MAX} · ~{gap // 60} dk sonra",
+            f"Auto {name}: retry #{attempt} başarısız → #{nxt}/{retry_max} · ~{gap_label} sonra",
             flush=True,
         )
 
@@ -3276,7 +3313,7 @@ def _auto_loop() -> None:
                     _clear_job_retry(kind)
                 else:
                     _notify_auto_failure(kind, result)
-                    _arm_job_retry(kind, name=name)
+                    _arm_job_retry(kind, name=name, failed_slot=_slot)
 
             if browser and _is_browser_scrape_kind(kind):
                 result = _run_browser_scrape_job(

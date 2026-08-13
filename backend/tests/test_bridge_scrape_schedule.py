@@ -95,3 +95,17 @@ def test_serp_batch_minutes_spaced_15_min():
             gaps.append((60 - prev) + m)
         prev = m
     assert all(g >= 15 for g in gaps)
+
+
+def test_revenue_targets_night_retry_policy():
+    mod = _load_bridge()
+    night_max, night_gap = mod._retry_policy(
+        "revenue_targets", failed_slot="2026-08-13-0540"
+    )
+    assert night_max == 5
+    assert night_gap == 3 * 3600
+    day_max, day_gap = mod._retry_policy(
+        "revenue_targets", failed_slot="2026-08-13-1340"
+    )
+    assert day_max == mod.BRIDGE_RETRY_MAX
+    assert day_gap == mod.BRIDGE_RETRY_GAP_SEC
