@@ -380,6 +380,17 @@
     user-select: none;
   }
 
+  /* Android: alt satır (Δ · oturum · ANR %) — %40 küçük; kaynak chip aynı kalır */
+  .home-sf-metric--android .home-sf-metric__meta {
+    transform: scale(0.6);
+    transform-origin: center bottom;
+    margin-bottom: -0.2rem;
+    padding-top: 0.1rem;
+  }
+  .home-sf-metric--android .home-sf-metric__meta-src {
+    transform: scale(0.833333);
+  }
+
   @container home-sf-metric (max-width: 5.75rem) {
     .home-sf-metric__hero {
       font-size: clamp(0.95rem, 10cqi, 1.35rem);
@@ -740,7 +751,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=35';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=37';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
