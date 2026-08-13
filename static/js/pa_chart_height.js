@@ -303,6 +303,46 @@
     el.style.maxHeight = "";
   }
 
+  /** preserveAspectRatio=none yatay/dikey farklı ölçekler; eksen metnini düzleştir */
+  function fixAxisLabelDistortion(svg) {
+    if (!svg) return;
+    var vb = svg.viewBox && svg.viewBox.baseVal;
+    var vw = vb && vb.width ? vb.width : VIEW_W;
+    var vh = vb && vb.height ? vb.height : VIEW_H;
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var sx = rect.width / vw;
+    var sy = rect.height / vh;
+    var labels = svg.querySelectorAll(".pa-axis-label");
+    if (!labels.length) return;
+    if (Math.abs(sx - sy) < 0.015) {
+      labels.forEach(function (el) {
+        el.removeAttribute("transform");
+      });
+      return;
+    }
+    var rx = sy / sx;
+    labels.forEach(function (el) {
+      var x = parseFloat(el.getAttribute("x"));
+      var y = parseFloat(el.getAttribute("y"));
+      if (!isFinite(x) || !isFinite(y)) return;
+      el.setAttribute(
+        "transform",
+        "translate(" +
+          x +
+          " " +
+          y +
+          ") scale(" +
+          rx +
+          " 1) translate(" +
+          -x +
+          " " +
+          -y +
+          ")"
+      );
+    });
+  }
+
   function syncLayout() {
     if (layoutSyncing) return;
     layoutSyncing = true;
@@ -357,6 +397,7 @@
         card.style.width = "100%";
       }
 
+      fixAxisLabelDistortion(svg);
       lastWidths.set(t.wrap, w);
     });
 

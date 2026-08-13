@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'partials/pa_chart_style_buttons.html' import chart_style_buttons %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=7">
+<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=8">
 <link rel="stylesheet" href="/static/css/pa_chart_style.css?v=1">
 <style>
   .pa-filters {
@@ -1259,7 +1259,7 @@
   </section>
 </div>
 <script src="/static/js/resizable_data_list.js?v=6"></script>
-<script src="/static/js/pa_chart_height.js?v=7"></script>
+<script src="/static/js/pa_chart_height.js?v=8"></script>
 <script src="/static/js/metric_table_ux.js?v=10"></script>
 <script>
 (function () {
@@ -2529,6 +2529,8 @@
       }, 420);
     }, 130);
   }
+  var IA_AXIS_X_FONT = 11;
+  var IA_AXIS_Y_FONT = 10;
   function iaAxisLayout(keys, plotW) {
     var n = Math.max((keys || []).length, 1);
     var days = iaSelectedRangeDays();
@@ -2537,12 +2539,7 @@
     var avgLen = labs.length
       ? labs.reduce(function (acc, s) { return acc + String(s).length; }, 0) / labs.length
       : 4;
-    var maxLen = labs.reduce(function (m, s) { return Math.max(m, String(s).length); }, 0);
-    var fontSize = 9;
-    if (n > 12 || avgLen > 5 || maxLen > 8) fontSize = 8;
-    if (n > 20 || avgLen > 7 || maxLen > 10) fontSize = 7;
-    if (n > 36 || avgLen > 9) fontSize = 6.5;
-    if (n > 55 || maxLen > 12) fontSize = 6;
+    var fontSize = IA_AXIS_X_FONT;
     var charW = fontSize * (dayOnly ? 0.52 : 0.58);
     var labelW = Math.max(charW * (avgLen + 0.8), fontSize * (dayOnly ? 1.6 : 2.4));
     var gap = fontSize * (dayOnly ? 0.55 : 0.75);
@@ -2551,7 +2548,7 @@
     var labelStep = Math.max(1, Math.ceil(n / maxLabels));
     return {
       fontSize: fontSize,
-      yFontSize: Math.min(9, Math.max(6, fontSize)),
+      yFontSize: IA_AXIS_Y_FONT,
       labelStep: labelStep,
       minGap: labelW * 0.85
     };
@@ -2597,7 +2594,7 @@
       if (lx - lastX < layout.minGap && !isLast) continue;
       if (isLast && lastX > -1e8 && lx - lastX < layout.minGap * 0.75) continue;
       html +=
-        '<text x="' + lx.toFixed(1) + '" y="' + (h - 10) +
+        '<text class="pa-axis-label pa-axis-label--x" x="' + lx.toFixed(1) + '" y="' + (h - 10) +
         '" text-anchor="middle" fill="' + pal.axis + '" font-size="' + layout.fontSize +
         '" font-family="ui-sans-serif,system-ui">' + esc(fmtChartAxisKey(keys[li])) + "</text>";
       lastX = lx;
@@ -2625,7 +2622,7 @@
       html +=
         '<line class="ia-grid" x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
         '" stroke="' + pal.grid + '" stroke-width="1" />' +
-        '<text x="' + (left - 6) + '" y="' + (ty + 3).toFixed(1) +
+        '<text class="pa-axis-label pa-axis-label--y" x="' + (left - 6) + '" y="' + (ty + 3).toFixed(1) +
         '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs +
         '" font-family="ui-sans-serif,system-ui">' + esc(label) + "</text>";
     }

@@ -239,3 +239,21 @@ html.midnight .pa-chart-compress button.is-active {
   height: 0.95rem;
   display: block;
 }
+
+/* Eksen etiketleri — sabit px; JS non-uniform stretch’i de dengeler */
+#pa-chart text.pa-axis-label,
+#ia-chart text.pa-axis-label {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+#pa-chart text.pa-axis-label--x,
+#ia-chart text.pa-axis-label--x {
+  font-size: 11px;
+}
+
+#pa-chart text.pa-axis-label--y,
+#ia-chart text.pa-axis-label--y {
+  font-size: 10px;
+}
