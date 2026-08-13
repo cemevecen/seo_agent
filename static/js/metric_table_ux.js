@@ -21,17 +21,13 @@
       ".mtux-shell{border-radius:0.75rem;overflow:hidden;}" +
       ".mtux-shell .rdl-scroll,.mtux-shell [id$='-table-wrap']{" +
         "border-radius:0 0 0.75rem 0.75rem;}" +
-      ".mtux-legend{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.45rem 0.65rem;" +
+      ".mtux-legend{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:0.45rem 0.65rem;" +
       "padding:0.45rem 0.75rem;border-bottom:1px solid rgba(148,163,184,0.22);" +
       "font-size:0.62rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#94a3b8;" +
       "background:linear-gradient(180deg,rgba(248,250,252,0.95),rgba(241,245,249,0.88));}" +
       "html.dark .mtux-legend{color:#71717a;border-bottom-color:rgba(63,63,70,0.55);" +
       "background:linear-gradient(180deg,rgba(24,24,27,0.98),rgba(9,9,11,0.92));}" +
-      ".mtux-legend-scale{display:inline-flex;align-items:center;gap:0.45rem;margin-right:auto;}" +
-      ".mtux-legend-bar{display:flex;height:0.38rem;width:6.5rem;border-radius:9999px;overflow:hidden;" +
-      "border:1px solid rgba(148,163,184,0.35);}" +
-      ".mtux-legend-bar>span{flex:1;}" +
-      ".mtux-legend.is-off .mtux-legend-bar{opacity:0.22;filter:grayscale(1);}" +
+      ".mtux-legend-leading{display:inline-flex;flex-wrap:wrap;align-items:center;gap:0.35rem;margin-right:auto;}" +
       ".mtux-legend-actions{display:inline-flex;flex-wrap:wrap;align-items:center;gap:0.35rem;}" +
       ".mtux-opt-toggle,.mtux-heat-toggle{display:inline-flex;align-items:center;gap:0.3rem;" +
       "padding:0.22rem 0.55rem;border-radius:9999px;border:1px solid rgba(148,163,184,0.42);" +
@@ -250,10 +246,8 @@
     var layoutBtn = legend.querySelector('[data-mtux-opt="transpose"]');
     if (layoutBtn) {
       layoutBtn.setAttribute("aria-pressed", isTransposed() ? "true" : "false");
-      layoutBtn.textContent = isTransposed() ? "Dates on top" : "Metrics on top";
+      layoutBtn.textContent = "Reverse list table";
     }
-    var scale = legend.querySelector(".mtux-legend-scale");
-    if (scale) scale.style.visibility = heatOn ? "visible" : "hidden";
   }
 
   function placeLegendAtTop(shell, legend) {
@@ -308,6 +302,16 @@
 
     var existing = shell.querySelector(".mtux-legend");
     if (existing) {
+      if (existing.querySelector(".mtux-legend-scale") || !existing.querySelector(".mtux-legend-leading")) {
+        existing.innerHTML =
+          '<div class="mtux-legend-leading">' +
+            '<button type="button" class="mtux-opt-toggle" data-mtux-opt="transpose" aria-pressed="false">Reverse list table</button>' +
+          "</div>" +
+          '<div class="mtux-legend-actions">' +
+            '<button type="button" class="mtux-opt-toggle" data-mtux-opt="pin" aria-pressed="true">Pin on</button>' +
+            '<button type="button" class="mtux-heat-toggle">Remove colors</button>' +
+          "</div>";
+      }
       placeLegendAtTop(shell, existing);
       bindLegend(existing);
       return existing;
@@ -316,18 +320,11 @@
     var legend = document.createElement("div");
     legend.className = "mtux-legend";
     legend.innerHTML =
-      '<span class="mtux-legend-scale" style="display:inline-flex;align-items:center;gap:0.5rem;">' +
-        '<span class="mtux-legend-bar">' +
-          '<span style="background:rgba(37,99,235,0.1)"></span>' +
-          '<span style="background:rgba(37,99,235,0.24)"></span>' +
-          '<span style="background:rgba(37,99,235,0.38)"></span>' +
-          '<span style="background:rgba(37,99,235,0.52)"></span>' +
-        "</span>" +
-        "<span>low → high</span>" +
-      "</span>" +
+      '<div class="mtux-legend-leading">' +
+        '<button type="button" class="mtux-opt-toggle" data-mtux-opt="transpose" aria-pressed="false">Reverse list table</button>' +
+      "</div>" +
       '<div class="mtux-legend-actions">' +
         '<button type="button" class="mtux-opt-toggle" data-mtux-opt="pin" aria-pressed="true">Pin on</button>' +
-        '<button type="button" class="mtux-opt-toggle" data-mtux-opt="transpose" aria-pressed="false">Metrics on top</button>' +
         '<button type="button" class="mtux-heat-toggle">Remove colors</button>' +
       "</div>";
     placeLegendAtTop(shell, legend);
