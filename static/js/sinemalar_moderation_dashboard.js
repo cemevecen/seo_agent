@@ -107,15 +107,17 @@
     var perRow = Math.max(2, Math.floor(chartWidth / entryW));
     var rows = Math.ceil(legendCount / perRow);
     var legendH = rows * 22 + 10;
+    var legendGap = legendOpts.angledX ? 16 : 0;
     var tickPad = 0;
     if (legendOpts.angledX) {
       var angle = legendOpts.tickAngle != null ? Math.abs(legendOpts.tickAngle) : 40;
-      tickPad = angle >= 60 ? 72 : angle >= 40 ? 58 : 42;
+      tickPad = angle >= 60 ? 90 : angle >= 40 ? 70 : 50;
     }
-    var titlePad = legendOpts.xaxisTitle ? 26 : 0;
-    var marginBottom = 28 + tickPad + titlePad + legendH;
-    var maxBottom = legendOpts.maxBottom || (legendOpts.angledX ? 200 : 120);
-    marginBottom = Math.min(maxBottom, Math.max(marginBottom, legendOpts.minBottom || 0));
+    var titlePad = legendOpts.xaxisTitle ? 28 : 0;
+    var marginBottom = 36 + tickPad + titlePad + legendGap + legendH;
+    var maxBottom = legendOpts.maxBottom || (legendOpts.angledX ? 280 : 120);
+    var minBottom = legendOpts.minBottom || (legendOpts.angledX ? 160 : 0);
+    marginBottom = Math.min(maxBottom, Math.max(marginBottom, minBottom));
 
     var legendBase = {
       orientation: "h",
@@ -430,9 +432,10 @@
           angledX: true,
           xaxisTitle: true,
           tickAngle: chartW(el) < 520 ? -65 : -40,
+          maxBottom: 280,
         },
-        heightOpts: { minPlot: 240, maxTotal: 460, fallback: 340 },
-        minHeight: 300,
+        heightOpts: { minPlot: 240, maxTotal: 480, fallback: 360 },
+        minHeight: 320,
       }
     );
   }
@@ -742,9 +745,10 @@
           angledX: true,
           xaxisTitle: true,
           tickAngle: chartW(el) < 520 ? -65 : -40,
+          maxBottom: 280,
         },
-        heightOpts: { minPlot: 220, maxTotal: 440, fallback: 320 },
-        minHeight: 280,
+        heightOpts: { minPlot: 240, maxTotal: 480, fallback: 360 },
+        minHeight: 320,
       }
     );
   }
