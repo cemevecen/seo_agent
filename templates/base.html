@@ -2632,22 +2632,6 @@
               <a href="/backlinks" data-nav-match="/backlinks" data-nav-priority class="header-nav-link">backlinks</a>
               <a href="/sinemalar" data-nav-match="/sinemalar,/policy" data-nav-priority class="header-nav-link">sinemalar</a>
               <a href="/inbox" data-nav-match="/inbox" data-nav-priority class="header-nav-link">inbox</a>
-              <div class="header-nav-dropdown" id="header-trend-dropdown" data-nav-match="/trend,/karma" data-nav-priority data-nav-label="trend" data-nav-href="/trend">
-                <button type="button" class="header-nav-link header-nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">trend ▾</button>
-                <div class="header-nav-dropdown-backdrop" aria-hidden="true" tabindex="-1"></div>
-                <div class="header-nav-dropdown-menu" role="menu">
-                  {% set trend_nav = [
-                    ("Discover", [("trend-radar","Trend Radar"),("query-haber","Query → Story"),("seasonality","Seasonality"),("anomaly-tree","Anomaly tree")]),
-                    ("Action", [("brief-generator","Brief"),("headline-lab","Headline Lab"),("ic-link","Internal links"),("content-decay","Decay")])
-                  ] %}
-                  {% for group_name, links in trend_nav %}
-                  <div class="header-nav-dropdown-group">{{ group_name }}</div>
-                  {% for slug, label in links %}
-                  <a href="/trend/{{ slug }}" role="menuitem">{{ label }}</a>
-                  {% endfor %}
-                  {% endfor %}
-                </div>
-              </div>
               <a href="/boards" data-nav-match="/boards" data-nav-priority class="header-nav-link">gitlab</a>
               <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" data-nav-priority class="header-nav-link">movie</a>
               <a href="/ai" data-nav-match="/ai" data-nav-priority class="header-nav-link">ai</a>
@@ -2947,7 +2931,7 @@
             var overflowHref = el.getAttribute('data-nav-href');
             if (!overflowHref) {
               var first = el.querySelector('.header-nav-dropdown-menu a[href]');
-              overflowHref = first ? first.getAttribute('href') : '/trend';
+              overflowHref = first ? first.getAttribute('href') : '/';
             }
             a.href = overflowHref;
             a.textContent = label;
@@ -3043,89 +3027,6 @@
         window.addEventListener('scroll', function () {
           if (more.classList.contains('is-open')) positionMoreMenu();
         }, true);
-      })();
-
-      (function initTrendDropdown() {
-        var wrap = document.getElementById('header-trend-dropdown');
-        if (!wrap) return;
-        var btn = wrap.querySelector('.header-nav-dropdown-trigger');
-        var menu = wrap.querySelector('.header-nav-dropdown-menu');
-        var backdrop = wrap.querySelector('.header-nav-dropdown-backdrop');
-        if (!btn || !menu) return;
-
-        var ignoreOutsideUntil = 0;
-        var bodyScrollLock = '';
-
-        function closeMenu() {
-          wrap.classList.remove('is-open');
-          btn.setAttribute('aria-expanded', 'false');
-          menu.classList.remove('is-fixed');
-          menu.style.top = '';
-          menu.style.left = '';
-          menu.style.right = '';
-          menu.style.maxHeight = '';
-          document.body.style.overflow = bodyScrollLock;
-        }
-
-        function positionMenu() {
-          if (!wrap.classList.contains('is-open')) return;
-          menu.classList.add('is-fixed');
-          menu.style.display = 'block';
-          var rect = btn.getBoundingClientRect();
-          var menuW = menu.offsetWidth || 224;
-          var left = Math.min(Math.max(8, rect.right - menuW), window.innerWidth - menuW - 8);
-          var top = rect.bottom + 6;
-          var maxH = Math.max(120, window.innerHeight - top - 12);
-          menu.style.left = left + 'px';
-          menu.style.top = top + 'px';
-          menu.style.right = 'auto';
-          menu.style.maxHeight = maxH + 'px';
-        }
-
-        function openMenu() {
-          ignoreOutsideUntil = Date.now() + 400;
-          if (!wrap.classList.contains('is-open')) {
-            bodyScrollLock = document.body.style.overflow || '';
-            if (window.matchMedia('(max-width: 1023px)').matches) {
-              document.body.style.overflow = 'hidden';
-            }
-          }
-          wrap.classList.add('is-open');
-          btn.setAttribute('aria-expanded', 'true');
-          positionMenu();
-        }
-
-        function toggleFromPointer(e) {
-          if (e && e.pointerType === 'mouse' && e.button !== 0) return;
-          e.preventDefault();
-          e.stopPropagation();
-          if (wrap.classList.contains('is-open')) closeMenu();
-          else openMenu();
-        }
-
-        btn.addEventListener('click', toggleFromPointer);
-
-        menu.addEventListener('click', function (e) {
-          e.stopPropagation();
-        });
-
-        if (backdrop) {
-          backdrop.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            closeMenu();
-          });
-        }
-
-        document.addEventListener('click', function (e) {
-          if (Date.now() < ignoreOutsideUntil) return;
-          if (wrap.contains(e.target)) return;
-          closeMenu();
-        });
-
-        window.addEventListener('resize', positionMenu);
-        window.addEventListener('scroll', positionMenu, true);
-        document.getElementById('header-nav-track')?.addEventListener('scroll', positionMenu);
       })();
 
       /* Home/alerts pozisyon kartları: değişim ↔ top 20 (HTMX swap sonrası da çalışır) */

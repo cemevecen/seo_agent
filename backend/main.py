@@ -1064,9 +1064,6 @@ app.include_router(market_quotes_router, prefix="/api")
 app.include_router(page_tarama_router, prefix="/api")
 app.include_router(pm_lab_router, prefix="/api")
 
-from backend.karma.router import router as karma_router
-
-app.include_router(karma_router)
 app.include_router(member_auth_router)
 
 PERIOD_DAYS_MAP = {
