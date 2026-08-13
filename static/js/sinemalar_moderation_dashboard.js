@@ -155,6 +155,7 @@
     var need = minPlot + (m.t || 28) + (m.b || 40);
     var h = Math.max(need, containerH);
     if (heightOpts.maxTotal) h = Math.min(heightOpts.maxTotal, h);
+    h = Math.max(h, need);
     if (el) {
       el.style.height = h + "px";
       el.style.minHeight = Math.max(heightOpts.minHeight || 0, h) + "px";
@@ -460,7 +461,14 @@
     var days = ANALYTICS.calendar_days || [];
     var cals = ANALYTICS.calendars || {};
     var shownMods = visibleMods();
-    if (!days.length || !shownMods.length) return;
+    if (!days.length) {
+      showChartEmpty("mod-chart-activity-heat", "Takvim verisi yok");
+      return;
+    }
+    if (!shownMods.length) {
+      showChartEmpty("mod-chart-activity-heat", "Görünür moderatör yok — legenddan seçin");
+      return;
+    }
 
     var minW = Math.max(chartW(el), Math.min(days.length * 10, 1400));
     el.style.minWidth = minW + "px";
@@ -511,9 +519,10 @@
         margin: { l: 96, r: 48, t: 44, b: 72 },
       },
       {
+        fillContainer: false,
         heightOpts: {
           minPlot: 36 * shownMods.length,
-          maxTotal: 48 + shownMods.length * 40,
+          maxTotal: Math.max(220, 56 + shownMods.length * 44),
           fallback: 40 + shownMods.length * 36,
         },
         minHeight: 40 + shownMods.length * 36,
@@ -772,28 +781,18 @@
     var names = [];
     var active = [];
     var inactive = [];
-    var activeHover = [];
-    var inactiveHover = [];
     var hasJoin = false;
     visibleMods().forEach(function (m) {
       var cal = cals[String(m.user_id)] || {};
       names.push(m.username);
       active.push(cal.active_days || 0);
       inactive.push(cal.inactive_days || 0);
-      if (cal.joined_at) {
-        hasJoin = true;
-        activeHover.push(
-          m.username + "<br>" + cal.joined_at + " katılım (sonrası)<br>Aktif: %{y} gün<extra></extra>"
-        );
-        inactiveHover.push(
-          m.username + "<br>" + cal.joined_at + " katılım (sonrası)<br>Boş: %{y} gün<extra></extra>"
-        );
-      } else {
-        activeHover.push("Aktif<br>%{x}: %{y} gün<extra></extra>");
-        inactiveHover.push("Boş<br>%{x}: %{y} gün<extra></extra>");
-      }
+      if (cal.joined_at) hasJoin = true;
     });
-    if (!names.length) return;
+    if (!names.length) {
+      showChartEmpty("mod-chart-inactive-summary", "Görünür moderatör yok — legenddan seçin");
+      return;
+    }
     var titleText =
       "Çalışılan vs boş gün · " +
       (RAW.start || "") +
@@ -809,7 +808,7 @@
           x: names,
           y: active,
           marker: { color: "#0ea5e9" },
-          hovertemplate: activeHover,
+          hovertemplate: "%{x}<br>Aktif: %{y} gün<extra></extra>",
         },
         {
           type: "bar",
@@ -817,7 +816,7 @@
           x: names,
           y: inactive,
           marker: { color: "#cbd5e1" },
-          hovertemplate: inactiveHover,
+          hovertemplate: "%{x}<br>Boş: %{y} gün<extra></extra>",
         },
       ],
       {
