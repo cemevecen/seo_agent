@@ -393,6 +393,12 @@ def ingest_play_console_payload(
     row.background_synced_at = now
     db.commit()
     db.refresh(row)
+    try:
+        from backend.services.play_scrape_warehouse import invalidate_play_scrape_facts_cache
+
+        invalidate_play_scrape_facts_cache()
+    except Exception:
+        pass
     return {
         "ok": True,
         "synced": True,

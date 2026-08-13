@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
@@ -261,9 +262,22 @@ def enrich_rating_series_review_splits(result: dict[str, Any]) -> dict[str, Any]
     return result
 
 
+_FACTS_CACHE_TTL_SEC = 45.0
+_facts_cache: dict[str, Any] = {"key": "", "at": 0.0, "facts": [], "meta": {}}
+
+
+def invalidate_play_scrape_facts_cache() -> None:
+    """Ingest sonrası veya testlerde bellek önbelleğini temizle."""
+    _facts_cache["key"] = ""
+    _facts_cache["at"] = 0.0
+    _facts_cache["facts"] = []
+    _facts_cache["meta"] = {}
+
+
 def _load_facts() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     from backend.database import SessionLocal
 
+    now = time.monotonic()
     with SessionLocal() as db:
         payload = play_console_store.play_console_payload(db)
     panels = payload.get("panels") if isinstance(payload, dict) else {}
@@ -272,6 +286,20 @@ def _load_facts() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     facts = panels.get("explorer_facts") or []
     if not isinstance(facts, list):
         facts = []
+    cache_key = "|".join(
+        [
+            str(payload.get("updated_at") or ""),
+            str(payload.get("background_synced_at") or ""),
+            str(panels.get("explorer_fact_count") or len(facts)),
+        ]
+    )
+    if (
+        _facts_cache["key"] == cache_key
+        and now - float(_facts_cache["at"] or 0.0) < _FACTS_CACHE_TTL_SEC
+        and isinstance(_facts_cache["facts"], list)
+        and _facts_cache["facts"]
+    ):
+        return _facts_cache["facts"], dict(_facts_cache["meta"] or {})
     vmap = panels.get("version_name_map") if isinstance(panels.get("version_name_map"), dict) else {}
     meta = {
         "synced_at": payload.get("updated_at") or payload.get("background_synced_at"),
@@ -285,7 +313,12 @@ def _load_facts() -> tuple[list[dict[str, Any]], dict[str, Any]]:
             if str(k).strip() and str(v).strip()
         },
     }
-    return [f for f in facts if isinstance(f, dict)], meta
+    parsed = [f for f in facts if isinstance(f, dict)]
+    _facts_cache["key"] = cache_key
+    _facts_cache["at"] = now
+    _facts_cache["facts"] = parsed
+    _facts_cache["meta"] = meta
+    return parsed, meta
 
 
 def _resolve_metric(metric: str) -> str:
