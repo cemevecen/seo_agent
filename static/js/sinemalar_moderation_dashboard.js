@@ -136,13 +136,6 @@
     return rows * 22 + 10;
   }
 
-  function modTraceIndex(userId) {
-    for (var i = 0; i < MODS.length; i++) {
-      if (String(MODS[i].user_id) === String(userId)) return i;
-    }
-    return -1;
-  }
-
   function updateModLegendButtonStates() {
     document.querySelectorAll(".mod-chart-legend-bar--mods .mod-legend-item[data-user-id]").forEach(function (btn) {
       btn.classList.toggle("is-off", !isModVisible(btn.getAttribute("data-user-id")));
@@ -238,16 +231,13 @@
         var btn = document.createElement("button");
         btn.type = "button";
         btn.className = "mod-legend-item" + (isModVisible(m.user_id) ? "" : " is-off");
+        btn.setAttribute("data-user-id", String(m.user_id));
         btn.innerHTML =
           '<span class="mod-legend-swatch" style="background:' +
           modColor(i) +
           '"></span><span>' +
           legendEsc(m.username) +
           "</span>";
-        btn.addEventListener("click", function () {
-          modVisibility[String(m.user_id)] = !isModVisible(m.user_id);
-          renderCharts();
-        });
         bar.appendChild(btn);
       });
       return;
@@ -1092,6 +1082,7 @@
   }
 
   function scheduleCharts() {
+    bindModLegendDelegation();
     function runWhenReady() {
       if (!window.Plotly) return false;
       requestAnimationFrame(function () {
