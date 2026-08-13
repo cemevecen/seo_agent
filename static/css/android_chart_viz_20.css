@@ -2,6 +2,10 @@
   scroll-margin-top: 1rem;
 }
 
+.chart-viz20-section .pa-viz20-drop[open] {
+  overflow: visible;
+}
+
 .chart-viz20-section .pa-viz20-drop {
   overflow: hidden;
   border-radius: 0.75rem;
@@ -196,27 +200,25 @@ html.midnight .pa-viz20-h-btn.is-active {
   color: rgb(24 24 27);
 }
 
-.pa-viz20-metrics-wrap {
+.pa-viz20-metric-field {
+  display: flex;
+  flex-direction: column;
   min-width: 11rem;
-  position: relative;
-  z-index: 5;
+  flex: 1 1 calc(50% - 0.5rem);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: rgb(71 85 105);
+  white-space: nowrap;
 }
 
-.pa-viz20-metrics-title {
-  cursor: pointer;
-  user-select: none;
-}
-
-.pa-viz20-metrics-title:hover {
-  color: rgb(51 65 85);
-}
-
-html.dark .pa-viz20-metrics-title:hover,
-html.midnight .pa-viz20-metrics-title:hover {
-  color: rgb(228 228 231);
+html.dark .pa-viz20-metric-field,
+html.midnight .pa-viz20-metric-field {
+  color: rgb(212 212 216);
 }
 
 .pa-viz20-metric-dd {
+  margin-top: 0.25rem;
+  width: 100%;
   position: relative;
   z-index: 4;
 }
@@ -226,36 +228,27 @@ html.midnight .pa-viz20-metrics-title:hover {
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  gap: 0.375rem;
-  border-radius: 0.375rem;
-  border: 1px solid rgb(226 232 240);
-  background: rgb(255 255 255);
-  padding: 0.25rem 0.5rem;
-  font-size: 12px;
-  font-weight: 500;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.25;
   text-align: left;
-  color: rgb(30 41 59);
+  color: inherit;
+  box-sizing: border-box;
   cursor: pointer;
   pointer-events: auto;
   position: relative;
   z-index: 2;
 }
 
-.pa-viz20-metric-list {
-  pointer-events: auto;
-  z-index: 220;
-}
-
-.pa-viz20-metric-list:not(.hidden) {
-  display: block;
-}
-
 html.dark .pa-viz20-metric-trigger,
 html.midnight .pa-viz20-metric-trigger {
-  border-color: rgb(63 63 70);
-  background: rgb(24 24 27);
-  color: rgb(228 228 231);
+  border-color: #3f3f46;
+  background: #18181b;
+  color: #c4c4cc;
 }
 
 .pa-viz20-metric-trigger:focus {
@@ -263,10 +256,22 @@ html.midnight .pa-viz20-metric-trigger {
   outline-offset: 1px;
 }
 
+.pa-viz20-metric-list {
+  pointer-events: auto;
+  z-index: 220;
+  min-width: 16rem;
+  border-radius: 1rem;
+}
+
+.pa-viz20-metric-list:not(.hidden) {
+  display: block;
+}
+
 .pa-viz20-metric-list-scroll {
   max-height: inherit;
   overflow-x: hidden;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
@@ -274,10 +279,11 @@ html.midnight .pa-viz20-metric-trigger {
   display: flex;
   align-items: stretch;
   width: 100%;
+  gap: 0;
 }
 
 .pa-viz20-metric-row.is-on {
-  background: rgb(239 246 255);
+  background: #eff6ff;
 }
 
 html.dark .pa-viz20-metric-row.is-on,
@@ -286,13 +292,100 @@ html.midnight .pa-viz20-metric-row.is-on {
 }
 
 .pa-viz20-metric-list [role="option"][aria-selected="true"] {
-  background: rgb(239 246 255);
-  color: rgb(30 58 138);
+  background: #eff6ff;
+  color: #1e3a8a;
   font-weight: 600;
 }
 
 html.dark .pa-viz20-metric-list [role="option"][aria-selected="true"],
 html.midnight .pa-viz20-metric-list [role="option"][aria-selected="true"] {
   background: rgba(30, 58, 138, 0.35);
-  color: rgb(219 234 254);
+  color: #dbeafe;
+}
+
+.pa-viz20-metric-info-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 0.35rem;
+}
+
+.pa-viz20-metric-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 9999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #64748b;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.pa-viz20-metric-info:hover,
+.pa-viz20-metric-info:focus-visible {
+  color: #0f172a;
+  border-color: #94a3b8;
+  background: #f8fafc;
+  outline: none;
+}
+
+html.dark .pa-viz20-metric-info,
+html.midnight .pa-viz20-metric-info {
+  border-color: #3f3f46;
+  background: #18181b;
+  color: #a1a1aa;
+}
+
+html.dark .pa-viz20-metric-info:hover,
+html.dark .pa-viz20-metric-info:focus-visible,
+html.midnight .pa-viz20-metric-info:hover,
+html.midnight .pa-viz20-metric-info:focus-visible {
+  color: #f4f4f5;
+  border-color: #71717a;
+  background: #27272a;
+}
+
+.pa-viz20-metric-tip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.35rem);
+  z-index: 80;
+  width: max-content;
+  max-width: min(18rem, 70vw);
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.65rem;
+  border: 1px solid #e2e8f0;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.22);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(2px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+
+.pa-viz20-metric-info-wrap:hover .pa-viz20-metric-tip,
+.pa-viz20-metric-info-wrap:focus-within .pa-viz20-metric-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+html.dark .pa-viz20-metric-tip,
+html.midnight .pa-viz20-metric-tip {
+  border-color: #3f3f46;
+  background: #18181b;
+  color: #e4e4e7;
 }

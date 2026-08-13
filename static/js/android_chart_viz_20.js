@@ -218,6 +218,47 @@
     return document.getElementById(cfg.catalogId);
   }
 
+  function viz20MetricHelp(key) {
+    if (cfg.catalogId === "pa-metric-catalog" && typeof window.seoPaMetricHelp === "function") {
+      return window.seoPaMetricHelp(key);
+    }
+    if (cfg.catalogId === "ia-metric-catalog" && typeof window.seoIaMetricHelp === "function") {
+      return window.seoIaMetricHelp(key);
+    }
+    return "This metric is shown on the horizon chart for the selected period.";
+  }
+
+  function viz20MetricRowHtml(key, label, on) {
+    var tip = viz20MetricHelp(key);
+    return (
+      '<div class="pa-viz20-metric-row' +
+      (on ? " is-on" : "") +
+      '">' +
+      '<button type="button" role="option" aria-selected="' +
+      (on ? "true" : "false") +
+      '" data-viz20-metric-pick="' +
+      esc(key) +
+      '" class="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-xs ' +
+      (on
+        ? "bg-transparent font-semibold text-sky-800 dark:text-sky-100"
+        : "bg-transparent font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") +
+      '">' +
+      '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-sky-600 dark:text-sky-400" aria-hidden="true">' +
+      (on ? "✓" : "") +
+      "</span>" +
+      '<span class="min-w-0 flex-1 truncate">' +
+      esc(label) +
+      "</span></button>" +
+      '<span class="pa-viz20-metric-info-wrap">' +
+      '<button type="button" class="pa-viz20-metric-info" data-viz20-metric-info tabindex="0" aria-label="' +
+      esc(label + " info") +
+      '">i</button>' +
+      '<span class="pa-viz20-metric-tip" role="tooltip">' +
+      esc(tip) +
+      "</span></span></div>"
+    );
+  }
+
   function viz20MetricLabel(key, meta) {
     if (!key) return "";
     var cat = getMetricCatalog();
@@ -238,14 +279,14 @@
     if (!labelEl || !hidden) return;
     var selected = parseMetricsCsv(hidden.value);
     if (!selected.length) {
-      labelEl.textContent = "Seçin";
+      labelEl.textContent = "Select";
       return;
     }
     if (selected.length === 1) {
       labelEl.textContent = viz20MetricLabel(selected[0], meta);
       return;
     }
-    labelEl.textContent = selected.length + " metrik seçili";
+    labelEl.textContent = selected.length + " metrics selected";
   }
 
   function positionViz20MetricDropdown(details) {
@@ -254,7 +295,7 @@
     if (!trigger || !list || list.classList.contains("hidden")) return;
     var r = trigger.getBoundingClientRect();
     var maxW = Math.min(380, window.innerWidth - 16);
-    var w = Math.max(r.width, Math.min(maxW, 300));
+    var w = Math.max(r.width, 256, Math.min(maxW, 300));
     var left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
     var spaceBelow = window.innerHeight - r.bottom - 12;
     var spaceAbove = r.top - 12;
@@ -322,61 +363,23 @@
       '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-sky-600 dark:text-sky-400" aria-hidden="true">' +
       (!selected.length ? "✓" : "") +
       "</span>" +
-      '<span class="min-w-0 flex-1 truncate normal-case">Seçin</span></button>';
+      '<span class="min-w-0 flex-1 truncate normal-case">Select</span></button>';
     var cat = getMetricCatalog();
     if (cat) {
       Array.prototype.forEach.call(cat.children, function (node) {
         if (node.tagName !== "OPTGROUP") return;
         html +=
-          '<div class="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500">' +
+          '<div class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">' +
           esc(node.label) +
           "</div>";
         Array.prototype.forEach.call(node.children, function (opt) {
           if (!opt.value) return;
-          var on = !!selectedMap[opt.value];
-          html +=
-            '<div class="pa-viz20-metric-row' +
-            (on ? " is-on" : "") +
-            '">' +
-            '<button type="button" role="option" aria-selected="' +
-            (on ? "true" : "false") +
-            '" data-viz20-metric-pick="' +
-            esc(opt.value) +
-            '" class="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-xs normal-case ' +
-            (on
-              ? "bg-transparent font-semibold text-sky-800 dark:text-sky-100"
-              : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") +
-            '">' +
-            '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-sky-600 dark:text-sky-400" aria-hidden="true">' +
-            (on ? "✓" : "") +
-            "</span>" +
-            '<span class="min-w-0 flex-1 truncate">' +
-            esc(String(opt.textContent || opt.value).trim()) +
-            "</span></button></div>";
+          html += viz20MetricRowHtml(opt.value, String(opt.textContent || opt.value).trim(), !!selectedMap[opt.value]);
         });
       });
     } else {
       metricOptions(meta).forEach(function (o) {
-        var on = !!selectedMap[o.v];
-        html +=
-          '<div class="pa-viz20-metric-row' +
-          (on ? " is-on" : "") +
-          '">' +
-          '<button type="button" role="option" aria-selected="' +
-          (on ? "true" : "false") +
-          '" data-viz20-metric-pick="' +
-          esc(o.v) +
-          '" class="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-xs normal-case ' +
-          (on
-            ? "bg-transparent font-semibold text-sky-800 dark:text-sky-100"
-            : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") +
-          '">' +
-          '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-sky-600 dark:text-sky-400" aria-hidden="true">' +
-          (on ? "✓" : "") +
-          "</span>" +
-          '<span class="min-w-0 flex-1 truncate">' +
-          esc(o.l) +
-          "</span></button></div>";
+        html += viz20MetricRowHtml(o.v, o.l, !!selectedMap[o.v]);
       });
     }
     listScroll.innerHTML = html;
@@ -408,7 +411,7 @@
 
   function viz20MetricEventInside(details, t) {
     if (!t || !t.closest) return false;
-    var wrap = details.querySelector(".pa-viz20-metrics-wrap");
+    var wrap = details.querySelector(".pa-viz20-metric-field");
     if (wrap && wrap.contains(t)) return true;
     var list = metricListFor(details);
     if (list && list.contains(t)) return true;
@@ -427,29 +430,29 @@
 
   function metricsMultiSelectHtml(meta, metricsValue) {
     var selected = parseMetricsCsv(metricsValue);
-    var triggerLabel = "Seçin";
+    var triggerLabel = "Select";
     if (selected.length === 1) {
       triggerLabel = viz20MetricLabel(selected[0], meta);
     } else if (selected.length > 1) {
-      triggerLabel = selected.length + " metrik seçili";
+      triggerLabel = selected.length + " metrics selected";
     }
     return (
-      '<div class="pa-viz20-metrics-wrap flex flex-col gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' +
-      '<span class="pa-viz20-metrics-title">Metrikler</span>' +
-      '<div class="pa-viz20-metric-dd relative min-w-[11rem]">' +
+      '<label class="pa-viz20-metric-field">' +
+      "Metric" +
+      '<div class="pa-viz20-metric-dd">' +
       '<button type="button" class="pa-viz20-metric-trigger" aria-haspopup="listbox" aria-expanded="false">' +
-      '<span class="pa-viz20-metric-label min-w-0 flex-1 truncate normal-case">' +
+      '<span class="pa-viz20-metric-label min-w-0 flex-1 truncate">' +
       esc(triggerLabel) +
       "</span>" +
-      '<svg class="h-3 w-3 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>' +
+      '<svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>' +
       "</button>" +
-      '<div class="pa-viz20-metric-list hidden overflow-hidden rounded-xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950" role="listbox" aria-multiselectable="true" data-viz20-portal="1">' +
+      '<div class="pa-viz20-metric-list hidden overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950" role="listbox" aria-multiselectable="true" data-viz20-portal="1">' +
       '<div class="pa-viz20-metric-list-scroll py-1"></div>' +
       "</div>" +
       '<input type="hidden" class="pa-viz20-ctrl" data-ctrl="metrics" value="' +
       esc(metricsValue) +
       '"/>' +
-      "</div></div>"
+      "</div></label>"
     );
   }
 
@@ -1124,7 +1127,6 @@
   function bindViz20MetricsDropdown(details, meta) {
     var trigger = details.querySelector(".pa-viz20-metric-trigger");
     var list = details.querySelector(".pa-viz20-metric-list");
-    var wrap = details.querySelector(".pa-viz20-metrics-wrap");
     if (!trigger || !list) return;
     if (details.id) list.setAttribute("data-viz20-details-id", details.id);
     fillViz20MetricsList(details, meta);
@@ -1145,14 +1147,12 @@
         openToggle(ev);
       }
     });
-    if (wrap) {
-      wrap.addEventListener("click", function (ev) {
-        if (ev.target.closest(".pa-viz20-metric-trigger")) return;
-        if (ev.target.closest(".pa-viz20-metric-list")) return;
-        openToggle(ev);
-      });
-    }
     list.addEventListener("click", function (ev) {
+      if (ev.target.closest("[data-viz20-metric-info]")) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
       var clearBtn = ev.target.closest("[data-viz20-metric-clear]");
       if (clearBtn) {
         ev.preventDefault();
