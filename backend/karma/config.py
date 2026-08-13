@@ -72,13 +72,6 @@ TREND_ITEMS: tuple[TrendItem, ...] = (
         "",
         8,
     ),
-    TrendItem(
-        "topic-cluster",
-        "Topic Cluster",
-        "Aksiyon",
-        "",
-        9,
-    ),
 )
 
 KARMA_ITEMS = TREND_ITEMS

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import timedelta
 from typing import Any
 
@@ -689,70 +689,6 @@ def trend_content_decay(db: Session, site_id: int) -> dict[str, Any]:
     return out
 
 
-def trend_topic_cluster(db: Session, site_id: int) -> dict[str, Any]:
-    from backend.collectors.search_console import get_top_queries
-
-    site = _site_or_404(db, site_id)
-    out = _base_payload("topic-cluster", site)
-    rows = intel_recent(db, hours=12, limit=400, site=site)
-    queries = get_top_queries(db, site, limit=50, device="all")
-    pages = top_pages_rt(db, site_id, "web", 30)
-
-    intel_clusters: dict[str, int] = defaultdict(int)
-    gap_clusters: dict[str, int] = defaultdict(int)
-    for r in rows:
-        key = r.topic or r.category or "General"
-        intel_clusters[key] += 1
-        if not r.is_in_our_site:
-            gap_clusters[key] += 1
-
-    gsc_clusters: dict[str, float] = defaultdict(float)
-    for q in queries:
-        tokens = tokenize(str(q.get("query") or ""))[:2]
-        key = tokens[0] if tokens else "other"
-        gsc_clusters[key] += float(q.get("impressions") or 0)
-
-    path_clusters: Counter[str] = Counter()
-    for p in pages:
-        path = p.get("path") or "/"
-        seg = path.strip("/").split("/")[0] if path != "/" else "home"
-        path_clusters[seg] += p.get("users") or 0
-
-    intel_items = [
-        {
-            "title": k,
-            "subtitle": f"{v} news · gap {gap_clusters.get(k, 0)}",
-            "badge": "strong" if v >= 6 else "weak" if v >= 2 else "empty",
-        }
-        for k, v in sorted(intel_clusters.items(), key=lambda x: -x[1])[:15]
-    ]
-    gsc_items = [
-        {"title": k, "subtitle": f"{int(v)} total imp", "badge": "GSC"}
-        for k, v in sorted(gsc_clusters.items(), key=lambda x: -x[1])[:12]
-        if k != "other"
-    ]
-    rt_items = [
-        {"title": f"/{k}" if k != "home" else "/", "subtitle": f"{v} active users", "badge": "RT"}
-        for k, v in path_clusters.most_common(12)
-    ]
-
-    weak = [i for i in intel_items if i["badge"] == "empty" or "gap" in i["subtitle"] and int(i["subtitle"].split("gap ")[-1]) > 2]
-
-    out["summary"] = f"{out.get('vertical_label') or ''} · 12s cluster: {len(intel_clusters)} topic, {len(gsc_clusters)} GSC token."
-    out["metrics"] = [
-        {"label": "Topic", "value": str(len(intel_clusters))},
-        {"label": "Weak/gap", "value": str(len(weak))},
-        {"label": "RT segment", "value": str(len(path_clusters))},
-    ]
-    out["sections"] = [
-        {"title": "News topic cluster", "items": intel_items},
-        {"title": "GSC query cluster (imp)", "items": gsc_items},
-        {"title": "Realtime path cluster", "items": rt_items},
-        {"title": "Authority gaps", "items": weak[:10] or [{"title": "No clear gap", "subtitle": "Cluster is balanced", "badge": "ok"}]},
-    ]
-    return out
-
-
 _HANDLERS = {
     "trend-radar": trend_trend_radar,
     "query-haber": trend_query_haber,
@@ -762,7 +698,6 @@ _HANDLERS = {
     "headline-lab": trend_headline_lab,
     "ic-link": trend_ic_link,
     "content-decay": trend_content_decay,
-    "topic-cluster": trend_topic_cluster,
 }
 
 
