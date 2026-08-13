@@ -413,9 +413,7 @@
     opts = opts || {};
     if (opts.htmlLegend) {
       traces = traces.map(function (tr) {
-        var copy = Object.assign({}, tr, { showlegend: false });
-        if (opts.htmlLegend === "mods") copy.name = "";
-        return copy;
+        return Object.assign({}, tr, { showlegend: false });
       });
     }
     var lay = responsiveLayout(el, layout, opts);
@@ -434,6 +432,7 @@
         try {
           Plotly.Plots.resize(el);
         } catch (_) {}
+        bindChartColumnHover(el, lay);
       })
       .catch(function (err) {
         console.error("[mod-chart]", el.id, err);
@@ -572,6 +571,104 @@
     return { size: w < 480 ? 9 : w < 768 ? 10 : 11, color: th().tick };
   }
 
+  function modIsDarkUi() {
+    var root = document.documentElement;
+    return root.classList.contains("dark") || root.classList.contains("midnight");
+  }
+
+  function modHoverLabel(extra) {
+    var dark = modIsDarkUi();
+    var w = window.innerWidth || 1024;
+    var size = w < 480 ? 10 : w < 768 ? 11 : 12;
+    return Object.assign(
+      {
+        bgcolor: dark ? "rgba(15,23,42,0.96)" : "rgba(255,255,255,0.98)",
+        bordercolor: dark ? "#475569" : "#cbd5e1",
+        font: {
+          family: "Inter, system-ui, sans-serif",
+          size: size,
+          color: dark ? "#f1f5f9" : "#0f172a",
+        },
+        align: "left",
+        namelength: -1,
+      },
+      extra || {}
+    );
+  }
+
+  function modSpikeXaxis(extra) {
+    return Object.assign(
+      {
+        showspikes: true,
+        spikemode: "across",
+        spikesnap: "cursor",
+        spikecolor: modIsDarkUi() ? "#71717a" : "#94a3b8",
+        spikethickness: 1,
+        spikedash: "dot",
+      },
+      extra || {}
+    );
+  }
+
+  function modTimeSeriesHover(extraLayout, xaxisExtra) {
+    var lay = Object.assign(
+      {
+        hovermode: "x unified",
+        hoverdistance: -1,
+        spikedistance: -1,
+        hoverlabel: modHoverLabel(),
+      },
+      extraLayout || {}
+    );
+    lay.xaxis = modSpikeXaxis(Object.assign({}, (extraLayout && extraLayout.xaxis) || {}, xaxisExtra || {}));
+    if (window.SeoPlotlyTimeSeriesHover && SeoPlotlyTimeSeriesHover.mergeLayout) {
+      lay = SeoPlotlyTimeSeriesHover.mergeLayout(lay);
+    }
+    return lay;
+  }
+
+  function modCategoryHover(extraLayout) {
+    return Object.assign(
+      {
+        hovermode: "x unified",
+        hoverdistance: -1,
+        hoverlabel: modHoverLabel(),
+      },
+      extraLayout || {}
+    );
+  }
+
+  function modRankHover(extraLayout) {
+    extraLayout = extraLayout || {};
+    var ySpike = {
+      showspikes: true,
+      spikemode: "across",
+      spikesnap: "cursor",
+      spikecolor: modIsDarkUi() ? "#71717a" : "#94a3b8",
+      spikethickness: 1,
+      spikedash: "dot",
+    };
+    return Object.assign(
+      {
+        hovermode: "y unified",
+        hoverdistance: -1,
+        hoverlabel: modHoverLabel(),
+      },
+      extraLayout,
+      {
+        yaxis: Object.assign(ySpike, extraLayout.yaxis || {}),
+      }
+    );
+  }
+
+  function bindChartColumnHover(el, lay) {
+    if (!el || !window.SeoPlotlyTimeSeriesHover || !SeoPlotlyTimeSeriesHover.bindColumnHover) return;
+    var hm = (lay && lay.hovermode) || (el._fullLayout && el._fullLayout.hovermode);
+    if (hm && String(hm).indexOf("x") >= 0) {
+      SeoPlotlyTimeSeriesHover.bindColumnHover(el, lay);
+    }
+  }
+
   function drawRankTotal() {
     var el = purgePlot("mod-chart-rank-total");
     if (!el || !window.Plotly) return;
@@ -600,12 +697,11 @@
           y: revNames,
           x: revCounts,
           marker: { color: revColors },
-          hovertemplate: "%{y}<br>%{x:,} iş<extra></extra>",
+          hovertemplate: "%{x:,} iş<extra></extra>",
         },
       ],
-      {
+      modRankHover({
         title: { text: "Dönem toplamı · moderatör sıralaması", x: 0, font: { size: 12 } },
-        hovermode: "y",
         xaxis: {
           title: { text: "İş sayısı", standoff: 8 },
           gridcolor: th().grid,
@@ -615,7 +711,7 @@
         },
         yaxis: { automargin: true, tickfont: axisTickFont(), type: "category" },
         margin: { l: 8, r: 16, t: 44, b: 40 },
-      },
+      }),
       { heightOpts: { minPlot: 140, maxTotal: 300, fallback: 240 }, minHeight: 240 }
     );
   }
@@ -632,31 +728,33 @@
         type: "scatter",
         mode: "lines",
         stackgroup: "one",
-        name: "",
+        name: m.username,
         showlegend: false,
         visible: modTraceVisibleForChart("mod-chart-daily-volume", m),
         x: days,
         y: series,
         line: { width: 1.2, color: modColor(i) },
         fillcolor: modColor(i),
-        hovertemplate: "%{x}<br>" + m.username + ": %{y:,}<extra></extra>",
+        hovertemplate: "<b>%{fullData.name}</b>: %{y:,} iş<extra></extra>",
       };
     });
     plotResponsive(
       el,
       traces,
-      {
-        title: { text: "Günlük moderasyon hacmi · moderatör kırılımı", x: 0, font: { size: 12 } },
-        xaxis: {
+      modTimeSeriesHover(
+        {
+          title: { text: "Günlük moderasyon hacmi · moderatör kırılımı", x: 0, font: { size: 12 } },
+          yaxis: { title: "Günlük iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
+        },
+        {
           title: { text: "Tarih", standoff: 10 },
           gridcolor: th().grid,
           tickvals: ticks,
           tickangle: chartW(el) < 520 ? -65 : -40,
           tickfont: axisTickFont(),
           automargin: true,
-        },
-        yaxis: { title: "Günlük iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
-      },
+        }
+      ),
       {
         legendCount: MODS.length,
         htmlLegend: "mods",
@@ -962,7 +1060,7 @@
       return {
         type: "scatter",
         mode: "lines",
-        name: "",
+        name: m.username,
         showlegend: false,
         visible: modTraceVisibleForChart("mod-chart-cumulative", m),
         x: days,
@@ -970,24 +1068,26 @@
           return p.cumulative;
         }),
         line: { color: modColor(i), width: 2 },
-        hovertemplate: m.username + "<br>%{x}<br>Birikim: %{y:,}<extra></extra>",
+        hovertemplate: "<b>%{fullData.name}</b><br>Birikim: %{y:,}<extra></extra>",
       };
     });
     plotResponsive(
       el,
       traces,
-      {
-        title: { text: "Kümülatif katkı · dönem içi birikim", x: 0, font: { size: 12 } },
-        xaxis: {
+      modTimeSeriesHover(
+        {
+          title: { text: "Kümülatif katkı · dönem içi birikim", x: 0, font: { size: 12 } },
+          yaxis: { title: "Biriken iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
+        },
+        {
           title: { text: "Tarih", standoff: 10 },
           tickvals: ticks,
           tickangle: chartW(el) < 520 ? -65 : -40,
           gridcolor: th().grid,
           tickfont: axisTickFont(),
           automargin: true,
-        },
-        yaxis: { title: "Biriken iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
-      },
+        }
+      ),
       {
         legendCount: MODS.length,
         htmlLegend: "mods",
@@ -1037,7 +1137,7 @@
           x: names,
           y: active,
           marker: { color: "#0ea5e9" },
-          hovertemplate: "%{x}<br>Aktif: %{y} gün<extra></extra>",
+          hovertemplate: "<b>%{fullData.name}</b>: %{y} gün<extra></extra>",
         },
         {
           type: "bar",
@@ -1045,15 +1145,15 @@
           x: names,
           y: inactive,
           marker: { color: "#cbd5e1" },
-          hovertemplate: "%{x}<br>Boş: %{y} gün<extra></extra>",
+          hovertemplate: "<b>%{fullData.name}</b>: %{y} gün<extra></extra>",
         },
       ],
-      {
+      modCategoryHover({
         title: { text: titleText, x: 0, font: { size: compactW < 520 ? 10 : 11 } },
         barmode: "stack",
         xaxis: { tickangle: compactW < 520 ? -35 : -20, tickfont: axisTickFont(), automargin: true },
         yaxis: { title: "Gün sayısı", gridcolor: th().grid, automargin: true },
-      },
+      }),
       {
         legendCount: 2,
         htmlLegend: "binary",
