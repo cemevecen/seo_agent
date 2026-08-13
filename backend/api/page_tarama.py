@@ -154,10 +154,24 @@ def bridge_ping(
     authorization: str | None = Header(default=None),
     x_notification_ingest_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    """Mac keepalive — uzun scrape sırasında claim loop bloklansa bile bridge canlı kalsın."""
+    """Mac keepalive — bridge canlı; zombie job'ları progress_at ile sonsuza uzatma."""
     _check_ingest_token(authorization, x_notification_ingest_token)
-    store.touch_bridge(refresh_inflight=True)
+    store.touch_bridge(refresh_inflight=False)
     return {"ok": True}
+
+
+@router.post("/page-tarama/fail-inflight")
+def fail_inflight(
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Mac bridge restart — yarım kalan claimed/running işleri kapat."""
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    store.touch_bridge()
+    n = store.fail_inflight_jobs(
+        reason="Mac bridge restarted — Update page'i tekrar dene",
+    )
+    return {"ok": True, "failed": n}
 
 
 @router.post("/page-tarama/result")

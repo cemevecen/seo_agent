@@ -3903,6 +3903,23 @@ def _page_tarama_claim_loop() -> None:
             time.sleep(5)
 
 
+def _fail_page_tarama_orphans_on_boot() -> None:
+    """Restart sonrası Railway'de kalan claimed/running işleri kapat — UI %94 zombie olmasın."""
+    url = _page_tarama_api_base() + "/api/page-tarama/fail-inflight"
+    try:
+        if not _ingest_token():
+            return
+        resp = requests.post(url, headers=_page_tarama_auth_headers(), timeout=30)
+        if resp.status_code < 400:
+            body = resp.json() if resp.content else {}
+            n = int((body or {}).get("failed") or 0)
+            print(f"page-tarama orphan temizliği: {n} iş kapatıldı", flush=True)
+        else:
+            print(f"page-tarama orphan temizliği HTTP {resp.status_code}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"page-tarama orphan temizliği atlandı: {exc}", flush=True)
+
+
 def run_daemon() -> int:
     _load_dotenv()
     try:
@@ -3912,6 +3929,7 @@ def run_daemon() -> int:
         print("Tarama tarayıcısı: Firefox (Chrome/Chromium açılmaz)", flush=True)
     except Exception as exc:  # noqa: BLE001
         print(f"Oturum bekçi başlatılamadı: {exc}", flush=True)
+    _fail_page_tarama_orphans_on_boot()
     threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()
     threading.Thread(target=_page_tarama_claim_loop, name="page-tarama-claim", daemon=True).start()
     threading.Thread(target=_page_tarama_keepalive_loop, name="page-tarama-keepalive", daemon=True).start()

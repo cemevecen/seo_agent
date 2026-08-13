@@ -317,8 +317,11 @@ def _prune_locked(now: float) -> None:
 
 
 def touch_bridge(*, refresh_inflight: bool = False) -> None:
-    """Mac keepalive. refresh_inflight=True → claimed/running progress_at yenilenir
-    (Railway yavaşken result POST timeout olsa bile kuyruk 'lost progress' ile kesilmesin)."""
+    """Mac keepalive. refresh_inflight yalnızca gerçek progress POST ile kullanılmalı.
+
+    bridge-ping ile progress_at yenilenmez — aksi halde Mac restart sonrası
+    zombie claimed/running işler sonsuza kadar %94'te kalır (lost-progress reaper çalışmaz).
+    """
     global _bridge_seen_at
     now = time.time()
     with _state():
@@ -331,6 +334,25 @@ def touch_bridge(*, refresh_inflight: bool = False) -> None:
                     continue
                 if job.get("status") in ("claimed", "running"):
                     job["progress_at"] = now
+
+
+def fail_inflight_jobs(*, reason: str = "Scan interrupted — try Update page again") -> int:
+    """Claimed/running köprü işlerini fail et (Mac bridge restart / orphan temizliği)."""
+    now = time.time()
+    n = 0
+    msg = (reason or "Scan interrupted")[:180]
+    with _state():
+        for run in _runs.values():
+            for job in run["jobs"]:
+                if job.get("kind") != "bridge":
+                    continue
+                if job.get("status") not in ("claimed", "running"):
+                    continue
+                job["status"] = "fail"
+                job["detail"] = msg
+                job["finished_at"] = now
+                n += 1
+    return n
 
 
 def bridge_age_sec(now: float | None = None) -> float | None:
