@@ -124,6 +124,37 @@
 
   var HORIZON_METRICS_MAX = 6;
 
+  function metricListFor(details) {
+    if (!details) return null;
+    var id = details.id;
+    if (id) {
+      var portaled = document.body.querySelector(
+        '.pa-viz20-metric-list[data-viz20-details-id="' + id.replace(/"/g, '\\"') + '"]'
+      );
+      if (portaled) return portaled;
+    }
+    return details.querySelector(".pa-viz20-metric-list");
+  }
+
+  function metricListScrollFor(details) {
+    var list = metricListFor(details);
+    return list ? list.querySelector(".pa-viz20-metric-list-scroll") : null;
+  }
+
+  function metricDdFor(details) {
+    return details ? details.querySelector(".pa-viz20-metric-dd") : null;
+  }
+
+  function clearMetricListPosition(list) {
+    if (!list) return;
+    list.style.position = "";
+    list.style.left = "";
+    list.style.top = "";
+    list.style.width = "";
+    list.style.maxHeight = "";
+    list.style.zIndex = "";
+  }
+
   function parseMetricsCsv(s) {
     return String(s || "")
       .split(",")
@@ -173,7 +204,7 @@
 
   function positionViz20MetricDropdown(details) {
     var trigger = details.querySelector(".pa-viz20-metric-trigger");
-    var list = details.querySelector(".pa-viz20-metric-list");
+    var list = metricListFor(details);
     if (!trigger || !list || list.classList.contains("hidden")) return;
     var r = trigger.getBoundingClientRect();
     var maxW = Math.min(380, window.innerWidth - 16);
@@ -195,19 +226,20 @@
   }
 
   function mountViz20MetricListPortal(details, on) {
-    var dd = details.querySelector(".pa-viz20-metric-dd");
-    var list = details.querySelector(".pa-viz20-metric-list");
+    var dd = metricDdFor(details);
+    var list = metricListFor(details);
     if (!dd || !list) return;
     if (on) {
       if (list.parentElement !== document.body) document.body.appendChild(list);
     } else if (list.parentElement !== dd) {
       dd.appendChild(list);
+      clearMetricListPosition(list);
     }
   }
 
   function setViz20MetricDropdownOpen(details, meta, on) {
     var trigger = details.querySelector(".pa-viz20-metric-trigger");
-    var list = details.querySelector(".pa-viz20-metric-list");
+    var list = metricListFor(details);
     if (!trigger || !list) return;
     if (on) {
       fillViz20MetricsList(details, meta);
@@ -223,7 +255,7 @@
   }
 
   function fillViz20MetricsList(details, meta) {
-    var listScroll = details.querySelector(".pa-viz20-metric-list-scroll");
+    var listScroll = metricListScrollFor(details);
     var hidden = details.querySelector('[data-ctrl="metrics"]');
     if (!listScroll || !hidden) return;
     var scrollY = listScroll.scrollTop;
@@ -331,13 +363,13 @@
     if (!t || !t.closest) return false;
     var wrap = details.querySelector(".pa-viz20-metrics-wrap");
     if (wrap && wrap.contains(t)) return true;
-    var list = details.querySelector(".pa-viz20-metric-list");
+    var list = metricListFor(details);
     if (list && list.contains(t)) return true;
     return false;
   }
 
   function toggleViz20MetricDropdown(details, meta) {
-    var list = details.querySelector(".pa-viz20-metric-list");
+    var list = metricListFor(details);
     if (!list) return;
     var open = list.classList.contains("hidden");
     root.querySelectorAll("details.pa-viz20-drop").forEach(function (d) {
@@ -364,7 +396,7 @@
       "</span>" +
       '<svg class="h-3 w-3 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>' +
       "</button>" +
-      '<div class="pa-viz20-metric-list hidden overflow-hidden rounded-xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950" role="listbox" aria-multiselectable="true">' +
+      '<div class="pa-viz20-metric-list hidden overflow-hidden rounded-xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950" role="listbox" aria-multiselectable="true" data-viz20-portal="1">' +
       '<div class="pa-viz20-metric-list-scroll py-1"></div>' +
       "</div>" +
       '<input type="hidden" class="pa-viz20-ctrl" data-ctrl="metrics" value="' +
@@ -1039,24 +1071,31 @@
 
   function bindViz20MetricsDropdown(details, meta) {
     var trigger = details.querySelector(".pa-viz20-metric-trigger");
-    var list = details.querySelector(".pa-viz20-metric-list");
+    var list = metricListFor(details);
     var wrap = details.querySelector(".pa-viz20-metrics-wrap");
     if (!trigger || !list) return;
+    if (details.id) list.setAttribute("data-viz20-details-id", details.id);
     fillViz20MetricsList(details, meta);
     if (trigger.getAttribute("data-viz20-metric-bound") === "1") return;
     trigger.setAttribute("data-viz20-metric-bound", "1");
-    trigger.addEventListener("click", function (ev) {
+
+    function openToggle(ev) {
       ev.preventDefault();
       ev.stopPropagation();
       toggleViz20MetricDropdown(details, meta);
+    }
+
+    trigger.addEventListener("click", openToggle);
+    trigger.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        openToggle(ev);
+      }
     });
     if (wrap) {
       wrap.addEventListener("click", function (ev) {
         if (ev.target.closest(".pa-viz20-metric-trigger")) return;
         if (ev.target.closest(".pa-viz20-metric-list")) return;
-        ev.preventDefault();
-        ev.stopPropagation();
-        toggleViz20MetricDropdown(details, meta);
+        openToggle(ev);
       });
     }
     list.addEventListener("click", function (ev) {
@@ -1076,19 +1115,6 @@
     list.addEventListener("mousedown", function (ev) {
       ev.stopPropagation();
     });
-    if (!details.getAttribute("data-viz20-metrics-bound")) {
-      details.setAttribute("data-viz20-metrics-bound", "1");
-      window.addEventListener(
-        "scroll",
-        function () {
-          if (!list.classList.contains("hidden")) positionViz20MetricDropdown(details);
-        },
-        true
-      );
-      window.addEventListener("resize", function () {
-        if (!list.classList.contains("hidden")) positionViz20MetricDropdown(details);
-      });
-    }
   }
 
   function bindDetails(details, meta) {
@@ -1193,12 +1219,32 @@
     });
     if (!document.body.getAttribute("data-viz20-metrics-outside")) {
       document.body.setAttribute("data-viz20-metrics-outside", "1");
-      document.addEventListener("mousedown", function (ev) {
+      document.addEventListener(
+        "mousedown",
+        function (ev) {
+          root.querySelectorAll("details.pa-viz20-drop").forEach(function (details) {
+            var list = metricListFor(details);
+            if (!list || list.classList.contains("hidden")) return;
+            if (viz20MetricEventInside(details, ev.target)) return;
+            setViz20MetricDropdownOpen(details, metaCache, false);
+          });
+        },
+        true
+      );
+      window.addEventListener(
+        "scroll",
+        function () {
+          root.querySelectorAll("details.pa-viz20-drop").forEach(function (details) {
+            var list = metricListFor(details);
+            if (list && !list.classList.contains("hidden")) positionViz20MetricDropdown(details);
+          });
+        },
+        true
+      );
+      window.addEventListener("resize", function () {
         root.querySelectorAll("details.pa-viz20-drop").forEach(function (details) {
-          var list = details.querySelector(".pa-viz20-metric-list");
-          if (!list || list.classList.contains("hidden")) return;
-          if (viz20MetricEventInside(details, ev.target)) return;
-          setViz20MetricDropdownOpen(details, metaCache, false);
+          var list = metricListFor(details);
+          if (list && !list.classList.contains("hidden")) positionViz20MetricDropdown(details);
         });
       });
     }
