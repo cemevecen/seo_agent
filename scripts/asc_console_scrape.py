@@ -208,16 +208,76 @@ def _probe_analytics_session(page) -> dict[str, Any]:
         return {"ok": False, "status": 0, "ctype": "", "preview": str(exc)[:120]}
 
 
-def _wait_for_asc_session(page, ctx, *, timeout_sec: int = 600) -> bool:
-    """Kullanıcı Playwright Chrome penceresinde giriş yapana kadar bekle."""
+def _url_looks_like_login(page_url: str) -> bool:
+    u = (page_url or "").lower()
+    return (
+        "appstoreconnect.apple.com/login" in u
+        or "idmsa.apple.com" in u
+        or "appleid.apple.com" in u
+        or "authresult=failed" in u
+        or "/sign-in" in u
+        or "signin" in u and "apple" in u
+    )
+
+
+def _page_url_safe(page) -> str:
+    try:
+        return page.url or ""
+    except Exception:
+        return ""
+
+
+def _focus_apple_login_once(page) -> None:
+    """Tek sefer odak — bekleme döngüsünde DOM okuma yok (odak çalınmasın)."""
+    try:
+        page.bring_to_front()
+    except Exception:
+        pass
+    # authResult=FAILED kalıntısı: temiz login URL
+    cur = _page_url_safe(page).lower()
+    if "authresult=failed" in cur:
+        try:
+            page.goto(
+                f"https://appstoreconnect.apple.com/login?"
+                f"targetUrl=%2Fapps%2F{APP_ID}%2Fanalytics%2Fmetrics",
+                wait_until="domcontentloaded",
+                timeout=90_000,
+            )
+            time.sleep(1.5)
+        except Exception:
+            pass
+    selectors = (
+        'input[type="email"]',
+        'input[name="accountName"]',
+        'input[id="account_name_text_field"]',
+        'input[placeholder*="E-posta"]',
+        'input[placeholder*="Email"]',
+        'input[type="text"]',
+    )
+    for sel in selectors:
+        try:
+            page.locator(sel).first.click(timeout=2500, force=True)
+            time.sleep(0.3)
+            return
+        except Exception:
+            continue
+
+
+def _wait_for_asc_session(page, ctx, *, timeout_sec: int = 900) -> bool:
+    """Kullanıcı giriş yapana kadar bekle — sayfa DOM’una dokunma (odak bozulmasın)."""
+    timeout_sec = max(120, int(timeout_sec))
     print(
-        "ASC oturumu yok / düşmüş — bu pencerede Apple ID ile giriş yapın "
-        "(normal Chrome’daki oturum buraya taşınmaz).",
+        "ASC oturumu yok / düşmüş — açılan Firefox penceresinde Apple ID ile giriş yapın.\n"
+        "ÖNEMLİ: Önce pencereye bir kez tıklayın, sonra e-posta alanına yazın.\n"
+        "Tarama arka planda bekler; giriş sırasında sayfayı yenilemez / odak çalmaz.\n"
+        f"(en fazla {timeout_sec}s)",
         flush=True,
     )
-    deadline = time.time() + max(60, timeout_sec)
+    _focus_apple_login_once(page)
+    deadline = time.time() + timeout_sec
+    last_status = 0.0
     while time.time() < deadline:
-        # API probe önce — sayfa hâlâ login animasyonundayken cookie hazır olabilir
+        # Yalnızca network API — page.inner_text / locator yok
         probe = _probe_analytics_session(page)
         if probe.get("ok"):
             try:
@@ -237,7 +297,17 @@ def _wait_for_asc_session(page, ctx, *, timeout_sec: int = 600) -> bool:
             )
             time.sleep(5)  # cookie’lerin diske yazılması
             return True
-        if not _page_needs_login(page):
+        url = _page_url_safe(page)
+        now = time.time()
+        if now - last_status >= 15:
+            print(
+                f"  · ASC login bekleniyor · kalan≈{max(0, int(deadline - now))}s · "
+                f"url={url[:120]}",
+                flush=True,
+            )
+            last_status = now
+        # URL login’den çıktıysa bir kez daha API dene (DOM okuma yok)
+        if url and not _url_looks_like_login(url):
             probe2 = _probe_analytics_session(page)
             if probe2.get("ok"):
                 info = _cookie_debug(ctx)
@@ -248,8 +318,8 @@ def _wait_for_asc_session(page, ctx, *, timeout_sec: int = 600) -> bool:
                 )
                 time.sleep(5)
                 return True
-        time.sleep(2)
-    print("Login zaman aşımı — tekrar --login deneyin.", flush=True)
+        time.sleep(3)
+    print("Login zaman aşımı — tekrar Update page veya --login deneyin.", flush=True)
     return False
 
 
@@ -280,8 +350,9 @@ def _release_context(pw, ctx) -> None:
 
 def run_login_interactive() -> None:
     print(
-        "ASC login — açılan Chrome penceresinde giriş yapın "
-        f"(profil: {PROFILE_DIR}).",
+        "ASC login — açılan Firefox penceresinde giriş yapın "
+        f"(profil: {PROFILE_DIR}).\n"
+        "Önce pencereye tıklayın, sonra e-posta alanına yazın.",
         flush=True,
     )
     pw, ctx = _launch_context(headed=True)
@@ -292,7 +363,7 @@ def run_login_interactive() -> None:
             wait_until="domcontentloaded",
             timeout=120_000,
         )
-        ok = _wait_for_asc_session(page, ctx, timeout_sec=600)
+        ok = _wait_for_asc_session(page, ctx, timeout_sec=900)
         if not ok:
             return
     finally:
@@ -1018,7 +1089,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
         session_ok = bool(probe.get("ok"))
         if not session_ok and _page_needs_login(page):
             if headed:
-                if not _wait_for_asc_session(page, ctx, timeout_sec=600):
+                if not _wait_for_asc_session(page, ctx, timeout_sec=900):
                     return {
                         "ok": False,
                         "needs_login": True,
