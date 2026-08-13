@@ -1,4 +1,8 @@
-/* Android / iOS ana grafik — genişlik sabit; yükseklik iki bağımsız 3 kademe */
+/* Android / iOS ana grafik — genişlik sabit; yükseklik JS ile px hesaplanır */
+:root {
+  --pa-chart-pad-y: 30px;
+}
+
 #pa-chart-card,
 #ia-chart-card {
   display: flex;
@@ -16,10 +20,12 @@
   flex: 0 0 auto;
   width: 100%;
   min-height: 0;
-  height: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  box-sizing: border-box;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: visible;
   transition: height 0.22s ease, min-height 0.22s ease;
 }
 
@@ -59,11 +65,10 @@
   flex: 0 0 auto;
   width: 100%;
   max-width: none;
-  height: auto !important;
-  min-height: 0 !important;
-  max-height: none !important;
-  aspect-ratio: 720 / var(--pa-chart-effective-h, 200);
-  transition: aspect-ratio 0.22s ease, height 0.22s ease;
+  margin-top: var(--pa-chart-pad-y);
+  margin-bottom: var(--pa-chart-pad-y);
+  aspect-ratio: unset !important;
+  transition: height 0.22s ease, margin 0.22s ease;
 }
 
 .pa-chart-height,

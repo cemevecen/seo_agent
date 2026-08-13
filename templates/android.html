@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'partials/pa_chart_style_buttons.html' import chart_style_buttons %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=3">
+<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=4">
 <link rel="stylesheet" href="/static/css/pa_chart_style.css?v=1">
 <style>
   .pa-orbit {
@@ -1449,7 +1449,7 @@
             <p id="pa-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
           </div>
         </div>
-        <div id="pa-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2" data-chart-height="2" data-chart-compress="1">
+        <div id="pa-chart-wrap" class="relative overflow-visible" data-chart-height="2" data-chart-compress="1">
           <svg id="pa-chart" viewBox="0 0 720 260" class="block w-full max-w-none touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Metrics chart"></svg>
           <div id="pa-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
             <p id="pa-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
@@ -1688,7 +1688,7 @@
 </div>
 
 <script src="/static/js/resizable_data_list.js?v=6"></script>
-<script src="/static/js/pa_chart_height.js?v=3"></script>
+<script src="/static/js/pa_chart_height.js?v=4"></script>
 <script src="/static/js/metric_table_ux.js?v=9"></script>
 <script>
 (function () {
@@ -3440,6 +3440,7 @@
         showPaTooltip(idxFromEvent(tch), tch.clientX, tch.clientY);
       };
     }
+    if (typeof window.paSyncChartLayout === "function") window.paSyncChartLayout();
   }
   function renderOverviewTable(bundles) {
     restoreDefaultPaThead();
@@ -5421,6 +5422,7 @@
       };
     }
     setAddChartVisible(true);
+    if (typeof window.paSyncChartLayout === "function") window.paSyncChartLayout();
   }
   function renderPaTable(series, prevSeries, breakdown, compareMeta) {
     restoreDefaultPaThead();
