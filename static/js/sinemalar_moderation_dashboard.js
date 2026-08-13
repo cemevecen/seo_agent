@@ -930,6 +930,8 @@
         name: "",
         showlegend: false,
         visible: modTraceVisibleForChart("mod-chart-weekday", m),
+        x: labels,
+        y: w,
         marker: { color: modColor(i) },
         hovertemplate: m.username + "<br>%{x}: %{y:,} iş<extra></extra>",
       };
