@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=1">
 <style>
   .pa-filters {
     display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.65rem 0.75rem; width: 100%;
@@ -1241,9 +1242,21 @@
       </div>
       <div id="ia-metric-kpis" class="hidden grid grid-cols-1 gap-3" aria-label="Selected metric KPI cards"></div>
       <div id="ia-chart-card" class="pa-chart-card mt-4 overflow-visible rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800">
-        <div id="ia-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
+        <div id="ia-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2" data-chart-height="2">
           <div class="pa-chart-card__toolbar mb-1 flex flex-wrap items-start justify-between gap-2 px-2">
             <div id="ia-legend" class="flex min-w-0 flex-1 flex-wrap gap-2 text-[11px] text-slate-600 dark:text-zinc-300"></div>
+            <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <div id="ia-chart-height" class="pa-chart-height" role="group" aria-label="Chart height">
+              <button type="button" data-chart-height="1" title="Yüksek grafik" aria-label="Yüksek grafik yüksekliği">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="2" width="10" height="12" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 11 L7 7.5 L9.5 9 L12 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button type="button" data-chart-height="2" title="Orta grafik" aria-label="Orta grafik yüksekliği" class="is-active">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="4.5" width="10" height="9.5" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 11.5 L7 8.5 L9.5 10 L12 6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button type="button" data-chart-height="3" title="Alçak grafik" aria-label="Alçak grafik yüksekliği">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 12 L7 9.5 L9.5 10.5 L12 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
             <div id="ia-chart-style" class="pa-chart-style shrink-0" role="group" aria-label="Chart style">
               <button type="button" data-ia-chart-style="line" title="Line" aria-label="Line chart" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11.5 L5.5 7.5 L8.5 9.5 L14 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1254,6 +1267,7 @@
               <button type="button" data-ia-chart-style="bar" title="Stacked" aria-label="Stacked bar chart" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="9" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="3" y="5.5" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="3" y="3" width="3.2" height="2.5" rx="0.4" fill="currentColor"/><rect x="9.5" y="10" width="3.2" height="2.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="9.5" y="7" width="3.2" height="3" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="9.5" y="4" width="3.2" height="3" rx="0.4" fill="currentColor"/></svg>
               </button>
+            </div>
             </div>
           </div>
           <svg id="ia-chart" viewBox="0 0 720 260" class="block w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="iOS metrics chart"></svg>
@@ -1281,6 +1295,7 @@
   </section>
 </div>
 <script src="/static/js/resizable_data_list.js?v=6"></script>
+<script src="/static/js/pa_chart_height.js?v=1"></script>
 <script src="/static/js/metric_table_ux.js?v=9"></script>
 <script>
 (function () {

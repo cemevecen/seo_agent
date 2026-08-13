@@ -1,0 +1,94 @@
+/* Android / iOS ana grafik — genişlik sabit, yükseklik 3 kademe */
+#pa-chart-wrap,
+#ia-chart-wrap {
+  --pa-chart-h: 200;
+}
+
+#pa-chart-wrap[data-chart-height="1"],
+#ia-chart-wrap[data-chart-height="1"] {
+  --pa-chart-h: 260;
+}
+
+#pa-chart-wrap[data-chart-height="2"],
+#ia-chart-wrap[data-chart-height="2"] {
+  --pa-chart-h: 200;
+}
+
+#pa-chart-wrap[data-chart-height="3"],
+#ia-chart-wrap[data-chart-height="3"] {
+  --pa-chart-h: 150;
+}
+
+#pa-chart,
+#ia-chart {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  aspect-ratio: 720 / var(--pa-chart-h);
+  transition: aspect-ratio 0.22s ease;
+}
+
+.pa-chart-height {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(255 255 255 / 0.9);
+}
+
+html.dark .pa-chart-height,
+html.midnight .pa-chart-height {
+  border-color: rgb(63 63 70);
+  background: rgb(24 24 27 / 0.9);
+}
+
+.pa-chart-height button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 0.375rem;
+  border: 0;
+  background: transparent;
+  color: rgb(100 116 139);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.pa-chart-height button:hover {
+  background: rgb(241 245 249);
+  color: rgb(15 23 42);
+}
+
+.pa-chart-height button.is-active {
+  background: rgb(15 23 42);
+  color: #fff;
+}
+
+html.dark .pa-chart-height button,
+html.midnight .pa-chart-height button {
+  color: rgb(161 161 170);
+}
+
+html.dark .pa-chart-height button:hover,
+html.midnight .pa-chart-height button:hover {
+  background: rgb(39 39 42);
+  color: rgb(244 244 245);
+}
+
+html.dark .pa-chart-height button.is-active,
+html.midnight .pa-chart-height button.is-active {
+  background: rgb(244 244 245);
+  color: rgb(24 24 27);
+}
+
+.pa-chart-height button svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  display: block;
+}
