@@ -182,6 +182,27 @@
     return PALETTE[i % PALETTE.length];
   }
 
+  function modColorRgba(i, alpha) {
+    var hex = modColor(i).replace("#", "");
+    if (hex.length !== 6) return modColor(i);
+    var r = parseInt(hex.slice(0, 2), 16);
+    var g = parseInt(hex.slice(2, 4), 16);
+    var b = parseInt(hex.slice(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
+
+  function focusRadialMax(shares) {
+    var maxR = 0;
+    MODS.forEach(function (m) {
+      var s = shares[String(m.user_id)] || {};
+      METRICS.forEach(function (mt) {
+        maxR = Math.max(maxR, Number(s[mt.key] || 0));
+      });
+    });
+    if (maxR <= 0) return 100;
+    return Math.min(100, Math.max(28, Math.ceil((maxR * 1.12) / 5) * 5));
+  }
+
   function modIndex(uid) {
     for (var i = 0; i < MODS.length; i++) {
       if (String(MODS[i].user_id) === String(uid)) return i;
@@ -438,6 +459,7 @@
     var el = purgePlot("mod-chart-focus-profile");
     if (!el || !window.Plotly) return;
     var shares = ANALYTICS.shares_by_metric || {};
+    var radialMax = focusRadialMax(shares);
     var traces = MODS.map(function (m, i) {
       var s = shares[String(m.user_id)] || {};
       return {
@@ -450,9 +472,8 @@
           return mt.label;
         }),
         fill: "toself",
-        fillcolor: modColor(i),
-        opacity: 0.15,
-        line: { color: modColor(i) },
+        fillcolor: modColorRgba(i, 0.48),
+        line: { color: modColor(i), width: 2.5 },
         hovertemplate: m.username + "<br>%{theta}: %{r:.1f}%<extra></extra>",
       };
     });
@@ -462,12 +483,19 @@
       {
         title: { text: "Odak profili · iş türü payı (%)", x: 0, font: { size: 12 } },
         polar: {
-          radialaxis: { ticksuffix: "%", gridcolor: th().grid, tickfont: { size: 9 } },
-          angularaxis: { tickfont: { size: chartW(el) < 480 ? 8 : 9 } },
+          radialaxis: {
+            ticksuffix: "%",
+            gridcolor: th().grid,
+            tickfont: { size: 9 },
+            range: [0, radialMax],
+            angle: 90,
+          },
+          angularaxis: { tickfont: { size: chartW(el) < 480 ? 8 : 9 }, rotation: 90 },
+          bgcolor: "rgba(0,0,0,0)",
         },
-        margin: { l: 44, r: 44, t: 56, b: 24 },
+        margin: { l: 48, r: 48, t: 56, b: 24 },
       },
-      { legendCount: MODS.length, heightOpts: { minPlot: 280, maxTotal: 440, fallback: 380 }, minHeight: 320 }
+      { legendCount: MODS.length, heightOpts: { minPlot: 300, maxTotal: 460, fallback: 400 }, minHeight: 340 }
     );
   }
 
