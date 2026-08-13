@@ -463,6 +463,21 @@ def play_console_payload(db: Session) -> dict[str, Any]:
         panels = enrich_panels_vitals_from_firebase(panels, android_fb)
     except Exception:
         logger.debug("vitals firebase enrich skipped", exc_info=True)
+
+    data_date_max = None
+    try:
+        facts = panels.get("explorer_facts") if isinstance(panels, dict) else None
+        if isinstance(facts, list):
+            dates = [
+                str(f.get("date") or "")[:10]
+                for f in facts
+                if isinstance(f, dict) and str(f.get("date") or "")[:10]
+            ]
+            if dates:
+                data_date_max = max(dates)
+    except Exception:
+        data_date_max = None
+
     return {
         "ok": bool(row.sync_ok),
         "empty": not metrics and not reviews,
@@ -481,6 +496,7 @@ def play_console_payload(db: Session) -> dict[str, Any]:
         "background_synced_at": (
             row.background_synced_at.isoformat() + "Z" if row.background_synced_at else None
         ),
+        "data_date_max": data_date_max,
         "metric_count": len(metrics),
         "tpg_count": len(panels.get("tpg") or []),
         "breakdown_count": len(panels.get("breakdowns") or []),

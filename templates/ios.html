@@ -3427,12 +3427,48 @@
       var r = await fetch("/api/asc-metrics/status", { credentials: "same-origin", cache: "no-store" });
       var d = await r.json().catch(function () { return {}; });
       if (!iaStatus) return;
-      var parts = [];
-      if (d.scrape_ok) {
-        parts.push("Sync OK · " + (d.scrape_fact_count || 0) + " fact");
-        if (d.scrape_synced_at) parts.push(String(d.scrape_synced_at).slice(0, 19));
-      } else {
-        parts.push("No scan yet");
+      function formatPlatformDataUpdateAgo(iso, platformLabel) {
+        if (!iso) return "";
+        var dt = new Date(iso);
+        if (isNaN(dt.getTime())) return "";
+        var ms = Math.max(0, Date.now() - dt.getTime());
+        var mins = Math.floor(ms / 60000);
+        var hours = Math.floor(ms / 3600000);
+        var days = Math.floor(ms / 86400000);
+        var ago;
+        if (mins < 60) ago = mins <= 1 ? "1 minute ago" : (mins + " minutes ago");
+        else if (hours < 48) ago = hours === 1 ? "1 hour ago" : (hours + " hours ago");
+        else ago = days === 1 ? "1 day ago" : (days + " days ago");
+        return "Last " + platformLabel + " data update: " + ago;
+      }
+      function latestDayDataMissing(dateMaxYmd) {
+        if (!dateMaxYmd) return true;
+        var parts = String(dateMaxYmd).slice(0, 10).split("-");
+        if (parts.length !== 3) return true;
+        var y = +parts[0], m = +parts[1], day = +parts[2];
+        if (!y || !m || !day) return true;
+        var dmax = new Date(y, m - 1, day);
+        if (isNaN(dmax.getTime())) return true;
+        var today = new Date();
+        today.setHours(0, 0, 0, 0);
+        var yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        return dmax < yesterday;
+      }
+      if (!d.scrape_ok) {
+        iaStatus.textContent = "No scan yet";
+        return;
+      }
+      var iso = d.scrape_synced_at || "";
+      var missingLatest = latestDayDataMissing(d.data_date_max);
+      if (missingLatest) {
+        iaStatus.textContent = formatPlatformDataUpdateAgo(iso, "iOS") || "Last iOS data update: —";
+        return;
+      }
+      var parts = ["Sync OK · " + (d.scrape_fact_count || 0) + " fact"];
+      if (iso) {
+        var stamp = String(iso).slice(0, 19).replace("T", " ");
+        parts.push("Last fetch: " + stamp);
       }
       iaStatus.textContent = parts.join(" · ");
     } catch (_) {}

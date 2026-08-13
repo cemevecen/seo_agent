@@ -632,6 +632,17 @@ def asc_metrics_status() -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         pass
     scrape_ok = bool(scrape_facts)
+    data_date_max = None
+    try:
+        dates = [
+            str(f.get("date") or "")[:10]
+            for f in scrape_facts
+            if isinstance(f, dict) and str(f.get("date") or "")[:10]
+        ]
+        if dates:
+            data_date_max = max(dates)
+    except Exception:
+        data_date_max = None
     return {
         "ok": scrape_ok,
         "configured": scrape_ok,
@@ -640,6 +651,7 @@ def asc_metrics_status() -> dict[str, Any]:
         "scrape_fact_count": len(scrape_facts),
         "scrape_synced_at": scrape_meta.get("synced_at"),
         "scrape_message": scrape_meta.get("message"),
+        "data_date_max": data_date_max,
         "ratings": scrape_meta.get("ratings"),
         "measure_keys": scrape_meta.get("measure_keys"),
         "bundle_id": DEFAULT_BUNDLE,

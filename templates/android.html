@@ -7724,6 +7724,46 @@
       " " + pad(d.getHours()) + ":" + pad(d.getMinutes())
     );
   }
+  /** Son gün verisi yoksa: "Last Android data update: 5 hours ago" */
+  function formatPlatformDataUpdateAgo(iso, platformLabel) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    var ms = Math.max(0, Date.now() - d.getTime());
+    var mins = Math.floor(ms / 60000);
+    var hours = Math.floor(ms / 3600000);
+    var days = Math.floor(ms / 86400000);
+    var ago;
+    if (mins < 60) ago = mins <= 1 ? "1 minute ago" : (mins + " minutes ago");
+    else if (hours < 48) ago = hours === 1 ? "1 hour ago" : (hours + " hours ago");
+    else ago = days === 1 ? "1 day ago" : (days + " days ago");
+    return "Last " + platformLabel + " data update: " + ago;
+  }
+  function latestDayDataMissing(dateMaxYmd) {
+    if (!dateMaxYmd) return true;
+    var parts = String(dateMaxYmd).slice(0, 10).split("-");
+    if (parts.length !== 3) return true;
+    var y = +parts[0], m = +parts[1], day = +parts[2];
+    if (!y || !m || !day) return true;
+    var dmax = new Date(y, m - 1, day);
+    if (isNaN(dmax.getTime())) return true;
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return dmax < yesterday;
+  }
+  function formatAndroidFetchMeta(data) {
+    data = data || {};
+    var iso = data.updated_at || data.background_synced_at || "";
+    if (data.empty && !iso) return "No data — run Update page";
+    var missingLatest = data.sync_ok === false || latestDayDataMissing(data.data_date_max);
+    if (missingLatest) {
+      return formatPlatformDataUpdateAgo(iso, "Android") || "Last Android data update: —";
+    }
+    var stamp = fmtStoreSyncTime(iso);
+    return stamp ? ("Last fetch: " + stamp) : "";
+  }
   function resolveVitalsSyncIso(data) {
     data = data || {};
     var vitals = (data.panels && data.panels.vitals) || {};
@@ -7989,10 +8029,7 @@
         metaEl,
         data.empty
           ? "No data — run Update page"
-          : (function () {
-              var stamp = fmtStoreSyncTime(data.updated_at || data.background_synced_at || "");
-              return stamp ? ("Last fetch: " + stamp) : "";
-            })()
+          : formatAndroidFetchMeta(data)
       );
       applyVitalsSnapshot(data, { force: true });
       renderDashboardMonitorImprove(data.panels || {});
