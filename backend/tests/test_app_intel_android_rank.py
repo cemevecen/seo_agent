@@ -6,6 +6,8 @@ from backend.services.app_intel import (
     _android_histogram_overall,
     _extract_android_packages,
     _android_pkg_index,
+    _resolve_android_category_slug,
+    APP_PRODUCTS,
 )
 
 
@@ -58,3 +60,16 @@ def test_android_histogram_overall_dict_and_list():
         "5": 1800,
     }
     assert _android_histogram_overall({"histogram": {}}) is None
+
+
+def test_resolve_android_category_slug_sinemalar_entertainment():
+    assert _resolve_android_category_slug(None, product_id="sinemalar") == "ENTERTAINMENT"
+    assert _resolve_android_category_slug(None, genre_name_hint="Eğlence") == "ENTERTAINMENT"
+    assert _resolve_android_category_slug("ENTERTAINMENT", genre_name_hint="Finans") == "ENTERTAINMENT"
+
+
+def test_resolve_android_category_slug_doviz_finance_default():
+    assert _resolve_android_category_slug(None, product_id="doviz") == "FINANCE"
+    assert _resolve_android_category_slug(None) == "FINANCE"
+    assert _resolve_android_category_slug(None, genre_name_hint="Finans") == "FINANCE"
+    assert APP_PRODUCTS["doviz"].get("android_category_id") is None

@@ -11807,7 +11807,7 @@ def _home_ensure_android_star_hist(raw: dict, product_id: str) -> dict:
         new_meta["ratings"] = patch["ratings"]
     if patch.get("histogram") and not _home_coerce_star_hist(new_meta, key="android"):
         new_meta["histogram"] = patch["histogram"]
-    for k in ("play_version", "play_last_updated_at", "icon"):
+    for k in ("play_version", "play_last_updated_at", "icon", "genre", "genreId"):
         if patch.get(k) and not new_meta.get(k):
             new_meta[k] = patch[k]
 
@@ -12234,9 +12234,20 @@ def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: boo
 
     if raw and not raw.get("error"):
         try:
-            from backend.services.app_intel import ensure_android_category_rank_on_raw
+            if product_id == "sinemalar":
+                raw = _home_ensure_android_star_hist(raw, product_id)
+                from backend.services.app_intel import _enrich_raw_category_ranks
 
-            raw = ensure_android_category_rank_on_raw(product_id, raw, allow_live_fetch=False)
+                raw = _enrich_raw_category_ranks(
+                    product_id,
+                    raw,
+                    allow_live_fetch=True,
+                    skip_playwright=False,
+                )
+            else:
+                from backend.services.app_intel import ensure_android_category_rank_on_raw
+
+                raw = ensure_android_category_rank_on_raw(product_id, raw, allow_live_fetch=False)
         except Exception:
             LOGGER.debug("Home app-release Android sıra zenginleştirmesi atlandı", exc_info=True)
         try:

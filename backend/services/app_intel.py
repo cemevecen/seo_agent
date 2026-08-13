@@ -311,7 +311,18 @@ APP_PRODUCTS: dict[str, dict[str, str]] = {
         "ios_app_id": "711475888",
         "ios_slug": "sinemalar-com-vizyon-filmleri",
         "ios_url": "https://apps.apple.com/tr/app/sinemalar-com-vizyon-filmleri/id711475888",
+        "android_category_id": "ENTERTAINMENT",
+        "ios_genre_id": "6016",
     },
+}
+
+# Play Store kategori slug — Türkçe/İngilizce mağaza etiketinden (genreId yoksa).
+_PLAY_GENRE_NAME_TO_SLUG: dict[str, str] = {
+    "eğlence": "ENTERTAINMENT",
+    "eglence": "ENTERTAINMENT",
+    "entertainment": "ENTERTAINMENT",
+    "finans": "FINANCE",
+    "finance": "FINANCE",
 }
 
 # (category_id, Türkçe etiket, anahtar kelimeler küçük harf)
@@ -1219,9 +1230,32 @@ def _fetch_ios_category_rank(
 
 def _android_play_category_slug(category_id: str | None) -> str:
     """Play mağaza URL segmenti (örn. FINANCE). Geçersizse FINANCE."""
-    raw = (category_id or "FINANCE").strip().upper()
+    return _resolve_android_category_slug(category_id)
+
+
+def _resolve_android_category_slug(
+    category_id: str | None = None,
+    *,
+    genre_name_hint: str | None = None,
+    product_id: str | None = None,
+) -> str:
+    """Play chart slug — ürün override, genreId, genre adı; yoksa FINANCE (Döviz varsayılanı)."""
+    pid = (product_id or "").strip().lower()
+    spec = APP_PRODUCTS.get(pid) or {}
+    spec_slug = (spec.get("android_category_id") or "").strip().upper()
+    if spec_slug and re.fullmatch(r"[A-Z][A-Z0-9_]*", spec_slug):
+        return spec_slug
+
+    raw = (category_id or "").strip().upper()
     if raw and re.fullmatch(r"[A-Z][A-Z0-9_]*", raw):
         return raw
+
+    gkey = (genre_name_hint or "").strip().casefold()
+    if gkey:
+        slug = _PLAY_GENRE_NAME_TO_SLUG.get(gkey)
+        if slug:
+            return slug
+
     return "FINANCE"
 
 
@@ -1334,6 +1368,7 @@ def _fetch_android_category_rank(
     category_id: str | None = None,
     skip_playwright: bool | None = None,
     genre_name_hint: str | None = None,
+    product_id: str | None = None,
 ) -> dict[str, Any] | None:
     """Play ücretsiz kategori sırası: chart API → Playwright → detay HTML.
 
@@ -1345,7 +1380,11 @@ def _fetch_android_category_rank(
     if not package:
         return None
 
-    slug = _android_play_category_slug(category_id)
+    slug = _resolve_android_category_slug(
+        category_id,
+        genre_name_hint=genre_name_hint,
+        product_id=product_id,
+    )
     api = _fetch_android_rank_chart_api(
         package,
         country=country,
@@ -1934,6 +1973,8 @@ def _fetch_android_play_store_meta(package: str) -> dict[str, Any]:
         "play_version": meta.get("version"),
         "play_last_updated_at": _play_updated_iso(meta.get("updated")),
         "icon": meta.get("icon"),
+        "genre": meta.get("genre"),
+        "genreId": meta.get("genreId"),
     }
 
 
@@ -2159,6 +2200,7 @@ def _recompute_android_category_rank_only(
             category_id=str(meta.get("genreId") or "") or None,
             skip_playwright=None,
             genre_name_hint=(str(meta.get("genre") or "").strip() or None),
+            product_id=product_id,
         )
 
     a_rank = _bounded_rank_call(_android_rank_job, _store_rank_call_budget_sec())
@@ -2183,6 +2225,7 @@ def ensure_android_category_rank_on_raw(
     raw: dict[str, Any],
     *,
     allow_live_fetch: bool = True,
+    skip_playwright: bool | None = None,
 ) -> dict[str, Any]:
     """Cache-only payload'ta Android SIRA boşsa Play detay sayfası metnini çeker (100+ sıra dahil)."""
     spec = APP_PRODUCTS.get(product_id)
@@ -2208,13 +2251,15 @@ def ensure_android_category_rank_on_raw(
 
         def _http_rank_job() -> dict[str, Any] | None:
             # Chart API (vyAe2) Playwright'sız; detay HTML yedeği.
+            sp = skip_playwright if skip_playwright is not None else True
             return _fetch_android_category_rank(
                 spec["android_package"],
                 country="tr",
                 lang="tr",
                 category_id=str(meta.get("genreId") or "") or None,
-                skip_playwright=True,
+                skip_playwright=sp,
                 genre_name_hint=(str(meta.get("genre") or "").strip() or None),
+                product_id=product_id,
             )
 
         fetched = _bounded_rank_call(_http_rank_job, _store_rank_call_budget_sec())
@@ -2241,13 +2286,19 @@ def _enrich_raw_category_ranks(
     raw: dict[str, Any],
     *,
     allow_live_fetch: bool = True,
+    skip_playwright: bool | None = None,
 ) -> dict[str, Any]:
     """Cache-only dahil: kategori sıralarını DB snapshot ve gerekirse canlı chart'tan doldur."""
     spec = APP_PRODUCTS.get(product_id)
     if not spec or not isinstance(raw, dict) or raw.get("error"):
         return raw
 
-    raw = ensure_android_category_rank_on_raw(product_id, raw, allow_live_fetch=allow_live_fetch)
+    raw = ensure_android_category_rank_on_raw(
+        product_id,
+        raw,
+        allow_live_fetch=allow_live_fetch,
+        skip_playwright=skip_playwright,
+    )
 
     ios = raw.get("ios")
     if not isinstance(ios, dict):
@@ -2264,6 +2315,14 @@ def _enrich_raw_category_ranks(
 
     if allow_live_fetch:
         genre_id = meta.get("primary_genre_id")
+        if genre_id is None:
+            spec_gid = spec.get("ios_genre_id")
+            if spec_gid is not None:
+                try:
+                    genre_id = int(spec_gid)
+                    meta = {**meta, "primary_genre_id": genre_id}
+                except (TypeError, ValueError):
+                    genre_id = None
         if genre_id is None:
             lookup = _fetch_ios_lookup_meta(spec["ios_app_id"])
             if lookup:
@@ -2820,8 +2879,9 @@ def refresh_category_ranks_for_product(product_id: str) -> dict[str, Any]:
         country="tr",
         lang="tr",
         category_id=str((meta_play or {}).get("genreId") or "") or None,
-        skip_playwright=True,
+        skip_playwright=False if pid == "sinemalar" else True,
         genre_name_hint=(str((meta_play or {}).get("genre") or "").strip() or None),
+        product_id=pid,
     )
     if a_rank and a_rank.get("rank") is not None:
         _append_rank_snapshot(pid, "android", a_rank, at_iso=now_iso)
@@ -2872,8 +2932,9 @@ def refresh_android_category_rank_for_package(package_name: str | None) -> dict[
         country="tr",
         lang="tr",
         category_id=str((meta_play or {}).get("genreId") or "") or None,
-        skip_playwright=True,
+        skip_playwright=False if product_id == "sinemalar" else True,
         genre_name_hint=(str((meta_play or {}).get("genre") or "").strip() or None),
+        product_id=product_id,
     )
     if not a_rank or a_rank.get("rank") is None:
         return a_rank
