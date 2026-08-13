@@ -866,7 +866,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com rank:" in js
-    assert "pm_lab.js?v=39" in html
+    assert "pm_lab.js?v=40" in html
     assert "SERP_TAB_KEYWORDS" in js
     assert "serpTabKeywords" in js
     assert '["Total"].concat' in js

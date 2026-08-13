@@ -159,14 +159,15 @@
     return row;
   }
 
-  function tabs(labels, onPick, active) {
+  function tabs(labels, onPick, active, tabClasses) {
     var bar = document.createElement("div");
     bar.className = "pml-tabs";
     var on = active == null ? 0 : active;
     labels.forEach(function (lab, i) {
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "pml-tab" + (i === on ? " is-on" : "") + (lab === "Total" ? " pml-tab-total" : "");
+      var extra = tabClasses && tabClasses[i] ? " " + tabClasses[i] : "";
+      b.className = "pml-tab" + (i === on ? " is-on" : "") + (lab === "Total" ? " pml-tab-total" : "") + extra;
       b.textContent = lab;
       b.addEventListener("click", function () {
         Array.prototype.forEach.call(bar.children, function (x) {
@@ -919,7 +920,14 @@
     root.appendChild(spark);
     root.appendChild(bars);
     if (kws.length) {
-      root.appendChild(tabs(kws.map(function (k) { return k.keyword; }), paint));
+      var tabClasses = kws.map(function (k) {
+        var arts = k.articles || [];
+        for (var n = 0; n < arts.length; n++) {
+          if (newsIsDoviz(arts[n])) return "pml-tab-doviz";
+        }
+        return "";
+      });
+      root.appendChild(tabs(kws.map(function (k) { return k.keyword; }), paint, 0, tabClasses));
       root.appendChild(stage);
       paint(0);
     }

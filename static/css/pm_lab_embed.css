@@ -41,8 +41,12 @@ html.dark .pml-table .pin{box-shadow:1px 0 0 #27272a}
 html.dark .pml-doviz td{background:#3f1a1a !important;color:#fca5a5}
 .pml-doviz td.pml-rank{color:#dc2626;font-weight:800}
 html.dark .pml-doviz td.pml-rank{color:#f87171}
-.pml-chip-doviz{background:#fef2f2;color:#dc2626}
-html.dark .pml-chip-doviz{background:#3f1a1a;color:#fca5a5}
+.pml-chip-doviz{background:#fef9c3;color:#854d0e}
+html.dark .pml-chip-doviz{background:#422006;color:#fde68a}
+.pml-tab-doviz:not(.is-on){background:#fef9c3;color:#854d0e}
+html.dark .pml-tab-doviz:not(.is-on){background:#422006;color:#fde68a}
+.pml-tab-doviz.is-on{background:#facc15;color:#422006}
+html.dark .pml-tab-doviz.is-on{background:#ca8a04;color:#fef9c3}
 .pml-tab-total{letter-spacing:.04em}
 .pml-heat-up td{background:#eef2ee !important}
 .pml-heat-down td{background:#f6f0f0 !important}
