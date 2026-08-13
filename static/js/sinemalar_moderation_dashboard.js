@@ -151,6 +151,8 @@
       bar = document.createElement("div");
       bar.className = "mod-chart-legend-bar";
       card.appendChild(bar);
+    } else if (bar.parentElement === card && bar !== card.lastElementChild) {
+      card.appendChild(bar);
     }
     bar.innerHTML = "";
 
@@ -528,7 +530,7 @@
         type: "scatter",
         mode: "lines",
         stackgroup: "one",
-        name: m.username,
+        name: "",
         showlegend: false,
         visible: modTraceVisible(m),
         x: days,
@@ -769,7 +771,7 @@
       var s = shares[String(m.user_id)] || {};
       return {
         type: "scatterpolar",
-        name: m.username,
+        name: "",
         showlegend: false,
         visible: modTraceVisible(m),
         r: METRICS.map(function (mt) {
@@ -800,10 +802,16 @@
           angularaxis: { tickfont: { size: chartW(el) < 480 ? 8 : 9 }, rotation: 90 },
           bgcolor: "rgba(0,0,0,0)",
         },
-        margin: { l: 48, r: 48, t: 56, b: 48 },
+        margin: { l: 44, r: 44, t: 44, b: 20 },
       },
-      { legendCount: MODS.length, htmlLegend: "mods", heightOpts: { minPlot: 180, maxTotal: 800, fallback: 300 }, minHeight: 300 }
+      {
+        legendCount: MODS.length,
+        htmlLegend: "mods",
+        heightOpts: { minPlot: 200, maxTotal: 800, fallback: 320 },
+        minHeight: 320,
+      }
     ).then(function () {
+      renderHtmlLegend(el, "mods");
       setupFocusZoomToolbar();
       updateFocusZoomLabel();
     });
@@ -817,7 +825,7 @@
       var w = (ANALYTICS.weekday_by_user || {})[String(m.user_id)] || [];
       return {
         type: "bar",
-        name: m.username,
+        name: "",
         showlegend: false,
         visible: modTraceVisible(m),
         x: labels,
@@ -852,7 +860,7 @@
       return {
         type: "scatter",
         mode: "lines",
-        name: m.username,
+        name: "",
         showlegend: false,
         visible: modTraceVisible(m),
         x: days,
@@ -886,8 +894,8 @@
           xaxisTitle: true,
           tickAngle: chartW(el) < 520 ? -65 : -40,
         },
-        heightOpts: { minPlot: 160, maxTotal: 800, fallback: 280 },
-        minHeight: 280,
+        heightOpts: { minPlot: 200, maxTotal: 800, fallback: 320 },
+        minHeight: 320,
       }
     );
   }
