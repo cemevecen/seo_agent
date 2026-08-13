@@ -323,7 +323,7 @@
         if (opts.htmlLegend) {
           renderHtmlLegend(el, opts.htmlLegend);
           try {
-            Plotly.relayout(el, { showlegend: false });
+            Plotly.relayout(el, { showlegend: false, "legend.visible": false });
           } catch (_) {}
         }
         try {
@@ -445,7 +445,7 @@
   }
 
   function modTraceVisible(m) {
-    return isModVisible(m.user_id) ? true : "legendonly";
+    return isModVisible(m.user_id) ? true : false;
   }
 
   function visibleMods() {
@@ -527,6 +527,7 @@
         mode: "lines",
         stackgroup: "one",
         name: m.username,
+        showlegend: false,
         visible: modTraceVisible(m),
         x: days,
         y: series,
@@ -767,6 +768,7 @@
       return {
         type: "scatterpolar",
         name: m.username,
+        showlegend: false,
         visible: modTraceVisible(m),
         r: METRICS.map(function (mt) {
           return s[mt.key] || 0;
@@ -814,6 +816,7 @@
       return {
         type: "bar",
         name: m.username,
+        showlegend: false,
         visible: modTraceVisible(m),
         x: labels,
         y: w,
@@ -848,6 +851,7 @@
         type: "scatter",
         mode: "lines",
         name: m.username,
+        showlegend: false,
         visible: modTraceVisible(m),
         x: days,
         y: series.map(function (p) {

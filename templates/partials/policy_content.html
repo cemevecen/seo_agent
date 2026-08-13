@@ -135,10 +135,11 @@
       min-height: 300px;
     }
     .mod-charts-shell .mod-chart-plot {
+      order: 1;
       width: 100%;
       max-width: 100%;
       min-height: 160px;
-      flex: 1 1 auto;
+      flex: 1 1 0;
       overflow: hidden;
     }
     .mod-charts-shell .mod-chart-plot .js-plotly-plot {
@@ -146,13 +147,15 @@
       max-width: 100%;
     }
     .mod-charts-shell .mod-chart-legend-bar {
+      order: 2;
       flex: 0 0 auto;
+      width: 100%;
       display: flex;
       flex-wrap: wrap;
       align-content: flex-start;
       gap: 4px 10px;
       margin-top: auto;
-      padding: 6px 2px 0;
+      padding: 6px 2px 2px;
       border-top: 1px solid rgba(148, 163, 184, 0.35);
     }
     html.dark .mod-charts-shell .mod-chart-legend-bar {
