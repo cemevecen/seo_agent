@@ -30,6 +30,10 @@
     "mod-chart-cumulative",
     "mod-chart-focus-profile",
   ];
+  var FOCUS_ZOOM_MIN = 0.05;
+  var focusZoomBaseMax = null;
+  var focusZoomMax = null;
+  var focusZoomWheelBound = false;
   var CHART_IDS = [
     "mod-chart-rank-total",
     "mod-chart-daily-volume",
@@ -240,6 +244,67 @@
     });
     if (maxR <= 0) return 100;
     return Math.min(100, Math.max(28, Math.ceil((maxR * 1.12) / 5) * 5));
+  }
+
+  function focusZoomLabel(maxVal) {
+    if (maxVal >= 10) return "0–" + Math.round(maxVal) + "%";
+    if (maxVal >= 1) return "0–" + maxVal.toFixed(1) + "%";
+    return "0–" + maxVal.toFixed(2) + "%";
+  }
+
+  function updateFocusZoomLabel() {
+    var label = document.getElementById("mod-focus-zoom-label");
+    if (label && focusZoomMax != null) label.textContent = focusZoomLabel(focusZoomMax);
+  }
+
+  function applyFocusZoom(newMax, redraw) {
+    if (focusZoomBaseMax == null) return;
+    focusZoomMax = Math.max(FOCUS_ZOOM_MIN, Math.min(focusZoomBaseMax, newMax));
+    updateFocusZoomLabel();
+    var el = document.getElementById("mod-chart-focus-profile");
+    if (!redraw && el && el.querySelector(".js-plotly-plot") && window.Plotly) {
+      Plotly.relayout(el, { "polar.radialaxis.range": [0, focusZoomMax] });
+      return;
+    }
+    drawFocusProfile();
+  }
+
+  function setupFocusZoomToolbar() {
+    var zoomIn = document.getElementById("mod-focus-zoom-in");
+    var zoomOut = document.getElementById("mod-focus-zoom-out");
+    var zoomReset = document.getElementById("mod-focus-zoom-reset");
+    var chartEl = document.getElementById("mod-chart-focus-profile");
+    if (zoomIn && !zoomIn.__modBound) {
+      zoomIn.__modBound = true;
+      zoomIn.addEventListener("click", function () {
+        applyFocusZoom(focusZoomMax * 0.65);
+      });
+    }
+    if (zoomOut && !zoomOut.__modBound) {
+      zoomOut.__modBound = true;
+      zoomOut.addEventListener("click", function () {
+        applyFocusZoom(focusZoomMax / 0.65);
+      });
+    }
+    if (zoomReset && !zoomReset.__modBound) {
+      zoomReset.__modBound = true;
+      zoomReset.addEventListener("click", function () {
+        applyFocusZoom(focusZoomBaseMax, true);
+      });
+    }
+    if (chartEl && !focusZoomWheelBound) {
+      focusZoomWheelBound = true;
+      chartEl.addEventListener(
+        "wheel",
+        function (e) {
+          if (!focusZoomBaseMax || focusZoomMax == null) return;
+          e.preventDefault();
+          var factor = e.deltaY < 0 ? 0.82 : 1 / 0.82;
+          applyFocusZoom(focusZoomMax * factor);
+        },
+        { passive: false }
+      );
+    }
   }
 
   function modIndex(uid) {
@@ -551,7 +616,16 @@
     var el = purgePlot("mod-chart-focus-profile");
     if (!el || !window.Plotly) return;
     var shares = ANALYTICS.shares_by_metric || {};
-    var radialMax = focusRadialMax(shares);
+    var baseMax = focusRadialMax(shares);
+    if (focusZoomBaseMax == null || focusZoomMax == null) {
+      focusZoomBaseMax = baseMax;
+      focusZoomMax = baseMax;
+    } else {
+      var zoomRatio = focusZoomMax / focusZoomBaseMax;
+      focusZoomBaseMax = baseMax;
+      focusZoomMax = Math.max(FOCUS_ZOOM_MIN, Math.min(baseMax, baseMax * zoomRatio));
+    }
+    var radialMax = focusZoomMax;
     var traces = MODS.map(function (m, i) {
       var s = shares[String(m.user_id)] || {};
       return {
@@ -589,7 +663,10 @@
         margin: { l: 48, r: 48, t: 56, b: 24 },
       },
       { legendCount: MODS.length, heightOpts: { minPlot: 300, maxTotal: 460, fallback: 400 }, minHeight: 340 }
-    );
+    ).then(function () {
+      setupFocusZoomToolbar();
+      updateFocusZoomLabel();
+    });
   }
 
   function drawWeekday() {
