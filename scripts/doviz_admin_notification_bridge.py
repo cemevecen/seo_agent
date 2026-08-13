@@ -3566,6 +3566,11 @@ def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
         "notification": {"name": "Notification", "lock": _nt_lock, "runner": run_notification_bridge_once},
         "news": {"name": "News", "lock": _nt_lock, "runner": lambda: run_news_bridge_once(days=7)},
         "virgul": {"name": "Virgul", "lock": _virgul_lock, "runner": run_virgul_bridge_once},
+        "revenue_targets": {
+            "name": "Virgul Targets",
+            "lock": _revenue_targets_lock,
+            "runner": run_revenue_targets_bridge_once,
+        },
         "market": {"name": "Piyasa", "lock": _market_lock, "runner": run_market_tarama_bridge_once},
         "links": {"name": "GSC Links", "lock": _gsc_links_lock, "runner": run_gsc_links_bridge_once},
         "policy": {"name": "Policy", "lock": _policy_lock, "runner": run_admanager_policy_bridge_once},
@@ -3720,26 +3725,21 @@ def _page_tarama_keepalive_loop() -> None:
 
 
 def _page_tarama_claim_loop() -> None:
-    """Mobil/Railway «Sayfayı güncelle» kuyruğunu Mac’te çalıştır."""
+    """Mobil/Railway «Sayfayı güncelle» kuyruğunu Mac’te çalıştır.
+
+    SEO + Virgül gibi farklı işler paralel; aynı job_id kilitleri ayrıca korur.
+    """
     url = _page_tarama_api_base() + "/api/page-tarama/claim"
     registry = _remote_claim_job_registry()
+    # Railway MAX_INFLIGHT_JOBS ile uyumlu
+    worker_slots = threading.Semaphore(3)
     print(f"Uzaktan tarama kuyruğu: {url}", flush=True)
-    while True:
+
+    def _run_claimed_job(job: dict[str, Any]) -> None:
         run_id = ""
         job_id = ""
         final_posted = False
         try:
-            if not _ingest_token():
-                time.sleep(12)
-                continue
-            resp = requests.get(url, headers=_page_tarama_auth_headers(), timeout=20)
-            if resp.status_code != 200:
-                time.sleep(5)
-                continue
-            job = (resp.json() or {}).get("job")
-            if not job:
-                time.sleep(3)
-                continue
             job_id = str(job.get("job_id") or "")
             meta = registry.get(job_id)
             if not meta:
@@ -3751,7 +3751,7 @@ def _page_tarama_claim_loop() -> None:
                         "message": "Unknown job",
                     }
                 )
-                continue
+                return
             print(
                 f"Uzaktan tarama başladı: {meta['name']}"
                 + (f" · page={job.get('page')}" if job.get("page") else ""),
@@ -3788,7 +3788,6 @@ def _page_tarama_claim_loop() -> None:
                         payload["total_steps"] = int(info["total_steps"])
                     except (TypeError, ValueError):
                         pass
-                # Progress asenkron — Railway timeout scrape'i (ve 5/24'te UI abort) kesmesin
                 _post_page_tarama_progress_async(payload)
 
             _progress_post({"message": "Mac scan claimed · starting", "phase": "claimed", "step": 0})
@@ -3797,7 +3796,6 @@ def _page_tarama_claim_loop() -> None:
 
             def _heartbeat() -> None:
                 while not stop_hb.wait(5.0):
-                    # Firebase already posts fine steps; heartbeat fills gaps for other jobs
                     if job_id == "firebase" and _firebase_progress.get("running"):
                         _progress_post(dict(_firebase_progress))
                     elif job_id == "news" and _news_progress.get("running"):
@@ -3900,6 +3898,39 @@ def _page_tarama_claim_loop() -> None:
                     )
                 except Exception:
                     pass
+        finally:
+            worker_slots.release()
+
+    while True:
+        try:
+            if not _ingest_token():
+                time.sleep(12)
+                continue
+            if not worker_slots.acquire(blocking=False):
+                time.sleep(2)
+                continue
+            resp = requests.get(url, headers=_page_tarama_auth_headers(), timeout=20)
+            if resp.status_code != 200:
+                worker_slots.release()
+                time.sleep(5)
+                continue
+            job = (resp.json() or {}).get("job")
+            if not job:
+                worker_slots.release()
+                time.sleep(3)
+                continue
+            threading.Thread(
+                target=_run_claimed_job,
+                args=(job,),
+                name=f"pt-job-{job.get('job_id') or 'x'}",
+                daemon=True,
+            ).start()
+        except Exception:
+            traceback.print_exc()
+            try:
+                worker_slots.release()
+            except Exception:
+                pass
             time.sleep(5)
 
 

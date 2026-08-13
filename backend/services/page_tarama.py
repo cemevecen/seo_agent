@@ -24,6 +24,12 @@ JOBS: dict[str, dict[str, Any]] = {
     "notification": {"id": "notification", "label": "Notification", "kind": "bridge", "path": "/sync"},
     "news": {"id": "news", "label": "News", "kind": "bridge", "path": "/sync-news?days=7"},
     "virgul": {"id": "virgul", "label": "Virgül", "kind": "bridge", "path": "/sync-virgul"},
+    "revenue_targets": {
+        "id": "revenue_targets",
+        "label": "Virgül Targets",
+        "kind": "bridge",
+        "path": "/sync-revenue-targets",
+    },
     "market": {"id": "market", "label": "Market", "kind": "bridge", "path": "/sync-market"},
     "links": {"id": "links", "label": "Backlinks (GSC)", "kind": "bridge", "path": "/sync-gsc-links"},
     "policy": {"id": "policy", "label": "Ad Manager Policy", "kind": "bridge", "path": "/sync-policy"},
@@ -56,7 +62,7 @@ PAGES: dict[str, list[str]] = {
     "android": ["play_vitals", "play", "firebase", "market"],
     "ios": ["asc", "firebase"],
     "news": ["news"],
-    "virgul": ["virgul"],
+    "virgul": ["virgul", "revenue_targets"],
     "notification": ["notification"],
     "firebase": ["firebase"],
     "app": ["play", "asc", "firebase"],
@@ -72,6 +78,8 @@ BRIDGE_STALE_SEC = 90.0
 # Claimed/running iş progress göndermezse (daemon çöktü / claim loop kilitli) kuyruk açılsın.
 # Firebase/ASC uzun; Railway yavaşken progress post timeout olabilir — 3 dk çok kısa.
 PROGRESS_STALE_SEC = 900.0
+# SEO + Virgül gibi farklı işler birbirini bloklamasın (Mac kilitleri ayrıca korur)
+MAX_INFLIGHT_JOBS = 3
 CLAIM_STALE_SEC = 2 * 60 * 60
 RUN_TTL_SEC = 3 * 60 * 60
 MANUAL_LIMIT = 3
@@ -408,36 +416,50 @@ def get_run(run_id: str) -> dict[str, Any] | None:
 
 
 def claim_next() -> dict[str, Any] | None:
-    """Mac daemon bir sonraki köprü işini alır. Aynı anda tek claimed/running."""
+    """Mac daemon bir sonraki köprü işini alır.
+
+    Aynı anda en fazla MAX_INFLIGHT_JOBS; aynı job_id ikinci kez claim edilmez
+    (SEO sürerken Virgül bekleyebilir).
+    """
     global _bridge_seen_at
     now = time.time()
     with _state():
         _bridge_seen_at = now
         _prune_locked(now)
         _reap_stale_inflight_locked(now)
+        inflight_ids: set[str] = set()
+        inflight_n = 0
         for run in _runs.values():
             _expire_locked(run, now)
             for job in run["jobs"]:
                 if job.get("kind") != "bridge":
                     continue
                 if job.get("status") in ("claimed", "running"):
-                    # Hâlâ canlı in-flight — yeni claim yok
-                    return None
+                    inflight_n += 1
+                    jid = str(job.get("id") or "")
+                    if jid:
+                        inflight_ids.add(jid)
+        if inflight_n >= MAX_INFLIGHT_JOBS:
+            return None
         for run in sorted(_runs.values(), key=lambda r: float(r.get("started_at") or 0)):
             _expire_locked(run, now)
             for job in run["jobs"]:
-                if job.get("kind") == "bridge" and job.get("status") == "queued":
-                    job["status"] = "claimed"
-                    job["claimed_at"] = now
-                    job["progress_at"] = now
-                    job["detail"] = "Scan started"
-                    return {
-                        "run_id": run["id"],
-                        "job_id": job["id"],
-                        "path": job.get("path") or "",
-                        "label": job.get("label") or job["id"],
-                        "page": str(run.get("page") or ""),
-                    }
+                if job.get("kind") != "bridge" or job.get("status") != "queued":
+                    continue
+                jid = str(job.get("id") or "")
+                if jid and jid in inflight_ids:
+                    continue
+                job["status"] = "claimed"
+                job["claimed_at"] = now
+                job["progress_at"] = now
+                job["detail"] = "Scan started"
+                return {
+                    "run_id": run["id"],
+                    "job_id": job["id"],
+                    "path": job.get("path") or "",
+                    "label": job.get("label") or job["id"],
+                    "page": str(run.get("page") or ""),
+                }
         return None
 
 

@@ -102,12 +102,15 @@ def test_android_queue_claim_result():
     first = store.claim_next()
     assert first is not None
     assert first["job_id"] == "play_vitals"
-    assert store.claim_next() is None
-    store.mark_running(run["id"], "play_vitals", "Mac tarama çalışıyor")
-    store.record_result(run["id"], "play_vitals", ok=True, message="ok")
+    # Farklı job_id paralel claim edilebilir
     second = store.claim_next()
     assert second is not None
     assert second["job_id"] == "play"
+    store.mark_running(run["id"], "play_vitals", "Mac tarama çalışıyor")
+    store.record_result(run["id"], "play_vitals", ok=True, message="ok")
+    third = store.claim_next()
+    assert third is not None
+    assert third["job_id"] == "firebase"
 
 
 def test_ios_and_news_and_notification_catalog():
@@ -116,9 +119,9 @@ def test_ios_and_news_and_notification_catalog():
     assert [j["id"] for j in store.jobs_for("news")] == ["news"]
     assert [j["id"] for j in store.jobs_for("notification")] == ["notification"]
     assert [j["id"] for j in store.jobs_for("vitals")] == ["cwv"]
-    assert [j["id"] for j in store.jobs_for("policy")] == ["policy", "noads"]
+    assert [j["id"] for j in store.jobs_for("policy")] == ["policy", "noads", "moderation"]
     assert [j["id"] for j in store.jobs_for("errors")] == ["errors"]
-
+    assert [j["id"] for j in store.jobs_for("virgul")] == ["virgul", "revenue_targets"]
 
 def test_alerts_has_no_bridge_queue():
     store.reset_for_tests()
@@ -130,16 +133,16 @@ def test_alerts_has_no_bridge_queue():
 
 
 def test_stale_inflight_unlocks_queue():
-    """Progress kesilince claimed iş fail olur; sıradaki queued claim edilebilir."""
+    """MAX_INFLIGHT dolunca progress kesilen iş fail olur; sıradaki claim edilir."""
     store.reset_for_tests()
     run_a = store.start_run("vitals")
-    first = store.claim_next()
-    assert first is not None
-    assert first["job_id"] == "cwv"
-    # İkinci run kuyruğa girer ama claim bloklanır
     run_b = store.start_run("news")
-    assert store.claim_next() is None
-    # Progress'i eski göster
+    run_c = store.start_run("notification")
+    assert store.claim_next() is not None  # cwv
+    assert store.claim_next() is not None  # news
+    assert store.claim_next() is not None  # notification
+    run_d = store.start_run("seo")
+    assert store.claim_next() is None  # kapasite dolu
     with store._lock:
         job = store._runs[run_a["id"]]["jobs"][0]
         job["claimed_at"] = time.time() - store.PROGRESS_STALE_SEC - 5
@@ -147,8 +150,8 @@ def test_stale_inflight_unlocks_queue():
         job["status"] = "running"
     nxt = store.claim_next()
     assert nxt is not None
-    assert nxt["job_id"] == "news"
-    assert nxt["run_id"] == run_b["id"]
+    assert nxt["job_id"] == "seo"
+    assert nxt["run_id"] == run_d["id"]
     stuck = store.get_run(run_a["id"])
     assert stuck["jobs"][0]["status"] == "fail"
     assert "progress" in (stuck["jobs"][0]["detail"] or "").lower()
