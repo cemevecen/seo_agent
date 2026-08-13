@@ -3244,7 +3244,8 @@ def _extract_vitals_issue_snapshot(page) -> dict[str, Any]:
       const anchors = Array.from(document.querySelectorAll('a[href]'));
       for (const a of anchors) {
         const href = String(a.href || a.getAttribute('href') || '');
-        const m = href.match(/\\/vitals\\/crashes\\/([A-Za-z0-9_-]{8,})\\/(?:details|detail)(?:[/?#]|$)/i)
+        const m = href.match(/\\/vitals\\/crashes\\/(?:issues\\/)?([A-Za-z0-9_-]{8,})(?:\\/(?:details|detail))?(?:[/?#]|$)/i)
+          || href.match(/[?&]issue[Ii]d=([A-Za-z0-9_-]{8,})/i)
           || href.match(/\\/vitals\\/crashes\\/([A-Za-z0-9_-]{12,})(?:[/?#]|$)/i);
         if (!m) continue;
         const issueId = m[1];
@@ -3761,8 +3762,6 @@ def _scrape_vitals_crashes_error_type(
                     summary_rate = value
                     break
         count_raw = snap.get("issue_count")
-        if count_raw is None:
-            count_raw = str(len(issues)) if issues else None
         # Normalize issue dicts
         clean_issues: list[dict[str, Any]] = []
         for iss in issues[:50]:
@@ -3807,6 +3806,10 @@ def _scrape_vitals_crashes_error_type(
             if iid and iid not in seen_detail_ids:
                 seen_detail_ids.add(iid)
                 all_issues_for_details.append(row)
+        if clean_issues:
+            count_raw = str(len(clean_issues))
+        elif count_raw is None:
+            count_raw = None
         categories_out.append(
             {
                 "id": cat_id,

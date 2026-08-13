@@ -1908,9 +1908,10 @@
     var cats = Array.isArray(block.categories) ? block.categories : [];
     var filtered = cats.map(function (cat) {
       var issues = (Array.isArray(cat.issues) ? cat.issues : []).filter(function (iss) {
-        var av = String(iss.affected_versions || "");
-        return av.indexOf(vc) >= 0;
-      });
+      var av = String(iss.affected_versions || "").trim();
+      if (!av) return true;
+      return av.indexOf(vc) >= 0;
+    });
       var next = Object.assign({}, cat, {
         issues: issues,
         issue_row_count: issues.length
@@ -7060,12 +7061,25 @@
       return;
     }
     vitalsCatsEmpty.classList.add("hidden");
+    var oldFallbackNote = document.getElementById("pc-vitals-fallback-note");
+    if (oldFallbackNote) oldFallbackNote.remove();
+    var fallbackNote = (vitalsState.data && vitalsState.data.issues_fallback_note) || "";
+    if (fallbackNote) {
+      vitalsCatsEl.insertAdjacentHTML(
+        "beforebegin",
+        '<p id="pc-vitals-fallback-note" class="mb-2 rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-[11px] leading-snug text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">' +
+          esc(fallbackNote) +
+        "</p>"
+      );
+    }
     if (!cats.some(function (c) { return c.id === vitalsState.selectedCat; })) {
       vitalsState.selectedCat = cats[0].id;
     }
     vitalsCatsEl.innerHTML = cats.map(function (c) {
       var on = c.id === vitalsState.selectedCat;
-      var count = c.issue_count != null && c.issue_count !== "" ? String(c.issue_count) : (c.issue_row_count != null ? String(c.issue_row_count) : "—");
+      var countRaw = c.issue_count != null && c.issue_count !== "" ? String(c.issue_count) : "";
+      var rowCount = Array.isArray(c.issues) ? c.issues.length : (c.issue_row_count != null ? Number(c.issue_row_count) : 0);
+      var count = rowCount > 0 ? String(rowCount) : (countRaw || "—");
       return (
         '<button type="button" data-cat="' + esc(c.id) + '" class="pc-vitals-cat rounded-xl border p-3 text-left transition ' +
           (on
@@ -7206,7 +7220,9 @@
           (subtitle ? '<p class="text-[11px] text-slate-500">' + esc(subtitle) + "</p>" : "") +
         "</div>" +
         (link
-          ? '<a href="' + esc(link) + '" target="_blank" rel="noopener" class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play Console ↗</a>'
+          ? '<a href="' + esc(link) + '" target="_blank" rel="noopener" class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">' +
+              esc((listIss && listIss.source === "firebase_console_scrape") || (vitalsState.data && vitalsState.data.issues_fallback) ? "Firebase Console ↗" : "Play Console ↗") +
+            "</a>"
           : "") +
       "</div>" +
       (insights.length

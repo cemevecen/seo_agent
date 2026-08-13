@@ -445,6 +445,18 @@ def play_console_payload(db: Session) -> dict[str, Any]:
     panels = cleaned["panels"]
     reviews = cleaned["reviews"]
     rating_summary = cleaned["rating_summary"]
+    try:
+        from backend.services.firebase_console_store import firebase_console_payload
+        from backend.services.play_vitals_enrich import enrich_panels_vitals_from_firebase
+
+        fb = firebase_console_payload(db) or {}
+        fb_platforms = fb.get("platforms") if isinstance(fb.get("platforms"), dict) else {}
+        android_fb = (
+            fb_platforms.get("android") if isinstance(fb_platforms.get("android"), dict) else None
+        )
+        panels = enrich_panels_vitals_from_firebase(panels, android_fb)
+    except Exception:
+        logger.debug("vitals firebase enrich skipped", exc_info=True)
     return {
         "ok": bool(row.sync_ok),
         "empty": not metrics and not reviews,
