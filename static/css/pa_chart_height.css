@@ -1,8 +1,26 @@
 /* Android / iOS ana grafik — genişlik sabit; yükseklik iki bağımsız 3 kademe */
+#pa-chart-card,
+#ia-chart-card {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 0;
+  transition: height 0.22s ease;
+}
+
 #pa-chart-wrap,
 #ia-chart-wrap {
   --pa-chart-h: 200;
   --pa-chart-h-factor: 1;
+  --pa-chart-effective-h: 200;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 0;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  transition: height 0.22s ease, min-height 0.22s ease;
 }
 
 #pa-chart-wrap[data-chart-height="1"],
@@ -38,11 +56,14 @@
 #pa-chart,
 #ia-chart {
   display: block;
+  flex: 0 0 auto;
   width: 100%;
   max-width: none;
-  height: auto;
-  aspect-ratio: 720 / calc(var(--pa-chart-h) * var(--pa-chart-h-factor));
-  transition: aspect-ratio 0.22s ease;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  aspect-ratio: 720 / var(--pa-chart-effective-h, 200);
+  transition: aspect-ratio 0.22s ease, height 0.22s ease;
 }
 
 .pa-chart-height,

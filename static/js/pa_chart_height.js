@@ -3,6 +3,8 @@
   var COMPRESS_KEY = "paChartCompress";
   var DEFAULT_HEIGHT = "2";
   var DEFAULT_COMPRESS = "1";
+  var HEIGHT_BASE = { "1": 260, "2": 200, "3": 150 };
+  var COMPRESS_FACTOR = { "1": 1, "2": 1.28, "3": 1.62 };
 
   function readStored(key, allowed, fallback) {
     try {
@@ -10,6 +12,12 @@
       if (allowed.indexOf(v) >= 0) return v;
     } catch (_) {}
     return fallback;
+  }
+
+  function effectiveHeight(h, c) {
+    var base = HEIGHT_BASE[h] || HEIGHT_BASE[DEFAULT_HEIGHT];
+    var factor = COMPRESS_FACTOR[c] || COMPRESS_FACTOR[DEFAULT_COMPRESS];
+    return Math.max(80, Math.round(base * factor));
   }
 
   function collectTargets() {
@@ -34,6 +42,7 @@
 
   var height = readStored(HEIGHT_KEY, ["1", "2", "3"], DEFAULT_HEIGHT);
   var compress = readStored(COMPRESS_KEY, ["1", "2", "3"], DEFAULT_COMPRESS);
+  var resizeTimer = null;
 
   function syncGroup(root, attr, value) {
     if (!root) return;
@@ -54,10 +63,35 @@
     });
   }
 
+  function clearFixedHeights(node) {
+    if (!node) return;
+    node.style.height = "auto";
+    node.style.minHeight = "0";
+    node.style.maxHeight = "none";
+  }
+
   function applyToDom() {
+    var eff = effectiveHeight(height, compress);
     targets.forEach(function (t) {
       t.wrap.setAttribute("data-chart-height", height);
       t.wrap.setAttribute("data-chart-compress", compress);
+      t.wrap.style.setProperty("--pa-chart-effective-h", String(eff));
+      clearFixedHeights(t.wrap);
+
+      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card");
+      if (card) {
+        card.setAttribute("data-chart-height", height);
+        card.setAttribute("data-chart-compress", compress);
+        card.style.setProperty("--pa-chart-effective-h", String(eff));
+        clearFixedHeights(card);
+      }
+
+      var svg = t.wrap.querySelector("#pa-chart, #ia-chart");
+      if (svg) {
+        svg.style.removeProperty("height");
+        svg.style.removeProperty("min-height");
+        svg.style.removeProperty("max-height");
+      }
     });
     syncUi();
     try {
@@ -66,7 +100,13 @@
     } catch (_) {}
   }
 
+  function scheduleApply() {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(applyToDom, 60);
+  }
+
   applyToDom();
+  window.addEventListener("resize", scheduleApply);
 
   targets.forEach(function (t) {
     t.heightRoot.addEventListener("click", function (ev) {
