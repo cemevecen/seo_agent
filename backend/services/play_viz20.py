@@ -75,17 +75,6 @@ VIZ_META: list[dict[str, Any]] = [
         "controls": ["start", "end", "metrics"],
     },
     {
-        "id": "barrace",
-        "title": "Bar race",
-        "blurb": "Top crash / ANR issue · events sıralaması",
-        "detail": (
-            "Seçili issue tipinde olay sayısına göre sıralı yatay çubuklar. "
-            "Limit ile gösterilen satır sayısı ayarlanır. "
-            "Veri anlık vitals snapshot — haftalık animasyon için ayrı scrape geçmişi gerekir."
-        ),
-        "controls": ["etype", "limit"],
-    },
-    {
         "id": "control",
         "title": "Control chart (SPC)",
         "blurb": "Günlük metrik · ortalama + UCL/LCL",
@@ -716,20 +705,6 @@ def build_viz20_data(
             "chart": {"type": "horizon", "traces": traces_h},
             "table": _table(["Metric", "Norm sum", "Points"], trows_h),
             "params": {"start": start, "end": end, "metrics": ",".join(metric_list)},
-        }
-
-    if vid == "barrace":
-        issues = _vitals_issues(db, etype=etype)
-        issues.sort(key=lambda i: -float(i.get("events") or i.get("event_count") or 0))
-        issues = issues[:lim]
-        labels_b = [str(i.get("title") or i.get("issue_id") or "?")[:60] for i in issues]
-        values_b = [float(i.get("events") or i.get("event_count") or 0) for i in issues]
-        return {
-            "ok": True,
-            "viz": vid,
-            "chart": {"type": "bar", "labels": labels_b, "values": values_b, "horizontal": True},
-            "table": _table(["Issue", "Events"], [[l, v] for l, v in zip(labels_b, values_b)]),
-            "params": {"etype": etype, "limit": lim},
         }
 
     if vid == "marimekko":
