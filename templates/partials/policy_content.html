@@ -33,16 +33,8 @@
         </p>
         {% endif %}
       </div>
-      {% set _mod_n = (_mp.get("moderators") or [])|length %}
-      {% set _type_n = (_mp.get("metric_types") or [])|length %}
       {% set _rec_n = _mp.get("detail_item_count") or 0 %}
       <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500">
-        <span>Source: <span class="font-mono">getModerationDetail</span></span>
-        {% if _mod_n %}<span class="text-slate-300 dark:text-slate-600" aria-hidden="true">·</span><span>{{ _mod_n }} moderators</span>{% endif %}
-        {% if _type_n %}<span class="text-slate-300 dark:text-slate-600" aria-hidden="true">·</span><span>{{ _type_n }} task types</span>{% endif %}
-        <span class="text-slate-300 dark:text-slate-600" aria-hidden="true">·</span>
-        <span>03:04 + 14:17 TR</span>
-        <span class="text-slate-300 dark:text-slate-600" aria-hidden="true">·</span>
         <span>Range: <b class="text-slate-500 dark:text-slate-400">{{ _mp.get("start") or "—" }}</b> → <b class="text-slate-500 dark:text-slate-400">{{ _mp.get("end") or "—" }}</b></span>
         <span class="text-slate-300 dark:text-slate-600" aria-hidden="true">·</span>
         <span>{{ _rec_n }} content records</span>
