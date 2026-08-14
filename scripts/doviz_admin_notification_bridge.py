@@ -88,8 +88,8 @@ NEWS_AUTO_INTERVAL_SEC = int(
     os.environ.get("NEWS_BRIDGE_INTERVAL_SEC") or str(60 * 60)
 )  # news: 1 saat
 PLAY_AUTO_INTERVAL_SEC = int(
-    os.environ.get("PLAY_CONSOLE_BRIDGE_INTERVAL_SEC") or str(3 * 60 * 60)
-)  # android: 3 saat
+    os.environ.get("PLAY_CONSOLE_BRIDGE_INTERVAL_SEC") or str(6 * 60 * 60)
+)  # android: 6 saat (health/docs; slot kullanılır)
 ASC_AUTO_INTERVAL_SEC = int(
     os.environ.get("ASC_CONSOLE_BRIDGE_INTERVAL_SEC") or str(3 * 60 * 60)
 )  # ios: 3 saat
@@ -102,8 +102,9 @@ GSC_LINKS_AUTO_INTERVAL_SEC = int(
 # Slot pencereleri Europe/Istanbul — dakikalar birbirinden ≥4 dk ayrı (scrape çakışması azaltılır)
 VIRGUL_SLOT_HOURS = (0, 6, 12, 18)  # gece 00’dan 6 saatte bir → 4 tur
 VIRGUL_SLOT_MINUTE = int(os.environ.get("VIRGUL_BRIDGE_MINUTE") or "8")
-PLAY_SLOT_HOURS = (0, 3, 6, 9, 12, 15, 18, 21)
+PLAY_SLOT_HOURS = (0, 6, 12, 18)  # 6 saatte bir — login baskısını düşür
 PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "2")
+ASC_SLOT_HOURS = (0, 3, 6, 9, 12, 15, 18, 21)  # ASC 3 saat (Play’den ayrı)
 ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "11")
 FIREBASE_SLOT_HOURS = (6,)  # günde bir — sabah Firebase Console scrape
 _FIREBASE_HOURS_RAW = (os.environ.get("FIREBASE_CONSOLE_BRIDGE_HOURS") or "").strip()
@@ -348,7 +349,7 @@ def browser_scrape_slot_defs() -> tuple[tuple[str, tuple[int, ...], int], ...]:
     """Test / health: tarayıcı slot tanımları (ad, saatler, dakika)."""
     return (
         ("play", PLAY_SLOT_HOURS, PLAY_SLOT_MINUTE),
-        ("asc", PLAY_SLOT_HOURS, ASC_SLOT_MINUTE),
+        ("asc", ASC_SLOT_HOURS, ASC_SLOT_MINUTE),
         ("virgul", VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE),
         ("market", MARKET_SLOT_HOURS, MARKET_SLOT_MINUTE),
         ("gsc_links", TWICE_DAILY_HOURS, GSC_SLOT_MINUTE),
@@ -2629,7 +2630,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "news_sec": NEWS_AUTO_INTERVAL_SEC,
                         "virgul_slots_tr": [f"{h:02d}:{VIRGUL_SLOT_MINUTE:02d}" for h in VIRGUL_SLOT_HOURS],
                         "play_slots_tr": [f"{h:02d}:{PLAY_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
-                        "asc_slots_tr": [f"{h:02d}:{ASC_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
+                        "asc_slots_tr": [f"{h:02d}:{ASC_SLOT_MINUTE:02d}" for h in ASC_SLOT_HOURS],
                         "firebase_slots_tr": [f"{h:02d}:{FIREBASE_SLOT_MINUTE:02d}" for h in FIREBASE_SLOT_HOURS],
                         "gsc_slots_tr": [f"{h:02d}:{GSC_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
@@ -3469,7 +3470,7 @@ def _auto_loop() -> None:
         )
         _slot_job(
             "asc", "ASC", _asc_lock, run_asc_bridge_once,
-            "_last_asc_auto_slot", PLAY_SLOT_HOURS, ASC_SLOT_MINUTE,
+            "_last_asc_auto_slot", ASC_SLOT_HOURS, ASC_SLOT_MINUTE,
         )
         _slot_job(
             "firebase", "Firebase", _firebase_lock, run_firebase_bridge_once,
@@ -4019,7 +4020,7 @@ def run_daemon() -> int:
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
         f"notify={AUTO_INTERVAL_SEC}s news={NEWS_AUTO_INTERVAL_SEC}s "
         f"virgul={list(VIRGUL_SLOT_HOURS)}:00 play={list(PLAY_SLOT_HOURS)}:{PLAY_SLOT_MINUTE:02d} "
-        f"asc=:{ASC_SLOT_MINUTE:02d} firebase=:{FIREBASE_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
+        f"asc={list(ASC_SLOT_HOURS)}:{ASC_SLOT_MINUTE:02d} firebase=:{FIREBASE_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
         f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d} "
         f"moderation=03:04,14:17 "
         f"seo={list(SEO_AUDIT_SLOT_HOURS)}:{SEO_AUDIT_SLOT_MINUTE:02d} "
