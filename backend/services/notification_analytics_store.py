@@ -783,16 +783,20 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
     try:
         fetch_start = None
         fetch_end = None
+        allow_today = True
         try:
             from backend.services.history_seal import (
+                calendar_today,
+                calendar_yesterday,
                 force_full_history,
                 is_pipeline_sealed,
-                scheduled_fetch_window,
             )
 
             if is_pipeline_sealed("notification") and not force_full_history("notification"):
-                win = scheduled_fetch_window("notification")
-                fetch_start, fetch_end = win["start"], win["end"]
+                # Manuel Update page = live (dün+bugün merge)
+                fetch_start = calendar_yesterday()
+                fetch_end = calendar_today()
+                allow_today = True
         except Exception:
             pass
         fetched = fetch_notification_rows_from_admin(start=fetch_start, end=fetch_end)
@@ -816,7 +820,11 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
 
         if is_pipeline_sealed("notification") and not force_full_history("notification"):
             result = ingest_notification_rows(
-                db, parsed, source="doviz_admin", replace=False
+                db,
+                parsed,
+                source="doviz_admin",
+                replace=False,
+                allow_today=allow_today,
             )
             result["fetch_meta"] = {
                 "elapsed_sec": fetched.get("elapsed_sec"),
@@ -824,6 +832,7 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
                 "csv_chars": fetched.get("csv_chars"),
                 "start": str(fetch_start or ""),
                 "end": str(fetch_end or ""),
+                "allow_today": allow_today,
             }
             return result
     except Exception:
@@ -886,10 +895,13 @@ def ingest_notification_rows(
     *,
     source: str = "doviz_admin_bridge",
     replace: bool | None = None,
+    allow_today: bool | None = None,
 ) -> dict:
     """VPN köprüsü / harici worker’dan gelen satırları yazar (manuel UI yok).
 
     Varsayılan (mühürlü): upsert/merge — mühürlü gövdeyi silmez.
+    allow_today=True: gündüz live refresh (bugün paneli).
+    allow_today=False / gece mühür: bugünü kayda yazma.
     replace=True veya NOTIFICATION_FORCE_FULL: tam yenileme.
     """
     global _last_sheet_sync_mono
@@ -907,13 +919,17 @@ def ingest_notification_rows(
             replace = bool(
                 force_full_history("notification") or not is_pipeline_sealed("notification")
             )
-        filtered: list[dict] = []
-        for r in parsed:
-            ds = str(r.get("date") or "")[:10]
-            if ds and never_store_today(ds):
-                continue
-            filtered.append(r)
-        parsed = filtered
+        # Gündüz live: bugün serbest; gece mühür / varsayılan: bugünü yazma
+        if allow_today is None:
+            allow_today = False
+        if not allow_today:
+            filtered: list[dict] = []
+            for r in parsed:
+                ds = str(r.get("date") or "")[:10]
+                if ds and never_store_today(ds):
+                    continue
+                filtered.append(r)
+            parsed = filtered
     except Exception:
         if replace is None:
             replace = False
@@ -953,6 +969,7 @@ def ingest_notification_rows(
         result["message"] = result.get("message") or "Ingest: satır yok."
     result["source"] = source or "doviz_admin_bridge"
     result["source_url"] = stats_url()
+    result["allow_today"] = bool(allow_today)
     return result
 
 

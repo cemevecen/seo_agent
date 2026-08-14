@@ -54,6 +54,8 @@ class IngestRowsBody(BaseModel):
     rows: list[dict] = Field(default_factory=list)
     source: str = "doviz_admin_bridge"
     replace: bool | None = None
+    allow_today: bool | None = None
+    mode: str | None = None
 
 
 @router.get("/notification-analytics/state")
@@ -151,6 +153,7 @@ def post_notification_analytics_ingest(
             body.rows or [],
             source=(body.source or "doviz_admin_bridge").strip() or "doviz_admin_bridge",
             replace=body.replace,
+            allow_today=body.allow_today,
         )
         try:
             from backend.services.scrape_telemetry import record_scrape_ingest

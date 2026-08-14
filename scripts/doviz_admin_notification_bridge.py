@@ -12,8 +12,8 @@ Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
   Play/ASC Firefox profili (~/.seo-agent/fx-*). needs_login → mail (ilk + 6 saat cooldown + resolved).
 
-  POST /sync       → notification (30 dk)
-  POST /sync-news  → news (1 saat)
+  POST /sync       → notification (08–22 her 30 dk live; gece 00:08 dünü mühürle)
+  POST /sync-news  → news (08–22 her 30 dk)
   POST /sync-virgul → Virgül (00/06/12/18 TR)
   POST /sync-play   → Play / Android (3 saatte bir, :02)
   POST /sync-asc    → ASC / iOS (3 saatte bir, :10)
@@ -87,8 +87,14 @@ AUTO_INTERVAL_SEC = int(
     os.environ.get("NOTIFICATION_BRIDGE_INTERVAL_SEC") or str(30 * 60)
 )  # notification: 30 dk
 NEWS_AUTO_INTERVAL_SEC = int(
-    os.environ.get("NEWS_BRIDGE_INTERVAL_SEC") or str(60 * 60)
-)  # news: 1 saat
+    os.environ.get("NEWS_BRIDGE_INTERVAL_SEC") or str(30 * 60)
+)  # news: 30 dk (notification ile aynı)
+# Notification + News aktif pencere (Europe/Istanbul): 08:00–22:00
+NT_NEWS_ACTIVE_START_HOUR = int(os.environ.get("NT_NEWS_ACTIVE_START_HOUR") or "8")
+NT_NEWS_ACTIVE_END_HOUR = int(os.environ.get("NT_NEWS_ACTIVE_END_HOUR") or "22")
+# Gece dönümü: dünün notification gövdesini mühürle / kayda al
+NOTIFICATION_NIGHT_SEAL_HOUR = int(os.environ.get("NOTIFICATION_NIGHT_SEAL_HOUR") or "0")
+NOTIFICATION_NIGHT_SEAL_MINUTE = int(os.environ.get("NOTIFICATION_NIGHT_SEAL_MINUTE") or "8")
 PLAY_AUTO_INTERVAL_SEC = int(
     os.environ.get("PLAY_CONSOLE_BRIDGE_INTERVAL_SEC") or str(6 * 60 * 60)
 )  # android: 6 saat (health/docs; slot kullanılır)
@@ -342,6 +348,7 @@ _last_gsc_cwv_result: dict[str, Any] = {"ok": False, "message": "henüz çalış
 _last_market_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_nt_auto_at = 0.0
 _last_news_auto_at = 0.0
+_last_notification_night_seal_slot = ""
 _last_virgul_auto_slot = ""
 _last_play_auto_slot = ""
 _last_asc_auto_slot = ""
@@ -2552,8 +2559,13 @@ def run_gsc_cwv_shots_bridge_once(site_key: str | None = None) -> dict[str, Any]
     return out
 
 
-def run_notification_bridge_once() -> dict[str, Any]:
-    """Admin notification stats → Railway ingest."""
+def run_notification_bridge_once(*, mode: str = "live") -> dict[str, Any]:
+    """Admin notification stats → Railway ingest.
+
+    mode=live (08–22 / manuel): dün+bugün merge (panel taze; geçmiş silinmez).
+    mode=seal_yesterday (gece dönümü): yalnız dünü kayda alır / mühürler.
+    mode=full: HISTORY_START→dün replace (nadir / FORCE_FULL).
+    """
     global _last_result
     _load_dotenv()
     err = _require_creds()
@@ -2563,6 +2575,10 @@ def run_notification_bridge_once() -> dict[str, Any]:
         return err
 
     from backend.services.doviz_notification_admin import fetch_notification_rows_from_admin
+
+    mode_l = (mode or "live").strip().lower()
+    if mode_l not in ("live", "seal_yesterday", "full"):
+        mode_l = "live"
 
     _set_nt_progress(
         running=True,
@@ -2588,24 +2604,48 @@ def run_notification_bridge_once() -> dict[str, Any]:
             message=msg or f"{step}/{total}",
         )
 
-    print("Admin stats çekiliyor…", flush=True)
+    print(f"Admin stats çekiliyor… ({mode_l})", flush=True)
     try:
         from backend.services.history_seal import (
+            calendar_today,
+            calendar_yesterday,
             force_full_history,
+            history_start,
             is_pipeline_sealed,
-            scheduled_fetch_window,
+            mark_pipeline_sealed,
         )
 
         fetch_start = fetch_end = None
-        replace_ingest = True
-        if is_pipeline_sealed("notification") and not force_full_history("notification"):
-            win = scheduled_fetch_window("notification")
-            fetch_start, fetch_end = win["start"], win["end"]
+        replace_ingest = False
+        allow_today = True
+        if mode_l == "full" or (
+            mode_l == "live" and force_full_history("notification")
+        ):
+            fetch_start = history_start()
+            fetch_end = calendar_yesterday()
+            replace_ingest = True
+            allow_today = False
+            mode_l = "full"
+        elif mode_l == "seal_yesterday":
+            yday = calendar_yesterday()
+            fetch_start = fetch_end = yday
             replace_ingest = False
+            allow_today = False
+            print(f"Notification gece mühür · {yday}", flush=True)
+        elif is_pipeline_sealed("notification"):
+            # Gündüz canlı: dün+bugün üst üste merge (tam geçmişi her 30 dk çekme)
+            fetch_start = calendar_yesterday()
+            fetch_end = calendar_today()
+            replace_ingest = False
+            allow_today = True
             print(
-                f"Notification mühür · {win.get('mode')} · {fetch_start} → {fetch_end}",
+                f"Notification live · {fetch_start} → {fetch_end} (merge, allow_today)",
                 flush=True,
             )
+        else:
+            replace_ingest = True
+            allow_today = True
+
         fetched = fetch_notification_rows_from_admin(
             on_progress=_on_progress,
             start=fetch_start,
@@ -2614,14 +2654,19 @@ def run_notification_bridge_once() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         msg = str(exc) or "Notification tarama hatası"
         _set_nt_progress(running=False, phase="error", message=msg)
-        out = {"ok": False, "message": msg, "parsed": 0}
+        out = {"ok": False, "message": msg, "parsed": 0, "mode": mode_l}
         _last_result = out
         return out
 
     rows = fetched.get("rows") or []
     print(f"Notification çekildi: {len(rows)} satır · {fetched.get('elapsed_sec')}s", flush=True)
     if not rows:
-        out = {"ok": False, "message": "Notification: satır yok — gönderilmedi", "parsed": 0}
+        out = {
+            "ok": False,
+            "message": "Notification: satır yok — gönderilmedi",
+            "parsed": 0,
+            "mode": mode_l,
+        }
         _last_result = out
         _set_nt_progress(running=False, phase="error", message=out["message"], rows=0)
         return out
@@ -2649,6 +2694,8 @@ def run_notification_bridge_once() -> dict[str, Any]:
                 "rows": rows,
                 "source": "doviz_admin_bridge",
                 "replace": replace_ingest,
+                "allow_today": allow_today,
+                "mode": mode_l,
             },
             ensure_ascii=False,
         ).encode("utf-8"),
@@ -2664,9 +2711,21 @@ def run_notification_bridge_once() -> dict[str, Any]:
     ok = resp.status_code < 400 and (
         not isinstance(body, dict) or body.get("synced") is not False
     )
+    if ok and mode_l == "seal_yesterday":
+        try:
+            from backend.services.history_seal import calendar_yesterday, mark_pipeline_sealed
+
+            mark_pipeline_sealed(
+                "notification",
+                seal=calendar_yesterday(),
+                note="night seal — previous calendar day archived",
+            )
+        except Exception:
+            pass
     out = {
         "ok": bool(ok),
         "kind": "notification",
+        "mode": mode_l,
         "http_status": resp.status_code,
         "parsed": len(rows),
         "elapsed_sec": fetched.get("elapsed_sec"),
@@ -2685,6 +2744,7 @@ def run_notification_bridge_once() -> dict[str, Any]:
         message=out["message"],
     )
     return out
+
 
 
 def run_news_bridge_once(
@@ -2716,18 +2776,17 @@ def run_news_bridge_once(
     if not use_full:
         try:
             from backend.services.history_seal import (
-                calendar_yesterday,
                 force_full_history,
                 is_pipeline_sealed,
             )
 
+            # Gündüz live: son 7 gün merge (yesterday_only değil — 30 dk refresh)
             if is_pipeline_sealed("doviz_news") and not force_full_history("doviz_news"):
-                # Mühürlü: yalnız dünden itibaren (bugün kalıcı kayda yazılmaz; floor=dün)
-                d = 1
-                min_day = calendar_yesterday().isoformat()
-                sync_mode = "yesterday_only"
-                max_pages = 40
-                estimate = 20
+                d = max(1, int(days or 7))
+                min_day = (date.today() - timedelta(days=d - 1)).isoformat()
+                sync_mode = f"recent_{d}d"
+                max_pages = 60
+                estimate = 40
             else:
                 d = max(1, int(days or 7))
                 min_day = (date.today() - timedelta(days=d - 1)).isoformat()
@@ -3754,32 +3813,44 @@ def _interval_due(last_at: float, interval_sec: int, *, min_sec: int = 60) -> bo
     return (time.time() - last_at) >= max(min_sec, interval_sec)
 
 
-def _should_run_notification_auto() -> bool:
-    # Mühürlü: günde ~1 (dün dilimi); aksi halde 30 dk
-    interval = AUTO_INTERVAL_SEC
-    try:
-        from backend.services.history_seal import force_full_history, is_pipeline_sealed
+def _nt_news_in_active_hours() -> bool:
+    """08:00–22:00 Europe/Istanbul (saat dahil)."""
+    now = _now_tr()
+    return NT_NEWS_ACTIVE_START_HOUR <= int(now.hour) <= NT_NEWS_ACTIVE_END_HOUR
 
-        if is_pipeline_sealed("notification") and not force_full_history("notification"):
-            interval = int(os.environ.get("NOTIFICATION_SEALED_INTERVAL_SEC") or str(24 * 60 * 60))
-    except Exception:
-        pass
-    return _interval_due(_last_nt_auto_at, interval, min_sec=60)
+
+def _should_run_notification_auto() -> bool:
+    """08–22 arası 30 dk’da bir live refresh."""
+    if not _nt_news_in_active_hours():
+        return False
+    return _interval_due(_last_nt_auto_at, AUTO_INTERVAL_SEC, min_sec=60)
 
 
 def _should_run_news_auto() -> bool:
+    """08–22 arası 30 dk’da bir (notification ile aynı pencere)."""
     global _auto_cycle
+    if not _nt_news_in_active_hours():
+        return False
     if NEWS_AUTO_EVERY_N > 0:
         return NEWS_AUTO_EVERY_N <= 1 or (_auto_cycle % NEWS_AUTO_EVERY_N) == 1
-    interval = NEWS_AUTO_INTERVAL_SEC
-    try:
-        from backend.services.history_seal import force_full_history, is_pipeline_sealed
+    return _interval_due(_last_news_auto_at, NEWS_AUTO_INTERVAL_SEC, min_sec=60)
 
-        if is_pipeline_sealed("doviz_news") and not force_full_history("doviz_news"):
-            interval = int(os.environ.get("NEWS_SEALED_INTERVAL_SEC") or str(24 * 60 * 60))
-    except Exception:
-        pass
-    return _interval_due(_last_news_auto_at, interval, min_sec=60)
+
+def _notification_night_seal_due() -> tuple[bool, str]:
+    """Gece dönümünde dünü kayda al (günde 1)."""
+    global _last_notification_night_seal_slot
+    now = _now_tr()
+    if int(now.hour) != NOTIFICATION_NIGHT_SEAL_HOUR:
+        return False, ""
+    minute = int(now.minute)
+    start = NOTIFICATION_NIGHT_SEAL_MINUTE
+    window = max(5, SLOT_WINDOW_MIN)
+    if not (start <= minute < start + window):
+        return False, ""
+    slot = f"{now.strftime('%Y-%m-%d')}-seal"
+    if _last_notification_night_seal_slot == slot:
+        return False, slot
+    return True, slot
 
 
 def _clear_job_retry(kind: str) -> None:
@@ -4003,6 +4074,7 @@ def _auto_loop() -> None:
     """Slot + interval zamanlayıcı; poll ~60s. Hata → 3×10 dk retry, sonra sonraki slot."""
     global _auto_cycle
     global _last_nt_auto_at, _last_news_auto_at
+    global _last_notification_night_seal_slot
     global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
     global _last_gsc_links_auto_slot, _last_policy_auto_slot
     global _last_noads_auto_slot, _last_moderation_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
@@ -4013,16 +4085,33 @@ def _auto_loop() -> None:
         _process_due_retries()
         _flush_deferred_browser_scrapes()
 
-        # Notification 30 dk + News 1 saat (aynı admin kilidi)
-        # Pending retry varken planlı tur atlanır (retry bitene / başarılı olana kadar)
+        # Notification + News: 08:00–22:00 her 30 dk (aynı admin kilidi)
         nt_due = _should_run_notification_auto() and "notification" not in _job_retries
         news_due = _should_run_news_auto() and "news" not in _job_retries
-        if nt_due or news_due:
+        # Gece: dünü kayda al (mühür)
+        seal_due, seal_slot = _notification_night_seal_due()
+        seal_due = seal_due and "notification_seal" not in _job_retries
+        if nt_due or news_due or seal_due:
             if _nt_lock.acquire(blocking=False):
                 try:
+                    if seal_due:
+                        try:
+                            nt = run_notification_bridge_once(mode="seal_yesterday")
+                            _last_notification_night_seal_slot = seal_slot
+                            if nt.get("ok"):
+                                _note_auto_success("notification_seal")
+                                _clear_job_retry("notification_seal")
+                            else:
+                                _notify_auto_failure("notification_seal", nt)
+                                _arm_job_retry("notification_seal", name="Notification night seal")
+                        except Exception as exc:
+                            traceback.print_exc()
+                            _last_notification_night_seal_slot = seal_slot
+                            _notify_auto_failure("notification_seal", exc=exc)
+                            _arm_job_retry("notification_seal", name="Notification night seal")
                     if nt_due:
                         try:
-                            nt = run_notification_bridge_once()
+                            nt = run_notification_bridge_once(mode="live")
                             _last_nt_auto_at = time.time()
                             if nt.get("ok"):
                                 _note_auto_success("notification")
@@ -4682,7 +4771,8 @@ def run_daemon() -> int:
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), _BridgeHandler)
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
-        f"notify={AUTO_INTERVAL_SEC}s news={NEWS_AUTO_INTERVAL_SEC}s "
+        f"notify+news={AUTO_INTERVAL_SEC}s@{NT_NEWS_ACTIVE_START_HOUR:02d}-{NT_NEWS_ACTIVE_END_HOUR:02d} "
+        f"nt_night_seal={NOTIFICATION_NIGHT_SEAL_HOUR:02d}:{NOTIFICATION_NIGHT_SEAL_MINUTE:02d} "
         f"virgul={list(VIRGUL_SLOT_HOURS)}:00 play={list(PLAY_SLOT_HOURS)}:{PLAY_SLOT_MINUTE:02d} "
         f"asc={list(ASC_SLOT_HOURS)}:{ASC_SLOT_MINUTE:02d} firebase=:{FIREBASE_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
         f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d} "
