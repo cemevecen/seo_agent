@@ -13,6 +13,8 @@
   var OVERLAY_COLORS = ["#F59E0B", "#A855F7", "#14B8A6", "#F43F5E", "#64748B"];
   var HEIGHT_BASE = { "1": 260, "2": 200, "3": 150 };
   var COMPRESS_DIV = { "1": 1, "2": 1.28, "3": 1.62 };
+  /** Fixed SVG axis label size (half of previous 10) — all chart redraws use this. */
+  var AXIS_LABEL_FONT = 5;
 
   var state = {
     platform: "web",
@@ -240,9 +242,37 @@
     var list = $("sd-metric-list");
     if (!trigger || !list || list.classList.contains("hidden")) return;
     var r = trigger.getBoundingClientRect();
+    list.style.position = "fixed";
     list.style.left = Math.max(8, r.left) + "px";
     list.style.top = r.bottom + 4 + "px";
     list.style.width = Math.max(r.width, 220) + "px";
+    list.style.zIndex = "10050";
+  }
+
+  function openMetricList() {
+    var trigger = $("sd-metric-trigger");
+    var list = $("sd-metric-list");
+    if (!trigger || !list) return;
+    if (list.parentElement !== document.body) {
+      document.body.appendChild(list);
+      list.classList.add("sd-metric-list--portal");
+    }
+    list.classList.remove("hidden");
+    trigger.setAttribute("aria-expanded", "true");
+    positionMetricList();
+  }
+
+  function closeMetricList() {
+    var trigger = $("sd-metric-trigger");
+    var list = $("sd-metric-list");
+    var dd = document.querySelector(".sd-metric-dd");
+    if (!list) return;
+    list.classList.add("hidden");
+    if (dd && list.parentElement === document.body) {
+      dd.appendChild(list);
+      list.classList.remove("sd-metric-list--portal");
+    }
+    if (trigger) trigger.setAttribute("aria-expanded", "false");
   }
 
   function applyPreset(preset) {
@@ -753,7 +783,17 @@
       ev.stopPropagation();
       var card = expand.closest("[data-metric-kpi-card]");
       if (!card || !host.contains(card)) return;
-      var open = card.classList.toggle("is-open");
+      var open = !card.classList.contains("is-open");
+      host.querySelectorAll("[data-metric-kpi-card].is-open").forEach(function (other) {
+        if (other === card) return;
+        other.classList.remove("is-open");
+        var btn = other.querySelector("[data-metric-kpi-expand]");
+        if (btn) {
+          btn.setAttribute("aria-expanded", "false");
+          btn.setAttribute("aria-label", "Open details");
+        }
+      });
+      card.classList.toggle("is-open", open);
       expand.setAttribute("aria-expanded", open ? "true" : "false");
       expand.setAttribute("aria-label", open ? "Close details" : "Open details");
     });
@@ -852,7 +892,9 @@
 
     if (!dates.length || !seriesList.length) {
       svg.innerHTML =
-        '<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="12">No data for this range</text>';
+        '<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="' +
+        AXIS_LABEL_FONT +
+        '">No data for this range</text>';
       if (tip) tip.classList.add("hidden");
       return;
     }
@@ -898,7 +940,9 @@
         (padL - 6) +
         '" y="' +
         (gy + 3) +
-        '" text-anchor="end" fill="#94a3b8" font-size="10">' +
+        '" text-anchor="end" fill="#94a3b8" font-size="' +
+        AXIS_LABEL_FONT +
+        '">' +
         fmtNum(gv, "") +
         "</text>";
     }
@@ -912,7 +956,9 @@
         xAt(i) +
         '" y="' +
         (h - 8) +
-        '" text-anchor="middle" fill="#94a3b8" font-size="10">' +
+        '" text-anchor="middle" fill="#94a3b8" font-size="' +
+        AXIS_LABEL_FONT +
+        '">' +
         d.slice(5) +
         "</text>";
     });
@@ -1286,11 +1332,11 @@
       trigger.addEventListener("click", function (ev) {
         ev.preventDefault();
         ev.stopPropagation();
-        list.classList.toggle("hidden");
-        trigger.setAttribute("aria-expanded", list.classList.contains("hidden") ? "false" : "true");
-        positionMetricList();
+        if (list.classList.contains("hidden")) openMetricList();
+        else closeMetricList();
       });
       list.addEventListener("click", function (ev) {
+        ev.stopPropagation();
         var clearBtn = ev.target.closest ? ev.target.closest("[data-sd-metric-clear]") : null;
         if (clearBtn) {
           ev.preventDefault();
@@ -1305,10 +1351,10 @@
       document.addEventListener("click", function (ev) {
         if (list.classList.contains("hidden")) return;
         if (list.contains(ev.target) || trigger.contains(ev.target)) return;
-        list.classList.add("hidden");
-        trigger.setAttribute("aria-expanded", "false");
+        closeMetricList();
       });
       global.addEventListener("resize", positionMetricList);
+      global.addEventListener("scroll", positionMetricList, true);
     }
 
     var platRoot = $("sd-platform-toggle");

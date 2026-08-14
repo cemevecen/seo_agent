@@ -129,7 +129,7 @@
         </div>
       </div>
       <div id="sd-chart-wrap" class="relative overflow-visible px-1" data-chart-height="2" data-chart-compress="1" style="height:200px">
-        <svg id="sd-chart" viewBox="0 0 720 200" class="block h-full w-full max-w-none touch-pan-y select-none" preserveAspectRatio="none" role="img" aria-label="Sinemalar datas chart"></svg>
+        <svg id="sd-chart" viewBox="0 0 720 200" class="block h-full w-full max-w-none touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Sinemalar datas chart"></svg>
         <div id="sd-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0">
           <p id="sd-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
           <div id="sd-tip-body" class="mt-1.5 space-y-0.5 text-[11px] text-slate-700 dark:text-zinc-200"></div>
@@ -161,6 +161,12 @@
     gap: 0.65rem 0.75rem;
     width: 100%;
     min-width: 0;
+    position: relative;
+    z-index: 60;
+  }
+  .sd-datas-page #sd-results {
+    position: relative;
+    z-index: 1;
   }
   .sd-datas-page .sd-f {
     display: flex;
@@ -255,9 +261,17 @@
     background: #f4f4f5;
     color: #18181b;
   }
-  .sd-datas-page #sd-metric-list {
+  .sd-datas-page #sd-metric-list,
+  #sd-metric-list.sd-metric-list--portal {
     min-width: min(20rem, 92vw);
     max-width: min(24rem, 96vw);
+    z-index: 10050 !important;
+    background: #fff;
+    pointer-events: auto;
+  }
+  html.dark #sd-metric-list.sd-metric-list--portal,
+  html.midnight #sd-metric-list.sd-metric-list--portal {
+    background: #09090b;
   }
   .sd-datas-page #sd-metric-list [data-sd-metric-pick][aria-selected="true"] {
     background: #ecfdf5;
@@ -295,12 +309,12 @@
     width: 100%;
     min-width: 0;
     gap: clamp(0.28rem, 1.15vw, 0.65rem);
-    align-items: stretch;
+    align-items: start;
     grid-template-columns: repeat(var(--kpi-n, 1), minmax(0, 1fr));
   }
   #sd-metric-kpis.metric-kpi-grid--ss2 > .metric-kpi-ss2 {
-    align-self: stretch;
-    height: 100%;
+    align-self: start;
+    height: auto;
     min-height: 0;
     min-width: 0;
   }
@@ -648,4 +662,4 @@
 </style>
 
 <script src="/static/js/metric_table_ux.js?v=13"></script>
-<script src="/static/js/sinemalar_datas.js?v=2" defer></script>
+<script src="/static/js/sinemalar_datas.js?v=3" defer></script>
