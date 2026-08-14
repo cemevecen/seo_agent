@@ -76,33 +76,7 @@
     </form>
     {% endif %}
 
-    {# Gerçek Google giriş / çıkış olayları #}
-    <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
-      <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">User logins</h4>
-        <span class="text-[11px] text-slate-400 dark:text-slate-500">Google sign-in / sign-out only · TR time</span>
-      </div>
-      <div id="settings-login-history" class="space-y-2"{% if not (login_history is defined and login_history) %} hidden{% endif %}>
-        {% for e in login_history or [] %}
-        <div class="flex flex-col gap-1 rounded-lg border px-3 py-2 text-xs
-          {% if e.is_logout %}border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-900/40
-          {% elif e.is_success %}border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/15
-          {% else %}border-rose-200 bg-rose-50/60 dark:border-rose-900/40 dark:bg-rose-950/20{% endif %}">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="font-semibold text-slate-800 dark:text-slate-200">{{ e.event_label }}</span>
-            {% if e.actor_email %}
-            <span class="text-slate-600 dark:text-slate-300">{{ e.actor_email }}</span>
-            {% endif %}
-            <span class="text-slate-400 dark:text-slate-500 sm:ml-auto tabular-nums">{{ e.created_at_tr }}</span>
-          </div>
-          <div class="text-slate-500 dark:text-slate-400">{{ e.ip }} · {{ e.device }}</div>
-        </div>
-        {% endfor %}
-      </div>
-      <p id="settings-login-history-empty" class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"{% if login_history is defined and login_history %} hidden{% endif %}>No Google sign-in events yet.</p>
-    </div>
-
-    {# Ziyaret günlüğü: yalnızca gerçek auth oturumu + sayfalar / özellikler / çıkış #}
+    {# Ziyaret günlüğü: gerçek auth oturumu + sayfalar / özellikler / çıkış #}
     <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
       <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Visit &amp; activity log</h4>
@@ -112,11 +86,11 @@
         {% for v in visit_logs or [] %}
         <div class="rounded-lg border px-3 py-2 text-xs
           {% if v.is_open %}border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/15
-          {% else %}border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40{% endif %}">
+          {% else %}border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40{% endif %}" data-visit-id="{{ v.id }}">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="font-semibold text-slate-800 dark:text-slate-200">{{ v.who }}</span>
+            <span class="font-semibold text-slate-800 dark:text-slate-200 settings-visit-who">{{ v.who }}</span>
             {% if v.email and v.email != v.who %}
-            <span class="text-slate-500 dark:text-slate-400">{{ v.email }}</span>
+            <span class="text-slate-500 dark:text-slate-400 settings-visit-email">{{ v.email }}</span>
             {% endif %}
             <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold
               {% if v.is_open %}bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200
@@ -528,6 +502,42 @@
       </div>
     </details>
 
+    <details id="mac-bridge-live-details"
+      class="group rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6" open>
+      <summary class="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+        <div class="flex min-w-0 flex-1 items-center gap-2">
+          <span
+            class="inline-flex h-5 w-5 shrink-0 items-center justify-center self-start text-slate-500 transition-transform duration-200 group-open:rotate-90 dark:text-slate-400 sm:self-center"
+            aria-hidden="true"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </span>
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Mac bridge · live</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Queue · running jobs · next slots · SIGTERM/SIGKILL (localhost:18765)</p>
+          </div>
+        </div>
+        <div class="shrink-0 flex items-center gap-2" onclick="event.stopPropagation()">
+          <span id="mac-bridge-live-badge" class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">…</span>
+          <button
+            type="button"
+            class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/70"
+            onclick="event.stopPropagation(); window.refreshMacBridgeLive && window.refreshMacBridgeLive();"
+            title="Refresh bridge health"
+          >
+            Refresh
+          </button>
+        </div>
+      </summary>
+      <div class="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+        <div id="mac-bridge-live" class="min-h-[4rem] space-y-3 text-xs text-slate-600 dark:text-slate-300">
+          <p class="text-slate-500 dark:text-slate-400">Connecting to Mac bridge…</p>
+        </div>
+      </div>
+    </details>
+
     <details id="scrape-monitor-details"
       class="group rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">
       <summary class="flex cursor-pointer list-none items-center justify-between gap-3">
@@ -773,46 +783,12 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
     }
-    function renderLoginHistory(items) {
-      var box = document.getElementById("settings-login-history");
-      var empty = document.getElementById("settings-login-history-empty");
-      if (!items || !items.length) {
-        if (box) {
-          box.innerHTML = "";
-          box.hidden = true;
-        }
-        if (empty) empty.hidden = false;
-        return;
+    function meetingModeOn() {
+      try {
+        return localStorage.getItem("seo-meeting-mode") === "1";
+      } catch (e) {
+        return false;
       }
-      if (empty) empty.hidden = true;
-      if (!box) return;
-      box.hidden = false;
-      box.innerHTML = items
-        .map(function (e) {
-          var cls = e.is_logout
-            ? "border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-900/40"
-            : e.is_success
-              ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/15"
-              : "border-rose-200 bg-rose-50/60 dark:border-rose-900/40 dark:bg-rose-950/20";
-          return (
-            '<div class="flex flex-col gap-1 rounded-lg border px-3 py-2 text-xs ' +
-            cls +
-            '"><div class="flex flex-wrap items-center gap-2"><span class="font-semibold text-slate-800 dark:text-slate-200">' +
-            esc(e.event_label) +
-            "</span>" +
-            (e.actor_email
-              ? '<span class="text-slate-600 dark:text-slate-300">' + esc(e.actor_email) + "</span>"
-              : "") +
-            '<span class="text-slate-400 dark:text-slate-500 sm:ml-auto tabular-nums">' +
-            esc(e.created_at_tr) +
-            '</span></div><div class="text-slate-500 dark:text-slate-400">' +
-            esc(e.ip) +
-            " · " +
-            esc(e.device) +
-            "</div></div>"
-          );
-        })
-        .join("");
     }
     function renderVisitLogs(items) {
       var box = document.getElementById("settings-visit-logs");
@@ -828,6 +804,7 @@
       if (empty) empty.hidden = true;
       if (!box) return;
       box.hidden = false;
+      var hideId = meetingModeOn();
       box.innerHTML = items
         .map(function (v) {
           var cls = v.is_open
@@ -836,6 +813,13 @@
           var badge = v.is_open
             ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
             : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+          var who = hideId ? "Team member" : v.who;
+          var emailHtml =
+            !hideId && v.email && v.email !== v.who
+              ? '<span class="text-slate-500 dark:text-slate-400 settings-visit-email">' +
+                esc(v.email) +
+                "</span>"
+              : "";
           var pages = (v.pages || [])
             .map(function (p, i) {
               var star = p.kind === "feature" ? "★ " : "";
@@ -855,12 +839,12 @@
           return (
             '<div class="rounded-lg border px-3 py-2 text-xs ' +
             cls +
-            '"><div class="flex flex-wrap items-center gap-2"><span class="font-semibold text-slate-800 dark:text-slate-200">' +
-            esc(v.who) +
+            '" data-visit-id="' +
+            esc(v.id) +
+            '"><div class="flex flex-wrap items-center gap-2"><span class="font-semibold text-slate-800 dark:text-slate-200 settings-visit-who">' +
+            esc(who) +
             "</span>" +
-            (v.email && v.email !== v.who
-              ? '<span class="text-slate-500 dark:text-slate-400">' + esc(v.email) + "</span>"
-              : "") +
+            emailHtml +
             '<span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ' +
             badge +
             '">' +
@@ -892,16 +876,239 @@
         })
         .then(function (data) {
           if (!data || !data.ok) return;
-          renderLoginHistory(data.login_history || []);
           renderVisitLogs(data.visit_logs || []);
         })
         .catch(function () {});
     }
     document.addEventListener("DOMContentLoaded", function () {
       refreshActivityLogs();
-      window.setInterval(refreshActivityLogs, 30000);
+      window.setInterval(refreshActivityLogs, 20000);
+      window.addEventListener("storage", function (ev) {
+        if (ev.key === "seo-meeting-mode") refreshActivityLogs();
+      });
     });
   })();
 </script>
 {% endif %}
+<script>
+  (function () {
+    var BRIDGE_HEALTH = "http://127.0.0.1:18765/health";
+    var LAST_KEYS = [
+      ["last", "notification"],
+      ["last_news", "news"],
+      ["last_virgul", "virgul"],
+      ["last_play", "play"],
+      ["last_asc", "asc"],
+      ["last_firebase", "firebase"],
+      ["last_gsc_links", "gsc_links"],
+      ["last_policy", "policy"],
+      ["last_gsc_cwv", "gsc_cwv"],
+      ["last_pagespeed", "pagespeed"],
+      ["last_noads", "noads"],
+      ["last_moderation", "moderation"],
+      ["last_seo_audit", "seo_audit"],
+      ["last_market", "market"],
+      ["last_empower_intel", "empower"],
+      ["last_empower_intel_sinemalar", "empower_sin"]
+    ];
+    function esc(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    function setBadge(text, kind) {
+      var el = document.getElementById("mac-bridge-live-badge");
+      if (!el) return;
+      el.textContent = text;
+      el.className =
+        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold " +
+        (kind === "ok"
+          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
+          : kind === "run"
+            ? "bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200"
+            : kind === "bad"
+              ? "bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200"
+              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300");
+    }
+    function renderBridge(d) {
+      var root = document.getElementById("mac-bridge-live");
+      if (!root) return;
+      var live = d.live || {};
+      var run = live.running || [];
+      var def = live.deferred || (d.schedule && d.schedule.scrape_deferred) || [];
+      var retries = d.pending_retries || {};
+      var up = live.upcoming || [];
+      var logs = live.log_hits || [];
+      if (live.browser_lock_held || run.length) setBadge("busy", "run");
+      else if (d.ok) setBadge("up · " + (d.now_tr || ""), "ok");
+      else setBadge("down", "bad");
+
+      var nowHtml;
+      if (run.length) {
+        nowHtml =
+          '<table class="w-full text-left"><thead><tr class="text-slate-500"><th class="py-1 pr-2 font-medium">Job</th><th class="py-1 pr-2 font-medium">Phase</th><th class="py-1 font-medium">Message</th></tr></thead><tbody>' +
+          run
+            .map(function (j) {
+              return (
+                '<tr class="border-t border-slate-100 dark:border-slate-800"><td class="py-1 pr-2 font-medium">' +
+                esc(j.kind) +
+                '</td><td class="py-1 pr-2 tabular-nums">' +
+                esc(j.phase) +
+                (j.step != null ? " " + j.step + "/" + (j.total_steps || "?") : "") +
+                '</td><td class="py-1 text-slate-500">' +
+                esc(j.message) +
+                "</td></tr>"
+              );
+            })
+            .join("") +
+          "</tbody></table>";
+      } else {
+        nowHtml =
+          '<p class="text-slate-500 dark:text-slate-400">No running progress' +
+          (live.browser_lock_held ? " · browser lock held" : "") +
+          ((live.browser_gap_remaining_sec || 0) > 0
+            ? " · gap " + live.browser_gap_remaining_sec + "s"
+            : "") +
+          ".</p>";
+      }
+
+      var qHtml = "";
+      if (def.length) qHtml += '<p><span class="font-semibold">Deferred:</span> ' + esc(def.join(", ")) + "</p>";
+      var rk = Object.keys(retries);
+      if (rk.length) {
+        qHtml +=
+          '<table class="mt-1 w-full text-left"><thead><tr class="text-slate-500"><th class="py-1 pr-2">Retry</th><th class="py-1 pr-2">Attempt</th><th class="py-1">In</th></tr></thead><tbody>' +
+          rk
+            .map(function (k) {
+              var v = retries[k] || {};
+              return (
+                '<tr class="border-t border-slate-100 dark:border-slate-800"><td class="py-1 pr-2">' +
+                esc(v.name || k) +
+                '</td><td class="py-1 pr-2 tabular-nums">' +
+                esc(v.attempt) +
+                '</td><td class="py-1 tabular-nums">' +
+                esc(v.next_in_sec) +
+                "s</td></tr>"
+              );
+            })
+            .join("") +
+          "</tbody></table>";
+      }
+      if (!qHtml) qHtml = '<p class="text-slate-500 dark:text-slate-400">Queue empty</p>';
+
+      var upHtml =
+        '<div class="overflow-x-auto"><table class="w-full min-w-[20rem] text-left"><thead><tr class="text-slate-500"><th class="py-1 pr-2 font-medium">Job</th><th class="py-1 pr-2 font-medium">Slot TR</th><th class="py-1 font-medium">In</th></tr></thead><tbody>' +
+        up
+          .slice(0, 12)
+          .map(function (u) {
+            return (
+              '<tr class="border-t border-slate-100 dark:border-slate-800"><td class="py-1 pr-2">' +
+              esc(u.kind) +
+              '</td><td class="py-1 pr-2 tabular-nums">' +
+              esc(u.slot_tr) +
+              '</td><td class="py-1 tabular-nums">' +
+              esc(u.in_min) +
+              " min</td></tr>"
+            );
+          })
+          .join("") +
+        "</tbody></table></div>";
+
+      var lastHtml =
+        '<div class="overflow-x-auto"><table class="w-full min-w-[24rem] text-left"><thead><tr class="text-slate-500"><th class="py-1 pr-2 font-medium">Job</th><th class="py-1 pr-2 font-medium">Status</th><th class="py-1 font-medium">Message</th></tr></thead><tbody>' +
+        LAST_KEYS.map(function (pair) {
+          var v = d[pair[0]] || {};
+          var ok = !!v.ok;
+          var msg = v.message || (v.needs_login ? "needs_login" : "—");
+          return (
+            '<tr class="border-t border-slate-100 dark:border-slate-800"><td class="py-1 pr-2">' +
+            esc(pair[1]) +
+            '</td><td class="py-1 pr-2">' +
+            (ok
+              ? '<span class="font-semibold text-emerald-700 dark:text-emerald-400">ok</span>'
+              : '<span class="font-semibold text-rose-600 dark:text-rose-400">fail</span>') +
+            '</td><td class="max-w-[28rem] truncate py-1 text-slate-500" title="' +
+            esc(msg) +
+            '">' +
+            esc(msg) +
+            "</td></tr>"
+          );
+        }).join("") +
+        "</tbody></table></div>";
+
+      var logHtml = logs.length
+        ? '<pre class="max-h-40 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2 font-mono text-[10px] leading-relaxed text-slate-600 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">' +
+          esc(logs.join("\n")) +
+          "</pre>"
+        : '<p class="text-slate-500 dark:text-slate-400">No SIGTERM / SIGKILL / login lines yet.</p>';
+
+      var alerts = live.login_alerts_open || [];
+      var alertHtml = alerts.length
+        ? '<p class="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">Open login alerts: ' +
+          esc(alerts.join(", ")) +
+          "</p>"
+        : "";
+
+      root.innerHTML =
+        alertHtml +
+        '<div class="grid gap-3 lg:grid-cols-2">' +
+        '<div><h4 class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Now</h4>' +
+        nowHtml +
+        '</div><div><h4 class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Queue / retry</h4>' +
+        qHtml +
+        "</div></div>" +
+        '<div><h4 class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Next slots (TR)</h4>' +
+        upHtml +
+        "</div>" +
+        '<div><h4 class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Last results</h4>' +
+        lastHtml +
+        "</div>" +
+        '<div><h4 class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Log hits</h4>' +
+        logHtml +
+        "</div>" +
+        '<p class="text-[10px] text-slate-400">Also: <a class="underline" href="http://127.0.0.1:18765/status" target="_blank" rel="noopener">127.0.0.1:18765/status</a> · poll ~5s while this section is open</p>';
+    }
+    function refreshMacBridgeLive() {
+      var root = document.getElementById("mac-bridge-live");
+      if (!root) return;
+      fetch(BRIDGE_HEALTH, { cache: "no-store", mode: "cors" })
+        .then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        })
+        .then(function (d) {
+          renderBridge(d || {});
+        })
+        .catch(function () {
+          setBadge("offline", "bad");
+          root.innerHTML =
+            '<p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-slate-500 dark:border-slate-700 dark:text-slate-400">Mac bridge unreachable at <span class="font-mono">127.0.0.1:18765</span>. Open Settings on the VPN Mac while LaunchAgent bridge is running.</p>';
+        });
+    }
+    window.refreshMacBridgeLive = refreshMacBridgeLive;
+    var bridgeTimer = null;
+    function startBridgePoll() {
+      refreshMacBridgeLive();
+      if (bridgeTimer) window.clearInterval(bridgeTimer);
+      bridgeTimer = window.setInterval(refreshMacBridgeLive, 5000);
+    }
+    function stopBridgePoll() {
+      if (bridgeTimer) {
+        window.clearInterval(bridgeTimer);
+        bridgeTimer = null;
+      }
+    }
+    document.addEventListener("DOMContentLoaded", function () {
+      var d = document.getElementById("mac-bridge-live-details");
+      if (!d) return;
+      if (d.open) startBridgePoll();
+      d.addEventListener("toggle", function () {
+        if (d.open) startBridgePoll();
+        else stopBridgePoll();
+      });
+    });
+  })();
+</script>
 {% endblock %}

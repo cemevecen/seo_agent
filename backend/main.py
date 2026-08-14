@@ -13447,29 +13447,16 @@ def alerts_refresh_status(request: Request):
 
 @app.get("/api/settings/activity-logs")
 def api_settings_activity_logs(request: Request):
-    """Settings — ziyaret + Google giriş geçmişi (canlı yenileme)."""
+    """Settings — Visit & activity log (canlı yenileme)."""
     if not _is_settings_authenticated(request):
         return JSONResponse(status_code=403, content={"detail": "Forbidden"})
-    from backend.services import admin_access_log as aal
     from backend.services import panel_visit_log as pvl
-
-    with SessionLocal() as db:
-        login_history = aal.recent_login_history(
-            db,
-            event_types=(
-                "member_login_ok",
-                "member_register_ok",
-                "member_logout_ok",
-                "member_login_fail",
-            ),
-        )
-    visit_logs = pvl.recent_visits(limit=80, auth_only=True)
     from fastapi.encoders import jsonable_encoder
 
+    visit_logs = pvl.recent_visits(limit=80, auth_only=True)
     return JSONResponse(
         {
             "ok": True,
-            "login_history": jsonable_encoder(login_history),
             "visit_logs": jsonable_encoder(visit_logs),
         }
     )
@@ -13481,26 +13468,11 @@ def settings_page(request: Request):
     from backend.services import app_member_auth as ama
     from backend.services import panel_visit_log as pvl
 
-    from backend.services import admin_access_log as aal
-
     with SessionLocal() as db:
         admin_password_configured = _admin_password_configured(db)
         membership_admin = _is_membership_admin(request)
-        login_history: list = []
         visit_logs: list = []
         if admin_password_configured:
-            try:
-                login_history = aal.recent_login_history(
-                    db,
-                    event_types=(
-                        "member_login_ok",
-                        "member_register_ok",
-                        "member_logout_ok",
-                        "member_login_fail",
-                    ),
-                )
-            except Exception:
-                LOGGER.exception("settings login_history")
             try:
                 visit_logs = pvl.recent_visits(limit=80, auth_only=True)
             except Exception:
@@ -13513,7 +13485,6 @@ def settings_page(request: Request):
             "oauth_ready": oauth_is_configured(),
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
             "admin_password_configured": admin_password_configured,
-            "login_history": login_history,
             "visit_logs": visit_logs,
             "membership_admin": membership_admin,
             "app_members": ama.member_list_payload(db) if membership_admin else [],

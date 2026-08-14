@@ -156,14 +156,16 @@ def test_backfill_visit_from_login_event():
         assert row.start_reason == "auth"
 
 
-def test_settings_template_has_visit_and_login_log():
+def test_settings_template_has_visit_log_not_user_logins():
     from pathlib import Path
 
     text = (Path(__file__).resolve().parents[2] / "templates/settings.html").read_text(encoding="utf-8")
-    assert "User logins" in text
-    assert "login_history" in text
+    assert "User logins" not in text
+    assert "login_history" not in text
+    assert "settings-login-history" not in text
     assert "Visit &amp; activity log" in text or "Visit & activity log" in text
     assert "visit_logs" in text
+    assert "mac-bridge-live" in text
     assert "logged_in_tr" in text
     assert "logged_out_tr" in text
     assert "Son Girişler" not in text
