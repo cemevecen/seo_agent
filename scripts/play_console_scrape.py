@@ -22,6 +22,7 @@ Env:
   PLAY_CONSOLE_VITALS_ROW_NAV=0   # sorun tablosu satır satır (varsayılan kapalı — login baskısı)
   PLAY_CONSOLE_VITALS_DETAIL_LIMIT=8  # issue detay/stack üst sınır (5–10)
   PLAY_CONSOLE_VITALS_DETAILS=     # boş=günde ~1 kez; 0=hiç; 1=zorla bu sync’te
+  PLAY_CONSOLE_KEEP_OPEN=0         # varsayılan açık bırak; 0=scrape bitince kapat
 """
 
 from __future__ import annotations
@@ -714,6 +715,28 @@ def _clear_profile_singleton_locks(profile_dir: Path) -> None:
 
 
 _CDP_ATTACHED: set[int] = set()
+# Headed Play: Google oturumu için Firefox penceresi kapatılmaz; sonraki taramada yeniden kullanılır.
+_PLAY_WARM: dict[str, Any] = {"pw": None, "ctx": None}
+
+
+def _play_keep_window_open() -> bool:
+    """Varsayılan: Play penceresi açık kalsın. Kapatmak için PLAY_CONSOLE_KEEP_OPEN=0."""
+    return (os.environ.get("PLAY_CONSOLE_KEEP_OPEN") or "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _play_warm_alive(ctx: Any) -> bool:
+    if ctx is None:
+        return False
+    try:
+        _ = ctx.pages
+        return True
+    except Exception:
+        return False
 
 
 def _launch_context(*, headed: bool):
@@ -722,9 +745,16 @@ def _launch_context(*, headed: bool):
         play_console_use_selenium,
     )
 
+    if headed and _play_keep_window_open() and _play_warm_alive(_PLAY_WARM.get("ctx")):
+        print("Play: mevcut Firefox penceresi yeniden kullanılıyor (kapatılmadı)", flush=True)
+        return _PLAY_WARM["pw"], _PLAY_WARM["ctx"]
+
     if play_console_use_selenium():
         # launch_selenium_context → (pw, context, attached); callers expect 2-tuple
         pw, context, _attached = launch_selenium_context(PROFILE_DIR, headed=headed)
+        if headed and _play_keep_window_open():
+            _PLAY_WARM["pw"] = pw
+            _PLAY_WARM["ctx"] = context
         return pw, context
 
     from backend.services.store_session_cdp import attach_or_launch
@@ -733,13 +763,31 @@ def _launch_context(*, headed: bool):
     if attached:
         _CDP_ATTACHED.add(id(context))
         print("Play: kalıcı Firefox profili", flush=True)
+    if headed and _play_keep_window_open():
+        _PLAY_WARM["pw"] = pw
+        _PLAY_WARM["ctx"] = context
     return pw, context
 
 
 def _release_context(pw, context) -> None:
+    """Headed Play'de pencereyi kapatma — Google oturumu açık kalsın."""
+    if (
+        _play_keep_window_open()
+        and context is not None
+        and _PLAY_WARM.get("ctx") is context
+    ):
+        print(
+            "Play: Firefox penceresi açık bırakıldı (scrape bitse de kapanmaz)",
+            flush=True,
+        )
+        return
+
     if getattr(context, "_selenium_mode", False):
         from backend.services.selenium_playwright_shim import release_selenium_context
 
+        if _PLAY_WARM.get("ctx") is context:
+            _PLAY_WARM["pw"] = None
+            _PLAY_WARM["ctx"] = None
         release_selenium_context(pw, context)
         return
 
@@ -747,6 +795,9 @@ def _release_context(pw, context) -> None:
 
     attached = id(context) in _CDP_ATTACHED
     _CDP_ATTACHED.discard(id(context))
+    if _PLAY_WARM.get("ctx") is context:
+        _PLAY_WARM["pw"] = None
+        _PLAY_WARM["ctx"] = None
     release_browser(pw, context, attached=attached)
 
 
