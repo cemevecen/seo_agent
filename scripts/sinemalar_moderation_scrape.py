@@ -280,13 +280,20 @@ _EXTRACT_DETAIL_CHUNK_JS = r"""
 _DETAIL_ROW_CHUNK = 250
 
 
-def _safe_close_context(context) -> None:
-    if context is None:
+def _safe_close_context(context, *, pw=None, headed: bool = True) -> None:
+    """Headed scrapelerde pencereyi kapatma — admin oturumu korunsun."""
+    from backend.services.scrape_browser import release_persistent_context
+
+    if context is None and pw is None:
         return
-    try:
-        context.close()
-    except Exception:
-        pass
+    release_persistent_context(
+        "sinemalar",
+        pw,
+        context,
+        headed=headed,
+        env_key="SINEMALAR_KEEP_OPEN",
+        label="Sinemalar",
+    )
 
 
 def _extract_detail_rows(page) -> list[dict[str, Any]]:
@@ -333,13 +340,18 @@ def fetch_detail_page(
 
 
 def _open_logged_in_page(headed: bool):
-    from playwright.sync_api import sync_playwright
+    from backend.services.scrape_browser import (
+        acquire_persistent_context,
+        release_persistent_context,
+    )
 
-    from backend.services.scrape_browser import launch_persistent
-
-    p = sync_playwright().start()
-    context = launch_persistent(
-        p, sinemalar_profile_dir(), headed=headed, viewport={"width": 1400, "height": 900}
+    pw, context, _reused = acquire_persistent_context(
+        "sinemalar",
+        profile=sinemalar_profile_dir(),
+        headed=headed,
+        env_key="SINEMALAR_KEEP_OPEN",
+        label="Sinemalar",
+        viewport={"width": 1400, "height": 900},
     )
     page = context.pages[0] if context.pages else context.new_page()
     page.goto(SUMMARY_URL, wait_until="domcontentloaded", timeout=90000)
@@ -349,10 +361,16 @@ def _open_logged_in_page(headed: bool):
         page.goto(SUMMARY_URL, wait_until="domcontentloaded", timeout=90000)
         time.sleep(0.8)
     if not _looks_logged_in(page):
-        _safe_close_context(context)
-        p.stop()
+        release_persistent_context(
+            "sinemalar",
+            pw,
+            context,
+            headed=headed,
+            env_key="SINEMALAR_KEEP_OPEN",
+            label="Sinemalar",
+        )
         return None, None, None
-    return p, context, page
+    return pw, context, page
 
 
 def _ingest_detail_chunk(
@@ -584,12 +602,7 @@ def scrape_detail_range(
                     print(f"    ! {username}/{metric_type} hata (deneme {attempt + 1}): {exc}", flush=True)
                     batch = None
                 finally:
-                    _safe_close_context(ctx)
-                    if pw is not None:
-                        try:
-                            pw.stop()
-                        except Exception:
-                            pass
+                    _safe_close_context(ctx, pw=pw, headed=headed)
             if batch is None:
                 batch = {
                     "user_id": user_id,
@@ -735,12 +748,7 @@ def scrape_fill_gaps(
             }
         summary_rows = fetch_summary_for_range(page, start_d, end_d)
     finally:
-        _safe_close_context(ctx)
-        if pw is not None:
-            try:
-                pw.stop()
-            except Exception:
-                pass
+        _safe_close_context(ctx, pw=pw, headed=headed)
 
     parsed = parse_summary_rows(summary_rows)
     expected = summary_totals_map(parsed)
@@ -844,12 +852,7 @@ def scrape_fill_gaps(
                 print(f"    ! {username}/{metric_type} hata (deneme {attempt + 1}): {exc}", flush=True)
                 batch = None
             finally:
-                _safe_close_context(ctx)
-                if pw is not None:
-                    try:
-                        pw.stop()
-                    except Exception:
-                        pass
+                _safe_close_context(ctx, pw=pw, headed=headed)
         if batch is None:
             continue
         batches.append(batch)
@@ -888,51 +891,36 @@ def scrape_days(
     headed: bool = True,
     delay_sec: float = SCRAPE_DELAY_SEC,
 ) -> dict[str, Any]:
-    from playwright.sync_api import sync_playwright
-
-    from backend.services.scrape_browser import launch_persistent
-
     if not days:
         return {"ok": False, "message": "Gün listesi boş", "days": []}
 
-    with sync_playwright() as p:
-        context = launch_persistent(
-            p, sinemalar_profile_dir(), headed=headed, viewport={"width": 1400, "height": 900}
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        try:
-            page.goto(SUMMARY_URL, wait_until="networkidle", timeout=90000)
-            time.sleep(1.0)
-            if not _looks_logged_in(page):
-                _try_form_login(page)
-                page.goto(SUMMARY_URL, wait_until="networkidle", timeout=90000)
-                time.sleep(1.0)
-            if not _looks_logged_in(page):
-                return {
-                    "ok": False,
-                    "needs_login": True,
-                    "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
-                    "days": [],
-                }
+    pw, context, page = _open_logged_in_page(headed)
+    if page is None:
+        return {
+            "ok": False,
+            "needs_login": True,
+            "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
+            "days": [],
+        }
+    try:
+        blocks: list[dict[str, Any]] = []
+        for i, day in enumerate(days):
+            if i > 0 and delay_sec > 0:
+                time.sleep(delay_sec)
+            rows = fetch_summary_for_day(page, day)
+            blocks.append({"date": day.isoformat(), "rows": rows})
+            print(f"  {day.isoformat()} · {len(rows)} moderatör satırı", flush=True)
 
-            blocks: list[dict[str, Any]] = []
-            for i, day in enumerate(days):
-                if i > 0 and delay_sec > 0:
-                    time.sleep(delay_sec)
-                rows = fetch_summary_for_day(page, day)
-                blocks.append({"date": day.isoformat(), "rows": rows})
-                print(f"  {day.isoformat()} · {len(rows)} moderatör satırı", flush=True)
-
-            return {
-                "ok": True,
-                "needs_login": False,
-                "source": "sinemalar_moderation",
-                "scraped_at": datetime.now(timezone.utc).isoformat(),
-                "days": blocks,
-                "message": f"{len(blocks)} gün çekildi",
-            }
-        finally:
-            _safe_close_context(context)
+        return {
+            "ok": True,
+            "needs_login": False,
+            "source": "sinemalar_moderation",
+            "scraped_at": datetime.now(timezone.utc).isoformat(),
+            "days": blocks,
+            "message": f"{len(blocks)} gün çekildi",
+        }
+    finally:
+        _safe_close_context(context, pw=pw, headed=headed)
 
 
 def fetch_remote_meta() -> dict[str, Any]:
@@ -1138,12 +1126,7 @@ def scrape_incremental_detail_day(
                         batch = None
                         if attempt == 0:
                             # Oturum düşmüş olabilir — yeniden aç
-                            _safe_close_context(ctx)
-                            if pw is not None:
-                                try:
-                                    pw.stop()
-                                except Exception:
-                                    pass
+                            _safe_close_context(ctx, pw=pw, headed=headed)
                             pw, ctx, page = _open_logged_in_page(headed)
                             if page is None:
                                 return {
@@ -1184,12 +1167,7 @@ def scrape_incremental_detail_day(
                     if not ing.get("ok"):
                         print(f"    ingest hata: {ing.get('message')}", flush=True)
     finally:
-        _safe_close_context(ctx)
-        if pw is not None:
-            try:
-                pw.stop()
-            except Exception:
-                pass
+        _safe_close_context(ctx, pw=pw, headed=headed)
 
     return {
         "ok": True,
@@ -1349,20 +1327,32 @@ def main() -> int:
     headed = not args.headless
 
     if args.login:
-        from playwright.sync_api import sync_playwright
+        from backend.services.scrape_browser import acquire_persistent_context, release_persistent_context
 
-        from backend.services.scrape_browser import launch_persistent
-
-        with sync_playwright() as p:
-            ctx = launch_persistent(p, sinemalar_profile_dir(), headed=True)
+        pw, ctx, _reused = acquire_persistent_context(
+            "sinemalar",
+            profile=sinemalar_profile_dir(),
+            headed=True,
+            env_key="SINEMALAR_KEEP_OPEN",
+            label="Sinemalar",
+        )
+        try:
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             page.goto(SUMMARY_URL, wait_until="domcontentloaded", timeout=90000)
-            print("Tarayıcı açık — giriş yapıp kapatın.", flush=True)
+            print("Tarayıcı açık — giriş yapın (pencere KEEP_OPEN ile açık kalır).", flush=True)
             try:
                 page.wait_for_timeout(300_000)
             except Exception:
                 pass
-            ctx.close()
+        finally:
+            release_persistent_context(
+                "sinemalar",
+                pw,
+                ctx,
+                headed=True,
+                env_key="SINEMALAR_KEEP_OPEN",
+                label="Sinemalar",
+            )
         return 0
 
     if args.purge_only:
@@ -1483,18 +1473,31 @@ def main() -> int:
         except ValueError:
             print("Geçersiz --range tarihleri", file=sys.stderr)
             return 1
-        from playwright.sync_api import sync_playwright
-
-        from backend.services.scrape_browser import launch_persistent
+        from backend.services.scrape_browser import acquire_persistent_context, release_persistent_context
 
         url = f"{SUMMARY_URL}?startDate={start_d.isoformat()}&endDate={end_d.isoformat()}"
-        with sync_playwright() as p:
-            ctx = launch_persistent(p, sinemalar_profile_dir(), headed=headed)
+        pw, ctx, _reused = acquire_persistent_context(
+            "sinemalar",
+            profile=sinemalar_profile_dir(),
+            headed=headed,
+            env_key="SINEMALAR_KEEP_OPEN",
+            label="Sinemalar",
+            viewport={"width": 1400, "height": 900},
+        )
+        try:
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             page.goto(url, wait_until="networkidle", timeout=90000)
             time.sleep(0.5)
             rows = page.evaluate(_EXTRACT_ROWS_JS) or []
-            ctx.close()
+        finally:
+            release_persistent_context(
+                "sinemalar",
+                pw,
+                ctx,
+                headed=headed,
+                env_key="SINEMALAR_KEEP_OPEN",
+                label="Sinemalar",
+            )
         out = {"ok": True, "url": url, "rows": rows, "tracked": _tracked_day_total(rows)}
         if args.ingest:
             out["ingest"] = ingest_result(

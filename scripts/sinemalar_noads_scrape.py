@@ -247,67 +247,88 @@ def _try_form_login(page) -> bool:
         return False
 
 
+
+def _launch_noads_context(*, headed: bool):
+    from backend.services.scrape_browser import acquire_persistent_context
+
+    pw, context, _reused = acquire_persistent_context(
+        "sinemalar-noads",
+        profile=PROFILE_DIR,
+        headed=headed,
+        env_key="SINEMALAR_KEEP_OPEN",
+        label="Sinemalar noAds",
+        viewport={"width": 1400, "height": 900},
+    )
+    return pw, context
+
+
+def _release_noads_context(pw, context, *, headed: bool = True) -> None:
+    from backend.services.scrape_browser import release_persistent_context
+
+    release_persistent_context(
+        "sinemalar-noads",
+        pw,
+        context,
+        headed=headed,
+        env_key="SINEMALAR_KEEP_OPEN",
+        label="Sinemalar noAds",
+    )
+
+
 def scrape_sinemalar_noads(*, headed: bool = True) -> dict[str, Any]:
-    from playwright.sync_api import sync_playwright
-
-    from backend.services.scrape_browser import launch_persistent
-
-    with sync_playwright() as p:
-        context = launch_persistent(
-            p, PROFILE_DIR, headed=headed, viewport={"width": 1400, "height": 900}
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        try:
+    pw, context = _launch_noads_context(headed=headed)
+    page = context.pages[0] if context.pages else context.new_page()
+    try:
+        page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
+        time.sleep(2.0)
+        if not _looks_logged_in(page):
+            _try_form_login(page)
             page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
             time.sleep(2.0)
-            if not _looks_logged_in(page):
-                _try_form_login(page)
-                page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
-                time.sleep(2.0)
-            if not _looks_logged_in(page):
-                return {
-                    "ok": False,
-                    "needs_login": True,
-                    "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
-                    "entries": [],
-                }
-
-            # Scroll to load lazy rows
-            for _ in range(12):
-                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                time.sleep(0.45)
-            page.evaluate("window.scrollTo(0, 0)")
-            time.sleep(0.4)
-
-            data = page.evaluate(_EXTRACT_JS) or {}
-            entries = data.get("entries") or []
-            # Absolute URLs
-            fixed = []
-            for e in entries:
-                if not isinstance(e, dict):
-                    continue
-                url = (e.get("url") or "").strip()
-                if url and url.startswith("/"):
-                    url = urljoin("https://www.sinemalar.com", url)
-                fixed.append(
-                    {
-                        "url": url or None,
-                        "entity_id": e.get("entity_id") or None,
-                        "label": e.get("label") or None,
-                    }
-                )
+        if not _looks_logged_in(page):
             return {
-                "ok": True,
-                "needs_login": False,
-                "source": "sinemalar_noads",
-                "scraped_at": datetime.now(timezone.utc).isoformat(),
-                "page_url": data.get("url") or NOADS_URL,
-                "page_title": data.get("title") or "",
-                "entries": fixed,
-                "message": f"{len(fixed)} noAds kaydı",
+                "ok": False,
+                "needs_login": True,
+                "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
+                "entries": [],
             }
-        finally:
-            context.close()
+
+        # Scroll to load lazy rows
+        for _ in range(12):
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            time.sleep(0.45)
+        page.evaluate("window.scrollTo(0, 0)")
+        time.sleep(0.4)
+
+        data = page.evaluate(_EXTRACT_JS) or {}
+        entries = data.get("entries") or []
+        # Absolute URLs
+        fixed = []
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+            url = (e.get("url") or "").strip()
+            if url and url.startswith("/"):
+                url = urljoin("https://www.sinemalar.com", url)
+            fixed.append(
+                {
+                    "url": url or None,
+                    "entity_id": e.get("entity_id") or None,
+                    "label": e.get("label") or None,
+                }
+            )
+        return {
+            "ok": True,
+            "needs_login": False,
+            "source": "sinemalar_noads",
+            "scraped_at": datetime.now(timezone.utc).isoformat(),
+            "page_url": data.get("url") or NOADS_URL,
+            "page_title": data.get("title") or "",
+            "entries": fixed,
+            "message": f"{len(fixed)} noAds kaydı",
+        }
+    finally:
+        _release_noads_context(pw, context, headed=headed)
 
 
 def ingest_noads_result(result: dict[str, Any]) -> dict[str, Any]:
@@ -356,12 +377,11 @@ def _normalize_prefill_url(url: str) -> str:
 
 
 def open_noads_prefill(url: str, *, keep_open_sec: int | None = None) -> dict[str, Any]:
-    """Headed Chromium: noAds sayfasını aç, textarea'ya URL yaz, Ekle için beklet.
+    """Headed Firefox: noAds sayfasını aç, textarea'ya URL yaz, Ekle için beklet.
 
     Kullanıcı yeşil «Ekle»ye kendisi basar. keep_open_sec boyunca pencere açık kalır.
+    KEEP_OPEN açıksa pencere scrape sonunda da kapanmaz.
     """
-    from playwright.sync_api import sync_playwright
-
     target = _normalize_prefill_url(url)
     if not target:
         return {"ok": False, "message": "URL boş"}
@@ -373,75 +393,67 @@ def open_noads_prefill(url: str, *, keep_open_sec: int | None = None) -> dict[st
     )
     hold = max(60, min(hold, 3600))
 
-    from backend.services.scrape_browser import launch_persistent
-
     print(f"noAds prefill · {target}", flush=True)
-    with sync_playwright() as p:
-        context = launch_persistent(
-            p, PROFILE_DIR, headed=True, viewport={"width": 1400, "height": 900}
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        try:
+    pw, context = _launch_noads_context(headed=True)
+    page = context.pages[0] if context.pages else context.new_page()
+    try:
+        page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
+        time.sleep(1.5)
+        if not _looks_logged_in(page):
+            _try_form_login(page)
             page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
             time.sleep(1.5)
-            if not _looks_logged_in(page):
-                _try_form_login(page)
-                page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
-                time.sleep(1.5)
-            if not _looks_logged_in(page):
-                return {
-                    "ok": False,
-                    "needs_login": True,
-                    "message": "Sinemalar admin oturumu yok — önce --login",
-                }
+        if not _looks_logged_in(page):
+            return {
+                "ok": False,
+                "needs_login": True,
+                "message": "Sinemalar admin oturumu yok — önce --login",
+            }
 
-            if page.locator("textarea").count() == 0:
-                return {"ok": False, "message": "noAds textarea bulunamadı"}
-            ta = page.locator("textarea").first
-            ta.click(timeout=10000)
-            ta.fill(target)
-            # React/controlled alanlar için event
-            page.evaluate(
-                """(u) => {
-                  const el = document.querySelector('textarea');
-                  if (!el) return;
-                  el.focus();
-                  el.value = u;
-                  el.dispatchEvent(new Event('input', { bubbles: true }));
-                  el.dispatchEvent(new Event('change', { bubbles: true }));
-                }""",
-                target,
-            )
+        if page.locator("textarea").count() == 0:
+            return {"ok": False, "message": "noAds textarea bulunamadı"}
+        ta = page.locator("textarea").first
+        ta.click(timeout=10000)
+        ta.fill(target)
+        # React/controlled alanlar için event
+        page.evaluate(
+            """(u) => {
+              const el = document.querySelector('textarea');
+              if (!el) return;
+              el.focus();
+              el.value = u;
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+            }""",
+            target,
+        )
+        try:
+            page.bring_to_front()
+        except Exception:
+            pass
+        print(
+            f"Textarea dolduruldu · yeşil «Ekle»ye basın · pencere ~{hold}s "
+            "(Ekle sonrası veya pencere kapanınca liste yenilenir)",
+            flush=True,
+        )
+        deadline = time.time() + hold
+        while time.time() < deadline:
             try:
-                page.bring_to_front()
-            except Exception:
-                pass
-            print(
-                f"Textarea dolduruldu · yeşil «Ekle»ye basın · pencere ~{hold}s "
-                "(Ekle sonrası veya pencere kapanınca liste yenilenir)",
-                flush=True,
-            )
-            deadline = time.time() + hold
-            while time.time() < deadline:
-                try:
-                    if page.is_closed():
-                        break
-                    # Ekle sonrası textarea genelde boşalır → erken çık, listeyi tara
-                    try:
-                        val = (page.locator("textarea").first.input_value(timeout=800) or "").strip()
-                    except Exception:
-                        val = target
-                    if val != target and target not in val:
-                        time.sleep(1.5)
-                        break
-                except Exception:
+                if page.is_closed():
                     break
-                time.sleep(1.0)
-        finally:
-            try:
-                context.close()
+                # Ekle sonrası textarea genelde boşalır → erken çık, listeyi tara
+                try:
+                    val = (page.locator("textarea").first.input_value(timeout=800) or "").strip()
+                except Exception:
+                    val = target
+                if val != target and target not in val:
+                    time.sleep(1.5)
+                    break
             except Exception:
-                pass
+                break
+            time.sleep(1.0)
+    finally:
+        _release_noads_context(pw, context, headed=True)
 
     # Kullanıcı Ekle'ye bastıktan / pencereyi kapattıktan sonra listeyi tara → yeşil/kırmızı
     resync: dict[str, Any] = {"ok": False, "message": "resync atlandı"}
@@ -470,25 +482,20 @@ def open_noads_prefill(url: str, *, keep_open_sec: int | None = None) -> dict[st
 
 
 def run_login_interactive() -> int:
-    from playwright.sync_api import sync_playwright
-
-    from backend.services.scrape_browser import launch_persistent
-
     print(f"Profil: {PROFILE_DIR}", flush=True)
     print(f"Açılacak: {NOADS_URL}", flush=True)
     print("Tarayıcıda Sinemalar admin girişi yapın; noAds sayfasını görünce Enter.", flush=True)
-    with sync_playwright() as p:
-        context = launch_persistent(
-            p, PROFILE_DIR, headed=True, viewport={"width": 1400, "height": 900}
-        )
-        page = context.pages[0] if context.pages else context.new_page()
+    pw, context = _launch_noads_context(headed=True)
+    page = context.pages[0] if context.pages else context.new_page()
+    try:
         page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
         try:
             input("Giriş tamam → Enter… ")
         except EOFError:
             time.sleep(120)
-        context.close()
-    print("Profil kaydedildi.", flush=True)
+    finally:
+        _release_noads_context(pw, context, headed=True)
+    print("Profil kaydedildi (pencere KEEP_OPEN ile açık kalabilir).", flush=True)
     return 0
 
 

@@ -17,6 +17,7 @@ Env:
   NOTIFICATION_INGEST_TOKEN
   FIREBASE_CONSOLE_SCRAPE_DAYS  default 365 (1–365)
   FIREBASE_CONSOLE_HEADLESS=1
+  FIREBASE_CONSOLE_KEEP_OPEN / SCRAPE_KEEP_OPEN  (varsayılan 1 — pencere kapanmaz)
 """
 from __future__ import annotations
 
@@ -994,7 +995,6 @@ def scrape_firebase_console(
     on_progress=None,
     platforms: list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
-    from playwright.sync_api import sync_playwright
 
     days = _scrape_days()
     if headed is None:
@@ -1026,14 +1026,21 @@ def scrape_firebase_console(
         except Exception:
             pass
 
-    with sync_playwright() as p:
-        from backend.services.scrape_browser import launch_persistent
+    from backend.services.scrape_browser import (
+        acquire_persistent_context,
+        release_persistent_context,
+    )
 
-        context = launch_persistent(
-            p, PROFILE_DIR, headed=headed, viewport={"width": 1440, "height": 960}
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        try:
+    pw, context, _reused = acquire_persistent_context(
+        "firebase",
+        profile=PROFILE_DIR,
+        headed=headed,
+        env_key="FIREBASE_CONSOLE_KEEP_OPEN",
+        label="Firebase",
+        viewport={"width": 1440, "height": 960},
+    )
+    page = context.pages[0] if context.pages else context.new_page()
+    try:
             probe_plat = plat_list[0]
             # login probe — seçilen platformun overview’ı
             _top_prog(
@@ -1056,7 +1063,6 @@ def scrape_firebase_console(
             page.wait_for_timeout(2000)
             if _page_needs_login(page) or "console.firebase.google.com" not in (page.url or "").lower():
                 if not _wait_until_firebase(page, on_progress=_top_prog):
-                    context.close()
                     return {
                         "sync_ok": False,
                         "sync_message": "Firebase Console login zaman aşımı (15 dk)",
@@ -1072,7 +1078,6 @@ def scrape_firebase_console(
                 except Exception:
                     pass
                 if _page_needs_login(page):
-                    context.close()
                     return {
                         "sync_ok": False,
                         "sync_message": "Firebase Console login gerekli (--login)",
@@ -1144,8 +1149,15 @@ def scrape_firebase_console(
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{plat}:{exc}")
                     platforms_out[plat] = {"ok": False, "error": str(exc)[:160]}
-        finally:
-            context.close()
+    finally:
+        release_persistent_context(
+            "firebase",
+            pw,
+            context,
+            headed=headed,
+            env_key="FIREBASE_CONSOLE_KEEP_OPEN",
+            label="Firebase",
+        )
 
     ok = any(isinstance(v, dict) and v.get("ok") for v in platforms_out.values())
     msg = (

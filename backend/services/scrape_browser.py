@@ -7,6 +7,13 @@ Profil kuralları:
 - Auth state (cookies.sqlite, storage, sessionstore…) silinmez / recreate edilmez.
 - Stale SingletonLock / .parentlock temizlenebilir.
 - launch öncesi: bekle → SIGTERM → SIGKILL yalnızca son çare.
+
+Pencere (üyelik koruma):
+- Varsayılan SCRAPE_KEEP_OPEN=1 — headed scrape bitince Firefox kapanmaz.
+- Per-scrape: PLAY_CONSOLE_KEEP_OPEN, ASC_CONSOLE_KEEP_OPEN, GSC_LINKS_KEEP_OPEN,
+  GSC_CWV_KEEP_OPEN, FIREBASE_CONSOLE_KEEP_OPEN, ADMANAGER_POLICY_KEEP_OPEN,
+  SINEMALAR_KEEP_OPEN (=0 ile kapat).
+- acquire_persistent_context / release_persistent_context kullan.
 """
 
 from __future__ import annotations
@@ -668,3 +675,166 @@ def launch_ephemeral(
     context_kwargs.pop("args", None)
     ctx = browser.new_context(**context_kwargs)
     return browser, ctx
+
+
+# ── Keep window open (üyelik / Google oturumu koruma) ─────────────────────────
+# Play/ASC zaten KEEP_OPEN kullanıyordu; varsayılan artık TÜM headed scrapeler için açık.
+# Kapatmak: SCRAPE_KEEP_OPEN=0  veya  <SCRAPE>_KEEP_OPEN=0 (örn. GSC_LINKS_KEEP_OPEN=0)
+
+_WARM_SESSIONS: dict[str, dict[str, Any]] = {}
+
+
+def scrape_keep_window_open(*, env_key: str | None = None) -> bool:
+    """Varsayılan True. Per-scrape veya global env ile kapatılabilir."""
+    if env_key:
+        raw = (os.environ.get(env_key) or "").strip().lower()
+        if raw in ("0", "false", "no", "off"):
+            return False
+        if raw in ("1", "true", "yes", "on"):
+            return True
+    raw = (os.environ.get("SCRAPE_KEEP_OPEN") or "1").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
+def _warm_alive(ctx: Any) -> bool:
+    if ctx is None:
+        return False
+    try:
+        _ = ctx.pages
+        return True
+    except Exception:
+        return False
+
+
+def warm_session_get(key: str) -> tuple[Any, Any] | None:
+    """(pw, context) veya None — süreç içi sıcak pencere."""
+    slot = _WARM_SESSIONS.get(key) or {}
+    pw, ctx = slot.get("pw"), slot.get("ctx")
+    if _warm_alive(ctx):
+        return pw, ctx
+    if key in _WARM_SESSIONS:
+        _WARM_SESSIONS.pop(key, None)
+    return None
+
+
+def warm_session_remember(
+    key: str,
+    pw: Any,
+    ctx: Any,
+    *,
+    label: str = "",
+) -> None:
+    _WARM_SESSIONS[key] = {"pw": pw, "ctx": ctx, "label": label or key}
+
+
+def warm_session_forget(key: str) -> None:
+    _WARM_SESSIONS.pop(key, None)
+
+
+def acquire_persistent_context(
+    key: str,
+    *,
+    profile: Path,
+    headed: bool = True,
+    env_key: str | None = None,
+    label: str = "",
+    viewport: dict[str, int] | None = None,
+    locale: str = "tr-TR",
+    extra: dict[str, Any] | None = None,
+    kill_existing: bool = True,
+) -> tuple[Any, Any, bool]:
+    """(pw, context, reused). Headed + KEEP_OPEN ise önceki pencereyi yeniden kullanır."""
+    from playwright.sync_api import sync_playwright
+
+    tag = label or key
+    if headed and scrape_keep_window_open(env_key=env_key):
+        warm = warm_session_get(key)
+        if warm is not None:
+            print(f"{tag}: mevcut Firefox penceresi yeniden kullanılıyor (kapatılmadı)", flush=True)
+            return warm[0], warm[1], True
+
+    pw = sync_playwright().start()
+    try:
+        ctx = launch_persistent(
+            pw,
+            profile,
+            headed=headed,
+            viewport=viewport,
+            locale=locale,
+            extra=extra,
+            kill_existing=kill_existing,
+        )
+    except Exception:
+        try:
+            pw.stop()
+        except Exception:
+            pass
+        raise
+
+    if headed and scrape_keep_window_open(env_key=env_key):
+        warm_session_remember(key, pw, ctx, label=tag)
+    return pw, ctx, False
+
+
+def release_persistent_context(
+    key: str,
+    pw: Any,
+    ctx: Any,
+    *,
+    headed: bool = True,
+    env_key: str | None = None,
+    label: str = "",
+) -> None:
+    """Headed + KEEP_OPEN: pencereyi kapatma (oturum açık kalsın). Aksi halde close+stop."""
+    tag = label or key
+    keep = bool(headed and scrape_keep_window_open(env_key=env_key) and ctx is not None)
+    if keep:
+        warm_session_remember(key, pw, ctx, label=tag)
+        print(
+            f"{tag}: Firefox penceresi açık bırakıldı (scrape bitse de kapanmaz; "
+            f"kapatmak için {(env_key or 'SCRAPE_KEEP_OPEN')}=0)",
+            flush=True,
+        )
+        return
+
+    warm = _WARM_SESSIONS.get(key) or {}
+    if warm.get("ctx") is ctx:
+        warm_session_forget(key)
+    try:
+        if ctx is not None:
+            ctx.close()
+    except Exception:
+        pass
+    try:
+        if pw is not None:
+            pw.stop()
+    except Exception:
+        pass
+
+
+def close_context_maybe_keep(
+    context: Any,
+    *,
+    key: str,
+    headed: bool,
+    env_key: str | None = None,
+    label: str = "",
+    pw: Any = None,
+) -> None:
+    """`with sync_playwright()` kullanan eski kod yolları için: keep ise close etme.
+
+    Not: `with` bloğu çıkınca Playwright yine stop edebilir — o yüzden mümkünse
+    acquire_persistent_context / release_persistent_context tercih edin.
+    """
+    if headed and scrape_keep_window_open(env_key=env_key) and context is not None:
+        if pw is not None:
+            warm_session_remember(key, pw, context, label=label or key)
+        print(
+            f"{label or key}: context.close atlandı (KEEP_OPEN) — oturum korunur",
+            flush=True,
+        )
+        return
+    try:
+        context.close()
+    except Exception:
+        pass

@@ -356,13 +356,30 @@ def _clear_profile_locks(profile_dir: Path) -> None:
 
 
 def _launch_context(*, headed: bool):
-    from playwright.sync_api import sync_playwright
+    from backend.services.scrape_browser import acquire_persistent_context
 
-    from backend.services.scrape_browser import launch_persistent
-
-    pw = sync_playwright().start()
-    context = launch_persistent(pw, PROFILE_DIR, headed=headed, locale="en-US")
+    pw, context, _reused = acquire_persistent_context(
+        "gsc-cwv",
+        profile=PROFILE_DIR,
+        headed=headed,
+        env_key="GSC_CWV_KEEP_OPEN",
+        label="GSC CWV",
+        locale="en-US"
+    )
     return pw, context
+
+
+def _release_context(pw, context, *, headed: bool = True) -> None:
+    from backend.services.scrape_browser import release_persistent_context
+
+    release_persistent_context(
+        "gsc-cwv",
+        pw,
+        context,
+        headed=headed,
+        env_key="GSC_CWV_KEEP_OPEN",
+        label="GSC CWV",
+    )
 
 
 def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
@@ -456,14 +473,7 @@ def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
             "profile": str(PROFILE_DIR),
         }
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context, headed=True)
         _clear_profile_locks(PROFILE_DIR)
 
 
@@ -2689,14 +2699,7 @@ def run_sync(
                     }
                 )
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context, headed=headed)
 
     ok_snaps = [s for s in snapshots if isinstance(s, dict) and not s.get("error")]
     payload = {

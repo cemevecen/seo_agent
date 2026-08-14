@@ -416,13 +416,10 @@ _ASC_WARM: dict[str, Any] = {"pw": None, "ctx": None}
 
 
 def _asc_keep_window_open() -> bool:
-    """Varsayılan: ASC penceresi açık kalsın. Kapatmak için ASC_CONSOLE_KEEP_OPEN=0."""
-    return (os.environ.get("ASC_CONSOLE_KEEP_OPEN") or "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-        "off",
-    )
+    """Varsayılan: ASC penceresi açık kalsın. Kapatmak için ASC_CONSOLE_KEEP_OPEN=0 veya SCRAPE_KEEP_OPEN=0."""
+    from backend.services.scrape_browser import scrape_keep_window_open
+
+    return scrape_keep_window_open(env_key="ASC_CONSOLE_KEEP_OPEN")
 
 
 def _asc_warm_alive(ctx: Any) -> bool:

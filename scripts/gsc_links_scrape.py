@@ -18,6 +18,7 @@ Env:
   GSC_LINKS_PROFILE_DIR  (default: ~/.seo-agent/fx-google — aynı Google oturumu)
   GSC_LINKS_INGEST_URL
   NOTIFICATION_INGEST_TOKEN
+  GSC_LINKS_KEEP_OPEN / SCRAPE_KEEP_OPEN  (varsayılan 1 — pencere kapanmaz)
 """
 
 from __future__ import annotations
@@ -222,13 +223,30 @@ def _looks_signed_in(page) -> bool:
 
 
 def _launch_context(*, headed: bool):
-    from playwright.sync_api import sync_playwright
+    from backend.services.scrape_browser import acquire_persistent_context
 
-    from backend.services.scrape_browser import launch_persistent
-
-    pw = sync_playwright().start()
-    context = launch_persistent(pw, PROFILE_DIR, headed=headed, locale="en-US")
+    pw, context, _reused = acquire_persistent_context(
+        "gsc-links",
+        profile=PROFILE_DIR,
+        headed=headed,
+        env_key="GSC_LINKS_KEEP_OPEN",
+        label="GSC Links",
+        locale="en-US",
+    )
     return pw, context
+
+
+def _release_context(pw, context, *, headed: bool = True) -> None:
+    from backend.services.scrape_browser import release_persistent_context
+
+    release_persistent_context(
+        "gsc-links",
+        pw,
+        context,
+        headed=headed,
+        env_key="GSC_LINKS_KEEP_OPEN",
+        label="GSC Links",
+    )
 
 
 def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
@@ -263,14 +281,7 @@ def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
             "profile": str(PROFILE_DIR),
         }
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context, headed=True)
 
 
 def _extract_page_payload(page) -> dict[str, Any]:
@@ -503,14 +514,7 @@ def scrape_gsc_links(
                 if key != warm_key:
                     time.sleep(0.8)
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context, headed=headed)
 
     ok_n = sum(1 for s in snapshots if s.get("ok"))
     return {

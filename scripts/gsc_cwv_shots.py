@@ -471,9 +471,11 @@ def run_shots(
     ingest: bool = True,
     headed: bool | None = None,
 ) -> dict[str, Any]:
-    from playwright.sync_api import sync_playwright
-
-    from backend.services.scrape_browser import google_profile_dir, launch_persistent
+    from backend.services.scrape_browser import (
+        acquire_persistent_context,
+        google_profile_dir,
+        release_persistent_context,
+    )
 
     cwv_mod = _load_cwv_scrape()
     PROPERTIES = cwv_mod.PROPERTIES
@@ -489,10 +491,15 @@ def run_shots(
         headed = True
 
     captures: list[dict[str, Any]] = []
-    pw = sync_playwright().start()
-    ctx = None
+    pw, ctx, _reused = acquire_persistent_context(
+        "gsc-cwv-shots",
+        profile=google_profile_dir(),
+        headed=headed,
+        env_key="GSC_CWV_KEEP_OPEN",
+        label="GSC CWV shots",
+        locale="en-US",
+    )
     try:
-        ctx = launch_persistent(pw, google_profile_dir(), headed=headed, locale="en-US")
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         for prop in props:
             try:
@@ -521,15 +528,14 @@ def run_shots(
                 )
                 print(f"CWV shots hata: {exc}", flush=True)
     finally:
-        if ctx is not None:
-            try:
-                ctx.close()
-            except Exception:
-                pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        release_persistent_context(
+            "gsc-cwv-shots",
+            pw,
+            ctx,
+            headed=headed,
+            env_key="GSC_CWV_KEEP_OPEN",
+            label="GSC CWV shots",
+        )
 
     ok_n = sum(
         1

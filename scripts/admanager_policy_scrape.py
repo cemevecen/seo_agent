@@ -94,15 +94,31 @@ def _looks_signed_in(page) -> bool:
 
 
 def _launch_context(*, headed: bool):
-    from playwright.sync_api import sync_playwright
+    from backend.services.scrape_browser import acquire_persistent_context
 
-    from backend.services.scrape_browser import launch_persistent
-
-    pw = sync_playwright().start()
-    context = launch_persistent(
-        pw, PROFILE_DIR, headed=headed, viewport={"width": 1500, "height": 1100}, locale="tr-TR"
+    pw, context, _reused = acquire_persistent_context(
+        "admanager-policy",
+        profile=PROFILE_DIR,
+        headed=headed,
+        env_key="ADMANAGER_POLICY_KEEP_OPEN",
+        label="Ad Manager Policy",
+        locale="tr-TR",
+        viewport={"width": 1500, "height": 1100},
     )
     return pw, context
+
+
+def _release_context(pw, context, *, headed: bool = True) -> None:
+    from backend.services.scrape_browser import release_persistent_context
+
+    release_persistent_context(
+        "admanager-policy",
+        pw,
+        context,
+        headed=headed,
+        env_key="ADMANAGER_POLICY_KEEP_OPEN",
+        label="Ad Manager Policy",
+    )
 
 
 def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
@@ -136,14 +152,7 @@ def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
             "profile": str(PROFILE_DIR),
         }
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context, headed=True)
 
 
 def _apply_site_filter(page, site: str = SITE_FILTER) -> None:
@@ -578,14 +587,7 @@ def scrape_admanager_policy(*, headed: bool = True) -> dict[str, Any]:
             "rows": [],
         }
     finally:
-        try:
-            context.close()
-        except Exception:
-            pass
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _release_context(pw, context, headed=True)
 
 
 def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:

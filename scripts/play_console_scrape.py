@@ -720,13 +720,10 @@ _PLAY_WARM: dict[str, Any] = {"pw": None, "ctx": None}
 
 
 def _play_keep_window_open() -> bool:
-    """Varsayılan: Play penceresi açık kalsın. Kapatmak için PLAY_CONSOLE_KEEP_OPEN=0."""
-    return (os.environ.get("PLAY_CONSOLE_KEEP_OPEN") or "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-        "off",
-    )
+    """Varsayılan: Play penceresi açık kalsın. Kapatmak için PLAY_CONSOLE_KEEP_OPEN=0 veya SCRAPE_KEEP_OPEN=0."""
+    from backend.services.scrape_browser import scrape_keep_window_open
+
+    return scrape_keep_window_open(env_key="PLAY_CONSOLE_KEEP_OPEN")
 
 
 def _play_warm_alive(ctx: Any) -> bool:
