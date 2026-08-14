@@ -1921,6 +1921,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/play-console/ingest",
         "/api/asc-console/ingest",
         "/api/firebase-console/ingest",
+        "/api/empower-intel/ingest",
         "/api/pagespeed-web/ingest",
         "/api/gsc-links/ingest",
         "/api/policy/ingest",
