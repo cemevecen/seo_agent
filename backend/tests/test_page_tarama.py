@@ -22,6 +22,8 @@ PAGES = {
     "backlinks": "templates/backlinks.html",
     "policy": "templates/partials/policy_content.html",
     "moderation": "templates/partials/policy_content.html",
+    "empower-sinemalar": "templates/partials/sinemalar_datas_content.html",
+    "x-data": "templates/metrik.html",
     "errors": "templates/errors.html",
 }
 
@@ -66,12 +68,17 @@ def test_all_listed_pages_have_slot_and_key():
         assert "data-page-tarama-slot" in text, rel
         if key in ("policy", "moderation"):
             assert "data-page-tarama=" in text, rel
-            assert "{% if _tab == 'sinemalar' %}moderation{% else %}policy{% endif %}" in text
-            # Moderation sekmesi Policy'den önce (varsayılan giriş)
+            assert "empower-sinemalar" in text
             tabs = text.split('<div class="flex flex-wrap gap-1.5">', 1)[1].split("</div>", 1)[0]
-            assert tabs.index("Moderation") < tabs.index("Policy")
+            assert tabs.index("Moderation") < tabs.index("Datas") < tabs.index("Policy")
             assert 'href="/sinemalar"' in tabs
             assert "tab=policy" in tabs
+            assert "tab=datas" in tabs
+        elif key == "empower-sinemalar":
+            # Slot Datas partial'da; page key parent policy_content'te
+            assert 'id="sd-datas-root"' in text
+            policy = (ROOT / "templates/partials/policy_content.html").read_text(encoding="utf-8")
+            assert "empower-sinemalar" in policy
         else:
             assert f'data-page-tarama="{key}"' in text, rel
 
@@ -80,6 +87,13 @@ def test_sinemalar_page_defaults_to_moderation_tab():
     main = (ROOT / "backend/main.py").read_text(encoding="utf-8")
     assert 'default_tab = "sinemalar"' in main
     assert 'default_tab = "sinemalar" if request.url.path' not in main
+    assert '"datas"' in main
+
+
+def test_empower_sinemalar_page_tarama_job():
+    assert [j["id"] for j in store.jobs_for("empower-sinemalar")] == ["empower_intel_sinemalar"]
+    assert "sinemalar" in store.JOBS["empower_intel_sinemalar"]["path"]
+    assert [j["id"] for j in store.jobs_for("x-data")] == ["empower_intel"]
 
 
 def test_js_uses_railway_queue_on_remote():
@@ -88,6 +102,7 @@ def test_js_uses_railway_queue_on_remote():
     assert "done + \"/\" + total" in js or 'done + "/" + total' in js
     assert "Update page" in js
     assert "/sync-sinemalar-moderation?which=yesterday" in js
+    assert "/sync-empower-intel-sinemalar" in js
     assert "/api/page-tarama/manual" in js
     assert "/api/page-tarama/quota" in js
     assert "/api/page-tarama/progress" in js

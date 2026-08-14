@@ -40,6 +40,18 @@ JOBS: dict[str, dict[str, Any]] = {
         "kind": "bridge",
         "path": "/sync-sinemalar-moderation?which=yesterday",
     },
+    "empower_intel": {
+        "id": "empower_intel",
+        "label": "Empower Intel (Döviz)",
+        "kind": "bridge",
+        "path": "/sync-empower-intel?mode=yesterday",
+    },
+    "empower_intel_sinemalar": {
+        "id": "empower_intel_sinemalar",
+        "label": "Empower Intel (Sinemalar)",
+        "kind": "bridge",
+        "path": "/sync-empower-intel-sinemalar?mode=yesterday",
+    },
     "seo": {"id": "seo", "label": "SEO Audit", "kind": "bridge", "path": "/sync-seo-audit"},
     "errors": {
         "id": "errors",
@@ -72,6 +84,8 @@ PAGES: dict[str, list[str]] = {
     "backlinks": ["links"],
     "policy": ["policy", "noads"],
     "moderation": ["moderation"],
+    "empower-sinemalar": ["empower_intel_sinemalar"],
+    "x-data": ["empower_intel"],
     "errors": ["errors"],
 }
 
@@ -93,6 +107,8 @@ BROWSER_JOB_IDS = frozenset(
         "policy",
         "noads",
         "moderation",
+        "empower_intel",
+        "empower_intel_sinemalar",
     }
 )
 CLAIM_STALE_SEC = 2 * 60 * 60

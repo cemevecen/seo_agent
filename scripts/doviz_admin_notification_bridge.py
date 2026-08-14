@@ -143,6 +143,23 @@ if _EMPOWER_SLOTS_RAW:
             parsed_slots.append((int(hs), int(ms)))
     if parsed_slots:
         EMPOWER_INTEL_SLOTS = tuple(parsed_slots)
+# Sinemalar Empower: döviz slotlarından +5 dk (02:17 + 13:23 TR)
+EMPOWER_INTEL_SINEMALAR_SLOTS: tuple[tuple[int, int], ...] = tuple(
+    (h, (m + 5) % 60) if m + 5 < 60 else ((h + 1) % 24, (m + 5) % 60)
+    for h, m in EMPOWER_INTEL_SLOTS
+)
+_EMPOWER_SIN_SLOTS_RAW = (os.environ.get("EMPOWER_INTEL_SINEMALAR_BRIDGE_SLOTS") or "").strip()
+if _EMPOWER_SIN_SLOTS_RAW:
+    parsed_sin: list[tuple[int, int]] = []
+    for part in _EMPOWER_SIN_SLOTS_RAW.split(","):
+        part = part.strip()
+        if ":" not in part:
+            continue
+        hs, ms = part.split(":", 1)
+        if hs.isdigit() and ms.isdigit():
+            parsed_sin.append((int(hs), int(ms)))
+    if parsed_sin:
+        EMPOWER_INTEL_SINEMALAR_SLOTS = tuple(parsed_sin)
 SLOT_WINDOW_MIN = int(os.environ.get("BRIDGE_SLOT_WINDOW_MIN") or "35")
 # Tarayıcı scrape'leri arası minimum boşluk (aynı 2–3 dk içinde ikinci scrape başlamasın)
 BRIDGE_SCRAPE_MIN_GAP_SEC = int(os.environ.get("BRIDGE_SCRAPE_MIN_GAP_SEC") or "180")
@@ -219,6 +236,7 @@ _gsc_links_lock = _browser_scrape_lock
 _policy_lock = _browser_scrape_lock
 _gsc_cwv_lock = _browser_scrape_lock
 _empower_intel_lock = _browser_scrape_lock
+_empower_intel_sinemalar_lock = _browser_scrape_lock
 _noads_lock = threading.Lock()
 _moderation_lock = threading.Lock()
 _pagespeed_lock = threading.Lock()
@@ -249,6 +267,7 @@ _last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışma
 _last_moderation_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_pagespeed_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_empower_intel_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_empower_intel_sinemalar_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_seo_audit_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_gsc_cwv_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_market_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -269,6 +288,7 @@ _last_seo_audit_auto_slot = ""
 _last_gsc_cwv_auto_slot = ""
 _last_market_auto_slot = ""
 _last_empower_intel_auto_slot = ""
+_last_empower_intel_sinemalar_auto_slot = ""
 _last_pm_lab_auto_slot = ""
 _last_pm_lab_competitors_slot = ""
 # Restart sonrası tam interval bekle; ilk dolum manuel --ingest / /sync-pm-lab.
@@ -353,6 +373,7 @@ _BROWSER_SCRAPE_KINDS = frozenset(
         "gsc_cwv",
         "market",
         "empower_intel",
+        "empower_intel_sinemalar",
         "pm_lab",
         "pm_lab_competitors",
     }
@@ -1732,6 +1753,103 @@ def run_empower_intel_bridge_once(*, mode: str = "yesterday") -> dict[str, Any]:
     return out
 
 
+def run_empower_intel_sinemalar_bridge_once(*, mode: str = "yesterday") -> dict[str, Any]:
+    """Sinemalar Empower (web+mweb) Yesterday/backfill → Railway ingest (project=sinemalar)."""
+    global _last_empower_intel_sinemalar_result
+    if not _ingest_token():
+        err = {
+            "ok": False,
+            "kind": "empower_intel_sinemalar",
+            "message": "NOTIFICATION_INGEST_TOKEN gerekli",
+        }
+        _last_empower_intel_sinemalar_result = err
+        return err
+
+    import subprocess
+
+    script = ROOT / "scripts" / "empower_intelligence_scrape.py"
+    if not script.is_file():
+        err = {
+            "ok": False,
+            "kind": "empower_intel_sinemalar",
+            "message": "Empower Intel tarama betiği yok",
+        }
+        _last_empower_intel_sinemalar_result = err
+        return err
+
+    mode_l = (mode or "yesterday").strip().lower()
+    print(f"Empower Intel Sinemalar scrape başlıyor… ({mode_l})", flush=True)
+    cmd = [
+        sys.executable,
+        str(script),
+        "--project",
+        "sinemalar",
+        "--platform",
+        "web",
+        "--platform",
+        "mweb",
+        "--ingest",
+    ]
+    if mode_l == "backfill":
+        cmd.extend(["--backfill", "--start", "2025-01-01", "--end", "2026-08-13"])
+    else:
+        cmd.append("--yesterday")
+    env = os.environ.copy()
+    env["EMPOWER_INTEL_PROJECT"] = "sinemalar"
+    env.setdefault(
+        "EMPOWER_INTEL_INGEST_URL",
+        (
+            os.environ.get("EMPOWER_INTEL_INGEST_URL")
+            or "https://projectcontrol.up.railway.app/api/empower-intel/ingest"
+        ).strip(),
+    )
+    timeout_sec = int(os.environ.get("EMPOWER_INTEL_BRIDGE_TIMEOUT_SEC") or "1800")
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+        )
+    except subprocess.TimeoutExpired:
+        out = {
+            "ok": False,
+            "kind": "empower_intel_sinemalar",
+            "message": f"Empower Intel Sinemalar timeout ({timeout_sec}s)",
+        }
+        _last_empower_intel_sinemalar_result = out
+        return out
+    except Exception as exc:  # noqa: BLE001
+        out = {
+            "ok": False,
+            "kind": "empower_intel_sinemalar",
+            "message": f"Empower Intel Sinemalar subprocess: {exc}",
+        }
+        _last_empower_intel_sinemalar_result = out
+        return out
+
+    tail = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()[-1200:]
+    if proc.returncode == 0:
+        out = {
+            "ok": True,
+            "kind": "empower_intel_sinemalar",
+            "mode": mode_l,
+            "message": "Empower Intel Sinemalar sync OK",
+        }
+    else:
+        out = {
+            "ok": False,
+            "kind": "empower_intel_sinemalar",
+            "mode": mode_l,
+            "message": tail or f"exit {proc.returncode}",
+        }
+    _last_empower_intel_sinemalar_result = out
+    print(f"Empower Intel Sinemalar · {out['message']}", flush=True)
+    return out
+
+
 def run_pagespeed_bridge_once() -> dict[str, Any]:
     """pagespeed.web.dev scrape (doviz + sinemalar) → Railway ingest."""
     global _last_pagespeed_result
@@ -2700,6 +2818,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_firebase": _last_firebase_result,
                     "last_pagespeed": _last_pagespeed_result,
                     "last_empower_intel": _last_empower_intel_result,
+                    "last_empower_intel_sinemalar": _last_empower_intel_sinemalar_result,
                     "last_seo_audit": _last_seo_audit_result,
                     "last_gsc_cwv": _last_gsc_cwv_result,
                     "last_market": _last_market_result,
@@ -2736,6 +2855,9 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         ],
                         "empower_intel_slots_tr": [
                             f"{h:02d}:{m:02d}" for h, m in EMPOWER_INTEL_SLOTS
+                        ],
+                        "empower_intel_sinemalar_slots_tr": [
+                            f"{h:02d}:{m:02d}" for h, m in EMPOWER_INTEL_SINEMALAR_SLOTS
                         ],
                         "pm_lab_slots_tr": [
                             f"{h:02d}:{PM_LAB_SLOT_MINUTE:02d}" for h in PM_LAB_SLOT_HOURS
@@ -2956,6 +3078,33 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 _empower_intel_lock,
                 "Empower Intel sync zaten çalışıyor, bekleyin.",
                 _empower_runner,
+            )
+        elif path in (
+            "/sync-empower-intel-sinemalar",
+            "/empower-intel-sinemalar",
+            "/sync-empower-sinemalar",
+        ):
+            length = int(self.headers.get("Content-Length") or 0)
+            raw_body = self.rfile.read(length) if length > 0 else b""
+            mode = "yesterday"
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body.decode("utf-8", errors="replace"))
+                    if isinstance(payload, dict) and payload.get("mode"):
+                        mode = str(payload.get("mode") or "yesterday")
+                except Exception:
+                    pass
+            qs_mode = ((qs.get("mode") or [""])[0] or "").strip()
+            if qs_mode:
+                mode = qs_mode
+
+            def _empower_sin_runner(*, _mode: str = mode) -> dict[str, Any]:
+                return run_empower_intel_sinemalar_bridge_once(mode=_mode)
+
+            lock, busy, runner = (
+                _empower_intel_sinemalar_lock,
+                "Empower Intel Sinemalar sync zaten çalışıyor, bekleyin.",
+                _empower_sin_runner,
             )
         elif path in ("/sync-market", "/market", "/sync-piyasa", "/piyasa"):
             lock, busy, runner = (
@@ -3285,6 +3434,11 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
             "name": "EmpowerIntel",
             "lock": _empower_intel_lock,
             "runner": run_empower_intel_bridge_once,
+        },
+        "empower_intel_sinemalar": {
+            "name": "EmpowerIntelSinemalar",
+            "lock": _empower_intel_sinemalar_lock,
+            "runner": run_empower_intel_sinemalar_bridge_once,
         },
         "seo_audit": {
             "name": "SEO Audit",
@@ -3695,6 +3849,30 @@ def _auto_loop() -> None:
                     notify=False,
                 )
 
+        if "empower_intel_sinemalar" not in _job_retries:
+            emp_sin_due, emp_sin_slot = _multi_slot_due(
+                _last_empower_intel_sinemalar_auto_slot, EMPOWER_INTEL_SINEMALAR_SLOTS
+            )
+            if emp_sin_due:
+
+                def _mark_emp_sin_slot(result: dict[str, Any], *, _slot: str = emp_sin_slot) -> None:
+                    global _last_empower_intel_sinemalar_auto_slot
+                    _last_empower_intel_sinemalar_auto_slot = _slot
+                    if result.get("ok"):
+                        _clear_job_retry("empower_intel_sinemalar")
+                    else:
+                        _notify_auto_failure("empower_intel_sinemalar", result)
+                        _arm_job_retry("empower_intel_sinemalar", name="EmpowerIntelSinemalar")
+
+                _run_browser_scrape_job(
+                    kind="empower_intel_sinemalar",
+                    name="EmpowerIntelSinemalar",
+                    lock=_empower_intel_sinemalar_lock,
+                    runner=run_empower_intel_sinemalar_bridge_once,
+                    on_done=_mark_emp_sin_slot,
+                    notify=False,
+                )
+
         time.sleep(max(30, AUTO_POLL_SEC))
 
 
@@ -3734,6 +3912,11 @@ def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
             "name": "EmpowerIntel",
             "lock": _empower_intel_lock,
             "runner": run_empower_intel_bridge_once,
+        },
+        "empower_intel_sinemalar": {
+            "name": "EmpowerIntelSinemalar",
+            "lock": _empower_intel_sinemalar_lock,
+            "runner": run_empower_intel_sinemalar_bridge_once,
         },
         "links": {"name": "GSC Links", "lock": _gsc_links_lock, "runner": run_gsc_links_bridge_once},
         "policy": {"name": "Policy", "lock": _policy_lock, "runner": run_admanager_policy_bridge_once},
@@ -4189,6 +4372,7 @@ def run_daemon() -> int:
         f"cwv={list(GSC_CWV_SLOT_HOURS)}:{GSC_CWV_SLOT_MINUTE:02d} "
         f"market={list(MARKET_SLOT_HOURS)}:{MARKET_SLOT_MINUTE:02d} "
         f"empower={[(f'{h:02d}:{m:02d}') for h, m in EMPOWER_INTEL_SLOTS]} "
+        f"empower_sin={[(f'{h:02d}:{m:02d}') for h, m in EMPOWER_INTEL_SINEMALAR_SLOTS]} "
         f"retry={BRIDGE_RETRY_MAX}x/{BRIDGE_RETRY_GAP_SEC}s",
         flush=True,
     )

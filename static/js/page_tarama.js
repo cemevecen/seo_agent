@@ -28,6 +28,8 @@
     policy: { id: "policy", label: "Ad Manager Policy", kind: "bridge", path: "/sync-policy", timeoutMs: 25 * 60 * 1000 },
     noads: { id: "noads", label: "Sinemalar noAds", kind: "bridge", path: "/sync-noads", timeoutMs: 20 * 60 * 1000 },
     moderation: { id: "moderation", label: "Sinemalar Moderation", kind: "bridge", path: "/sync-sinemalar-moderation?which=yesterday", timeoutMs: 60 * 60 * 1000 },
+    empower_intel: { id: "empower_intel", label: "Empower Intel (Döviz)", kind: "bridge", path: "/sync-empower-intel?mode=yesterday", timeoutMs: 45 * 60 * 1000 },
+    empower_intel_sinemalar: { id: "empower_intel_sinemalar", label: "Empower Intel (Sinemalar)", kind: "bridge", path: "/sync-empower-intel-sinemalar?mode=yesterday", timeoutMs: 45 * 60 * 1000 },
     seo: { id: "seo", label: "SEO audit", kind: "bridge", path: "/sync-seo-audit", timeoutMs: 50 * 60 * 1000 },
     errors: {
       id: "errors",
@@ -62,6 +64,8 @@
     backlinks: ["links"],
     policy: ["policy", "noads"],
     moderation: ["moderation"],
+    "empower-sinemalar": ["empower_intel_sinemalar"],
+    "x-data": ["empower_intel"],
     errors: ["errors"],
   };
 

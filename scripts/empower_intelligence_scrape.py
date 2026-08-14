@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
 """Empower Intelligence (intelligence.empower.net) scrape → Project Control.
 
-doviz-report: Web / Mobile Web / iOS / Android günlük tablolar.
+doviz-report / sinemalar-report: günlük tablolar.
 
   # Bir kez Cognito girişi (fx-empower profili)
   .venv/bin/python scripts/empower_intelligence_scrape.py --login
 
-  # Historical backfill (tüm sekmeler)
+  # Döviz historical backfill (tüm sekmeler)
   .venv/bin/python scripts/empower_intelligence_scrape.py \\
     --backfill --start 2025-01-01 --end 2026-08-13 --ingest
 
-  # Günlük Yesterday (Quick Select) — 02:12 + 13:18 TR
+  # Sinemalar web + mweb backfill
+  .venv/bin/python scripts/empower_intelligence_scrape.py \\
+    --project sinemalar --platform web --platform mweb \\
+    --backfill --start 2025-01-01 --end 2026-08-13 --ingest
+
+  # Günlük Yesterday — döviz 02:12/13:18; sinemalar +5 dk
   .venv/bin/python scripts/empower_intelligence_scrape.py --yesterday --ingest
+  .venv/bin/python scripts/empower_intelligence_scrape.py \\
+    --project sinemalar --platform web --platform mweb --yesterday --ingest
 
 Env:
   EMPOWER_INTEL_PROFILE_DIR   default ~/.seo-agent/fx-empower
   EMPOWER_INTEL_INGEST_URL    default …/api/empower-intel/ingest
   NOTIFICATION_INGEST_TOKEN
   EMPOWER_INTEL_HEADLESS=1
-  EMPOWER_INTEL_PROJECT=doviz
+  EMPOWER_INTEL_PROJECT=doviz|sinemalar
+  EMPOWER_INTEL_VIRGUL_ID / EMPOWER_INTEL_SINEMALAR_VIRGUL_ID
+  EMPOWER_INTEL_SINEMALAR_PROPERTY_IDS=web:ID,mweb:ID
 """
 
 from __future__ import annotations
@@ -74,8 +83,6 @@ INGEST_URL = (
     os.environ.get("EMPOWER_INTEL_INGEST_URL")
     or "https://projectcontrol.up.railway.app/api/empower-intel/ingest"
 ).strip()
-PROJECT = (os.environ.get("EMPOWER_INTEL_PROJECT") or "doviz").strip().lower() or "doviz"
-BASE_REPORT = f"https://intelligence.empower.net/{PROJECT}-report/"
 
 PLATFORMS: tuple[tuple[str, str], ...] = (
     ("web", "Web"),
@@ -83,6 +90,7 @@ PLATFORMS: tuple[tuple[str, str], ...] = (
     ("ios", "iOS"),
     ("android", "Android"),
 )
+WEB_ONLY_PLATFORMS: tuple[str, ...] = ("web", "mweb")
 
 # Columns → visibleColumns (localStorage columnPrefs)
 # Uygulamalar (iOS/Android) — kullanıcının ilk eklediği set
@@ -166,13 +174,64 @@ FETCH_REPORT_API = (
     or "https://lkusbybvt5.execute-api.eu-west-1.amazonaws.com/v1/report/fetch_report"
 ).strip()
 DEFAULT_VIRGUL_ID = (os.environ.get("EMPOWER_INTEL_VIRGUL_ID") or "55af4685a503b0ad628b4567").strip()
-# columnPrefs anahtarındaki property_id — locale başına sabit
+# columnPrefs anahtarındaki property_id — locale başına sabit (doviz)
 DEFAULT_PROPERTY_IDS: dict[str, str] = {
     "android": "152168629",
     "ios": "163175967",
     "mweb": "329808608",
     "web": "376928120",
 }
+
+
+def _normalize_project(raw: str | None = None) -> str:
+    p = (raw or os.environ.get("EMPOWER_INTEL_PROJECT") or "doviz").strip().lower()
+    if p not in ("doviz", "sinemalar"):
+        p = "doviz"
+    return p
+
+
+def _report_base(project: str) -> str:
+    return f"https://intelligence.empower.net/{_normalize_project(project)}-report/"
+
+
+def _virgul_id_for_project(project: str) -> str:
+    proj = _normalize_project(project)
+    if proj == "sinemalar":
+        return (
+            os.environ.get("EMPOWER_INTEL_SINEMALAR_VIRGUL_ID")
+            or os.environ.get("EMPOWER_INTEL_VIRGUL_ID")
+            or DEFAULT_VIRGUL_ID
+        ).strip() or DEFAULT_VIRGUL_ID
+    return DEFAULT_VIRGUL_ID
+
+
+def _parse_property_ids_env(raw: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for part in (raw or "").split(","):
+        part = part.strip()
+        if not part or ":" not in part:
+            continue
+        plat, _, pid = part.partition(":")
+        plat, pid = plat.strip().lower(), pid.strip()
+        if plat in {"web", "mweb", "ios", "android"} and pid:
+            out[plat] = pid
+    return out
+
+
+def _default_property_ids(project: str) -> dict[str, str]:
+    proj = _normalize_project(project)
+    if proj == "sinemalar":
+        env_ids = _parse_property_ids_env(
+            os.environ.get("EMPOWER_INTEL_SINEMALAR_PROPERTY_IDS") or ""
+        )
+        # Keşif yoksa boş bırak — sayfa localStorage'dan doldurulur
+        return env_ids
+    return dict(DEFAULT_PROPERTY_IDS)
+
+
+# Geriye dönük: modul seviyesi PROJECT (CLI override öncesi)
+PROJECT = _normalize_project()
+BASE_REPORT = _report_base(PROJECT)
 
 _HOOK_JS = r"""
 window.__empowerNet = window.__empowerNet || [];
@@ -243,6 +302,7 @@ def _report_url(
     start: date | None = None,
     end: date | None = None,
     day: bool = True,
+    project: str | None = None,
 ) -> str:
     q: dict[str, str] = {
         "day": "true" if day else "false",
@@ -254,7 +314,7 @@ def _report_url(
         q["start_date"] = start.isoformat()
     if end:
         q["end_date"] = end.isoformat()
-    return BASE_REPORT + "?" + urlencode(q)
+    return _report_base(project or PROJECT) + "?" + urlencode(q)
 
 
 def _needs_login(driver: Any) -> bool:
@@ -631,8 +691,9 @@ def _read_oidc_access_token(driver: Any) -> str:
     return str(tok or "").strip()
 
 
-def _read_property_ids(driver: Any) -> dict[str, str]:
-    out = dict(DEFAULT_PROPERTY_IDS)
+def _read_property_ids(driver: Any, project: str | None = None) -> dict[str, str]:
+    proj = _normalize_project(project)
+    out = _default_property_ids(proj)
     try:
         found = driver.execute_script(
             """
@@ -651,8 +712,10 @@ def _read_property_ids(driver: Any) -> dict[str, str]:
         found = {}
     if isinstance(found, dict):
         for plat, pid in found.items():
-            if plat in out and pid:
-                out[str(plat)] = str(pid)
+            plat_s = str(plat).strip().lower()
+            pid_s = str(pid).strip() if pid is not None else ""
+            if plat_s in {"web", "mweb", "ios", "android"} and pid_s:
+                out[plat_s] = pid_s
     return out
 
 
@@ -790,7 +853,10 @@ def _scrape_platform(
     yesterday: bool,
     access_token: str,
     property_ids: dict[str, str],
+    project: str | None = None,
+    virgul_id: str | None = None,
 ) -> list[dict[str, Any]]:
+    proj = _normalize_project(project)
     label = dict(PLATFORMS).get(platform, platform)
     if yesterday:
         y = date.today() - timedelta(days=1)
@@ -799,9 +865,11 @@ def _scrape_platform(
         raise RuntimeError("start/end gerekli")
 
     visible = COLUMN_SETS.get(platform) or APP_VISIBLE_COLUMNS
-    prop_id = (property_ids.get(platform) or DEFAULT_PROPERTY_IDS.get(platform) or "").strip()
+    defaults = _default_property_ids(proj)
+    prop_id = (property_ids.get(platform) or defaults.get(platform) or "").strip()
+    vid = (virgul_id or _virgul_id_for_project(proj)).strip() or DEFAULT_VIRGUL_ID
     print(
-        f"  · {platform} ({label}) · property={prop_id} · "
+        f"  · {proj}/{platform} ({label}) · property={prop_id} · "
         f"{start.isoformat()}→{end.isoformat()} · {len(visible)} sütun",
         flush=True,
     )
@@ -810,7 +878,7 @@ def _scrape_platform(
     if not access_token:
         raise RuntimeError("OIDC access_token yok — --login")
     if not prop_id:
-        raise RuntimeError(f"property_id yok: {platform}")
+        raise RuntimeError(f"property_id yok: {proj}/{platform}")
 
     try:
         records = _fetch_report_api(
@@ -818,11 +886,12 @@ def _scrape_platform(
             property_id=prop_id,
             start=start,
             end=end,
+            virgul_id=vid,
         )
     except Exception as exc:  # noqa: BLE001
         # token drop → sayfayı yenile, tekrar dene
         print(f"    · API hata, token yenile: {exc}", flush=True)
-        driver.get(_report_url(platform=platform, start=start, end=end))
+        driver.get(_report_url(platform=platform, start=start, end=end, project=proj))
         time.sleep(3)
         if _needs_login(driver) or not _session_looks_ready(driver):
             raise
@@ -832,6 +901,7 @@ def _scrape_platform(
             property_id=prop_id,
             start=start,
             end=end,
+            virgul_id=vid,
         )
 
     out = _rows_from_api_records(records, visible=visible)
@@ -848,12 +918,22 @@ def scrape_empower(
     yesterday: bool = False,
     headed: bool = True,
     login_only: bool = False,
+    project: str | None = None,
 ) -> dict[str, Any]:
+    global PROJECT, BASE_REPORT
+    proj = _normalize_project(project)
+    PROJECT = proj
+    BASE_REPORT = _report_base(proj)
+    os.environ["EMPOWER_INTEL_PROJECT"] = proj
+
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     plats = [p for p, _ in PLATFORMS]
     if platforms:
         want = {p.strip().lower() for p in platforms}
         plats = [p for p in plats if p in want] or plats
+    elif proj == "sinemalar":
+        # Sinemalar Datas / X-Data: yalnızca web + mweb
+        plats = list(WEB_ONLY_PLATFORMS)
 
     if yesterday:
         y = date.today() - timedelta(days=1)
@@ -863,6 +943,7 @@ def scrape_empower(
         start = start or date(2025, 1, 1)
         end = end or date.today()
 
+    virgul_id = _virgul_id_for_project(proj)
     driver = None
     lock_held = False
     try:
@@ -870,7 +951,7 @@ def scrape_empower(
         if login_only:
             acquire_profile_login_lock(PROFILE_DIR, reason="empower-login")
             lock_held = True
-        driver.get(_report_url(platform=plats[0], start=start, end=end))
+        driver.get(_report_url(platform=plats[0], start=start, end=end, project=proj))
         time.sleep(3)
         ready = _session_looks_ready(driver)
         if not ready:
@@ -879,6 +960,7 @@ def scrape_empower(
                     "ok": False,
                     "sync_ok": False,
                     "sync_message": "Empower login gerekli (--login / headed)",
+                    "project": proj,
                     "platforms": [],
                 }
             if not lock_held:
@@ -892,6 +974,7 @@ def scrape_empower(
                     "ok": False,
                     "sync_ok": False,
                     "sync_message": "Empower login zaman aşımı",
+                    "project": proj,
                     "platforms": [],
                 }
             if login_only:
@@ -899,22 +982,35 @@ def scrape_empower(
                 (STATE_DIR / "cache" / "empower-login-ok.txt").write_text(
                     f"{driver.current_url}\n{time.time()}\n", encoding="utf-8"
                 )
-                return {"ok": True, "sync_ok": True, "sync_message": "login ok", "platforms": []}
+                return {
+                    "ok": True,
+                    "sync_ok": True,
+                    "sync_message": "login ok",
+                    "project": proj,
+                    "platforms": [],
+                }
 
         if login_only:
-            return {"ok": True, "sync_ok": True, "sync_message": "zaten girişli", "platforms": []}
+            return {
+                "ok": True,
+                "sync_ok": True,
+                "sync_message": "zaten girişli",
+                "project": proj,
+                "platforms": [],
+            }
 
         # Tüm platform columnPrefs'lerini hedef setlere çek
         for p in plats:
             _apply_column_prefs(driver, p)
 
         access_token = _read_oidc_access_token(driver)
-        property_ids = _read_property_ids(driver)
+        property_ids = _read_property_ids(driver, proj)
         if not access_token:
             return {
                 "ok": False,
                 "sync_ok": False,
                 "sync_message": "OIDC token okunamadı — --login",
+                "project": proj,
                 "platforms": [],
             }
 
@@ -929,6 +1025,8 @@ def scrape_empower(
                     yesterday=yesterday,
                     access_token=access_token,
                     property_ids=property_ids,
+                    project=proj,
+                    virgul_id=virgul_id,
                 )
                 # token uzun turda drop olursa güncelle
                 maybe = _read_oidc_access_token(driver)
@@ -944,8 +1042,8 @@ def scrape_empower(
         return {
             "ok": total > 0,
             "sync_ok": total > 0,
-            "sync_message": f"{PROJECT}: {total} satır / {len(blocks)} platform",
-            "project": PROJECT,
+            "sync_message": f"{proj}: {total} satır / {len(blocks)} platform",
+            "project": proj,
             "source": "empower_intel_scrape",
             "scraped_at": datetime.now(timezone.utc).isoformat(),
             "start": start.isoformat() if start else "",
@@ -1044,6 +1142,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--start", default="", help="YYYY-MM-DD")
     ap.add_argument("--end", default="", help="YYYY-MM-DD")
     ap.add_argument("--platform", action="append", default=[], help="web|mweb|ios|android (tekrar)")
+    ap.add_argument(
+        "--project",
+        default="",
+        help="doviz|sinemalar (default: EMPOWER_INTEL_PROJECT veya doviz)",
+    )
     ap.add_argument("--ingest", action="store_true")
     ap.add_argument("--headless", action="store_true")
     ap.add_argument("--out", default="", help="JSON çıktı yolu")
@@ -1072,6 +1175,7 @@ def main(argv: list[str] | None = None) -> int:
         yesterday=yesterday,
         headed=headed,
         login_only=bool(args.login),
+        project=(args.project or None),
     )
 
     out_path = Path(args.out) if args.out else (STATE_DIR / "cache" / "empower-intel-last.json")
