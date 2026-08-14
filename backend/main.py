@@ -1118,18 +1118,7 @@ def api_gsc_cwv_shots_status(site: str = "doviz"):
         )
 
 
-@app.get("/cwv-test")
-def cwv_test_page(request: Request):
-    """GSC CWV screenshot-only deneme sekmesi."""
-    return templates.TemplateResponse(
-        request,
-        "cwv_test.html",
-        {
-            "request": request,
-            "sites": get_sidebar_sites(),
-            "site_name": "CWV shots test",
-        },
-    )
+
 app.include_router(gsc_links_router, prefix="/api")
 app.include_router(policy_ingest_router, prefix="/api")
 app.include_router(sinemalar_moderation_router, prefix="/api")
