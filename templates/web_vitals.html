@@ -94,6 +94,9 @@
   {% set amp = payload.amp or {} %}
   {% set mk = mob.kpis or ov.mobile or {} %}
   {% set dk = desk.kpis or ov.desktop or {} %}
+  {% set shots = cwv_shots or {} %}
+  {% set shot_m = shots.mobile_url or '' %}
+  {% set shot_d = shots.desktop_url or '' %}
   {% set poor_tot = (mk.poor or 0)|int + (dk.poor or 0)|int %}
   {% set ni_tot = (mk.needs_improvement or 0)|int + (dk.needs_improvement or 0)|int %}
   {% set good_tot = (mk.good or 0)|int + (dk.good or 0)|int %}
@@ -134,8 +137,15 @@
         <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> needs improvement</span>
         <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> good URLs</span>
       </div>
+      {% if shot_m %}
+      <a href="{{ shot_m }}" target="_blank" rel="noopener" class="block overflow-hidden rounded-xl border border-slate-100 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950/50">
+        <img src="{{ shot_m }}" alt="GSC Mobile Web Vitals" class="max-h-[28rem] w-full object-contain object-top" loading="lazy">
+      </a>
+      <p class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500">GSC screenshot · mobile web</p>
+      {% else %}
       <div class="relative h-48 min-w-0 w-full sm:h-56"><canvas id="wv-chart-mobile"></canvas></div>
       <p id="wv-chart-mobile-note" class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500"></p>
+      {% endif %}
     </section>
     <section class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -149,8 +159,15 @@
         <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> needs improvement</span>
         <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> good URLs</span>
       </div>
+      {% if shot_d %}
+      <a href="{{ shot_d }}" target="_blank" rel="noopener" class="block overflow-hidden rounded-xl border border-slate-100 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950/50">
+        <img src="{{ shot_d }}" alt="GSC Desktop Web Vitals" class="max-h-[28rem] w-full object-contain object-top" loading="lazy">
+      </a>
+      <p class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500">GSC screenshot · desktop web</p>
+      {% else %}
       <div class="relative h-48 min-w-0 w-full sm:h-56"><canvas id="wv-chart-desktop"></canvas></div>
       <p id="wv-chart-desktop-note" class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500"></p>
+      {% endif %}
     </section>
   </div>
 
@@ -581,8 +598,12 @@ function runWebVitals() {
 }
 
 (function(){
-  _renderGscTrend('wv-chart-mobile', 'wv-chart-mobile-note', 'mobile');
-  _renderGscTrend('wv-chart-desktop', 'wv-chart-desktop-note', 'desktop');
+  if (document.getElementById('wv-chart-mobile')) {
+    _renderGscTrend('wv-chart-mobile', 'wv-chart-mobile-note', 'mobile');
+  }
+  if (document.getElementById('wv-chart-desktop')) {
+    _renderGscTrend('wv-chart-desktop', 'wv-chart-desktop-note', 'desktop');
+  }
 
   var labels = (_history || []).map(function(h){ return (h.collected_at || '').slice(5,16).replace('T',' '); });
   var ctx = document.getElementById('wv-history-chart');

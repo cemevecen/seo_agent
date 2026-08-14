@@ -11076,6 +11076,8 @@ def api_home_web_vitals(request: Request, site: str | None = None):
             dk = desk.get("kpis") or ov.get("desktop") or {}
             chart = payload.get("chart_series") or {}
             hist = ctx.get("history") or []
+            shots = ctx.get("cwv_shots") or {}
+            has_shots = bool(shots.get("mobile_url") or shots.get("desktop_url"))
             has_chart = any(
                 isinstance(chart.get(k), dict) and (chart.get(k) or {}).get("dates")
                 for k in ("mobile", "desktop")
@@ -11088,6 +11090,7 @@ def api_home_web_vitals(request: Request, site: str | None = None):
                 "display_name": site_obj.display_name,
                 "collected_at": ctx.get("collected_at") or "",
                 "gsc_links": ctx.get("gsc_links") or {},
+                "cwv_shots": shots,
                 "mobile_kpis": {
                     "poor": int((mk or {}).get("poor") or 0),
                     "needs_improvement": int((mk or {}).get("needs_improvement") or 0),
@@ -11100,7 +11103,7 @@ def api_home_web_vitals(request: Request, site: str | None = None):
                 },
                 "chart_series": chart,
                 "history": hist,
-                "has_data": bool(has_chart or has_kpi or hist),
+                "has_data": bool(has_chart or has_kpi or hist or has_shots),
             })
     return templates.TemplateResponse(
         request, "partials/home/web_vitals.html",
@@ -15160,6 +15163,7 @@ def web_vitals_page(request: Request, site_id: int | None = None, tab: str = "mo
             "history": [],
             "collected_at": "",
             "gsc_links": {},
+            "cwv_shots": {},
             "thresholds": {
                 "good_drop_pct": cwv_store.GOOD_DROP_PCT,
                 "poor_increase_abs": cwv_store.POOR_INCREASE_ABS,
@@ -15183,6 +15187,7 @@ def web_vitals_page(request: Request, site_id: int | None = None, tab: str = "mo
         "history": ctx.get("history") or [],
         "collected_at": ctx.get("collected_at") or "",
         "gsc_links": ctx.get("gsc_links") or {},
+        "cwv_shots": ctx.get("cwv_shots") or {},
         "thresholds": ctx.get("thresholds") or {},
     })
 

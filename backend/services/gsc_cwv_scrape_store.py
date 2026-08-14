@@ -975,6 +975,8 @@ def _recent_chart_series(db: Session, site_id: int, *, limit: int = 20) -> list[
 
 
 def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
+    from backend.services import gsc_cwv_storage
+
     row = latest_snapshot(db, site.id)
     payload: dict[str, Any] = {}
     if row and row.payload_json:
@@ -994,6 +996,10 @@ def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
     rid = payload.get("resource_id") or (
         "sc-domain:doviz.com" if "doviz" in (site.domain or "") else f"https://{site.domain}/"
     )
+    domain_for_property = (site.domain or "").replace("www.", "").strip() or (site.domain or "")
+    shot_urls = gsc_cwv_storage.build_gsc_cwv_urls(
+        db, site_id=int(site.id), domain_for_property=domain_for_property
+    )
     return {
         "payload": payload,
         "history": hist,
@@ -1003,6 +1009,12 @@ def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
             "mobile_summary": f"https://search.google.com/u/0/search-console/core-web-vitals/summary?resource_id={quote(str(rid), safe='')}&device=2",
             "desktop_summary": f"https://search.google.com/u/0/search-console/core-web-vitals/summary?resource_id={quote(str(rid), safe='')}&device=1",
             "amp": f"https://search.google.com/u/0/search-console/amp?resource_id={quote(str(rid), safe='')}",
+        },
+        "cwv_shots": {
+            "mobile_url": shot_urls.get("mobile_url") or "",
+            "desktop_url": shot_urls.get("desktop_url") or "",
+            "full_url": shot_urls.get("full_url") or "",
+            "extra_url": shot_urls.get("extra_url") or "",
         },
         "thresholds": {
             "good_drop_pct": GOOD_DROP_PCT,

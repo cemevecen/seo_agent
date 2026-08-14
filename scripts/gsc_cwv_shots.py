@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""GSC Core Web Vitals — screenshot-only test capture (Mac bridge).
+"""GSC Core Web Vitals — screenshot capture (Mac bridge).
 
-Overview + device summary sayfalarının PNG'lerini alır → Railway shots-ingest.
+Döviz + Sinemalar için overview + mobile/desktop summary PNG alır,
+KPI özetini JSON ingest'e yazar, görselleri shots-ingest'e yükler.
 
   .venv/bin/python scripts/gsc_cwv_shots.py --sync --ingest --site doviz
   .venv/bin/python scripts/gsc_cwv_shots.py --sync --ingest
 
-Env: NOTIFICATION_INGEST_TOKEN, GSC_CWV_SHOTS_INGEST_URL
+Env: NOTIFICATION_INGEST_TOKEN, GSC_CWV_SHOTS_INGEST_URL, GSC_CWV_INGEST_URL
 """
 
 from __future__ import annotations
@@ -48,10 +49,17 @@ DEVICE_MOBILE = 2
 DEVICE_DESKTOP = 1
 
 
-def _ingest_url() -> str:
+def _shots_ingest_url() -> str:
     return (
         os.environ.get("GSC_CWV_SHOTS_INGEST_URL")
         or "https://projectcontrol.up.railway.app/api/gsc-cwv/shots-ingest"
+    ).strip()
+
+
+def _kpi_ingest_url() -> str:
+    return (
+        os.environ.get("GSC_CWV_INGEST_URL")
+        or "https://projectcontrol.up.railway.app/api/gsc-cwv/ingest"
     ).strip()
 
 
@@ -97,9 +105,25 @@ def _load_cwv_scrape():
     return mod
 
 
+def _last_updated_from_body(body: str) -> str:
+    import re
+
+    text = body or ""
+    m = re.search(
+        r"(?:Last updated|Son güncelleme|Updated)\s*[:\-]?\s*([^\n\r·|]{4,40})",
+        text,
+        flags=re.I,
+    )
+    if m:
+        return (m.group(1) or "").strip()[:80]
+    return ""
+
+
 def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str, Any]:
     _cwv_url = cwv_mod._cwv_url
     _ensure_signed_in = cwv_mod._ensure_signed_in
+    _parse_overview_counts = cwv_mod._parse_overview_counts
+    _extract_page_meta = cwv_mod._extract_page_meta
 
     rid = prop["resource_id"]
     site_key = prop.get("site_key") or "site"
@@ -112,58 +136,25 @@ def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str
     _ensure_signed_in(page, headed=True)
     time.sleep(3.5)
     try:
-        page.evaluate("window.scrollTo(0, 200)")
+        page.evaluate("window.scrollTo(0, 120)")
     except Exception:
         pass
     time.sleep(1.0)
+
+    meta = _extract_page_meta(page)
+    body = str((meta or {}).get("body_head") or "")
+    overview = _parse_overview_counts(body)
+    last_upd = _last_updated_from_body(body)
+
     shots["full"] = out_dir / "full.png"
     _screenshot_main(page, shots["full"])
     print(f"  · full overview → {shots['full'].name}", flush=True)
 
-    # Overview üzerindeki Mobile / Desktop kartlarını ayrı yakalamayı dene
-    for label, variant in (("Mobile", "mobile"), ("Desktop", "desktop")):
-        card_path = out_dir / f"{variant}-overview.png"
-        grabbed = False
-        for sel in (
-            f"text={label}",
-            f"text=/{label}/i",
-        ):
-            try:
-                heading = page.locator(sel).first
-                if not heading.count():
-                    continue
-                # Kart: başlıktan birkaç seviye yukarı
-                card = heading.locator(
-                    "xpath=ancestor::*[self::div or self::section][1]"
-                )
-                # Daha geniş kutu ara
-                for depth in (2, 3, 4, 5):
-                    try:
-                        box = heading.locator(
-                            f"xpath=ancestor::*[self::div or self::section][{depth}]"
-                        )
-                        box.wait_for(state="visible", timeout=2000)
-                        box.screenshot(path=str(card_path), type="png")
-                        if card_path.stat().st_size > 8_000:
-                            shots[variant] = card_path
-                            grabbed = True
-                            print(f"  · {variant} overview card", flush=True)
-                            break
-                    except Exception:
-                        continue
-                if grabbed:
-                    break
-            except Exception:
-                continue
-        if not grabbed:
-            print(f"  · {variant} overview card skip — summary sayfası kullanılacak", flush=True)
-
-    # Device summary (stacked / KPI view — senin TR ekranlarındaki gibi)
+    # Panel grafikleri = GSC device summary (mobile web / desktop web)
     for device, variant, label in (
-        (DEVICE_MOBILE, "mobile", "Mobile summary"),
-        (DEVICE_DESKTOP, "desktop", "Desktop summary"),
+        (DEVICE_MOBILE, "mobile", "Mobile web summary"),
+        (DEVICE_DESKTOP, "desktop", "Desktop web summary"),
     ):
-        key = f"{variant}_summary"
         path = out_dir / f"{variant}-summary.png"
         page.goto(
             _cwv_url(rid, "/summary", device=device),
@@ -172,11 +163,16 @@ def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str
         )
         time.sleep(4.0)
         _screenshot_main(page, path)
-        shots[key] = path
-        # Overview kartı yoksa summary'yi ana variant yap
-        if variant not in shots:
-            shots[variant] = path
+        shots[variant] = path
         print(f"  · {label} → {path.name}", flush=True)
+
+    mobile_k = dict(overview.get("mobile") or {})
+    desktop_k = dict(overview.get("desktop") or {})
+    poor = int(mobile_k.get("poor") or 0) + int(desktop_k.get("poor") or 0)
+    ni = int(mobile_k.get("needs_improvement") or 0) + int(
+        desktop_k.get("needs_improvement") or 0
+    )
+    good = int(mobile_k.get("good") or 0) + int(desktop_k.get("good") or 0)
 
     return {
         "site_key": site_key,
@@ -184,8 +180,71 @@ def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str
         "resource_id": rid,
         "label": prop.get("label") or rid,
         "scraped_at": datetime.now(timezone.utc).isoformat(),
+        "last_updated": last_upd,
+        "overview": overview,
+        "chart_series": {},
+        "mobile": {
+            "kpis": mobile_k,
+            "last_updated": last_upd,
+            "issues": [],
+            "issue_drilldowns": [],
+            "good_urls": [],
+        },
+        "desktop": {
+            "kpis": desktop_k,
+            "last_updated": last_upd,
+            "issues": [],
+            "issue_drilldowns": [],
+            "good_urls": [],
+        },
+        "amp": {"issues": [], "url_row_count": 0, "skipped": True},
+        "totals": {"poor": poor, "needs_improvement": ni, "good": good},
+        "source": "gsc_cwv_shots",
+        "charts_only": True,
         "paths": {k: str(v) for k, v in shots.items()},
     }
+
+
+def post_kpi_snapshot(capture: dict[str, Any]) -> dict[str, Any]:
+    """KPI kartları için hafif JSON snapshot (AMP/issue drilldown yok)."""
+    token = _token()
+    if not token:
+        return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN yok"}
+    payload = {
+        "site_key": capture.get("site_key") or "",
+        "site_domain": capture.get("site_domain") or "",
+        "resource_id": capture.get("resource_id") or "",
+        "label": capture.get("label") or "",
+        "scraped_at": capture.get("scraped_at") or "",
+        "last_updated": capture.get("last_updated") or "",
+        "overview": capture.get("overview") or {},
+        "chart_series": capture.get("chart_series") or {},
+        "mobile": capture.get("mobile") or {},
+        "desktop": capture.get("desktop") or {},
+        "amp": capture.get("amp") or {"issues": [], "url_row_count": 0, "skipped": True},
+        "totals": capture.get("totals") or {},
+        "source": "gsc_cwv_shots",
+        "charts_only": True,
+    }
+    try:
+        resp = requests.post(
+            _kpi_ingest_url(),
+            headers={
+                "X-Notification-Ingest-Token": token,
+                "Content-Type": "application/json",
+            },
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            timeout=120,
+        )
+        try:
+            body = resp.json()
+        except Exception:
+            body = {"ok": False, "message": resp.text[:300]}
+        body["http_status"] = resp.status_code
+        body["ok"] = bool(body.get("ok")) and resp.status_code < 400
+        return body
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "message": str(exc)[:300]}
 
 
 def post_shots(capture: dict[str, Any]) -> dict[str, Any]:
@@ -199,7 +258,6 @@ def post_shots(capture: dict[str, Any]) -> dict[str, Any]:
             ("full", "full"),
             ("mobile", "mobile"),
             ("desktop", "desktop"),
-            ("mobile_summary", "extra"),
         )
         files = []
         data = [
@@ -219,7 +277,7 @@ def post_shots(capture: dict[str, Any]) -> dict[str, Any]:
         if not files:
             return {"ok": False, "message": "Yüklenecek PNG yok"}
         resp = requests.post(
-            _ingest_url(),
+            _shots_ingest_url(),
             headers={"X-Notification-Ingest-Token": token},
             data=data,
             files=files,
@@ -273,7 +331,18 @@ def run_shots(
             try:
                 cap = capture_property_shots(page, prop, cwv_mod)
                 if ingest:
+                    cap["kpi_ingest"] = post_kpi_snapshot(cap)
+                    print(
+                        f"  · KPI ingest · {cap.get('site_key')}: "
+                        f"{(cap.get('kpi_ingest') or {}).get('message') or (cap.get('kpi_ingest') or {}).get('ok')}",
+                        flush=True,
+                    )
                     cap["ingest"] = post_shots(cap)
+                    print(
+                        f"  · shots ingest · {cap.get('site_key')}: "
+                        f"{(cap.get('ingest') or {}).get('message') or (cap.get('ingest') or {}).get('ok')}",
+                        flush=True,
+                    )
                 captures.append(cap)
             except Exception as exc:  # noqa: BLE001
                 captures.append(
@@ -311,7 +380,7 @@ def run_shots(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="GSC CWV screenshot-only")
+    parser = argparse.ArgumentParser(description="GSC CWV screenshot capture")
     parser.add_argument("--sync", action="store_true")
     parser.add_argument("--ingest", action="store_true")
     parser.add_argument("--site", default="")
@@ -321,13 +390,13 @@ def main(argv: list[str] | None = None) -> int:
     if not args.sync:
         parser.print_help()
         return 2
-    headed = True if args.headed else (False if args.headless else None)
-    out = run_shots(
-        site_filter=args.site,
-        ingest=bool(args.ingest or args.sync),
-        headed=headed,
-    )
-    print(json.dumps({k: v for k, v in out.items() if k != "results"}, ensure_ascii=False), flush=True)
+    headed: bool | None = None
+    if args.headed:
+        headed = True
+    elif args.headless:
+        headed = False
+    out = run_shots(site_filter=args.site, ingest=args.ingest, headed=headed)
+    print(json.dumps({k: v for k, v in out.items() if k != "results"}, ensure_ascii=False))
     return 0 if out.get("ok") else 1
 
 

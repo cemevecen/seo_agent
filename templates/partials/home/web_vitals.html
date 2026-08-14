@@ -5,6 +5,9 @@
 {% set mk = block.mobile_kpis if block else {} %}
 {% set dk = block.desktop_kpis if block else {} %}
 {% set gsc = block.gsc_links if block else {} %}
+{% set shots = block.cwv_shots if block else {} %}
+{% set shot_m = shots.mobile_url if shots else '' %}
+{% set shot_d = shots.desktop_url if shots else '' %}
 {% set has_data = block and block.has_data %}
 {% set poor_tot = (mk.poor or 0)|int %}
 {% set ni_tot = (mk.needs_improvement or 0)|int %}
@@ -68,8 +71,15 @@
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> needs work</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> good</span>
           </div>
+          {% if shot_m %}
+          <a href="{{ shot_m }}" target="_blank" rel="noopener" class="block overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <img src="{{ shot_m }}" alt="GSC Mobile" class="max-h-44 w-full object-contain object-top" loading="lazy">
+          </a>
+          <p class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500">GSC screenshot · mobile</p>
+          {% else %}
           <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-m-{{ sid }}"></canvas></div>
           <p id="home-wv-m-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
+          {% endif %}
         </section>
         <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
           <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
@@ -83,8 +93,15 @@
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> needs work</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> good</span>
           </div>
+          {% if shot_d %}
+          <a href="{{ shot_d }}" target="_blank" rel="noopener" class="block overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <img src="{{ shot_d }}" alt="GSC Desktop" class="max-h-44 w-full object-contain object-top" loading="lazy">
+          </a>
+          <p class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500">GSC screenshot · desktop</p>
+          {% else %}
           <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-d-{{ sid }}"></canvas></div>
           <p id="home-wv-d-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
+          {% endif %}
         </section>
       </div>
       <script type="application/json" id="home-wv-data-{{ sid }}">{{ {
@@ -216,6 +233,10 @@
                 try { c.__homeWvChart.resize(); } catch (e) {}
               }
             });
+            return;
+          }
+          if (!document.getElementById('home-wv-m-' + sid) && !document.getElementById('home-wv-d-' + sid)) {
+            rendered = true;
             return;
           }
           rendered = true;
