@@ -2325,22 +2325,30 @@
     "virgul:ctr_pct": 1,
     "virgul:coverage_pct": 1
   };
+  function paBareMetric(key) {
+    var m = String(key || "");
+    return m.indexOf("cross:") === 0 ? m.slice(6) : m;
+  }
+  function paOverlaySeriesKey(ov, i) {
+    var m = String((ov && ov.metric) || i || "");
+    return m.indexOf("cross:") === 0 ? m : ("cross:" + m);
+  }
   function isGa4OverlayMetric(key) {
-    return String(key || "").indexOf("ga4:") === 0;
+    return paBareMetric(key).indexOf("ga4:") === 0;
   }
   function isVirgulOverlayMetric(key) {
-    return String(key || "").indexOf("virgul:") === 0;
+    return paBareMetric(key).indexOf("virgul:") === 0;
   }
   function isMarketOverlayMetric(key) {
-    return String(key || "").indexOf("market:") === 0;
+    return paBareMetric(key).indexOf("market:") === 0;
   }
   function isXdataMetric(key) {
-    return String(key || "").indexOf("xdata:") === 0;
+    return paBareMetric(key).indexOf("xdata:") === 0;
   }
   var PA_XDATA_AVG = {};
   (window.SEO_XDATA_AVG_KEYS || []).forEach(function (k) { PA_XDATA_AVG[k] = 1; });
   function isXdataAvgMetric(key) {
-    return !!PA_XDATA_AVG[String(key || "")];
+    return !!PA_XDATA_AVG[paBareMetric(key)];
   }
   function overlaySourceForMetric(key) {
     if (isVirgulOverlayMetric(key)) return "virgul";
@@ -2575,8 +2583,9 @@
     "market:all_indexed": "All market series, indexed to 100 at the start of the range."
   };
   function paMetricHelp(key) {
-    return PA_METRIC_HELP[key] || (isXdataMetric(key)
-      ? ("X-Data · " + (metricOptionLabel(key) || key) + " (Empower Intelligence daily series).")
+    var k = paBareMetric(key);
+    return PA_METRIC_HELP[k] || PA_METRIC_HELP[key] || (isXdataMetric(k)
+      ? ("X-Data · " + (metricOptionLabel(k) || k) + " (Empower Intelligence daily series).")
       : "This metric comes from Play / GA4 / Virgül / X-Data for the selected period and is shown as a daily (or breakdown) series on the chart and table.");
   }
   window.seoPaMetricHelp = paMetricHelp;
@@ -2729,6 +2738,40 @@
   }
   function hasPaOverlays() {
     return Array.isArray(paOverlays) && paOverlays.length > 0;
+  }
+  function paOverlayKpiPacks() {
+    return (paOverlays || []).filter(function (ov) {
+      return ov && !ov.muted;
+    }).map(function (ov, i) {
+      var metric = paBareMetric(ov.metric);
+      var tm = externalSeriesTotal(metric, ov.series);
+      return {
+        metric: paOverlaySeriesKey(ov, i),
+        overlayMetric: metric,
+        label: ov.label || metric,
+        series: ov.series || [],
+        total: ov.total != null ? ov.total : tm.total,
+        total_mode: ov.total_mode || tm.mode || "sum",
+        onChart: true,
+        color: ov.color || paOverlayColor(i),
+        crossPeer: true
+      };
+    });
+  }
+  function paWithOverlayKpis(base) {
+    return (base || []).filter(function (p) { return p && p.metric; }).concat(paOverlayKpiPacks());
+  }
+  function paPrimaryPackFromLast() {
+    if (paLastChart && paLastChart.primaryPack) return paLastChart.primaryPack;
+    var m = paPrimaryMetric();
+    return {
+      metric: m,
+      label: metricOptionLabel(m) || m || "Value",
+      series: (paLastChart && paLastChart.series) || [],
+      total: paLastChart && paLastChart.primaryPack ? paLastChart.primaryPack.total : null,
+      total_mode: (paLastChart && paLastChart.primaryPack && paLastChart.primaryPack.total_mode) || "sum",
+      onChart: true
+    };
   }
   function paOverlayColor(i) {
     // Geriye dönük: ana metrik 0; ekler 1'den — syncPaOverlayColors tercih edilir
@@ -3153,7 +3196,10 @@
     renderOverviewTable(visible);
     // Legend gizle/göster → KPI kartları grafikteki görünür metriklere uysun
     if (paSelectedMetrics.length >= 2) {
-      renderPaMetricKpis(chartBundles);
+      renderPaMetricKpis(paWithOverlayKpis(chartBundles));
+    } else if (hasPaOverlays() && !paOverviewActive) {
+      var sparkPacks = paWithOverlayKpis(chartBundles.length ? chartBundles : (head ? [head] : []));
+      renderPaMetricKpis(sparkPacks);
     }
   }
   function removeOverviewColumn(metric) {
@@ -3527,6 +3573,7 @@
       ov.color = color;
       return {
         metric: ov.metric,
+        seriesKey: paOverlaySeriesKey(ov, oi),
         label: ov.label,
         color: color,
         map: map,
@@ -3583,7 +3630,7 @@
       });
       return { pts: pts, color: color, sp: sp };
     });
-    var ovSeriesState = ovSeriesMaps.map(function (os) {
+    var ovSeriesState = ovSeriesMaps.map(function (os, oi) {
       var pts = [];
       keys.forEach(function (key, i) {
         if (!Object.prototype.hasOwnProperty.call(os.map, key)) return;
@@ -3594,6 +3641,7 @@
       });
       return {
         metric: os.metric,
+        seriesKey: paOverlaySeriesKey(os, oi),
         label: os.label,
         color: os.color,
         map: os.map,
@@ -3633,7 +3681,7 @@
         };
       }).concat(ovSeriesState.map(function (os) {
         return {
-          metric: os.metric,
+          metric: os.seriesKey || os.metric,
           color: os.color,
           heights: keys.map(function (key) {
             if (!Object.prototype.hasOwnProperty.call(os.map, key)) return 0;
@@ -3660,7 +3708,7 @@
         }));
       }).join("");
       ovPathsHtml = ovSeriesState.map(function (os, oi) {
-        return wrapChartSeriesG(os.metric, buildSeriesStyleHtml(style, os.pts, os.color, baseY, {
+        return wrapChartSeriesG(os.seriesKey || paOverlaySeriesKey(os, oi), buildSeriesStyleHtml(style, os.pts, os.color, baseY, {
           strokeW: PA_STROKE_W_OV,
           fillOpacity: paIsDark() ? 0.1 : 0.12,
           showDots: false,
@@ -4230,16 +4278,16 @@
     paMetricKpis.classList.remove("hidden");
     applyPaMetricKpiLayout(paMetricKpis, list.length);
     paMetricKpis.innerHTML = list.map(function (pack, idx) {
-      var color = overviewMetricColor(pack.metric) || paMetricColor(idx);
+      var color = pack.color || overviewMetricColor(paBareMetric(pack.metric)) || paMetricColor(idx);
       var st = seriesStats(pack.series);
       var avg = packAverage(pack);
-      var countLike = metricIsCountLike(pack.metric);
+      var countLike = metricIsCountLike(pack.overlayMetric || pack.metric);
       var modeTotal = pack.total_mode || "sum";
       var totalVal = pack.total != null && Number.isFinite(Number(pack.total))
         ? fmtNum(pack.total, countLike && modeTotal !== "avg")
         : fmtNum(st.sum, countLike);
       var label = pack.label || pack.metric || "";
-      var tip = typeof paMetricHelp === "function" ? paMetricHelp(pack.metric) : "";
+      var tip = typeof paMetricHelp === "function" ? paMetricHelp(pack.overlayMetric || pack.metric) : "";
       var spark = seriesSparkSvg(pack.series, color, 220, 56);
       var infoBtn =
         '<button type="button" class="metric-kpi-info" data-pa-metric-info aria-label="' + esc(label) + ' info">' +
@@ -4324,7 +4372,7 @@
     return Number(n).toLocaleString("tr-TR", opts);
   }
   function metricIsCountLike(metricKey) {
-    var m = metricKey || paPrimaryMetric() || "";
+    var m = paBareMetric(metricKey || paPrimaryMetric() || "");
     if (m === "ga4:avg_session") return false;
     if (isMarketOverlayMetric(m)) return false;
     if (isXdataAvgMetric(m)) return false;
@@ -4397,7 +4445,7 @@
   }
   /** Metrik ailesi: farklı aileler aynı mutlak eksende karşılaştırılamaz. */
   function metricScaleFamily(metricKey) {
-    var m = metricKey || "";
+    var m = paBareMetric(metricKey || "");
     if (isGa4OverlayMetric(m) || String(m).indexOf("ga4:") === 0) return "ga4";
     if (isVirgulOverlayMetric(m) || String(m).indexOf("virgul:") === 0) return "virgul";
     if (isMarketOverlayMetric(m) || String(m).indexOf("market:") === 0) return "market";
@@ -4550,7 +4598,7 @@
       }
       if (parts.length) {
         html += wrapChartSeriesG(
-          ser.metric,
+          ser.seriesKey || ser.metric,
           '<path d="' + parts.join("") + '" fill="' + ser.color +
           '" fill-opacity="0.88" shape-rendering="optimizeSpeed" />'
         );
@@ -4913,21 +4961,45 @@
       paLastChart.compareMeta
     );
   }
-  function redrawWithOverlays() {
-    if (paOverviewActive && paOverviewBundles) {
+  function paCompareInfoFromLast() {
+    var cmp = paLastChart && paLastChart.compareMeta;
+    var hasPrev = !!(cmp && cmp.available !== false && cmp.total != null);
+    return {
+      hasPrev: hasPrev,
+      prevTotal: hasPrev ? cmp.total : null,
+      deltaPct: hasPrev && cmp.delta_pct != null ? cmp.delta_pct : null
+    };
+  }
+  function paPaintAfterOverlayChange() {
+    if (paOverviewBundles && (paOverviewActive || (paSelectedMetrics && paSelectedMetrics.length > 1))) {
       refreshOverviewViewFromBundles();
-    } else if (paLastChart) {
-      drawChart(
-        paLastChart.series,
-        paLastChart.prevSeries,
-        paLastChart.breakdown,
-        paLastChart.compareMeta
-      );
-      refreshPaTableFromLast();
-    } else {
+      return;
+    }
+    if (!paLastChart) {
       setOverlayColVisible(false);
       renderOverlayLegend();
+      return;
     }
+    var native = paPrimaryPackFromLast();
+    if (hasPaOverlays()) {
+      renderPaMetricKpis(paWithOverlayKpis([native]));
+      setAddChartVisible(false);
+      drawOverviewMainChart([native]);
+      renderOverviewTable([native]);
+      return;
+    }
+    clearOverviewLegend();
+    renderPaMetricKpis([native], paCompareInfoFromLast());
+    drawChart(
+      paLastChart.series,
+      paLastChart.prevSeries,
+      paLastChart.breakdown,
+      paLastChart.compareMeta
+    );
+    refreshPaTableFromLast();
+  }
+  function redrawWithOverlays() {
+    paPaintAfterOverlayChange();
     renderOverlayChips();
     if (paOvClear) {
       if (hasPaOverlays()) paOvClear.classList.remove("hidden");
@@ -4938,20 +5010,7 @@
     paOverlays = (paOverlays || []).filter(function (ov) { return !ov.crossPeer; });
   }
   function redrawPaAfterCross() {
-    if (paOverviewBundles && (paOverviewActive || (paSelectedMetrics && paSelectedMetrics.length > 1))) {
-      refreshOverviewViewFromBundles();
-    } else if (paLastChart) {
-      drawChart(
-        paLastChart.series,
-        paLastChart.prevSeries,
-        paLastChart.breakdown,
-        paLastChart.compareMeta
-      );
-      refreshPaTableFromLast();
-    } else {
-      setOverlayColVisible(false);
-      renderOverlayLegend();
-    }
+    paPaintAfterOverlayChange();
     renderOverlayLegend();
     renderOverlayChips();
   }
@@ -5493,6 +5552,7 @@
       if (omax <= 0) omax = 1;
       return {
         metric: ov.metric,
+        seriesKey: paOverlaySeriesKey(ov, oi),
         label: ov.label,
         color: color,
         source: ov.source || (isVirgulOverlayMetric(ov.metric) ? "virgul" : (isGa4OverlayMetric(ov.metric) ? "ga4" : "play")),
@@ -5626,7 +5686,7 @@
         });
       }
       ovPathsHtml = overlaySeriesState.map(function (os, oi) {
-        return wrapChartSeriesG(os.metric, buildSeriesStyleHtml("bar", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
+        return wrapChartSeriesG(os.seriesKey || paOverlaySeriesKey(os, oi), buildSeriesStyleHtml("bar", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
           seriesIndex: 1 + oi,
           seriesCount: Math.max(1, 1 + overlaySeriesState.length),
           barOpacity: 0.75,
@@ -5646,8 +5706,8 @@
             '" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />';
         }
       }
-      ovPathsHtml = overlaySeriesState.map(function (os) {
-        return wrapChartSeriesG(os.metric, buildSeriesStyleHtml("area", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
+      ovPathsHtml = overlaySeriesState.map(function (os, oi) {
+        return wrapChartSeriesG(os.seriesKey || paOverlaySeriesKey(os, oi), buildSeriesStyleHtml("area", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
           strokeW: PA_STROKE_W_OV,
           fillOpacity: paIsDark() ? 0.1 : 0.12
         }));
@@ -5676,10 +5736,10 @@
           '<path d="' + prevD2 + '" fill="none" stroke="' + pal.prev + '" stroke-width="' + PA_STROKE_W_PREV +
           '" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />';
       }
-      ovPathsHtml = overlaySeriesState.map(function (os) {
+      ovPathsHtml = overlaySeriesState.map(function (os, oi) {
         var d = buildLinePath((os.pts || []).filter(Boolean));
         if (!d) return "";
-        return wrapChartSeriesG(os.metric,
+        return wrapChartSeriesG(os.seriesKey || paOverlaySeriesKey(os, oi),
           '<path d="' + d + '" fill="none" stroke="' + os.color +
           '" stroke-width="' + PA_STROKE_W_OV + '" stroke-linecap="round" stroke-linejoin="round" />'
         );
@@ -6014,7 +6074,7 @@
         // fetchOneOverlaySeries hafta/ay'ı zaten uyguladı; çizimde tekrar agregasyon yok
         var multiVisible = visibleOverviewBundles(packs);
         var multiChart = multiVisible.filter(function (b) { return b.onChart; });
-        renderPaMetricKpis(multiVisible);
+        renderPaMetricKpis(paWithOverlayKpis(multiVisible));
         if (paCompareRange) {
           paCompareRange.textContent = softNotes.length
             ? (softNotes.slice(0, 2).join(" · ") + (softNotes.length > 2 ? (" · +" + (softNotes.length - 2)) : ""))
@@ -6139,7 +6199,8 @@
         series: data.series || [],
         prevSeries: hasPrev && cmp.series ? cmp.series : [],
         breakdown: (paBreakdown && paBreakdown.value) || "date",
-        compareMeta: cmpMeta
+        compareMeta: cmpMeta,
+        primaryPack: singlePack
       };
       if (paCompareRange) {
         if (hasPrev && cmp.start && cmp.end) {

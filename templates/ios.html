@@ -1551,6 +1551,7 @@
   var iaHiddenMetrics = {};
   var iaLastDrawBundles = null;
   var iaLastNativeBundles = null;
+  var iaLastTableBundles = null;
   var iaCrossBundles = [];
 
   function iaBareMetric(key) {
@@ -1569,35 +1570,56 @@
     var packs = await PlayMetricOverlay.fetchSelectedSeries("ia-cross-metric-overlay-root", start, end, "android");
     if (my != null && my !== runSeq) return;
     iaCrossBundles = packs.map(function (p) {
+      var series = p.series || [];
+      var st = typeof seriesStats === "function" ? seriesStats(series) : { sum: null };
       return {
         metric: "cross:" + p.metric,
         label: "Android · " + (p.label || p.metric),
-        series: p.series || [],
+        series: series,
+        total: p.total != null ? p.total : st.sum,
+        total_mode: p.total_mode || "sum",
         onChart: true,
         crossPeer: true,
         source: p.source || "play"
       };
     });
   }
+  function iaNativeBundles(list) {
+    return (list || []).filter(function (b) { return b && b.metric && !b.crossPeer; });
+  }
   function paintIaWithCross(native) {
-    iaLastNativeBundles = (native || []).filter(function (b) { return b && !b.crossPeer; });
-    var list = withIaCross(iaLastNativeBundles);
-    if (!list.length) {
+    iaLastNativeBundles = iaNativeBundles(native);
+    var chartList = withIaCross(iaLastNativeBundles);
+    var tableNative = iaNativeBundles(
+      (iaLastTableBundles && iaLastTableBundles.length) ? iaLastTableBundles : iaLastNativeBundles
+    );
+    if (!chartList.length) {
       if (iaChart) iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Select a metric</text>';
       if (iaLegend) iaLegend.innerHTML = "";
       return;
     }
-    if (list.length === 1) {
-      drawSingle(list[0].series || [], COLORS[0]);
+    if (chartList.length === 1) {
+      drawSingle(chartList[0].series || [], COLORS[0]);
+      renderSingleTable(chartList[0].series || [], iaBareMetric(chartList[0].metric));
+      if (!overviewActive) {
+        renderIaMetricKpis(chartList);
+      }
       return;
     }
-    drawMulti(list);
+    drawMulti(chartList);
+    renderOverviewTable(tableNative);
+    if (!overviewActive) {
+      var kpiPacks = chartList.filter(function (b) {
+        return b && b.metric && !isIaMetricHidden(b.metric);
+      });
+      renderIaMetricKpis(kpiPacks);
+    }
   }
   window.iaOnCrossMetricOverlayChange = function iaOnCrossMetricOverlayChange() {
     if (window.PlayMetricOverlay && PlayMetricOverlay.clearCache) PlayMetricOverlay.clearCache();
     refreshIaCrossBundles(runSeq).then(function () {
-      if (!iaLastNativeBundles) return;
-      paintIaWithCross(iaLastNativeBundles);
+      if (!iaLastNativeBundles && !iaLastTableBundles) return;
+      paintIaWithCross(iaLastNativeBundles || []);
     });
   };
 
@@ -1657,19 +1679,20 @@
     }
     runIaChartMotion(function () {
       if (iaLastDrawBundles && iaLastDrawBundles.length) drawMulti(iaLastDrawBundles);
+      if (overviewActive) return;
       var kpiPacks = (iaLastDrawBundles || []).filter(function (b) {
         return b && b.metric && !isIaMetricHidden(b.metric);
       });
       renderIaMetricKpis(kpiPacks);
     });
   }
-  function isGa4Metric(key) { return String(key || "").indexOf("ga4:") === 0; }
-  function isVirgulMetric(key) { return String(key || "").indexOf("virgul:") === 0; }
-  function isMarketMetric(key) { return String(key || "").indexOf("market:") === 0; }
-  function isXdataMetric(key) { return String(key || "").indexOf("xdata:") === 0; }
+  function isGa4Metric(key) { return iaBareMetric(key).indexOf("ga4:") === 0; }
+  function isVirgulMetric(key) { return iaBareMetric(key).indexOf("virgul:") === 0; }
+  function isMarketMetric(key) { return iaBareMetric(key).indexOf("market:") === 0; }
+  function isXdataMetric(key) { return iaBareMetric(key).indexOf("xdata:") === 0; }
   var IA_XDATA_AVG = {};
   (window.SEO_XDATA_AVG_KEYS || []).forEach(function (k) { IA_XDATA_AVG[k] = 1; });
-  function isXdataAvgMetric(key) { return !!IA_XDATA_AVG[String(key || "")]; }
+  function isXdataAvgMetric(key) { return !!IA_XDATA_AVG[iaBareMetric(key)]; }
   function overlaySourceForMetric(key) {
     if (isVirgulMetric(key)) return "virgul";
     if (isGa4Metric(key)) return "ga4";
@@ -1747,7 +1770,8 @@
     if (iaLastDrawBundles && iaLastDrawBundles.length) {
       return iaLastDrawBundles
         .filter(function (b) {
-          return b && b.metric && (b.series || []).length && !isIaMetricHidden(b.metric);
+          return b && b.metric && (b.series || []).length && !isIaMetricHidden(b.metric) && !b.crossPeer
+            && String(b.metric).indexOf("cross:") !== 0;
         })
         .map(function (b) { return b.metric; });
     }
@@ -1884,8 +1908,9 @@
     "market:all_indexed": "All market series, indexed to 100 at the start of the range."
   };
   function iaMetricHelp(key) {
-    return IA_METRIC_HELP[key] || (isXdataMetric(key)
-      ? ("X-Data · " + (metricLabel(key) || key) + " (Empower Intelligence daily series).")
+    var k = iaBareMetric(key);
+    return IA_METRIC_HELP[k] || IA_METRIC_HELP[key] || (isXdataMetric(k)
+      ? ("X-Data · " + (metricLabel(k) || k) + " (Empower Intelligence daily series).")
       : "This metric comes from App Store / GA4 / Virgül / X-Data for the selected period and is shown as a daily (or breakdown) series on the chart and table.");
   }
   window.seoIaMetricHelp = iaMetricHelp;
@@ -2190,7 +2215,7 @@
     iaMetricKpis.classList.remove("hidden");
     applyIaMetricKpiLayout(iaMetricKpis, list.length);
     iaMetricKpis.innerHTML = list.map(function (pack, idx) {
-      var color = colorForIaBundle(iaLastDrawBundles || list, pack.metric) || colorAt(idx);
+      var color = pack.color || colorForIaBundle(iaLastDrawBundles || list, pack.metric) || colorAt(idx);
       var st = seriesStats(pack.series);
       var avg = packAverage(pack);
       var countLike = isCountLike(pack.metric);
@@ -2511,25 +2536,10 @@
   /* overlay helpers removed */
 
   function renderSelectedBundles(bundles) {
-    var native = (Array.isArray(bundles) ? bundles : []).filter(function (b) { return b && !b.crossPeer; });
+    var native = iaNativeBundles(Array.isArray(bundles) ? bundles : []);
     iaLastNativeBundles = native;
-    var list = withIaCross(native);
-    if (!list.length) {
-      if (iaChart) iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Select a metric</text>';
-      if (iaLegend) iaLegend.innerHTML = "";
-      return;
-    }
-    if (list.length === 1) {
-      drawSingle(list[0].series || [], COLORS[0]);
-      renderSingleTable(native[0] ? native[0].series || [] : list[0].series || [], native[0] ? native[0].metric : list[0].metric);
-      return;
-    }
-    drawMulti(list);
-    if (native.length <= 1 && native[0]) {
-      renderSingleTable(native[0].series || [], native[0].metric);
-      return;
-    }
-    renderOverviewTable(native);
+    iaLastTableBundles = native;
+    paintIaWithCross(native);
   }
   function isoWeekBucketKey(isoDate) {
     var m = String(isoDate || "").match(/^(20\d{2})-(\d{2})-(\d{2})$/);
@@ -3300,7 +3310,10 @@
     var ux = window.SeoMetricTableUx;
     if (ux) ux.injectStyles();
     var fmtTableKey = ux && ux.formatTableDateKey ? ux.formatTableDateKey : fmtAxisKey;
-    var list = applyIaTimeBreakdown(bundles || [], iaActiveTimeBreakdown());
+    var native = iaNativeBundles(bundles || []);
+    var list = applyIaTimeBreakdown(native, iaActiveTimeBreakdown()).concat(
+      applyIaTimeBreakdown(iaCrossBundles || [], iaActiveTimeBreakdown())
+    );
     var keySet = {};
     list.forEach(function (b) {
       (b.series || []).forEach(function (r) { if (r && r.key != null) keySet[String(r.key)] = true; });
@@ -3339,9 +3352,10 @@
     var shell = document.getElementById("ia-table-shell");
     var tableEl = iaTable.closest("table");
     function refreshIaOverviewTable() {
-      renderOverviewTable(
-        (iaLastDrawBundles && iaLastDrawBundles.length) ? iaLastDrawBundles : bundles
-      );
+      var src = (iaLastTableBundles && iaLastTableBundles.length)
+        ? iaLastTableBundles
+        : ((iaLastNativeBundles && iaLastNativeBundles.length) ? iaLastNativeBundles : bundles);
+      renderOverviewTable(iaNativeBundles(src));
     }
     var gridRes = ux && tableEl
       ? ux.renderHeatGrid({
@@ -3481,9 +3495,9 @@
         iaTotal.textContent = head ? fmtNum(head.total, isCountLike(head.metric)) : "—";
         iaTotalLabel.textContent = "Overview";
         iaCompareRange.textContent = "";
-        drawMulti(withIaCross(chartBundles));
+        iaLastTableBundles = bundles;
         iaLastNativeBundles = chartBundles.filter(function (b) { return b && !b.crossPeer; });
-        renderOverviewTable(bundles);
+        paintIaWithCross(iaLastNativeBundles);
         await refreshIaCrossBundles(my);
         if (my !== runSeq) return;
         paintIaWithCross(iaLastNativeBundles);

@@ -7868,12 +7868,17 @@
 
   window.mzOnPlayMetricOverlayChange = function mzOnPlayMetricOverlayChange() {
     if (window.PlayMetricOverlay) PlayMetricOverlay.clearCache();
-    refreshChartLine();
-    if (state.lastSummary) {
-      renderExtendedCharts(state.lastSummary).then(function () {
-        scheduleMzChartsResizeBurst();
-      });
-    }
+    var lineP = refreshChartLine();
+    var extP = state.lastSummary
+      ? renderExtendedCharts(state.lastSummary).then(function () {
+          scheduleMzChartsResizeBurst();
+        })
+      : Promise.resolve();
+    Promise.all([lineP, extP]).then(function () {
+      if (state.lastSummary) scheduleKpiSparklines(state.lastSummary);
+    }).catch(function () {
+      if (state.lastSummary) scheduleKpiSparklines(state.lastSummary);
+    });
   };
 
   function syncPlayMetricOverlayBarVisibility() {
