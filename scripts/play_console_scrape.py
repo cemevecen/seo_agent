@@ -699,7 +699,9 @@ def _launch_context(*, headed: bool):
     )
 
     if play_console_use_selenium():
-        return launch_selenium_context(PROFILE_DIR, headed=headed)
+        # launch_selenium_context → (pw, context, attached); callers expect 2-tuple
+        pw, context, _attached = launch_selenium_context(PROFILE_DIR, headed=headed)
+        return pw, context
 
     from backend.services.store_session_cdp import attach_or_launch
 
