@@ -1175,6 +1175,7 @@ def scrape_firebase_console(
             headed=headed,
             env_key="FIREBASE_CONSOLE_KEEP_OPEN",
             label="Firebase",
+            profile=PROFILE_DIR,
         )
 
     ok = any(isinstance(v, dict) and v.get("ok") for v in platforms_out.values())
