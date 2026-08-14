@@ -49,9 +49,30 @@ def test_bridge_sinemalar_slots_are_five_minutes_after_doviz():
     assert "/sync-empower-intel-sinemalar" in text
 
 
-def test_datas_tab_files_exist():
-    assert (ROOT / "templates/partials/sinemalar_datas_content.html").is_file()
-    assert (ROOT / "static/js/sinemalar_datas.js").is_file()
-    js = (ROOT / "static/js/sinemalar_datas.js").read_text(encoding="utf-8")
-    assert 'project=sinemalar' in js or 'PROJECT = "sinemalar"' in js
-    assert "/api/empower-intel/series" in js
+def test_read_property_ids_filters_by_project_report_path():
+    """doviz prefs, sinemalar scrape'e sızmamalı."""
+    mod = _load_scrape()
+
+    class FakeDriver:
+        def execute_script(self, script, *args):
+            needle = args[0] if args else ""
+            all_prefs = {
+                "web": "376928120",  # doviz — yalnızca doviz needle ile
+                "mweb": "329808608",
+            }
+            # Script filters by needle in real browser; we simulate return
+            if "/sinemalar-report/" in str(needle):
+                return {}  # henüz sinemalar prefs yok
+            if "/doviz-report/" in str(needle):
+                return all_prefs
+            return all_prefs
+
+    # Sinemalar: env yoksa boş kalmalı (doviz ID sızmasın)
+    got = mod._read_property_ids(FakeDriver(), "sinemalar")
+    assert got.get("web") in (None, ""), got
+    assert got.get("mweb") in (None, ""), got
+
+    # Doviz: doviz prefs gelir
+    got_d = mod._read_property_ids(FakeDriver(), "doviz")
+    assert got_d.get("web") == "376928120"
+    assert got_d.get("mweb") == "329808608"

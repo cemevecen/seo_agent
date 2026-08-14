@@ -692,21 +692,33 @@ def _read_oidc_access_token(driver: Any) -> str:
 
 
 def _read_property_ids(driver: Any, project: str | None = None) -> dict[str, str]:
+    """localStorage columnPrefs → platform property_id.
+
+    Anahtar biçimi: ``columnPrefs:email:/{project}-report/:platform:PROPERTY_ID``
+    Aynı Firefox profilinde doviz + sinemalar prefs bir arada olabilir; yalnızca
+    aktif ``project`` report path'ine ait anahtarlar alınır (çapraz kirlenme yok).
+    """
     proj = _normalize_project(project)
     out = _default_property_ids(proj)
+    report_needle = f"/{proj}-report/"
     try:
         found = driver.execute_script(
             """
+            const needle = arguments[0];
             const m = {};
             for (let i = 0; i < localStorage.length; i++) {
               const k = localStorage.key(i);
               if (!k || !k.startsWith('columnPrefs:')) continue;
+              if (needle && k.indexOf(needle) < 0) continue;
               const parts = k.split(':');
               if (parts.length < 2) continue;
-              m[parts[parts.length - 2]] = parts[parts.length - 1];
+              const plat = parts[parts.length - 2];
+              const pid = parts[parts.length - 1];
+              if (plat && pid) m[plat] = pid;
             }
             return m;
-            """
+            """,
+            report_needle,
         )
     except Exception:
         found = {}
@@ -1005,6 +1017,25 @@ def scrape_empower(
 
         access_token = _read_oidc_access_token(driver)
         property_ids = _read_property_ids(driver, proj)
+        print(
+            f"  · property_ids ({proj}): "
+            + ", ".join(f"{k}={property_ids.get(k) or '?'}" for k in plats),
+            flush=True,
+        )
+        missing = [p for p in plats if not (property_ids.get(p) or "").strip()]
+        if missing:
+            return {
+                "ok": False,
+                "sync_ok": False,
+                "sync_message": (
+                    f"{proj}: property_id yok ({', '.join(missing)}). "
+                    f"Önce https://intelligence.empower.net/{proj}-report/ açıp "
+                    "Web/Mobile Web sekmelerine tıkla (columnPrefs dolsun), "
+                    "veya EMPOWER_INTEL_SINEMALAR_PROPERTY_IDS=web:ID,mweb:ID set et."
+                ),
+                "project": proj,
+                "platforms": [],
+            }
         if not access_token:
             return {
                 "ok": False,
