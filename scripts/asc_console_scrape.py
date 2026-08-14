@@ -410,10 +410,36 @@ def _wait_for_asc_session(page, ctx, *, timeout_sec: int | None = None) -> bool:
 
 
 _CDP_ATTACHED: set[int] = set()
+# Headed ASC: şifre/oturum için Firefox penceresi kapatılmaz; sonraki taramada yeniden kullanılır.
+_ASC_WARM: dict[str, Any] = {"pw": None, "ctx": None}
+
+
+def _asc_keep_window_open() -> bool:
+    """Varsayılan: ASC penceresi açık kalsın. Kapatmak için ASC_CONSOLE_KEEP_OPEN=0."""
+    return (os.environ.get("ASC_CONSOLE_KEEP_OPEN") or "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _asc_warm_alive(ctx: Any) -> bool:
+    if ctx is None:
+        return False
+    try:
+        _ = ctx.pages
+        return True
+    except Exception:
+        return False
 
 
 def _launch_context(*, headed: bool):
     from backend.services.store_session_cdp import attach_or_launch
+
+    if headed and _asc_keep_window_open() and _asc_warm_alive(_ASC_WARM.get("ctx")):
+        print("ASC: mevcut Firefox penceresi yeniden kullanılıyor (kapatılmadı)", flush=True)
+        return _ASC_WARM["pw"], _ASC_WARM["ctx"]
 
     pw, ctx, attached = attach_or_launch(
         "asc",
@@ -423,14 +449,32 @@ def _launch_context(*, headed: bool):
     if attached:
         _CDP_ATTACHED.add(id(ctx))
         print("ASC: kalıcı Firefox profili", flush=True)
+    if headed and _asc_keep_window_open():
+        _ASC_WARM["pw"] = pw
+        _ASC_WARM["ctx"] = ctx
     return pw, ctx
 
 
 def _release_context(pw, ctx) -> None:
+    """Headed ASC'te pencereyi kapatma — oturum/şifre ekranı açık kalsın."""
+    if (
+        _asc_keep_window_open()
+        and ctx is not None
+        and _ASC_WARM.get("ctx") is ctx
+    ):
+        print(
+            "ASC: Firefox penceresi açık bırakıldı (scrape bitse de kapanmaz)",
+            flush=True,
+        )
+        return
+
     from backend.services.store_session_cdp import release_browser
 
     attached = id(ctx) in _CDP_ATTACHED
     _CDP_ATTACHED.discard(id(ctx))
+    if _ASC_WARM.get("ctx") is ctx:
+        _ASC_WARM["pw"] = None
+        _ASC_WARM["ctx"] = None
     release_browser(pw, ctx, attached=attached)
 
 
@@ -438,7 +482,8 @@ def run_login_interactive() -> None:
     print(
         "ASC login — açılan Firefox penceresinde giriş yapın "
         f"(profil: {PROFILE_DIR}).\n"
-        "Önce pencereye tıklayın, sonra e-posta alanına yazın.",
+        "Önce pencereye tıklayın, sonra e-posta alanına yazın.\n"
+        "Girişten sonra pencere açık kalır (ASC_CONSOLE_KEEP_OPEN).",
         flush=True,
     )
     pw, ctx = _launch_context(headed=True)
@@ -452,7 +497,10 @@ def run_login_interactive() -> None:
         ok = _wait_for_asc_session(page, ctx)
         if not ok:
             return
-        print("Login kaydedildi. --login bitti; Update page ile aynı profilde tarama yapılır.", flush=True)
+        print(
+            "Login kaydedildi. Pencere açık bırakıldı — Update page aynı pencerede devam eder.",
+            flush=True,
+        )
     finally:
         _release_context(pw, ctx)
 
