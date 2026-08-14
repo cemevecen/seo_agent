@@ -21524,7 +21524,8 @@ def sinemalar_policy_page(
     host_key = (host or "all").strip().lower()
     if host_key not in ("all", "sinemalar.com", "m.sinemalar.com"):
         host_key = "all"
-    default_tab = "sinemalar" if request.url.path.rstrip("/") == "/sinemalar" else "policy"
+    # Varsayılan: Moderation (tab=sinemalar). Policy yalnızca ?tab=policy ile.
+    default_tab = "sinemalar"
     tab_key = (tab or default_tab).strip().lower()
     if tab_key in ("moderation", "mod"):
         tab_key = "sinemalar"

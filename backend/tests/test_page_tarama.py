@@ -67,8 +67,19 @@ def test_all_listed_pages_have_slot_and_key():
         if key in ("policy", "moderation"):
             assert "data-page-tarama=" in text, rel
             assert "{% if _tab == 'sinemalar' %}moderation{% else %}policy{% endif %}" in text
+            # Moderation sekmesi Policy'den önce (varsayılan giriş)
+            tabs = text.split('<div class="flex flex-wrap gap-1.5">', 1)[1].split("</div>", 1)[0]
+            assert tabs.index("Moderation") < tabs.index("Policy")
+            assert 'href="/sinemalar"' in tabs
+            assert "tab=policy" in tabs
         else:
             assert f'data-page-tarama="{key}"' in text, rel
+
+
+def test_sinemalar_page_defaults_to_moderation_tab():
+    main = (ROOT / "backend/main.py").read_text(encoding="utf-8")
+    assert 'default_tab = "sinemalar"' in main
+    assert 'default_tab = "sinemalar" if request.url.path' not in main
 
 
 def test_js_uses_railway_queue_on_remote():
