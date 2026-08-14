@@ -421,7 +421,9 @@ def post_shots(capture: dict[str, Any]) -> dict[str, Any]:
             ("full", "full"),
             ("mobile", "mobile"),
             ("desktop", "desktop"),
-            # Summary (kutular açık stacked) — panelde ikinci görsel
+            ("mobile_summary", "mobile_summary"),
+            ("desktop_summary", "desktop_summary"),
+            # geriye dönük: eski panel ekstra slotu
             ("mobile_summary", "extra"),
         )
         files = []

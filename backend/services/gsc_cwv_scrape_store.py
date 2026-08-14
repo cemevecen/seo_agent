@@ -1024,6 +1024,8 @@ def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
             "desktop_url": shot_urls.get("desktop_url") or "",
             "full_url": shot_urls.get("full_url") or "",
             "extra_url": shot_urls.get("extra_url") or "",
+            "mobile_summary_url": shot_urls.get("mobile_summary_url") or "",
+            "desktop_summary_url": shot_urls.get("desktop_summary_url") or "",
         },
         "thresholds": {
             "good_drop_pct": GOOD_DROP_PCT,

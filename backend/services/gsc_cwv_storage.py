@@ -12,7 +12,9 @@ from backend.models import GscCwvScreenshot
 
 LOGGER = logging.getLogger(__name__)
 
-CWV_VARIANTS = frozenset({"full", "mobile", "desktop", "extra"})
+CWV_VARIANTS = frozenset(
+    {"full", "mobile", "desktop", "extra", "mobile_summary", "desktop_summary"}
+)
 
 
 def _guess_content_type(data: bytes, filename: str) -> str:
@@ -95,11 +97,23 @@ def build_gsc_cwv_urls(db: Session, *, site_id: int, domain_for_property: str) -
         "desktop_url": "",
         "full_url": "",
         "extra_url": "",
+        "mobile_summary_url": "",
+        "desktop_summary_url": "",
     }
-    for variant in ("mobile", "desktop", "full", "extra"):
+    for variant in (
+        "mobile",
+        "desktop",
+        "full",
+        "extra",
+        "mobile_summary",
+        "desktop_summary",
+    ):
         row = load_screenshot(db, site_id=site_id, variant=variant)
         if row and row.image_data:
             out[f"{variant}_url"] = cwv_public_url(site_id, variant, row.updated_at)
+    # Eski ingest: mobile summary → extra
+    if not out["mobile_summary_url"] and out.get("extra_url"):
+        out["mobile_summary_url"] = out["extra_url"]
     return out
 
 

@@ -1089,10 +1089,19 @@ def api_gsc_cwv_shots_status(site: str = "doviz"):
             "desktop": urls.get("desktop_url") or "",
             "full": urls.get("full_url") or "",
             "extra": urls.get("extra_url") or "",
+            "mobile_summary": urls.get("mobile_summary_url") or "",
+            "desktop_summary": urls.get("desktop_summary_url") or "",
         }
         shots = {k: v for k, v in shots.items() if v}
         updated = ""
-        for variant in ("mobile", "desktop", "full", "extra"):
+        for variant in (
+            "mobile",
+            "desktop",
+            "full",
+            "extra",
+            "mobile_summary",
+            "desktop_summary",
+        ):
             row = shot_store.load_screenshot(db, site_id=int(site_row.id), variant=variant)
             if row and row.updated_at:
                 updated = row.updated_at.isoformat() + "Z"
@@ -3687,6 +3696,8 @@ def _search_console_single_site_data(
         ("desktop", "desktop_url"),
         ("full", "full_url"),
         ("extra", "extra_url"),
+        ("mobile_summary", "mobile_summary_url"),
+        ("desktop_summary", "desktop_summary_url"),
     ):
         if not gsc_cwv.get(key):
             gsc_cwv[key] = _static_url_if_exists(GSC_SCREENSHOT_DIR / f"{domain_slug}-cwv-{variant}.png")
@@ -19257,7 +19268,14 @@ def search_console_health():
     return {"status": "ok"}
 
 
-_CWV_VARIANT_ORDER = ("full", "mobile", "desktop", "extra")
+_CWV_VARIANT_ORDER = (
+    "full",
+    "mobile",
+    "desktop",
+    "extra",
+    "mobile_summary",
+    "desktop_summary",
+)
 
 
 def _validate_cwv_screenshot_bytes(content: bytes, filename: str) -> str | None:

@@ -88,7 +88,14 @@ async def gsc_cwv_shots_ingest(
             variant = (variants[idx] or "").strip().lower()
         if not variant:
             name = (upload.filename or "").lower()
-            for cand in ("mobile", "desktop", "full", "extra"):
+            for cand in (
+                "mobile_summary",
+                "desktop_summary",
+                "mobile",
+                "desktop",
+                "full",
+                "extra",
+            ):
                 if cand in name:
                     variant = cand
                     break
