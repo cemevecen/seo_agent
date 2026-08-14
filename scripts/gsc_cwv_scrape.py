@@ -631,43 +631,55 @@ def explain_causes(metric: str, status: str, title: str = "") -> list[str]:
 
 
 _OV_TRIPLET_RES = (
+    # EN legend: "0 poor URLs · 14,378 URLs need improvement · 3,457 good URLs"
+    # (ÖNCE bunu dene — aşağıdaki label→sayı kalıbı "poor URLs\\n14,378"ı poor sanıyor)
+    re.compile(
+        r"([\d,]+)\s*poor\s*urls?.{0,120}?"
+        r"([\d,]+)\s*urls?\s*need(?:s)?\s*improv\w*.{0,120}?"
+        r"([\d,]+)\s*good\s*urls?",
+        re.I | re.S,
+    ),
     # folded TR: 0 yetersiz URL · 14.674 URL iyilestirme gerektiriyor · 3.036 iyi URL
     re.compile(
-        r"(\d[\d\.,]*)\s*(?:yetersiz|kotu)\s*URL.{0,80}?"
-        r"([\d\.,]+)\s*URL.{0,40}?iyilestir.{0,80}?"
-        r"([\d\.,]+)\s*iyi\s*URL",
+        r"(\d[\d\.,]*)\s*(?:yetersiz|kotu)\s*urls?.{0,120}?"
+        r"([\d\.,]+)\s*urls?.{0,40}?iyilestir.{0,120}?"
+        r"([\d\.,]+)\s*iyi\s*urls?",
         re.I | re.S,
     ),
-    # folded TR kart: yetersiz 0 · iyilestirme gerekiyor 15,6 B · iyi 3,12 B
+    # EN card headers: Poor 0 · Need improvement 14,674 · Good 3,036
     re.compile(
-        r"(?:yetersiz|kotu|poor)\D{0,80}?([\d.,]+\s*[BK]?|\d+)\D{0,160}?"
-        r"(?:iyilestir|need improvement)\D{0,80}?([\d.,]+\s*[BK]?)\D{0,160}?"
-        r"(?:iyi(?!lestir)\s|good)\D{0,80}?([\d.,]+\s*[BK]?)",
+        r"Poor\s*([\d\.,]+K?).{0,80}?Need(?:s)?\s*improvement\s*([\d\.,]+K?).{0,80}?Good\s*([\d\.,]+K?)",
         re.I | re.S,
     ),
-    # EN: 0 poor URLs · 14,674 URLs need improvement · 3,036 good URLs
+    # Summary kart: etiket sonra sayı ("Yetersiz" / "0"). "poor urls 14k" formunu YAKALAMA.
     re.compile(
-        r"([\d,]+)\s*poor\s*URL.{0,80}?"
-        r"([\d,]+)\s*URL?s?\s*(?:need improvement|need improv).{0,80}?"
-        r"([\d,]+)\s*good\s*URL",
-        re.I | re.S,
-    ),
-    # EN legend: Poor 0 · Need improvement 14,674 · Good 3,036
-    re.compile(
-        r"Poor\s*([\d\.,]+K?).{0,80}?Need improvement\s*([\d\.,]+K?).{0,80}?Good\s*([\d\.,]+K?)",
+        r"(?:yetersiz|kotu|(?<![\d.,])poor)(?!\s*urls?\b)\D{0,40}?"
+        r"([\d.,]+\s*[BK]?|\d+)\D{0,100}?"
+        r"(?:iyilestir|need(?:s)?\s*improvement)(?!\s*urls?\b)\D{0,40}?"
+        r"([\d.,]+\s*[BK]?)\D{0,100}?"
+        r"(?:iyi(?!lestir)|(?<![\w])good)(?!\s*urls?\b)\D{0,40}?"
+        r"([\d.,]+\s*[BK]?)",
         re.I | re.S,
     ),
 )
 
 
 def _kpi_near_label(text: str, labels: tuple[str, ...]) -> int | None:
-    """Etiket üstte/altta, sayı '15,6 B' veya 15.557 olabilir. Metin folded TR."""
+    """Etiket üstte/altta, sayı '15,6 B' veya 15.557 olabilir. Metin folded TR.
+
+    Overview legend önce sayı yazar («0 poor URLs») — onu tercih et.
+    Aksi halde etiket→sayı (summary kart) dene; «poor URLs» sonrası sonraki metriği alma.
+    """
     lab = "|".join(labels)
     t = text or ""
-    m = re.search(rf"(?:{lab})[^\d]{{0,160}}([\d.,]+\s*[BK]?)", t, re.I | re.S)
+    m = re.search(rf"([\d.,]+\s*[BK]?)\s*(?:{lab})", t, re.I)
     if m:
         return _parse_count(m.group(1))
-    m = re.search(rf"([\d.,]+\s*[BK]?)\s*(?:{lab})", t, re.I)
+    m = re.search(
+        rf"(?:{lab})(?!\s*urls?\b)[^\d]{{0,40}}([\d.,]+\s*[BK]?)",
+        t,
+        re.I | re.S,
+    )
     if m:
         return _parse_count(m.group(1))
     return None

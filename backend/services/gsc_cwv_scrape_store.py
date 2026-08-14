@@ -374,8 +374,14 @@ def _bind_series_to_dates(ser: dict[str, Any] | None, dates: list[str]) -> dict[
 
 
 def _sync_kpis_from_chart_last(payload: dict[str, Any], chart: dict[str, Any] | None) -> None:
-    """Legend / kart = grafiğin son günü (GSC tooltip/kart ile hizalı onarım sonrası)."""
+    """Legend / kart = grafiğin son günü (GSC tooltip/kart ile hizalı onarım sonrası).
+
+    Screenshot ingest'te chart_series boş/eski olabilir — overview KPI'larını ezme.
+    """
     if not isinstance(payload, dict) or not isinstance(chart, dict):
+        return
+    src = str(payload.get("source") or "")
+    if src.startswith("gsc_cwv_shots"):
         return
     ov = payload.get("overview") if isinstance(payload.get("overview"), dict) else None
     for key in ("mobile", "desktop"):
