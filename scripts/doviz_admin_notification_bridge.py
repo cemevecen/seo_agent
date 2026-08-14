@@ -15,7 +15,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync       → notification (08–20 her 30 dk live; gece 00:08 dünü mühürle)
   POST /sync-news  → news (08–20 her 30 dk)
   POST /sync-virgul → Virgül (04/07/13 TR · yalnız dün+bugün)
-  POST /sync-play   → Play / Android (3 saatte bir, :02)
+  POST /sync-play   → Play / Android (süre sınırı yok · dün+bugün · arka plan)
   POST /sync-asc    → ASC / iOS (3 saatte bir, :10)
   POST /sync-firebase → Firebase Console Crashlytics (günde bir sabah, varsayılan 06:10 TR)
   POST /sync-gsc-links → Backlinks (01:00 + 13:00 TR)
@@ -1067,12 +1067,15 @@ def run_play_bridge_once() -> dict[str, Any]:
 
     Bridge sürecinde (importlib) çalışır — KEEP_OPEN warm session Firebase/GSC ile
     aynı fx-google penceresini paylaşır. Subprocess yetim Firefox üretmez.
+
+    Varsayılan: süre sınırı yok (PLAY_BRIDGE_TIMEOUT_SEC=0). Mühürlü gövde yalnız
+    dün+bugün; ANR/Crash önce checkpoint ingest edilir.
     """
     return _run_play_scrape_inprocess(
         kind="play",
         vitals_only=False,
         timeout_env="PLAY_BRIDGE_TIMEOUT_SEC",
-        timeout_default=1200,
+        timeout_default=0,
         label="Play Console",
     )
 
@@ -1083,7 +1086,7 @@ def run_play_vitals_bridge_once() -> dict[str, Any]:
         kind="play_vitals",
         vitals_only=True,
         timeout_env="PLAY_VITALS_BRIDGE_TIMEOUT_SEC",
-        timeout_default=900,
+        timeout_default=0,
         label="Play Vitals",
     )
 
@@ -1111,11 +1114,21 @@ def _run_play_scrape_inprocess(
         _last_play_result = err
         return err
 
-    print(f"{label} scrape başlıyor… (in-process, KEEP_OPEN warm)", flush=True)
     env_hl = (os.environ.get("PLAY_CONSOLE_HEADLESS") or "").strip().lower()
     headed = env_hl not in ("1", "true", "yes")
-    timeout_sec = int(os.environ.get(timeout_env) or str(timeout_default))
+    try:
+        timeout_sec = int(os.environ.get(timeout_env) or str(timeout_default))
+    except ValueError:
+        timeout_sec = int(timeout_default)
+    # 0 / negatif = süre sınırı yok (kill etme — yarım scrape bırakma)
+    unlimited = timeout_sec <= 0
     os.environ.setdefault("PLAY_CONSOLE_INGEST_URL", _play_console_ingest_url())
+
+    print(
+        f"{label} scrape başlıyor… (in-process, KEEP_OPEN warm"
+        + (", süre sınırı yok)" if unlimited else f", timeout={timeout_sec}s)"),
+        flush=True,
+    )
 
     box: dict[str, Any] = {}
 
@@ -1172,31 +1185,33 @@ def _run_play_scrape_inprocess(
         except Exception as exc:  # noqa: BLE001
             box["err"] = str(exc)[:400]
 
-    th = threading.Thread(target=_worker, name=f"play-scrape-{kind}", daemon=True)
-    th.start()
-    th.join(timeout=max(120, timeout_sec))
-    if th.is_alive():
-        out = {
-            "ok": False,
-            "kind": kind,
-            "message": f"{label} tarama zaman aşımı ({timeout_sec}s)",
-        }
-        _last_play_result = out
-        # Yetim profil kilidi birikmesin — sonraki job takeover edebilsin
-        try:
-            from backend.services.scrape_browser import (
-                google_profile_dir,
-                release_profile_browsers,
-                warm_session_forget,
-            )
+    if unlimited:
+        _worker()
+    else:
+        th = threading.Thread(target=_worker, name=f"play-scrape-{kind}", daemon=True)
+        th.start()
+        th.join(timeout=max(120, timeout_sec))
+        if th.is_alive():
+            out = {
+                "ok": False,
+                "kind": kind,
+                "message": f"{label} tarama zaman aşımı ({timeout_sec}s)",
+            }
+            _last_play_result = out
+            try:
+                from backend.services.scrape_browser import (
+                    google_profile_dir,
+                    release_profile_browsers,
+                    warm_session_forget,
+                )
 
-            warm_session_forget("play")
-            release_profile_browsers(
-                google_profile_dir(), force=False, reason="play_timeout"
-            )
-        except Exception:
-            pass
-        return out
+                warm_session_forget("play")
+                release_profile_browsers(
+                    google_profile_dir(), force=False, reason="play_timeout"
+                )
+            except Exception:
+                pass
+            return out
 
     if box.get("err"):
         out = {"ok": False, "kind": kind, "message": f"{label}: {box['err']}"}
@@ -1242,7 +1257,11 @@ def _run_play_scrape_subprocess(
     env.setdefault("PLAY_CONSOLE_INGEST_URL", _play_console_ingest_url())
     # Subprocess KEEP_OPEN yetim Firefox bırakmasın — bridge in-process tercih edilir
     env.setdefault("PLAY_CONSOLE_KEEP_OPEN", "0")
-    timeout_sec = int(os.environ.get(timeout_env) or str(timeout_default))
+    try:
+        timeout_sec = int(os.environ.get(timeout_env) or str(timeout_default))
+    except ValueError:
+        timeout_sec = int(timeout_default)
+    run_timeout = None if timeout_sec <= 0 else max(120, timeout_sec)
     try:
         proc = subprocess.run(
             cmd,
@@ -1250,7 +1269,7 @@ def _run_play_scrape_subprocess(
             env=env,
             capture_output=True,
             text=True,
-            timeout=max(120, timeout_sec),
+            timeout=run_timeout,
         )
     except subprocess.TimeoutExpired as exc:
         out = {
@@ -3638,17 +3657,102 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 run_virgul_bridge_once,
             )
         elif path in ("/sync-play", "/play", "/sync-android"):
-            lock, busy, runner = (
-                _play_lock,
-                "Play Console sync zaten çalışıyor, bekleyin.",
-                run_play_bridge_once,
+            # Uzun Play scrape — HTTP hemen döner; süre sınırı yok (arka plan)
+            if not _play_lock.acquire(blocking=False):
+                self._send(
+                    409,
+                    {"ok": False, "message": "Play Console sync zaten çalışıyor, bekleyin."},
+                )
+                return
+            _set_job_progress(
+                "play",
+                running=True,
+                phase="starting",
+                trigger="manual",
+                message="Elle · Play Console başladı",
             )
+            _job_event("Elle tetik · play · Play Console başladı")
+
+            def _bg_play() -> None:
+                try:
+                    out = run_play_bridge_once()
+                    _finish_job_progress(
+                        "play",
+                        out if isinstance(out, dict) else {"ok": False, "message": "hata"},
+                        trigger="manual",
+                        name="Play Console",
+                    )
+                except Exception as exc:
+                    traceback.print_exc()
+                    _finish_job_progress(
+                        "play",
+                        {"ok": False, "message": str(exc)},
+                        trigger="manual",
+                        name="Play Console",
+                    )
+                finally:
+                    _play_lock.release()
+
+            threading.Thread(target=_bg_play, name="play-bridge-manual", daemon=True).start()
+            self._send(
+                200,
+                {
+                    "ok": True,
+                    "started": True,
+                    "kind": "play",
+                    "message": "Play Console tarama arka planda başladı (süre sınırı yok · dün+bugün)",
+                },
+            )
+            return
         elif path in ("/sync-play-vitals", "/play-vitals", "/sync-android-vitals"):
-            lock, busy, runner = (
-                _play_lock,
-                "Play Console sync zaten çalışıyor, bekleyin.",
-                run_play_vitals_bridge_once,
+            if not _play_lock.acquire(blocking=False):
+                self._send(
+                    409,
+                    {"ok": False, "message": "Play Console sync zaten çalışıyor, bekleyin."},
+                )
+                return
+            _set_job_progress(
+                "play_vitals",
+                running=True,
+                phase="starting",
+                trigger="manual",
+                message="Elle · Play Vitals başladı",
             )
+            _job_event("Elle tetik · play_vitals · Play Vitals başladı")
+
+            def _bg_play_vitals() -> None:
+                try:
+                    out = run_play_vitals_bridge_once()
+                    _finish_job_progress(
+                        "play_vitals",
+                        out if isinstance(out, dict) else {"ok": False, "message": "hata"},
+                        trigger="manual",
+                        name="Play Vitals",
+                    )
+                except Exception as exc:
+                    traceback.print_exc()
+                    _finish_job_progress(
+                        "play_vitals",
+                        {"ok": False, "message": str(exc)},
+                        trigger="manual",
+                        name="Play Vitals",
+                    )
+                finally:
+                    _play_lock.release()
+
+            threading.Thread(
+                target=_bg_play_vitals, name="play-vitals-bridge-manual", daemon=True
+            ).start()
+            self._send(
+                200,
+                {
+                    "ok": True,
+                    "started": True,
+                    "kind": "play_vitals",
+                    "message": "Play Vitals tarama arka planda başladı (süre sınırı yok)",
+                },
+            )
+            return
         elif path in ("/sync-gsc-links", "/gsc-links", "/sync-backlinks"):
             lock, busy, runner = (
                 _gsc_links_lock,

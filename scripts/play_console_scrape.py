@@ -21,9 +21,10 @@ Env:
   NOTIFICATION_INGEST_TOKEN
   PLAY_CONSOLE_VITALS_ROW_NAV=0   # sorun tablosu satır satır (varsayılan kapalı — login baskısı)
   PLAY_CONSOLE_VITALS_DETAIL_LIMIT=8  # issue detay/stack üst sınır (5–10)
-  PLAY_CONSOLE_VITALS_DETAILS=     # boş=günde ~1 kez; 0=hiç; 1=zorla bu sync’te
+  PLAY_CONSOLE_VITALS_DETAILS=     # boş=mühürlüde kapalı; 0=hiç; 1=zorla bu sync’te
   PLAY_CONSOLE_KEEP_OPEN=0         # varsayılan açık bırak; 0=scrape bitince kapat
-  HISTORY_SEAL / PLAY_CONSOLE_FORCE_FULL  # mühürlü gövde; varsayılan yalnız dün
+  HISTORY_SEAL / PLAY_CONSOLE_FORCE_FULL  # mühürlü gövde; varsayılan yalnız dün+bugün
+  PLAY_BRIDGE_TIMEOUT_SEC=0        # bridge: 0=süre sınırı yok (kill etme)
 """
 
 from __future__ import annotations
@@ -432,6 +433,53 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "needles": ("Ziyaret", "Visitor", "Mağaza girişi", "İstatistik", "Veri tablosu"),
     },
 ]
+
+# Reverse-list / günlük ANR·Crash önce — checkpoint ingest için
+_STATS_PRIORITY_IDS = (
+    "anrs_date",
+    "crashes_date",
+    "anrs_os",
+    "crashes_os",
+    "anrs_version",
+    "crashes_version",
+    "anrs_device",
+    "crashes_device",
+)
+
+
+def _ordered_statistics_views() -> list[dict[str, Any]]:
+    """ANR/Crash tarih görünümlerini öne al (uzun sync’te önce panel dolsun)."""
+    prio = {vid: i for i, vid in enumerate(_STATS_PRIORITY_IDS)}
+    return sorted(
+        STATISTICS_VIEWS,
+        key=lambda v: prio.get(str(v.get("id") or ""), 1000),
+    )
+
+
+def _play_sealed_lean() -> bool:
+    """Mühürlü gövde: yalnız dün+bugün; ağır issue-detail atlanır."""
+    raw = (os.environ.get("PLAY_CONSOLE_LEAN") or "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    try:
+        from backend.services.history_seal import force_full_history, is_pipeline_sealed
+
+        return bool(is_pipeline_sealed("play") and not force_full_history("play"))
+    except Exception:
+        return True
+
+
+def _play_ui_days(*, default: int = 28) -> int:
+    """Vitals/devices UI gün sayısı — mühürlüde kısa pencere."""
+    if _play_sealed_lean():
+        try:
+            return max(2, min(14, int((os.environ.get("PLAY_CONSOLE_LEAN_DAYS") or "7").strip() or "7")))
+        except ValueError:
+            return 7
+    return max(1, int(default))
+
 
 # Geriye uyum — eski tek URL’ler katalogdan türetilir
 STATISTICS_URL = (
@@ -3607,17 +3655,24 @@ def _vitals_details_marker_path() -> Path:
 
 
 def _vitals_issue_details_due() -> bool:
-    """Issue detay / stack — varsayılan ~günde 1 (login baskısını düşür).
+    """Issue detay / stack — mühürlü lean’de varsayılan kapalı (Statistics ANR/Crash yeter).
 
     PLAY_CONSOLE_VITALS_DETAILS=0 → hiç
     PLAY_CONSOLE_VITALS_DETAILS=1 → bu sync’te zorla
-    boş → son koşudan ≥20 sa geçtiyse
+    boş + lean → atla
+    boş + full → son koşudan ≥20 sa geçtiyse
     """
     raw = (os.environ.get("PLAY_CONSOLE_VITALS_DETAILS") or "").strip().lower()
     if raw in ("0", "false", "no", "off", "never"):
         return False
     if raw in ("1", "true", "yes", "on", "force", "always"):
         return True
+    if _play_sealed_lean():
+        print(
+            "  · vitals issue details atlandı (mühürlü lean — Statistics ANR/Crash öncelikli)",
+            flush=True,
+        )
+        return False
     path = _vitals_details_marker_path()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -5435,23 +5490,10 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             headed=bool(headed),
         )
 
-        # Reach and devices · dashboard + Android sürüm / RAM / SoC … kırılımları
+        # Statistics önce (ANR/Crash checkpoint) — vitals/devices sonra
+        ui_days = _play_ui_days(default=28)
         devices_bundle: dict[str, Any] = {}
-        try:
-            devices_bundle = _scrape_devices_dashboard(page, headed=bool(headed), days=28)
-        except Exception as exc:  # noqa: BLE001
-            devices_bundle = {"url": DEVICES_URL, "cards": [], "breakdowns": [], "error": str(exc)[:240]}
-            print(f"  · devices scrape hata: {exc}", flush=True)
-
-        # Android Vitals: crashes 4 kategori + metrics overview (crash/ANR/LMK)
         vitals_bundle: dict[str, Any] = {}
-        try:
-            vitals_bundle = _scrape_vitals_bundle(page, headed=bool(headed), days=28)
-            if vitals_bundle.get("error"):
-                print(f"  · vitals uyarı: {vitals_bundle.get('error')}", flush=True)
-        except Exception as exc:  # noqa: BLE001
-            vitals_bundle = {"version": 1, "error": str(exc)[:240]}
-            print(f"  · vitals scrape hata: {exc}", flush=True)
 
         # Tüm istatistik görünümleri (kullanıcı URL kataloğu)
         stats_cards: list[dict[str, Any]] = []
@@ -5480,7 +5522,9 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "`--vitals-only --sync --ingest` yeterli",
                 flush=True,
             )
-        for view in STATISTICS_VIEWS:
+        stats_views = _ordered_statistics_views()
+        checkpoint_done = False
+        for view in stats_views:
             if not _page_is_alive(page):
                 break
             if str(view.get("metric_key") or "") in skip_metric_keys:
@@ -5560,6 +5604,48 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                     "error": scraped.get("error"),
                 }
             )
+            # ANR+Crash tarih serisi gelince hemen Railway’e yaz (uzun sync / kill koruması)
+            if (
+                not checkpoint_done
+                and view_id in ("anrs_date", "crashes_date")
+                and any(s.get("id") == "anrs_date" for s in view_summaries)
+                and any(s.get("id") == "crashes_date" for s in view_summaries)
+            ):
+                checkpoint_done = True
+                try:
+                    cp_facts = [
+                        f
+                        for f in explorer_facts
+                        if isinstance(f, dict)
+                        and str(f.get("metric") or "") in ("anrs", "crashes")
+                    ]
+                    if cp_facts:
+                        print(
+                            f"  · stats checkpoint ingest · anrs/crashes facts={len(cp_facts)} …",
+                            flush=True,
+                        )
+                        cp = ingest_scrape_result(
+                            {
+                                "ok": True,
+                                "metrics": [],
+                                "panels": {"explorer_facts": cp_facts},
+                                "reviews": [],
+                                "rating_summary": {},
+                                "source": "play_console_bridge",
+                                "source_url": DASHBOARD_URL,
+                                "package_name": PACKAGE,
+                                "app_id": APP_ID,
+                                "message": f"checkpoint anrs/crashes · {len(cp_facts)} facts",
+                                "sync_mode": "stats_checkpoint",
+                            }
+                        )
+                        print(
+                            f"    → checkpoint {'ok' if cp.get('ok') else 'fail'}: "
+                            f"{str(cp.get('message') or '')[:160]}",
+                            flush=True,
+                        )
+                except Exception as cp_exc:  # noqa: BLE001
+                    print(f"    → checkpoint hata: {cp_exc}", flush=True)
 
         if skip_metric_keys:
             explorer_facts = [
@@ -5568,6 +5654,22 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 if not isinstance(f, dict)
                 or str(f.get("metric") or "") not in skip_metric_keys
             ]
+
+        # Reach and devices · dashboard + Android sürüm / RAM / SoC … kırılımları
+        try:
+            devices_bundle = _scrape_devices_dashboard(page, headed=bool(headed), days=ui_days)
+        except Exception as exc:  # noqa: BLE001
+            devices_bundle = {"url": DEVICES_URL, "cards": [], "breakdowns": [], "error": str(exc)[:240]}
+            print(f"  · devices scrape hata: {exc}", flush=True)
+
+        # Android Vitals: crashes 4 kategori + metrics overview (crash/ANR/LMK)
+        try:
+            vitals_bundle = _scrape_vitals_bundle(page, headed=bool(headed), days=ui_days)
+            if vitals_bundle.get("error"):
+                print(f"  · vitals uyarı: {vitals_bundle.get('error')}", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            vitals_bundle = {"version": 1, "error": str(exc)[:240]}
+            print(f"  · vitals scrape hata: {exc}", flush=True)
 
         mon_cards, mon_br = _append_page_metrics(metrics, monetize, kind="monetize", page_key="monetize")
         grow_cards, grow_br = _append_page_metrics(metrics, grow, kind="grow", page_key="grow")
@@ -5945,7 +6047,7 @@ def scrape_vitals_only(*, headed: bool | None = None) -> dict[str, Any]:
                 "message": "Play Console login gerekli (--login veya headed sync)",
                 "panels": {},
             }
-        vitals_bundle = _scrape_vitals_bundle(page, headed=bool(headed), days=28)
+        vitals_bundle = _scrape_vitals_bundle(page, headed=bool(headed), days=_play_ui_days(default=28))
         ov_n = len((vitals_bundle.get("metrics_overview") or {}).get("rows") or [])
         cat_n = sum(
             len((vitals_bundle.get("crashes") or {}).get(k, {}).get("categories") or [])
