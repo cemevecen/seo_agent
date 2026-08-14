@@ -101,7 +101,7 @@ def test_js_uses_railway_queue_on_remote():
     assert "setProgress" in js
     assert "done + \"/\" + total" in js or 'done + "/" + total' in js
     assert "Update page" in js
-    assert "/sync-sinemalar-moderation?which=yesterday" in js
+    assert "/sync-sinemalar-moderation?which=both" in js
     assert "/sync-empower-intel-sinemalar" in js
     assert "/api/page-tarama/manual" in js
     assert "/api/page-tarama/quota" in js
@@ -185,7 +185,7 @@ def test_ios_and_news_and_notification_catalog():
     assert [j["id"] for j in store.jobs_for("vitals")] == ["cwv"]
     assert [j["id"] for j in store.jobs_for("policy")] == ["policy", "noads"]
     assert [j["id"] for j in store.jobs_for("moderation")] == ["moderation"]
-    assert "which=yesterday" in store.JOBS["moderation"]["path"]
+    assert "which=both" in store.JOBS["moderation"]["path"]
     assert [j["id"] for j in store.jobs_for("errors")] == ["errors"]
     assert [j["id"] for j in store.jobs_for("virgul")] == ["virgul", "revenue_targets"]
 

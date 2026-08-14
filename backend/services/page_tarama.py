@@ -38,7 +38,7 @@ JOBS: dict[str, dict[str, Any]] = {
         "id": "moderation",
         "label": "Sinemalar Moderation",
         "kind": "bridge",
-        "path": "/sync-sinemalar-moderation?which=yesterday",
+        "path": "/sync-sinemalar-moderation?which=both",
     },
     "empower_intel": {
         "id": "empower_intel",

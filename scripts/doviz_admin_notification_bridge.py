@@ -22,7 +22,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-revenue-targets → Ad hedef sheet (05:40 + 13:40 TR; gece fail → 5×3s retry)
   POST /sync-policy → Ad Manager Policy (01:05 + 13:05 TR)
   POST /sync-noads  → Sinemalar noAds (01:15 + 13:15 TR)
-  POST /sync-sinemalar-moderation → Moderasyon özeti (03:04 + 14:17 TR)
+  POST /sync-sinemalar-moderation → Moderasyon (03:04 dün · 14:17 + 20:05 bugün TR)
   POST /sync-pagespeed → pagespeed.web.dev (01:10 + 13:10 TR)
   POST /sync-seo-audit → SEO meta audit scrape (02:45 + 14:45 TR, GA4 top 500)
   POST /sync-gsc-cwv → GSC CWV screenshot (doviz+sinemalar mobile/desktop; 03:00 + 15:00 TR)
@@ -183,6 +183,7 @@ NOADS_AUTO_MINUTE = NOADS_SLOT_MINUTE
 MODERATION_SLOTS: tuple[tuple[int, int, str], ...] = (
     (3, 4, "yesterday"),
     (14, 17, "today"),
+    (20, 5, "today"),  # akşam Today paneli dolu kalsın
 )
 BRIDGE_ALERT_TO = (
     os.environ.get("BRIDGE_ALERT_EMAIL")
@@ -1479,7 +1480,7 @@ def run_sinemalar_moderation_bridge_once(*, incremental_which: str = "yesterday"
         result = mod.run_backfill_chunk(headed=headed, ingest=True)
         mode = "backfill"
     else:
-        which = incremental_which if incremental_which in ("yesterday", "today") else "yesterday"
+        which = incremental_which if incremental_which in ("yesterday", "today", "both") else "yesterday"
         print(f"Sinemalar moderasyon detail incremental ({which})…", flush=True)
         result = mod.run_incremental_detail(which, headed=headed, ingest=True)
         mode = "detail_incremental"
@@ -3281,9 +3282,9 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             "/sync-moderation",
             "/moderation",
         ):
-            which = (qs.get("which") or ["yesterday"])[0].strip().lower()
-            if which not in ("yesterday", "today"):
-                which = "yesterday"
+            which = (qs.get("which") or ["both"])[0].strip().lower()
+            if which not in ("yesterday", "today", "both"):
+                which = "both"
 
             def _mod_runner() -> dict[str, Any]:
                 return run_sinemalar_moderation_bridge_once(incremental_which=which)
@@ -4122,7 +4123,7 @@ def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
         "moderation": {
             "name": "Moderation",
             "lock": _moderation_lock,
-            "runner": run_sinemalar_moderation_bridge_once,
+            "runner": lambda: run_sinemalar_moderation_bridge_once(incremental_which="both"),
         },
         "seo": {"name": "SEO Audit", "lock": _seo_audit_lock, "runner": run_seo_audit_bridge_once},
     }

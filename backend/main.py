@@ -21548,12 +21548,13 @@ def sinemalar_policy_page(
     request: Request,
     host: str = Query(default="all"),
     tab: str | None = Query(default=None),
-    mod_start: str | None = Query(default="2026-01-01"),
-    mod_end: str | None = Query(default="2026-08-13"),
+    mod_start: str | None = Query(default=None),
+    mod_end: str | None = Query(default=None),
     mod_preset: str | None = Query(default=""),
     db: Session = Depends(get_db),
 ):
     from backend.services import policy_csv as pcsv
+    from backend.services.sinemalar_moderation import yesterday_tr as _mod_yesterday_tr
 
     host_key = (host or "all").strip().lower()
     if host_key not in ("all", "sinemalar.com", "m.sinemalar.com"):
@@ -21565,6 +21566,12 @@ def sinemalar_policy_page(
         tab_key = "sinemalar"
     if tab_key not in ("policy", "sinemalar", "datas"):
         tab_key = default_tab
+
+    # Sabit 2026-08-13 yerine TR dünü — Today boş / eski default karışmasın
+    if not (mod_end or "").strip():
+        mod_end = _mod_yesterday_tr().isoformat()
+    if not (mod_start or "").strip():
+        mod_start = "2026-01-01"
 
     try:
         stats = pcsv.get_stats(db)

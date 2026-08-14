@@ -1208,28 +1208,82 @@ def scrape_incremental_detail_day(
 
 
 def run_incremental_detail(which: str = "yesterday", *, headed: bool = True, ingest: bool = False) -> dict[str, Any]:
-    day = _yesterday_tr() if which == "yesterday" else _today_tr()
-    result = scrape_incremental_detail_day(day, headed=headed, ingest_per_batch=bool(ingest))
-    if result.get("ok") and ingest:
-        # 0 kayıtta bile Last sync güncellensin (panel "tarama olmadı" sanmasın)
-        if not result.get("detail_batches"):
-            result["message"] = f"detail_incremental {day.isoformat()} · yeni kayıt yok"
-            ping = ingest_result(
-                {
-                    "source": "sinemalar_moderation",
-                    "mode": "detail_incremental",
-                    "scraped_at": result.get("scraped_at"),
-                    "range_start": day.isoformat(),
-                    "range_end": day.isoformat(),
-                    "detail_batches": [],
-                    "backfill_complete": True,
-                    "sync_heartbeat": True,
-                    "message": result["message"],
-                },
-                mode="detail_incremental",
-            )
-            result["ingest"] = ping
-    return result
+    w = (which or "yesterday").strip().lower()
+    if w == "both":
+        targets = [_yesterday_tr(), _today_tr()]
+    elif w == "today":
+        targets = [_today_tr()]
+    else:
+        targets = [_yesterday_tr()]
+
+    merged: dict[str, Any] = {
+        "ok": True,
+        "mode": "detail_incremental",
+        "which": w,
+        "days": [],
+        "detail_batches": [],
+        "item_count": 0,
+        "batch_count": 0,
+        "report_dates": [],
+        "message": "",
+        "scraped_at": datetime.now(timezone.utc).isoformat(),
+    }
+    last: dict[str, Any] = {}
+    for day in targets:
+        result = scrape_incremental_detail_day(day, headed=headed, ingest_per_batch=bool(ingest))
+        last = result
+        if result.get("needs_login"):
+            return result
+        if not result.get("ok"):
+            # İlk gün başarısızsa hemen dön; ikinci günde kısmi başarıyı koru
+            if not merged["report_dates"]:
+                return result
+            merged["ok"] = False
+            merged["message"] = result.get("message") or f"{day.isoformat()} failed"
+            break
+        merged["report_dates"].append(day.isoformat())
+        merged["days"].extend(result.get("days") or [])
+        merged["detail_batches"].extend(result.get("detail_batches") or [])
+        merged["item_count"] += int(result.get("item_count") or 0)
+        merged["batch_count"] += int(result.get("batch_count") or 0)
+        if result.get("scraped_at"):
+            merged["scraped_at"] = result["scraped_at"]
+        if result.get("ingest"):
+            merged["ingest"] = result["ingest"]
+
+    if not merged["report_dates"] and last:
+        return last
+
+    dates_label = "+".join(merged["report_dates"]) or "?"
+    if ingest and merged.get("ok") and not merged.get("detail_batches") and not merged.get("ingest"):
+        # 0 kayıtta bile Last sync güncellensin
+        day0 = targets[0]
+        day1 = targets[-1]
+        merged["message"] = f"detail_incremental {dates_label} · yeni kayıt yok"
+        ping = ingest_result(
+            {
+                "source": "sinemalar_moderation",
+                "mode": "detail_incremental",
+                "scraped_at": merged.get("scraped_at"),
+                "range_start": day0.isoformat(),
+                "range_end": day1.isoformat(),
+                "detail_batches": [],
+                "backfill_complete": True,
+                "sync_heartbeat": True,
+                "message": merged["message"],
+            },
+            mode="detail_incremental",
+        )
+        merged["ingest"] = ping
+    elif not merged.get("message"):
+        merged["message"] = (
+            f"detail_incremental {dates_label} · {merged['item_count']} kayıt · "
+            f"{merged['batch_count']} batch"
+        )
+    merged["range_start"] = targets[0].isoformat()
+    merged["range_end"] = targets[-1].isoformat()
+    merged["report_date"] = targets[-1].isoformat()
+    return merged
 
 
 def main() -> int:
@@ -1243,11 +1297,11 @@ def main() -> int:
     )
     parser.add_argument("--from-date", help="Backfill chunk başlangıcı YYYY-MM-DD (cursor override)")
     parser.add_argument("--max-days", type=int, default=0, help="Backfill'de en fazla N gün (test)")
-    parser.add_argument("--incremental", choices=("yesterday", "today"), help="Tek gün özet (legacy)")
+    parser.add_argument("--incremental", choices=("yesterday", "today", "both"), help="Tek gün özet (legacy)")
     parser.add_argument(
         "--incremental-detail",
-        choices=("yesterday", "today"),
-        help="Tek gün getModerationDetail append-only ingest",
+        choices=("yesterday", "today", "both"),
+        help="getModerationDetail append-only ingest (both = dün+bugün)",
     )
     parser.add_argument("--date", help="Tek gün YYYY-MM-DD (endDate otomatik +1 gün)")
     parser.add_argument(

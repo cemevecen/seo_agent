@@ -58,7 +58,15 @@ def metric_display_label(metric_type: str, fallback: str = "") -> str:
     return METRIC_DISPLAY_LABELS.get(key) or METRIC_LABEL_BY_TYPE.get(key) or fallback or key
 
 BACKFILL_START = date(2026, 1, 1)
-DEFAULT_DETAIL_END = date(2026, 8, 13)
+DEFAULT_DETAIL_END = date(2026, 8, 13)  # legacy ingest fallback; panel uses today_tr()
+
+
+def today_tr() -> date:
+    return datetime.now(TR).date()
+
+
+def yesterday_tr() -> date:
+    return today_tr() - timedelta(days=1)
 
 
 def _norm_key(name: str) -> str:
@@ -726,14 +734,6 @@ def _parse_dt(raw: Any) -> datetime | None:
         return datetime.fromisoformat(s)
     except ValueError:
         return None
-
-
-def today_tr() -> date:
-    return datetime.now(TR).date()
-
-
-def yesterday_tr() -> date:
-    return today_tr() - timedelta(days=1)
 
 
 def backfill_pending_dates(db: Session, *, through: date | None = None) -> list[date]:
