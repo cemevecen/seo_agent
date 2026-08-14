@@ -492,8 +492,22 @@
     return m;
   }
 
-  function cacheKey(metricKey, startIso, endIso, platform) {
-    return (platform || "android") + "|" + (startIso || "") + "|" + (endIso || "") + "|" + metricKey;
+  function cacheKey(metricKey, startIso, endIso, platform, project) {
+    return (
+      (platform || "android") +
+      "|" +
+      (project || "doviz") +
+      "|" +
+      (startIso || "") +
+      "|" +
+      (endIso || "") +
+      "|" +
+      metricKey
+    );
+  }
+
+  function projectForRoot(root) {
+    return ((root && root.getAttribute("data-overlay-project")) || "doviz").trim() || "doviz";
   }
 
   async function fetchMarketSeries(metricKey, startIso, endIso) {
@@ -551,12 +565,12 @@
     return { label: data.label || metricLabel(metricKey), series: data.series || [] };
   }
 
-  async function fetchXdataSeries(metricKey, startIso, endIso, platform) {
+  async function fetchXdataSeries(metricKey, startIso, endIso, platform, project) {
     var qs = new URLSearchParams({
       start: startIso || "",
       end: endIso || "",
       metric: metricKey,
-      project: "doviz",
+      project: (project || "doviz").trim() || "doviz",
       platform: normalizeOverlayPlatform(platform),
     });
     var r = await fetch("/api/empower-intel/series?" + qs.toString(), {
@@ -610,12 +624,12 @@
     return { label: metricLabel(metricKey), series: data.series || [] };
   }
 
-  async function fetchMetricSeries(metricKey, startIso, endIso, platform) {
-    var ck = cacheKey(metricKey, startIso, endIso, platform);
+  async function fetchMetricSeries(metricKey, startIso, endIso, platform, project) {
+    var ck = cacheKey(metricKey, startIso, endIso, platform, project);
     if (cache[ck]) return cache[ck];
     var p;
     if (isMarketKey(metricKey)) p = fetchMarketSeries(metricKey, startIso, endIso);
-    else if (isXdataKey(metricKey)) p = fetchXdataSeries(metricKey, startIso, endIso, platform);
+    else if (isXdataKey(metricKey)) p = fetchXdataSeries(metricKey, startIso, endIso, platform, project);
     else if (isGa4Key(metricKey)) p = fetchGa4Series(metricKey, startIso, endIso, platform);
     else if (isVirgulKey(metricKey)) p = fetchVirgulSeries(metricKey, startIso, endIso, platform);
     else if (platform === "ios") p = fetchAscSeries(metricKey, startIso, endIso);
@@ -896,10 +910,11 @@
   async function fetchSelectedSeries(controlId, startIso, endIso, platform) {
     var keys = modes(controlId);
     var plat = normalizeOverlayPlatform(platform);
+    var project = projectForRoot(rootEl(controlId));
     var out = [];
     for (var i = 0; i < keys.length; i++) {
       try {
-        var pack = await fetchMetricSeries(keys[i], startIso, endIso, plat);
+        var pack = await fetchMetricSeries(keys[i], startIso, endIso, plat, project);
         var src = "play";
         if (isXdataKey(keys[i])) src = "xdata";
         else if (isGa4Key(keys[i])) src = "ga4";

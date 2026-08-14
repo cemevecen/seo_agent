@@ -21524,12 +21524,12 @@ def sinemalar_policy_page(
     host_key = (host or "all").strip().lower()
     if host_key not in ("all", "sinemalar.com", "m.sinemalar.com"):
         host_key = "all"
-    # Varsayılan: Moderation (tab=sinemalar). Policy yalnızca ?tab=policy ile.
+    # Varsayılan: Moderation (tab=sinemalar). Policy ?tab=policy · Datas ?tab=datas.
     default_tab = "sinemalar"
     tab_key = (tab or default_tab).strip().lower()
     if tab_key in ("moderation", "mod"):
         tab_key = "sinemalar"
-    if tab_key not in ("policy", "sinemalar"):
+    if tab_key not in ("policy", "sinemalar", "datas"):
         tab_key = default_tab
 
     try:
@@ -21604,6 +21604,17 @@ def sinemalar_policy_page(
         "moderation_panel": moderation_panel,
         "mod_preset": (mod_preset or "").strip(),
     }
+    if tab_key == "datas":
+        from backend.services.empower_intel_config import (
+            xdata_avg_metric_ids,
+            xdata_dropdown_options,
+        )
+
+        ctx["xdata_metric_options_web"] = xdata_dropdown_options("web")
+        ctx["xdata_metric_options_mweb"] = xdata_dropdown_options("mweb")
+        # Primary catalog defaults to web (same columns as mweb); JS swaps labels/platform.
+        ctx["xdata_metric_options"] = ctx["xdata_metric_options_web"]
+        ctx["xdata_avg_keys"] = xdata_avg_metric_ids("web")
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse("partials/policy_content.html", ctx)
     return templates.TemplateResponse("policy.html", ctx)
