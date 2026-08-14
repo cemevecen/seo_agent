@@ -229,7 +229,7 @@ class Settings(BaseSettings):
     # RAILWAY_ENVIRONMENT / RAILWAY_PROJECT_ID yoksa yalnızca search_console_purge_before_collect=true ile çalışır.
     search_console_purge_on_railway: bool = True
     search_console_purge_before_collect: bool = False
-    alerts_scheduled_refresh_enabled: bool = False
+    alerts_scheduled_refresh_enabled: bool = True
     alerts_scheduled_refresh_hour: int = 4
     alerts_scheduled_refresh_minute: int = 0
 

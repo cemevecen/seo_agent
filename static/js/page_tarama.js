@@ -42,10 +42,10 @@
     alerts: {
       id: "alerts",
       label: "Alerts (Search Console)",
-      kind: "api",
-      url: "/alerts/refresh",
-      timeoutMs: 8 * 60 * 1000,
-      waitAfterMs: 45000,
+      kind: "poll",
+      startUrl: "/alerts/refresh",
+      progressUrl: "/alerts/refresh/status",
+      timeoutMs: 20 * 60 * 1000,
     },
   };
 
@@ -478,7 +478,11 @@
             snap: lastProgressSnap,
           });
           if (d.error) throw new Error(d.error);
+          // Alerts: finished=true veya running=false (iş bitti)
+          if (d.finished === true) return d;
           if (d.running) return sleep(1500).then(poll);
+          // İlk poll start'tan önce gelebilir — kısa bekle
+          if (d.finished === false) return sleep(1500).then(poll);
           return d;
         });
       }

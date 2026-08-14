@@ -63,9 +63,9 @@ JOBS: dict[str, dict[str, Any]] = {
     "alerts": {
         "id": "alerts",
         "label": "Alerts (Search Console)",
-        "kind": "api",
-        "url": "/alerts/refresh",
-        "waitAfterMs": 45000,
+        "kind": "poll",
+        "startUrl": "/alerts/refresh",
+        "progressUrl": "/alerts/refresh/status",
     },
 }
 

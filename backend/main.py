@@ -4379,42 +4379,8 @@ def _run_daily_search_console_refresh_job() -> None:
 
 
 def _run_daily_alert_refresh_job() -> None:
-    if not DAILY_REFRESH_LOCK.acquire(blocking=False):
-        LOGGER.info("Daily alert refresh skipped because another scheduled job is still in progress.")
-        return
-
-    try:
-        LOGGER.info("Daily alert refresh started.")
-        with SessionLocal() as db:
-            external = _external_site_ids(db)
-            sites = [s for s in _active_sites(db) if s.id not in external]
-            alert_batch: list[tuple[Site, dict]] = []
-
-            for index, site in enumerate(sites):
-                LOGGER.info("Daily alert refresh processing site=%s", site.domain)
-                try:
-                    result = collect_search_console_alert_metrics(db, site, send_notifications=False)
-                    db.commit()
-                    alert_batch.append((site, result))
-                except Exception as exc:  # noqa: BLE001
-                    db.rollback()
-                    LOGGER.warning("Daily alert refresh failed for %s: %s", site.domain, exc)
-                    alert_batch.append((site, {"state": "failed", "error": str(exc)}))
-
-                if index < len(sites) - 1:
-                    time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
-
-            if alert_batch:
-                send_consolidated_system_email(
-                    system_key="search_console_alerts",
-                    trigger_source="system",
-                    action_label="Günlük alert yenilemesi",
-                    items=alert_batch,
-                )
-
-        LOGGER.info("Daily alert refresh completed.")
-    finally:
-        DAILY_REFRESH_LOCK.release()
+    """APScheduler — manuel /alerts/refresh ile aynı collector hattı."""
+    _execute_alerts_refresh(trigger_source="system", acquire_daily_lock=True)
 
 
 def _run_daily_refresh_job() -> None:
@@ -13462,60 +13428,195 @@ def alerts_threshold_panel(request: Request):
     )
 
 
-_alerts_refresh_status: dict = {"running": False, "done": False}
+_alerts_refresh_status: dict = {
+    "running": False,
+    "done": 0,
+    "total": 0,
+    "pct": 0,
+    "current": "",
+    "detail": "",
+    "error": None,
+    "finished": True,
+    "trigger_source": None,
+}
+_alerts_refresh_lock = threading.Lock()
 
 
-def _run_alerts_refresh_bg():
-    """Alert yenilemeyi arka planda çalıştırır (timeout'u önlemek için)."""
-    _alerts_refresh_status["running"] = True
-    _alerts_refresh_status["done"] = False
+def _alerts_refresh_set(**kwargs) -> None:
+    _alerts_refresh_status.update(kwargs)
+
+
+def _execute_alerts_refresh_body(*, trigger_source: str = "manual") -> None:
+    """Alert yenileme gövdesi — çağıran taraf kilidi tutar."""
+    source = (trigger_source or "manual").strip().lower() or "manual"
+    if source not in ("manual", "system"):
+        source = "manual"
+    action_label = "Uyarıları yenile" if source == "manual" else "Günlük alert yenilemesi"
+    # Per-alert mail yalnızca manuel; otomatikte consolidated özet yeterli (spam önleme).
+    send_notifications = source == "manual"
+
+    _alerts_refresh_set(
+        running=True,
+        finished=False,
+        done=0,
+        total=0,
+        pct=0,
+        current="Preparing site list…",
+        detail="",
+        error=None,
+        trigger_source=source,
+    )
+    LOGGER.info("Alert refresh started (trigger=%s).", source)
     try:
         with SessionLocal() as db:
             external_ids = _external_site_ids(db)
             sites = [site for site in _active_sites(db) if site.id not in external_ids]
+            total = len(sites)
+            _alerts_refresh_set(total=total, detail=f"0/{total} sites")
             alert_batch: list[tuple[Site, dict]] = []
+
             for index, site in enumerate(sites):
+                domain = site.domain or f"site-{site.id}"
+                _alerts_refresh_set(
+                    current=f"Search Console alerts · {domain}",
+                    detail=f"{index}/{total} sites",
+                    pct=int(round(100.0 * index / total)) if total else 100,
+                    done=index,
+                )
+                LOGGER.info("Alert refresh processing site=%s (%s)", domain, source)
                 try:
-                    results = {
-                        "search_console": collect_search_console_alert_metrics(
-                            db,
-                            site,
-                            send_notifications=True,
-                        )
-                    }
-                    _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-                    alert_batch.append((site, results["search_console"]))
+                    result = collect_search_console_alert_metrics(
+                        db,
+                        site,
+                        send_notifications=send_notifications,
+                    )
+                    if source == "manual":
+                        _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+                    else:
+                        db.commit()
+                    alert_batch.append((site, result))
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
+                    LOGGER.warning("Alert refresh failed for %s: %s", domain, exc)
                     alert_batch.append((site, {"state": "failed", "error": str(exc)}))
 
-                if index < len(sites) - 1:
+                done_n = index + 1
+                _alerts_refresh_set(
+                    done=done_n,
+                    pct=int(round(100.0 * done_n / total)) if total else 100,
+                    detail=f"{done_n}/{total} sites",
+                )
+                if index < total - 1:
                     time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
 
             if alert_batch:
-                send_consolidated_system_email(
-                    system_key="search_console_alerts",
-                    trigger_source="manual",
-                    action_label="Uyarıları yenile",
-                    items=alert_batch,
-                    db=db,
-                )
+                _alerts_refresh_set(current="Sending summary email…", detail=f"{total}/{total} sites")
+                mail_kwargs = {
+                    "system_key": "search_console_alerts",
+                    "trigger_source": source,
+                    "action_label": action_label,
+                    "items": alert_batch,
+                }
+                if source == "manual":
+                    mail_kwargs["db"] = db
+                send_consolidated_system_email(**mail_kwargs)
+
+        LOGGER.info("Alert refresh completed (trigger=%s).", source)
+        _alerts_refresh_set(
+            current="Done",
+            detail=f"{_alerts_refresh_status.get('total') or 0} sites",
+            pct=100,
+            error=None,
+        )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Alert refresh crashed (trigger=%s): %s", source, exc)
+        _alerts_refresh_set(error=str(exc), current="Failed", detail=str(exc)[:240])
     finally:
-        _alerts_refresh_status["running"] = False
-        _alerts_refresh_status["done"] = True
+        _alerts_refresh_set(running=False, finished=True)
+
+
+def _execute_alerts_refresh(
+    *,
+    trigger_source: str = "manual",
+    acquire_daily_lock: bool = False,
+) -> None:
+    """Manuel ve otomatik alert yenilemesi — aynı GSC collector + e-posta özeti."""
+    got_daily = False
+    if acquire_daily_lock:
+        if not DAILY_REFRESH_LOCK.acquire(blocking=False):
+            LOGGER.info(
+                "Alert refresh skipped (%s): another scheduled job is still in progress.",
+                trigger_source,
+            )
+            return
+        got_daily = True
+
+    if not _alerts_refresh_lock.acquire(blocking=False):
+        LOGGER.info("Alert refresh skipped (%s): already running.", trigger_source)
+        if got_daily:
+            DAILY_REFRESH_LOCK.release()
+        return
+
+    try:
+        _execute_alerts_refresh_body(trigger_source=trigger_source)
+    finally:
+        _alerts_refresh_lock.release()
+        if got_daily:
+            DAILY_REFRESH_LOCK.release()
+
+
+def _run_alerts_refresh_bg():
+    """POST /alerts/refresh — kilit çağıran tarafta alınmış olmalı."""
+    try:
+        _execute_alerts_refresh_body(trigger_source="manual")
+    finally:
+        _alerts_refresh_lock.release()
 
 
 @app.post("/alerts/refresh")
 def alerts_refresh(request: Request):
-    if not _alerts_refresh_status.get("running"):
-        t = threading.Thread(target=_run_alerts_refresh_bg, daemon=True)
-        t.start()
-    return JSONResponse({"refreshed": True, "background": True})
+    if not _alerts_refresh_lock.acquire(blocking=False):
+        return JSONResponse(
+            {
+                "refreshed": True,
+                "background": True,
+                "already_running": True,
+                "running": True,
+            }
+        )
+    _alerts_refresh_set(
+        running=True,
+        finished=False,
+        done=0,
+        total=0,
+        pct=1,
+        current="Starting…",
+        detail="",
+        error=None,
+        trigger_source="manual",
+    )
+    t = threading.Thread(target=_run_alerts_refresh_bg, daemon=True)
+    t.start()
+    return JSONResponse({"refreshed": True, "background": True, "running": True})
 
 
 @app.get("/alerts/refresh/status")
 def alerts_refresh_status(request: Request):
-    return JSONResponse(_alerts_refresh_status)
+    st = dict(_alerts_refresh_status)
+    # page_tarama runPoll: running=false → tamamlandı
+    return JSONResponse(
+        {
+            "running": bool(st.get("running")),
+            "finished": bool(st.get("finished")),
+            "done": int(st.get("done") or 0),
+            "total": int(st.get("total") or 0),
+            "pct": int(st.get("pct") or 0),
+            "current": st.get("current") or "",
+            "detail": st.get("detail") or "",
+            "error": st.get("error"),
+            "trigger_source": st.get("trigger_source"),
+        }
+    )
 
 
 @app.get("/api/settings/activity-logs")

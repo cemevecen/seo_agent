@@ -309,7 +309,7 @@ function renderComparisonData(alertId, comparisonType) {
   div.innerHTML = html;
 }
 
-// ─── Refresh button ───────────────────────────────────────────────────────────
+// ─── Refresh button (legacy id — page_tarama overlay tercih edilir) ───────────
 var _refreshBound = false;
 function bindRefreshButton() {
   if (_refreshBound) return;
@@ -326,10 +326,8 @@ function bindRefreshButton() {
     var percentEl = document.getElementById('alerts-progress-percent');
     var barEl = document.getElementById('alerts-progress-bar');
 
-    var origText = btn.innerHTML;
     btn.disabled = true;
     btn.textContent = 'Refreshing…';
-
     if (panel) panel.classList.remove('hidden');
 
     function _reloadAlerts() {
@@ -353,30 +351,33 @@ function bindRefreshButton() {
       return;
     }
 
-    // Countdown — arka plan taraması tamamlanana kadar bekle
-    var TOTAL_SECS = 45;
-    var elapsed = 0;
-    var steps = [
-      { at: 0,  pct: 10, title: 'Preparing the site list',             detail: 'Alert refresh started in the background.' },
-      { at: 5,  pct: 25, title: 'Fetching Search Console data',       detail: 'Running query-level comparison.' },
-      { at: 12, pct: 45, title: 'Computing CTR and position',           detail: 'Checking change thresholds.' },
-      { at: 22, pct: 65, title: 'Creating alerts',                 detail: 'Writing records to the database.' },
-      { at: 32, pct: 80, title: 'Processing other sites…',               detail: 'Please wait.' },
-      { at: 40, pct: 90, title: 'Almost done…',                     detail: 'Preparing results.' },
-    ];
-    var countdownTimer = setInterval(function () {
-      elapsed++;
-      var step = null;
-      for (var i = steps.length - 1; i >= 0; i--) {
-        if (elapsed >= steps[i].at) { step = steps[i]; break; }
-      }
-      if (step) _setProgress(step.pct, step.title, step.detail);
-      if (elapsed >= TOTAL_SECS) {
-        clearInterval(countdownTimer);
-        _setProgress(100, 'Done ✓', 'Reloading the page…');
+    var started = Date.now();
+    var TIMEOUT_MS = 20 * 60 * 1000;
+    async function pollStatus() {
+      if (Date.now() - started > TIMEOUT_MS) {
+        _setProgress(100, 'Timed out', 'Reloading…');
         setTimeout(_reloadAlerts, 600);
+        return;
       }
-    }, 1000);
+      try {
+        var stResp = await fetch('/alerts/refresh/status', { headers: { Accept: 'application/json' } });
+        var st = stResp.ok ? await stResp.json() : {};
+        var pct = typeof st.pct === 'number' ? st.pct : 10;
+        _setProgress(pct, st.current || 'Refreshing…', st.detail || '');
+        if (st.error) {
+          _setProgress(pct, 'Failed', String(st.error));
+          setTimeout(_reloadAlerts, 1200);
+          return;
+        }
+        if (st.finished || st.running === false) {
+          _setProgress(100, 'Done ✓', 'Reloading the page…');
+          setTimeout(_reloadAlerts, 600);
+          return;
+        }
+      } catch (err) { /* keep polling */ }
+      setTimeout(pollStatus, 1500);
+    }
+    setTimeout(pollStatus, 800);
   });
 }
 

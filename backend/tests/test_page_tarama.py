@@ -198,6 +198,14 @@ def test_alerts_has_no_bridge_queue():
         assert "no_bridge_jobs" in str(exc)
 
 
+def test_alerts_job_is_poll_status():
+    spec = store.JOBS["alerts"]
+    assert spec["kind"] == "poll"
+    assert spec["startUrl"] == "/alerts/refresh"
+    assert spec["progressUrl"] == "/alerts/refresh/status"
+    assert [j["id"] for j in store.jobs_for("alerts")] == ["alerts"]
+
+
 def test_stale_inflight_unlocks_queue():
     """MAX_INFLIGHT dolunca progress kesilen iş fail olur; sıradaki claim edilir."""
     store.reset_for_tests()
