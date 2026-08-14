@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
 
@@ -387,6 +387,176 @@ def ingest_gsc_links_payload(db: Session, payload: dict[str, Any]) -> dict[str, 
     }
 
 
+def _agg_incoming(anchor: str) -> int:
+    a, _ = backlink_csv._parse_gsc_agg_anchor(anchor)  # noqa: SLF001
+    return int(a or 0)
+
+
+def _agg_sites(anchor: str) -> int:
+    _, b = backlink_csv._parse_gsc_agg_anchor(anchor)  # noqa: SLF001
+    return int(b or 0)
+
+
+_CHANGE_LIST_CAP = 100
+
+
+def _naive_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _fingerprint_key_map(m: dict[str, Any]) -> tuple:
+    """Stable fingerprint for equality (keys + count/sites/rank)."""
+    parts = []
+    for k in sorted(m.keys()):
+        row = m[k] or {}
+        parts.append(
+            (
+                k,
+                int(row.get("count") or 0),
+                int(row.get("sites") or 0),
+                int(row.get("rank") or 0),
+            )
+        )
+    return tuple(parts)
+
+
+def _build_key_map(
+    db: Session,
+    imp: BacklinkImport,
+    *,
+    rt: str,
+    site_domain: str = "",
+) -> dict[str, Any]:
+    rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == imp.id).all()
+    out: dict[str, Any] = {}
+    if rt in {"external", "internal"}:
+        for r in rows:
+            raw = (r.source_url or r.target_url or "").strip()
+            if not raw:
+                continue
+            key = backlink_csv._canonical_target_key(raw, site_domain) or raw  # noqa: SLF001
+            out[key] = {
+                "key": key,
+                "label": raw,
+                "count": _agg_incoming(r.anchor_text or ""),
+                "sites": _agg_sites(r.anchor_text or ""),
+            }
+        return out
+    if rt == "domain":
+        for r in rows:
+            dom = (r.domain or "").strip().lower()
+            if not dom:
+                continue
+            out[dom] = {
+                "key": dom,
+                "label": r.domain or dom,
+                "count": _agg_incoming(r.anchor_text or ""),
+                "sites": _agg_sites(r.anchor_text or ""),
+            }
+        return out
+    # anchor_text
+    for r in rows:
+        text = (r.anchor_text or "").strip()
+        if not text:
+            continue
+        key = text.lower()
+        rank_raw = r.last_crawled or ""
+        rank = int(rank_raw) if str(rank_raw).isdigit() else 0
+        out[key] = {
+            "key": key,
+            "label": text,
+            "rank": rank,
+            "count": 0,
+            "sites": 0,
+        }
+    return out
+
+
+def _attach_rank_index(m: dict[str, Any], *, rt: str) -> None:
+    """Add 1-based rank_index by count (or stored rank for anchors)."""
+    if rt == "anchor_text":
+        ordered = sorted(
+            m.items(),
+            key=lambda kv: (int((kv[1] or {}).get("rank") or 10**9), kv[0]),
+        )
+    else:
+        ordered = sorted(
+            m.items(),
+            key=lambda kv: (-int((kv[1] or {}).get("count") or 0), kv[0]),
+        )
+    for i, (_k, row) in enumerate(ordered, start=1):
+        row["rank_index"] = i
+
+
+def _diff_key_maps(
+    latest_map: dict[str, Any],
+    base_map: dict[str, Any],
+    *,
+    rt: str,
+) -> tuple[list[str], list[str], list[dict[str, Any]]]:
+    new_keys = sorted(
+        set(latest_map) - set(base_map),
+        key=lambda k: -int((latest_map.get(k) or {}).get("count") or 0),
+    )
+    lost_keys = sorted(
+        set(base_map) - set(latest_map),
+        key=lambda k: -int((base_map.get(k) or {}).get("count") or 0),
+    )
+    changed: list[dict[str, Any]] = []
+    for k in set(latest_map) & set(base_map):
+        a = latest_map[k]
+        b = base_map[k]
+        if rt == "anchor_text":
+            ra = int(a.get("rank") or 0)
+            rb = int(b.get("rank") or 0)
+            if ra != rb:
+                changed.append(
+                    {
+                        "key": k,
+                        "label": a.get("label"),
+                        "rank_from": rb,
+                        "rank_to": ra,
+                        "delta_rank": rb - ra,
+                    }
+                )
+            continue
+        dcount = int(a.get("count") or 0) - int(b.get("count") or 0)
+        dsites = int(a.get("sites") or 0) - int(b.get("sites") or 0)
+        dri = int(a.get("rank_index") or 0) - int(b.get("rank_index") or 0)
+        if not dcount and not dsites and not dri:
+            continue
+        item: dict[str, Any] = {
+            "key": k,
+            "label": a.get("label"),
+            "count_from": b.get("count"),
+            "count_to": a.get("count"),
+            "delta": dcount,
+        }
+        if dsites:
+            item["sites_from"] = b.get("sites")
+            item["sites_to"] = a.get("sites")
+            item["delta_sites"] = dsites
+        if dri:
+            # positive dri = fell in ranking (worse index)
+            item["rank_from"] = b.get("rank_index")
+            item["rank_to"] = a.get("rank_index")
+            item["delta_rank"] = -dri  # keep ▲ = improved convention (baseline_idx - latest_idx)
+        changed.append(item)
+    changed.sort(
+        key=lambda x: (
+            abs(int(x.get("delta") or 0)),
+            abs(int(x.get("delta_sites") or 0)),
+            abs(int(x.get("delta_rank") or 0)),
+        ),
+        reverse=True,
+    )
+    return new_keys, lost_keys, changed
+
+
 def build_change_window(
     db: Session,
     *,
@@ -395,9 +565,13 @@ def build_change_window(
     gsc_resource_id: str = "",
     window: str = "daily",
 ) -> dict[str, Any]:
-    """Günlük (~24s) veya haftalık (~7g) snapshot farkı + KPI serisi."""
+    """Günlük (~24s) veya haftalık (~7g) snapshot farkı + KPI serisi.
+
+    GSC Links tablosu günlerce aynı kalabilir; bu yüzden hedef pencereye en yakın
+    baseline ile başlayıp içerik birebir aynıysa geriye doğru ilk farklı
+    snapshot'a kadar yürürüz (en fazla 14 gün).
+    """
     rt = (report_type or "external").strip().lower()
-    # legacy aliases
     if rt == "top_target_pages":
         rt = "external"
     if rt == "top_target_pages_internal":
@@ -405,6 +579,9 @@ def build_change_window(
 
     hours = 24 if (window or "daily").lower() in {"daily", "day", "1d"} else 24 * 7
     now = datetime.utcnow()
+    site = db.query(Site).filter(Site.id == site_id).first()
+    site_domain = (site.domain if site else "") or ""
+
     q = db.query(BacklinkImport).filter(
         BacklinkImport.site_id == site_id,
         BacklinkImport.report_type == rt,
@@ -412,7 +589,7 @@ def build_change_window(
     rid = (gsc_resource_id or "").strip()
     if rid:
         q = q.filter(BacklinkImport.gsc_resource_id == rid)
-    imports = q.order_by(BacklinkImport.created_at.desc()).limit(40).all()
+    imports = q.order_by(BacklinkImport.created_at.desc()).limit(60).all()
     if not imports:
         return {
             "ok": True,
@@ -424,87 +601,58 @@ def build_change_window(
         }
 
     latest = imports[0]
-    baseline = None
-    target_ts = now - timedelta(hours=hours)
-    # en yakın geçmiş snapshot (target_ts civarı veya daha eski)
-    older = [i for i in imports[1:] if i.created_at and i.created_at <= target_ts + timedelta(hours=6)]
-    if older:
-        baseline = min(older, key=lambda i: abs((i.created_at - target_ts).total_seconds()))
+    latest_ts = _naive_utc(latest.created_at) or now
+    target_ts = latest_ts - timedelta(hours=hours)
+
+    candidates: list[BacklinkImport] = []
+    for imp in imports[1:]:
+        ts = _naive_utc(imp.created_at)
+        if not ts:
+            continue
+        # window hedefinden biraz daha yeni olanları da aday tut (6s tolerans)
+        if ts <= target_ts + timedelta(hours=6):
+            candidates.append(imp)
+
+    baseline: BacklinkImport | None = None
+    if candidates:
+        baseline = min(
+            candidates,
+            key=lambda i: abs(((_naive_utc(i.created_at) or target_ts) - target_ts).total_seconds()),
+        )
     elif len(imports) > 1:
         baseline = imports[-1] if hours >= 24 * 6 else imports[1]
 
-    def _keys(imp: BacklinkImport) -> dict[str, Any]:
-        rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == imp.id).all()
-        if rt in {"external", "internal"}:
-            return {
-                r.source_url: {
-                    "key": r.source_url,
-                    "label": r.source_url,
-                    "count": _agg_incoming(r.anchor_text),
-                    "sites": _agg_sites(r.anchor_text),
-                }
-                for r in rows
-                if r.source_url
-            }
-        if rt == "domain":
-            return {
-                (r.domain or "").lower(): {
-                    "key": (r.domain or "").lower(),
-                    "label": r.domain,
-                    "count": _agg_incoming(r.anchor_text),
-                    "sites": _agg_sites(r.anchor_text),
-                }
-                for r in rows
-                if r.domain
-            }
-        # anchor
-        return {
-            (r.anchor_text or "").lower(): {
-                "key": (r.anchor_text or "").lower(),
-                "label": r.anchor_text,
-                "rank": int(r.last_crawled or 0) if str(r.last_crawled or "").isdigit() else 0,
-                "count": 0,
-            }
-            for r in rows
-            if r.anchor_text
-        }
+    latest_map = _build_key_map(db, latest, rt=rt, site_domain=site_domain)
+    _attach_rank_index(latest_map, rt=rt)
 
-    latest_map = _keys(latest)
-    base_map = _keys(baseline) if baseline else {}
-    new_keys = sorted(set(latest_map) - set(base_map))
-    lost_keys = sorted(set(base_map) - set(latest_map))
-    changed: list[dict[str, Any]] = []
-    for k in sorted(set(latest_map) & set(base_map)):
-        a = latest_map[k]
-        b = base_map[k]
-        if rt == "anchor_text":
-            if int(a.get("rank") or 0) != int(b.get("rank") or 0):
-                changed.append(
-                    {
-                        "key": k,
-                        "label": a.get("label"),
-                        "rank_from": b.get("rank"),
-                        "rank_to": a.get("rank"),
-                        "delta_rank": int(b.get("rank") or 0) - int(a.get("rank") or 0),
-                    }
-                )
-        else:
-            dcount = int(a.get("count") or 0) - int(b.get("count") or 0)
-            if dcount:
-                changed.append(
-                    {
-                        "key": k,
-                        "label": a.get("label"),
-                        "count_from": b.get("count"),
-                        "count_to": a.get("count"),
-                        "delta": dcount,
-                    }
-                )
-    changed.sort(key=lambda x: abs(int(x.get("delta") or x.get("delta_rank") or 0)), reverse=True)
+    base_map: dict[str, Any] = {}
+    baseline_relaxed = False
+    if baseline is not None:
+        base_map = _build_key_map(db, baseline, rt=rt, site_domain=site_domain)
+        _attach_rank_index(base_map, rt=rt)
+        latest_fp = _fingerprint_key_map(latest_map)
+        # İçerik aynıysa: 14 gün içindeki ilk farklı snapshot'a yürü
+        if latest_fp and latest_fp == _fingerprint_key_map(base_map):
+            walk_until = latest_ts - timedelta(days=14)
+            for cand in imports[1:]:
+                cts = _naive_utc(cand.created_at)
+                if not cts or cts < walk_until:
+                    break
+                if cand.id == getattr(baseline, "id", None):
+                    continue
+                cmap = _build_key_map(db, cand, rt=rt, site_domain=site_domain)
+                _attach_rank_index(cmap, rt=rt)
+                if _fingerprint_key_map(cmap) != latest_fp:
+                    baseline = cand
+                    base_map = cmap
+                    baseline_relaxed = True
+                    break
+
+    new_keys, lost_keys, changed = _diff_key_maps(latest_map, base_map, rt=rt)
 
     series = []
     for imp in reversed(imports[:14]):
-        meta = {}
+        meta: dict[str, Any] = {}
         try:
             meta = json.loads(imp.meta_json or "{}")
         except json.JSONDecodeError:
@@ -515,28 +663,52 @@ def build_change_window(
                 "import_id": imp.id,
                 "created_at": imp.created_at.isoformat() if imp.created_at else None,
                 "row_count": imp.row_count,
+                "mapped_rows": None,
                 "total_links": kpis.get("total_links"),
                 "gsc_resource_id": imp.gsc_resource_id or "",
             }
         )
 
-    latest_meta = {}
+    latest_meta: dict[str, Any] = {}
     try:
         latest_meta = json.loads(latest.meta_json or "{}")
     except json.JSONDecodeError:
         latest_meta = {}
+
+    baseline_meta: dict[str, Any] = {}
+    if baseline is not None:
+        try:
+            baseline_meta = json.loads(baseline.meta_json or "{}")
+        except json.JSONDecodeError:
+            baseline_meta = {}
+
+    latest_links = int((latest_meta.get("kpis") or {}).get("total_links") or 0)
+    base_links = int((baseline_meta.get("kpis") or {}).get("total_links") or 0)
+    kpi_delta_links = latest_links - base_links if baseline is not None else None
+
+    empty_reason = ""
+    if baseline is None:
+        empty_reason = "baseline_missing"
+    elif not latest_map and int(latest.row_count or 0) > 0:
+        empty_reason = "latest_rows_unmapped"
+    elif baseline is not None and not base_map and int(baseline.row_count or 0) > 0:
+        empty_reason = "baseline_rows_missing"
+    elif not new_keys and not lost_keys and not changed:
+        empty_reason = "snapshots_identical"
 
     return {
         "ok": True,
         "window": "daily" if hours <= 24 else "weekly",
         "window_hours": hours,
         "has_baseline": bool(baseline),
+        "baseline_relaxed": baseline_relaxed,
         "report_type": rt,
         "gsc_resource_id": rid or (latest.gsc_resource_id or ""),
         "latest": {
             "import_id": latest.id,
             "created_at": latest.created_at.isoformat() if latest.created_at else None,
             "row_count": latest.row_count,
+            "mapped_keys": len(latest_map),
             "kpis": (latest_meta.get("kpis") or {}),
             "label": latest.source_filename,
         },
@@ -545,28 +717,31 @@ def build_change_window(
                 "import_id": baseline.id,
                 "created_at": baseline.created_at.isoformat() if baseline.created_at else None,
                 "row_count": baseline.row_count,
+                "mapped_keys": len(base_map),
                 "label": baseline.source_filename,
+                "kpis": (baseline_meta.get("kpis") or {}),
             }
             if baseline
             else None
         ),
+        "kpi_delta": {
+            "total_links": kpi_delta_links,
+            "latest_total_links": latest_links or None,
+            "baseline_total_links": base_links or None,
+        },
+        "empty_reason": empty_reason,
         "diff": {
             "new_count": len(new_keys),
             "lost_count": len(lost_keys),
             "changed_count": len(changed),
-            "new": [latest_map[k] for k in new_keys],
-            "lost": [base_map[k] for k in lost_keys],
-            "changed": changed,
+            "new": [latest_map[k] for k in new_keys[:_CHANGE_LIST_CAP]],
+            "lost": [base_map[k] for k in lost_keys[:_CHANGE_LIST_CAP]],
+            "changed": changed[:_CHANGE_LIST_CAP],
+            "truncated": (
+                len(new_keys) > _CHANGE_LIST_CAP
+                or len(lost_keys) > _CHANGE_LIST_CAP
+                or len(changed) > _CHANGE_LIST_CAP
+            ),
         },
         "series": series,
     }
-
-
-def _agg_incoming(anchor: str) -> int:
-    a, _ = backlink_csv._parse_gsc_agg_anchor(anchor)  # noqa: SLF001
-    return int(a or 0)
-
-
-def _agg_sites(anchor: str) -> int:
-    _, b = backlink_csv._parse_gsc_agg_anchor(anchor)  # noqa: SLF001
-    return int(b or 0)

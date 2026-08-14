@@ -1053,6 +1053,7 @@
             </div>
           </div>
           <div id="bl-kpi-row" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
+          <p id="bl-changes-compare-hint" class="mt-2 hidden text-[11px] text-slate-500 dark:text-slate-400"></p>
           <div id="bl-changes-chart" class="mt-3 h-40 w-full"></div>
           <div id="bl-changes-tables" class="mt-3 grid gap-3 lg:grid-cols-3"></div>
         </div>
@@ -3737,12 +3738,51 @@
       }
       var diff = d.diff || {};
       var latest = d.latest || {};
+      var baseline = d.baseline || null;
       var kpis = (latest.kpis || {});
+      var kpiDelta = d.kpi_delta || {};
+      var hintEl = document.getElementById("bl-changes-compare-hint");
+      function blFmtWhen(iso) {
+        if (!iso) return "—";
+        return String(iso).replace("T", " ").replace("Z", "").slice(0, 16);
+      }
+      if (hintEl) {
+        var parts = [];
+        if (baseline && baseline.created_at) {
+          parts.push(
+            "Comparing " +
+              blFmtWhen(latest.created_at) +
+              " → " +
+              blFmtWhen(baseline.created_at)
+          );
+          if (d.baseline_relaxed) {
+            parts.push("nearest differing snapshot within 14d");
+          }
+        } else {
+          parts.push("No baseline snapshot yet — need at least 2 scans");
+        }
+        if (latest.mapped_keys != null) {
+          parts.push(blFmtNum(latest.mapped_keys) + " keys mapped");
+        }
+        if (kpiDelta.total_links != null && Number(kpiDelta.total_links) !== 0) {
+          var kd = Number(kpiDelta.total_links);
+          parts.push("total links Δ " + (kd > 0 ? "+" : "") + blFmtNum(kd));
+        }
+        if (d.empty_reason === "snapshots_identical") {
+          parts.push("GSC top table unchanged between these scans");
+        } else if (d.empty_reason === "baseline_rows_missing") {
+          parts.push("baseline rows missing in DB — re-scan recommended");
+        } else if (d.empty_reason === "latest_rows_unmapped") {
+          parts.push("latest rows could not be mapped");
+        }
+        hintEl.textContent = parts.join(" · ");
+        hintEl.classList.remove("hidden");
+      }
       kpiRow.innerHTML =
         '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Snapshot rows</div><div class="text-lg font-bold">' +
         blFmtNum(latest.row_count || 0) +
         '</div></div>' +
-        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Yeni</div><div class="text-lg font-bold text-emerald-700">' +
+        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">New</div><div class="text-lg font-bold text-emerald-700">' +
         blFmtNum(diff.new_count || 0) +
         '</div></div>' +
         '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Lost</div><div class="text-lg font-bold text-slate-700">' +
@@ -3759,19 +3799,25 @@
           if (kind === "lost") return { text: "lost", tone: "lost" };
           return { text: "changed", tone: "neutral" };
         }
-        if (it && it.delta != null && it.delta !== "") {
-          var d = Number(it.delta);
-          if (!isNaN(d) && d !== 0) {
+        if (it && it.delta != null && it.delta !== "" && Number(it.delta) !== 0) {
+          var dlt = Number(it.delta);
+          if (!isNaN(dlt) && dlt !== 0) {
             return {
-              text: (d > 0 ? "+" : "") + String(d),
-              tone: d > 0 ? "up" : "down",
+              text: (dlt > 0 ? "+" : "") + String(dlt),
+              tone: dlt > 0 ? "up" : "down",
             };
           }
+        }
+        if (it && it.delta_sites != null && Number(it.delta_sites) !== 0) {
+          var ds = Number(it.delta_sites);
+          return {
+            text: "sites " + (ds > 0 ? "+" : "") + String(ds),
+            tone: ds > 0 ? "up" : "down",
+          };
         }
         if (it && it.delta_rank != null && it.delta_rank !== "") {
           var dr = Number(it.delta_rank);
           if (!isNaN(dr) && dr !== 0) {
-            // backend: baseline_rank − latest_rank → + = improved, − = worse
             return {
               text: "rank " + (dr > 0 ? "▲ +" + String(dr) : "▼ −" + String(Math.abs(dr))),
               tone: dr > 0 ? "up" : "down",
@@ -3854,13 +3900,13 @@
         } else {
           var max = 1;
           series.forEach(function (s) {
-            max = Math.max(max, Number(s.row_count || 0), Number(s.total_links || 0) || 0);
+            max = Math.max(max, Number(s.total_links || 0) || 0, Number(s.row_count || 0), Number(s.total_links || 0) || 0);
           });
           chart.innerHTML =
             '<div class="flex h-36 items-end gap-1.5 px-1">' +
             series
               .map(function (s) {
-                var v = Number(s.row_count || 0);
+                var v = Number(s.total_links || 0) || Number(s.row_count || 0);
                 var barH = Math.max(8, Math.round((v / max) * 120));
                 var t = (s.created_at || "").slice(5, 16);
                 return (
@@ -3868,7 +3914,8 @@
                   t +
                   " · " +
                   blFmtNum(v) +
-                  ' rows"><div class="w-full max-w-[2.5rem] rounded-t bg-indigo-500/85 dark:bg-indigo-400/80" style="height:' +
+                  (s.total_links ? " links" : " rows") +
+                  '"><div class="w-full max-w-[2.5rem] rounded-t bg-indigo-500/85 dark:bg-indigo-400/80" style="height:' +
                   barH +
                   'px"></div><span class="w-full truncate text-center text-[9px] text-slate-500">' +
                   t +
