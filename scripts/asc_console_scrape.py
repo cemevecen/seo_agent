@@ -14,6 +14,7 @@ Env:
   ASC_CONSOLE_APP_ID        default 465599322
   ASC_CONSOLE_SCRAPE_DAYS   default 365 (Android ile aynı üst sınır)
   ASC_CONSOLE_HEADLESS=1    (varsayılan headed — Apple oturumu için)
+  ASC_CONSOLE_KEEP_OPEN=0   (varsayılan açık bırak; 0=scrape bitince kapat)
 """
 from __future__ import annotations
 
