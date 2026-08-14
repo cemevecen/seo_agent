@@ -84,6 +84,96 @@ PLATFORMS: tuple[tuple[str, str], ...] = (
     ("android", "Android"),
 )
 
+# Columns → visibleColumns (localStorage columnPrefs)
+# Uygulamalar (iOS/Android) — kullanıcının ilk eklediği set
+APP_VISIBLE_COLUMNS: tuple[str, ...] = (
+    "date",
+    "view",  # Impression
+    "match",
+    "usdSpent",  # Revenue ($)
+    "usdEcpm",  # eCPM ($)
+    "request",  # Requests
+    "active1DayUsers",  # DAU (1 Day)
+    "active7DayUsers",  # DAU (7 Days)
+    "dauPerMau",
+    "appVersion",
+    "arpdauTry",  # ARPDAU (₺)
+    "arpdauUsd",  # ARPDAU ($)
+    "averageSessionDuration",
+    "bounceRate",
+    "crashAffectedUsers",
+    "crashFreeUsersRate",
+    "engagementRate",
+    "impdau",
+    "is_holiday",
+    "newUsers",
+    "rpiUsd",  # RPI ($)
+    "rpmTry",  # RPM (₺)
+    "rpsTry",  # RPS (₺)
+    "sessions",
+    "totalUsers",
+    "tryEcpm",  # eCPM (₺)
+    "trySpent",  # Revenue (₺)
+    "userEngagementDuration",
+    "avgEngagementTimePerUser",
+    "avgEngagementTimePerSession",
+)
+
+# Web / Mobile Web — kullanıcının ikinci eklediği set
+WEB_VISIBLE_COLUMNS: tuple[str, ...] = (
+    "date",
+    "view",
+    "match",
+    "usdSpent",
+    "usdEcpm",
+    "request",
+    "active1DayUsers",
+    "active7DayUsers",
+    "dauPerMau",
+    "avgEngagementTimePerUser",
+    "avgEngagementTimePerSession",
+    "arpdauTry",
+    "arpdauUsd",
+    "averageSessionDuration",
+    "bounceRate",
+    "engagementRate",
+    "impdau",
+    "newUsers",
+    "organicGoogleSearchClicks",
+    "organicGoogleSearchClickThroughRate",
+    "rpmTry",
+    "rpmUsd",
+    "screenPageViews",
+    "screenPageViewsPerSession",
+    "screenPageViewsPerUser",
+    "sessions",
+    "totalUsers",
+    "tryEcpm",
+    "trySpent",
+    "userEngagementDuration",
+)
+
+COLUMN_SETS: dict[str, tuple[str, ...]] = {
+    "ios": APP_VISIBLE_COLUMNS,
+    "android": APP_VISIBLE_COLUMNS,
+    "web": WEB_VISIBLE_COLUMNS,
+    "mweb": WEB_VISIBLE_COLUMNS,
+}
+
+# Empower report API (browser OIDC bearer ile)
+FETCH_REPORT_API = (
+    os.environ.get("EMPOWER_INTEL_FETCH_URL")
+    or "https://lkusbybvt5.execute-api.eu-west-1.amazonaws.com/v1/report/fetch_report"
+).strip()
+DEFAULT_VIRGUL_ID = (os.environ.get("EMPOWER_INTEL_VIRGUL_ID") or "55af4685a503b0ad628b4567").strip()
+# columnPrefs anahtarındaki property_id — locale başına sabit
+DEFAULT_PROPERTY_IDS: dict[str, str] = {
+    "android": "152168629",
+    "ios": "163175967",
+    "mweb": "329808608",
+    "web": "376928120",
+}
+
 _HOOK_JS = r"""
 window.__empowerNet = window.__empowerNet || [];
 if (!window.__empowerHooked) {
@@ -93,7 +183,7 @@ if (!window.__empowerHooked) {
       const s = typeof body === 'string' ? body : JSON.stringify(body);
       window.__empowerNet.push({
         kind, url: String(url || ''),
-        body: (s || '').slice(0, 800000),
+        body: (s || '').slice(0, 2_000_000),
         ts: Date.now()
       });
       if (window.__empowerNet.length > 80) {
@@ -522,6 +612,175 @@ def _apply_yesterday_quick_select(driver: Any) -> bool:
         return opened and False
 
 
+def _read_oidc_access_token(driver: Any) -> str:
+    try:
+        tok = driver.execute_script(
+            """
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.startsWith('oidc.user:')) {
+                const u = JSON.parse(localStorage.getItem(k) || '{}');
+                return u.access_token || u.id_token || '';
+              }
+            }
+            return '';
+            """
+        )
+    except Exception:
+        return ""
+    return str(tok or "").strip()
+
+
+def _read_property_ids(driver: Any) -> dict[str, str]:
+    out = dict(DEFAULT_PROPERTY_IDS)
+    try:
+        found = driver.execute_script(
+            """
+            const m = {};
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (!k || !k.startsWith('columnPrefs:')) continue;
+              const parts = k.split(':');
+              if (parts.length < 2) continue;
+              m[parts[parts.length - 2]] = parts[parts.length - 1];
+            }
+            return m;
+            """
+        )
+    except Exception:
+        found = {}
+    if isinstance(found, dict):
+        for plat, pid in found.items():
+            if plat in out and pid:
+                out[str(plat)] = str(pid)
+    return out
+
+
+def _fetch_report_api(
+    *,
+    access_token: str,
+    property_id: str,
+    start: date,
+    end: date,
+    virgul_id: str = DEFAULT_VIRGUL_ID,
+) -> list[dict[str, Any]]:
+    q = urlencode(
+        {
+            "virgul_id": virgul_id,
+            "property_id": property_id,
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+            "day": "true",
+            "month": "false",
+            "year": "false",
+        }
+    )
+    url = f"{FETCH_REPORT_API}?{q}"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+            "Origin": "https://intelligence.empower.net",
+            "Referer": "https://intelligence.empower.net/",
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:147.0) "
+                "Gecko/20100101 Firefox/147.0"
+            ),
+        },
+        method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=180) as resp:
+        payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+    if not isinstance(payload, dict) or not payload.get("success"):
+        msg = payload.get("message") if isinstance(payload, dict) else "bad response"
+        raise RuntimeError(f"fetch_report failed: {msg}")
+    data = payload.get("data") or {}
+    rows = data.get("merged_data") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        raise RuntimeError("fetch_report: merged_data yok")
+    return [r for r in rows if isinstance(r, dict)]
+
+
+def _rows_from_api_records(
+    records: list[dict[str, Any]],
+    *,
+    visible: tuple[str, ...] | list[str],
+) -> list[dict[str, Any]]:
+    want = [c for c in visible if c != "date"]
+    out: list[dict[str, Any]] = []
+    for rec in records:
+        rd = _parse_date_cell(rec.get("date") or rec.get("day"))
+        if not rd:
+            continue
+        metrics: dict[str, Any] = {}
+        for key in want:
+            if key not in rec:
+                continue
+            val = rec.get(key)
+            num = _parse_num(val)
+            metrics[key] = num if num is not None else val
+        out.append({"report_date": rd.isoformat(), "metrics": metrics})
+    by_date: dict[str, dict[str, Any]] = {}
+    for r in out:
+        by_date[str(r["report_date"])] = r
+    rows = list(by_date.values())
+    rows.sort(key=lambda x: str(x.get("report_date") or ""))
+    return rows
+
+
+def _apply_column_prefs(driver: Any, platform: str) -> int:
+    """Platforma göre Columns visible setini localStorage'a yazar.
+
+    Returns: güncellenen pref anahtarı sayısı.
+    """
+    want = list(COLUMN_SETS.get(platform) or ())
+    if not want:
+        return 0
+    try:
+        n = driver.execute_script(
+            """
+            const platform = arguments[0];
+            const want = arguments[1];
+            let updated = 0;
+            const prefix = 'columnPrefs:';
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (!k || !k.startsWith(prefix)) continue;
+              // ...:/doviz-report/:android:HASH
+              const parts = k.split(':');
+              const plat = parts.length >= 2 ? parts[parts.length - 2] : '';
+              if (plat !== platform) continue;
+              let pref;
+              try { pref = JSON.parse(localStorage.getItem(k) || '{}'); }
+              catch (e) { continue; }
+              const order = Array.isArray(pref.columnOrder) ? pref.columnOrder.slice() : want.slice();
+              const known = new Set(order.concat(want));
+              const visible = want.filter(c => known.has(c));
+              if (!visible.includes('date') && known.has('date')) visible.unshift('date');
+              const rest = order.filter(c => !visible.includes(c));
+              pref.columnOrder = visible.concat(rest);
+              pref.visibleColumns = visible;
+              pref.version = pref.version || 1;
+              localStorage.setItem(k, JSON.stringify(pref));
+              updated += 1;
+            }
+            return updated;
+            """,
+            platform,
+            want,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"    · columnPrefs yazılamadı: {exc}", flush=True)
+        return 0
+    print(f"    · columns set ({platform}): {len(want)} sütun · prefs={n}", flush=True)
+    return int(n or 0)
+
+
+def _click_generate_report(driver: Any) -> bool:
+    return _click_text(driver, ["Generate Report", "Generate report", "Rapor Oluştur"])
+
+
 def _scrape_platform(
     driver: Any,
     *,
@@ -529,55 +788,55 @@ def _scrape_platform(
     start: date | None,
     end: date | None,
     yesterday: bool,
+    access_token: str,
+    property_ids: dict[str, str],
 ) -> list[dict[str, Any]]:
     label = dict(PLATFORMS).get(platform, platform)
-    url = _report_url(platform=platform, start=start, end=end)
-    print(f"  · {platform} ({label}) → {url}", flush=True)
-    _install_hooks(driver)
-    _clear_net(driver)
-    driver.get(url)
-    time.sleep(4)
-    _install_hooks(driver)
-    if _needs_login(driver):
-        raise RuntimeError("Empower oturumu yok — --login gerekli")
-
-    # Tab click (locale columns may auto-apply)
-    _click_text(driver, [label, platform.upper() if platform in {"ios"} else platform.title()])
-    time.sleep(2)
-
     if yesterday:
-        _apply_yesterday_quick_select(driver)
-        _install_hooks(driver)
-        time.sleep(2)
+        y = date.today() - timedelta(days=1)
+        start = end = y
+    if start is None or end is None:
+        raise RuntimeError("start/end gerekli")
 
-    # Wait for network / table
-    rows: list[dict[str, Any]] = []
-    for _ in range(12):
-        time.sleep(1.5)
-        rows = rows_from_net(_net_captures(driver))
-        if rows:
-            break
-        try:
-            matrices = driver.execute_script(_TABLE_JS) or []
-        except Exception:
-            matrices = []
-        for matrix in matrices:
-            if isinstance(matrix, list):
-                cand = rows_from_table_matrix(matrix)
-                if len(cand) > len(rows):
-                    rows = cand
-        if rows:
-            break
+    visible = COLUMN_SETS.get(platform) or APP_VISIBLE_COLUMNS
+    prop_id = (property_ids.get(platform) or DEFAULT_PROPERTY_IDS.get(platform) or "").strip()
+    print(
+        f"  · {platform} ({label}) · property={prop_id} · "
+        f"{start.isoformat()}→{end.isoformat()} · {len(visible)} sütun",
+        flush=True,
+    )
+    _apply_column_prefs(driver, platform)
 
-    # Deduplicate by date (last wins)
-    by_date: dict[str, dict[str, Any]] = {}
-    for r in rows:
-        d = str(r.get("report_date") or "")
-        if d:
-            by_date[d] = r
-    out = list(by_date.values())
-    out.sort(key=lambda x: str(x.get("report_date") or ""))
-    print(f"    → {len(out)} gün", flush=True)
+    if not access_token:
+        raise RuntimeError("OIDC access_token yok — --login")
+    if not prop_id:
+        raise RuntimeError(f"property_id yok: {platform}")
+
+    try:
+        records = _fetch_report_api(
+            access_token=access_token,
+            property_id=prop_id,
+            start=start,
+            end=end,
+        )
+    except Exception as exc:  # noqa: BLE001
+        # token drop → sayfayı yenile, tekrar dene
+        print(f"    · API hata, token yenile: {exc}", flush=True)
+        driver.get(_report_url(platform=platform, start=start, end=end))
+        time.sleep(3)
+        if _needs_login(driver) or not _session_looks_ready(driver):
+            raise
+        access_token = _read_oidc_access_token(driver)
+        records = _fetch_report_api(
+            access_token=access_token,
+            property_id=prop_id,
+            start=start,
+            end=end,
+        )
+
+    out = _rows_from_api_records(records, visible=visible)
+    cols = len((out[0].get("metrics") or {})) if out else 0
+    print(f"    → {len(out)} gün · {cols} metrik (API)", flush=True)
     return out
 
 
@@ -599,6 +858,10 @@ def scrape_empower(
     if yesterday:
         y = date.today() - timedelta(days=1)
         start = end = y
+    if not yesterday and (start is None or end is None):
+        # API için tarih zorunlu
+        start = start or date(2025, 1, 1)
+        end = end or date.today()
 
     driver = None
     lock_held = False
@@ -621,7 +884,6 @@ def scrape_empower(
             if not lock_held:
                 acquire_profile_login_lock(PROFILE_DIR, reason="empower-login")
                 lock_held = True
-            # Login duvarındaysa Sign In’e tıkla
             if _needs_login(driver):
                 _click_text(driver, ["Sign In", "Sign in", "Giriş"])
                 time.sleep(1.5)
@@ -642,6 +904,20 @@ def scrape_empower(
         if login_only:
             return {"ok": True, "sync_ok": True, "sync_message": "zaten girişli", "platforms": []}
 
+        # Tüm platform columnPrefs'lerini hedef setlere çek
+        for p in plats:
+            _apply_column_prefs(driver, p)
+
+        access_token = _read_oidc_access_token(driver)
+        property_ids = _read_property_ids(driver)
+        if not access_token:
+            return {
+                "ok": False,
+                "sync_ok": False,
+                "sync_message": "OIDC token okunamadı — --login",
+                "platforms": [],
+            }
+
         blocks: list[dict[str, Any]] = []
         for plat in plats:
             try:
@@ -651,7 +927,13 @@ def scrape_empower(
                     start=start,
                     end=end,
                     yesterday=yesterday,
+                    access_token=access_token,
+                    property_ids=property_ids,
                 )
+                # token uzun turda drop olursa güncelle
+                maybe = _read_oidc_access_token(driver)
+                if maybe:
+                    access_token = maybe
             except Exception as exc:  # noqa: BLE001
                 print(f"  · {plat} hata: {exc}", flush=True)
                 blocks.append({"platform": plat, "rows": [], "error": str(exc)})
@@ -669,6 +951,9 @@ def scrape_empower(
             "start": start.isoformat() if start else "",
             "end": end.isoformat() if end else "",
             "yesterday": yesterday,
+            "column_sets": {
+                p: list(COLUMN_SETS.get(p) or []) for p in plats
+            },
             "platforms": blocks,
         }
     finally:
