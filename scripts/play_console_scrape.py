@@ -62,6 +62,10 @@ _load_dotenv()
 DEV_ID = (os.environ.get("PLAY_CONSOLE_DEVELOPER_ID") or "7587799419591090593").strip()
 APP_ID = (os.environ.get("PLAY_CONSOLE_APP_ID") or "4974102243818231576").strip()
 PACKAGE = (os.environ.get("PLAY_CONSOLE_PACKAGE") or "com.Doviz").strip()
+from backend.services.empower_intel_config import (
+    play_console_skip_known_titles,
+    play_console_skip_metric_keys,
+)
 from backend.services.scrape_browser import (
     google_blocks_automation_text,
     google_profile_dir,
@@ -603,6 +607,23 @@ _KNOWN_DEVICES = (
     "SoC",
     "GPU",
 )
+
+
+def _known(*groups: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """Sayfa iğneleri — Metrik/Empower ile örtüşen DAU başlıkları yok."""
+    skip = {t.casefold() for t in play_console_skip_known_titles()}
+    out: list[str] = []
+    seen: set[str] = set()
+    for group in groups:
+        for title in group:
+            key = str(title)
+            if key.casefold() in skip or key in seen:
+                continue
+            seen.add(key)
+            out.append(key)
+    return tuple(out)
+
+
 _KNOWN_RELEASE = (
     "Kilitlenme oranı",
     "ANR oranı",
@@ -1062,12 +1083,12 @@ def _extract_stats_page(page, *, known: tuple[str, ...] | list[str], page_key: s
 
 def _extract_dashboard_structured(page) -> dict[str, Any]:
     """Dashboard: KPI + TPG + kırılım."""
-    return _extract_stats_page(page, known=_KNOWN_DASHBOARD, page_key="dashboard")
+    return _extract_stats_page(page, known=_known(_KNOWN_DASHBOARD), page_key="dashboard")
 
 
 def _extract_monetize_structured(page) -> dict[str, Any]:
     """Monetize overview kartları."""
-    known = tuple(dict.fromkeys(list(_KNOWN_MONETIZE) + list(_KNOWN_DASHBOARD)))
+    known = _known(_KNOWN_MONETIZE, _KNOWN_DASHBOARD)
     return _extract_stats_page(page, known=known, page_key="monetize")
 
 
@@ -3310,7 +3331,7 @@ def _extract_devices_attribute_tables(page, *, dimension: str) -> list[dict[str,
 
 def _scrape_devices_dashboard(page, *, headed: bool = True, days: int = 28) -> dict[str, Any]:
     """Reach and devices · dashboard + alt kırılımlar (Android sürüm, RAM, SoC, …)."""
-    known = tuple(dict.fromkeys(list(_KNOWN_DEVICES) + list(_KNOWN_DASHBOARD) + list(_KNOWN_MONITOR)))
+    known = _known(_KNOWN_DEVICES, _KNOWN_DASHBOARD, _KNOWN_MONITOR)
     wait_needles = (
         "Yükleme tabanı",
         "Install base",
@@ -5322,7 +5343,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         monetize = _safe_scrape_page(
             page,
             url=MONETIZE_URL,
-            known=tuple(dict.fromkeys(list(_KNOWN_MONETIZE) + ["Gelir", "ÖYKBOG", "Alıcı Sayısı"])),
+            known=_known(_KNOWN_MONETIZE, ["Gelir", "ÖYKBOG", "Alıcı Sayısı"]),
             page_key="monetize",
             wait_needles=("Gelir", "ÖYKBOG", "Alıcı", "Toplam gelir", "Monetize", "Para kazan"),
             headed=bool(headed),
@@ -5330,7 +5351,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         grow = _safe_scrape_page(
             page,
             url=GROW_URL,
-            known=tuple(dict.fromkeys(list(_KNOWN_GROW) + list(_KNOWN_DASHBOARD))),
+            known=_known(_KNOWN_GROW, _KNOWN_DASHBOARD),
             page_key="grow",
             wait_needles=(
                 "Cihaz edinme",
@@ -5345,11 +5366,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         store_listings = _safe_scrape_page(
             page,
             url=STORE_LISTINGS_URL,
-            known=tuple(
-                dict.fromkeys(
-                    list(_KNOWN_STORE_LISTINGS) + list(_KNOWN_GROW) + list(_KNOWN_DASHBOARD)
-                )
-            ),
+            known=_known(_KNOWN_STORE_LISTINGS, _KNOWN_GROW, _KNOWN_DASHBOARD),
             page_key="store_listings",
             wait_needles=(
                 "Mağaza",
@@ -5365,7 +5382,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         monitor = _safe_scrape_page(
             page,
             url=MONITOR_URL,
-            known=tuple(dict.fromkeys(list(_KNOWN_MONITOR) + list(_KNOWN_DASHBOARD))),
+            known=_known(_KNOWN_MONITOR, _KNOWN_DASHBOARD),
             page_key="monitor",
             wait_needles=(
                 "Kilitlenme",
@@ -5380,7 +5397,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         release = _safe_scrape_page(
             page,
             url=RELEASE_URL,
-            known=tuple(dict.fromkeys(list(_KNOWN_RELEASE) + list(_KNOWN_DASHBOARD))),
+            known=_known(_KNOWN_RELEASE, _KNOWN_DASHBOARD),
             page_key="release",
             wait_needles=(
                 "Üretim",
@@ -5419,7 +5436,20 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         stats_pages: dict[str, Any] = {}
         explorer_facts: list[dict[str, Any]] = []
         view_summaries: list[dict[str, Any]] = []
-        known_stats = tuple(dict.fromkeys(list(_KNOWN_STATISTICS) + list(_KNOWN_DASHBOARD)))
+        known_stats = _known(_KNOWN_STATISTICS, _KNOWN_DASHBOARD)
+        skip_metric_keys = play_console_skip_metric_keys()
+        if skip_metric_keys:
+            skipped_ids = [
+                str(v.get("id") or "")
+                for v in STATISTICS_VIEWS
+                if str(v.get("metric_key") or "") in skip_metric_keys
+            ]
+            if skipped_ids:
+                print(
+                    "  · stats atlandı (Metrik/Empower örtüşme): "
+                    + ", ".join(x for x in skipped_ids if x),
+                    flush=True,
+                )
 
         if not _page_is_alive(page):
             print(
@@ -5430,6 +5460,8 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         for view in STATISTICS_VIEWS:
             if not _page_is_alive(page):
                 break
+            if str(view.get("metric_key") or "") in skip_metric_keys:
+                continue
             view_id = str(view["id"])
             url = _stats_url(
                 metrics=str(view["metrics"]),
@@ -5505,6 +5537,14 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                     "error": scraped.get("error"),
                 }
             )
+
+        if skip_metric_keys:
+            explorer_facts = [
+                f
+                for f in explorer_facts
+                if not isinstance(f, dict)
+                or str(f.get("metric") or "") not in skip_metric_keys
+            ]
 
         mon_cards, mon_br = _append_page_metrics(metrics, monetize, kind="monetize", page_key="monetize")
         grow_cards, grow_br = _append_page_metrics(metrics, grow, kind="grow", page_key="grow")

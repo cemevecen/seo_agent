@@ -49,6 +49,10 @@ _load_dotenv()
 
 APP_ID = (os.environ.get("ASC_CONSOLE_APP_ID") or "465599322").strip()
 BUNDLE_ID = (os.environ.get("ASC_CONSOLE_BUNDLE_ID") or "com.nokta.Finans.Takip").strip()
+from backend.services.empower_intel_config import (
+    asc_console_skip_measure_keys,
+    asc_console_skip_warehouse_metrics,
+)
 from backend.services.scrape_browser import asc_profile_dir
 
 PROFILE_DIR = asc_profile_dir()
@@ -124,6 +128,51 @@ REQUIRED_WAREHOUSE_METRICS: list[str] = [
     "subscription_renewals",
     "free_trials",
 ]
+
+
+def _asc_measure_map() -> dict[str, str]:
+    skip = asc_console_skip_measure_keys()
+    if not skip:
+        return MEASURE_MAP
+    return {k: v for k, v in MEASURE_MAP.items() if k not in skip}
+
+
+def _asc_measure_batches() -> list[list[str]]:
+    skip = asc_console_skip_measure_keys()
+    if not skip:
+        return [list(b) for b in MEASURE_BATCHES]
+    out: list[list[str]] = []
+    for batch in MEASURE_BATCHES:
+        kept = [k for k in batch if k not in skip]
+        if kept:
+            out.append(kept)
+    return out
+
+
+def _asc_required_metrics() -> list[str]:
+    skip = asc_console_skip_warehouse_metrics()
+    if not skip:
+        return list(REQUIRED_WAREHOUSE_METRICS)
+    return [m for m in REQUIRED_WAREHOUSE_METRICS if m not in skip]
+
+
+def _asc_drop_overlap_facts(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    skip_m = asc_console_skip_warehouse_metrics()
+    skip_k = asc_console_skip_measure_keys()
+    if not skip_m and not skip_k:
+        return facts
+    kept: list[dict[str, Any]] = []
+    for f in facts:
+        if not isinstance(f, dict):
+            continue
+        if str(f.get("metric") or "") in skip_m:
+            continue
+        if str(f.get("view_id") or "") in skip_k:
+            continue
+        kept.append(f)
+    return kept
+
+
 ANALYTICS_MEASURES_URL = (
     "https://appstoreconnect.apple.com/analytics/api/v1/data/app/detail/measures"
 )
@@ -555,11 +604,13 @@ def _facts_from_measures_response(payload: dict[str, Any]) -> list[dict[str, Any
     results = payload.get("results")
     if not isinstance(results, list):
         # fallback: genel walker
-        for measure_key, metric in MEASURE_MAP.items():
+        for measure_key, metric in _asc_measure_map().items():
             facts.extend(
                 _facts_from_payload(payload, metric=metric, measure_key=measure_key)
             )
         return facts
+    skip_m = asc_console_skip_warehouse_metrics()
+    skip_k = asc_console_skip_measure_keys()
     for row in results:
         if not isinstance(row, dict):
             continue
@@ -567,7 +618,7 @@ def _facts_from_measures_response(payload: dict[str, Any]) -> list[dict[str, Any
             row.get("measure") or row.get("measureKey") or row.get("key") or ""
         ).strip()
         metric = MEASURE_MAP.get(measure_key)
-        if not metric:
+        if not metric or metric in skip_m or measure_key in skip_k:
             # bilinmeyen measure — yine de walker ile dene
             continue
         points = row.get("data") or row.get("points") or row.get("values") or []
@@ -602,7 +653,7 @@ def _facts_from_measures_response(payload: dict[str, Any]) -> list[dict[str, Any
             )
     if not facts:
         # results var ama parse edilemedi — walker
-        for measure_key, metric in MEASURE_MAP.items():
+        for measure_key, metric in _asc_measure_map().items():
             facts.extend(
                 _facts_from_payload(payload, metric=metric, measure_key=measure_key)
             )
@@ -1192,7 +1243,16 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
         scrape_days = _scrape_days()
         start_d = end_d - timedelta(days=scrape_days - 1)
         print(f"ASC scrape aralık · {start_d} → {end_d} ({scrape_days} gün)", flush=True)
-        for batch in MEASURE_BATCHES:
+        measure_map = _asc_measure_map()
+        measure_batches = _asc_measure_batches()
+        required_metrics = _asc_required_metrics()
+        skipped_mk = sorted(asc_console_skip_measure_keys())
+        if skipped_mk:
+            print(
+                "ASC scrape · atlandı (Metrik/Empower örtüşme): " + ", ".join(skipped_mk),
+                flush=True,
+            )
+        for batch in measure_batches:
             resp = _post_measures(page, batch, start=start_d, end=end_d)
             raw_network.append(
                 {
@@ -1226,7 +1286,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             for mk in batch:
                 n = counts.get(mk, 0)
                 pages_meta[mk] = {"ok": n > 0, "fact_count": n}
-                metric = MEASURE_MAP.get(mk, mk)
+                metric = measure_map.get(mk, mk)
                 print(f"ASC scrape · {mk} → {metric}: {n} gün (measures API)", flush=True)
             time.sleep(0.6)
 
@@ -1236,12 +1296,12 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             for f in explorer_facts
             if f.get("metric")
         }
-        missing = [m for m in REQUIRED_WAREHOUSE_METRICS if m not in covered]
+        missing = [m for m in required_metrics if m not in covered]
         if missing:
             print(f"ASC scrape · eksik metrikler tek tek: {missing}", flush=True)
             # warehouse metric → tercih edilen measureKey(ler)
             prefer: dict[str, list[str]] = {}
-            for mk, metric in MEASURE_MAP.items():
+            for mk, metric in measure_map.items():
                 prefer.setdefault(metric, []).append(mk)
             for metric in missing:
                 keys = prefer.get(metric) or [metric]
@@ -1301,7 +1361,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             for f in explorer_facts
             if f.get("metric")
         }
-        still_missing = [m for m in REQUIRED_WAREHOUSE_METRICS if m not in covered_after]
+        still_missing = [m for m in required_metrics if m not in covered_after]
         if not explorer_facts or still_missing:
             print(
                 "ASC measures API boş/eksik — UI network yakalama… "
@@ -1310,12 +1370,12 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             )
             # Önce eksik metriklerin measure key’lerini gez
             ui_keys: list[str] = []
-            for metric in (still_missing or REQUIRED_WAREHOUSE_METRICS):
-                for mk, m in MEASURE_MAP.items():
+            for metric in (still_missing or required_metrics):
+                for mk, m in measure_map.items():
                     if m == metric and mk not in ui_keys:
                         ui_keys.append(mk)
             if not ui_keys:
-                ui_keys = list(MEASURE_MAP.keys())
+                ui_keys = list(measure_map.keys())
             ui_bodies = _capture_measures_via_ui(
                 page, ui_keys, bag=net_bag, url_log=url_log
             )
@@ -1324,7 +1384,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                     facts_batch = _facts_from_measures_response(body)
                 else:
                     facts_batch = []
-                    for mk, metric in MEASURE_MAP.items():
+                    for mk, metric in measure_map.items():
                         facts_batch.extend(
                             _facts_from_payload(body, metric=metric, measure_key=mk)
                         )
@@ -1338,10 +1398,12 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             for f in explorer_facts:
                 mk = str(f.get("view_id") or f.get("metric") or "")
                 counts[mk] = counts.get(mk, 0) + 1
-            for mk, metric in MEASURE_MAP.items():
+            for mk, metric in measure_map.items():
                 n = counts.get(mk, 0) or counts.get(metric, 0)
                 pages_meta[mk] = {"ok": n > 0, "fact_count": n, "source": "ui_xhr"}
                 print(f"ASC scrape · {mk} → {metric}: {n} gün (UI XHR)", flush=True)
+
+        explorer_facts = _asc_drop_overlap_facts(explorer_facts)
 
         # tekilleştir
         by_key: dict[tuple[str, str], dict[str, Any]] = {}
@@ -1387,7 +1449,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
         ok_metrics = sum(1 for v in pages_meta.values() if v.get("ok"))
         msg = (
             f"ASC tarama · {len(explorer_facts)} fact · "
-            f"{ok_metrics}/{len(MEASURE_MAP)} measure"
+            f"{ok_metrics}/{len(measure_map)} measure"
             + (" · ratings OK" if ratings.get("ok") else "")
         )
         return {
@@ -1406,7 +1468,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "explorer_facts": explorer_facts[:50000],
                 "explorer_fact_count": len(explorer_facts),
                 "pages": pages_meta,
-                "measure_keys": list(MEASURE_MAP.keys()),
+                "measure_keys": list(measure_map.keys()),
                 "ratings": ratings,
                 "scrape_meta": {
                     "start": start_d.isoformat(),
