@@ -248,23 +248,29 @@ class SeleniumPage:
         self._driver.set_page_load_timeout(max(5, int(timeout / 1000)))
         self._driver.get(url)
 
-    def evaluate(self, expression: str, *_args: Any) -> Any:
+    def evaluate(self, expression: str, *args: Any) -> Any:
         script = (expression or "").strip()
         if script.startswith("async"):
+            # Playwright: page.evaluate(async () => ..., arg) — argümanları fn'e ilet
             payload = f"""
             const done = arguments[arguments.length - 1];
+            const fnArgs = Array.prototype.slice.call(arguments, 0, arguments.length - 1);
+            const fn = {script};
             (async () => {{
-              const fn = {script};
-              try {{ done(await fn()); }}
+              try {{ done(await fn.apply(null, fnArgs)); }}
               catch (e) {{ done(null); }}
             }})();
             """
-            return self._driver.execute_async_script(payload)
+            return self._driver.execute_async_script(payload, *args)
         if "=>" in script and not script.startswith("return"):
-            return self._driver.execute_script(f"return ({script})()")
+            # page.evaluate("(args) => ...", arg) — Playwright arg geçirir; Selenium da geçirmeli
+            return self._driver.execute_script(
+                f"return ({script}).apply(null, arguments);",
+                *args,
+            )
         if not script.startswith("return"):
             script = f"return {script}"
-        return self._driver.execute_script(script)
+        return self._driver.execute_script(script, *args)
 
     def inner_text(self, selector: str) -> str:
         if selector in ("body", "html"):
