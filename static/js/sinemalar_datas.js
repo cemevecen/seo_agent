@@ -1017,9 +1017,16 @@
           break;
         }
       }
-      if (state.chartStyle === "area" && !s.dashed && !s.overlay && lastPt && areaD) {
+      if (state.chartStyle === "area" && !s.dashed && lastPt && areaD) {
         areaD += " L " + lastPt.x.toFixed(1) + " " + yAt(0).toFixed(1) + " Z";
-        inner += '<path d="' + areaD + '" fill="' + s.color + '" fill-opacity="0.18"/>';
+        inner +=
+          '<path d="' +
+          areaD +
+          '" fill="' +
+          s.color +
+          '" fill-opacity="' +
+          (s.overlay ? "0.14" : "0.18") +
+          '"/>';
       }
       if (dPath) {
         inner +=
