@@ -137,7 +137,11 @@ def sync_virgul_from_panel(
     end: date | None = None,
     commit: bool = True,
 ) -> dict[str, Any]:
-    """Mac/VPN: Virgül’den çek → DB ingest."""
+    """Mac/VPN: Virgül’den çek → DB ingest (varsayılan dün+bugün; geçmiş silinmez)."""
+    from backend.services.virgul_ad_client import date_range_yesterday_today
+
+    if start is None or end is None:
+        start, end = date_range_yesterday_today()
     fetched = fetch_all_sites_exports(start=start, end=end, stream_key=stream_key)
     per: list[dict[str, Any]] = []
     ok_n = 0
@@ -160,7 +164,7 @@ def sync_virgul_from_panel(
                 item["data"],
                 filename=str(item.get("filename") or "virgul.xlsx"),
                 stream_key=str(item.get("stream_key") or ""),
-                replace=True,
+                replace=False,
                 commit=False,
             )
             per.append(

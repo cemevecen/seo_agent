@@ -99,6 +99,19 @@ def _date_range_this_year(*, today: date | None = None) -> tuple[date, date]:
     return date(today.year, 1, 1), today
 
 
+def date_range_yesterday_today(*, today: date | None = None) -> tuple[date, date]:
+    """Planlı Virgül sync: yalnız dün + bugün (mühürlü geçmiş çekilmez)."""
+    try:
+        from backend.services.history_seal import calendar_today, calendar_yesterday
+
+        if today is None:
+            return calendar_yesterday(), calendar_today()
+    except Exception:
+        pass
+    today = today or date.today()
+    return today - timedelta(days=1), today
+
+
 def _looks_like_xlsx(data: bytes) -> bool:
     return bool(data) and data[:2] == b"PK"
 
@@ -121,14 +134,18 @@ def fetch_report_export(
     *,
     start: date | None = None,
     end: date | None = None,
-    report_type: str = "ty",
+    report_type: str | None = None,
 ) -> dict[str, Any]:
     """Yeşil Excel = form POST /npm/report (operation=excel).
 
     Firefox Network: POST https://rapor.virgul.com/npm/report → xlsx attachment.
+    Varsayılan aralık: dün→bugün (reportType boş). Yıllık için report_type='ty'.
     """
     if start is None or end is None:
-        start, end = _date_range_this_year()
+        start, end = date_range_yesterday_today()
+    # Özel aralıkta reportType boş olmalı; aksi halde Virgül «This Year» döner
+    if report_type is None:
+        report_type = ""
     select_site(sess, src)
 
     start_tr = _fmt_tr_date(start)
@@ -224,6 +241,9 @@ def fetch_all_sites_exports(
         except Exception:
             pass
 
+    if start is None or end is None:
+        start, end = date_range_yesterday_today()
+
     _prog({"phase": "login", "sub_label": "Virgül login", "step": 0, "total_steps": 0, "message": "Virgül login…"})
     sess = login_virgul()
     sources = VIRGUL_AD_SOURCES
@@ -277,6 +297,6 @@ def fetch_all_sites_exports(
         "ok_count": ok_n,
         "fail_count": len(items) - ok_n,
         "items": items,
-        "start": (start or _date_range_this_year()[0]).isoformat(),
-        "end": (end or _date_range_this_year()[1]).isoformat(),
+        "start": start.isoformat(),
+        "end": end.isoformat(),
     }

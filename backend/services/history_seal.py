@@ -123,6 +123,7 @@ def mark_all_expensive_pipelines_sealed(*, seal: date | None = None) -> dict[str
         "notification",
         "doviz_news",
         "sinemalar_moderation",
+        "virgul",
         # policy bilinçli olarak yok — Ad Manager Policy her turda baştan çekilir
     ):
         mark_pipeline_sealed(name, seal=seal_d, note="bulk seal — panel data complete")

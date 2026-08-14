@@ -11,6 +11,7 @@ BRIDGE = ROOT / "scripts" / "doviz_admin_notification_bridge.py"
 
 _SCHEDULE_ENV_KEYS = (
     "VIRGUL_BRIDGE_MINUTE",
+    "VIRGUL_BRIDGE_HOURS",
     "PLAY_CONSOLE_BRIDGE_MINUTE",
     "ASC_CONSOLE_BRIDGE_MINUTE",
     "FIREBASE_CONSOLE_BRIDGE_MINUTE",
@@ -88,3 +89,8 @@ def test_revenue_targets_night_retry_policy():
     )
     assert day_max == mod.BRIDGE_RETRY_MAX
     assert day_gap == mod.BRIDGE_RETRY_GAP_SEC
+
+
+def test_virgul_slots_are_04_07_13():
+    mod = _load_bridge()
+    assert tuple(mod.VIRGUL_SLOT_HOURS) == (4, 7, 13)

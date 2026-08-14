@@ -14,7 +14,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
 
   POST /sync       → notification (08–20 her 30 dk live; gece 00:08 dünü mühürle)
   POST /sync-news  → news (08–20 her 30 dk)
-  POST /sync-virgul → Virgül (00/06/12/18 TR)
+  POST /sync-virgul → Virgül (04/07/13 TR · yalnız dün+bugün)
   POST /sync-play   → Play / Android (3 saatte bir, :02)
   POST /sync-asc    → ASC / iOS (3 saatte bir, :10)
   POST /sync-firebase → Firebase Console Crashlytics (günde bir sabah, varsayılan 06:10 TR)
@@ -108,8 +108,13 @@ GSC_LINKS_AUTO_INTERVAL_SEC = int(
     os.environ.get("GSC_LINKS_BRIDGE_INTERVAL_SEC") or str(12 * 60 * 60)
 )
 # Slot pencereleri Europe/Istanbul — dakikalar birbirinden ≥4 dk ayrı (scrape çakışması azaltılır)
-VIRGUL_SLOT_HOURS = (0, 6, 12, 18)  # gece 00’dan 6 saatte bir → 4 tur
+VIRGUL_SLOT_HOURS = (4, 7, 13)  # gece 04 · sabah 07 · öğlen 13 (dün+bugün)
 VIRGUL_SLOT_MINUTE = int(os.environ.get("VIRGUL_BRIDGE_MINUTE") or "8")
+_VIRGUL_HOURS_RAW = (os.environ.get("VIRGUL_BRIDGE_HOURS") or "").strip()
+if _VIRGUL_HOURS_RAW:
+    VIRGUL_SLOT_HOURS = tuple(
+        int(h.strip()) for h in _VIRGUL_HOURS_RAW.split(",") if h.strip().isdigit()
+    ) or VIRGUL_SLOT_HOURS
 PLAY_SLOT_HOURS = (0, 6, 12, 18)  # 6 saatte bir — login baskısını düşür
 PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "2")
 ASC_SLOT_HOURS = (0, 3, 6, 9, 12, 15, 18, 21)  # ASC 3 saat (Play’den ayrı)
@@ -914,7 +919,10 @@ def run_virgul_bridge_once(on_progress=None) -> dict[str, Any]:
 
     import base64
 
-    from backend.services.virgul_ad_client import fetch_all_sites_exports
+    from backend.services.virgul_ad_client import (
+        date_range_yesterday_today,
+        fetch_all_sites_exports,
+    )
     from backend.services.virgul_ad_config import VIRGUL_AD_SOURCES
 
     def _cb(info: dict[str, Any] | None = None) -> None:
@@ -927,14 +935,19 @@ def run_virgul_bridge_once(on_progress=None) -> dict[str, Any]:
 
     n_sites = len(VIRGUL_AD_SOURCES)
     total_steps = max(1, n_sites * 2)  # export + ingest
-    print("Virgül reklam export çekiliyor (6 sid)…", flush=True)
+    v_start, v_end = date_range_yesterday_today()
+    print(
+        f"Virgül reklam export çekiliyor (6 sid) · {v_start.isoformat()} → {v_end.isoformat()} "
+        "(dün+bugün; mühürlü geçmiş yok)…",
+        flush=True,
+    )
     _cb(
         {
             "phase": "export",
             "sub_label": "Virgül Excel export",
             "step": 0,
             "total_steps": total_steps,
-            "message": "Virgül Excel export başlıyor…",
+            "message": f"Virgül Excel {v_start}→{v_end}…",
         }
     )
 
@@ -952,7 +965,9 @@ def run_virgul_bridge_once(on_progress=None) -> dict[str, Any]:
             }
         )
 
-    fetched = fetch_all_sites_exports(on_progress=_export_progress)
+    fetched = fetch_all_sites_exports(
+        start=v_start, end=v_end, on_progress=_export_progress
+    )
     files: list[dict[str, Any]] = []
     for item in fetched.get("items") or []:
         if not item.get("ok") or not item.get("data"):
@@ -5072,7 +5087,7 @@ def run_daemon() -> int:
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
         f"notify+news={AUTO_INTERVAL_SEC}s@{NT_NEWS_ACTIVE_START_HOUR:02d}-{NT_NEWS_ACTIVE_END_HOUR:02d} "
         f"nt_night_seal={NOTIFICATION_NIGHT_SEAL_HOUR:02d}:{NOTIFICATION_NIGHT_SEAL_MINUTE:02d} "
-        f"virgul={list(VIRGUL_SLOT_HOURS)}:00 play={list(PLAY_SLOT_HOURS)}:{PLAY_SLOT_MINUTE:02d} "
+        f"virgul={list(VIRGUL_SLOT_HOURS)}:{VIRGUL_SLOT_MINUTE:02d} play={list(PLAY_SLOT_HOURS)}:{PLAY_SLOT_MINUTE:02d} "
         f"asc={list(ASC_SLOT_HOURS)}:{ASC_SLOT_MINUTE:02d} firebase=:{FIREBASE_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
         f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d} "
         f"moderation=03:04,14:17 "
