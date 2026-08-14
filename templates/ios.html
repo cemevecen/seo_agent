@@ -792,7 +792,7 @@
     flex-direction: column;
     min-height: 100%;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
     padding: 0.5rem 0.58rem 0.52rem;
     container-type: inline-size;
     container-name: sf-card;
@@ -890,7 +890,7 @@
     justify-content: space-between;
     gap: 0.18rem;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
     font-size: clamp(0.36rem, 3cqi, 0.5rem);
     font-weight: 700;
     font-variant-numeric: lining-nums;
@@ -995,17 +995,17 @@
     position: absolute;
     right: 0;
     bottom: calc(100% + 0.3rem);
-    z-index: 50;
+    z-index: 80;
     width: max-content;
-    max-width: min(13.5rem, 72vw);
-    padding: 0.4rem 0.5rem;
+    max-width: min(14.5rem, 78vw);
+    padding: 0.45rem 0.55rem;
     border-radius: 0.5rem;
     background: #0f172a;
     color: #f8fafc;
     border: 1px solid #334155;
-    font-size: clamp(0.58rem, 2.8cqi, 0.68rem);
+    font-size: clamp(0.62rem, 3.2cqi, 0.72rem);
     font-weight: 500;
-    line-height: 1.35;
+    line-height: 1.4;
     text-align: left;
     letter-spacing: normal;
     text-transform: none;
@@ -1015,6 +1015,15 @@
     pointer-events: none;
     transform: translateY(2px);
     transition: opacity 0.12s ease, visibility 0.12s ease, transform 0.12s ease;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.28);
+  }
+  .ia-stability-grid .sf-card__side-tip.is-fixed {
+    position: fixed;
+    right: auto;
+    left: auto;
+    bottom: auto;
+    top: auto;
+    transform: none !important;
   }
   .ia-stability-grid .sf-card__side-info:hover .sf-card__side-tip,
   .ia-stability-grid .sf-card__side-info:focus-visible .sf-card__side-tip,
@@ -1024,15 +1033,15 @@
     transform: translateY(0);
   }
   @container sf-card (max-width: 11rem) {
-    .ia-stability-grid .sf-card__side-tip {
+    .ia-stability-grid .sf-card__side-tip:not(.is-fixed) {
       right: auto;
       left: 50%;
       transform: translate(-50%, 2px);
       max-width: min(11rem, 78vw);
     }
-    .ia-stability-grid .sf-card__side-info:hover .sf-card__side-tip,
-    .ia-stability-grid .sf-card__side-info:focus-visible .sf-card__side-tip,
-    .ia-stability-grid .sf-card__side-info.is-open .sf-card__side-tip {
+    .ia-stability-grid .sf-card__side-info:hover .sf-card__side-tip:not(.is-fixed),
+    .ia-stability-grid .sf-card__side-info:focus-visible .sf-card__side-tip:not(.is-fixed),
+    .ia-stability-grid .sf-card__side-info.is-open .sf-card__side-tip:not(.is-fixed) {
       transform: translate(-50%, 0);
     }
   }
@@ -4225,16 +4234,49 @@
         renderAll();
       });
     }
+    function iaCloseSfSideTips(exceptInfo) {
+      el.querySelectorAll("[data-sf-side-info].is-open").forEach(function (node) {
+        if (exceptInfo && node === exceptInfo) return;
+        node.classList.remove("is-open");
+        var tip = node.querySelector(".sf-card__side-tip");
+        if (tip) {
+          tip.classList.remove("is-fixed");
+          tip.style.left = "";
+          tip.style.top = "";
+          tip.style.right = "";
+          tip.style.bottom = "";
+        }
+      });
+    }
+    function iaOpenSfSideTip(info) {
+      var tip = info.querySelector(".sf-card__side-tip");
+      info.classList.add("is-open");
+      if (!tip) return;
+      tip.classList.add("is-fixed");
+      var br = info.getBoundingClientRect();
+      tip.style.left = Math.max(8, Math.min(br.right - 200, window.innerWidth - 240)) + "px";
+      tip.style.top = Math.max(8, br.top - 8) + "px";
+      tip.style.right = "auto";
+      tip.style.bottom = "auto";
+      requestAnimationFrame(function () {
+        var r = tip.getBoundingClientRect();
+        var left = br.right - r.width;
+        if (left < 8) left = 8;
+        if (left + r.width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - r.width - 8);
+        var top = br.top - r.height - 6;
+        if (top < 8) top = Math.min(window.innerHeight - r.height - 8, br.bottom + 6);
+        tip.style.left = left + "px";
+        tip.style.top = top + "px";
+      });
+    }
     el.addEventListener("click", function (ev) {
       var info = ev.target && ev.target.closest && ev.target.closest("[data-sf-side-info]");
       if (info) {
         ev.preventDefault();
         ev.stopPropagation();
         var open = info.classList.contains("is-open");
-        el.querySelectorAll("[data-sf-side-info].is-open").forEach(function (node) {
-          node.classList.remove("is-open");
-        });
-        if (!open) info.classList.add("is-open");
+        iaCloseSfSideTips();
+        if (!open) iaOpenSfSideTip(info);
         return;
       }
       var btn = ev.target && ev.target.closest && ev.target.closest("[data-ia-sf-refresh]");
@@ -4244,9 +4286,7 @@
     });
     document.addEventListener("click", function (ev) {
       if (ev.target && ev.target.closest && ev.target.closest("[data-sf-side-info]")) return;
-      el.querySelectorAll("[data-sf-side-info].is-open").forEach(function (node) {
-        node.classList.remove("is-open");
-      });
+      iaCloseSfSideTips();
     });
     if (typeof ResizeObserver !== "undefined") {
       var iaSfResizeTimer = null;

@@ -588,29 +588,41 @@
   }
   .bl-rt-info-tip {
     position: absolute;
-    z-index: 50;
+    z-index: 80;
     left: 0;
     top: calc(100% + 0.35rem);
-    width: min(17.5rem, calc(100vw - 2rem));
-    padding: 0.5rem 0.65rem;
+    width: min(18.5rem, calc(100vw - 2rem));
+    padding: 0.55rem 0.7rem;
     border-radius: 0.5rem;
     border: 1px solid rgb(226 232 240);
     background: rgba(255, 255, 255, 0.98);
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
     font-size: 0.6875rem;
     font-weight: 500;
-    line-height: 1.4;
+    line-height: 1.45;
     color: rgb(51 65 85);
     display: none;
   }
+  .bl-rt-info-tip strong {
+    font-weight: 800;
+    color: rgb(30 41 59);
+  }
   .bl-rt-info-tip.is-open {
     display: block;
+  }
+  .bl-rt-info-tip.is-fixed {
+    position: fixed;
+    top: auto;
+    left: auto;
   }
   html.dark .bl-rt-info-tip {
     border-color: rgb(63 63 70);
     background: rgba(24, 24, 27, 0.98);
     color: rgb(212 212 216);
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  }
+  html.dark .bl-rt-info-tip strong {
+    color: rgb(244 244 245);
   }
   .bl-toolbar-card {
     padding: 0;
@@ -630,6 +642,7 @@
   .bl-toolbar-col {
     min-width: 0;
     padding: 0.55rem 0.7rem;
+    overflow: visible;
   }
   @media (min-width: 900px) {
     .bl-toolbar-col {
@@ -757,9 +770,12 @@
               External
               <span class="bl-report-type-chip-sub">top linked pages</span>
             </button>
-            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Info" title="Info">i</button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false"
+              aria-label="External: pages that receive the most backlinks from other sites"
+              title="External — top linked pages: your URLs that attract the most inbound links from other websites.">i</button>
             <div class="bl-rt-info-tip" role="tooltip">
-              Lists your pages that receive the most backlinks from external sites. Shows which URLs attract inbound connections.
+              <strong>External</strong> — Search Console “Top linked pages” (inbound from other sites).<br>
+              Shows which of your URLs attract the most backlinks from outside your domain.
             </div>
           </div>
           <div class="bl-rt-item">
@@ -767,9 +783,12 @@
               Domain
               <span class="bl-report-type-chip-sub">linking sites</span>
             </button>
-            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Info" title="Info">i</button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false"
+              aria-label="Domain: unique external sites that link to you"
+              title="Domain — linking sites: unique external domains that link to your property.">i</button>
             <div class="bl-rt-info-tip" role="tooltip">
-              Lists unique external domains that link to you. See inbound connections by referring site.
+              <strong>Domain</strong> — Search Console “Linking sites”.<br>
+              Lists unique referring domains (who links to you), not individual pages.
             </div>
           </div>
           <div class="bl-rt-item">
@@ -777,9 +796,12 @@
               Anchor
               <span class="bl-report-type-chip-sub">linking text</span>
             </button>
-            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Info" title="Info">i</button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false"
+              aria-label="Anchor: link text used in inbound links"
+              title="Anchor — linking text: phrases used as the clickable text in inbound links.">i</button>
             <div class="bl-rt-info-tip" role="tooltip">
-              Lists anchor phrases used in inbound connections. Shows the words or phrases people use when linking to you.
+              <strong>Anchor</strong> — Search Console “Anchor text”.<br>
+              Shows the words/phrases people use when linking to your site.
             </div>
           </div>
           <div class="bl-rt-item">
@@ -787,9 +809,12 @@
               Internal
               <span class="bl-report-type-chip-sub">top linked pages</span>
             </button>
-            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Info" title="Info">i</button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false"
+              aria-label="Internal: pages that receive the most links from within your site"
+              title="Internal — top linked pages: URLs that receive the most links from pages on the same site.">i</button>
             <div class="bl-rt-info-tip" role="tooltip">
-              Lists pages that receive the most links from within the same site. Highlights URLs that stand out in the internal link architecture.
+              <strong>Internal</strong> — Search Console “Internal links”.<br>
+              Highlights pages that stand out in your own site’s link architecture.
             </div>
           </div>
         </div>
@@ -2533,12 +2558,14 @@
     function closeAllBlRtInfoTips(exceptTip) {
       wrap.querySelectorAll(".bl-rt-info-tip.is-open").forEach(function (tip) {
         if (exceptTip && tip === exceptTip) return;
-        tip.classList.remove("is-open");
+        tip.classList.remove("is-open", "is-fixed");
+        tip.style.left = "";
+        tip.style.right = "";
+        tip.style.top = "";
+        tip.style.bottom = "";
         var item = tip.closest(".bl-rt-item");
         var btn = item && item.querySelector("[data-bl-rt-info]");
         if (btn) btn.setAttribute("aria-expanded", "false");
-        tip.style.left = "";
-        tip.style.right = "";
       });
     }
 
@@ -2552,15 +2579,22 @@
         var wasOpen = tip && tip.classList.contains("is-open");
         closeAllBlRtInfoTips();
         if (!wasOpen && tip) {
-          tip.classList.add("is-open");
+          tip.classList.add("is-open", "is-fixed");
           infoBtn.setAttribute("aria-expanded", "true");
-          tip.style.left = "0";
+          var br = infoBtn.getBoundingClientRect();
+          tip.style.left = Math.max(8, Math.min(br.left, window.innerWidth - 320)) + "px";
+          tip.style.top = (br.bottom + 6) + "px";
           tip.style.right = "auto";
-          var r = tip.getBoundingClientRect();
-          if (r.right > window.innerWidth - 8) {
-            tip.style.left = "auto";
-            tip.style.right = "0";
-          }
+          tip.style.bottom = "auto";
+          requestAnimationFrame(function () {
+            var r = tip.getBoundingClientRect();
+            if (r.right > window.innerWidth - 8) {
+              tip.style.left = Math.max(8, window.innerWidth - r.width - 8) + "px";
+            }
+            if (r.bottom > window.innerHeight - 8) {
+              tip.style.top = Math.max(8, br.top - r.height - 6) + "px";
+            }
+          });
         }
         return;
       }
@@ -2578,7 +2612,11 @@
         var root = document.getElementById("bl-report-type-wrap");
         if (!root) return;
         root.querySelectorAll(".bl-rt-info-tip.is-open").forEach(function (tip) {
-          tip.classList.remove("is-open");
+          tip.classList.remove("is-open", "is-fixed");
+          tip.style.left = "";
+          tip.style.right = "";
+          tip.style.top = "";
+          tip.style.bottom = "";
           var item = tip.closest(".bl-rt-item");
           var btn = item && item.querySelector("[data-bl-rt-info]");
           if (btn) btn.setAttribute("aria-expanded", "false");
@@ -2589,7 +2627,11 @@
         var root = document.getElementById("bl-report-type-wrap");
         if (!root) return;
         root.querySelectorAll(".bl-rt-info-tip.is-open").forEach(function (tip) {
-          tip.classList.remove("is-open");
+          tip.classList.remove("is-open", "is-fixed");
+          tip.style.left = "";
+          tip.style.right = "";
+          tip.style.top = "";
+          tip.style.bottom = "";
           var item = tip.closest(".bl-rt-item");
           var btn = item && item.querySelector("[data-bl-rt-info]");
           if (btn) btn.setAttribute("aria-expanded", "false");
