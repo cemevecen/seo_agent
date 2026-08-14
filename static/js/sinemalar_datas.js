@@ -14,6 +14,11 @@
   /** Android/iOS ile aynı sabit SVG koordinat yüksekliği — yükseklik/sıkıştırma pa_chart_height.js ile. */
   var CHART_VIEW_H = 260;
   var AXIS_LABEL_FONT = 10;
+  /** Android PA_STROKE_W / PA_STROKE_W_OV / prev ile aynı ince çizgi. */
+  var SD_STROKE_W = 0.68;
+  var SD_STROKE_W_OV = 0.75;
+  var SD_STROKE_W_PREV = 1;
+  var _chartAreaGradSeq = 0;
 
   var state = {
     platform: "web",
@@ -1170,6 +1175,7 @@
         "</text>";
     });
 
+    var defs = "";
     var paths = "";
     seriesList.forEach(function (s) {
       var pts = [];
@@ -1226,26 +1232,43 @@
       }
       if (state.chartStyle === "area" && !s.dashed && lastPt && areaD) {
         areaD += " L " + lastPt.x.toFixed(1) + " " + yAt(0).toFixed(1) + " Z";
-        inner +=
-          '<path d="' +
-          areaD +
-          '" fill="' +
+        // Android/iOS pa-fill / KPI spark: çizgiden alta doğru solan gradient
+        _chartAreaGradSeq += 1;
+        var gid = "sd-area-grad-" + _chartAreaGradSeq;
+        var topOp = s.overlay ? "0.18" : "0.28";
+        var midOp = s.overlay ? "0.08" : "0.12";
+        defs +=
+          '<linearGradient id="' +
+          gid +
+          '" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" stop-color="' +
           s.color +
-          '" fill-opacity="' +
-          (s.overlay ? "0.14" : "0.18") +
-          '"/>';
+          '" stop-opacity="' +
+          topOp +
+          '"/>' +
+          '<stop offset="55%" stop-color="' +
+          s.color +
+          '" stop-opacity="' +
+          midOp +
+          '"/>' +
+          '<stop offset="100%" stop-color="' +
+          s.color +
+          '" stop-opacity="0.02"/>' +
+          "</linearGradient>";
+        inner += '<path d="' + areaD + '" fill="url(#' + gid + ')"/>';
       }
       if (dPath) {
+        var strokeW = s.dashed ? SD_STROKE_W_PREV : s.overlay ? SD_STROKE_W_OV : SD_STROKE_W;
         inner +=
           '<path d="' +
           dPath +
           '" fill="none" stroke="' +
           s.color +
           '" stroke-width="' +
-          (s.overlay ? "1.6" : "2") +
+          strokeW +
           '"' +
           (s.dashed ? ' stroke-dasharray="4 3"' : "") +
-          ' stroke-linecap="round" stroke-linejoin="round"/>';
+          ' stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>';
       }
       paths += wrapChartSeriesG(s.key, inner);
     });
@@ -1266,7 +1289,8 @@
         '" fill="transparent"/>';
     });
 
-    svg.innerHTML = grid + xLabels + paths + hit;
+    svg.innerHTML =
+      (defs ? "<defs>" + defs + "</defs>" : "") + grid + xLabels + paths + hit;
     applyChartSeriesFocus();
     syncChartLayout();
 

@@ -510,6 +510,11 @@
   #sd-chart .chart-series-g { transition: opacity 0.16s ease; }
   #sd-chart.is-series-focus .chart-series-g { opacity: 0.28; }
   #sd-chart.is-series-focus .chart-series-g.is-focus { opacity: 1; }
+  /* Android/iOS: ince çizgi — stretch’te kalınlaşmasın */
+  #sd-chart .chart-series-g > path[stroke] {
+    vector-effect: non-scaling-stroke;
+    stroke-width: 1.35px;
+  }
   .sd-datas-page .metric-kpi-ss2 .metric-kpi-spark {
     width: 100%;
     height: 100%;
@@ -698,4 +703,4 @@
 
 <script src="/static/js/pa_chart_height.js?v=11"></script>
 <script src="/static/js/metric_table_ux.js?v=15"></script>
-<script src="/static/js/sinemalar_datas.js?v=8" defer></script>
+<script src="/static/js/sinemalar_datas.js?v=9" defer></script>
