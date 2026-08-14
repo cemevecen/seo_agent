@@ -17933,6 +17933,17 @@ def ios_app_store_connect_page(request: Request):
     )
 
 
+@app.get("/metrik")
+def metrik_empower_page(request: Request):
+    """Empower Intelligence scrape — doviz web/mweb/ios/android günlük metrikler."""
+    return templates.TemplateResponse(
+        request,
+        "metrik.html",
+        context={"request": request},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
 @app.get("/ad")
 def ad_analytics_page(request: Request):
     """Sheets monetizasyon yayından kaldırıldı — yük yok; Virgül: /ad-virgul."""

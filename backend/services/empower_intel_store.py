@@ -244,3 +244,84 @@ def query_rows(
             }
         )
     return {"ok": True, "project": proj, "count": len(out), "rows": out}
+
+
+def summary(db: Session, *, project: str = "doviz") -> dict[str, Any]:
+    proj = (project or "doviz").strip().lower() or "doviz"
+    rows = (
+        db.execute(
+            select(EmpowerIntelDailyRow).where(EmpowerIntelDailyRow.project == proj)
+        )
+        .scalars()
+        .all()
+    )
+    by_plat: dict[str, dict[str, Any]] = {}
+    latest_scrape = ""
+    for r in rows:
+        p = r.platform
+        bucket = by_plat.setdefault(
+            p,
+            {
+                "platform": p,
+                "row_count": 0,
+                "min_date": None,
+                "max_date": None,
+                "metric_keys": set(),
+                "updated_at": "",
+            },
+        )
+        bucket["row_count"] += 1
+        d = r.report_date.isoformat()
+        if bucket["min_date"] is None or d < bucket["min_date"]:
+            bucket["min_date"] = d
+        if bucket["max_date"] is None or d > bucket["max_date"]:
+            bucket["max_date"] = d
+        try:
+            metrics = json.loads(r.metrics_json or "{}")
+        except json.JSONDecodeError:
+            metrics = {}
+        if isinstance(metrics, dict):
+            bucket["metric_keys"].update(str(k) for k in metrics.keys())
+        ua = r.updated_at.isoformat() if r.updated_at else ""
+        if ua and ua > str(bucket["updated_at"] or ""):
+            bucket["updated_at"] = ua
+        sa = r.scraped_at.isoformat() if r.scraped_at else ""
+        if sa and sa > latest_scrape:
+            latest_scrape = sa
+
+    platforms = []
+    for p in ("web", "mweb", "ios", "android"):
+        b = by_plat.get(p)
+        if not b:
+            platforms.append(
+                {
+                    "platform": p,
+                    "row_count": 0,
+                    "min_date": "",
+                    "max_date": "",
+                    "metric_count": 0,
+                    "metric_keys": [],
+                    "updated_at": "",
+                }
+            )
+            continue
+        keys = sorted(b["metric_keys"])
+        platforms.append(
+            {
+                "platform": p,
+                "row_count": int(b["row_count"]),
+                "min_date": b["min_date"] or "",
+                "max_date": b["max_date"] or "",
+                "metric_count": len(keys),
+                "metric_keys": keys,
+                "updated_at": b["updated_at"] or "",
+            }
+        )
+    return {
+        "ok": True,
+        "project": proj,
+        "total_rows": len(rows),
+        "latest_scrape": latest_scrape,
+        "platforms": platforms,
+    }
+

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.database import get_db
 from backend.services import empower_intel_store as store
+from backend.services.empower_intel_config import meta_payload
 
 router = APIRouter(tags=["empower-intel"])
 
@@ -82,6 +83,19 @@ def empower_intel_ingest(
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("message") or "ingest failed")
     return result
+
+
+@router.get("/empower-intel/meta")
+def empower_intel_meta() -> dict[str, Any]:
+    return meta_payload()
+
+
+@router.get("/empower-intel/summary")
+def empower_intel_summary(
+    project: str = Query("doviz"),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    return store.summary(db, project=project)
 
 
 @router.get("/empower-intel/rows")
