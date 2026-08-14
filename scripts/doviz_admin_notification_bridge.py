@@ -10,7 +10,7 @@ Tek sefer (ikisi):
 
 Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
-  Play/ASC Firefox profili (~/.seo-agent/fx-*). needs_login → mail (ilk + 6s cooldown + resolved).
+  Play/ASC Firefox profili (~/.seo-agent/fx-*). needs_login → mail (ilk + 6 saat cooldown + resolved).
 
   POST /sync       → notification (30 dk)
   POST /sync-news  → news (1 saat)
@@ -27,6 +27,8 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-seo-audit → SEO meta audit scrape (02:45 + 14:45 TR, GA4 top 500)
   POST /sync-gsc-cwv → GSC Core Web Vitals + AMP (03:00 + 15:00 TR)
   POST /sync-market → doviz.com piyasa tablo taraması (00:05 TR)
+  GET  /status      → canlı izleme paneli (kuyruk / progress / sonraki slotlar)
+  GET  /health      → aynı veri JSON
   POST /open-noads  → noAds sayfasını aç, textarea'ya URL yaz (policy «Ekle»)
   POST /sync-all   → notification + news
 """
@@ -2597,6 +2599,349 @@ def run_all_once() -> dict[str, Any]:
     }
 
 
+def _browser_gap_remaining_sec() -> int:
+    if _last_browser_scrape_at <= 0:
+        return 0
+    gap = max(60, BRIDGE_SCRAPE_MIN_GAP_SEC) - (time.time() - _last_browser_scrape_at)
+    return max(0, int(gap))
+
+
+def _progress_running_jobs() -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for key, bag in (
+        ("notification", _nt_progress),
+        ("news", _news_progress),
+        ("firebase", _firebase_progress),
+        ("gsc_cwv", _gsc_cwv_progress),
+    ):
+        if not isinstance(bag, dict):
+            continue
+        if not bag.get("running"):
+            continue
+        out.append(
+            {
+                "kind": key,
+                "phase": bag.get("phase") or "",
+                "message": bag.get("message") or "",
+                "step": bag.get("step"),
+                "total_steps": bag.get("total_steps") or bag.get("total_pages"),
+                "rows": bag.get("rows"),
+            }
+        )
+    return out
+
+
+def _upcoming_slots(limit: int = 14) -> list[dict[str, Any]]:
+    """Şu andan sonraki slotlar (TR)."""
+    now = _now_tr()
+    cur_min = now.hour * 60 + now.minute
+    entries: list[tuple[int, str, str]] = []
+
+    def add(kind: str, hours: tuple[int, ...] | list[int], minute: int) -> None:
+        for h in hours:
+            hm = f"{int(h):02d}:{int(minute):02d}"
+            m = int(h) * 60 + int(minute)
+            delta = m - cur_min
+            if delta < 0:
+                delta += 24 * 60
+            entries.append((delta, kind, hm))
+
+    def add_pairs(kind: str, slots: tuple[tuple[int, int], ...] | list[tuple[int, int]]) -> None:
+        for h, m in slots:
+            add(kind, (int(h),), int(m))
+
+    add("play", PLAY_SLOT_HOURS, PLAY_SLOT_MINUTE)
+    add("asc", ASC_SLOT_HOURS, ASC_SLOT_MINUTE)
+    add("virgul", VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE)
+    add("firebase", FIREBASE_SLOT_HOURS, FIREBASE_SLOT_MINUTE)
+    add("gsc_links", TWICE_DAILY_HOURS, GSC_SLOT_MINUTE)
+    add("policy", TWICE_DAILY_HOURS, POLICY_SLOT_MINUTE)
+    add("pagespeed", TWICE_DAILY_HOURS, SPEED_SLOT_MINUTE)
+    add("noads", TWICE_DAILY_HOURS, NOADS_SLOT_MINUTE)
+    add("revenue_targets", REVENUE_TARGETS_SLOT_HOURS, REVENUE_TARGETS_SLOT_MINUTE)
+    add("seo_audit", SEO_AUDIT_SLOT_HOURS, SEO_AUDIT_SLOT_MINUTE)
+    add("gsc_cwv", GSC_CWV_SLOT_HOURS, GSC_CWV_SLOT_MINUTE)
+    add("market", MARKET_SLOT_HOURS, MARKET_SLOT_MINUTE)
+    add_pairs("empower_intel", EMPOWER_INTEL_SLOTS)
+    add_pairs("empower_intel_sinemalar", EMPOWER_INTEL_SINEMALAR_SLOTS)
+    for h, m, _mode in MODERATION_SLOTS:
+        add("sinemalar_moderation", (h,), m)
+
+    for kind, last, interval in (
+        ("notification", _last_result, AUTO_INTERVAL_SEC),
+        ("news", _last_news_result, NEWS_AUTO_INTERVAL_SEC),
+    ):
+        try:
+            ts = float((last or {}).get("ts") or 0)
+        except (TypeError, ValueError):
+            ts = 0.0
+        if ts <= 0:
+            left = 0
+        else:
+            left = max(0, int(interval - (time.time() - ts)))
+        try:
+            from datetime import timedelta
+
+            at = now + timedelta(seconds=left)
+            hm = at.strftime("%H:%M")
+        except Exception:
+            hm = "—"
+        entries.append((max(0, left // 60), kind, hm))
+
+    entries.sort(key=lambda x: x[0])
+    out: list[dict[str, Any]] = []
+    for delta_m, kind, hm in entries[: max(1, limit)]:
+        out.append(
+            {
+                "kind": kind,
+                "slot_tr": hm,
+                "in_min": int(delta_m),
+                "today": int(delta_m) < (24 * 60 - cur_min),
+            }
+        )
+    return out
+
+
+def _recent_bridge_log_hits(limit: int = 24) -> list[str]:
+    """LaunchAgent stdout logundan SIGTERM/SIGKILL/login satırları."""
+    paths = (
+        Path.home() / "Library/Logs/doviz-admin-notification-bridge.log",
+        Path.home() / ".seo-agent/cache/bridge-daemon.log",
+    )
+    needles = ("SIGTERM", "SIGKILL", "oturumu düştü", "oturumu düzeldi", "login alert", "needs_login")
+    lines: list[str] = []
+    for path in paths:
+        if not path.is_file():
+            continue
+        try:
+            raw = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except Exception:
+            continue
+        for line in raw[-800:]:
+            if any(n in line for n in needles):
+                lines.append(line.strip()[:220])
+    return lines[-limit:]
+
+
+def _health_payload() -> dict[str, Any]:
+    now = _now_tr()
+    return {
+        "ok": True,
+        "service": "doviz-admin-bridge",
+        "now_tr": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "auto_interval_sec": AUTO_INTERVAL_SEC,
+        "news_interval_sec": NEWS_AUTO_INTERVAL_SEC,
+        "virgul_interval_sec": VIRGUL_AUTO_INTERVAL_SEC,
+        "news_every_n": NEWS_AUTO_EVERY_N or None,
+        "last": _last_result,
+        "last_news": _last_news_result,
+        "last_virgul": _last_virgul_result,
+        "last_play": _last_play_result,
+        "last_asc": _last_asc_result,
+        "last_firebase": _last_firebase_result,
+        "last_pagespeed": _last_pagespeed_result,
+        "last_empower_intel": _last_empower_intel_result,
+        "last_empower_intel_sinemalar": _last_empower_intel_sinemalar_result,
+        "last_seo_audit": _last_seo_audit_result,
+        "last_gsc_cwv": _last_gsc_cwv_result,
+        "last_market": _last_market_result,
+        "gsc_cwv_progress": dict(_gsc_cwv_progress),
+        "last_gsc_links": _last_gsc_links_result,
+        "last_policy": _last_policy_result,
+        "last_noads": _last_noads_result,
+        "last_moderation": _last_moderation_result,
+        "play_interval_sec": PLAY_AUTO_INTERVAL_SEC,
+        "asc_interval_sec": ASC_AUTO_INTERVAL_SEC,
+        "schedule": {
+            "notification_sec": AUTO_INTERVAL_SEC,
+            "news_sec": NEWS_AUTO_INTERVAL_SEC,
+            "virgul_slots_tr": [f"{h:02d}:{VIRGUL_SLOT_MINUTE:02d}" for h in VIRGUL_SLOT_HOURS],
+            "play_slots_tr": [f"{h:02d}:{PLAY_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
+            "asc_slots_tr": [f"{h:02d}:{ASC_SLOT_MINUTE:02d}" for h in ASC_SLOT_HOURS],
+            "firebase_slots_tr": [f"{h:02d}:{FIREBASE_SLOT_MINUTE:02d}" for h in FIREBASE_SLOT_HOURS],
+            "gsc_slots_tr": [f"{h:02d}:{GSC_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+            "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+            "pagespeed_slots_tr": [f"{h:02d}:{SPEED_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+            "noads_slots_tr": [f"{h:02d}:{NOADS_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+            "moderation_slots_tr": [f"{h:02d}:{m:02d}" for h, m, _ in MODERATION_SLOTS],
+            "seo_audit_slots_tr": [
+                f"{h:02d}:{SEO_AUDIT_SLOT_MINUTE:02d}" for h in SEO_AUDIT_SLOT_HOURS
+            ],
+            "gsc_cwv_slots_tr": [
+                f"{h:02d}:{GSC_CWV_SLOT_MINUTE:02d}" for h in GSC_CWV_SLOT_HOURS
+            ],
+            "market_slots_tr": [
+                f"{h:02d}:{MARKET_SLOT_MINUTE:02d}" for h in MARKET_SLOT_HOURS
+            ],
+            "empower_intel_slots_tr": [
+                f"{h:02d}:{m:02d}" for h, m in EMPOWER_INTEL_SLOTS
+            ],
+            "empower_intel_sinemalar_slots_tr": [
+                f"{h:02d}:{m:02d}" for h, m in EMPOWER_INTEL_SINEMALAR_SLOTS
+            ],
+            "scrape_min_gap_sec": BRIDGE_SCRAPE_MIN_GAP_SEC,
+            "scrape_deferred": sorted(_scrape_deferred_jobs.keys()),
+            "retry_max": BRIDGE_RETRY_MAX,
+            "retry_gap_sec": BRIDGE_RETRY_GAP_SEC,
+        },
+        "pending_retries": {
+            k: {
+                "attempt": v.get("attempt"),
+                "name": v.get("name"),
+                "next_in_sec": max(0, int(float(v.get("next_at") or 0) - time.time())),
+            }
+            for k, v in _job_retries.items()
+        },
+        "news_progress": dict(_news_progress),
+        "nt_progress": dict(_nt_progress),
+        "live": {
+            "browser_lock_held": bool(_browser_scrape_lock.locked()),
+            "browser_gap_remaining_sec": _browser_gap_remaining_sec(),
+            "deferred": sorted(_scrape_deferred_jobs.keys()),
+            "running": _progress_running_jobs(),
+            "login_alerts_open": sorted(k for k, v in _login_alert_open.items() if v),
+            "upcoming": _upcoming_slots(16),
+            "log_hits": _recent_bridge_log_hits(20),
+        },
+    }
+
+
+def _bridge_status_html() -> str:
+    return """<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SEO Bridge · canlı</title>
+<style>
+  :root { --bg:#0f1419; --card:#1a222c; --line:#2a3542; --text:#e7eef7; --muted:#8b9aab; --ok:#3ecf8e; --bad:#f07178; --run:#59c2ff; --warn:#e6b450; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:baseline; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:16px; font-weight:700; letter-spacing:.02em; }
+  .meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+  main { display:grid; gap:14px; padding:16px 20px 40px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  section { background: var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  section h2 { margin:0 0 10px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color: var(--muted); }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+  .pill.ok { background:#163528; color: var(--ok); }
+  .pill.bad { background:#3a1c1f; color: var(--bad); }
+  .pill.run { background:#123447; color: var(--run); }
+  .pill.warn { background:#3a2e12; color: var(--warn); }
+  table { width:100%; border-collapse: collapse; }
+  th, td { text-align:left; padding:5px 4px; border-bottom:1px solid var(--line); vertical-align:top; font-variant-numeric: tabular-nums; }
+  th { color: var(--muted); font-weight:600; font-size:11px; }
+  .msg { color: var(--muted); max-width: 42ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  pre { margin:0; white-space:pre-wrap; word-break:break-word; color: var(--muted); font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; max-height:220px; overflow:auto; }
+  .empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>SEO Agent Bridge</h1>
+    <div class="meta" id="clock">—</div>
+  </div>
+  <div id="badges"></div>
+</header>
+<main>
+  <section>
+    <h2>Şu an</h2>
+    <div id="now" class="empty">yükleniyor…</div>
+  </section>
+  <section>
+    <h2>Kuyruk / retry</h2>
+    <div id="queue" class="empty">—</div>
+  </section>
+  <section style="grid-column:1/-1">
+    <h2>Sonraki slotlar (TR)</h2>
+    <div id="upcoming" class="empty">—</div>
+  </section>
+  <section style="grid-column:1/-1">
+    <h2>Son sonuçlar</h2>
+    <div id="lasts"></div>
+  </section>
+  <section style="grid-column:1/-1">
+    <h2>Log (SIGTERM / SIGKILL / login)</h2>
+    <pre id="logs" class="empty">—</pre>
+  </section>
+</main>
+<script>
+const LAST_KEYS = [
+  ['last','notification'],['last_news','news'],['last_virgul','virgul'],
+  ['last_play','play'],['last_asc','asc'],['last_firebase','firebase'],
+  ['last_gsc_links','gsc_links'],['last_policy','policy'],['last_gsc_cwv','gsc_cwv'],
+  ['last_pagespeed','pagespeed'],['last_noads','noads'],['last_moderation','moderation'],
+  ['last_seo_audit','seo_audit'],['last_market','market'],
+  ['last_empower_intel','empower'],['last_empower_intel_sinemalar','empower_sin']
+];
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function okPill(ok){ return ok ? '<span class="pill ok">ok</span>' : '<span class="pill bad">fail</span>'; }
+async function tick(){
+  try {
+    const r = await fetch('/health', { cache:'no-store' });
+    const d = await r.json();
+    const live = d.live || {};
+    document.getElementById('clock').textContent = (d.now_tr || '') + ' TR · yenileme ~4s';
+    const badges = [];
+    badges.push(d.ok ? '<span class="pill ok">bridge up</span>' : '<span class="pill bad">down</span>');
+    if (live.browser_lock_held) badges.push('<span class="pill run">browser busy</span>');
+    if ((live.browser_gap_remaining_sec||0) > 0) badges.push('<span class="pill warn">gap '+live.browser_gap_remaining_sec+'s</span>');
+    if ((live.login_alerts_open||[]).length) badges.push('<span class="pill bad">login open: '+esc(live.login_alerts_open.join(', '))+'</span>');
+    document.getElementById('badges').innerHTML = badges.join(' ');
+
+    const run = live.running || [];
+    let nowHtml = '';
+    if (run.length) {
+      nowHtml = '<table><tr><th>iş</th><th>faz</th><th>mesaj</th></tr>' + run.map(j =>
+        '<tr><td>'+esc(j.kind)+'</td><td>'+esc(j.phase)+' '+(j.step!=null?j.step+'/'+(j.total_steps||'?') : '')+'</td><td class="msg" title="'+esc(j.message)+'">'+esc(j.message)+'</td></tr>'
+      ).join('') + '</table>';
+    } else {
+      nowHtml = '<p class="empty">Çalışan progress yok'+(live.browser_lock_held?' · browser kilidi tutuluyor':'')+'.</p>';
+    }
+    document.getElementById('now').innerHTML = nowHtml;
+
+    const def = live.deferred || (d.schedule&&d.schedule.scrape_deferred) || [];
+    const retries = d.pending_retries || {};
+    let q = '';
+    if (def.length) q += '<p><b>Deferred:</b> '+esc(def.join(', '))+'</p>';
+    const rk = Object.keys(retries);
+    if (rk.length) {
+      q += '<table><tr><th>retry</th><th>deneme</th><th>kalan</th></tr>' + rk.map(k => {
+        const v = retries[k]||{};
+        return '<tr><td>'+esc(v.name||k)+'</td><td>'+esc(v.attempt)+'</td><td>'+esc(v.next_in_sec)+'s</td></tr>';
+      }).join('') + '</table>';
+    }
+    document.getElementById('queue').innerHTML = q || '<p class="empty">Kuyruk boş</p>';
+
+    const up = live.upcoming || [];
+    document.getElementById('upcoming').innerHTML = up.length
+      ? '<table><tr><th>iş</th><th>saat</th><th>kalan</th></tr>'+up.map(u =>
+          '<tr><td>'+esc(u.kind)+'</td><td>'+esc(u.slot_tr)+'</td><td>'+esc(u.in_min)+' dk</td></tr>'
+        ).join('')+'</table>'
+      : '<p class="empty">—</p>';
+
+    document.getElementById('lasts').innerHTML = '<table><tr><th>iş</th><th></th><th>mesaj</th></tr>' + LAST_KEYS.map(([key,label]) => {
+      const v = d[key] || {};
+      const ok = !!v.ok;
+      const msg = v.message || (v.needs_login ? 'needs_login' : '');
+      return '<tr><td>'+esc(label)+'</td><td>'+okPill(ok)+'</td><td class="msg" title="'+esc(msg)+'">'+esc(msg||'—')+'</td></tr>';
+    }).join('') + '</table>';
+
+    const logs = live.log_hits || [];
+    document.getElementById('logs').textContent = logs.length ? logs.join('\\n') : 'Henüz SIGTERM/SIGKILL/login satırı yok (veya log dosyası boş).';
+  } catch (e) {
+    document.getElementById('clock').textContent = 'health okunamadı: ' + e;
+  }
+}
+tick();
+setInterval(tick, 4000);
+</script>
+</body>
+</html>
+"""
+
+
 def _cors_headers(handler: BaseHTTPRequestHandler) -> dict[str, str]:
     origin = handler.headers.get("Origin") or "*"
     allowed = {
@@ -2633,6 +2978,16 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _send_html(self, code: int, html: str) -> None:
+        raw = html.encode("utf-8")
+        self.send_response(code)
+        for k, v in _cors_headers(self).items():
+            self.send_header(k, v)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(204)
         for k, v in _cors_headers(self).items():
@@ -2641,79 +2996,11 @@ class _BridgeHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
+        if path in ("/status", "/dashboard", "/panel"):
+            self._send_html(200, _bridge_status_html())
+            return
         if path in ("/", "/health"):
-            self._send(
-                200,
-                {
-                    "ok": True,
-                    "service": "doviz-admin-bridge",
-                    "auto_interval_sec": AUTO_INTERVAL_SEC,
-                    "news_interval_sec": NEWS_AUTO_INTERVAL_SEC,
-                    "virgul_interval_sec": VIRGUL_AUTO_INTERVAL_SEC,
-                    "news_every_n": NEWS_AUTO_EVERY_N or None,
-                    "last": _last_result,
-                    "last_news": _last_news_result,
-                    "last_virgul": _last_virgul_result,
-                    "last_play": _last_play_result,
-                    "last_asc": _last_asc_result,
-                    "last_firebase": _last_firebase_result,
-                    "last_pagespeed": _last_pagespeed_result,
-                    "last_empower_intel": _last_empower_intel_result,
-                    "last_empower_intel_sinemalar": _last_empower_intel_sinemalar_result,
-                    "last_seo_audit": _last_seo_audit_result,
-                    "last_gsc_cwv": _last_gsc_cwv_result,
-                    "last_market": _last_market_result,
-                    "gsc_cwv_progress": dict(_gsc_cwv_progress),
-                    "last_gsc_links": _last_gsc_links_result,
-                    "last_policy": _last_policy_result,
-                    "last_noads": _last_noads_result,
-                    "last_moderation": _last_moderation_result,
-                    "play_interval_sec": PLAY_AUTO_INTERVAL_SEC,
-                    "asc_interval_sec": ASC_AUTO_INTERVAL_SEC,
-                    "schedule": {
-                        "notification_sec": AUTO_INTERVAL_SEC,
-                        "news_sec": NEWS_AUTO_INTERVAL_SEC,
-                        "virgul_slots_tr": [f"{h:02d}:{VIRGUL_SLOT_MINUTE:02d}" for h in VIRGUL_SLOT_HOURS],
-                        "play_slots_tr": [f"{h:02d}:{PLAY_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
-                        "asc_slots_tr": [f"{h:02d}:{ASC_SLOT_MINUTE:02d}" for h in ASC_SLOT_HOURS],
-                        "firebase_slots_tr": [f"{h:02d}:{FIREBASE_SLOT_MINUTE:02d}" for h in FIREBASE_SLOT_HOURS],
-                        "gsc_slots_tr": [f"{h:02d}:{GSC_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
-                        "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
-                        "pagespeed_slots_tr": [f"{h:02d}:{SPEED_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
-                        "noads_slots_tr": [f"{h:02d}:{NOADS_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
-                        "moderation_slots_tr": [f"{h:02d}:{m:02d}" for h, m, _ in MODERATION_SLOTS],
-                        "seo_audit_slots_tr": [
-                            f"{h:02d}:{SEO_AUDIT_SLOT_MINUTE:02d}" for h in SEO_AUDIT_SLOT_HOURS
-                        ],
-                        "gsc_cwv_slots_tr": [
-                            f"{h:02d}:{GSC_CWV_SLOT_MINUTE:02d}" for h in GSC_CWV_SLOT_HOURS
-                        ],
-                        "market_slots_tr": [
-                            f"{h:02d}:{MARKET_SLOT_MINUTE:02d}" for h in MARKET_SLOT_HOURS
-                        ],
-                        "empower_intel_slots_tr": [
-                            f"{h:02d}:{m:02d}" for h, m in EMPOWER_INTEL_SLOTS
-                        ],
-                        "empower_intel_sinemalar_slots_tr": [
-                            f"{h:02d}:{m:02d}" for h, m in EMPOWER_INTEL_SINEMALAR_SLOTS
-                        ],
-                        "scrape_min_gap_sec": BRIDGE_SCRAPE_MIN_GAP_SEC,
-                        "scrape_deferred": sorted(_scrape_deferred_jobs.keys()),
-                        "retry_max": BRIDGE_RETRY_MAX,
-                        "retry_gap_sec": BRIDGE_RETRY_GAP_SEC,
-                    },
-                    "pending_retries": {
-                        k: {
-                            "attempt": v.get("attempt"),
-                            "name": v.get("name"),
-                            "next_in_sec": max(0, int(float(v.get("next_at") or 0) - time.time())),
-                        }
-                        for k, v in _job_retries.items()
-                    },
-                    "news_progress": dict(_news_progress),
-                    "nt_progress": dict(_nt_progress),
-                },
-            )
+            self._send(200, _health_payload())
             return
         if path in ("/news-progress", "/progress-news"):
             self._send(200, {"ok": True, **dict(_news_progress)})
