@@ -1421,7 +1421,7 @@
           {% with play_metric_overlay_control_id='mz-play-metric-overlay-root', play_metric_overlay_storage_key='mz-play-metric', play_metric_overlay_on_change='mzOnPlayMetricOverlayChange' %}
           {% include 'partials/play_metric_overlay_select.html' %}
           {% endwith %}
-          {% with play_metric_overlay_control_id='mz-cross-metric-overlay-root', play_metric_overlay_storage_key='mz-cross-metric', play_metric_overlay_platform='ios', play_metric_overlay_label_prefix='iOS metrics', play_metric_overlay_on_change='mzOnPlayMetricOverlayChange' %}
+          {% with play_metric_overlay_control_id='mz-cross-metric-overlay-root', play_metric_overlay_storage_key='mz-cross-metric', play_metric_overlay_platform='ios', play_metric_overlay_label_prefix='iOS metrics', play_metric_overlay_on_change='mzOnPlayMetricOverlayChange', play_metric_overlay_persist=false %}
           {% include 'partials/play_metric_overlay_select.html' %}
           {% endwith %}
         </div>

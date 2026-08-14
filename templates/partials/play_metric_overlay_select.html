@@ -3,6 +3,7 @@
 {% set _pmo_prefix = play_metric_overlay_label_prefix|default('Metric') %}
 {% set _pmo_plat = play_metric_overlay_platform|default('android') %}
 {% set _pmo_compact = play_metric_overlay_compact|default(false) %}
+{% set _pmo_persist = play_metric_overlay_persist if play_metric_overlay_persist is defined else true %}
 <div
   class="play-metric-overlay-root relative min-w-0 text-left{% if _pmo_compact %} play-metric-overlay-root--compact{% endif %}"
   id="{{ _pmoid }}"
@@ -10,6 +11,7 @@
   data-overlay-platform="{{ _pmo_plat }}"
   data-overlay-label-prefix="{{ _pmo_prefix }}"
   data-overlay-storage-key="{{ play_metric_overlay_storage_key|default('mz-play-metric') }}"
+  {% if not _pmo_persist %}data-overlay-persist="0"{% endif %}
   {% if play_metric_overlay_on_change is defined and play_metric_overlay_on_change %}
   data-overlay-on-change="{{ play_metric_overlay_on_change }}"
   {% endif %}

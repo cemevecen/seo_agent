@@ -749,7 +749,7 @@ def build_viz20_data(
         }
 
     if vid == "horizon":
-        metric_list = [x.strip() for x in (metrics or "anrs,crashes,xdata:active1DayUsers,ga4:sessions").split(",") if x.strip()][:6]
+        metric_list = [x.strip() for x in (metrics or "anrs,crashes,ga4:sessions").split(",") if x.strip()][:6]
         traces_h: list[dict[str, Any]] = []
         trows_h: list[list[Any]] = []
         for mk in metric_list:

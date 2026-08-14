@@ -147,18 +147,27 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert 'id="pa-compare"' not in android_html
     assert "pa-cross-metric-overlay-root" in android_html
     assert "iOS metrics" in android_html
+    assert 'play_metric_overlay_persist=false' in android_html
+    assert 'paSelectedMetrics = [\n    "anrs",\n    "crashes",\n    "ga4:sessions"\n  ]' in android_html
+    assert 'PA_OVERVIEW_CHART_METRICS = [\n    "anrs",\n    "crashes",\n    "ga4:sessions"\n  ]' in android_html
     assert "var paCrossSeq" in android_html
     assert "seq !== paCrossSeq" in android_html
     assert "function dedupePaCrossOverlays" in android_html
     ios_html = (ROOT / "templates" / "ios.html").read_text(encoding="utf-8")
     assert "ia-cross-metric-overlay-root" in ios_html
     assert "Android metrics" in ios_html
+    assert 'play_metric_overlay_persist=false' in ios_html
+    assert 'iaSelectedMetrics = [\n    "crashes",\n    "ga4:sessions",\n    "active_devices"\n  ]' in ios_html
+    assert 'CHART_METRICS = [\n    "crashes",\n    "ga4:sessions",\n    "active_devices"\n  ]' in ios_html
     assert "var iaCrossSeq" in ios_html
     assert "seq !== iaCrossSeq" in ios_html
     assert "onChange !== named" in text
     assert "emitChange" in text
+    assert "persistOverlaySelection" in text
     partial = (ROOT / "templates" / "partials" / "play_metric_overlay_select.html").read_text(encoding="utf-8")
+    assert 'data-overlay-persist="0"' in partial
     assert "data-overlay-label-prefix" in partial
+    assert "_pmo_persist" in partial
     assert "MARKET_OVERLAY_ITEMS" in text
     chrome = (ROOT / "templates" / "partials" / "ga4_global_filter_chrome.html").read_text(encoding="utf-8")
     assert "ga4-play-metric-overlay-root" in chrome

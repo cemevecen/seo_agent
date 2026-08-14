@@ -288,6 +288,20 @@
     return "play-metric-overlay-keys-v2-" + base + "-" + plat;
   }
 
+  function persistOverlaySelection(root) {
+    if (!root) return true;
+    var v = String(root.getAttribute("data-overlay-persist") || "").toLowerCase();
+    return v !== "0" && v !== "false" && v !== "no" && v !== "off";
+  }
+
+  function clearStored(root) {
+    try {
+      global.localStorage.removeItem(storageKeyForRoot(root));
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   function normalizeOverlayPlatform(raw) {
     var p = String(raw || "").toLowerCase();
     if (p === "desktop") return "web";
@@ -341,6 +355,7 @@
   }
 
   function readStored(root) {
+    if (!persistOverlaySelection(root)) return [];
     var plat = platformForRoot(root);
     try {
       var raw = global.localStorage.getItem(storageKeyForRoot(root));
@@ -357,6 +372,10 @@
   }
 
   function writeStored(root, keys) {
+    if (!persistOverlaySelection(root)) {
+      clearStored(root);
+      return;
+    }
     try {
       global.localStorage.setItem(storageKeyForRoot(root), JSON.stringify(keys || []));
     } catch (e) {
@@ -838,6 +857,7 @@
     root.dataset.playMetricPlatformReady = plat;
     root.dataset.playMetricXdataReady = (XDATA_ITEMS[plat] || []).length ? "1" : "0";
     if (root.id) panel.setAttribute("data-play-metric-overlay-for", root.id);
+    if (!persistOverlaySelection(root)) clearStored(root);
     applyStoredChecks(panel, readStored(root));
     return panel;
   }
