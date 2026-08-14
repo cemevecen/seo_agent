@@ -12,8 +12,8 @@ Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
   Play/ASC Firefox profili (~/.seo-agent/fx-*). needs_login → mail (ilk + 6 saat cooldown + resolved).
 
-  POST /sync       → notification (08–22 her 30 dk live; gece 00:08 dünü mühürle)
-  POST /sync-news  → news (08–22 her 30 dk)
+  POST /sync       → notification (08–20 her 30 dk live; gece 00:08 dünü mühürle)
+  POST /sync-news  → news (08–20 her 30 dk)
   POST /sync-virgul → Virgül (00/06/12/18 TR)
   POST /sync-play   → Play / Android (3 saatte bir, :02)
   POST /sync-asc    → ASC / iOS (3 saatte bir, :10)
@@ -89,9 +89,9 @@ AUTO_INTERVAL_SEC = int(
 NEWS_AUTO_INTERVAL_SEC = int(
     os.environ.get("NEWS_BRIDGE_INTERVAL_SEC") or str(30 * 60)
 )  # news: 30 dk (notification ile aynı)
-# Notification + News aktif pencere (Europe/Istanbul): 08:00–22:00
+# Notification + News aktif pencere (Europe/Istanbul): 08:00–20:00 (saat 20 dahil)
 NT_NEWS_ACTIVE_START_HOUR = int(os.environ.get("NT_NEWS_ACTIVE_START_HOUR") or "8")
-NT_NEWS_ACTIVE_END_HOUR = int(os.environ.get("NT_NEWS_ACTIVE_END_HOUR") or "22")
+NT_NEWS_ACTIVE_END_HOUR = int(os.environ.get("NT_NEWS_ACTIVE_END_HOUR") or "20")
 # Gece dönümü: dünün notification gövdesini mühürle / kayda al
 NOTIFICATION_NIGHT_SEAL_HOUR = int(os.environ.get("NOTIFICATION_NIGHT_SEAL_HOUR") or "0")
 NOTIFICATION_NIGHT_SEAL_MINUTE = int(os.environ.get("NOTIFICATION_NIGHT_SEAL_MINUTE") or "8")
@@ -2633,7 +2633,7 @@ def run_gsc_cwv_shots_bridge_once(site_key: str | None = None) -> dict[str, Any]
 def run_notification_bridge_once(*, mode: str = "live") -> dict[str, Any]:
     """Admin notification stats → Railway ingest.
 
-    mode=live (08–22 / manuel): dün+bugün merge (panel taze; geçmiş silinmez).
+    mode=live (08–20 / manuel): dün+bugün merge (panel taze; geçmiş silinmez).
     mode=seal_yesterday (gece dönümü): yalnız dünü kayda alır / mühürler.
     mode=full: HISTORY_START→dün replace (nadir / FORCE_FULL).
     """
@@ -4081,20 +4081,20 @@ def _interval_due(last_at: float, interval_sec: int, *, min_sec: int = 60) -> bo
 
 
 def _nt_news_in_active_hours() -> bool:
-    """08:00–22:00 Europe/Istanbul (saat dahil)."""
+    """08:00–20:00 Europe/Istanbul (saat 8…20 dahil → 20:59’a kadar)."""
     now = _now_tr()
     return NT_NEWS_ACTIVE_START_HOUR <= int(now.hour) <= NT_NEWS_ACTIVE_END_HOUR
 
 
 def _should_run_notification_auto() -> bool:
-    """08–22 arası 30 dk’da bir live refresh."""
+    """08–20 arası 30 dk’da bir live refresh."""
     if not _nt_news_in_active_hours():
         return False
     return _interval_due(_last_nt_auto_at, AUTO_INTERVAL_SEC, min_sec=60)
 
 
 def _should_run_news_auto() -> bool:
-    """08–22 arası 30 dk’da bir (notification ile aynı pencere)."""
+    """08–20 arası 30 dk’da bir (notification ile aynı pencere)."""
     global _auto_cycle
     if not _nt_news_in_active_hours():
         return False
@@ -4369,7 +4369,7 @@ def _auto_loop() -> None:
         _process_due_retries()
         _flush_deferred_browser_scrapes()
 
-        # Notification + News: 08:00–22:00 her 30 dk (aynı admin kilidi)
+        # Notification + News: 08:00–20:00 her 30 dk (aynı admin kilidi)
         nt_due = _should_run_notification_auto() and "notification" not in _job_retries
         news_due = _should_run_news_auto() and "news" not in _job_retries
         # Gece: dünü kayda al (mühür)
