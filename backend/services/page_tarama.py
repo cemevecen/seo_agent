@@ -80,6 +80,20 @@ BRIDGE_STALE_SEC = 90.0
 PROGRESS_STALE_SEC = 900.0
 # SEO + Virgül gibi farklı işler birbirini bloklamasın (Mac kilitleri ayrıca korur)
 MAX_INFLIGHT_JOBS = 3
+# Play/Firebase/ASC/GSC/Policy aynı Firefox profili — biri bitmeden diğeri claim edilmesin
+BROWSER_JOB_IDS = frozenset(
+    {
+        "play",
+        "play_vitals",
+        "asc",
+        "firebase",
+        "cwv",
+        "links",
+        "policy",
+        "noads",
+        "moderation",
+    }
+)
 CLAIM_STALE_SEC = 2 * 60 * 60
 RUN_TTL_SEC = 3 * 60 * 60
 MANUAL_LIMIT = 3
@@ -418,8 +432,9 @@ def get_run(run_id: str) -> dict[str, Any] | None:
 def claim_next() -> dict[str, Any] | None:
     """Mac daemon bir sonraki köprü işini alır.
 
-    Aynı anda en fazla MAX_INFLIGHT_JOBS; aynı job_id ikinci kez claim edilmez
-    (SEO sürerken Virgül bekleyebilir).
+    Aynı anda en fazla MAX_INFLIGHT_JOBS; aynı job_id ikinci kez claim edilmez.
+    BROWSER_JOB_IDS (Play/Firebase/ASC…) tek sıra — waiting_lock / çift RUNNING yok.
+    Market/Virgül/SEO tarayıcı dışı işler paralel kalabilir.
     """
     global _bridge_seen_at
     now = time.time()
@@ -429,6 +444,7 @@ def claim_next() -> dict[str, Any] | None:
         _reap_stale_inflight_locked(now)
         inflight_ids: set[str] = set()
         inflight_n = 0
+        browser_inflight = False
         for run in _runs.values():
             _expire_locked(run, now)
             for job in run["jobs"]:
@@ -439,6 +455,8 @@ def claim_next() -> dict[str, Any] | None:
                     jid = str(job.get("id") or "")
                     if jid:
                         inflight_ids.add(jid)
+                    if jid in BROWSER_JOB_IDS:
+                        browser_inflight = True
         if inflight_n >= MAX_INFLIGHT_JOBS:
             return None
         for run in sorted(_runs.values(), key=lambda r: float(r.get("started_at") or 0)):
@@ -449,10 +467,12 @@ def claim_next() -> dict[str, Any] | None:
                 jid = str(job.get("id") or "")
                 if jid and jid in inflight_ids:
                     continue
+                if jid in BROWSER_JOB_IDS and browser_inflight:
+                    continue
                 job["status"] = "claimed"
                 job["claimed_at"] = now
                 job["progress_at"] = now
-                job["detail"] = "Scan started"
+                job["detail"] = "Queued on Mac · starting"
                 return {
                     "run_id": run["id"],
                     "job_id": job["id"],
@@ -461,6 +481,28 @@ def claim_next() -> dict[str, Any] | None:
                     "page": str(run.get("page") or ""),
                 }
         return None
+
+
+def requeue_claim(run_id: str, job_id: str, *, detail: str = "") -> bool:
+    """Mac kilit meşgulse claim'i geri al — UI 'waiting' kalsın, fail olmasın."""
+    now = time.time()
+    with _state():
+        run = _runs.get((run_id or "").strip())
+        if not run:
+            return False
+        for job in run["jobs"]:
+            if job.get("id") != job_id:
+                continue
+            if job.get("status") not in ("claimed", "running"):
+                return False
+            job["status"] = "queued"
+            job["claimed_at"] = None
+            job["progress_at"] = now
+            job["detail"] = (detail or "Waiting for previous scan · back in queue")[:180]
+            for key in ("phase", "step", "total_steps", "platform", "sub_label"):
+                job.pop(key, None)
+            return True
+        return False
 
 
 def record_result(run_id: str, job_id: str, *, ok: bool, message: str = "") -> bool:

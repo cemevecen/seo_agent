@@ -75,6 +75,12 @@ class ResultBody(BaseModel):
     sub_label: str = ""
 
 
+class RequeueBody(BaseModel):
+    run_id: str = ""
+    job_id: str = ""
+    message: str = ""
+
+
 def _manual_limit_response(exc: store.ManualLimitExceeded) -> JSONResponse:
     quota = dict(exc.quota or {})
     retry = int(quota.get("retry_after_sec") or 1)
@@ -172,6 +178,25 @@ def fail_inflight(
         reason="Mac bridge restarted — Update page'i tekrar dene",
     )
     return {"ok": True, "failed": n}
+
+
+@router.post("/page-tarama/requeue")
+def requeue(
+    body: RequeueBody,
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Mac tarayıcı kilidi meşgul — işi kuyruğa geri koy (fail değil)."""
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    store.touch_bridge(refresh_inflight=False)
+    ok = store.requeue_claim(
+        body.run_id,
+        body.job_id,
+        detail=body.message or "Waiting for previous scan · back in queue",
+    )
+    if not ok:
+        raise HTTPException(status_code=404, detail="İş kuyruğa alınamadı")
+    return {"ok": True}
 
 
 @router.post("/page-tarama/result")

@@ -3851,23 +3851,72 @@ def _page_tarama_claim_loop() -> None:
 
             result: dict[str, Any] | None = None
             try:
-                while result is None:
-                    result = _run_locked_job(
-                        name=meta["name"],
-                        lock=meta["lock"],
-                        runner=_runner,
-                        kind=job_id,
-                        notify=False,
+                # Tarayıcı kilidi meşgulse waiting_lock spam yerine kuyruğa geri koy
+                if meta["lock"] is _browser_scrape_lock and not meta["lock"].acquire(
+                    blocking=False
+                ):
+                    print(
+                        f"Uzaktan {meta['name']}: tarayıcı kilidi meşgul → kuyruğa iade",
+                        flush=True,
                     )
-                    if result is None:
-                        _progress_post(
-                            {
-                                "phase": "waiting_lock",
-                                "message": f"{meta['name']} · another scan holds the lock, retrying…",
-                            }
+                    try:
+                        requests.post(
+                            _page_tarama_api_base() + "/api/page-tarama/requeue",
+                            headers=_page_tarama_auth_headers(),
+                            json={
+                                "run_id": run_id,
+                                "job_id": job_id,
+                                "message": "Waiting in queue · previous browser scan still running",
+                            },
+                            timeout=30,
                         )
-                        print(f"Uzaktan {meta['name']}: kilit meşgul, 8 sn…", flush=True)
-                        time.sleep(8)
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"page-tarama requeue: {exc}", flush=True)
+                    final_posted = True
+                    return
+
+                held_browser = meta["lock"] is _browser_scrape_lock
+                try:
+                    while result is None:
+                        if held_browser:
+                            # Kilidi zaten aldık — runner'ı doğrudan çalıştır
+                            try:
+                                result = _runner()
+                                if isinstance(result, dict) and result.get("ok"):
+                                    _note_auto_success(job_id)
+                            except Exception as exc:  # noqa: BLE001
+                                traceback.print_exc()
+                                result = {"ok": False, "message": str(exc)}
+                            break
+                        result = _run_locked_job(
+                            name=meta["name"],
+                            lock=meta["lock"],
+                            runner=_runner,
+                            kind=job_id,
+                            notify=False,
+                        )
+                        if result is None:
+                            try:
+                                requests.post(
+                                    _page_tarama_api_base() + "/api/page-tarama/requeue",
+                                    headers=_page_tarama_auth_headers(),
+                                    json={
+                                        "run_id": run_id,
+                                        "job_id": job_id,
+                                        "message": "Waiting in queue · previous scan still running",
+                                    },
+                                    timeout=30,
+                                )
+                            except Exception as exc:  # noqa: BLE001
+                                print(f"page-tarama requeue: {exc}", flush=True)
+                            final_posted = True
+                            return
+                finally:
+                    if held_browser:
+                        try:
+                            meta["lock"].release()
+                        except Exception:
+                            pass
             finally:
                 stop_hb.set()
 

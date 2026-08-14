@@ -102,15 +102,47 @@ def test_android_queue_claim_result():
     first = store.claim_next()
     assert first is not None
     assert first["job_id"] == "play_vitals"
-    # Farklı job_id paralel claim edilebilir
+    # Tarayıcı işleri sıraya bağlı — Play claim edilmez; Market (tarayıcı dışı) alınabilir
     second = store.claim_next()
     assert second is not None
-    assert second["job_id"] == "play"
-    store.mark_running(run["id"], "play_vitals", "Mac tarama çalışıyor")
+    assert second["job_id"] == "market"
     store.record_result(run["id"], "play_vitals", ok=True, message="ok")
     third = store.claim_next()
     assert third is not None
-    assert third["job_id"] == "firebase"
+    assert third["job_id"] == "play"
+    store.record_result(run["id"], "play", ok=True, message="ok")
+    fourth = store.claim_next()
+    assert fourth is not None
+    assert fourth["job_id"] == "firebase"
+
+
+def test_browser_jobs_serialize_play_before_firebase():
+    store.reset_for_tests()
+    run = store.start_run("android")
+    assert store.claim_next()["job_id"] == "play_vitals"
+    # Firebase / play aynı browser kilidi — queued kalsın
+    claimed = {store.claim_next()["job_id"]}
+    # market gelebilir; play/firebase gelmemeli
+    assert "play" not in claimed
+    assert "firebase" not in claimed
+    assert "market" in claimed
+    assert store.claim_next() is None  # başka claim yok (browser blocked + market taken)
+    store.record_result(run["id"], "play_vitals", ok=True, message="ok")
+    assert store.claim_next()["job_id"] == "play"
+
+
+def test_requeue_claim_returns_to_waiting():
+    store.reset_for_tests()
+    run = store.start_run("news")
+    c = store.claim_next()
+    assert c["job_id"] == "news"
+    assert store.requeue_claim(run["id"], "news", detail="back")
+    job = store.get_run(run["id"])["jobs"][0]
+    assert job["status"] == "queued"
+    assert "queue" in (job["detail"] or "").lower() or "back" in (job["detail"] or "").lower()
+    again = store.claim_next()
+    assert again is not None
+    assert again["job_id"] == "news"
 
 
 def test_ios_and_news_and_notification_catalog():
