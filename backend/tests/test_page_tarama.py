@@ -21,6 +21,7 @@ PAGES = {
     "seo": "templates/seo_audit.html",
     "backlinks": "templates/backlinks.html",
     "policy": "templates/partials/policy_content.html",
+    "moderation": "templates/partials/policy_content.html",
     "errors": "templates/errors.html",
 }
 
@@ -62,8 +63,12 @@ def test_old_manual_refresh_buttons_removed():
 def test_all_listed_pages_have_slot_and_key():
     for key, rel in PAGES.items():
         text = (ROOT / rel).read_text(encoding="utf-8")
-        assert f'data-page-tarama="{key}"' in text, rel
         assert "data-page-tarama-slot" in text, rel
+        if key in ("policy", "moderation"):
+            assert "data-page-tarama=" in text, rel
+            assert "{% if _tab == 'sinemalar' %}moderation{% else %}policy{% endif %}" in text
+        else:
+            assert f'data-page-tarama="{key}"' in text, rel
 
 
 def test_js_uses_railway_queue_on_remote():
@@ -151,7 +156,8 @@ def test_ios_and_news_and_notification_catalog():
     assert [j["id"] for j in store.jobs_for("news")] == ["news"]
     assert [j["id"] for j in store.jobs_for("notification")] == ["notification"]
     assert [j["id"] for j in store.jobs_for("vitals")] == ["cwv"]
-    assert [j["id"] for j in store.jobs_for("policy")] == ["policy", "noads", "moderation"]
+    assert [j["id"] for j in store.jobs_for("policy")] == ["policy", "noads"]
+    assert [j["id"] for j in store.jobs_for("moderation")] == ["moderation"]
     assert [j["id"] for j in store.jobs_for("errors")] == ["errors"]
     assert [j["id"] for j in store.jobs_for("virgul")] == ["virgul", "revenue_targets"]
 

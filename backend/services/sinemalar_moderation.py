@@ -33,9 +33,29 @@ METRIC_TYPES: tuple[tuple[str, str], ...] = (
     ("news", "Haber"),
 )
 
+METRIC_DISPLAY_LABELS: dict[str, str] = {
+    "movie": "Movie",
+    "person": "Artist",
+    "list": "List",
+    "trailer": "Trailer",
+    "summary": "Movie summary",
+    "bio": "Biography",
+    "movie_cast_add": "Cast add",
+    "movie_cast_remove": "Cast remove",
+    "movie_poster": "Movie poster",
+    "person_image": "Artist photo",
+    "news": "News",
+}
+
 METRIC_LABEL_BY_TYPE = {k: v for k, v in METRIC_TYPES}
 METRIC_TYPE_BY_LABEL = {v: k for k, v in METRIC_TYPES}
+METRIC_TYPE_BY_LABEL.update({v: k for k, v in METRIC_DISPLAY_LABELS.items()})
 METRIC_TYPE_KEYS = tuple(k for k, _ in METRIC_TYPES)
+
+
+def metric_display_label(metric_type: str, fallback: str = "") -> str:
+    key = str(metric_type or "").strip()
+    return METRIC_DISPLAY_LABELS.get(key) or METRIC_LABEL_BY_TYPE.get(key) or fallback or key
 
 BACKFILL_START = date(2026, 1, 1)
 DEFAULT_DETAIL_END = date(2026, 8, 13)
@@ -978,7 +998,7 @@ def build_panel_analytics(
         all_days.append(d.isoformat())
         d += timedelta(days=1)
 
-    weekday_labels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
+    weekday_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
     rankings_by_metric: dict[str, list[dict[str, Any]]] = {}
     for mkey, mlabel in METRIC_TYPES:
@@ -990,7 +1010,7 @@ def build_panel_analytics(
             {
                 "user_id": uid,
                 "username": resolve_username(uid),
-                "metric_label": mlabel,
+                "metric_label": metric_display_label(mkey, mlabel),
                 "count": cnt,
                 "rank": i + 1,
             }
@@ -1165,12 +1185,13 @@ def get_panel_payload(
         "ok": True,
         "start": start_d.isoformat(),
         "end": end_d.isoformat(),
-        "metric_types": [{"key": k, "label": v} for k, v in METRIC_TYPES],
+        "metric_types": [{"key": k, "label": metric_display_label(k, v)} for k, v in METRIC_TYPES],
         "moderators": [{"user_id": uid, "username": uname} for uid, uname in TRACKED_MODERATORS],
         "users": ordered_users,
         "daily": daily,
         "analytics": analytics,
         "meta": get_meta_summary(db),
+        "range_min": BACKFILL_START.isoformat(),
         "row_count": len(rows),
         "detail_item_count": detail_total,
     }

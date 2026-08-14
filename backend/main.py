@@ -21516,6 +21516,7 @@ def sinemalar_policy_page(
     tab: str | None = Query(default=None),
     mod_start: str | None = Query(default="2026-01-01"),
     mod_end: str | None = Query(default="2026-08-13"),
+    mod_preset: str | None = Query(default=""),
     db: Session = Depends(get_db),
 ):
     from backend.services import policy_csv as pcsv
@@ -21600,6 +21601,7 @@ def sinemalar_policy_page(
         "noads_summary": noads_summary,
         "policy_tab": tab_key,
         "moderation_panel": moderation_panel,
+        "mod_preset": (mod_preset or "").strip(),
     }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse("partials/policy_content.html", ctx)

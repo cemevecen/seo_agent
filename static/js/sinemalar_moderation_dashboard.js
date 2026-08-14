@@ -82,7 +82,7 @@
   }
 
   function fmtNum(n) {
-    return Number(n || 0).toLocaleString("tr-TR");
+    return Number(n || 0).toLocaleString("en-US");
   }
 
   function tickStep(count) {
@@ -305,8 +305,8 @@
     if (kind === "binary") {
       bar.className = "mod-chart-legend-bar mod-chart-legend-bar--binary";
       [
-        { name: "Aktif gün", color: "#0ea5e9" },
-        { name: "İş yapılmayan gün", color: "#cbd5e1" },
+        { name: "Active days", color: "#0ea5e9" },
+        { name: "Idle days", color: "#cbd5e1" },
       ].forEach(function (item) {
         var span = document.createElement("span");
         span.className = "mod-legend-item mod-legend-static";
@@ -437,7 +437,7 @@
       .catch(function (err) {
         console.error("[mod-chart]", el.id, err);
         el.innerHTML =
-          '<p class="flex h-full min-h-[180px] items-center justify-center px-3 text-center text-xs text-rose-600 dark:text-rose-400">Grafik yüklenemedi</p>';
+          '<p class="flex h-full min-h-[180px] items-center justify-center px-3 text-center text-xs text-rose-600 dark:text-rose-400">Chart failed to load</p>';
       });
   }
 
@@ -697,13 +697,13 @@
           y: revNames,
           x: revCounts,
           marker: { color: revColors },
-          hovertemplate: "%{x:,} iş<extra></extra>",
+          hovertemplate: "%{x:,} tasks<extra></extra>",
         },
       ],
       modRankHover({
-        title: { text: "Dönem toplamı · moderatör sıralaması", x: 0, font: { size: 12 } },
+        title: { text: "Period total · moderator ranking", x: 0, font: { size: 12 } },
         xaxis: {
-          title: { text: "İş sayısı", standoff: 8 },
+          title: { text: "Task count", standoff: 8 },
           gridcolor: th().grid,
           rangemode: "tozero",
           tickformat: ",.0f",
@@ -735,7 +735,7 @@
         y: series,
         line: { width: 1.2, color: modColor(i) },
         fillcolor: modColor(i),
-        hovertemplate: "<b>%{fullData.name}</b>: %{y:,} iş<extra></extra>",
+        hovertemplate: "<b>%{fullData.name}</b>: %{y:,} tasks<extra></extra>",
       };
     });
     plotResponsive(
@@ -743,11 +743,11 @@
       traces,
       modTimeSeriesHover(
         {
-          title: { text: "Günlük moderasyon hacmi · moderatör kırılımı", x: 0, font: { size: 12 } },
-          yaxis: { title: "Günlük iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
+          title: { text: "Daily moderation volume · by moderator", x: 0, font: { size: 12 } },
+          yaxis: { title: "Daily tasks", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
         },
         {
-          title: { text: "Tarih", standoff: 10 },
+          title: { text: "Date", standoff: 10 },
           gridcolor: th().grid,
           tickvals: ticks,
           tickangle: chartW(el) < 520 ? -65 : -40,
@@ -776,11 +776,11 @@
     var cals = ANALYTICS.calendars || {};
     var shownMods = visibleModsForChart("mod-chart-activity-heat");
     if (!days.length) {
-      showChartEmpty("mod-chart-activity-heat", "Takvim verisi yok");
+      showChartEmpty("mod-chart-activity-heat", "No calendar data");
       return;
     }
     if (!shownMods.length) {
-      showChartEmpty("mod-chart-activity-heat", "Görünür moderatör yok — legenddan seçin");
+      showChartEmpty("mod-chart-activity-heat", "No visible moderators — select from the legend");
       return;
     }
 
@@ -818,13 +818,13 @@
             [0.7, "#0284c7"],
             [1, "#0c4a6e"],
           ],
-          colorbar: { title: { text: "iş/gün" }, len: 0.45, thickness: 12 },
-          hovertemplate: "%{y}<br>%{x}<br>%{z:,} iş<extra></extra>",
+          colorbar: { title: { text: "tasks/day" }, len: 0.45, thickness: 12 },
+          hovertemplate: "%{y}<br>%{x}<br>%{z:,} tasks<extra></extra>",
         },
       ],
       {
         title: {
-          text: "Aktivite takvimi · boş günler açık gri (0 iş)",
+          text: "Activity calendar · idle days light gray (0 tasks)",
           x: 0,
           font: { size: 12 },
         },
@@ -871,14 +871,14 @@
       el,
       traces,
       {
-        title: { text: "İş türü dağılımı · moderatör bazında", x: 0, font: { size: 12 } },
+        title: { text: "Task type mix · by moderator", x: 0, font: { size: 12 } },
         barmode: "stack",
         xaxis: {
           tickangle: chartW(el) < 480 ? -35 : -20,
           tickfont: axisTickFont(),
           automargin: true,
         },
-        yaxis: { title: "Adet", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
+        yaxis: { title: "Count", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
       },
       {
         legendCount: METRICS.length,
@@ -940,11 +940,11 @@
             [1, "#dc2626"],
           ],
           reversescale: true,
-          hovertemplate: "%{y} · %{x}<br>Sıra: %{text}<extra></extra>",
+          hovertemplate: "%{y} · %{x}<br>Rank: %{text}<extra></extra>",
         },
       ],
       {
-        title: { text: "Metrik bazında liderlik sırası (#1 en iyi)", x: 0, font: { size: 12 } },
+        title: { text: "Leadership rank by metric (#1 is best)", x: 0, font: { size: 12 } },
         xaxis: { tickangle: -35, tickfont: axisTickFont(), automargin: true },
         yaxis: { automargin: true, tickfont: axisTickFont() },
         margin: { l: 88, r: 16, t: 44, b: 88 },
@@ -990,7 +990,7 @@
       el,
       traces,
       {
-        title: { text: "Odak profili · iş türü payı (%)", x: 0, font: { size: 12 } },
+        title: { text: "Focus profile · task type share (%)", x: 0, font: { size: 12 } },
         polar: {
           radialaxis: {
             ticksuffix: "%",
@@ -1020,7 +1020,7 @@
   function drawWeekday() {
     var el = purgePlot("mod-chart-weekday");
     if (!el || !window.Plotly) return;
-    var labels = ANALYTICS.weekday_labels || ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+    var labels = ANALYTICS.weekday_labels || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     var traces = MODS.map(function (m, i) {
       var w = (ANALYTICS.weekday_by_user || {})[String(m.user_id)] || [];
       return {
@@ -1031,18 +1031,18 @@
         x: labels,
         y: w,
         marker: { color: modColor(i) },
-        hovertemplate: m.username + "<br>%{x}: %{y:,} iş<extra></extra>",
+        hovertemplate: m.username + "<br>%{x}: %{y:,} tasks<extra></extra>",
       };
     });
     plotResponsive(
       el,
       traces,
       {
-        title: { text: "Haftanın günü · iş dağılımı", x: 0, font: { size: 12 } },
+        title: { text: "Day of week · task mix", x: 0, font: { size: 12 } },
         barmode: "group",
         bargap: chartW(el) < 480 ? 0.15 : 0.3,
         xaxis: { automargin: true, tickfont: axisTickFont() },
-        yaxis: { title: "Toplam iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
+        yaxis: { title: "Total tasks", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
       },
       { legendCount: MODS.length, htmlLegend: "mods", heightOpts: { minPlot: 160, maxTotal: 340, fallback: 280 }, minHeight: 280 }
     );
@@ -1068,7 +1068,7 @@
           return p.cumulative;
         }),
         line: { color: modColor(i), width: 2 },
-        hovertemplate: "<b>%{fullData.name}</b><br>Birikim: %{y:,}<extra></extra>",
+        hovertemplate: "<b>%{fullData.name}</b><br>Cumulative: %{y:,}<extra></extra>",
       };
     });
     plotResponsive(
@@ -1076,11 +1076,11 @@
       traces,
       modTimeSeriesHover(
         {
-          title: { text: "Kümülatif katkı · dönem içi birikim", x: 0, font: { size: 12 } },
-          yaxis: { title: "Biriken iş", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
+          title: { text: "Cumulative contribution · running total", x: 0, font: { size: 12 } },
+          yaxis: { title: "Cumulative tasks", gridcolor: th().grid, tickformat: ",.0f", automargin: true },
         },
         {
-          title: { text: "Tarih", standoff: 10 },
+          title: { text: "Date", standoff: 10 },
           tickvals: ticks,
           tickangle: chartW(el) < 520 ? -65 : -40,
           gridcolor: th().grid,
@@ -1118,41 +1118,41 @@
       if (cal.joined_at) hasJoin = true;
     });
     if (!names.length) {
-      showChartEmpty("mod-chart-inactive-summary", "Görünür moderatör yok — legenddan seçin");
+      showChartEmpty("mod-chart-inactive-summary", "No visible moderators — select from the legend");
       return;
     }
     var compactW = chartW(el);
     var titleText =
-      "Çalışılan vs boş gün · " +
+      "Worked vs idle days · " +
       (RAW.start || "") +
       " → " +
       (RAW.end || "") +
-      (hasJoin ? " · katılım öncesi günler hariç" : "");
+      (hasJoin ? " · excluding days before joining" : "");
     plotResponsive(
       el,
       [
         {
           type: "bar",
-          name: "Aktif gün",
+          name: "Active days",
           x: names,
           y: active,
           marker: { color: "#0ea5e9" },
-          hovertemplate: "<b>%{fullData.name}</b>: %{y} gün<extra></extra>",
+          hovertemplate: "<b>%{fullData.name}</b>: %{y} days<extra></extra>",
         },
         {
           type: "bar",
-          name: "İş yapılmayan gün",
+          name: "Idle days",
           x: names,
           y: inactive,
           marker: { color: "#cbd5e1" },
-          hovertemplate: "<b>%{fullData.name}</b>: %{y} gün<extra></extra>",
+          hovertemplate: "<b>%{fullData.name}</b>: %{y} days<extra></extra>",
         },
       ],
       modCategoryHover({
         title: { text: titleText, x: 0, font: { size: compactW < 520 ? 10 : 11 } },
         barmode: "stack",
         xaxis: { tickangle: compactW < 520 ? -35 : -20, tickfont: axisTickFont(), automargin: true },
-        yaxis: { title: "Gün sayısı", gridcolor: th().grid, automargin: true },
+        yaxis: { title: "Days", gridcolor: th().grid, automargin: true },
       }),
       {
         legendCount: 2,
@@ -1169,7 +1169,7 @@
     if (!el) return;
     el.innerHTML =
       '<p class="flex h-full min-h-[180px] items-center justify-center px-3 text-center text-xs text-slate-400 dark:text-slate-500">' +
-      (msg || "Veri yok") +
+      (msg || "No data") +
       "</p>";
   }
 
@@ -1177,7 +1177,7 @@
     if (!window.Plotly) return;
     if (!ANALYTICS.calendar_days || !ANALYTICS.calendar_days.length) {
       CHART_IDS.forEach(function (id) {
-        showChartEmpty(id, "Veri henüz yok — scrape tamamlanınca grafikler dolacak");
+        showChartEmpty(id, "No data yet — charts fill after the scrape completes");
       });
       return;
     }
@@ -1285,8 +1285,8 @@
     if (!panel || !bodyEl) return;
     panel.classList.remove("hidden");
     if (titleEl) titleEl.textContent = username + " · " + metricLabel;
-    if (subEl) subEl.textContent = (RAW.start || "") + " → " + (RAW.end || "") + " · " + count + " iş";
-    bodyEl.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">Yükleniyor…</td></tr>';
+    if (subEl) subEl.textContent = (RAW.start || "") + " → " + (RAW.end || "") + " · " + count + " tasks";
+    bodyEl.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">Loading…</td></tr>';
     panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
     var qs = new URLSearchParams({
@@ -1304,8 +1304,8 @@
       .then(function (data) {
         var items = data.items || [];
         if (!items.length) {
-          bodyEl.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">Kayıt yok</td></tr>';
-          if (footEl) footEl.textContent = "0 kayıt";
+          bodyEl.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">No records</td></tr>';
+          if (footEl) footEl.textContent = "0 records";
           return;
         }
         bodyEl.innerHTML = items
@@ -1333,10 +1333,10 @@
             );
           })
           .join("");
-        if (footEl) footEl.textContent = items.length + " / " + (data.total || items.length) + " kayıt";
+        if (footEl) footEl.textContent = items.length + " / " + (data.total || items.length) + " records";
       })
       .catch(function () {
-        bodyEl.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-rose-500">Yüklenemedi</td></tr>';
+        bodyEl.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-rose-500">Could not load</td></tr>';
       });
   }
 

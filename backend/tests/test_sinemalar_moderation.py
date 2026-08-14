@@ -425,3 +425,15 @@ def test_gozde_join_date_excludes_pre_join_inactive():
     assert cal.get("eligible_days") == 7
     assert cal.get("active_days") == 2
     assert cal.get("inactive_days") == 5
+
+
+def test_panel_metric_labels_are_english():
+    assert mod.metric_display_label("movie") == "Movie"
+    assert mod.metric_display_label("summary") == "Movie summary"
+    db = _session()
+    panel = mod.get_panel_payload(db, start="2026-01-01", end="2026-01-02")
+    labels = {mt["key"]: mt["label"] for mt in panel["metric_types"]}
+    assert labels["movie"] == "Movie"
+    assert labels["person"] == "Artist"
+    assert labels["movie_cast_add"] == "Cast add"
+    assert panel["range_min"] == "2026-01-01"

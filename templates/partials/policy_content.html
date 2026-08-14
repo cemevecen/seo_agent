@@ -1,5 +1,5 @@
-<div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-4 px-2" data-page-tarama="policy">
-  {% set _tab = policy_tab or "sinemalar" %}
+{% set _tab = policy_tab or "sinemalar" %}
+<div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-4 px-2" data-page-tarama="{% if _tab == 'sinemalar' %}moderation{% else %}policy{% endif %}">
   {% set _total = stats.get("total", 0) if stats else 0 %}
   {% set _new_import = (violations | selectattr("is_new_import") | list | length) if violations else 0 %}
   {% set _by_host = stats.get("by_host") if stats else {} %}
@@ -12,54 +12,77 @@
       class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
         {% if _tab == 'policy' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
         {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
-      policy
+      Policy
     </a>
     <a href="/sinemalar?tab=sinemalar"
       class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
         {% if _tab == 'sinemalar' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
         {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
-      Moderasyon
+      Moderation
     </a>
   </div>
 
   {% if _tab == 'sinemalar' %}
   <div class="flex flex-col gap-2 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
     <div>
-      <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100">Moderasyon</h3>
+      <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100">Moderation</h3>
       <p class="text-[11px] text-slate-400 dark:text-slate-500">
-        Kaynak: <span class="font-mono">getModerationDetail</span>
-        · 6 moderatör · 11 iş türü
+        Source: <span class="font-mono">getModerationDetail</span>
+        · 6 moderators · 11 task types
         · 03:04 + 14:17 TR
         {% if _mm.get("last_scraped_at") %}
-          · Son çekim: <b class="text-slate-600 dark:text-slate-300">{{ _mm.last_scraped_at[:16]|replace('T',' ') }} UTC</b>
+          · Last sync: <b class="text-slate-600 dark:text-slate-300">{{ _mm.last_scraped_at[:16]|replace('T',' ') }} UTC</b>
         {% endif %}
       </p>
       <p class="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
-        Dönem: <b>{{ _mp.get("start") or "—" }}</b> → <b>{{ _mp.get("end") or "—" }}</b>
-        · {{ _mp.get("detail_item_count") or 0 }} içerik kaydı
+        Range: <b>{{ _mp.get("start") or "—" }}</b> → <b>{{ _mp.get("end") or "—" }}</b>
+        · {{ _mp.get("detail_item_count") or 0 }} content records
         {% if not _mm.get("backfill_complete") %}
-          · Backfill devam: cursor <b class="text-amber-700 dark:text-amber-300">{{ _mm.get("backfill_cursor") or "2026-01-01" }}</b>
+          · Backfill in progress: cursor <b class="text-amber-700 dark:text-amber-300">{{ _mm.get("backfill_cursor") or "2026-01-01" }}</b>
         {% else %}
-          · Backfill tamam
+          · Backfill complete
         {% endif %}
       </p>
     </div>
     <div class="flex flex-wrap items-end gap-2">
-      <form method="get" action="/sinemalar" class="flex flex-wrap items-end gap-2">
+      {% set _preset = (mod_preset or "")|trim %}
+      <form id="mod-date-form" method="get" action="/sinemalar" class="flex flex-wrap items-end gap-2">
         <input type="hidden" name="tab" value="sinemalar" />
         <label class="flex flex-col gap-0.5 text-[10px] text-slate-500">
-          Başlangıç
-          <input type="date" name="mod_start" value="{{ _mp.get('start') or '' }}"
+          Preset
+          <select id="mod-range-preset" name="mod_preset"
+            data-all-start="{{ _mp.get('range_min') or '2026-01-01' }}"
+            class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+            <option value="custom"{% if _preset in ("", "custom") %} selected{% endif %}>Custom</option>
+            <option value="today"{% if _preset == "today" %} selected{% endif %}>Today</option>
+            <option value="yesterday"{% if _preset == "yesterday" %} selected{% endif %}>Yesterday</option>
+            <option value="3d"{% if _preset == "3d" %} selected{% endif %}>Last 3 days</option>
+            <option value="1w"{% if _preset == "1w" %} selected{% endif %}>Last 1 week</option>
+            <option value="2w"{% if _preset == "2w" %} selected{% endif %}>Last 2 weeks</option>
+            <option value="1m"{% if _preset == "1m" %} selected{% endif %}>Last 1 month</option>
+            <option value="2m"{% if _preset == "2m" %} selected{% endif %}>Last 2 months</option>
+            <option value="3m"{% if _preset == "3m" %} selected{% endif %}>Last 3 months</option>
+            <option value="4m"{% if _preset == "4m" %} selected{% endif %}>Last 4 months</option>
+            <option value="5m"{% if _preset == "5m" %} selected{% endif %}>Last 5 months</option>
+            <option value="6m"{% if _preset == "6m" %} selected{% endif %}>Last 6 months</option>
+            <option value="9m"{% if _preset == "9m" %} selected{% endif %}>Last 9 months</option>
+            <option value="1y"{% if _preset == "1y" %} selected{% endif %}>Last 1 year</option>
+            <option value="all"{% if _preset == "all" %} selected{% endif %}>All</option>
+          </select>
+        </label>
+        <label class="flex flex-col gap-0.5 text-[10px] text-slate-500">
+          Start
+          <input id="mod-start" type="date" name="mod_start" value="{{ _mp.get('start') or '' }}"
             class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-mono text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200" />
         </label>
         <label class="flex flex-col gap-0.5 text-[10px] text-slate-500">
-          Bitiş
-          <input type="date" name="mod_end" value="{{ _mp.get('end') or '' }}"
+          End
+          <input id="mod-end" type="date" name="mod_end" value="{{ _mp.get('end') or '' }}"
             class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-mono text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200" />
         </label>
         <button type="submit"
           class="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900">
-          Filtrele
+          Filter
         </button>
       </form>
       <span data-page-tarama-slot></span>
@@ -99,26 +122,26 @@
       <div class="mod-chart-card mod-chart-card--mid relative flex w-full flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0">
         <div
           class="mod-focus-zoom-bar absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white/95 px-1 py-0.5 text-[10px] shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/95"
-          aria-label="Odak profili zoom"
+          aria-label="Focus profile zoom"
         >
           <button
             type="button"
             id="mod-focus-zoom-out"
             class="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            title="Uzaklaş"
+            title="Zoom out"
           >−</button>
           <span id="mod-focus-zoom-label" class="min-w-[2.75rem] px-1 text-center tabular-nums text-slate-500 dark:text-slate-400">—</span>
           <button
             type="button"
             id="mod-focus-zoom-in"
             class="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            title="Yakınlaş"
+            title="Zoom in"
           >+</button>
           <button
             type="button"
             id="mod-focus-zoom-reset"
             class="flex h-6 w-6 items-center justify-center rounded text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            title="Sıfırla"
+            title="Reset"
           >↺</button>
         </div>
         <div id="mod-chart-focus-profile" class="mod-chart-plot w-full"></div>
@@ -243,15 +266,15 @@
 
   <div class="mod-table-shell max-w-full min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
     <div class="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-      <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">Moderasyon özeti</h4>
-      <p class="text-[10px] text-slate-400">Sayıya tıklayınca o kategorideki işler listelenir · {{ _mp.get("detail_item_count") or 0 }} kayıt</p>
+      <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">Moderation summary</h4>
+      <p class="text-[10px] text-slate-400">Click a number to list tasks in that category · {{ _mp.get("detail_item_count") or 0 }} records</p>
     </div>
     <div class="mod-table-scroll min-w-0 w-full overflow-x-auto">
       <table id="mod-summary-table" class="mod-table w-full border-collapse text-xs">
         <thead>
           <tr class="border-b-2 border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
-            <th class="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800">Moderatör</th>
-            <th class="sticky left-[7.5rem] z-10 bg-slate-100 px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800">Toplam</th>
+            <th class="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800">Moderator</th>
+            <th class="sticky left-[7.5rem] z-10 bg-slate-100 px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800">Total</th>
             {% for mt in _mp.get("metric_types") or [] %}
             <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">{{ mt.label }}</th>
             {% endfor %}
@@ -293,16 +316,16 @@
       </div>
       <button type="button" id="mod-drill-close"
         class="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300">
-        Kapat
+        Close
       </button>
     </div>
     <div class="mod-table-scroll max-h-[420px] overflow-auto">
       <table class="w-full border-collapse text-xs">
         <thead class="sticky top-0 bg-slate-50 dark:bg-slate-800">
           <tr class="border-b border-slate-200 dark:border-slate-700">
-            <th class="px-3 py-2 text-left text-[10px] font-bold uppercase text-slate-500">Tarih</th>
-            <th class="px-3 py-2 text-left text-[10px] font-bold uppercase text-slate-500">Başlık</th>
-            <th class="px-3 py-2 text-left text-[10px] font-bold uppercase text-slate-500">Detay</th>
+            <th class="px-3 py-2 text-left text-[10px] font-bold uppercase text-slate-500">Date</th>
+            <th class="px-3 py-2 text-left text-[10px] font-bold uppercase text-slate-500">Title</th>
+            <th class="px-3 py-2 text-left text-[10px] font-bold uppercase text-slate-500">Detail</th>
             <th class="px-3 py-2 text-center text-[10px] font-bold uppercase text-slate-500">Link</th>
           </tr>
         </thead>
@@ -318,19 +341,96 @@
     .mod-count-btn { cursor: pointer; border: none; background: transparent; }
     #mod-summary-table .sticky { box-shadow: 1px 0 0 rgba(148,163,184,.25); }
   </style>
-  <script src="/static/js/sinemalar_moderation_dashboard.js?v=30" defer></script>
+  <script src="/static/js/sinemalar_moderation_dashboard.js?v=31" defer></script>
   {% else %}
   <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
-    <h4 class="mb-1 font-semibold text-slate-700 dark:text-slate-300">Bu dönemde moderasyon verisi yok</h4>
+    <h4 class="mb-1 font-semibold text-slate-700 dark:text-slate-300">No moderation data in this range</h4>
     <p class="text-sm text-slate-500 dark:text-slate-400">
-      Seçili aralık: <b>{{ _mp.get("start") or "—" }}</b> → <b>{{ _mp.get("end") or "—" }}</b>.
-      Backfill sürüyorsa cursor <b>{{ _mm.get("backfill_cursor") or "2026-01-01" }}</b>’e kadar çekildi;
-      Mac bridge 03:04 / 14:17’de devam eder. Eski günler sıfır yazıldıysa
-      <span class="font-mono text-[11px]">--from-date {{ _mp.get("start") or "2026-06-01" }} --backfill-chunk --ingest</span>
-      ile yeniden doldurulabilir.
+      Selected range: <b>{{ _mp.get("start") or "—" }}</b> → <b>{{ _mp.get("end") or "—" }}</b>.
+      If backfill is still running, data is pulled through cursor <b>{{ _mm.get("backfill_cursor") or "2026-01-01" }}</b>;
+      the Mac bridge continues at 03:04 / 14:17 TR. Days written as zero can be refilled with
+      <span class="font-mono text-[11px]">--from-date {{ _mp.get("start") or "2026-06-01" }} --backfill-chunk --ingest</span>.
     </p>
   </div>
   {% endif %}
+  <script>
+  (function () {
+    var form = document.getElementById("mod-date-form");
+    var startEl = document.getElementById("mod-start");
+    var endEl = document.getElementById("mod-end");
+    var presetEl = document.getElementById("mod-range-preset");
+    if (!form || !startEl || !endEl || !presetEl) return;
+    var applying = false;
+    var allStart = presetEl.getAttribute("data-all-start") || "2026-01-01";
+    function pad2(n) { return n < 10 ? "0" + n : String(n); }
+    function iso(d) {
+      return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+    }
+    function parseIso(s) {
+      var p = String(s || "").split("-");
+      if (p.length < 3) return null;
+      return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    }
+    function today() {
+      var d = new Date();
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function addDays(d, n) {
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+    }
+    function addMonths(d, n) {
+      var day = d.getDate();
+      var x = new Date(d.getFullYear(), d.getMonth() + n, 1);
+      var last = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
+      x.setDate(Math.min(day, last));
+      return x;
+    }
+    function clampStart(d) {
+      var min = parseIso(allStart);
+      if (!min || !d) return d;
+      return d < min ? min : d;
+    }
+    function rangeFor(preset) {
+      var end = today();
+      if (preset === "today") return { start: end, end: end };
+      if (preset === "yesterday") {
+        var y = addDays(end, -1);
+        return { start: y, end: y };
+      }
+      if (preset === "3d") return { start: addDays(end, -2), end: end };
+      if (preset === "1w") return { start: addDays(end, -6), end: end };
+      if (preset === "2w") return { start: addDays(end, -13), end: end };
+      var months = { "1m": 1, "2m": 2, "3m": 3, "4m": 4, "5m": 5, "6m": 6, "9m": 9 };
+      if (months[preset]) return { start: addMonths(end, -months[preset]), end: end };
+      if (preset === "1y") {
+        return { start: new Date(end.getFullYear() - 1, end.getMonth(), end.getDate()), end: end };
+      }
+      if (preset === "all") {
+        return { start: parseIso(allStart) || end, end: end };
+      }
+      return null;
+    }
+    function applyPreset(preset, submit) {
+      var r = rangeFor(preset);
+      if (!r) return;
+      applying = true;
+      startEl.value = iso(clampStart(r.start));
+      endEl.value = iso(r.end);
+      applying = false;
+      if (submit) form.submit();
+    }
+    presetEl.addEventListener("change", function () {
+      if (presetEl.value === "custom") return;
+      applyPreset(presetEl.value, true);
+    });
+    function markCustom() {
+      if (applying) return;
+      presetEl.value = "custom";
+    }
+    startEl.addEventListener("change", markCustom);
+    endEl.addEventListener("change", markCustom);
+  })();
+  </script>
 
   {% else %}
   <div class="flex flex-col gap-2 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
@@ -676,7 +776,7 @@
         if (!bv) return -1;
         return av.localeCompare(bv);
       }
-      return (av || "").localeCompare(bv || "", "tr", {sensitivity: "base", numeric: true});
+      return (av || "").localeCompare(bv || "", "en", {sensitivity: "base", numeric: true});
     }
     ths.forEach(function (th) {
       th.addEventListener("click", function () {
@@ -786,7 +886,7 @@
     var done = function (ok, msg) {
       btn.disabled = false;
       btn.textContent = ok ? "✓" : "!";
-      if (msg) console.info("[noAds Ekle]", msg);
+      if (msg) console.info("[noAds Add]", msg);
       setTimeout(function () { btn.textContent = orig; }, 1600);
     };
     fetch(bridgeUrl, {
@@ -807,7 +907,7 @@
         // Bridge yoksa: panoya kopyala + noAds sekmesi (yapıştır → Ekle)
         var openFallback = function () {
           window.open("https://www.sinemalar.com/management/noAds", "_blank", "noopener");
-          done(true, "clipboard + sekme");
+          done(true, "clipboard + tab");
         };
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(url).then(openFallback, openFallback);

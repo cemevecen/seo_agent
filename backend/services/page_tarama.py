@@ -36,7 +36,7 @@ JOBS: dict[str, dict[str, Any]] = {
     "noads": {"id": "noads", "label": "Sinemalar noAds", "kind": "bridge", "path": "/sync-noads"},
     "moderation": {
         "id": "moderation",
-        "label": "Sinemalar Moderasyon",
+        "label": "Sinemalar Moderation",
         "kind": "bridge",
         "path": "/sync-sinemalar-moderation",
     },
@@ -70,7 +70,8 @@ PAGES: dict[str, list[str]] = {
     "alerts": ["alerts"],
     "seo": ["seo"],
     "backlinks": ["links"],
-    "policy": ["policy", "noads", "moderation"],
+    "policy": ["policy", "noads"],
+    "moderation": ["moderation"],
     "errors": ["errors"],
 }
 
