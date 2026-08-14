@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import unicodedata
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from sqlalchemy.orm import Session
 
@@ -22,6 +24,23 @@ from backend.services.ga4_page_urls import ga4_site_host
 
 LOGGER = logging.getLogger(__name__)
 
+# Türkçe diyakritik → ASCII (ı/İ→i …). Snapshot’lar arası NEW+LOST aynası engeli.
+_TR_FOLD = str.maketrans(
+    {
+        "ı": "i",
+        "İ": "i",
+        "ş": "s",
+        "Ş": "s",
+        "ğ": "g",
+        "Ğ": "g",
+        "ü": "u",
+        "Ü": "u",
+        "ö": "o",
+        "Ö": "o",
+        "ç": "c",
+        "Ç": "c",
+    }
+)
 LINK_TYPE_TO_REPORT: dict[str, str] = {
     "EXTERNAL": "external",
     "DOMAIN": "domain",
@@ -400,6 +419,198 @@ def _agg_sites(anchor: str) -> int:
 _CHANGE_LIST_CAP = 100
 
 
+def _fold_change_key(raw: str) -> str:
+    """Karşılaştırma anahtarı: NFKC + TR fold + casefold + www strip.
+
+    Aynı site bir taramada «mutfakcılar.com.tr», diğerinde «mutfakcilar.com.tr»
+    gelirse NEW+LOST aynası oluşmasın.
+    """
+    s = unicodedata.normalize("NFKC", (raw or "").strip())
+    if not s:
+        return ""
+    s = s.translate(_TR_FOLD).casefold()
+    if s.startswith("www."):
+        s = s[4:]
+    return s
+
+
+def _phonetic_change_key(raw: str) -> str:
+    """TR/EN yazım varyantları: technopat↔teknopat, popneoism↔popneoizm."""
+    s = _fold_change_key(raw)
+    if not s:
+        return ""
+    for a, b in (
+        ("ch", "k"),
+        ("sh", "s"),
+        ("ph", "f"),
+        ("th", "t"),
+        ("ism", "izm"),
+        ("tion", "syon"),
+        ("x", "ks"),
+        ("w", "v"),
+        ("q", "k"),
+        ("cce", "kse"),
+        ("cc", "k"),
+    ):
+        s = s.replace(a, b)
+    # c → k (ca/co/cu/c + sessiz); ck zaten k
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "c" and i + 1 < len(s) and s[i + 1] not in "eiy":
+            out.append("k")
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _levenshtein(a: str, b: str, *, limit: int = 8) -> int:
+    if a == b:
+        return 0
+    if not a or not b:
+        return max(len(a), len(b))
+    if abs(len(a) - len(b)) > limit:
+        return limit + 1
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        cur = [i]
+        row_min = i
+        for j, cb in enumerate(b, start=1):
+            ins = cur[j - 1] + 1
+            delete = prev[j] + 1
+            sub = prev[j - 1] + (0 if ca == cb else 1)
+            v = min(ins, delete, sub)
+            cur.append(v)
+            if v < row_min:
+                row_min = v
+        if row_min > limit:
+            return limit + 1
+        prev = cur
+    return prev[-1]
+
+
+def _change_keys_similar(a: str, b: str) -> bool:
+    """Encoding / yazım aynası mı? (çeviri domainleri hariç — count eşlemesi ayrıca)."""
+    if not a or not b:
+        return False
+    fa, fb = _fold_change_key(a), _fold_change_key(b)
+    if fa and fa == fb:
+        return True
+    pa, pb = _phonetic_change_key(a), _phonetic_change_key(b)
+    if pa and pa == pb:
+        return True
+    # Etiket gövdesi (TLD'siz) kısa edit mesafesi
+    def _hostish(x: str) -> str:
+        x = _fold_change_key(x)
+        if "/" in x or "://" in x:
+            try:
+                host = (urlparse(x if "://" in x else f"https://{x}").hostname or x) or x
+                return _fold_change_key(host)
+            except Exception:
+                return x
+        return x
+
+    ha, hb = _hostish(a), _hostish(b)
+    if ha and ha == hb:
+        return True
+    # aynı TLD + kısa mesafe
+    def _split_tld(h: str) -> tuple[str, str]:
+        parts = h.rsplit(".", 2)
+        if len(parts) >= 3 and len(parts[-1]) <= 3 and len(parts[-2]) <= 3:
+            return ".".join(parts[:-2]), ".".join(parts[-2:])
+        if len(parts) >= 2:
+            return parts[0], parts[-1] if len(parts) == 2 else ".".join(parts[1:])
+        return h, ""
+
+    ba, ta = _split_tld(ha)
+    bb, tb = _split_tld(hb)
+    if ta and ta == tb and ba and bb:
+        lim = max(2, min(4, len(ba) // 8 + 1))
+        if _levenshtein(ba, bb, limit=lim) <= lim:
+            return True
+    lim = max(2, min(4, max(len(fa), len(fb)) // 10 + 1))
+    return bool(fa and fb and _levenshtein(fa, fb, limit=lim) <= lim)
+
+
+def _cancel_false_churn(
+    new_keys: list[str],
+    lost_keys: list[str],
+    latest_map: dict[str, Any],
+    base_map: dict[str, Any],
+    *,
+    rt: str,
+) -> tuple[list[str], list[str]]:
+    """NEW↔LOST encoding aynasını düş (aynı count + benzer anahtar / tekil count çifti)."""
+    if not new_keys or not lost_keys:
+        return new_keys, lost_keys
+
+    def _metric(k: str, m: dict[str, Any]) -> int:
+        row = m.get(k) or {}
+        if rt == "anchor_text":
+            return int(row.get("rank") or 0)
+        return int(row.get("count") or 0)
+
+    def _label(k: str, m: dict[str, Any]) -> str:
+        row = m.get(k) or {}
+        return str(row.get("label") or k)
+
+    new_left = list(new_keys)
+    lost_left = list(lost_keys)
+    used_lost: set[str] = set()
+
+    # 1) Benzer yazım + aynı metrik
+    for nk in list(new_left):
+        n_metric = _metric(nk, latest_map)
+        n_lab = _label(nk, latest_map)
+        best: str | None = None
+        for lk in lost_left:
+            if lk in used_lost:
+                continue
+            if _metric(lk, base_map) != n_metric:
+                continue
+            if _change_keys_similar(n_lab, _label(lk, base_map)) or _change_keys_similar(nk, lk):
+                best = lk
+                break
+        if best is not None:
+            new_left.remove(nk)
+            lost_left.remove(best)
+            used_lost.add(best)
+
+    # 2) Kalanlarda aynı metrik tekil eşleşme (spam farm çeviri çiftleri: campaign↔kampanya)
+    n_counts = Counter(_metric(k, latest_map) for k in new_left)
+    l_counts = Counter(_metric(k, base_map) for k in lost_left)
+    for metric, nc in list(n_counts.items()):
+        if metric <= 0 or nc != 1 or l_counts.get(metric) != 1:
+            continue
+        nk = next(k for k in new_left if _metric(k, latest_map) == metric)
+        lk = next(k for k in lost_left if _metric(k, base_map) == metric)
+        new_left.remove(nk)
+        lost_left.remove(lk)
+
+    return new_left, lost_left
+
+
+def _upsert_change_row(out: dict[str, Any], key: str, row: dict[str, Any]) -> None:
+    """Aynı folded key birden fazla satırda gelirse count/sites birleştir."""
+    if not key:
+        return
+    prev = out.get(key)
+    if not prev:
+        out[key] = row
+        return
+    prev["count"] = max(int(prev.get("count") or 0), int(row.get("count") or 0))
+    prev["sites"] = max(int(prev.get("sites") or 0), int(row.get("sites") or 0))
+    # Görünen label: diyakritikli / daha uzun olanı tercih et
+    lab = str(row.get("label") or "")
+    prev_lab = str(prev.get("label") or "")
+    if lab and (not prev_lab or len(lab) >= len(prev_lab)):
+        prev["label"] = lab
+
+
 def _naive_utc(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None
@@ -439,33 +650,48 @@ def _build_key_map(
             if not raw:
                 continue
             key = backlink_csv._canonical_target_key(raw, site_domain) or raw  # noqa: SLF001
-            out[key] = {
-                "key": key,
-                "label": raw,
-                "count": _agg_incoming(r.anchor_text or ""),
-                "sites": _agg_sites(r.anchor_text or ""),
-            }
+            key = _fold_change_key(key) or key
+            _upsert_change_row(
+                out,
+                key,
+                {
+                    "key": key,
+                    "label": raw,
+                    "count": _agg_incoming(r.anchor_text or ""),
+                    "sites": _agg_sites(r.anchor_text or ""),
+                },
+            )
         return out
     if rt == "domain":
         for r in rows:
-            dom = (r.domain or "").strip().lower()
-            if not dom:
+            dom_raw = (r.domain or "").strip()
+            if not dom_raw:
+                dom_raw = normalize_domain(r.source_url or "") or ""
+            if not dom_raw:
                 continue
-            out[dom] = {
-                "key": dom,
-                "label": r.domain or dom,
-                "count": _agg_incoming(r.anchor_text or ""),
-                "sites": _agg_sites(r.anchor_text or ""),
-            }
+            key = _fold_change_key(dom_raw) or dom_raw.lower()
+            _upsert_change_row(
+                out,
+                key,
+                {
+                    "key": key,
+                    "label": dom_raw,
+                    "count": _agg_incoming(r.anchor_text or ""),
+                    "sites": _agg_sites(r.anchor_text or ""),
+                },
+            )
         return out
     # anchor_text
     for r in rows:
         text = (r.anchor_text or "").strip()
         if not text:
             continue
-        key = text.lower()
+        key = _fold_change_key(text) or text.lower()
         rank_raw = r.last_crawled or ""
         rank = int(rank_raw) if str(rank_raw).isdigit() else 0
+        prev = out.get(key)
+        if prev and int(prev.get("rank") or 10**9) <= rank:
+            continue
         out[key] = {
             "key": key,
             "label": text,
@@ -505,6 +731,9 @@ def _diff_key_maps(
     lost_keys = sorted(
         set(base_map) - set(latest_map),
         key=lambda k: -int((base_map.get(k) or {}).get("count") or 0),
+    )
+    new_keys, lost_keys = _cancel_false_churn(
+        new_keys, lost_keys, latest_map, base_map, rt=rt
     )
     changed: list[dict[str, Any]] = []
     for k in set(latest_map) & set(base_map):
