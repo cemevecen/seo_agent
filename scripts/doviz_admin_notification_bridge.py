@@ -390,6 +390,10 @@ _gsc_cwv_progress: dict[str, Any] = {
     "started_at": 0.0,
     "finished_at": 0.0,
 }
+# Tüm işler (elle / otomatik / page-tarama) — live.NOW + log
+_JOB_PROGRESS: dict[str, dict[str, Any]] = {}
+_JOB_EVENT_LOG: list[str] = []
+_JOB_EVENT_LOCK = threading.Lock()
 _auto_cycle = 0
 _last_fail_email_at: dict[str, float] = {}
 _fail_streak: dict[str, int] = {}
@@ -3053,6 +3057,66 @@ def run_all_once() -> dict[str, Any]:
     }
 
 
+def _trigger_label(trigger: str) -> str:
+    t = (trigger or "").strip().lower()
+    if t in ("manual", "elle", "http", "sync"):
+        return "Elle"
+    if t in ("page-tarama", "panel", "update"):
+        return "Panel"
+    if t in ("schedule", "auto", "slot"):
+        return "Otomatik"
+    return (trigger or "İş").strip() or "İş"
+
+
+def _job_event(line: str) -> None:
+    """stdout + canlı log halkası (Settings log_hits)."""
+    msg = (line or "").strip()
+    if not msg:
+        return
+    print(msg, flush=True)
+    try:
+        stamp = _now_tr().strftime("%H:%M:%S")
+    except Exception:
+        stamp = "—"
+    with _JOB_EVENT_LOCK:
+        _JOB_EVENT_LOG.append(f"{stamp} {msg[:200]}")
+        if len(_JOB_EVENT_LOG) > 100:
+            del _JOB_EVENT_LOG[:-80]
+
+
+def _set_job_progress(kind: str, **kwargs: Any) -> None:
+    key = (kind or "job").strip() or "job"
+    cur = dict(_JOB_PROGRESS.get(key) or {})
+    cur.update(kwargs)
+    cur["kind"] = key
+    cur["ts"] = time.time()
+    if "running" not in cur:
+        cur["running"] = True
+    _JOB_PROGRESS[key] = cur
+
+
+def _finish_job_progress(
+    kind: str,
+    result: dict[str, Any] | None,
+    *,
+    trigger: str = "",
+    name: str = "",
+) -> None:
+    key = (kind or "job").strip() or "job"
+    ok = bool((result or {}).get("ok"))
+    msg = str((result or {}).get("message") or ("OK" if ok else "Hata"))[:200]
+    label = _trigger_label(trigger or str((_JOB_PROGRESS.get(key) or {}).get("trigger") or ""))
+    title = name or key
+    _set_job_progress(
+        key,
+        running=False,
+        phase="done" if ok else "error",
+        message=msg,
+        trigger=trigger or (_JOB_PROGRESS.get(key) or {}).get("trigger") or "",
+    )
+    _job_event(f"{label} bitti · {title} · {msg}")
+
+
 def _browser_gap_remaining_sec() -> int:
     if _last_browser_scrape_at <= 0:
         return 0
@@ -3062,26 +3126,44 @@ def _browser_gap_remaining_sec() -> int:
 
 def _progress_running_jobs() -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def _add(kind: str, bag: dict[str, Any]) -> None:
+        if not isinstance(bag, dict) or not bag.get("running"):
+            return
+        k = (kind or bag.get("kind") or "job").strip() or "job"
+        if k in seen:
+            return
+        seen.add(k)
+        out.append(
+            {
+                "kind": k,
+                "phase": bag.get("phase") or "",
+                "message": bag.get("message") or "",
+                "step": bag.get("step"),
+                "total_steps": bag.get("total_steps") or bag.get("total_pages"),
+                "rows": bag.get("rows"),
+                "trigger": bag.get("trigger") or "",
+            }
+        )
+
     for key, bag in (
         ("notification", _nt_progress),
         ("news", _news_progress),
         ("firebase", _firebase_progress),
         ("gsc_cwv", _gsc_cwv_progress),
     ):
-        if not isinstance(bag, dict):
+        merged = dict(bag) if isinstance(bag, dict) else {}
+        jp = _JOB_PROGRESS.get(key) or {}
+        if isinstance(jp, dict) and jp.get("trigger") and not merged.get("trigger"):
+            merged["trigger"] = jp.get("trigger")
+        if isinstance(jp, dict) and jp.get("running") and not merged.get("running"):
+            # job registry running ama dedicated bag henüz idle — job'u kullan
+            _add(key, jp)
             continue
-        if not bag.get("running"):
-            continue
-        out.append(
-            {
-                "kind": key,
-                "phase": bag.get("phase") or "",
-                "message": bag.get("message") or "",
-                "step": bag.get("step"),
-                "total_steps": bag.get("total_steps") or bag.get("total_pages"),
-                "rows": bag.get("rows"),
-            }
-        )
+        _add(key, merged)
+    for key, bag in list(_JOB_PROGRESS.items()):
+        _add(str(key), bag if isinstance(bag, dict) else {})
     return out
 
 
@@ -3157,13 +3239,34 @@ def _upcoming_slots(limit: int = 14) -> list[dict[str, Any]]:
 
 
 def _recent_bridge_log_hits(limit: int = 24) -> list[str]:
-    """LaunchAgent stdout logundan SIGTERM/SIGKILL/login satırları."""
+    """LaunchAgent log + süreç içi job event halkası."""
     paths = (
         Path.home() / "Library/Logs/doviz-admin-notification-bridge.log",
         Path.home() / ".seo-agent/cache/bridge-daemon.log",
     )
-    needles = ("SIGTERM", "SIGKILL", "oturumu düştü", "oturumu düzeldi", "login alert", "needs_login")
+    needles = (
+        "SIGTERM",
+        "SIGKILL",
+        "oturumu düştü",
+        "oturumu düzeldi",
+        "login alert",
+        "needs_login",
+        "Elle tetik",
+        "Elle bitti",
+        "Otomatik tetik",
+        "Otomatik bitti",
+        "Panel tetik",
+        "Panel bitti",
+        "in-process",
+        "KEEP_OPEN",
+        "yeniden kullanılıyor",
+        "page-tarama",
+        "sync ·",
+        "başlıyor",
+    )
     lines: list[str] = []
+    with _JOB_EVENT_LOCK:
+        lines.extend(_JOB_EVENT_LOG[-limit:])
     for path in paths:
         if not path.is_file():
             continue
@@ -3174,7 +3277,15 @@ def _recent_bridge_log_hits(limit: int = 24) -> list[str]:
         for line in raw[-800:]:
             if any(n in line for n in needles):
                 lines.append(line.strip()[:220])
-    return lines[-limit:]
+    # son N, tekrarları sıkıştır
+    out: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        if line in seen:
+            continue
+        seen.add(line)
+        out.append(line)
+    return out[-limit:]
 
 
 def _health_payload() -> dict[str, Any]:
@@ -3316,7 +3427,7 @@ def _bridge_status_html() -> str:
     <div id="lasts"></div>
   </section>
   <section style="grid-column:1/-1">
-    <h2>Log (SIGTERM / SIGKILL / login)</h2>
+    <h2>Log (elle / oto / panel · SIGTERM / login)</h2>
     <pre id="logs" class="empty">—</pre>
   </section>
 </main>
@@ -3347,9 +3458,14 @@ async function tick(){
     const run = live.running || [];
     let nowHtml = '';
     if (run.length) {
-      nowHtml = '<table><tr><th>iş</th><th>faz</th><th>mesaj</th></tr>' + run.map(j =>
-        '<tr><td>'+esc(j.kind)+'</td><td>'+esc(j.phase)+' '+(j.step!=null?j.step+'/'+(j.total_steps||'?') : '')+'</td><td class="msg" title="'+esc(j.message)+'">'+esc(j.message)+'</td></tr>'
-      ).join('') + '</table>';
+      nowHtml = '<table><tr><th>iş</th><th>kaynak</th><th>faz</th><th>mesaj</th></tr>' + run.map(j => {
+        const trig = String(j.trigger||'').toLowerCase();
+        const src = (trig==='manual'||trig==='elle'||trig==='http') ? 'Elle'
+          : (trig==='page-tarama'||trig==='panel') ? 'Panel'
+          : (trig==='schedule'||trig==='auto') ? 'Oto'
+          : (trig ? esc(j.trigger) : '—');
+        return '<tr><td>'+esc(j.kind)+'</td><td>'+src+'</td><td>'+esc(j.phase)+' '+(j.step!=null?j.step+'/'+(j.total_steps||'?') : '')+'</td><td class="msg" title="'+esc(j.message)+'">'+esc(j.message)+'</td></tr>';
+      }).join('') + '</table>';
     } else {
       nowHtml = '<p class="empty">Çalışan progress yok'+(live.browser_lock_held?' · browser kilidi tutuluyor':'')+'.</p>';
     }
@@ -3658,12 +3774,32 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     {"ok": False, "message": "SEO denetim tarama zaten çalışıyor, bekleyin."},
                 )
                 return
+            _set_job_progress(
+                "seo_audit",
+                running=True,
+                phase="starting",
+                trigger="manual",
+                message="Elle · SEO denetim başladı",
+            )
+            _job_event("Elle tetik · seo_audit · SEO denetim başladı")
 
             def _bg() -> None:
                 try:
-                    run_seo_audit_bridge_once(site_id=site_id)
-                except Exception:
+                    out = run_seo_audit_bridge_once(site_id=site_id)
+                    _finish_job_progress(
+                        "seo_audit",
+                        out if isinstance(out, dict) else {"ok": False, "message": "hata"},
+                        trigger="manual",
+                        name="SEO denetim",
+                    )
+                except Exception as exc:
                     traceback.print_exc()
+                    _finish_job_progress(
+                        "seo_audit",
+                        {"ok": False, "message": str(exc)},
+                        trigger="manual",
+                        name="SEO denetim",
+                    )
                 finally:
                     _seo_audit_lock.release()
 
@@ -3726,18 +3862,40 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 message="GSC CWV screenshot kuyruğa alındı",
                 started_at=time.time(),
                 finished_at=0.0,
+                trigger="manual",
             )
+            _set_job_progress(
+                "gsc_cwv",
+                running=True,
+                phase="starting",
+                trigger="manual",
+                message=f"Elle · GSC CWV ({mode}) başladı",
+                site=site_key or "all",
+            )
+            _job_event(f"Elle tetik · gsc_cwv · mode={mode} site={site_key or 'all'}")
 
             def _bg_cwv() -> None:
                 try:
-                    run_gsc_cwv_bridge_once(site_key=site_key, mode=mode)
-                except Exception:
+                    out = run_gsc_cwv_bridge_once(site_key=site_key, mode=mode)
+                    _finish_job_progress(
+                        "gsc_cwv",
+                        out if isinstance(out, dict) else {"ok": False},
+                        trigger="manual",
+                        name="GSC CWV",
+                    )
+                except Exception as exc:
                     traceback.print_exc()
                     _set_gsc_cwv_progress(
                         running=False,
                         phase="error",
                         message="GSC CWV thread hatası",
                         finished_at=time.time(),
+                    )
+                    _finish_job_progress(
+                        "gsc_cwv",
+                        {"ok": False, "message": str(exc)},
+                        trigger="manual",
+                        name="GSC CWV",
                     )
                 finally:
                     _gsc_cwv_lock.release()
@@ -3780,12 +3938,32 @@ class _BridgeHandler(BaseHTTPRequestHandler):
 
             def _bg_shots() -> None:
                 try:
-                    run_gsc_cwv_shots_bridge_once(site_key=site_key)
-                except Exception:
+                    out = run_gsc_cwv_shots_bridge_once(site_key=site_key)
+                    _finish_job_progress(
+                        "gsc_cwv",
+                        out if isinstance(out, dict) else {"ok": False},
+                        trigger="manual",
+                        name="GSC CWV shots",
+                    )
+                except Exception as exc:
                     traceback.print_exc()
+                    _finish_job_progress(
+                        "gsc_cwv",
+                        {"ok": False, "message": str(exc)},
+                        trigger="manual",
+                        name="GSC CWV shots",
+                    )
                 finally:
                     _gsc_cwv_lock.release()
 
+            _set_job_progress(
+                "gsc_cwv",
+                running=True,
+                phase="starting",
+                trigger="manual",
+                message=f"Elle · CWV shots ({site_key}) başladı",
+            )
+            _job_event(f"Elle tetik · gsc_cwv_shots · site={site_key}")
             threading.Thread(target=_bg_shots, name="gsc-cwv-shots", daemon=True).start()
             self._send(
                 200,
@@ -3817,17 +3995,39 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         else:
             self._send(404, {"ok": False, "message": "not found"})
             return
-        if not lock.acquire(blocking=False):
+
+        # Elle HTTP sync — live.NOW + log
+        job_kind = (
+            getattr(runner, "__name__", "job")
+            .removeprefix("run_")
+            .removesuffix("_bridge_once")
+            .removesuffix("_once")
+        )
+        if job_kind in ("_mod_runner", "_empower_sin_runner", "_empower_runner"):
+            if "moderation" in path:
+                job_kind = "sinemalar_moderation"
+            elif "sinemalar" in path:
+                job_kind = "empower_intel_sinemalar"
+            elif "empower" in path:
+                job_kind = "empower_intel"
+        job_name = (
+            busy.replace(" zaten çalışıyor, bekleyin.", "")
+            .replace(" sync", "")
+            .strip()
+            or job_kind
+        )
+        result = _run_locked_job(
+            name=job_name,
+            lock=lock,
+            runner=runner,
+            kind=job_kind,
+            notify=False,
+            trigger="manual",
+        )
+        if result is None:
             self._send(409, {"ok": False, "message": busy})
             return
-        try:
-            result = runner()
-            self._send(200 if result.get("ok") else 502, result)
-        except Exception as exc:  # noqa: BLE001
-            traceback.print_exc()
-            self._send(500, {"ok": False, "message": str(exc)})
-        finally:
-            lock.release()
+        self._send(200 if result.get("ok") else 502, result)
 
 
 def _now_tr():
@@ -3973,23 +4173,40 @@ def _run_locked_job(
     runner,
     kind: str,
     notify: bool = True,
+    trigger: str = "schedule",
 ) -> dict[str, Any] | None:
     if not lock.acquire(blocking=False):
         print(f"Auto {name} atlandı (manuel sync sürüyor)", flush=True)
         return None
+    label = _trigger_label(trigger)
+    _set_job_progress(
+        kind,
+        running=True,
+        phase="starting",
+        trigger=trigger,
+        message=f"{label} · {name} başladı",
+        step=0,
+        total_steps=1,
+    )
+    _job_event(f"{label} tetik · {kind} · {name} başladı")
     try:
         try:
             result = runner()
+            if not isinstance(result, dict):
+                result = {"ok": False, "message": "boş sonuç"}
             if result.get("ok"):
                 _note_auto_success(kind)
             elif notify:
                 _notify_auto_failure(kind, result)
+            _finish_job_progress(kind, result, trigger=trigger, name=name)
             return result
         except Exception as exc:
             traceback.print_exc()
             if notify:
                 _notify_auto_failure(kind, exc=exc)
-            return {"ok": False, "message": str(exc)}
+            err = {"ok": False, "message": str(exc)}
+            _finish_job_progress(kind, err, trigger=trigger, name=name)
+            return err
     finally:
         lock.release()
 
@@ -4613,6 +4830,15 @@ def _page_tarama_claim_loop() -> None:
                 _post_page_tarama_progress_async(payload)
 
             _progress_post({"message": "Mac scan claimed · starting", "phase": "claimed", "step": 0})
+            _set_job_progress(
+                job_id,
+                running=True,
+                phase="starting",
+                trigger="page-tarama",
+                message=f"Panel · {meta['name']} başladı",
+                step=0,
+            )
+            _job_event(f"Panel tetik · {job_id} · {meta['name']} · page={page_key or '—'}")
 
             stop_hb = threading.Event()
 
@@ -4744,6 +4970,12 @@ def _page_tarama_claim_loop() -> None:
 
             if not isinstance(result, dict):
                 result = {"ok": False, "message": "Mac scan returned empty result"}
+            _finish_job_progress(
+                job_id,
+                result,
+                trigger="page-tarama",
+                name=str(meta.get("name") or job_id),
+            )
             _post_page_tarama_result(
                 {
                     "run_id": run_id,

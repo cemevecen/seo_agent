@@ -948,12 +948,25 @@
       var nowHtml;
       if (run.length) {
         nowHtml =
-          '<table class="w-full text-left"><thead><tr class="text-slate-500"><th class="py-1 pr-2 font-medium">Job</th><th class="py-1 pr-2 font-medium">Phase</th><th class="py-1 font-medium">Message</th></tr></thead><tbody>' +
+          '<table class="w-full text-left"><thead><tr class="text-slate-500"><th class="py-1 pr-2 font-medium">Job</th><th class="py-1 pr-2 font-medium">Kaynak</th><th class="py-1 pr-2 font-medium">Phase</th><th class="py-1 font-medium">Message</th></tr></thead><tbody>' +
           run
             .map(function (j) {
+              var trig = String(j.trigger || "").toLowerCase();
+              var src =
+                trig === "manual" || trig === "elle" || trig === "http"
+                  ? "Elle"
+                  : trig === "page-tarama" || trig === "panel"
+                    ? "Panel"
+                    : trig === "schedule" || trig === "auto"
+                      ? "Oto"
+                      : trig
+                        ? esc(j.trigger)
+                        : "—";
               return (
                 '<tr class="border-t border-slate-100 dark:border-slate-800"><td class="py-1 pr-2 font-medium">' +
                 esc(j.kind) +
+                '</td><td class="py-1 pr-2">' +
+                src +
                 '</td><td class="py-1 pr-2 tabular-nums">' +
                 esc(j.phase) +
                 (j.step != null ? " " + j.step + "/" + (j.total_steps || "?") : "") +
