@@ -1988,6 +1988,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/seo-audit/urls",
         "/api/seo-audit/progress",
         "/api/gsc-cwv/ingest",
+        "/api/gsc-cwv/shots-ingest",
         "/api/market-quotes/ingest",
         "/api/page-tarama/claim",
         "/api/page-tarama/result",

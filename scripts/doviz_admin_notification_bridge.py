@@ -125,7 +125,7 @@ NOADS_SLOT_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "32")
 # SEO audit: pagespeed/noAds sonrası — 02:38 + 14:38 TR
 SEO_AUDIT_SLOT_HOURS = (2, 14)
 SEO_AUDIT_SLOT_MINUTE = int(os.environ.get("SEO_AUDIT_BRIDGE_MINUTE") or "38")
-# GSC CWV + AMP — 03:42 + 15:42 TR
+  # GSC CWV screenshots — 03:42 + 15:42 TR (mode=full for AMP deep scrape)
 GSC_CWV_SLOT_HOURS = (3, 15)
 GSC_CWV_SLOT_MINUTE = int(os.environ.get("GSC_CWV_BRIDGE_MINUTE") or "42")
 # Piyasa tablo taraması — günde bir, 00:16 TR
@@ -3482,7 +3482,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "kind": "gsc_cwv",
                     "site": site_key,
                     "progress": dict(_gsc_cwv_progress),
-                    "message": "GSC CWV + AMP tarama arka planda başladı",
+                    "message": "GSC CWV screenshot tarama arka planda başladı",
                 },
             )
             return

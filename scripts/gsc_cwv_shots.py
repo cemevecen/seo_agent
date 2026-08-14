@@ -210,7 +210,7 @@ def post_kpi_snapshot(capture: dict[str, Any]) -> dict[str, Any]:
     token = _token()
     if not token:
         return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN yok"}
-    payload = {
+    snap = {
         "site_key": capture.get("site_key") or "",
         "site_domain": capture.get("site_domain") or "",
         "resource_id": capture.get("resource_id") or "",
@@ -226,14 +226,21 @@ def post_kpi_snapshot(capture: dict[str, Any]) -> dict[str, Any]:
         "source": "gsc_cwv_shots",
         "charts_only": True,
     }
+    body_payload = {
+        "source": "gsc_cwv_shots",
+        "scraped_at": capture.get("scraped_at") or "",
+        "snapshots": [snap],
+    }
     try:
         resp = requests.post(
             _kpi_ingest_url(),
             headers={
                 "X-Notification-Ingest-Token": token,
+                "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
+                "Accept": "application/json",
             },
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            data=json.dumps(body_payload, ensure_ascii=False).encode("utf-8"),
             timeout=120,
         )
         try:
