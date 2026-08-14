@@ -3882,7 +3882,11 @@
           "</div>" +
           '<ol class="bl-changes-list-scroll mt-2 list-none p-0">' +
           (rows ||
-            '<li class="py-1 text-[11px] text-slate-400">No records in this window.</li>') +
+            '<li class="py-1 text-[11px] leading-snug text-slate-400">' +
+            (d.empty_reason === "snapshots_identical"
+              ? "No top-table changes vs compared snapshot (GSC list identical)."
+              : "No records in this window.") +
+            "</li>") +
           "</ol></section>"
         );
       }
