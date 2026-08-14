@@ -17968,6 +17968,7 @@ def ad_analytics_page(request: Request):
 @app.get("/ad-virgul")
 def ad_virgul_analytics_page(request: Request):
     """Reklam raporları — yalnızca Virgül panel (6 sid); sheet/manuel yok."""
+    from backend.services.empower_intel_config import xdata_dropdown_options
     from backend.services.virgul_ad_config import virgul_sources_payload
 
     sources = virgul_sources_payload()
@@ -17981,6 +17982,8 @@ def ad_virgul_analytics_page(request: Request):
             ],
             "ad_mode": "virgul",
             "virgul_sources": sources,
+            "xdata_metric_options_android": xdata_dropdown_options("android"),
+            "xdata_metric_options_ios": xdata_dropdown_options("ios"),
         },
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )

@@ -26,9 +26,6 @@
         { key: "user_acquisition", label: "User acquisition" },
         { key: "user_lost", label: "User lost" },
         { key: "active_devices", label: "Active devices" },
-        { key: "active_users", label: "Active users" },
-        { key: "dau", label: "Daily active users (DAU)" },
-        { key: "dau_mau", label: "DAU/MAU" },
       ],
     },
     {
@@ -87,7 +84,6 @@
         { key: "page_views", label: "Product page views" },
         { key: "conversion_rate", label: "Conversion rate (%)" },
         { key: "active_devices", label: "Active devices" },
-        { key: "sessions", label: "Sessions" },
         { key: "uninstalls", label: "Uninstalls" },
         { key: "crashes", label: "Crashes" },
       ],
@@ -134,6 +130,34 @@
   ];
 
   var METRIC_GROUPS = METRIC_GROUPS_ANDROID;
+  var XDATA_SKIP = { appVersion: 1 };
+  var XDATA_ITEMS = { android: [], ios: [] };
+  var xdataLoadPromise = null;
+  var DROPPED_OVERLAY_KEYS = { dau: 1, dau_mau: 1, active_users: 1 };
+
+  function seedXdataFromWindow() {
+    var pack = global.SEO_XDATA_METRIC_OPTIONS;
+    if (!pack || typeof pack !== "object") return false;
+    var any = false;
+    ["android", "ios"].forEach(function (plat) {
+      var arr = pack[plat];
+      if (!Array.isArray(arr) || !arr.length) return;
+      XDATA_ITEMS[plat] = arr
+        .map(function (o) {
+          if (!o) return null;
+          var key = o.value || o.key;
+          if (!key) return null;
+          if (String(key).indexOf("xdata:") !== 0) key = "xdata:" + key;
+          var col = String(key).slice("xdata:".length);
+          if (XDATA_SKIP[col]) return null;
+          return { key: String(key), label: o.label || key };
+        })
+        .filter(Boolean);
+      if (XDATA_ITEMS[plat].length) any = true;
+    });
+    if (any) rebuildLabelIndex();
+    return any;
+  }
 
   var LABEL_BY_KEY = {};
   function rebuildLabelIndex() {
@@ -143,8 +167,59 @@
         LABEL_BY_KEY[it.key] = it.label;
       });
     });
+    ["android", "ios"].forEach(function (plat) {
+      (XDATA_ITEMS[plat] || []).forEach(function (it) {
+        LABEL_BY_KEY[it.key] = it.label;
+      });
+    });
   }
   rebuildLabelIndex();
+  seedXdataFromWindow();
+
+  function xdataItemsFromMeta(meta, platform) {
+    var cols = ((meta && meta.columns_by_platform) || {})[platform] || [];
+    var labels = (meta && meta.labels) || {};
+    return cols
+      .filter(function (k) {
+        return k && !XDATA_SKIP[k];
+      })
+      .map(function (k) {
+        return { key: "xdata:" + k, label: labels[k] || k };
+      });
+  }
+
+  function ensureXdataItems(done) {
+    seedXdataFromWindow();
+    if (XDATA_ITEMS.android.length || XDATA_ITEMS.ios.length) {
+      if (typeof done === "function") done();
+      return;
+    }
+    if (xdataLoadPromise) {
+      xdataLoadPromise.then(function () {
+        if (typeof done === "function") done();
+      });
+      return;
+    }
+    xdataLoadPromise = fetch("/api/empower-intel/meta", {
+      credentials: "same-origin",
+      cache: "no-store",
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (meta) {
+        XDATA_ITEMS.android = xdataItemsFromMeta(meta, "android");
+        XDATA_ITEMS.ios = xdataItemsFromMeta(meta, "ios");
+        rebuildLabelIndex();
+      })
+      .catch(function () {
+        XDATA_ITEMS.android = XDATA_ITEMS.android || [];
+        XDATA_ITEMS.ios = XDATA_ITEMS.ios || [];
+      })
+      .then(function () {
+        if (typeof done === "function") done();
+      });
+  }
 
   var MARKET_KEYS = [
     "usd_try", "eur_try", "gram_altin", "ceyrek_altin",
@@ -173,15 +248,39 @@
   }
 
   function groupsForPlatform(platform) {
-    return platform === "ios" ? METRIC_GROUPS_IOS : METRIC_GROUPS_ANDROID;
+    var base = platform === "ios" ? METRIC_GROUPS_IOS : METRIC_GROUPS_ANDROID;
+    var xitems = platform === "ios" ? XDATA_ITEMS.ios : XDATA_ITEMS.android;
+    if (!xitems || !xitems.length) return base;
+    var out = [];
+    var inserted = false;
+    base.forEach(function (g) {
+      out.push(g);
+      if (!inserted && (g.label === "Rating" || g.label === "Revenue / subscriptions")) {
+        out.push({ label: "X-Data", items: xitems });
+        inserted = true;
+      }
+    });
+    if (!inserted) out.push({ label: "X-Data", items: xitems });
+    return out;
+  }
+
+  function isDroppedOverlayKey(k, platform) {
+    if (DROPPED_OVERLAY_KEYS[k]) return true;
+    if (platform === "ios" && k === "sessions") return true;
+    return false;
   }
 
   function readStored(root) {
+    var plat = platformForRoot(root);
     try {
       var raw = global.localStorage.getItem(storageKeyForRoot(root));
       if (!raw) return [];
       var arr = JSON.parse(raw);
-      return Array.isArray(arr) ? arr.filter(Boolean) : [];
+      return Array.isArray(arr)
+        ? arr.filter(function (k) {
+            return k && !isDroppedOverlayKey(k, plat);
+          })
+        : [];
     } catch (e) {
       return [];
     }
@@ -255,6 +354,9 @@
   }
   function isMarketKey(k) {
     return String(k || "").indexOf("market:") === 0;
+  }
+  function isXdataKey(k) {
+    return String(k || "").indexOf("xdata:") === 0;
   }
 
   function expandMarketSelection(keys) {
@@ -357,6 +459,26 @@
     return { label: data.label || metricLabel(metricKey), series: data.series || [] };
   }
 
+  async function fetchXdataSeries(metricKey, startIso, endIso, platform) {
+    var qs = new URLSearchParams({
+      start: startIso || "",
+      end: endIso || "",
+      metric: metricKey,
+      project: "doviz",
+      platform: platform || "android",
+    });
+    var r = await fetch("/api/empower-intel/series?" + qs.toString(), {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(data.message || data.detail || "X-Data HTTP " + r.status);
+    if (data.configured === false || (data.ok === false && !Array.isArray(data.series))) {
+      throw new Error(data.message || "No X-Data series");
+    }
+    return { label: data.label || metricLabel(metricKey), series: data.series || [] };
+  }
+
   async function fetchAscSeries(metricKey, startIso, endIso) {
     var qs = new URLSearchParams({
       start: startIso || "",
@@ -401,6 +523,7 @@
     if (cache[ck]) return cache[ck];
     var p;
     if (isMarketKey(metricKey)) p = fetchMarketSeries(metricKey, startIso, endIso);
+    else if (isXdataKey(metricKey)) p = fetchXdataSeries(metricKey, startIso, endIso, platform);
     else if (isGa4Key(metricKey)) p = fetchGa4Series(metricKey, startIso, endIso, platform);
     else if (isVirgulKey(metricKey)) p = fetchVirgulSeries(metricKey, startIso, endIso, platform);
     else if (platform === "ios") p = fetchAscSeries(metricKey, startIso, endIso);
@@ -515,23 +638,34 @@
     return true;
   }
 
+  function escHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
   function buildPanelHtml(platform) {
-    var html = "";
+    var html =
+      '<button type="button" data-play-metric-overlay-off class="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] font-semibold text-slate-600 hover:bg-slate-100 dark:text-zinc-300 dark:hover:bg-zinc-800">' +
+      '<span class="inline-flex w-3.5 shrink-0 justify-center text-indigo-600 dark:text-indigo-400" data-play-metric-overlay-off-mark aria-hidden="true"></span>' +
+      '<span class="min-w-0 flex-1">Off</span></button>';
     groupsForPlatform(platform).forEach(function (g) {
       html +=
         '<p class="px-2.5 pb-0.5 pt-1.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' +
-        g.label +
+        escHtml(g.label) +
         "</p>";
       (g.items || []).forEach(function (it) {
         html +=
           '<label class="flex cursor-pointer items-start gap-2 px-2.5 py-1.5 text-left text-[11px] font-medium leading-snug text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800" data-play-metric-overlay-option="' +
-          it.key +
+          escHtml(it.key) +
           '">' +
           '<input type="checkbox" class="mt-0.5 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600" value="' +
-          it.key +
+          escHtml(it.key) +
           '" />' +
           '<span class="min-w-0 flex-1">' +
-          it.label +
+          escHtml(it.label) +
           "</span></label>";
       });
     });
@@ -602,54 +736,104 @@
     if (trigger) trigger.setAttribute("aria-expanded", "false");
   }
 
-  function setPlatform(controlId, platform) {
-    var root = rootEl(controlId);
-    if (!root) return;
-    var plat = platform === "ios" ? "ios" : "android";
-    if (platformForRoot(root) === plat && root.dataset.playMetricPlatformReady === plat) return;
-    root.setAttribute("data-overlay-platform", plat);
-    root.dataset.playMetricPlatformReady = plat;
+  function applyStoredChecks(panel, stored) {
+    if (!panel) return;
+    var want = stored || [];
+    panel.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
+      cb.checked = want.indexOf(cb.value) >= 0;
+    });
+    syncOffMark(panel);
+  }
+
+  function syncOffMark(panel) {
+    if (!panel) return;
+    var mark = panel.querySelector("[data-play-metric-overlay-off-mark]");
+    if (!mark) return;
+    var any = panel.querySelectorAll("input[type=checkbox]:checked").length > 0;
+    mark.textContent = any ? "" : "✓";
+  }
+
+  function fillPanel(root) {
+    if (!root) return null;
+    var plat = platformForRoot(root);
     var panel = panelForRoot(root);
-    if (panel) {
-      panel.innerHTML = buildPanelHtml(plat);
-      panel.dataset.playMetricBuilt = "1";
-      var stored = readStored(root);
-      panel.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
-        cb.checked = stored.indexOf(cb.value) >= 0;
-      });
-    }
-    updateTriggerLabel(root);
-    clearCache();
-    if (typeof root._playMetricFire === "function") {
-      wirePanelInputs(panel, root._playMetricFire);
-    }
+    if (!panel) return null;
+    panel.innerHTML = buildPanelHtml(plat);
+    panel.dataset.playMetricBuilt = "1";
+    root.dataset.playMetricPlatformReady = plat;
+    root.dataset.playMetricXdataReady = (XDATA_ITEMS[plat] || []).length ? "1" : "0";
+    if (root.id) panel.setAttribute("data-play-metric-overlay-for", root.id);
+    applyStoredChecks(panel, readStored(root));
+    return panel;
   }
 
   function wirePanelInputs(panel, fire) {
     if (!panel || typeof fire !== "function") return;
     panel.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
-      cb.addEventListener("change", fire);
+      cb.addEventListener("change", function () {
+        syncOffMark(panel);
+        fire();
+      });
+    });
+    var offBtn = panel.querySelector("[data-play-metric-overlay-off]");
+    if (offBtn) {
+      offBtn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        panel.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
+          cb.checked = false;
+        });
+        syncOffMark(panel);
+        fire();
+      });
+    }
+  }
+
+  function refillIfXdataArrived(root) {
+    if (!root) return;
+    var plat = platformForRoot(root);
+    if (root.dataset.playMetricXdataReady === "1") return;
+    if (!(XDATA_ITEMS[plat] || []).length) return;
+    var panel = fillPanel(root);
+    if (typeof root._playMetricFire === "function") wirePanelInputs(panel, root._playMetricFire);
+    updateTriggerLabel(root);
+  }
+
+  function setPlatform(controlId, platform) {
+    var root = rootEl(controlId);
+    if (!root) return;
+    var plat = platform === "ios" ? "ios" : "android";
+    seedXdataFromWindow();
+    root.setAttribute("data-overlay-platform", plat);
+    var samePlat = root.dataset.playMetricPlatformReady === plat;
+    var xdataOk = root.dataset.playMetricXdataReady === "1" || !(XDATA_ITEMS[plat] || []).length;
+    if (samePlat && xdataOk && panelForRoot(root) && panelForRoot(root).dataset.playMetricBuilt) {
+      updateTriggerLabel(root);
+    } else {
+      var panel = fillPanel(root);
+      updateTriggerLabel(root);
+      clearCache();
+      if (typeof root._playMetricFire === "function") {
+        wirePanelInputs(panel, root._playMetricFire);
+      }
+    }
+    ensureXdataItems(function () {
+      if (platformForRoot(root) !== plat) return;
+      refillIfXdataArrived(root);
     });
   }
 
   function bindRoot(root, onChange) {
-    if (!root || root.dataset.playMetricOverlayBound === "1") return;
-    root.dataset.playMetricOverlayBound = "1";
-    var plat = platformForRoot(root);
-    var panel = panelForRoot(root);
-    var trigger = root.querySelector("[data-play-metric-overlay-trigger]");
-    if (panel && !panel.dataset.playMetricBuilt) {
-      panel.innerHTML = buildPanelHtml(plat);
-      panel.dataset.playMetricBuilt = "1";
-      root.dataset.playMetricPlatformReady = plat;
-    }
-    if (panel && root.id) panel.setAttribute("data-play-metric-overlay-for", root.id);
-    var stored = readStored(root);
-    if (panel) {
-      panel.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
-        cb.checked = stored.indexOf(cb.value) >= 0;
+    if (!root) return;
+    if (root.dataset.playMetricOverlayBound === "1") {
+      ensureXdataItems(function () {
+        refillIfXdataArrived(root);
       });
+      return;
     }
+    root.dataset.playMetricOverlayBound = "1";
+    seedXdataFromWindow();
+    var panel = fillPanel(root);
+    var trigger = root.querySelector("[data-play-metric-overlay-trigger]");
     updateTriggerLabel(root);
     function fire() {
       writeStored(root, selectedFromDom(root));
@@ -666,18 +850,23 @@
         ev.preventDefault();
         ev.stopPropagation();
         global.__playMetricOverlayIgnoreCloseUntil = Date.now() + 280;
-        if (panel.classList.contains("hidden")) {
-          panel.classList.remove("hidden");
-          positionPanel(trigger, panel);
+        var p = panelForRoot(root);
+        if (!p) return;
+        if (p.classList.contains("hidden")) {
+          p.classList.remove("hidden");
+          positionPanel(trigger, p);
           trigger.setAttribute("aria-expanded", "true");
         } else {
-          closePanel(root, trigger, panel);
+          closePanel(root, trigger, p);
         }
       });
       panel.addEventListener("click", function (ev) {
         ev.stopPropagation();
       });
     }
+    ensureXdataItems(function () {
+      refillIfXdataArrived(root);
+    });
     if (!global.__playMetricOverlayDocClose) {
       global.__playMetricOverlayDocClose = true;
       document.addEventListener("click", function (ev) {
@@ -738,4 +927,12 @@
     setPlatform: setPlatform,
     platformForRoot: platformForRoot,
   };
+
+  if (global.document) {
+    if (global.document.readyState === "loading") {
+      global.document.addEventListener("DOMContentLoaded", autoBindPlayMetricOverlays);
+    } else {
+      autoBindPlayMetricOverlays();
+    }
+  }
 })(window);

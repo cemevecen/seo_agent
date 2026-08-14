@@ -2003,6 +2003,10 @@
 <script>
   window.MZ_AD_MODE = {{ (ad_mode or 'sheets')|tojson }};
   window.MZ_VIRGUL_SOURCES = {{ (virgul_sources or [])|tojson }};
+  window.SEO_XDATA_METRIC_OPTIONS = {
+    android: {{ (xdata_metric_options_android or []) | tojson }},
+    ios: {{ (xdata_metric_options_ios or []) | tojson }}
+  };
   (function () {
     if (window.MZ_AD_MODE !== "virgul") return;
     document.documentElement.classList.add("mz-virgul-mode");

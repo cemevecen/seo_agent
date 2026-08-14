@@ -102,6 +102,21 @@ def test_xdata_column_key_and_metric_number():
     assert _metric_number(None) is None
 
 
+def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
+    text = (ROOT / "static/js/play_metric_overlay.js").read_text(encoding="utf-8")
+    assert "fetchXdataSeries" in text
+    assert "/api/empower-intel/series" in text
+    assert "DROPPED_OVERLAY_KEYS" in text
+    assert 'key: "dau"' not in text
+    assert 'key: "dau_mau"' not in text
+    assert 'key: "active_users"' not in text
+    android_block = text.split("var METRIC_GROUPS_IOS")[0]
+    ios_block = text.split("var METRIC_GROUPS_IOS")[1].split("var METRIC_GROUPS =")[0]
+    assert 'key: "sessions"' not in ios_block
+    assert 'key: "active_devices"' in android_block
+    assert 'key: "crashes"' in ios_block
+
+
 def test_query_series_rejects_unknown_without_db():
     out = query_series(None, platform="android", metric="xdata:notAMetric")  # type: ignore[arg-type]
     assert out["ok"] is False
