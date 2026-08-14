@@ -247,6 +247,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "ENGAGEMENT_DAILY_ACTIVE_USERS-ACQUISITION_UNSPECIFIED-UNIQUE-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CTR%2CDE%2CFR%2CNL",
+        "force_table": True,
         "needles": ("Günlük etkin", "Daily active", "DAU", "İstatistik", "Veri tablosu"),
     },
     {
@@ -300,6 +301,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "DAU_MAU-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-CALCULATION_UNSPECIFIED-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CTR%2CDE%2CBG%2CBE",
+        "force_table": True,
         "needles": ("DAU/MAU", "DAU", "MAU", "İstatistik", "Veri tablosu"),
     },
     {
@@ -1218,10 +1220,10 @@ def _parse_numeric_tr(val: Any) -> float | None:
 
 
 def _fact_value_ok(metric_key: str, value: float, *, source: str, raw: str = "") -> bool:
-    """Tek haneli sahte kartları (ör. '5') ele — rating / dönüşüm oranı hariç."""
+    """Tek haneli sahte kartları (ör. '5') ele — rating / dönüşüm / DAU-MAU hariç."""
     if metric_key == "rating":
         return 0 < value <= 5.5
-    if metric_key == "store_listing_conversion":
+    if metric_key in ("store_listing_conversion", "dau_mau"):
         # Oran: 0–1 (kesir) veya 0–100 (%)
         return 0 <= value <= 100
     if source == "card" and value < 20 and "B" not in raw and "Mn" not in raw and "%" not in raw:
@@ -1446,14 +1448,37 @@ def _parse_stats_protobuf(
                     except ValueError:
                         return None
                 if isinstance(obj, dict):
-                    # Play value slot çoğunlukla "2"; "1" sık tip/indeks bayrağı (rating’de hep 1.0 yapıyordu)
-                    for key in ("2", "3", "4"):
+                    # Play value slot çoğunlukla "2"; "4" sık ağırlık/flag (100) —
+                    # DAU gibi metriklerde asıl sayı yalnızca "1" altında.
+                    for key in ("2", "3"):
                         if key in obj:
                             n = _dig_num(obj.get(key), depth + 1)
                             if n is not None:
                                 return n
+                    if "1" in obj:
+                        v1 = obj.get("1")
+                        if isinstance(v1, (int, float)) and not isinstance(v1, bool):
+                            # Tip bayrağı 1 + gerçek değer kardeş alanda → atla
+                            if not (
+                                float(v1) == 1.0
+                                and any(k in obj for k in ("2", "3", "4"))
+                            ):
+                                return float(v1)
+                        elif isinstance(v1, str):
+                            try:
+                                return float(v1.replace(",", "").replace(" ", ""))
+                            except ValueError:
+                                pass
+                        elif isinstance(v1, (dict, list)):
+                            n = _dig_num(v1, depth + 1)
+                            if n is not None:
+                                return n
+                    if "4" in obj:
+                        n = _dig_num(obj.get("4"), depth + 1)
+                        if n is not None:
+                            return n
                     for key, vv in obj.items():
-                        if str(key) == "1":
+                        if str(key) in ("1", "2", "3", "4"):
                             continue
                         n = _dig_num(vv, depth + 1)
                         if n is not None:
@@ -1511,6 +1536,37 @@ def _best_stats_protobuf(network_slice: list[dict[str, Any]]) -> Any | None:
             best_n = len(rows)
             best = body
     return best if best_n >= 3 else None
+
+
+def _refetch_stats_protobuf_from_page(page) -> Any | None:
+    """Selenium’da page.on(response) yok — performance + credentials fetch ile protobuf’u yeniden al."""
+    try:
+        body = page.evaluate(
+            """async () => {
+              const urls = [...new Set(
+                (performance.getEntriesByType('resource') || [])
+                  .map((e) => e.name || '')
+                  .filter((u) => /statsfrontend|statspage/i.test(u))
+              )];
+              let best = null;
+              let bestN = 0;
+              for (const url of urls.slice(0, 12)) {
+                try {
+                  const r = await fetch(url, { credentials: 'include' });
+                  if (!r.ok) continue;
+                  const j = await r.json();
+                  const n = (j && Array.isArray(j['1'])) ? j['1'].length : 0;
+                  if (n > bestN) { best = j; bestN = n; }
+                } catch (e) {}
+              }
+              return bestN >= 10 ? best : null;
+            }"""
+        )
+    except Exception:
+        return None
+    if isinstance(body, dict) and isinstance(body.get("1"), list) and len(body["1"]) >= 10:
+        return body
+    return None
 
 
 def _collect_paginated_table_text(page, *, max_pages: int = 8) -> str:
@@ -3143,6 +3199,35 @@ def _scrape_one_stats_page(
                 if best is not None:
                     captured_proto.append(best)
                     break
+            # Selenium: response listener yok → aynı URL’yi cookie ile yeniden çek
+            if getattr(page, "_selenium_mode", False) or getattr(
+                getattr(page, "_driver", None), "session_id", None
+            ):
+                refetched = _refetch_stats_protobuf_from_page(page)
+                if refetched is not None:
+                    captured_proto.append(refetched)
+                    if network_bag is not None:
+                        network_bag.append(
+                            {
+                                "url": "refetch:statsfrontend",
+                                "status": 200,
+                                "body": refetched,
+                            }
+                        )
+                    break
+
+    if not captured_proto:
+        refetched = _refetch_stats_protobuf_from_page(page)
+        if refetched is not None:
+            captured_proto.append(refetched)
+            if network_bag is not None:
+                network_bag.append(
+                    {
+                        "url": "refetch:statsfrontend",
+                        "status": 200,
+                        "body": refetched,
+                    }
+                )
 
     extracted = _extract_stats_page(page, known=known, page_key=page_key) or {}
     if captured_proto:

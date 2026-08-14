@@ -208,11 +208,14 @@ class _Mouse:
 
 
 class SeleniumPage:
+    _selenium_mode = True
+
     def __init__(self, driver: Any, *, download_dir: Path) -> None:
         self._driver = driver
         self._download_dir = download_dir
         self.keyboard = _Keyboard(self)
         self.mouse = _Mouse(self)
+        self._response_handlers: list[Callable[..., Any]] = []
 
     @property
     def url(self) -> str:
@@ -326,7 +329,8 @@ class SeleniumPage:
         return loc.filter(has_text=text)
 
     def on(self, event: str, handler: Callable[..., Any]) -> None:
-        _ = (event, handler)
+        if event == "response" and callable(handler):
+            self._response_handlers.append(handler)
 
     @contextmanager
     def expect_download(self, *, timeout: int | float = 30_000):
@@ -356,19 +360,74 @@ class SeleniumPage:
 
     @contextmanager
     def expect_response(self, predicate: Callable[[Any], bool], *, timeout: int | float = 30_000):
-        class _Resp:
-            url = ""
-            status = 200
+        """Playwright uyumu — Selenium’da XHR’yi performance+fetch ile yakala."""
 
-            def json(self):
-                return {}
+        class _Resp:
+            def __init__(self, url: str = "", status: int = 200, body: Any = None) -> None:
+                self.url = url
+                self.status = status
+                self.headers: dict[str, str] = {"content-type": "application/json"}
+                self._body = body
+
+            def json(self) -> Any:
+                return self._body if self._body is not None else {}
+
+            def text(self) -> str:
+                if self._body is None:
+                    return ""
+                if isinstance(self._body, (dict, list)):
+                    import json as _json
+
+                    return _json.dumps(self._body)
+                return str(self._body)
 
         class _RI:
             value: _Resp | None = None
 
         ri = _RI()
         yield ri
-        _ = (predicate, timeout)
+
+        deadline = time.time() + _norm_timeout_ms(timeout, default=30_000)
+        while time.time() < deadline and ri.value is None:
+            try:
+                found = self.evaluate(
+                    """async () => {
+                      const urls = [...new Set(
+                        (performance.getEntriesByType('resource') || [])
+                          .map((e) => e.name || '')
+                          .filter((u) => /statsfrontend|statspage|playconsole|clients6\\.google/i.test(u))
+                      )];
+                      for (const url of urls.slice(0, 12)) {
+                        try {
+                          const r = await fetch(url, { credentials: 'include' });
+                          if (!r.ok) continue;
+                          const j = await r.json();
+                          return { url, status: r.status, body: j };
+                        } catch (e) {}
+                      }
+                      return null;
+                    }"""
+                )
+            except Exception:
+                found = None
+            if isinstance(found, dict) and found.get("url"):
+                cand = _Resp(
+                    url=str(found.get("url") or ""),
+                    status=int(found.get("status") or 200),
+                    body=found.get("body"),
+                )
+                try:
+                    if predicate(cand):
+                        ri.value = cand
+                        for handler in list(self._response_handlers):
+                            try:
+                                handler(cand)
+                            except Exception:
+                                pass
+                        break
+                except Exception:
+                    pass
+            time.sleep(0.4)
 
 
 class SeleniumContext:
