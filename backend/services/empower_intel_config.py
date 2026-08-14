@@ -128,6 +128,78 @@ def columns_for_platform(platform: str) -> list[str]:
     return list(COLUMNS_BY_PLATFORM.get(p) or WEB_COLUMNS)
 
 
+XDATA_PREFIX = "xdata:"
+# Uygulama sürümü grafik serisi değil
+XDATA_SKIP_CHART_KEYS: frozenset[str] = frozenset({"appVersion"})
+# Hafta/ay agregasyonunda ortalama (oran, eCPM, süre/kullanıcı)
+XDATA_AVG_KEYS: frozenset[str] = frozenset(
+    {
+        "usdEcpm",
+        "tryEcpm",
+        "dauPerMau",
+        "arpdauTry",
+        "arpdauUsd",
+        "averageSessionDuration",
+        "bounceRate",
+        "crashFreeUsersRate",
+        "engagementRate",
+        "impdau",
+        "rpiUsd",
+        "rpmTry",
+        "rpsTry",
+        "rpmUsd",
+        "avgEngagementTimePerUser",
+        "avgEngagementTimePerSession",
+        "organicGoogleSearchClickThroughRate",
+        "screenPageViewsPerSession",
+        "screenPageViewsPerUser",
+        "is_holiday",
+    }
+)
+
+
+def xdata_column_key(raw: str) -> str:
+    s = (raw or "").strip()
+    if s.lower().startswith(XDATA_PREFIX):
+        return s[len(XDATA_PREFIX) :]
+    return s
+
+
+def xdata_metric_id(column: str) -> str:
+    return f"{XDATA_PREFIX}{column}"
+
+
+def xdata_dropdown_options(platform: str) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    for key in columns_for_platform(platform):
+        if key in XDATA_SKIP_CHART_KEYS:
+            continue
+        label = METRIC_LABELS.get(key, key)
+        out.append(
+            {
+                "value": xdata_metric_id(key),
+                "label": label,
+                "help": f"X-Data · {label} (Empower Intelligence).",
+            }
+        )
+    return out
+
+
+def xdata_avg_metric_ids(platform: str) -> list[str]:
+    return [
+        xdata_metric_id(k)
+        for k in columns_for_platform(platform)
+        if k in XDATA_AVG_KEYS and k not in XDATA_SKIP_CHART_KEYS
+    ]
+
+
+def xdata_page_context(platform: str) -> dict:
+    return {
+        "xdata_metric_options": xdata_dropdown_options(platform),
+        "xdata_avg_keys": xdata_avg_metric_ids(platform),
+    }
+
+
 def meta_payload() -> dict:
     return {
         "project": "doviz",

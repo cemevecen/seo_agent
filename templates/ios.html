@@ -1134,7 +1134,6 @@
             <option value="page_views">Product page views</option>
             <option value="conversion_rate">Conversion rate (%)</option>
             <option value="active_devices">Active devices</option>
-            <option value="sessions">Sessions</option>
             <option value="uninstalls">Uninstalls</option>
             <option value="crashes">Crashes</option>
           </optgroup>
@@ -1148,6 +1147,7 @@
             <option value="subscription_churned">Subscription churn</option>
             <option value="free_trials">Free trials</option>
           </optgroup>
+          {% include "partials/xdata_metric_optgroup.html" %}
           <optgroup label="GA4 (iOS)">
             <option value="ga4:sessions">GA4 · Sessions</option>
             <option value="ga4:users">GA4 · Users</option>
@@ -1282,10 +1282,13 @@
   </section>
   {% include 'partials/ios_chart_viz_20.html' %}
 </div>
-<script src="/static/js/android_chart_viz_20.js?v=16"></script>
+<script src="/static/js/android_chart_viz_20.js?v=17"></script>
 <script src="/static/js/resizable_data_list.js?v=6"></script>
 <script src="/static/js/pa_chart_height.js?v=10"></script>
 <script src="/static/js/metric_table_ux.js?v=13"></script>
+<script>
+  window.SEO_XDATA_AVG_KEYS = {{ (xdata_avg_keys or []) | tojson }};
+</script>
 <script>
 (function () {
   var iaStart = document.getElementById("ia-start");
@@ -1594,7 +1597,20 @@
   function isGa4Metric(key) { return String(key || "").indexOf("ga4:") === 0; }
   function isVirgulMetric(key) { return String(key || "").indexOf("virgul:") === 0; }
   function isMarketMetric(key) { return String(key || "").indexOf("market:") === 0; }
-  function isExternalMetric(key) { return isGa4Metric(key) || isVirgulMetric(key) || isMarketMetric(key); }
+  function isXdataMetric(key) { return String(key || "").indexOf("xdata:") === 0; }
+  var IA_XDATA_AVG = {};
+  (window.SEO_XDATA_AVG_KEYS || []).forEach(function (k) { IA_XDATA_AVG[k] = 1; });
+  function isXdataAvgMetric(key) { return !!IA_XDATA_AVG[String(key || "")]; }
+  function overlaySourceForMetric(key) {
+    if (isVirgulMetric(key)) return "virgul";
+    if (isGa4Metric(key)) return "ga4";
+    if (isMarketMetric(key)) return "market";
+    if (isXdataMetric(key)) return "xdata";
+    return "asc";
+  }
+  function isExternalMetric(key) {
+    return isGa4Metric(key) || isVirgulMetric(key) || isMarketMetric(key) || isXdataMetric(key);
+  }
   var IA_MARKET_SERIES_KEYS = [
     "usd_try", "eur_try", "gram_altin", "ceyrek_altin",
     "gram_gumus", "bist100", "brent", "bitcoin"
@@ -1799,7 +1815,9 @@
     "market:all_indexed": "All market series, indexed to 100 at the start of the range."
   };
   function iaMetricHelp(key) {
-    return IA_METRIC_HELP[key] || "This metric comes from App Store / GA4 / Virgül for the selected period and is shown as a daily (or breakdown) series on the chart and table.";
+    return IA_METRIC_HELP[key] || (isXdataMetric(key)
+      ? ("X-Data · " + (metricLabel(key) || key) + " (Empower Intelligence daily series).")
+      : "This metric comes from App Store / GA4 / Virgül / X-Data for the selected period and is shown as a daily (or breakdown) series on the chart and table.");
   }
   window.seoIaMetricHelp = iaMetricHelp;
   function toggleIaMetric(key) {
@@ -1885,6 +1903,13 @@
     if (IA_VIRGUL_AVG[m]) return false;
     if (m === "virgul:net_revenue") return false;
     if (isMarketMetric(m)) return false;
+    if (isXdataAvgMetric(m)) return false;
+    if (isXdataMetric(m)) {
+      return m === "xdata:view" || m === "xdata:match" || m === "xdata:request"
+        || m === "xdata:active1DayUsers" || m === "xdata:active7DayUsers"
+        || m === "xdata:crashAffectedUsers" || m === "xdata:newUsers"
+        || m === "xdata:sessions" || m === "xdata:totalUsers";
+    }
     return true;
   }
   function colorAt(i) { return COLORS[i % COLORS.length]; }
@@ -2180,6 +2205,36 @@
         source: "market"
       };
     }
+    if (isXdataMetric(metricKey)) {
+      var xdQs = new URLSearchParams({
+        start: iaStart.value,
+        end: iaEnd.value,
+        metric: metricKey,
+        project: "doviz",
+        platform: "ios"
+      });
+      var xdRes = await fetch("/api/empower-intel/series?" + xdQs.toString(), {
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: signal
+      });
+      var xdData = await xdRes.json().catch(function () { return {}; });
+      if (!xdRes.ok) {
+        throw new Error(xdData.message || xdData.detail || ("X-Data HTTP " + xdRes.status));
+      }
+      if (xdData.configured === false || (xdData.ok === false && !Array.isArray(xdData.series))) {
+        throw new Error(xdData.message || "No X-Data series");
+      }
+      return {
+        metric: metricKey,
+        label: xdData.label || metricLabel(metricKey),
+        series: Array.isArray(xdData.series) ? xdData.series : [],
+        total: xdData.total,
+        total_mode: xdData.total_mode || (isXdataAvgMetric(metricKey) ? "avg" : "sum"),
+        message: xdData.message || "",
+        source: "xdata"
+      };
+    }
     var isVirgul = isVirgulMetric(metricKey);
     var qs = new URLSearchParams({
       start: iaStart.value,
@@ -2456,7 +2511,7 @@
     return (bundles || []).map(function (b) {
       if (!b) return b;
       var asAvg = b.total_mode === "avg" || b.metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[b.metric]
-        || b.metric === "conversion_rate";
+        || b.metric === "conversion_rate" || isXdataAvgMetric(b.metric);
       return Object.assign({}, b, {
         series: aggregateIaSeries(b.series || [], br, asAvg)
       });
@@ -3083,7 +3138,7 @@
     var metric = (iaLastChart && iaLastChart.metric) || iaPrimaryMetric() || "";
     var rows = Array.isArray(series) ? series : [];
     if (br === "week" || br === "month") {
-      var asAvg = metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[metric] || metric === "conversion_rate";
+      var asAvg = metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[metric] || metric === "conversion_rate" || isXdataAvgMetric(metric);
       rows = aggregateIaSeries(rows, br, asAvg);
     }
     if (!rows.length) {
@@ -3242,7 +3297,7 @@
     var br = iaActiveTimeBreakdown();
     var rows = series || [];
     if (br === "week" || br === "month") {
-      var asAvg = metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[metric] || metric === "conversion_rate";
+      var asAvg = metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[metric] || metric === "conversion_rate" || isXdataAvgMetric(metric);
       rows = aggregateIaSeries(rows, br, asAvg);
     }
     if (!rows.length) {
@@ -3306,7 +3361,7 @@
                 total: pack.total,
                 total_mode: pack.total_mode || "sum",
                 onChart: CHART_METRICS.indexOf(metricKey) >= 0,
-                source: pack.source || (isVirgulMetric(metricKey) ? "virgul" : "ga4")
+                source: pack.source || overlaySourceForMetric(metricKey)
               };
             }).catch(function (err) {
               console.warn("overview ext", metricKey, err);
@@ -3317,7 +3372,7 @@
                 total: null,
                 total_mode: "sum",
                 onChart: CHART_METRICS.indexOf(metricKey) >= 0,
-                source: isVirgulMetric(metricKey) ? "virgul" : "ga4"
+                source: overlaySourceForMetric(metricKey)
               };
             });
           }));
@@ -3367,7 +3422,7 @@
             total: pack.total,
             total_mode: pack.total_mode || "sum",
             message: pack.message || "",
-            source: pack.source || (isMarketMetric(metricKey) ? "market" : (isVirgulMetric(metricKey) ? "virgul" : (isGa4Metric(metricKey) ? "ga4" : "asc")))
+            source: pack.source || overlaySourceForMetric(metricKey)
           };
         }).catch(function (err) {
           softNotes.push((metricLabel(metricKey) || metricKey) + " skipped");
@@ -3379,7 +3434,7 @@
             total: null,
             total_mode: "sum",
             message: (err && err.message) || "",
-            source: isMarketMetric(metricKey) ? "market" : (isVirgulMetric(metricKey) ? "virgul" : (isGa4Metric(metricKey) ? "ga4" : "asc"))
+            source: overlaySourceForMetric(metricKey)
           };
         });
       }));

@@ -118,3 +118,25 @@ def empower_intel_rows(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/empower-intel/series")
+def empower_intel_series(
+    project: str = Query("doviz"),
+    platform: str = Query("android"),
+    metric: str = Query(""),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    try:
+        return store.query_series(
+            db,
+            project=project,
+            platform=platform,
+            metric=metric,
+            start=start,
+            end=end,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

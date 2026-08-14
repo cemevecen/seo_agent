@@ -749,11 +749,24 @@ def build_viz20_data(
         }
 
     if vid == "horizon":
-        metric_list = [x.strip() for x in (metrics or "anrs,crashes,dau,ga4:sessions").split(",") if x.strip()][:6]
+        metric_list = [x.strip() for x in (metrics or "anrs,crashes,xdata:active1DayUsers,ga4:sessions").split(",") if x.strip()][:6]
         traces_h: list[dict[str, Any]] = []
         trows_h: list[list[Any]] = []
         for mk in metric_list:
-            if mk.startswith("ga4:"):
+            if mk.startswith("xdata:"):
+                from backend.services.empower_intel_store import query_series
+
+                payload = query_series(
+                    db,
+                    project="doviz",
+                    platform="android",
+                    metric=mk,
+                    start=start,
+                    end=end,
+                )
+                series = payload.get("series") or []
+                label = payload.get("label") or mk
+            elif mk.startswith("ga4:"):
                 from backend.api.play_analytics import get_play_ga4_overlay_series
 
                 gk = mk.replace("ga4:", "")

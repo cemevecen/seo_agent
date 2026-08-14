@@ -1,0 +1,7 @@
+{% if xdata_metric_options %}
+          <optgroup label="X-Data">
+            {% for opt in xdata_metric_options %}
+            <option value="{{ opt.value }}">{{ opt.label }}</option>
+            {% endfor %}
+          </optgroup>
+{% endif %}

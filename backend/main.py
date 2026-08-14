@@ -17914,10 +17914,12 @@ def notification_page(request: Request):
 @app.get("/android")
 def android_play_console_page(request: Request):
     """Google Play Console scrape — Döviz Android (Mac bridge)."""
+    from backend.services.empower_intel_config import xdata_page_context
+
     return templates.TemplateResponse(
         request,
         "android.html",
-        context={"request": request},
+        context={"request": request, **xdata_page_context("android")},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
@@ -17925,23 +17927,30 @@ def android_play_console_page(request: Request):
 @app.get("/ios")
 def ios_app_store_connect_page(request: Request):
     """App Store Connect Metrikler — Döviz iOS (ASC API üyelik anahtarları)."""
+    from backend.services.empower_intel_config import xdata_page_context
+
     return templates.TemplateResponse(
         request,
         "ios.html",
-        context={"request": request},
+        context={"request": request, **xdata_page_context("ios")},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
 
-@app.get("/metrik")
-def metrik_empower_page(request: Request):
-    """Empower Intelligence scrape — doviz web/mweb/ios/android günlük metrikler."""
+@app.get("/x-data")
+def xdata_empower_page(request: Request):
+    """X-Data — Empower Intelligence scrape (web/mweb/ios/android)."""
     return templates.TemplateResponse(
         request,
         "metrik.html",
         context={"request": request},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
+
+
+@app.get("/metrik")
+def metrik_empower_page_redirect():
+    return RedirectResponse(url="/x-data", status_code=302)
 
 
 @app.get("/ad")

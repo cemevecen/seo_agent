@@ -11,6 +11,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.models import EmpowerIntelDailyRow
+from backend.services.empower_intel_config import (
+    METRIC_LABELS,
+    XDATA_AVG_KEYS,
+    XDATA_SKIP_CHART_KEYS,
+    columns_for_platform,
+    xdata_column_key,
+    xdata_metric_id,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -323,5 +331,100 @@ def summary(db: Session, *, project: str = "doviz") -> dict[str, Any]:
         "total_rows": len(rows),
         "latest_scrape": latest_scrape,
         "platforms": platforms,
+    }
+
+
+def _metric_number(raw: Any) -> float | None:
+    if raw is None or isinstance(raw, bool):
+        if isinstance(raw, bool):
+            return 1.0 if raw else 0.0
+        return None
+    if isinstance(raw, (int, float)):
+        val = float(raw)
+        if val != val:  # NaN
+            return None
+        return val
+    s = str(raw).strip().replace("%", "").replace(" ", "")
+    if not s or s.lower() in ("nan", "none", "null", "-", "—"):
+        return None
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        val = float(s)
+    except ValueError:
+        return None
+    if val != val:
+        return None
+    return val
+
+
+def query_series(
+    db: Session,
+    *,
+    project: str = "doviz",
+    platform: str,
+    metric: str,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, Any]:
+    plat = _norm_platform(platform)
+    col = xdata_column_key(metric)
+    allowed = set(columns_for_platform(plat))
+    if not col or col not in allowed or col in XDATA_SKIP_CHART_KEYS:
+        return {
+            "ok": False,
+            "source": "xdata",
+            "message": f"Bilinmeyen X-Data metrik: {metric}",
+            "series": [],
+            "metric": xdata_metric_id(col) if col else str(metric or ""),
+            "platform": plat,
+        }
+    pack = query_rows(
+        db,
+        project=project,
+        platform=plat,
+        start=start,
+        end=end,
+        limit=50000,
+    )
+    series: list[dict[str, Any]] = []
+    for row in pack.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        metrics = row.get("metrics") or {}
+        if not isinstance(metrics, dict):
+            continue
+        num = _metric_number(metrics.get(col))
+        if num is None:
+            continue
+        ds = str(row.get("report_date") or "")[:10]
+        if not ds:
+            continue
+        series.append({"key": ds, "value": round(num, 6)})
+    vals = [float(r["value"]) for r in series]
+    as_avg = col in XDATA_AVG_KEYS
+    if as_avg:
+        total = round(sum(vals) / len(vals), 4) if vals else 0.0
+        total_mode = "avg"
+    else:
+        total = round(sum(vals), 4) if vals else 0.0
+        total_mode = "sum"
+    label = METRIC_LABELS.get(col, col)
+    return {
+        "ok": True,
+        "has_data": bool(vals),
+        "source": "xdata",
+        "configured": True,
+        "metric": xdata_metric_id(col),
+        "label": label,
+        "platform": plat,
+        "project": pack.get("project") or project,
+        "series": series,
+        "total": total,
+        "total_mode": total_mode,
+        "start": (start or "")[:10] or (series[0]["key"] if series else None),
+        "end": (end or "")[:10] or (series[-1]["key"] if series else None),
     }
 

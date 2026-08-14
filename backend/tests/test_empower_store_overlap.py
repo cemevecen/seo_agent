@@ -9,7 +9,10 @@ from backend.services.empower_intel_config import (
     PLAY_CONSOLE_SKIP_METRIC_KEYS,
     STORE_EMPOWER_OVERLAP,
     play_console_skip_metric_keys,
+    xdata_column_key,
+    xdata_dropdown_options,
 )
+from backend.services.empower_intel_store import _metric_number, query_series
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -75,3 +78,33 @@ def test_asc_batches_drop_sessions():
         ]
     )
     assert [f["metric"] for f in dropped] == ["installs"]
+
+
+def test_xdata_dropdown_covers_app_columns_minus_version():
+    opts = xdata_dropdown_options("android")
+    values = {o["value"] for o in opts}
+    labels = {o["label"] for o in opts}
+    assert "xdata:active1DayUsers" in values
+    assert "xdata:dauPerMau" in values
+    assert "xdata:sessions" in values
+    assert "xdata:totalUsers" in values
+    assert "DAU (1 Day)" in labels
+    assert "xdata:appVersion" not in values
+    ios_opts = {o["value"] for o in xdata_dropdown_options("ios")}
+    assert ios_opts == values
+
+
+def test_xdata_column_key_and_metric_number():
+    assert xdata_column_key("xdata:sessions") == "sessions"
+    assert xdata_column_key("active1DayUsers") == "active1DayUsers"
+    assert _metric_number(True) == 1.0
+    assert _metric_number("1,5") == 1.5
+    assert _metric_number(None) is None
+
+
+def test_query_series_rejects_unknown_without_db():
+    out = query_series(None, platform="android", metric="xdata:notAMetric")  # type: ignore[arg-type]
+    assert out["ok"] is False
+    skipped = query_series(None, platform="android", metric="xdata:appVersion")  # type: ignore[arg-type]
+    assert skipped["ok"] is False
+

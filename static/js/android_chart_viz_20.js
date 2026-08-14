@@ -12,7 +12,7 @@
       catalogId: "pa-metric-catalog",
       heightKey: "paViz20H:",
       idPrefix: "pa-viz20-",
-      defaultMetrics: "anrs,crashes,dau,ga4:sessions",
+      defaultMetrics: "anrs,crashes,xdata:active1DayUsers,ga4:sessions",
     },
     {
       listId: "ia-viz20-list",
@@ -24,7 +24,7 @@
       catalogId: "ia-metric-catalog",
       heightKey: "iaViz20H:",
       idPrefix: "ia-viz20-",
-      defaultMetrics: "crashes,units,sessions,ga4:sessions",
+      defaultMetrics: "crashes,units,xdata:sessions,ga4:sessions",
     },
   ];
 
