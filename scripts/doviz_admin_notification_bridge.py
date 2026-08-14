@@ -2269,6 +2269,76 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None, *, charts_only: bool = 
     return out
 
 
+def run_gsc_cwv_shots_bridge_once(site_key: str | None = None) -> dict[str, Any]:
+    """GSC CWV screenshot-only → Railway shots-ingest (test sekmesi)."""
+    global _last_gsc_cwv_result
+    if not _ingest_token():
+        err = {"ok": False, "kind": "gsc_cwv_shots", "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_gsc_cwv_result = err
+        return err
+    import subprocess
+
+    script = ROOT / "scripts" / "gsc_cwv_shots.py"
+    if not script.is_file():
+        return {"ok": False, "kind": "gsc_cwv_shots", "message": "gsc_cwv_shots.py yok"}
+    print(f"GSC CWV shots başlıyor… site={site_key or 'all'}", flush=True)
+    _set_gsc_cwv_progress(
+        running=True,
+        phase="shots",
+        site=site_key or "all",
+        step=0,
+        total_steps=4,
+        message=f"CWV screenshot · {site_key or 'all'}",
+        started_at=time.time(),
+        finished_at=0.0,
+    )
+    cmd = [sys.executable, "-u", str(script), "--sync", "--ingest", "--headed"]
+    if site_key:
+        cmd.extend(["--site", str(site_key)])
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+        combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+        last_line = ""
+        for line in reversed(combined.splitlines()):
+            if line.strip().startswith("{"):
+                last_line = line.strip()
+                break
+        detail: dict[str, Any] = {}
+        if last_line:
+            try:
+                detail = json.loads(last_line)
+            except Exception:
+                detail = {}
+        ok = proc.returncode == 0 and bool(detail.get("ok", True))
+        out = {
+            "ok": ok,
+            "kind": "gsc_cwv_shots",
+            "message": detail.get("message") or (combined[-400:] if combined else "shots done"),
+            "site": site_key,
+            "detail": detail or None,
+        }
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "gsc_cwv_shots", "message": str(exc)[:300]}
+    _set_gsc_cwv_progress(
+        running=False,
+        phase="done" if out.get("ok") else "error",
+        message=out.get("message") or "",
+        finished_at=time.time(),
+    )
+    _last_gsc_cwv_result = out
+    print(f"GSC CWV shots · {out['message']}", flush=True)
+    return out
+
+
 def run_notification_bridge_once() -> dict[str, Any]:
     """Admin notification stats → Railway ingest."""
     global _last_result
@@ -3299,6 +3369,48 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "site": site_key,
                     "progress": dict(_gsc_cwv_progress),
                     "message": "GSC CWV + AMP tarama arka planda başladı",
+                },
+            )
+            return
+        elif path in ("/sync-gsc-cwv-shots", "/gsc-cwv-shots", "/sync-cwv-shots"):
+            site_key = (qs.get("site") or [""])[0].strip().lower() or "doviz"
+            length = int(self.headers.get("Content-Length") or 0)
+            raw_body = self.rfile.read(length) if length > 0 else b""
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body.decode("utf-8", errors="replace"))
+                    if isinstance(payload, dict) and payload.get("site"):
+                        site_key = str(payload.get("site") or "doviz").strip().lower()
+                except Exception:
+                    pass
+            if not _gsc_cwv_lock.acquire(blocking=False):
+                self._send(
+                    409,
+                    {
+                        "ok": False,
+                        "running": True,
+                        "message": "GSC CWV / shots zaten çalışıyor, bekleyin.",
+                    },
+                )
+                return
+
+            def _bg_shots() -> None:
+                try:
+                    run_gsc_cwv_shots_bridge_once(site_key=site_key)
+                except Exception:
+                    traceback.print_exc()
+                finally:
+                    _gsc_cwv_lock.release()
+
+            threading.Thread(target=_bg_shots, name="gsc-cwv-shots", daemon=True).start()
+            self._send(
+                200,
+                {
+                    "ok": True,
+                    "started": True,
+                    "kind": "gsc_cwv_shots",
+                    "site": site_key,
+                    "message": "CWV screenshot yakalama arka planda başladı",
                 },
             )
             return

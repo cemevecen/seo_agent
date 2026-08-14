@@ -64,6 +64,7 @@ from backend.api.empower_intel import router as empower_intel_router
 from backend.api.pagespeed_web import router as pagespeed_web_router
 from backend.api.seo_audit_scrape import router as seo_audit_scrape_router
 from backend.api.gsc_cwv import router as gsc_cwv_router
+from backend.api.gsc_cwv_shots import router as gsc_cwv_shots_router
 from backend.api.gsc_links import router as gsc_links_router
 from backend.api.policy_ingest import router as policy_ingest_router
 from backend.api.sinemalar_moderation import router as sinemalar_moderation_router
@@ -1052,6 +1053,74 @@ app.include_router(play_console_router, prefix="/api")
 app.include_router(pagespeed_web_router, prefix="/api")
 app.include_router(seo_audit_scrape_router, prefix="/api")
 app.include_router(gsc_cwv_router, prefix="/api")
+app.include_router(gsc_cwv_shots_router, prefix="/api")
+
+
+@app.get("/api/gsc-cwv/shots-status")
+def api_gsc_cwv_shots_status(site: str = "doviz"):
+    """CWV test sekmesi — DB'deki screenshot URL'leri."""
+    from backend.models import Site
+    from backend.services import gsc_cwv_storage as shot_store
+
+    key = (site or "doviz").strip().lower()
+    with SessionLocal() as db:
+        sites = db.query(Site).all()
+        site_row = None
+        for s in sites:
+            d = (s.domain or "").lower()
+            if key in d or (key == "doviz" and "doviz.com" in d) or (
+                key == "sinemalar" and "sinemalar.com" in d
+            ):
+                # harici site değil
+                site_row = s
+                if key == "doviz" and d.endswith("doviz.com"):
+                    break
+                if key == "sinemalar" and "sinemalar.com" in d:
+                    break
+        if site_row is None:
+            return JSONResponse({"ok": False, "message": "site yok", "shots": {}})
+        urls = shot_store.build_gsc_cwv_urls(
+            db,
+            site_id=int(site_row.id),
+            domain_for_property=(site_row.domain or "").removeprefix("www."),
+        )
+        shots = {
+            "mobile": urls.get("mobile_url") or "",
+            "desktop": urls.get("desktop_url") or "",
+            "full": urls.get("full_url") or "",
+            "extra": urls.get("extra_url") or "",
+        }
+        shots = {k: v for k, v in shots.items() if v}
+        updated = ""
+        for variant in ("mobile", "desktop", "full", "extra"):
+            row = shot_store.load_screenshot(db, site_id=int(site_row.id), variant=variant)
+            if row and row.updated_at:
+                updated = row.updated_at.isoformat() + "Z"
+                break
+        return JSONResponse(
+            {
+                "ok": True,
+                "site_id": site_row.id,
+                "domain": site_row.domain,
+                "shots": shots,
+                "updated_at": updated,
+                "gsc_url": urls.get("resource_url") or "",
+            }
+        )
+
+
+@app.get("/cwv-test")
+def cwv_test_page(request: Request):
+    """GSC CWV screenshot-only deneme sekmesi."""
+    return templates.TemplateResponse(
+        request,
+        "cwv_test.html",
+        {
+            "request": request,
+            "sites": get_sidebar_sites(),
+            "site_name": "CWV shots test",
+        },
+    )
 app.include_router(gsc_links_router, prefix="/api")
 app.include_router(policy_ingest_router, prefix="/api")
 app.include_router(sinemalar_moderation_router, prefix="/api")
