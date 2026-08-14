@@ -805,7 +805,16 @@
       if (!box) return;
       box.hidden = false;
       var hideId = meetingModeOn();
-      box.innerHTML = items
+      var sorted = items.slice().sort(function (a, b) {
+        var ao = a && a.is_open ? 0 : 1;
+        var bo = b && b.is_open ? 0 : 1;
+        if (ao !== bo) return ao - bo;
+        var at = String((a && a.logged_in_at) || "");
+        var bt = String((b && b.logged_in_at) || "");
+        if (at !== bt) return at < bt ? 1 : -1;
+        return Number(b && b.id) - Number(a && a.id);
+      });
+      box.innerHTML = sorted
         .map(function (v) {
           var cls = v.is_open
             ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/15"

@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 
 from backend.database import SessionLocal
@@ -448,8 +449,11 @@ def recent_visits(*, limit: int = 80, auth_only: bool = True) -> list[dict[str, 
             _trim_old(db)
             _sync_visits_from_login_events(db)
             db.commit()
+            # Online (Open) üstte; grup içinde en son giriş önce
             q = db.query(PanelVisitLog).order_by(
-                PanelVisitLog.logged_in_at.desc(), PanelVisitLog.id.desc()
+                case((PanelVisitLog.logged_out_at.is_(None), 0), else_=1),
+                PanelVisitLog.logged_in_at.desc(),
+                PanelVisitLog.id.desc(),
             )
             if auth_only:
                 # Middleware ile açılmış yanlış «Signed in» satırlarını gizle

@@ -156,6 +156,57 @@ def test_backfill_visit_from_login_event():
         assert row.start_reason == "auth"
 
 
+def test_recent_visits_open_first_then_latest_login():
+    from backend.models import AdminLoginEvent
+
+    _wipe()
+    with SessionLocal() as db:
+        db.query(AdminLoginEvent).delete()
+        db.commit()
+    older_open = datetime.utcnow() - timedelta(hours=2)
+    newer_idle = datetime.utcnow() - timedelta(hours=1)
+    newest_open = datetime.utcnow() - timedelta(minutes=5)
+    now = datetime.utcnow()
+    with SessionLocal() as db:
+        db.add_all(
+            [
+                PanelVisitLog(
+                    session_key="m:old-open",
+                    email="a@nokta.com",
+                    display_name="A",
+                    session_kind="member",
+                    start_reason="auth",
+                    logged_in_at=older_open,
+                    last_seen_at=now,
+                ),
+                PanelVisitLog(
+                    session_key="m:idle",
+                    email="b@nokta.com",
+                    display_name="B",
+                    session_kind="member",
+                    start_reason="auth",
+                    logged_in_at=newer_idle,
+                    last_seen_at=newer_idle,
+                    logged_out_at=newer_idle + timedelta(minutes=10),
+                    end_reason="idle",
+                ),
+                PanelVisitLog(
+                    session_key="m:new-open",
+                    email="c@nokta.com",
+                    display_name="C",
+                    session_kind="member",
+                    start_reason="auth",
+                    logged_in_at=newest_open,
+                    last_seen_at=now,
+                ),
+            ]
+        )
+        db.commit()
+    rows = pvl.recent_visits()
+    assert [r["email"] for r in rows] == ["c@nokta.com", "a@nokta.com", "b@nokta.com"]
+    assert [r["is_open"] for r in rows] == [True, True, False]
+
+
 def test_settings_template_has_visit_log_not_user_logins():
     from pathlib import Path
 
