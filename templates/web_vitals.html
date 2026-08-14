@@ -17,7 +17,7 @@
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-200">Web Vitals</h2>
         <p class="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-zinc-400">
           GSC Core Web Vitals + AMP
-          {% if collected_at %} · Last scan: {{ collected_at[:16].replace('T',' ') }}{% else %} · No scan yet{% endif %}
+          {% if collected_at %} · Last scan: {{ collected_at }}{% else %} · No scan yet{% endif %}
         </p>
         <p class="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">
           Threshold: Good −{{ thresholds.good_drop_pct|default(5) }}% · Poor +{{ thresholds.poor_increase_abs|default(10) }} · NI +{{ thresholds.ni_increase_pct|default(8) }}%

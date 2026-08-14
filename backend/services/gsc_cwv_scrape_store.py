@@ -976,6 +976,7 @@ def _recent_chart_series(db: Session, site_id: int, *, limit: int = 20) -> list[
 
 def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
     from backend.services import gsc_cwv_storage
+    from backend.services.timezone_utils import format_local_datetime
 
     row = latest_snapshot(db, site.id)
     payload: dict[str, Any] = {}
@@ -1000,10 +1001,12 @@ def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
     shot_urls = gsc_cwv_storage.build_gsc_cwv_urls(
         db, site_id=int(site.id), domain_for_property=domain_for_property
     )
+    collected_raw = row.collected_at if row else None
     return {
         "payload": payload,
         "history": hist,
-        "collected_at": row.collected_at.isoformat() if row and row.collected_at else "",
+        "collected_at": format_local_datetime(collected_raw, fallback="") if collected_raw else "",
+        "collected_at_iso": collected_raw.isoformat() if collected_raw else "",
         "gsc_links": {
             "main": f"https://search.google.com/u/0/search-console/core-web-vitals?resource_id={quote(str(rid), safe='')}",
             "mobile_summary": f"https://search.google.com/u/0/search-console/core-web-vitals/summary?resource_id={quote(str(rid), safe='')}&device=2",
