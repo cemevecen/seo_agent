@@ -48,12 +48,24 @@
         heightRoot: document.getElementById("pa-chart-height"),
         compressRoot: document.getElementById("pa-chart-compress"),
         svgId: "pa-chart",
+        cardSel: "#pa-chart-card",
+        tipIds: ["pa-tooltip"],
       },
       {
         wrap: document.getElementById("ia-chart-wrap"),
         heightRoot: document.getElementById("ia-chart-height"),
         compressRoot: document.getElementById("ia-chart-compress"),
         svgId: "ia-chart",
+        cardSel: "#ia-chart-card",
+        tipIds: ["ia-tooltip"],
+      },
+      {
+        wrap: document.getElementById("sd-chart-wrap"),
+        heightRoot: document.getElementById("sd-chart-height"),
+        compressRoot: document.getElementById("sd-chart-compress"),
+        svgId: "sd-chart",
+        cardSel: "#sd-chart-card",
+        tipIds: ["sd-tooltip"],
       },
     ].filter(function (t) {
       return t.wrap && t.heightRoot;
@@ -103,10 +115,11 @@
     var stop = stage || svg;
     var total = 0;
     var kids = wrap.children;
+    var tipSkip = { "pa-tooltip": 1, "ia-tooltip": 1, "sd-tooltip": 1 };
     for (var i = 0; i < kids.length; i++) {
       var child = kids[i];
       if (child === stop) break;
-      if (child.id === "pa-tooltip" || child.id === "ia-tooltip") continue;
+      if (child.id && tipSkip[child.id]) continue;
       total += child.offsetHeight || 0;
     }
     return total;
@@ -118,7 +131,7 @@
       (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
     var w = wrap.clientWidth - pad;
     if (w > 1) return w;
-    var card = wrap.closest("#pa-chart-card, #ia-chart-card");
+    var card = wrap.closest("#pa-chart-card, #ia-chart-card, #sd-chart-card");
     if (card) {
       var csCard = window.getComputedStyle(card);
       var padCard =
@@ -416,7 +429,7 @@
       t.wrap.setAttribute("data-chart-compress", compress);
       t.wrap.style.setProperty("--pa-chart-effective-h", String(eff));
 
-      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card");
+      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card, #sd-chart-card");
       if (card) {
         card.setAttribute("data-chart-height", height);
         card.setAttribute("data-chart-compress", compress);
@@ -534,7 +547,7 @@
       svg.style.marginBottom = "0";
       svg.setAttribute("preserveAspectRatio", "none");
 
-      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card");
+      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card, #sd-chart-card");
       if (card) {
         card.style.display = "flex";
         card.style.flexDirection = "column";
@@ -602,7 +615,7 @@
     var ro = new ResizeObserver(onResize);
     targets.forEach(function (t) {
       ro.observe(t.wrap);
-      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card");
+      var card = t.wrap.closest("#pa-chart-card, #ia-chart-card, #sd-chart-card");
       if (card) ro.observe(card);
       lastWidths.set(t.wrap, innerWidth(t.wrap));
     });

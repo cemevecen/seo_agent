@@ -1,5 +1,5 @@
 {% from 'partials/pa_chart_style_buttons.html' import chart_style_buttons %}
-<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=11">
+<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=12">
 <link rel="stylesheet" href="/static/css/pa_chart_style.css?v=4">
 <script>
   window.SEO_XDATA_METRIC_OPTIONS = {
@@ -104,32 +104,32 @@
         <div id="sd-legend" class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400"></div>
         <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
           <div id="sd-chart-height" class="pa-chart-height" role="group" aria-label="Chart height">
-            <button type="button" data-chart-height="1" title="Tall chart" aria-label="Tall chart">
+            <button type="button" data-chart-height="1" title="Yüksek grafik" aria-label="Yüksek grafik yüksekliği">
               <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="2" width="10" height="12" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 11 L7 7.5 L9.5 9 L12 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button type="button" data-chart-height="2" title="Medium chart" aria-label="Medium chart" class="is-active">
+            <button type="button" data-chart-height="2" title="Orta grafik" aria-label="Orta grafik yüksekliği" class="is-active">
               <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="4.5" width="10" height="9.5" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 11.5 L7 8.5 L9.5 10 L12 6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button type="button" data-chart-height="3" title="Short chart" aria-label="Short chart">
+            <button type="button" data-chart-height="3" title="Alçak grafik" aria-label="Alçak grafik yüksekliği">
               <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 12 L7 9.5 L9.5 10.5 L12 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
           <div id="sd-chart-compress" class="pa-chart-compress" role="group" aria-label="Chart vertical compress">
-            <button type="button" data-chart-compress="1" title="Normal" aria-label="Normal compress" class="is-active">
+            <button type="button" data-chart-compress="1" title="Normal sıkıştırma" aria-label="Normal dikey sıkıştırma" class="is-active">
               <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 3.5 L8 1.5 L10.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 12.5 L8 14.5 L10.5 12.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="5.5" width="9" height="5" rx="1" fill="currentColor" fill-opacity="0.28"/></svg>
             </button>
-            <button type="button" data-chart-compress="2" title="Medium compress" aria-label="Medium compress">
+            <button type="button" data-chart-compress="2" title="Orta sıkıştırma" aria-label="Orta dikey sıkıştırma">
               <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4 L8 2.5 L10.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 12 L8 13.5 L10.5 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="6.5" width="9" height="3" rx="1" fill="currentColor" fill-opacity="0.28"/></svg>
             </button>
-            <button type="button" data-chart-compress="3" title="Dense compress" aria-label="Dense compress">
+            <button type="button" data-chart-compress="3" title="Yoğun sıkıştırma" aria-label="Yoğun dikey sıkıştırma">
               <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4.5 L8 3.5 L10.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 11.5 L8 12.5 L10.5 11.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="7.5" width="9" height="1.5" rx="0.6" fill="currentColor" fill-opacity="0.35"/></svg>
             </button>
           </div>
           {{ chart_style_buttons('sd-chart-style', 'data-sd-chart-style') }}
         </div>
       </div>
-      <div id="sd-chart-wrap" class="relative overflow-visible px-1" data-chart-height="2" data-chart-compress="1" style="height:200px">
-        <svg id="sd-chart" viewBox="0 0 720 200" class="block h-full w-full max-w-none touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Sinemalar datas chart"></svg>
+      <div id="sd-chart-wrap" class="relative overflow-visible" data-chart-height="2" data-chart-compress="1">
+        <svg id="sd-chart" viewBox="0 0 720 260" class="block w-full max-w-none touch-pan-y select-none" preserveAspectRatio="none" role="img" aria-label="Sinemalar datas chart"></svg>
         <div id="sd-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0">
           <p id="sd-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
           <div id="sd-tip-body" class="mt-1.5 space-y-0.5 text-[11px] text-slate-700 dark:text-zinc-200"></div>
@@ -696,5 +696,6 @@
   }
 </style>
 
+<script src="/static/js/pa_chart_height.js?v=11"></script>
 <script src="/static/js/metric_table_ux.js?v=14"></script>
-<script src="/static/js/sinemalar_datas.js?v=4" defer></script>
+<script src="/static/js/sinemalar_datas.js?v=5" defer></script>

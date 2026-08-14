@@ -4,7 +4,8 @@
 }
 
 #pa-chart-card,
-#ia-chart-card {
+#ia-chart-card,
+#sd-chart-card {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -14,7 +15,8 @@
 }
 
 #pa-chart-wrap,
-#ia-chart-wrap {
+#ia-chart-wrap,
+#sd-chart-wrap {
   --pa-chart-h: 200;
   --pa-chart-h-factor: 1;
   --pa-chart-effective-h: 200;
@@ -33,7 +35,8 @@
 }
 
 #pa-chart-wrap.pa-chart-layout-sync,
-#ia-chart-wrap.pa-chart-layout-sync {
+#ia-chart-wrap.pa-chart-layout-sync,
+#sd-chart-wrap.pa-chart-layout-sync {
   transition: none !important;
 }
 
@@ -177,7 +180,8 @@ html.midnight .pa-chart-edge-handle::before {
 }
 
 #pa-chart-wrap.pa-chart-height-dragging,
-#ia-chart-wrap.pa-chart-height-dragging {
+#ia-chart-wrap.pa-chart-height-dragging,
+#sd-chart-wrap.pa-chart-height-dragging {
   transition: none !important;
 }
 
@@ -191,37 +195,44 @@ html.midnight .pa-chart-height-handle::before {
 }
 
 #pa-chart-wrap[data-chart-height="1"],
-#ia-chart-wrap[data-chart-height="1"] {
+#ia-chart-wrap[data-chart-height="1"],
+#sd-chart-wrap[data-chart-height="1"] {
   --pa-chart-h: 260;
 }
 
 #pa-chart-wrap[data-chart-height="2"],
-#ia-chart-wrap[data-chart-height="2"] {
+#ia-chart-wrap[data-chart-height="2"],
+#sd-chart-wrap[data-chart-height="2"] {
   --pa-chart-h: 200;
 }
 
 #pa-chart-wrap[data-chart-height="3"],
-#ia-chart-wrap[data-chart-height="3"] {
+#ia-chart-wrap[data-chart-height="3"],
+#sd-chart-wrap[data-chart-height="3"] {
   --pa-chart-h: 150;
 }
 
 #pa-chart-wrap[data-chart-compress="1"],
-#ia-chart-wrap[data-chart-compress="1"] {
+#ia-chart-wrap[data-chart-compress="1"],
+#sd-chart-wrap[data-chart-compress="1"] {
   --pa-chart-h-factor: 1;
 }
 
 #pa-chart-wrap[data-chart-compress="2"],
-#ia-chart-wrap[data-chart-compress="2"] {
+#ia-chart-wrap[data-chart-compress="2"],
+#sd-chart-wrap[data-chart-compress="2"] {
   --pa-chart-h-factor: 1.28;
 }
 
 #pa-chart-wrap[data-chart-compress="3"],
-#ia-chart-wrap[data-chart-compress="3"] {
+#ia-chart-wrap[data-chart-compress="3"],
+#sd-chart-wrap[data-chart-compress="3"] {
   --pa-chart-h-factor: 1.62;
 }
 
 #pa-chart,
-#ia-chart {
+#ia-chart,
+#sd-chart {
   display: block;
   flex: 0 0 auto;
   width: 100%;
@@ -233,7 +244,8 @@ html.midnight .pa-chart-height-handle::before {
 }
 
 #pa-chart-wrap.pa-chart-layout-sync #pa-chart,
-#ia-chart-wrap.pa-chart-layout-sync #ia-chart {
+#ia-chart-wrap.pa-chart-layout-sync #ia-chart,
+#sd-chart-wrap.pa-chart-layout-sync #sd-chart {
   transition: none !important;
 }
 
@@ -316,18 +328,21 @@ html.midnight .pa-chart-compress button.is-active {
 
 /* Eksen etiketleri — sabit px; JS non-uniform stretch’i de dengeler */
 #pa-chart text.pa-axis-label,
-#ia-chart text.pa-axis-label {
+#ia-chart text.pa-axis-label,
+#sd-chart text.pa-axis-label {
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
 
 #pa-chart text.pa-axis-label--x,
-#ia-chart text.pa-axis-label--x {
+#ia-chart text.pa-axis-label--x,
+#sd-chart text.pa-axis-label--x {
   font-size: 11px;
 }
 
 #pa-chart text.pa-axis-label--y,
-#ia-chart text.pa-axis-label--y {
+#ia-chart text.pa-axis-label--y,
+#sd-chart text.pa-axis-label--y {
   font-size: 10px;
 }

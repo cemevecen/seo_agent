@@ -11,10 +11,9 @@
   var DEFAULT_METRICS = ["xdata:sessions", "xdata:active1DayUsers", "xdata:usdSpent"];
   var COLORS = ["#2563EB", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#EC4899"];
   var OVERLAY_COLORS = ["#F59E0B", "#A855F7", "#14B8A6", "#F43F5E", "#64748B"];
-  var HEIGHT_BASE = { "1": 260, "2": 200, "3": 150 };
-  var COMPRESS_DIV = { "1": 1, "2": 1.28, "3": 1.62 };
-  /** Fixed SVG axis label size (half of previous 10) — all chart redraws use this. */
-  var AXIS_LABEL_FONT = 5;
+  /** Android/iOS ile aynı sabit SVG koordinat yüksekliği — yükseklik/sıkıştırma pa_chart_height.js ile. */
+  var CHART_VIEW_H = 260;
+  var AXIS_LABEL_FONT = 10;
 
   var state = {
     platform: "web",
@@ -24,8 +23,6 @@
     compareSeries: {},
     dates: [],
     chartStyle: "area",
-    chartHeight: "2",
-    chartCompress: "1",
     loading: false,
     labelByKey: {},
     focusedMetric: null,
@@ -370,24 +367,10 @@
     return Object.keys(set).sort();
   }
 
-  function chartPxHeight() {
-    var base = HEIGHT_BASE[state.chartHeight] || 200;
-    var div = COMPRESS_DIV[state.chartCompress] || 1;
-    return Math.max(72, Math.round(base / div));
-  }
-
-  function applyChartHeight() {
-    var wrap = $("sd-chart-wrap");
-    var svg = $("sd-chart");
-    var h = chartPxHeight();
-    if (wrap) {
-      wrap.style.height = h + "px";
-      wrap.setAttribute("data-chart-height", state.chartHeight);
-      wrap.setAttribute("data-chart-compress", state.chartCompress);
+  function syncChartLayout() {
+    if (typeof global.paSyncChartLayout === "function") {
+      global.paSyncChartLayout();
     }
-    if (svg) svg.setAttribute("viewBox", "0 0 720 " + h);
-    syncToggleGroup($("sd-chart-height"), "data-chart-height", state.chartHeight);
-    syncToggleGroup($("sd-chart-compress"), "data-chart-compress", state.chartCompress);
   }
 
   function syncToggleGroup(root, attr, value) {
@@ -889,7 +872,6 @@
     var svg = $("sd-chart");
     var tip = $("sd-tooltip");
     if (!svg) return;
-    applyChartHeight();
     var seriesList = collectChartSeries();
     renderLegend(seriesList);
     var maps = seriesList.map(function (s) {
@@ -897,7 +879,7 @@
     });
     var dates = unionDates(maps);
     state.dates = dates;
-    var h = chartPxHeight();
+    var h = CHART_VIEW_H;
     var w = 720;
     var padL = 48;
     var padR = 12;
@@ -905,13 +887,15 @@
     var padB = 28;
     var plotW = w - padL - padR;
     var plotH = h - padT - padB;
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
 
     if (!dates.length || !seriesList.length) {
       svg.innerHTML =
-        '<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="' +
+        '<text class="pa-axis-label" x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="' +
         AXIS_LABEL_FONT +
         '">No data for this range</text>';
       if (tip) tip.classList.add("hidden");
+      syncChartLayout();
       return;
     }
 
@@ -952,7 +936,7 @@
         gy +
         '" stroke="rgba(148,163,184,0.25)" stroke-width="1"/>';
       grid +=
-        '<text x="' +
+        '<text class="pa-axis-label pa-axis-label--y" x="' +
         (padL - 6) +
         '" y="' +
         (gy + 3) +
@@ -968,7 +952,7 @@
     dates.forEach(function (d, i) {
       if (i % labelStep !== 0 && i !== dates.length - 1) return;
       xLabels +=
-        '<text x="' +
+        '<text class="pa-axis-label pa-axis-label--x" x="' +
         xAt(i) +
         '" y="' +
         (h - 8) +
@@ -1070,6 +1054,7 @@
 
     svg.innerHTML = grid + xLabels + paths + hit;
     applyChartSeriesFocus();
+    syncChartLayout();
 
     svg.querySelectorAll("[data-sd-idx]").forEach(function (el) {
       el.addEventListener("mousemove", function (ev) {
@@ -1337,7 +1322,7 @@
     updateMetricTriggerLabel();
     syncPlatformUi();
     syncChartStyleUi();
-    applyChartHeight();
+    syncChartLayout();
     bindMetricKpiEvents();
 
     var preset = $("sd-preset");
@@ -1407,26 +1392,6 @@
     var run = $("sd-run");
     if (run) run.addEventListener("click", runLoad);
 
-    var hRoot = $("sd-chart-height");
-    if (hRoot) {
-      hRoot.addEventListener("click", function (ev) {
-        var btn = ev.target.closest("[data-chart-height]");
-        if (!btn) return;
-        state.chartHeight = btn.getAttribute("data-chart-height") || "2";
-        applyChartHeight();
-        renderChart();
-      });
-    }
-    var cRoot = $("sd-chart-compress");
-    if (cRoot) {
-      cRoot.addEventListener("click", function (ev) {
-        var btn = ev.target.closest("[data-chart-compress]");
-        if (!btn) return;
-        state.chartCompress = btn.getAttribute("data-chart-compress") || "1";
-        applyChartHeight();
-        renderChart();
-      });
-    }
     var sRoot = $("sd-chart-style");
     if (sRoot) {
       sRoot.addEventListener("click", function (ev) {
