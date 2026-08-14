@@ -84,12 +84,12 @@ SCRAPE_WINDOWS: tuple[str, ...] = ("24h", "7d", "30d", "90d")
 
 
 def _scrape_days() -> int:
-    """Mühürlü: 1 (dün). FORCE_FULL / unsealed: env veya 365."""
+    """Mühürlü: kısa pencere (1); geçmiş platform merge ile korunur."""
     try:
-        from backend.services.history_seal import force_full_history, is_pipeline_sealed, scheduled_fetch_window
+        from backend.services.history_seal import force_full_history, is_pipeline_sealed
 
         if is_pipeline_sealed("firebase") and not force_full_history("firebase"):
-            return int(scheduled_fetch_window("firebase").get("days") or 1)
+            return 1
     except Exception:
         pass
     raw = (os.environ.get("FIREBASE_CONSOLE_SCRAPE_DAYS") or "365").strip()

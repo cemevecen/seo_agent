@@ -54,8 +54,9 @@ def test_yesterday_only_when_sealed(monkeypatch):
         win = scheduled_fetch_window("play")
     assert win["mode"] == "yesterday_only"
     assert win["start"] == yday
-    assert win["end"] == yday
-    assert win["days"] == 1
+    assert win["end"] == today  # scrape ~1.5g
+    assert win["store_end"] == yday  # kaydet yalnız dün
+    assert win["days"] == 2
 
 
 def test_force_full_window(monkeypatch):

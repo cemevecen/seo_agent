@@ -90,6 +90,14 @@ def upsert_rows(
         if not rd:
             skipped += 1
             continue
+        try:
+            from backend.services.history_seal import never_store_today
+
+            if never_store_today(rd):
+                skipped += 1
+                continue
+        except Exception:
+            pass
         metrics = raw.get("metrics")
         if not isinstance(metrics, dict):
             metrics = {k: v for k, v in raw.items() if k not in {"report_date", "date", "day", "platform", "project", "metrics"}}

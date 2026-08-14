@@ -50,6 +50,96 @@ def _unpack_blob(raw: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     return [], {}
 
 
+def _series_date_key(item: dict[str, Any]) -> str:
+    return str(item.get("date") or item.get("day") or item.get("report_date") or "")[:10]
+
+
+def _merge_series_by_date(
+    existing: list[Any] | None,
+    incoming: list[Any] | None,
+) -> list[dict[str, Any]]:
+    by_d: dict[str, dict[str, Any]] = {}
+    for src in (existing or [], incoming or []):
+        for it in src:
+            if not isinstance(it, dict):
+                continue
+            ds = _series_date_key(it)
+            if not ds:
+                continue
+            try:
+                from backend.services.history_seal import never_store_today
+
+                if never_store_today(ds):
+                    continue
+            except Exception:
+                pass
+            by_d[ds] = it
+    return [by_d[k] for k in sorted(by_d.keys())]
+
+
+def _merge_explorer_facts(
+    existing: list[Any] | None,
+    incoming: list[Any] | None,
+) -> list[dict[str, Any]]:
+    by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for src in (existing or [], incoming or []):
+        for f in src:
+            if not isinstance(f, dict) or not f.get("metric"):
+                continue
+            ds = str(f.get("date") or "")[:10]
+            try:
+                from backend.services.history_seal import never_store_today
+
+                if never_store_today(ds or None):
+                    continue
+            except Exception:
+                pass
+            key = (
+                str(f.get("metric")),
+                ds,
+                str(f.get("dim") or f.get("platform") or "overview"),
+            )
+            by_key[key] = f
+    return list(by_key.values())
+
+
+def _merge_platform_block(old: dict[str, Any] | None, new: dict[str, Any] | None) -> dict[str, Any]:
+    """Kısa scrape uzun Firebase geçmişini ezmesin — series / facts upsert."""
+    base = dict(old) if isinstance(old, dict) else {}
+    inc = dict(new) if isinstance(new, dict) else {}
+    if not base:
+        # yine de bugünü yazma
+        if isinstance(inc.get("series"), list):
+            inc["series"] = _merge_series_by_date([], inc.get("series"))
+        if isinstance(inc.get("sessions_series"), list):
+            inc["sessions_series"] = _merge_series_by_date([], inc.get("sessions_series"))
+        return inc
+    out = dict(base)
+    for k, v in inc.items():
+        if k in ("series", "sessions_series") and isinstance(v, list):
+            out[k] = _merge_series_by_date(base.get(k) if isinstance(base.get(k), list) else [], v)
+        elif k == "windows" and isinstance(v, dict):
+            old_w = base.get("windows") if isinstance(base.get("windows"), dict) else {}
+            merged_w = dict(old_w)
+            for wk, wv in v.items():
+                if isinstance(wv, dict) and isinstance(old_w.get(wk), dict):
+                    mw = dict(old_w[wk])
+                    mw.update(wv)
+                    for sk in ("series", "sessions_series"):
+                        if isinstance(wv.get(sk), list):
+                            mw[sk] = _merge_series_by_date(
+                                old_w[wk].get(sk) if isinstance(old_w[wk].get(sk), list) else [],
+                                wv.get(sk),
+                            )
+                    merged_w[wk] = mw
+                else:
+                    merged_w[wk] = wv
+            out["windows"] = merged_w
+        else:
+            out[k] = v
+    return out
+
+
 def ingest_firebase_console_payload(db: Session, body: dict[str, Any]) -> dict[str, Any]:
     row = _get_or_create(db)
     metrics = body.get("metrics") if isinstance(body.get("metrics"), list) else []
@@ -71,26 +161,61 @@ def ingest_firebase_console_payload(db: Session, body: dict[str, Any]) -> dict[s
     merge = bool(body.get("merge_platforms"))
     if not merge and isinstance(new_plats, dict) and 0 < len(new_plats) < 2:
         merge = True
-    if merge and new_plats:
-        old_metrics, old_panels = _unpack_blob(row.metrics_json or "")
-        old_plats = (
-            old_panels.get("platforms") if isinstance(old_panels.get("platforms"), dict) else {}
-        )
-        merged_plats = dict(old_plats)
-        merged_plats.update(new_plats)
-        panels = dict(old_panels)
+
+    # Mühür / kısa scrape: platform içi series + explorer_facts upsert
+    sealed_merge = True
+    try:
+        from backend.services.history_seal import force_full_history, is_pipeline_sealed
+
+        if force_full_history("firebase") or not is_pipeline_sealed("firebase"):
+            sealed_merge = bool(body.get("merge_history", False))
+        if body.get("replace_history"):
+            sealed_merge = False
+    except Exception:
+        sealed_merge = True
+
+    old_metrics, old_panels = _unpack_blob(row.metrics_json or "")
+    old_plats = (
+        old_panels.get("platforms") if isinstance(old_panels.get("platforms"), dict) else {}
+    )
+
+    if sealed_merge or merge:
+        merged_plats = dict(old_plats) if sealed_merge or merge else {}
+        for pk, pv in (new_plats or {}).items():
+            if not isinstance(pv, dict):
+                continue
+            prev = old_plats.get(pk) if isinstance(old_plats.get(pk), dict) else {}
+            merged_plats[str(pk)] = _merge_platform_block(prev, pv) if sealed_merge else pv
+        panels = dict(old_panels) if isinstance(old_panels, dict) else {}
         for k, v in incoming_panels.items():
             if k == "platforms":
                 continue
+            if k == "explorer_facts" and sealed_merge:
+                panels[k] = _merge_explorer_facts(
+                    old_panels.get("explorer_facts") if isinstance(old_panels, dict) else [],
+                    v if isinstance(v, list) else [],
+                )
+                continue
             panels[k] = v
         panels["platforms"] = merged_plats
-        scraped = {str(k).lower() for k in new_plats.keys()}
-        kept = [
-            m
-            for m in old_metrics
-            if isinstance(m, dict) and str(m.get("platform") or "").lower() not in scraped
-        ]
-        metrics = kept + [m for m in metrics if isinstance(m, dict)]
+        if sealed_merge:
+            scraped = {str(k).lower() for k in (new_plats or {}).keys()}
+            kept = [
+                m
+                for m in old_metrics
+                if isinstance(m, dict) and str(m.get("platform") or "").lower() not in scraped
+            ]
+            # metrics listesi de tarih upsert (varsa)
+            incoming_m = [m for m in metrics if isinstance(m, dict)]
+            metrics = kept + incoming_m
+        elif merge and new_plats:
+            scraped = {str(k).lower() for k in new_plats.keys()}
+            kept = [
+                m
+                for m in old_metrics
+                if isinstance(m, dict) and str(m.get("platform") or "").lower() not in scraped
+            ]
+            metrics = kept + [m for m in metrics if isinstance(m, dict)]
 
     row.metrics_json = _pack_blob(metrics, panels)
     row.raw_network_json = json.dumps(raw_network[:200], ensure_ascii=False)
@@ -110,7 +235,8 @@ def ingest_firebase_console_payload(db: Session, body: dict[str, Any]) -> dict[s
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         "metric_count": len(metrics),
         "scrape_days": days,
-        "merged_platforms": bool(merge),
+        "merged_platforms": bool(merge or sealed_merge),
+        "merged_history": bool(sealed_merge),
         "platforms": list(new_plats.keys()) if isinstance(new_plats, dict) else [],
     }
 

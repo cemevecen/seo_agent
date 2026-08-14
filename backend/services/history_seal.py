@@ -212,14 +212,15 @@ def scheduled_fetch_window(
     force_full: bool | None = None,
     known_dates: Iterable[date | str] | None = None,
 ) -> dict[str, Any]:
-    """Planlı scrape için çekilecek [start, end] (ikisi de dün veya gap aralığı).
+    """Planlı scrape için çekilecek [start, end].
 
     force_full=True → history_start → min(yesterday, seal) (tek seferlik backfill).
-    Mühürlü + gap yok → start=end=yesterday.
+    Mühürlü + gap yok → scrape [dün, bugün] (~1.5 gün); kalıcı kayıt yalnız ≤dün.
     """
     if force_full is None:
         force_full = force_full_history(pipeline)
     yday = calendar_yesterday()
+    today = calendar_today()
     start_hist = history_start()
     seal = pipeline_seal_through(pipeline)
     sealed = is_pipeline_sealed(pipeline) and not force_full
@@ -234,14 +235,15 @@ def scheduled_fetch_window(
             "mode": "backfill_full" if (force_full or not sealed) else mode,
             "start": start,
             "end": end,
+            "store_end": end,
             "days": (end - start).days + 1,
             "sealed": sealed,
             "seal_through": seal,
             "yesterday": yday,
-            "store_dates": True,  # end <= yesterday always
+            "store_dates": True,
         }
 
-    # Sealed: only yesterday (+ gaps between seal+1 and yesterday)
+    # Sealed: gaps between seal+1 and yesterday (store only complete days)
     gap_start = seal + timedelta(days=1)
     gaps: list[date] = []
     if known_dates is not None and gap_start <= yday:
@@ -251,6 +253,7 @@ def scheduled_fetch_window(
             "mode": "gap_fill",
             "start": gaps[0],
             "end": gaps[-1],
+            "store_end": gaps[-1],
             "days": (gaps[-1] - gaps[0]).days + 1,
             "gap_dates": [d.isoformat() for d in gaps],
             "sealed": True,
@@ -259,12 +262,13 @@ def scheduled_fetch_window(
             "store_dates": True,
         }
 
-    # Normal daily: only previous calendar day
+    # Daily: scrape dün→bugün (~1.5g); kaydet yalnız dün
     return {
         "mode": "yesterday_only",
         "start": yday,
-        "end": yday,
-        "days": 1,
+        "end": today,
+        "store_end": yday,
+        "days": 2,
         "sealed": True,
         "seal_through": seal,
         "yesterday": yday,
