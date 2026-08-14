@@ -119,6 +119,136 @@ def _last_updated_from_body(body: str) -> str:
     return ""
 
 
+def _enable_all_status_series(page) -> int:
+    """Summary sayfasında Poor / NI / Good kutularının hepsini aç.
+
+    GSC varsayılanı çoğu zaman yalnız «Poor» seçili bırakır; o zaman ana
+    stacked grafik boş/yanlış görünür. Kutulara tıklayıp üç seriyi de aç.
+    """
+    try:
+        n = int(
+            page.evaluate(
+                """() => {
+  const series = [
+    { re: /(^|\\n|\\s)(poor|yetersiz)\\b/i, key: 'poor' },
+    { re: /need(s)?\\s*improvement|iyileştir|iyilestir/i, key: 'ni' },
+    { re: /(^|\\n|\\s)(good|iyi)\\b/i, key: 'good' },
+  ];
+  const skipGoodish = (t, key) => {
+    if (key !== 'good') return false;
+    return /iyileştir|iyilestir|improvement|need/i.test(t);
+  };
+  const candidates = Array.from(
+    document.querySelectorAll('[role="checkbox"], [aria-checked], button, [tabindex]')
+  );
+  // Kart gövdeleri: checkbox içeren üst kutular
+  const cards = [];
+  for (const el of candidates) {
+    let node = el;
+    for (let i = 0; i < 6 && node; i++) {
+      const t = (node.innerText || '').replace(/\\s+/g, ' ').trim();
+      if (t && t.length < 160 && /\\d/.test(t)) {
+        cards.push(node);
+        break;
+      }
+      node = node.parentElement;
+    }
+  }
+  const uniq = Array.from(new Set(cards));
+  let clicked = 0;
+  const seen = new Set();
+  for (const { re, key } of series) {
+    if (seen.has(key)) continue;
+    for (const card of uniq) {
+      const t = (card.innerText || '').replace(/\\s+/g, ' ').trim();
+      if (!re.test(t) || skipGoodish(t, key)) continue;
+      const box =
+        card.matches('[role="checkbox"], [aria-checked]')
+          ? card
+          : card.querySelector('[role="checkbox"], [aria-checked], input[type="checkbox"]');
+      const aria = (box && box.getAttribute('aria-checked')) || '';
+      const input = box && box.matches && box.matches('input')
+        ? box
+        : card.querySelector('input[type="checkbox"]');
+      const on = aria === 'true' || !!(input && input.checked);
+      if (on) {
+        seen.add(key);
+        break;
+      }
+      try {
+        (box || card).click();
+        clicked += 1;
+        seen.add(key);
+        break;
+      } catch (_) {}
+    }
+  }
+  return clicked;
+}"""
+            )
+            or 0
+        )
+    except Exception:
+        n = 0
+    if n:
+        time.sleep(1.2)
+    # Playwright fallback — role/name ile
+    import re as _re
+
+    patterns = (
+        _re.compile(r"poor|yetersiz", _re.I),
+        _re.compile(r"need|improvement|iyileştir|iyilestir", _re.I),
+        _re.compile(r"^good$|^iyi$|good urls|iyi url", _re.I),
+    )
+    for pat in patterns:
+        try:
+            loc = page.get_by_role("checkbox", name=pat)
+            if loc.count() == 0:
+                loc = page.locator("[role='checkbox']").filter(has_text=pat)
+            if loc.count() == 0:
+                continue
+            target = loc.first
+            aria = ""
+            try:
+                aria = (target.get_attribute("aria-checked") or "").lower()
+            except Exception:
+                aria = ""
+            if aria == "true":
+                continue
+            target.click(timeout=2500)
+            n += 1
+            time.sleep(0.6)
+        except Exception:
+            continue
+    if n:
+        time.sleep(1.5)
+    print(f"  · status series toggles · clicked≈{n}", flush=True)
+    return n
+
+
+def _shot_overview_device_card(page, label: str, path: Path) -> bool:
+    """Overview'daki Mobile / Desktop çizgi grafik kartını yakala."""
+    for sel in (f"text={label}", f"text=/{label}/i"):
+        try:
+            heading = page.locator(sel).first
+            if not heading.count():
+                continue
+            for depth in (3, 4, 5, 6, 2):
+                try:
+                    box = heading.locator(
+                        f"xpath=ancestor::*[self::div or self::section][{depth}]"
+                    )
+                    box.wait_for(state="visible", timeout=2000)
+                    box.screenshot(path=str(path), type="png")
+                    if path.is_file() and path.stat().st_size > 12_000:
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            continue
+    return False
+
+
 def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str, Any]:
     _cwv_url = cwv_mod._cwv_url
     _ensure_signed_in = cwv_mod._ensure_signed_in
@@ -150,7 +280,22 @@ def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str
     _screenshot_main(page, shots["full"])
     print(f"  · full overview → {shots['full'].name}", flush=True)
 
-    # Panel grafikleri = GSC device summary (mobile web / desktop web)
+    # Overview çizgi grafikleri (Mobil / Masaüstü kartları) — panel ana görünüm
+    for label_en, label_tr, variant in (
+        ("Mobile", "Mobil", "mobile"),
+        ("Desktop", "Masaüstü", "desktop"),
+    ):
+        card_path = out_dir / f"{variant}-overview.png"
+        ok = _shot_overview_device_card(page, label_en, card_path) or _shot_overview_device_card(
+            page, label_tr, card_path
+        )
+        if ok:
+            shots[variant] = card_path
+            print(f"  · {variant} overview card (line chart)", flush=True)
+        else:
+            print(f"  · {variant} overview card skip", flush=True)
+
+    # Device summary — stacked URL grafiği; Poor/NI/Good kutularının hepsi açık olmalı
     for device, variant, label in (
         (DEVICE_MOBILE, "mobile", "Mobile web summary"),
         (DEVICE_DESKTOP, "desktop", "Desktop web summary"),
@@ -161,10 +306,21 @@ def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str
             wait_until="domcontentloaded",
             timeout=120_000,
         )
-        time.sleep(4.0)
+        time.sleep(3.5)
+        _enable_all_status_series(page)
+        time.sleep(1.0)
+        # Grafik alanına kaydır (üst KPI + stacked chart)
+        try:
+            page.evaluate("window.scrollTo(0, 0)")
+        except Exception:
+            pass
+        time.sleep(0.8)
         _screenshot_main(page, path)
-        shots[variant] = path
-        print(f"  · {label} → {path.name}", flush=True)
+        shots[f"{variant}_summary"] = path
+        # Overview kartı yoksa summary panel slotuna girer
+        if variant not in shots:
+            shots[variant] = path
+        print(f"  · {label} → {path.name} (all series)", flush=True)
 
     mobile_k = dict(overview.get("mobile") or {})
     desktop_k = dict(overview.get("desktop") or {})
@@ -265,6 +421,8 @@ def post_shots(capture: dict[str, Any]) -> dict[str, Any]:
             ("full", "full"),
             ("mobile", "mobile"),
             ("desktop", "desktop"),
+            # Summary (kutular açık stacked) — panelde ikinci görsel
+            ("mobile_summary", "extra"),
         )
         files = []
         data = [
