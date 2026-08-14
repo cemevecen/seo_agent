@@ -66,6 +66,80 @@ def test_deploy_installs_firefox_not_chromium():
     assert "playwright install chromium" not in nix
 
 
+def test_clear_stale_locks_skips_when_pids(monkeypatch, tmp_path):
+    from backend.services import scrape_browser as sb
+
+    (tmp_path / "SingletonLock").write_text("x", encoding="utf-8")
+    (tmp_path / "cookies.sqlite").write_text("keep", encoding="utf-8")
+    monkeypatch.setattr(sb, "list_profile_browser_pids", lambda _p: [12345])
+    assert sb.clear_stale_profile_locks(tmp_path) == []
+    assert (tmp_path / "SingletonLock").is_file()
+    assert (tmp_path / "cookies.sqlite").read_text(encoding="utf-8") == "keep"
+
+
+def test_clear_stale_locks_removes_only_locks(monkeypatch, tmp_path):
+    from backend.services import scrape_browser as sb
+
+    (tmp_path / "SingletonLock").write_text("x", encoding="utf-8")
+    (tmp_path / ".parentlock").write_text("x", encoding="utf-8")
+    (tmp_path / "cookies.sqlite").write_text("keep", encoding="utf-8")
+    monkeypatch.setattr(sb, "list_profile_browser_pids", lambda _p: [])
+    removed = sb.clear_stale_profile_locks(tmp_path)
+    assert "SingletonLock" in removed
+    assert not (tmp_path / "SingletonLock").exists()
+    assert (tmp_path / "cookies.sqlite").read_text(encoding="utf-8") == "keep"
+
+
+def test_assert_profile_auth_untouched(tmp_path):
+    from backend.services.scrape_browser import assert_profile_auth_untouched
+    import pytest
+
+    with pytest.raises(RuntimeError, match="auth state"):
+        assert_profile_auth_untouched(tmp_path / "cookies.sqlite")
+
+
+def test_release_profile_browsers_graceful_then_force(monkeypatch, tmp_path):
+    from backend.services import scrape_browser as sb
+
+    monkeypatch.setattr(sb, "profile_login_lock_active", lambda _p: False)
+    alive = {99: True}
+
+    def fake_list(_p):
+        return [99] if alive.get(99) else []
+
+    kills: list[tuple[int, int]] = []
+
+    def fake_kill(pid, sig):
+        kills.append((pid, sig))
+        if sig == sb.signal.SIGKILL:
+            alive[99] = False
+        elif sig == 0:
+            if not alive.get(pid):
+                raise ProcessLookupError()
+            return None
+        return None
+
+    monkeypatch.setattr(sb, "list_profile_browser_pids", fake_list)
+    monkeypatch.setattr(sb.os, "kill", fake_kill)
+    monkeypatch.setattr(sb.time, "sleep", lambda _s: None)
+    # force=False: SIGTERM only, process may remain
+    soft = sb.release_profile_browsers(tmp_path, force=False, wait_sec=0.01, reason="t")
+    assert soft["term"] == 1
+    assert soft["kill"] == 0
+    hard = sb.release_profile_browsers(tmp_path, force=True, wait_sec=0.01, reason="t")
+    assert hard["kill"] == 1
+    assert any(sig == sb.signal.SIGKILL for _, sig in kills)
+
+
+def test_no_profile_rmtree_in_scrape_browser():
+    src = (Path(__file__).resolve().parents[1] / "services" / "scrape_browser.py").read_text(
+        encoding="utf-8"
+    )
+    assert "rmtree" not in src
+    assert "ensure_profile_free_for_launch" in src
+    assert "SIGKILL" in src
+
+
 def test_launch_helpers_use_firefox_only():
     src = (Path(__file__).resolve().parents[1] / "services" / "scrape_browser.py").read_text(
         encoding="utf-8"

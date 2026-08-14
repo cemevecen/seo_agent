@@ -2,6 +2,11 @@
 
 Chrome / Chromium / Chrome for Testing açılmaz. Google oturumu
 ~/.seo-agent/fx-google altında tutulur (Play, GSC, Firebase, Policy).
+
+Profil kuralları:
+- Auth state (cookies.sqlite, storage, sessionstore…) silinmez / recreate edilmez.
+- Stale SingletonLock / .parentlock temizlenebilir.
+- launch öncesi: bekle → SIGTERM → SIGKILL yalnızca son çare.
 """
 
 from __future__ import annotations
@@ -153,15 +158,48 @@ def profile_login_lock_active(profile: Path) -> bool:
     return True
 
 
-def kill_profile_browsers(profile: Path) -> int:
-    if profile_login_lock_active(profile):
-        return 0
-    marker = str(profile.resolve())
-    killed = 0
+# Çalışma kilidi dosyaları — auth state değil; stale ise silinebilir.
+_PROFILE_LOCK_NAMES = (".parentlock", "lock", "SingletonLock", "SingletonCookie", "SingletonSocket")
+
+# Authentication state — asla silinmez / recreate edilmez.
+_PROFILE_AUTH_NAMES = frozenset(
+    {
+        "cookies.sqlite",
+        "cookies.sqlite-wal",
+        "cookies.sqlite-shm",
+        "webappsstore.sqlite",
+        "webappsstore.sqlite-wal",
+        "webappsstore.sqlite-shm",
+        "storage",
+        "sessionstore.jsonlz4",
+        "sessionstore-backups",
+        "logins.json",
+        "key4.db",
+        "cert9.db",
+    }
+)
+
+# Graceful SIGTERM sonrası bekleme; sonra isteğe bağlı SIGKILL.
+_PROFILE_RELEASE_WAIT_SEC = float(os.environ.get("SCRAPE_PROFILE_RELEASE_WAIT_SEC") or "12")
+_PROFILE_BUSY_WAIT_SEC = float(os.environ.get("SCRAPE_PROFILE_BUSY_WAIT_SEC") or "8")
+
+
+class ProfileBusyError(RuntimeError):
+    """Profil sağlıklı bir tarayıcı tarafından tutuluyor; force takeover yok."""
+
+
+def list_profile_browser_pids(profile: Path) -> list[int]:
+    """Bu profile path'ini tutan Firefox/Chrome süreç PID'leri."""
+    try:
+        marker = str(profile.expanduser().resolve())
+    except Exception:
+        marker = str(profile.expanduser())
+    pids: list[int] = []
     try:
         out = subprocess.check_output(["ps", "ax", "-o", "pid=,command="], text=True)
     except Exception:
-        return 0
+        return pids
+    seen: set[int] = set()
     for line in out.splitlines():
         if marker not in line:
             continue
@@ -172,16 +210,196 @@ def kill_profile_browsers(profile: Path) -> int:
             pid = int(line.split(None, 1)[0])
         except Exception:
             continue
-        if pid <= 1 or pid == os.getpid():
+        if pid <= 1 or pid == os.getpid() or pid in seen:
             continue
+        seen.add(pid)
+        pids.append(pid)
+    return pids
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
+def clear_stale_profile_locks(profile: Path) -> list[str]:
+    """Yalnızca kilit dosyalarını sil. cookies/storage/session'a dokunmaz.
+
+    Canlı browser PID'i varken kilit silinmez (yanlışlıkla ikinci instance açılmasın).
+    """
+    profile = profile.expanduser()
+    if list_profile_browser_pids(profile):
+        return []
+    removed: list[str] = []
+    for name in _PROFILE_LOCK_NAMES:
+        path = profile / name
+        try:
+            if path.exists() or path.is_symlink():
+                path.unlink(missing_ok=True)
+                removed.append(name)
+        except Exception:
+            pass
+    return removed
+
+
+def assert_profile_auth_untouched(path: Path) -> None:
+    """Auth dosyası / storage silme girişimlerini reddet (güvenlik kemeri)."""
+    name = path.expanduser().name
+    if name in _PROFILE_AUTH_NAMES or name.startswith("cookies.sqlite"):
+        raise RuntimeError(
+            f"Profil auth state silinemez: {path} — "
+            "yalnızca stale lock / orphan process temizliği serbest"
+        )
+
+
+def release_profile_browsers(
+    profile: Path,
+    *,
+    force: bool = False,
+    wait_sec: float | None = None,
+    reason: str = "",
+) -> dict[str, Any]:
+    """Profili tutan tarayıcıları yumuşak bırak.
+
+    Akış: SIGTERM → bekle → hâlâ yaşıyorsa ve force=True ise SIGKILL.
+    Login kilidi varken (manuel --login) hiçbir şey öldürmez.
+    """
+    if profile_login_lock_active(profile):
+        return {"term": 0, "kill": 0, "skipped": "login_lock", "reason": reason}
+    wait = _PROFILE_RELEASE_WAIT_SEC if wait_sec is None else max(0.0, float(wait_sec))
+    pids = list_profile_browser_pids(profile)
+    if not pids:
+        cleared = clear_stale_profile_locks(profile)
+        return {"term": 0, "kill": 0, "cleared_locks": cleared, "reason": reason}
+
+    term = 0
+    for pid in pids:
         try:
             os.kill(pid, signal.SIGTERM)
-            killed += 1
+            term += 1
         except (ProcessLookupError, PermissionError, OSError):
             pass
-    if killed:
-        time.sleep(0.5)
-    return killed
+    if term:
+        label = f" ({reason})" if reason else ""
+        print(
+            f"Profil browser SIGTERM ×{term}{label} · {wait:.0f}s bekleniyor · force={force}",
+            flush=True,
+        )
+        deadline = time.time() + wait
+        while time.time() < deadline:
+            if not any(_pid_alive(p) for p in pids):
+                break
+            time.sleep(0.4)
+
+    kill_n = 0
+    still = [p for p in pids if _pid_alive(p)]
+    if still and force:
+        for pid in still:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                kill_n += 1
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+        if kill_n:
+            print(f"Profil browser SIGKILL ×{kill_n} (son çare) · {reason or 'takeover'}", flush=True)
+            time.sleep(0.5)
+
+    cleared = clear_stale_profile_locks(profile)
+    return {
+        "term": term,
+        "kill": kill_n,
+        "remaining": [p for p in pids if _pid_alive(p)],
+        "cleared_locks": cleared,
+        "reason": reason,
+    }
+
+
+def ensure_profile_free_for_launch(
+    profile: Path,
+    *,
+    takeover: bool = True,
+    busy_wait_sec: float | None = None,
+    release_wait_sec: float | None = None,
+    reason: str = "launch",
+) -> dict[str, Any]:
+    """launch_persistent öncesi: stale lock temizle; canlı browser varsa önce bekle.
+
+    Playwright Firefox'a CDP attach yok — 'attach' = mevcut job bitsin / kilit düşsün.
+    Takeover gerekirse: graceful SIGTERM → bekle → SIGKILL son çare.
+    """
+    profile = profile.expanduser()
+    busy_wait = _PROFILE_BUSY_WAIT_SEC if busy_wait_sec is None else max(0.0, float(busy_wait_sec))
+    info: dict[str, Any] = {"profile": str(profile), "reason": reason}
+
+    if takeover and profile_login_lock_active(profile):
+        raise RuntimeError(
+            f"Login kilidi aktif: {profile_login_lock_path(profile)} — "
+            "manuel giriş bitene kadar scrapeyi ertele"
+        )
+
+    pids = list_profile_browser_pids(profile)
+    if not pids:
+        info["cleared_locks"] = clear_stale_profile_locks(profile)
+        info["action"] = "stale_locks_only"
+        return info
+
+    # Başka scrape kapanıyorsa kısa bekle — hemen öldürme
+    if busy_wait > 0:
+        deadline = time.time() + busy_wait
+        while time.time() < deadline:
+            pids = list_profile_browser_pids(profile)
+            if not pids:
+                info["cleared_locks"] = clear_stale_profile_locks(profile)
+                info["action"] = "waited_for_release"
+                return info
+            time.sleep(0.4)
+
+    pids = list_profile_browser_pids(profile)
+    if not pids:
+        info["cleared_locks"] = clear_stale_profile_locks(profile)
+        info["action"] = "released_during_wait"
+        return info
+
+    if not takeover:
+        raise ProfileBusyError(
+            f"Profil meşgul ({len(pids)} browser): {profile} — takeover=False"
+        )
+
+    # Graceful, sonra force
+    soft = release_profile_browsers(
+        profile, force=False, wait_sec=release_wait_sec, reason=f"{reason}:graceful"
+    )
+    info["soft"] = soft
+    pids = list_profile_browser_pids(profile)
+    if pids:
+        hard = release_profile_browsers(
+            profile, force=True, wait_sec=2.0, reason=f"{reason}:force"
+        )
+        info["hard"] = hard
+        pids = list_profile_browser_pids(profile)
+    info["cleared_locks"] = clear_stale_profile_locks(profile)
+    info["action"] = "takeover"
+    info["remaining"] = pids
+    return info
+
+
+def kill_profile_browsers(profile: Path, *, force: bool = True) -> int:
+    """Geriye uyumlu: profil browser bırakma.
+
+    Varsayılan force=True (eski çağrılar yolu açabilsin) ama önce SIGTERM + bekleme.
+    Login kilidinde 0 döner.
+    """
+    result = release_profile_browsers(
+        profile, force=force, reason="kill_profile_browsers"
+    )
+    return int(result.get("term") or 0) + int(result.get("kill") or 0)
 
 
 def kill_legacy_chrome_scrapers() -> int:
@@ -291,14 +509,12 @@ def launch_system_firefox_login(
         )
     profile = profile.expanduser()
     profile.mkdir(parents=True, exist_ok=True)
-    # Önce Playwright Nightly'yi kapat (kilit henüz yok)
-    kill_profile_browsers(profile)
-    time.sleep(0.4)
-    for name in (".parentlock", "lock", "SingletonLock"):
-        try:
-            (profile / name).unlink(missing_ok=True)
-        except Exception:
-            pass
+    # Önce soft release (graceful → bekle → force); cookie/storage silinmez
+    ensure_profile_free_for_launch(
+        profile,
+        takeover=True,
+        reason="system_firefox_login",
+    )
 
     # Login sırasında scrapeler bu profili öldürmesin / çakışmasın
     acquire_profile_login_lock(profile, reason="system_firefox_login")
@@ -406,22 +622,30 @@ def launch_persistent(
     extra: dict[str, Any] | None = None,
     kill_existing: bool = True,
 ) -> Any:
+    """Firefox persistent context.
+
+    kill_existing=True: soft takeover (bekle → SIGTERM → SIGKILL son çare).
+    kill_existing=False: yalnızca stale lock temizliği; canlı browser varsa ProfileBusyError.
+    Auth state (cookies/storage) asla silinmez.
+    """
     assert_firefox_only(pw)
-    # Manuel --login kilidi varken scrape yeni pencere açmasın (profil çakışması).
-    if kill_existing and profile_login_lock_active(profile):
-        raise RuntimeError(
-            f"Login kilidi aktif: {profile_login_lock_path(profile)} — "
-            "manuel giriş bitene kadar scrapeyi ertele"
-        )
-    # Login sırasında False: başka scrape SIGTERM ile pencereyi 2–3 sn'de kapatmasın.
     if kill_existing:
-        kill_profile_browsers(profile)
+        ensure_profile_free_for_launch(
+            profile,
+            takeover=True,
+            reason="launch_persistent",
+        )
     else:
-        for name in (".parentlock", "lock", "SingletonLock"):
-            try:
-                (profile / name).unlink(missing_ok=True)
-            except Exception:
-                pass
+        if profile_login_lock_active(profile):
+            raise RuntimeError(
+                f"Login kilidi aktif: {profile_login_lock_path(profile)} — "
+                "manuel giriş bitene kadar scrapeyi ertele"
+            )
+        if list_profile_browser_pids(profile):
+            raise ProfileBusyError(
+                f"Profil meşgul (kill_existing=False): {profile}"
+            )
+        clear_stale_profile_locks(profile)
     kwargs = _persistent_kwargs(
         profile, headed=headed, viewport=viewport, locale=locale, extra=extra
     )

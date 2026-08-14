@@ -21,7 +21,7 @@ from typing import Any
 from backend.services.scrape_browser import (
     STATE_DIR,
     align_firefox_profile_compatibility,
-    kill_profile_browsers,
+    ensure_profile_free_for_launch,
     profile_login_lock_active,
     resolve_system_firefox_executable,
 )
@@ -215,13 +215,11 @@ def launch_system_firefox_driver(
     if profile_login_lock_active(profile):
         raise RuntimeError(f"Login kilidi aktif: {profile}")
 
-    kill_profile_browsers(profile)
-    time.sleep(0.4)
-    for name in (".parentlock", "lock", "SingletonLock"):
-        try:
-            (profile / name).unlink(missing_ok=True)
-        except Exception:
-            pass
+    ensure_profile_free_for_launch(
+        profile,
+        takeover=True,
+        reason="system_firefox_driver",
+    )
 
     dl = download_dir or (STATE_DIR / "cache" / "downloads")
     dl.mkdir(parents=True, exist_ok=True)

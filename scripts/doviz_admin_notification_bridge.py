@@ -10,7 +10,7 @@ Tek sefer (ikisi):
 
 Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
-  Play/ASC Chrome oturumu açık kalır (CDP); giriş uyarısı maili yok.
+  Play/ASC Firefox profili (~/.seo-agent/fx-*). needs_login → mail (ilk + 6s cooldown + resolved).
 
   POST /sync       → notification (30 dk)
   POST /sync-news  → news (1 saat)
@@ -198,6 +198,10 @@ BRIDGE_ALERT_TRANSIENT_STREAK = int(
 BRIDGE_ALERT_TRANSIENT_COOLDOWN_SEC = int(
     os.environ.get("BRIDGE_ALERT_TRANSIENT_COOLDOWN_SEC") or str(6 * 60 * 60)
 )
+# needs_login: ilk uyarı hemen, sonrası 6 saat sessiz; success → resolved mail
+BRIDGE_LOGIN_ALERT_COOLDOWN_SEC = int(
+    os.environ.get("BRIDGE_LOGIN_ALERT_COOLDOWN_SEC") or str(6 * 60 * 60)
+)
 VIRGUL_INGEST_TRIES = int(os.environ.get("VIRGUL_INGEST_TRIES") or "4")
 VIRGUL_INGEST_TIMEOUT_SEC = int(os.environ.get("VIRGUL_INGEST_TIMEOUT_SEC") or "180")
 
@@ -315,6 +319,9 @@ _gsc_cwv_progress: dict[str, Any] = {
 _auto_cycle = 0
 _last_fail_email_at: dict[str, float] = {}
 _fail_streak: dict[str, int] = {}
+_login_alert_open: dict[str, bool] = {}
+_last_login_email_at: dict[str, float] = {}
+_last_login_email_at: dict[str, float] = {}
 # kind → {attempt: 1..MAX, next_at: float, name: str}
 _job_retries: dict[str, dict[str, Any]] = {}
 # Tarayıcı scrape kuyruğu — aynı anda / çok kısa aralıkta ikinci scrape başlamasın
@@ -480,8 +487,48 @@ def _is_transient_failure(
     return any(marker in m for marker in _TRANSIENT_FAIL_MARKERS)
 
 
-def _note_auto_success(kind: str) -> None:
-    _fail_streak[kind] = 0
+def _bridge_kind_label(kind: str) -> str:
+    labels = {
+        "notification": "Notification (/notification)",
+        "news": "Doviz News (/doviz-news)",
+        "virgul": "Virgül Ad (/ad-virgul)",
+        "play": "Play Console",
+        "asc": "App Store Connect",
+        "firebase": "Firebase Console",
+        "gsc_links": "GSC Links",
+        "gsc_cwv": "GSC CWV",
+        "admanager_policy": "Ad Manager Policy",
+        "sinemalar_moderation": "Sinemalar Moderasyon",
+        "noads": "Sinemalar noAds",
+    }
+    return labels.get(kind, kind)
+
+
+def _result_needs_login(
+    kind: str,
+    result: dict[str, Any] | None,
+    msg: str,
+) -> bool:
+    if isinstance(result, dict) and result.get("needs_login"):
+        return True
+    low = (msg or "").lower()
+    loginish = any(
+        tok in low
+        for tok in ("needs_login", "login gerekli", "oturum", "giriş", "giris", "sign in")
+    )
+    if not loginish:
+        return False
+    return kind in (
+        "play",
+        "asc",
+        "notification",
+        "firebase",
+        "gsc_links",
+        "gsc_cwv",
+        "admanager_policy",
+        "noads",
+        "sinemalar_moderation",
+    )
 
 
 def _set_news_progress(**kwargs: Any) -> None:
@@ -539,6 +586,61 @@ def _send_bridge_alert_email(*, kind: str, subject: str, body_text: str) -> bool
         return False
 
 
+def _notify_login_session_alert(kind: str, msg: str) -> None:
+    """needs_login: ilk mail hemen, açık alert varken 6 saat cooldown."""
+    now = time.time()
+    cooldown = max(300, BRIDGE_LOGIN_ALERT_COOLDOWN_SEC)
+    open_alert = bool(_login_alert_open.get(kind))
+    last = float(_last_login_email_at.get(kind) or 0)
+    if open_alert and last and (now - last) < cooldown:
+        left = int(cooldown - (now - last))
+        print(f"Bridge login alert cooldown ({kind}) · ~{left}s", flush=True)
+        return
+    label = _bridge_kind_label(kind)
+    subject = f"[SEO Agent Bridge] {label} oturumu düştü"
+    body = (
+        f"Kaynak: Mac VPN bridge (127.0.0.1:{BRIDGE_PORT})\n"
+        f"Tür: {label} ({kind})\n"
+        f"Zaman (UTC): {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}Z\n"
+        f"Durum: needs_login\n"
+        f"Hata: {msg}\n\n"
+        f"Firefox profilinde tekrar giriş gerekir "
+        f"(fx-google / fx-asc / ilgili fx-*); scrape schedule aynı.\n"
+        f"Kontrol: curl -s http://127.0.0.1:{BRIDGE_PORT}/health | python3 -m json.tool\n"
+    )
+    if _send_bridge_alert_email(kind=f"login:{kind}", subject=subject, body_text=body):
+        _login_alert_open[kind] = True
+        _last_login_email_at[kind] = now
+    else:
+        # SMTP yokken bile open say — resolved path tutarlı olsun; tekrar deneme cooldown'suz spam olmasın
+        _login_alert_open[kind] = True
+        _last_login_email_at[kind] = now
+
+
+def _notify_login_session_resolved(kind: str) -> None:
+    if not _login_alert_open.get(kind):
+        return
+    label = _bridge_kind_label(kind)
+    subject = f"[SEO Agent Bridge] {label} oturumu düzeldi"
+    body = (
+        f"Kaynak: Mac VPN bridge (127.0.0.1:{BRIDGE_PORT})\n"
+        f"Tür: {label} ({kind})\n"
+        f"Zaman (UTC): {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}Z\n"
+        f"Durum: resolved — scrape tekrar başarılı.\n"
+    )
+    if _send_bridge_alert_email(kind=f"login-ok:{kind}", subject=subject, body_text=body):
+        _login_alert_open[kind] = False
+        print(f"Bridge login resolved mail ({kind})", flush=True)
+    else:
+        # SMTP yoksa bile bayrağı kapat; sonraki needs_login yine uyarsın
+        _login_alert_open[kind] = False
+
+
+def _note_auto_success(kind: str) -> None:
+    _fail_streak[kind] = 0
+    _notify_login_session_resolved(kind)
+
+
 def _notify_auto_failure(
     kind: str,
     result: dict[str, Any] | None = None,
@@ -553,6 +655,9 @@ def _notify_auto_failure(
             http_status = int(result.get("http_status") or 0) or None
         except (TypeError, ValueError):
             http_status = None
+    if _result_needs_login(kind, result, msg):
+        _notify_login_session_alert(kind, msg)
+        return
     transient = _is_transient_failure(msg, http_status=http_status, exc=exc)
     streak = int(_fail_streak.get(kind) or 0) + 1
     _fail_streak[kind] = streak
@@ -573,29 +678,7 @@ def _notify_auto_failure(
         left = int(cooldown - (now - last))
         print(f"Bridge alert cooldown ({kind}) · ~{left}s", flush=True)
         return
-    if isinstance(result, dict) and result.get("needs_login"):
-        print(
-            f"Bridge alert atlandı ({kind} oturum) — Firefox profilinde giriş gerekir; "
-            f"pencerede bir kez giriş yeterli. {msg[:160]}",
-            flush=True,
-        )
-        return
-    loginish = any(
-        tok in msg.lower()
-        for tok in ("needs_login", "login gerekli", "oturum", "giriş", "giris", "sign in")
-    )
-    if kind in ("play", "asc", "notification", "firebase") and loginish:
-        print(
-            f"Bridge alert atlandı ({kind} giriş) — oturum bekçi / çerez. {msg[:160]}",
-            flush=True,
-        )
-        return
-    labels = {
-        "notification": "Notification (/notification)",
-        "news": "Doviz News (/doviz-news)",
-        "virgul": "Virgül Ad (/ad-virgul)",
-    }
-    label = labels.get(kind, kind)
+    label = _bridge_kind_label(kind)
     subject = f"[SEO Agent Bridge] {label} auto-refresh başarısız"
     suffix = ""
     if kind == "news":

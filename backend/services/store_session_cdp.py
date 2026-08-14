@@ -109,14 +109,13 @@ def chrome_bin() -> str | None:
 
 
 def _clear_profile_locks(prof: Path) -> None:
-    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
-        try:
-            (prof / name).unlink(missing_ok=True)
-        except Exception:
-            pass
+    from backend.services.scrape_browser import clear_stale_profile_locks
+
+    clear_stale_profile_locks(prof)
 
 
 def _kill_profile_browsers(prof: Path) -> int:
+    """Yalnızca eski Chrome süreçleri — Firefox soft-release scrape_browser'da."""
     marker = str(prof.resolve())
     killed = 0
     try:
@@ -128,6 +127,8 @@ def _kill_profile_browsers(prof: Path) -> int:
             continue
         low = line.lower()
         if "chromium" not in low and "google chrome" not in low and "chrome" not in low:
+            continue
+        if "firefox" in low:
             continue
         try:
             pid = int(line.split(None, 1)[0])
