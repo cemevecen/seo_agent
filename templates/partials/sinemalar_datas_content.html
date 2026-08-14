@@ -35,8 +35,10 @@
     </label>
     <label class="sd-f sd-f--sm">Preset
       <select id="sd-preset">
-        <option value="7" selected>Last 7 days</option>
-        <option value="28">Last 28 days</option>
+        <option value="7">Last 7 days</option>
+        <option value="14">Last 14 days</option>
+        <option value="28" selected>Last 28 days</option>
+        <option value="30">Last 30 days</option>
         <option value="90">Last 90 days</option>
         <option value="ytd">Year to date</option>
         <option value="custom">Custom range</option>
@@ -95,7 +97,7 @@
       </div>
     </div>
 
-    <div id="sd-sparks" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Metric sparklines"></div>
+    <div id="sd-metric-kpis" class="metric-kpi-grid metric-kpi-grid--ss2" aria-label="Metric KPIs"></div>
 
     <div id="sd-chart-card" class="pa-chart-card mt-4 overflow-visible rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950/40">
       <div class="pa-chart-card__toolbar flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
@@ -140,10 +142,10 @@
         <table class="sd-data-table text-left text-xs">
           <thead class="sticky top-0 z-[1] bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
             <tr id="sd-thead-row">
-              <th class="sd-sticky-col px-2 py-2 font-bold sm:px-3">Date</th>
+              <th class="px-2 py-2 font-bold sm:px-3">Date</th>
             </tr>
           </thead>
-          <tbody id="sd-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+          <tbody id="sd-table"></tbody>
         </table>
       </div>
     </div>
@@ -253,20 +255,26 @@
     background: #f4f4f5;
     color: #18181b;
   }
-  .sd-datas-page .sd-metric-opt {
-    display: flex;
-    width: 100%;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.75rem;
-    font-size: 0.75rem;
-    cursor: pointer;
-  }
-  .sd-datas-page .sd-metric-opt:hover { background: rgba(16, 185, 129, 0.08); }
-  .sd-datas-page .sd-metric-opt.is-checked { background: rgba(16, 185, 129, 0.12); font-weight: 700; }
   .sd-datas-page #sd-metric-list {
     min-width: min(20rem, 92vw);
     max-width: min(24rem, 96vw);
+  }
+  .sd-datas-page #sd-metric-list [data-sd-metric-pick][aria-selected="true"] {
+    background: #ecfdf5;
+    color: #065f46;
+    font-weight: 600;
+  }
+  html.dark .sd-datas-page #sd-metric-list [data-sd-metric-pick][aria-selected="true"],
+  html.midnight .sd-datas-page #sd-metric-list [data-sd-metric-pick][aria-selected="true"] {
+    background: rgba(6, 78, 59, 0.4);
+    color: #a7f3d0;
+  }
+  .sd-datas-page .sd-metric-swatch {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    flex-shrink: 0;
   }
   .sd-datas-page .sd-data-table {
     width: max-content;
@@ -280,53 +288,314 @@
     padding: 0.4rem 0.65rem;
     vertical-align: middle;
   }
-  .sd-datas-page .sd-data-table th:not(:first-child),
-  .sd-datas-page .sd-data-table td:not(:first-child) {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
+
+  /* KPI ss2 — scoped mirror of Android metric-kpi-ss2 */
+  #sd-metric-kpis.metric-kpi-grid--ss2 {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: clamp(0.28rem, 1.15vw, 0.65rem);
+    align-items: stretch;
+    grid-template-columns: repeat(var(--kpi-n, 1), minmax(0, 1fr));
   }
-  .sd-datas-page .sd-sticky-col {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background: #f1f5f9;
+  #sd-metric-kpis.metric-kpi-grid--ss2 > .metric-kpi-ss2 {
+    align-self: stretch;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
   }
-  html.dark .sd-datas-page .sd-sticky-col,
-  html.midnight .sd-datas-page .sd-sticky-col {
-    background: #18181b;
+  .sd-datas-page .metric-kpi-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--kpi-color, #2563eb);
+    background: color-mix(in srgb, var(--kpi-color, #2563eb) 12%, white);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #2563eb) 28%, transparent);
   }
-  .sd-datas-page tbody tr:nth-child(even) { background: rgba(148, 163, 184, 0.08); }
-  html.dark .sd-datas-page tbody tr:nth-child(even),
-  html.midnight .sd-datas-page tbody tr:nth-child(even) {
-    background: rgba(63, 63, 70, 0.35);
+  html.dark .sd-datas-page .metric-kpi-chip,
+  html.midnight .sd-datas-page .metric-kpi-chip {
+    background: color-mix(in srgb, var(--kpi-color, #2563eb) 18%, #18181b);
   }
-  .sd-datas-page tbody td.sd-sticky-col {
-    background: #fff;
+  .sd-datas-page .metric-kpi-kicker {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .sd-datas-page .metric-kpi-ss2 {
+    position: relative;
+    min-width: 0;
+    height: 100%;
+    align-self: stretch;
+    container-type: inline-size;
+    container-name: kpi-ss2;
+    display: flex;
+    flex-direction: column;
+    border-radius: 1rem;
+    border: 1px solid color-mix(in srgb, var(--kpi-color, #2563eb) 26%, #e2e8f0);
+    background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--kpi-color, #2563eb) 5%, transparent),
+      0 8px 20px color-mix(in srgb, var(--kpi-color, #2563eb) 6%, rgb(15 23 42 / 0.03));
+    padding: clamp(0.38rem, 4.8cqi, 0.7rem) clamp(0.32rem, 4.2cqi, 0.65rem) clamp(0.28rem, 3.4cqi, 0.45rem);
+    color: #334155;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2,
+  html.midnight .sd-datas-page .metric-kpi-ss2 {
+    border-color: color-mix(in srgb, var(--kpi-color, #38bdf8) 35%, #1e293b);
+    background: linear-gradient(160deg, #0b1220 0%, #111827 100%);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--kpi-color, #38bdf8) 9%, transparent),
+      0 0 22px color-mix(in srgb, var(--kpi-color, #38bdf8) 8%, transparent);
+    color: #e2e8f0;
+  }
+  .sd-datas-page .metric-kpi-ss2-head {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.18rem, 2.4cqi, 0.35rem);
+    min-width: 0;
+    flex: 0 0 auto;
+    min-height: 1.35rem;
+  }
+  .sd-datas-page .metric-kpi-ss2-head .metric-kpi-chip {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.2;
+    font-size: clamp(0.48rem, 7.8cqi, 0.65rem);
+    letter-spacing: clamp(0.01em, 0.35cqi, 0.05em);
+    padding: calc(0.12rem + 1px) clamp(0.28rem, 3.2cqi, 0.55rem);
+    background: color-mix(in srgb, var(--kpi-color, #2563eb) 12%, white);
+    color: var(--kpi-color, #2563eb);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #2563eb) 30%, transparent);
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-head .metric-kpi-chip,
+  html.midnight .sd-datas-page .metric-kpi-ss2-head .metric-kpi-chip {
+    background: color-mix(in srgb, var(--kpi-color, #38bdf8) 16%, #0b1220);
+    color: #f8fafc;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #38bdf8) 35%, transparent);
+  }
+  .sd-datas-page .metric-kpi-ss2-main {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.22rem, 3.2cqi, 0.55rem);
+    margin-top: clamp(0.22rem, 3.2cqi, 0.45rem);
+    min-height: clamp(2.2rem, 38cqi, 3.25rem);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .sd-datas-page .metric-kpi-ss2-metrics {
+    flex: 0 0 30%;
+    width: 30%;
+    max-width: 30%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.08rem;
+    overflow: hidden;
+    position: relative;
     z-index: 1;
   }
-  html.dark .sd-datas-page tbody td.sd-sticky-col,
-  html.midnight .sd-datas-page tbody td.sd-sticky-col {
-    background: #0f0f11;
+  .sd-datas-page .metric-kpi-ss2-value {
+    margin: 0;
+    font-size: clamp(0.36rem, 8cqi, 0.725rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
-  .sd-datas-page tbody tr:nth-child(even) td.sd-sticky-col {
-    background: #f8fafc;
+  html.dark .sd-datas-page .metric-kpi-ss2-value,
+  html.midnight .sd-datas-page .metric-kpi-ss2-value { color: #fff; }
+  .sd-datas-page .metric-kpi-ss2-delta {
+    margin: 0;
+    font-size: clamp(0.26rem, 4.25cqi, 0.36rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
-  html.dark .sd-datas-page tbody tr:nth-child(even) td.sd-sticky-col,
-  html.midnight .sd-datas-page tbody tr:nth-child(even) td.sd-sticky-col {
-    background: #141416;
+  .sd-datas-page .metric-kpi-ss2-delta.is-up { color: #059669; }
+  .sd-datas-page .metric-kpi-ss2-delta.is-down { color: #e11d48; }
+  .sd-datas-page .metric-kpi-ss2-delta.is-flat { color: #64748b; }
+  html.dark .sd-datas-page .metric-kpi-ss2-delta.is-up,
+  html.midnight .sd-datas-page .metric-kpi-ss2-delta.is-up { color: #6f9b86; }
+  html.dark .sd-datas-page .metric-kpi-ss2-delta.is-down,
+  html.midnight .sd-datas-page .metric-kpi-ss2-delta.is-down { color: #fb7185; }
+  html.dark .sd-datas-page .metric-kpi-ss2-delta.is-flat,
+  html.midnight .sd-datas-page .metric-kpi-ss2-delta.is-flat { color: #94a3b8; }
+  .sd-datas-page .metric-kpi-ss2-spark {
+    flex: 0 0 70%;
+    width: 70%;
+    max-width: 70%;
+    min-width: 0;
+    height: clamp(1.85rem, 36cqi, 3.15rem);
+    display: flex;
+    align-items: stretch;
+    align-self: stretch;
+    cursor: pointer;
+    position: relative;
+    z-index: 0;
+    overflow: hidden;
   }
-  .sd-datas-page .sd-spark-card {
-    border-radius: 0.75rem;
-    border: 1px solid #e2e8f0;
-    background: rgba(248, 250, 252, 0.85);
-    padding: 0.75rem;
+  .sd-datas-page .metric-kpi-ss2.is-chart-focus {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--kpi-color) 42%, transparent);
   }
-  html.dark .sd-datas-page .sd-spark-card,
-  html.midnight .sd-datas-page .sd-spark-card {
-    border-color: #3f3f46;
-    background: rgba(9, 9, 11, 0.55);
+  #sd-chart .chart-series-g { transition: opacity 0.16s ease; }
+  #sd-chart.is-series-focus .chart-series-g { opacity: 0.28; }
+  #sd-chart.is-series-focus .chart-series-g.is-focus { opacity: 1; }
+  .sd-datas-page .metric-kpi-ss2 .metric-kpi-spark {
+    width: 100%;
+    height: 100%;
+    display: block;
+    min-width: 0;
+    min-height: 0;
   }
-  .sd-datas-page .sd-spark-svg { display: block; width: 100%; height: 2.25rem; }
+  @container kpi-ss2 (max-width: 12.75rem) {
+    .sd-datas-page .metric-kpi-ss2-main {
+      flex-direction: column;
+      align-items: stretch;
+      min-height: 0;
+      gap: clamp(0.18rem, 3cqi, 0.35rem);
+    }
+    .sd-datas-page .metric-kpi-ss2-metrics {
+      max-width: none;
+      width: 100%;
+      flex: 0 0 auto;
+    }
+    .sd-datas-page .metric-kpi-ss2-spark {
+      width: 100%;
+      max-width: none;
+      min-width: 0;
+      flex: 1 1 auto;
+      height: clamp(1.65rem, 42cqi, 2.7rem);
+    }
+  }
+  @container kpi-ss2 (max-width: 7.5rem) {
+    .sd-datas-page .metric-kpi-ss2-head .metric-kpi-chip {
+      font-size: clamp(0.42rem, 9.2cqi, 0.55rem);
+      padding: calc(0.08rem + 1px) 0.28rem;
+    }
+    .sd-datas-page .metric-kpi-info {
+      width: 0.95rem;
+      height: 0.95rem;
+      font-size: 0.5rem;
+    }
+  }
+  .sd-datas-page .metric-kpi-ss2-expand {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.28rem;
+    padding: 0.1rem 0 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    order: 10;
+  }
+  .sd-datas-page .metric-kpi-ss2-expand:hover { color: #0f172a; }
+  html.dark .sd-datas-page .metric-kpi-ss2-expand,
+  html.midnight .sd-datas-page .metric-kpi-ss2-expand {
+    border-top-color: rgba(148, 163, 184, 0.18);
+    color: #94a3b8;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-expand:hover,
+  html.midnight .sd-datas-page .metric-kpi-ss2-expand:hover { color: #e2e8f0; }
+  .sd-datas-page .metric-kpi-ss2-panel {
+    display: none;
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 0.65rem;
+    order: 5;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-panel,
+  html.midnight .sd-datas-page .metric-kpi-ss2-panel {
+    border-top-color: rgba(148, 163, 184, 0.16);
+  }
+  .sd-datas-page .metric-kpi-ss2.is-open .metric-kpi-ss2-panel { display: grid; }
+  .sd-datas-page .metric-kpi-ss2.is-open .metric-kpi-ss2-expand {
+    border-top-color: rgba(148, 163, 184, 0.28);
+    margin-top: 0.28rem;
+  }
+  .sd-datas-page .metric-kpi-ss2.is-open .metric-kpi-ss2-expand .metric-kpi-chev { transform: rotate(180deg); }
+  .sd-datas-page .metric-kpi-chev { transition: transform 0.15s ease; }
+  .sd-datas-page .metric-kpi-ss2-panel .metric-kpi-kicker { color: #94a3b8; }
+  html.dark .sd-datas-page .metric-kpi-ss2-panel .metric-kpi-kicker,
+  html.midnight .sd-datas-page .metric-kpi-ss2-panel .metric-kpi-kicker { color: #64748b; }
+  .sd-datas-page .metric-kpi-ss2-panel strong {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-panel strong,
+  html.midnight .sd-datas-page .metric-kpi-ss2-panel strong { color: #f8fafc; }
+  .sd-datas-page .metric-kpi-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-left: auto;
+    border-radius: 9999px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    color: #94a3b8;
+    font-size: 0.58rem;
+    font-weight: 700;
+    cursor: help;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .sd-datas-page .metric-kpi-info .metric-kpi-tip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.35rem);
+    z-index: 40;
+    width: max-content;
+    max-width: min(16rem, 70vw);
+    padding: 0.45rem 0.55rem;
+    border-radius: 0.55rem;
+    background: #0f172a;
+    color: #f8fafc;
+    border: 1px solid #334155;
+    font-size: 0.65rem;
+    font-weight: 500;
+    line-height: 1.35;
+    text-transform: none;
+    letter-spacing: normal;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .sd-datas-page .metric-kpi-info:hover .metric-kpi-tip,
+  .sd-datas-page .metric-kpi-info:focus-visible .metric-kpi-tip {
+    opacity: 1;
+    visibility: visible;
+  }
+
   .sd-datas-page .sd-orbit {
     position: relative;
     width: 2.5rem;
@@ -378,4 +647,5 @@
   }
 </style>
 
-<script src="/static/js/sinemalar_datas.js?v=1" defer></script>
+<script src="/static/js/metric_table_ux.js?v=13"></script>
+<script src="/static/js/sinemalar_datas.js?v=2" defer></script>

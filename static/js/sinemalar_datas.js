@@ -1,6 +1,7 @@
 /**
  * Sinemalar Datas tab — Empower X-Data (web / mweb), project=sinemalar.
  * Prefix: sd-
+ * KPI cards + heat table mirror Android Metrik UX (without editing android.html).
  */
 (function (global) {
   "use strict";
@@ -25,10 +26,24 @@
     chartCompress: "1",
     loading: false,
     labelByKey: {},
+    focusedMetric: null,
   };
+
+  var _kpiSparkGradSeq = 0;
+  var _kpiFitObs = null;
+  var _kpiFitRaf = 0;
+  var _kpiEventsBound = false;
 
   function $(id) {
     return document.getElementById(id);
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function pad2(n) {
@@ -72,6 +87,12 @@
       return PlayMetricOverlay.metricLabel(key);
     }
     return String(key || "").replace(/^xdata:/, "");
+  }
+
+  function shortMetricLabel(label, key) {
+    var s = String(label || key || "");
+    if (s.length <= 18) return s;
+    return s.slice(0, 16) + "…";
   }
 
   function isAvgMetric(key) {
@@ -149,35 +170,69 @@
     var scroll = $("sd-metric-list-scroll");
     var cat = $("sd-metric-catalog");
     if (!scroll || !cat) return;
+    var selected = {};
+    state.selected.forEach(function (k) {
+      selected[k] = true;
+    });
     var html = "";
+    html +=
+      '<button type="button" role="option" aria-selected="' +
+      (!state.selected.length ? "true" : "false") +
+      '" data-sd-metric-clear="1" class="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs ' +
+      (!state.selected.length
+        ? "bg-emerald-50 font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"
+        : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") +
+      '">' +
+      '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-emerald-600 dark:text-emerald-400" aria-hidden="true">' +
+      (!state.selected.length ? "✓" : "") +
+      "</span>" +
+      '<span class="min-w-0 flex-1 truncate">Clear</span></button>';
+
     Array.prototype.forEach.call(cat.options, function (opt) {
       if (!opt.value) return;
-      var checked = state.selected.indexOf(opt.value) >= 0;
+      var on = !!selected[opt.value];
+      var selIdx = state.selected.indexOf(opt.value);
+      var swatch =
+        on && selIdx >= 0
+          ? '<span class="sd-metric-swatch" style="background:' +
+            COLORS[selIdx % COLORS.length] +
+            '" aria-hidden="true"></span>'
+          : '<span class="sd-metric-swatch" style="background:transparent" aria-hidden="true"></span>';
       html +=
-        '<label class="sd-metric-opt' +
-        (checked ? " is-checked" : "") +
+        '<button type="button" role="option" aria-selected="' +
+        (on ? "true" : "false") +
+        '" data-sd-metric-pick="' +
+        esc(opt.value) +
+        '" class="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs ' +
+        (on
+          ? "font-semibold text-emerald-800 dark:text-emerald-100"
+          : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") +
         '">' +
-        '<input type="checkbox" value="' +
-        opt.value.replace(/"/g, "&quot;") +
-        '"' +
-        (checked ? " checked" : "") +
-        " />" +
-        "<span>" +
-        (opt.textContent || opt.value) +
-        "</span></label>";
+        '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-emerald-600 dark:text-emerald-400" aria-hidden="true">' +
+        (on ? "✓" : "") +
+        "</span>" +
+        swatch +
+        '<span class="min-w-0 flex-1 truncate">' +
+        esc(opt.textContent || opt.value) +
+        "</span></button>";
     });
     scroll.innerHTML = html;
-    scroll.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
-      cb.addEventListener("change", function () {
-        var key = cb.value;
-        var idx = state.selected.indexOf(key);
-        if (cb.checked && idx < 0) state.selected.push(key);
-        if (!cb.checked && idx >= 0) state.selected.splice(idx, 1);
-        if (!state.selected.length) state.selected = DEFAULT_METRICS.slice(0, 1);
-        renderMetricList();
-        updateMetricTriggerLabel();
-      });
-    });
+  }
+
+  function toggleMetric(key) {
+    if (!key) return;
+    var idx = state.selected.indexOf(key);
+    if (idx >= 0) state.selected.splice(idx, 1);
+    else state.selected.push(key);
+    if (!state.selected.length) state.selected = [DEFAULT_METRICS[0]];
+    renderMetricList();
+    updateMetricTriggerLabel();
+  }
+
+  function clearMetrics() {
+    state.selected = [DEFAULT_METRICS[0]];
+    renderMetricList();
+    updateMetricTriggerLabel();
   }
 
   function positionMetricList() {
@@ -191,13 +246,17 @@
   }
 
   function applyPreset(preset) {
+    if (preset === "custom") return;
     var end = today();
     var start = end;
-    if (preset === "7") start = addDays(end, -6);
-    else if (preset === "28") start = addDays(end, -27);
-    else if (preset === "90") start = addDays(end, -89);
-    else if (preset === "ytd") start = new Date(end.getFullYear(), 0, 1);
-    else return;
+    if (preset === "ytd") {
+      start = new Date(end.getFullYear(), 0, 1);
+    } else {
+      var days = parseInt(preset, 10) || 28;
+      // Complete days: end = yesterday (align with Android)
+      end = addDays(today(), -1);
+      start = addDays(end, -(days - 1));
+    }
     var s = $("sd-start");
     var e = $("sd-end");
     if (s) s.value = iso(start);
@@ -337,73 +396,367 @@
     PlayMetricOverlay.setLabelPrefix(OVERLAY_ID, peerLabel(state.platform));
   }
 
-  function sparkPath(values, w, h) {
-    var nums = values.filter(function (v) {
-      return v != null && isFinite(v);
+  function seriesStats(series) {
+    var vals = [];
+    (series || []).forEach(function (r) {
+      if (!r || r.value == null) return;
+      var n = Number(r.value);
+      if (!isFinite(n)) return;
+      vals.push(n);
     });
-    if (nums.length < 2) return "";
-    var min = Math.min.apply(null, nums);
-    var max = Math.max.apply(null, nums);
-    var span = max - min || 1;
-    var step = w / Math.max(1, values.length - 1);
-    var d = "";
-    values.forEach(function (v, i) {
-      if (v == null || !isFinite(v)) return;
-      var x = i * step;
-      var y = h - ((v - min) / span) * (h - 4) - 2;
-      d += (d ? " L " : "M ") + x.toFixed(1) + " " + y.toFixed(1);
-    });
-    return d;
+    if (!vals.length) {
+      return { n: 0, avg: null, sum: null, min: null, max: null, last: null };
+    }
+    var sum = 0;
+    var min = vals[0];
+    var max = vals[0];
+    for (var i = 0; i < vals.length; i++) {
+      sum += vals[i];
+      if (vals[i] < min) min = vals[i];
+      if (vals[i] > max) max = vals[i];
+    }
+    return {
+      n: vals.length,
+      avg: sum / vals.length,
+      sum: sum,
+      min: min,
+      max: max,
+      last: vals[vals.length - 1],
+    };
   }
 
-  function renderSparks() {
-    var host = $("sd-sparks");
+  function seriesDeltaPct(series) {
+    var vals = [];
+    (series || []).forEach(function (r) {
+      var n = Number(r && r.value);
+      if (isFinite(n)) vals.push(n);
+    });
+    if (vals.length < 2 || !vals[0]) return null;
+    return Math.round(((vals[vals.length - 1] - vals[0]) / Math.abs(vals[0])) * 1000) / 10;
+  }
+
+  function seriesSparkSvg(series, color, w, h) {
+    var vals = [];
+    (series || []).forEach(function (r) {
+      var n = Number(r && r.value);
+      if (isFinite(n)) vals.push(n);
+    });
+    if (vals.length < 2) {
+      return '<div class="metric-kpi-spark" style="opacity:.35" aria-hidden="true"></div>';
+    }
+    var min = Math.min.apply(null, vals);
+    var max = Math.max.apply(null, vals);
+    var span = max - min || 1;
+    var pts = vals.map(function (v, i) {
+      var x = (i / (vals.length - 1)) * w;
+      var y = h - ((v - min) / span) * (h - 4) - 2;
+      return [x, y];
+    });
+    var line = pts
+      .map(function (p) {
+        return p[0].toFixed(1) + "," + p[1].toFixed(1);
+      })
+      .join(" ");
+    var area =
+      "M" +
+      pts[0][0].toFixed(1) +
+      " " +
+      h.toFixed(1) +
+      " L" +
+      pts
+        .map(function (p) {
+          return p[0].toFixed(1) + " " + p[1].toFixed(1);
+        })
+        .join(" L") +
+      " L" +
+      pts[pts.length - 1][0].toFixed(1) +
+      " " +
+      h.toFixed(1) +
+      " Z";
+    _kpiSparkGradSeq += 1;
+    var gid = "sd-kpi-spark-grad-" + _kpiSparkGradSeq;
+    return (
+      '<svg class="metric-kpi-spark" viewBox="0 0 ' +
+      w +
+      " " +
+      h +
+      '" preserveAspectRatio="none" aria-hidden="true">' +
+      "<defs>" +
+      '<linearGradient id="' +
+      gid +
+      '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="' +
+      color +
+      '" stop-opacity="0.38"></stop>' +
+      '<stop offset="55%" stop-color="' +
+      color +
+      '" stop-opacity="0.14"></stop>' +
+      '<stop offset="100%" stop-color="' +
+      color +
+      '" stop-opacity="0.02"></stop>' +
+      "</linearGradient>" +
+      "</defs>" +
+      '<path d="' +
+      area +
+      '" fill="url(#' +
+      gid +
+      ')"></path>' +
+      '<polyline points="' +
+      line +
+      '" fill="none" stroke="' +
+      color +
+      '" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>' +
+      "</svg>"
+    );
+  }
+
+  function applyKpiLayout(el, n) {
+    if (!el) return;
+    el.className = "metric-kpi-grid metric-kpi-grid--ss2";
+    el.style.removeProperty("grid-template-columns");
+    var cols = n >= 9 ? Math.ceil(n / 2) : Math.max(n, 1);
+    el.style.setProperty("--kpi-n", String(Math.max(cols, 1)));
+  }
+
+  function fitOneKpiText(el, minPx, maxPx) {
+    if (!el) return;
+    var avail = el.clientWidth;
+    if (avail < 8) return;
+    var lo = minPx;
+    var hi = Math.max(minPx, maxPx);
+    var best = minPx;
+    el.style.whiteSpace = "nowrap";
+    el.style.overflow = "hidden";
+    el.style.textOverflow = "ellipsis";
+    for (var i = 0; i < 14; i++) {
+      var mid = (lo + hi) / 2;
+      el.style.fontSize = mid + "px";
+      if (el.scrollWidth <= avail + 0.75) {
+        best = mid;
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    el.style.fontSize = best + "px";
+  }
+
+  function fitMetricKpiValues(root) {
+    if (!root) return;
+    root.querySelectorAll(".metric-kpi-ss2").forEach(function (card) {
+      var w = card.clientWidth || 0;
+      if (w < 8) return;
+      var val = card.querySelector(".metric-kpi-ss2-value");
+      var dlt = card.querySelector(".metric-kpi-ss2-delta");
+      var metrics = card.querySelector(".metric-kpi-ss2-metrics");
+      var availVal = (metrics && metrics.clientWidth) || Math.max(8, w * 0.3);
+      fitOneKpiText(val, Math.max(8, w * 0.045), Math.min(11.5, Math.max(9, availVal * 0.17)));
+      fitOneKpiText(dlt, Math.max(7, w * 0.028), Math.min(9, Math.max(7, availVal * 0.08)));
+    });
+  }
+
+  function unbindMetricKpiFit() {
+    if (_kpiFitRaf) {
+      cancelAnimationFrame(_kpiFitRaf);
+      _kpiFitRaf = 0;
+    }
+    if (_kpiFitObs) {
+      _kpiFitObs.disconnect();
+      _kpiFitObs = null;
+    }
+  }
+
+  function bindMetricKpiFit(root) {
+    unbindMetricKpiFit();
+    if (!root) return;
+    function run() {
+      _kpiFitRaf = 0;
+      fitMetricKpiValues(root);
+    }
+    _kpiFitRaf = requestAnimationFrame(function () {
+      _kpiFitRaf = requestAnimationFrame(run);
+    });
+    if (typeof ResizeObserver === "undefined") return;
+    _kpiFitObs = new ResizeObserver(function () {
+      if (_kpiFitRaf) cancelAnimationFrame(_kpiFitRaf);
+      _kpiFitRaf = requestAnimationFrame(run);
+    });
+    _kpiFitObs.observe(root);
+    root.querySelectorAll(".metric-kpi-ss2").forEach(function (card) {
+      _kpiFitObs.observe(card);
+    });
+  }
+
+  function setChartSeriesFocus(metric) {
+    state.focusedMetric = metric || null;
+    applyChartSeriesFocus();
+  }
+
+  function applyChartSeriesFocus() {
+    var chart = $("sd-chart");
+    var host = $("sd-metric-kpis");
+    var metric = state.focusedMetric;
+    if (chart) {
+      var groups = chart.querySelectorAll(".chart-series-g");
+      var has = false;
+      groups.forEach(function (g) {
+        var on = !!metric && g.getAttribute("data-metric") === metric;
+        g.classList.toggle("is-focus", on);
+        if (on) has = true;
+      });
+      chart.classList.toggle("is-series-focus", has);
+      if (has) {
+        var focused = chart.querySelector(".chart-series-g.is-focus");
+        var hit = chart.querySelector("[data-sd-idx]");
+        if (focused) {
+          if (hit) chart.insertBefore(focused, hit);
+          else chart.appendChild(focused);
+        }
+      }
+    }
+    if (host) {
+      host.querySelectorAll("[data-metric-kpi-card]").forEach(function (c) {
+        c.classList.toggle("is-chart-focus", !!metric && c.getAttribute("data-metric") === metric);
+      });
+    }
+  }
+
+  function wrapChartSeriesG(metric, innerHtml) {
+    if (!innerHtml) return "";
+    return (
+      '<g class="chart-series-g" data-metric="' + esc(metric || "") + '">' + innerHtml + "</g>"
+    );
+  }
+
+  function renderMetricKpis() {
+    var host = $("sd-metric-kpis");
     if (!host) return;
     var keys = selectedMetrics();
     if (!keys.length) {
+      unbindMetricKpiFit();
       host.innerHTML = "";
+      host.style.removeProperty("--kpi-n");
       return;
     }
-    var html = "";
-    keys.forEach(function (key, i) {
-      var pack = state.seriesByMetric[key] || { series: [] };
-      var vals = (pack.series || []).map(function (pt) {
-        return pt && isFinite(Number(pt.value)) ? Number(pt.value) : null;
-      });
-      var last = null;
-      for (var j = vals.length - 1; j >= 0; j--) {
-        if (vals[j] != null) {
-          last = vals[j];
-          break;
-        }
-      }
-      var color = COLORS[i % COLORS.length];
-      var path = sparkPath(vals, 160, 36);
-      html +=
-        '<div class="sd-spark-card">' +
-        '<div class="flex items-start justify-between gap-2">' +
-        '<div class="min-w-0">' +
-        '<p class="truncate text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' +
-        metricLabel(key) +
-        "</p>" +
-        '<p class="mt-1 text-xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' +
-        fmtNum(last, key) +
-        "</p>" +
-        "</div>" +
-        '<span class="mt-1 inline-block h-2 w-2 shrink-0 rounded-full" style="background:' +
-        color +
-        '"></span></div>' +
-        '<svg class="sd-spark-svg mt-2" viewBox="0 0 160 36" preserveAspectRatio="none">' +
-        (path
-          ? '<path d="' +
-            path +
-            '" fill="none" stroke="' +
-            color +
-            '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'
-          : "") +
-        "</svg></div>";
+    applyKpiLayout(host, keys.length);
+    host.innerHTML = keys
+      .map(function (key, i) {
+        var pack = state.seriesByMetric[key] || { series: [], label: metricLabel(key), metric: key };
+        var color = COLORS[i % COLORS.length];
+        var st = seriesStats(pack.series);
+        var avg = st.avg;
+        var totalVal = isAvgMetric(key) ? fmtNum(avg, key) : fmtNum(st.sum, key);
+        var label = pack.label || metricLabel(key);
+        var spark = seriesSparkSvg(pack.series, color, 220, 56);
+        var dlt = seriesDeltaPct(pack.series);
+        var dltCls = dlt == null ? "is-flat" : dlt >= 0 ? "is-up" : "is-down";
+        var dltTxt = dlt == null ? "—" : (dlt >= 0 ? "↑ " : "↓ ") + Math.abs(dlt).toFixed(1) + "%";
+        var tip = label + " · average over selected range";
+        return (
+          '<article class="metric-kpi-ss2" style="--kpi-color:' +
+          color +
+          '" data-metric-kpi-card data-metric="' +
+          esc(key) +
+          '">' +
+          '<div class="metric-kpi-ss2-head">' +
+          '<span class="metric-kpi-chip" title="' +
+          esc(label) +
+          '">' +
+          esc(label) +
+          "</span>" +
+          '<button type="button" class="metric-kpi-info" data-sd-metric-info aria-label="' +
+          esc(label) +
+          ' info">i<span class="metric-kpi-tip" role="tooltip">' +
+          esc(tip) +
+          "</span></button>" +
+          "</div>" +
+          '<div class="metric-kpi-ss2-main">' +
+          '<div class="metric-kpi-ss2-metrics">' +
+          '<p class="metric-kpi-ss2-value" title="' +
+          esc(fmtNum(avg, key)) +
+          '">' +
+          esc(fmtNum(avg, key)) +
+          "</p>" +
+          '<p class="metric-kpi-ss2-delta ' +
+          dltCls +
+          '">' +
+          esc(dltTxt) +
+          "</p>" +
+          "</div>" +
+          '<div class="metric-kpi-ss2-spark">' +
+          spark +
+          "</div>" +
+          "</div>" +
+          '<div class="metric-kpi-ss2-panel">' +
+          '<div><p class="metric-kpi-kicker">Total</p><strong>' +
+          esc(totalVal) +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Average</p><strong>' +
+          esc(fmtNum(avg, key)) +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Min</p><strong>' +
+          esc(fmtNum(st.min, key)) +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Max</p><strong>' +
+          esc(fmtNum(st.max, key)) +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Last</p><strong>' +
+          esc(fmtNum(st.last, key)) +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Points</p><strong>' +
+          esc(String(st.n || 0)) +
+          "</strong></div>" +
+          "</div>" +
+          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Open details">' +
+          '<svg class="metric-kpi-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          "</button>" +
+          "</article>"
+        );
+      })
+      .join("");
+    bindMetricKpiFit(host);
+    applyChartSeriesFocus();
+  }
+
+  function bindMetricKpiEvents() {
+    var host = $("sd-metric-kpis");
+    if (!host || _kpiEventsBound) return;
+    _kpiEventsBound = true;
+    host.addEventListener("pointerover", function (ev) {
+      var card = ev.target && ev.target.closest ? ev.target.closest("[data-metric-kpi-card]") : null;
+      if (!card || !host.contains(card)) return;
+      if (ev.relatedTarget && card.contains(ev.relatedTarget)) return;
+      setChartSeriesFocus(card.getAttribute("data-metric"));
     });
-    host.innerHTML = html;
+    host.addEventListener("pointerout", function (ev) {
+      var card = ev.target && ev.target.closest ? ev.target.closest("[data-metric-kpi-card]") : null;
+      if (!card || !host.contains(card)) return;
+      var to =
+        ev.relatedTarget && ev.relatedTarget.closest
+          ? ev.relatedTarget.closest("[data-metric-kpi-card]")
+          : null;
+      if (to && host.contains(to)) {
+        if (to !== card) setChartSeriesFocus(to.getAttribute("data-metric"));
+        return;
+      }
+      setChartSeriesFocus(null);
+    });
+    host.addEventListener("click", function (ev) {
+      if (ev.target && ev.target.closest && ev.target.closest("[data-sd-metric-info]")) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+      var expand = ev.target && ev.target.closest ? ev.target.closest("[data-metric-kpi-expand]") : null;
+      if (!expand) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      var card = expand.closest("[data-metric-kpi-card]");
+      if (!card || !host.contains(card)) return;
+      var open = card.classList.toggle("is-open");
+      expand.setAttribute("aria-expanded", open ? "true" : "false");
+      expand.setAttribute("aria-label", open ? "Close details" : "Open details");
+    });
   }
 
   function collectChartSeries() {
@@ -575,11 +928,12 @@
         }
         pts.push({ x: xAt(i), y: yAt(v), v: v, d: d });
       });
+      var inner = "";
       if (state.chartStyle === "bar" && !s.dashed) {
         var barW = Math.max(2, (plotW / Math.max(dates.length, 1)) * 0.55);
         pts.forEach(function (p) {
           if (!p) return;
-          paths +=
+          inner +=
             '<rect x="' +
             (p.x - barW / 2) +
             '" y="' +
@@ -594,6 +948,7 @@
             (s.overlay ? "0.45" : "0.7") +
             '"/>';
         });
+        paths += wrapChartSeriesG(s.key, inner);
         return;
       }
       var dPath = "";
@@ -618,10 +973,10 @@
       }
       if (state.chartStyle === "area" && !s.dashed && !s.overlay && lastPt && areaD) {
         areaD += " L " + lastPt.x.toFixed(1) + " " + yAt(0).toFixed(1) + " Z";
-        paths += '<path d="' + areaD + '" fill="' + s.color + '" fill-opacity="0.18"/>';
+        inner += '<path d="' + areaD + '" fill="' + s.color + '" fill-opacity="0.18"/>';
       }
       if (dPath) {
-        paths +=
+        inner +=
           '<path d="' +
           dPath +
           '" fill="none" stroke="' +
@@ -632,6 +987,7 @@
           (s.dashed ? ' stroke-dasharray="4 3"' : "") +
           ' stroke-linecap="round" stroke-linejoin="round"/>';
       }
+      paths += wrapChartSeriesG(s.key, inner);
     });
 
     var hit = "";
@@ -651,6 +1007,7 @@
     });
 
     svg.innerHTML = grid + xLabels + paths + hit;
+    applyChartSeriesFocus();
 
     svg.querySelectorAll("[data-sd-idx]").forEach(function (el) {
       el.addEventListener("mousemove", function (ev) {
@@ -680,7 +1037,7 @@
           '"></span>' +
           s.label +
           "</span>" +
-          "<strong class=\"tabular-nums\">" +
+          '<strong class="tabular-nums">' +
           fmtNum(v, s.key) +
           "</strong></div>"
         );
@@ -699,6 +1056,7 @@
   function renderTable() {
     var thead = $("sd-thead-row");
     var tbody = $("sd-table");
+    var shell = $("sd-table-shell");
     if (!thead || !tbody) return;
     var seriesList = collectChartSeries().filter(function (s) {
       return !s.dashed;
@@ -706,41 +1064,103 @@
     var maps = seriesList.map(function (s) {
       return s.map;
     });
-    var dates = unionDates(maps).slice().reverse();
-    var th =
-      '<th class="sd-sticky-col px-2 py-2 font-bold sm:px-3">Date</th>' +
+    var keys = unionDates(maps);
+    state.dates = keys;
+
+    var ux = global.SeoMetricTableUx;
+    if (ux && typeof ux.renderHeatGrid === "function") {
+      var colItems = seriesList.map(function (s) {
+        return {
+          key: s.key,
+          label: s.label,
+          shortLabel: shortMetricLabel(s.label, s.key),
+          color: s.color,
+          map: s.map,
+          metric: s.key,
+        };
+      });
+      if (typeof ux.orderKeys === "function") {
+        var preferred = typeof ux.readJson === "function" ? ux.readJson("sd-table-col-order", []) : [];
+        var orderedKeys = ux.orderKeys(
+          preferred,
+          colItems.map(function (c) {
+            return c.key;
+          })
+        );
+        var byKey = {};
+        colItems.forEach(function (c) {
+          byKey[c.key] = c;
+        });
+        colItems = orderedKeys
+          .map(function (k) {
+            return byKey[k];
+          })
+          .filter(Boolean);
+      }
+      var tableEl = tbody.closest("table");
+      var fmtKey =
+        ux.formatTableDateKey ||
+        function (k) {
+          return k;
+        };
+      ux.renderHeatGrid({
+        shell: shell,
+        tableEl: tableEl,
+        theadRow: thead,
+        tbody: tbody,
+        keys: keys,
+        colItems: colItems,
+        esc: esc,
+        fmtKey: fmtKey,
+        fmtVal: function (v, col) {
+          return fmtNum(v, (col && (col.metric || col.key)) || "");
+        },
+        breakdownLabel: "Date",
+        averageLabel: "Average",
+        onRefresh: renderTable,
+        bindInteractive: {
+          widthsKey: "sd-table-col-widths",
+          orderKey: "sd-table-col-order",
+          onOrderChange: renderTable,
+        },
+      });
+      return;
+    }
+
+    // Fallback without mtux
+    thead.innerHTML =
+      '<th class="px-2 py-2 font-bold sm:px-3">Date</th>' +
       seriesList
         .map(function (s) {
           return (
             '<th class="px-2 py-2 font-bold tabular-nums sm:px-3" title="' +
-            s.label +
+            esc(s.label) +
             '">' +
-            s.label +
+            esc(s.label) +
             "</th>"
           );
         })
         .join("");
-    thead.innerHTML = th;
-    if (!dates.length) {
+    if (!keys.length) {
       tbody.innerHTML =
         '<tr><td class="px-3 py-6 text-center text-slate-400" colspan="' +
         (seriesList.length + 1) +
         '">No rows</td></tr>';
       return;
     }
-    tbody.innerHTML = dates
+    tbody.innerHTML = keys
+      .slice()
+      .reverse()
       .map(function (d) {
         return (
           "<tr>" +
-          '<td class="sd-sticky-col px-2 py-1.5 font-medium tabular-nums sm:px-3">' +
-          d +
+          '<td class="px-2 py-1.5 font-medium tabular-nums sm:px-3">' +
+          esc(d) +
           "</td>" +
           seriesList
             .map(function (s) {
               return (
-                '<td class="px-2 py-1.5 tabular-nums sm:px-3">' +
-                fmtNum(s.map[d], s.key) +
-                "</td>"
+                '<td class="px-2 py-1.5 tabular-nums sm:px-3">' + fmtNum(s.map[d], s.key) + "</td>"
               );
             })
             .join("") +
@@ -799,7 +1219,7 @@
       }
       tasks.push(loadOverlay());
       await Promise.all(tasks);
-      renderSparks();
+      renderMetricKpis();
       renderChart();
       renderTable();
       var n = state.dates.length;
@@ -814,7 +1234,7 @@
       );
     } catch (e) {
       setStatus((e && e.message) || "Load failed");
-      renderSparks();
+      renderMetricKpis();
       renderChart();
       renderTable();
     } finally {
@@ -823,7 +1243,7 @@
   }
 
   function wireUi() {
-    applyPreset("7");
+    applyPreset("28");
     buildLabelIndex();
     state.selected = DEFAULT_METRICS.filter(function (k) {
       return !!state.labelByKey[k];
@@ -841,9 +1261,11 @@
     syncPlatformUi();
     syncChartStyleUi();
     applyChartHeight();
+    bindMetricKpiEvents();
 
     var preset = $("sd-preset");
     if (preset) {
+      if (!preset.value) preset.value = "28";
       preset.addEventListener("change", function () {
         if (preset.value === "custom") return;
         applyPreset(preset.value);
@@ -867,6 +1289,18 @@
         list.classList.toggle("hidden");
         trigger.setAttribute("aria-expanded", list.classList.contains("hidden") ? "false" : "true");
         positionMetricList();
+      });
+      list.addEventListener("click", function (ev) {
+        var clearBtn = ev.target.closest ? ev.target.closest("[data-sd-metric-clear]") : null;
+        if (clearBtn) {
+          ev.preventDefault();
+          clearMetrics();
+          return;
+        }
+        var pick = ev.target.closest ? ev.target.closest("[data-sd-metric-pick]") : null;
+        if (!pick) return;
+        ev.preventDefault();
+        toggleMetric(pick.getAttribute("data-sd-metric-pick"));
       });
       document.addEventListener("click", function (ev) {
         if (list.classList.contains("hidden")) return;
