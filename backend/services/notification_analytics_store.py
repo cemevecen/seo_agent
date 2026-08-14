@@ -781,7 +781,21 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
         }
 
     try:
-        fetched = fetch_notification_rows_from_admin()
+        fetch_start = None
+        fetch_end = None
+        try:
+            from backend.services.history_seal import (
+                force_full_history,
+                is_pipeline_sealed,
+                scheduled_fetch_window,
+            )
+
+            if is_pipeline_sealed("notification") and not force_full_history("notification"):
+                win = scheduled_fetch_window("notification")
+                fetch_start, fetch_end = win["start"], win["end"]
+        except Exception:
+            pass
+        fetched = fetch_notification_rows_from_admin(start=fetch_start, end=fetch_end)
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning("Notification admin fetch failed: %s", exc)
         return {
@@ -794,6 +808,27 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
         }
 
     parsed = fetched.get("rows") or []
+    try:
+        from backend.services.history_seal import (
+            force_full_history,
+            is_pipeline_sealed,
+        )
+
+        if is_pipeline_sealed("notification") and not force_full_history("notification"):
+            result = ingest_notification_rows(
+                db, parsed, source="doviz_admin", replace=False
+            )
+            result["fetch_meta"] = {
+                "elapsed_sec": fetched.get("elapsed_sec"),
+                "html_chars": fetched.get("html_chars"),
+                "csv_chars": fetched.get("csv_chars"),
+                "start": str(fetch_start or ""),
+                "end": str(fetch_end or ""),
+            }
+            return result
+    except Exception:
+        LOGGER.exception("notification seal ingest failed — falling back to replace")
+
     result = replace_workspace_from_rows(
         db,
         parsed,
@@ -850,24 +885,66 @@ def ingest_notification_rows(
     rows: list[dict],
     *,
     source: str = "doviz_admin_bridge",
+    replace: bool | None = None,
 ) -> dict:
-    """VPN köprüsü / harici worker’dan gelen satırları yazar (manuel UI yok)."""
+    """VPN köprüsü / harici worker’dan gelen satırları yazar (manuel UI yok).
+
+    Varsayılan (mühürlü): upsert/merge — mühürlü gövdeyi silmez.
+    replace=True veya NOTIFICATION_FORCE_FULL: tam yenileme.
+    """
     global _last_sheet_sync_mono
     from backend.services.doviz_notification_admin import stats_url
 
     parsed = [r for r in (rows or []) if isinstance(r, dict)]
-    result = replace_workspace_from_rows(
-        db,
-        parsed,
-        source=(source or "doviz_admin_bridge").strip() or "doviz_admin_bridge",
-        source_url=stats_url(),
-    )
+    try:
+        from backend.services.history_seal import (
+            force_full_history,
+            is_pipeline_sealed,
+            never_store_today,
+        )
+
+        if replace is None:
+            replace = bool(
+                force_full_history("notification") or not is_pipeline_sealed("notification")
+            )
+        filtered: list[dict] = []
+        for r in parsed:
+            ds = str(r.get("date") or "")[:10]
+            if ds and never_store_today(ds):
+                continue
+            filtered.append(r)
+        parsed = filtered
+    except Exception:
+        if replace is None:
+            replace = False
+
+    if replace:
+        result = replace_workspace_from_rows(
+            db,
+            parsed,
+            source=(source or "doviz_admin_bridge").strip() or "doviz_admin_bridge",
+            source_url=stats_url(),
+        )
+    else:
+        # upload_parsed_rows ile aynı merge; source alanını da güncelle
+        result = upload_parsed_rows(db, parsed)
+        row = _get_workspace(db)
+        try:
+            row.source = (source or "doviz_admin_bridge")[:64]
+            row.source_url = stats_url()[:512]
+            db.commit()
+        except Exception:
+            pass
+        result["replaced"] = False
+        result["merged"] = True
     if result.get("parsed"):
         _last_sheet_sync_mono = time.monotonic()
         result["synced"] = True
         result["skipped"] = False
+        verb = "replace" if replace else "merge"
         result["message"] = (
-            f"Admin bridge ingest · {result.get('added') or result.get('parsed')} kayıt."
+            f"Admin bridge ingest ({verb}) · "
+            f"{result.get('added') or result.get('parsed')} kayıt."
         )
     else:
         result["synced"] = False

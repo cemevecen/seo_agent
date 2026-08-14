@@ -1011,12 +1011,28 @@ def scrape_empower(
         plats = list(WEB_ONLY_PLATFORMS)
 
     if yesterday:
-        y = date.today() - timedelta(days=1)
+        from backend.services.history_seal import calendar_yesterday
+
+        y = calendar_yesterday()
         start = end = y
     if not yesterday and (start is None or end is None):
-        # API için tarih zorunlu
-        start = start or date(2025, 1, 1)
-        end = end or date.today()
+        from backend.services.history_seal import (
+            calendar_yesterday,
+            force_full_history,
+            history_seal,
+            history_start,
+            is_pipeline_sealed,
+            scheduled_fetch_window,
+        )
+
+        pipe = "empower_sinemalar" if proj == "sinemalar" else "empower"
+        if is_pipeline_sealed(pipe) and not force_full_history(pipe):
+            win = scheduled_fetch_window(pipe)
+            start = win["start"]
+            end = win["end"]
+        else:
+            start = start or history_start()
+            end = end or min(calendar_yesterday(), history_seal())
 
     driver = None
     lock_held = False
@@ -1259,13 +1275,27 @@ def main(argv: list[str] | None = None) -> int:
     start = date.fromisoformat(args.start) if args.start else None
     end = date.fromisoformat(args.end) if args.end else None
     if args.backfill and not start:
-        start = date(2025, 1, 1)
+        from backend.services.history_seal import history_start
+
+        start = history_start()
     if args.backfill and not end:
-        end = date(2026, 8, 13)
+        from backend.services.history_seal import history_seal
+
+        end = history_seal()
 
     yesterday = bool(args.yesterday or args.sync)
     if args.backfill:
         yesterday = False
+    # Mühürlü varsayılan: --yesterday (bugün çekilmez)
+    if not yesterday and not args.backfill and start is None and end is None and not args.login:
+        try:
+            from backend.services.history_seal import force_full_history, is_pipeline_sealed
+
+            pipe = "empower_sinemalar" if (args.project or "").strip().lower() == "sinemalar" else "empower"
+            if is_pipeline_sealed(pipe) and not force_full_history(pipe):
+                yesterday = True
+        except Exception:
+            yesterday = True
 
     result = scrape_empower(
         platforms=args.platform or None,

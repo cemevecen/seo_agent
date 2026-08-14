@@ -53,6 +53,7 @@ class UploadCsvBody(BaseModel):
 class IngestRowsBody(BaseModel):
     rows: list[dict] = Field(default_factory=list)
     source: str = "doviz_admin_bridge"
+    replace: bool | None = None
 
 
 @router.get("/notification-analytics/state")
@@ -149,6 +150,7 @@ def post_notification_analytics_ingest(
             db,
             body.rows or [],
             source=(body.source or "doviz_admin_bridge").strip() or "doviz_admin_bridge",
+            replace=body.replace,
         )
         try:
             from backend.services.scrape_telemetry import record_scrape_ingest

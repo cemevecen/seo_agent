@@ -5,6 +5,8 @@
   .venv/bin/python scripts/seal_history.py --through 2026-08-13
   HISTORY_SEALED=0  # full backfill’i yeniden açmak için (Mac/Railway env)
   PLAY_CONSOLE_FORCE_FULL=1  # tek seferlik HISTORY_START→seal
+
+Policy (Ad Manager) mühürlenmez — sistem baştan çekmeye devam eder.
 """
 
 from __future__ import annotations

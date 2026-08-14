@@ -1187,6 +1187,16 @@ def scrape_incremental_detail_day(
 
 def run_incremental_detail(which: str = "yesterday", *, headed: bool = True, ingest: bool = False) -> dict[str, Any]:
     w = (which or "yesterday").strip().lower()
+    try:
+        from backend.services.history_seal import force_full_history, is_pipeline_sealed
+
+        if is_pipeline_sealed("sinemalar_moderation") and not force_full_history(
+            "sinemalar_moderation"
+        ):
+            # Mühürlü: bugün kalıcı kayda yazılmaz
+            w = "yesterday"
+    except Exception:
+        pass
     if w == "both":
         targets = [_yesterday_tr(), _today_tr()]
     elif w == "today":

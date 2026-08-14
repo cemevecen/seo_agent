@@ -166,8 +166,15 @@ GSC_CWV_SLOT_MINUTE = int(os.environ.get("GSC_CWV_BRIDGE_MINUTE") or "42")
 # Piyasa tablo taraması — günde bir, 00:16 TR
 MARKET_SLOT_HOURS = (0,)
 MARKET_SLOT_MINUTE = int(os.environ.get("MARKET_TARAMA_BRIDGE_MINUTE") or "16")
-# Empower Intelligence Yesterday — 02:12 + 13:18 TR
+# Empower Intelligence Yesterday — mühürlü: günde 1; aksi halde 02:12 + 13:18 TR
 EMPOWER_INTEL_SLOTS: tuple[tuple[int, int], ...] = ((2, 12), (13, 18))
+try:
+    from backend.services.history_seal import is_pipeline_sealed as _seal_emp
+
+    if _seal_emp("empower") and not (os.environ.get("EMPOWER_INTEL_BRIDGE_SLOTS") or "").strip():
+        EMPOWER_INTEL_SLOTS = ((6, 12),)
+except Exception:
+    pass
 _EMPOWER_SLOTS_RAW = (os.environ.get("EMPOWER_INTEL_BRIDGE_SLOTS") or "").strip()
 if _EMPOWER_SLOTS_RAW:
     parsed_slots: list[tuple[int, int]] = []
@@ -180,7 +187,7 @@ if _EMPOWER_SLOTS_RAW:
             parsed_slots.append((int(hs), int(ms)))
     if parsed_slots:
         EMPOWER_INTEL_SLOTS = tuple(parsed_slots)
-# Sinemalar Empower: döviz slotlarından +5 dk (02:17 + 13:23 TR)
+# Sinemalar Empower: döviz slotlarından +5 dk
 EMPOWER_INTEL_SINEMALAR_SLOTS: tuple[tuple[int, int], ...] = tuple(
     (h, (m + 5) % 60) if m + 5 < 60 else ((h + 1) % 24, (m + 5) % 60)
     for h, m in EMPOWER_INTEL_SLOTS
@@ -220,6 +227,27 @@ MODERATION_SLOTS: tuple[tuple[int, int, str], ...] = (
     (14, 17, "today"),
     (20, 5, "today"),  # akşam Today paneli dolu kalsın
 )
+try:
+    from backend.services.history_seal import is_pipeline_sealed as _seal_mod
+
+    # Mühürlü: yalnız dün (bugün kalıcı kayda yazılmaz)
+    if _seal_mod("sinemalar_moderation") and not (
+        os.environ.get("SINEMALAR_MODERATION_BRIDGE_SLOTS") or ""
+    ).strip():
+        MODERATION_SLOTS = ((3, 4, "yesterday"),)
+except Exception:
+    pass
+_MOD_SLOTS_RAW = (os.environ.get("SINEMALAR_MODERATION_BRIDGE_SLOTS") or "").strip()
+if _MOD_SLOTS_RAW:
+    # hour:minute:which,...  e.g. 3:4:yesterday,14:17:today
+    parsed_mod: list[tuple[int, int, str]] = []
+    for part in _MOD_SLOTS_RAW.split(","):
+        bits = [b.strip() for b in part.split(":")]
+        if len(bits) >= 3 and bits[0].isdigit() and bits[1].isdigit():
+            which = bits[2] if bits[2] in ("yesterday", "today", "both") else "yesterday"
+            parsed_mod.append((int(bits[0]), int(bits[1]), which))
+    if parsed_mod:
+        MODERATION_SLOTS = tuple(parsed_mod)
 BRIDGE_ALERT_TO = (
     os.environ.get("BRIDGE_ALERT_EMAIL")
     or os.environ.get("OPERATIONS_MAIL_TO")
@@ -490,7 +518,7 @@ def _run_browser_scrape_job(
 
 
 def _moderation_slot_due() -> tuple[bool, str, str]:
-    """03:04 → dün; 14:17 → bugün."""
+    """Mühürlü: yalnız dün slotu; aksi halde 03:04 dün / 14:17+20:05 bugün."""
     now = _now_tr()
     cur = now.hour * 60 + now.minute
     window = max(5, SLOT_WINDOW_MIN)
@@ -1510,15 +1538,28 @@ def run_sinemalar_moderation_bridge_once(*, incremental_which: str = "yesterday"
     env_hl = (os.environ.get("SINEMALAR_MODERATION_HEADLESS") or "").strip().lower()
     headed = env_hl not in ("1", "true", "yes")
     meta = mod.fetch_remote_meta()
-    if not meta.get("backfill_complete"):
-        print("Sinemalar moderasyon backfill chunk…", flush=True)
-        result = mod.run_backfill_chunk(headed=headed, ingest=True)
-        mode = "backfill"
-    else:
+    sealed = False
+    try:
+        from backend.services.history_seal import force_full_history, is_pipeline_sealed
+
+        sealed = is_pipeline_sealed("sinemalar_moderation") and not force_full_history(
+            "sinemalar_moderation"
+        )
+    except Exception:
+        sealed = False
+
+    # Mühürlü gövde tamam: chunk backfill atlanır; yalnız dün dilimi
+    if sealed or meta.get("backfill_complete"):
         which = incremental_which if incremental_which in ("yesterday", "today", "both") else "yesterday"
+        if sealed:
+            which = "yesterday"
         print(f"Sinemalar moderasyon detail incremental ({which})…", flush=True)
         result = mod.run_incremental_detail(which, headed=headed, ingest=True)
         mode = "detail_incremental"
+    else:
+        print("Sinemalar moderasyon backfill chunk…", flush=True)
+        result = mod.run_backfill_chunk(headed=headed, ingest=True)
+        mode = "backfill"
 
     if result.get("needs_login"):
         out = {
@@ -1774,7 +1815,18 @@ def run_empower_intel_bridge_once(*, mode: str = "yesterday") -> dict[str, Any]:
     print(f"Empower Intel scrape başlıyor… ({mode_l})", flush=True)
     cmd = [sys.executable, str(script), "--ingest"]
     if mode_l == "backfill":
-        cmd.extend(["--backfill", "--start", "2025-01-01", "--end", "2026-08-13"])
+        try:
+            from backend.services.history_seal import history_seal, history_start, scheduled_fetch_window
+
+            win = scheduled_fetch_window("empower", force_full=True)
+            start_s = win["start"].isoformat()
+            end_s = win["end"].isoformat()
+        except Exception:
+            from backend.services.history_seal import history_seal, history_start
+
+            start_s = history_start().isoformat()
+            end_s = history_seal().isoformat()
+        cmd.extend(["--backfill", "--start", start_s, "--end", end_s])
     else:
         cmd.append("--yesterday")
     env = os.environ.copy()
@@ -1861,7 +1913,18 @@ def run_empower_intel_sinemalar_bridge_once(*, mode: str = "yesterday") -> dict[
         "--ingest",
     ]
     if mode_l == "backfill":
-        cmd.extend(["--backfill", "--start", "2025-01-01", "--end", "2026-08-13"])
+        try:
+            from backend.services.history_seal import scheduled_fetch_window
+
+            win = scheduled_fetch_window("empower_sinemalar", force_full=True)
+            start_s = win["start"].isoformat()
+            end_s = win["end"].isoformat()
+        except Exception:
+            from backend.services.history_seal import history_seal, history_start
+
+            start_s = history_start().isoformat()
+            end_s = history_seal().isoformat()
+        cmd.extend(["--backfill", "--start", start_s, "--end", end_s])
     else:
         cmd.append("--yesterday")
     env = os.environ.copy()
@@ -2527,7 +2590,27 @@ def run_notification_bridge_once() -> dict[str, Any]:
 
     print("Admin stats çekiliyor…", flush=True)
     try:
-        fetched = fetch_notification_rows_from_admin(on_progress=_on_progress)
+        from backend.services.history_seal import (
+            force_full_history,
+            is_pipeline_sealed,
+            scheduled_fetch_window,
+        )
+
+        fetch_start = fetch_end = None
+        replace_ingest = True
+        if is_pipeline_sealed("notification") and not force_full_history("notification"):
+            win = scheduled_fetch_window("notification")
+            fetch_start, fetch_end = win["start"], win["end"]
+            replace_ingest = False
+            print(
+                f"Notification mühür · {win.get('mode')} · {fetch_start} → {fetch_end}",
+                flush=True,
+            )
+        fetched = fetch_notification_rows_from_admin(
+            on_progress=_on_progress,
+            start=fetch_start,
+            end=fetch_end,
+        )
     except Exception as exc:  # noqa: BLE001
         msg = str(exc) or "Notification tarama hatası"
         _set_nt_progress(running=False, phase="error", message=msg)
@@ -2562,7 +2645,11 @@ def run_notification_bridge_once() -> dict[str, Any]:
             "Accept": "application/json",
         },
         data=json.dumps(
-            {"rows": rows, "source": "doviz_admin_bridge"},
+            {
+                "rows": rows,
+                "source": "doviz_admin_bridge",
+                "replace": replace_ingest,
+            },
             ensure_ascii=False,
         ).encode("utf-8"),
         timeout=180,
@@ -2627,11 +2714,32 @@ def run_news_bridge_once(
     sync_mode = "full"
     max_pages = 320
     if not use_full:
-        d = max(1, int(days or 7))
-        min_day = (date.today() - timedelta(days=d - 1)).isoformat()
-        sync_mode = f"recent_{d}d"
-        max_pages = 60
-        estimate = 40
+        try:
+            from backend.services.history_seal import (
+                calendar_yesterday,
+                force_full_history,
+                is_pipeline_sealed,
+            )
+
+            if is_pipeline_sealed("doviz_news") and not force_full_history("doviz_news"):
+                # Mühürlü: yalnız dünden itibaren (bugün kalıcı kayda yazılmaz; floor=dün)
+                d = 1
+                min_day = calendar_yesterday().isoformat()
+                sync_mode = "yesterday_only"
+                max_pages = 40
+                estimate = 20
+            else:
+                d = max(1, int(days or 7))
+                min_day = (date.today() - timedelta(days=d - 1)).isoformat()
+                sync_mode = f"recent_{d}d"
+                max_pages = 60
+                estimate = 40
+        except Exception:
+            d = max(1, int(days or 7))
+            min_day = (date.today() - timedelta(days=d - 1)).isoformat()
+            sync_mode = f"recent_{d}d"
+            max_pages = 60
+            estimate = 40
     else:
         estimate = _news_pages_estimate()
 
@@ -2641,7 +2749,7 @@ def run_news_bridge_once(
         page=0,
         total_pages=estimate,
         rows=0,
-        message=("Tam tarama…" if use_full else f"Son {days or 7} gün…"),
+        message=("Tam tarama…" if use_full else f"{sync_mode} · {min_day}…"),
     )
 
     def _on_progress(info: dict[str, Any]) -> None:
@@ -2662,7 +2770,7 @@ def run_news_bridge_once(
             print(f"News progress {page}/{total} · {rows} kayıt", flush=True)
 
     print(
-        f"Admin haberler çekiliyor ({'full' if use_full else f'days={days or 7} / {min_day}…'})…",
+        f"Admin haberler çekiliyor ({'full' if use_full else f'{sync_mode} / {min_day}…'})…",
         flush=True,
     )
     try:
@@ -3647,14 +3755,31 @@ def _interval_due(last_at: float, interval_sec: int, *, min_sec: int = 60) -> bo
 
 
 def _should_run_notification_auto() -> bool:
-    return _interval_due(_last_nt_auto_at, AUTO_INTERVAL_SEC, min_sec=60)
+    # Mühürlü: günde ~1 (dün dilimi); aksi halde 30 dk
+    interval = AUTO_INTERVAL_SEC
+    try:
+        from backend.services.history_seal import force_full_history, is_pipeline_sealed
+
+        if is_pipeline_sealed("notification") and not force_full_history("notification"):
+            interval = int(os.environ.get("NOTIFICATION_SEALED_INTERVAL_SEC") or str(24 * 60 * 60))
+    except Exception:
+        pass
+    return _interval_due(_last_nt_auto_at, interval, min_sec=60)
 
 
 def _should_run_news_auto() -> bool:
     global _auto_cycle
     if NEWS_AUTO_EVERY_N > 0:
         return NEWS_AUTO_EVERY_N <= 1 or (_auto_cycle % NEWS_AUTO_EVERY_N) == 1
-    return _interval_due(_last_news_auto_at, NEWS_AUTO_INTERVAL_SEC, min_sec=60)
+    interval = NEWS_AUTO_INTERVAL_SEC
+    try:
+        from backend.services.history_seal import force_full_history, is_pipeline_sealed
+
+        if is_pipeline_sealed("doviz_news") and not force_full_history("doviz_news"):
+            interval = int(os.environ.get("NEWS_SEALED_INTERVAL_SEC") or str(24 * 60 * 60))
+    except Exception:
+        pass
+    return _interval_due(_last_news_auto_at, interval, min_sec=60)
 
 
 def _clear_job_retry(kind: str) -> None:

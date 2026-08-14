@@ -489,7 +489,13 @@ def fetch_stats_html(
     on_progress: Any | None = None,
 ) -> str:
     start = start or DEFAULT_STATS_START
-    end = end or date.today()
+    if end is None:
+        try:
+            from backend.services.history_seal import calendar_yesterday, is_pipeline_sealed
+
+            end = calendar_yesterday() if is_pipeline_sealed("notification") else date.today()
+        except Exception:
+            end = date.today()
     stats = stats_url()
     get_candidates = _stats_query_candidates(start, end)
     post_candidates = list(get_candidates)
