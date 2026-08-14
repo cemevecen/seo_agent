@@ -77,3 +77,20 @@ def test_read_property_ids_filters_by_project_report_path():
     got_d = mod._read_property_ids(FakeDriver(), "doviz")
     assert got_d.get("web") == "376928120"
     assert got_d.get("mweb") == "329808608"
+
+
+def test_virgul_id_mapped_per_project_platform():
+    """Reklam metrikleri için virgul sid = VIRGUL_AD_SOURCES (web→desktop)."""
+    mod = _load_scrape()
+    from backend.services.virgul_ad_config import VIRGUL_AD_SOURCES
+
+    by = {s.stream_key: s.sid for s in VIRGUL_AD_SOURCES}
+    assert mod._virgul_id_for_platform("doviz", "web") == by["doviz:desktop"]
+    assert mod._virgul_id_for_platform("doviz", "mweb") == by["doviz:mweb"]
+    assert mod._virgul_id_for_platform("doviz", "ios") == by["doviz:ios"]
+    assert mod._virgul_id_for_platform("doviz", "android") == by["doviz:android"]
+    assert mod._virgul_id_for_platform("sinemalar", "web") == by["sinemalar:desktop"]
+    assert mod._virgul_id_for_platform("sinemalar", "mweb") == by["sinemalar:mweb"]
+    # Eski tek-id (android) Sinemalar web'e sızmamalı
+    assert mod._virgul_id_for_platform("sinemalar", "web") != by["doviz:android"]
+    assert mod._virgul_id_for_platform("doviz", "web") != by["doviz:android"]

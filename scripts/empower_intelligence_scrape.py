@@ -26,8 +26,13 @@ Env:
   NOTIFICATION_INGEST_TOKEN
   EMPOWER_INTEL_HEADLESS=1
   EMPOWER_INTEL_PROJECT=doviz|sinemalar
-  EMPOWER_INTEL_VIRGUL_ID / EMPOWER_INTEL_SINEMALAR_VIRGUL_ID
+  EMPOWER_INTEL_VIRGUL_IDS=web:SID,mweb:SID,ios:SID,android:SID
+  EMPOWER_INTEL_SINEMALAR_VIRGUL_IDS=web:SID,mweb:SID
+  EMPOWER_INTEL_VIRGUL_ID / EMPOWER_INTEL_SINEMALAR_VIRGUL_ID  (legacy tek-id fallback)
   EMPOWER_INTEL_SINEMALAR_PROPERTY_IDS=web:ID,mweb:ID
+
+Virgül reklam metrikleri (view/usdSpent/…) platform×proje sid ile çekilir
+(``virgul_ad_config.VIRGUL_AD_SOURCES``); GA metrikleri property_id ile.
 """
 
 from __future__ import annotations
@@ -77,6 +82,7 @@ from backend.services.system_firefox_driver import (  # noqa: E402
     launch_system_firefox_driver,
     quit_system_firefox_driver,
 )
+from backend.services.virgul_ad_config import VIRGUL_AD_SOURCES  # noqa: E402
 
 PROFILE_DIR = empower_profile_dir()
 INGEST_URL = (
@@ -174,6 +180,13 @@ FETCH_REPORT_API = (
     or "https://lkusbybvt5.execute-api.eu-west-1.amazonaws.com/v1/report/fetch_report"
 ).strip()
 DEFAULT_VIRGUL_ID = (os.environ.get("EMPOWER_INTEL_VIRGUL_ID") or "55af4685a503b0ad628b4567").strip()
+# Empower platform → Virgül stream_key suffix (backend/services/virgul_ad_config.py)
+_PLATFORM_TO_VIRGUL_SUFFIX: dict[str, str] = {
+    "web": "desktop",
+    "mweb": "mweb",
+    "ios": "ios",
+    "android": "android",
+}
 # columnPrefs anahtarındaki property_id — locale başına sabit (doviz)
 DEFAULT_PROPERTY_IDS: dict[str, str] = {
     "android": "152168629",
@@ -194,18 +207,8 @@ def _report_base(project: str) -> str:
     return f"https://intelligence.empower.net/{_normalize_project(project)}-report/"
 
 
-def _virgul_id_for_project(project: str) -> str:
-    proj = _normalize_project(project)
-    if proj == "sinemalar":
-        return (
-            os.environ.get("EMPOWER_INTEL_SINEMALAR_VIRGUL_ID")
-            or os.environ.get("EMPOWER_INTEL_VIRGUL_ID")
-            or DEFAULT_VIRGUL_ID
-        ).strip() or DEFAULT_VIRGUL_ID
-    return DEFAULT_VIRGUL_ID
-
-
-def _parse_property_ids_env(raw: str) -> dict[str, str]:
+def _parse_platform_id_map(raw: str) -> dict[str, str]:
+    """``web:SID,mweb:SID`` → platform map."""
     out: dict[str, str] = {}
     for part in (raw or "").split(","):
         part = part.strip()
@@ -216,6 +219,58 @@ def _parse_property_ids_env(raw: str) -> dict[str, str]:
         if plat in {"web", "mweb", "ios", "android"} and pid:
             out[plat] = pid
     return out
+
+
+def _virgul_sid_by_stream() -> dict[str, str]:
+    return {s.stream_key: s.sid for s in VIRGUL_AD_SOURCES}
+
+
+def _virgul_id_for_platform(project: str, platform: str) -> str:
+    """project × platform → Virgül sid (reklam metrikleri için).
+
+    Kaynak sırası:
+    1. ``EMPOWER_INTEL_*_VIRGUL_IDS`` env map
+    2. ``VIRGUL_AD_SOURCES`` (stream_key = ``doviz:desktop`` vb.; web→desktop)
+    3. Legacy tek-id env / DEFAULT_VIRGUL_ID
+    """
+    proj = _normalize_project(project)
+    plat = (platform or "").strip().lower()
+    env_key = (
+        "EMPOWER_INTEL_SINEMALAR_VIRGUL_IDS"
+        if proj == "sinemalar"
+        else "EMPOWER_INTEL_VIRGUL_IDS"
+    )
+    env_map = _parse_platform_id_map(os.environ.get(env_key) or "")
+    if plat in env_map:
+        return env_map[plat]
+
+    suffix = _PLATFORM_TO_VIRGUL_SUFFIX.get(plat, plat)
+    stream = f"{proj}:{suffix}"
+    by_stream = _virgul_sid_by_stream()
+    if stream in by_stream:
+        return by_stream[stream]
+
+    if proj == "sinemalar":
+        legacy = (os.environ.get("EMPOWER_INTEL_SINEMALAR_VIRGUL_ID") or "").strip()
+        if legacy:
+            return legacy
+        if "sinemalar:desktop" in by_stream:
+            return by_stream["sinemalar:desktop"]
+    legacy = (os.environ.get("EMPOWER_INTEL_VIRGUL_ID") or "").strip()
+    if legacy:
+        return legacy
+    return DEFAULT_VIRGUL_ID
+
+
+def _virgul_id_for_project(project: str) -> str:
+    """Geriye dönük: proje varsayılanı (web/desktop sid). Tercihen ``_virgul_id_for_platform``."""
+    proj = _normalize_project(project)
+    prefer = "web" if proj == "sinemalar" else "android"
+    return _virgul_id_for_platform(proj, prefer)
+
+
+def _parse_property_ids_env(raw: str) -> dict[str, str]:
+    return _parse_platform_id_map(raw)
 
 
 # Sinemalar Empower columnPrefs property_id (web / mweb)
@@ -887,9 +942,9 @@ def _scrape_platform(
     visible = COLUMN_SETS.get(platform) or APP_VISIBLE_COLUMNS
     defaults = _default_property_ids(proj)
     prop_id = (property_ids.get(platform) or defaults.get(platform) or "").strip()
-    vid = (virgul_id or _virgul_id_for_project(proj)).strip() or DEFAULT_VIRGUL_ID
+    vid = (virgul_id or _virgul_id_for_platform(proj, platform)).strip() or DEFAULT_VIRGUL_ID
     print(
-        f"  · {proj}/{platform} ({label}) · property={prop_id} · "
+        f"  · {proj}/{platform} ({label}) · property={prop_id} · virgul={vid} · "
         f"{start.isoformat()}→{end.isoformat()} · {len(visible)} sütun",
         flush=True,
     )
@@ -963,7 +1018,6 @@ def scrape_empower(
         start = start or date(2025, 1, 1)
         end = end or date.today()
 
-    virgul_id = _virgul_id_for_project(proj)
     driver = None
     lock_held = False
     try:
@@ -1025,9 +1079,15 @@ def scrape_empower(
 
         access_token = _read_oidc_access_token(driver)
         property_ids = _read_property_ids(driver, proj)
+        virgul_ids = {p: _virgul_id_for_platform(proj, p) for p in plats}
         print(
             f"  · property_ids ({proj}): "
             + ", ".join(f"{k}={property_ids.get(k) or '?'}" for k in plats),
+            flush=True,
+        )
+        print(
+            f"  · virgul_ids ({proj}): "
+            + ", ".join(f"{k}={virgul_ids.get(k) or '?'}" for k in plats),
             flush=True,
         )
         missing = [p for p in plats if not (property_ids.get(p) or "").strip()]
@@ -1065,7 +1125,7 @@ def scrape_empower(
                     access_token=access_token,
                     property_ids=property_ids,
                     project=proj,
-                    virgul_id=virgul_id,
+                    virgul_id=virgul_ids.get(plat),
                 )
                 # token uzun turda drop olursa güncelle
                 maybe = _read_oidc_access_token(driver)
