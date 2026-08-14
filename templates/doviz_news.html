@@ -714,12 +714,20 @@
     min-width: 0;
     width: 100%;
   }
+  #dn-card-hour {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    width: 100%;
+  }
   @media (min-width: 1024px) {
+    #dn-card-hour:not(.dn-span-2),
     #dn-card-own-vs:not(.dn-span-2),
     #dn-card-top-days:not(.dn-span-2) {
       align-self: stretch;
       min-height: 0;
     }
+    #dn-card-hour:not(.dn-span-2) #dn-chart-hour,
     #dn-card-own-vs:not(.dn-span-2) #dn-chart-own {
       flex: 1 1 auto;
       min-height: 240px;
@@ -2348,6 +2356,30 @@
     topDays.style.maxHeight = h + "px";
   }
 
+  function syncHourOwnVsHeights(singleDay) {
+    var hour = $("dn-card-hour");
+    var ownVs = $("dn-card-own-vs");
+    if (!hour || !ownVs) return;
+    hour.style.minHeight = "";
+    hour.style.maxHeight = "";
+    hour.style.height = "";
+    if (!singleDay) return;
+    if (hour.classList.contains("hidden") || ownVs.classList.contains("hidden")) return;
+    if (hour.classList.contains("dn-span-2") || ownVs.classList.contains("dn-span-2")) return;
+    if (window.matchMedia && !window.matchMedia("(min-width: 1024px)").matches) return;
+    var h = Math.max(hour.offsetHeight, ownVs.offsetHeight, 280);
+    hour.style.height = h + "px";
+    hour.style.maxHeight = h + "px";
+    ownVs.style.height = h + "px";
+    ownVs.style.maxHeight = h + "px";
+    try {
+      if (typeof Plotly !== "undefined" && Plotly.Plots) {
+        Plotly.Plots.resize("dn-chart-hour");
+        Plotly.Plots.resize("dn-chart-own");
+      }
+    } catch (_) {}
+  }
+
   function syncPeriodCardVisibility(period) {
     var p = period || "last_7d";
     var hideWeekly = p === "today" || p === "yesterday" || p === "last_7d" || p === "prev_week";
@@ -2378,8 +2410,9 @@
       el.classList.toggle("hidden", !!pair[1]);
       el.style.display = pair[1] ? "none" : "";
     });
+    // Tek gün: Hourly + Original vs sourced yan yana (split); full-bleed yok
     var hour = $("dn-card-hour");
-    if (hour) hour.classList.toggle("dn-span-2", hideDaySeries);
+    if (hour) hour.classList.remove("dn-span-2");
     var topDays = $("dn-card-top-days");
     if (topDays) {
       topDays.classList.remove("hidden");
@@ -2509,7 +2542,10 @@
       { type: "bar", name: "Original", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.own; }), marker: { color: palO.green }, hovertemplate: "%{x}<br>Original: %{y}<extra></extra>" },
       { type: "bar", name: "Sourced", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.sourced; }), marker: { color: palO.blue }, hovertemplate: "%{x}<br>Sourced: %{y}<extra></extra>" }
     ], plotLayout({ barmode: "stack", margin: { t: 28, r: 16, b: 70, l: 40 }, xaxis: { tickangle: -20 } }), plotCfg());
-    requestAnimationFrame(syncOwnVsTopDaysHeights);
+    requestAnimationFrame(function () {
+      syncOwnVsTopDaysHeights();
+      syncHourOwnVsHeights(!!vis.hideDaySeries);
+    });
   }
 
   function renderCharts(data) {
