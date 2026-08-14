@@ -220,18 +220,18 @@
     color: #e4e4e7;
   }
 
-  /* Metric KPI · always ss2 neon cards in one row (independent heights) */
+  /* Metric KPI · ss2 cards — equal height; many metrics wrap to 2 rows */
   #pa-metric-kpis.metric-kpi-grid--ss2 {
     display: grid;
     width: 100%;
     min-width: 0;
     gap: clamp(0.28rem, 1.15vw, 0.65rem);
-    align-items: start;
+    align-items: stretch;
     grid-template-columns: repeat(var(--kpi-n, 1), minmax(0, 1fr));
   }
   #pa-metric-kpis.metric-kpi-grid--ss2 > .metric-kpi-ss2 {
-    align-self: start;
-    height: auto;
+    align-self: stretch;
+    height: 100%;
     min-height: 0;
     min-width: 0;
   }
@@ -369,8 +369,8 @@
   .metric-kpi-ss2 {
     position: relative;
     min-width: 0;
-    height: auto;
-    align-self: start;
+    height: 100%;
+    align-self: stretch;
     container-type: inline-size;
     container-name: kpi-ss2;
     display: flex;
@@ -395,21 +395,21 @@
   }
   .metric-kpi-ss2-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: clamp(0.18rem, 2.4cqi, 0.35rem);
     min-width: 0;
+    flex: 0 0 auto;
+    min-height: 1.35rem;
   }
   .metric-kpi-ss2-head .metric-kpi-chip {
     display: block;
     flex: 1 1 auto;
     min-width: 0;
     max-width: 100%;
-    overflow: visible;
-    text-overflow: unset;
-    white-space: normal;
-    overflow-wrap: break-word;
-    word-break: break-word;
-    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.2;
     font-size: clamp(0.48rem, 7.8cqi, 0.65rem);
     letter-spacing: clamp(0.01em, 0.35cqi, 0.05em);
     padding: calc(0.12rem + 1px) clamp(0.28rem, 3.2cqi, 0.55rem);
@@ -429,7 +429,7 @@
     gap: clamp(0.22rem, 3.2cqi, 0.55rem);
     margin-top: clamp(0.22rem, 3.2cqi, 0.45rem);
     min-height: clamp(2.2rem, 38cqi, 3.25rem);
-    flex: 0 0 auto;
+    flex: 1 1 auto;
     min-width: 0;
   }
   .metric-kpi-ss2-metrics {
@@ -4013,7 +4013,9 @@
     if (!el) return;
     el.className = "metric-kpi-grid metric-kpi-grid--ss2";
     el.style.removeProperty("grid-template-columns");
-    el.style.setProperty("--kpi-n", String(Math.max(n, 1)));
+    // 9+ metrik: 2 satır — dar kartlarda isim/hizalama bozulmasın
+    var cols = n >= 9 ? Math.ceil(n / 2) : Math.max(n, 1);
+    el.style.setProperty("--kpi-n", String(Math.max(cols, 1)));
   }
   var _kpiFitObs = null;
   var _kpiFitRaf = 0;
@@ -4163,7 +4165,7 @@
       return (
         '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
           '<div class="metric-kpi-ss2-head">' +
-            '<span class="metric-kpi-chip">' + esc(label) + "</span>" +
+            '<span class="metric-kpi-chip" title="' + esc(label) + '">' + esc(label) + "</span>" +
             infoBtn +
           "</div>" +
           '<div class="metric-kpi-ss2-main">' +
