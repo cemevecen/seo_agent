@@ -158,6 +158,17 @@
     { label: "Virgül (MWeb)", items: VIRGUL_OVERLAY_ITEMS },
   ];
 
+  var MARKET_OVERLAY_ITEMS = [
+    { key: "market:usd_try", label: "USD/TRY close" },
+    { key: "market:eur_try", label: "EUR/TRY close" },
+    { key: "market:gram_altin", label: "Gold gram close" },
+    { key: "market:ceyrek_altin", label: "Quarter gold close" },
+    { key: "market:gram_gumus", label: "Silver gram close" },
+    { key: "market:bist100", label: "BIST 100 close" },
+    { key: "market:brent", label: "Brent close" },
+    { key: "market:bitcoin", label: "Bitcoin close" },
+    { key: "market:all_indexed", label: "All (range start=100)" },
+  ];
   var METRIC_GROUPS = METRIC_GROUPS_ANDROID;
   var XDATA_SKIP = { appVersion: 1 };
   var XDATA_PLATFORMS = ["android", "ios", "web", "mweb"];
@@ -201,6 +212,9 @@
       (XDATA_ITEMS[plat] || []).forEach(function (it) {
         LABEL_BY_KEY[it.key] = it.label;
       });
+    });
+    MARKET_OVERLAY_ITEMS.forEach(function (it) {
+      LABEL_BY_KEY[it.key] = it.label;
     });
   }
   rebuildLabelIndex();
@@ -299,7 +313,9 @@
       base = METRIC_GROUPS_MWEB;
       xitems = XDATA_ITEMS.mweb;
     }
-    if (!xitems || !xitems.length) return base;
+    if (!xitems || !xitems.length) {
+      return base.concat([{ label: "Market", items: MARKET_OVERLAY_ITEMS }]);
+    }
     var out = [];
     var inserted = false;
     if (plat === "web" || plat === "mweb") {
@@ -314,6 +330,7 @@
       }
     });
     if (!inserted) out.push({ label: "X-Data", items: xitems });
+    out.push({ label: "Market", items: MARKET_OVERLAY_ITEMS });
     return out;
   }
 

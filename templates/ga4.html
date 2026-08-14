@@ -461,8 +461,8 @@
     background-color: #18181b !important;
     border-color: #27272a !important;
   }
-  html.dark .ga4-card-filter-bar [data-market-overlay-trigger],
-  html.midnight .ga4-card-filter-bar [data-market-overlay-trigger] {
+  html.dark .ga4-card-filter-bar [data-play-metric-overlay-trigger],
+  html.midnight .ga4-card-filter-bar [data-play-metric-overlay-trigger] {
     background-color: #18181b !important;
     border-color: #3f3f46 !important;
   }
@@ -503,6 +503,10 @@
   }
   .seo-analytics-compare-inline [data-compare-mode] {
     max-width: 100%;
+  }
+  #ga4-page .ga4-global-filter-chrome [data-play-metric-overlay-trigger] {
+    min-width: 11rem;
+    max-width: min(100%, 16rem);
   }
   [data-ga4-period-switch] button,
   [data-ga4-profile-switch] button,
@@ -563,14 +567,14 @@
     <div
       class="ga4-global-filter-mobile-dock ga4-card-filter-bar mb-4 rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-0 sm:hidden"
       data-ga4-global-filter-slot-mobile
-      aria-label="Market and date comparison"
+      aria-label="Metric overlay and date comparison"
     ></div>
 
     {# Split (iki sütun) görünümde ortak filtre şeridi — kart içine gömülünce döviz/sinemalar KPI’ları hizasız kalıyordu #}
     <div
       class="ga4-global-filter-desktop-dock ga4-card-filter-bar mb-4 hidden rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-4"
       data-ga4-global-filter-slot-desktop
-      aria-label="Market and date comparison"
+      aria-label="Metric overlay and date comparison"
     ></div>
 
     <div id="ga4-global-filter-chrome-holder" class="sr-only" aria-hidden="true">
@@ -1997,7 +2001,8 @@
             };
           }
           var overlayModes =
-            window.SeoMarketOverlay ? SeoMarketOverlay.modes("seo-market-overlay-root") : [];
+            window.PlayMetricOverlay ? PlayMetricOverlay.modes("ga4-play-metric-overlay-root") : [];
+          var overlayPlat = ga4ChartOverlayPlatform(element);
           var runPlot = function () {
           if (window.seoPlotlyResolveHeight) {
             layoutObj.height = seoPlotlyResolveHeight(element, layoutObj, {
@@ -2030,26 +2035,12 @@
           });
           };
           var overlayPromise =
-            overlayModes.length && trend.dates && trend.dates.length && window.SeoMarketOverlay
-              ? SeoMarketOverlay.apply(traces, layoutObj, trend.dates, overlayModes, {
-                  marginRight: 72,
-                  chartWidth: chartW,
+            overlayModes.length && overlayPlat && trend.dates && trend.dates.length && window.PlayMetricOverlay
+              ? PlayMetricOverlay.apply(traces, layoutObj, trend.dates, overlayPlat, overlayModes, {
+                  start: String(trend.dates[0] || "").slice(0, 10),
+                  end: String(trend.dates[trend.dates.length - 1] || "").slice(0, 10),
                 })
               : Promise.resolve();
-          var empowerPlat = ga4ActiveAppProfileFromChart(element);
-          overlayPromise = overlayPromise.then(function () {
-            if (!empowerPlat || !trend.dates || !trend.dates.length || !window.AppEmpowerOverlay) {
-              return;
-            }
-            var empowerKeys = AppEmpowerOverlay.modes('ga4-empower-overlay-root');
-            if (!empowerKeys.length) {
-              return;
-            }
-            return AppEmpowerOverlay.apply(traces, layoutObj, trend.dates, empowerPlat, empowerKeys, {
-              marginRight: Math.min(56, Math.max(44, Math.round(chartW * 0.1))),
-              chartWidth: chartW,
-            });
-          });
           overlayPromise.then(runPlot);
         } catch (error) {
           console.warn('GA4 trend render failed:', error);
@@ -2383,8 +2374,9 @@
             }
           });
         }
-        ga4SyncEmpowerOverlayVisibility();
+        ga4SyncPlayMetricOverlay();
         window.setTimeout(function () {
+          ga4ResetTrendCharts(hostCard || document);
           initGa4Tables(hostCard || document);
           fitGa4Text(hostCard || document);
           renderGa4KpiSparks(hostCard || document);
@@ -2579,39 +2571,66 @@
     if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
       SeoAnalyticsCompare.bindWhenReady('ga4');
     }
-    if (window.SeoMarketOverlay) {
-      if (SeoMarketOverlay.ensureClosed) SeoMarketOverlay.ensureClosed();
-      if (SeoMarketOverlay.ensureBound) {
-        SeoMarketOverlay.ensureBound('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
-      } else if (SeoMarketOverlay.bindWhenReady) {
-        SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
-      }
-    }
-    if (window.AppEmpowerOverlay && AppEmpowerOverlay.bindWhenReady) {
-      AppEmpowerOverlay.bindWhenReady('ga4-empower-overlay-root', ga4OnEmpowerOverlayChange);
-    }
-    ga4SyncEmpowerOverlayVisibility();
+    ga4BindPlayMetricOverlay();
+    ga4SyncPlayMetricOverlay();
     ga4ScheduleSplitCardChromeSync();
   }
 
-  function ga4ActiveAppProfileFromChart(el) {
+  function ga4ChartOverlayPlatform(el) {
     if (!el) return '';
+    var card = el.closest('[data-ga4-site-card]');
+    var domain = ((card && card.getAttribute('data-site-domain')) || '').toLowerCase();
+    if (domain.indexOf('doviz.com') < 0 && domain !== 'doviz') return '';
     var panel = el.closest('[data-ga4-profile-panel]');
-    if (!panel) return el.getAttribute('data-ga4-platform') || '';
-    if (panel.classList.contains('hidden')) return '';
-    return panel.getAttribute('data-ga4-profile-panel') || el.getAttribute('data-ga4-platform') || '';
+    var plat = '';
+    if (panel && !panel.classList.contains('hidden')) {
+      plat = panel.getAttribute('data-ga4-profile-panel') || '';
+    }
+    if (!plat) plat = el.getAttribute('data-ga4-platform') || '';
+    plat = String(plat || '').toLowerCase();
+    if (plat === 'desktop') plat = 'web';
+    if (plat === 'web' || plat === 'mweb' || plat === 'android' || plat === 'ios') return plat;
+    return '';
   }
 
-  function ga4SyncEmpowerOverlayVisibility() {
-    var wrap = document.getElementById('ga4-empower-overlay-wrap');
-    if (!wrap) return;
-    var visible = false;
-    document.querySelectorAll('[data-ga4-profile-panel]:not(.hidden)').forEach(function (p) {
-      var k = p.getAttribute('data-ga4-profile-panel');
-      if (k === 'android' || k === 'ios') visible = true;
-    });
-    wrap.classList.toggle('hidden', !visible);
+  function ga4VisibleOverlayPlatform() {
+    var card =
+      document.querySelector('[data-ga4-site-card]:not(.hidden)') ||
+      document.querySelector('[data-ga4-site-card]');
+    var panel = card && card.querySelector('[data-ga4-profile-panel]:not(.hidden)');
+    var plat = ((panel && panel.getAttribute('data-ga4-profile-panel')) || '').toLowerCase();
+    if (plat === 'desktop') plat = 'web';
+    if (plat === 'web' || plat === 'mweb' || plat === 'android' || plat === 'ios') return plat;
+    return 'web';
   }
+
+  function ga4BindPlayMetricOverlay() {
+    if (!window.PlayMetricOverlay) return;
+    if (PlayMetricOverlay.bindWhenReady) {
+      PlayMetricOverlay.bindWhenReady('ga4-play-metric-overlay-root', ga4OnPlayMetricOverlayChange);
+    } else if (PlayMetricOverlay.autoBindPlayMetricOverlays) {
+      PlayMetricOverlay.autoBindPlayMetricOverlays();
+    }
+  }
+
+  function ga4SyncPlayMetricOverlay() {
+    if (!window.PlayMetricOverlay || !PlayMetricOverlay.setPlatform) return;
+    PlayMetricOverlay.setPlatform('ga4-play-metric-overlay-root', ga4VisibleOverlayPlatform());
+  }
+
+  function ga4ResetTrendCharts(root) {
+    (root || document).querySelectorAll('[data-ga4-kpi-trend]').forEach(function (el) {
+      delete el.dataset.chartReady;
+      if (window.Plotly) {
+        try { Plotly.purge(el); } catch (_) { /* ignore */ }
+      }
+    });
+  }
+
+  window.ga4OnPlayMetricOverlayChange = function ga4OnPlayMetricOverlayChange() {
+    if (window.PlayMetricOverlay && PlayMetricOverlay.clearCache) PlayMetricOverlay.clearCache();
+    ga4RerenderTrendChartsForMarket();
+  };
 
   /** Split görünümde başlık / filtre / tarih / KPI / grafik satırlarını kartlar arasında hizala. */
   function ga4AlignNodeInCard(card, zone) {
@@ -2688,11 +2707,6 @@
       }, delay);
     });
   }
-
-  window.ga4OnEmpowerOverlayChange = function ga4OnEmpowerOverlayChange() {
-    if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
-    ga4RerenderTrendChartsForMarket();
-  };
 
   function parkGa4GlobalFilterChrome() {
     var chrome = document.getElementById('ga4-global-filter-chrome');
@@ -2790,9 +2804,6 @@
     var swapTarget = detail.target || event.target;
     if (swapTarget && swapTarget.id === 'ga4-site-list') {
       parkGa4GlobalFilterChrome();
-      if (window.SeoMarketOverlay && SeoMarketOverlay.ensureClosed) {
-        SeoMarketOverlay.ensureClosed();
-      }
     }
   });
 
@@ -2932,16 +2943,8 @@
     document.addEventListener('seo-theme-change', relayoutGa4TrendChartsTheme);
   }
 
-  function ga4RerenderTrendChartsForMarket(keys) {
-    if (window.SeoMarketOverlay && SeoMarketOverlay.setForcedModes && Array.isArray(keys)) {
-      SeoMarketOverlay.setForcedModes(keys);
-    }
-    document.querySelectorAll('[data-ga4-kpi-trend]').forEach(function (el) {
-      delete el.dataset.chartReady;
-      if (window.Plotly) {
-        try { Plotly.purge(el); } catch (_) { /* ignore */ }
-      }
-    });
+  function ga4RerenderTrendChartsForMarket() {
+    ga4ResetTrendCharts(document);
     renderGa4KpiSparks(document);
     renderGa4TrendCharts(document);
   }
@@ -2951,9 +2954,7 @@
     if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
       SeoAnalyticsCompare.bindWhenReady('ga4');
     }
-    if (window.SeoMarketOverlay) {
-      SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
-    }
+    ga4BindPlayMetricOverlay();
     mountGa4GlobalFilters();
     initGa4Panels(document);
   });

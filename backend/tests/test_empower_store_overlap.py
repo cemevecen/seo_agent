@@ -152,6 +152,16 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert "Android metrics" in ios_html
     partial = (ROOT / "templates" / "partials" / "play_metric_overlay_select.html").read_text(encoding="utf-8")
     assert "data-overlay-label-prefix" in partial
+    assert "MARKET_OVERLAY_ITEMS" in text
+    chrome = (ROOT / "templates" / "partials" / "ga4_global_filter_chrome.html").read_text(encoding="utf-8")
+    assert "ga4-play-metric-overlay-root" in chrome
+    assert "market_overlay_select" not in chrome
+    assert "app_empower_overlay_select" not in chrome
+    ga4 = (ROOT / "templates" / "ga4.html").read_text(encoding="utf-8")
+    assert "function ga4OnPlayMetricOverlayChange" in ga4
+    assert "PlayMetricOverlay.apply" in ga4
+    assert "function ga4ChartOverlayPlatform" in ga4
+    assert "function ga4SyncPlayMetricOverlay" in ga4
 
 
 def test_query_series_rejects_unknown_without_db():
