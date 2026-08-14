@@ -293,6 +293,7 @@ def _safe_close_context(context, *, pw=None, headed: bool = True) -> None:
         headed=headed,
         env_key="SINEMALAR_KEEP_OPEN",
         label="Sinemalar",
+        profile=sinemalar_profile_dir(),
     )
 
 
@@ -368,6 +369,7 @@ def _open_logged_in_page(headed: bool):
             headed=headed,
             env_key="SINEMALAR_KEEP_OPEN",
             label="Sinemalar",
+            profile=sinemalar_profile_dir(),
         )
         return None, None, None
     return pw, context, page
@@ -1362,6 +1364,7 @@ def main() -> int:
                 headed=True,
                 env_key="SINEMALAR_KEEP_OPEN",
                 label="Sinemalar",
+                profile=sinemalar_profile_dir(),
             )
         return 0
 
@@ -1507,6 +1510,7 @@ def main() -> int:
                 headed=headed,
                 env_key="SINEMALAR_KEEP_OPEN",
                 label="Sinemalar",
+                profile=sinemalar_profile_dir(),
             )
         out = {"ok": True, "url": url, "rows": rows, "tracked": _tracked_day_total(rows)}
         if args.ingest:

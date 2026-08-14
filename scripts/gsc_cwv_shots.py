@@ -492,7 +492,7 @@ def run_shots(
 
     captures: list[dict[str, Any]] = []
     pw, ctx, _reused = acquire_persistent_context(
-        "gsc-cwv-shots",
+        "gsc-cwv",
         profile=google_profile_dir(),
         headed=headed,
         env_key="GSC_CWV_KEEP_OPEN",
@@ -529,12 +529,13 @@ def run_shots(
                 print(f"CWV shots hata: {exc}", flush=True)
     finally:
         release_persistent_context(
-            "gsc-cwv-shots",
+            "gsc-cwv",
             pw,
             ctx,
             headed=headed,
             env_key="GSC_CWV_KEEP_OPEN",
             label="GSC CWV shots",
+            profile=google_profile_dir(),
         )
 
     ok_n = sum(

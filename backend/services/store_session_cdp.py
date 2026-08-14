@@ -2,6 +2,8 @@
 
 Tarama pencereleri Firefox’tur (Chrome / Chromium / Chrome for Testing yok).
 Çerezler ~/.seo-agent/fx-google ve fx-asc altında kalır.
+
+attach_or_launch → scrape_browser.acquire_persistent_context (KEEP_OPEN warm + orphan takeover).
 """
 
 from __future__ import annotations
@@ -28,6 +30,9 @@ KIND_DEFAULTS: dict[str, dict[str, Any]] = {
         "ping_env": "PLAY_CONSOLE_DASHBOARD_URL",
         "ping_fallback": "https://play.google.com/console",
         "login_hints": ("accounts.google.com", "signin"),
+        "warm_key": "play",
+        "keep_env": "PLAY_CONSOLE_KEEP_OPEN",
+        "locale": "en-US",
     },
     "asc": {
         "port": 9223,
@@ -38,6 +43,9 @@ KIND_DEFAULTS: dict[str, dict[str, Any]] = {
         "ping_env": "ASC_CONSOLE_PING_URL",
         "ping_fallback": "https://appstoreconnect.apple.com/apps/465599322/analytics/metrics",
         "login_hints": ("idmsa.apple.com", "appleid.apple.com", "sign-in", "signin"),
+        "warm_key": "asc",
+        "keep_env": "ASC_CONSOLE_KEEP_OPEN",
+        "locale": "tr-TR",
     },
 }
 
@@ -78,6 +86,7 @@ def ping_url(kind: str) -> str:
 
 
 def cdp_alive(kind: str, *, timeout: float = 1.5) -> bool:
+    """Eski Chrome CDP kontrolü — Firefox'ta False (attach yok)."""
     url = cdp_url(kind) + "/json/version"
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
@@ -158,27 +167,55 @@ def attach_or_launch(
     headed: bool,
     extra_kwargs: dict[str, Any] | None = None,
 ) -> tuple[Any, Any, bool]:
-    """Firefox persistent profil. attached her zaman False (CDP yok)."""
-    from playwright.sync_api import sync_playwright
+    """Firefox persistent profil — acquire_persistent_context (warm + orphan takeover).
 
-    from backend.services.scrape_browser import launch_persistent
+    Dönüş: (pw, context, reused). `reused=True` süreç içi açık pencere.
+    """
+    from backend.services.scrape_browser import acquire_persistent_context
 
-    pw = sync_playwright().start()
+    cfg = _kind_cfg(kind)
     prof = profile_dir(kind)
     extra = dict(extra_kwargs or {})
     extra.pop("args", None)
     extra.pop("channel", None)
-    locale = "tr-TR" if kind == "asc" else "en-US"
-    context = launch_persistent(pw, prof, headed=headed, locale=locale, extra=extra or None)
+    pw, context, reused = acquire_persistent_context(
+        str(cfg["warm_key"]),
+        profile=prof,
+        headed=headed,
+        env_key=str(cfg["keep_env"]),
+        label=kind.upper(),
+        locale=str(cfg.get("locale") or "tr-TR"),
+        extra=extra or None,
+    )
     try:
         write_endpoint(kind, pid=os.getpid())
     except Exception:
         pass
-    return pw, context, False
+    return pw, context, reused
 
 
-def release_browser(pw: Any, context: Any, *, attached: bool) -> None:
-    """Firefox penceresini kapat (profil diskte kalır)."""
+def release_browser(pw: Any, context: Any, *, attached: bool, kind: str | None = None) -> None:
+    """Firefox penceresini KEEP_OPEN kurallarına göre bırak veya kapat.
+
+    `attached` geriye uyumluluk; asıl karar scrape_keep_window_open + warm.
+    kind verilmezse güvenli kapatma (eski çağrılar).
+    """
+    if kind in KIND_DEFAULTS:
+        from backend.services.scrape_browser import release_persistent_context
+
+        cfg = _kind_cfg(kind)
+        release_persistent_context(
+            str(cfg["warm_key"]),
+            pw,
+            context,
+            headed=True,
+            env_key=str(cfg["keep_env"]),
+            label=kind.upper(),
+            profile=profile_dir(kind),
+        )
+        return
+
+    # Eski yol: force close (attached=CDP ise yalnız pw.stop)
     if attached:
         try:
             pw.stop()
@@ -186,11 +223,13 @@ def release_browser(pw: Any, context: Any, *, attached: bool) -> None:
             pass
         return
     try:
-        context.close()
+        if context is not None:
+            context.close()
     except Exception:
         pass
     try:
-        pw.stop()
+        if pw is not None:
+            pw.stop()
     except Exception:
         pass
 

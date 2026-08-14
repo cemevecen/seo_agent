@@ -118,6 +118,7 @@ def _release_context(pw, context, *, headed: bool = True) -> None:
         headed=headed,
         env_key="ADMANAGER_POLICY_KEEP_OPEN",
         label="Ad Manager Policy",
+        profile=PROFILE_DIR,
     )
 
 

@@ -379,6 +379,7 @@ def _release_context(pw, context, *, headed: bool = True) -> None:
         headed=headed,
         env_key="GSC_CWV_KEEP_OPEN",
         label="GSC CWV",
+        profile=PROFILE_DIR,
     )
 
 

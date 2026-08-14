@@ -246,6 +246,7 @@ def _release_context(pw, context, *, headed: bool = True) -> None:
         headed=headed,
         env_key="GSC_LINKS_KEEP_OPEN",
         label="GSC Links",
+        profile=PROFILE_DIR,
     )
 
 

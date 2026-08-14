@@ -2354,9 +2354,9 @@ def run_gsc_cwv_bridge_once(
 
     Varsayılan (manuel Scan, Update page, zamanlanmış slot): screenshot yöntemi.
     Tam scrape (AMP + issue + nokta): GSC_CWV_MODE=full veya mode=full.
+    Bridge sürecinde çalışır — fx-google KEEP_OPEN warm (Play/Firebase ile paylaşılır).
     """
     resolved = _gsc_cwv_mode(mode)
-    # charts_only bayrağı shots varsayılanını ezmez — yalnız açık mode=charts|full
     if resolved == "shots":
         return run_gsc_cwv_shots_bridge_once(site_key=site_key)
     if resolved == "charts":
@@ -2373,7 +2373,8 @@ def run_gsc_cwv_bridge_once(
         )
         return err
 
-    import subprocess
+    import importlib.util
+    import threading
 
     script = ROOT / "scripts" / "gsc_cwv_scrape.py"
     if not script.is_file():
@@ -2384,7 +2385,10 @@ def run_gsc_cwv_bridge_once(
         )
         return err
 
-    print(f"GSC CWV scrape başlıyor… site={site_key or 'all'}", flush=True)
+    print(
+        f"GSC CWV scrape başlıyor… site={site_key or 'all'} (in-process, KEEP_OPEN warm)",
+        flush=True,
+    )
     _set_gsc_cwv_progress(
         running=True,
         phase="scrape",
@@ -2395,156 +2399,97 @@ def run_gsc_cwv_bridge_once(
         started_at=time.time(),
         finished_at=0.0,
     )
-    cmd = [sys.executable, "-u", str(script), "--sync", "--ingest", "--headed"]
-    if charts_only:
-        cmd.append("--charts-only")
-    if site_key:
-        cmd += ["--site", str(site_key)]
-    env = os.environ.copy()
-    env.setdefault(
+    os.environ.setdefault(
         "GSC_CWV_INGEST_URL",
         (
             os.environ.get("GSC_CWV_INGEST_URL")
             or "https://projectcontrol.up.railway.app/api/gsc-cwv/ingest"
         ).strip(),
     )
-    env["PYTHONUNBUFFERED"] = "1"
     timeout_sec = int(os.environ.get("GSC_CWV_BRIDGE_TIMEOUT_SEC") or "7200")
-    lines: list[str] = []
-    step_guess = 0
+    box: dict[str, Any] = {}
 
-    def _bump(phase: str, message: str, step: int | None = None) -> None:
-        nonlocal step_guess
-        if step is not None:
-            step_guess = max(step_guess, step)
+    def _worker() -> None:
+        try:
+            spec = importlib.util.spec_from_file_location("gsc_cwv_scrape_bridge", script)
+            if spec is None or spec.loader is None:
+                box["err"] = "GSC CWV betiği yüklenemedi"
+                return
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            box["result"] = mod.run_sync(
+                site_filter=str(site_key or ""),
+                ingest=True,
+                headed=True,
+                charts_only=charts_only,
+            )
+        except Exception as exc:  # noqa: BLE001
+            box["err"] = str(exc)[:400]
+
+    th = threading.Thread(target=_worker, name="gsc-cwv-scrape", daemon=True)
+    th.start()
+    th.join(timeout=max(300, timeout_sec))
+    if th.is_alive():
+        out = {
+            "ok": False,
+            "kind": "gsc_cwv",
+            "message": f"GSC CWV tarama zaman aşımı ({timeout_sec}s)",
+        }
+        _last_gsc_cwv_result = out
         _set_gsc_cwv_progress(
-            running=True,
-            phase=phase,
-            site=site_key or "all",
-            step=step_guess,
-            total_steps=8,
-            message=message[:200],
+            running=False, phase="error", message=out["message"], finished_at=time.time()
         )
+        try:
+            from backend.services.scrape_browser import (
+                google_profile_dir,
+                release_profile_browsers,
+                warm_session_forget,
+            )
 
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            cwd=str(ROOT),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
-        assert proc.stdout is not None
-        deadline = time.time() + max(300, timeout_sec)
-        while True:
-            if time.time() > deadline:
-                proc.kill()
-                try:
-                    proc.wait(timeout=15)
-                except Exception:
-                    pass
-                out = {
-                    "ok": False,
-                    "kind": "gsc_cwv",
-                    "message": f"GSC CWV tarama zaman aşımı ({timeout_sec}s)",
-                }
-                _last_gsc_cwv_result = out
-                _set_gsc_cwv_progress(
-                    running=False, phase="error", message=out["message"], finished_at=time.time()
-                )
-                return out
-            line = proc.stdout.readline()
-            if not line:
-                if proc.poll() is not None:
-                    break
-                time.sleep(0.05)
-                continue
-            s = line.rstrip()
-            if s:
-                lines.append(s)
-                print(s, flush=True)
-                low = s.lower()
-                if "login bekleniyor" in low or s.startswith("LOGIN BEKLENIYOR"):
-                    _bump("login", s, 1)
-                elif "login ok" in low or s.startswith("LOGIN OK"):
-                    _bump("scrape", s, 2)
-                elif "login" in low or "oturum" in low:
-                    _bump("login", s, 1)
-                elif "overview chart" in low or "chart series" in low:
-                    _bump("charts", s, 3)
-                elif "tooltip" in low:
-                    _bump("tooltips", s, 4)
-                elif "amp" in low:
-                    _bump("amp", s, 5)
-                elif "ingest" in low:
-                    _bump("ingest", s, 7)
-                elif "cwv scrape" in low or "summary" in low or "issue " in low:
-                    _bump("scrape", s, 2)
-                else:
-                    _bump(_gsc_cwv_progress.get("phase") or "scrape", s)
-        returncode = proc.wait(timeout=30)
-    except Exception as exc:  # noqa: BLE001
-        out = {"ok": False, "kind": "gsc_cwv", "message": f"GSC CWV subprocess: {exc}"}
+            warm_session_forget("gsc-cwv")
+            release_profile_browsers(
+                google_profile_dir(), force=False, reason="gsc_cwv_timeout"
+            )
+        except Exception:
+            pass
+        return out
+
+    if box.get("err"):
+        out = {"ok": False, "kind": "gsc_cwv", "message": f"GSC CWV: {box['err']}", "site": site_key}
         _last_gsc_cwv_result = out
         _set_gsc_cwv_progress(
             running=False, phase="error", message=out["message"], finished_at=time.time()
         )
         return out
 
-    combined = "\n".join(lines).strip()
-    detail = ""
-    for line in reversed(lines):
-        s = line.strip()
-        if not s:
-            continue
-        if s.startswith("{") and s.endswith("}"):
-            try:
-                j = json.loads(s)
-                if isinstance(j, dict) and j.get("message"):
-                    detail = str(j.get("message"))[:240]
-                    break
-            except Exception:
-                pass
-        low = s.lower()
-        if "oturumu yok" in low or s.startswith("FAIL ") or "login" in low:
-            detail = s[:240]
-            break
-    if not detail and lines:
-        detail = lines[-1].strip()[:240]
-
-    if returncode == 0:
-        out = {"ok": True, "kind": "gsc_cwv", "message": "GSC CWV tarama tamam", "site": site_key}
-        _set_gsc_cwv_progress(
-            running=False,
-            phase="done",
-            step=8,
-            total_steps=8,
-            message=out["message"],
-            finished_at=time.time(),
-        )
-    else:
-        msg = f"GSC CWV tarama çıkış {returncode}"
-        if detail:
-            msg = f"{msg}: {detail}"
+    result = box.get("result") or {}
+    ok = bool(result.get("ok"))
+    msg = str(result.get("message") or ("GSC CWV tarama tamam" if ok else "GSC CWV fail"))
+    if result.get("needs_login"):
         out = {
             "ok": False,
             "kind": "gsc_cwv",
+            "needs_login": True,
             "message": msg,
             "site": site_key,
-            "detail": detail or None,
         }
-        _set_gsc_cwv_progress(
-            running=False, phase="error", message=out["message"], finished_at=time.time()
-        )
+    else:
+        out = {"ok": ok, "kind": "gsc_cwv", "message": msg, "site": site_key}
     _last_gsc_cwv_result = out
+    _set_gsc_cwv_progress(
+        running=False,
+        phase="done" if out["ok"] else "error",
+        step=8,
+        total_steps=8,
+        message=out["message"],
+        finished_at=time.time(),
+    )
     print(f"GSC CWV sync · {out['message']}", flush=True)
     return out
 
 
 def run_gsc_cwv_shots_bridge_once(site_key: str | None = None) -> dict[str, Any]:
-    """GSC CWV screenshot → KPI ingest + shots-ingest (doviz/sinemalar mobile+desktop)."""
+    """GSC CWV screenshot → KPI ingest + shots-ingest (in-process KEEP_OPEN warm)."""
     global _last_gsc_cwv_result
     if not _ingest_token():
         err = {"ok": False, "kind": "gsc_cwv", "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
@@ -2553,7 +2498,9 @@ def run_gsc_cwv_shots_bridge_once(site_key: str | None = None) -> dict[str, Any]
             running=False, phase="error", message=err["message"], finished_at=time.time()
         )
         return err
-    import subprocess
+
+    import importlib.util
+    import threading
 
     script = ROOT / "scripts" / "gsc_cwv_shots.py"
     if not script.is_file():
@@ -2563,7 +2510,11 @@ def run_gsc_cwv_shots_bridge_once(site_key: str | None = None) -> dict[str, Any]
             running=False, phase="error", message=err["message"], finished_at=time.time()
         )
         return err
-    print(f"GSC CWV shots başlıyor… site={site_key or 'all'}", flush=True)
+
+    print(
+        f"GSC CWV shots başlıyor… site={site_key or 'all'} (in-process, KEEP_OPEN warm)",
+        flush=True,
+    )
     _set_gsc_cwv_progress(
         running=True,
         phase="shots",
@@ -2574,19 +2525,14 @@ def run_gsc_cwv_shots_bridge_once(site_key: str | None = None) -> dict[str, Any]
         started_at=time.time(),
         finished_at=0.0,
     )
-    cmd = [sys.executable, "-u", str(script), "--sync", "--ingest", "--headed"]
-    if site_key:
-        cmd.extend(["--site", str(site_key)])
-    env = os.environ.copy()
-    env["PYTHONUNBUFFERED"] = "1"
-    env.setdefault(
+    os.environ.setdefault(
         "GSC_CWV_SHOTS_INGEST_URL",
         (
             os.environ.get("GSC_CWV_SHOTS_INGEST_URL")
             or "https://projectcontrol.up.railway.app/api/gsc-cwv/shots-ingest"
         ).strip(),
     )
-    env.setdefault(
+    os.environ.setdefault(
         "GSC_CWV_INGEST_URL",
         (
             os.environ.get("GSC_CWV_INGEST_URL")
@@ -2594,92 +2540,78 @@ def run_gsc_cwv_shots_bridge_once(site_key: str | None = None) -> dict[str, Any]
         ).strip(),
     )
     timeout_sec = int(os.environ.get("GSC_CWV_SHOTS_TIMEOUT_SEC") or "1800")
-    lines: list[str] = []
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            cwd=str(ROOT),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
+    box: dict[str, Any] = {}
+
+    def _worker() -> None:
+        try:
+            spec = importlib.util.spec_from_file_location("gsc_cwv_shots_bridge", script)
+            if spec is None or spec.loader is None:
+                box["err"] = "gsc_cwv_shots yüklenemedi"
+                return
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            box["result"] = mod.run_shots(
+                site_filter=str(site_key or ""),
+                ingest=True,
+                headed=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            box["err"] = str(exc)[:400]
+
+    th = threading.Thread(target=_worker, name="gsc-cwv-shots", daemon=True)
+    th.start()
+    th.join(timeout=max(300, timeout_sec))
+    if th.is_alive():
+        out = {
+            "ok": False,
+            "kind": "gsc_cwv",
+            "mode": "shots",
+            "message": f"CWV screenshot zaman aşımı ({timeout_sec}s)",
+            "site": site_key,
+        }
+        _last_gsc_cwv_result = out
+        _set_gsc_cwv_progress(
+            running=False, phase="error", message=out["message"], finished_at=time.time()
         )
-        assert proc.stdout is not None
-        deadline = time.time() + max(300, timeout_sec)
-        while True:
-            if time.time() > deadline:
-                proc.kill()
-                try:
-                    proc.wait(timeout=15)
-                except Exception:
-                    pass
-                out = {
-                    "ok": False,
-                    "kind": "gsc_cwv",
-                    "message": f"CWV screenshot zaman aşımı ({timeout_sec}s)",
-                    "site": site_key,
-                }
-                _last_gsc_cwv_result = out
-                _set_gsc_cwv_progress(
-                    running=False, phase="error", message=out["message"], finished_at=time.time()
-                )
-                return out
-            line = proc.stdout.readline()
-            if not line:
-                if proc.poll() is not None:
-                    break
-                time.sleep(0.05)
-                continue
-            s = line.rstrip()
-            if s:
-                lines.append(s)
-                print(s, flush=True)
-                low = s.lower()
-                if "login" in low or "oturum" in low:
-                    _set_gsc_cwv_progress(
-                        running=True, phase="login", site=site_key or "all", step=1,
-                        total_steps=4, message=s[:200],
-                    )
-                elif "summary" in low or "overview" in low or "shots ·" in low:
-                    _set_gsc_cwv_progress(
-                        running=True, phase="shots", site=site_key or "all", step=2,
-                        total_steps=4, message=s[:200],
-                    )
-                elif "ingest" in low:
-                    _set_gsc_cwv_progress(
-                        running=True, phase="ingest", site=site_key or "all", step=3,
-                        total_steps=4, message=s[:200],
-                    )
-        returncode = proc.wait(timeout=30)
-    except Exception as exc:  # noqa: BLE001
-        out = {"ok": False, "kind": "gsc_cwv", "message": f"CWV shots subprocess: {exc}"}
+        try:
+            from backend.services.scrape_browser import (
+                google_profile_dir,
+                release_profile_browsers,
+                warm_session_forget,
+            )
+
+            warm_session_forget("gsc-cwv")
+            release_profile_browsers(
+                google_profile_dir(), force=False, reason="gsc_cwv_shots_timeout"
+            )
+        except Exception:
+            pass
+        return out
+
+    if box.get("err"):
+        out = {
+            "ok": False,
+            "kind": "gsc_cwv",
+            "mode": "shots",
+            "message": f"CWV shots: {box['err']}",
+            "site": site_key,
+        }
         _last_gsc_cwv_result = out
         _set_gsc_cwv_progress(
             running=False, phase="error", message=out["message"], finished_at=time.time()
         )
         return out
 
-    detail: dict[str, Any] = {}
-    for line in reversed(lines):
-        s = line.strip()
-        if s.startswith("{") and s.endswith("}"):
-            try:
-                j = json.loads(s)
-                if isinstance(j, dict):
-                    detail = j
-                    break
-            except Exception:
-                pass
-    ok = returncode == 0 and bool(detail.get("ok", returncode == 0))
-    msg = detail.get("message") or (lines[-1][:240] if lines else "shots done")
+    result = box.get("result") or {}
+    ok = bool(result.get("ok"))
+    msg = str(result.get("message") or ("shots done" if ok else "shots fail"))
     out = {
         "ok": ok,
         "kind": "gsc_cwv",
         "mode": "shots",
         "message": msg,
         "site": site_key,
-        "detail": detail or None,
+        "detail": result,
     }
     _set_gsc_cwv_progress(
         running=False,

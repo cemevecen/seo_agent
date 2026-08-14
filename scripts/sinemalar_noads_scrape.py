@@ -272,6 +272,7 @@ def _release_noads_context(pw, context, *, headed: bool = True) -> None:
         headed=headed,
         env_key="SINEMALAR_KEEP_OPEN",
         label="Sinemalar noAds",
+        profile=PROFILE_DIR,
     )
 
 
