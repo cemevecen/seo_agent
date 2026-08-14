@@ -102,6 +102,19 @@ def test_xdata_column_key_and_metric_number():
     assert _metric_number(None) is None
 
 
+def test_xdata_dropdown_web_has_web_columns_not_app_only():
+    web = {o["value"] for o in xdata_dropdown_options("web")}
+    mweb = {o["value"] for o in xdata_dropdown_options("mweb")}
+    android = {o["value"] for o in xdata_dropdown_options("android")}
+    assert web == mweb
+    assert "xdata:organicGoogleSearchClicks" in web
+    assert "xdata:screenPageViews" in web
+    assert "xdata:appVersion" not in web
+    assert "xdata:crashAffectedUsers" not in web
+    assert "xdata:organicGoogleSearchClicks" not in android
+    assert "xdata:crashAffectedUsers" in android
+
+
 def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     text = (ROOT / "static/js/play_metric_overlay.js").read_text(encoding="utf-8")
     assert "fetchXdataSeries" in text
@@ -111,10 +124,19 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert 'key: "dau_mau"' not in text
     assert 'key: "active_users"' not in text
     android_block = text.split("var METRIC_GROUPS_IOS")[0]
-    ios_block = text.split("var METRIC_GROUPS_IOS")[1].split("var METRIC_GROUPS =")[0]
+    ios_block = text.split("var METRIC_GROUPS_IOS")[1].split("var GA4_OVERLAY_ITEMS")[0]
     assert 'key: "sessions"' not in ios_block
     assert 'key: "active_devices"' in android_block
     assert 'key: "crashes"' in ios_block
+    assert "METRIC_GROUPS_WEB" in text
+    assert "METRIC_GROUPS_MWEB" in text
+    assert "GA4 (Web)" in text
+    assert "Virgül (MWeb)" in text
+    assert 'XDATA_PLATFORMS = ["android", "ios", "web", "mweb"]' in text
+    ad = (ROOT / "templates" / "ad.html").read_text(encoding="utf-8")
+    assert "function mzMetricOverlayPlatform" in ad
+    assert 'toLowerCase() !== "doviz"' in ad
+    assert 'branch === "mweb"' in ad
 
 
 def test_query_series_rejects_unknown_without_db():

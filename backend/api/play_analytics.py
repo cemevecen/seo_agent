@@ -583,6 +583,16 @@ def list_play_virgul_overlay_metrics() -> dict[str, Any]:
     }
 
 
+def _virgul_overlay_branch(raw: str) -> str:
+    """Overlay platform → Virgül warehouse branch (web=desktop)."""
+    br = (raw or "android").strip().lower() or "android"
+    if br == "web":
+        br = "desktop"
+    if br not in ("android", "ios", "desktop", "mweb"):
+        return "android"
+    return br
+
+
 @router.get("/play-analytics/virgul-series")
 def get_play_virgul_overlay_series(
     db: Session = Depends(get_db),
@@ -613,9 +623,7 @@ def get_play_virgul_overlay_series(
         }
     field, label = meta
     proj = (project or "doviz").strip().lower() or "doviz"
-    br = (branch or "android").strip().lower() or "android"
-    if br not in ("android", "ios", "web", "mweb"):
-        br = "android"
+    br = _virgul_overlay_branch(branch)
 
     try:
         payload = query_by_date_for_overlay(

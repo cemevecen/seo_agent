@@ -129,9 +129,39 @@
     },
   ];
 
+  var GA4_OVERLAY_ITEMS = [
+    { key: "ga4:sessions", label: "GA4 · Sessions" },
+    { key: "ga4:users", label: "GA4 · Users" },
+    { key: "ga4:engaged_sessions", label: "GA4 · Engaged sessions" },
+    { key: "ga4:new_users", label: "GA4 · New users" },
+    { key: "ga4:avg_session", label: "GA4 · Avg. session" },
+    { key: "ga4:page_views", label: "GA4 · Page views" },
+  ];
+  var VIRGUL_OVERLAY_ITEMS = [
+    { key: "virgul:net_revenue", label: "Virgül · Net revenue (TL)" },
+    { key: "virgul:ad_request", label: "Virgül · Ad request" },
+    { key: "virgul:matched_request", label: "Virgül · Matched request" },
+    { key: "virgul:impression", label: "Virgül · Impression" },
+    { key: "virgul:click", label: "Virgül · Click" },
+    { key: "virgul:ad_request_ecpm", label: "Virgül · Ad request eCPM (TL)" },
+    { key: "virgul:ad_ecpm", label: "Virgül · Ad impression eCPM (TL)" },
+    { key: "virgul:viewability_pct", label: "Virgül · Viewability (%)" },
+    { key: "virgul:ctr_pct", label: "Virgül · CTR (%)" },
+    { key: "virgul:coverage_pct", label: "Virgül · Coverage (%)" },
+  ];
+  var METRIC_GROUPS_WEB = [
+    { label: "GA4 (Web)", items: GA4_OVERLAY_ITEMS },
+    { label: "Virgül (Web)", items: VIRGUL_OVERLAY_ITEMS },
+  ];
+  var METRIC_GROUPS_MWEB = [
+    { label: "GA4 (MWeb)", items: GA4_OVERLAY_ITEMS },
+    { label: "Virgül (MWeb)", items: VIRGUL_OVERLAY_ITEMS },
+  ];
+
   var METRIC_GROUPS = METRIC_GROUPS_ANDROID;
   var XDATA_SKIP = { appVersion: 1 };
-  var XDATA_ITEMS = { android: [], ios: [] };
+  var XDATA_PLATFORMS = ["android", "ios", "web", "mweb"];
+  var XDATA_ITEMS = { android: [], ios: [], web: [], mweb: [] };
   var xdataLoadPromise = null;
   var DROPPED_OVERLAY_KEYS = { dau: 1, dau_mau: 1, active_users: 1 };
 
@@ -139,7 +169,7 @@
     var pack = global.SEO_XDATA_METRIC_OPTIONS;
     if (!pack || typeof pack !== "object") return false;
     var any = false;
-    ["android", "ios"].forEach(function (plat) {
+    XDATA_PLATFORMS.forEach(function (plat) {
       var arr = pack[plat];
       if (!Array.isArray(arr) || !arr.length) return;
       XDATA_ITEMS[plat] = arr
@@ -162,12 +192,12 @@
   var LABEL_BY_KEY = {};
   function rebuildLabelIndex() {
     LABEL_BY_KEY = {};
-    METRIC_GROUPS_ANDROID.concat(METRIC_GROUPS_IOS).forEach(function (g) {
+    METRIC_GROUPS_ANDROID.concat(METRIC_GROUPS_IOS, METRIC_GROUPS_WEB, METRIC_GROUPS_MWEB).forEach(function (g) {
       (g.items || []).forEach(function (it) {
         LABEL_BY_KEY[it.key] = it.label;
       });
     });
-    ["android", "ios"].forEach(function (plat) {
+    XDATA_PLATFORMS.forEach(function (plat) {
       (XDATA_ITEMS[plat] || []).forEach(function (it) {
         LABEL_BY_KEY[it.key] = it.label;
       });
@@ -190,7 +220,7 @@
 
   function ensureXdataItems(done) {
     seedXdataFromWindow();
-    if (XDATA_ITEMS.android.length || XDATA_ITEMS.ios.length) {
+    if (XDATA_PLATFORMS.every(function (p) { return (XDATA_ITEMS[p] || []).length; })) {
       if (typeof done === "function") done();
       return;
     }
@@ -208,13 +238,15 @@
         return r.json();
       })
       .then(function (meta) {
-        XDATA_ITEMS.android = xdataItemsFromMeta(meta, "android");
-        XDATA_ITEMS.ios = xdataItemsFromMeta(meta, "ios");
+        XDATA_PLATFORMS.forEach(function (plat) {
+          XDATA_ITEMS[plat] = xdataItemsFromMeta(meta, plat);
+        });
         rebuildLabelIndex();
       })
       .catch(function () {
-        XDATA_ITEMS.android = XDATA_ITEMS.android || [];
-        XDATA_ITEMS.ios = XDATA_ITEMS.ios || [];
+        XDATA_PLATFORMS.forEach(function (plat) {
+          XDATA_ITEMS[plat] = XDATA_ITEMS[plat] || [];
+        });
       })
       .then(function () {
         if (typeof done === "function") done();
@@ -242,17 +274,38 @@
     return "play-metric-overlay-keys-v2-" + base + "-" + plat;
   }
 
+  function normalizeOverlayPlatform(raw) {
+    var p = String(raw || "").toLowerCase();
+    if (p === "desktop") return "web";
+    if (p === "web" || p === "mweb" || p === "ios" || p === "android") return p;
+    return "android";
+  }
+
   function platformForRoot(root) {
-    var p = (root && root.getAttribute("data-overlay-platform")) || "android";
-    return p === "ios" ? "ios" : "android";
+    return normalizeOverlayPlatform((root && root.getAttribute("data-overlay-platform")) || "android");
   }
 
   function groupsForPlatform(platform) {
-    var base = platform === "ios" ? METRIC_GROUPS_IOS : METRIC_GROUPS_ANDROID;
-    var xitems = platform === "ios" ? XDATA_ITEMS.ios : XDATA_ITEMS.android;
+    var plat = normalizeOverlayPlatform(platform);
+    var base = METRIC_GROUPS_ANDROID;
+    var xitems = XDATA_ITEMS.android;
+    if (plat === "ios") {
+      base = METRIC_GROUPS_IOS;
+      xitems = XDATA_ITEMS.ios;
+    } else if (plat === "web") {
+      base = METRIC_GROUPS_WEB;
+      xitems = XDATA_ITEMS.web;
+    } else if (plat === "mweb") {
+      base = METRIC_GROUPS_MWEB;
+      xitems = XDATA_ITEMS.mweb;
+    }
     if (!xitems || !xitems.length) return base;
     var out = [];
     var inserted = false;
+    if (plat === "web" || plat === "mweb") {
+      out.push({ label: "X-Data", items: xitems });
+      inserted = true;
+    }
     base.forEach(function (g) {
       out.push(g);
       if (!inserted && (g.label === "Rating" || g.label === "Revenue / subscriptions")) {
@@ -425,7 +478,7 @@
       end: endIso || "",
       metric: metricKey,
       project: "doviz",
-      profile: platform || "android",
+      profile: normalizeOverlayPlatform(platform),
     });
     var r = await fetch("/api/play-analytics/ga4-series?" + qs.toString(), {
       credentials: "same-origin",
@@ -440,12 +493,14 @@
   }
 
   async function fetchVirgulSeries(metricKey, startIso, endIso, platform) {
+    var branch = normalizeOverlayPlatform(platform);
+    if (branch === "web") branch = "desktop";
     var qs = new URLSearchParams({
       start: startIso || "",
       end: endIso || "",
       metric: metricKey,
       project: "doviz",
-      branch: platform || "android",
+      branch: branch || "android",
     });
     var r = await fetch("/api/play-analytics/virgul-series?" + qs.toString(), {
       credentials: "same-origin",
@@ -465,7 +520,7 @@
       end: endIso || "",
       metric: metricKey,
       project: "doviz",
-      platform: platform || "android",
+      platform: normalizeOverlayPlatform(platform),
     });
     var r = await fetch("/api/empower-intel/series?" + qs.toString(), {
       credentials: "same-origin",
@@ -527,7 +582,8 @@
     else if (isGa4Key(metricKey)) p = fetchGa4Series(metricKey, startIso, endIso, platform);
     else if (isVirgulKey(metricKey)) p = fetchVirgulSeries(metricKey, startIso, endIso, platform);
     else if (platform === "ios") p = fetchAscSeries(metricKey, startIso, endIso);
-    else p = fetchPlaySeries(metricKey, startIso, endIso);
+    else if (platform === "android") p = fetchPlaySeries(metricKey, startIso, endIso);
+    else p = Promise.resolve({ label: metricLabel(metricKey), series: [] });
     cache[ck] = p;
     return p;
   }
@@ -801,7 +857,7 @@
   function setPlatform(controlId, platform) {
     var root = rootEl(controlId);
     if (!root) return;
-    var plat = platform === "ios" ? "ios" : "android";
+    var plat = normalizeOverlayPlatform(platform);
     seedXdataFromWindow();
     root.setAttribute("data-overlay-platform", plat);
     var samePlat = root.dataset.playMetricPlatformReady === plat;
@@ -918,6 +974,8 @@
     METRIC_GROUPS: METRIC_GROUPS,
     METRIC_GROUPS_ANDROID: METRIC_GROUPS_ANDROID,
     METRIC_GROUPS_IOS: METRIC_GROUPS_IOS,
+    METRIC_GROUPS_WEB: METRIC_GROUPS_WEB,
+    METRIC_GROUPS_MWEB: METRIC_GROUPS_MWEB,
     modes: modes,
     clearCache: clearCache,
     apply: apply,
@@ -926,6 +984,7 @@
     metricLabel: metricLabel,
     setPlatform: setPlatform,
     platformForRoot: platformForRoot,
+    normalizeOverlayPlatform: normalizeOverlayPlatform,
   };
 
   if (global.document) {

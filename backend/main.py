@@ -17984,6 +17984,8 @@ def ad_virgul_analytics_page(request: Request):
             "virgul_sources": sources,
             "xdata_metric_options_android": xdata_dropdown_options("android"),
             "xdata_metric_options_ios": xdata_dropdown_options("ios"),
+            "xdata_metric_options_web": xdata_dropdown_options("web"),
+            "xdata_metric_options_mweb": xdata_dropdown_options("mweb"),
         },
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
