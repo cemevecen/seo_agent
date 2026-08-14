@@ -587,7 +587,8 @@ function runWebVitals() {
       site_id: _siteId,
       site: site || undefined,
       domain: _siteDomain || undefined,
-      site_domain: _siteDomain || undefined
+      site_domain: _siteDomain || undefined,
+      mode: 'shots'
     })
   }).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, status:r.status, j:j}; }); })
     .then(function(res){

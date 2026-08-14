@@ -12,7 +12,7 @@
     play_vitals: { id: "play_vitals", label: "Android Vitals", kind: "bridge", path: "/sync-play-vitals", timeoutMs: 45 * 60 * 1000 },
     asc: { id: "asc", label: "App Store Connect", kind: "bridge", path: "/sync-asc", timeoutMs: 90 * 60 * 1000 },
     firebase: { id: "firebase", label: "Firebase Console", kind: "bridge", path: "/sync-firebase", timeoutMs: 40 * 60 * 1000, progressPath: "/firebase-progress" },
-    cwv: { id: "cwv", label: "Web Vitals (GSC)", kind: "bridge", path: "/sync-gsc-cwv", timeoutMs: 35 * 60 * 1000, progressPath: "/gsc-cwv-progress" },
+    cwv: { id: "cwv", label: "Web Vitals (GSC)", kind: "bridge", path: "/sync-gsc-cwv", timeoutMs: 35 * 60 * 1000, progressPath: "/gsc-cwv-progress", body: { mode: "shots" } },
     notification: { id: "notification", label: "Notification", kind: "bridge", path: "/sync", timeoutMs: 20 * 60 * 1000, progressPath: "/nt-progress" },
     news: { id: "news", label: "News", kind: "bridge", path: "/sync-news?days=7", timeoutMs: 25 * 60 * 1000, progressPath: "/news-progress" },
     virgul: { id: "virgul", label: "Virgül", kind: "bridge", path: "/sync-virgul", timeoutMs: 30 * 60 * 1000 },
@@ -406,7 +406,12 @@
     var tries = 0;
     function attempt() {
       tries += 1;
-      return fetchJson(url, { method: "POST", mode: "cors" }, job.timeoutMs).then(function (out) {
+      var opts = { method: "POST", mode: "cors" };
+      if (job.body && typeof job.body === "object") {
+        opts.headers = { "Content-Type": "application/json", Accept: "application/json" };
+        opts.body = JSON.stringify(job.body);
+      }
+      return fetchJson(url, opts, job.timeoutMs).then(function (out) {
         if (out.resp.status === 409 && tries < 10) {
           setStatus(job.label + " · scan busy, waiting…");
           return sleep(12000).then(attempt);

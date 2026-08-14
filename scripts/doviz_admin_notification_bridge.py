@@ -2090,7 +2090,11 @@ def _set_gsc_cwv_progress(**kwargs: Any) -> None:
 
 
 def _gsc_cwv_mode(explicit: str | None = None) -> str:
-    """shots (varsayılan) | full | charts — GSC_CWV_MODE veya istek parametresi."""
+    """shots (varsayılan, manuel+otomatik) | full | charts.
+
+    charts_only bayrağı artık shots'u ezmez. Eski derin scrape yalnız
+    mode=full / GSC_CWV_MODE=full (veya bilinçli mode=charts) ile.
+    """
     raw = (explicit or os.environ.get("GSC_CWV_MODE") or "shots").strip().lower()
     if raw in ("full", "scrape", "deep", "amp"):
         return "full"
@@ -2107,16 +2111,17 @@ def run_gsc_cwv_bridge_once(
 ) -> dict[str, Any]:
     """GSC Core Web Vitals → Railway.
 
-    Varsayılan: screenshot yöntemi (doviz + sinemalar mobile/desktop web).
-    Tam scrape (AMP + issue drilldown): GSC_CWV_MODE=full veya mode=full.
+    Varsayılan (manuel Scan, Update page, zamanlanmış slot): screenshot yöntemi.
+    Tam scrape (AMP + issue + nokta): GSC_CWV_MODE=full veya mode=full.
     """
     resolved = _gsc_cwv_mode(mode)
-    if charts_only and resolved == "shots":
-        resolved = "charts"
+    # charts_only bayrağı shots varsayılanını ezmez — yalnız açık mode=charts|full
     if resolved == "shots":
         return run_gsc_cwv_shots_bridge_once(site_key=site_key)
     if resolved == "charts":
         charts_only = True
+    else:
+        charts_only = False
 
     global _last_gsc_cwv_result
     if not _ingest_token():
@@ -3406,12 +3411,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             return
         elif path in ("/sync-gsc-cwv", "/gsc-cwv", "/sync-web-vitals", "/web-vitals"):
             site_key = (qs.get("site") or [""])[0].strip().lower() or None
-            charts_only = str((qs.get("charts_only") or [""])[0]).strip().lower() in (
-                "1",
-                "true",
-                "yes",
-            )
-            mode = (qs.get("mode") or [""])[0].strip().lower() or None
+            # Manuel + otomatik varsayılan: screenshot. full yalnız açık mode=full.
+            mode = (qs.get("mode") or [""])[0].strip().lower() or "shots"
             length = int(self.headers.get("Content-Length") or 0)
             raw_body = self.rfile.read(length) if length > 0 else b""
             if raw_body:
@@ -3420,8 +3421,6 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     if isinstance(payload, dict):
                         if payload.get("site"):
                             site_key = str(payload.get("site") or "").strip().lower() or site_key
-                        if payload.get("charts_only") in (True, 1, "1", "true", "yes"):
-                            charts_only = True
                         if payload.get("mode"):
                             mode = str(payload.get("mode") or "").strip().lower() or mode
                         # domain öncelikli (site_id sabit varsayımı kırılgan)
@@ -3436,6 +3435,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                             site_key = "sinemalar"
                 except Exception:
                     pass
+            if mode not in ("full", "scrape", "deep", "amp", "charts", "charts_only", "chart"):
+                mode = "shots"
             if not _gsc_cwv_lock.acquire(blocking=False):
                 self._send(
                     409,
@@ -3452,16 +3453,14 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 running=True,
                 phase="starting",
                 site=site_key or "all",
-                message="GSC CWV tarama kuyruğa alındı",
+                message="GSC CWV screenshot kuyruğa alındı",
                 started_at=time.time(),
                 finished_at=0.0,
             )
 
             def _bg_cwv() -> None:
                 try:
-                    run_gsc_cwv_bridge_once(
-                        site_key=site_key, charts_only=charts_only, mode=mode
-                    )
+                    run_gsc_cwv_bridge_once(site_key=site_key, mode=mode)
                 except Exception:
                     traceback.print_exc()
                     _set_gsc_cwv_progress(
@@ -3480,6 +3479,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "ok": True,
                     "started": True,
                     "kind": "gsc_cwv",
+                    "mode": mode,
                     "site": site_key,
                     "progress": dict(_gsc_cwv_progress),
                     "message": "GSC CWV screenshot tarama arka planda başladı",

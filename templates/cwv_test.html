@@ -74,7 +74,7 @@
 
 <script>
 (function () {
-  var BRIDGE = "http://127.0.0.1:18765/sync-gsc-cwv-shots";
+  var BRIDGE = "http://127.0.0.1:18765/sync-gsc-cwv";
   var statusEl = document.getElementById("cwv-test-status");
   var liveEl = document.getElementById("cwv-test-live");
   var badge = document.getElementById("cwv-test-live-badge");
@@ -144,7 +144,7 @@
       method: "POST",
       mode: "cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ site: site }),
+      body: JSON.stringify({ site: site, mode: "shots" }),
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
