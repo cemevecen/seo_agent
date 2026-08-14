@@ -582,6 +582,9 @@
       var availVal = (metrics && metrics.clientWidth) || Math.max(8, w * 0.3);
       fitOneKpiText(val, Math.max(8, w * 0.045), Math.min(11.5, Math.max(9, availVal * 0.17)));
       fitOneKpiText(dlt, Math.max(7, w * 0.028), Math.min(9, Math.max(7, availVal * 0.08)));
+      card.querySelectorAll(".metric-kpi-ss2-summary strong").forEach(function (el) {
+        fitOneKpiText(el, 8, Math.min(12, Math.max(9, w * 0.055)));
+      });
     });
   }
 
@@ -675,13 +678,14 @@
         var color = COLORS[i % COLORS.length];
         var st = seriesStats(pack.series);
         var avg = st.avg;
-        var totalVal = isAvgMetric(key) ? fmtNum(avg, key) : fmtNum(st.sum, key);
+        var avgTxt = fmtNum(avg, key);
+        var totalVal = isAvgMetric(key) ? avgTxt : fmtNum(st.sum, key);
         var label = pack.label || metricLabel(key);
         var spark = seriesSparkSvg(pack.series, color, 220, 56);
         var dlt = seriesDeltaPct(pack.series);
         var dltCls = dlt == null ? "is-flat" : dlt >= 0 ? "is-up" : "is-down";
         var dltTxt = dlt == null ? "—" : (dlt >= 0 ? "↑ " : "↓ ") + Math.abs(dlt).toFixed(1) + "%";
-        var tip = label + " · average over selected range";
+        var tip = label + " · average + total over selected range";
         return (
           '<article class="metric-kpi-ss2" style="--kpi-color:' +
           color +
@@ -702,10 +706,10 @@
           "</div>" +
           '<div class="metric-kpi-ss2-main">' +
           '<div class="metric-kpi-ss2-metrics">' +
-          '<p class="metric-kpi-ss2-value" title="' +
-          esc(fmtNum(avg, key)) +
+          '<p class="metric-kpi-ss2-value" title="Average: ' +
+          esc(avgTxt) +
           '">' +
-          esc(fmtNum(avg, key)) +
+          esc(avgTxt) +
           "</p>" +
           '<p class="metric-kpi-ss2-delta ' +
           dltCls +
@@ -717,12 +721,24 @@
           spark +
           "</div>" +
           "</div>" +
+          '<div class="metric-kpi-ss2-summary" aria-label="Average and total">' +
+          '<div><p class="metric-kpi-kicker">Average</p><strong title="' +
+          esc(avgTxt) +
+          '">' +
+          esc(avgTxt) +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Total</p><strong title="' +
+          esc(totalVal) +
+          '">' +
+          esc(totalVal) +
+          "</strong></div>" +
+          "</div>" +
           '<div class="metric-kpi-ss2-panel">' +
           '<div><p class="metric-kpi-kicker">Total</p><strong>' +
           esc(totalVal) +
           "</strong></div>" +
           '<div><p class="metric-kpi-kicker">Average</p><strong>' +
-          esc(fmtNum(avg, key)) +
+          esc(avgTxt) +
           "</strong></div>" +
           '<div><p class="metric-kpi-kicker">Min</p><strong>' +
           esc(fmtNum(st.min, key)) +
@@ -1163,6 +1179,21 @@
         },
         breakdownLabel: "Date",
         averageLabel: "Average",
+        showTotal: true,
+        totalLabel: "Total",
+        computeTotal: function (map, dayKeys, col) {
+          var metric = (col && (col.metric || col.key)) || "";
+          var sum = 0;
+          var n = 0;
+          (dayKeys || []).forEach(function (k) {
+            var v = map[k];
+            if (v == null || !Number.isFinite(v)) return;
+            sum += v;
+            n += 1;
+          });
+          if (!n) return null;
+          return isAvgMetric(metric) ? sum / n : sum;
+        },
         onRefresh: renderTable,
         bindInteractive: {
           widthsKey: "sd-table-col-widths",

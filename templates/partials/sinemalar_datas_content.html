@@ -469,6 +469,41 @@
     z-index: 0;
     overflow: hidden;
   }
+  .sd-datas-page .metric-kpi-ss2-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem 0.65rem;
+    margin-top: 0.35rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid color-mix(in srgb, var(--kpi-color, #2563eb) 16%, #e2e8f0);
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-summary,
+  html.midnight .sd-datas-page .metric-kpi-ss2-summary {
+    border-top-color: color-mix(in srgb, var(--kpi-color, #38bdf8) 22%, #1e293b);
+  }
+  .sd-datas-page .metric-kpi-ss2-summary .metric-kpi-kicker {
+    margin: 0 0 0.1rem;
+    color: #94a3b8;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-summary .metric-kpi-kicker,
+  html.midnight .sd-datas-page .metric-kpi-ss2-summary .metric-kpi-kicker {
+    color: #64748b;
+  }
+  .sd-datas-page .metric-kpi-ss2-summary strong {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-summary strong,
+  html.midnight .sd-datas-page .metric-kpi-ss2-summary strong {
+    color: #f8fafc;
+  }
   .sd-datas-page .metric-kpi-ss2.is-chart-focus {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--kpi-color) 42%, transparent);
   }
@@ -661,5 +696,5 @@
   }
 </style>
 
-<script src="/static/js/metric_table_ux.js?v=13"></script>
-<script src="/static/js/sinemalar_datas.js?v=3" defer></script>
+<script src="/static/js/metric_table_ux.js?v=14"></script>
+<script src="/static/js/sinemalar_datas.js?v=4" defer></script>

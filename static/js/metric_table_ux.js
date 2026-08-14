@@ -66,6 +66,7 @@
       "background:rgba(241,245,249,0.95)!important;}" +
       "html.dark .mtux-avg-col,html.dark table.mtux-grid-table th.mtux-avg-col-header{" +
       "background:rgba(39,39,42,0.92)!important;}" +
+      ".mtux-total-col,table.mtux-grid-table th.mtux-total-col-header{font-weight:700;}" +
       ".mtux-metric-dot{width:7px;height:7px;border-radius:9999px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,0.06);}" +
       ".mtux-metric-row-label{display:inline-flex;align-items:center;gap:0.4rem;max-width:100%;min-width:0;}" +
       ".mtux-metric-row-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
@@ -369,10 +370,23 @@
     return n ? sum / n : null;
   }
 
+  function rowSum(map, keys) {
+    var sum = 0;
+    var n = 0;
+    keys.forEach(function (k) {
+      var v = map[k];
+      if (v == null || !Number.isFinite(v)) return;
+      sum += v;
+      n += 1;
+    });
+    return n ? sum : null;
+  }
+
   /**
    * Heat grid tablosu — standard (gün×metrik) veya transposed (metrik×gün).
    * opts: shell, tableEl, theadRow, tbody, keys, colItems, esc, fmtKey, fmtVal,
-   *       breakdownLabel, averageLabel, onRefresh, bindInteractive,
+   *       breakdownLabel, averageLabel, showTotal, totalLabel, computeTotal,
+   *       onRefresh, bindInteractive,
    *       renderStandardHeaderCell(col) -> th inner HTML (android remove btn)
    */
   function renderHeatGrid(opts) {
@@ -389,6 +403,14 @@
     var fmtVal = typeof opts.fmtVal === "function" ? opts.fmtVal : function (v) { return v == null ? "—" : String(v); };
     var breakdownLabel = opts.breakdownLabel || "Breakdown";
     var averageLabel = opts.averageLabel || "Average";
+    var showTotal = !!opts.showTotal;
+    var totalLabel = opts.totalLabel || "Total";
+    var computeTotal =
+      typeof opts.computeTotal === "function"
+        ? opts.computeTotal
+        : function (map, dayKeys) {
+            return rowSum(map, dayKeys);
+          };
     var renderHeader = typeof opts.renderStandardHeaderCell === "function" ? opts.renderStandardHeaderCell : null;
 
     if (!theadRow || !tbody) return { rowCount: 0 };
@@ -400,7 +422,8 @@
 
     var pin = isPinEnabled();
     var transposed = isTransposed();
-    var colCount = 1 + (transposed ? keys.length + 2 : colItems.length);
+    var summaryCols = 1 + (showTotal ? 1 : 0);
+    var colCount = 1 + (transposed ? keys.length + 1 + summaryCols : colItems.length);
 
     if (!colItems.length) {
       tbody.innerHTML =
@@ -458,6 +481,17 @@
       tbody.innerHTML +=
         '<tr class="mtux-avg-gap-row" aria-hidden="true"><td colspan="' + colCount + '"></td></tr>';
       tbody.innerHTML += '<tr class="mtux-avg-row">' + avgCells + "</tr>";
+      if (showTotal) {
+        var totCells =
+          '<td class="mtux-dim-cell tabular-nums ' + stickyClasses(pin, false, false, true) + '" title="Sum of days that have data">' +
+            esc(totalLabel) +
+          "</td>";
+        colItems.forEach(function (col, i) {
+          var tot = computeTotal(col.map, keys, col);
+          totCells += heatCellHtml(tot, col.color, stats[i], esc, fmtVal, null, col, "mtux-avg-col mtux-total-col");
+        });
+        tbody.innerHTML += '<tr class="mtux-avg-row mtux-total-row">' + totCells + "</tr>";
+      }
     } else {
       var rowStats = colItems.map(function (col) {
         return colMinMax(keys.map(function (k) { return col.map[k]; }));
@@ -478,6 +512,12 @@
         '<th class="mtux-th mtux-avg-col-header px-1 py-2 text-right sm:px-1.5 ' +
           stickyClasses(pin, false, true, false) +
         '" data-mtux-key="avg" data-mtux-fixed="1">' + esc(averageLabel) + "</th>";
+      if (showTotal) {
+        head +=
+          '<th class="mtux-th mtux-avg-col-header mtux-total-col-header px-1 py-2 text-right sm:px-1.5 ' +
+            stickyClasses(pin, false, true, false) +
+          '" data-mtux-key="total" data-mtux-fixed="1">' + esc(totalLabel) + "</th>";
+      }
       theadRow.innerHTML = head;
 
       tbody.innerHTML = colItems.map(function (col, ri) {
@@ -495,6 +535,10 @@
         var avg = rowAverage(col.map, keys);
         cells += '<td class="mtux-avg-gap" aria-hidden="true"></td>';
         cells += heatCellHtml(avg, col.color, st, esc, fmtVal, null, col, "mtux-avg-col");
+        if (showTotal) {
+          var tot = computeTotal(col.map, keys, col);
+          cells += heatCellHtml(tot, col.color, st, esc, fmtVal, null, col, "mtux-avg-col mtux-total-col");
+        }
         return "<tr>" + cells + "</tr>";
       }).join("");
     }
@@ -511,7 +555,7 @@
         : {});
     }
 
-    return { rowCount: keys.length + (transposed ? 0 : 1) };
+    return { rowCount: keys.length + (transposed ? 0 : 1 + (showTotal ? 1 : 0)) };
   }
 
   function applyWidths(table, widths) {
