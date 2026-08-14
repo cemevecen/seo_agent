@@ -216,6 +216,11 @@ def summary_url_for_day(day: date) -> str:
     return f"{SUMMARY_URL}?startDate={day.isoformat()}&endDate={end.isoformat()}"
 
 
+def exclusive_detail_end(day: date) -> date:
+    """Tek gün getModerationDetail — endDate hariç (start dahil)."""
+    return day + timedelta(days=1)
+
+
 def summary_url_for_range(start_d: date, end_d: date) -> str:
     """Aralık özeti — getModerationSummary."""
     return f"{SUMMARY_URL}?startDate={start_d.isoformat()}&endDate={end_d.isoformat()}"
@@ -308,6 +313,7 @@ def fetch_detail_page(
     start_d: date,
     end_d: date,
 ) -> dict[str, Any]:
+    """getModerationDetail: startDate dahil, endDate hariç (özet API ile aynı)."""
     from backend.services.sinemalar_moderation import detail_url
 
     url = detail_url(user_id, start=start_d, end=end_d, metric_type=metric_type)
@@ -1080,77 +1086,110 @@ def scrape_incremental_detail_day(
     delay_sec: float = SCRAPE_DELAY_SEC,
     ingest_per_batch: bool = False,
 ) -> dict[str, Any]:
-    """Tek gün getModerationDetail — append-only ingest, purge yok."""
+    """Tek gün getModerationDetail — append-only ingest, purge yok.
+
+    Sinemalar endDate hariç: tek gün için start=day, end=day+1.
+    Tek tarayıcı oturumu ile 6×11 batch (Update page timeout riskini düşürür).
+    """
     from backend.services.sinemalar_moderation import METRIC_TYPE_KEYS, TRACKED_MODERATORS
 
     batches: list[dict[str, Any]] = []
     total_items = 0
-    total_batches = len(TRACKED_MODERATORS) * len(METRIC_TYPE_KEYS)
     n = 0
     scraped_at = datetime.now(timezone.utc).isoformat()
+    # API endDate exclusive — inclusive tek gün
+    end_exclusive = exclusive_detail_end(day)
 
-    for user_id, username in TRACKED_MODERATORS:
-        for metric_type in METRIC_TYPE_KEYS:
-            if n > 0 and delay_sec > 0:
-                time.sleep(delay_sec)
-            n += 1
-            batch: dict[str, Any] | None = None
-            for attempt in range(2):
-                pw = ctx = page = None
-                try:
-                    pw, ctx, page = _open_logged_in_page(headed)
-                    if page is None:
-                        return {
-                            "ok": False,
-                            "needs_login": True,
-                            "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
-                            "detail_batches": batches,
-                        }
-                    batch = fetch_detail_page(
-                        page,
-                        user_id=user_id,
-                        username=username,
-                        metric_type=metric_type,
-                        start_d=day,
-                        end_d=day,
-                    )
-                    break
-                except Exception as exc:
-                    print(f"    ! {username}/{metric_type} hata (deneme {attempt + 1}): {exc}", flush=True)
-                    batch = None
-                finally:
-                    _safe_close_context(ctx)
-                    if pw is not None:
-                        try:
-                            pw.stop()
-                        except Exception:
-                            pass
-            if batch is None:
-                continue
-            item_count = int(batch.get("item_count") or 0)
-            if item_count <= 0:
-                continue
-            batches.append(batch)
-            total_items += item_count
-            if ingest_per_batch:
-                body: dict[str, Any] = {
-                    "source": "sinemalar_moderation",
-                    "mode": "detail_incremental",
-                    "scraped_at": scraped_at,
-                    "range_start": day.isoformat(),
-                    "range_end": day.isoformat(),
-                    "detail_batches": [
-                        {
-                            **batch,
-                            "_sync_daily_date": day.isoformat(),
-                            "_recompute_daily": False,
-                        }
-                    ],
-                    "backfill_complete": n >= total_batches,
-                }
-                ing = ingest_result(body, mode="detail_incremental")
-                if not ing.get("ok"):
-                    print(f"    ingest hata: {ing.get('message')}", flush=True)
+    pw = ctx = page = None
+    try:
+        pw, ctx, page = _open_logged_in_page(headed)
+        if page is None:
+            return {
+                "ok": False,
+                "needs_login": True,
+                "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
+                "detail_batches": batches,
+                "report_date": day.isoformat(),
+                "range_start": day.isoformat(),
+                "range_end": day.isoformat(),
+                "item_count": 0,
+                "batch_count": 0,
+            }
+
+        for user_id, username in TRACKED_MODERATORS:
+            for metric_type in METRIC_TYPE_KEYS:
+                if n > 0 and delay_sec > 0:
+                    time.sleep(delay_sec)
+                n += 1
+                batch: dict[str, Any] | None = None
+                for attempt in range(2):
+                    try:
+                        batch = fetch_detail_page(
+                            page,
+                            user_id=user_id,
+                            username=username,
+                            metric_type=metric_type,
+                            start_d=day,
+                            end_d=end_exclusive,
+                        )
+                        break
+                    except Exception as exc:
+                        print(f"    ! {username}/{metric_type} hata (deneme {attempt + 1}): {exc}", flush=True)
+                        batch = None
+                        if attempt == 0:
+                            # Oturum düşmüş olabilir — yeniden aç
+                            _safe_close_context(ctx)
+                            if pw is not None:
+                                try:
+                                    pw.stop()
+                                except Exception:
+                                    pass
+                            pw, ctx, page = _open_logged_in_page(headed)
+                            if page is None:
+                                return {
+                                    "ok": False,
+                                    "needs_login": True,
+                                    "message": "Sinemalar admin oturumu yok. --login ile giriş yapın.",
+                                    "detail_batches": batches,
+                                    "report_date": day.isoformat(),
+                                    "range_start": day.isoformat(),
+                                    "range_end": day.isoformat(),
+                                    "item_count": total_items,
+                                    "batch_count": len(batches),
+                                }
+                if batch is None:
+                    continue
+                item_count = int(batch.get("item_count") or 0)
+                if item_count <= 0:
+                    continue
+                batches.append(batch)
+                total_items += item_count
+                if ingest_per_batch:
+                    body: dict[str, Any] = {
+                        "source": "sinemalar_moderation",
+                        "mode": "detail_incremental",
+                        "scraped_at": scraped_at,
+                        "range_start": day.isoformat(),
+                        "range_end": day.isoformat(),
+                        "detail_batches": [
+                            {
+                                **batch,
+                                "_sync_daily_date": day.isoformat(),
+                                "_recompute_daily": False,
+                            }
+                        ],
+                        "backfill_complete": True,
+                    }
+                    ing = ingest_result(body, mode="detail_incremental")
+                    if not ing.get("ok"):
+                        print(f"    ingest hata: {ing.get('message')}", flush=True)
+    finally:
+        _safe_close_context(ctx)
+        if pw is not None:
+            try:
+                pw.stop()
+            except Exception:
+                pass
 
     return {
         "ok": True,
@@ -1171,8 +1210,25 @@ def scrape_incremental_detail_day(
 def run_incremental_detail(which: str = "yesterday", *, headed: bool = True, ingest: bool = False) -> dict[str, Any]:
     day = _yesterday_tr() if which == "yesterday" else _today_tr()
     result = scrape_incremental_detail_day(day, headed=headed, ingest_per_batch=bool(ingest))
-    if result.get("ok") and ingest and not result.get("detail_batches"):
-        result["message"] = f"detail_incremental {day.isoformat()} · yeni kayıt yok"
+    if result.get("ok") and ingest:
+        # 0 kayıtta bile Last sync güncellensin (panel "tarama olmadı" sanmasın)
+        if not result.get("detail_batches"):
+            result["message"] = f"detail_incremental {day.isoformat()} · yeni kayıt yok"
+            ping = ingest_result(
+                {
+                    "source": "sinemalar_moderation",
+                    "mode": "detail_incremental",
+                    "scraped_at": result.get("scraped_at"),
+                    "range_start": day.isoformat(),
+                    "range_end": day.isoformat(),
+                    "detail_batches": [],
+                    "backfill_complete": True,
+                    "sync_heartbeat": True,
+                    "message": result["message"],
+                },
+                mode="detail_incremental",
+            )
+            result["ingest"] = ping
     return result
 
 

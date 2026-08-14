@@ -38,7 +38,7 @@ JOBS: dict[str, dict[str, Any]] = {
         "id": "moderation",
         "label": "Sinemalar Moderation",
         "kind": "bridge",
-        "path": "/sync-sinemalar-moderation",
+        "path": "/sync-sinemalar-moderation?which=yesterday",
     },
     "seo": {"id": "seo", "label": "SEO Audit", "kind": "bridge", "path": "/sync-seo-audit"},
     "errors": {

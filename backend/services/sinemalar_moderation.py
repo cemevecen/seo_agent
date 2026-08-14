@@ -667,6 +667,23 @@ def ingest_backfill_payload(
         db.commit()
         return {"ok": True, "items_upserted": total_items, "daily_upserted": total_daily, "batches": len(detail_batches)}
 
+    if (
+        str(payload.get("mode") or "") == "detail_incremental"
+        and isinstance(detail_batches, list)
+        and not detail_batches
+        and not (payload.get("days") or [])
+    ):
+        meta = _meta(db)
+        scraped_at = _parse_dt(payload.get("scraped_at")) or datetime.utcnow()
+        meta.last_scraped_at = scraped_at
+        meta.last_mode = "detail_incremental"
+        meta.message = str(payload.get("message") or "detail_incremental · 0 kayıt")[:500]
+        if payload.get("backfill_complete"):
+            meta.backfill_complete = True
+            meta.backfill_cursor = None
+        db.commit()
+        return {"ok": True, "items_upserted": 0, "daily_upserted": 0, "batches": 0, "heartbeat": True}
+
     days = payload.get("days")
     if isinstance(days, list) and days:
         total = 0

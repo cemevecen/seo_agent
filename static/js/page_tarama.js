@@ -27,7 +27,7 @@
     links: { id: "links", label: "Backlinks (GSC)", kind: "bridge", path: "/sync-gsc-links", timeoutMs: 40 * 60 * 1000 },
     policy: { id: "policy", label: "Ad Manager Policy", kind: "bridge", path: "/sync-policy", timeoutMs: 25 * 60 * 1000 },
     noads: { id: "noads", label: "Sinemalar noAds", kind: "bridge", path: "/sync-noads", timeoutMs: 20 * 60 * 1000 },
-    moderation: { id: "moderation", label: "Sinemalar Moderation", kind: "bridge", path: "/sync-sinemalar-moderation", timeoutMs: 40 * 60 * 1000 },
+    moderation: { id: "moderation", label: "Sinemalar Moderation", kind: "bridge", path: "/sync-sinemalar-moderation?which=yesterday", timeoutMs: 60 * 60 * 1000 },
     seo: { id: "seo", label: "SEO audit", kind: "bridge", path: "/sync-seo-audit", timeoutMs: 50 * 60 * 1000 },
     errors: {
       id: "errors",

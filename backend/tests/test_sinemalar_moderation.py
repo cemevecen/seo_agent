@@ -119,12 +119,36 @@ def test_ingest_daily_batch_upserts():
 
 
 def test_summary_url_for_day_uses_next_day_end():
-    from scripts.sinemalar_moderation_scrape import summary_url_for_day
+    from scripts.sinemalar_moderation_scrape import exclusive_detail_end, summary_url_for_day
 
     u = summary_url_for_day(date(2026, 3, 1))
     assert "startDate=2026-03-01" in u
     assert "endDate=2026-03-02" in u
     assert "endDate=2026-03-01" not in u
+    assert exclusive_detail_end(date(2026, 8, 13)) == date(2026, 8, 14)
+    detail = mod.detail_url(53, start=date(2026, 8, 13), end=date(2026, 8, 14), metric_type="movie")
+    assert "startDate=2026-08-13" in detail
+    assert "endDate=2026-08-14" in detail
+
+
+def test_ingest_incremental_heartbeat_updates_last_sync():
+    db = _session()
+    res = mod.ingest_backfill_payload(
+        db,
+        {
+            "mode": "detail_incremental",
+            "scraped_at": "2026-08-14T10:00:00",
+            "detail_batches": [],
+            "backfill_complete": True,
+            "message": "detail_incremental 2026-08-13 · yeni kayıt yok",
+        },
+    )
+    assert res.get("ok") is True
+    assert res.get("heartbeat") is True
+    meta = mod.get_meta_summary(db)
+    assert meta["last_mode"] == "detail_incremental"
+    assert meta["last_scraped_at"]
+    assert "2026-08-13" in (meta.get("message") or "")
 
 
 def test_parse_detail_rows_movie():
