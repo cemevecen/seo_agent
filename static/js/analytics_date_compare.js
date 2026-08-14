@@ -144,6 +144,16 @@
     reloadPending[pageKey] -= 1;
     if (reloadPending[pageKey] <= 0) {
       hideCompareLoading(pageKey);
+      if (pageKey === "ga4") {
+        if (typeof global.ga4ScheduleOverlayKpiRefresh === "function") {
+          global.ga4ScheduleOverlayKpiRefresh(document, 180);
+        } else if (typeof global.ga4RefreshOverlayKpiCards === "function") {
+          global.ga4RefreshOverlayKpiCards(document).catch(function () { /* ignore */ });
+        }
+        if (global.SeoAnalyticsCompare && typeof global.SeoAnalyticsCompare.syncControls === "function") {
+          global.SeoAnalyticsCompare.syncControls(document, "ga4");
+        }
+      }
     }
   }
 

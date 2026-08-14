@@ -115,7 +115,18 @@
 {% endmacro %}
 
 {% set spark_pd = p.spark_period_days | default(7 if pd == 1 else pd) %}
-<div class="w-full min-w-0" data-ga4-align="kpis" data-ga4-kpi-row data-ga4-spark-period-days="{{ spark_pd }}" data-ga4-daily-trend='{{ dt_spark | tojson }}'>
+{% set _kpi_ranges = p.ranges | default({}) %}
+<div
+  class="w-full min-w-0"
+  data-ga4-align="kpis"
+  data-ga4-kpi-row
+  data-ga4-spark-period-days="{{ spark_pd }}"
+  data-ga4-daily-trend='{{ dt_spark | tojson }}'
+  data-ga4-range-start="{{ _kpi_ranges.last_start | default('') }}"
+  data-ga4-range-end="{{ _kpi_ranges.last_end | default('') }}"
+  data-ga4-prev-start="{{ _kpi_ranges.prev_start | default('') }}"
+  data-ga4-prev-end="{{ _kpi_ranges.prev_end | default('') }}"
+>
   <div
     class="ga4-kpi-grid grid w-full min-w-0 gap-2.5 sm:gap-3 md:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.25rem),1fr))]"
   >
