@@ -72,7 +72,7 @@ window.SD_XDATA_AVG_KEYS = [];
 window.fetch = async function (url) {
   const u = String(url || "");
   if (u.indexOf("/api/empower-intel/series") >= 0) {
-    return new Response(__SERIES__, {
+    return new Response(JSON.stringify(__SERIES__), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
@@ -130,6 +130,24 @@ window.fetch = async function (url) {
         assert chart_x == kpi_x
         assert page.locator(".metric-kpi-spark").count() == kpi_x
 
+        legend_btns = page.locator("#sd-legend [data-sd-legend-key]")
+        assert legend_btns.count() >= kpi_x, "legend buttons missing"
+        mute_key = legend_btns.first.get_attribute("data-sd-legend-key")
+        legend_btns.first.click()
+        page.wait_for_timeout(200)
+        assert page.locator(f'#sd-legend [data-sd-legend-key="{mute_key}"].is-off').count() == 1
+        kpi_mute = page.locator("[data-metric-kpi-card]").count()
+        chart_mute = page.locator("#sd-chart .chart-series-g").count()
+        table_cols = page.locator("[data-sd-col-remove]").count()
+        assert kpi_mute == kpi_x - 1, f"legend mute KPI {kpi_mute} vs {kpi_x}"
+        assert chart_mute == kpi_mute, f"legend mute chart {chart_mute}/{kpi_mute}"
+        assert table_cols == kpi_mute, f"legend mute table {table_cols}/{kpi_mute}"
+        # unmute restores
+        page.locator(f'#sd-legend [data-sd-legend-key="{mute_key}"]').click()
+        page.wait_for_timeout(200)
+        assert page.locator(f'#sd-legend [data-sd-legend-key="{mute_key}"].is-off').count() == 0
+        assert page.locator("[data-metric-kpi-card]").count() == kpi_x
+
         browser.close()
         print(
             json.dumps(
@@ -139,6 +157,8 @@ window.fetch = async function (url) {
                     "kpi_add": kpi_add,
                     "kpi_rm": kpi_rm,
                     "kpi_x": kpi_x,
+                    "kpi_mute": kpi_mute,
+                    "mute_key": mute_key,
                 }
             )
         )

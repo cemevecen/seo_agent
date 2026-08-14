@@ -26,12 +26,15 @@
     loading: false,
     labelByKey: {},
     focusedMetric: null,
+    /** Legend ile gizlenen seriler (key → true). Legend’da kalır; chart/KPI/table’dan düşer. */
+    legendMuted: {},
   };
 
   var _kpiSparkGradSeq = 0;
   var _kpiFitObs = null;
   var _kpiFitRaf = 0;
   var _kpiEventsBound = false;
+  var _legendBound = false;
 
   function $(id) {
     return document.getElementById(id);
@@ -148,6 +151,67 @@
 
   function selectedMetrics() {
     return state.selected.filter(Boolean);
+  }
+
+  function isLegendMuted(key) {
+    return !!(state.legendMuted && state.legendMuted[key]);
+  }
+
+  function pruneLegendMuted(validKeys) {
+    var ok = {};
+    (validKeys || []).forEach(function (k) {
+      ok[k] = true;
+    });
+    Object.keys(state.legendMuted || {}).forEach(function (k) {
+      if (!ok[k]) delete state.legendMuted[k];
+    });
+  }
+
+  function visibleSeriesList(seriesList) {
+    return (seriesList || []).filter(function (s) {
+      return s && !isLegendMuted(s.key);
+    });
+  }
+
+  function toggleLegendMuted(key) {
+    if (!key) return;
+    var turningOff = !state.legendMuted[key];
+    if (turningOff) {
+      // Son görünür seriyi kapatma (iOS/Android legend davranışı)
+      var preview = Object.assign({}, state.legendMuted);
+      preview[key] = true;
+      if (String(key).indexOf("ov:") !== 0 && String(key).indexOf(":prev") < 0) {
+        preview[key + ":prev"] = true;
+      }
+      var all = collectChartSeries();
+      var stillVisible = all.filter(function (s) {
+        return s && !preview[s.key];
+      });
+      if (!stillVisible.length && all.length) return;
+    }
+    if (state.legendMuted[key]) delete state.legendMuted[key];
+    else state.legendMuted[key] = true;
+    // primary metrik kapanınca prev dönem çizgisi de aynı kalsın
+    if (String(key).indexOf("ov:") !== 0 && String(key).indexOf(":prev") < 0) {
+      var prevKey = key + ":prev";
+      if (state.legendMuted[key]) state.legendMuted[prevKey] = true;
+      else delete state.legendMuted[prevKey];
+    }
+    renderMetricKpis();
+    renderChart();
+    renderTable();
+  }
+
+  function bindLegendEvents() {
+    var host = $("sd-legend");
+    if (!host || _legendBound) return;
+    _legendBound = true;
+    host.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-sd-legend-key]") : null;
+      if (!btn || !host.contains(btn)) return;
+      ev.preventDefault();
+      toggleLegendMuted(btn.getAttribute("data-sd-legend-key"));
+    });
   }
 
   function updateMetricTriggerLabel() {
@@ -756,7 +820,9 @@
   function renderMetricKpis() {
     var host = $("sd-metric-kpis");
     if (!host) return;
-    var keys = selectedMetrics();
+    var keys = selectedMetrics().filter(function (key) {
+      return !isLegendMuted(key);
+    });
     if (!keys.length) {
       unbindMetricKpiFit();
       host.innerHTML = "";
@@ -954,17 +1020,36 @@
     }
     host.innerHTML = seriesList
       .map(function (s) {
+        var muted = isLegendMuted(s.key);
+        var color = muted ? "#94a3b8" : s.color;
         var mark = s.dashed
           ? '<span class="inline-block h-0.5 w-3 border-t-2 border-dashed" style="border-color:' +
-            s.color +
+            color +
             '"></span>'
-          : '<span class="inline-block h-2 w-2 rounded-full" style="background:' + s.color + '"></span>';
+          : '<span class="h-2 w-2 rounded-full' +
+            (muted ? " ring-1 ring-slate-300 dark:ring-zinc-600" : "") +
+            '" style="background:' +
+            color +
+            '"></span>';
         return (
-          '<span class="inline-flex items-center gap-1.5">' +
+          '<button type="button" data-sd-legend-key="' +
+          esc(s.key) +
+          '" aria-pressed="' +
+          (muted ? "false" : "true") +
+          '" class="sd-legend-item cursor-pointer inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:focus-visible:ring-zinc-600 ' +
+          (muted
+            ? "is-off opacity-45 text-slate-400 hover:opacity-70 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            : "hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100") +
+          '" title="' +
+          esc(s.label) +
+          (muted ? " — show on chart" : " — hide from chart") +
+          '">' +
           mark +
-          "<span>" +
-          s.label +
-          "</span></span>"
+          '<span class="' +
+          (muted ? "line-through decoration-slate-300 dark:decoration-zinc-600" : "") +
+          '">' +
+          esc(s.label) +
+          "</span></button>"
         );
       })
       .join("");
@@ -982,8 +1067,14 @@
     var svg = $("sd-chart");
     var tip = $("sd-tooltip");
     if (!svg) return;
-    var seriesList = collectChartSeries();
-    renderLegend(seriesList);
+    var seriesAll = collectChartSeries();
+    pruneLegendMuted(
+      seriesAll.map(function (s) {
+        return s.key;
+      })
+    );
+    renderLegend(seriesAll);
+    var seriesList = visibleSeriesList(seriesAll);
     var maps = seriesList.map(function (s) {
       return s.map;
     });
@@ -1000,10 +1091,16 @@
     svg.setAttribute("viewBox", "0 0 " + w + " " + h);
 
     if (!dates.length || !seriesList.length) {
+      var emptyMsg =
+        seriesAll.length && !seriesList.length
+          ? "Turn on at least one metric in the legend"
+          : "No data for this range";
       svg.innerHTML =
         '<text class="pa-axis-label" x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="' +
         AXIS_LABEL_FONT +
-        '">No data for this range</text>';
+        '">' +
+        emptyMsg +
+        "</text>";
       if (tip) tip.classList.add("hidden");
       syncChartLayout();
       return;
@@ -1192,6 +1289,9 @@
     if (!tip || !title || !body || !wrap || !dates[idx]) return;
     title.textContent = dates[idx];
     body.innerHTML = seriesList
+      .filter(function (s) {
+        return !isLegendMuted(s.key);
+      })
       .map(function (s) {
         var v = s.map[dates[idx]];
         return (
@@ -1223,7 +1323,7 @@
     var shell = $("sd-table-shell");
     if (!thead || !tbody) return;
     var seriesList = collectChartSeries().filter(function (s) {
-      return !s.dashed;
+      return !s.dashed && !isLegendMuted(s.key);
     });
     var maps = seriesList.map(function (s) {
       return s.map;
@@ -1478,6 +1578,7 @@
     syncChartStyleUi();
     syncChartLayout();
     bindMetricKpiEvents();
+    bindLegendEvents();
 
     var preset = $("sd-preset");
     if (preset) {

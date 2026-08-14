@@ -47,3 +47,25 @@ def test_keep_at_least_one_primary_metric():
     text = DATAS_JS.read_text(encoding="utf-8")
     assert "Keep at least one metric." in text
     assert "state.selected.length <= 1" in text
+
+
+def test_legend_toggle_mutes_chart_kpi_and_table():
+    text = DATAS_JS.read_text(encoding="utf-8")
+    assert "legendMuted" in text
+    assert "function toggleLegendMuted(" in text
+    assert "function bindLegendEvents(" in text
+    assert "data-sd-legend-key" in text
+    assert "function isLegendMuted(" in text
+    assert "function visibleSeriesList(" in text
+    assert "renderLegend(seriesAll)" in text
+    assert "visibleSeriesList(seriesAll)" in text
+    # KPI / chart / table must respect mute (not only legend styling)
+    assert "selectedMetrics().filter(function (key) {\n      return !isLegendMuted(key);" in text
+    assert "return !s.dashed && !isLegendMuted(s.key);" in text
+    assert 'renderMetricKpis();\n    renderChart();\n    renderTable();' in text
+
+
+def test_datas_partial_legend_host():
+    text = PARTIAL.read_text(encoding="utf-8")
+    assert 'id="sd-legend"' in text
+    assert "sinemalar_datas.js?v=8" in text
