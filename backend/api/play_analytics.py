@@ -473,16 +473,12 @@ def get_play_ga4_overlay_series(
         }
 
     pack = _ga4_daily_trend_payload(db, site_id=int(site.id), profile=prof)
-    if not pack and prof == "android":
-        pack = _ga4_daily_trend_payload(db, site_id=int(site.id), profile="ios")
-        if pack:
-            prof = "ios"
     if not pack:
         return {
             "ok": False,
             "source": "ga4",
             "message": (
-                f"GA4 `{prof}` daily_trend yok — /ga4 sekmesinde Android için sync gerekir."
+                f"GA4 `{prof}` daily_trend yok — /ga4 sekmesinde {prof} için sync gerekir."
             ),
             "series": [],
             "metric": f"ga4:{raw}",
