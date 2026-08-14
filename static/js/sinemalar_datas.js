@@ -218,20 +218,129 @@
     scroll.innerHTML = html;
   }
 
+  var _reloadTimer = 0;
+  var _tableRemoveBound = false;
+  var TH_REMOVE_CLS =
+    "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[10px] leading-none text-slate-400 hover:bg-rose-100 hover:text-rose-600 dark:text-zinc-500 dark:hover:bg-rose-950/50 dark:hover:text-rose-300";
+
+  function scheduleReload() {
+    if (_reloadTimer) global.clearTimeout(_reloadTimer);
+    _reloadTimer = global.setTimeout(function () {
+      _reloadTimer = 0;
+      runLoad();
+    }, 60);
+  }
+
+  function uncheckOverlayMetric(metricKey) {
+    if (!metricKey) return false;
+    var root = $(OVERLAY_ID);
+    if (!root) return false;
+    var panel =
+      root.querySelector("[data-play-metric-overlay-panel]") ||
+      document.querySelector('[data-play-metric-overlay-for="' + OVERLAY_ID + '"]');
+    if (!panel) return false;
+    var cb = panel.querySelector('input[type="checkbox"][value="' + metricKey.replace(/"/g, "") + '"]');
+    if (!cb || !cb.checked) return false;
+    cb.checked = false;
+    cb.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+
+  function removeSeriesFromUi(colKey, opts) {
+    opts = opts || {};
+    if (opts.overlay || String(colKey || "").indexOf("ov:") === 0) {
+      var ovMetric = opts.overlayMetric || String(colKey || "").replace(/^ov:/, "");
+      if (uncheckOverlayMetric(ovMetric)) return;
+      // checkbox bulunamazsa state'ten düş
+      state.overlaySeries = (state.overlaySeries || []).filter(function (ov) {
+        return String(ov.metric || "") !== String(ovMetric);
+      });
+      renderMetricKpis();
+      renderChart();
+      renderTable();
+      return;
+    }
+    var key = opts.metric || colKey;
+    var idx = state.selected.indexOf(key);
+    if (idx < 0) return;
+    if (state.selected.length <= 1) {
+      setStatus("Keep at least one metric.");
+      return;
+    }
+    state.selected.splice(idx, 1);
+    delete state.seriesByMetric[key];
+    delete state.compareSeries[key];
+    renderMetricList();
+    updateMetricTriggerLabel();
+    scheduleReload();
+  }
+
+  function metricRemoveButtonHtml(col) {
+    if (!col) return "";
+    var isOv = !!col.overlay;
+    var metric = isOv ? col.overlayMetric || String(col.key || "").replace(/^ov:/, "") : col.metric || col.key;
+    return (
+      '<button type="button" class="' +
+      TH_REMOVE_CLS +
+      '" data-sd-col-remove="1" data-sd-remove-kind="' +
+      (isOv ? "overlay" : "metric") +
+      '" data-sd-remove-key="' +
+      esc(col.key || "") +
+      '" data-sd-remove-metric="' +
+      esc(metric || "") +
+      '" title="Remove" aria-label="' +
+      esc((col.shortLabel || col.label || col.key || "metric") + " remove") +
+      '">×</button>'
+    );
+  }
+
+  function bindTableRemove() {
+    var shell = $("sd-table-shell");
+    if (!shell || _tableRemoveBound) return;
+    _tableRemoveBound = true;
+    shell.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-sd-col-remove]") : null;
+      if (!btn || !shell.contains(btn)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      removeSeriesFromUi(btn.getAttribute("data-sd-remove-key"), {
+        overlay: btn.getAttribute("data-sd-remove-kind") === "overlay",
+        overlayMetric: btn.getAttribute("data-sd-remove-metric") || "",
+        metric: btn.getAttribute("data-sd-remove-metric") || "",
+      });
+    });
+  }
+
   function toggleMetric(key) {
     if (!key) return;
     var idx = state.selected.indexOf(key);
-    if (idx >= 0) state.selected.splice(idx, 1);
-    else state.selected.push(key);
-    if (!state.selected.length) state.selected = [DEFAULT_METRICS[0]];
+    if (idx >= 0) {
+      if (state.selected.length <= 1) {
+        setStatus("Keep at least one metric.");
+        return;
+      }
+      state.selected.splice(idx, 1);
+      delete state.seriesByMetric[key];
+      delete state.compareSeries[key];
+    } else {
+      state.selected.push(key);
+    }
     renderMetricList();
     updateMetricTriggerLabel();
+    scheduleReload();
   }
 
   function clearMetrics() {
     state.selected = [DEFAULT_METRICS[0]];
+    Object.keys(state.seriesByMetric || {}).forEach(function (k) {
+      if (state.selected.indexOf(k) < 0) delete state.seriesByMetric[k];
+    });
+    Object.keys(state.compareSeries || {}).forEach(function (k) {
+      if (state.selected.indexOf(k) < 0) delete state.compareSeries[k];
+    });
     renderMetricList();
     updateMetricTriggerLabel();
+    scheduleReload();
   }
 
   function positionMetricList() {
@@ -829,6 +938,7 @@
         map: valueMap(ov.series),
         color: OVERLAY_COLORS[i % OVERLAY_COLORS.length],
         overlay: true,
+        overlayMetric: ov.metric || "",
         dashed: false,
       });
     });
@@ -1130,7 +1240,9 @@
           shortLabel: shortMetricLabel(s.label, s.key),
           color: s.color,
           map: s.map,
-          metric: s.key,
+          metric: s.overlay ? s.overlayMetric || s.key : s.key,
+          overlay: !!s.overlay,
+          overlayMetric: s.overlayMetric || "",
         };
       });
       if (typeof ux.orderKeys === "function") {
@@ -1157,6 +1269,8 @@
         function (k) {
           return k;
         };
+      var pinOn = typeof ux.isPinEnabled === "function" ? ux.isPinEnabled() : false;
+      var stickyTop = pinOn ? " mtux-sticky-top" : "";
       ux.renderHeatGrid({
         shell: shell,
         tableEl: tableEl,
@@ -1192,7 +1306,40 @@
           orderKey: "sd-table-col-order",
           onOrderChange: renderTable,
         },
+        renderStandardHeaderCell: function (col) {
+          return (
+            '<th class="mtux-th px-1 py-2 font-bold tabular-nums sm:px-1.5' +
+            stickyTop +
+            '" data-mtux-key="' +
+            esc(col.key) +
+            '" style="color:' +
+            esc(col.color || "#2563eb") +
+            '" title="' +
+            esc(col.label || "") +
+            '">' +
+            '<span class="mtux-th-label">' +
+            '<span class="mtux-th-text">' +
+            esc(col.shortLabel || col.label || col.key) +
+            "</span>" +
+            metricRemoveButtonHtml(col) +
+            "</span></th>"
+          );
+        },
+        renderTransposedMetricLabel: function (col) {
+          return (
+            '<span class="mtux-metric-row-label">' +
+            '<span class="mtux-metric-dot" style="background:' +
+            esc(col.color || "#2563eb") +
+            '"></span>' +
+            '<span class="mtux-metric-row-text">' +
+            esc(col.shortLabel || col.label || col.key) +
+            "</span>" +
+            metricRemoveButtonHtml(col) +
+            "</span>"
+          );
+        },
       });
+      bindTableRemove();
       return;
     }
 

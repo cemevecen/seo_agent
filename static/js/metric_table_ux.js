@@ -412,6 +412,8 @@
             return rowSum(map, dayKeys);
           };
     var renderHeader = typeof opts.renderStandardHeaderCell === "function" ? opts.renderStandardHeaderCell : null;
+    var renderMetricLabel =
+      typeof opts.renderTransposedMetricLabel === "function" ? opts.renderTransposedMetricLabel : null;
 
     if (!theadRow || !tbody) return { rowCount: 0 };
 
@@ -522,12 +524,17 @@
 
       tbody.innerHTML = colItems.map(function (col, ri) {
         var st = rowStats[ri];
+        var labelInner = renderMetricLabel
+          ? renderMetricLabel(col)
+          : (
+              '<span class="mtux-metric-row-label">' +
+                '<span class="mtux-metric-dot" style="background:' + esc(col.color || "#2563eb") + '"></span>' +
+                '<span class="mtux-metric-row-text">' + esc(col.shortLabel || col.label || col.key) + "</span>" +
+              "</span>"
+            );
         var cells =
           '<td class="mtux-dim-cell ' + stickyClasses(pin, false, false, true) + '" title="' + esc(col.label || "") + '">' +
-            '<span class="mtux-metric-row-label">' +
-              '<span class="mtux-metric-dot" style="background:' + esc(col.color || "#2563eb") + '"></span>' +
-              '<span class="mtux-metric-row-text">' + esc(col.shortLabel || col.label || col.key) + "</span>" +
-            "</span>" +
+            labelInner +
           "</td>";
         keys.forEach(function (key, ki) {
           cells += heatCellHtml(col.map[key], col.color, st, esc, fmtVal, null, col);
