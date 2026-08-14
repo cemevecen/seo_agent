@@ -341,6 +341,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "dimension": "APP_VERSION",
         "dimension_values": "OVERALL",
         "dim_hint": "overview",
+        "force_table": True,
         "needles": ("ANR", "Veri tablosu", "İstatistik"),
     },
     {
@@ -381,6 +382,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "dimension": "APP_VERSION",
         "dimension_values": "OVERALL",
         "dim_hint": "overview",
+        "force_table": True,
         "needles": ("Kilitlenme", "Crash", "Veri tablosu", "İstatistik"),
     },
     {
@@ -450,10 +452,20 @@ _STATS_PRIORITY_IDS = (
 def _ordered_statistics_views() -> list[dict[str, Any]]:
     """ANR/Crash tarih görünümlerini öne al (uzun sync’te önce panel dolsun)."""
     prio = {vid: i for i, vid in enumerate(_STATS_PRIORITY_IDS)}
-    return sorted(
+    views = sorted(
         STATISTICS_VIEWS,
         key=lambda v: prio.get(str(v.get("id") or ""), 1000),
     )
+    if not _play_sealed_lean():
+        return views
+    # Mühürlü lean: yalnız ANR/Crash (ters tablo + günlük dilim). Diğer metrikler bellekte.
+    core = {"anrs", "crashes"}
+    lean = [v for v in views if str(v.get("metric_key") or "") in core]
+    print(
+        f"  · stats lean · {len(lean)}/{len(views)} view (yalnız anrs/crashes · dün+bugün)",
+        flush=True,
+    )
+    return lean or views
 
 
 def _play_sealed_lean() -> bool:
@@ -5417,78 +5429,90 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         if isinstance(monitor_improve, dict):
             debug = {**debug, "monitor_improve": monitor_improve}
 
-        # Monetize + Grow + Statistics
-        monetize = _safe_scrape_page(
-            page,
-            url=MONETIZE_URL,
-            known=_known(_KNOWN_MONETIZE, ["Gelir", "ÖYKBOG", "Alıcı Sayısı"]),
-            page_key="monetize",
-            wait_needles=("Gelir", "ÖYKBOG", "Alıcı", "Toplam gelir", "Monetize", "Para kazan"),
-            headed=bool(headed),
-        )
-        grow = _safe_scrape_page(
-            page,
-            url=GROW_URL,
-            known=_known(_KNOWN_GROW, _KNOWN_DASHBOARD),
-            page_key="grow",
-            wait_needles=(
-                "Cihaz edinme",
-                "Mağaza girişi",
-                "AEKS",
-                "Grow",
-                "Büyüme",
-                "Kullanıcı sayısını",
-            ),
-            headed=bool(headed),
-        )
-        store_listings = _safe_scrape_page(
-            page,
-            url=STORE_LISTINGS_URL,
-            known=_known(_KNOWN_STORE_LISTINGS, _KNOWN_GROW, _KNOWN_DASHBOARD),
-            page_key="store_listings",
-            wait_needles=(
-                "Mağaza",
-                "Store listing",
-                "Edinme",
-                "Acquisition",
-                "Ziyaret",
-                "Dönüşüm",
-                "Conversion",
-            ),
-            headed=bool(headed),
-        )
-        monitor = _safe_scrape_page(
-            page,
-            url=MONITOR_URL,
-            known=_known(_KNOWN_MONITOR, _KNOWN_DASHBOARD),
-            page_key="monitor",
-            wait_needles=(
-                "Kilitlenme",
-                "ANR",
-                "Monitor",
-                "İzle",
-                "Vital",
-                "Ortalama puan",
-            ),
-            headed=bool(headed),
-        )
-        release = _safe_scrape_page(
-            page,
-            url=RELEASE_URL,
-            known=_known(_KNOWN_RELEASE, _KNOWN_DASHBOARD),
-            page_key="release",
-            wait_needles=(
-                "Üretim",
-                "Production",
-                "Test",
-                "Yayın",
-                "Sürüm",
-                "Rollout",
-                "Kilitlenme",
-                "Yükleme",
-            ),
-            headed=bool(headed),
-        )
+        # Monetize + Grow + … — mühürlü lean’de atla (bellekteki gövde yeter; yalnız dün+bugün stats)
+        lean = _play_sealed_lean()
+        if lean:
+            print(
+                "  · overview sayfaları atlandı (mühürlü lean: monetize/grow/store/monitor/release)",
+                flush=True,
+            )
+            monetize = {"cards": [], "breakdowns": [], "error": None}
+            grow = {"cards": [], "breakdowns": [], "error": None}
+            store_listings = {"cards": [], "breakdowns": [], "error": None}
+            monitor = {"cards": [], "breakdowns": [], "error": None}
+            release = {"cards": [], "breakdowns": [], "error": None}
+        else:
+            monetize = _safe_scrape_page(
+                page,
+                url=MONETIZE_URL,
+                known=_known(_KNOWN_MONETIZE, ["Gelir", "ÖYKBOG", "Alıcı Sayısı"]),
+                page_key="monetize",
+                wait_needles=("Gelir", "ÖYKBOG", "Alıcı", "Toplam gelir", "Monetize", "Para kazan"),
+                headed=bool(headed),
+            )
+            grow = _safe_scrape_page(
+                page,
+                url=GROW_URL,
+                known=_known(_KNOWN_GROW, _KNOWN_DASHBOARD),
+                page_key="grow",
+                wait_needles=(
+                    "Cihaz edinme",
+                    "Mağaza girişi",
+                    "AEKS",
+                    "Grow",
+                    "Büyüme",
+                    "Kullanıcı sayısını",
+                ),
+                headed=bool(headed),
+            )
+            store_listings = _safe_scrape_page(
+                page,
+                url=STORE_LISTINGS_URL,
+                known=_known(_KNOWN_STORE_LISTINGS, _KNOWN_GROW, _KNOWN_DASHBOARD),
+                page_key="store_listings",
+                wait_needles=(
+                    "Mağaza",
+                    "Store listing",
+                    "Edinme",
+                    "Acquisition",
+                    "Ziyaret",
+                    "Dönüşüm",
+                    "Conversion",
+                ),
+                headed=bool(headed),
+            )
+            monitor = _safe_scrape_page(
+                page,
+                url=MONITOR_URL,
+                known=_known(_KNOWN_MONITOR, _KNOWN_DASHBOARD),
+                page_key="monitor",
+                wait_needles=(
+                    "Kilitlenme",
+                    "ANR",
+                    "Monitor",
+                    "İzle",
+                    "Vital",
+                    "Ortalama puan",
+                ),
+                headed=bool(headed),
+            )
+            release = _safe_scrape_page(
+                page,
+                url=RELEASE_URL,
+                known=_known(_KNOWN_RELEASE, _KNOWN_DASHBOARD),
+                page_key="release",
+                wait_needles=(
+                    "Üretim",
+                    "Production",
+                    "Test",
+                    "Yayın",
+                    "Sürüm",
+                    "Rollout",
+                    "Kilitlenme",
+                    "Yükleme",
+                ),
+                headed=bool(headed),
+            )
 
         # Statistics önce (ANR/Crash checkpoint) — vitals/devices sonra
         ui_days = _play_ui_days(default=28)
@@ -5655,21 +5679,27 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 or str(f.get("metric") or "") not in skip_metric_keys
             ]
 
-        # Reach and devices · dashboard + Android sürüm / RAM / SoC … kırılımları
-        try:
-            devices_bundle = _scrape_devices_dashboard(page, headed=bool(headed), days=ui_days)
-        except Exception as exc:  # noqa: BLE001
-            devices_bundle = {"url": DEVICES_URL, "cards": [], "breakdowns": [], "error": str(exc)[:240]}
-            print(f"  · devices scrape hata: {exc}", flush=True)
+        # Reach and devices — lean’de atla
+        if lean:
+            print("  · devices atlandı (mühürlü lean)", flush=True)
+        else:
+            try:
+                devices_bundle = _scrape_devices_dashboard(page, headed=bool(headed), days=ui_days)
+            except Exception as exc:  # noqa: BLE001
+                devices_bundle = {"url": DEVICES_URL, "cards": [], "breakdowns": [], "error": str(exc)[:240]}
+                print(f"  · devices scrape hata: {exc}", flush=True)
 
-        # Android Vitals: crashes 4 kategori + metrics overview (crash/ANR/LMK)
-        try:
-            vitals_bundle = _scrape_vitals_bundle(page, headed=bool(headed), days=ui_days)
-            if vitals_bundle.get("error"):
-                print(f"  · vitals uyarı: {vitals_bundle.get('error')}", flush=True)
-        except Exception as exc:  # noqa: BLE001
-            vitals_bundle = {"version": 1, "error": str(exc)[:240]}
-            print(f"  · vitals scrape hata: {exc}", flush=True)
+        # Android Vitals — lean’de atla (günlük ANR/Crash Statistics’ten gelir)
+        if lean:
+            print("  · vitals bundle atlandı (mühürlü lean — Statistics anrs/crashes)", flush=True)
+        else:
+            try:
+                vitals_bundle = _scrape_vitals_bundle(page, headed=bool(headed), days=ui_days)
+                if vitals_bundle.get("error"):
+                    print(f"  · vitals uyarı: {vitals_bundle.get('error')}", flush=True)
+            except Exception as exc:  # noqa: BLE001
+                vitals_bundle = {"version": 1, "error": str(exc)[:240]}
+                print(f"  · vitals scrape hata: {exc}", flush=True)
 
         mon_cards, mon_br = _append_page_metrics(metrics, monetize, kind="monetize", page_key="monetize")
         grow_cards, grow_br = _append_page_metrics(metrics, grow, kind="grow", page_key="grow")
@@ -5782,177 +5812,189 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "debug": debug,
         }
 
-        # Ratings sayfası — network protobuf/seri + DOM tablo (statistics rating’e yedek)
-        print("  · ratings page …", flush=True)
-        net_before_rt = len(network)
-        page.goto(RATINGS_URL, wait_until="domcontentloaded", timeout=120_000)
-        _settle(page, seconds=6.0)
-        need_rt, _, _ = _page_needs_login(page)
-        if need_rt and headed:
-            _wait_until_console(page)
+        # Ratings + reviews — mühürlü lean’de atla (yavaş; ANR/Crash stats yeterli)
+        rating_facts: list[dict[str, Any]] = []
+        rating_summary: dict[str, Any] = {}
+        reviews: list[dict[str, Any]] = []
+        if lean:
+            print("  · ratings/reviews atlandı (mühürlü lean)", flush=True)
+            panels["explorer_facts"] = explorer_facts[:50000]
+            panels["explorer_fact_count"] = len(explorer_facts)
+            panels["stats_views"] = view_summaries
+            panels["stats_view_count"] = len(view_summaries)
+        else:
+            # Ratings sayfası — network protobuf/seri + DOM tablo (statistics rating’e yedek)
+            print("  · ratings page …", flush=True)
+            net_before_rt = len(network)
             page.goto(RATINGS_URL, wait_until="domcontentloaded", timeout=120_000)
             _settle(page, seconds=6.0)
-        rating_summary = _extract_rating_summary_dom(page) or {}
-        ratings_series = _extract_ratings_series_dom(page) or []
-        net_slice_rt = network[net_before_rt:]
-        proto_rt = _best_stats_protobuf(net_slice_rt)
-        if proto_rt is not None:
-            for f in _parse_stats_protobuf(
-                proto_rt, metric_key="rating", view_id="ratings_page", dim_hint="overview"
-            ):
-                nv = _normalize_rating_value(f.get("value"))
-                ds = str(f.get("date") or "")[:10]
+            need_rt, _, _ = _page_needs_login(page)
+            if need_rt and headed:
+                _wait_until_console(page)
+                page.goto(RATINGS_URL, wait_until="domcontentloaded", timeout=120_000)
+                _settle(page, seconds=6.0)
+            rating_summary = _extract_rating_summary_dom(page) or {}
+            ratings_series = _extract_ratings_series_dom(page) or []
+            net_slice_rt = network[net_before_rt:]
+            proto_rt = _best_stats_protobuf(net_slice_rt)
+            if proto_rt is not None:
+                for f in _parse_stats_protobuf(
+                    proto_rt, metric_key="rating", view_id="ratings_page", dim_hint="overview"
+                ):
+                    nv = _normalize_rating_value(f.get("value"))
+                    ds = str(f.get("date") or "")[:10]
+                    if nv is None or not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", ds):
+                        continue
+                    ratings_series.append({"date": ds, "value": nv})
+            for s in _series_from_network(net_slice_rt):
+                for p in s.get("points") or []:
+                    if not isinstance(p, dict):
+                        continue
+                    ds = str(p.get("date") or "")
+                    m = re.search(r"(20\d{2})[-_/](\d{1,2})[-_/](\d{1,2})", ds)
+                    if not m:
+                        continue
+                    ds_s = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+                    try:
+                        nv = _normalize_rating_value(float(p["value"]))
+                    except (TypeError, ValueError, KeyError):
+                        continue
+                    if nv is None:
+                        continue
+                    ratings_series.append({"date": ds_s, "value": nv})
+            # Tablo sayfalama varsa ekstra metin
+            if len(ratings_series) < 14:
+                try:
+                    extra_txt = _collect_paginated_table_text(page, max_pages=4)
+                    extra = _parse_stats_data_table(
+                        extra_txt,
+                        metric_key="rating",
+                        view_id="ratings_page",
+                        segments=["OVERALL"],
+                    )
+                    have_d = {str(p.get("date")) for p in ratings_series}
+                    for f in extra:
+                        ds = str(f.get("date") or "")[:10]
+                        nv = _normalize_rating_value(f.get("value"))
+                        if ds and ds not in have_d and nv is not None:
+                            ratings_series.append({"date": ds, "value": nv})
+                            have_d.add(ds)
+                except Exception:
+                    pass
+            # dedupe by date (son değer)
+            by_day: dict[str, float] = {}
+            for pt in ratings_series:
+                if not isinstance(pt, dict):
+                    continue
+                ds = str(pt.get("date") or "")[:10]
+                nv = _normalize_rating_value(pt.get("value"))
                 if nv is None or not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", ds):
                     continue
-                ratings_series.append({"date": ds, "value": nv})
-        for s in _series_from_network(net_slice_rt):
-            for p in s.get("points") or []:
-                if not isinstance(p, dict):
-                    continue
-                ds = str(p.get("date") or "")
-                m = re.search(r"(20\d{2})[-_/](\d{1,2})[-_/](\d{1,2})", ds)
-                if not m:
-                    continue
-                ds_s = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
-                try:
-                    nv = _normalize_rating_value(float(p["value"]))
-                except (TypeError, ValueError, KeyError):
-                    continue
-                if nv is None:
-                    continue
-                ratings_series.append({"date": ds_s, "value": nv})
-        # Tablo sayfalama varsa ekstra metin
-        if len(ratings_series) < 14:
-            try:
-                extra_txt = _collect_paginated_table_text(page, max_pages=4)
-                extra = _parse_stats_data_table(
-                    extra_txt,
-                    metric_key="rating",
-                    view_id="ratings_page",
-                    segments=["OVERALL"],
-                )
-                have_d = {str(p.get("date")) for p in ratings_series}
-                for f in extra:
-                    ds = str(f.get("date") or "")[:10]
-                    nv = _normalize_rating_value(f.get("value"))
-                    if ds and ds not in have_d and nv is not None:
-                        ratings_series.append({"date": ds, "value": nv})
-                        have_d.add(ds)
-            except Exception:
-                pass
-        # dedupe by date (son değer)
-        by_day: dict[str, float] = {}
-        for pt in ratings_series:
-            if not isinstance(pt, dict):
-                continue
-            ds = str(pt.get("date") or "")[:10]
-            nv = _normalize_rating_value(pt.get("value"))
-            if nv is None or not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", ds):
-                continue
-            by_day[ds] = nv
-        ratings_series = [{"date": k, "value": by_day[k]} for k in sorted(by_day)]
-        rating_facts = _ratings_facts_from_series(ratings_series)
-        if rating_facts:
-            # statistics’ten gelen tarihli rating fact’leriyle birleştir (tarih bazında)
-            have_d = {str(f.get("date"))[:10] for f in rating_facts}
-            keep = [
-                f
-                for f in explorer_facts
-                if not (
-                    str(f.get("metric")) == "rating"
-                    and (
-                        not f.get("date")
-                        or str(f.get("date"))[:10] in have_d
+                by_day[ds] = nv
+            ratings_series = [{"date": k, "value": by_day[k]} for k in sorted(by_day)]
+            rating_facts = _ratings_facts_from_series(ratings_series)
+            if rating_facts:
+                # statistics’ten gelen tarihli rating fact’leriyle birleştir (tarih bazında)
+                have_d = {str(f.get("date"))[:10] for f in rating_facts}
+                keep = [
+                    f
+                    for f in explorer_facts
+                    if not (
+                        str(f.get("metric")) == "rating"
+                        and (
+                            not f.get("date")
+                            or str(f.get("date"))[:10] in have_d
+                        )
                     )
-                )
-            ]
-            explorer_facts = keep + rating_facts
-            print(f"    → ratings_page facts={len(rating_facts)}", flush=True)
-        else:
-            print("    → ratings_page facts=0 (statistics rating fact’leri korunur)", flush=True)
-        # Günlük puan adedi (yorumlu/yorumsuz kırılımı için)
-        dist_rows = _download_ratings_distribution_csv(page) or []
-        count_facts = _ratings_count_facts_from_distribution(dist_rows)
-        if count_facts:
-            # Tarih bazında birleştir — kısa CSV eski günleri silmesin
-            by_date: dict[str, dict[str, Any]] = {}
-            kept: list[dict[str, Any]] = []
-            for f in explorer_facts:
-                if not isinstance(f, dict):
-                    continue
-                if str(f.get("metric")) != "ratings_count":
-                    kept.append(f)
-                    continue
-                ds = str(f.get("date") or "")[:10]
-                if ds:
+                ]
+                explorer_facts = keep + rating_facts
+                print(f"    → ratings_page facts={len(rating_facts)}", flush=True)
+            else:
+                print("    → ratings_page facts=0 (statistics rating fact’leri korunur)", flush=True)
+            # Günlük puan adedi (yorumlu/yorumsuz kırılımı için)
+            dist_rows = _download_ratings_distribution_csv(page) or []
+            count_facts = _ratings_count_facts_from_distribution(dist_rows)
+            if count_facts:
+                # Tarih bazında birleştir — kısa CSV eski günleri silmesin
+                by_date: dict[str, dict[str, Any]] = {}
+                kept: list[dict[str, Any]] = []
+                for f in explorer_facts:
+                    if not isinstance(f, dict):
+                        continue
+                    if str(f.get("metric")) != "ratings_count":
+                        kept.append(f)
+                        continue
+                    ds = str(f.get("date") or "")[:10]
+                    if ds:
+                        by_date[ds] = f
+                for f in count_facts:
+                    ds = str(f.get("date") or "")[:10]
+                    if not ds:
+                        continue
+                    prev = by_date.get(ds)
+                    new_stars = f.get("stars") if isinstance(f.get("stars"), dict) else {}
+                    prev_stars = (
+                        prev.get("stars")
+                        if isinstance(prev, dict) and isinstance(prev.get("stars"), dict)
+                        else {}
+                    )
+                    if prev and prev_stars and any(prev_stars.values()) and not any(
+                        (new_stars or {}).values()
+                    ):
+                        continue
                     by_date[ds] = f
-            for f in count_facts:
-                ds = str(f.get("date") or "")[:10]
-                if not ds:
-                    continue
-                prev = by_date.get(ds)
-                new_stars = f.get("stars") if isinstance(f.get("stars"), dict) else {}
-                prev_stars = (
-                    prev.get("stars")
-                    if isinstance(prev, dict) and isinstance(prev.get("stars"), dict)
-                    else {}
+                explorer_facts = kept + list(by_date.values())
+                print(
+                    f"    → ratings_count facts={len(count_facts)} "
+                    f"(merged_total={len(by_date)})",
+                    flush=True,
                 )
-                if prev and prev_stars and any(prev_stars.values()) and not any(
-                    (new_stars or {}).values()
-                ):
-                    continue
-                by_date[ds] = f
-            explorer_facts = kept + list(by_date.values())
-            print(
-                f"    → ratings_count facts={len(count_facts)} "
-                f"(merged_total={len(by_date)})",
-                flush=True,
+            else:
+                print("    → ratings_count facts=0", flush=True)
+            view_summaries.append(
+                {
+                    "id": "ratings_page",
+                    "label": "Google Play puanı (ratings)",
+                    "metric_key": "rating",
+                    "fact_count": len(rating_facts),
+                    "url": RATINGS_URL,
+                }
             )
-        else:
-            print("    → ratings_count facts=0", flush=True)
-        view_summaries.append(
-            {
-                "id": "ratings_page",
-                "label": "Google Play puanı (ratings)",
-                "metric_key": "rating",
-                "fact_count": len(rating_facts),
-                "url": RATINGS_URL,
+            panels["explorer_facts"] = explorer_facts[:50000]
+            panels["explorer_fact_count"] = len(explorer_facts)
+            panels["stats_views"] = view_summaries
+            panels["stats_view_count"] = len(view_summaries)
+            panels["pages"] = {
+                **(panels.get("pages") or {}),
+                "ratings": {"url": RATINGS_URL, "fact_count": len(rating_facts)},
             }
-        )
-        panels["explorer_facts"] = explorer_facts[:50000]
-        panels["explorer_fact_count"] = len(explorer_facts)
-        panels["stats_views"] = view_summaries
-        panels["stats_view_count"] = len(view_summaries)
-        panels["pages"] = {
-            **(panels.get("pages") or {}),
-            "ratings": {"url": RATINGS_URL, "fact_count": len(rating_facts)},
-        }
 
-        # Reviews sayfası — son 1 yıl (scroll + tarih filtresi)
-        print("  · reviews (last year) …", flush=True)
-        need_r = False
-        try:
-            page.goto(
-                f"{REVIEWS_URL}?days={_reviews_days()}",
-                wait_until="domcontentloaded",
-                timeout=120_000,
-            )
-            _settle(page, seconds=3.0)
-            need_r, _, _ = _page_needs_login(page)
-        except Exception:
-            need_r = True
-        if need_r and headed:
-            _wait_until_console(page)
-        reviews = _scrape_reviews_list(page, days=_reviews_days())
-        # Ratings özeti reviews’ta da olabilir — boşsa doldur
-        if not rating_summary.get("default_rating"):
-            rating_summary = {**rating_summary, **(_extract_rating_summary_dom(page) or {})}
+            # Reviews sayfası — son 1 yıl (scroll + tarih filtresi)
+            print("  · reviews (last year) …", flush=True)
+            need_r = False
+            try:
+                page.goto(
+                    f"{REVIEWS_URL}?days={_reviews_days()}",
+                    wait_until="domcontentloaded",
+                    timeout=120_000,
+                )
+                _settle(page, seconds=3.0)
+                need_r, _, _ = _page_needs_login(page)
+            except Exception:
+                need_r = True
+            if need_r and headed:
+                _wait_until_console(page)
+            reviews = _scrape_reviews_list(page, days=_reviews_days())
+            # Ratings özeti reviews’ta da olabilir — boşsa doldur
+            if not rating_summary.get("default_rating"):
+                rating_summary = {**rating_summary, **(_extract_rating_summary_dom(page) or {})}
 
         ok = bool(
             metrics
             or reviews
             or rating_summary.get("default_rating")
             or rating_facts
+            or explorer_facts
             or panels.get("tpg")
             or panels.get("monetize")
             or panels.get("grow")
