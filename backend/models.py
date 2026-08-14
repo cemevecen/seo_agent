@@ -1157,6 +1157,29 @@ class AppEmpowerDailyRow(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class EmpowerIntelDailyRow(Base):
+    """Empower Intelligence (intelligence.empower.net) günlük satırlar.
+
+    project=doviz · platform=web|mweb|ios|android · metrics_json esnek sütunlar.
+    Upsert anahtarı: (project, platform, report_date) — dünkü çekimler üstüne yazar, duplicate yok.
+    """
+
+    __tablename__ = "empower_intel_daily_rows"
+    __table_args__ = (
+        UniqueConstraint("project", "platform", "report_date", name="uq_empower_intel_proj_plat_date"),
+        Index("ix_empower_intel_proj_plat_date", "project", "platform", "report_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project: Mapped[str] = mapped_column(String(64), nullable=False, default="doviz", index=True)
+    platform: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    report_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    metrics_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="scrape")
+    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AdReportRowArchive(Base):
     """Bir dosya başka bir dosyayla üstüne yazmadan önce saklanan satır anlık görüntüsü."""
 

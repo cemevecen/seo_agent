@@ -111,6 +111,11 @@ def sinemalar_profile_dir() -> Path:
     return _from_env_or_fx(("SINEMALAR_NOADS_PROFILE_DIR",), "fx-sinemalar")
 
 
+def empower_profile_dir() -> Path:
+    """Empower Intelligence Cognito oturumu — Google fx-google'dan ayrı."""
+    return _from_env_or_fx(("EMPOWER_INTEL_PROFILE_DIR",), "fx-empower")
+
+
 def profile_login_lock_path(profile: Path) -> Path:
     return profile.expanduser().resolve().parent / f"{profile.expanduser().resolve().name}.login-lock"
 
