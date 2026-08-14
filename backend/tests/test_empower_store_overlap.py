@@ -147,9 +147,16 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert 'id="pa-compare"' not in android_html
     assert "pa-cross-metric-overlay-root" in android_html
     assert "iOS metrics" in android_html
+    assert "var paCrossSeq" in android_html
+    assert "seq !== paCrossSeq" in android_html
+    assert "function dedupePaCrossOverlays" in android_html
     ios_html = (ROOT / "templates" / "ios.html").read_text(encoding="utf-8")
     assert "ia-cross-metric-overlay-root" in ios_html
     assert "Android metrics" in ios_html
+    assert "var iaCrossSeq" in ios_html
+    assert "seq !== iaCrossSeq" in ios_html
+    assert "onChange !== named" in text
+    assert "emitChange" in text
     partial = (ROOT / "templates" / "partials" / "play_metric_overlay_select.html").read_text(encoding="utf-8")
     assert "data-overlay-label-prefix" in partial
     assert "MARKET_OVERLAY_ITEMS" in text

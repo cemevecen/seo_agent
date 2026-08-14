@@ -946,13 +946,23 @@
     var panel = fillPanel(root);
     var trigger = root.querySelector("[data-play-metric-overlay-trigger]");
     updateTriggerLabel(root);
+    var fireTimer = null;
+    function emitChange() {
+      var attr = root.getAttribute("data-overlay-on-change");
+      var named = attr && typeof global[attr] === "function" ? global[attr] : null;
+      // bindWhenReady(onChange) + data-overlay-on-change aynı handler ise bir kez çalışsın
+      if (typeof onChange === "function" && onChange !== named) onChange();
+      if (named) named();
+    }
     function fire() {
       writeStored(root, selectedFromDom(root));
       updateTriggerLabel(root);
       clearCache();
-      if (typeof onChange === "function") onChange();
-      var attr = root.getAttribute("data-overlay-on-change");
-      if (attr && typeof global[attr] === "function") global[attr]();
+      if (fireTimer) global.clearTimeout(fireTimer);
+      fireTimer = global.setTimeout(function () {
+        fireTimer = null;
+        emitChange();
+      }, 140);
     }
     root._playMetricFire = fire;
     wirePanelInputs(panel, fire);

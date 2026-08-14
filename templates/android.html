@@ -2690,6 +2690,7 @@
   var paOverlays = [];
   var paLastPrimaryMetric = ""; // ana metrik değişince ekler clearnir; filtrede kalır
   var paRunSeq = 0; // hızlı filtre değişiminde sadece son istek UI günceller
+  var paCrossSeq = 0; // iOS overlay checkbox: eski fetch concat etmesin
   var paOverviewActive = false; // Varsayılan: crash+GA4+Virgül çoklu; Select ile özet
   var paOverviewBundles = null;
   /** Özet tabloda × ile gizlenen metrikler (oturum içi) */
@@ -2740,13 +2741,18 @@
     return Array.isArray(paOverlays) && paOverlays.length > 0;
   }
   function paOverlayKpiPacks() {
-    return (paOverlays || []).filter(function (ov) {
-      return ov && !ov.muted;
-    }).map(function (ov, i) {
+    var seen = {};
+    var out = [];
+    (paOverlays || []).forEach(function (ov, i) {
+      if (!ov || ov.muted) return;
       var metric = paBareMetric(ov.metric);
+      var id = paOverlaySeriesKey(ov, i);
+      if (seen[id] || seen[metric]) return;
+      seen[id] = true;
+      seen[metric] = true;
       var tm = externalSeriesTotal(metric, ov.series);
-      return {
-        metric: paOverlaySeriesKey(ov, i),
+      out.push({
+        metric: id,
         overlayMetric: metric,
         label: ov.label || metric,
         series: ov.series || [],
@@ -2755,11 +2761,28 @@
         onChart: true,
         color: ov.color || paOverlayColor(i),
         crossPeer: true
-      };
+      });
     });
+    return out;
   }
   function paWithOverlayKpis(base) {
-    return (base || []).filter(function (p) { return p && p.metric; }).concat(paOverlayKpiPacks());
+    var seen = {};
+    var natives = (base || []).filter(function (p) {
+      if (!p || !p.metric) return false;
+      if (p.crossPeer || String(p.metric).indexOf("cross:") === 0) return false;
+      var k = paBareMetric(p.metric);
+      if (seen[k]) return false;
+      seen[k] = true;
+      return true;
+    });
+    paOverlayKpiPacks().forEach(function (p) {
+      var k = paBareMetric(p.overlayMetric || p.metric);
+      if (seen[k] || seen[p.metric]) return;
+      seen[k] = true;
+      seen[p.metric] = true;
+      natives.push(p);
+    });
+    return natives;
   }
   function paPrimaryPackFromLast() {
     if (paLastChart && paLastChart.primaryPack) return paLastChart.primaryPack;
@@ -3556,8 +3579,13 @@
       };
     });
     syncPaOverlayColors();
+    var ovSeen = {};
     var ovSeriesMaps = (paOverlays || []).filter(function (ov) {
-      return ov && !ov.muted;
+      if (!ov || ov.muted) return false;
+      var k = paBareMetric(ov.metric);
+      if (!k || ovSeen[k]) return false;
+      ovSeen[k] = true;
+      return true;
     }).map(function (ov, oi) {
       var map = {};
       var max = 0;
@@ -3790,7 +3818,7 @@
     if (ux) ux.injectStyles();
     var fmtTableKey = ux && ux.formatTableDateKey ? ux.formatTableDateKey : function (k) { return fmtAxisKey(k, false); };
     var list = (bundles || []).slice();
-    var ovs = (paOverlays || []).slice();
+    var ovs = dedupePaCrossOverlays(paOverlays || []);
     var keySet = {};
     list.forEach(function (b) {
       (b.series || []).forEach(function (r) {
@@ -5009,40 +5037,67 @@
   function stripPaCrossOverlays() {
     paOverlays = (paOverlays || []).filter(function (ov) { return !ov.crossPeer; });
   }
+  function dedupePaCrossOverlays(list) {
+    var seen = {};
+    var out = [];
+    (list || []).forEach(function (ov) {
+      if (!ov) return;
+      if (!ov.crossPeer) {
+        out.push(ov);
+        return;
+      }
+      var k = paBareMetric(ov.metric);
+      if (!k || seen[k]) return;
+      seen[k] = true;
+      out.push(ov);
+    });
+    return out;
+  }
   function redrawPaAfterCross() {
     paPaintAfterOverlayChange();
     renderOverlayLegend();
     renderOverlayChips();
   }
   async function attachPaCrossOverlays(mySeq) {
+    var seq = ++paCrossSeq;
     stripPaCrossOverlays();
     if (!window.PlayMetricOverlay || typeof PlayMetricOverlay.fetchSelectedSeries !== "function") {
-      redrawPaAfterCross();
+      if (seq === paCrossSeq) redrawPaAfterCross();
       return;
     }
     var start = paStart && paStart.value;
     var end = paEnd && paEnd.value;
     var keys = PlayMetricOverlay.modes("pa-cross-metric-overlay-root");
     if (!keys.length || !start || !end) {
+      if (seq !== paCrossSeq) return;
       syncPaOverlayColors();
       redrawPaAfterCross();
       return;
     }
     var packs = await PlayMetricOverlay.fetchSelectedSeries("pa-cross-metric-overlay-root", start, end, "ios");
+    if (seq !== paCrossSeq) return;
     if (mySeq != null && mySeq !== paRunSeq) return;
     var br = paActiveTimeBreakdown();
+    var seen = {};
+    var unique = [];
     packs.forEach(function (p) {
+      var metric = paBareMetric(p.metric);
+      if (!metric || seen[metric]) return;
+      seen[metric] = true;
       var series = p.series || [];
       if (typeof seriesLooksDaily === "function" && seriesLooksDaily(series) && (br === "week" || br === "month")) {
         series = aggregateOverlaySeries(series, br, metricSeriesAsAvg(p.metric));
       }
       p.series = series;
-      p.label = "iOS · " + (p.label || p.metric);
+      p.metric = metric;
+      p.label = "iOS · " + (p.label || metric);
       p.crossPeer = true;
       p.onChart = true;
       p.source = p.source || "asc";
+      unique.push(p);
     });
-    paOverlays = (paOverlays || []).concat(packs);
+    var kept = (paOverlays || []).filter(function (ov) { return !ov.crossPeer; });
+    paOverlays = dedupePaCrossOverlays(kept.concat(unique));
     syncPaOverlayColors();
     redrawPaAfterCross();
   }

@@ -1553,28 +1553,44 @@
   var iaLastNativeBundles = null;
   var iaLastTableBundles = null;
   var iaCrossBundles = [];
+  var iaCrossSeq = 0;
 
   function iaBareMetric(key) {
     var s = String(key || "");
     return s.indexOf("cross:") === 0 ? s.slice(6) : s;
   }
   function withIaCross(list) {
-    return (list || []).concat(iaCrossBundles || []);
+    var seen = {};
+    var out = [];
+    (list || []).concat(iaCrossBundles || []).forEach(function (b) {
+      if (!b || !b.metric) return;
+      var k = String(b.metric);
+      if (seen[k]) return;
+      seen[k] = true;
+      out.push(b);
+    });
+    return out;
   }
   async function refreshIaCrossBundles(my) {
+    var seq = ++iaCrossSeq;
     iaCrossBundles = [];
     if (!window.PlayMetricOverlay || typeof PlayMetricOverlay.fetchSelectedSeries !== "function") return;
     var start = iaStart && iaStart.value;
     var end = iaEnd && iaEnd.value;
     if (!start || !end) return;
     var packs = await PlayMetricOverlay.fetchSelectedSeries("ia-cross-metric-overlay-root", start, end, "android");
+    if (seq !== iaCrossSeq) return;
     if (my != null && my !== runSeq) return;
+    var seen = {};
     iaCrossBundles = packs.map(function (p) {
+      var metric = iaBareMetric(p.metric);
+      if (!metric || seen[metric]) return null;
+      seen[metric] = true;
       var series = p.series || [];
       var st = typeof seriesStats === "function" ? seriesStats(series) : { sum: null };
       return {
-        metric: "cross:" + p.metric,
-        label: "Android · " + (p.label || p.metric),
+        metric: "cross:" + metric,
+        label: "Android · " + (p.label || metric),
         series: series,
         total: p.total != null ? p.total : st.sum,
         total_mode: p.total_mode || "sum",
@@ -1582,7 +1598,7 @@
         crossPeer: true,
         source: p.source || "play"
       };
-    });
+    }).filter(Boolean);
   }
   function iaNativeBundles(list) {
     return (list || []).filter(function (b) { return b && b.metric && !b.crossPeer; });
