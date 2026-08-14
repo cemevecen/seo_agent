@@ -19,8 +19,9 @@ Env:
   PLAY_CONSOLE_PROFILE_DIR   (default ~/.seo-agent/fx-google)
   PLAY_CONSOLE_INGEST_URL
   NOTIFICATION_INGEST_TOKEN
-  PLAY_CONSOLE_VITALS_ROW_NAV=1   # sorun tablosu satır satır gez (varsayılan açık)
-  PLAY_CONSOLE_VITALS_DETAIL_LIMIT=40
+  PLAY_CONSOLE_VITALS_ROW_NAV=0   # sorun tablosu satır satır (varsayılan kapalı — login baskısı)
+  PLAY_CONSOLE_VITALS_DETAIL_LIMIT=8  # issue detay/stack üst sınır (5–10)
+  PLAY_CONSOLE_VITALS_DETAILS=     # boş=günde ~1 kez; 0=hiç; 1=zorla bu sync’te
 """
 
 from __future__ import annotations
@@ -3550,11 +3551,69 @@ def _vitals_version_codes() -> list[str]:
 
 
 def _vitals_detail_limit() -> int:
-    raw = (os.environ.get("PLAY_CONSOLE_VITALS_DETAIL_LIMIT") or "40").strip()
+    raw = (os.environ.get("PLAY_CONSOLE_VITALS_DETAIL_LIMIT") or "8").strip()
     try:
         return max(0, min(80, int(raw)))
     except ValueError:
-        return 40
+        return 8
+
+
+def _vitals_details_marker_path() -> Path:
+    return PROFILE_DIR.parent / "play-vitals-details-last.json"
+
+
+def _vitals_issue_details_due() -> bool:
+    """Issue detay / stack — varsayılan ~günde 1 (login baskısını düşür).
+
+    PLAY_CONSOLE_VITALS_DETAILS=0 → hiç
+    PLAY_CONSOLE_VITALS_DETAILS=1 → bu sync’te zorla
+    boş → son koşudan ≥20 sa geçtiyse
+    """
+    raw = (os.environ.get("PLAY_CONSOLE_VITALS_DETAILS") or "").strip().lower()
+    if raw in ("0", "false", "no", "off", "never"):
+        return False
+    if raw in ("1", "true", "yes", "on", "force", "always"):
+        return True
+    path = _vitals_details_marker_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        last = float(data.get("ts") or 0)
+    except Exception:
+        last = 0.0
+    gap_h = 20.0
+    try:
+        gap_h = float(
+            (os.environ.get("PLAY_CONSOLE_VITALS_DETAILS_GAP_HOURS") or "20").strip() or "20"
+        )
+    except ValueError:
+        gap_h = 20.0
+    elapsed_h = (time.time() - last) / 3600.0 if last else 999.0
+    due = elapsed_h >= max(1.0, gap_h)
+    if not due:
+        print(
+            f"  · vitals issue details atlandı "
+            f"(son {elapsed_h:.1f} sa önce; gap={gap_h:g} sa — Statistics yeterli)",
+            flush=True,
+        )
+    return due
+
+
+def _mark_vitals_issue_details_done() -> None:
+    path = _vitals_details_marker_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "ts": time.time(),
+                    "iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"  · vitals details marker yazılamadı: {exc}", flush=True)
 
 
 def _vitals_crashes_url(
@@ -3599,8 +3658,8 @@ def _vitals_issue_detail_url_legacy(
 
 
 def _vitals_row_nav_enabled() -> bool:
-    raw = (os.environ.get("PLAY_CONSOLE_VITALS_ROW_NAV") or "1").strip().lower()
-    return raw not in ("0", "false", "no", "off")
+    raw = (os.environ.get("PLAY_CONSOLE_VITALS_ROW_NAV") or "0").strip().lower()
+    return raw in ("1", "true", "yes", "on")
 
 
 def _scroll_vitals_issues_table(page) -> None:
@@ -4998,12 +5057,12 @@ def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[
             vitals_errors.append(f"{label}:browser_closed")
             print("  · vitals durdu: tarayıcı/pencere kapalı", flush=True)
             break
-        # Detay sayfaları yalnızca en yeni sürümde (süre); diğerlerinde liste yeterli
-        want_details = idx == 0
+        # Issue detay/stack: yalnızca en yeni sürüm + günde ~1 (login baskısı)
+        want_details = idx == 0 and _vitals_issue_details_due()
         if vc:
             print(f"  · vitals versionCode={vc} (details={want_details}) …", flush=True)
         else:
-            print("  · vitals (all versions) …", flush=True)
+            print(f"  · vitals (all versions, details={want_details}) …", flush=True)
         try:
             print(f"  · vitals crashes (CRASH) [{label}] …", flush=True)
             crash = _scrape_vitals_crashes_error_type(
@@ -5037,6 +5096,8 @@ def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[
                 primary_crash, primary_anr = crash, anr
                 if vc:
                     primary_vc = str(vc)
+                if want_details:
+                    _mark_vitals_issue_details_done()
         except Exception as exc:  # noqa: BLE001
             err = str(exc)[:240]
             vitals_errors.append(f"{label}:{err}")
