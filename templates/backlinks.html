@@ -241,6 +241,22 @@
     -webkit-overflow-scrolling: touch;
     overflow-x: auto;
   }
+  /* Top linking sites / pages: ~25 satır görünür, gerisi kaydırılır */
+  .bl-top-rank-scroll {
+    max-height: calc(25 * 2.05rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 0.15rem;
+    scrollbar-gutter: stable;
+  }
+  .bl-changes-list-scroll {
+    max-height: calc(25 * 1.35rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 0.1rem;
+  }
   #bl-domains-table {
     table-layout: fixed;
     width: 100%;
@@ -889,7 +905,7 @@
               <h3 lang="en" class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Top linking sites</h3>
               <span id="bl-top-sites-meta" class="text-[10px] text-slate-500 dark:text-slate-400"></span>
             </div>
-            <ol id="bl-top-sites-list" class="mt-2 space-y-1.5 text-[11px]"></ol>
+            <ol id="bl-top-sites-list" class="bl-top-rank-scroll mt-2 space-y-1.5 text-[11px]"></ol>
             <button type="button" id="bl-top-sites-toggle" class="mt-2 hidden text-[11px] font-semibold text-indigo-700 underline dark:text-indigo-300"></button>
           </section>
           <section class="min-w-0 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/40">
@@ -902,7 +918,7 @@
               <button type="button" class="bl-top-pages-filter rounded px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300" data-filter="external">External</button>
               <button type="button" class="bl-top-pages-filter rounded px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300" data-filter="internal">Internal</button>
             </div>
-            <ol id="bl-top-pages-list" class="mt-2 space-y-1.5 text-[11px]"></ol>
+            <ol id="bl-top-pages-list" class="bl-top-rank-scroll mt-2 space-y-1.5 text-[11px]"></ol>
             <button type="button" id="bl-top-pages-toggle" class="mt-2 hidden text-[11px] font-semibold text-indigo-700 underline dark:text-indigo-300"></button>
           </section>
         </div>
@@ -1890,9 +1906,28 @@
   var blTopSiteOpen = {};
   var blTopPageOpen = {};
 
+  var BL_TOP_RANK_VISIBLE = 25;
+
   function blTopRankLimit(expanded) {
-    // Tüm ranking satırları — 10/100 kesmesi yok
+    // Tüm satırlar DOM'da; görünür alan ~25 satır (CSS scroll)
     return 1e9;
+  }
+
+  function blTopRankMeta(total, noun) {
+    var n = parseInt(total, 10) || 0;
+    if (!n) return "";
+    var label = noun || "items";
+    if (n <= BL_TOP_RANK_VISIBLE) {
+      return n + " " + label + " · click a row for details";
+    }
+    return (
+      n +
+      " " +
+      label +
+      " · top " +
+      BL_TOP_RANK_VISIBLE +
+      " visible, scroll for more · click a row for details"
+    );
   }
 
   function blTopPageLinkKind() {
@@ -2048,7 +2083,7 @@
     var limit = blTopRankLimit(blTopSitesExpanded);
     var slice = items.slice(0, Math.min(limit, items.length));
     if (metaEl) {
-      metaEl.textContent = total ? total + " domains · click a row for the URL list" : "";
+      metaEl.textContent = blTopRankMeta(total, "domains");
     }
     if (!slice.length) {
       listEl.innerHTML = '<li class="text-slate-500">No data yet.</li>';
@@ -2115,7 +2150,11 @@
     var slice = items.slice(0, Math.min(limit, items.length));
     blUpdateTopPagesFilterUi();
     blUpdateTopPagesSectionTitle();
-    if (metaEl) metaEl.textContent = "";
+    if (metaEl) {
+      metaEl.textContent = slice.length
+        ? blTopRankMeta(total, total === totalAll ? "pages" : "pages (filtered)")
+        : "";
+    }
     if (!slice.length) {
       var rt = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
       var emptyMsg = "No scan data yet. It appears here when the automatic scan finishes.";
@@ -3597,7 +3636,8 @@
         "</div></div>";
 
       function listBlock(title, items, labelKey) {
-        var lis = (items || [])
+        var arr = items || [];
+        var lis = arr
           .map(function (it) {
             var lab = typeof it === "string" ? it : it[labelKey] || it.label || it.key || "";
             var extra = "";
@@ -3607,10 +3647,20 @@
             return "<li class=\"truncate\" title=\"" + String(lab).replace(/"/g, "&quot;") + "\">" + lab + extra + "</li>";
           })
           .join("");
+        var meta =
+          arr.length > BL_TOP_RANK_VISIBLE
+            ? '<p class="mt-0.5 text-[9px] text-slate-400">top ' +
+              BL_TOP_RANK_VISIBLE +
+              " visible · scroll for " +
+              arr.length +
+              "</p>"
+            : "";
         return (
           '<section class="min-w-0 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900"><h4 class="text-[10px] font-bold uppercase text-slate-600">' +
           title +
-          '</h4><ol class="mt-1 space-y-0.5 text-[11px] text-slate-700 dark:text-slate-200">' +
+          "</h4>" +
+          meta +
+          '<ol class="bl-changes-list-scroll mt-1 space-y-0.5 text-[11px] text-slate-700 dark:text-slate-200">' +
           (lis ||
             '<li class="text-slate-400">No records in this window.</li>') +
           "</ol></section>"
