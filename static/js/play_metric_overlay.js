@@ -378,17 +378,18 @@
     if (!root) return;
     var labelEl = root.querySelector("[data-play-metric-overlay-label]");
     if (!labelEl) return;
+    var prefix = (root.getAttribute("data-overlay-label-prefix") || "Metric").trim() || "Metric";
     var keys = selectedFromDom(root);
     if (!keys.length) keys = readStored(root);
     if (!keys.length) {
-      labelEl.textContent = "Metric: off";
+      labelEl.textContent = prefix + ": off";
       return;
     }
     if (keys.length === 1) {
-      labelEl.textContent = "Metric: " + (metricLabel(keys[0]) || keys[0]);
+      labelEl.textContent = prefix + ": " + (metricLabel(keys[0]) || keys[0]);
       return;
     }
-    labelEl.textContent = "Metric: " + keys.length + " series";
+    labelEl.textContent = prefix + ": " + keys.length + " series";
   }
 
   function modes(controlId) {
@@ -649,7 +650,7 @@
     var startIso = opts.start || normalizeDateKey(dateKeys[0]);
     var endIso = opts.end || normalizeDateKey(dateKeys[dateKeys.length - 1]);
     var added = false;
-    var colorIdx = 0;
+    var colorIdx = Number(opts.colorOffset) || 0;
     var axisCount = 0;
     for (var i = 0; i < keys.length; i++) {
       var mk = keys[i];
@@ -666,6 +667,7 @@
         var traceYaxis = pickFreeYaxisId(layout, traces);
         var layoutKey = layoutKeyForYaxis(traceYaxis);
         var axisTitle = pack.label || metricLabel(mk);
+        if (opts.namePrefix) axisTitle = String(opts.namePrefix) + axisTitle;
         var showAxisChrome = axisCount === 0;
         traces.push({
           x: dateKeys,
@@ -680,7 +682,7 @@
           hovertemplate: axisTitle + ": %{y:,.4~g}<extra></extra>",
         });
         layout[layoutKey] = Object.assign(
-          showAxisChrome ? visibleOverlayYaxisLayout(lineColor, "Metric") : hiddenOverlayYaxisLayout(),
+          showAxisChrome ? visibleOverlayYaxisLayout(lineColor, opts.axisTitle || "Metric") : hiddenOverlayYaxisLayout(),
           layout[layoutKey] || {}
         );
         axisCount += 1;
@@ -854,6 +856,42 @@
     updateTriggerLabel(root);
   }
 
+  async function fetchSelectedSeries(controlId, startIso, endIso, platform) {
+    var keys = modes(controlId);
+    var plat = normalizeOverlayPlatform(platform);
+    var out = [];
+    for (var i = 0; i < keys.length; i++) {
+      try {
+        var pack = await fetchMetricSeries(keys[i], startIso, endIso, plat);
+        var src = "play";
+        if (isXdataKey(keys[i])) src = "xdata";
+        else if (isGa4Key(keys[i])) src = "ga4";
+        else if (isVirgulKey(keys[i])) src = "virgul";
+        else if (isMarketKey(keys[i])) src = "market";
+        else if (plat === "ios") src = "asc";
+        out.push({
+          metric: keys[i],
+          label: pack.label || metricLabel(keys[i]),
+          series: pack.series || [],
+          source: src,
+          platform: plat,
+          crossPeer: true,
+          onChart: true
+        });
+      } catch (e) {
+        /* skip unavailable */
+      }
+    }
+    return out;
+  }
+
+  function setLabelPrefix(controlId, prefix) {
+    var root = rootEl(controlId);
+    if (!root) return;
+    root.setAttribute("data-overlay-label-prefix", prefix || "Metric");
+    updateTriggerLabel(root);
+  }
+
   function setPlatform(controlId, platform) {
     var root = rootEl(controlId);
     if (!root) return;
@@ -983,6 +1021,8 @@
     autoBindPlayMetricOverlays: autoBindPlayMetricOverlays,
     metricLabel: metricLabel,
     setPlatform: setPlatform,
+    setLabelPrefix: setLabelPrefix,
+    fetchSelectedSeries: fetchSelectedSeries,
     platformForRoot: platformForRoot,
     normalizeOverlayPlatform: normalizeOverlayPlatform,
   };

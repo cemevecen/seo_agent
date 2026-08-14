@@ -69,16 +69,18 @@
   .pa-filters > label.pa-f--metric { flex: 1 1 100%; }
   .pa-filters > label.pa-f--date { flex: 1 1 calc(50% - 0.5rem); min-width: 8.75rem; }
   .pa-filters > label.pa-f--sm { flex: 1 1 calc(50% - 0.5rem); min-width: 7.5rem; }
-  .pa-filters > label.pa-f--compare {
+  .pa-filters > .pa-f--cross-metric {
     flex: 1 1 auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-width: 9.25rem;
+    max-width: 14.5rem;
     padding-bottom: 0.15rem;
-    white-space: nowrap;
   }
-  .pa-filters > label.pa-f--compare .pa-f-compare-text {
-    font-size: 0.6875rem;
+  .pa-filters > .pa-f--cross-metric [data-play-metric-overlay-trigger] {
+    margin-top: 0.25rem;
+    width: 100%;
   }
   .pa-filters input[type="date"],
   .pa-filters select {
@@ -829,10 +831,6 @@
   .pa-filters .pa-f-btn.hidden {
     display: none !important;
   }
-  /* Mobil: tam kıyas metni */
-  .pa-filters > label.pa-f--compare .pa-f-compare-short { display: none; }
-  .pa-filters > label.pa-f--compare .pa-f-compare-full { display: inline; }
-
   /* Masaüstü: tek satır, küçülerek sığdır (mobilde wrap kalsın) */
   @media (min-width: 1024px) {
     .pa-filters {
@@ -849,15 +847,12 @@
     .pa-filters > label.pa-f--metric { flex: 1.45 1 0; }
     .pa-filters > label.pa-f--date { flex: 0.95 1 0; min-width: 6.5rem; }
     .pa-filters > label.pa-f--sm { flex: 0.85 1 0; min-width: 0; }
-    .pa-filters > label.pa-f--compare {
+    .pa-filters > .pa-f--cross-metric {
       flex: 0 1 auto;
+      min-width: 9rem;
+      max-width: 13.5rem;
       padding-bottom: 0.35rem;
     }
-    .pa-filters > label.pa-f--compare .pa-f-compare-text {
-      font-size: clamp(0.5625rem, 1.05cqi, 0.6875rem);
-    }
-    .pa-filters > label.pa-f--compare .pa-f-compare-full { display: none; }
-    .pa-filters > label.pa-f--compare .pa-f-compare-short { display: inline; }
     .pa-filters input[type="date"],
     .pa-filters select {
       margin-top: 0.2rem;
@@ -1407,13 +1402,11 @@
           <option value="all">All</option>
         </select>
       </label>
-      <label class="pa-f pa-f--compare">
-        <input id="pa-compare" type="checkbox" class="rounded border-slate-300" />
-        <span class="pa-f-compare-text">
-          <span class="pa-f-compare-full">Compare previous period</span>
-          <span class="pa-f-compare-short">Compare</span>
-        </span>
-      </label>
+      <div class="pa-f pa-f--cross-metric">
+        {% with play_metric_overlay_control_id='pa-cross-metric-overlay-root', play_metric_overlay_storage_key='pa-cross-metric', play_metric_overlay_platform='ios', play_metric_overlay_label_prefix='iOS metrics', play_metric_overlay_on_change='paOnCrossMetricOverlayChange', play_metric_overlay_compact=true %}
+        {% include 'partials/play_metric_overlay_select.html' %}
+        {% endwith %}
+      </div>
       <div class="pa-f-actions">
         <button id="pa-run" type="button"
                 class="pa-f-btn border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80">
@@ -4941,6 +4934,63 @@
       else paOvClear.classList.add("hidden");
     }
   }
+  function stripPaCrossOverlays() {
+    paOverlays = (paOverlays || []).filter(function (ov) { return !ov.crossPeer; });
+  }
+  function redrawPaAfterCross() {
+    if (paOverviewBundles && (paOverviewActive || (paSelectedMetrics && paSelectedMetrics.length > 1))) {
+      refreshOverviewViewFromBundles();
+    } else if (paLastChart) {
+      drawChart(
+        paLastChart.series,
+        paLastChart.prevSeries,
+        paLastChart.breakdown,
+        paLastChart.compareMeta
+      );
+      refreshPaTableFromLast();
+    } else {
+      setOverlayColVisible(false);
+      renderOverlayLegend();
+    }
+    renderOverlayLegend();
+    renderOverlayChips();
+  }
+  async function attachPaCrossOverlays(mySeq) {
+    stripPaCrossOverlays();
+    if (!window.PlayMetricOverlay || typeof PlayMetricOverlay.fetchSelectedSeries !== "function") {
+      redrawPaAfterCross();
+      return;
+    }
+    var start = paStart && paStart.value;
+    var end = paEnd && paEnd.value;
+    var keys = PlayMetricOverlay.modes("pa-cross-metric-overlay-root");
+    if (!keys.length || !start || !end) {
+      syncPaOverlayColors();
+      redrawPaAfterCross();
+      return;
+    }
+    var packs = await PlayMetricOverlay.fetchSelectedSeries("pa-cross-metric-overlay-root", start, end, "ios");
+    if (mySeq != null && mySeq !== paRunSeq) return;
+    var br = paActiveTimeBreakdown();
+    packs.forEach(function (p) {
+      var series = p.series || [];
+      if (typeof seriesLooksDaily === "function" && seriesLooksDaily(series) && (br === "week" || br === "month")) {
+        series = aggregateOverlaySeries(series, br, metricSeriesAsAvg(p.metric));
+      }
+      p.series = series;
+      p.label = "iOS · " + (p.label || p.metric);
+      p.crossPeer = true;
+      p.onChart = true;
+      p.source = p.source || "asc";
+    });
+    paOverlays = (paOverlays || []).concat(packs);
+    syncPaOverlayColors();
+    redrawPaAfterCross();
+  }
+  window.paOnCrossMetricOverlayChange = function paOnCrossMetricOverlayChange() {
+    if (window.PlayMetricOverlay && PlayMetricOverlay.clearCache) PlayMetricOverlay.clearCache();
+    attachPaCrossOverlays(paRunSeq);
+  };
   function clearOverlayAndRedraw() {
     clearPaOverlaysState();
     if (paLegendOverlay) paLegendOverlay.classList.add("hidden");
@@ -5930,6 +5980,7 @@
         drawOverviewMainChart(chartBundles);
         renderOverviewTable(tableBundles);
         setAddChartVisible(false);
+        await attachPaCrossOverlays(mySeq);
         return;
       }
 
@@ -5980,6 +6031,7 @@
         drawOverviewMainChart(multiChart);
         renderOverviewTable(multiVisible);
         setAddChartVisible(false);
+        await attachPaCrossOverlays(mySeq);
         return;
       }
 
@@ -6038,7 +6090,7 @@
           metric: primaryMetric,
           breakdown: paBreakdown.value,
           dim: paDim.value,
-          compare: paCompare.checked ? "previous_period" : ""
+          compare: (paCompare && paCompare.checked) ? "previous_period" : ""
         });
         if (paSegment.value && paSegment.value !== "all") qs.set("segment", paSegment.value);
         var r = await fetch("/api/play-analytics/query?" + qs.toString(), {
@@ -6103,6 +6155,7 @@
       drawChart(paLastChart.series, paLastChart.prevSeries, paLastChart.breakdown, paLastChart.compareMeta);
       renderPaTable(data.series || [], hasPrev && cmp.series ? cmp.series : [], paLastChart.breakdown, cmpMeta);
       setAddChartVisible(false);
+      await attachPaCrossOverlays(mySeq);
     } catch (err) {
       if (mySeq !== paRunSeq) return;
       var aborted = !!(err && (err.name === "AbortError" || err.code === 20));
@@ -6288,15 +6341,11 @@
       if (metric) removeOverviewColumn(metric);
     });
   }
-  ["pa-breakdown", "pa-dim", "pa-segment", "pa-compare"].forEach(function (id) {
+  ["pa-breakdown", "pa-dim", "pa-segment"].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener("change", function () {
       if (id === "pa-dim" || id === "pa-segment") syncDimBreakdown();
-      if (id === "pa-dim" || id === "pa-breakdown" || id === "pa-segment") {
-        runPlayAnalytics({ fromUser: true });
-      } else if (id === "pa-compare") {
-        runPlayAnalytics({ fromUser: true });
-      }
+      runPlayAnalytics({ fromUser: true });
     });
   });
   if (paCompare) paCompare.checked = false;

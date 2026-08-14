@@ -344,19 +344,24 @@
   }
   #mz-overlay-controls #mz-play-metric-overlay-bar:not(.hidden) {
     display: flex;
+    flex-wrap: nowrap;
     align-items: center;
+    gap: 0.5rem;
     margin-left: auto;
+    min-width: 0;
   }
   .mz-virgul-mode #mz-overlay-controls {
     justify-content: flex-end;
   }
   .mz-virgul-mode #mz-play-metric-overlay-bar [data-play-metric-overlay-root] {
-    width: 100%;
+    width: auto;
+    min-width: 0;
+    flex: 0 1 auto;
   }
   .mz-virgul-mode #mz-play-metric-overlay-bar [data-play-metric-overlay-trigger] {
-    min-width: 21rem;
-    max-width: min(100%, 32rem);
-    width: 21rem;
+    min-width: 11.5rem;
+    max-width: min(100%, 18rem);
+    width: auto;
   }
   #mz-overlay-controls #mz-market-overlay-section,
   #mz-overlay-controls #mz-empower-overlay-bar:not(.hidden),
@@ -1414,6 +1419,9 @@
         {% else %}
         <div id="mz-play-metric-overlay-bar" class="hidden ml-auto shrink-0">
           {% with play_metric_overlay_control_id='mz-play-metric-overlay-root', play_metric_overlay_storage_key='mz-play-metric', play_metric_overlay_on_change='mzOnPlayMetricOverlayChange' %}
+          {% include 'partials/play_metric_overlay_select.html' %}
+          {% endwith %}
+          {% with play_metric_overlay_control_id='mz-cross-metric-overlay-root', play_metric_overlay_storage_key='mz-cross-metric', play_metric_overlay_platform='ios', play_metric_overlay_label_prefix='iOS metrics', play_metric_overlay_on_change='mzOnPlayMetricOverlayChange' %}
           {% include 'partials/play_metric_overlay_select.html' %}
           {% endwith %}
         </div>
@@ -7837,11 +7845,25 @@
     var plat = mzMetricOverlayPlatform();
     if (!plat) return false;
     var keys = PlayMetricOverlay.modes("mz-play-metric-overlay-root");
-    if (!keys.length || !dateKeys || !dateKeys.length) return false;
+    var peer = mzPeerOverlayPlatform(plat);
+    var peerKeys = peer ? PlayMetricOverlay.modes("mz-cross-metric-overlay-root") : [];
+    if ((!keys.length && !peerKeys.length) || !dateKeys || !dateKeys.length) return false;
     var r = selectedDateRange();
     var o = Object.assign({}, opts || {}, { start: r.start, end: r.end });
     if (!o.yaxisId) o.yaxisId = mzPickMarketYaxisId(layoutExtra);
-    return PlayMetricOverlay.apply(traces, layoutExtra, dateKeys, plat, keys, o);
+    var added = false;
+    if (keys.length) {
+      added = !!(await PlayMetricOverlay.apply(traces, layoutExtra, dateKeys, plat, keys, o)) || added;
+    }
+    if (peer && peerKeys.length) {
+      var peerOpts = Object.assign({}, o, {
+        namePrefix: mzPeerOverlayShortName(peer) + " · ",
+        axisTitle: mzPeerOverlayShortName(peer),
+        colorOffset: 4
+      });
+      added = !!(await PlayMetricOverlay.apply(traces, layoutExtra, dateKeys, peer, peerKeys, peerOpts)) || added;
+    }
+    return added;
   }
 
   window.mzOnPlayMetricOverlayChange = function mzOnPlayMetricOverlayChange() {
@@ -7857,6 +7879,7 @@
   function syncPlayMetricOverlayBarVisibility() {
     var playBar = document.getElementById("mz-play-metric-overlay-bar");
     var plat = mzIsVirgulMode() ? mzMetricOverlayPlatform() : null;
+    var peer = plat ? mzPeerOverlayPlatform(plat) : null;
     var showMetric = !!plat;
     if (playBar) playBar.classList.toggle("hidden", !showMetric);
     if (showMetric && window.PlayMetricOverlay) {
@@ -7865,9 +7888,23 @@
       if (PlayMetricOverlay.setPlatform) {
         PlayMetricOverlay.setPlatform("mz-play-metric-overlay-root", plat);
       }
+      var cross = document.getElementById("mz-cross-metric-overlay-root");
+      if (cross && peer) {
+        var prefix = mzPeerOverlayLabelPrefix(peer);
+        cross.setAttribute("data-overlay-platform", peer);
+        if (PlayMetricOverlay.setLabelPrefix) {
+          PlayMetricOverlay.setLabelPrefix("mz-cross-metric-overlay-root", prefix);
+        } else {
+          cross.setAttribute("data-overlay-label-prefix", prefix);
+        }
+        if (PlayMetricOverlay.setPlatform) {
+          PlayMetricOverlay.setPlatform("mz-cross-metric-overlay-root", peer);
+        }
+      }
       if (PlayMetricOverlay.autoBindPlayMetricOverlays) PlayMetricOverlay.autoBindPlayMetricOverlays();
       else if (PlayMetricOverlay.bindWhenReady) {
         PlayMetricOverlay.bindWhenReady("mz-play-metric-overlay-root", mzOnPlayMetricOverlayChange);
+        PlayMetricOverlay.bindWhenReady("mz-cross-metric-overlay-root", mzOnPlayMetricOverlayChange);
       }
     }
   }
@@ -9114,6 +9151,31 @@
     if (branch === "ios") return "ios";
     if (branch === "android") return "android";
     return null;
+  }
+
+  function mzPeerOverlayPlatform(plat) {
+    var p = plat || mzMetricOverlayPlatform();
+    if (p === "android") return "ios";
+    if (p === "ios") return "android";
+    if (p === "web") return "mweb";
+    if (p === "mweb") return "web";
+    return null;
+  }
+
+  function mzPeerOverlayShortName(plat) {
+    if (plat === "android") return "Android";
+    if (plat === "ios") return "iOS";
+    if (plat === "web") return "Web";
+    if (plat === "mweb") return "MWeb";
+    return "Peer";
+  }
+
+  function mzPeerOverlayLabelPrefix(plat) {
+    if (plat === "android") return "Android metrics";
+    if (plat === "ios") return "iOS metrics";
+    if (plat === "web") return "Web metrics";
+    if (plat === "mweb") return "MWeb metrics";
+    return "Peer metrics";
   }
 
   /** Android / iOS dalında yüzey (web/mweb/app) kırılımı anlamsız — pasta gizlenir. */

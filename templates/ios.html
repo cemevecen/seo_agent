@@ -15,6 +15,18 @@
   .pa-filters > label.pa-f--metric { flex: 1 1 100%; }
   .pa-filters > label.pa-f--date { flex: 1 1 calc(50% - 0.5rem); min-width: 8.75rem; }
   .pa-filters > label.pa-f--sm { flex: 1 1 calc(50% - 0.5rem); min-width: 7.5rem; }
+  .pa-filters > .pa-f--cross-metric {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-width: 9.25rem;
+    max-width: 14.5rem;
+  }
+  .pa-filters > .pa-f--cross-metric [data-play-metric-overlay-trigger] {
+    margin-top: 0.25rem;
+    width: 100%;
+  }
   .pa-filters input[type="date"], .pa-filters select {
     margin-top: 0.25rem; width: 100%; border-radius: 0.5rem; border: 1px solid #cbd5e1;
     background: #fff; padding: 0.4rem 0.55rem; font-size: 0.8125rem; box-sizing: border-box;
@@ -724,8 +736,10 @@
   html.dark .ia-orbit__ring--mid { border-top-color: #7dd3fc; }
   html.dark .ia-orbit__ring--inner { border-top-color: #bae6fd; }
   @media (min-width: 900px) {
+    .pa-filters { flex-wrap: nowrap; overflow-x: auto; }
     .pa-filters > label.pa-f--metric { flex: 1.4 1 0; }
     .pa-filters > label.pa-f--date, .pa-filters > label.pa-f--sm { flex: 0.9 1 0; min-width: 0; }
+    .pa-filters > .pa-f--cross-metric { flex: 0 1 auto; min-width: 9rem; max-width: 13.5rem; }
   }
   /* Grafik çizim animasyonu */
   #ia-chart {
@@ -1202,6 +1216,11 @@
           <option value="all">All</option>
         </select>
       </label>
+      <div class="pa-f pa-f--cross-metric">
+        {% with play_metric_overlay_control_id='ia-cross-metric-overlay-root', play_metric_overlay_storage_key='ia-cross-metric', play_metric_overlay_platform='android', play_metric_overlay_label_prefix='Android metrics', play_metric_overlay_on_change='iaOnCrossMetricOverlayChange', play_metric_overlay_compact=true %}
+        {% include 'partials/play_metric_overlay_select.html' %}
+        {% endwith %}
+      </div>
       <div class="pa-f-actions">
         <button id="ia-run" type="button" class="pa-f-btn"><span id="ia-run-label">Apply</span></button>
       </div>
@@ -1531,6 +1550,56 @@
   var iaBusy = false;
   var iaHiddenMetrics = {};
   var iaLastDrawBundles = null;
+  var iaLastNativeBundles = null;
+  var iaCrossBundles = [];
+
+  function iaBareMetric(key) {
+    var s = String(key || "");
+    return s.indexOf("cross:") === 0 ? s.slice(6) : s;
+  }
+  function withIaCross(list) {
+    return (list || []).concat(iaCrossBundles || []);
+  }
+  async function refreshIaCrossBundles(my) {
+    iaCrossBundles = [];
+    if (!window.PlayMetricOverlay || typeof PlayMetricOverlay.fetchSelectedSeries !== "function") return;
+    var start = iaStart && iaStart.value;
+    var end = iaEnd && iaEnd.value;
+    if (!start || !end) return;
+    var packs = await PlayMetricOverlay.fetchSelectedSeries("ia-cross-metric-overlay-root", start, end, "android");
+    if (my != null && my !== runSeq) return;
+    iaCrossBundles = packs.map(function (p) {
+      return {
+        metric: "cross:" + p.metric,
+        label: "Android · " + (p.label || p.metric),
+        series: p.series || [],
+        onChart: true,
+        crossPeer: true,
+        source: p.source || "play"
+      };
+    });
+  }
+  function paintIaWithCross(native) {
+    iaLastNativeBundles = (native || []).filter(function (b) { return b && !b.crossPeer; });
+    var list = withIaCross(iaLastNativeBundles);
+    if (!list.length) {
+      if (iaChart) iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Select a metric</text>';
+      if (iaLegend) iaLegend.innerHTML = "";
+      return;
+    }
+    if (list.length === 1) {
+      drawSingle(list[0].series || [], COLORS[0]);
+      return;
+    }
+    drawMulti(list);
+  }
+  window.iaOnCrossMetricOverlayChange = function iaOnCrossMetricOverlayChange() {
+    if (window.PlayMetricOverlay && PlayMetricOverlay.clearCache) PlayMetricOverlay.clearCache();
+    refreshIaCrossBundles(runSeq).then(function () {
+      if (!iaLastNativeBundles) return;
+      paintIaWithCross(iaLastNativeBundles);
+    });
+  };
 
   function isIaMetricHidden(metric) {
     return !!(metric && iaHiddenMetrics[metric]);
@@ -1898,6 +1967,7 @@
     return (opt && opt.textContent) || v;
   }
   function isCountLike(m) {
+    m = iaBareMetric(m);
     if (m === "conversion_rate" || m === "proceeds") return false;
     if (m === "ga4:avg_session") return false;
     if (IA_VIRGUL_AVG[m]) return false;
@@ -2441,7 +2511,9 @@
   /* overlay helpers removed */
 
   function renderSelectedBundles(bundles) {
-    var list = Array.isArray(bundles) ? bundles : [];
+    var native = (Array.isArray(bundles) ? bundles : []).filter(function (b) { return b && !b.crossPeer; });
+    iaLastNativeBundles = native;
+    var list = withIaCross(native);
     if (!list.length) {
       if (iaChart) iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Select a metric</text>';
       if (iaLegend) iaLegend.innerHTML = "";
@@ -2449,11 +2521,15 @@
     }
     if (list.length === 1) {
       drawSingle(list[0].series || [], COLORS[0]);
-      renderSingleTable(list[0].series || [], list[0].metric);
+      renderSingleTable(native[0] ? native[0].series || [] : list[0].series || [], native[0] ? native[0].metric : list[0].metric);
       return;
     }
     drawMulti(list);
-    renderOverviewTable(list);
+    if (native.length <= 1 && native[0]) {
+      renderSingleTable(native[0].series || [], native[0].metric);
+      return;
+    }
+    renderOverviewTable(native);
   }
   function isoWeekBucketKey(isoDate) {
     var m = String(isoDate || "").match(/^(20\d{2})-(\d{2})-(\d{2})$/);
@@ -2510,8 +2586,9 @@
     if (br !== "week" && br !== "month") return bundles || [];
     return (bundles || []).map(function (b) {
       if (!b) return b;
-      var asAvg = b.total_mode === "avg" || b.metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[b.metric]
-        || b.metric === "conversion_rate" || isXdataAvgMetric(b.metric);
+      var mk = iaBareMetric(b.metric);
+      var asAvg = b.total_mode === "avg" || mk === "ga4:avg_session" || !!IA_VIRGUL_AVG[mk]
+        || mk === "conversion_rate" || isXdataAvgMetric(mk);
       return Object.assign({}, b, {
         series: aggregateIaSeries(b.series || [], br, asAvg)
       });
@@ -3334,6 +3411,7 @@
     abortCtrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     var signal = abortCtrl ? abortCtrl.signal : undefined;
     iaBusy = true;
+    iaCrossBundles = [];
     setLoading(true);
     try {
       if (overviewActive) {
@@ -3403,8 +3481,12 @@
         iaTotal.textContent = head ? fmtNum(head.total, isCountLike(head.metric)) : "—";
         iaTotalLabel.textContent = "Overview";
         iaCompareRange.textContent = "";
-        drawMulti(chartBundles);
+        drawMulti(withIaCross(chartBundles));
+        iaLastNativeBundles = chartBundles.filter(function (b) { return b && !b.crossPeer; });
         renderOverviewTable(bundles);
+        await refreshIaCrossBundles(my);
+        if (my !== runSeq) return;
+        paintIaWithCross(iaLastNativeBundles);
         return;
       }
 
@@ -3460,6 +3542,9 @@
           (softNotes.length > 3 ? (" · +" + (softNotes.length - 3)) : "");
       }
       renderSelectedBundles(packs);
+      await refreshIaCrossBundles(my);
+      if (my !== runSeq) return;
+      paintIaWithCross(iaLastNativeBundles || packs);
     } catch (err) {
       if (err && err.name === "AbortError") return;
       if (my !== runSeq) return;

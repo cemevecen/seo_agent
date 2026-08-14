@@ -137,6 +137,21 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert "function mzMetricOverlayPlatform" in ad
     assert 'toLowerCase() !== "doviz"' in ad
     assert 'branch === "mweb"' in ad
+    assert "function mzPeerOverlayPlatform" in ad
+    assert "mz-cross-metric-overlay-root" in ad
+    assert "Android metrics" in ad
+    assert "MWeb metrics" in ad
+    assert "fetchSelectedSeries" in text
+    assert "data-overlay-label-prefix" in text
+    android_html = (ROOT / "templates" / "android.html").read_text(encoding="utf-8")
+    assert 'id="pa-compare"' not in android_html
+    assert "pa-cross-metric-overlay-root" in android_html
+    assert "iOS metrics" in android_html
+    ios_html = (ROOT / "templates" / "ios.html").read_text(encoding="utf-8")
+    assert "ia-cross-metric-overlay-root" in ios_html
+    assert "Android metrics" in ios_html
+    partial = (ROOT / "templates" / "partials" / "play_metric_overlay_select.html").read_text(encoding="utf-8")
+    assert "data-overlay-label-prefix" in partial
 
 
 def test_query_series_rejects_unknown_without_db():

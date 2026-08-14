@@ -1,10 +1,14 @@
 {# /android ile aynı metrik kataloğu — ad-virgul Android grafik overlay #}
 {% set _pmoid = play_metric_overlay_control_id|default('mz-play-metric-overlay-root') %}
+{% set _pmo_prefix = play_metric_overlay_label_prefix|default('Metric') %}
+{% set _pmo_plat = play_metric_overlay_platform|default('android') %}
+{% set _pmo_compact = play_metric_overlay_compact|default(false) %}
 <div
-  class="play-metric-overlay-root relative min-w-0 text-left"
+  class="play-metric-overlay-root relative min-w-0 text-left{% if _pmo_compact %} play-metric-overlay-root--compact{% endif %}"
   id="{{ _pmoid }}"
   data-play-metric-overlay-root
-  data-overlay-platform="android"
+  data-overlay-platform="{{ _pmo_plat }}"
+  data-overlay-label-prefix="{{ _pmo_prefix }}"
   data-overlay-storage-key="{{ play_metric_overlay_storage_key|default('mz-play-metric') }}"
   {% if play_metric_overlay_on_change is defined and play_metric_overlay_on_change %}
   data-overlay-on-change="{{ play_metric_overlay_on_change }}"
@@ -13,11 +17,15 @@
   <button
     type="button"
     data-play-metric-overlay-trigger
+    {% if _pmo_compact %}
+    class="flex w-full min-w-[9.25rem] max-w-[min(100%,14rem)] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm sm:w-auto dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 midnight:border-zinc-700 midnight:bg-black midnight:text-zinc-200"
+    {% else %}
     class="flex w-full min-w-[10.5rem] max-w-[min(100%,16rem)] items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-indigo-900 shadow-sm sm:w-auto sm:min-w-[11rem] dark:border-indigo-800 dark:bg-zinc-950 dark:text-indigo-100 midnight:border-indigo-800 midnight:bg-black midnight:text-indigo-100"
+    {% endif %}
     aria-haspopup="listbox"
     aria-expanded="false"
   >
-    <span data-play-metric-overlay-label class="truncate">Metric: off</span>
+    <span data-play-metric-overlay-label class="truncate">{{ _pmo_prefix }}: off</span>
     <svg class="h-3 w-3 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
     </svg>
