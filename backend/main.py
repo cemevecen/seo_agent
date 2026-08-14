@@ -70,7 +70,6 @@ from backend.api.sinemalar_moderation import router as sinemalar_moderation_rout
 from backend.api.scrape_telemetry import router as scrape_telemetry_router
 from backend.api.market_quotes import router as market_quotes_router
 from backend.api.page_tarama import router as page_tarama_router
-from backend.api.pm_lab import router as pm_lab_router
 from backend.api.member_auth import router as member_auth_router
 from backend.collectors.crawler import collect_crawler_metrics
 from backend.collectors.crux_history import collect_crux_history
@@ -1064,7 +1063,6 @@ app.include_router(firebase_console_router, prefix="/api")
 app.include_router(empower_intel_router, prefix="/api")
 app.include_router(market_quotes_router, prefix="/api")
 app.include_router(page_tarama_router, prefix="/api")
-app.include_router(pm_lab_router, prefix="/api")
 
 app.include_router(member_auth_router)
 
@@ -1868,20 +1866,6 @@ def _template_online_presence_visible(request: Request | None) -> bool:
 jinja_env.globals["online_presence_visible"] = _template_online_presence_visible
 
 
-def _template_pm_lab_visible(request: Request | None) -> bool:
-    if request is None:
-        return False
-    if bool(getattr(request.state, "pm_lab_visible", False)):
-        return True
-    from backend.services.pm_lab_access import is_pm_lab_allowed_email
-
-    member = getattr(request.state, "app_member", None) or _app_member_from_request(request)
-    email = getattr(member, "email", None) if member is not None else None
-    return is_pm_lab_allowed_email(email)
-
-
-jinja_env.globals["pm_lab_visible"] = _template_pm_lab_visible
-
 
 def _tmdb_guest_login_response(request: Request, *, redirect_path: str) -> RedirectResponse:
     from backend.services.tmdb_guest_auth import TMDB_GUEST_COOKIE, guest_cookie_value
@@ -1942,8 +1926,6 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/page-tarama/fail-inflight",
         "/api/page-tarama/requeue",
         "/api/scrape-runs/report",
-        "/api/pm-lab/ingest",
-        "/api/pm-lab/claim-refresh",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
@@ -1978,11 +1960,6 @@ async def ip_allowlist_middleware(request: Request, call_next):
         request.state.ad_menu_visible = resolve_ad_menu_visible(
             member_email=member.email if member else None,
         )
-        from backend.services.pm_lab_access import is_pm_lab_path, resolve_pm_lab_visible
-
-        request.state.pm_lab_visible = resolve_pm_lab_visible(
-            member_email=member.email if member else None,
-        )
         if member is not None:
             from backend.services import app_member_auth as _ama_tmdb
             from backend.services import tmdb_guest_auth as _tga_member
@@ -2006,10 +1983,6 @@ async def ip_allowlist_middleware(request: Request, call_next):
                         content={"detail": "Monetizasyon (/ad) bu hesap için kapalı."},
                     )
                 return RedirectResponse(url="/?ad_denied=1", status_code=303)
-        if is_pm_lab_path(path) and not bool(getattr(request.state, "pm_lab_visible", False)):
-            if path.startswith("/api/"):
-                return JSONResponse(status_code=404, content={"detail": "Not found"})
-            return HTMLResponse("Not Found", status_code=404)
         if path.startswith("/settings") and not _is_settings_authenticated(request):
             if _member_denied_settings_menu(request):
                 return RedirectResponse(url="/admin/settings-denied", status_code=303)
@@ -13566,41 +13539,6 @@ def settings_page(request: Request):
     return templates.TemplateResponse(request, "settings.html", context={"request": request, **payload})
 
 
-def _pm_lab_owner_ok(request: Request) -> bool:
-    from backend.services.pm_lab_access import is_pm_lab_allowed_email
-
-    member = _app_member_from_request(request)
-    return bool(member is not None and is_pm_lab_allowed_email(member.email))
-
-
-@app.get("/pm-lab")
-def pm_lab_page(request: Request):
-    if not _pm_lab_owner_ok(request):
-        return HTMLResponse("Not Found", status_code=404)
-    from backend.services.pm_lab_store import page_context
-
-    with SessionLocal() as db:
-        ctx = page_context(db)
-        payload = {
-            "site_name": "PM Lab",
-            "sites": get_sidebar_sites(),
-            **ctx,
-        }
-    return templates.TemplateResponse(request, "pm_lab.html", context={"request": request, **payload})
-
-
-@app.get("/pm-lab/image/{section}/{name}")
-def pm_lab_image(request: Request, section: str, name: str):
-    if not _pm_lab_owner_ok(request):
-        return HTMLResponse("Not Found", status_code=404)
-    from backend.services.pm_lab_store import get_shot_bytes
-
-    with SessionLocal() as db:
-        raw = get_shot_bytes(db, section, name)
-    if not raw:
-        return HTMLResponse("Not Found", status_code=404)
-    return Response(content=raw, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
-
 
 def _admin_password_form_wants_json(request: Request) -> bool:
     return request.headers.get("hx-request") == "true" or "application/json" in (
@@ -15896,64 +15834,6 @@ def api_app_intel(product: str = "doviz", period: int = 30, cache_only: int = 0)
     return JSONResponse(intel_json_safe(payload))
 
 
-@app.get("/api/app/store-charts")
-def api_app_store_charts(db: Session = Depends(get_db)):
-    """PM Lab store_charts snapshot — App sayfası embed (tüm panel üyeleri okuyabilir)."""
-    from backend.services.pm_lab_store import load_payload, pm_lab_refresh_status
-
-    payload = load_payload(db)
-    sections = payload.get("sections") if isinstance(payload.get("sections"), dict) else {}
-    raw = sections.get("store_charts") if isinstance(sections.get("store_charts"), dict) else {}
-    block = dict(raw)
-    block.pop("shots", None)
-    status = pm_lab_refresh_status(payload)
-    return {
-        "ok": True,
-        "section": block,
-        "updated_at": payload.get("updated_at"),
-        "queued": status.get("queued") or [],
-        "running": status.get("running") or "",
-    }
-
-
-@app.post("/api/app/store-charts/refresh")
-def api_app_store_charts_refresh(request: Request, db: Session = Depends(get_db)):
-    """Mac bridge store_charts taraması — owner only (PM Lab ile aynı kuyruk)."""
-    if not _pm_lab_owner_ok(request):
-        return JSONResponse({"ok": False, "detail": "Owner only"}, status_code=403)
-    from backend.services.pm_lab_store import enqueue_pm_lab_refresh
-
-    return enqueue_pm_lab_refresh(db, "store_charts")
-
-
-@app.get("/api/doviz-news/google-news-showcase")
-def api_doviz_news_google_news_showcase(db: Session = Depends(get_db)):
-    """PM Lab google_news snapshot — /doviz-news embed."""
-    from backend.services.pm_lab_store import load_payload, pm_lab_refresh_status
-
-    payload = load_payload(db)
-    sections = payload.get("sections") if isinstance(payload.get("sections"), dict) else {}
-    raw = sections.get("google_news") if isinstance(sections.get("google_news"), dict) else {}
-    block = dict(raw)
-    block.pop("shots", None)
-    status = pm_lab_refresh_status(payload)
-    return {
-        "ok": True,
-        "section": block,
-        "updated_at": payload.get("updated_at"),
-        "queued": status.get("queued") or [],
-        "running": status.get("running") or "",
-    }
-
-
-@app.post("/api/doviz-news/google-news-showcase/refresh")
-def api_doviz_news_google_news_refresh(request: Request, db: Session = Depends(get_db)):
-    """Mac bridge google_news taraması — owner only."""
-    if not _pm_lab_owner_ok(request):
-        return JSONResponse({"ok": False, "detail": "Owner only"}, status_code=403)
-    from backend.services.pm_lab_store import enqueue_pm_lab_refresh
-
-    return enqueue_pm_lab_refresh(db, "google_news")
 
 
 @app.get("/api/app/version-releases")

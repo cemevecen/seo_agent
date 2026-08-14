@@ -28,7 +28,6 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-gsc-cwv → GSC Core Web Vitals + AMP (03:00 + 15:00 TR)
   POST /sync-market → doviz.com piyasa tablo taraması (00:05 TR)
   POST /open-noads  → noAds sayfasını aç, textarea'ya URL yaz (policy «Ekle»)
-  POST /sync-pm-lab → PM lab (3 saatte bir; ?jobs=serp|competitors|store_charts|google_news)
   POST /sync-all   → notification + news
 """
 
@@ -242,7 +241,6 @@ _moderation_lock = threading.Lock()
 _pagespeed_lock = threading.Lock()
 _seo_audit_lock = threading.Lock()
 _market_lock = threading.Lock()
-_pm_lab_lock = threading.Lock()
 _noads_open_lock = threading.Lock()
 _revenue_targets_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -271,7 +269,6 @@ _last_empower_intel_sinemalar_result: dict[str, Any] = {"ok": False, "message": 
 _last_seo_audit_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_gsc_cwv_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_market_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
-_last_pm_lab_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_nt_auto_at = 0.0
 _last_news_auto_at = 0.0
 _last_virgul_auto_slot = ""
@@ -289,41 +286,6 @@ _last_gsc_cwv_auto_slot = ""
 _last_market_auto_slot = ""
 _last_empower_intel_auto_slot = ""
 _last_empower_intel_sinemalar_auto_slot = ""
-_last_pm_lab_auto_slot = ""
-_last_pm_lab_competitors_slot = ""
-# Restart sonrası tam interval bekle; ilk dolum manuel --ingest / /sync-pm-lab.
-_last_pm_lab_auto_at = time.time()
-_last_pm_lab_competitors_auto_at = time.time()
-PM_LAB_AUTO_INTERVAL_SEC = int(os.environ.get("PM_LAB_AUTO_INTERVAL_SEC") or str(3 * 3600))
-PM_LAB_COMPETITORS_INTERVAL_SEC = int(os.environ.get("PM_LAB_COMPETITORS_INTERVAL_SEC") or "600")
-_PM_LAB_HOURS_RAW = (os.environ.get("PM_LAB_SLOT_HOURS") or "1,4,7,10,13,16,19,22").strip()
-PM_LAB_SLOT_HOURS = tuple(
-    int(h.strip()) for h in _PM_LAB_HOURS_RAW.split(",") if h.strip().isdigit()
-) or (1, 4, 7, 10, 13, 16, 19, 22)
-PM_LAB_SLOT_MINUTE = int(os.environ.get("PM_LAB_SLOT_MINUTE") or "54")
-_PM_LAB_COMP_MINUTES_RAW = (os.environ.get("PM_LAB_COMPETITORS_SLOT_MINUTES") or "24,34,44,54").strip()
-PM_LAB_COMPETITORS_SLOT_MINUTES = tuple(
-    int(m.strip()) for m in _PM_LAB_COMP_MINUTES_RAW.split(",") if m.strip().isdigit()
-) or (24, 34, 44, 54)
-# SERP: 20 kelime → 4×5; her 3 saatte bir döngü, 15 dk arayla batch (Play/ASC ile çakışmaz)
-_SERP_HOURS_RAW = (os.environ.get("PM_LAB_SERP_CYCLE_HOURS") or "3,6,9,12,15,18,21").strip()
-SERP_CYCLE_HOURS = tuple(int(h.strip()) for h in _SERP_HOURS_RAW.split(",") if h.strip().isdigit()) or (
-    3,
-    6,
-    9,
-    12,
-    15,
-    18,
-    21,
-)
-_SERP_BATCH_MINUTES_RAW = (os.environ.get("PM_LAB_SERP_BATCH_MINUTES") or "50,5,20,35").strip()
-SERP_BATCH_MINUTES = tuple(
-    int(m.strip()) for m in _SERP_BATCH_MINUTES_RAW.split(",") if m.strip().isdigit()
-) or (50, 5, 20, 35)
-SERP_BATCH_GAP_SEC = int(os.environ.get("PM_LAB_SERP_BATCH_GAP_SEC") or str(15 * 60))
-_last_serp_batch_slots: list[str] = [""] * max(1, len(SERP_BATCH_MINUTES))
-_pending_serp_batches: list[int] = []
-_last_pending_serp_batch_at = 0.0
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -374,14 +336,12 @@ _BROWSER_SCRAPE_KINDS = frozenset(
         "market",
         "empower_intel",
         "empower_intel_sinemalar",
-        "pm_lab",
-        "pm_lab_competitors",
     }
 )
 
 
 def _is_browser_scrape_kind(kind: str) -> bool:
-    return kind.startswith("serp_batch_") or kind in _BROWSER_SCRAPE_KINDS
+    return kind in _BROWSER_SCRAPE_KINDS
 
 
 def browser_scrape_slot_defs() -> tuple[tuple[str, tuple[int, ...], int], ...]:
@@ -399,7 +359,6 @@ def browser_scrape_slot_defs() -> tuple[tuple[str, tuple[int, ...], int], ...]:
         ("seo_audit", SEO_AUDIT_SLOT_HOURS, SEO_AUDIT_SLOT_MINUTE),
         ("gsc_cwv", GSC_CWV_SLOT_HOURS, GSC_CWV_SLOT_MINUTE),
         ("firebase", FIREBASE_SLOT_HOURS, FIREBASE_SLOT_MINUTE),
-        ("pm_lab", PM_LAB_SLOT_HOURS, PM_LAB_SLOT_MINUTE),
     )
 
 
@@ -482,17 +441,6 @@ def _run_browser_scrape_job(
         if callable(on_done):
             on_done(result)
     return result
-
-
-def _competitors_slot_due() -> tuple[bool, str]:
-    now = _now_tr()
-    minute = now.minute
-    if minute not in PM_LAB_COMPETITORS_SLOT_MINUTES:
-        return False, ""
-    slot = f"{now.strftime('%Y-%m-%d-%H')}-{minute:02d}"
-    if _last_pm_lab_competitors_slot == slot:
-        return False, slot
-    return True, slot
 
 
 def _moderation_slot_due() -> tuple[bool, str, str]:
@@ -1914,196 +1862,6 @@ def run_pagespeed_bridge_once() -> dict[str, Any]:
     return out
 
 
-def _run_pm_lab_script(*, jobs: str = "", label: str = "PM lab", serp_batch: int | None = None) -> dict[str, Any]:
-    """Owner PM lab taramaları → Railway ingest."""
-    global _last_pm_lab_result
-    kind = "pm_lab_competitors" if jobs == "competitors" else "pm_lab"
-    if not _ingest_token():
-        err = {"ok": False, "kind": kind, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
-        _last_pm_lab_result = err
-        return err
-
-    import subprocess
-
-    script = ROOT / "scripts" / "pm_lab_scrape.py"
-    if not script.is_file():
-        err = {"ok": False, "kind": kind, "message": "PM lab tarama betiği yok"}
-        _last_pm_lab_result = err
-        return err
-
-    print(f"{label} tarama başlıyor…", flush=True)
-    cmd = [sys.executable, str(script)]
-    if jobs:
-        cmd.extend(["--jobs", jobs, "--ingest"])
-        if "serp" in {j.strip() for j in jobs.split(",") if j.strip()}:
-            cmd.append("--headed")
-            if serp_batch is not None:
-                cmd.extend(["--serp-batch", str(int(serp_batch))])
-        if jobs == "competitors":
-            timeout_sec = int(os.environ.get("PM_LAB_COMPETITORS_TIMEOUT_SEC") or "540")
-        elif jobs.strip() == "serp":
-            timeout_sec = int(os.environ.get("PM_LAB_SERP_BATCH_TIMEOUT_SEC") or "900")
-        else:
-            timeout_sec = int(os.environ.get("PM_LAB_JOB_TIMEOUT_SEC") or "1200")
-    else:
-        cmd.extend(["--sync", "--ingest"])
-        timeout_sec = int(os.environ.get("PM_LAB_BRIDGE_TIMEOUT_SEC") or "1800")
-    try:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(ROOT),
-            env=os.environ.copy(),
-            capture_output=True,
-            text=True,
-            timeout=max(120, timeout_sec),
-        )
-    except subprocess.TimeoutExpired:
-        out = {"ok": False, "kind": kind, "message": f"{label} zaman aşımı ({timeout_sec}s)"}
-        _last_pm_lab_result = out
-        return out
-    except Exception as exc:  # noqa: BLE001
-        out = {"ok": False, "kind": kind, "message": f"{label} subprocess: {exc}"}
-        _last_pm_lab_result = out
-        return out
-
-    combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
-    if combined:
-        for line in combined.splitlines()[-40:]:
-            print(line, flush=True)
-    if proc.returncode == 0:
-        out = {"ok": True, "kind": kind, "message": f"{label} sync OK"}
-    else:
-        tail = (combined[-300:] if combined else f"exit {proc.returncode}")[:300]
-        out = {"ok": False, "kind": kind, "message": tail}
-    _last_pm_lab_result = out
-    print(f"{label} sync · {out['message']}", flush=True)
-    return out
-
-
-def run_pm_lab_bridge_once() -> dict[str, Any]:
-    """Rakip / store / news — SERP ayrı batch slotlarında."""
-    return _run_pm_lab_script(jobs="competitors,store_charts,google_news", label="PM lab")
-
-
-def run_serp_batch_once(batch_index: int) -> dict[str, Any]:
-    """SERP — 5 kelime dilimi (headed Firefox)."""
-    idx = int(batch_index)
-    return _run_pm_lab_script(
-        jobs="serp",
-        label=f"PM lab SERP batch {idx + 1}/{len(SERP_BATCH_MINUTES)}",
-        serp_batch=idx,
-    )
-
-
-def _queue_serp_followup_batches(*, immediate: bool = False) -> None:
-    """Batch 0 bittikten sonra 1..N-1'i 15 dk arayla kuyruğa al."""
-    global _pending_serp_batches, _last_pending_serp_batch_at
-    total = len(SERP_BATCH_MINUTES)
-    _pending_serp_batches = list(range(1, total))
-    if immediate:
-        _last_pending_serp_batch_at = time.time() - max(60, SERP_BATCH_GAP_SEC)
-    else:
-        _last_pending_serp_batch_at = time.time()
-
-
-def _queue_manual_serp_batches() -> None:
-    _queue_serp_followup_batches(immediate=False)
-
-
-def run_serp_manual_refresh() -> dict[str, Any]:
-    """Panel Refresh: batch 1 hemen, kalan batch'ler 15 dk arayla."""
-    _queue_manual_serp_batches()
-    return run_serp_batch_once(0)
-
-
-_last_serp_resume_check_at = 0.0
-
-
-def _maybe_resume_serp_cycle() -> None:
-    """Railway'de yarım kalan SERP döngüsünü Mac kuyruğuna al (3/4 takılması)."""
-    global _pending_serp_batches, _last_pending_serp_batch_at, _last_serp_resume_check_at
-    if _pending_serp_batches:
-        return
-    if (time.time() - _last_serp_resume_check_at) < 45:
-        return
-    _last_serp_resume_check_at = time.time()
-    try:
-        url = _page_tarama_api_base() + "/api/pm-lab/state"
-        resp = requests.get(url, timeout=20)
-        if resp.status_code != 200:
-            return
-        serp = ((resp.json() or {}).get("sections") or {}).get("serp") or {}
-        if not isinstance(serp, dict) or not serp.get("refresh_in_progress"):
-            return
-        missing = serp.get("serp_missing_batches")
-        if not isinstance(missing, list):
-            pending = serp.get("serp_refresh_pending") if isinstance(serp.get("serp_refresh_pending"), dict) else {}
-            batches = pending.get("batches") if isinstance(pending.get("batches"), dict) else {}
-            total = max(1, int(pending.get("batch_total") or len(SERP_BATCH_MINUTES)))
-            have = {int(k) for k in batches if str(k).isdigit()}
-            missing = [i for i in range(total) if i not in have]
-        else:
-            missing = [int(x) for x in missing if str(x).isdigit()]
-        if not missing:
-            return
-        stale = bool(serp.get("serp_cycle_resume") or serp.get("serp_cycle_stale"))
-        _pending_serp_batches = missing
-        if stale:
-            _last_pending_serp_batch_at = time.time() - max(60, SERP_BATCH_GAP_SEC)
-            print(f"SERP yarım döngü devam: batch {[m + 1 for m in missing]} (hemen)", flush=True)
-        else:
-            _last_pending_serp_batch_at = time.time()
-            print(f"SERP yarım döngü devam: batch {[m + 1 for m in missing]} (15 dk arayla)", flush=True)
-    except Exception as exc:  # noqa: BLE001
-        print(f"SERP resume kontrol: {exc}", flush=True)
-
-
-def _maybe_run_pending_serp_batch() -> None:
-    global _pending_serp_batches, _last_pending_serp_batch_at
-    _maybe_resume_serp_cycle()
-    if not _pending_serp_batches:
-        return
-    if (time.time() - _last_pending_serp_batch_at) < max(60, SERP_BATCH_GAP_SEC):
-        return
-    batch = _pending_serp_batches.pop(0)
-    _last_pending_serp_batch_at = time.time()
-    result = _run_locked_job(
-        name=f"SERP batch {batch + 1}/{len(SERP_BATCH_MINUTES)} (kuyruk)",
-        lock=_pm_lab_lock,
-        runner=lambda b=batch: run_serp_batch_once(b),
-        kind="serp_batch",
-        notify=False,
-    )
-    if result is None:
-        _pending_serp_batches.insert(0, batch)
-        return
-    if not result.get("ok"):
-        _pending_serp_batches.insert(0, batch)
-        _notify_auto_failure("serp_batch", result)
-
-
-def run_pm_lab_competitors_once() -> dict[str, Any]:
-    """Rakip fiyat linkleri — 10 dakikada bir."""
-    return _run_pm_lab_script(jobs="competitors", label="PM lab fiyat")
-
-
-PM_LAB_JOB_IDS = ("serp", "competitors", "store_charts", "google_news")
-
-
-def run_pm_lab_jobs_once(jobs: str = "") -> dict[str, Any]:
-    """Tek veya virgüllü PM lab işi (manuel Yenile)."""
-    raw = (jobs or "").strip()
-    if not raw:
-        return run_pm_lab_bridge_once()
-    parts = [p.strip() for p in raw.split(",") if p.strip()]
-    if parts == ["competitors"]:
-        return run_pm_lab_competitors_once()
-    if parts == ["serp"]:
-        return run_serp_manual_refresh()
-    label = "PM lab " + " · ".join(parts)
-    return _run_pm_lab_script(jobs=",".join(parts), label=label)
-
-
 def run_market_tarama_bridge_once() -> dict[str, Any]:
     """doviz.com piyasa tablo taraması (01.01.2025+) → Railway ingest."""
     global _last_market_result
@@ -2822,14 +2580,11 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_seo_audit": _last_seo_audit_result,
                     "last_gsc_cwv": _last_gsc_cwv_result,
                     "last_market": _last_market_result,
-                    "last_pm_lab": _last_pm_lab_result,
                     "gsc_cwv_progress": dict(_gsc_cwv_progress),
                     "last_gsc_links": _last_gsc_links_result,
                     "last_policy": _last_policy_result,
                     "last_noads": _last_noads_result,
                     "last_moderation": _last_moderation_result,
-                    "pm_lab_interval_sec": PM_LAB_AUTO_INTERVAL_SEC,
-                    "pm_lab_competitors_interval_sec": PM_LAB_COMPETITORS_INTERVAL_SEC,
                     "play_interval_sec": PLAY_AUTO_INTERVAL_SEC,
                     "asc_interval_sec": ASC_AUTO_INTERVAL_SEC,
                     "schedule": {
@@ -2859,24 +2614,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "empower_intel_sinemalar_slots_tr": [
                             f"{h:02d}:{m:02d}" for h, m in EMPOWER_INTEL_SINEMALAR_SLOTS
                         ],
-                        "pm_lab_slots_tr": [
-                            f"{h:02d}:{PM_LAB_SLOT_MINUTE:02d}" for h in PM_LAB_SLOT_HOURS
-                        ],
-                        "pm_lab_competitors_slots_tr": [
-                            f":{m:02d}" for m in PM_LAB_COMPETITORS_SLOT_MINUTES
-                        ],
-                        "serp_batch_slots_tr": [
-                            f"{h:02d}:{m:02d}" for h in SERP_CYCLE_HOURS for m in (SERP_BATCH_MINUTES[0],)
-                        ]
-                        + [
-                            f"{(h + 1) % 24:02d}:{m:02d}"
-                            for h in SERP_CYCLE_HOURS
-                            for m in SERP_BATCH_MINUTES[1:]
-                        ],
                         "scrape_min_gap_sec": BRIDGE_SCRAPE_MIN_GAP_SEC,
                         "scrape_deferred": sorted(_scrape_deferred_jobs.keys()),
-                        "pm_lab_sec": PM_LAB_AUTO_INTERVAL_SEC,
-                        "pm_lab_competitors_sec": PM_LAB_COMPETITORS_INTERVAL_SEC,
                         "retry_max": BRIDGE_RETRY_MAX,
                         "retry_gap_sec": BRIDGE_RETRY_GAP_SEC,
                     },
@@ -3012,44 +2751,6 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "Firebase Console sync zaten çalışıyor, bekleyin.",
                 run_firebase_bridge_once,
             )
-        elif path in ("/sync-pm-lab", "/pm-lab", "/sync-pmlab"):
-            raw_jobs = (qs.get("jobs") or [""])[0].strip()
-            job_parts = [p.strip() for p in raw_jobs.split(",") if p.strip()]
-            if job_parts and any(p not in PM_LAB_JOB_IDS for p in job_parts):
-                self._send(400, {"ok": False, "message": "bilinmeyen PM lab işi"})
-                return
-            jobs_arg = ",".join(job_parts)
-            if not _pm_lab_lock.acquire(blocking=False):
-                self._send(
-                    409,
-                    {
-                        "ok": False,
-                        "running": True,
-                        "message": "PM lab tarama zaten çalışıyor, bekleyin.",
-                    },
-                )
-                return
-
-            def _pm_lab_bg() -> None:
-                try:
-                    run_pm_lab_jobs_once(jobs_arg)
-                except Exception:
-                    traceback.print_exc()
-                finally:
-                    _pm_lab_lock.release()
-
-            threading.Thread(target=_pm_lab_bg, name="pm-lab-bridge", daemon=True).start()
-            self._send(
-                200,
-                {
-                    "ok": True,
-                    "started": True,
-                    "kind": "pm_lab",
-                    "jobs": jobs_arg or "all",
-                    "message": "PM lab tarama arka planda başladı",
-                },
-            )
-            return
         elif path in ("/sync-pagespeed", "/pagespeed", "/sync-speed"):
             lock, busy, runner = (
                 _pagespeed_lock,
@@ -3455,16 +3156,6 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
             "lock": _market_lock,
             "runner": run_market_tarama_bridge_once,
         },
-        "pm_lab": {
-            "name": "PM lab",
-            "lock": _pm_lab_lock,
-            "runner": run_pm_lab_bridge_once,
-        },
-        "pm_lab_competitors": {
-            "name": "PM lab fiyat",
-            "lock": _pm_lab_lock,
-            "runner": run_pm_lab_competitors_once,
-        },
         "sinemalar_noads": {
             "name": "noAds",
             "lock": _noads_lock,
@@ -3480,7 +3171,7 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
 
 def _process_due_retries() -> None:
     """Zamanı gelen yeniden denemeleri çalıştır; başarıda kuyruğu temizle."""
-    global _last_nt_auto_at, _last_news_auto_at, _last_pm_lab_auto_at, _last_pm_lab_competitors_auto_at
+    global _last_nt_auto_at, _last_news_auto_at
     now = time.time()
     registry = _auto_job_registry()
     for kind, st in list(_job_retries.items()):
@@ -3524,11 +3215,6 @@ def _process_due_retries() -> None:
                 _last_nt_auto_at = time.time()
             elif kind == "news":
                 _last_news_auto_at = time.time()
-            elif kind == "pm_lab":
-                _last_pm_lab_auto_at = time.time()
-                _last_pm_lab_competitors_auto_at = time.time()
-            elif kind == "pm_lab_competitors":
-                _last_pm_lab_competitors_auto_at = time.time()
             continue
         if is_last:
             print(
@@ -3559,12 +3245,11 @@ def _process_due_retries() -> None:
 def _auto_loop() -> None:
     """Slot + interval zamanlayıcı; poll ~60s. Hata → 3×10 dk retry, sonra sonraki slot."""
     global _auto_cycle
-    global _last_nt_auto_at, _last_news_auto_at, _last_pm_lab_auto_at, _last_pm_lab_competitors_auto_at
+    global _last_nt_auto_at, _last_news_auto_at
     global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
     global _last_gsc_links_auto_slot, _last_policy_auto_slot
     global _last_noads_auto_slot, _last_moderation_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
     global _last_gsc_cwv_auto_slot, _last_market_auto_slot
-    global _last_pm_lab_auto_slot, _last_pm_lab_competitors_slot
 
     while True:
         _auto_cycle += 1
@@ -3614,89 +3299,6 @@ def _auto_loop() -> None:
                     _nt_lock.release()
             else:
                 print("Auto notification/news atlandı (manuel sync sürüyor)", flush=True)
-
-        pm_due, pm_slot = _slot_due(_last_pm_lab_auto_slot, PM_LAB_SLOT_HOURS, PM_LAB_SLOT_MINUTE)
-        pm_due = pm_due and "pm_lab" not in _job_retries
-        comp_due, comp_slot = _competitors_slot_due()
-        comp_due = comp_due and "pm_lab_competitors" not in _job_retries
-        if pm_due:
-
-            def _pm_lab_done(result: dict[str, Any]) -> None:
-                global _last_pm_lab_auto_slot, _last_pm_lab_auto_at, _last_pm_lab_competitors_auto_at
-                _last_pm_lab_auto_slot = pm_slot
-                _last_pm_lab_auto_at = time.time()
-                _last_pm_lab_competitors_auto_at = time.time()
-                if result.get("ok"):
-                    _note_auto_success("pm_lab")
-                    _clear_job_retry("pm_lab")
-                    _clear_job_retry("pm_lab_competitors")
-                else:
-                    _notify_auto_failure("pm_lab", result)
-                    _arm_job_retry("pm_lab", name="PM lab")
-
-            result = _run_browser_scrape_job(
-                kind="pm_lab",
-                name="PM lab",
-                lock=_pm_lab_lock,
-                runner=run_pm_lab_bridge_once,
-                on_done=_pm_lab_done,
-                notify=False,
-            )
-            if result is None and "pm_lab" not in _scrape_deferred_jobs:
-                print("Auto PM lab atlandı (manuel sync sürüyor)", flush=True)
-        elif comp_due:
-
-            def _pm_comp_done(result: dict[str, Any]) -> None:
-                global _last_pm_lab_competitors_slot, _last_pm_lab_competitors_auto_at
-                _last_pm_lab_competitors_slot = comp_slot
-                _last_pm_lab_competitors_auto_at = time.time()
-                if result.get("ok"):
-                    _note_auto_success("pm_lab_competitors")
-                    _clear_job_retry("pm_lab_competitors")
-                else:
-                    _notify_auto_failure("pm_lab_competitors", result)
-                    _arm_job_retry("pm_lab_competitors", name="PM lab fiyat")
-
-            result = _run_browser_scrape_job(
-                kind="pm_lab_competitors",
-                name="PM lab fiyat",
-                lock=_pm_lab_lock,
-                runner=run_pm_lab_competitors_once,
-                on_done=_pm_comp_done,
-                notify=False,
-            )
-            if result is None and "pm_lab_competitors" not in _scrape_deferred_jobs:
-                print("Auto PM lab fiyat atlandı (manuel sync sürüyor)", flush=True)
-
-        _maybe_run_pending_serp_batch()
-
-        # SERP: yalnızca batch 0 planlı (:50); 1–3 otomatik 15 dk kuyrukla (sonraki saat :05/:20/:35).
-        serp_batch0_minute = int(SERP_BATCH_MINUTES[0]) if SERP_BATCH_MINUTES else 50
-        kind = "serp_batch_0"
-        if kind not in _job_retries:
-            due, slot = _slot_due(_last_serp_batch_slots[0] if _last_serp_batch_slots else "", SERP_CYCLE_HOURS, serp_batch0_minute)
-
-            def _serp0_done(result: dict[str, Any], *, _slot: str = slot) -> None:
-                _last_serp_batch_slots[0] = _slot
-                if result.get("ok"):
-                    _clear_job_retry(kind)
-                    _queue_serp_followup_batches(immediate=False)
-                    print("SERP batch 1/4 bitti — kalan batch'ler 15 dk arayla kuyruğa alındı", flush=True)
-                else:
-                    _notify_auto_failure(kind, result)
-                    _arm_job_retry(kind, name="SERP 1/4")
-
-            if due:
-                result = _run_browser_scrape_job(
-                    kind=kind,
-                    name=f"SERP batch 1/{len(SERP_BATCH_MINUTES)}",
-                    lock=_pm_lab_lock,
-                    runner=lambda: run_serp_batch_once(0),
-                    on_done=_serp0_done,
-                    notify=False,
-                )
-                if result is None and kind in _scrape_deferred_jobs:
-                    pass
 
         def _slot_job(
             kind: str,
@@ -4000,45 +3602,6 @@ def _post_page_tarama_progress_async(payload: dict[str, Any]) -> None:
         global _pt_progress_latest
         _pt_progress_latest = payload
         _pt_progress_wake.set()
-
-
-def _pm_lab_claim_loop() -> None:
-    """PM Lab Refresh kuyruğunu Mac’te çalıştır."""
-    url = _page_tarama_api_base() + "/api/pm-lab/claim-refresh"
-    print(f"PM lab yenile kuyruğu: {url}", flush=True)
-    while True:
-        try:
-            if not _ingest_token():
-                time.sleep(12)
-                continue
-            resp = requests.get(url, headers=_page_tarama_auth_headers(), timeout=20)
-            if resp.status_code != 200:
-                time.sleep(5)
-                continue
-            job = str((resp.json() or {}).get("job") or "").strip()
-            if not job:
-                time.sleep(3)
-                continue
-            print(f"PM lab yenile başladı: {job}", flush=True)
-            result = None
-            while result is None:
-                result = _run_locked_job(
-                    name=f"PM lab {job}",
-                    lock=_pm_lab_lock,
-                    runner=lambda j=job: run_pm_lab_jobs_once(j),
-                    kind="pm_lab",
-                    notify=False,
-                )
-                if result is None:
-                    print(f"PM lab {job}: kilit meşgul, 8 sn…", flush=True)
-                    time.sleep(8)
-            print(
-                f"PM lab yenile bitti: {job} · ok={bool(result.get('ok'))} · {result.get('message') or ''}",
-                flush=True,
-            )
-        except Exception:
-            traceback.print_exc()
-            time.sleep(5)
 
 
 def _page_tarama_keepalive_loop() -> None:
@@ -4359,7 +3922,6 @@ def run_daemon() -> int:
     threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()
     threading.Thread(target=_page_tarama_claim_loop, name="page-tarama-claim", daemon=True).start()
     threading.Thread(target=_page_tarama_keepalive_loop, name="page-tarama-keepalive", daemon=True).start()
-    threading.Thread(target=_pm_lab_claim_loop, name="pm-lab-claim", daemon=True).start()
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), _BridgeHandler)
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
