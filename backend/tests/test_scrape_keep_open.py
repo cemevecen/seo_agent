@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
-from backend.services.scrape_browser import scrape_keep_window_open
+from backend.services.scrape_browser import (
+    scrape_keep_window_open,
+    warm_session_forget,
+    warm_session_get,
+    warm_session_get_for_profile,
+    warm_session_remember,
+)
 
 
 def test_scrape_keep_window_open_defaults_on(monkeypatch):
@@ -29,3 +35,25 @@ def test_scrape_keep_window_open_per_scrape_override(monkeypatch):
     monkeypatch.setenv("SCRAPE_KEEP_OPEN", "0")
     # per-scrape=1 wins over global=0
     assert scrape_keep_window_open(env_key="FIREBASE_CONSOLE_KEEP_OPEN") is True
+
+
+class _FakeCtx:
+    def __init__(self) -> None:
+        self.pages = []
+
+
+def test_warm_session_shared_by_profile(tmp_path: Path):
+    prof = tmp_path / "fx-google"
+    prof.mkdir()
+    ctx = _FakeCtx()
+    pw = object()
+    warm_session_forget("play")
+    warm_session_forget("firebase")
+    warm_session_remember("play", pw, ctx, label="Play", profile=prof)
+    shared = warm_session_get_for_profile(prof)
+    assert shared is not None
+    assert shared[1] is ctx
+    # play anahtarından da okunur
+    assert warm_session_get("play") is not None
+    warm_session_forget("play")
+    assert warm_session_get_for_profile(prof) is None

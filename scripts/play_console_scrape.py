@@ -717,8 +717,6 @@ def _clear_profile_singleton_locks(profile_dir: Path) -> None:
 
 
 _CDP_ATTACHED: set[int] = set()
-# Headed Play: Google oturumu için Firefox penceresi kapatılmaz; sonraki taramada yeniden kullanılır.
-_PLAY_WARM: dict[str, Any] = {"pw": None, "ctx": None}
 
 
 def _play_keep_window_open() -> bool:
@@ -728,76 +726,51 @@ def _play_keep_window_open() -> bool:
     return scrape_keep_window_open(env_key="PLAY_CONSOLE_KEEP_OPEN")
 
 
-def _play_warm_alive(ctx: Any) -> bool:
-    if ctx is None:
-        return False
-    try:
-        _ = ctx.pages
-        return True
-    except Exception:
-        return False
-
-
 def _launch_context(*, headed: bool):
     from backend.services.selenium_playwright_shim import (
         launch_selenium_context,
         play_console_use_selenium,
     )
 
-    if headed and _play_keep_window_open() and _play_warm_alive(_PLAY_WARM.get("ctx")):
-        print("Play: mevcut Firefox penceresi yeniden kullanılıyor (kapatılmadı)", flush=True)
-        return _PLAY_WARM["pw"], _PLAY_WARM["ctx"]
-
     if play_console_use_selenium():
         # launch_selenium_context → (pw, context, attached); callers expect 2-tuple
         pw, context, _attached = launch_selenium_context(PROFILE_DIR, headed=headed)
-        if headed and _play_keep_window_open():
-            _PLAY_WARM["pw"] = pw
-            _PLAY_WARM["ctx"] = context
         return pw, context
 
-    from backend.services.store_session_cdp import attach_or_launch
+    from backend.services.scrape_browser import acquire_persistent_context
 
-    pw, context, attached = attach_or_launch("play", headed=headed)
-    if attached:
-        _CDP_ATTACHED.add(id(context))
-        print("Play: kalıcı Firefox profili", flush=True)
-    if headed and _play_keep_window_open():
-        _PLAY_WARM["pw"] = pw
-        _PLAY_WARM["ctx"] = context
+    pw, context, reused = acquire_persistent_context(
+        "play",
+        profile=PROFILE_DIR,
+        headed=headed,
+        env_key="PLAY_CONSOLE_KEEP_OPEN",
+        label="Play",
+        locale="en-US",
+    )
+    if reused:
+        print("Play: kalıcı Firefox profili (warm)", flush=True)
     return pw, context
 
 
 def _release_context(pw, context) -> None:
     """Headed Play'de pencereyi kapatma — Google oturumu açık kalsın."""
-    if (
-        _play_keep_window_open()
-        and context is not None
-        and _PLAY_WARM.get("ctx") is context
-    ):
-        print(
-            "Play: Firefox penceresi açık bırakıldı (scrape bitse de kapanmaz)",
-            flush=True,
-        )
-        return
-
     if getattr(context, "_selenium_mode", False):
         from backend.services.selenium_playwright_shim import release_selenium_context
 
-        if _PLAY_WARM.get("ctx") is context:
-            _PLAY_WARM["pw"] = None
-            _PLAY_WARM["ctx"] = None
         release_selenium_context(pw, context)
         return
 
-    from backend.services.store_session_cdp import release_browser
+    from backend.services.scrape_browser import release_persistent_context
 
-    attached = id(context) in _CDP_ATTACHED
-    _CDP_ATTACHED.discard(id(context))
-    if _PLAY_WARM.get("ctx") is context:
-        _PLAY_WARM["pw"] = None
-        _PLAY_WARM["ctx"] = None
-    release_browser(pw, context, attached=attached)
+    release_persistent_context(
+        "play",
+        pw,
+        context,
+        headed=True,
+        env_key="PLAY_CONSOLE_KEEP_OPEN",
+        label="Play",
+        profile=PROFILE_DIR,
+    )
 
 
 def _page_is_alive(page) -> bool:

@@ -1046,12 +1046,12 @@ def run_virgul_bridge_once(on_progress=None) -> dict[str, Any]:
 def run_play_bridge_once() -> dict[str, Any]:
     """Play Console dashboard + reviews scrape → Railway ingest.
 
-    Subprocess ile çalışır: sync Playwright'ın asyncio/greenlet state'i
-    bridge auto thread'ini kirletmesin (Sync API inside asyncio loop).
+    Bridge sürecinde (importlib) çalışır — KEEP_OPEN warm session Firebase/GSC ile
+    aynı fx-google penceresini paylaşır. Subprocess yetim Firefox üretmez.
     """
-    return _run_play_scrape_subprocess(
-        args=["--sync", "--ingest"],
+    return _run_play_scrape_inprocess(
         kind="play",
+        vitals_only=False,
         timeout_env="PLAY_BRIDGE_TIMEOUT_SEC",
         timeout_default=1200,
         label="Play Console",
@@ -1060,13 +1060,134 @@ def run_play_bridge_once() -> dict[str, Any]:
 
 def run_play_vitals_bridge_once() -> dict[str, Any]:
     """Sadece Android Vitals (crashes + metrics overview) → merge_vitals ingest."""
-    return _run_play_scrape_subprocess(
-        args=["--vitals-only", "--sync", "--ingest"],
+    return _run_play_scrape_inprocess(
         kind="play_vitals",
+        vitals_only=True,
         timeout_env="PLAY_VITALS_BRIDGE_TIMEOUT_SEC",
         timeout_default=900,
         label="Play Vitals",
     )
+
+
+def _run_play_scrape_inprocess(
+    *,
+    kind: str,
+    vitals_only: bool,
+    timeout_env: str,
+    timeout_default: int,
+    label: str,
+) -> dict[str, Any]:
+    global _last_play_result
+    if not _ingest_token():
+        err = {"ok": False, "kind": kind, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_play_result = err
+        return err
+
+    import importlib.util
+    import threading
+
+    path = ROOT / "scripts" / "play_console_scrape.py"
+    if not path.is_file():
+        err = {"ok": False, "kind": kind, "message": "Play tarama betiği yok"}
+        _last_play_result = err
+        return err
+
+    print(f"{label} scrape başlıyor… (in-process, KEEP_OPEN warm)", flush=True)
+    env_hl = (os.environ.get("PLAY_CONSOLE_HEADLESS") or "").strip().lower()
+    headed = env_hl not in ("1", "true", "yes")
+    timeout_sec = int(os.environ.get(timeout_env) or str(timeout_default))
+    os.environ.setdefault("PLAY_CONSOLE_INGEST_URL", _play_console_ingest_url())
+
+    box: dict[str, Any] = {}
+
+    def _worker() -> None:
+        try:
+            spec = importlib.util.spec_from_file_location("play_console_scrape_bridge", path)
+            if spec is None or spec.loader is None:
+                box["err"] = "Play tarama betiği yüklenemedi"
+                return
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            if hasattr(mod, "INGEST_URL"):
+                mod.INGEST_URL = _play_console_ingest_url()
+            if vitals_only:
+                result = mod.scrape_vitals_only(headed=headed)
+            else:
+                result = mod.scrape_play_console(headed=headed)
+            if not result.get("ok") and (
+                result.get("needs_login")
+                or "login" in str(result.get("message") or "").lower()
+            ):
+                box["out"] = {
+                    "ok": False,
+                    "kind": kind,
+                    "needs_login": True,
+                    "message": result.get("message") or "Play login gerekli (--login)",
+                }
+                return
+            try:
+                ing = mod.ingest_scrape_result(result)
+            except Exception as exc:  # noqa: BLE001
+                box["out"] = {
+                    "ok": False,
+                    "kind": kind,
+                    "message": f"Ingest hata: {exc}",
+                }
+                return
+            msg = (
+                result.get("message")
+                or ing.get("message")
+                or (f"{label} sync OK" if ing.get("ok") else f"{label} ingest fail")
+            )
+            box["out"] = {
+                "ok": bool(ing.get("ok")) and bool(result.get("ok")),
+                "kind": kind,
+                "message": str(msg)[:400],
+                "needs_login": False,
+                "ingest": {
+                    k: ing.get(k)
+                    for k in ("ok", "updated_at", "message")
+                    if k in ing or k == "ok"
+                },
+            }
+        except Exception as exc:  # noqa: BLE001
+            box["err"] = str(exc)[:400]
+
+    th = threading.Thread(target=_worker, name=f"play-scrape-{kind}", daemon=True)
+    th.start()
+    th.join(timeout=max(120, timeout_sec))
+    if th.is_alive():
+        out = {
+            "ok": False,
+            "kind": kind,
+            "message": f"{label} tarama zaman aşımı ({timeout_sec}s)",
+        }
+        _last_play_result = out
+        # Yetim profil kilidi birikmesin — sonraki job takeover edebilsin
+        try:
+            from backend.services.scrape_browser import (
+                google_profile_dir,
+                release_profile_browsers,
+                warm_session_forget,
+            )
+
+            warm_session_forget("play")
+            release_profile_browsers(
+                google_profile_dir(), force=False, reason="play_timeout"
+            )
+        except Exception:
+            pass
+        return out
+
+    if box.get("err"):
+        out = {"ok": False, "kind": kind, "message": f"{label}: {box['err']}"}
+        _last_play_result = out
+        return out
+
+    out = box.get("out") or {"ok": False, "kind": kind, "message": f"{label} boş sonuç"}
+    _last_play_result = out
+    print(f"{label} sync · {out.get('message')}", flush=True)
+    return out
 
 
 def _run_play_scrape_subprocess(
@@ -1077,6 +1198,7 @@ def _run_play_scrape_subprocess(
     timeout_default: int,
     label: str,
 ) -> dict[str, Any]:
+    """Geriye uyumluluk / elle CLI — bridge artık in-process kullanır."""
     global _last_play_result
     if not _ingest_token():
         err = {"ok": False, "kind": kind, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
@@ -1099,6 +1221,8 @@ def _run_play_scrape_subprocess(
         cmd.append("--headless")
     env = os.environ.copy()
     env.setdefault("PLAY_CONSOLE_INGEST_URL", _play_console_ingest_url())
+    # Subprocess KEEP_OPEN yetim Firefox bırakmasın — bridge in-process tercih edilir
+    env.setdefault("PLAY_CONSOLE_KEEP_OPEN", "0")
     timeout_sec = int(os.environ.get(timeout_env) or str(timeout_default))
     try:
         proc = subprocess.run(
@@ -1117,6 +1241,17 @@ def _run_play_scrape_subprocess(
         }
         _last_play_result = out
         print(str(exc)[:300], flush=True)
+        try:
+            from backend.services.scrape_browser import (
+                google_profile_dir,
+                release_profile_browsers,
+            )
+
+            release_profile_browsers(
+                google_profile_dir(), force=True, reason="play_subprocess_timeout"
+            )
+        except Exception:
+            pass
         return out
     except Exception as exc:  # noqa: BLE001
         out = {"ok": False, "kind": kind, "message": f"{label} subprocess: {exc}"}

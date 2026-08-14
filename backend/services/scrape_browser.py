@@ -14,6 +14,9 @@ Pencere (üyelik koruma):
   GSC_CWV_KEEP_OPEN, FIREBASE_CONSOLE_KEEP_OPEN, ADMANAGER_POLICY_KEEP_OPEN,
   SINEMALAR_KEEP_OPEN (=0 ile kapat).
 - acquire_persistent_context / release_persistent_context kullan.
+- Aynı profil (fx-google) paylaşan scrapeler bridge sürecinde aynı warm
+  pencereyi kullanır. Playwright Firefox CDP attach etmez; süreç-dışı yetim
+  pencere varsa hızlı takeover (çerezler diskte kalır).
 """
 
 from __future__ import annotations
@@ -680,8 +683,14 @@ def launch_ephemeral(
 # ── Keep window open (üyelik / Google oturumu koruma) ─────────────────────────
 # Play/ASC zaten KEEP_OPEN kullanıyordu; varsayılan artık TÜM headed scrapeler için açık.
 # Kapatmak: SCRAPE_KEEP_OPEN=0  veya  <SCRAPE>_KEEP_OPEN=0 (örn. GSC_LINKS_KEEP_OPEN=0)
+#
+# Playwright Firefox'a CDP attach YOK. Açık pencereyi yeniden kullanmak yalnız
+# aynı Python sürecinde (bridge daemon warm session) mümkün.
+# Aynı profili (fx-google) paylaşan scrapeler profil anahtarıyla aynı pencerede
+# devam eder (Play → Firebase → GSC). Subprocess yetim Firefox: hızlı takeover.
 
 _WARM_SESSIONS: dict[str, dict[str, Any]] = {}
+_WARM_BY_PROFILE: dict[str, str] = {}  # resolved profile path → warm key
 
 
 def scrape_keep_window_open(*, env_key: str | None = None) -> bool:
@@ -694,6 +703,10 @@ def scrape_keep_window_open(*, env_key: str | None = None) -> bool:
             return True
     raw = (os.environ.get("SCRAPE_KEEP_OPEN") or "1").strip().lower()
     return raw not in ("0", "false", "no", "off")
+
+
+def _profile_key(profile: Path) -> str:
+    return str(profile.expanduser().resolve())
 
 
 def _warm_alive(ctx: Any) -> bool:
@@ -713,8 +726,16 @@ def warm_session_get(key: str) -> tuple[Any, Any] | None:
     if _warm_alive(ctx):
         return pw, ctx
     if key in _WARM_SESSIONS:
-        _WARM_SESSIONS.pop(key, None)
+        warm_session_forget(key)
     return None
+
+
+def warm_session_get_for_profile(profile: Path) -> tuple[Any, Any] | None:
+    """Aynı profili kullanan başka scrape'in sıcak penceresi."""
+    owner = _WARM_BY_PROFILE.get(_profile_key(profile))
+    if not owner:
+        return None
+    return warm_session_get(owner)
 
 
 def warm_session_remember(
@@ -723,12 +744,31 @@ def warm_session_remember(
     ctx: Any,
     *,
     label: str = "",
+    profile: Path | None = None,
 ) -> None:
-    _WARM_SESSIONS[key] = {"pw": pw, "ctx": ctx, "label": label or key}
+    prev = _WARM_SESSIONS.get(key) or {}
+    prev_prof = prev.get("profile")
+    if prev_prof and _WARM_BY_PROFILE.get(str(prev_prof)) == key:
+        _WARM_BY_PROFILE.pop(str(prev_prof), None)
+    slot: dict[str, Any] = {"pw": pw, "ctx": ctx, "label": label or key}
+    if profile is not None:
+        pk = _profile_key(profile)
+        slot["profile"] = pk
+        # Profil başına tek sahip — eski alias'ı düşür
+        old_owner = _WARM_BY_PROFILE.get(pk)
+        if old_owner and old_owner != key:
+            old_slot = _WARM_SESSIONS.get(old_owner) or {}
+            if old_slot.get("ctx") is ctx:
+                _WARM_SESSIONS.pop(old_owner, None)
+        _WARM_BY_PROFILE[pk] = key
+    _WARM_SESSIONS[key] = slot
 
 
 def warm_session_forget(key: str) -> None:
-    _WARM_SESSIONS.pop(key, None)
+    slot = _WARM_SESSIONS.pop(key, None) or {}
+    prof = slot.get("profile")
+    if prof and _WARM_BY_PROFILE.get(str(prof)) == key:
+        _WARM_BY_PROFILE.pop(str(prof), None)
 
 
 def acquire_persistent_context(
@@ -743,15 +783,46 @@ def acquire_persistent_context(
     extra: dict[str, Any] | None = None,
     kill_existing: bool = True,
 ) -> tuple[Any, Any, bool]:
-    """(pw, context, reused). Headed + KEEP_OPEN ise önceki pencereyi yeniden kullanır."""
+    """(pw, context, reused). Headed + KEEP_OPEN ise önceki pencereyi yeniden kullanır.
+
+    Aynı profil (örn. fx-google) için Play/Firebase/GSC aynı warm pencereyi paylaşır.
+    Süreç dışı yetim Firefox varsa (subprocess KEEP_OPEN kalıntısı) hızlı takeover —
+    Playwright Firefox attach etmez; çerezler diskte kalır, pencere yeniden açılır.
+    """
     from playwright.sync_api import sync_playwright
 
     tag = label or key
-    if headed and scrape_keep_window_open(env_key=env_key):
-        warm = warm_session_get(key)
+    profile = profile.expanduser()
+    keep = bool(headed and scrape_keep_window_open(env_key=env_key))
+
+    if keep:
+        warm = warm_session_get(key) or warm_session_get_for_profile(profile)
         if warm is not None:
-            print(f"{tag}: mevcut Firefox penceresi yeniden kullanılıyor (kapatılmadı)", flush=True)
+            # Bu scrape anahtarına da bağla (release doğru bulsun)
+            warm_session_remember(key, warm[0], warm[1], label=tag, profile=profile)
+            print(
+                f"{tag}: mevcut Firefox penceresi yeniden kullanılıyor "
+                f"(profil {profile.name}, kapatılmadı)",
+                flush=True,
+            )
             return warm[0], warm[1], True
+
+        # Warm yok ama profilde canlı browser → başka süreçten yetim
+        orphan_pids = list_profile_browser_pids(profile)
+        if orphan_pids and kill_existing:
+            print(
+                f"{tag}: profilde süreç-dışı Firefox açık (pid={orphan_pids[:4]}) — "
+                "Playwright attach yok; pencereyi devralıp yeniden açıyoruz "
+                "(Google oturumu disk profilinde kalır)",
+                flush=True,
+            )
+            ensure_profile_free_for_launch(
+                profile,
+                takeover=True,
+                busy_wait_sec=1.5,
+                release_wait_sec=3.0,
+                reason=f"{key}:orphan_takeover",
+            )
 
     pw = sync_playwright().start()
     try:
@@ -771,8 +842,8 @@ def acquire_persistent_context(
             pass
         raise
 
-    if headed and scrape_keep_window_open(env_key=env_key):
-        warm_session_remember(key, pw, ctx, label=tag)
+    if keep:
+        warm_session_remember(key, pw, ctx, label=tag, profile=profile)
     return pw, ctx, False
 
 
@@ -784,14 +855,24 @@ def release_persistent_context(
     headed: bool = True,
     env_key: str | None = None,
     label: str = "",
+    profile: Path | None = None,
 ) -> None:
     """Headed + KEEP_OPEN: pencereyi kapatma (oturum açık kalsın). Aksi halde close+stop."""
     tag = label or key
     keep = bool(headed and scrape_keep_window_open(env_key=env_key) and ctx is not None)
     if keep:
-        warm_session_remember(key, pw, ctx, label=tag)
+        # Profil bilgisini slot'tan veya argümandan koru
+        prev = _WARM_SESSIONS.get(key) or {}
+        prof = profile
+        if prof is None and prev.get("profile"):
+            try:
+                prof = Path(str(prev["profile"]))
+            except Exception:
+                prof = None
+        warm_session_remember(key, pw, ctx, label=tag, profile=prof)
         print(
             f"{tag}: Firefox penceresi açık bırakıldı (scrape bitse de kapanmaz; "
+            f"aynı bridge sürecinde sonraki tarama bu pencereden devam eder; "
             f"kapatmak için {(env_key or 'SCRAPE_KEEP_OPEN')}=0)",
             flush=True,
         )
@@ -800,6 +881,14 @@ def release_persistent_context(
     warm = _WARM_SESSIONS.get(key) or {}
     if warm.get("ctx") is ctx:
         warm_session_forget(key)
+    # Profil index'te bu ctx varsa temizle
+    for pk, owner in list(_WARM_BY_PROFILE.items()):
+        slot = _WARM_SESSIONS.get(owner) or {}
+        if slot.get("ctx") is ctx:
+            warm_session_forget(owner)
+            break
+        if owner == key:
+            _WARM_BY_PROFILE.pop(pk, None)
     try:
         if ctx is not None:
             ctx.close()
@@ -820,6 +909,7 @@ def close_context_maybe_keep(
     env_key: str | None = None,
     label: str = "",
     pw: Any = None,
+    profile: Path | None = None,
 ) -> None:
     """`with sync_playwright()` kullanan eski kod yolları için: keep ise close etme.
 
@@ -828,7 +918,9 @@ def close_context_maybe_keep(
     """
     if headed and scrape_keep_window_open(env_key=env_key) and context is not None:
         if pw is not None:
-            warm_session_remember(key, pw, context, label=label or key)
+            warm_session_remember(
+                key, pw, context, label=label or key, profile=profile
+            )
         print(
             f"{label or key}: context.close atlandı (KEEP_OPEN) — oturum korunur",
             flush=True,

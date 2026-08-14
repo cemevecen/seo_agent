@@ -1039,6 +1039,16 @@ def scrape_firebase_console(
         release_persistent_context,
     )
 
+    _top_prog(
+        {
+            "platform": plat_list[0],
+            "phase": "browser",
+            "sub_label": "open/reuse Firefox",
+            "step": 0,
+            "total_steps": total_steps,
+            "message": f"Firefox açılıyor / yeniden kullanılıyor ({','.join(plat_list)})",
+        }
+    )
     pw, context, _reused = acquire_persistent_context(
         "firebase",
         profile=PROFILE_DIR,
