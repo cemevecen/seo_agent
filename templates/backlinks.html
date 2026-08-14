@@ -251,11 +251,129 @@
     scrollbar-gutter: stable;
   }
   .bl-changes-list-scroll {
-    max-height: calc(25 * 1.35rem);
+    max-height: calc(25 * 1.55rem);
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     padding-right: 0.1rem;
+  }
+  .bl-delta-card {
+    min-width: 0;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255);
+    padding: 0.65rem 0.7rem 0.55rem;
+  }
+  html.dark .bl-delta-card {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.85);
+  }
+  .bl-delta-card__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.35rem;
+  }
+  .bl-delta-card__title {
+    margin: 0;
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(71 85 105);
+  }
+  html.dark .bl-delta-card__title {
+    color: rgb(212 212 216);
+  }
+  .bl-delta-card__meta {
+    margin: 0;
+    font-size: 0.5625rem;
+    color: rgb(148 163 184);
+  }
+  .bl-delta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.28rem 0;
+    border-bottom: 1px solid rgb(241 245 249);
+  }
+  .bl-delta-row:last-child {
+    border-bottom: 0;
+  }
+  html.dark .bl-delta-row {
+    border-bottom-color: rgb(39 39 42);
+  }
+  .bl-delta-label {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: rgb(30 41 59);
+  }
+  html.dark .bl-delta-label {
+    color: rgb(228 228 231);
+  }
+  .bl-delta-pill {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 7.5rem;
+    padding: 0.12rem 0.45rem;
+    border-radius: 9999px;
+    border: 1px solid transparent;
+    font-size: 0.625rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.35;
+    white-space: nowrap;
+  }
+  .bl-delta-pill.is-up {
+    background: rgb(220 252 231);
+    color: rgb(4 120 87);
+    border-color: rgb(167 243 208);
+  }
+  .bl-delta-pill.is-down {
+    background: rgb(254 243 199);
+    color: rgb(146 64 14);
+    border-color: rgb(253 230 138);
+  }
+  .bl-delta-pill.is-lost {
+    background: rgb(254 226 226);
+    color: rgb(185 28 28);
+    border-color: rgb(254 202 202);
+  }
+  .bl-delta-pill.is-neutral {
+    background: rgb(241 245 249);
+    color: rgb(71 85 105);
+    border-color: rgb(226 232 240);
+  }
+  html.dark .bl-delta-pill.is-up {
+    background: rgb(6 78 59 / 0.45);
+    color: rgb(110 231 183);
+    border-color: rgb(6 95 70);
+  }
+  html.dark .bl-delta-pill.is-down {
+    background: rgb(120 53 15 / 0.4);
+    color: rgb(253 230 138);
+    border-color: rgb(146 64 14);
+  }
+  html.dark .bl-delta-pill.is-lost {
+    background: rgb(127 29 29 / 0.45);
+    color: rgb(252 165 165);
+    border-color: rgb(153 27 27);
+  }
+  html.dark .bl-delta-pill.is-neutral {
+    background: rgb(39 39 42);
+    color: rgb(212 212 216);
+    border-color: rgb(63 63 70);
   }
   #bl-domains-table {
     table-layout: fixed;
@@ -3635,42 +3753,98 @@
         (kpis.total_links ? '<div class="text-[10px] text-slate-500">Total links ' + blFmtNum(kpis.total_links) + "</div>" : "") +
         "</div></div>";
 
-      function listBlock(title, items, labelKey) {
+      function blDeltaPillForItem(kind, it) {
+        if (typeof it === "string") {
+          if (kind === "new") return { text: "new", tone: "up" };
+          if (kind === "lost") return { text: "lost", tone: "lost" };
+          return { text: "changed", tone: "neutral" };
+        }
+        if (it && it.delta != null && it.delta !== "") {
+          var d = Number(it.delta);
+          if (!isNaN(d) && d !== 0) {
+            return {
+              text: (d > 0 ? "+" : "") + String(d),
+              tone: d > 0 ? "up" : "down",
+            };
+          }
+        }
+        if (it && it.delta_rank != null && it.delta_rank !== "") {
+          var dr = Number(it.delta_rank);
+          if (!isNaN(dr) && dr !== 0) {
+            // backend: baseline_rank − latest_rank → + = improved, − = worse
+            return {
+              text: "rank " + (dr > 0 ? "▲ +" + String(dr) : "▼ −" + String(Math.abs(dr))),
+              tone: dr > 0 ? "up" : "down",
+            };
+          }
+        }
+        if (kind === "new") {
+          if (it && it.count != null) {
+            return { text: "+" + blFmtNum(it.count), tone: "up" };
+          }
+          return { text: "new", tone: "up" };
+        }
+        if (kind === "lost") {
+          if (it && it.count != null && Number(it.count) > 0) {
+            return { text: "−" + blFmtNum(it.count), tone: "lost" };
+          }
+          return { text: "lost", tone: "lost" };
+        }
+        if (it && it.count != null) {
+          return { text: blFmtNum(it.count), tone: "neutral" };
+        }
+        return { text: "Δ", tone: "neutral" };
+      }
+
+      function listBlock(title, items, labelKey, kind) {
         var arr = items || [];
-        var lis = arr
-          .map(function (it) {
-            var lab = typeof it === "string" ? it : it[labelKey] || it.label || it.key || "";
-            var extra = "";
-            if (it && it.delta != null) extra = " · Δ " + it.delta;
-            if (it && it.delta_rank != null) extra = " · rank Δ " + it.delta_rank;
-            if (it && it.count != null && it.delta == null) extra = " · " + blFmtNum(it.count);
-            return "<li class=\"truncate\" title=\"" + String(lab).replace(/"/g, "&quot;") + "\">" + lab + extra + "</li>";
-          })
-          .join("");
+        var winLabel = w === "weekly" ? "weekly" : "daily";
         var meta =
           arr.length > BL_TOP_RANK_VISIBLE
-            ? '<p class="mt-0.5 text-[9px] text-slate-400">top ' +
-              BL_TOP_RANK_VISIBLE +
-              " visible · scroll for " +
-              arr.length +
-              "</p>"
-            : "";
+            ? winLabel + " · top " + BL_TOP_RANK_VISIBLE + " visible · scroll " + arr.length
+            : winLabel + " · top " + BL_TOP_RANK_VISIBLE + " visible";
+        var rows = arr
+          .map(function (it) {
+            var lab =
+              typeof it === "string" ? it : it[labelKey] || it.label || it.key || "";
+            var pill = blDeltaPillForItem(kind, it);
+            return (
+              '<li class="bl-delta-row" title="' +
+              esc(String(lab)) +
+              '">' +
+              '<span class="bl-delta-label">' +
+              esc(String(lab)) +
+              "</span>" +
+              '<span class="bl-delta-pill is-' +
+              esc(pill.tone) +
+              '">' +
+              esc(pill.text) +
+              "</span>" +
+              "</li>"
+            );
+          })
+          .join("");
         return (
-          '<section class="min-w-0 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900"><h4 class="text-[10px] font-bold uppercase text-slate-600">' +
-          title +
+          '<section class="bl-delta-card">' +
+          '<div class="bl-delta-card__head">' +
+          '<h4 class="bl-delta-card__title">' +
+          esc(title) +
           "</h4>" +
-          meta +
-          '<ol class="bl-changes-list-scroll mt-1 space-y-0.5 text-[11px] text-slate-700 dark:text-slate-200">' +
-          (lis ||
-            '<li class="text-slate-400">No records in this window.</li>') +
+          '<p class="bl-delta-card__meta">' +
+          esc(meta) +
+          "</p>" +
+          "</div>" +
+          '<ol class="bl-changes-list-scroll mt-2 list-none p-0">' +
+          (rows ||
+            '<li class="py-1 text-[11px] text-slate-400">No records in this window.</li>') +
           "</ol></section>"
         );
       }
       if (tables) {
         tables.innerHTML =
-          listBlock("Yeni", diff.new || [], "label") +
-          listBlock("Lost", diff.lost || [], "label") +
-          listBlock("Changed", diff.changed || [], "label");
+          listBlock("New", diff.new || [], "label", "new") +
+          listBlock("Lost", diff.lost || [], "label", "lost") +
+          listBlock("Changed", diff.changed || [], "label", "changed");
       }
       if (chart) {
         var series = d.series || [];
