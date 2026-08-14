@@ -50,7 +50,7 @@ def test_bridge_sinemalar_slots_are_five_minutes_after_doviz():
 
 
 def test_read_property_ids_filters_by_project_report_path():
-    """doviz prefs, sinemalar scrape'e sızmamalı."""
+    """doviz prefs, sinemalar scrape'e sızmamalı; sinemalar defaults ayrı."""
     mod = _load_scrape()
 
     class FakeDriver:
@@ -60,17 +60,18 @@ def test_read_property_ids_filters_by_project_report_path():
                 "web": "376928120",  # doviz — yalnızca doviz needle ile
                 "mweb": "329808608",
             }
-            # Script filters by needle in real browser; we simulate return
             if "/sinemalar-report/" in str(needle):
-                return {}  # henüz sinemalar prefs yok
+                return {}  # browser LS'de yok → defaults kullanılır
             if "/doviz-report/" in str(needle):
                 return all_prefs
             return all_prefs
 
-    # Sinemalar: env yoksa boş kalmalı (doviz ID sızmasın)
+    # Sinemalar: doviz ID sızmaz; built-in defaults gelir
     got = mod._read_property_ids(FakeDriver(), "sinemalar")
-    assert got.get("web") in (None, ""), got
-    assert got.get("mweb") in (None, ""), got
+    assert got.get("web") == "375681147", got
+    assert got.get("mweb") == "375681811", got
+    assert got.get("web") != "376928120"
+    assert got.get("mweb") != "329808608"
 
     # Doviz: doviz prefs gelir
     got_d = mod._read_property_ids(FakeDriver(), "doviz")

@@ -218,14 +218,22 @@ def _parse_property_ids_env(raw: str) -> dict[str, str]:
     return out
 
 
+# Sinemalar Empower columnPrefs property_id (web / mweb)
+DEFAULT_SINEMALAR_PROPERTY_IDS: dict[str, str] = {
+    "web": "375681147",
+    "mweb": "375681811",
+}
+
+
 def _default_property_ids(project: str) -> dict[str, str]:
     proj = _normalize_project(project)
     if proj == "sinemalar":
+        out = dict(DEFAULT_SINEMALAR_PROPERTY_IDS)
         env_ids = _parse_property_ids_env(
             os.environ.get("EMPOWER_INTEL_SINEMALAR_PROPERTY_IDS") or ""
         )
-        # Keşif yoksa boş bırak — sayfa localStorage'dan doldurulur
-        return env_ids
+        out.update(env_ids)
+        return out
     return dict(DEFAULT_PROPERTY_IDS)
 
 
