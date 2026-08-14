@@ -23,6 +23,7 @@ Env:
   PLAY_CONSOLE_VITALS_DETAIL_LIMIT=8  # issue detay/stack üst sınır (5–10)
   PLAY_CONSOLE_VITALS_DETAILS=     # boş=günde ~1 kez; 0=hiç; 1=zorla bu sync’te
   PLAY_CONSOLE_KEEP_OPEN=0         # varsayılan açık bırak; 0=scrape bitince kapat
+  HISTORY_SEAL / PLAY_CONSOLE_FORCE_FULL  # mühürlü gövde; varsayılan yalnız dün
 """
 
 from __future__ import annotations
@@ -165,31 +166,32 @@ VITALS_ISSUE_CATEGORIES: list[dict[str, Any]] = [
 
 
 def _stats_history_start() -> "date":
-    from datetime import date
+    from backend.services.history_seal import history_start
 
-    raw = (os.environ.get("PLAY_CONSOLE_STATS_START") or "2025-01-01").strip()
-    try:
-        return date.fromisoformat(raw)
-    except ValueError:
-        return date(2025, 1, 1)
+    return history_start()
 
 
 def _console_date_range(days: int | None = None) -> str:
-    """Play Console QS: 2025_1_1-2026_8_7 — varsayılan 2025-01-01 → dün."""
-    from datetime import date, timedelta
+    """Play Console QS dateRange — mühürlüyse yalnız dün; force_full → HISTORY_START→seal."""
+    from datetime import timedelta
 
-    end = date.today() - timedelta(days=1)
-    if days is None:
-        start = _stats_history_start()
-    else:
-        start = end - timedelta(days=max(1, days) - 1)
-    if start > end:
-        start = end
+    from backend.services.history_seal import (
+        calendar_yesterday,
+        play_qs_date_range,
+        scheduled_fetch_window,
+    )
 
-    def _fmt(d: date) -> str:
-        return f"{d.year}_{d.month}_{d.day}"
+    end = calendar_yesterday()
+    if days is not None:
+        start = end - timedelta(days=max(1, int(days)) - 1)
+        return play_qs_date_range(start, end)
 
-    return f"{_fmt(start)}-{_fmt(end)}"
+    win = scheduled_fetch_window("play")
+    print(
+        f"Play tarih aralığı · {win['mode']} · {win['start']} → {win['end']} ({win['days']} gün)",
+        flush=True,
+    )
+    return play_qs_date_range(win["start"], win["end"])
 
 
 def _stats_url(

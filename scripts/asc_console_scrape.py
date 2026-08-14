@@ -12,7 +12,8 @@ Env:
   ASC_CONSOLE_INGEST_URL    default …/api/asc-console/ingest
   NOTIFICATION_INGEST_TOKEN
   ASC_CONSOLE_APP_ID        default 465599322
-  ASC_CONSOLE_SCRAPE_DAYS   default 365 (Android ile aynı üst sınır)
+  ASC_CONSOLE_SCRAPE_DAYS   yalnız HISTORY_SEALED=0 / FORCE_FULL iken (aksi halde dün)
+  ASC_CONSOLE_FORCE_FULL=1  HISTORY_START → seal tek seferlik
   ASC_CONSOLE_HEADLESS=1    (varsayılan headed — Apple oturumu için)
   ASC_CONSOLE_KEEP_OPEN=0   (varsayılan açık bırak; 0=scrape bitince kapat)
 """
@@ -63,14 +64,38 @@ INGEST_URL = (
 ).strip()
 
 
+def _scrape_window() -> dict:
+    """Mühürlü: yalnız dün. FORCE_FULL / unsealed: HISTORY_START → seal."""
+    from backend.services.history_seal import (
+        calendar_yesterday,
+        force_full_history,
+        history_start,
+        is_pipeline_sealed,
+        scheduled_fetch_window,
+    )
+
+    # Explicit day count only when forcing full / unsealed backfill
+    raw = (os.environ.get("ASC_CONSOLE_SCRAPE_DAYS") or "").strip()
+    if raw and (force_full_history("asc") or not is_pipeline_sealed("asc")):
+        try:
+            n = int(raw)
+        except ValueError:
+            n = 365
+        n = min(max(n, 1), 400)
+        end = calendar_yesterday()
+        start = max(history_start(), end - timedelta(days=n - 1))
+        return {
+            "mode": "explicit_days",
+            "start": start,
+            "end": end,
+            "days": (end - start).days + 1,
+        }
+    return scheduled_fetch_window("asc")
+
+
 def _scrape_days() -> int:
-    """Android Play ile aynı: varsayılan son 1 yıl (günlük)."""
-    raw = (os.environ.get("ASC_CONSOLE_SCRAPE_DAYS") or "365").strip()
-    try:
-        n = int(raw)
-    except ValueError:
-        n = 365
-    return min(max(n, 7), 365)
+    """Geriye uyum — pencere gün sayısı (mühürlüde 1)."""
+    return int(_scrape_window().get("days") or 1)
 
 # ASC web private API measureKey → warehouse metric
 MEASURE_MAP: dict[str, str] = {
@@ -1285,10 +1310,14 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                     "raw_network": [],
                 }
 
-        end_d = date.today() - timedelta(days=1)
-        scrape_days = _scrape_days()
-        start_d = end_d - timedelta(days=scrape_days - 1)
-        print(f"ASC scrape aralık · {start_d} → {end_d} ({scrape_days} gün)", flush=True)
+        win = _scrape_window()
+        end_d = win["end"]
+        start_d = win["start"]
+        scrape_days = int(win.get("days") or ((end_d - start_d).days + 1))
+        print(
+            f"ASC scrape aralık · {win.get('mode')} · {start_d} → {end_d} ({scrape_days} gün)",
+            flush=True,
+        )
         measure_map = _asc_measure_map()
         measure_batches = _asc_measure_batches()
         required_metrics = _asc_required_metrics()
@@ -1517,9 +1546,11 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "measure_keys": list(measure_map.keys()),
                 "ratings": ratings,
                 "scrape_meta": {
+                    "mode": win.get("mode"),
                     "start": start_d.isoformat(),
                     "end": end_d.isoformat(),
                     "days": scrape_days,
+                    "sealed": bool(win.get("sealed")),
                     "api": ANALYTICS_MEASURES_URL,
                     "ratings_url": RATINGS_URL,
                 },

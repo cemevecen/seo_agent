@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any
 
@@ -366,6 +367,57 @@ def ingest_play_console_payload(
             )
         # Boş vitals full sync ile dolu vitals'i ezmesin
         panels = _preserve_existing_vitals_if_incoming_empty(panels, existing_panels)
+        # Tarih upsert: dünün dilimi mühürlü gövdeyi silmesin; bugünü kaydetme
+        try:
+            from backend.services.history_seal import never_store_today
+
+            by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
+            for f in existing_facts or []:
+                if not isinstance(f, dict) or not f.get("metric"):
+                    continue
+                ds = str(f.get("date") or "")[:10]
+                key = (
+                    str(f.get("metric")),
+                    ds,
+                    str(f.get("dim") or f.get("dimension") or "overview"),
+                )
+                by_key[key] = f
+            replace_all = (
+                str(sync_mode or "").endswith("_replace")
+                or bool(
+                    isinstance((panels or {}).get("scrape_meta"), dict)
+                    and (panels or {}).get("scrape_meta", {}).get("replace_facts")
+                )
+                or (os.environ.get("PLAY_CONSOLE_REPLACE_FACTS") or "").strip().lower()
+                in ("1", "true", "yes", "on")
+            )
+            if replace_all:
+                touched = {
+                    str(f.get("metric"))
+                    for f in (incoming_facts or [])
+                    if isinstance(f, dict) and f.get("metric")
+                }
+                if touched:
+                    by_key = {k: v for k, v in by_key.items() if k[0] not in touched}
+            for f in incoming_facts or []:
+                if not isinstance(f, dict) or not f.get("metric"):
+                    continue
+                ds = str(f.get("date") or "")[:10]
+                if never_store_today(ds or None):
+                    continue
+                key = (
+                    str(f.get("metric")),
+                    ds,
+                    str(f.get("dim") or f.get("dimension") or "overview"),
+                )
+                by_key[key] = f
+            merged_panels = dict(panels) if isinstance(panels, dict) else {}
+            merged_list = list(by_key.values())
+            merged_panels["explorer_facts"] = merged_list[:50000]
+            merged_panels["explorer_fact_count"] = len(merged_list)
+            panels = merged_panels
+        except Exception:
+            LOGGER.exception("play explorer_facts merge failed — incoming panels kullanılıyor")
 
     if metrics is not None or panels is not None:
         row.metrics_json = _pack_metrics_blob(metrics, panels)

@@ -108,6 +108,28 @@ PLAY_SLOT_HOURS = (0, 6, 12, 18)  # 6 saatte bir — login baskısını düşür
 PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "2")
 ASC_SLOT_HOURS = (0, 3, 6, 9, 12, 15, 18, 21)  # ASC 3 saat (Play’den ayrı)
 ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "11")
+# Mühürlü gövde: Play/ASC/GSC Links günde 1 (dün dilimi) — full history yok
+try:
+    from backend.services.history_seal import is_pipeline_sealed, mark_all_expensive_pipelines_sealed
+
+    if is_pipeline_sealed("play") and not (os.environ.get("PLAY_CONSOLE_BRIDGE_HOURS") or "").strip():
+        PLAY_SLOT_HOURS = (6,)
+    if is_pipeline_sealed("asc") and not (os.environ.get("ASC_CONSOLE_BRIDGE_HOURS") or "").strip():
+        ASC_SLOT_HOURS = (6,)
+    # Mevcut panel verisini mühürle (idempotent meta)
+    mark_all_expensive_pipelines_sealed()
+except Exception:
+    pass
+_PLAY_HOURS_RAW = (os.environ.get("PLAY_CONSOLE_BRIDGE_HOURS") or "").strip()
+if _PLAY_HOURS_RAW:
+    PLAY_SLOT_HOURS = tuple(
+        int(h.strip()) for h in _PLAY_HOURS_RAW.split(",") if h.strip().isdigit()
+    ) or PLAY_SLOT_HOURS
+_ASC_HOURS_RAW = (os.environ.get("ASC_CONSOLE_BRIDGE_HOURS") or "").strip()
+if _ASC_HOURS_RAW:
+    ASC_SLOT_HOURS = tuple(
+        int(h.strip()) for h in _ASC_HOURS_RAW.split(",") if h.strip().isdigit()
+    ) or ASC_SLOT_HOURS
 FIREBASE_SLOT_HOURS = (6,)  # günde bir — sabah Firebase Console scrape
 _FIREBASE_HOURS_RAW = (os.environ.get("FIREBASE_CONSOLE_BRIDGE_HOURS") or "").strip()
 if _FIREBASE_HOURS_RAW:
@@ -116,6 +138,19 @@ if _FIREBASE_HOURS_RAW:
     ) or FIREBASE_SLOT_HOURS
 FIREBASE_SLOT_MINUTE = int(os.environ.get("FIREBASE_CONSOLE_BRIDGE_MINUTE") or "46")
 TWICE_DAILY_HOURS = (1, 13)  # 01:xx + 13:xx
+GSC_LINKS_SLOT_HOURS = TWICE_DAILY_HOURS
+try:
+    from backend.services.history_seal import is_pipeline_sealed as _seal_gsc
+
+    if _seal_gsc("gsc_links") and not (os.environ.get("GSC_LINKS_BRIDGE_HOURS") or "").strip():
+        GSC_LINKS_SLOT_HOURS = (1,)  # günde bir snapshot
+except Exception:
+    pass
+_GSC_HOURS_RAW = (os.environ.get("GSC_LINKS_BRIDGE_HOURS") or "").strip()
+if _GSC_HOURS_RAW:
+    GSC_LINKS_SLOT_HOURS = tuple(
+        int(h.strip()) for h in _GSC_HOURS_RAW.split(",") if h.strip().isdigit()
+    ) or GSC_LINKS_SLOT_HOURS
 REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:34 + 13:34 TR
 GSC_SLOT_MINUTE = int(os.environ.get("GSC_LINKS_BRIDGE_MINUTE") or "14")
 REVENUE_TARGETS_SLOT_MINUTE = int(os.environ.get("REVENUE_TARGETS_BRIDGE_MINUTE") or "40")
@@ -362,7 +397,7 @@ def browser_scrape_slot_defs() -> tuple[tuple[str, tuple[int, ...], int], ...]:
         ("asc", ASC_SLOT_HOURS, ASC_SLOT_MINUTE),
         ("virgul", VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE),
         ("market", MARKET_SLOT_HOURS, MARKET_SLOT_MINUTE),
-        ("gsc_links", TWICE_DAILY_HOURS, GSC_SLOT_MINUTE),
+        ("gsc_links", GSC_LINKS_SLOT_HOURS, GSC_SLOT_MINUTE),
         ("policy", TWICE_DAILY_HOURS, POLICY_SLOT_MINUTE),
         ("pagespeed", TWICE_DAILY_HOURS, SPEED_SLOT_MINUTE),
         ("noads", TWICE_DAILY_HOURS, NOADS_SLOT_MINUTE),
@@ -2839,7 +2874,7 @@ def _upcoming_slots(limit: int = 14) -> list[dict[str, Any]]:
     add("asc", ASC_SLOT_HOURS, ASC_SLOT_MINUTE)
     add("virgul", VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE)
     add("firebase", FIREBASE_SLOT_HOURS, FIREBASE_SLOT_MINUTE)
-    add("gsc_links", TWICE_DAILY_HOURS, GSC_SLOT_MINUTE)
+    add("gsc_links", GSC_LINKS_SLOT_HOURS, GSC_SLOT_MINUTE)
     add("policy", TWICE_DAILY_HOURS, POLICY_SLOT_MINUTE)
     add("pagespeed", TWICE_DAILY_HOURS, SPEED_SLOT_MINUTE)
     add("noads", TWICE_DAILY_HOURS, NOADS_SLOT_MINUTE)
@@ -3967,7 +4002,7 @@ def _auto_loop() -> None:
         )
         _slot_job(
             "gsc_links", "GSC Links", _gsc_links_lock, run_gsc_links_bridge_once,
-            "_last_gsc_links_auto_slot", TWICE_DAILY_HOURS, GSC_SLOT_MINUTE,
+            "_last_gsc_links_auto_slot", GSC_LINKS_SLOT_HOURS, GSC_SLOT_MINUTE,
         )
         _slot_job(
             "revenue_targets",

@@ -146,7 +146,17 @@ def ingest_asc_console_payload(
         for f in (incoming_panels.get("explorer_facts") or [])
         if isinstance(f, dict) and f.get("metric")
     ]
-    # Metrik bazında birleştir — kısmi scrape diğer metrikleri silmesin
+    try:
+        from backend.services.history_seal import never_store_today
+
+        facts = [
+            f
+            for f in facts
+            if not never_store_today(str(f.get("date") or "")[:10] or None)
+        ]
+    except Exception:
+        pass
+    # Metrik+tarih upsert — diğer günleri / metrikleri silme (mühürlü gövde korunur)
     _, existing_panels = _unpack_metrics_blob(row.metrics_json or "[]")
     by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
     for f in existing_panels.get("explorer_facts") or []:
@@ -158,14 +168,14 @@ def ingest_asc_console_payload(
             str(f.get("dim") or "overview"),
         )
         by_key[key] = f
-    touched_metrics = {str(f.get("metric")) for f in facts}
-    # Aynı scrape turunda gelen metriklerin eski tarihlerini temizle
-    if touched_metrics:
-        by_key = {
-            k: v
-            for k, v in by_key.items()
-            if k[0] not in touched_metrics
-        }
+    replace_all = False
+    meta = incoming_panels.get("scrape_meta") if isinstance(incoming_panels.get("scrape_meta"), dict) else {}
+    if str(sync_mode or "").endswith("_replace") or (meta or {}).get("replace_facts"):
+        replace_all = True
+    if replace_all:
+        touched_metrics = {str(f.get("metric")) for f in facts}
+        if touched_metrics:
+            by_key = {k: v for k, v in by_key.items() if k[0] not in touched_metrics}
     for f in facts:
         key = (
             str(f.get("metric")),

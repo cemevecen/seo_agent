@@ -669,4 +669,12 @@ def search_console_should_purge_before_collect() -> bool:
     """SC canlı çekiminden önce bu site için eski snapshot satırlarını silmek gerekiyor mu."""
     if settings.search_console_purge_before_collect:
         return True
+    try:
+        from backend.services.history_seal import is_pipeline_sealed
+
+        # Mühürlü gövde: purge + full refetch yok (incremental)
+        if is_pipeline_sealed("search_console"):
+            return False
+    except Exception:
+        pass
     return bool(is_railway_runtime() and settings.search_console_purge_on_railway)
