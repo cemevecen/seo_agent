@@ -3027,6 +3027,7 @@
     var rowH = plotH / rows;
     var slot = slotWidth > 0 ? slotWidth : 16;
     var cellW = Math.max(2.2, Math.min(slot * 0.9, slot - 0.8));
+    var heatFn = window.seoMatteHeatCellColor;
     var html = "";
     for (var si = 0; si < rows; si++) {
       var ser = seriesList[si];
@@ -3043,12 +3044,13 @@
       for (var j = 0; j < n; j++) {
         var v = Number(vals[j]) || 0;
         var tIntensity = Math.max(0, Math.min(1, v / max));
-        var op = (0.14 + tIntensity * 0.8).toFixed(3);
+        var fill = heatFn ? heatFn(si, tIntensity) : ser.color;
+        var op = heatFn ? "0.94" : (0.14 + tIntensity * 0.8).toFixed(3);
         var x0 = xs[j] - cellW / 2;
         parts +=
           '<rect x="' + x0.toFixed(1) + '" y="' + y0.toFixed(1) +
           '" width="' + cellW.toFixed(1) + '" height="' + h.toFixed(1) +
-          '" rx="1.6" fill="' + ser.color + '" fill-opacity="' + op +
+          '" rx="1.6" fill="' + fill + '" fill-opacity="' + op +
           '" shape-rendering="optimizeSpeed" />';
       }
       html += wrapIaChartSeriesG(ser.metric, parts);
@@ -3141,7 +3143,8 @@
     }
     if (style === "area") {
       var areaD = buildIaAreaPath(list, baseY);
-      if (areaD) html += '<path d="' + areaD + '" fill="' + color + '" fill-opacity="' + fillOp + '" />';
+      var fillColor = (window.seoMatteAreaFillFromStroke && window.seoMatteAreaFillFromStroke(color)) || color;
+      if (areaD) html += '<path d="' + areaD + '" fill="' + fillColor + '" fill-opacity="' + fillOp + '" />';
     }
     var lineD = buildIaLinePath(list);
     if (lineD) {
