@@ -1,4 +1,19 @@
 <style>
+
+  html.dark #crash-version-mobile-panel,
+  html.dark #crash-version-mobile-list,
+  html.midnight #crash-version-mobile-panel,
+  html.midnight #crash-version-mobile-list {
+    background-color: #18181b !important;
+    color: #d4d4d8;
+  }
+  html.dark .firebase-page .text-white,
+  html.midnight .firebase-page .text-white { color: #d4d4d8 !important; }
+  html.dark .firebase-crash-dot,
+  html.midnight .firebase-crash-dot {
+    background: radial-gradient(circle, #a85a66 0 28%, rgba(168,90,102,0.22) 29% 55%, transparent 56%) !important;
+  }
+
   /* Platform yuvarlak rozet ikonları */
   .plat-badge { display: inline-flex; align-items: center; justify-content: center;
     width: 1.05rem; height: 1.05rem; border-radius: 9999px;
@@ -123,7 +138,7 @@
     position: fixed;
     z-index: 45;
     max-height: min(55vh, 22rem);
-    background-color: #ffffff;
+    background-color: #f4f4f5;
     box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
   }
   html.dark #crash-version-mobile-panel {
@@ -131,7 +146,7 @@
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
   }
   #crash-version-mobile-list {
-    background-color: #ffffff;
+    background-color: #f4f4f5;
   }
   html.dark #crash-version-mobile-list {
     background-color: #0f172a;
@@ -186,7 +201,7 @@
     width: 1.25rem;
     flex-shrink: 0;
     border-radius: 9999px;
-    background: radial-gradient(circle, #fb7185 0 28%, rgba(244,63,94,0.22) 29% 55%, transparent 56%);
+    background: radial-gradient(circle, #a85a66 0 28%, rgba(168,90,102,0.22) 29% 55%, transparent 56%);
   }
   .crash-motion-pulse::before,
   .crash-motion-pulse::after {

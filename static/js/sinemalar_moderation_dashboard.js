@@ -17,7 +17,10 @@
   var METRICS = RAW.metric_types || [];
   var MODS = RAW.moderators || [];
   var ANALYTICS = RAW.analytics || {};
-  var PALETTE = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
+  function modPalette() {
+  return (window.seoMatteSeriesPalette && window.seoMatteSeriesPalette()) || ["#6b8aad", "#8b7aa8", "#3d8b6e", "#b87333", "#a85a66", "#a86b7f"];
+}
+var PALETTE = modPalette();
   /** Sinemalar_Yonetim (53), ivicincim (748975) — varsayılan kapalı; legend yalnızca o grafiği etkiler */
   var DEFAULT_HIDDEN_USER_IDS = { "53": true, "748975": true };
   var chartModVisibility = {};
@@ -67,7 +70,7 @@
   function th() {
     return window.seoPlotlyTheme
       ? window.seoPlotlyTheme()
-      : { paper: "#fff", plot: "#fff", text: "#334155", grid: "#e2e8f0", legend: "#64748b", tick: "#64748b" };
+      : { paper: "rgba(0,0,0,0)", plot: "rgba(0,0,0,0)", text: "#334155", grid: "#e2e8f0", legend: "#64748b", tick: "#64748b" };
   }
 
   function plotCfg() {
@@ -587,7 +590,7 @@
         font: {
           family: "Inter, system-ui, sans-serif",
           size: size,
-          color: dark ? "#f1f5f9" : "#0f172a",
+          color: dark ? "#d4d4d8" : "#0f172a",
         },
         align: "left",
         namelength: -1,
@@ -811,13 +814,21 @@
           z: zMatrix,
           xgap: 1,
           ygap: 2,
-          colorscale: [
-            [0, "#f1f5f9"],
-            [0.001, "#bae6fd"],
-            [0.35, "#38bdf8"],
-            [0.7, "#0284c7"],
-            [1, "#0c4a6e"],
-          ],
+          colorscale: (window.seoMatteIsDark && window.seoMatteIsDark())
+            ? [
+                [0, "#18181b"],
+                [0.001, "#3d4f5c"],
+                [0.35, "#5b7c99"],
+                [0.7, "#6b8aad"],
+                [1, "#3d8b6e"],
+              ]
+            : [
+                [0, "#f4f4f5"],
+                [0.001, "#a8c0d0"],
+                [0.35, "#6b8aad"],
+                [0.7, "#5b7c99"],
+                [1, "#3d5568"],
+              ],
           colorbar: { title: { text: "tasks/day" }, len: 0.45, thickness: 12 },
           hovertemplate: "%{y}<br>%{x}<br>%{z:,} tasks<extra></extra>",
         },
@@ -863,7 +874,7 @@
         y: users.map(function (u) {
           return (u.totals || {})[mt.key] || 0;
         }),
-        marker: { color: PALETTE[mi % PALETTE.length] },
+        marker: { color: modPalette()[mi % modPalette().length] },
         hovertemplate: "%{x}<br>" + mt.label + ": %{y:,}<extra></extra>",
       };
     });
@@ -933,12 +944,19 @@
           text: text,
           texttemplate: "%{text}",
           textfont: { size: chartW(el) < 480 ? 8 : 10 },
-          colorscale: [
-            [0, "#f8fafc"],
-            [0.2, "#fde68a"],
-            [0.5, "#fb923c"],
-            [1, "#dc2626"],
-          ],
+          colorscale: (window.seoMatteIsDark && window.seoMatteIsDark())
+            ? [
+                [0, "#18181b"],
+                [0.2, "#a89a4a"],
+                [0.5, "#b87333"],
+                [1, "#a85a66"],
+              ]
+            : [
+                [0, "#f4f4f5"],
+                [0.2, "#d6c27a"],
+                [0.5, "#c48a4a"],
+                [1, "#a85a66"],
+              ],
           reversescale: true,
           hovertemplate: "%{y} · %{x}<br>Rank: %{text}<extra></extra>",
         },

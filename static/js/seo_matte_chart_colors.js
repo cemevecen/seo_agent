@@ -143,6 +143,30 @@
       : ["#4b6a9b", "#0f766e", "#6d5b9e", "#b45309", "#9d4d6a", "#4a6f8c", "#b91c3c"];
   }
 
+  /** Core Web Vitals / GSC traffic-light series (Poor / NI / Good). */
+  function seoMatteCwvColors() {
+    var d = isDark();
+    return {
+      poor: d ? "#a85a66" : "#C53929",
+      needs: d ? "#b87333" : "#F09300",
+      good: d ? "#4a8f73" : "#0B8043",
+      poorFill: d ? "rgba(168,90,102,0.12)" : "rgba(197,57,41,0.08)",
+      needsFill: d ? "rgba(184,115,51,0.12)" : "rgba(240,147,0,0.08)",
+      goodFill: d ? "rgba(74,143,115,0.12)" : "rgba(11,128,67,0.08)",
+      amp: d
+        ? ["#6b5f8a", "#7a6b9a", "#8b7aa8", "#5b5278", "#4a4568", "#71717a"]
+        : ["#7c3aed", "#a78bfa", "#c4b5fd", "#8b5cf6", "#6d28d9", "#ddd6fe"],
+    };
+  }
+
+  /** App / store quality gauges — matte red→green. */
+  function seoMatteQualityGauge() {
+    var d = isDark();
+    return d
+      ? ["#a85a66", "#b87333", "#a89a4a", "#3d8b6e", "#4a8f73"]
+      : ["#ef4444", "#f97316", "#eab308", "#22c55e", "#10b981"];
+  }
+
   global.seoMatteChartColors = seoMatteChartColors;
   global.seoMatteGa4TrendLines = seoMatteGa4TrendLines;
   global.seoMatteScTrendLines = seoMatteScTrendLines;
@@ -153,6 +177,8 @@
   global.seoMatteMarketOverlayPalette = seoMatteMarketOverlayPalette;
   global.seoMatteEmpowerOverlayPalette = seoMatteEmpowerOverlayPalette;
   global.seoMatteSeriesPalette = seoMatteSeriesPalette;
+  global.seoMatteCwvColors = seoMatteCwvColors;
+  global.seoMatteQualityGauge = seoMatteQualityGauge;
   global.seoMatteIsDark = isDark;
   global.seoMattePick = pick;
 })(typeof window !== "undefined" ? window : globalThis);
