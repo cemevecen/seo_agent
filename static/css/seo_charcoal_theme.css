@@ -125,6 +125,38 @@ html.charcoal .dark\:text-slate-500 {
   color: var(--seo-muted) !important;
 }
 
+/*
+ * Inverted dark-mode CTAs use dark:bg-slate-100 + dark:text-slate-900 (paper pill).
+ * Charcoal remaps .bg-slate-900 → matte surface with !important, so black labels
+ * (Alerts, period chips, primary pills) become unreadable — force light ink.
+ */
+html.charcoal .dark\:text-slate-900,
+html.charcoal .dark\:text-zinc-900,
+html.charcoal .dark\:text-gray-900,
+html.charcoal .dark\:text-neutral-900 {
+  color: var(--seo-text-strong) !important;
+}
+
+html.charcoal a.bg-slate-900,
+html.charcoal button.bg-slate-900,
+html.charcoal span.bg-slate-900,
+html.charcoal [class*="bg-slate-900"].rounded-full,
+html.charcoal [class*="bg-slate-900"].rounded-md,
+html.charcoal [class*="bg-slate-900"].rounded-lg,
+html.charcoal [class*="bg-slate-900"].rounded-xl,
+html.charcoal .dark\:bg-slate-100.dark\:text-slate-900,
+html.charcoal .dark\:bg-slate-200.dark\:text-slate-900,
+html.charcoal .dark\:bg-zinc-200.dark\:text-zinc-900 {
+  color: var(--seo-text-strong) !important;
+}
+
+html.charcoal a.bg-slate-900.dark\:hover\:bg-white:hover,
+html.charcoal button.bg-slate-900.dark\:hover\:bg-white:hover,
+html.charcoal [class*="bg-slate-900"].dark\:hover\:bg-white:hover {
+  background-color: var(--seo-surface-2) !important;
+  color: var(--seo-text-strong) !important;
+}
+
 /* Forms / controls */
 html.charcoal input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="image"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
 html.charcoal select,
@@ -135,6 +167,7 @@ html.charcoal textarea {
 }
 
 html.charcoal button.bg-slate-900,
+html.charcoal a.bg-slate-900,
 html.charcoal .dark\:bg-slate-900.rounded-lg,
 html.charcoal .dark\:bg-zinc-700 {
   background-color: var(--seo-surface-3) !important;
