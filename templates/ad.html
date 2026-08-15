@@ -14207,8 +14207,8 @@
     var r = Math.round(rLo + (rHi - rLo) * t);
     var g = Math.round(gLo + (gHi - gLo) * t);
     var b = Math.round(bLo + (bHi - bLo) * t);
-    // Dolguyu önceki yoğunluğun %50'sine indir; metin rengi baskın kalsın.
-    var alpha = dark ? 0.11 : 0.085;
+    // Çok hafif dolgu: kırmızı/yeşil metin rengi baskın ve okunaklı kalsın.
+    var alpha = dark ? 0.045 : 0.035;
     var text = t >= 0.52
       ? (dark ? "#4a8f73" : "#166534")
       : (dark ? "#a85a66" : "#b91c1c");
