@@ -1539,14 +1539,24 @@
   }
   function plotLayout(extra) {
     var p = dnPalette();
+    var th = (typeof window.seoPlotlyTheme === "function") ? window.seoPlotlyTheme() : {};
+    var tickColor = th.tick || p.text;
+    var axisLine = th.grid || p.grid;
+    var axisCommon = {
+      showgrid: false,
+      zeroline: false,
+      tickfont: { color: tickColor, size: 11 },
+      linecolor: axisLine,
+      tickcolor: axisLine,
+    };
     var base = {
-      paper_bgcolor: "transparent",
-      plot_bgcolor: "transparent",
-      font: { color: p.text, size: 11 },
+      paper_bgcolor: th.paper || "transparent",
+      plot_bgcolor: th.plot || "transparent",
+      font: { color: tickColor, size: 11 },
       margin: { t: 16, r: 16, b: 48, l: 48 },
-      legend: { orientation: "h", y: 1.12 },
-      xaxis: { gridcolor: p.grid, zeroline: false },
-      yaxis: { gridcolor: p.grid, zeroline: false },
+      legend: { orientation: "h", y: 1.12, font: { color: th.legend || tickColor, size: 11 } },
+      xaxis: Object.assign({}, axisCommon),
+      yaxis: Object.assign({}, axisCommon),
     };
     if (!extra) return base;
     Object.keys(extra).forEach(function (k) {
@@ -3031,6 +3041,9 @@
     if (!state.data) return;
     renderCharts(state.data);
   };
+  document.addEventListener("seo-theme-change", function () {
+    if (typeof window.__dnRerenderCharts === "function") window.__dnRerenderCharts();
+  });
   window.addEventListener("load", function () {
     if (!state.data) return;
     ensurePlotly(function () { renderPlotlyCharts(state.data); });
