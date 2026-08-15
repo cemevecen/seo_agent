@@ -731,16 +731,16 @@ def _alarm_user_volumes(alarm: dict[str, Any]) -> tuple[float, float, float]:
 
 
 def alarm_worthy_for_email(alarm: dict[str, Any]) -> bool:
-    """Düşük hacimli yüzde oynamalarını postadan eler; spike/404/kritik korunur."""
+    """Düşük hacimli yüzde oynamalarını postadan eler; spike/kritik korunur. 404 mail yok."""
     from backend.config import settings
 
     rid = str(alarm.get("rule_id") or "")
     sev = str(alarm.get("severity") or "").lower()
+    # 404 raporu / spike: varsayılan olarak hiç mail yok (panelde kalır)
+    if "404" in rid or rid.startswith("rt_404"):
+        return bool(getattr(settings, "ga4_realtime_404_email_enabled", False))
     if sev == "critical":
         return True
-    # 404: yalnızca kritik spike mail gider (uyarı panoda kalır)
-    if "404" in rid or rid.startswith("rt_404"):
-        return False
 
     min_vol = int(getattr(settings, "ga4_realtime_email_min_users_for_mail", 30))
     min_delta = int(getattr(settings, "ga4_realtime_email_min_abs_user_delta", 12))

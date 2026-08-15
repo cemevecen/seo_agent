@@ -238,12 +238,16 @@ def classify_csv_anomalies(
     if len(new_5xx) >= MIN_NEW_5XX:
         mail = True
         reasons.append(f"{len(new_5xx)} yeni 5xx")
-    if len(new_404) >= MIN_NEW_404_REGRESSION:
+    # 404 raporu maili iptal — new_404 / salt-404 patlaması tetiklemez
+    non_404_burst = [
+        p
+        for p in new_http
+        if int(p.get("http_status") or 0) not in (0, 404)
+        and int(p.get("http_status") or 0) < 500
+    ]
+    if len(non_404_burst) >= MIN_NEW_HTTP_BURST:
         mail = True
-        reasons.append(f"{len(new_404)} yeni 404 (önceki taramada yok)")
-    if len(new_http) >= MIN_NEW_HTTP_BURST:
-        mail = True
-        reasons.append(f"{len(new_http)} yeni HTTP hatası (patlama)")
+        reasons.append(f"{len(non_404_burst)} yeni HTTP hatası (patlama)")
     if (not first_scan) and rate_jump >= MIN_FAILURE_RATE_JUMP_PP:
         mail = True
         reasons.append(f"hata oranı +{rate_jump:.0f} puan")
@@ -264,7 +268,13 @@ def classify_csv_anomalies(
 
     items: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for bucket in (new_5xx, timeouts[:40], new_404, new_prices, new_http):
+    # Mail gövdesinde 404 satırı yok
+    for bucket in (
+        new_5xx,
+        timeouts[:40],
+        new_prices,
+        [p for p in new_http if int(p.get("http_status") or 0) not in (0, 404)],
+    ):
         for p in bucket:
             k = _probe_key(p)
             if not k or k in seen:
@@ -275,6 +285,10 @@ def classify_csv_anomalies(
                 break
         if len(items) >= 80:
             break
+
+    if mail and not items:
+        mail = False
+        reasons = []
 
     return {
         "should_mail": mail,
@@ -334,8 +348,8 @@ def send_csv_anomaly_email(
     <p><b>Tarama:</b> {html_esc(scan_tr)}<br/>
     Liste: {payload.get('url_count', 0)} URL · sorunlu: {payload.get('failure_count', 0)}<br/>
     <b>Neden:</b> {html_esc(reason_txt)}</p>
-    <p style="font-size:12px;color:#64748b">Yalnızca yeni 5xx, yeni 404 patlaması, toplu fiyat kaybı veya oran sıçraması mail gider.
-    Bilinen (sabit) 404'ler tekrarlanmaz.</p>
+    <p style="font-size:12px;color:#64748b">Yalnızca yeni 5xx, toplu fiyat kaybı veya oran sıçraması mail gider.
+    404 raporları gönderilmez (panel: Hata izleme).</p>
     <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:12px">{th}{rows}</table>
     <p><a href="https://projectcontrol.up.railway.app/errors">Panel: Hata izleme</a></p>
     """

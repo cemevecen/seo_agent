@@ -382,8 +382,8 @@ Ortak parametreler:
 | **Haber alarmı** | Yeni haber entry + trafik eşiği veya peak-drop | Evet (site bazlı thread) | `N haber · başlık · değişim` |
 | **Sayfa alarmı** | Sayfa trafik değişimi (page_traffic_drop/spike/new_entry/disappeared) | Evet | URL + kullanıcı sayısı |
 | **KPI alarmı** | Site geneli eşik aşımı (genel realtime) | Evet | Metrik adı + değer |
-| **404 spike** | 10+ (uyarı) / 25+ (kritik) kul. 15 dk'da | Evet | `35 kul. 404'te · /url: 12` |
-| **404 günlük rapor** | 13:15 ve 23:15 | Hayır | `200 URL · /en-cok-gorulen: 847` |
+| **404 spike** | Panel (mail kapalı) | — | — |
+| **404 günlük rapor** | İptal | — | — |
 | **Meta tag regresyon** | noindex eklenmesi, canonical değişimi | Hayır | `3 kritik değişiklik · site+url` |
 | **Inbox özeti** | 1.5 saatte bir (yalnızca env aktifse) | Hayır | Thread başlıkları + özet |
 | **SC alarm refresh** | 08:00 cron veya manuel "Yenile" | Hayır | Konsolide site listesi |
@@ -661,13 +661,10 @@ Filtreler:
 
 Filtre chip'leri sadece DB'den okur, GA4 çağrısı yapmaz. Periyot değiştirmek için yeni çekim gerekmez.
 
-### 13.3 404 Günlük Mail
+### 13.3 404 Mail (iptal)
 
-13:15 ve 23:15'te tüm siteler için tek konsolide mail:
-- Her site başına en fazla 15 URL
-- URL başına max 3 referrer gösterilir
-- Preheader: `200 URL · /en-cok-gorulen-url: 847`
-- Tüm URL'ler tıklanabilir (https://domain/path)
+Realtime 404 spike ve CSV 404 patlaması **e-posta göndermez** (`GA4_REALTIME_404_EMAIL_ENABLED=false`).
+Panel: Realtime / Hata izleme. Eski «13:15 / 23:15 günlük 404 raporu» kaldırıldı.
 
 ### 13.4 Dedupe (Anasayfa)
 

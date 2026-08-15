@@ -395,9 +395,16 @@ class Settings(BaseSettings):
     # Realtime «Haberler» sekmesi: unifiedScreenName bu öneklerle başlıyorsa elenir (virgülle). Boş = yerleşik liste.
     ga4_realtime_news_screen_exclude_prefixes: str = ""
 
-    # Realtime 404 spike: anlık 404 sayfasındaki kullanıcı eşikleri
-    # Mail yalnızca critical + büyük delta (bkz. _evaluate_404_spike_severity).
+    # Realtime 404 spike: panel/DB izleme. Mail kapalı (ga4_realtime_404_email_enabled).
     ga4_realtime_404_enabled: bool = True
+    ga4_realtime_404_email_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "GA4_REALTIME_404_EMAIL_ENABLED",
+            "ga4_realtime_404_email_enabled",
+        ),
+        description="Realtime 404 spike e-postası. Varsayılan kapalı; panel uyarıları ayrı bayrakla açılır.",
+    )
     ga4_realtime_404_warning_threshold: int = Field(default=40, ge=1, le=500)   # panel uyarı (mail yok)
     ga4_realtime_404_critical_threshold: int = Field(default=80, ge=1, le=500)  # kritik eşik
     ga4_realtime_404_window_minutes: int = Field(default=15, ge=5, le=30)       # GA4 penceresi

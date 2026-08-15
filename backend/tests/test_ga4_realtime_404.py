@@ -36,6 +36,6 @@ def test_evaluate_404_spike_real_increase():
     assert _evaluate_404_spike_severity(200, 80, warn_threshold=40, crit_threshold=80) == "critical"
 
 
-def test_404_warning_not_emailed():
+def test_404_not_emailed():
     assert alarm_worthy_for_email({"rule_id": "rt_404_warning", "severity": "warning"}) is False
-    assert alarm_worthy_for_email({"rule_id": "rt_404_critical", "severity": "critical"}) is True
+    assert alarm_worthy_for_email({"rule_id": "rt_404_critical", "severity": "critical"}) is False

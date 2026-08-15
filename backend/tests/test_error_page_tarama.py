@@ -22,7 +22,7 @@ def test_new_5xx_mails():
     assert any("5xx" in r for r in out["reasons"])
 
 
-def test_new_404_burst_mails():
+def test_new_404_burst_does_not_mail():
     prev = []
     cur = [_fail(f"https://kur.doviz.com/x{i}", 404) for i in range(8)]
     # ilk tarama + düşük oran → mail yok
@@ -34,7 +34,8 @@ def test_new_404_burst_mails():
     cur = prev + [_fail(f"https://kur.doviz.com/n{i}", 404) for i in range(6)]
     out = classify_csv_anomalies(cur, prev, url_count=200, prev_url_count=200, prev_failure_count=1)
     assert out["new_404"] == 6
-    assert out["should_mail"] is True
+    assert out["should_mail"] is False
+    assert out["items"] == []
 
 
 def test_prices_empty_needs_cluster():
