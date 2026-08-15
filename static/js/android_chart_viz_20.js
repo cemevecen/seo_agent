@@ -616,7 +616,7 @@
       '<div class="mb-3 flex flex-wrap items-end gap-2">' +
       parts.join("") +
       heightControlsHtml(viz.id) +
-      '<button type="button" class="pa-viz20-refresh shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white">Yenile</button>' +
+      '<button type="button" class="pa-viz20-refresh shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-zinc-100 hover:bg-slate-800 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600">Yenile</button>' +
       "</div>"
     );
   }
@@ -1296,11 +1296,11 @@
         '<div class="flex min-w-0 items-center gap-2">' +
         '<span class="pa-viz20-chevron shrink-0" aria-hidden="true">▸</span>' +
         '<div class="min-w-0">' +
-        '<p class="truncate text-sm font-semibold text-slate-800 dark:text-zinc-100">' +
+        '<p class="pa-viz20-title truncate text-sm font-semibold">' +
         esc(viz.title) +
         "</p>" +
         (viz.blurb
-          ? '<p class="truncate text-[11px] text-slate-500 dark:text-zinc-400">' + esc(viz.blurb) + "</p>"
+          ? '<p class="pa-viz20-blurb truncate text-[11px]">' + esc(viz.blurb) + "</p>"
           : "") +
         "</div></div>" +
         '<span class="pa-viz20-badge pa-viz20-badge-closed">kapalı</span>' +
