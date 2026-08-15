@@ -353,3 +353,16 @@ html.charcoal [class*="dark:bg-black"],
 html.charcoal [class*="bg-black"] {
   background-color: var(--seo-bg) !important;
 }
+
+
+/* Soften leftover #0f0f1x near-blacks (notification / android / AI cards) */
+html.charcoal .notification-page .nt-filter-panel,
+html.dark .notification-page .nt-filter-panel {
+  background-color: #2a2a2e !important;
+  border-color: #52525b !important;
+}
+html.charcoal .ab-site-card,
+html.dark .ab-site-card {
+  background-color: #2a2a2e !important;
+  border-color: #3f3f46 !important;
+}
