@@ -364,3 +364,13 @@ html.midnight .pa-chart-compress button.is-active {
     margin-right: 0 !important;
   }
 }
+
+/* Android + iOS: height/compress chip groups stay in DOM but hidden */
+#pa-chart-height,
+#pa-chart-compress,
+#ia-chart-height,
+#ia-chart-compress {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
