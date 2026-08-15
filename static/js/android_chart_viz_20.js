@@ -724,25 +724,64 @@
       var tmColors = tmLabels.map(function (_, i) {
         return i === 0 ? (th().plot || "#18181b") : matteTm[(i - 1) % matteTm.length];
       });
+      function tmWrapLabel(raw, maxChars, maxLines) {
+        var s = String(raw == null ? "" : raw).replace(/\s+/g, " ").trim();
+        if (!s) return "";
+        maxChars = maxChars || 26;
+        maxLines = maxLines || 5;
+        if (s.length <= maxChars) return s;
+        var tokens = s.split(/(\s+|[-_/.:])/);
+        var lines = [];
+        var cur = "";
+        tokens.forEach(function (tok) {
+          if (!tok) return;
+          if ((cur + tok).length > maxChars && cur) {
+            lines.push(cur.trim());
+            cur = /^[\s]+$/.test(tok) ? "" : tok;
+          } else {
+            cur += tok;
+          }
+        });
+        if (cur.trim()) lines.push(cur.trim());
+        if (lines.length > maxLines) {
+          lines = lines.slice(0, maxLines);
+          var last = lines[maxLines - 1];
+          if (last.length > 3) lines[maxLines - 1] = last.replace(/\s+\S*$/, "") + "…";
+        }
+        return lines.join("<br>");
+      }
+      var tmText = tmLabels.map(function (lab, i) {
+        if (i === 0) return String(lab || "");
+        return tmWrapLabel(lab, 28, 5);
+      });
+      var tmInk = th().text || "#d4d4d8";
       traces = [
         {
           type: "treemap",
           labels: tmLabels,
           parents: c.parents || [],
           values: c.values || [],
+          text: tmText,
           branchvalues: "total",
-          textinfo: "label+value",
-          textfont: { color: "#e4e4e7", size: 11 },
+          textinfo: "text+value",
+          texttemplate: "%{text}<br><b>%{value}</b>",
+          hovertemplate: "<b>%{label}</b><br>Events: %{value}<extra></extra>",
+          textfont: { color: tmInk, size: 15, family: "ui-sans-serif, system-ui, sans-serif" },
+          insidetextfont: { color: tmInk, size: 15, family: "ui-sans-serif, system-ui, sans-serif" },
+          pathbar: { visible: false },
+          tiling: { packing: "squarify", pad: 3 },
           marker: {
             colors: tmColors,
             line: { width: 1, color: "rgba(24,24,27,0.85)" },
-            pad: { t: 2, l: 2, r: 2, b: 2 },
+            pad: { t: 4, l: 4, r: 4, b: 4 },
           },
-          hoverlabel: { bgcolor: "#27272a", font: { color: "#e4e4e7" } },
+          hoverlabel: { bgcolor: "#27272a", font: { color: "#e4e4e7", size: 12 } },
         },
       ];
-      layout.margin = { l: 0, r: 0, t: 8, b: 0 };
+      layout.margin = { l: 0, r: 0, t: 4, b: 0 };
       layout.autosize = true;
+      /* Kutuya sığacak en büyük ortak punto; çok küçük hücrelerde yine göster */
+      layout.uniformtext = { minsize: 9, mode: "show" };
     } else if (type === "bump") {
       (c.traces || []).forEach(function (tr, i) {
         traces.push({
