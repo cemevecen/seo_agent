@@ -240,7 +240,7 @@ html.charcoal *::-webkit-scrollbar-thumb {
   background-color: #52525b;
 }
 html.charcoal *::-webkit-scrollbar-track {
-  background-color: #242428;
+  background-color: #2a2a2e;
 }
 
 
@@ -304,7 +304,7 @@ html.charcoal .home-period-chip.dark\:bg-slate-600 {
 
 /* ── Nuclear soften: any leftover kapkara under charcoal ── */
 html.charcoal body {
-  background: radial-gradient(circle at top, #323238, #2a2a2e 55%, #242428) !important;
+  background: radial-gradient(circle at top, #323238, #2a2a2e 55%, #2a2a2e) !important;
 }
 
 html.charcoal #content,
@@ -341,7 +341,7 @@ html.charcoal .pa-chart-viewport {
   background-color: transparent !important;
 }
 
-/* Beat html.dark [class*="dark:bg-slate-950"] #242428 */
+/* Beat html.dark [class*="dark:bg-slate-950"] #2a2a2e */
 html.charcoal [class*="dark:bg-slate-950"],
 html.charcoal [class*="dark:bg-zinc-950"],
 html.charcoal [class*="bg-zinc-950"] {
@@ -409,11 +409,22 @@ html.dark [style*="#16161b"] {
   background-color: #2a2a2e !important;
 }
 
-/* Soften #222226 → matte #2a2a2e */
+/* Soften #222226 / #242428 / rgb(34,34,38) → matte #2a2a2e */
 html.charcoal [style*="#222226"],
 html.charcoal [style*="222226"],
-html.dark [style*="#222226"] {
+html.charcoal [style*="rgb(34, 34, 38)"],
+html.charcoal [style*="rgb(34,34,38)"],
+html.charcoal [style*="#242428"],
+html.charcoal [style*="242428"],
+html.dark [style*="#222226"],
+html.dark [style*="222226"],
+html.dark [style*="rgb(34, 34, 38)"],
+html.dark [style*="#242428"],
+html.midnight [style*="#222226"],
+html.midnight [style*="rgb(34, 34, 38)"],
+html.midnight [style*="#242428"] {
   background-color: #2a2a2e !important;
+  background: #2a2a2e !important;
 }
 
 
