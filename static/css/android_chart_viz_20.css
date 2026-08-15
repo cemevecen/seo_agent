@@ -86,10 +86,18 @@ html.midnight .chart-viz20-section .pa-viz20-chart {
   background: rgb(9 9 11 / 0.55);
 }
 
-.chart-viz20-section .pa-viz20-chart svg {
+.chart-viz20-section .pa-viz20-chart .js-plotly-plot,
+.chart-viz20-section .pa-viz20-chart .plot-container.plotly,
+.chart-viz20-section .pa-viz20-chart .svg-container {
+  width: 100% !important;
+  max-width: 100%;
+}
+.chart-viz20-section .pa-viz20-chart .svg-container {
+  height: 100% !important;
+}
+.chart-viz20-section .pa-viz20-chart svg.main-svg {
   display: block;
-  width: 100%;
-  height: auto;
+  width: 100% !important;
 }
 
 .chart-viz20-section .pa-viz20-meta {
