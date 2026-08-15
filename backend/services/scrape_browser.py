@@ -743,6 +743,13 @@ def warm_session_forget_profile(profile: Path) -> None:
 def warm_session_get(key: str) -> tuple[Any, Any] | None:
     """(pw, context) veya None — süreç içi sıcak pencere."""
     slot = _WARM_SESSIONS.get(key) or {}
+    owner = slot.get("thread")
+    if owner is not None and owner != threading.get_ident():
+        # Sync Playwright nesneleri thread'e bağlı; başka thread'den dokunmak
+        # "cannot switch to a different thread" hatası verir. Slot'u düşür —
+        # pencere süreç-dışı yetim gibi devralınır (çerezler diskte kalır).
+        warm_session_forget(key)
+        return None
     pw, ctx = slot.get("pw"), slot.get("ctx")
     if _warm_alive(ctx):
         return pw, ctx
@@ -771,7 +778,12 @@ def warm_session_remember(
     prev_prof = prev.get("profile")
     if prev_prof and _WARM_BY_PROFILE.get(str(prev_prof)) == key:
         _WARM_BY_PROFILE.pop(str(prev_prof), None)
-    slot: dict[str, Any] = {"pw": pw, "ctx": ctx, "label": label or key}
+    slot: dict[str, Any] = {
+        "pw": pw,
+        "ctx": ctx,
+        "label": label or key,
+        "thread": threading.get_ident(),
+    }
     if profile is not None:
         pk = _profile_key(profile)
         slot["profile"] = pk
@@ -800,9 +812,17 @@ def warm_session_forget(key: str) -> None:
 _PW_BY_THREAD: dict[int, dict[str, Any]] = {}
 
 
+def _prune_dead_thread_playwrights() -> None:
+    """Biten thread'in sürücüsü yeniden kullanılamaz (ident geri dönüşebilir)."""
+    alive = {t.ident for t in threading.enumerate()}
+    for tid in [k for k in _PW_BY_THREAD if k not in alive]:
+        _PW_BY_THREAD.pop(tid, None)
+
+
 def _thread_playwright() -> Any:
     from playwright.sync_api import sync_playwright
 
+    _prune_dead_thread_playwrights()
     tid = threading.get_ident()
     slot = _PW_BY_THREAD.get(tid)
     if slot is not None and slot.get("pw") is not None:
