@@ -925,9 +925,11 @@
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255 / 0.92);
   }
-  html.dark .ia-stability-grid .sf-card__side-row {
-    border-color: rgb(63 63 70);
-    background: rgb(24 24 27 / 0.62);
+  html.dark .ia-stability-grid .sf-card__side-row,
+  html.charcoal .ia-stability-grid .sf-card__side-row {
+    border-color: rgb(82 82 91);
+    /* was rgb(24 24 27 / 0.62) → computed ~#222226; slightly lifted for contrast */
+    background: #3f3f46;
   }
   .ia-stability-grid .sf-card__side-val {
     flex: 1 1 auto;
