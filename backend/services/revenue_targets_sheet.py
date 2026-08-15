@@ -9,7 +9,7 @@ import json
 import logging
 import re
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -574,15 +574,37 @@ def enrich_month_target_kpi(
     if rem80 is None and h80 is not None and k is not None:
         rem80 = max(0.0, h80 - k)
 
+    # Sheet «Günlük Kazanç» = son tamamlanan günün getirisi (kümülatif fark)
     gunluk = row.get("gunluk_kazanc")
     try:
-        daily = float(gunluk) if gunluk is not None else None
+        last_day_earning = float(gunluk) if gunluk is not None else None
     except (TypeError, ValueError):
-        daily = None
-    if daily is not None and k is not None and abs(daily - k) < 0.5:
-        daily = None
-    if daily is None and k is not None and days_elapsed > 0:
-        daily = k / days_elapsed
+        last_day_earning = None
+    if (
+        last_day_earning is not None
+        and k is not None
+        and abs(last_day_earning - k) < 0.5
+    ):
+        # Yanlışlıkla aylık kazanç kopyalanmış
+        last_day_earning = None
+
+    # «Daily earnings» kartı: ay içi ortalama hız (kümülatif / geçen gün)
+    daily_avg = None
+    if k is not None and days_elapsed > 0:
+        daily_avg = k / days_elapsed
+
+    last_day = None
+    if in_month:
+        if today.day > 1:
+            last_day = today - timedelta(days=1)
+        else:
+            if month == 1:
+                last_day = date(year - 1, 12, 31)
+            else:
+                prev_days = calendar.monthrange(year, month - 1)[1]
+                last_day = date(year, month - 1, prev_days)
+    elif today > date(year, month, days_in_month):
+        last_day = date(year, month, days_in_month)
 
     # Sheet «Günlük Kalan» / «Günlük Kalan (%80)» — yoksa hesapla
     gk = row.get("gunluk_kalan")
@@ -635,7 +657,14 @@ def enrich_month_target_kpi(
         "completion_pct_80": pct80,
         "remaining_pct_100": remaining_pct_100,
         "remaining_pct_80": remaining_pct_80,
-        "daily_avg": daily,
+        "daily_avg": daily_avg,
+        "last_day_earning": last_day_earning,
+        "last_day_date": last_day.isoformat() if last_day else None,
+        "last_day_label": (
+            f"{last_day.day} {('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[last_day.month - 1]}"
+            if last_day
+            else None
+        ),
         "needed_daily": needed_daily,
         "needed_daily_80": needed_daily_80,
         "needed_daily_100": needed_daily,

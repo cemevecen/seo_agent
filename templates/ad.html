@@ -155,25 +155,15 @@
     .mz-page .mz-ad-target-kpis {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .mz-page .mz-ad-target-kpi:nth-child(5):last-child {
-      grid-column: 1 / -1;
-    }
   }
   @media (min-width: 768px) {
     .mz-page .mz-ad-target-kpis {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
-    .mz-page .mz-ad-target-kpi:nth-child(5):last-child {
-      grid-column: auto;
-    }
-    .mz-page .mz-ad-target-kpi:nth-child(4):nth-last-child(2),
-    .mz-page .mz-ad-target-kpi:nth-child(5):last-child {
-      grid-column: span 1;
-    }
   }
-  @media (min-width: 1024px) {
+  @media (min-width: 1100px) {
     .mz-page .mz-ad-target-kpis {
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 0.625rem;
     }
   }
@@ -1945,16 +1935,19 @@
         </div>
         <div id="mz-targets-table-wrap" class="hidden w-full space-y-2">
           <div class="w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-          <table class="mz-targets-table w-full min-w-[40rem] text-left text-xs sm:min-w-0 sm:text-sm">
+          <table class="mz-targets-table w-full min-w-[56rem] text-left text-xs sm:text-sm">
             <thead class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
               <tr>
                 <th class="period px-3 py-2" data-sort="period_key">Period</th>
                 <th class="num px-3 py-2" data-sort="hedef">Target</th>
                 <th class="num px-3 py-2" data-sort="hedef_80">Target (80%)</th>
-                <th class="num px-3 py-2" data-sort="kazanc">Earnings</th>
-                <th class="num px-3 py-2" data-sort="gunluk_kazanc">Daily earnings</th>
+                <th class="num px-3 py-2" data-sort="kazanc">Achieved</th>
+                <th class="num px-3 py-2" data-sort="tamamlama_orani">Target Completion Rate</th>
+                <th class="num px-3 py-2" data-sort="gunluk_kazanc">Daily Earnings</th>
                 <th class="num px-3 py-2" data-sort="kalan">Remaining</th>
-                <th class="num px-3 py-2" data-sort="tamamlama_orani">Target completion</th>
+                <th class="num px-3 py-2" data-sort="kalan_80">Remaining (80%)</th>
+                <th class="num px-3 py-2" data-sort="gunluk_kalan">Daily Remaining</th>
+                <th class="num px-3 py-2" data-sort="gunluk_kalan_80">Daily Remaining (80%)</th>
               </tr>
             </thead>
             <tbody id="mz-targets-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
@@ -3275,7 +3268,12 @@
       {
         label: "Daily earnings",
         value: mzAdTargetFmtMoney(kpi.daily_avg),
-        sub: "",
+        sub: kpi.days_elapsed ? "avg · " + kpi.days_elapsed + "d" : "avg",
+      },
+      {
+        label: "Last day earning",
+        value: mzAdTargetFmtMoney(kpi.last_day_earning),
+        sub: kpi.last_day_label || (kpi.last_day_date || ""),
       },
       {
         label: "Needed daily",
@@ -13555,6 +13553,60 @@
     return mzTargetsFmtMoney(gunluk);
   }
 
+  /** Eksik sheet sütunlarını satırdan türet (eski CSV / boş hücre). */
+  function mzTargetsRowCols(row) {
+    if (!row) {
+      return {
+        hedef: null,
+        hedef_80: null,
+        kazanc: null,
+        tamamlama_orani: null,
+        gunluk_kazanc: null,
+        kalan: null,
+        kalan_80: null,
+        gunluk_kalan: null,
+        gunluk_kalan_80: null,
+      };
+    }
+    var hedef = row.hedef != null && !isNaN(row.hedef) ? Number(row.hedef) : null;
+    var hedef80 =
+      row.hedef_80 != null && !isNaN(row.hedef_80)
+        ? Number(row.hedef_80)
+        : hedef != null
+          ? hedef * 0.8
+          : null;
+    var kazanc = row.kazanc != null && !isNaN(row.kazanc) ? Number(row.kazanc) : null;
+    var kalan =
+      row.kalan != null && !isNaN(row.kalan)
+        ? Number(row.kalan)
+        : hedef != null && kazanc != null
+          ? Math.max(0, hedef - kazanc)
+          : null;
+    var kalan80 =
+      row.kalan_80 != null && !isNaN(row.kalan_80)
+        ? Number(row.kalan_80)
+        : hedef80 != null && kazanc != null
+          ? Math.max(0, hedef80 - kazanc)
+          : null;
+    var gunlukKalan =
+      row.gunluk_kalan != null && !isNaN(row.gunluk_kalan) ? Number(row.gunluk_kalan) : null;
+    var gunlukKalan80 =
+      row.gunluk_kalan_80 != null && !isNaN(row.gunluk_kalan_80)
+        ? Number(row.gunluk_kalan_80)
+        : null;
+    return {
+      hedef: hedef,
+      hedef_80: hedef80,
+      kazanc: kazanc,
+      tamamlama_orani: mzTargetsCompletionPct(row),
+      gunluk_kazanc: row.gunluk_kazanc,
+      kalan: kalan,
+      kalan_80: kalan80,
+      gunluk_kalan: gunlukKalan,
+      gunluk_kalan_80: gunlukKalan80,
+    };
+  }
+
   function mzTargetsCompletionPct(row) {
     if (!row) return null;
     if (row.tamamlama_orani != null && !isNaN(row.tamamlama_orani)) return Number(row.tamamlama_orani);
@@ -13658,7 +13710,8 @@
     rows.forEach(function (r) {
       var tr = document.createElement("tr");
       tr.className = "text-slate-800 dark:text-zinc-200";
-      var pct = mzTargetsCompletionPct(r);
+      var c = mzTargetsRowCols(r);
+      var pct = c.tamamlama_orani;
       var heat = colorize ? mzTargetsHeatStyle(pct) : "";
       var heatAttr = heat ? " style=\"" + heat + "\"" : "";
       var heatCls = colorize && heat ? " mz-targets-heat" : "";
@@ -13668,12 +13721,15 @@
       var tamCls = colorize ? "px-3 py-2 tabular-nums font-semibold" + heatCls : "px-3 py-2 tabular-nums";
       tr.innerHTML =
         "<td class=\"period px-3 py-2 font-medium\">" + (r.period || "—") + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.hedef) + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.hedef_80) + "</td>" +
-        "<td class=\"" + kazancCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(r.kazanc) + "</td>" +
+        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.hedef) + "</td>" +
+        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.hedef_80) + "</td>" +
+        "<td class=\"" + kazancCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.kazanc) + "</td>" +
+        "<td class=\"" + tamCls + " num\"" + heatAttr + ">" + mzTargetsFmtPct(pct) + "</td>" +
         "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtGunlukKazanc(r) + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.kalan) + "</td>" +
-        "<td class=\"" + tamCls + " num\"" + heatAttr + ">" + mzTargetsFmtPct(r.tamamlama_orani) + "</td>";
+        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.kalan) + "</td>" +
+        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.kalan_80) + "</td>" +
+        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.gunluk_kalan) + "</td>" +
+        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.gunluk_kalan_80) + "</td>";
       tbody.appendChild(tr);
     });
     mzTargetsSyncColorizeButton();

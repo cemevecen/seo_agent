@@ -120,6 +120,9 @@ def test_enrich_month_target_kpi_needed_daily():
     assert abs(kpi["remaining_80"] - max(0.0, 248_000.0 - 100_000.0)) < 0.01
     assert abs(kpi["needed_daily_80"] - ((248_000.0 - 100_000.0) / 20)) < 0.01
     assert abs(kpi["needed_daily_100"] - (210_000 / 20)) < 0.01
+    assert kpi["last_day_earning"] == 10_000.0
+    assert kpi["last_day_date"] == "2026-08-11"
+    assert abs(kpi["daily_avg"] - (100_000.0 / 12)) < 0.01
 
     row_sheet = dict(row)
     row_sheet["kalan_80"] = 140_000.0
