@@ -1923,56 +1923,70 @@ def run_firebase_bridge_once(on_progress=None, platforms=None) -> dict[str, Any]
     )
     env_hl = (os.environ.get("FIREBASE_CONSOLE_HEADLESS") or "").strip().lower()
     headed = env_hl not in ("1", "true", "yes")
-    result = scrape_firebase_console(headed=headed, on_progress=_cb, platforms=plat_arg)
-    if not result.get("sync_ok") and "login" in str(result.get("sync_message") or "").lower():
+    try:
+        result = scrape_firebase_console(headed=headed, on_progress=_cb, platforms=plat_arg)
+        if not result.get("sync_ok") and "login" in str(result.get("sync_message") or "").lower():
+            out = {
+                "ok": False,
+                "kind": "firebase",
+                "needs_login": True,
+                "message": result.get("sync_message") or "Firebase login gerekli (--login)",
+            }
+            _last_firebase_result = out
+            _set_firebase_progress(running=False, phase="error", message=out["message"])
+            return out
+        try:
+            _cb(
+                {
+                    "phase": "ingest",
+                    "sub_label": "Railway ingest",
+                    "step": max(1, total_hint - 1),
+                    "total_steps": total_hint,
+                    "message": "Ingesting Firebase scrape",
+                }
+            )
+            os.environ.setdefault("FIREBASE_CONSOLE_INGEST_URL", _firebase_console_ingest_url())
+            if hasattr(mod, "INGEST_URL"):
+                mod.INGEST_URL = _firebase_console_ingest_url()
+            ing = ingest_scrape_result(result)
+        except Exception as exc:  # noqa: BLE001
+            out = {"ok": False, "kind": "firebase", "message": f"Ingest hata: {exc}"}
+            _last_firebase_result = out
+            _set_firebase_progress(running=False, phase="error", message=out["message"])
+            return out
+        plats = ((result.get("panels") or {}).get("platforms") or {})
         out = {
-            "ok": False,
+            "ok": bool(ing.get("ok")) and bool(result.get("sync_ok")),
             "kind": "firebase",
-            "needs_login": True,
-            "message": result.get("sync_message") or "Firebase login gerekli (--login)",
+            "platforms": list(plats.keys()) if isinstance(plats, dict) else [],
+            "metric_count": len(result.get("metrics") or []),
+            "message": result.get("sync_message") or ing.get("message") or "Firebase sync",
+            "needs_login": False,
+            "ingest": ing,
         }
         _last_firebase_result = out
-        _set_firebase_progress(running=False, phase="error", message=out["message"])
-        return out
-    try:
-        _cb(
-            {
-                "phase": "ingest",
-                "sub_label": "Railway ingest",
-                "step": max(1, total_hint - 1),
-                "total_steps": total_hint,
-                "message": "Ingesting Firebase scrape",
-            }
+        _set_firebase_progress(
+            running=False,
+            phase="done" if out["ok"] else "error",
+            step=total_hint,
+            total_steps=total_hint,
+            message=out["message"],
         )
-        os.environ.setdefault("FIREBASE_CONSOLE_INGEST_URL", _firebase_console_ingest_url())
-        if hasattr(mod, "INGEST_URL"):
-            mod.INGEST_URL = _firebase_console_ingest_url()
-        ing = ingest_scrape_result(result)
+        print(f"Firebase sync · {out['message']}", flush=True)
+        return out
     except Exception as exc:  # noqa: BLE001
-        out = {"ok": False, "kind": "firebase", "message": f"Ingest hata: {exc}"}
+        out = {"ok": False, "kind": "firebase", "message": f"Firebase scrape: {exc}"}
         _last_firebase_result = out
         _set_firebase_progress(running=False, phase="error", message=out["message"])
+        print(f"Firebase sync · {out['message']}", flush=True)
         return out
-    plats = ((result.get("panels") or {}).get("platforms") or {})
-    out = {
-        "ok": bool(ing.get("ok")) and bool(result.get("sync_ok")),
-        "kind": "firebase",
-        "platforms": list(plats.keys()) if isinstance(plats, dict) else [],
-        "metric_count": len(result.get("metrics") or []),
-        "message": result.get("sync_message") or ing.get("message") or "Firebase sync",
-        "needs_login": False,
-        "ingest": ing,
-    }
-    _last_firebase_result = out
-    _set_firebase_progress(
-        running=False,
-        phase="done" if out["ok"] else "error",
-        step=total_hint,
-        total_steps=total_hint,
-        message=out["message"],
-    )
-    print(f"Firebase sync · {out['message']}", flush=True)
-    return out
+    finally:
+        if _firebase_progress.get("running"):
+            _set_firebase_progress(
+                running=False,
+                phase="error",
+                message=_firebase_progress.get("message") or "Firebase ended without clear finish",
+            )
 
 
 def run_empower_intel_bridge_once(*, mode: str = "yesterday") -> dict[str, Any]:
@@ -3129,6 +3143,22 @@ def _set_job_progress(kind: str, **kwargs: Any) -> None:
     _JOB_PROGRESS[key] = cur
 
 
+def _clear_dedicated_running(kind: str, *, phase: str = "idle", message: str = "") -> None:
+    """Dedicated progress bag'lerini ŞU AN listesinden düşür (JOB registry ile senkron)."""
+    key = (kind or "").strip()
+    msg = (message or "")[:200]
+    if key == "firebase" and _firebase_progress.get("running"):
+        _set_firebase_progress(running=False, phase=phase, message=msg)
+    elif key == "news" and _news_progress.get("running"):
+        _set_news_progress(running=False, phase=phase, message=msg)
+    elif key in ("notification", "nt") and _nt_progress.get("running"):
+        _set_nt_progress(running=False, phase=phase, message=msg)
+    elif key in ("gsc_cwv", "cwv") and _gsc_cwv_progress.get("running"):
+        _set_gsc_cwv_progress(
+            running=False, phase=phase, message=msg, finished_at=time.time()
+        )
+
+
 def _finish_job_progress(
     kind: str,
     result: dict[str, Any] | None,
@@ -3141,14 +3171,114 @@ def _finish_job_progress(
     msg = str((result or {}).get("message") or ("OK" if ok else "Hata"))[:200]
     label = _trigger_label(trigger or str((_JOB_PROGRESS.get(key) or {}).get("trigger") or ""))
     title = name or key
+    phase = "done" if ok else "error"
     _set_job_progress(
         key,
         running=False,
-        phase="done" if ok else "error",
+        phase=phase,
         message=msg,
         trigger=trigger or (_JOB_PROGRESS.get(key) or {}).get("trigger") or "",
     )
+    _clear_dedicated_running(key, phase=phase, message=msg)
     _job_event(f"{label} bitti · {title} · {msg}")
+
+
+def _reconcile_stale_running_progress() -> None:
+    """Kilit yok / thread ölü iken running=True kalan zombi progress'i temizle."""
+    now = time.time()
+    browser_busy = bool(_browser_scrape_lock.locked())
+    nt_busy = bool(_nt_lock.locked())
+
+    def _stale(bag: dict[str, Any], *, lock_busy: bool, grace_sec: float = 25.0) -> bool:
+        if not isinstance(bag, dict) or not bag.get("running"):
+            return False
+        try:
+            ts = float(bag.get("ts") or 0)
+        except (TypeError, ValueError):
+            ts = 0.0
+        age = (now - ts) if ts > 0 else 9_999.0
+        if not lock_busy and age >= grace_sec:
+            return True
+        # Aşırı uzun (ör. 4s+) — kilit tutulsa bile paneli kilitlemesin
+        if age >= 4 * 3600:
+            return True
+        return False
+
+    if _stale(_firebase_progress, lock_busy=browser_busy):
+        _set_firebase_progress(
+            running=False,
+            phase="stale",
+            message="Cleared stale Firebase progress (no active browser lock)",
+        )
+        _set_job_progress(
+            "firebase",
+            running=False,
+            phase="stale",
+            message="Cleared stale Firebase progress",
+        )
+        _job_event("ŞU AN · firebase stale progress temizlendi")
+
+    if _stale(_gsc_cwv_progress, lock_busy=browser_busy):
+        _set_gsc_cwv_progress(
+            running=False,
+            phase="stale",
+            message="Cleared stale GSC CWV progress",
+            finished_at=now,
+        )
+        _set_job_progress("gsc_cwv", running=False, phase="stale", message="Cleared stale CWV progress")
+        _set_job_progress("cwv", running=False, phase="stale", message="Cleared stale CWV progress")
+
+    if _stale(_news_progress, lock_busy=nt_busy):
+        _set_news_progress(
+            running=False, phase="stale", message="Cleared stale News progress"
+        )
+        _set_job_progress("news", running=False, phase="stale", message="Cleared stale News progress")
+
+    if _stale(_nt_progress, lock_busy=nt_busy):
+        _set_nt_progress(
+            running=False, phase="stale", message="Cleared stale Notification progress"
+        )
+        _set_job_progress(
+            "notification", running=False, phase="stale", message="Cleared stale Notification progress"
+        )
+
+    # JOB registry: browser türleri kilit yokken running kalmasın
+    browser_kinds = {
+        "play",
+        "asc",
+        "firebase",
+        "gsc_links",
+        "gsc_cwv",
+        "cwv",
+        "admanager_policy",
+        "policy",
+        "pagespeed",
+        "empower_intel",
+        "empower_intel_sinemalar",
+        "revenue_targets",
+        "seo_audit",
+        "market",
+    }
+    for key, bag in list(_JOB_PROGRESS.items()):
+        if not isinstance(bag, dict) or not bag.get("running"):
+            continue
+        k = str(key)
+        if k in browser_kinds and not browser_busy:
+            try:
+                ts = float(bag.get("ts") or 0)
+            except (TypeError, ValueError):
+                ts = 0.0
+            age = (now - ts) if ts > 0 else 9_999.0
+            if age >= 25.0:
+                _set_job_progress(
+                    k,
+                    running=False,
+                    phase="stale",
+                    message="Cleared stale job progress (browser lock free)",
+                )
+                _clear_dedicated_running(
+                    k, phase="stale", message="Cleared stale job progress"
+                )
 
 
 def _browser_gap_remaining_sec() -> int:
@@ -3159,6 +3289,7 @@ def _browser_gap_remaining_sec() -> int:
 
 
 def _progress_running_jobs() -> list[dict[str, Any]]:
+    _reconcile_stale_running_progress()
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
 
@@ -3191,6 +3322,14 @@ def _progress_running_jobs() -> list[dict[str, Any]]:
         jp = _JOB_PROGRESS.get(key) or {}
         if isinstance(jp, dict) and jp.get("trigger") and not merged.get("trigger"):
             merged["trigger"] = jp.get("trigger")
+        # JOB bitti ama dedicated bag unutulduysa gösterme
+        if isinstance(jp, dict) and jp.get("running") is False and merged.get("running"):
+            _clear_dedicated_running(
+                key,
+                phase=str(jp.get("phase") or "done"),
+                message=str(jp.get("message") or ""),
+            )
+            continue
         if isinstance(jp, dict) and jp.get("running") and not merged.get("running"):
             # job registry running ama dedicated bag henüz idle — job'u kullan
             _add(key, jp)
@@ -5039,6 +5178,15 @@ def _page_tarama_claim_loop() -> None:
                         )
                     except Exception as exc:  # noqa: BLE001
                         print(f"page-tarama requeue: {exc}", flush=True)
+                    _finish_job_progress(
+                        job_id,
+                        {
+                            "ok": False,
+                            "message": "Requeued · browser lock busy",
+                        },
+                        trigger="page-tarama",
+                        name=str(meta.get("name") or job_id),
+                    )
                     final_posted = True
                     return
 
