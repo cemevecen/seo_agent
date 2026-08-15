@@ -13659,6 +13659,16 @@
     return fmt(v, 0);
   }
 
+  /** Hedef aşıldıysa +miktar · +%; aksi halde kalan (veya —). */
+  function mzTargetsFmtRemainingOrSurplus(remaining, achieved, target) {
+    if (target != null && !isNaN(target) && achieved != null && !isNaN(achieved) && target > 0 && achieved > target) {
+      var over = Number(achieved) - Number(target);
+      var pct = (over / Number(target)) * 100;
+      return "+" + mzTargetsFmtMoney(over) + " · +" + fmt(pct, 1) + "%";
+    }
+    return mzTargetsFmtMoney(remaining);
+  }
+
   /** Sheet bazen aylık kazancı günlük sütuna kopyalıyor — aynıysa gösterme. */
   function mzTargetsFmtGunlukKazanc(row) {
     if (!row) return "—";
@@ -13694,24 +13704,32 @@
           ? hedef * 0.8
           : null;
     var kazanc = row.kazanc != null && !isNaN(row.kazanc) ? Number(row.kazanc) : null;
+    var over100 = hedef != null && kazanc != null && kazanc > hedef;
+    var over80 = hedef80 != null && kazanc != null && kazanc > hedef80;
+
     var kalan =
       row.kalan != null && !isNaN(row.kalan)
         ? Number(row.kalan)
         : hedef != null && kazanc != null
           ? Math.max(0, hedef - kazanc)
           : null;
+    if (over100) kalan = 0;
+
     var kalan80 =
       row.kalan_80 != null && !isNaN(row.kalan_80)
         ? Number(row.kalan_80)
         : hedef80 != null && kazanc != null
           ? Math.max(0, hedef80 - kazanc)
           : null;
-    // Sheet %80 / %100 aşıldığında Günlük Kalan hücrelerini boş bırakıyor → 0 veya kalan
+    if (over80) kalan80 = 0;
+
     var gunlukKalan =
       row.gunluk_kalan != null && !isNaN(row.gunluk_kalan) ? Number(row.gunluk_kalan) : null;
     if (gunlukKalan == null && kalan != null) {
       gunlukKalan = kalan;
     }
+    if (over100) gunlukKalan = 0;
+
     var gunlukKalan80 =
       row.gunluk_kalan_80 != null && !isNaN(row.gunluk_kalan_80)
         ? Number(row.gunluk_kalan_80)
@@ -13719,6 +13737,8 @@
     if (gunlukKalan80 == null && kalan80 != null) {
       gunlukKalan80 = kalan80;
     }
+    if (over80) gunlukKalan80 = 0;
+
     return {
       hedef: hedef,
       hedef_80: hedef80,
@@ -13729,6 +13749,8 @@
       kalan_80: kalan80,
       gunluk_kalan: gunlukKalan,
       gunluk_kalan_80: gunlukKalan80,
+      over_100: over100,
+      over_80: over80,
     };
   }
 
@@ -13852,10 +13874,10 @@
         "<td class=\"" + strongCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.kazanc) + "</td>" +
         "<td class=\"" + strongCls + " num\"" + heatAttr + ">" + mzTargetsFmtPct(pct) + "</td>" +
         "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtGunlukKazanc(r) + "</td>" +
-        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.kalan) + "</td>" +
-        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.kalan_80) + "</td>" +
-        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.gunluk_kalan) + "</td>" +
-        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.gunluk_kalan_80) + "</td>";
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtRemainingOrSurplus(c.kalan, c.kazanc, c.hedef) + "</td>" +
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtRemainingOrSurplus(c.kalan_80, c.kazanc, c.hedef_80) + "</td>" +
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtRemainingOrSurplus(c.gunluk_kalan, c.kazanc, c.hedef) + "</td>" +
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtRemainingOrSurplus(c.gunluk_kalan_80, c.kazanc, c.hedef_80) + "</td>";
       tbody.appendChild(tr);
     });
     mzTargetsSyncColorizeButton();
