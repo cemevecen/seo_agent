@@ -416,3 +416,18 @@ html.dark [style*="#222226"] {
   background-color: #2a2a2e !important;
 }
 
+
+/* KPI spark cards — navy void (#0b1220/#0c1321) → matte charcoal */
+html.charcoal .metric-kpi-ss2,
+html.dark .metric-kpi-ss2,
+html.midnight .metric-kpi-ss2,
+html.charcoal .sd-datas-page .metric-kpi-ss2,
+html.dark .sd-datas-page .metric-kpi-ss2 {
+  background: linear-gradient(160deg, #323238 0%, #2a2a2e 100%) !important;
+  border-color: color-mix(in srgb, var(--kpi-color, #6b8aad) 22%, #52525b) !important;
+}
+html.charcoal .metric-kpi-ss2-spark,
+html.dark .metric-kpi-ss2-spark {
+  background: transparent !important;
+}
+
