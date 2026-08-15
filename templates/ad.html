@@ -10298,6 +10298,35 @@
     return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
   }
 
+  /** KPI spark nokta bütçesi: ≤1 ay tüm günler; daha uzun aralıkta eski 14’ün %50 fazlası (+ eşit örnekleme). */
+  function mzKpiSparkPointBudget(dayCount) {
+    var n = Math.max(0, Number(dayCount) || 0);
+    if (n <= 31) return n;
+    return Math.min(n, Math.round(14 * 1.5)); // 21
+  }
+
+  function mzEvenSampleRows(rows, maxPts) {
+    if (!rows || !rows.length) return [];
+    var n = rows.length;
+    var cap = Math.max(2, Math.min(n, Number(maxPts) || n));
+    if (n <= cap) return rows.slice();
+    var out = [];
+    var seen = {};
+    for (var i = 0; i < cap; i++) {
+      var idx = Math.round((i * (n - 1)) / (cap - 1));
+      if (seen[idx]) continue;
+      seen[idx] = true;
+      out.push(rows[idx]);
+    }
+    if (out.length && out[out.length - 1] !== rows[n - 1]) out.push(rows[n - 1]);
+    return out;
+  }
+
+  function mzKpiSparkSlice(rows) {
+    if (!rows || !rows.length) return [];
+    return mzEvenSampleRows(rows, mzKpiSparkPointBudget(rows.length));
+  }
+
   /** Karşı dönem / peer: yalnızca ince dolgu — çizgi yok (KPI spark kuralı). */
   function mzSparkOverlayFillTrace(xs, ys, colorHex, dark, fillAlpha) {
     var a = fillAlpha != null ? fillAlpha : dark ? 0.26 : 0.2;
@@ -10346,7 +10375,7 @@
     var xs;
 
     if (aligned && aligned.length >= 2) {
-      var slice = aligned.slice(-14);
+      var slice = mzKpiSparkSlice(aligned);
       xs = slice.map(function (_, i) { return i; });
       var primaryYs = slice.map(function (r) { return r.primary != null ? r.primary : 0; });
       var compareYs = slice.map(function (r) { return alignedCompareValue(r); });
@@ -10360,7 +10389,7 @@
       mzPushMeanSplitTraces(traces, xs, primaryYs, sparkMeanOpts);
     } else {
       if (!byDate || byDate.length < 2) return;
-      var plainSlice = byDate.slice(-14);
+      var plainSlice = mzKpiSparkSlice(byDate);
       xs = plainSlice.map(function (d) { return d.date; });
       var ys = plainSlice.map(function (d) { return d[key] != null ? d[key] : 0; });
       if (!ys.some(function (v) { return v !== 0; })) return;
@@ -10369,7 +10398,7 @@
         if (!peerSeriesHasSignal(peerYs)) {
           var own = peerDailySeriesXY(peerSum, key);
           if (peerSeriesHasSignal(own.y)) {
-            // Last 14 dayse kırp / primary xs ile hizala
+            // Spark dilimiyle aynı X’e peer hizala
             peerYs = peerMetricYForPlotX(
               { by_date: own.x.map(function (x, i) {
                 var row = { date: x };
