@@ -591,6 +591,44 @@ class RealtimeNewsSnapshot(Base):
     site: Mapped["Site"] = relationship("Site")
 
 
+class RealtimeNewsArticleBucket(Base):
+    """Haber ID bazında 30 dakikalık AYRIK realtime kovası.
+
+    GA4 Realtime yalnızca kayan (son ~30 dk) pencere döndürdüğü için ardışık
+    snapshot'ları toplamak mükerrer sayım üretir. Burada her satır tek bir
+    ayrık zaman dilimini temsil eder; ``bucket_start`` şebekeye (00/30) hizalıdır
+    ve tekil kısıt sayesinde aynı dilim tekrar yazılsa bile satır çoğalmaz.
+    """
+
+    __tablename__ = "realtime_news_article_buckets"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "profile",
+            "article_id",
+            "bucket_start",
+            name="uq_rt_news_article_bucket",
+        ),
+        Index("ix_rt_news_article_bucket_lookup", "site_id", "article_id", "bucket_start"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    profile: Mapped[str] = mapped_column(String(20), nullable=False, default="web")
+    article_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    match_method: Mapped[str] = mapped_column(String(16), nullable=False, default="path")
+    active_users: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    pageviews: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    bucket_start: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    bucket_end: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    window_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    site: Mapped["Site"] = relationship("Site")
+
+
 class RealtimeAppEventSnapshot(Base):
     """Uygulama (android/ios) realtime event count snapshot — zirve karşılaştırması için."""
 

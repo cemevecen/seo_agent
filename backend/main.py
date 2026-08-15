@@ -94,7 +94,7 @@ from backend.models import (
     Alert, AlertLog, CollectorRun, CruxHistorySnapshot, ExternalOnboardingJob,
     ExternalSite, Ga4ReportSnapshot, LighthouseAuditRecord, Metric,
     NotificationDeliveryLog, PageSpeedAuditSnapshot, PageSpeedPayloadSnapshot,
-    RealtimeAlarmLog, RealtimeNewsSnapshot, RealtimePageSnapshot, RealtimeSnapshot,
+    RealtimeAlarmLog, RealtimeNewsArticleBucket, RealtimeNewsSnapshot, RealtimePageSnapshot, RealtimeSnapshot,
     SearchConsoleQuerySnapshot, Site, SiteCredential, SiteErrorLog, UrlAuditRecord, UrlInspectionSnapshot, AdminAuthSetting,
     AppMember,
     AppStoreRankSnapshot, AiDailyBriefReport, AiBriefRunLog, AppIntelRawCache, RevenueTargetsCache,
@@ -256,6 +256,7 @@ DAILY_REFRESH_LOCK = threading.Lock()
 SEO_AUDIT_JOB_LOCK = threading.Lock()
 APP_INTEL_REFRESH_LOCK = threading.Lock()
 INBOX_SYNC_LOCK = threading.Lock()
+REALTIME_NEWS_BUCKET_LOCK = threading.Lock()
 SCHEDULER: BackgroundScheduler | None = None
 EXTERNAL_ONBOARDING_JOB_TTL_SECONDS = 1800
 EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS = 300
@@ -5016,6 +5017,19 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=600,
+    )
+    job_count += 1
+
+    # Realtime haber kovaları — :00/:30'da kapanan yarım saati haber ID'sine yazar.
+    # misfire_grace_time kısa: geç çalışan iş kovayı yanlış dilime yazmasın.
+    scheduler.add_job(
+        _run_realtime_news_bucket_job,
+        trigger=CronTrigger(minute="0,30", timezone=timezone),
+        id="realtime-news-article-buckets",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
     job_count += 1
 
@@ -20235,6 +20249,13 @@ def _run_db_retention_cleanup() -> dict:
             (RealtimeAlarmLog, RealtimeAlarmLog.triggered_at, settings.db_retention_realtime_alarm_log_days, "realtime_alarm_logs"),
             (RealtimePageSnapshot, RealtimePageSnapshot.collected_at, 3, "realtime_page_snapshots"),
             (RealtimeNewsSnapshot, RealtimeNewsSnapshot.collected_at, 3, "realtime_news_snapshots"),
+            # Haber kovaları sütunda kümülatif gösterildiği için snapshot'lardan uzun yaşar.
+            (
+                RealtimeNewsArticleBucket,
+                RealtimeNewsArticleBucket.bucket_start,
+                90,
+                "realtime_news_article_buckets",
+            ),
             (AppStoreRankSnapshot, AppStoreRankSnapshot.collected_at, 30, "app_store_rank_snapshots"),
             (AiDailyBriefReport, AiDailyBriefReport.created_at, settings.db_retention_ai_report_days, "ai_daily_brief_reports"),
             (AiBriefRunLog, AiBriefRunLog.created_at, settings.db_retention_ai_report_days, "ai_brief_run_logs"),
@@ -20269,6 +20290,36 @@ def _run_db_retention_cleanup() -> dict:
     total_deleted = sum(v for v in stats.values() if v > 0)
     logging.info("DB retention cleanup tamamlandı — toplam %d satır silindi: %s", total_deleted, stats)
     return stats
+
+
+def _run_realtime_news_bucket_job() -> dict[str, Any]:
+    """APScheduler: kapanan yarım saatlik realtime trafiğini haber ID'sine yazar.
+
+    Kova anahtarı (site, profil, haber, dilim) tekil olduğundan iş tekrar
+    çalışsa bile mükerrer kayıt oluşmaz.
+    """
+    if not REALTIME_NEWS_BUCKET_LOCK.acquire(blocking=False):
+        LOGGER.info("Realtime haber kovası atlandı — önceki çalışma sürüyor.")
+        return {"ok": False, "status": "already_running"}
+    try:
+        from backend.services.realtime_news_buckets import collect_news_article_buckets
+
+        with SessionLocal() as db:
+            summary = collect_news_article_buckets(db)
+        LOGGER.info(
+            "Realtime haber kovası: bucket=%s yeni=%s güncel=%s eşleşen=%s eşleşmeyen=%s",
+            summary.get("bucket_start"),
+            summary.get("created"),
+            summary.get("updated"),
+            summary.get("matched_rows"),
+            summary.get("unmatched_rows"),
+        )
+        return summary
+    except Exception as exc:
+        LOGGER.exception("Realtime haber kovası başarısız: %s", exc)
+        return {"ok": False, "error": str(exc)}
+    finally:
+        REALTIME_NEWS_BUCKET_LOCK.release()
 
 
 def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:

@@ -1380,9 +1380,26 @@ def doviz_news_payload(
     # Son içerikler: dönem KPI'sından bağımsız — kategoriye göre en yeni N kayıt
     item_rows = cat_rows
     item_limit = max(1, min(int(items_limit or 250), 500))
-    for r in item_rows[:item_limit]:
+    visible_rows = item_rows[:item_limit]
+
+    # Realtime kovaları: 30 dk'lık ayrık dilimlerin toplamı — GA4 çağrısı yok, yerel DB.
+    rt_totals: dict[str, Any] = {}
+    if db is not None:
+        try:
+            from backend.services.realtime_news_buckets import get_article_realtime_totals
+
+            rt_totals = get_article_realtime_totals(
+                db,
+                [_norm_aid(str(r.get("id") or "")) for r in visible_rows],
+                site_id=site_id,
+            )
+        except Exception:
+            logger.exception("doviz news realtime bucket lookup failed")
+
+    for r in visible_rows:
         aid = _norm_aid(str(r.get("id") or ""))
         tr = by_article.get(aid) or {}
+        rt = rt_totals.get(aid) or {}
         items.append(
             {
                 "id": r.get("id"),
@@ -1398,6 +1415,10 @@ def doviz_news_payload(
                 "gsc_impressions": tr.get("gsc_impressions"),
                 "gsc_ctr": tr.get("gsc_ctr"),
                 "gsc_position": tr.get("gsc_position"),
+                "rt_views": rt.get("rt_views"),
+                "rt_peak_users": rt.get("rt_peak_users"),
+                "rt_buckets": rt.get("rt_buckets"),
+                "rt_last_bucket": rt.get("rt_last_bucket"),
             }
         )
 

@@ -1351,6 +1351,11 @@
       if (tr.gsc_impressions != null) it.gsc_impressions = tr.gsc_impressions;
       if (tr.gsc_ctr != null) it.gsc_ctr = tr.gsc_ctr;
       if (tr.gsc_position != null) it.gsc_position = tr.gsc_position;
+      var rt = fromItems[aid] || {};
+      if (rt.rt_views != null) it.rt_views = rt.rt_views;
+      if (rt.rt_peak_users != null) it.rt_peak_users = rt.rt_peak_users;
+      if (rt.rt_buckets != null) it.rt_buckets = rt.rt_buckets;
+      if (rt.rt_last_bucket != null) it.rt_last_bucket = rt.rt_last_bucket;
     });
   }
 
@@ -2675,6 +2680,20 @@
             return r.is_own
               ? '<span class="dn-badge dn-badge-own">Original</span>'
               : '<span class="dn-badge dn-badge-src">' + esc(r.source || "—") + "</span>";
+          }
+        },
+        {
+          key: "rt_views", label: "RT views", num: true, defaultDir: "desc",
+          render: function (r) {
+            var v = Number(r.rt_views || 0);
+            if (!v) return "—";
+            var tip = ["30 dk'lık ayrık realtime kovalarının toplamı"];
+            if (r.rt_buckets) tip.push(r.rt_buckets + " kova");
+            if (r.rt_peak_users) tip.push("zirve " + fmt(r.rt_peak_users) + " aktif kullanıcı");
+            if (r.rt_last_bucket) {
+              tip.push("son kova " + String(r.rt_last_bucket).replace("T", " ").slice(0, 16) + " UTC");
+            }
+            return '<span title="' + esc(tip.join(" · ")) + '">' + fmt(v) + "</span>";
           }
         }
       ].concat(metricCols)
