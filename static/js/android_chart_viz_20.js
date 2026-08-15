@@ -42,7 +42,7 @@
   function th() {
     var dark =
       document.documentElement.classList.contains("dark") ||
-      document.documentElement.classList.contains("midnight");
+      document.documentElement.classList.contains("charcoal");
     var base = window.seoPlotlyTheme
       ? window.seoPlotlyTheme()
       : {};

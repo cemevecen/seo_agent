@@ -2,15 +2,15 @@
 
   html.dark #crash-version-mobile-panel,
   html.dark #crash-version-mobile-list,
-  html.midnight #crash-version-mobile-panel,
-  html.midnight #crash-version-mobile-list {
+  html.charcoal #crash-version-mobile-panel,
+  html.charcoal #crash-version-mobile-list {
     background-color: #2a2a2e !important;
     color: #d4d4d8;
   }
   html.dark .firebase-page .text-white,
-  html.midnight .firebase-page .text-white { color: #d4d4d8 !important; }
+  html.charcoal .firebase-page .text-white { color: #d4d4d8 !important; }
   html.dark .firebase-crash-dot,
-  html.midnight .firebase-crash-dot {
+  html.charcoal .firebase-crash-dot {
     background: radial-gradient(circle, #a85a66 0 28%, rgba(168,90,102,0.22) 29% 55%, transparent 56%) !important;
   }
 
@@ -179,7 +179,7 @@
   html.dark #app-crashlytics-root {
     --crash-border-soft: rgba(100, 116, 139, 0.16);
   }
-  html.midnight #app-crashlytics-root {
+  html.charcoal #app-crashlytics-root {
     --crash-border-soft: rgba(63, 63, 70, 0.18);
   }
   html.dark #app-crashlytics-root:is(.border, .border-b, .border-t, .border-l, .border-r, .border-x, .border-y),
@@ -269,7 +269,7 @@
           {% for dv, dl in [(1,"1g"),(7,"7g"),(30,"30g"),(90,"90g")] %}
             <button type="button" data-crash-days="{{ dv }}"
               class="crash-days-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition
-                {% if dv == 7 %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
+ {% if dv == 7 %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
           {% endfor %}
         </div>
         </div>
@@ -283,7 +283,7 @@
           {% for tv, tl in [("","All"),("FATAL","Fatal"),("ANR","ANR"),("NON_FATAL","Non-Fatal")] %}
             <button type="button" data-crash-type="{{ tv }}"
               class="crash-type-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition
-                {% if tv == '' %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ tl }}</button>
+ {% if tv == '' %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ tl }}</button>
           {% endfor %}
         </div>
         </div>

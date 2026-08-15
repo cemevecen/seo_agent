@@ -377,23 +377,23 @@
     }
   }
   html.dark .sc-card-filter-bar,
-  html.midnight .sc-card-filter-bar {
+  html.charcoal .sc-card-filter-bar {
     background-color: #2a2a2e !important;
     border-color: #27272a !important;
     box-shadow: none;
   }
   html.dark .sc-card-filter-bar [data-analytics-date-compare],
-  html.midnight .sc-card-filter-bar [data-analytics-date-compare] {
+  html.charcoal .sc-card-filter-bar [data-analytics-date-compare] {
     background-color: #2a2a2e !important;
     border-color: #27272a !important;
   }
   html.dark .sc-card-filter-bar [data-market-overlay-trigger],
-  html.midnight .sc-card-filter-bar [data-market-overlay-trigger] {
+  html.charcoal .sc-card-filter-bar [data-market-overlay-trigger] {
     background-color: #2a2a2e !important;
     border-color: #3f3f46 !important;
   }
   html.dark .sc-card-filter-bar [data-compare-mode],
-  html.midnight .sc-card-filter-bar [data-compare-mode] {
+  html.charcoal .sc-card-filter-bar [data-compare-mode] {
     background-color: #27272a !important;
     border-color: #3f3f46 !important;
   }
@@ -1248,7 +1248,7 @@
     }
     var dark =
       document.documentElement.classList.contains('dark') ||
-      document.documentElement.classList.contains('midnight');
+      document.documentElement.classList.contains('charcoal');
     return {
       clicks: dark ? '#6b8aad' : '#4b6a9b',
       impressions: dark ? '#8b7aa8' : '#6d5b9e',

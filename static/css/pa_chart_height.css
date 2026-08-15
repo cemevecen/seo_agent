@@ -118,7 +118,7 @@
 }
 
 html.dark .pa-chart-edge-handle::before,
-html.midnight .pa-chart-edge-handle::before {
+html.charcoal .pa-chart-edge-handle::before {
   background: rgb(125 211 252);
   box-shadow:
     0 0.32rem 0 0 rgb(125 211 252),
@@ -186,7 +186,7 @@ html.midnight .pa-chart-edge-handle::before {
 }
 
 html.dark .pa-chart-height-handle::before,
-html.midnight .pa-chart-height-handle::before {
+html.charcoal .pa-chart-height-handle::before {
   background: rgb(125 211 252);
   box-shadow:
     0.32rem 0 0 0 rgb(125 211 252),
@@ -262,8 +262,8 @@ html.midnight .pa-chart-height-handle::before {
 
 html.dark .pa-chart-height,
 html.dark .pa-chart-compress,
-html.midnight .pa-chart-height,
-html.midnight .pa-chart-compress {
+html.charcoal .pa-chart-height,
+html.charcoal .pa-chart-compress {
   border-color: rgb(63 63 70);
   background: rgb(24 24 27 / 0.9);
 }
@@ -298,23 +298,23 @@ html.midnight .pa-chart-compress {
 
 html.dark .pa-chart-height button,
 html.dark .pa-chart-compress button,
-html.midnight .pa-chart-height button,
-html.midnight .pa-chart-compress button {
+html.charcoal .pa-chart-height button,
+html.charcoal .pa-chart-compress button {
   color: rgb(161 161 170);
 }
 
 html.dark .pa-chart-height button:hover,
 html.dark .pa-chart-compress button:hover,
-html.midnight .pa-chart-height button:hover,
-html.midnight .pa-chart-compress button:hover {
+html.charcoal .pa-chart-height button:hover,
+html.charcoal .pa-chart-compress button:hover {
   background: rgb(39 39 42);
   color: rgb(244 244 245);
 }
 
 html.dark .pa-chart-height button.is-active,
 html.dark .pa-chart-compress button.is-active,
-html.midnight .pa-chart-height button.is-active,
-html.midnight .pa-chart-compress button.is-active {
+html.charcoal .pa-chart-height button.is-active,
+html.charcoal .pa-chart-compress button.is-active {
   background: rgb(244 244 245);
   color: rgb(42 42 46);
 }

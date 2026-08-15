@@ -16,7 +16,7 @@
   html.dark .home-sc-device-band + .home-sc-device-band {
     border-top-color: rgb(51 65 85);
   }
-  html.midnight .home-sc-device-band + .home-sc-device-band {
+  html.charcoal .home-sc-device-band + .home-sc-device-band {
     border-top-color: rgb(39 39 42);
   }
   .home-sc-device-head {
@@ -41,7 +41,7 @@
     background: #94a3b8;
   }
   html.dark .home-sc-device-dot { background: #94a3b8; }
-  html.midnight .home-sc-device-dot { background: #71717a; }
+  html.charcoal .home-sc-device-dot { background: #71717a; }
   .home-sc-device-title {
     margin: 0;
     font-size: 0.65rem;
@@ -127,7 +127,7 @@
     background: rgb(30 41 59 / 0.85);
     box-shadow: none;
   }
-  html.midnight .home-sc-spark-cell {
+  html.charcoal .home-sc-spark-cell {
     border-color: rgb(63 63 70);
     background: rgb(42 42 46);
     box-shadow: none;
@@ -147,7 +147,7 @@
     vector-effect: non-scaling-stroke;
   }
   html.dark .home-sc-spark-line,
-  html.midnight .home-sc-spark-line {
+  html.charcoal .home-sc-spark-line {
     stroke: #a1a1aa;
   }
   .home-sc-spark-empty {
@@ -159,7 +159,7 @@
   html.dark .home-sc-spark-empty {
     background: rgb(51 65 85 / 0.7);
   }
-  html.midnight .home-sc-spark-empty {
+  html.charcoal .home-sc-spark-empty {
     background: rgb(39 39 42);
   }
   .home-sc-metric-kicker {
@@ -171,7 +171,7 @@
     color: #94a3b8;
   }
   html.dark .home-sc-metric-kicker,
-  html.midnight .home-sc-metric-kicker { color: #71717a; }
+  html.charcoal .home-sc-metric-kicker { color: #71717a; }
   .home-sc-cell-body {
     display: flex;
     flex-direction: column;
@@ -202,7 +202,7 @@
     border-color: rgb(71 85 105 / 0.7);
     background: rgb(51 65 85 / 0.5);
   }
-  html.midnight .home-sc-top50 {
+  html.charcoal .home-sc-top50 {
     border-color: rgb(82 82 91);
     background: #3f3f46;
   }
@@ -214,7 +214,7 @@
     color: rgb(100 116 139);
   }
   html.dark .home-sc-top50-label,
-  html.midnight .home-sc-top50-label {
+  html.charcoal .home-sc-top50-label {
     color: rgb(148 163 184);
   }
   .home-sc-top50-vals {
@@ -228,7 +228,7 @@
     max-width: 100%;
   }
   html.dark .home-sc-top50-vals,
-  html.midnight .home-sc-top50-vals {
+  html.charcoal .home-sc-top50-vals {
     color: rgb(203 213 225);
   }
   .home-sc-top50-pct {
@@ -250,7 +250,7 @@
       {% for dv, dl in [(7,'7d'),(60,'60d'),(90,'90d')] %}
         <button type="button" data-home-period="{{ dv }}"
           class="home-period-chip rounded-md px-2 py-0.5 font-semibold transition
-            {% if (period_days | default(7)) == dv %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
+ {% if (period_days | default(7)) == dv %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
       {% endfor %}
     </div>
   </div>

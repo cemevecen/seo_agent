@@ -14,7 +14,7 @@
 }
 
 html.dark .chart-viz20-section .pa-viz20-drop,
-html.midnight .chart-viz20-section .pa-viz20-drop {
+html.charcoal .chart-viz20-section .pa-viz20-drop {
   border-color: #3f3f46;
   background: #2a2a2e;
   color: #d4d4d8;
@@ -23,7 +23,7 @@ html.midnight .chart-viz20-section .pa-viz20-drop {
 
 /* Kapalı accordion — iOS KPI mat kart dili */
 html.dark .chart-viz20-section .pa-viz20-drop:not([open]),
-html.midnight .chart-viz20-section .pa-viz20-drop:not([open]) {
+html.charcoal .chart-viz20-section .pa-viz20-drop:not([open]) {
   border-color: color-mix(in srgb, #6b8aad 14%, #3f3f46);
   background: linear-gradient(160deg, #2a2a2e 0%, #2a2a2e 100%);
   box-shadow:
@@ -32,7 +32,7 @@ html.midnight .chart-viz20-section .pa-viz20-drop:not([open]) {
 }
 
 html.dark .chart-viz20-section .pa-viz20-drop:not([open]):hover,
-html.midnight .chart-viz20-section .pa-viz20-drop:not([open]):hover {
+html.charcoal .chart-viz20-section .pa-viz20-drop:not([open]):hover {
   border-color: color-mix(in srgb, #6b8aad 22%, #52525b);
   box-shadow:
     0 0 0 1px color-mix(in srgb, #6b8aad 6%, transparent),
@@ -40,7 +40,7 @@ html.midnight .chart-viz20-section .pa-viz20-drop:not([open]):hover {
 }
 
 html.dark .chart-viz20-section .pa-viz20-drop[open],
-html.midnight .chart-viz20-section .pa-viz20-drop[open] {
+html.charcoal .chart-viz20-section .pa-viz20-drop[open] {
   border-color: #3f3f46;
   background: #2a2a2e;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
@@ -51,7 +51,7 @@ html.midnight .chart-viz20-section .pa-viz20-drop[open] {
 }
 
 html.dark .chart-viz20-section .pa-viz20-title,
-html.midnight .chart-viz20-section .pa-viz20-title {
+html.charcoal .chart-viz20-section .pa-viz20-title {
   color: #d4d4d8;
 }
 
@@ -60,7 +60,7 @@ html.midnight .chart-viz20-section .pa-viz20-title {
 }
 
 html.dark .chart-viz20-section .pa-viz20-blurb,
-html.midnight .chart-viz20-section .pa-viz20-blurb {
+html.charcoal .chart-viz20-section .pa-viz20-blurb {
   color: #71717a;
 }
 
@@ -83,7 +83,7 @@ html.midnight .chart-viz20-section .pa-viz20-blurb {
   transition: transform 0.15s ease, color 0.15s ease;
 }
 html.dark .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-chevron,
-html.midnight .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-chevron {
+html.charcoal .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-chevron {
   color: #71717a;
 }
 
@@ -104,14 +104,14 @@ html.midnight .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-chevron {
 }
 
 html.dark .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-badge,
-html.midnight .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-badge {
+html.charcoal .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-badge {
   background: color-mix(in srgb, #6b8aad 10%, #27272a);
   color: #a1a1aa;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #6b8aad 12%, transparent);
 }
 
 html.dark .chart-viz20-section .pa-viz20-drop:not([open]) > summary .pa-viz20-chevron,
-html.midnight .chart-viz20-section .pa-viz20-drop:not([open]) > summary .pa-viz20-chevron {
+html.charcoal .chart-viz20-section .pa-viz20-drop:not([open]) > summary .pa-viz20-chevron {
   color: #71717a;
 }
 
@@ -125,7 +125,7 @@ html.midnight .chart-viz20-section .pa-viz20-drop:not([open]) > summary .pa-viz2
 }
 
 html.dark .chart-viz20-section .pa-viz20-body,
-html.midnight .chart-viz20-section .pa-viz20-body {
+html.charcoal .chart-viz20-section .pa-viz20-body {
   border-top-color: rgb(39 39 42);
 }
 
@@ -137,7 +137,7 @@ html.midnight .chart-viz20-section .pa-viz20-body {
 }
 
 html.dark .chart-viz20-section .pa-viz20-chart,
-html.midnight .chart-viz20-section .pa-viz20-chart {
+html.charcoal .chart-viz20-section .pa-viz20-chart {
   background: #2a2a2e;
 }
 
@@ -161,7 +161,7 @@ html.midnight .chart-viz20-section .pa-viz20-chart {
 }
 
 html.dark .chart-viz20-section .pa-viz20-meta,
-html.midnight .chart-viz20-section .pa-viz20-meta {
+html.charcoal .chart-viz20-section .pa-viz20-meta {
   color: rgb(161 161 170);
 }
 
@@ -184,7 +184,7 @@ html.midnight .chart-viz20-section .pa-viz20-meta {
 }
 
 html.dark .pa-viz20-detail,
-html.midnight .pa-viz20-detail {
+html.charcoal .pa-viz20-detail {
   border-left-color: #4a8f73;
   color: #a1a1aa;
 }
@@ -204,7 +204,7 @@ html.midnight .pa-viz20-detail {
 }
 
 html.dark .pa-viz20-height-label,
-html.midnight .pa-viz20-height-label {
+html.charcoal .pa-viz20-height-label {
   color: rgb(161 161 170);
 }
 
@@ -218,7 +218,7 @@ html.midnight .pa-viz20-height-label {
 }
 
 html.dark .pa-viz20-height-btns,
-html.midnight .pa-viz20-height-btns {
+html.charcoal .pa-viz20-height-btns {
   border-color: rgb(63 63 70);
   background: rgb(42 42 46);
 }
@@ -245,17 +245,17 @@ html.midnight .pa-viz20-height-btns {
 }
 
 html.dark .pa-viz20-h-btn,
-html.midnight .pa-viz20-h-btn {
+html.charcoal .pa-viz20-h-btn {
   color: rgb(161 161 170);
 }
 
 html.dark .pa-viz20-h-btn:hover,
-html.midnight .pa-viz20-h-btn:hover {
+html.charcoal .pa-viz20-h-btn:hover {
   background: rgb(39 39 42);
 }
 
 html.dark .pa-viz20-h-btn.is-active,
-html.midnight .pa-viz20-h-btn.is-active {
+html.charcoal .pa-viz20-h-btn.is-active {
   background: #3f3f46;
   color: #d4d4d8;
 }
@@ -277,7 +277,7 @@ html.midnight .pa-viz20-h-btn.is-active {
 }
 
 html.dark .pa-viz20-metric-field,
-html.midnight .pa-viz20-metric-field {
+html.charcoal .pa-viz20-metric-field {
   color: rgb(212 212 216);
 }
 
@@ -313,7 +313,7 @@ html.midnight .pa-viz20-metric-field {
 }
 
 html.dark .pa-viz20-metric-trigger,
-html.midnight .pa-viz20-metric-trigger {
+html.charcoal .pa-viz20-metric-trigger {
   border-color: #3f3f46;
   background: #2a2a2e;
   color: #c4c4cc;
@@ -355,7 +355,7 @@ html.midnight .pa-viz20-metric-trigger {
 }
 
 html.dark .pa-viz20-metric-row.is-on,
-html.midnight .pa-viz20-metric-row.is-on {
+html.charcoal .pa-viz20-metric-row.is-on {
   background: rgba(30, 58, 138, 0.35);
 }
 
@@ -366,7 +366,7 @@ html.midnight .pa-viz20-metric-row.is-on {
 }
 
 html.dark .pa-viz20-metric-list [role="option"][aria-selected="true"],
-html.midnight .pa-viz20-metric-list [role="option"][aria-selected="true"] {
+html.charcoal .pa-viz20-metric-list [role="option"][aria-selected="true"] {
   background: rgba(30, 58, 138, 0.35);
   color: #dbeafe;
 }
@@ -404,7 +404,7 @@ html.midnight .pa-viz20-metric-list [role="option"][aria-selected="true"] {
 }
 
 html.dark .pa-viz20-metric-info,
-html.midnight .pa-viz20-metric-info {
+html.charcoal .pa-viz20-metric-info {
   border-color: #3f3f46;
   background: #2a2a2e;
   color: #a1a1aa;
@@ -412,8 +412,8 @@ html.midnight .pa-viz20-metric-info {
 
 html.dark .pa-viz20-metric-info:hover,
 html.dark .pa-viz20-metric-info:focus-visible,
-html.midnight .pa-viz20-metric-info:hover,
-html.midnight .pa-viz20-metric-info:focus-visible {
+html.charcoal .pa-viz20-metric-info:hover,
+html.charcoal .pa-viz20-metric-info:focus-visible {
   color: #f4f4f5;
   border-color: #71717a;
   background: #27272a;
@@ -452,7 +452,7 @@ html.midnight .pa-viz20-metric-info:focus-visible {
 }
 
 html.dark .pa-viz20-metric-tip,
-html.midnight .pa-viz20-metric-tip {
+html.charcoal .pa-viz20-metric-tip {
   border-color: #3f3f46;
   background: #2a2a2e;
   color: #e4e4e7;
@@ -461,7 +461,7 @@ html.midnight .pa-viz20-metric-tip {
 
 /* Görselleştirmeler kabuğu — mat zinc (iOS KPI ile aynı dil) */
 html.dark .chart-viz20-section.viz20-shell,
-html.midnight .chart-viz20-section.viz20-shell {
+html.charcoal .chart-viz20-section.viz20-shell {
   border-color: #3f3f46 !important;
   background: linear-gradient(160deg, #2a2a2e 0%, #2a2a2e 100%) !important;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02);
@@ -469,7 +469,7 @@ html.midnight .chart-viz20-section.viz20-shell {
 }
 
 html.dark .chart-viz20-section.viz20-shell .viz20-shell-title,
-html.midnight .chart-viz20-section.viz20-shell .viz20-shell-title {
+html.charcoal .chart-viz20-section.viz20-shell .viz20-shell-title {
   color: #d4d4d8 !important;
 }
 
@@ -485,19 +485,19 @@ html.midnight .chart-viz20-section.viz20-shell .viz20-shell-title {
 }
 
 html.dark .chart-viz20-section .viz20-plat-badge,
-html.midnight .chart-viz20-section .viz20-plat-badge {
+html.charcoal .chart-viz20-section .viz20-plat-badge {
   background: color-mix(in srgb, #6b8aad 14%, #27272a);
   color: #a1a1aa;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #6b8aad 16%, transparent);
 }
 
 html.dark .pa-viz20-refresh,
-html.midnight .pa-viz20-refresh {
+html.charcoal .pa-viz20-refresh {
   background: #3f3f46 !important;
   color: #d4d4d8 !important;
 }
 
 html.dark .pa-viz20-refresh:hover,
-html.midnight .pa-viz20-refresh:hover {
+html.charcoal .pa-viz20-refresh:hover {
   background: #52525b !important;
 }

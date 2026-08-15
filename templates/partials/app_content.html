@@ -239,7 +239,7 @@
       box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
     }
     .dark .app-intel-store-summary,
-    html.midnight .app-intel-store-summary {
+    html.charcoal .app-intel-store-summary {
       border-color: #3f3f46;
       background: linear-gradient(to bottom right, #2a2a2e, #2a2a2e);
     }
@@ -1668,8 +1668,8 @@
         esc(p.prev30_avg == null ? "—" : p.prev30_avg) +
         "</span></div>" +
         '<div class="app-aso-rel-line text-slate-700 dark:text-slate-200">Fark: <span class="font-semibold ' +
-        tone +
-        '">' +
+ tone +
+ '">' +
         esc(p.delta == null ? "—" : p.delta) +
         "</span></div>" +
         releaseMeta +
@@ -3120,8 +3120,8 @@
         rows.forEach(function (row) {
           var badge =
             '<span class="inline-block rounded px-2 py-0.5 text-[10px] font-semibold ' +
-            crashErrTypeClass(row.error_type) +
-            '">' +
+ crashErrTypeClass(row.error_type) +
+ '">' +
             esc(row.error_type || "—") +
             "</span>";
           sub +=
@@ -3512,8 +3512,8 @@
     function box(title, n, pct, cls) {
       return (
         '<div class="app-intel-sat-box border ' +
-        cls +
-        '">' +
+ cls +
+ '">' +
         '<div class="app-intel-sat-box-title font-semibold uppercase tracking-wide text-current/90">' +
         title +
         "</div>" +
@@ -3642,8 +3642,8 @@
         '" data-latest-page="' +
         p +
         '" class="rounded border px-1.5 py-0.5 text-[10px] font-semibold leading-none ' +
-        cls +
-        '">' +
+ cls +
+ '">' +
         p +
         "</button>";
     }

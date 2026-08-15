@@ -420,9 +420,9 @@ html.dark [style*="#222226"],
 html.dark [style*="222226"],
 html.dark [style*="rgb(34, 34, 38)"],
 html.dark [style*="#242428"],
-html.midnight [style*="#222226"],
-html.midnight [style*="rgb(34, 34, 38)"],
-html.midnight [style*="#242428"] {
+html.charcoal [style*="#222226"],
+html.charcoal [style*="rgb(34, 34, 38)"],
+html.charcoal [style*="#242428"] {
   background-color: #2a2a2e !important;
   background: #2a2a2e !important;
 }
@@ -431,7 +431,7 @@ html.midnight [style*="#242428"] {
 /* KPI spark cards — navy void (#0b1220/#0c1321) → matte charcoal */
 html.charcoal .metric-kpi-ss2,
 html.dark .metric-kpi-ss2,
-html.midnight .metric-kpi-ss2,
+html.charcoal .metric-kpi-ss2,
 html.charcoal .sd-datas-page .metric-kpi-ss2,
 html.dark .sd-datas-page .metric-kpi-ss2 {
   background: linear-gradient(160deg, #323238 0%, #2a2a2e 100%) !important;
@@ -448,8 +448,8 @@ html.charcoal [style*="#101014"],
 html.charcoal [style*="101014"],
 html.dark [style*="#101014"],
 html.dark [style*="101014"],
-html.midnight [style*="#101014"],
-html.midnight [style*="101014"] {
+html.charcoal [style*="#101014"],
+html.charcoal [style*="101014"] {
   background-color: #2a2a2e !important;
   background: #2a2a2e !important;
 }
@@ -464,8 +464,8 @@ html.dark [style*="#1b1b1d"],
 html.dark [style*="1b1b1d"],
 html.dark [style*="rgb(27, 27, 29)"],
 html.dark [style*="rgb(27,27,29)"],
-html.midnight [style*="#1b1b1d"],
-html.midnight [style*="rgb(27, 27, 29)"] {
+html.charcoal [style*="#1b1b1d"],
+html.charcoal [style*="rgb(27, 27, 29)"] {
   background-color: #2a2a2e !important;
   background: #2a2a2e !important;
 }
@@ -477,11 +477,11 @@ html.charcoal .dark\:bg-black,
 html.charcoal .midnight\:bg-black,
 html.dark .bg-black,
 html.dark .dark\:bg-black,
-html.midnight .bg-black,
-html.midnight .midnight\:bg-black,
+html.charcoal .bg-black,
+html.charcoal .midnight\:bg-black,
 html.charcoal [class*="bg-black"]:not([class*="text-black"]),
 html.dark [class*="dark:bg-black"],
-html.midnight [class*="midnight:bg-black"],
+html.charcoal [class*="midnight:bg-black"],
 html.charcoal [style*="background: rgb(0, 0, 0)"],
 html.charcoal [style*="background:rgb(0,0,0)"],
 html.charcoal [style*="background:#000"],
@@ -490,8 +490,8 @@ html.charcoal [style*="background-color: rgb(0, 0, 0)"],
 html.charcoal [style*="background-color:#000"],
 html.dark [style*="background: rgb(0, 0, 0)"],
 html.dark [style*="background:#000"],
-html.midnight [style*="background: rgb(0, 0, 0)"],
-html.midnight [style*="background:#000"] {
+html.charcoal [style*="background: rgb(0, 0, 0)"],
+html.charcoal [style*="background:#000"] {
   background-color: #2a2a2e !important;
   background: #2a2a2e !important;
 }
@@ -515,8 +515,8 @@ html.charcoal [style*="rgb(24,29,43)"],
 html.dark [style*="#181d2b"],
 html.dark [style*="rgb(24, 29, 43)"],
 html.dark [style*="rgb(24,29,43)"],
-html.midnight [style*="#181d2b"],
-html.midnight [style*="rgb(24, 29, 43)"] {
+html.charcoal [style*="#181d2b"],
+html.charcoal [style*="rgb(24, 29, 43)"] {
   background-color: #2a2a2e !important;
   background: #2a2a2e !important;
 }
@@ -528,11 +528,11 @@ html.charcoal .dark\:bg-slate-900,
 html.charcoal .midnight\:bg-slate-900,
 html.dark .bg-slate-900,
 html.dark .dark\:bg-slate-900,
-html.midnight .bg-slate-900,
-html.midnight .midnight\:bg-slate-900,
+html.charcoal .bg-slate-900,
+html.charcoal .midnight\:bg-slate-900,
 html.charcoal [class*="bg-slate-900"],
 html.dark [class*="dark:bg-slate-900"],
-html.midnight [class*="midnight:bg-slate-900"],
+html.charcoal [class*="midnight:bg-slate-900"],
 html.charcoal [style*="background: rgb(15, 23, 42)"],
 html.charcoal [style*="background:rgb(15,23,42)"],
 html.charcoal [style*="background: rgb(15 23 42)"],
@@ -543,8 +543,8 @@ html.charcoal [style*="background-color:#0f172a"],
 html.dark [style*="background: rgb(15, 23, 42)"],
 html.dark [style*="background: rgb(15 23 42)"],
 html.dark [style*="background:#0f172a"],
-html.midnight [style*="background: rgb(15, 23, 42)"],
-html.midnight [style*="background:#0f172a"] {
+html.charcoal [style*="background: rgb(15, 23, 42)"],
+html.charcoal [style*="background:#0f172a"] {
   background-color: #2a2a2e !important;
   background: #2a2a2e !important;
 }

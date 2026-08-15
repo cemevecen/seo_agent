@@ -117,23 +117,23 @@
     color: rgb(100 116 139);
   }
   html.dark .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up,
-  html.midnight .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up {
+  html.charcoal .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up {
     color: rgb(74 143 115);
   }
   html.dark .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down,
-  html.midnight .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down {
+  html.charcoal .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down {
     color: rgb(168 90 102);
   }
   html.dark .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar,
-  html.midnight .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
+  html.charcoal .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
     background: linear-gradient(180deg, rgb(74 143 115 / 0.9), rgb(45 106 79 / 0.78));
   }
   html.dark .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar,
-  html.midnight .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar {
+  html.charcoal .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar {
     background: linear-gradient(180deg, rgb(168 90 102 / 0.88), rgb(127 45 62 / 0.72));
   }
   html.dark .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar,
-  html.midnight .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar {
+  html.charcoal .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar {
     background: linear-gradient(180deg, rgb(113 113 122 / 0.75), rgb(63 63 70 / 0.65));
   }
   @keyframes ga4-indeterminate {
@@ -451,23 +451,23 @@
     max-width: 100% !important;
   }
   html.dark .ga4-card-filter-bar,
-  html.midnight .ga4-card-filter-bar {
+  html.charcoal .ga4-card-filter-bar {
     background-color: #2a2a2e !important;
     border-color: #27272a !important;
     box-shadow: none;
   }
   html.dark .ga4-card-filter-bar [data-analytics-date-compare],
-  html.midnight .ga4-card-filter-bar [data-analytics-date-compare] {
+  html.charcoal .ga4-card-filter-bar [data-analytics-date-compare] {
     background-color: #2a2a2e !important;
     border-color: #27272a !important;
   }
   html.dark .ga4-card-filter-bar [data-play-metric-overlay-trigger],
-  html.midnight .ga4-card-filter-bar [data-play-metric-overlay-trigger] {
+  html.charcoal .ga4-card-filter-bar [data-play-metric-overlay-trigger] {
     background-color: #2a2a2e !important;
     border-color: #3f3f46 !important;
   }
   html.dark .ga4-card-filter-bar [data-compare-mode],
-  html.midnight .ga4-card-filter-bar [data-compare-mode] {
+  html.charcoal .ga4-card-filter-bar [data-compare-mode] {
     background-color: #27272a !important;
     border-color: #3f3f46 !important;
   }
@@ -2801,8 +2801,8 @@
     var cardBg = altBg ? 'bg-slate-50/80 dark:bg-slate-900/55' : 'bg-white dark:bg-slate-900';
     return (
       '<article class="ga4-kpi-card flex min-h-[11.5rem] min-w-0 flex-col justify-between gap-2 rounded-3xl border border-slate-200 dark:border-slate-700 ' +
-      cardBg +
-      ' p-3 sm:min-h-[12rem] sm:p-4" data-ga4-overlay-kpi="' +
+ cardBg +
+ ' p-3 sm:min-h-[12rem] sm:p-4" data-ga4-overlay-kpi="' +
       ga4EscHtml(pack.metric) +
       '">' +
       '<p lang="en" class="min-h-[2.75em] shrink-0 text-xl font-semibold leading-tight tracking-wide sm:min-h-[2.5em] sm:text-[22px] sm:tracking-[0.12em] text-slate-600 dark:text-slate-300">' +
@@ -2810,8 +2810,8 @@
       '</p>' +
       '<div class="min-w-0 flex flex-col gap-1.5">' +
       '<p class="min-w-0 break-words text-center text-lg font-bold tabular-nums leading-tight sm:text-left sm:text-xl ' +
-      pctClass +
-      '" data-fit-text data-fit-text-max="1.85" data-fit-text-min="0.75">' +
+ pctClass +
+ '" data-fit-text data-fit-text-max="1.85" data-fit-text-min="0.75">' +
       ga4EscHtml(pctSigned) +
       '%</p>' +
       '<p class="min-w-0 break-words text-center text-xs font-semibold tabular-nums leading-snug text-slate-800 dark:text-slate-100 sm:text-left sm:text-sm">' +

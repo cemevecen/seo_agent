@@ -24,13 +24,8 @@
         var v = localStorage.getItem(k);
         var root = document.documentElement;
         root.classList.remove('dark', 'midnight', 'charcoal');
-        // Legacy: dim → charcoal (soft); dark → midnight (true black)
-        // Default (no stored preference): charcoal
-        if (v === 'charcoal' || v === 'dim' || !v) {
-          root.classList.add('dark', 'charcoal');
-        } else if (v === 'midnight' || v === 'dark') {
-          root.classList.add('dark', 'midnight');
-        } else if (v === 'light') {
+        // light | charcoal (dark). Legacy midnight/dark/dim → charcoal
+        if (v === 'light') {
           /* light */
         } else {
           root.classList.add('dark', 'charcoal');
@@ -40,7 +35,7 @@
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v={{ app_css_v }}" />
   <link rel="stylesheet" href="/static/css/seo_dark_matte.css?v=7" />
-  <link rel="stylesheet" href="/static/css/seo_charcoal_theme.css?v=21" />
+  <link rel="stylesheet" href="/static/css/seo_charcoal_theme.css?v=22" />
   <script src="/static/js/seo_en_case.js?v=2"></script>
   {% block page_head %}{% endblock %}
   <style id="seo-page-tarama-btn">
@@ -95,7 +90,7 @@
     }
   </style>
   <style id="seo-dark-zinc-ui">
-    /* Dim + midnight: lacivertsiz antrasit / siyah (Tailwind slate/sky/indigo) */
+    /* Dark: lacivertsiz antrasit / siyah (Tailwind slate/sky/indigo) */
     html.dark body {
       background: radial-gradient(circle at top, #2a2a2e, #2a2a2e 55%, #2a2a2e) !important;
       color: #d4d4d8 !important;
@@ -233,7 +228,7 @@
     }
   </style>
   <style id="seo-dark-muted-accents">
-    /* Dim + midnight: parlak renkli metin/kenarlık/halka sınıflarını seo-audit'teki
+    /* Dark: parlak renkli metin/kenarlık/halka sınıflarını seo-audit'teki
        zinc paletine indirgeyerek göz yormayan yumuşak bir okuma sağlar.
        Sadece dark modda (html.dark) etkilidir; aydınlık tema dokunulmaz. */
 
@@ -474,24 +469,13 @@
       border-color: #3f3f46 !important;
     }
   </style>
-  <style id="seo-midnight-overrides">
-    html.midnight {
-      color-scheme: dark;
-    }
-    /* Sadece true-dark: tema anahtarı çerçevesi kalksın */
-    html.midnight #theme-switcher {
-      border: none !important;
-      box-shadow: none !important;
-      background-color: rgba(36, 36, 40, 0.95);
-    }
-  </style>
   <style id="seo-charcoal-overrides">
     html.charcoal {
       color-scheme: dark;
     }
   </style>
   <style id="seo-inbox-dark">
-    /* /inbox — dim (html.dark) + midnight (html.dark.midnight): #content ile yüksek özgüllük; açık metin+beyaz zemin kaosu biter */
+    /* /inbox — dark (html.dark / charcoal): #content ile yüksek özgüllük; açık metin+beyaz zemin kaosu biter */
     html.dark #content .inbox-page .inbox-card {
       background-color: #2a2a2e !important;
       background-image: none !important;
@@ -500,7 +484,7 @@
       --tw-ring-color: rgb(39 39 42) !important;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45) !important;
     }
-    html.midnight #content .inbox-page .inbox-card {
+    html.charcoal #content .inbox-page .inbox-card {
       background-color: #2a2a2e !important;
       border-color: rgb(42 42 46) !important;
       color: #e4e4e7 !important;
@@ -528,14 +512,14 @@
       border-color: #3f3f46 !important;
       color: #e4e4e7 !important;
     }
-    html.midnight #content .inbox-page #inbox-list button.inbox-row {
+    html.charcoal #content .inbox-page #inbox-list button.inbox-row {
       background-color: #0c0c0e !important;
       border-color: #27272a !important;
     }
     html.dark #content .inbox-page #inbox-list button.inbox-row:hover {
       background-color: #27272a !important;
     }
-    html.midnight #content .inbox-page #inbox-list button.inbox-row:hover {
+    html.charcoal #content .inbox-page #inbox-list button.inbox-row:hover {
       background-color: #2a2a2e !important;
     }
     html.dark #content .inbox-page .inbox-row-title {
@@ -547,13 +531,13 @@
     html.dark #content .inbox-page .inbox-row-preview {
       color: #a1a1aa !important;
     }
-    html.midnight #content .inbox-page .inbox-row-preview {
+    html.charcoal #content .inbox-page .inbox-row-preview {
       color: #a1a1aa !important;
     }
     html.dark #content .inbox-page .inbox-msg-preview {
       color: #a1a1aa !important;
     }
-    html.midnight #content .inbox-page .inbox-msg-preview {
+    html.charcoal #content .inbox-page .inbox-msg-preview {
       color: #a1a1aa !important;
     }
     html.dark #content .inbox-page .inbox-route-badge {
@@ -973,7 +957,7 @@
       opacity: 0.4;
     }
     html.dark .header-nav-link.nav-active,
-    html.midnight .header-nav-link.nav-active {
+    html.charcoal .header-nav-link.nav-active {
       color: #d4d4d8;
     }
     html.dark #pc-ptr-indicator[data-ptr-ready="1"] {
@@ -1029,12 +1013,12 @@
       background-image: none !important;
     }
     html.dark [data-market-overlay-trigger],
-    html.midnight [data-market-overlay-trigger] {
+    html.charcoal [data-market-overlay-trigger] {
       background-color: #2a2a2e !important;
       border-color: #3f3f46 !important;
       color: #e4e4e7 !important;
     }
-    html.midnight .mz-page [data-market-overlay-trigger] {
+    html.charcoal .mz-page [data-market-overlay-trigger] {
       background-color: #2a2a2e !important;
       border-color: #3f3f46 !important;
     }
@@ -1074,13 +1058,13 @@
         0 16px 48px -12px rgba(0, 0, 0, 0.72),
         0 0 0 1px #3f3f46;
     }
-    html.midnight [data-market-overlay-panel] {
+    html.charcoal [data-market-overlay-panel] {
       background-color: #2a2a2e !important;
       box-shadow:
         0 16px 48px -12px rgba(0, 0, 0, 0.85),
         0 0 0 1px #27272a;
     }
-    html.midnight .mz-page [data-market-overlay-panel] {
+    html.charcoal .mz-page [data-market-overlay-panel] {
       background-color: #2a2a2e !important;
     }
     .sc-analytics-toolbar,
@@ -1120,17 +1104,17 @@
       z-index: 1;
     }
     html.dark [data-market-overlay-panel] [data-market-overlay-option],
-    html.midnight [data-market-overlay-panel] [data-market-overlay-option] {
+    html.charcoal [data-market-overlay-panel] [data-market-overlay-option] {
       background-color: #2a2a2e !important;
     }
-    html.midnight .mz-page [data-market-overlay-panel] [data-market-overlay-option] {
+    html.charcoal .mz-page [data-market-overlay-panel] [data-market-overlay-option] {
       background-color: #2a2a2e !important;
     }
     [data-market-overlay-panel] [data-market-overlay-option]:hover {
       background-color: #f1f5f9 !important;
     }
     html.dark [data-market-overlay-panel] [data-market-overlay-option]:hover,
-    html.midnight [data-market-overlay-panel] [data-market-overlay-option]:hover {
+    html.charcoal [data-market-overlay-panel] [data-market-overlay-option]:hover {
       background-color: #27272a !important;
     }
     /* Empower overlay — Piyasa ile aynı tıklanabilirlik / stacking */
@@ -1148,10 +1132,10 @@
       background-color: #ffffff !important;
     }
     html.dark [data-app-empower-overlay-trigger],
-    html.midnight [data-app-empower-overlay-trigger] {
+    html.charcoal [data-app-empower-overlay-trigger] {
       background-color: #2a2a2e !important;
     }
-    html.midnight .mz-page [data-app-empower-overlay-trigger] {
+    html.charcoal .mz-page [data-app-empower-overlay-trigger] {
       background-color: #2a2a2e !important;
     }
     #mz-empower-overlay-bar {
@@ -1179,10 +1163,10 @@
       background-color: #ffffff !important;
     }
     html.dark [data-play-metric-overlay-trigger],
-    html.midnight [data-play-metric-overlay-trigger] {
+    html.charcoal [data-play-metric-overlay-trigger] {
       background-color: #2a2a2e !important;
     }
-    html.midnight .mz-page [data-play-metric-overlay-trigger] {
+    html.charcoal .mz-page [data-play-metric-overlay-trigger] {
       background-color: #2a2a2e !important;
     }
     #mz-play-metric-overlay-bar {
@@ -1345,7 +1329,7 @@
       color: #475569;
     }
     html.dark .mz-page .mz-pie-compare-captions,
-    html.midnight .mz-page .mz-pie-compare-captions {
+    html.charcoal .mz-page .mz-pie-compare-captions {
       color: #a1a1aa;
     }
     .mz-page .mz-pie-compare-caption {
@@ -1384,7 +1368,7 @@
       -webkit-overflow-scrolling: touch;
       scrollbar-width: thin;
     }
-    html.midnight .mz-page #mz-loading {
+    html.charcoal .mz-page #mz-loading {
       background: rgba(0, 0, 0, 0.55);
     }
     .mz-page .mz-bd-pill {
@@ -1703,7 +1687,7 @@
       background: rgb(42 42 46);
       color: rgb(113 113 122);
     }
-    html.midnight .mz-page .mz-detail-unit-fav-btn {
+    html.charcoal .mz-page .mz-detail-unit-fav-btn {
       border-color: rgb(68 64 60);
       background: rgb(12 10 9);
     }
@@ -1717,45 +1701,45 @@
       background-color: rgb(42 42 46) !important;
       color: rgb(212 212 216) !important;
     }
-    html.midnight .mz-page .mz-drill-insights-panel {
+    html.charcoal .mz-page .mz-drill-insights-panel {
       border-color: rgb(39 39 42) !important;
       background-color: rgb(42 42 46) !important;
       color: rgb(161 161 170) !important;
     }
     html.dark .mz-page .mz-drill-insights-panel p,
-    html.midnight .mz-page .mz-drill-insights-panel p {
+    html.charcoal .mz-page .mz-drill-insights-panel p {
       color: inherit !important;
     }
     html.dark .mz-page .mz-drill-insights-panel .font-semibold,
-    html.midnight .mz-page .mz-drill-insights-panel .font-semibold {
+    html.charcoal .mz-page .mz-drill-insights-panel .font-semibold {
       color: rgb(228 228 231) !important;
     }
     html.dark .mz-page .mz-chart-plot .plotly .modebar,
-    html.midnight .mz-page .mz-chart-plot .plotly .modebar {
+    html.charcoal .mz-page .mz-chart-plot .plotly .modebar {
       background: transparent !important;
     }
     html.dark .mz-page .mz-chart-plot .js-plotly-plot .plotly .bg,
-    html.midnight .mz-page .mz-chart-plot .js-plotly-plot .plotly .bg {
+    html.charcoal .mz-page .mz-chart-plot .js-plotly-plot .plotly .bg {
       fill: transparent !important;
     }
     html.dark .mz-page .mz-chart-plot .plotly .main-svg .bg,
-    html.midnight .mz-page .mz-chart-plot .plotly .main-svg .bg {
+    html.charcoal .mz-page .mz-chart-plot .plotly .main-svg .bg {
       fill: transparent !important;
     }
     html.dark .mz-page .mz-chart-plot .xaxislayer-above text,
     html.dark .mz-page .mz-chart-plot .yaxislayer-above text,
-    html.midnight .mz-page .mz-chart-plot .xaxislayer-above text,
-    html.midnight .mz-page .mz-chart-plot .yaxislayer-above text {
+    html.charcoal .mz-page .mz-chart-plot .xaxislayer-above text,
+    html.charcoal .mz-page .mz-chart-plot .yaxislayer-above text {
       fill: rgb(161 161 170) !important;
     }
     html.dark .mz-page .mz-chart-plot .scatterlayers .trace.line .lines path,
-    html.midnight .mz-page .mz-chart-plot .scatterlayers .trace.line .lines path {
+    html.charcoal .mz-page .mz-chart-plot .scatterlayers .trace.line .lines path {
       stroke: rgb(129 140 248) !important;
       stroke-width: 2px !important;
       fill: none !important;
     }
     html.dark .mz-page .mz-chart-plot .scatterlayers .trace.line .points path,
-    html.midnight .mz-page .mz-chart-plot .scatterlayers .trace.line .points path {
+    html.charcoal .mz-page .mz-chart-plot .scatterlayers .trace.line .points path {
       fill: rgb(129 140 248) !important;
     }
     html.dark .mz-page #mz-compare-panels-wrap table thead th {
@@ -2235,21 +2219,21 @@
       color: #94a3b8;
     }
     html.dark .header-nav-link,
-    html.midnight .header-nav-link {
+    html.charcoal .header-nav-link {
       color: #a1a1aa;
     }
     html.dark .header-nav-link:hover,
-    html.midnight .header-nav-link:hover {
+    html.charcoal .header-nav-link:hover {
       color: #d4d4d8;
     }
     html.dark .header-nav-link.nav-active,
-    html.midnight .header-nav-link.nav-active {
+    html.charcoal .header-nav-link.nav-active {
       color: #fafafa;
     }
     html.dark .header-nav-link.nav-active::before,
     html.dark .header-nav-link.nav-active::after,
-    html.midnight .header-nav-link.nav-active::before,
-    html.midnight .header-nav-link.nav-active::after {
+    html.charcoal .header-nav-link.nav-active::before,
+    html.charcoal .header-nav-link.nav-active::after {
       color: #52525b;
     }
     .header-nav-dropdown {
@@ -2274,7 +2258,7 @@
       -webkit-tap-highlight-color: transparent;
     }
     html.dark .header-nav-dropdown-backdrop,
-    html.midnight .header-nav-dropdown-backdrop {
+    html.charcoal .header-nav-dropdown-backdrop {
       background: rgba(0, 0, 0, 0.35);
     }
     .header-nav-dropdown.is-open .header-nav-dropdown-backdrop { display: block; }
@@ -2290,7 +2274,7 @@
       right: auto;
       left: auto;
     }
-    html.dark .header-nav-dropdown-menu, html.midnight .header-nav-dropdown-menu {
+    html.dark .header-nav-dropdown-menu, html.charcoal .header-nav-dropdown-menu {
       border-color: rgb(63 63 70); background: rgb(42 42 46);
     }
     .header-nav-dropdown.is-open .header-nav-dropdown-menu { display: block; }
@@ -2375,7 +2359,7 @@
       box-shadow: 0 12px 32px rgba(0,0,0,.12);
     }
     html.dark .header-nav-more-menu,
-    html.midnight .header-nav-more-menu {
+    html.charcoal .header-nav-more-menu {
       border-color: rgb(63 63 70);
       background: rgb(42 42 46);
     }
@@ -2397,14 +2381,14 @@
       text-decoration: none;
     }
     html.dark .header-nav-more-menu a,
-    html.midnight .header-nav-more-menu a {
+    html.charcoal .header-nav-more-menu a {
       color: rgb(212 212 216);
     }
     .header-nav-more-menu a:hover {
       background: rgb(241 245 249);
     }
     html.dark .header-nav-more-menu a:hover,
-    html.midnight .header-nav-more-menu a:hover {
+    html.charcoal .header-nav-more-menu a:hover {
       background: rgb(39 39 42);
     }
     .header-nav-more-menu a.nav-active {
@@ -2412,7 +2396,7 @@
       background: rgb(241 245 249);
     }
     html.dark .header-nav-more-menu a.nav-active,
-    html.midnight .header-nav-more-menu a.nav-active {
+    html.charcoal .header-nav-more-menu a.nav-active {
       color: #fafafa;
       background: rgb(39 39 42);
     }
@@ -2584,7 +2568,7 @@
                     <circle cx="10.1" cy="10.2" r="1.65" fill="#FEF3C7" opacity="0.55"/>
                   </svg>
                 </button>
-                <button type="button" role="radio" aria-checked="false" data-theme-value="charcoal" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none sm:w-7" title="Charcoal — matte soft dark" aria-label="Charcoal theme">
+                <button type="button" role="radio" aria-checked="false" data-theme-value="charcoal" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none sm:w-7" title="Dark" aria-label="Dark theme">
                   <svg class="theme-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
                     <defs>
                       <radialGradient id="seo-theme-charcoal" cx="40%" cy="35%" r="70%">
@@ -2596,28 +2580,6 @@
                     <circle cx="12" cy="12" r="7.2" fill="url(#seo-theme-charcoal)"/>
                     <circle cx="12" cy="12" r="7.2" fill="none" stroke="#71717A" stroke-width="0.9" opacity="0.55"/>
                     <path d="M12 5.2 A6.8 6.8 0 0 1 12 18.8 Z" fill="#3F3F46" opacity="0.55"/>
-                  </svg>
-                </button>
-                <button type="button" role="radio" aria-checked="false" data-theme-value="midnight" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none sm:w-7" title="Midnight — true black" aria-label="Midnight theme">
-                  <svg class="theme-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
-                    <defs>
-                      <radialGradient id="seo-theme-moon-lit" cx="38%" cy="35%" r="65%">
-                        <stop offset="0%" stop-color="#FAFAFA"/>
-                        <stop offset="55%" stop-color="#D4D4D8"/>
-                        <stop offset="100%" stop-color="#71717A"/>
-                      </radialGradient>
-                      <radialGradient id="seo-theme-moon-shade" cx="72%" cy="68%" r="45%">
-                        <stop offset="0%" stop-color="#3F3F46" stop-opacity="0.45"/>
-                        <stop offset="100%" stop-color="#2a2a2e" stop-opacity="0"/>
-                      </radialGradient>
-                    </defs>
-                    <circle cx="12" cy="12" r="6.85" fill="url(#seo-theme-moon-lit)"/>
-                    <circle cx="12" cy="12" r="6.85" fill="url(#seo-theme-moon-shade)"/>
-                    <circle cx="9.1" cy="10.4" r="1.05" fill="#A1A1AA" opacity="0.35"/>
-                    <circle cx="13.8" cy="9.2" r="0.75" fill="#A1A1AA" opacity="0.28"/>
-                    <circle cx="14.6" cy="13.5" r="1.25" fill="#71717A" opacity="0.32"/>
-                    <circle cx="10.2" cy="14.8" r="0.65" fill="#A1A1AA" opacity="0.25"/>
-                    <ellipse cx="8.8" cy="12.5" rx="0.9" ry="0.55" fill="#E4E4E7" opacity="0.4"/>
                   </svg>
                 </button>
               </div>
@@ -3148,15 +3110,14 @@
 
     (function () {
       var THEME_KEY = 'seo-theme';
-      // 3-mod: light · charcoal (matte soft) · midnight (true black)
-      var THEMES = ['light', 'charcoal', 'midnight'];
+      // 2-mod: light · charcoal (dark)
+      var THEMES = ['light', 'charcoal'];
       var root = document.documentElement;
       var pill = null;
       var switcher = null;
 
       function getTheme() {
-        if (root.classList.contains('charcoal')) return 'charcoal';
-        if (root.classList.contains('midnight') || root.classList.contains('dark')) return 'midnight';
+        if (root.classList.contains('charcoal') || root.classList.contains('dark')) return 'charcoal';
         return 'light';
       }
 
@@ -3164,8 +3125,8 @@
         try {
           var v = localStorage.getItem(THEME_KEY);
           if (!v) return null;
-          if (v === 'dim') return 'charcoal';
-          if (v === 'dark') return 'midnight';
+          // Legacy: midnight / dark / dim → charcoal
+          if (v === 'dim' || v === 'dark' || v === 'midnight') return 'charcoal';
           if (THEMES.indexOf(v) >= 0) return v;
         } catch (e) {}
         return null;
@@ -3181,9 +3142,7 @@
         pill.style.top = '2px';
         pill.style.left = offset + 'px';
         pill.style.width = btnWidth + 'px';
-        if (theme === 'midnight') {
-          pill.className = 'absolute h-6 rounded-full bg-zinc-700 shadow-sm transition-all duration-300 ease-out';
-        } else if (theme === 'charcoal') {
+        if (theme === 'charcoal') {
           pill.className = 'absolute h-6 rounded-full bg-zinc-600 shadow-md transition-all duration-300 ease-out';
         } else {
           pill.className = 'absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-zinc-600/90';
@@ -3193,9 +3152,7 @@
       function applyTheme(theme) {
         if (!theme || THEMES.indexOf(theme) < 0) theme = 'charcoal';
         root.classList.remove('dark', 'midnight', 'charcoal');
-        if (theme === 'midnight') {
-          root.classList.add('dark', 'midnight');
-        } else if (theme === 'charcoal') {
+        if (theme === 'charcoal') {
           root.classList.add('dark', 'charcoal');
         }
         movePill(theme);
@@ -3299,17 +3256,9 @@
       return h;
     };
     window.seoPlotlyTheme = function () {
-      var mn = document.documentElement.classList.contains('midnight');
-      var ch = document.documentElement.classList.contains('charcoal');
-      var d = document.documentElement.classList.contains('dark');
-      if (mn) return {
-        grid: '#27272a', tick: '#a1a1aa', legend: '#a1a1aa',
-        muted: '#71717a', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
-      };
-      if (ch) return {
-        grid: '#3f3f46', tick: '#d4d4d8', legend: '#d4d4d8',
-        muted: '#a1a1aa', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
-      };
+      var d =
+        document.documentElement.classList.contains('charcoal') ||
+        document.documentElement.classList.contains('dark');
       if (d) return {
         grid: '#3f3f46', tick: '#d4d4d8', legend: '#d4d4d8',
         muted: '#a1a1aa', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
@@ -3718,11 +3667,11 @@
     onclick="pcAgentToggle()"
     title="ProjectControl AI Agent"
     class="fixed bottom-6 right-6 z-[200] flex items-center gap-1.5 rounded-full
-           bg-gradient-to-br from-violet-600 to-indigo-700
-           px-2.5 py-1.5 text-white shadow-2xl shadow-violet-900/40
-           hover:from-violet-500 hover:to-indigo-600
-           transition-all duration-200 hover:scale-105 active:scale-95
-           ring-2 ring-violet-400/30">
+ bg-gradient-to-br from-violet-600 to-indigo-700
+ px-2.5 py-1.5 text-white shadow-2xl shadow-violet-900/40
+ hover:from-violet-500 hover:to-indigo-600
+ transition-all duration-200 hover:scale-105 active:scale-95
+ ring-2 ring-violet-400/30">
     <svg id="pc-agent-icon-chat" xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
       <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
     </svg>
@@ -3734,10 +3683,10 @@
 
   <div id="pc-agent-panel"
     class="fixed bottom-20 right-6 z-[200] hidden
-           flex-col rounded-2xl
-           bg-zinc-950 border border-violet-800/40
-           shadow-2xl shadow-violet-950/60
-           select-none"
+ flex-col rounded-2xl
+ bg-zinc-950 border border-violet-800/40
+ shadow-2xl shadow-violet-950/60
+ select-none"
     style="width: min(420px, calc(100vw - 1.5rem)); min-width: 300px; min-height: 280px;">
 
     <!-- Resize handle — sol üst köşe -->
@@ -3746,10 +3695,10 @@
       title="Drag to resize"></div>
 
     <div class="pc-agent-chrome flex items-center gap-3 px-4 py-3
-                bg-gradient-to-r from-violet-900/80 to-indigo-900/80
-                border-b border-violet-800/40">
+ bg-gradient-to-r from-violet-900/80 to-indigo-900/80
+ border-b border-violet-800/40">
       <div class="flex h-8 w-8 items-center justify-center rounded-full
-                  bg-violet-600 ring-2 ring-violet-400/40 shrink-0">
+ bg-violet-600 ring-2 ring-violet-400/40 shrink-0">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
         </svg>
@@ -3817,21 +3766,21 @@
 
     <div class="pc-agent-chrome px-4 pb-4 pt-1">
       <div class="flex items-end gap-2 rounded-xl border border-zinc-700/60
-                  bg-zinc-900/80 px-3 py-2 focus-within:border-violet-600/60 transition-colors">
+ bg-zinc-900/80 px-3 py-2 focus-within:border-violet-600/60 transition-colors">
         <textarea id="pc-agent-input"
           placeholder="Type a message..."
           rows="1"
           onkeydown="pcAgentKeydown(event)"
           oninput="pcAgentAutoResize(this)"
           class="flex-1 resize-none bg-transparent text-sm text-zinc-100
-                 placeholder-zinc-500 outline-none leading-relaxed
-                 max-h-32 min-h-[1.5rem]"
+ placeholder-zinc-500 outline-none leading-relaxed
+ max-h-32 min-h-[1.5rem]"
           style="overflow-y: auto;"></textarea>
         <button id="pc-agent-send-btn"
           onclick="pcAgentSend()"
           class="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg
-                 bg-violet-600 text-white hover:bg-violet-500
-                 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+ bg-violet-600 text-white hover:bg-violet-500
+ disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.405Z"/>
           </svg>

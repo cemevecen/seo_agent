@@ -5,15 +5,12 @@
   function themeId() {
     var el = global.document && global.document.documentElement;
     if (!el) return "light";
-    if (el.classList.contains("charcoal")) return "charcoal";
-    if (el.classList.contains("midnight")) return "midnight";
-    if (el.classList.contains("dark")) return "dark";
+    if (el.classList.contains("charcoal") || el.classList.contains("dark")) return "charcoal";
     return "light";
   }
 
   function isDark() {
-    var id = themeId();
-    return id === "charcoal" || id === "midnight" || id === "dark";
+    return themeId() === "charcoal";
   }
 
   function isCharcoal() {
@@ -29,7 +26,7 @@
   function seoMatteChartColors() {
     var d = isDark();
     var ch = isCharcoal();
-    /* Charcoal: slightly brighter ink than midnight, still matte (no neon) */
+    /* Charcoal: matte dark ink (no neon) */
     return {
       positive: pick("#047857", "#4a8f73", "#5a9f83"),
       negative: pick("#b91c3c", "#a85a66", "#b86a74"),

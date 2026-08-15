@@ -17,12 +17,8 @@
         var v = localStorage.getItem(k);
         var root = document.documentElement;
         root.classList.remove('dark', 'midnight', 'charcoal');
-        // Default (no stored preference): charcoal
-        if (v === 'charcoal' || v === 'dim' || !v) {
-          root.classList.add('dark', 'charcoal');
-        } else if (v === 'midnight' || v === 'dark') {
-          root.classList.add('dark', 'midnight');
-        } else if (v === 'light') {
+        // light | charcoal (dark). Legacy midnight/dark/dim → charcoal
+        if (v === 'light') {
           /* light */
         } else {
           root.classList.add('dark', 'charcoal');
@@ -30,7 +26,7 @@
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="/static/css/seo_charcoal_theme.css?v=21" />
+  <link rel="stylesheet" href="/static/css/seo_charcoal_theme.css?v=22" />
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900 dark:bg-zinc-950 dark:text-zinc-100">
   <div class="flex min-h-screen flex-col items-center justify-center px-4 py-10">

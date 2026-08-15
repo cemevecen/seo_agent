@@ -576,7 +576,7 @@ var PALETTE = modPalette();
 
   function modIsDarkUi() {
     var root = document.documentElement;
-    return root.classList.contains("dark") || root.classList.contains("midnight");
+    return root.classList.contains("dark") || root.classList.contains("charcoal");
   }
 
   function modHoverLabel(extra) {

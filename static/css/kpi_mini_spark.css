@@ -73,22 +73,22 @@
   color: rgb(100 116 139);
 }
 html.dark .kpi-mini-spark--tone-up .kpi-mini-spark__bar,
-html.midnight .kpi-mini-spark--tone-up .kpi-mini-spark__bar {
+html.charcoal .kpi-mini-spark--tone-up .kpi-mini-spark__bar {
   background: linear-gradient(180deg, rgb(74 143 115 / 0.9), rgb(45 106 79 / 0.78));
 }
 html.dark .kpi-mini-spark--tone-down .kpi-mini-spark__bar,
-html.midnight .kpi-mini-spark--tone-down .kpi-mini-spark__bar {
+html.charcoal .kpi-mini-spark--tone-down .kpi-mini-spark__bar {
   background: linear-gradient(180deg, rgb(168 90 102 / 0.88), rgb(127 45 62 / 0.72));
 }
 html.dark .kpi-mini-spark--tone-flat .kpi-mini-spark__bar,
-html.midnight .kpi-mini-spark--tone-flat .kpi-mini-spark__bar {
+html.charcoal .kpi-mini-spark--tone-flat .kpi-mini-spark__bar {
   background: linear-gradient(180deg, rgb(113 113 122 / 0.75), rgb(63 63 70 / 0.65));
 }
 html.dark .kpi-mini-spark--placeholder.kpi-mini-spark--tone-up,
-html.midnight .kpi-mini-spark--placeholder.kpi-mini-spark--tone-up {
+html.charcoal .kpi-mini-spark--placeholder.kpi-mini-spark--tone-up {
   color: rgb(74 143 115);
 }
 html.dark .kpi-mini-spark--placeholder.kpi-mini-spark--tone-down,
-html.midnight .kpi-mini-spark--placeholder.kpi-mini-spark--tone-down {
+html.charcoal .kpi-mini-spark--placeholder.kpi-mini-spark--tone-down {
   color: rgb(168 90 102);
 }

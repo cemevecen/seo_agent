@@ -5,12 +5,12 @@
 
 /* Soft ink: avoid pure white text/icons on dark surfaces */
 html.dark .seo-matte-ink,
-html.midnight .seo-matte-ink {
+html.charcoal .seo-matte-ink {
   color: #d4d4d8 !important;
 }
 
 html.dark .seo-matte-panel,
-html.midnight .seo-matte-panel {
+html.charcoal .seo-matte-panel {
   background: #2a2a2e !important;
   border-color: #3f3f46 !important;
   color: #d4d4d8;
@@ -18,61 +18,61 @@ html.midnight .seo-matte-panel {
 
 /* GSC / CWV (and similar) screenshots — matte in dark only */
 html.dark .seo-matte-shot-wrap,
-html.midnight .seo-matte-shot-wrap {
+html.charcoal .seo-matte-shot-wrap {
   background: #2a2a2e !important;
   border-color: #3f3f46 !important;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
 html.dark .seo-matte-shot,
-html.midnight .seo-matte-shot {
+html.charcoal .seo-matte-shot {
   filter: saturate(0.48) brightness(0.72) contrast(0.9);
   opacity: 0.9;
   transition: filter 0.2s ease, opacity 0.2s ease;
 }
 
 html.dark .seo-matte-shot-wrap:hover .seo-matte-shot,
-html.midnight .seo-matte-shot-wrap:hover .seo-matte-shot {
+html.charcoal .seo-matte-shot-wrap:hover .seo-matte-shot {
   filter: saturate(0.62) brightness(0.82) contrast(0.94);
   opacity: 0.96;
 }
 
 /* Web Vitals page shell */
 html.dark .wv-page,
-html.midnight .wv-page {
+html.charcoal .wv-page {
   color: #d4d4d8;
 }
 
 html.dark .wv-page .bg-white,
-html.midnight .wv-page .bg-white {
+html.charcoal .wv-page .bg-white {
   background-color: #2a2a2e !important;
 }
 
 html.dark .wv-page .border-slate-100,
-html.midnight .wv-page .border-slate-100 {
+html.charcoal .wv-page .border-slate-100 {
   border-color: #3f3f46 !important;
 }
 
 /* Notification / Firebase / App — soften common white cards in dark */
 html.dark .notification-page .bg-white,
-html.midnight .notification-page .bg-white,
+html.charcoal .notification-page .bg-white,
 html.dark .firebase-page .bg-white,
-html.midnight .firebase-page .bg-white,
+html.charcoal .firebase-page .bg-white,
 html.dark .app-page .bg-white,
-html.midnight .app-page .bg-white,
+html.charcoal .app-page .bg-white,
 html.dark .policy-page .bg-white,
-html.midnight .policy-page .bg-white,
+html.charcoal .policy-page .bg-white,
 html.dark .sd-datas-page .bg-white,
-html.midnight .sd-datas-page .bg-white {
+html.charcoal .sd-datas-page .bg-white {
   background-color: #2a2a2e !important;
 }
 
 html.dark .notification-page .text-white,
-html.midnight .notification-page .text-white,
+html.charcoal .notification-page .text-white,
 html.dark .firebase-page .text-white,
-html.midnight .firebase-page .text-white,
+html.charcoal .firebase-page .text-white,
 html.dark .app-page .text-white,
-html.midnight .app-page .text-white {
+html.charcoal .app-page .text-white {
   color: #d4d4d8 !important;
 }
 
@@ -94,18 +94,18 @@ html.midnight .app-page .text-white {
   box-shadow: inset 0 0 0 1px #0f172a;
 }
 html.dark .policy-page .sin-tab,
-html.midnight .policy-page .sin-tab {
+html.charcoal .policy-page .sin-tab {
   background: #27272a !important;
   color: #d4d4d8 !important;
   box-shadow: inset 0 0 0 1px #3f3f46 !important;
 }
 html.dark .policy-page .sin-tab:hover,
-html.midnight .policy-page .sin-tab:hover {
+html.charcoal .policy-page .sin-tab:hover {
   background: #3f3f46 !important;
   color: #e4e4e7 !important;
 }
 html.dark .policy-page .sin-tab.is-on,
-html.midnight .policy-page .sin-tab.is-on {
+html.charcoal .policy-page .sin-tab.is-on {
   background: #52525b !important;
   color: #e4e4e7 !important;
   box-shadow: inset 0 0 0 1px #71717a !important;

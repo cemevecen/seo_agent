@@ -8,7 +8,7 @@
   function isDarkTheme() {
     var el = global.document && global.document.documentElement;
     if (!el) return false;
-    return el.classList.contains("dark") || el.classList.contains("midnight");
+    return el.classList.contains("dark") || el.classList.contains("charcoal");
   }
 
   function spikeColor() {

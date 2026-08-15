@@ -947,7 +947,7 @@
 
   function isDarkUi() {
     var html = document.documentElement;
-    return html.classList.contains("dark") || html.classList.contains("midnight");
+    return html.classList.contains("dark") || html.classList.contains("charcoal");
   }
 
   function standaloneDateKeys(series, keys, startIso, endIso) {

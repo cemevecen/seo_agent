@@ -5,7 +5,7 @@
   .app-banner-page .mz-chart-plot .modebar-container { display: none !important; }
   .app-banner-page .mz-chart-plot a.plotly-logomark { display: none !important; }
   html.dark .mz-page.app-banner-page .mz-chart-plot .scatterlayers .trace.line .lines path,
-  html.midnight .mz-page.app-banner-page .mz-chart-plot .scatterlayers .trace.line .lines path {
+  html.charcoal .mz-page.app-banner-page .mz-chart-plot .scatterlayers .trace.line .lines path {
     stroke: unset !important;
     stroke-width: 2px !important;
   }
@@ -16,12 +16,12 @@
     user-select: text !important;
     -webkit-user-select: text !important;
   }
-  html:not(.dark):not(.midnight) .app-banner-page .mz-chart-plot .hoverlayer foreignObject > div {
+  html:not(.dark) .app-banner-page .mz-chart-plot .hoverlayer foreignObject > div {
     background-color: #ffffff !important;
     color: #0f172a !important;
   }
   html.dark .app-banner-page .mz-chart-plot .hoverlayer foreignObject > div,
-  html.midnight .app-banner-page .mz-chart-plot .hoverlayer foreignObject > div {
+  html.charcoal .app-banner-page .mz-chart-plot .hoverlayer foreignObject > div {
     background-color: #2a2a2e !important;
     color: #fafafa !important;
   }
@@ -94,7 +94,7 @@
     padding: 0.45rem 0.35rem;
   }
   html.dark .app-banner-page .ab-dump-table thead th,
-  html.midnight .app-banner-page .ab-dump-table thead th {
+  html.charcoal .app-banner-page .ab-dump-table thead th {
     background: #2a2a2e;
     box-shadow: 0 1px 0 #3f3f46;
   }
@@ -112,7 +112,7 @@
     background: #ffffff;
   }
   html.dark .app-banner-page .ab-dump-table td.ab-dump-td-date,
-  html.midnight .app-banner-page .ab-dump-table td.ab-dump-td-date {
+  html.charcoal .app-banner-page .ab-dump-table td.ab-dump-td-date {
     background: #2a2a2e;
   }
   .app-banner-page .ab-dump-th-metric {
@@ -166,7 +166,7 @@
     color: #0f172a;
   }
   html.dark .app-banner-page .ab-dump-th-sort:hover,
-  html.midnight .app-banner-page .ab-dump-th-sort:hover {
+  html.charcoal .app-banner-page .ab-dump-th-sort:hover {
     color: #fafafa;
   }
   .app-banner-page .ab-dump-th-sort .ab-dump-sort-arrow {
@@ -186,7 +186,7 @@
     color: #94a3b8;
   }
   html.dark .app-banner-page .ab-dump-val--zero,
-  html.midnight .app-banner-page .ab-dump-val--zero {
+  html.charcoal .app-banner-page .ab-dump-val--zero {
     color: #52525b;
   }
   .app-banner-page .ab-dump-group-tag {
@@ -210,7 +210,7 @@
     padding: 0.75rem 0.85rem;
   }
   html.dark .app-banner-page .ab-dump-card,
-  html.midnight .app-banner-page .ab-dump-card {
+  html.charcoal .app-banner-page .ab-dump-card {
     border-color: #3f3f46;
     background: #2a2a2e;
   }
@@ -220,7 +220,7 @@
     margin-bottom: 0.5rem;
   }
   html.dark .app-banner-page .ab-dump-card-head,
-  html.midnight .app-banner-page .ab-dump-card-head {
+  html.charcoal .app-banner-page .ab-dump-card-head {
     border-color: #3f3f46;
   }
   .app-banner-page .ab-dump-card-metrics {
@@ -242,7 +242,7 @@
     overflow-wrap: anywhere;
   }
   html.dark .app-banner-page .ab-dump-card-metric dt,
-  html.midnight .app-banner-page .ab-dump-card-metric dt {
+  html.charcoal .app-banner-page .ab-dump-card-metric dt {
     color: #a1a1aa;
   }
   .app-banner-page .ab-dump-card-metric dd {
@@ -253,7 +253,7 @@
     color: #0f172a;
   }
   html.dark .app-banner-page .ab-dump-card-metric dd,
-  html.midnight .app-banner-page .ab-dump-card-metric dd {
+  html.charcoal .app-banner-page .ab-dump-card-metric dd {
     color: #fafafa;
   }
   .app-banner-page .ab-dump-card-metric--zero dd {
@@ -532,7 +532,7 @@
   }
 
   function isDark() {
-    return document.documentElement.classList.contains("dark") || document.documentElement.classList.contains("midnight");
+    return document.documentElement.classList.contains("dark") || document.documentElement.classList.contains("charcoal");
   }
 
   function plotLayout(extra) {
