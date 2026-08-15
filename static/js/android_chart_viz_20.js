@@ -40,9 +40,21 @@
   var HEIGHT_STORAGE_PREFIX = cfg.heightKey;
 
   function th() {
-    return window.seoPlotlyTheme
+    var dark =
+      document.documentElement.classList.contains("dark") ||
+      document.documentElement.classList.contains("midnight");
+    var base = window.seoPlotlyTheme
       ? window.seoPlotlyTheme()
-      : { paper: "#fff", plot: "#fff", text: "#334155", grid: "#e2e8f0", legend: "#64748b", tick: "#64748b" };
+      : {};
+    /* Solid paper/plot — transparent theme bg + CSS svg stretch broke treemap packing */
+    return {
+      paper: dark ? "#18181b" : "#ffffff",
+      plot: dark ? "#141416" : "#ffffff",
+      text: dark ? "#d4d4d8" : "#334155",
+      grid: dark ? "#27272a" : base.grid || "#e2e8f0",
+      legend: dark ? "#a1a1aa" : base.legend || "#64748b",
+      tick: dark ? "#a1a1aa" : base.tick || "#64748b",
+    };
   }
 
   function plotCfg() {
@@ -717,18 +729,33 @@
       layout.xaxis.title = c.matrix ? "Dönem" : "Hafta";
       layout.yaxis.title = c.matrix ? "Metrik" : c.cohort ? "Cohort" : "Gün";
     } else if (type === "treemap") {
-      var tmLabels = c.labels || [];
+      var tmLabelsAll = c.labels || [];
+      var tmParentsAll = c.parents || [];
+      var tmValuesAll = c.values || [];
       var matteTm = (window.seoMatteSeriesPalette && window.seoMatteSeriesPalette()) || [
         "#6b8aad", "#3d8b6e", "#8b7aa8", "#b87333", "#a86b7f", "#5b7c99", "#a85a66", "#71717a"
       ];
-      var tmColors = tmLabels.map(function (_, i) {
-        return i === 0 ? (th().plot || "#18181b") : matteTm[(i - 1) % matteTm.length];
-      });
+      /* Flat leaves only — hierarchical root rendered as transparent hole + scattered tiles when SVG stretched */
+      var tmLabels = [];
+      var tmParents = [];
+      var tmValues = [];
+      var tmColors = [];
+      var tmText = [];
+      var i0 = 0;
+      if (
+        tmLabelsAll.length > 1 &&
+        String(tmParentsAll[0] || "") === "" &&
+        tmParentsAll.slice(1).every(function (p) {
+          return String(p) === String(tmLabelsAll[0]);
+        })
+      ) {
+        i0 = 1;
+      }
       function tmWrapLabel(raw, maxChars, maxLines) {
         var s = String(raw == null ? "" : raw).replace(/\s+/g, " ").trim();
         if (!s) return "";
-        maxChars = maxChars || 26;
-        maxLines = maxLines || 5;
+        maxChars = maxChars || 24;
+        maxLines = maxLines || 4;
         if (s.length <= maxChars) return s;
         var tokens = s.split(/(\s+|[-_/.:])/);
         var lines = [];
@@ -750,39 +777,43 @@
         }
         return lines.join("<br>");
       }
-      var tmText = tmLabels.map(function (lab, i) {
-        if (i === 0) return String(lab || "");
-        return tmWrapLabel(lab, 28, 5);
-      });
-      var tmInk = th().text || "#d4d4d8";
+      for (var ti = i0; ti < tmLabelsAll.length; ti++) {
+        var lab = tmLabelsAll[ti];
+        var val = tmValuesAll[ti];
+        if (val == null || !(Number(val) > 0)) continue;
+        tmLabels.push(lab);
+        tmParents.push("");
+        tmValues.push(Number(val));
+        tmColors.push(matteTm[(tmLabels.length - 1) % matteTm.length]);
+        tmText.push(tmWrapLabel(lab, 24, 4));
+      }
+      var tmInk = "#e4e4e7";
       traces = [
         {
           type: "treemap",
           labels: tmLabels,
-          parents: c.parents || [],
-          values: c.values || [],
+          parents: tmParents,
+          values: tmValues,
           text: tmText,
           branchvalues: "total",
           textinfo: "text+value",
           texttemplate: "%{text}<br><b>%{value}</b>",
           hovertemplate: "<b>%{label}</b><br>Events: %{value}<extra></extra>",
-          textfont: { color: tmInk, size: 15, family: "ui-sans-serif, system-ui, sans-serif" },
-          insidetextfont: { color: tmInk, size: 15, family: "ui-sans-serif, system-ui, sans-serif" },
+          textfont: { color: tmInk, size: 13, family: "ui-sans-serif, system-ui, sans-serif" },
+          insidetextfont: { color: tmInk, size: 13, family: "ui-sans-serif, system-ui, sans-serif" },
           pathbar: { visible: false },
-          tiling: { packing: "squarify", pad: 3 },
+          tiling: { packing: "squarify", pad: 2 },
           marker: {
             colors: tmColors,
-            line: { width: 1, color: "rgba(24,24,27,0.85)" },
-            pad: { t: 4, l: 4, r: 4, b: 4 },
+            line: { width: 1, color: th().paper || "#18181b" },
+            pad: { t: 3, l: 3, r: 3, b: 3 },
           },
           hoverlabel: { bgcolor: "#27272a", font: { color: "#e4e4e7", size: 12 } },
         },
       ];
-      layout.margin = { l: 0, r: 0, t: 4, b: 0 };
-      layout.autosize = true;
-      /* Kutuya sığacak en büyük ortak punto; çok küçük hücrelerde yine göster */
-      layout.uniformtext = { minsize: 9, mode: "show" };
-    } else if (type === "bump") {
+      layout.margin = { l: 0, r: 0, t: 0, b: 0 };
+      layout.uniformtext = { minsize: 8, mode: "hide" };
+    } else if (type === "bump") {    } else if (type === "bump") {
       (c.traces || []).forEach(function (tr, i) {
         traces.push({
           type: "scatter",
@@ -906,7 +937,11 @@
       });
       layout.margin = { l: 16, r: 16, t: 16, b: 16 };
     } else if (type === "horizon") {
+      var hPal = (window.seoMatteSeriesPalette && window.seoMatteSeriesPalette()) || [
+        "#6b8aad", "#b87333", "#3d8b6e", "#8b7aa8", "#a85a66"
+      ];
       (c.traces || []).forEach(function (tr, i) {
+        var col = hPal[i % hPal.length];
         traces.push({
           type: "scatter",
           mode: "lines",
@@ -914,7 +949,9 @@
           name: tr.name,
           x: tr.x,
           y: tr.y,
-          opacity: 0.85,
+          line: { color: col, width: 1.5 },
+          fillcolor: col,
+          opacity: 0.55,
           yaxis: i === 0 ? "y" : "y" + (i + 1),
         });
         if (i > 0) {
@@ -923,9 +960,16 @@
             side: "right",
             showgrid: false,
             visible: false,
+            color: th().tick,
           };
         }
       });
+      layout.yaxis = layout.yaxis || {};
+      layout.yaxis.color = th().tick;
+      layout.yaxis.gridcolor = th().grid;
+      layout.xaxis = layout.xaxis || {};
+      layout.xaxis.color = th().tick;
+      layout.xaxis.gridcolor = th().grid;
     } else if (type === "bar") {
       if (c.horizontal) {
         traces.push({
@@ -1123,20 +1167,22 @@
     }
 
     whenPlotly(function () {
-      var w = chartEl.clientWidth || chartEl.offsetWidth || 0;
-      if (w > 0) layout.width = w;
+      try {
+        if (chartEl.data) Plotly.purge(chartEl);
+      } catch (_) {}
+      chartEl.innerHTML = "";
+      var w = Math.max(chartEl.clientWidth || chartEl.offsetWidth || 0, 320);
+      var h = heightPxVal || chartEl.clientHeight || 340;
+      layout.width = w;
+      layout.height = h;
       layout.autosize = true;
       Plotly.newPlot(chartEl, traces, layout, plotCfg()).then(function () {
-        try {
-          Plotly.Plots.resize(chartEl);
-        } catch (_) {}
         requestAnimationFrame(function () {
           try {
             var w2 = chartEl.clientWidth || 0;
-            if (w2 > 0 && Math.abs((layout.width || 0) - w2) > 2) {
-              Plotly.relayout(chartEl, { width: w2, autosize: true });
-            } else {
-              Plotly.Plots.resize(chartEl);
+            var h2 = chartEl.clientHeight || h;
+            if (w2 > 40) {
+              Plotly.relayout(chartEl, { width: w2, height: h2 });
             }
           } catch (_) {}
         });

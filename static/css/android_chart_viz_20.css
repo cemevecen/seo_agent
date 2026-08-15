@@ -138,21 +138,17 @@ html.midnight .chart-viz20-section .pa-viz20-body {
 
 html.dark .chart-viz20-section .pa-viz20-chart,
 html.midnight .chart-viz20-section .pa-viz20-chart {
-  background: rgb(9 9 11 / 0.55);
+  background: #18181b;
 }
 
+/* Do NOT force SVG width/height — that stretches tiles and leaves empty gaps (treemap). */
 .chart-viz20-section .pa-viz20-chart .js-plotly-plot,
-.chart-viz20-section .pa-viz20-chart .plot-container.plotly,
-.chart-viz20-section .pa-viz20-chart .svg-container {
-  width: 100% !important;
+.chart-viz20-section .pa-viz20-chart .plot-container.plotly {
+  width: 100%;
   max-width: 100%;
 }
 .chart-viz20-section .pa-viz20-chart .svg-container {
-  height: 100% !important;
-}
-.chart-viz20-section .pa-viz20-chart svg.main-svg {
-  display: block;
-  width: 100% !important;
+  margin: 0 auto !important;
 }
 
 .chart-viz20-section .pa-viz20-meta {
@@ -179,7 +175,7 @@ html.midnight .chart-viz20-section .pa-viz20-meta {
 
 .pa-viz20-chart .js-plotly-plot,
 .pa-viz20-chart .plot-container.plotly {
-  width: 100% !important;
+  width: 100%;
 }
 
 .pa-viz20-detail {
