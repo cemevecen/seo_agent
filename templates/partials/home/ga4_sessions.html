@@ -89,7 +89,6 @@
         {{ brand_icon(site_key | default('doviz')) }}
         {{ container_chip('ga4') }}
       </div>
-      <span class="home-shell-chevron" aria-hidden="true"></span>
     </button>
     <div class="home-shell-head-tools">
       <div class="home-period-chips inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Period">
@@ -102,6 +101,15 @@
       <a href="/ga4" hx-get="/ga4" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
          class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
     </div>
+    <button type="button"
+            class="home-shell-chevron-btn"
+            data-home-shell-toggle
+            aria-expanded="true"
+            aria-controls="home-ga4-shell-{{ site_key | default('doviz') }}"
+            aria-label="Expand or collapse">
+      <span class="home-shell-chevron" aria-hidden="true"></span>
+    </button>
+
   </div>
   <div id="home-ga4-shell-{{ site_key | default('doviz') }}" class="home-shell-body" data-home-shell-body>
 {% if sites and sites[0] %}

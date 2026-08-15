@@ -10,7 +10,6 @@
         <span class="home-rt-live-dot" aria-hidden="true"></span>
         {{ container_chip('active users') }}
       </div>
-      <span class="home-shell-chevron" aria-hidden="true"></span>
     </button>
     <div class="home-shell-head-tools home-rt-head-chips">
       {% if sites %}
@@ -34,6 +33,15 @@
         <span class="home-label text-slate-500 dark:text-slate-400">s</span>
       </span>
     </div>
+    <button type="button"
+            class="home-shell-chevron-btn"
+            data-home-shell-toggle
+            aria-expanded="true"
+            aria-controls="home-rt-shell-body"
+            aria-label="Expand or collapse">
+      <span class="home-shell-chevron" aria-hidden="true"></span>
+    </button>
+
   </div>
   <div id="home-rt-shell-body" class="home-shell-body" data-home-shell-body>
 {% if sites %}

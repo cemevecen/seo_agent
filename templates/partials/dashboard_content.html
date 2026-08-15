@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v61-pair-start">
+<style id="home-site-borders" data-home-css="v62-shell-chevron-end">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -38,9 +38,8 @@
   .home-shell-head {
     display: flex;
     width: 100%;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
+    align-items: center;
+    gap: 0.65rem;
     min-width: 0;
   }
   .home-shell-toggle {
@@ -48,7 +47,6 @@
     min-width: 0;
     flex: 1 1 auto;
     align-items: center;
-    justify-content: space-between;
     gap: 0.75rem;
     padding: 0;
     border: 0;
@@ -57,34 +55,11 @@
     text-align: left;
     color: inherit;
   }
-  .home-shell-toggle:focus-visible {
+  .home-shell-toggle:focus-visible,
+  .home-shell-chevron-btn:focus-visible {
     outline: 2px solid rgb(59 130 246 / 0.55);
     outline-offset: 3px;
     border-radius: 0.5rem;
-  }
-  .home-shell-chevron {
-    width: 0.45rem;
-    height: 0.45rem;
-    border-right: 1.75px solid currentColor;
-    border-bottom: 1.75px solid currentColor;
-    transform: rotate(45deg);
-    transition: transform 0.15s ease;
-    opacity: 0.7;
-    flex-shrink: 0;
-    color: #94a3b8;
-  }
-  [data-home-shell-root].is-open > .home-shell-head .home-shell-chevron,
-  [data-home-shell-root].is-open > .home-shell-toggle .home-shell-chevron {
-    transform: rotate(-135deg);
-    margin-top: 0.2rem;
-  }
-  [data-home-shell-body] {
-    display: none;
-    margin-top: 0.85rem;
-  }
-  [data-home-shell-root].is-open > [data-home-shell-body],
-  [data-home-shell-root].is-open [data-home-shell-body] {
-    display: block;
   }
   .home-shell-head-tools {
     display: flex;
@@ -94,6 +69,53 @@
     gap: 0.5rem;
     flex: 0 1 auto;
     min-width: 0;
+  }
+  /* Dropdown oku — Notification / Drive ile aynı, satırın sağ ucu */
+  .home-shell-chevron-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    cursor: pointer;
+    color: inherit;
+  }
+  .home-shell-chevron-btn:hover {
+    background: rgb(148 163 184 / 0.12);
+  }
+  html.dark .home-shell-chevron-btn:hover,
+  html.charcoal .home-shell-chevron-btn:hover {
+    background: rgb(63 63 70 / 0.55);
+  }
+  .home-shell-chevron {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+    opacity: 0.85;
+    flex-shrink: 0;
+    color: #94a3b8;
+    margin-top: -0.12rem;
+  }
+  [data-home-shell-root].is-open .home-shell-chevron {
+    transform: rotate(-135deg);
+    margin-top: 0.22rem;
+  }
+  [data-home-shell-body] {
+    display: none;
+    margin-top: 0.85rem;
+  }
+  [data-home-shell-root].is-open > [data-home-shell-body],
+  [data-home-shell-root].is-open [data-home-shell-body] {
+    display: block;
   }
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
@@ -2265,7 +2287,7 @@
   <link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=2">
   <script src="/static/js/rt_slot_fx.js?v=3"></script>
   <script src="/static/js/home_top_pages.js?v=2"></script>
-  <script src="/static/js/home_shell.js?v=2"></script>
+  <script src="/static/js/home_shell.js?v=3"></script>
   <script src="/static/js/metric_table_ux.js?v=9"></script>
   <div data-home-container-slot="realtime">
   <section id="home-realtime-section" data-home-container="realtime" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
@@ -2398,7 +2420,7 @@
       {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=45" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=46" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2409,7 +2431,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=45" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=46" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2424,7 +2446,7 @@
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=45" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=46" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2435,7 +2457,7 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=45" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=46" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2450,14 +2472,14 @@
       {# Row 4 — Position Drops #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="position-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/position-drops?site=doviz&v=15" hx-trigger="load delay:280ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=doviz&v=16" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
         </div>
         <div data-home-container-slot="position-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/position-drops?site=sinemalar&v=15" hx-trigger="load delay:280ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=sinemalar&v=16" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
@@ -2468,7 +2490,7 @@
       {# Row 5 — Web Vitals (GSC CWV Mobil/Masaüstü) · alert/position altında #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="wv-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/web-vitals?site=doviz&v=15" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=doviz&v=16" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2479,7 +2501,7 @@
         </section>
         </div>
         <div data-home-container-slot="wv-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/web-vitals?site=sinemalar&v=15" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=sinemalar&v=16" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2516,7 +2538,7 @@
 
     {# git.nokta — boards ile aynı GitLab/VPN kaynağı #}
     <div data-home-container-slot="priority-board">
-    <section hx-get="/api/home/priority-board?v=15" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
+    <section hx-get="/api/home/priority-board?v=16" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
              data-home-container="priority-board"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
@@ -2527,7 +2549,7 @@
 
     {# Virgül reklam — 6 alan: 1 hafta vs 3 ay günlük ort. gelir #}
     <div data-home-container-slot="virgul-revenue">
-    <section hx-get="/api/home/virgul-revenue?v=9" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
+    <section hx-get="/api/home/virgul-revenue?v=10" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
              data-home-container="virgul-revenue"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
