@@ -1,6 +1,9 @@
 {% extends "base.html" %}
+{% from 'partials/pa_chart_style_buttons.html' import chart_style_buttons %}
 {% block content %}
 <!-- mz-layout-v5 -->
+<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=12">
+<link rel="stylesheet" href="/static/css/pa_chart_style.css?v=2">
 <style>
   @keyframes mz-delete-spin {
     to { transform: rotate(360deg); }
@@ -644,23 +647,21 @@
     min-height: 1.5rem;
     height: 100%;
   }
+  /* Spark: host taşmayı kes; Plotly katman SVG’lerine width zorlama (dark’ta boş görünür) */
   .mz-page .mz-kpi-spark {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0;
     height: 2.475rem;
     overflow: hidden;
-    contain: layout paint;
     position: relative;
   }
   .mz-page .mz-kpi-spark .js-plotly-plot,
   .mz-page .mz-kpi-spark .plot-container.plotly,
-  .mz-page .mz-kpi-spark .svg-container,
-  .mz-page .mz-kpi-spark .main-svg,
-  .mz-page .mz-kpi-spark svg {
+  .mz-page .mz-kpi-spark .svg-container {
     width: 100% !important;
     max-width: 100% !important;
-    overflow: hidden !important;
+    height: 100% !important;
   }
   .mz-page #mz-kpi-grid {
     display: grid;
@@ -1134,10 +1135,17 @@
       grid-template-columns: 1fr;
     }
   }
+  .mz-page .mz-chart-plot[data-mz-chart-h="160"] { min-height: 160px; }
+  .mz-page .mz-chart-plot[data-mz-chart-h="180"] { min-height: 180px; }
+  .mz-page .mz-chart-plot[data-mz-chart-h="200"] { min-height: 200px; }
   .mz-page .mz-chart-plot[data-mz-chart-h="220"] { min-height: 220px; }
   .mz-page .mz-chart-plot[data-mz-chart-h="240"] { min-height: 240px; }
+  .mz-page .mz-chart-plot[data-mz-chart-h="260"] { min-height: 260px; }
   .mz-page .mz-chart-plot[data-mz-chart-h="280"] { min-height: 280px; }
   .mz-page .mz-chart-plot[data-mz-chart-h="300"] { min-height: 300px; }
+  .mz-page .mz-chart-plot[data-mz-chart-h="340"] { min-height: 340px; }
+  .mz-page .mz-chart-plot[data-mz-chart-h="380"] { min-height: 380px; }
+  .mz-page .mz-chart-plot[data-mz-chart-h="420"] { min-height: 420px; }
   .mz-page .mz-chart-plot--tile:has(> .mz-skel) { min-height: 200px; }
 </style>
 
@@ -1548,6 +1556,29 @@
           <h2 id="mz-chart-line-title" class="text-sm font-bold text-slate-700 dark:text-zinc-100">Daily trend (line)</h2>
           <div class="flex flex-wrap items-center justify-end gap-2">
             <div id="mz-peer-toggle-line" class="hidden shrink-0"></div>
+            <div id="mz-chart-height" class="pa-chart-height" role="group" aria-label="Chart height">
+              <button type="button" data-chart-height="1" title="Tall chart" aria-label="Tall chart height">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="2" width="10" height="12" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 11 L7 7.5 L9.5 9 L12 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button type="button" data-chart-height="2" title="Medium chart" aria-label="Medium chart height" class="is-active">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="4.5" width="10" height="9.5" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 11.5 L7 8.5 L9.5 10 L12 6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button type="button" data-chart-height="3" title="Short chart" aria-label="Short chart height">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 12 L7 9.5 L9.5 10.5 L12 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+            <div id="mz-chart-compress" class="pa-chart-compress" role="group" aria-label="Chart vertical compress">
+              <button type="button" data-chart-compress="1" title="Normal compress" aria-label="Normal vertical compress" class="is-active">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 3.5 L8 1.5 L10.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 12.5 L8 14.5 L10.5 12.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="5.5" width="9" height="5" rx="1" fill="currentColor" fill-opacity="0.28"/></svg>
+              </button>
+              <button type="button" data-chart-compress="2" title="Medium compress" aria-label="Medium vertical compress">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4 L8 2.5 L10.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 12 L8 13.5 L10.5 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="6.5" width="9" height="3" rx="1" fill="currentColor" fill-opacity="0.28"/></svg>
+              </button>
+              <button type="button" data-chart-compress="3" title="Strong compress" aria-label="Strong vertical compress">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4.5 L8 3.5 L10.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 11.5 L8 12.5 L10.5 11.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="7.5" width="9" height="1.5" rx="0.6" fill="currentColor" fill-opacity="0.35"/></svg>
+              </button>
+            </div>
+            {{ chart_style_buttons('mz-chart-style', 'data-mz-chart-style', 'shrink-0') }}
             <div id="mz-bd-toolbar-line" class="mz-bd-toolbar" data-bd-scope="chartLine" data-bd-mode="time"></div>
           </div>
         </div>
@@ -6902,6 +6933,129 @@
     return isDarkTheme() ? "#a1a1aa" : "#0a0a0a";
   }
 
+  /** Ana trend grafik tipi + yükseklik (Android/iOS ile aynı kontroller). */
+  var MZ_CHART_HEIGHT_BASE = { "1": 380, "2": 300, "3": 220 };
+  var MZ_CHART_COMPRESS_DIV = { "1": 1, "2": 1.28, "3": 1.62 };
+  var mzChartStyle = "line";
+  var mzChartHeightLevel = "2";
+  var mzChartCompressLevel = "1";
+  try {
+    var storedStyle = localStorage.getItem("mzChartStyle");
+    if (storedStyle === "line" || storedStyle === "area" || storedStyle === "bar") mzChartStyle = storedStyle;
+    var storedH = localStorage.getItem("mzChartHeight");
+    if (storedH === "1" || storedH === "2" || storedH === "3") mzChartHeightLevel = storedH;
+    var storedC = localStorage.getItem("mzChartCompress");
+    if (storedC === "1" || storedC === "2" || storedC === "3") mzChartCompressLevel = storedC;
+  } catch (_) { /* ignore */ }
+
+  function mzEffectiveLineChartHeight() {
+    var base = MZ_CHART_HEIGHT_BASE[mzChartHeightLevel] || 300;
+    var div = MZ_CHART_COMPRESS_DIV[mzChartCompressLevel] || 1;
+    return Math.max(140, Math.round(base / div));
+  }
+
+  function mzSyncLineChartHeightAttr() {
+    var h = mzEffectiveLineChartHeight();
+    var el = document.getElementById("mz-chart-line");
+    if (el) el.setAttribute("data-mz-chart-h", String(h));
+    var peer = document.getElementById("mz-chart-line-peer");
+    if (peer) peer.setAttribute("data-mz-chart-h", String(Math.max(140, Math.round(h * 0.72))));
+    var hRoot = document.getElementById("mz-chart-height");
+    if (hRoot) {
+      Array.prototype.forEach.call(hRoot.querySelectorAll("[data-chart-height]"), function (btn) {
+        var on = btn.getAttribute("data-chart-height") === mzChartHeightLevel;
+        btn.classList.toggle("is-active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+    var cRoot = document.getElementById("mz-chart-compress");
+    if (cRoot) {
+      Array.prototype.forEach.call(cRoot.querySelectorAll("[data-chart-compress]"), function (btn) {
+        var on = btn.getAttribute("data-chart-compress") === mzChartCompressLevel;
+        btn.classList.toggle("is-active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+  }
+
+  function mzSyncChartStyleButtons() {
+    var root = document.getElementById("mz-chart-style");
+    if (!root) return;
+    Array.prototype.forEach.call(root.querySelectorAll("[data-mz-chart-style]"), function (btn) {
+      var on = btn.getAttribute("data-mz-chart-style") === mzChartStyle;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function mzSetChartStyle(style) {
+    if (style !== "line" && style !== "area" && style !== "bar") style = "line";
+    mzChartStyle = style;
+    try { localStorage.setItem("mzChartStyle", style); } catch (_) { /* ignore */ }
+    mzSyncChartStyleButtons();
+    refreshChartLine();
+  }
+
+  function mzSetChartHeightLevel(level) {
+    if (level !== "1" && level !== "2" && level !== "3") level = "2";
+    mzChartHeightLevel = level;
+    try { localStorage.setItem("mzChartHeight", level); } catch (_) { /* ignore */ }
+    mzSyncLineChartHeightAttr();
+    refreshChartLine();
+  }
+
+  function mzSetChartCompressLevel(level) {
+    if (level !== "1" && level !== "2" && level !== "3") level = "1";
+    mzChartCompressLevel = level;
+    try { localStorage.setItem("mzChartCompress", level); } catch (_) { /* ignore */ }
+    mzSyncLineChartHeightAttr();
+    refreshChartLine();
+  }
+
+  /** Ana trend + peer serilerine line/area/bar uygula (legend/isim korunur). */
+  function mzApplyMainChartStyle(traces) {
+    var style = mzChartStyle || "line";
+    var dark = isDarkTheme();
+    (traces || []).forEach(function (t) {
+      if (!t) return;
+      if (t.hoverinfo === "skip" && (!t.name || t.showlegend === false) && t.line && Number(t.line.width) === 0) {
+        return;
+      }
+      var lineColor =
+        (t.line && t.line.color) ||
+        (t.marker && t.marker.color) ||
+        mzInkColor();
+      if (style === "bar") {
+        t.type = "bar";
+        delete t.mode;
+        delete t.fill;
+        delete t.fillcolor;
+        t.marker = Object.assign({}, t.marker || {}, { color: lineColor });
+        if (t.line && t.line.dash) {
+          t.opacity = 0.72;
+        }
+      } else if (style === "area") {
+        t.type = "scatter";
+        if (!t.mode || String(t.mode).indexOf("lines") < 0) {
+          t.mode = "lines";
+        }
+        t.fill = "tozeroy";
+        t.fillcolor = mzSparkFillRgba(lineColor, dark ? 0.26 : 0.18);
+        if (!t.line) t.line = { color: lineColor, width: 2 };
+        else if (!t.line.color) t.line.color = lineColor;
+      } else {
+        if (t.type === "bar") {
+          t.type = "scatter";
+          t.mode = "lines";
+        }
+        delete t.fill;
+        delete t.fillcolor;
+        if (t.opacity != null && t.line && t.line.dash) delete t.opacity;
+      }
+    });
+    return traces;
+  }
+
   /** Karşı dal overlay — kesik fıstık yeşili (iOS↔Android, Web↔Mobil web). */
   var PEER_PISTACHIO = "#93C572";
   var PEER_BRANCH_COLORS = {
@@ -9396,8 +9550,19 @@
     if (!el) return;
     el.style.width = "100%";
     el.style.maxWidth = "100%";
+    var isSpark = !!(el.classList && el.classList.contains("mz-kpi-spark"));
     /* Inline !important / sabit px kalıntılarını temizle; width’i Plotly.relayout yazar */
-    el.querySelectorAll(".js-plotly-plot, .plot-container.plotly, .svg-container, .main-svg, svg").forEach(function (node) {
+    el.querySelectorAll(".js-plotly-plot, .plot-container.plotly, .svg-container").forEach(function (node) {
+      node.style.removeProperty("width");
+      node.style.removeProperty("max-width");
+      if (isSpark) {
+        node.style.height = "100%";
+        node.style.maxHeight = "100%";
+      }
+    });
+    /* Spark’ta nested SVG width zorlama katmanları (hover/axis) bozar — sadece büyük chart’ta hizala */
+    if (isSpark) return;
+    el.querySelectorAll(".main-svg, svg").forEach(function (node) {
       node.style.removeProperty("width");
       node.style.removeProperty("max-width");
       if (node.tagName === "svg" || (node.classList && node.classList.contains("main-svg"))) {
@@ -9879,8 +10044,13 @@
         if (marketDates && marketDates.length) {
           try { await mzMaybeApplyChartOverlays(traces, lineLay, marketDates); } catch (_) { /* ignore */ }
         }
+        mzApplyMainChartStyle(traces);
+        if (mzChartStyle === "bar") {
+          lineLay.barmode = "group";
+          lineLay.bargap = 0.12;
+        }
         lineLay.xaxis = Object.assign({}, lineLay.xaxis || {}, { showticklabels: false });
-        await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: plotTimeKey });
+        await plotChart("mz-chart-line", traces, lineLay, { minHeight: mzEffectiveLineChartHeight(), timeKey: plotTimeKey });
         var peerTraces = buildPeerSeparateLineTraces(
           peerSum,
           kpiKey,
@@ -9906,6 +10076,7 @@
             await mzMaybeApplyChartOverlays(peerTraces, peerLayTmp, peerTraces[0].x || marketDates);
           }
         } catch (_) { /* overlay opsiyonel */ }
+        mzApplyMainChartStyle(peerTraces);
         await plotPeerSplitChart(
           "line",
           peerTraces,
@@ -9956,7 +10127,12 @@
     if (marketDates && marketDates.length) {
       await mzMaybeApplyChartOverlays(traces, lineLay, marketDates);
     }
-    await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: plotTimeKey });
+    mzApplyMainChartStyle(traces);
+    if (mzChartStyle === "bar") {
+      lineLay.barmode = "group";
+      lineLay.bargap = 0.12;
+    }
+    await plotChart("mz-chart-line", traces, lineLay, { minHeight: mzEffectiveLineChartHeight(), timeKey: plotTimeKey });
   }
 
   function peerBarYsForLabels(peerSum, labels, labelKey) {
@@ -10422,16 +10598,25 @@
           redFill: dark ? "rgba(168,90,102,0.14)" : "rgba(185,28,60,0.14)",
         };
     var sparkMeanOpts = {
-      lineWidth: 1.5,
+      lineWidth: dark ? 2 : 1.5,
       fill: true,
       hoverinfo: "skip",
       mode: "lines",
       green: sparkMs.green,
       red: sparkMs.red,
-      greenFill: sparkMs.greenFill,
-      redFill: sparkMs.redFill,
+      greenFill: dark
+        ? (sparkMs.greenFill || "rgba(74,143,115,0.28)")
+        : sparkMs.greenFill,
+      redFill: dark
+        ? (sparkMs.redFill || "rgba(168,90,102,0.28)")
+        : sparkMs.redFill,
       fallbackColor: sparkMs.green,
     };
+    if (dark) {
+      /* Mat fill opacity dark’ta çok silik kalmasın */
+      sparkMeanOpts.greenFill = "rgba(74,143,115,0.32)";
+      sparkMeanOpts.redFill = "rgba(168,90,102,0.32)";
+    }
     var sparkPeerColor = dark ? "#A8D88A" : "#93C572";
     var aligned = cmp ? alignedDateSeries(cmp, key) : null;
     var traces = [];
@@ -12147,6 +12332,35 @@
     setTimeout(redrawAll, 80);
   });
   adThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+
+  (function initMzLineChartControls() {
+    mzSyncLineChartHeightAttr();
+    mzSyncChartStyleButtons();
+    var styleRoot = document.getElementById("mz-chart-style");
+    if (styleRoot) {
+      styleRoot.addEventListener("click", function (ev) {
+        var btn = ev.target && ev.target.closest ? ev.target.closest("[data-mz-chart-style]") : null;
+        if (!btn || !styleRoot.contains(btn)) return;
+        mzSetChartStyle(btn.getAttribute("data-mz-chart-style") || "line");
+      });
+    }
+    var hRoot = document.getElementById("mz-chart-height");
+    if (hRoot) {
+      hRoot.addEventListener("click", function (ev) {
+        var btn = ev.target && ev.target.closest ? ev.target.closest("[data-chart-height]") : null;
+        if (!btn || !hRoot.contains(btn)) return;
+        mzSetChartHeightLevel(btn.getAttribute("data-chart-height") || "2");
+      });
+    }
+    var cRoot = document.getElementById("mz-chart-compress");
+    if (cRoot) {
+      cRoot.addEventListener("click", function (ev) {
+        var btn = ev.target && ev.target.closest ? ev.target.closest("[data-chart-compress]") : null;
+        if (!btn || !cRoot.contains(btn)) return;
+        mzSetChartCompressLevel(btn.getAttribute("data-chart-compress") || "1");
+      });
+    }
+  })();
 
   var mzUploadLastPct = 0;
 
