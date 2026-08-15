@@ -25,14 +25,15 @@
         var root = document.documentElement;
         root.classList.remove('dark', 'midnight', 'charcoal');
         // Legacy: dim → charcoal (soft); dark → midnight (true black)
-        if (v === 'charcoal' || v === 'dim') {
+        // Default (no stored preference): charcoal
+        if (v === 'charcoal' || v === 'dim' || !v) {
           root.classList.add('dark', 'charcoal');
         } else if (v === 'midnight' || v === 'dark') {
           root.classList.add('dark', 'midnight');
         } else if (v === 'light') {
           /* light */
-        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          root.classList.add('dark', 'midnight');
+        } else {
+          root.classList.add('dark', 'charcoal');
         }
       } catch (e) {}
     })();
@@ -3190,7 +3191,7 @@
       }
 
       function applyTheme(theme) {
-        if (!theme || THEMES.indexOf(theme) < 0) theme = 'light';
+        if (!theme || THEMES.indexOf(theme) < 0) theme = 'charcoal';
         root.classList.remove('dark', 'midnight', 'charcoal');
         if (theme === 'midnight') {
           root.classList.add('dark', 'midnight');
@@ -3231,7 +3232,7 @@
         if (stored) {
           applyTheme(stored);
         } else {
-          applyTheme(getTheme());
+          applyTheme('charcoal');
         }
         switcher.addEventListener('click', function (ev) {
           var btn = ev.target && ev.target.closest ? ev.target.closest('.theme-btn[data-theme-value]') : null;

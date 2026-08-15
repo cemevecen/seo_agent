@@ -17,14 +17,15 @@
         var v = localStorage.getItem(k);
         var root = document.documentElement;
         root.classList.remove('dark', 'midnight', 'charcoal');
-        if (v === 'charcoal' || v === 'dim') {
+        // Default (no stored preference): charcoal
+        if (v === 'charcoal' || v === 'dim' || !v) {
           root.classList.add('dark', 'charcoal');
         } else if (v === 'midnight' || v === 'dark') {
           root.classList.add('dark', 'midnight');
         } else if (v === 'light') {
           /* light */
-        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          root.classList.add('dark', 'midnight');
+        } else {
+          root.classList.add('dark', 'charcoal');
         }
       } catch (e) {}
     })();
