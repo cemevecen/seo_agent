@@ -1851,6 +1851,62 @@
         <p id="mz-targets-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
         <p id="mz-targets-warning" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="status"></p>
         <p id="mz-targets-loading" class="text-xs text-slate-500 dark:text-zinc-400">Loading data…</p>
+        <div id="mz-targets-charts" class="hidden grid w-full min-w-0 grid-cols-1 gap-4">
+          <div class="mz-targets-chart-line-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="mb-3 flex flex-col gap-3">
+              <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Target · Earnings trend (line)</h3>
+              <div class="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
+                <div class="min-w-0 flex-1">
+                  <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">Series</p>
+                  <div id="mz-targets-line-series" class="flex flex-wrap gap-1.5" role="group" aria-label="Chart series"></div>
+                </div>
+                <label class="min-w-[10rem] shrink-0 text-xs">
+                  <span class="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Range</span>
+                  <select id="mz-targets-line-range" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
+                    <option value="3">Last 3 months</option>
+                    <option value="6">Last 6 months</option>
+                    <option value="9">Last 9 months</option>
+                    <option value="12" selected>Last 1 year</option>
+                    <option value="18">Last 18 months</option>
+                    <option value="24">Last 24 months</option>
+                    <option value="36">Last 3 years</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div id="mz-targets-chart-line" class="mz-chart-plot min-h-[280px] w-full"></div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Monthly comparison (column)</h3>
+            <div id="mz-targets-chart-bar" class="mz-chart-plot min-h-[280px] w-full"></div>
+          </div>
+        </div>
+        <div id="mz-targets-pie-section" class="hidden mt-4 rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Monthly distribution (pie)</h3>
+              <p id="mz-targets-pie-subtitle" class="text-[11px] font-medium text-slate-500 dark:text-zinc-400"></p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="mz-targets-proj-group" role="group" aria-label="Project">
+                <button type="button" data-mz-target-project="doviz" class="mz-targets-proj rounded-lg border border-indigo-300 bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white">Doviz.com</button>
+                <button type="button" data-mz-target-project="sinemalar" class="mz-targets-proj rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200">Sinemalar.com</button>
+              </div>
+              <label class="flex items-center gap-1.5 text-xs">
+                <span class="text-[10px] font-bold uppercase text-slate-500">Period</span>
+                <select id="mz-targets-pie-group" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200"></select>
+              </label>
+            </div>
+          </div>
+          <div id="mz-targets-pie-grid" class="grid w-full min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div class="mz-targets-pie-slot min-w-0" data-slot="0"><div id="mz-targets-chart-pie-0" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="1"><div id="mz-targets-chart-pie-1" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="2"><div id="mz-targets-chart-pie-2" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="3"><div id="mz-targets-chart-pie-3" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="4"><div id="mz-targets-chart-pie-4" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="5"><div id="mz-targets-chart-pie-5" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+          </div>
+        </div>
         <div id="mz-targets-controls" class="hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
           <div class="min-w-0">
             <p class="mb-1 text-[10px] font-bold uppercase text-slate-500">Project</p>
@@ -1895,42 +1951,6 @@
               class="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:w-auto"
               aria-pressed="false"
             >Colorize</button>
-          </div>
-        </div>
-        <div id="mz-targets-charts" class="hidden grid w-full min-w-0 grid-cols-1 gap-4">
-          <div class="mz-targets-chart-line-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Target · Earnings trend (line)</h3>
-            <div id="mz-targets-chart-line" class="mz-chart-plot min-h-[280px] w-full"></div>
-          </div>
-          <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Monthly comparison (column)</h3>
-            <div id="mz-targets-chart-bar" class="mz-chart-plot min-h-[280px] w-full"></div>
-          </div>
-        </div>
-        <div id="mz-targets-pie-section" class="hidden mt-4 rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Monthly distribution (pie)</h3>
-              <p id="mz-targets-pie-subtitle" class="text-[11px] font-medium text-slate-500 dark:text-zinc-400"></p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <div class="mz-targets-proj-group" role="group" aria-label="Project">
-                <button type="button" data-mz-target-project="doviz" class="mz-targets-proj rounded-lg border border-indigo-300 bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white">Doviz.com</button>
-                <button type="button" data-mz-target-project="sinemalar" class="mz-targets-proj rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200">Sinemalar.com</button>
-              </div>
-              <label class="flex items-center gap-1.5 text-xs">
-                <span class="text-[10px] font-bold uppercase text-slate-500">Period</span>
-                <select id="mz-targets-pie-group" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200"></select>
-              </label>
-            </div>
-          </div>
-          <div id="mz-targets-pie-grid" class="grid w-full min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <div class="mz-targets-pie-slot min-w-0" data-slot="0"><div id="mz-targets-chart-pie-0" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-            <div class="mz-targets-pie-slot min-w-0" data-slot="1"><div id="mz-targets-chart-pie-1" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-            <div class="mz-targets-pie-slot min-w-0" data-slot="2"><div id="mz-targets-chart-pie-2" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-            <div class="mz-targets-pie-slot min-w-0" data-slot="3"><div id="mz-targets-chart-pie-3" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-            <div class="mz-targets-pie-slot min-w-0" data-slot="4"><div id="mz-targets-chart-pie-4" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-            <div class="mz-targets-pie-slot min-w-0" data-slot="5"><div id="mz-targets-chart-pie-5" class="mz-chart-plot min-h-[220px] w-full"></div></div>
           </div>
         </div>
         <div id="mz-targets-table-wrap" class="hidden w-full space-y-2">
@@ -13529,7 +13549,105 @@
   });
 
   var mzTargetsCache = null;
-  var mzTargetsUi = { project: "doviz", year: "", sort: "period_key_desc", headerSort: null, headerDir: "desc", colorize: true, pieGroupIndex: 0 };
+  var mzTargetsLineSeriesDefs = [
+    { key: "hedef", label: "Target", color: "#94a3b8", unit: "money" },
+    { key: "hedef_80", label: "Target (80%)", color: "#f59e0b", unit: "money", dash: "dot" },
+    { key: "kazanc", label: "Achieved", color: "#4f46e5", unit: "money", width: 2.5 },
+    { key: "tamamlama_orani", label: "Target Completion Rate", color: "#059669", unit: "pct" },
+    { key: "gunluk_kazanc", label: "Daily Earnings", color: "#0ea5e9", unit: "money" },
+    { key: "kalan", label: "Remaining", color: "#f97316", unit: "money" },
+    { key: "kalan_80", label: "Remaining (80%)", color: "#fb7185", unit: "money", dash: "dot" },
+    { key: "gunluk_kalan", label: "Daily Remaining", color: "#a855f7", unit: "money" },
+    { key: "gunluk_kalan_80", label: "Daily Remaining (80%)", color: "#c084fc", unit: "money", dash: "dot" },
+  ];
+  var mzTargetsUi = {
+    project: "doviz",
+    year: "",
+    sort: "period_key_desc",
+    headerSort: null,
+    headerDir: "desc",
+    colorize: true,
+    pieGroupIndex: 0,
+    lineRangeMonths: 12,
+    lineSeries: { hedef: true, hedef_80: true, kazanc: true },
+  };
+
+  function mzTargetsSyncLineSeriesButtons() {
+    var host = document.getElementById("mz-targets-line-series");
+    var rangeSel = document.getElementById("mz-targets-line-range");
+    if (rangeSel && String(rangeSel.value) !== String(mzTargetsUi.lineRangeMonths)) {
+      rangeSel.value = String(mzTargetsUi.lineRangeMonths || 12);
+    }
+    if (!host) return;
+    if (!host.dataset.ready) {
+      host.innerHTML = "";
+      mzTargetsLineSeriesDefs.forEach(function (def) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mz-targets-line-series-btn rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition";
+        btn.setAttribute("data-series", def.key);
+        btn.textContent = def.label;
+        host.appendChild(btn);
+      });
+      host.dataset.ready = "1";
+      host.addEventListener("click", function (ev) {
+        var btn = ev.target && ev.target.closest ? ev.target.closest("[data-series]") : null;
+        if (!btn || !host.contains(btn)) return;
+        var key = btn.getAttribute("data-series");
+        if (!key) return;
+        var on = !mzTargetsUi.lineSeries[key];
+        var next = Object.assign({}, mzTargetsUi.lineSeries);
+        if (on) next[key] = true;
+        else delete next[key];
+        if (!Object.keys(next).length) next[key] = true;
+        mzTargetsUi.lineSeries = next;
+        mzTargetsSyncLineSeriesButtons();
+        mzTargetsRenderCharts(mzTargetsProjectRows());
+      });
+    }
+    host.querySelectorAll("[data-series]").forEach(function (btn) {
+      var key = btn.getAttribute("data-series");
+      var on = !!mzTargetsUi.lineSeries[key];
+      btn.classList.toggle("border-indigo-300", on);
+      btn.classList.toggle("bg-indigo-600", on);
+      btn.classList.toggle("text-white", on);
+      btn.classList.toggle("border-slate-300", !on);
+      btn.classList.toggle("bg-white", !on);
+      btn.classList.toggle("text-slate-700", !on);
+      btn.classList.toggle("dark:border-zinc-600", !on);
+      btn.classList.toggle("dark:bg-zinc-950", !on);
+      btn.classList.toggle("dark:text-zinc-200", !on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function mzTargetsProjectRows() {
+    if (!mzTargetsCache || !mzTargetsCache.rows) return [];
+    return mzTargetsCache.rows.filter(function (r) {
+      return r.project === mzTargetsUi.project;
+    });
+  }
+
+  function mzTargetsLineChartRows(rows) {
+    var asc = mzTargetsChartRows(rows || mzTargetsProjectRows());
+    var n = Number(mzTargetsUi.lineRangeMonths) || 0;
+    if (n > 0 && asc.length > n) return asc.slice(asc.length - n);
+    return asc;
+  }
+
+  function mzTargetsSeriesValue(row, key) {
+    var c = mzTargetsRowCols(row);
+    if (key === "gunluk_kazanc") {
+      var g = row && row.gunluk_kazanc;
+      var k = row && row.kazanc;
+      if (g == null || isNaN(g)) return null;
+      if (k != null && !isNaN(k) && Math.abs(Number(g) - Number(k)) < 0.5) return null;
+      return Number(g);
+    }
+    var v = c[key];
+    if (v == null || isNaN(v)) return null;
+    return Number(v);
+  }
 
   function mzTargetsFmtPct(v) {
     if (v == null || isNaN(v)) return "—";
@@ -13989,15 +14107,13 @@
   }
 
   function mzTargetsRenderCharts(rows) {
-    var chartRows = mzTargetsChartRows(rows);
+    var chartRows = mzTargetsLineChartRows(rows);
     var labels = chartRows.map(function (r) { return r.period || r.period_key || ""; });
-    var hedef = chartRows.map(function (r) { return r.hedef; });
-    var hedef80 = chartRows.map(function (r) { return r.hedef_80; });
-    var kazanc = chartRows.map(function (r) { return r.kazanc; });
     var projLabel = mzTargetsUi.project === "sinemalar" ? "Sinemalar.com" : "Doviz.com";
     var lineEl = document.getElementById("mz-targets-chart-line");
     var barEl = document.getElementById("mz-targets-chart-bar");
 
+    mzTargetsSyncLineSeriesButtons();
     mzPurgePlot("mz-targets-chart-line");
     mzPurgePlot("mz-targets-chart-bar");
     if (lineEl) lineEl.innerHTML = "";
@@ -14021,24 +14137,58 @@
           tickfont: { size: labels.length > 18 ? 9 : 11 },
           tickmode: "linear",
         };
-        var lineTraces = [
-          { x: labels, y: hedef, name: "Target", type: "scatter", mode: "lines+markers", line: { color: "#94a3b8", width: 2 }, marker: { size: 5 } },
-          { x: labels, y: hedef80, name: "Target (80%)", type: "scatter", mode: "lines+markers", line: { color: "#f59e0b", width: 2, dash: "dot" }, marker: { size: 5 } },
-          { x: labels, y: kazanc, name: "Earnings", type: "scatter", mode: "lines+markers", line: { color: "#4f46e5", width: 2.5 }, marker: { size: 6 } },
-        ];
+
+        var activeDefs = mzTargetsLineSeriesDefs.filter(function (d) {
+          return !!mzTargetsUi.lineSeries[d.key];
+        });
+        if (!activeDefs.length) activeDefs = mzTargetsLineSeriesDefs.slice(0, 3);
+
+        var hasMoney = activeDefs.some(function (d) { return d.unit === "money"; });
+        var hasPct = activeDefs.some(function (d) { return d.unit === "pct"; });
+        var dual = hasMoney && hasPct;
+
+        var lineTraces = activeDefs.map(function (def) {
+          var ys = chartRows.map(function (r) { return mzTargetsSeriesValue(r, def.key); });
+          var tr = {
+            x: labels,
+            y: ys,
+            name: def.label,
+            type: "scatter",
+            mode: "lines+markers",
+            line: { color: def.color, width: def.width || 2 },
+            marker: { size: def.key === "kazanc" ? 6 : 5 },
+          };
+          if (def.dash) tr.line.dash = def.dash;
+          if (dual && def.unit === "pct") {
+            tr.yaxis = "y2";
+          }
+          return tr;
+        });
+
         var lineLay = plotTheme({
-          yTitle: "TL",
-          margin: { l: 56, r: 16, t: 36, b: 88 },
+          yTitle: hasMoney && !dual ? "TL" : hasPct && !hasMoney ? "%" : "TL",
+          margin: { l: 56, r: dual ? 56 : 16, t: 36, b: 88 },
           legend: { orientation: "h", y: 1.14 },
           xaxis: xAxis,
         });
+        if (dual) {
+          lineLay.yaxis2 = {
+            title: "%",
+            overlaying: "y",
+            side: "right",
+            showgrid: false,
+            automargin: true,
+          };
+        }
         lineLay.title = { text: projLabel, font: plotFont(), x: 0 };
         lineLay.autosize = true;
         lineLay.height = 300;
 
+        var barHedef = chartRows.map(function (r) { return mzTargetsSeriesValue(r, "hedef"); });
+        var barKazanc = chartRows.map(function (r) { return mzTargetsSeriesValue(r, "kazanc"); });
         var barTraces = [
-          { x: labels, y: hedef, name: "Target", type: "bar", marker: { color: "#cbd5e1" } },
-          { x: labels, y: kazanc, name: "Earnings", type: "bar", marker: { color: "#6366f1" } },
+          { x: labels, y: barHedef, name: "Target", type: "bar", marker: { color: "#cbd5e1" } },
+          { x: labels, y: barKazanc, name: "Achieved", type: "bar", marker: { color: "#6366f1" } },
         ];
         var barLay = plotTheme({
           yTitle: "TL",
@@ -14076,13 +14226,14 @@
   }
 
   function mzTargetsRenderAll() {
-    var rows = mzTargetsFilteredRows();
-    mzTargetsRenderTable(rows);
-    mzTargetsRenderCharts(rows);
-    mzTargetsRenderPieSection(rows);
+    var tableRows = mzTargetsFilteredRows();
+    var projectRows = mzTargetsProjectRows();
+    mzTargetsRenderTable(tableRows);
+    mzTargetsRenderCharts(projectRows);
+    mzTargetsRenderPieSection(projectRows);
     var err = document.getElementById("mz-targets-error");
     if (err) err.classList.add("hidden");
-    if (!rows.length && mzTargetsCache) {
+    if (!tableRows.length && mzTargetsCache) {
       if (err) {
         err.textContent = "No records found for the selected filters.";
         err.classList.remove("hidden");
@@ -14346,6 +14497,13 @@
   on("mz-targets-colorize", "click", function () {
     mzTargetsUi.colorize = !mzTargetsUi.colorize;
     mzTargetsRenderTable(mzTargetsFilteredRows());
+  });
+
+  on("mz-targets-line-range", "change", function (ev) {
+    var n = parseInt((ev.target && ev.target.value) || "12", 10);
+    mzTargetsUi.lineRangeMonths = isNaN(n) ? 12 : n;
+    mzTargetsRenderCharts(mzTargetsProjectRows());
+    scheduleMzChartsResizeBurst();
   });
 
   on("mz-targets-refresh", "click", function () {
