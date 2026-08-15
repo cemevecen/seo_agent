@@ -515,7 +515,7 @@
     popBtns.forEach(function (b) {
       var on = b.getAttribute('data-pop') === val;
       if (on) {
-        b.style.background = '#0f172a';
+        b.style.background = '#2a2a2e';
         b.style.color      = '#f8fafc';
       } else {
         b.style.background = '';
@@ -660,7 +660,7 @@
       b.setAttribute('data-active-cf', on ? '1' : '0');
       // Inline style — zinc override'ından bağımsız, her iki temada çalışır
       if (on) {
-        b.style.background = '#0f172a';
+        b.style.background = '#2a2a2e';
         b.style.color      = '#f8fafc';
         b.style.borderColor= '#334155';
         b.style.fontWeight = '700';
@@ -686,7 +686,7 @@
 
   var PROVIDER_BTN_COLORS = {
     netflix: '#dc2626', prime: '#0284c7', disney: '#1d4ed8', max: '#7c3aed',
-    apple: '#0f172a', tvplus: '#0891b2', mubi: '#9f1239', blutv: '#ea580c',
+    apple: '#2a2a2e', tvplus: '#0891b2', mubi: '#9f1239', blutv: '#ea580c',
     bein: '#15803d', exxen: '#4338ca'
   };
 
@@ -695,7 +695,7 @@
       var on = b.getAttribute('data-pf') === slug;
       b.setAttribute('data-active-pf', on ? '1' : '0');
       if (on) {
-        var col = PROVIDER_BTN_COLORS[slug] || '#0f172a';
+        var col = PROVIDER_BTN_COLORS[slug] || '#2a2a2e';
         b.style.background = col;
         b.style.color = '#fff';
         b.style.borderColor = col;
@@ -768,9 +768,9 @@
     var dark = document.documentElement.classList.contains('dark');
     if (on) {
       return {
-        background:  dark ? '#3f3f46' : '#0f172a',
+        background:  dark ? '#3f3f46' : '#2a2a2e',
         color:       '#ffffff',
-        borderColor: dark ? '#52525b' : '#0f172a',
+        borderColor: dark ? '#52525b' : '#2a2a2e',
       };
     }
     return {
