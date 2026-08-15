@@ -1,6 +1,6 @@
 {# Mini spark + sayı — 4 kart hep yan yana; 2 kart yan yana (3+1 yok) #}
-{% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel %}
-{% from "partials/home/detail_kpis_dropdown.html" import home_detail_kpis_styles, home_detail_kpis_trigger, home_detail_kpis_panel %}
+{% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel, home_detail_kpis_rail_btn, home_top_pages_rail_btn %}
+{% from "partials/home/detail_kpis_dropdown.html" import home_detail_kpis_styles, home_detail_kpis_panel %}
 {% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 {{ home_top_pages_styles() }}
 {{ home_detail_kpis_styles() }}
@@ -38,6 +38,9 @@
   html.midnight .home-ga4-spark-cell {
     border-color: rgb(63 63 70);
     background: rgb(24 24 27);
+  }
+  .home-ga4-spark-cell.home-kpi-rails .home-label {
+    margin: 0;
   }
   .home-ga4-spark-svg {
     display: block;
@@ -95,23 +98,26 @@
         {% set _tone = prof.tone | default('flat') %}
         {% set _pages_id = 'ga4-pages-' ~ site.site_id ~ '-' ~ prof.key %}
         {% set _kpi_id = 'ga4-kpi-' ~ site.site_id ~ '-' ~ prof.key %}
-        <div class="home-ga4-spark-cell">
-          <div class="home-kpi-head">
+        <div class="home-ga4-spark-cell home-kpi-rails is-{{ _tone }}">
+          <span class="home-kpi-rails__rail" aria-hidden="true"></span>
+          <div class="home-kpi-rails__body">
             <p class="home-label text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
-            {{ home_detail_kpis_trigger(_kpi_id, aria_label=prof.label ~ ' KPI details') }}
+            {% if prof.spark and prof.spark.has_points and prof.spark.path_d %}
+              <svg class="home-ga4-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+                <path class="home-ga4-spark-line" d="{{ prof.spark.path_d }}"></path>
+              </svg>
+            {% else %}
+              <div class="home-ga4-spark-empty" aria-hidden="true"></div>
+            {% endif %}
+            <p class="home-kpi home-delta mt-1 is-{{ _tone }}">{{ prof.delta_fmt }}</p>
+            <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ prof.last_fmt }} ← {{ prof.prev_fmt }}</p>
+            <div class="home-kpi-rails__actions">
+              {{ home_detail_kpis_rail_btn(_kpi_id, label='Spark', aria_label=prof.label ~ ' spark KPIs') }}
+              {% if prof.key in ('web', 'mweb') %}
+                {{ home_top_pages_rail_btn(_pages_id, label='Top 25', aria_label=prof.label ~ ' top 25 pages') }}
+              {% endif %}
+            </div>
           </div>
-          {% if prof.spark and prof.spark.has_points and prof.spark.path_d %}
-            <svg class="home-ga4-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-              <path class="home-ga4-spark-line" d="{{ prof.spark.path_d }}"></path>
-            </svg>
-          {% else %}
-            <div class="home-ga4-spark-empty" aria-hidden="true"></div>
-          {% endif %}
-          <p class="home-kpi home-delta mt-1 is-{{ _tone }}">{{ prof.delta_fmt }}</p>
-          <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ prof.last_fmt }} ← {{ prof.prev_fmt }}</p>
-          {% if prof.key in ('web', 'mweb') %}
-            {{ home_top_pages_trigger(_pages_id) }}
-          {% endif %}
         </div>
       {% endfor %}
     </div>

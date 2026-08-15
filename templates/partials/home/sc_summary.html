@@ -1,6 +1,6 @@
 {# Mini spark — cihaz bantları (Web / Mobil Web); clicks + position yan yana #}
-{% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel %}
-{% from "partials/home/detail_kpis_dropdown.html" import home_detail_kpis_styles, home_detail_kpis_trigger, home_detail_kpis_panel %}
+{% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel, home_detail_kpis_rail_btn, home_top_pages_rail_btn %}
+{% from "partials/home/detail_kpis_dropdown.html" import home_detail_kpis_styles, home_detail_kpis_panel %}
 {% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 {{ home_top_pages_styles() }}
 {{ home_detail_kpis_styles() }}
@@ -247,54 +247,60 @@
           {% set _kpi_id = 'sc-kpi-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
           {% set _ctone = dev.clicks_tone | default('flat') %}
           {% set _ptone = dev.pos_tone | default('flat') %}
-          <div class="home-sc-spark-cell">
-            <div class="home-kpi-head">
+          <div class="home-sc-spark-cell home-kpi-rails is-{{ _ctone }}">
+            <span class="home-kpi-rails__rail" aria-hidden="true"></span>
+            <div class="home-kpi-rails__body">
               <p class="home-label home-sc-metric-kicker">{{ want_label }} · Clicks</p>
-              {{ home_detail_kpis_trigger(_kpi_id, aria_label=want_label ~ ' KPI details') }}
+              {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
+                <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+                  <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
+                </svg>
+              {% else %}
+                <div class="home-sc-spark-empty" aria-hidden="true"></div>
+              {% endif %}
+              <p class="home-kpi home-delta mt-1 is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</p>
+              <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
+              {% if dev.top50_has_data %}
+              <div class="home-sc-top50" title="Top 50 traffic queries — total clicks (same set, previous {{ period_days | default(7) }}d)">
+                <p class="home-label home-sc-top50-label">top 50</p>
+                <p class="home-meta home-sc-top50-vals">
+                  {{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}
+                  <span class="home-sc-top50-pct home-delta is-{{ dev.top50_clicks_tone | default('flat') }}">{{ dev.top50_clicks_pct_fmt | default('—') }}</span>
+                </p>
+              </div>
+              {% endif %}
+              <div class="home-kpi-rails__actions">
+                {{ home_detail_kpis_rail_btn(_kpi_id, label='Spark', aria_label=want_label ~ ' spark KPIs') }}
+                {{ home_top_pages_rail_btn(_pages_id, label='Top 25', aria_label=want_label ~ ' top 25 pages') }}
+              </div>
             </div>
-            {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
-              <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
-              </svg>
-            {% else %}
-              <div class="home-sc-spark-empty" aria-hidden="true"></div>
-            {% endif %}
-            <p class="home-kpi home-delta mt-1 is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</p>
-            <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
-            {% if dev.top50_has_data %}
-            <div class="home-sc-top50" title="Top 50 traffic queries — total clicks (same set, previous {{ period_days | default(7) }}d)">
-              <p class="home-label home-sc-top50-label">top 50</p>
-              <p class="home-meta home-sc-top50-vals">
-                {{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}
-                <span class="home-sc-top50-pct home-delta is-{{ dev.top50_clicks_tone | default('flat') }}">{{ dev.top50_clicks_pct_fmt | default('—') }}</span>
-              </p>
-            </div>
-            {% endif %}
-            {{ home_top_pages_trigger(_pages_id) }}
           </div>
-          <div class="home-sc-spark-cell">
-            <div class="home-kpi-head">
+          <div class="home-sc-spark-cell home-kpi-rails is-{{ _ptone }}">
+            <span class="home-kpi-rails__rail" aria-hidden="true"></span>
+            <div class="home-kpi-rails__body">
               <p class="home-label home-sc-metric-kicker">{{ want_label }} · Position</p>
-              {{ home_detail_kpis_trigger(_kpi_id, aria_label=want_label ~ ' KPI details') }}
+              {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
+                <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+                  <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>
+                </svg>
+              {% else %}
+                <div class="home-sc-spark-empty" aria-hidden="true"></div>
+              {% endif %}
+              <p class="home-kpi home-delta mt-1 is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</p>
+              <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
+              {% if dev.top50_has_data %}
+              <div class="home-sc-top50" title="Top 50 traffic queries — impression-weighted avg. position">
+                <p class="home-label home-sc-top50-label">top 50</p>
+                <p class="home-meta home-sc-top50-vals">
+                  {{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}
+                  <span class="home-sc-top50-pct home-delta is-{{ dev.top50_pos_tone | default('flat') }}">{{ dev.top50_pos_pct_fmt | default('—') }}</span>
+                </p>
+              </div>
+              {% endif %}
+              <div class="home-kpi-rails__actions">
+                {{ home_detail_kpis_rail_btn(_kpi_id, label='Spark', aria_label=want_label ~ ' spark KPIs') }}
+              </div>
             </div>
-            {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
-              <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>
-              </svg>
-            {% else %}
-              <div class="home-sc-spark-empty" aria-hidden="true"></div>
-            {% endif %}
-            <p class="home-kpi home-delta mt-1 is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</p>
-            <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
-            {% if dev.top50_has_data %}
-            <div class="home-sc-top50" title="Top 50 traffic queries — impression-weighted avg. position">
-              <p class="home-label home-sc-top50-label">top 50</p>
-              <p class="home-meta home-sc-top50-vals">
-                {{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}
-                <span class="home-sc-top50-pct home-delta is-{{ dev.top50_pos_tone | default('flat') }}">{{ dev.top50_pos_pct_fmt | default('—') }}</span>
-              </p>
-            </div>
-            {% endif %}
           </div>
         {% endfor %}
       {% endfor %}
