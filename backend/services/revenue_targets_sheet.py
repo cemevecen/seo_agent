@@ -479,16 +479,11 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
     ingested = load_ingested_revenue_targets()
     if ingested and isinstance(ingested.get("rows"), list):
         rows = ingested["rows"]
-        warning = (
-            "Primary ad-target sheet is private or unreachable. "
-            "Showing last Mac Firefox scrape of the same sheet — run "
-            "`revenue_targets_scrape.py --sync --current-only --ingest` to refresh."
-        )
         _CACHE = {
             "ts": time.monotonic(),
             "rows": rows,
             "source_url": ingested.get("source_url") or REVENUE_TARGETS_SHEET_URL,
-            "warning": warning,
+            "warning": None,
             "pending_error": primary_error,
             "fetched_at": ingested.get("fetched_at"),
             "ingest_source": ingested.get("source"),

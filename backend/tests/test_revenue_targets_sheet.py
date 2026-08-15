@@ -88,7 +88,8 @@ def test_fetch_uses_ingest_when_primary_sheet_private(monkeypatch):
     monkeypatch.setattr(mod, "_CACHE", None)
     rows = mod.fetch_revenue_targets_rows(force=True)
     assert len(rows) == 6
-    assert mod._CACHE and mod._CACHE.get("warning")
+    assert mod._CACHE and mod._CACHE.get("warning") is None
+    assert mod._CACHE.get("pending_error")
     assert mod._CACHE.get("source_url") == mod.REVENUE_TARGETS_SHEET_URL
 
 
