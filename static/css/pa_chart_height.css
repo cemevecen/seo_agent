@@ -44,7 +44,7 @@
   position: relative;
   width: 100%;
   flex: 0 0 auto;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .pa-chart-viewport {
@@ -345,4 +345,22 @@ html.midnight .pa-chart-compress button.is-active {
 #ia-chart text.pa-axis-label--y,
 #sd-chart text.pa-axis-label--y {
   font-size: 10px;
+}
+
+
+/* Mobile: side-margin drag chips cause crushed charts; hide them */
+@media (max-width: 639px) {
+  .pa-chart-edge-handle {
+    display: none !important;
+  }
+  #pa-chart-wrap,
+  #ia-chart-wrap,
+  #sd-chart-wrap {
+    --pa-chart-margin-l: 0% !important;
+    --pa-chart-margin-r: 0% !important;
+  }
+  .pa-chart-viewport {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
 }

@@ -191,10 +191,13 @@
 
   function applyMargins() {
     normalizeMargins();
+    var narrow = typeof window !== "undefined" && window.innerWidth < 640;
+    var mlUse = narrow ? 0 : marginL;
+    var mrUse = narrow ? 0 : marginR;
     targets.forEach(function (t) {
       if (!t.wrap) return;
-      var ml = Math.round(marginL * 10) / 10;
-      var mr = Math.round(marginR * 10) / 10;
+      var ml = Math.round(mlUse * 10) / 10;
+      var mr = Math.round(mrUse * 10) / 10;
       t.wrap.setAttribute("data-chart-margin-l", String(ml));
       t.wrap.setAttribute("data-chart-margin-r", String(mr));
       t.wrap.style.setProperty("--pa-chart-margin-l", ml + "%");
