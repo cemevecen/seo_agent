@@ -13812,6 +13812,48 @@
     btn.textContent = on ? "Remove coloring" : "Renklendir";
   }
 
+  /** Sıralama değeri — kalan sütunlarında aşım (surplus) negatif imzalı dahil. */
+  function mzTargetsSortValue(row, field) {
+    if (!row) return null;
+    if (field === "period_key") return row.period_key || "";
+    var c = mzTargetsRowCols(row);
+    if (field === "kalan") {
+      if (c.hedef != null && c.kazanc != null) return Number(c.hedef) - Number(c.kazanc);
+      return c.kalan != null ? Number(c.kalan) : null;
+    }
+    if (field === "kalan_80") {
+      if (c.hedef_80 != null && c.kazanc != null) return Number(c.hedef_80) - Number(c.kazanc);
+      return c.kalan_80 != null ? Number(c.kalan_80) : null;
+    }
+    if (field === "gunluk_kalan") {
+      if (c.hedef != null && c.kazanc != null && Number(c.kazanc) > Number(c.hedef)) {
+        return Number(c.hedef) - Number(c.kazanc);
+      }
+      return c.gunluk_kalan != null ? Number(c.gunluk_kalan) : null;
+    }
+    if (field === "gunluk_kalan_80") {
+      if (c.hedef_80 != null && c.kazanc != null && Number(c.kazanc) > Number(c.hedef_80)) {
+        return Number(c.hedef_80) - Number(c.kazanc);
+      }
+      return c.gunluk_kalan_80 != null ? Number(c.gunluk_kalan_80) : null;
+    }
+    if (field === "tamamlama_orani") {
+      return c.tamamlama_orani != null ? Number(c.tamamlama_orani) : null;
+    }
+    if (field === "hedef") return c.hedef;
+    if (field === "hedef_80") return c.hedef_80;
+    if (field === "kazanc") return c.kazanc;
+    if (field === "gunluk_kazanc") {
+      var g = mzTargetsSeriesValue(row, "gunluk_kazanc");
+      return g;
+    }
+    var v = row[field];
+    if (v == null || v === "") return null;
+    if (typeof v === "number") return v;
+    var n = Number(v);
+    return isNaN(n) ? v : n;
+  }
+
   function mzTargetsFilteredRows() {
     if (!mzTargetsCache || !mzTargetsCache.rows) return [];
     var rows = mzTargetsCache.rows.filter(function (r) {
@@ -13825,16 +13867,14 @@
     var desc = mzTargetsUi.headerSort ? mzTargetsUi.headerDir === "desc" : String(sortKey).indexOf("_desc") >= 0;
     var field = String(sortKey).replace(/_desc$|_asc$/, "");
     rows = rows.slice().sort(function (a, b) {
-      var av = a[field];
-      var bv = b[field];
-      if (field === "period_key") {
-        av = a.period_key || "";
-        bv = b.period_key || "";
-      }
+      var av = mzTargetsSortValue(a, field);
+      var bv = mzTargetsSortValue(b, field);
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
-      if (typeof av === "string") {
+      if (typeof av === "string" || typeof bv === "string") {
+        av = String(av);
+        bv = String(bv);
         return desc ? (bv < av ? -1 : bv > av ? 1 : 0) : (av < bv ? -1 : av > bv ? 1 : 0);
       }
       return desc ? bv - av : av - bv;
