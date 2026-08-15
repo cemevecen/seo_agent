@@ -74,7 +74,7 @@ def render_settings_denied_html(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Yetkiniz yok — Ayarlar</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>body {{ background: radial-gradient(circle at top, #09090b, #111113 55%, #18181b); color: #d4d4d8; }}</style>
+  <style>body {{ background: radial-gradient(circle at top, #2a2a2e, #242428 55%, #2a2a2e); color: #d4d4d8; }}</style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
   <div class="w-full max-w-lg p-8 rounded-3xl border border-zinc-800 bg-zinc-900/50 shadow-2xl backdrop-blur-xl">

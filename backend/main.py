@@ -13818,7 +13818,7 @@ def settings_login_page(request: Request):
         <title>Settings Login</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
-            body { background: radial-gradient(circle at top, #09090b, #111113 55%, #18181b); color: #d4d4d8; }
+            body { background: radial-gradient(circle at top, #2a2a2e, #242428 55%, #2a2a2e); color: #d4d4d8; }
         </style>
     </head>
     <body class="min-h-screen flex items-center justify-center p-4">
