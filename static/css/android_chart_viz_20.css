@@ -436,7 +436,7 @@ html.midnight .pa-viz20-metric-info:focus-visible {
   line-height: 1.35;
   letter-spacing: 0.01em;
   text-transform: none;
-  box-shadow: 0 8px 24px rgb(15 23 42 / 0.22);
+  box-shadow: 0 8px 24px rgb(42 42 46 / 0.22);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
