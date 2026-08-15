@@ -7,29 +7,21 @@
   {% set _mp = moderation_panel or {} %}
   {% set _mm = _mp.get("meta") or {} %}
 
-  <div class="flex flex-wrap gap-1.5">
+  <div class="sin-tabs flex flex-wrap gap-1.5">
     <a href="/sinemalar"
-      class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
-        {% if _tab == 'sinemalar' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
-        {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
+      class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'sinemalar' %} is-on{% endif %}">
       Moderation
     </a>
     <a href="/sinemalar?tab=datas"
-      class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
-        {% if _tab == 'datas' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
-        {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
+      class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'datas' %} is-on{% endif %}">
       Datas
     </a>
     <a href="/sinemalar?tab=policy&host={{ _hf }}"
-      class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
-        {% if _tab == 'policy' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
-        {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
+      class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'policy' %} is-on{% endif %}">
       Policy
     </a>
     <a href="/sinemalar?tab=movie"
-      class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
-        {% if _tab == 'movie' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
-        {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
+      class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'movie' %} is-on{% endif %}">
       Movie
     </a>
   </div>

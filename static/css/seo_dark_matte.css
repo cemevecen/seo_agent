@@ -75,3 +75,38 @@ html.dark .app-page .text-white,
 html.midnight .app-page .text-white {
   color: #d4d4d8 !important;
 }
+
+
+/* Sinemalar tab chips — dark/midnight contrast (no dark-on-dark) */
+.policy-page .sin-tab {
+  background: #ffffff;
+  color: #475569;
+  --tw-ring-color: #e2e8f0;
+  box-shadow: inset 0 0 0 1px #e2e8f0;
+}
+.policy-page .sin-tab:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+.policy-page .sin-tab.is-on {
+  background: #0f172a;
+  color: #f8fafc;
+  box-shadow: inset 0 0 0 1px #0f172a;
+}
+html.dark .policy-page .sin-tab,
+html.midnight .policy-page .sin-tab {
+  background: #27272a !important;
+  color: #d4d4d8 !important;
+  box-shadow: inset 0 0 0 1px #3f3f46 !important;
+}
+html.dark .policy-page .sin-tab:hover,
+html.midnight .policy-page .sin-tab:hover {
+  background: #3f3f46 !important;
+  color: #e4e4e7 !important;
+}
+html.dark .policy-page .sin-tab.is-on,
+html.midnight .policy-page .sin-tab.is-on {
+  background: #52525b !important;
+  color: #e4e4e7 !important;
+  box-shadow: inset 0 0 0 1px #71717a !important;
+}
