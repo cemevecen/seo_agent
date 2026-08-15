@@ -402,3 +402,10 @@ html.charcoal body {
   background: radial-gradient(circle at top, #36363c, #323238 55%, #2a2a2e) !important;
 }
 
+/* Soften #16161b near-black → matte #2a2a2e */
+html.charcoal [style*="#16161b"],
+html.charcoal [style*="16161b"],
+html.dark [style*="#16161b"] {
+  background-color: #2a2a2e !important;
+}
+
