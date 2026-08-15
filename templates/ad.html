@@ -407,6 +407,7 @@
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
+    overflow: hidden;
   }
 
   /* —— Chart skeleton loaders (Morph Line / Frosted Bars / Ring) —— */
@@ -595,12 +596,47 @@
     max-width: 100% !important;
     min-width: 0;
     height: 2.475rem;
+    overflow: hidden;
+    contain: layout paint;
+    position: relative;
   }
   .mz-page .mz-kpi-spark .js-plotly-plot,
   .mz-page .mz-kpi-spark .plot-container.plotly,
-  .mz-page .mz-kpi-spark .svg-container {
+  .mz-page .mz-kpi-spark .svg-container,
+  .mz-page .mz-kpi-spark .main-svg,
+  .mz-page .mz-kpi-spark svg {
     width: 100% !important;
     max-width: 100% !important;
+    overflow: hidden !important;
+  }
+  .mz-page #mz-kpi-grid {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+  }
+  .mz-page .mz-kpi-card {
+    min-height: 4.95rem;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mz-page .mz-kpi-card-value {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: clamp(0.7rem, 0.55rem + 0.9vw, 1rem);
+    line-height: 1.2;
+  }
+  @media (min-width: 640px) {
+    .mz-page #mz-kpi-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
   }
   .mz-page #mz-project-totals {
     display: grid;
@@ -862,19 +898,6 @@
     display: none !important;
     height: 0 !important;
     margin: 0 !important;
-  }
-  .mz-page #mz-kpi-grid {
-    display: grid;
-    gap: 0.5rem;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .mz-page .mz-kpi-card {
-    min-height: 4.95rem;
-  }
-  @media (min-width: 640px) {
-    .mz-page #mz-kpi-grid {
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-    }
   }
   /* Virgül modu: sheet sync + manuel yükleme + Empower overlay gizle (gelir hedefleri açık kalır) */
   .mz-virgul-mode #mz-upload-panel,
@@ -9267,6 +9290,7 @@
     if (!el) return 0;
     el.style.width = "100%";
     el.style.maxWidth = "100%";
+    var isSpark = !!(el.classList && el.classList.contains("mz-kpi-spark"));
     var host =
       el.closest(
         ".mz-chart-card, .mz-kpi-card, .mz-targets-chart-line-card, .mz-project-total-card, .mz-targets-pie-slot"
@@ -9282,7 +9306,19 @@
     if (w < 16) {
       w = Math.round(el.getBoundingClientRect().width || el.clientWidth || 0);
     }
-    /* Flex henüz oturmadıysa main sütunundan tahmin et */
+    /* Spark: asla main genişliğine şişirme — kardeş kartların üstüne taşar */
+    if (isSpark) {
+      if (host && host !== el) {
+        var hostCap = Math.round(host.clientWidth || host.getBoundingClientRect().width || 0);
+        try {
+          var cs2 = window.getComputedStyle(host);
+          hostCap -= Math.round((parseFloat(cs2.paddingLeft) || 0) + (parseFloat(cs2.paddingRight) || 0));
+        } catch (_) { /* ignore */ }
+        if (hostCap >= 16 && (w < 16 || w > hostCap)) w = hostCap;
+      }
+      return w >= 16 ? w : 0;
+    }
+    /* Flex henüz oturmadıysa main sütunundan tahmin et (yalnız büyük chart plot) */
     if (w < 120) {
       var main = document.getElementById("mz-main");
       if (main) {
@@ -9298,9 +9334,18 @@
     el.style.width = "100%";
     el.style.maxWidth = "100%";
     /* Inline !important / sabit px kalıntılarını temizle; width’i Plotly.relayout yazar */
-    el.querySelectorAll(".js-plotly-plot, .plot-container.plotly, .svg-container, .main-svg").forEach(function (node) {
+    el.querySelectorAll(".js-plotly-plot, .plot-container.plotly, .svg-container, .main-svg, svg").forEach(function (node) {
       node.style.removeProperty("width");
       node.style.removeProperty("max-width");
+      if (node.tagName === "svg" || (node.classList && node.classList.contains("main-svg"))) {
+        try {
+          var maxW = Math.round(el.clientWidth || el.getBoundingClientRect().width || 0);
+          if (maxW >= 16) {
+            node.setAttribute("width", String(maxW));
+            node.style.maxWidth = "100%";
+          }
+        } catch (_) { /* ignore */ }
+      }
     });
   }
 
@@ -9310,18 +9355,24 @@
     mzUnlockPlotlyHostWidth(el);
     var w = mzPlotHostWidth(el);
     if (w < 16) return Promise.resolve();
+    var isSpark = !!(el.classList && el.classList.contains("mz-kpi-spark"));
+    var h = isSpark
+      ? Math.max(24, Math.round(el.clientHeight || el.getBoundingClientRect().height || 40))
+      : undefined;
+    var patch = { autosize: false, width: w };
+    if (h) patch.height = h;
     /* Kart genişliğini layout.width olarak kilitle — CSS stretch boşluğu bırakmasın */
-    return Plotly.relayout(el, { autosize: false, width: w })
+    return Plotly.relayout(el, patch)
       .then(function () {
         mzUnlockPlotlyHostWidth(el);
         var cur = (el._fullLayout && el._fullLayout.width) || 0;
         if (Math.abs(cur - w) > 4) {
-          return Plotly.relayout(el, { autosize: false, width: w });
+          return Plotly.relayout(el, patch);
         }
       })
       .catch(function () {
         try {
-          return Plotly.relayout(el, { autosize: false, width: w });
+          return Plotly.relayout(el, patch);
         } catch (_) { /* ignore */ }
       });
   }
@@ -10355,17 +10406,40 @@
     el.classList.add("mz-kpi-spark");
     el.style.width = "100%";
     el.style.maxWidth = "100%";
+    el.style.overflow = "hidden";
     var hostW = mzPlotHostWidth(el);
+    if (hostW < 16) {
+      requestAnimationFrame(function () {
+        var w2 = mzPlotHostWidth(el);
+        if (w2 < 16) return;
+        var sparkLay2 = {
+          paper_bgcolor: "rgba(0,0,0,0)",
+          plot_bgcolor: "rgba(0,0,0,0)",
+          autosize: false,
+          width: w2,
+          height: Math.max(24, Math.round(el.clientHeight || 40)),
+          margin: { l: 1, r: 1, t: 1, b: 1 },
+          xaxis: { visible: false, fixedrange: true, automargin: false },
+          yaxis: { visible: false, fixedrange: true, automargin: false },
+          showlegend: false,
+        };
+        Plotly.newPlot(el, traces, sparkLay2, { responsive: true, displayModeBar: false, staticPlot: true })
+          .then(function () { return mzEnsurePlotlyFillsContainer(el); })
+          .catch(function () { /* ignore */ });
+      });
+      return;
+    }
     var sparkLay = {
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
-      autosize: true,
+      autosize: false,
+      width: hostW,
+      height: Math.max(24, Math.round(el.clientHeight || 40)),
       margin: { l: 1, r: 1, t: 1, b: 1 },
       xaxis: { visible: false, fixedrange: true, automargin: false },
       yaxis: { visible: false, fixedrange: true, automargin: false },
       showlegend: false,
     };
-    if (hostW >= 16) sparkLay.width = hostW;
     /* Spark'ta sıkı tarih ekseni ilk yüklemede yarım genişlik ölçümünü bozuyor; eksen gizli. */
     Plotly.newPlot(el, traces, sparkLay, { responsive: true, displayModeBar: false, staticPlot: true })
       .then(function () {
@@ -11008,7 +11082,7 @@
       var card = document.createElement("button");
       card.type = "button";
       card.className =
-        "mz-kpi-card min-h-[4.95rem] touch-manipulation rounded-xl border p-2.5 text-left transition sm:p-3 " +
+        "mz-kpi-card min-h-[4.95rem] min-w-0 max-w-full touch-manipulation overflow-hidden rounded-xl border p-2.5 text-left transition sm:p-3 " +
         (compact ? "!min-h-[2.75rem] !rounded-lg !p-2 sm:!px-2.5 sm:!py-2 " : "") +
         (state.activeKpiKey === def.key
           ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-400 dark:border-zinc-600 dark:bg-zinc-900 dark:ring-zinc-600 midnight:border-zinc-600 midnight:bg-zinc-950"
@@ -11025,10 +11099,10 @@
       var sparkId = "mz-spark-" + def.key;
       var sparkHtml = compact
         ? ""
-        : "<div id=\"" + sparkId + "\" class=\"mz-kpi-spark mt-2 h-[2.475rem] w-full\"></div>";
+        : "<div id=\"" + sparkId + "\" class=\"mz-kpi-spark mt-2 h-[2.475rem] w-full min-w-0 max-w-full overflow-hidden\"></div>";
       card.innerHTML =
         "<p lang=\"en\" data-seo-en-caps class=\"mz-kpi-card-label seo-en-caps text-[10px] font-semibold tracking-wide text-slate-500 dark:text-zinc-400\">" + enCaps(def.label) + "</p>" +
-        "<p class=\"mz-kpi-card-value mt-1 text-base font-black text-slate-900 dark:text-zinc-300\">" +
+        "<p class=\"mz-kpi-card-value mt-1 font-black text-slate-900 dark:text-zinc-300\">" +
         fmt(k[def.key], def.dec) + "</p>" + deltaHtml + peerHtml + sparkHtml;
       card.addEventListener("click", function () {
         state.activeKpiKey = def.key;
