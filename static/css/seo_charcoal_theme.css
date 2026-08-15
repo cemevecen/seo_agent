@@ -6,10 +6,10 @@
 
 html.charcoal {
   color-scheme: dark;
-  --seo-bg: #1c1c1f;
-  --seo-bg-elevated: #242428;
-  --seo-surface: #2e2e33;
-  --seo-surface-2: #36363c;
+  --seo-bg: #2a2a2e;
+  --seo-bg-elevated: #323238;
+  --seo-surface: #36363c;
+  --seo-surface-2: #3f3f46;
   --seo-surface-3: #3f3f46;
   --seo-border: #52525b;
   --seo-border-soft: #3f3f46;
@@ -395,5 +395,10 @@ html.charcoal [style*="#0d1422"],
 html.charcoal [style*="0d1422"],
 html.dark [style*="#0d1422"] {
   background-color: #2a2a2e !important;
+}
+
+/* Soften #1c1c1f base voids → matte #2a2a2e */
+html.charcoal body {
+  background: radial-gradient(circle at top, #36363c, #323238 55%, #2a2a2e) !important;
 }
 

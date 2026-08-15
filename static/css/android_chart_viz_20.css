@@ -25,7 +25,7 @@ html.midnight .chart-viz20-section .pa-viz20-drop {
 html.dark .chart-viz20-section .pa-viz20-drop:not([open]),
 html.midnight .chart-viz20-section .pa-viz20-drop:not([open]) {
   border-color: color-mix(in srgb, #6b8aad 14%, #3f3f46);
-  background: linear-gradient(160deg, #2a2a2e 0%, #1c1c1f 100%);
+  background: linear-gradient(160deg, #2a2a2e 0%, #2a2a2e 100%);
   box-shadow:
     0 0 0 1px color-mix(in srgb, #6b8aad 4%, transparent),
     0 0 10px rgba(0, 0, 0, 0.22);
@@ -463,7 +463,7 @@ html.midnight .pa-viz20-metric-tip {
 html.dark .chart-viz20-section.viz20-shell,
 html.midnight .chart-viz20-section.viz20-shell {
   border-color: #3f3f46 !important;
-  background: linear-gradient(160deg, #2a2a2e 0%, #1c1c1f 100%) !important;
+  background: linear-gradient(160deg, #2a2a2e 0%, #2a2a2e 100%) !important;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02);
   color: #d4d4d8;
 }

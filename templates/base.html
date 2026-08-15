@@ -38,8 +38,8 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v={{ app_css_v }}" />
-  <link rel="stylesheet" href="/static/css/seo_dark_matte.css?v=6" />
-  <link rel="stylesheet" href="/static/css/seo_charcoal_theme.css?v=9" />
+  <link rel="stylesheet" href="/static/css/seo_dark_matte.css?v=7" />
+  <link rel="stylesheet" href="/static/css/seo_charcoal_theme.css?v=10" />
   <script src="/static/js/seo_en_case.js?v=2"></script>
   {% block page_head %}{% endblock %}
   <style id="seo-page-tarama-btn">
@@ -96,12 +96,12 @@
   <style id="seo-dark-zinc-ui">
     /* Dim + midnight: lacivertsiz antrasit / siyah (Tailwind slate/sky/indigo) */
     html.dark body {
-      background: radial-gradient(circle at top, #2a2a2e, #242428 55%, #1c1c1f) !important;
+      background: radial-gradient(circle at top, #2a2a2e, #242428 55%, #2a2a2e) !important;
       color: #d4d4d8 !important;
     }
     html.dark .header-card-midnight {
       border-color: rgba(63, 63, 70, 0.4) !important;
-      background: linear-gradient(to bottom right, #2a2a2e, #1c1c1f, #2a2a2e) !important;
+      background: linear-gradient(to bottom right, #2a2a2e, #2a2a2e, #2a2a2e) !important;
       box-shadow: 0 10px 28px -16px rgba(0, 0, 0, 0.7) !important;
       --tw-ring-shadow: 0 0 #0000 !important;
     }
@@ -150,7 +150,7 @@
       background-image: linear-gradient(to bottom right, #2a2a2e, #242428, #2a2a2e) !important;
     }
     html.dark [class*="bg-gradient"][class*="dark:from-sky"] {
-      background-image: linear-gradient(to bottom, #2a2a2e, #1c1c1f) !important;
+      background-image: linear-gradient(to bottom, #2a2a2e, #2a2a2e) !important;
     }
     html.dark button.toggle-details {
       background-color: #27272a !important;
@@ -195,7 +195,7 @@
       box-shadow: none !important;
     }
     html.dark button[class*="bg-slate-900"] {
-      background-color: #1c1c1f !important;
+      background-color: #2a2a2e !important;
     }
     html.dark button[class*="bg-slate-900"]:hover {
       background-color: #27272a !important;
@@ -492,7 +492,7 @@
   <style id="seo-inbox-dark">
     /* /inbox — dim (html.dark) + midnight (html.dark.midnight): #content ile yüksek özgüllük; açık metin+beyaz zemin kaosu biter */
     html.dark #content .inbox-page .inbox-card {
-      background-color: #1c1c1f !important;
+      background-color: #2a2a2e !important;
       background-image: none !important;
       border-color: rgb(39 39 42) !important;
       color: #e4e4e7 !important;
@@ -582,7 +582,7 @@
       color: #a7f3d0 !important;
     }
     html.dark #content .inbox-page #inbox-ai-summary:not(.hidden) {
-      background-color: #1c1c1f !important;
+      background-color: #2a2a2e !important;
       border-color: #3f3f46 !important;
       color: #d4d4d8 !important;
     }
@@ -1034,7 +1034,7 @@
       color: #e4e4e7 !important;
     }
     html.midnight .mz-page [data-market-overlay-trigger] {
-      background-color: #1c1c1f !important;
+      background-color: #2a2a2e !important;
       border-color: #3f3f46 !important;
     }
     [data-market-overlay-panel] {
@@ -1074,13 +1074,13 @@
         0 0 0 1px #3f3f46;
     }
     html.midnight [data-market-overlay-panel] {
-      background-color: #1c1c1f !important;
+      background-color: #2a2a2e !important;
       box-shadow:
         0 16px 48px -12px rgba(0, 0, 0, 0.85),
         0 0 0 1px #27272a;
     }
     html.midnight .mz-page [data-market-overlay-panel] {
-      background-color: #1c1c1f !important;
+      background-color: #2a2a2e !important;
     }
     .sc-analytics-toolbar,
     .ga4-analytics-toolbar {
@@ -1123,7 +1123,7 @@
       background-color: #2a2a2e !important;
     }
     html.midnight .mz-page [data-market-overlay-panel] [data-market-overlay-option] {
-      background-color: #1c1c1f !important;
+      background-color: #2a2a2e !important;
     }
     [data-market-overlay-panel] [data-market-overlay-option]:hover {
       background-color: #f1f5f9 !important;
@@ -1151,7 +1151,7 @@
       background-color: #2a2a2e !important;
     }
     html.midnight .mz-page [data-app-empower-overlay-trigger] {
-      background-color: #1c1c1f !important;
+      background-color: #2a2a2e !important;
     }
     #mz-empower-overlay-bar {
       position: relative;
@@ -1182,7 +1182,7 @@
       background-color: #2a2a2e !important;
     }
     html.midnight .mz-page [data-play-metric-overlay-trigger] {
-      background-color: #1c1c1f !important;
+      background-color: #2a2a2e !important;
     }
     #mz-play-metric-overlay-bar {
       position: relative;
@@ -2447,7 +2447,7 @@
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
   <script src="/static/js/analytics_date_compare.js?v=9" defer></script>
 </head>
-<body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,_#1c1c1f,_#111113_55%,_#2a2a2e)] dark:text-zinc-100">
+<body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,_#2a2a2e,_#111113_55%,_#2a2a2e)] dark:text-zinc-100">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
   <div
     id="pc-ptr-indicator"
