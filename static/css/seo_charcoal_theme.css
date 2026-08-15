@@ -409,3 +409,10 @@ html.dark [style*="#16161b"] {
   background-color: #2a2a2e !important;
 }
 
+/* Soften #222226 → matte #2a2a2e */
+html.charcoal [style*="#222226"],
+html.charcoal [style*="222226"],
+html.dark [style*="#222226"] {
+  background-color: #2a2a2e !important;
+}
+
