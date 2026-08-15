@@ -467,6 +467,17 @@ var PALETTE = modPalette();
     return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
   }
 
+  function modAreaGradient(i) {
+    return {
+      type: "vertical",
+      colorscale: [
+        [0, modColorRgba(i, 0.08)],
+        [0.55, modColorRgba(i, 0.38)],
+        [1, modColorRgba(i, 0.82)],
+      ],
+    };
+  }
+
   function focusRadialMax(shares, chartId) {
     chartId = chartId || "mod-chart-focus-profile";
     var maxR = 0;
@@ -737,7 +748,8 @@ var PALETTE = modPalette();
         x: days,
         y: series,
         line: { width: 1.2, color: modColor(i) },
-        fillcolor: modColor(i),
+        fillcolor: modColorRgba(i, 0.4),
+        fillgradient: modAreaGradient(i),
         hovertemplate: "<b>%{fullData.name}</b>: %{y:,} tasks<extra></extra>",
       };
     });
