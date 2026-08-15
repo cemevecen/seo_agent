@@ -114,7 +114,7 @@ def test_enrich_month_target_kpi_needed_daily():
     }
     kpi = enrich_month_target_kpi(row, today=date(2026, 8, 12))
     assert kpi is not None
-    assert kpi["days_elapsed"] == 12
+    assert kpi["days_elapsed"] == 11
     assert kpi["days_remaining"] == 20  # 31-12+1
     assert abs(kpi["needed_daily"] - (210_000 / 20)) < 0.01
     assert kpi["completion_pct_80"] is not None
@@ -123,7 +123,7 @@ def test_enrich_month_target_kpi_needed_daily():
     assert abs(kpi["needed_daily_100"] - (210_000 / 20)) < 0.01
     assert kpi["last_day_earning"] == 10_000.0
     assert kpi["last_day_date"] == "2026-08-11"
-    assert abs(kpi["daily_avg"] - (100_000.0 / 12)) < 0.01
+    assert abs(kpi["daily_avg"] - (100_000.0 / 11)) < 0.01
 
     row_sheet = dict(row)
     row_sheet["kalan_80"] = 140_000.0
@@ -135,6 +135,36 @@ def test_enrich_month_target_kpi_needed_daily():
     assert kpi2["needed_daily_80"] == 7_000.0
     assert kpi2["remaining_80"] == 140_000.0
     assert abs((kpi2["remaining_pct_100"] or 0) - (100.0 - 32.26)) < 0.01
+
+
+def test_target_row_daily_earnings_is_month_average():
+    from datetime import date
+
+    from backend.services.revenue_targets_sheet import enrich_target_row_earnings
+
+    current = enrich_target_row_earnings(
+        {
+            "year": 2026,
+            "month": 8,
+            "kazanc": 140_000.0,
+            "gunluk_kazanc": 17_500.0,
+        },
+        today=date(2026, 8, 15),
+    )
+    assert current["daily_avg"] == 10_000.0
+    assert current["last_day_earning"] == 17_500.0
+    assert current["last_day_date"] == "2026-08-14"
+
+    closed = enrich_target_row_earnings(
+        {
+            "year": 2026,
+            "month": 7,
+            "kazanc": 310_000.0,
+            "gunluk_kazanc": 12_000.0,
+        },
+        today=date(2026, 8, 15),
+    )
+    assert closed["daily_avg"] == 10_000.0
 
 
 def test_parse_mcm_sheet_row_columns():

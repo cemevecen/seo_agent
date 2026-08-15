@@ -2101,7 +2101,7 @@
                 <th class="num px-3 py-2" data-sort="hedef_80">Target (80%)</th>
                 <th class="num px-3 py-2" data-sort="kazanc">Achieved</th>
                 <th class="num px-3 py-2" data-sort="tamamlama_orani">Target Completion Rate</th>
-                <th class="num px-3 py-2" data-sort="gunluk_kazanc">Daily Earnings</th>
+                <th class="num px-3 py-2" data-sort="daily_avg">Daily Earnings</th>
                 <th class="num px-3 py-2" data-sort="kalan">Remaining</th>
                 <th class="num px-3 py-2" data-sort="kalan_80">Remaining (80%)</th>
                 <th class="num px-3 py-2" data-sort="gunluk_kalan">Daily Remaining</th>
@@ -14049,11 +14049,8 @@
   function mzTargetsSeriesValue(row, key) {
     var c = mzTargetsRowCols(row);
     if (key === "gunluk_kazanc") {
-      var g = row && row.gunluk_kazanc;
-      var k = row && row.kazanc;
-      if (g == null || isNaN(g)) return null;
-      if (k != null && !isNaN(k) && Math.abs(Number(g) - Number(k)) < 0.5) return null;
-      return Number(g);
+      var avg = row && row.daily_avg;
+      return avg == null || isNaN(avg) ? null : Number(avg);
     }
     var v = c[key];
     if (v == null || isNaN(v)) return null;
@@ -14087,16 +14084,11 @@
     return mzTargetsFmtMoney(remaining);
   }
 
-  /** Sheet bazen aylık kazancı günlük sütuna kopyalıyor — aynıysa gösterme. */
+  /** Daily Earnings = o ayın tamamlanmış günlerindeki ortalama kazanç. */
   function mzTargetsFmtGunlukKazanc(row) {
     if (!row) return "—";
-    var kazanc = row.kazanc;
-    var gunluk = row.gunluk_kazanc;
-    if (gunluk == null || isNaN(gunluk)) return "—";
-    if (kazanc != null && !isNaN(kazanc) && Math.abs(Number(gunluk) - Number(kazanc)) < 0.5) {
-      return "—";
-    }
-    return mzTargetsFmtMoney(gunluk);
+    var avg = row.daily_avg;
+    return avg == null || isNaN(avg) ? "—" : mzTargetsFmtMoney(avg);
   }
 
   /** Eksik sheet sütunlarını satırdan türet (boş = hedef aşıldı / eski CSV). */
@@ -14246,6 +14238,9 @@
     if (field === "hedef") return c.hedef;
     if (field === "hedef_80") return c.hedef_80;
     if (field === "kazanc") return c.kazanc;
+    if (field === "daily_avg") {
+      return row.daily_avg == null || isNaN(row.daily_avg) ? null : Number(row.daily_avg);
+    }
     if (field === "gunluk_kazanc") {
       var g = mzTargetsSeriesValue(row, "gunluk_kazanc");
       return g;

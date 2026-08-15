@@ -529,7 +529,9 @@ def enrich_month_target_kpi(
     days_in_month = calendar.monthrange(year, month)[1]
     in_month = today.year == year and today.month == month
     day_of_month = today.day if in_month else days_in_month
-    days_elapsed = max(1, min(day_of_month, days_in_month))
+    # Kazanç snapshot'ı son tamamlanan günü kapsar. Bugünü ortalamaya katmak,
+    # gün henüz bitmediği için aylık günlük ortalamayı yapay olarak düşürür.
+    days_elapsed = max(0, min(today.day - 1, days_in_month)) if in_month else days_in_month
     days_remaining = max(0, days_in_month - day_of_month + (1 if in_month else 0))
     if not in_month and today > date(year, month, days_in_month):
         days_remaining = 0
@@ -583,7 +585,7 @@ def enrich_month_target_kpi(
         # Yanlışlıkla aylık kazanç kopyalanmış
         last_day_earning = None
 
-    # «Daily earnings» kartı: ay içi ortalama hız (kümülatif / geçen gün)
+    # «Daily earnings»: ay içi ortalama (kümülatif / tamamlanan gün).
     daily_avg = None
     if k is not None and days_elapsed > 0:
         daily_avg = k / days_elapsed
@@ -666,6 +668,25 @@ def enrich_month_target_kpi(
     }
 
 
+def enrich_target_row_earnings(
+    row: dict[str, Any],
+    *,
+    today: date | None = None,
+) -> dict[str, Any]:
+    """Liste satırına ortalama ve son gün kazancı semantiğini ekle."""
+    out = dict(row)
+    kpi = enrich_month_target_kpi(row, today=today)
+    if not kpi:
+        out["daily_avg"] = None
+        out["last_day_earning"] = None
+        out["last_day_date"] = None
+        return out
+    out["daily_avg"] = kpi.get("daily_avg")
+    out["last_day_earning"] = kpi.get("last_day_earning")
+    out["last_day_date"] = kpi.get("last_day_date")
+    return out
+
+
 def current_month_target_rows(
     all_rows: list[dict[str, Any]],
     *,
@@ -705,7 +726,7 @@ def revenue_targets_payload(
             source_url = str(_CACHE["source_url"])
         warning = _CACHE.get("warning")
         fetched_at = _CACHE.get("fetched_at")
-    rows = all_rows
+    rows = [enrich_target_row_earnings(r) for r in all_rows]
     pk = (project or "").strip().lower()
     if pk in ("doviz", "sinemalar"):
         rows = [r for r in rows if r.get("project") == pk]
