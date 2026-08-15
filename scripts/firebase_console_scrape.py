@@ -262,10 +262,24 @@ def _system_firefox_firebase_login(*, overview_url: str, timeout_sec: int | None
 
 
 def _launch_firebase_context(*, headed: bool):
-    """(pw, context, selenium_mode)."""
-    from backend.services.scrape_browser import warm_session_forget_profile
+    """(pw, context, selenium_mode).
 
-    if headed and _firebase_use_selenium():
+    Headed + Google: asla Playwright Nightly açma — macOS'ta SIGSEGV / Google reddi.
+    Yalnız gerçek /Applications/Firefox.app (Selenium) veya system-firefox login.
+    """
+    from backend.services.scrape_browser import (
+        resolve_system_firefox_executable,
+        warm_session_forget_profile,
+    )
+
+    if headed:
+        if not _firebase_use_selenium():
+            exe = resolve_system_firefox_executable()
+            raise RuntimeError(
+                "Firebase headed tarama için /Applications/Firefox.app gerekli "
+                "(Playwright Nightly Google girişinde çöküyor / reddediliyor). "
+                f"Firefox bulundu={bool(exe)}. FIREBASE_CONSOLE_USE_SELENIUM=0 ile Nightly'ye zorlama."
+            )
         from backend.services.selenium_playwright_shim import launch_selenium_context
 
         try:
@@ -274,23 +288,25 @@ def _launch_firebase_context(*, headed: bool):
             pass
         pw, context, _attached = launch_selenium_context(PROFILE_DIR, headed=True)
         print(
-            "Firebase: sistem Firefox.app (Selenium) · Google girişi bu pencerede yapılabilir",
+            "Firebase: sistem Firefox.app (Selenium) · Playwright Nightly YOK · "
+            "Google girişi bu pencerede",
             flush=True,
         )
         return pw, context, True
 
+    # Headless (CI): Playwright kabul — Google login beklenmez
     from backend.services.scrape_browser import acquire_persistent_context
 
     pw, context, reused = acquire_persistent_context(
         "firebase",
         profile=PROFILE_DIR,
-        headed=headed,
+        headed=False,
         env_key="FIREBASE_CONSOLE_KEEP_OPEN",
         label="Firebase",
         viewport={"width": 1440, "height": 960},
     )
     if reused:
-        print("Firebase: kalıcı Playwright profili (warm)", flush=True)
+        print("Firebase: headless Playwright warm", flush=True)
     return pw, context, False
 
 
