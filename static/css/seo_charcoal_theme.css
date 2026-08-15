@@ -383,3 +383,10 @@ html.charcoal #theme-switcher {
   background-color: rgba(42, 42, 46, 0.95) !important;
 }
 
+/* Soften #19191c (devtools-picked near-black) → matte charcoal */
+html.charcoal [style*="#19191c"],
+html.charcoal [style*="19191c"],
+html.dark [style*="#19191c"] {
+  background-color: #2a2a2e !important;
+}
+
