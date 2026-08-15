@@ -378,3 +378,8 @@ html.dark .dark\:bg-zinc-900 {
   background-color: #2a2a2e !important;
 }
 
+/* Soften rgba(9,9,11,…) voids → matte charcoal */
+html.charcoal #theme-switcher {
+  background-color: rgba(42, 42, 46, 0.95) !important;
+}
+

@@ -26,7 +26,7 @@
       "font-size:0.62rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#94a3b8;" +
       "background:linear-gradient(180deg,rgba(248,250,252,0.95),rgba(241,245,249,0.88));}" +
       "html.dark .mtux-legend{color:#71717a;border-bottom-color:rgba(63,63,70,0.55);" +
-      "background:linear-gradient(180deg,rgba(24,24,27,0.98),rgba(9,9,11,0.92));}" +
+      "background:linear-gradient(180deg,rgba(24,24,27,0.98),rgba(42, 42, 46, 0.92));}" +
       ".mtux-legend-leading{display:inline-flex;flex-wrap:wrap;align-items:center;gap:0.35rem;margin-right:auto;}" +
       ".mtux-legend-actions{display:inline-flex;flex-wrap:wrap;align-items:center;gap:0.35rem;}" +
       ".mtux-opt-toggle,.mtux-heat-toggle{display:inline-flex;align-items:center;gap:0.3rem;" +
