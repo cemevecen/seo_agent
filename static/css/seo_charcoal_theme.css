@@ -495,3 +495,18 @@ html.dark .dark\:bg-black\/70 {
   background-color: rgba(42, 42, 46, 0.72) !important;
 }
 
+
+/* Soften #181d2b / rgb(24,29,43) slate-navy → matte #2a2a2e */
+html.charcoal [style*="#181d2b"],
+html.charcoal [style*="181d2b"],
+html.charcoal [style*="rgb(24, 29, 43)"],
+html.charcoal [style*="rgb(24,29,43)"],
+html.dark [style*="#181d2b"],
+html.dark [style*="rgb(24, 29, 43)"],
+html.dark [style*="rgb(24,29,43)"],
+html.midnight [style*="#181d2b"],
+html.midnight [style*="rgb(24, 29, 43)"] {
+  background-color: #2a2a2e !important;
+  background: #2a2a2e !important;
+}
+
