@@ -431,3 +431,15 @@ html.dark .metric-kpi-ss2-spark {
   background: transparent !important;
 }
 
+
+/* Soften #101014 near-black → matte #2a2a2e */
+html.charcoal [style*="#101014"],
+html.charcoal [style*="101014"],
+html.dark [style*="#101014"],
+html.dark [style*="101014"],
+html.midnight [style*="#101014"],
+html.midnight [style*="101014"] {
+  background-color: #2a2a2e !important;
+  background: #2a2a2e !important;
+}
+
