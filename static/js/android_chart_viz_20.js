@@ -25,6 +25,7 @@
       heightKey: "iaViz20H:",
       idPrefix: "ia-viz20-",
       defaultMetrics: "crashes,ga4:sessions,active_devices",
+      hideAnr: true,
     },
   ];
 
@@ -601,12 +602,11 @@
       parts.push(metricsMultiSelectHtml(meta, params.metrics));
     }
     if (c.indexOf("etype") >= 0) {
-      parts.push(
-        selectHtml("etype", "Issue tipi", [
-          { v: "CRASH", l: "Crash" },
-          { v: "ANR", l: "ANR" },
-        ], params.etype)
-      );
+      var etypeOpts = [{ v: "CRASH", l: "Crash" }];
+      if (!cfg.hideAnr) etypeOpts.push({ v: "ANR", l: "ANR" });
+      var etypeVal = params.etype;
+      if (cfg.hideAnr && String(etypeVal || "").toUpperCase() === "ANR") etypeVal = "CRASH";
+      parts.push(selectHtml("etype", "Issue tipi", etypeOpts, etypeVal));
     }
     if (c.indexOf("limit") >= 0) parts.push(inputHtml("limit", "Limit", "number", params.limit));
     if (!parts.length) {
@@ -627,6 +627,7 @@
       var k = el.getAttribute("data-ctrl");
       if (k) p[k] = el.value;
     });
+    if (cfg.hideAnr && String(p.etype || "").toUpperCase() === "ANR") p.etype = "CRASH";
     stateById[details.id] = p;
     return p;
   }
@@ -716,16 +717,32 @@
       layout.xaxis.title = c.matrix ? "Dönem" : "Hafta";
       layout.yaxis.title = c.matrix ? "Metrik" : c.cohort ? "Cohort" : "Gün";
     } else if (type === "treemap") {
+      var tmLabels = c.labels || [];
+      var matteTm = (window.seoMatteSeriesPalette && window.seoMatteSeriesPalette()) || [
+        "#6b8aad", "#3d8b6e", "#8b7aa8", "#b87333", "#a86b7f", "#5b7c99", "#a85a66", "#71717a"
+      ];
+      var tmColors = tmLabels.map(function (_, i) {
+        return i === 0 ? (th().plot || "#18181b") : matteTm[(i - 1) % matteTm.length];
+      });
       traces = [
         {
           type: "treemap",
-          labels: c.labels || [],
+          labels: tmLabels,
           parents: c.parents || [],
           values: c.values || [],
+          branchvalues: "total",
           textinfo: "label+value",
+          textfont: { color: "#e4e4e7", size: 11 },
+          marker: {
+            colors: tmColors,
+            line: { width: 1, color: "rgba(24,24,27,0.85)" },
+            pad: { t: 2, l: 2, r: 2, b: 2 },
+          },
+          hoverlabel: { bgcolor: "#27272a", font: { color: "#e4e4e7" } },
         },
       ];
-      layout.margin = { l: 8, r: 8, t: 24, b: 8 };
+      layout.margin = { l: 0, r: 0, t: 8, b: 0 };
+      layout.autosize = true;
     } else if (type === "bump") {
       (c.traces || []).forEach(function (tr, i) {
         traces.push({
@@ -1067,7 +1084,24 @@
     }
 
     whenPlotly(function () {
-      Plotly.newPlot(chartEl, traces, layout, plotCfg());
+      var w = chartEl.clientWidth || chartEl.offsetWidth || 0;
+      if (w > 0) layout.width = w;
+      layout.autosize = true;
+      Plotly.newPlot(chartEl, traces, layout, plotCfg()).then(function () {
+        try {
+          Plotly.Plots.resize(chartEl);
+        } catch (_) {}
+        requestAnimationFrame(function () {
+          try {
+            var w2 = chartEl.clientWidth || 0;
+            if (w2 > 0 && Math.abs((layout.width || 0) - w2) > 2) {
+              Plotly.relayout(chartEl, { width: w2, autosize: true });
+            } else {
+              Plotly.Plots.resize(chartEl);
+            }
+          } catch (_) {}
+        });
+      });
     });
   }
 
