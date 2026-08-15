@@ -2,34 +2,51 @@
  * Mat (düşük parlaklık) grafik / spark renkleri — GA4, SC, Ad, Notification, Realtime.
  */
 (function (global) {
-  function isDark() {
+  function themeId() {
     var el = global.document && global.document.documentElement;
-    if (!el) return false;
-    return el.classList.contains("dark") || el.classList.contains("midnight");
+    if (!el) return "light";
+    if (el.classList.contains("charcoal")) return "charcoal";
+    if (el.classList.contains("midnight")) return "midnight";
+    if (el.classList.contains("dark")) return "dark";
+    return "light";
   }
 
-  function pick(light, dark) {
-    return isDark() ? dark : light;
+  function isDark() {
+    var id = themeId();
+    return id === "charcoal" || id === "midnight" || id === "dark";
+  }
+
+  function isCharcoal() {
+    return themeId() === "charcoal";
+  }
+
+  function pick(light, dark, charcoal) {
+    if (!isDark()) return light;
+    if (charcoal != null && isCharcoal()) return charcoal;
+    return dark;
   }
 
   function seoMatteChartColors() {
     var d = isDark();
+    var ch = isCharcoal();
+    /* Charcoal: slightly brighter ink than midnight, still matte (no neon) */
     return {
-      positive: d ? "#4a8f73" : "#047857",
-      negative: d ? "#a85a66" : "#b91c3c",
-      neutral: d ? "#71717a" : "#64748b",
-      compare: d ? "#b87333" : "#c2410c",
-      compareAlt: d ? "#8b7aa8" : "#5b5f9e",
-      primary: d ? "#6b8aad" : "#4b6a9b",
-      secondary: d ? "#3d8b6e" : "#0f766e",
-      tertiary: d ? "#8b7aa8" : "#6d5b9e",
-      quaternary: d ? "#b87333" : "#b45309",
-      accentRose: d ? "#a86b7f" : "#9d4d6a",
-      sky: d ? "#5b7c99" : "#4a6f8c",
-      skyBright: d ? "#6b8aad" : "#3d6db5",
-      fillPositive: d ? "rgba(74,143,115,0.14)" : "rgba(4,120,87,0.16)",
-      fillNegative: d ? "rgba(168,90,102,0.14)" : "rgba(185,28,60,0.14)",
-      fillCompare: d ? "rgba(184,115,51,0.12)" : "rgba(194,65,12,0.14)",
+      positive: pick("#047857", "#4a8f73", "#5a9f83"),
+      negative: pick("#b91c3c", "#a85a66", "#b86a74"),
+      neutral: pick("#64748b", "#71717a", "#8b8b93"),
+      compare: pick("#c2410c", "#b87333", "#c4844a"),
+      compareAlt: pick("#5b5f9e", "#8b7aa8", "#9a8ab6"),
+      primary: pick("#4b6a9b", "#6b8aad", "#7a99b8"),
+      secondary: pick("#0f766e", "#3d8b6e", "#4d9b7e"),
+      tertiary: pick("#6d5b9e", "#8b7aa8", "#9a8ab6"),
+      quaternary: pick("#b45309", "#b87333", "#c4844a"),
+      accentRose: pick("#9d4d6a", "#a86b7f", "#b87b8f"),
+      sky: pick("#4a6f8c", "#5b7c99", "#6b8ca8"),
+      skyBright: pick("#3d6db5", "#6b8aad", "#7a99b8"),
+      fillPositive: pick("rgba(4,120,87,0.16)", "rgba(74,143,115,0.14)", "rgba(90,159,131,0.16)"),
+      fillNegative: pick("rgba(185,28,60,0.14)", "rgba(168,90,102,0.14)", "rgba(184,106,116,0.15)"),
+      fillCompare: pick("rgba(194,65,12,0.14)", "rgba(184,115,51,0.12)", "rgba(196,132,74,0.14)"),
+      _theme: ch ? "charcoal" : d ? "dark" : "light",
     };
   }
 
@@ -137,6 +154,9 @@
   }
 
   function seoMatteSeriesPalette() {
+    if (isCharcoal()) {
+      return ["#7a99b8", "#4d9b7e", "#9a8ab6", "#c4844a", "#b87b8f", "#6b8ca8", "#b86a74"];
+    }
     var d = isDark();
     return d
       ? ["#6b8aad", "#3d8b6e", "#8b7aa8", "#b87333", "#a86b7f", "#5b7c99", "#a85a66"]
@@ -167,6 +187,8 @@
       : ["#ef4444", "#f97316", "#eab308", "#22c55e", "#10b981"];
   }
 
+  global.seoThemeId = themeId;
+  global.seoIsCharcoal = isCharcoal;
   global.seoMatteChartColors = seoMatteChartColors;
   global.seoMatteGa4TrendLines = seoMatteGa4TrendLines;
   global.seoMatteScTrendLines = seoMatteScTrendLines;

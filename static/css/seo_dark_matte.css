@@ -110,3 +110,19 @@ html.midnight .policy-page .sin-tab.is-on {
   color: #e4e4e7 !important;
   box-shadow: inset 0 0 0 1px #71717a !important;
 }
+
+/* Charcoal inherits html.dark; keep shot/panel polish explicit for both soft themes */
+html.charcoal .seo-matte-shot {
+  filter: saturate(0.52) brightness(0.78) contrast(0.92);
+  opacity: 0.92;
+}
+html.charcoal .seo-matte-shot-wrap:hover .seo-matte-shot {
+  filter: saturate(0.64) brightness(0.86) contrast(0.95);
+  opacity: 0.97;
+}
+html.charcoal .seo-matte-panel {
+  background: #242428 !important;
+  border-color: #52525b !important;
+  color: #d4d4d8;
+}
+

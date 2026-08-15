@@ -1,0 +1,302 @@
+/**
+ * Matte Charcoal — third appearance (html.dark + html.charcoal).
+ * Soft ink surfaces (not pure black). Remaps common Tailwind dark utilities
+ * and panel shells so every tab inherits charcoal without per-page forks.
+ */
+
+html.charcoal {
+  color-scheme: dark;
+  --seo-bg: #1c1c1f;
+  --seo-bg-elevated: #242428;
+  --seo-surface: #2e2e33;
+  --seo-surface-2: #36363c;
+  --seo-surface-3: #3f3f46;
+  --seo-border: #52525b;
+  --seo-border-soft: #3f3f46;
+  --seo-text: #d4d4d8;
+  --seo-text-strong: #e4e4e7;
+  --seo-muted: #a1a1aa;
+  --seo-faint: #71717a;
+  --seo-accent: #6b8aad;
+  --seo-input: #2a2a2e;
+  --seo-ring: rgba(107, 138, 173, 0.35);
+}
+
+/* Page chrome */
+html.charcoal,
+html.charcoal body {
+  background-color: var(--seo-bg) !important;
+  color: var(--seo-text) !important;
+}
+
+html.charcoal #content,
+html.charcoal main {
+  color: var(--seo-text);
+}
+
+/* Theme switcher — soft charcoal chrome */
+html.charcoal #theme-switcher {
+  border: 1px solid var(--seo-border-soft) !important;
+  background-color: rgba(46, 46, 51, 0.92) !important;
+  box-shadow: none !important;
+}
+
+/* Soften pure-black / zinc-950 surfaces site-wide (Tailwind dark:*) */
+html.charcoal .dark\:bg-black,
+html.charcoal .bg-black,
+html.charcoal .dark\:bg-zinc-950,
+html.charcoal .bg-zinc-950,
+html.charcoal .dark\:bg-slate-950,
+html.charcoal .bg-slate-950 {
+  background-color: var(--seo-bg) !important;
+}
+
+html.charcoal .dark\:bg-zinc-900,
+html.charcoal .bg-zinc-900,
+html.charcoal .dark\:bg-slate-900,
+html.charcoal .bg-slate-900 {
+  background-color: var(--seo-bg-elevated) !important;
+}
+
+html.charcoal .dark\:bg-zinc-900\/95,
+html.charcoal .dark\:bg-zinc-950\/50,
+html.charcoal .dark\:bg-zinc-950\/40,
+html.charcoal .dark\:bg-zinc-950\/30,
+html.charcoal .dark\:bg-slate-900\/95 {
+  background-color: rgba(36, 36, 40, 0.92) !important;
+}
+
+html.charcoal .dark\:bg-zinc-800,
+html.charcoal .bg-zinc-800,
+html.charcoal .dark\:bg-slate-800,
+html.charcoal .bg-slate-800 {
+  background-color: var(--seo-surface) !important;
+}
+
+html.charcoal .dark\:bg-zinc-800\/55,
+html.charcoal .dark\:bg-zinc-800\/50,
+html.charcoal .dark\:bg-zinc-700 {
+  background-color: var(--seo-surface-2) !important;
+}
+
+html.charcoal .dark\:from-zinc-950,
+html.charcoal .dark\:to-zinc-900 {
+  --tw-gradient-from: var(--seo-bg) !important;
+  --tw-gradient-to: var(--seo-bg-elevated) !important;
+}
+
+/* Borders */
+html.charcoal .dark\:border-zinc-950,
+html.charcoal .dark\:border-zinc-900,
+html.charcoal .dark\:border-zinc-800,
+html.charcoal .dark\:border-slate-800,
+html.charcoal .dark\:border-slate-700,
+html.charcoal .border-zinc-800,
+html.charcoal .border-zinc-700 {
+  border-color: var(--seo-border-soft) !important;
+}
+
+html.charcoal .dark\:border-zinc-700,
+html.charcoal .dark\:border-zinc-600,
+html.charcoal .dark\:ring-slate-800,
+html.charcoal .dark\:ring-zinc-800 {
+  --tw-ring-color: var(--seo-border-soft) !important;
+  border-color: var(--seo-border) !important;
+}
+
+/* Text */
+html.charcoal .dark\:text-zinc-50,
+html.charcoal .dark\:text-zinc-100,
+html.charcoal .dark\:text-slate-100 {
+  color: var(--seo-text-strong) !important;
+}
+
+html.charcoal .dark\:text-zinc-200,
+html.charcoal .dark\:text-zinc-300,
+html.charcoal .dark\:text-slate-200,
+html.charcoal .dark\:text-slate-300 {
+  color: var(--seo-text) !important;
+}
+
+html.charcoal .dark\:text-zinc-400,
+html.charcoal .dark\:text-slate-400,
+html.charcoal .dark\:text-zinc-500,
+html.charcoal .dark\:text-slate-500 {
+  color: var(--seo-muted) !important;
+}
+
+/* Forms / controls */
+html.charcoal input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="image"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+html.charcoal select,
+html.charcoal textarea {
+  background-color: var(--seo-input) !important;
+  border-color: var(--seo-border) !important;
+  color: var(--seo-text-strong) !important;
+}
+
+html.charcoal button.bg-slate-900,
+html.charcoal .dark\:bg-slate-900.rounded-lg,
+html.charcoal .dark\:bg-zinc-700 {
+  background-color: var(--seo-surface-3) !important;
+  color: var(--seo-text-strong) !important;
+}
+
+/* Cards / panels commonly used across tabs */
+html.charcoal #content .rounded-2xl.bg-white,
+html.charcoal #content .rounded-xl.bg-white,
+html.charcoal #content .rounded-2xl.dark\:bg-slate-900,
+html.charcoal #content [class*="dark:bg-slate-900"],
+html.charcoal #content [class*="dark:bg-zinc-950"],
+html.charcoal #content [class*="dark:bg-zinc-900"] {
+  background-color: var(--seo-bg-elevated) !important;
+}
+
+html.charcoal #home-board .home-readable,
+html.charcoal #home-board section.home-readable {
+  background-color: var(--seo-bg-elevated) !important;
+  border-color: var(--seo-border-soft) !important;
+}
+
+html.charcoal #home-board .home-ga4-spark-cell,
+html.charcoal #home-board .home-sc-spark-cell {
+  background: var(--seo-surface) !important;
+  border-color: var(--seo-border) !important;
+}
+
+html.charcoal #home-board .home-sc-top50 {
+  background: var(--seo-surface-3) !important;
+  border-color: var(--seo-border) !important;
+}
+
+html.charcoal #home-board .home-top-pages-trigger--rail {
+  background: var(--seo-surface-2) !important;
+  border-color: var(--seo-border) !important;
+  color: var(--seo-text) !important;
+}
+
+/* Chart shells / Plotly hosts */
+html.charcoal .js-plotly-plot .plotly .bg,
+html.charcoal .js-plotly-plot .main-svg .bg {
+  fill: transparent !important;
+}
+
+html.charcoal .pa-viz20-chart,
+html.charcoal .pa-chart-card,
+html.charcoal #ia-chart-card,
+html.charcoal #pa-chart-card,
+html.charcoal #sd-chart-card {
+  background-color: var(--seo-surface) !important;
+  border-color: var(--seo-border-soft) !important;
+}
+
+html.charcoal .pa-viz20-drop:not([open]),
+html.charcoal details.pa-viz20-drop:not([open]) {
+  background: linear-gradient(180deg, #323238 0%, #2a2a2e 100%) !important;
+  border-color: var(--seo-border-soft) !important;
+}
+
+/* Header / nav */
+html.charcoal .header-card-midnight,
+html.charcoal [class*="header-card"] {
+  background-color: rgba(36, 36, 40, 0.95) !important;
+  border-color: var(--seo-border-soft) !important;
+}
+
+html.charcoal .header-nav-link {
+  color: var(--seo-muted);
+}
+
+html.charcoal .header-nav-link:hover,
+html.charcoal .header-nav-link[aria-current="page"],
+html.charcoal .header-nav-link.is-active {
+  color: var(--seo-text-strong);
+}
+
+/* Tables */
+html.charcoal table thead,
+html.charcoal thead.sticky,
+html.charcoal .sticky.top-0 {
+  background-color: var(--seo-surface) !important;
+}
+
+html.charcoal tbody tr:nth-child(even) td {
+  background-color: rgba(46, 46, 51, 0.45);
+}
+
+/* Soften inbox true-black under charcoal (inherits dark, not midnight) */
+html.charcoal #content .inbox-page .inbox-card {
+  background-color: var(--seo-bg-elevated) !important;
+  border-color: var(--seo-border-soft) !important;
+}
+
+/* Matte screenshot polish already via .seo-matte-shot; ensure wrap */
+html.charcoal .seo-matte-shot-wrap {
+  background: #18181b !important;
+  border-color: var(--seo-border-soft) !important;
+}
+
+/* Scrollbars (WebKit) */
+html.charcoal *::-webkit-scrollbar-thumb {
+  background-color: #52525b;
+}
+html.charcoal *::-webkit-scrollbar-track {
+  background-color: #242428;
+}
+
+
+/* Page shells — android / ios / ga4 / sc / ad / notification / firebase / app */
+html.charcoal .android-play-page,
+html.charcoal .ios-asc-page,
+html.charcoal .notification-page,
+html.charcoal .firebase-page,
+html.charcoal .app-page,
+html.charcoal .wv-page,
+html.charcoal .sd-datas-page,
+html.charcoal .policy-page,
+html.charcoal .mz-page {
+  color: var(--seo-text);
+}
+
+html.charcoal .android-play-page [class*="bg-white"],
+html.charcoal .ios-asc-page [class*="bg-white"],
+html.charcoal .notification-page [class*="bg-white"],
+html.charcoal .firebase-page [class*="bg-white"],
+html.charcoal .app-page [class*="bg-white"],
+html.charcoal .wv-page [class*="bg-white"],
+html.charcoal .sd-datas-page [class*="bg-white"],
+html.charcoal .policy-page [class*="bg-white"] {
+  background-color: var(--seo-bg-elevated) !important;
+}
+
+html.charcoal .metric-kpi-ss2,
+html.charcoal .metric-kpi-card,
+html.charcoal [class*="metric-kpi"] {
+  border-color: var(--seo-border-soft);
+}
+
+html.charcoal #pc-agent-btn,
+html.charcoal #pc-agent-panel {
+  /* keep existing; soft border */
+  border-color: var(--seo-border-soft);
+}
+
+/* KPI delta greens/reds stay; soften container chips */
+html.charcoal .home-container-chip {
+  background: var(--seo-surface) !important;
+  color: var(--seo-text) !important;
+  box-shadow: inset 0 0 0 1px var(--seo-border) !important;
+}
+
+html.charcoal .home-period-chips {
+  background: var(--seo-surface) !important;
+  border-color: var(--seo-border) !important;
+}
+
+html.charcoal .home-period-chip {
+  color: var(--seo-muted);
+}
+html.charcoal .home-period-chip.bg-slate-900,
+html.charcoal .home-period-chip.dark\:bg-slate-600 {
+  background: var(--seo-surface-3) !important;
+  color: var(--seo-text-strong) !important;
+}

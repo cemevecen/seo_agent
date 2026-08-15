@@ -23,20 +23,23 @@
         var k = 'seo-theme';
         var v = localStorage.getItem(k);
         var root = document.documentElement;
-        // 'dark'/'dim' = legacy değerler, midnight'a denk gelir (geriye uyumluluk)
-        if (v === 'midnight' || v === 'dark' || v === 'dim') {
+        root.classList.remove('dark', 'midnight', 'charcoal');
+        // Legacy: dim → charcoal (soft); dark → midnight (true black)
+        if (v === 'charcoal' || v === 'dim') {
+          root.classList.add('dark', 'charcoal');
+        } else if (v === 'midnight' || v === 'dark') {
           root.classList.add('dark', 'midnight');
         } else if (v === 'light') {
-          root.classList.remove('dark', 'midnight');
+          /* light */
         } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          // Sistem tercihi: midnight (true black) varsayılan koyu mod
           root.classList.add('dark', 'midnight');
         }
       } catch (e) {}
     })();
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v={{ app_css_v }}" />
-  <link rel="stylesheet" href="/static/css/seo_dark_matte.css?v=2" />
+  <link rel="stylesheet" href="/static/css/seo_dark_matte.css?v=4" />
+  <link rel="stylesheet" href="/static/css/seo_charcoal_theme.css?v=1" />
   <script src="/static/js/seo_en_case.js?v=2"></script>
   {% block page_head %}{% endblock %}
   <style id="seo-page-tarama-btn">
@@ -479,6 +482,11 @@
       border: none !important;
       box-shadow: none !important;
       background-color: rgba(9, 9, 11, 0.92);
+    }
+  </style>
+  <style id="seo-charcoal-overrides">
+    html.charcoal {
+      color-scheme: dark;
     }
   </style>
   <style id="seo-inbox-dark">
@@ -2428,7 +2436,7 @@
   </script>
   <!-- Plotly: önce yerel (Railway/CDN engeli); olmazsa CDN -->
   <script src="/static/vendor/plotly-2.35.2.min.js" defer onerror="this.onerror=null;this.src='https://cdn.plot.ly/plotly-2.35.2.min.js'"></script>
-  <script src="/static/js/seo_matte_chart_colors.js?v=6" defer></script>
+  <script src="/static/js/seo_matte_chart_colors.js?v=7" defer></script>
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=3" defer></script>
   <script src="/static/js/app-refresh.js?v=2" defer></script>
@@ -2573,6 +2581,20 @@
                     </g>
                     <circle cx="12" cy="12" r="5.35" fill="url(#seo-theme-sun-core)"/>
                     <circle cx="10.1" cy="10.2" r="1.65" fill="#FEF3C7" opacity="0.55"/>
+                  </svg>
+                </button>
+                <button type="button" role="radio" aria-checked="false" data-theme-value="charcoal" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none sm:w-7" title="Charcoal — matte soft dark" aria-label="Charcoal theme">
+                  <svg class="theme-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                    <defs>
+                      <radialGradient id="seo-theme-charcoal" cx="40%" cy="35%" r="70%">
+                        <stop offset="0%" stop-color="#A1A1AA"/>
+                        <stop offset="55%" stop-color="#52525B"/>
+                        <stop offset="100%" stop-color="#27272A"/>
+                      </radialGradient>
+                    </defs>
+                    <circle cx="12" cy="12" r="7.2" fill="url(#seo-theme-charcoal)"/>
+                    <circle cx="12" cy="12" r="7.2" fill="none" stroke="#71717A" stroke-width="0.9" opacity="0.55"/>
+                    <path d="M12 5.2 A6.8 6.8 0 0 1 12 18.8 Z" fill="#3F3F46" opacity="0.55"/>
                   </svg>
                 </button>
                 <button type="button" role="radio" aria-checked="false" data-theme-value="midnight" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none sm:w-7" title="Midnight — true black" aria-label="Midnight theme">
@@ -3125,14 +3147,15 @@
 
     (function () {
       var THEME_KEY = 'seo-theme';
-      // 2-mod sistem: light (varsayılan), midnight (true black)
-      var THEMES = ['light', 'midnight'];
+      // 3-mod: light · charcoal (matte soft) · midnight (true black)
+      var THEMES = ['light', 'charcoal', 'midnight'];
       var root = document.documentElement;
       var pill = null;
       var switcher = null;
 
       function getTheme() {
-        if (root.classList.contains('dark')) return 'midnight';
+        if (root.classList.contains('charcoal')) return 'charcoal';
+        if (root.classList.contains('midnight') || root.classList.contains('dark')) return 'midnight';
         return 'light';
       }
 
@@ -3140,8 +3163,8 @@
         try {
           var v = localStorage.getItem(THEME_KEY);
           if (!v) return null;
-          // Geriye uyumluluk: eski 'dark'/'dim' değerleri midnight'a karşılık geliyordu
-          if (v === 'dark' || v === 'dim') return 'midnight';
+          if (v === 'dim') return 'charcoal';
+          if (v === 'dark') return 'midnight';
           if (THEMES.indexOf(v) >= 0) return v;
         } catch (e) {}
         return null;
@@ -3159,6 +3182,8 @@
         pill.style.width = btnWidth + 'px';
         if (theme === 'midnight') {
           pill.className = 'absolute h-6 rounded-full bg-zinc-700 shadow-sm transition-all duration-300 ease-out';
+        } else if (theme === 'charcoal') {
+          pill.className = 'absolute h-6 rounded-full bg-zinc-600 shadow-md transition-all duration-300 ease-out';
         } else {
           pill.className = 'absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-zinc-600/90';
         }
@@ -3166,9 +3191,11 @@
 
       function applyTheme(theme) {
         if (!theme || THEMES.indexOf(theme) < 0) theme = 'light';
-        root.classList.remove('dark', 'midnight');
+        root.classList.remove('dark', 'midnight', 'charcoal');
         if (theme === 'midnight') {
           root.classList.add('dark', 'midnight');
+        } else if (theme === 'charcoal') {
+          root.classList.add('dark', 'charcoal');
         }
         movePill(theme);
         var btns = document.querySelectorAll('#theme-switcher .theme-btn');
@@ -3272,14 +3299,19 @@
     };
     window.seoPlotlyTheme = function () {
       var mn = document.documentElement.classList.contains('midnight');
+      var ch = document.documentElement.classList.contains('charcoal');
       var d = document.documentElement.classList.contains('dark');
       if (mn) return {
         grid: '#27272a', tick: '#a1a1aa', legend: '#a1a1aa',
         muted: '#71717a', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
       };
+      if (ch) return {
+        grid: '#3f3f46', tick: '#d4d4d8', legend: '#d4d4d8',
+        muted: '#a1a1aa', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
+      };
       if (d) return {
-        grid: '#27272a', tick: '#a1a1aa', legend: '#a1a1aa',
-        muted: '#71717a', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
+        grid: '#3f3f46', tick: '#d4d4d8', legend: '#d4d4d8',
+        muted: '#a1a1aa', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
       };
       return {
         grid: '#e2e8f0', tick: '#64748b', legend: '#475569',

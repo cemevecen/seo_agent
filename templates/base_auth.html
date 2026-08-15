@@ -16,16 +16,20 @@
         var k = 'seo-theme';
         var v = localStorage.getItem(k);
         var root = document.documentElement;
-        if (v === 'midnight' || v === 'dark' || v === 'dim') {
+        root.classList.remove('dark', 'midnight', 'charcoal');
+        if (v === 'charcoal' || v === 'dim') {
+          root.classList.add('dark', 'charcoal');
+        } else if (v === 'midnight' || v === 'dark') {
           root.classList.add('dark', 'midnight');
         } else if (v === 'light') {
-          root.classList.remove('dark', 'midnight');
+          /* light */
         } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
           root.classList.add('dark', 'midnight');
         }
       } catch (e) {}
     })();
   </script>
+  <link rel="stylesheet" href="/static/css/seo_charcoal_theme.css?v=1" />
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900 dark:bg-zinc-950 dark:text-zinc-100">
   <div class="flex min-h-screen flex-col items-center justify-center px-4 py-10">
