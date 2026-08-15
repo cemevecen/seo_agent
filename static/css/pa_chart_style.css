@@ -36,7 +36,7 @@ html.charcoal .pa-chart-style {
 
 html.dark .pa-chart-style button:hover,
 html.charcoal .pa-chart-style button:hover {
-  background: rgb(39 39 42);
+  background: rgb(54 54 60);
 }
 
 .pa-chart-style button.is-active[data-pa-chart-style="line"],

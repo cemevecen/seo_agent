@@ -409,22 +409,22 @@ html.dark [style*="#16161b"] {
   background-color: #2a2a2e !important;
 }
 
-/* Soften #222226 / #242428 / rgb(34,34,38) → matte #2a2a2e */
+/* Soften #36363c / #36363c / #36363c → two clicks lighter #36363c */
 html.charcoal [style*="#222226"],
 html.charcoal [style*="222226"],
 html.charcoal [style*="rgb(34, 34, 38)"],
 html.charcoal [style*="rgb(34,34,38)"],
 html.charcoal [style*="#242428"],
 html.charcoal [style*="242428"],
+html.charcoal [style*="#27272a"],
+html.charcoal [style*="27272a"],
+html.charcoal [style*="rgb(39, 39, 42)"],
 html.dark [style*="#222226"],
-html.dark [style*="222226"],
-html.dark [style*="rgb(34, 34, 38)"],
 html.dark [style*="#242428"],
-html.charcoal [style*="#222226"],
-html.charcoal [style*="rgb(34, 34, 38)"],
-html.charcoal [style*="#242428"] {
-  background-color: #2a2a2e !important;
-  background: #2a2a2e !important;
+html.dark [style*="#27272a"] {
+  background-color: #36363c !important;
+  background: #36363c !important;
+  border-color: #36363c !important;
 }
 
 
@@ -547,5 +547,21 @@ html.charcoal [style*="background: rgb(15, 23, 42)"],
 html.charcoal [style*="background:#0f172a"] {
   background-color: #2a2a2e !important;
   background: #2a2a2e !important;
+}
+
+
+/* Zinc-800 / #222226 family — two clicks lighter (#36363c) */
+html.charcoal .border-zinc-800,
+html.charcoal .dark\:border-zinc-800,
+html.charcoal [class*="border-zinc-800"],
+html.charcoal [class*="dark:border-zinc-800"],
+html.charcoal .divide-zinc-800,
+html.charcoal .dark\:divide-zinc-800 {
+  border-color: #36363c !important;
+}
+html.charcoal .bg-zinc-800,
+html.charcoal .dark\:bg-zinc-800,
+html.charcoal [class*="dark:bg-zinc-800"] {
+  background-color: #36363c !important;
 }
 

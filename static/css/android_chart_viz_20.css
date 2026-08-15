@@ -105,7 +105,7 @@ html.charcoal .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-chevron {
 
 html.dark .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-badge,
 html.charcoal .chart-viz20-section .pa-viz20-drop > summary .pa-viz20-badge {
-  background: color-mix(in srgb, #6b8aad 10%, #27272a);
+  background: color-mix(in srgb, #6b8aad 10%, #36363c);
   color: #a1a1aa;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #6b8aad 12%, transparent);
 }
@@ -126,7 +126,7 @@ html.charcoal .chart-viz20-section .pa-viz20-drop:not([open]) > summary .pa-viz2
 
 html.dark .chart-viz20-section .pa-viz20-body,
 html.charcoal .chart-viz20-section .pa-viz20-body {
-  border-top-color: rgb(39 39 42);
+  border-top-color: rgb(54 54 60);
 }
 
 .chart-viz20-section .pa-viz20-chart {
@@ -251,7 +251,7 @@ html.charcoal .pa-viz20-h-btn {
 
 html.dark .pa-viz20-h-btn:hover,
 html.charcoal .pa-viz20-h-btn:hover {
-  background: rgb(39 39 42);
+  background: rgb(54 54 60);
 }
 
 html.dark .pa-viz20-h-btn.is-active,
@@ -416,7 +416,7 @@ html.charcoal .pa-viz20-metric-info:hover,
 html.charcoal .pa-viz20-metric-info:focus-visible {
   color: #f4f4f5;
   border-color: #71717a;
-  background: #27272a;
+  background: #36363c;
 }
 
 .pa-viz20-metric-tip {
@@ -486,7 +486,7 @@ html.charcoal .chart-viz20-section.viz20-shell .viz20-shell-title {
 
 html.dark .chart-viz20-section .viz20-plat-badge,
 html.charcoal .chart-viz20-section .viz20-plat-badge {
-  background: color-mix(in srgb, #6b8aad 14%, #27272a);
+  background: color-mix(in srgb, #6b8aad 14%, #36363c);
   color: #a1a1aa;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #6b8aad 16%, transparent);
 }

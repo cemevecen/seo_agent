@@ -51,7 +51,7 @@
       paper: dark ? "#2a2a2e" : "#ffffff",
       plot: dark ? "#2a2a2e" : "#ffffff",
       text: dark ? "#d4d4d8" : "#334155",
-      grid: dark ? "#27272a" : base.grid || "#e2e8f0",
+      grid: dark ? "#36363c" : base.grid || "#e2e8f0",
       legend: dark ? "#a1a1aa" : base.legend || "#64748b",
       tick: dark ? "#a1a1aa" : base.tick || "#64748b",
     };
@@ -808,7 +808,7 @@
             line: { width: 1, color: th().paper || "#2a2a2e" },
             pad: { t: 3, l: 3, r: 3, b: 3 },
           },
-          hoverlabel: { bgcolor: "#27272a", font: { color: "#e4e4e7", size: 12 } },
+          hoverlabel: { bgcolor: "#36363c", font: { color: "#e4e4e7", size: 12 } },
         },
       ];
       layout.margin = { l: 0, r: 0, t: 0, b: 0 };
