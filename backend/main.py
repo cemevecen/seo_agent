@@ -1924,6 +1924,15 @@ def _template_ad_menu_visible(request: Request | None) -> bool:
 jinja_env.globals["ad_menu_visible"] = _template_ad_menu_visible
 
 
+def _template_xdata_menu_visible(request: Request | None) -> bool:
+    if request is None:
+        return False
+    return bool(getattr(request.state, "xdata_menu_visible", False))
+
+
+jinja_env.globals["xdata_menu_visible"] = _template_xdata_menu_visible
+
+
 def _template_online_presence_visible(request: Request | None) -> bool:
     from backend.services import app_member_auth as ama
 
@@ -2020,12 +2029,20 @@ async def ip_allowlist_middleware(request: Request, call_next):
             is_ad_page_path,
             resolve_ad_menu_visible,
         )
+        from backend.services.xdata_page_access import (
+            is_xdata_page_allowed_email,
+            is_xdata_page_path,
+            resolve_xdata_menu_visible,
+        )
 
         request.state.settings_menu_visible = resolve_settings_menu_visible(
             member_email=member.email if member else None,
             admin_authenticated=_is_admin_authenticated(request),
         )
         request.state.ad_menu_visible = resolve_ad_menu_visible(
+            member_email=member.email if member else None,
+        )
+        request.state.xdata_menu_visible = resolve_xdata_menu_visible(
             member_email=member.email if member else None,
         )
         if member is not None:
@@ -2051,6 +2068,10 @@ async def ip_allowlist_middleware(request: Request, call_next):
                         content={"detail": "Monetizasyon (/ad) bu hesap için kapalı."},
                     )
                 return RedirectResponse(url="/?ad_denied=1", status_code=303)
+        if is_xdata_page_path(path):
+            em = member.email if member else None
+            if not is_xdata_page_allowed_email(em or ""):
+                return RedirectResponse(url="/?xdata_denied=1", status_code=303)
         if path.startswith("/settings") and not _is_settings_authenticated(request):
             if _member_denied_settings_menu(request):
                 return RedirectResponse(url="/admin/settings-denied", status_code=303)
@@ -17966,7 +17987,12 @@ def ios_app_store_connect_page(request: Request):
 
 @app.get("/x-data")
 def xdata_empower_page(request: Request):
-    """X-Data — Empower Intelligence scrape (web/mweb/ios/android)."""
+    """X-Data — Empower Intelligence scrape (web/mweb/ios/android). Admin only."""
+    from backend.services.xdata_page_access import is_xdata_page_allowed_email
+
+    member = _app_member_from_request(request)
+    if not is_xdata_page_allowed_email(member.email if member else None):
+        return RedirectResponse(url="/?xdata_denied=1", status_code=303)
     return templates.TemplateResponse(
         request,
         "metrik.html",
@@ -17976,7 +18002,12 @@ def xdata_empower_page(request: Request):
 
 
 @app.get("/metrik")
-def metrik_empower_page_redirect():
+def metrik_empower_page_redirect(request: Request):
+    from backend.services.xdata_page_access import is_xdata_page_allowed_email
+
+    member = _app_member_from_request(request)
+    if not is_xdata_page_allowed_email(member.email if member else None):
+        return RedirectResponse(url="/?xdata_denied=1", status_code=303)
     return RedirectResponse(url="/x-data", status_code=302)
 
 
