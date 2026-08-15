@@ -14049,9 +14049,9 @@
 
   function mzTargetsProjectRows() {
     if (!mzTargetsCache || !mzTargetsCache.rows) return [];
-    if (mzTargetsUi.project === "both") return [];
+    var chartProject = mzTargetsUi.project === "both" ? "doviz" : mzTargetsUi.project;
     return mzTargetsCache.rows.filter(function (r) {
-      return r.project === mzTargetsUi.project;
+      return r.project === chartProject;
     });
   }
 
@@ -14326,7 +14326,10 @@
     var firstColumn = document.getElementById("mz-targets-first-column");
     if (firstColumn) firstColumn.textContent = pk === "both" ? "Project" : "Period";
     document.querySelectorAll(".mz-targets-proj").forEach(function (btn) {
-      var on = btn.getAttribute("data-mz-target-project") === pk;
+      var buttonProject = btn.getAttribute("data-mz-target-project");
+      var isChartControl = !!btn.closest(".mz-targets-proj-group");
+      var on = buttonProject === pk
+        || (pk === "both" && isChartControl && buttonProject === "doviz");
       btn.classList.toggle("border-indigo-300", on);
       btn.classList.toggle("bg-indigo-600", on);
       btn.classList.toggle("text-white", on);
@@ -14768,18 +14771,8 @@
     var tableRows = mzTargetsFilteredRows();
     var projectRows = mzTargetsProjectRows();
     mzTargetsRenderTable(tableRows);
-    var charts = document.getElementById("mz-targets-charts");
-    var pieSection = document.getElementById("mz-targets-pie-section");
-    var both = mzTargetsUi.project === "both";
-    if (charts) charts.classList.toggle("hidden", both);
-    if (pieSection) pieSection.classList.toggle("hidden", both);
-    if (both) {
-      mzPurgePlot("mz-targets-chart-line");
-      mzPurgePlot("mz-targets-chart-bar");
-    } else {
-      mzTargetsRenderCharts(projectRows);
-      mzTargetsRenderPieSection(projectRows);
-    }
+    mzTargetsRenderCharts(projectRows);
+    mzTargetsRenderPieSection(projectRows);
     var err = document.getElementById("mz-targets-error");
     if (err) err.classList.add("hidden");
     if (!tableRows.length && mzTargetsCache) {
