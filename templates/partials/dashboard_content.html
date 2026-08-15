@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v58-load-rings">
+<style id="home-site-borders" data-home-css="v59-matte-kpi-cells">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -55,6 +55,33 @@
     --tw-ring-width: 2px;
     --tw-ring-color: rgba(190, 18, 60, 0.45) !important;    /* rose-700 @ 45% */
   }
+
+  /* Soften pitch-black KPI tiles (GA4 / SC) */
+  html.dark #home-board .home-ga4-spark-cell,
+  html.dark #home-board .home-sc-spark-cell,
+  html.midnight #home-board .home-ga4-spark-cell,
+  html.midnight #home-board .home-sc-spark-cell {
+    background: #323238 !important;
+    border-color: #52525b !important;
+  }
+  html.dark #home-board .home-sc-top50,
+  html.midnight #home-board .home-sc-top50 {
+    background: #3f3f46 !important;
+    border-color: #52525b !important;
+  }
+  html.dark #home-board .home-top-pages-trigger--rail,
+  html.midnight #home-board .home-top-pages-trigger--rail {
+    background: #3f3f46 !important;
+    border-color: #52525b !important;
+    color: #d4d4d8 !important;
+  }
+  html.dark #home-board .home-ga4-spark-empty,
+  html.dark #home-board .home-sc-spark-empty,
+  html.midnight #home-board .home-ga4-spark-empty,
+  html.midnight #home-board .home-sc-spark-empty {
+    background: #3f3f46 !important;
+  }
+
 
   /* Dönem filtresi / yenileme — iç içe dönen halkalar overlay */
   section.home-readable.is-period-loading,
@@ -2303,7 +2330,7 @@
       {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=42" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=43" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2314,7 +2341,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=42" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=43" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2329,7 +2356,7 @@
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=42" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=43" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2340,7 +2367,7 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=42" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=43" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
