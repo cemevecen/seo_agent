@@ -96,7 +96,18 @@
   .home-sc-spark-cell .home-sc-top50 {
     margin-top: 0.45rem;
   }
-  .home-sc-spark-cell .home-top-pages-trigger {
+  .home-sc-spark-cell.home-kpi-rails {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  .home-sc-spark-cell.home-kpi-rails .home-kpi-rails__body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .home-sc-spark-cell .home-top-pages-trigger:not(.home-top-pages-trigger--rail) {
+    margin-top: auto;
+  }
+  .home-sc-spark-cell .home-kpi-rails__actions {
     margin-top: auto;
   }
   html.dark .home-sc-spark-cell {
