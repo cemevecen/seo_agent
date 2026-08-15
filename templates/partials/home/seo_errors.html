@@ -1,11 +1,24 @@
 {% from "partials/home/_brand_icon.html" import container_chip %}
-<div class="home-readable flex items-center justify-between gap-3">
-  {{ container_chip('SEO · Critical errors') }}
-  <a href="/seo-audit" hx-get="/seo-audit" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
-</div>
+<div class="home-readable is-open" data-home-shell-root>
+  <div class="home-shell-head">
+    <button type="button"
+            class="home-shell-toggle"
+            data-home-shell-toggle
+            aria-expanded="true"
+            aria-controls="home-seo-err-shell-body">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        {{ container_chip('SEO · Critical errors') }}
+      </div>
+      <span class="home-shell-chevron" aria-hidden="true"></span>
+    </button>
+    <div class="home-shell-head-tools">
+      <a href="/seo-audit" hx-get="/seo-audit" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
+    </div>
+  </div>
+  <div id="home-seo-err-shell-body" class="home-shell-body" data-home-shell-body>
 {% if sites and sites[0] and sites[0].rows %}
-  <ul class="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
+  <ul class="divide-y divide-slate-100 dark:divide-slate-800">
     {% for it in sites[0].rows %}
       <li class="py-2.5 first:pt-0 last:pb-0">
         <div class="home-row home-row-wide">
@@ -21,5 +34,7 @@
     {% endfor %}
   </ul>
 {% else %}
-  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">No critical errors found</p>
+  <p class="home-meta text-center text-slate-400 dark:text-slate-500">No critical errors found</p>
 {% endif %}
+  </div>
+</div>

@@ -1,17 +1,28 @@
 {% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
-<div class="home-readable flex flex-wrap items-center justify-between gap-3">
-  <div class="min-w-0">
-    <div class="flex flex-wrap items-center gap-2">
-      {{ brand_icon('doviz') }}
-      {{ container_chip('store & firebase') }}
+<div class="home-readable is-open" data-home-shell-root>
+  <div class="home-shell-head">
+    <button type="button"
+            class="home-shell-toggle"
+            data-home-shell-toggle
+            aria-expanded="true"
+            aria-controls="home-app-rel-shell-body">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          {{ brand_icon('doviz') }}
+          {{ container_chip('store & firebase') }}
+        </div>
+        <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">App Store · Play Store version and rating summary</p>
+      </div>
+      <span class="home-shell-chevron" aria-hidden="true"></span>
+    </button>
+    <div class="home-shell-head-tools">
+      <a href="/app" hx-get="/app" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
     </div>
-    <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">App Store · Play Store version and rating summary</p>
   </div>
-  <a href="/app" hx-get="/app" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
-</div>
 
-<div class="home-split home-split-2 mt-4">
+  <div id="home-app-rel-shell-body" class="home-shell-body" data-home-shell-body>
+<div class="home-split home-split-2">
   {% for plat in platforms %}
     <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/50 px-3.5 py-3 dark:border-slate-800 dark:bg-slate-800/30">
       <div class="flex flex-wrap items-center justify-between gap-2">
@@ -72,4 +83,6 @@
   {% else %}
     <p class="home-meta col-span-full text-center text-slate-400 dark:text-slate-500">no store data</p>
   {% endfor %}
+</div>
+  </div>
 </div>

@@ -7,9 +7,12 @@
 ]) %}
 
 <div id="home-git-nokta"
-     class="home-git-nokta home-readable home-gl-board"
+     class="home-git-nokta home-readable home-gl-board is-open"
+     :class="{ 'is-open': panelOpen }"
+     data-home-shell-root
      x-data="homeGitlabBoards()"
      x-init="init()"
+     x-ref="glDrop"
      data-default-project="{{ default_board_project | default('nokta/doviz') }}"
      data-token="{{ token | default('') }}">
   <script type="application/json" id="home-gl-projects">{{ projects_json | safe }}</script>
@@ -283,17 +286,7 @@
     @container home-gl-shell (max-width: 720px) {
       .home-gl-board .home-gl-lists { gap: 0.35rem; }
     }
-    .home-gl-board details.home-gl-drop > summary {
-      list-style: none;
-      cursor: pointer;
-    }
-    .home-gl-board details.home-gl-drop > summary::-webkit-details-marker { display: none; }
-    .home-gl-board details.home-gl-drop > summary .home-gl-chevron {
-      display: inline-block;
-      transition: transform .15s ease;
-      color: #94a3b8;
-    }
-    .home-gl-board details.home-gl-drop[open] > summary .home-gl-chevron { transform: rotate(90deg); }
+    /* shell chevron: shared .home-shell-* in dashboard_content */
     .home-gl-orbit {
       position: relative;
       width: 4.35rem;
@@ -350,31 +343,36 @@
     [x-cloak] { display: none !important; }
   </style>
 
-  <details class="home-gl-drop group" x-ref="glDrop" open @toggle="onDropToggle($event)">
-    <summary class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl px-0.5 py-0.5">
-      <div class="flex min-w-0 items-center gap-2">
-        <span class="home-gl-chevron leading-none" aria-hidden="true">▸</span>
+  <div class="home-shell-head">
+    <button type="button"
+            class="home-shell-toggle"
+            @click="panelOpen = !panelOpen"
+            :aria-expanded="panelOpen ? 'true' : 'false'"
+            aria-controls="home-gl-shell-body">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
         <span class="home-container-chip">git.nokta</span>
         <span x-show="vpnOffline && !panelOpen" class="home-meta text-amber-600 dark:text-amber-300" x-cloak>No VPN</span>
       </div>
-      <div class="flex shrink-0 flex-wrap items-center gap-2">
-        <button type="button"
-                @click.stop="refreshActive()"
-                :disabled="!activeProject || (pd() && pd().loading) || vpnProbing"
-                class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-                title="Refresh"
-                aria-label="Refresh">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" :class="((pd() && pd().loading) || vpnProbing) ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
-        <a href="/boards" hx-get="/boards" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-           @click.stop
-           class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Boards →</a>
-      </div>
-    </summary>
+      <span class="home-shell-chevron" aria-hidden="true"></span>
+    </button>
+    <div class="home-shell-head-tools">
+      <button type="button"
+              @click="refreshActive()"
+              :disabled="!activeProject || (pd() && pd().loading) || vpnProbing"
+              class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+              title="Refresh"
+              aria-label="Refresh">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" :class="((pd() && pd().loading) || vpnProbing) ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      </button>
+      <a href="/boards" hx-get="/boards" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Boards →</a>
+    </div>
+  </div>
 
-    <p class="home-meta mt-1 text-slate-500 dark:text-slate-400" x-show="statusMsg && !vpnProbing" x-text="statusMsg" x-cloak></p>
+  <div id="home-gl-shell-body" class="home-shell-body" data-home-shell-body>
+    <p class="home-meta text-slate-500 dark:text-slate-400" x-show="statusMsg && !vpnProbing" x-text="statusMsg" x-cloak></p>
 
   <div class="mt-4 flex items-center gap-2 overflow-x-auto pb-1">
     <template x-for="project in configProjects" :key="project.path">
@@ -473,5 +471,5 @@
       </div>
     </template>
   </div>
-  </details>
+  </div>
 </div>

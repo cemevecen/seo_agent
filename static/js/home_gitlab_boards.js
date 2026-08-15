@@ -53,21 +53,17 @@
         this.applyHomeFocus({ detail: { mode: mode || 'split' } });
       },
 
-      onDropToggle(ev) {
-        this.panelOpen = !!(ev && ev.target && ev.target.open);
+      onDropToggle() {
+        /* legacy no-op — shell uses panelOpen + is-open */
       },
 
       collapsePanel() {
         this.panelOpen = false;
-        var el = this.$refs && this.$refs.glDrop;
-        if (el) el.open = false;
       },
 
       expandPanel() {
         this.panelOpen = true;
         this.vpnOffline = false;
-        var el = this.$refs && this.$refs.glDrop;
-        if (el) el.open = true;
       },
 
       _clearVpnTimer() {

@@ -74,21 +74,36 @@
   }
 </style>
 
-<div class="home-readable flex flex-wrap items-center justify-between gap-3" data-home-period-root data-home-period-endpoint="ga4-sessions" data-home-period-site="{{ site_key | default('doviz') }}">
-  <div class="flex min-w-0 flex-wrap items-center gap-2">
-    {{ brand_icon(site_key | default('doviz')) }}
-    {{ container_chip('ga4') }}
-    <div class="home-period-chips inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Period">
-      {% for dv, dl in [(7,'7d'),(60,'60d'),(90,'90d')] %}
-        <button type="button" data-home-period="{{ dv }}"
-          class="home-period-chip rounded-md px-2 py-0.5 font-semibold transition
+<div class="home-readable is-open"
+     data-home-shell-root
+     data-home-period-root
+     data-home-period-endpoint="ga4-sessions"
+     data-home-period-site="{{ site_key | default('doviz') }}">
+  <div class="home-shell-head">
+    <button type="button"
+            class="home-shell-toggle"
+            data-home-shell-toggle
+            aria-expanded="true"
+            aria-controls="home-ga4-shell-{{ site_key | default('doviz') }}">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        {{ brand_icon(site_key | default('doviz')) }}
+        {{ container_chip('ga4') }}
+      </div>
+      <span class="home-shell-chevron" aria-hidden="true"></span>
+    </button>
+    <div class="home-shell-head-tools">
+      <div class="home-period-chips inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Period">
+        {% for dv, dl in [(7,'7d'),(60,'60d'),(90,'90d')] %}
+          <button type="button" data-home-period="{{ dv }}"
+            class="home-period-chip rounded-md px-2 py-0.5 font-semibold transition
  {% if (period_days | default(7)) == dv %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
-      {% endfor %}
+        {% endfor %}
+      </div>
+      <a href="/ga4" hx-get="/ga4" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
     </div>
   </div>
-  <a href="/ga4" hx-get="/ga4" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
-</div>
+  <div id="home-ga4-shell-{{ site_key | default('doviz') }}" class="home-shell-body" data-home-shell-body>
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
   <div class="home-top-pages-root" data-home-top-pages-root>
@@ -134,3 +149,5 @@
 {% else %}
   <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">No data</p>
 {% endif %}
+  </div>
+</div>

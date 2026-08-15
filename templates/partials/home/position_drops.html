@@ -270,27 +270,38 @@
   {% endif %}
 {% endmacro %}
 
-<div class="home-pos-drops" data-pos-mode="impact" data-home-pos-root>
-  <div class="flex items-start justify-between gap-3">
-    <div class="min-w-0">
-      <div class="home-pos-head">
-        {{ brand_icon(block.site_key if block and block.site_key else ('doviz' if block and block.site_id == 1 else 'sinemalar')) }}
-        {{ container_chip('position') }}
+<div class="home-pos-drops is-open" data-pos-mode="impact" data-home-pos-root data-home-shell-root>
+  <div class="home-shell-head">
+    <button type="button"
+            class="home-shell-toggle"
+            data-home-shell-toggle
+            aria-expanded="true"
+            aria-controls="home-pos-shell-body">
+      <div class="min-w-0">
+        <div class="home-pos-head">
+          {{ brand_icon(block.site_key if block and block.site_key else ('doviz' if block and block.site_id == 1 else 'sinemalar')) }}
+          {{ container_chip('position') }}
+        </div>
+        {% if block and block.as_of_label %}
+          <p class="mt-1 home-pos-asof home-meta tabular-nums text-slate-600 dark:text-slate-300">{{ block.as_of_label }}</p>
+        {% endif %}
       </div>
-      {% if block and block.as_of_label %}
-        <p class="mt-1 home-pos-asof home-meta tabular-nums text-slate-600 dark:text-slate-300">{{ block.as_of_label }}</p>
+      <span class="home-shell-chevron" aria-hidden="true"></span>
+    </button>
+    <div class="home-shell-head-tools">
+      {% if not hide_nav_link %}
+      <a href="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
+         hx-get="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
+         hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">alerts →</a>
       {% endif %}
-      <div class="home-pos-mode-chips mt-2" role="tablist" aria-label="Position view">
-        <button type="button" class="home-pos-mode-chip is-active" data-pos-mode-set="impact" role="tab" aria-selected="true">change</button>
-        <button type="button" class="home-pos-mode-chip" data-pos-mode-set="top20" role="tab" aria-selected="false" title="{{ block.top20_scope_label if block and block.top20_scope_label else 'Search Console Top queries · Mobile · Last 7 days' }}">top 20</button>
-      </div>
     </div>
-    {% if not hide_nav_link %}
-    <a href="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
-       hx-get="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
-       hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">alerts →</a>
-    {% endif %}
+  </div>
+
+  <div id="home-pos-shell-body" class="home-shell-body" data-home-shell-body>
+  <div class="home-pos-mode-chips" role="tablist" aria-label="Position view">
+    <button type="button" class="home-pos-mode-chip is-active" data-pos-mode-set="impact" role="tab" aria-selected="true">change</button>
+    <button type="button" class="home-pos-mode-chip" data-pos-mode-set="top20" role="tab" aria-selected="false" title="{{ block.top20_scope_label if block and block.top20_scope_label else 'Search Console Top queries · Mobile · Last 7 days' }}">top 20</button>
   </div>
 
   <div data-pos-panel="impact">
@@ -298,6 +309,7 @@
   </div>
   <div data-pos-panel="top20">
     {{ pos_panels(_top20_drops, _top20_rises, 'No significant position change in Search Console Top 20') }}
+  </div>
   </div>
 </div>
 {# Tab click: document delegation in base.html (HTMX swap inline script çalıştırmaz) #}

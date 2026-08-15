@@ -14,25 +14,20 @@
 {% set good_tot = (mk.good or 0)|int %}
 
 <style>
-  .home-wv details > summary {
-    list-style: none;
-    cursor: pointer;
-  }
-  .home-wv details > summary::-webkit-details-marker { display: none; }
-  .home-wv details > summary .home-wv-chevron {
-    display: inline-block;
-    transition: transform .15s ease;
-    color: #94a3b8;
-  }
-  .home-wv details[open] > summary .home-wv-chevron { transform: rotate(90deg); }
+  .home-wv .home-wv-body { min-width: 0; }
 </style>
 
-<div class="home-readable home-wv" data-home-wv-site="{{ block.site_key if block else '' }}">
-  <details class="home-wv-drop group" open>
-    <summary class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl px-0.5 py-0.5">
-      <div class="flex min-w-0 items-center gap-2">
+<div class="home-readable home-wv is-open"
+     data-home-shell-root
+     data-home-wv-site="{{ block.site_key if block else '' }}">
+  <div class="home-shell-head">
+    <button type="button"
+            class="home-shell-toggle"
+            data-home-shell-toggle
+            aria-expanded="true"
+            aria-controls="home-wv-shell-{{ sid }}">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
         {{ brand_icon(block.site_key if block and block.site_key else 'doviz') }}
-        <span class="home-wv-chevron leading-none" aria-hidden="true">▸</span>
         {{ container_chip('Web Vitals') }}
         {% if has_data %}
         <span class="home-wv-micro home-meta hidden truncate tabular-nums text-slate-400 sm:inline dark:text-zinc-500">
@@ -42,13 +37,16 @@
         <span class="home-meta text-amber-600 dark:text-amber-300">no data</span>
         {% endif %}
       </div>
+      <span class="home-shell-chevron" aria-hidden="true"></span>
+    </button>
+    <div class="home-shell-head-tools">
       <a href="/web-vitals?site_id={{ sid }}"
          hx-get="/web-vitals?site_id={{ sid }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-         onclick="event.stopPropagation()"
          class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
-    </summary>
+    </div>
+  </div>
 
-    <div class="home-wv-body mt-3">
+  <div id="home-wv-shell-{{ sid }}" class="home-shell-body home-wv-body" data-home-shell-body>
       {% if block and block.collected_at %}
       <p class="home-wv-micro home-meta mb-2 text-slate-400 dark:text-zinc-500">Last crawl · {{ block.collected_at }}</p>
       {% endif %}
@@ -113,7 +111,6 @@
       (function(){
         var sid = {{ sid|tojson }};
         var root = (document.currentScript && document.currentScript.closest('.home-wv')) || document.getElementById('home-wv-data-' + sid) && document.getElementById('home-wv-data-' + sid).closest('.home-wv');
-        var drop = root && root.querySelector('details.home-wv-drop');
         var rawEl = document.getElementById('home-wv-data-' + sid);
         if (!rawEl) return;
         var payload;
@@ -245,17 +242,18 @@
             render('home-wv-d-' + sid, 'home-wv-d-note-' + sid, 'desktop');
           });
         }
-        if (drop) {
-          drop.addEventListener('toggle', function() {
-            if (drop.open) paint();
+        if (root) {
+          root.addEventListener('click', function (ev) {
+            if (ev.target.closest('[data-home-shell-toggle]') && root.classList.contains('is-open')) {
+              setTimeout(paint, 40);
+            }
           });
-          if (drop.open) paint();
+          if (root.classList.contains('is-open')) paint();
         } else {
           paint();
         }
       })();
       </script>
       {% endif %}
-    </div>
-  </details>
+  </div>
 </div>

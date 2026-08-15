@@ -1,34 +1,43 @@
 {% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
-<div class="home-rt-head">
-  <div class="home-rt-head-title">
-    <span class="home-rt-live-dot" aria-hidden="true"></span>
-    {{ container_chip('active users') }}
-  </div>
-  <div class="home-rt-head-chips">
-    {% if sites %}
-      {% for site in sites %}
-      <div class="home-rt-pill {% if site.site_id == 1 %}home-rt-pill--doviz{% else %}home-rt-pill--sinemalar{% endif %}"
-           data-home-rt-project="{% if site.site_id == 1 %}doviz{% else %}sinemalar{% endif %}"
-           title="{{ site.display_name or site.domain }} — all profiles combined">
-        {{ brand_icon('doviz' if site.site_id == 1 else 'sinemalar', 'sm') }}
-        <span class="home-body tabular-nums text-slate-900 dark:text-slate-50" data-home-rt-total="{{ site.site_id }}" data-rt-slot-value>{{ site.total_active_fmt }} active</span>
-        <span class="home-meta tabular-nums text-slate-600 dark:text-slate-300">· {{ site.total_pageviews_fmt }} views</span>
+<div class="home-rt-shell is-open" data-home-shell-root>
+  <div class="home-shell-head">
+    <button type="button"
+            class="home-shell-toggle"
+            data-home-shell-toggle
+            aria-expanded="true"
+            aria-controls="home-rt-shell-body">
+      <div class="home-rt-head-title flex min-w-0 flex-wrap items-center gap-2">
+        <span class="home-rt-live-dot" aria-hidden="true"></span>
+        {{ container_chip('active users') }}
       </div>
-      {% endfor %}
-    {% endif %}
-    <span class="home-rt-countdown" data-home-rt-countdown title="Auto-refresh countdown for realtime">
-      <svg class="home-rt-countdown-svg -rotate-90" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <circle class="home-rt-countdown-track" cx="20" cy="20" r="16"></circle>
-        <circle class="home-rt-countdown-ring" data-home-rt-countdown-ring cx="20" cy="20" r="16"></circle>
-      </svg>
-      <span class="home-meta font-semibold tabular-nums text-slate-500 dark:text-slate-400">{{ now_label }}</span>
-      <span class="home-rt-countdown-num" data-home-rt-countdown-num>{{ poll_seconds | default(60) }}</span>
-      <span class="home-label text-slate-500 dark:text-slate-400">s</span>
-    </span>
+      <span class="home-shell-chevron" aria-hidden="true"></span>
+    </button>
+    <div class="home-shell-head-tools home-rt-head-chips">
+      {% if sites %}
+        {% for site in sites %}
+        <div class="home-rt-pill {% if site.site_id == 1 %}home-rt-pill--doviz{% else %}home-rt-pill--sinemalar{% endif %}"
+             data-home-rt-project="{% if site.site_id == 1 %}doviz{% else %}sinemalar{% endif %}"
+             title="{{ site.display_name or site.domain }} — all profiles combined">
+          {{ brand_icon('doviz' if site.site_id == 1 else 'sinemalar', 'sm') }}
+          <span class="home-body tabular-nums text-slate-900 dark:text-slate-50" data-home-rt-total="{{ site.site_id }}" data-rt-slot-value>{{ site.total_active_fmt }} active</span>
+          <span class="home-meta tabular-nums text-slate-600 dark:text-slate-300">· {{ site.total_pageviews_fmt }} views</span>
+        </div>
+        {% endfor %}
+      {% endif %}
+      <span class="home-rt-countdown" data-home-rt-countdown title="Auto-refresh countdown for realtime">
+        <svg class="home-rt-countdown-svg -rotate-90" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle class="home-rt-countdown-track" cx="20" cy="20" r="16"></circle>
+          <circle class="home-rt-countdown-ring" data-home-rt-countdown-ring cx="20" cy="20" r="16"></circle>
+        </svg>
+        <span class="home-meta font-semibold tabular-nums text-slate-500 dark:text-slate-400">{{ now_label }}</span>
+        <span class="home-rt-countdown-num" data-home-rt-countdown-num>{{ poll_seconds | default(60) }}</span>
+        <span class="home-label text-slate-500 dark:text-slate-400">s</span>
+      </span>
+    </div>
   </div>
-</div>
+  <div id="home-rt-shell-body" class="home-shell-body" data-home-shell-body>
 {% if sites %}
-  <div class="home-rt-grid-wrap mt-4">
+  <div class="home-rt-grid-wrap">
     <div class="home-rt-grid">
       {% for site in sites %}
         {% set _proj = 'doviz' if site.site_id == 1 else 'sinemalar' %}
@@ -67,3 +76,5 @@
 {% else %}
   <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">No data</p>
 {% endif %}
+  </div>
+</div>
