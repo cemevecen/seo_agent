@@ -405,7 +405,9 @@ _last_fail_email_at: dict[str, float] = {}
 _fail_streak: dict[str, int] = {}
 _login_alert_open: dict[str, bool] = {}
 _last_login_email_at: dict[str, float] = {}
-_last_login_email_at: dict[str, float] = {}
+# Eksik env/kimlik ayarı: tek uyarı, düzelene kadar sessiz; retry de yapılmaz
+_config_alert_open: dict[str, bool] = {}
+_config_fail: dict[str, bool] = {}
 # kind → {attempt: 1..MAX, next_at: float, name: str}
 _job_retries: dict[str, dict[str, Any]] = {}
 # Tarayıcı scrape kuyruğu — aynı anda / çok kısa aralıkta ikinci scrape başlamasın
@@ -571,6 +573,27 @@ def _is_transient_failure(
     return any(marker in m for marker in _TRANSIENT_FAIL_MARKERS)
 
 
+_CONFIG_FAIL_RE = re.compile(r"\b[A-Z][A-Z0-9_]{4,}\b[^\n]{0,60}?\bgerekli\b")
+
+
+def _is_config_failure(msg: str) -> bool:
+    """Eksik env/kimlik ayarı (ör. 'VIRGUL_EMAIL / VIRGUL_PASSWORD gerekli').
+
+    Kendi kendine düzelmez: yeniden deneme ve tekrar mail anlamsız.
+    """
+    return bool(_CONFIG_FAIL_RE.search(msg or ""))
+
+
+def _mark_failure_class(
+    kind: str,
+    result: dict[str, Any] | None = None,
+    exc: BaseException | None = None,
+) -> bool:
+    cfg = _is_config_failure(_failure_message(result, exc))
+    _config_fail[kind] = cfg
+    return cfg
+
+
 def _bridge_kind_label(kind: str) -> str:
     labels = {
         "notification": "Notification (/notification)",
@@ -720,8 +743,31 @@ def _notify_login_session_resolved(kind: str) -> None:
         _login_alert_open[kind] = False
 
 
+def _notify_config_alert(kind: str, msg: str) -> None:
+    """Eksik ayar: düzeltilene kadar tek mail (retry/cooldown spam'i yok)."""
+    if _config_alert_open.get(kind):
+        print(f"Bridge config uyarısı zaten açık ({kind}): {msg[:120]}", flush=True)
+        return
+    label = _bridge_kind_label(kind)
+    subject = f"[SEO Agent Bridge] {label} yapılandırma eksik"
+    body = (
+        f"Kaynak: Mac VPN bridge (127.0.0.1:{BRIDGE_PORT})\n"
+        f"Tür: {label} ({kind})\n"
+        f"Zaman (UTC): {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}Z\n"
+        f"Hata: {msg}\n\n"
+        f"Bu iş, eksik ayar giderilene kadar duraklatıldı — yeniden deneme ve "
+        f"tekrar uyarı yapılmayacak.\n"
+        f"Değeri bridge'in .env dosyasına ekleyip daemon'ı yeniden başlatın.\n"
+        f"Kontrol: curl -s http://127.0.0.1:{BRIDGE_PORT}/health | python3 -m json.tool\n"
+    )
+    _send_bridge_alert_email(kind=f"config:{kind}", subject=subject, body_text=body)
+    _config_alert_open[kind] = True
+
+
 def _note_auto_success(kind: str) -> None:
     _fail_streak[kind] = 0
+    _config_fail.pop(kind, None)
+    _config_alert_open.pop(kind, None)
     _notify_login_session_resolved(kind)
 
 
@@ -739,6 +785,10 @@ def _notify_auto_failure(
             http_status = int(result.get("http_status") or 0) or None
         except (TypeError, ValueError):
             http_status = None
+    if _is_config_failure(msg):
+        _config_fail[kind] = True
+        _notify_config_alert(kind, msg)
+        return
     if _result_needs_login(kind, result, msg):
         _notify_login_session_alert(kind, msg)
         return
@@ -1481,12 +1531,24 @@ def run_revenue_targets_bridge_once() -> dict[str, Any]:
             )
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "label": label, "message": str(exc)[:300]}
-        tail = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip().splitlines()
-        last = tail[-1] if tail else ""
+        out_lines = (proc.stdout or "").strip().splitlines()
+        err_lines = (proc.stderr or "").strip().splitlines()
+        # Scrape başarılıyken bile stderr'de DB cache uyarısı olabiliyor; özet
+        # satırı stdout'taki "OK · parsed=…" olmalı, yoksa son anlamlı satır.
+        summary = ""
+        if proc.returncode == 0:
+            for line in reversed(out_lines):
+                s = line.strip()
+                if s.startswith("OK ·"):
+                    summary = s
+                    break
+        if not summary:
+            tail = out_lines + err_lines
+            summary = next((s for s in (ln.strip() for ln in reversed(tail)) if s), "")
         return {
             "ok": proc.returncode == 0,
             "label": label,
-            "message": last[:400] if last else ("OK" if proc.returncode == 0 else f"exit={proc.returncode}"),
+            "message": summary[:400] if summary else ("OK" if proc.returncode == 0 else f"exit={proc.returncode}"),
             "returncode": proc.returncode,
         }
 
@@ -4436,6 +4498,13 @@ def _retry_policy(kind: str, *, failed_slot: str = "") -> tuple[int, int]:
 
 def _arm_job_retry(kind: str, *, name: str, failed_slot: str = "") -> None:
     """Başarısız tur sonrası bir sonraki yeniden denemeyi planla."""
+    if _config_fail.get(kind):
+        print(
+            f"Auto {name}: eksik ayar — yeniden deneme yok, sonraki planlı slota bırakıldı",
+            flush=True,
+        )
+        _clear_job_retry(kind)
+        return
     retry_max, gap = _retry_policy(kind, failed_slot=failed_slot)
     st = _job_retries.get(kind) or {"attempt": 0, "name": name}
     attempt = int(st.get("attempt") or 0)
@@ -4493,12 +4562,15 @@ def _run_locked_job(
                 result = {"ok": False, "message": "boş sonuç"}
             if result.get("ok"):
                 _note_auto_success(kind)
-            elif notify:
-                _notify_auto_failure(kind, result)
+            else:
+                _mark_failure_class(kind, result)
+                if notify:
+                    _notify_auto_failure(kind, result)
             _finish_job_progress(kind, result, trigger=trigger, name=name)
             return result
         except Exception as exc:
             traceback.print_exc()
+            _mark_failure_class(kind, exc=exc)
             if notify:
                 _notify_auto_failure(kind, exc=exc)
             err = {"ok": False, "message": str(exc)}
@@ -4589,6 +4661,9 @@ def _process_due_retries() -> None:
             continue
         meta = registry.get(kind)
         if not meta:
+            _clear_job_retry(kind)
+            continue
+        if _config_fail.get(kind):
             _clear_job_retry(kind)
             continue
         name = str(st.get("name") or meta["name"])

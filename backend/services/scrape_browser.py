@@ -25,6 +25,7 @@ import os
 import re
 import signal
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -791,6 +792,49 @@ def warm_session_forget(key: str) -> None:
         _WARM_BY_PROFILE.pop(str(prof), None)
 
 
+# Sync Playwright'ın event loop'u thread'e bağlıdır: ilk oturum yaşarken aynı
+# thread'de ikinci sync_playwright().start() "Sync API inside the asyncio loop"
+# hatası verir. Bridge daemon tüm scrapeleri tek scheduler thread'inde koşturduğu
+# ve KEEP_OPEN ile pencereleri açık bıraktığı için farklı profiller (fx-google +
+# fx-sinemalar) tek sürücüyü paylaşmak zorunda.
+_PW_BY_THREAD: dict[int, dict[str, Any]] = {}
+
+
+def _thread_playwright() -> Any:
+    from playwright.sync_api import sync_playwright
+
+    tid = threading.get_ident()
+    slot = _PW_BY_THREAD.get(tid)
+    if slot is not None and slot.get("pw") is not None:
+        slot["refs"] = int(slot.get("refs") or 0) + 1
+        return slot["pw"]
+    pw = sync_playwright().start()
+    _PW_BY_THREAD[tid] = {"pw": pw, "refs": 1}
+    return pw
+
+
+def _thread_playwright_release(pw: Any) -> None:
+    """Bu thread'deki son context kapanınca sürücüyü durdur."""
+    if pw is None:
+        return
+    tid = threading.get_ident()
+    slot = _PW_BY_THREAD.get(tid)
+    if slot is None or slot.get("pw") is not pw:
+        try:
+            pw.stop()
+        except Exception:
+            pass
+        return
+    slot["refs"] = int(slot.get("refs") or 0) - 1
+    if slot["refs"] > 0:
+        return
+    _PW_BY_THREAD.pop(tid, None)
+    try:
+        pw.stop()
+    except Exception:
+        pass
+
+
 def acquire_persistent_context(
     key: str,
     *,
@@ -809,8 +853,6 @@ def acquire_persistent_context(
     Süreç dışı yetim Firefox varsa (subprocess KEEP_OPEN kalıntısı) hızlı takeover —
     Playwright Firefox attach etmez; çerezler diskte kalır, pencere yeniden açılır.
     """
-    from playwright.sync_api import sync_playwright
-
     tag = label or key
     profile = profile.expanduser()
     keep = bool(headed and scrape_keep_window_open(env_key=env_key))
@@ -844,7 +886,7 @@ def acquire_persistent_context(
                 reason=f"{key}:orphan_takeover",
             )
 
-    pw = sync_playwright().start()
+    pw = _thread_playwright()
     try:
         ctx = launch_persistent(
             pw,
@@ -856,10 +898,7 @@ def acquire_persistent_context(
             kill_existing=kill_existing,
         )
     except Exception:
-        try:
-            pw.stop()
-        except Exception:
-            pass
+        _thread_playwright_release(pw)
         raise
 
     if keep:
@@ -914,11 +953,7 @@ def release_persistent_context(
             ctx.close()
     except Exception:
         pass
-    try:
-        if pw is not None:
-            pw.stop()
-    except Exception:
-        pass
+    _thread_playwright_release(pw)
 
 
 def close_context_maybe_keep(

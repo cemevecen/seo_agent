@@ -1,9 +1,11 @@
 """SQLAlchemy veritabanı bağlantısı ve ortak Base tanımı."""
 
 import logging
+import socket
 from pathlib import Path
 
 from sqlalchemy import create_engine, event
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from backend.config import BASE_DIR, settings
@@ -28,11 +30,35 @@ def _normalize_sqlite_url(url: str) -> str:
     return f"sqlite:///{abs_path.as_posix()}"
 
 
+def _resolve_compose_host(url: str) -> str:
+    """Docker compose servis adını (ör. `postgres`) konteyner dışında 127.0.0.1'e çevirir.
+
+    Mac köprüsü ve scriptler compose ile aynı .env dosyasını kullanıyor; native
+    koşarken servis adı DNS'te yok, yayımlanmış port ise localhost'ta duruyor.
+    Noktasız adlarla sınırlı — Railway `*.railway.internal` host'ları dokunulmaz.
+    """
+    try:
+        parsed = make_url(url)
+    except Exception:
+        return url
+    host = parsed.host or ""
+    if not host or "." in host or host == "localhost":
+        return url
+    try:
+        socket.gethostbyname(host)
+        return url
+    except OSError:
+        LOGGER.warning("DB host '%s' çözülemedi; 127.0.0.1 kullanılıyor", host)
+        return parsed.set(host="127.0.0.1").render_as_string(hide_password=False)
+
+
 # Railway ve bazı platformlar postgresql:// verir; psycopg3 için +psycopg gerekiyor
 _db_url = _normalize_sqlite_url(settings.database_url)
 _IS_SQLITE = _db_url.startswith("sqlite")
 if _db_url.startswith("postgresql://"):
     _db_url = _db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+if not _IS_SQLITE:
+    _db_url = _resolve_compose_host(_db_url)
 
 engine = create_engine(
     _db_url,
