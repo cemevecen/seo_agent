@@ -1061,9 +1061,23 @@
         "</tbody></table></div>";
 
       var logHtml = logs.length
-        ? '<pre class="max-h-40 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2 font-mono text-[10px] leading-relaxed text-slate-600 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">' +
-          esc(logs.join("\n")) +
-          "</pre>"
+        ? '<div class="max-h-40 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700"><table class="w-full text-left font-mono text-[10px] leading-relaxed"><thead><tr class="sticky top-0 bg-slate-50 text-slate-500 dark:bg-slate-950 dark:text-slate-400"><th class="px-2 py-1 font-medium">Saat</th><th class="px-2 py-1 font-medium">Adım</th></tr></thead><tbody>' +
+          logs
+            .map(function (line) {
+              var s = String(line || "");
+              var m = s.match(/^(\d{2}:\d{2}:\d{2})\s+(.*)$/);
+              var t = m ? m[1] : "—";
+              var msg = m ? m[2] : s;
+              return (
+                '<tr class="border-t border-slate-100 dark:border-slate-800"><td class="whitespace-nowrap px-2 py-1 tabular-nums text-slate-500">' +
+                esc(t) +
+                '</td><td class="px-2 py-1 text-slate-600 dark:text-slate-400">' +
+                esc(msg) +
+                "</td></tr>"
+              );
+            })
+            .join("") +
+          "</tbody></table></div>"
         : '<p class="text-slate-500 dark:text-slate-400">No SIGTERM / SIGKILL / login lines yet.</p>';
 
       var alerts = live.login_alerts_open || [];

@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import smtplib
 import subprocess
 import sys
@@ -3117,15 +3118,16 @@ def _trigger_label(trigger: str) -> str:
 
 
 def _job_event(line: str) -> None:
-    """stdout + canlı log halkası (Settings log_hits)."""
+    """stdout + canlı log halkası (Settings log_hits) — satır başında TR saati."""
     msg = (line or "").strip()
     if not msg:
         return
-    print(msg, flush=True)
     try:
         stamp = _now_tr().strftime("%H:%M:%S")
     except Exception:
         stamp = "—"
+    # Log dosyasına da saat yazılsın (LaunchAgent stdout)
+    print(f"{stamp} {msg}", flush=True)
     with _JOB_EVENT_LOCK:
         _JOB_EVENT_LOG.append(f"{stamp} {msg[:200]}")
         if len(_JOB_EVENT_LOG) > 100:
@@ -3411,8 +3413,17 @@ def _upcoming_slots(limit: int = 14) -> list[dict[str, Any]]:
     return out
 
 
+_LOG_HIT_TIME_RE = re.compile(r"^(\d{2}:\d{2}:\d{2})\s+(.*)$")
+
+
+def _log_hit_body(line: str) -> str:
+    s = (line or "").strip()
+    m = _LOG_HIT_TIME_RE.match(s)
+    return (m.group(2) if m else s).strip()
+
+
 def _recent_bridge_log_hits(limit: int = 24) -> list[str]:
-    """LaunchAgent log + süreç içi job event halkası."""
+    """LaunchAgent log + süreç içi job event halkası (satır başı TR saati tercih)."""
     paths = (
         Path.home() / "Library/Logs/doviz-admin-notification-bridge.log",
         Path.home() / ".seo-agent/cache/bridge-daemon.log",
@@ -3437,9 +3448,11 @@ def _recent_bridge_log_hits(limit: int = 24) -> list[str]:
         "sync ·",
         "başlıyor",
     )
-    lines: list[str] = []
     with _JOB_EVENT_LOCK:
-        lines.extend(_JOB_EVENT_LOG[-limit:])
+        ring = [x.strip()[:220] for x in _JOB_EVENT_LOG[-max(limit, 40):] if (x or "").strip()]
+    ring_bodies = {_log_hit_body(x) for x in ring}
+
+    file_lines: list[str] = []
     for path in paths:
         if not path.is_file():
             continue
@@ -3448,17 +3461,30 @@ def _recent_bridge_log_hits(limit: int = 24) -> list[str]:
         except Exception:
             continue
         for line in raw[-800:]:
-            if any(n in line for n in needles):
-                lines.append(line.strip()[:220])
-    # son N, tekrarları sıkıştır
-    out: list[str] = []
-    seen: set[str] = set()
-    for line in lines:
-        if line in seen:
+            s = line.strip()
+            if not s or not any(n in s for n in needles):
+                continue
+            # Aynı adım ring'de (saatli) varsa dosya satırını atla
+            if _log_hit_body(s) in ring_bodies:
+                continue
+            file_lines.append(s[:220])
+
+    # Dosya (eski) + ring (canlı, saatli) — son N; gövde tekrarında saatli kazanır
+    merged: list[str] = []
+    seen_body: dict[str, int] = {}
+    for line in file_lines + ring:
+        body = _log_hit_body(line)
+        has_time = bool(_LOG_HIT_TIME_RE.match(line))
+        if body in seen_body:
+            idx = seen_body[body]
+            old = merged[idx]
+            old_has = bool(_LOG_HIT_TIME_RE.match(old))
+            if has_time and not old_has:
+                merged[idx] = line
             continue
-        seen.add(line)
-        out.append(line)
-    return out[-limit:]
+        seen_body[body] = len(merged)
+        merged.append(line)
+    return merged[-limit:]
 
 
 def _health_payload() -> dict[str, Any]:
@@ -3601,7 +3627,7 @@ def _bridge_status_html() -> str:
   </section>
   <section style="grid-column:1/-1">
     <h2>Log (elle / oto / panel · SIGTERM / login)</h2>
-    <pre id="logs" class="empty">—</pre>
+    <div id="logs" class="empty">—</div>
   </section>
 </main>
 <script>
@@ -3672,7 +3698,20 @@ async function tick(){
     }).join('') + '</table>';
 
     const logs = live.log_hits || [];
-    document.getElementById('logs').textContent = logs.length ? logs.join('\\n') : 'Henüz SIGTERM/SIGKILL/login satırı yok (veya log dosyası boş).';
+    const logsEl = document.getElementById('logs');
+    if (!logs.length) {
+      logsEl.className = 'empty';
+      logsEl.textContent = 'Henüz SIGTERM/SIGKILL/login satırı yok (veya log dosyası boş).';
+    } else {
+      logsEl.className = '';
+      logsEl.innerHTML = '<table><tr><th>saat</th><th>adım</th></tr>' + logs.map(line => {
+        const s = String(line || '');
+        const m = s.match(/^(\\d{2}:\\d{2}:\\d{2})\\s+(.*)$/);
+        const t = m ? m[1] : '—';
+        const msg = m ? m[2] : s;
+        return '<tr><td class="t">' + esc(t) + '</td><td>' + esc(msg) + '</td></tr>';
+      }).join('') + '</table>';
+    }
   } catch (e) {
     document.getElementById('clock').textContent = 'health okunamadı: ' + e;
   }
