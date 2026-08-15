@@ -443,3 +443,19 @@ html.midnight [style*="101014"] {
   background: #2a2a2e !important;
 }
 
+
+/* Soften #1b1b1d / rgb(27,27,29) → matte #2a2a2e */
+html.charcoal [style*="#1b1b1d"],
+html.charcoal [style*="1b1b1d"],
+html.charcoal [style*="rgb(27, 27, 29)"],
+html.charcoal [style*="rgb(27,27,29)"],
+html.dark [style*="#1b1b1d"],
+html.dark [style*="1b1b1d"],
+html.dark [style*="rgb(27, 27, 29)"],
+html.dark [style*="rgb(27,27,29)"],
+html.midnight [style*="#1b1b1d"],
+html.midnight [style*="rgb(27, 27, 29)"] {
+  background-color: #2a2a2e !important;
+  background: #2a2a2e !important;
+}
+
