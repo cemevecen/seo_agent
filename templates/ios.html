@@ -334,10 +334,11 @@
     min-height: 1.35rem;
   }
   .metric-kpi-ss2-head .metric-kpi-chip {
-    display: block;
-    flex: 1 1 auto;
+    display: inline-block;
+    flex: 0 1 auto;
+    width: max-content;
+    max-width: calc(100% - 1.4rem);
     min-width: 0;
-    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
