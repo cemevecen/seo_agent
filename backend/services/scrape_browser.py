@@ -713,10 +713,30 @@ def _warm_alive(ctx: Any) -> bool:
     if ctx is None:
         return False
     try:
-        _ = ctx.pages
+        pages = ctx.pages
+    except Exception:
+        return False
+    # Playwright: pages list dolu olsa bile sekmeler ölü olabilir
+    try:
+        if not pages:
+            return True
+        page0 = pages[0]
+        _ = page0.url
         return True
     except Exception:
         return False
+
+
+def warm_session_forget_profile(profile: Path) -> None:
+    """Profildeki tüm warm slot'ları düşür (Playwright↔Selenium geçişi)."""
+    pk = _profile_key(profile)
+    owner = _WARM_BY_PROFILE.get(pk)
+    if owner:
+        warm_session_forget(owner)
+    # Alias temizliği
+    for key, slot in list(_WARM_SESSIONS.items()):
+        if str(slot.get("profile") or "") == pk:
+            warm_session_forget(key)
 
 
 def warm_session_get(key: str) -> tuple[Any, Any] | None:

@@ -169,12 +169,28 @@ def _url_is_firebase_console(url: str) -> bool:
     return "console.firebase.google.com" in u and "/project/" in u
 
 
+def _page_url_safe(page) -> str:
+    try:
+        return page.url or ""
+    except Exception:
+        return ""
+
+
+def _page_is_closed(page) -> bool:
+    try:
+        if getattr(page, "is_closed", None) and page.is_closed():
+            return True
+        _ = page.url
+        return False
+    except Exception:
+        return True
+
+
 def _page_needs_login(page) -> bool:
     """True only on Google Accounts / explicit login form — not Firebase dashboard HTML."""
-    try:
-        url = (page.url or "").lower()
-    except Exception:
-        url = ""
+    if _page_is_closed(page):
+        return True
+    url = _page_url_safe(page).lower()
     if _url_is_google_login(url):
         return True
     # Firebase overview/crashlytics already loaded → session OK
@@ -198,39 +214,173 @@ def _page_needs_login(page) -> bool:
     return False
 
 
-def _wait_until_firebase(page, *, timeout_sec: int | None = None, on_progress=None) -> bool:
-    """Google girişi bitene kadar bekle — DOM okuma yok (odak çalınmasın).
+def _firebase_use_selenium() -> bool:
+    """Play ile aynı: Google, Playwright Nightly'yi reddeder — gerçek Firefox.app."""
+    raw = (os.environ.get("FIREBASE_CONSOLE_USE_SELENIUM") or "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    from backend.services.selenium_playwright_shim import play_console_use_selenium
 
-    True dönünce çağıran aynı pencerede taramaya devam eder (kapatılmaz).
-    """
-    from backend.services.scrape_browser import LOGIN_WAIT_SEC, login_wait_sec
+    if raw in ("1", "true", "yes", "on"):
+        from backend.services.scrape_browser import resolve_system_firefox_executable
+
+        return resolve_system_firefox_executable() is not None
+    return play_console_use_selenium()
+
+
+def _system_firefox_firebase_login(*, overview_url: str, timeout_sec: int | None = None) -> dict[str, Any]:
+    """Playwright penceresini kapatıp gerçek Firefox.app ile Google girişi."""
+    from backend.services.scrape_browser import (
+        LOGIN_WAIT_SEC,
+        launch_system_firefox_login,
+        login_wait_sec,
+        warm_session_forget_profile,
+    )
 
     timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
+    try:
+        warm_session_forget_profile(PROFILE_DIR)
+    except Exception:
+        pass
     print(
-        "Firebase oturumu yok — bu Google girişi (ASC/Apple oturumundan ayrı).\n"
-        "Açılan Firefox penceresine bir kez tıklayın, sonra Google hesabıyla giriş yapın.\n"
-        f"Overview gelince aynı pencerede tarama devam eder (en fazla {timeout_sec // 60} dk).\n"
-        "Beklerken sayfayı yenilemiyoruz / odak çalmıyoruz / tarayıcı kapatılmıyor.",
+        "Google Playwright oturumunu reddediyor — gerçek Firefox.app açılıyor.\n"
+        "Açılan pencerede cemevecen@nokta.com ile giriş + 2FA yapın.\n"
+        "Firebase Console overview görünce Firefox'u KAPATIN "
+        f"(en fazla {timeout_sec // 60} dk; çerezler diske yazılır).",
         flush=True,
     )
+    return launch_system_firefox_login(
+        PROFILE_DIR,
+        overview_url,
+        timeout_sec=timeout_sec,
+        success_hint=(
+            "Firebase Console (overview) açılsın → Google girişi + 2FA tamam → "
+            "Firefox penceresini KAPAT (profil kaydı için)."
+        ),
+        verify_session=True,
+    )
+
+
+def _launch_firebase_context(*, headed: bool):
+    """(pw, context, selenium_mode)."""
+    from backend.services.scrape_browser import warm_session_forget_profile
+
+    if headed and _firebase_use_selenium():
+        from backend.services.selenium_playwright_shim import launch_selenium_context
+
+        try:
+            warm_session_forget_profile(PROFILE_DIR)
+        except Exception:
+            pass
+        pw, context, _attached = launch_selenium_context(PROFILE_DIR, headed=True)
+        print(
+            "Firebase: sistem Firefox.app (Selenium) · Google girişi bu pencerede yapılabilir",
+            flush=True,
+        )
+        return pw, context, True
+
+    from backend.services.scrape_browser import acquire_persistent_context
+
+    pw, context, reused = acquire_persistent_context(
+        "firebase",
+        profile=PROFILE_DIR,
+        headed=headed,
+        env_key="FIREBASE_CONSOLE_KEEP_OPEN",
+        label="Firebase",
+        viewport={"width": 1440, "height": 960},
+    )
+    if reused:
+        print("Firebase: kalıcı Playwright profili (warm)", flush=True)
+    return pw, context, False
+
+
+def _release_firebase_context(pw, context, *, headed: bool, selenium: bool) -> None:
+    if selenium or getattr(context, "_selenium_mode", False):
+        from backend.services.selenium_playwright_shim import release_selenium_context
+
+        release_selenium_context(pw, context)
+        print("Firebase: Selenium Firefox kapatıldı (oturum disk profilinde)", flush=True)
+        return
+    from backend.services.scrape_browser import release_persistent_context
+
+    release_persistent_context(
+        "firebase",
+        pw,
+        context,
+        headed=headed,
+        env_key="FIREBASE_CONSOLE_KEEP_OPEN",
+        label="Firebase",
+        profile=PROFILE_DIR,
+    )
+
+
+def _wait_until_firebase(
+    page,
+    *,
+    timeout_sec: int | None = None,
+    on_progress=None,
+    platform: str = "android",
+    selenium: bool = False,
+) -> bool:
+    """Google girişi bitene kadar bekle — DOM okuma yok (odak çalınmasın).
+
+    Playwright'ta Google sekmeyi kapatırsa False (çağıran system Firefox login'e geçer).
+    Selenium/gerçek Firefox'ta True → aynı pencerede tarama devam eder.
+    """
+    from backend.services.scrape_browser import (
+        LOGIN_WAIT_SEC,
+        google_blocks_automation_text,
+        login_wait_sec,
+    )
+
+    timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
+    mode = "sistem Firefox (Selenium)" if selenium else "Playwright"
+    print(
+        "Firebase oturumu yok — bu Google girişi (ASC/Apple oturumundan ayrı).\n"
+        f"Tarayıcı: {mode}. Açılan pencereye bir kez tıklayın, sonra Google ile giriş yapın.\n"
+        f"Overview gelince aynı pencerede tarama devam eder (en fazla {timeout_sec // 60} dk).\n"
+        "Beklerken sayfayı yenilemiyoruz / odak çalmıyoruz.",
+        flush=True,
+    )
+    if not selenium:
+        # Playwright Nightly'de Google login neredeyse her zaman kapanır / reddedilir
+        print(
+            "Uyarı: Playwright penceresinde Google genelde 'güvenli değil' der veya sekmeyi kapatır. "
+            "Başarısız olursa otomatik olarak gerçek Firefox.app açılacak.",
+            flush=True,
+        )
     try:
         page.bring_to_front()
     except Exception:
         pass
     deadline = time.time() + timeout_sec
     last_status = 0.0
+    closed_streak = 0
     while time.time() < deadline:
-        try:
-            url = (page.url or "").lower()
-        except Exception:
-            url = ""
-        # Yalnızca URL — inner_text yok
+        if _page_is_closed(page):
+            closed_streak += 1
+            if closed_streak >= 2:
+                print("Firebase login: tarayıcı/sekme kapandı — system Firefox login'e geçilecek.", flush=True)
+                return False
+        else:
+            closed_streak = 0
+        url = _page_url_safe(page).lower()
+        # Yalnızca URL — inner_text yok (odak çalınmasın)
         if _url_is_firebase_console(url) and not _url_is_google_login(url):
             try:
                 page.wait_for_timeout(1500)
             except Exception:
                 time.sleep(1.5)
             return True
+        # Playwright: Google engeli erken tespit
+        if not selenium and _url_is_google_login(url):
+            try:
+                body = (page.inner_text("body") or "")[:2000]
+            except Exception:
+                body = ""
+            if google_blocks_automation_text(body):
+                print("Firebase login: Google Playwright'i reddetti.", flush=True)
+                return False
         now = time.time()
         if now - last_status >= 12:
             left = max(0, int(deadline - now))
@@ -240,7 +390,7 @@ def _wait_until_firebase(page, *, timeout_sec: int | None = None, on_progress=No
                 try:
                     on_progress(
                         {
-                            "platform": "android",
+                            "platform": platform or "android",
                             "phase": "login",
                             "sub_label": "waiting for Google login",
                             "step": 0,
@@ -255,6 +405,10 @@ def _wait_until_firebase(page, *, timeout_sec: int | None = None, on_progress=No
             page.wait_for_timeout(3000)
         except Exception:
             time.sleep(3)
+            if _page_is_closed(page):
+                closed_streak += 1
+                if closed_streak >= 2:
+                    return False
     return False
 
 
@@ -1034,10 +1188,7 @@ def scrape_firebase_console(
         except Exception:
             pass
 
-    from backend.services.scrape_browser import (
-        acquire_persistent_context,
-        release_persistent_context,
-    )
+    from backend.services.scrape_browser import google_blocks_automation_text, warm_session_forget_profile
 
     _top_prog(
         {
@@ -1049,14 +1200,10 @@ def scrape_firebase_console(
             "message": f"Firefox açılıyor / yeniden kullanılıyor ({','.join(plat_list)})",
         }
     )
-    pw, context, _reused = acquire_persistent_context(
-        "firebase",
-        profile=PROFILE_DIR,
-        headed=headed,
-        env_key="FIREBASE_CONSOLE_KEEP_OPEN",
-        label="Firebase",
-        viewport={"width": 1440, "height": 960},
-    )
+    pw = None
+    context = None
+    selenium = False
+    pw, context, selenium = _launch_firebase_context(headed=bool(headed))
     page = context.pages[0] if context.pages else context.new_page()
     try:
             probe_plat = plat_list[0]
@@ -1077,19 +1224,86 @@ def scrape_firebase_console(
                 flush=True,
             )
             probe = _urls(probe_plat, time_param="90d")["overview"]
-            page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
-            page.wait_for_timeout(2000)
-            if _page_needs_login(page) or "console.firebase.google.com" not in (page.url or "").lower():
-                if not _wait_until_firebase(page, on_progress=_top_prog):
+            try:
+                page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
+                page.wait_for_timeout(2000)
+            except Exception as nav_exc:  # noqa: BLE001
+                err_l = str(nav_exc).lower()
+                if "closed" in err_l or "different thread" in err_l:
+                    print(f"Firebase: ölü warm pencere ({nav_exc}) — yeniden açılıyor", flush=True)
+                    try:
+                        _release_firebase_context(pw, context, headed=bool(headed), selenium=selenium)
+                    except Exception:
+                        pass
+                    try:
+                        warm_session_forget_profile(PROFILE_DIR)
+                    except Exception:
+                        pass
+                    pw, context, selenium = _launch_firebase_context(headed=bool(headed))
+                    page = context.pages[0] if context.pages else context.new_page()
+                    page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
+                    page.wait_for_timeout(2000)
+                else:
+                    raise
+
+            need_login = _page_needs_login(page) or "console.firebase.google.com" not in (
+                _page_url_safe(page).lower()
+            )
+            blocked = False
+            if need_login and headed and not selenium:
+                try:
+                    body = (page.inner_text("body") or "")[:2000]
+                except Exception:
+                    body = ""
+                blocked = google_blocks_automation_text(body) or _page_is_closed(page)
+
+            if need_login:
+                waited = False
+                if headed and not blocked:
+                    waited = _wait_until_firebase(
+                        page,
+                        on_progress=_top_prog,
+                        platform=probe_plat,
+                        selenium=selenium,
+                    )
+                if headed and (blocked or not waited):
+                    try:
+                        _release_firebase_context(pw, context, headed=True, selenium=selenium)
+                    except Exception:
+                        pass
+                    pw = context = None
+                    page = None
+                    selenium = False
+                    login_res = _system_firefox_firebase_login(overview_url=probe)
+                    if not login_res.get("ok"):
+                        return {
+                            "sync_ok": False,
+                            "sync_message": (
+                                login_res.get("message")
+                                or "Firebase Console login gerekli — gerçek Firefox.app ile --login"
+                            ),
+                            "needs_login": True,
+                            "metrics": [],
+                            "panels": {},
+                            "scrape_days": days,
+                            "merge_platforms": partial,
+                        }
+                    pw, context, selenium = _launch_firebase_context(headed=True)
+                    page = context.pages[0] if context.pages else context.new_page()
+                    print("Firebase giriş OK — aynı pencerede Crashlytics tarama devam ediyor.", flush=True)
+                elif not waited:
                     return {
                         "sync_ok": False,
                         "sync_message": "Firebase Console login zaman aşımı (15 dk)",
+                        "needs_login": True,
                         "metrics": [],
                         "panels": {},
                         "scrape_days": days,
                         "merge_platforms": partial,
                     }
-                print("Firebase giriş OK — aynı pencerede Crashlytics tarama devam ediyor.", flush=True)
+                else:
+                    print("Firebase giriş OK — aynı pencerede Crashlytics tarama devam ediyor.", flush=True)
+
                 try:
                     page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
                     page.wait_for_timeout(2000)
@@ -1098,7 +1312,8 @@ def scrape_firebase_console(
                 if _page_needs_login(page):
                     return {
                         "sync_ok": False,
-                        "sync_message": "Firebase Console login gerekli (--login)",
+                        "sync_message": "Firebase Console login gerekli (--login / gerçek Firefox)",
+                        "needs_login": True,
                         "metrics": [],
                         "panels": {},
                         "scrape_days": days,
@@ -1168,15 +1383,13 @@ def scrape_firebase_console(
                     errors.append(f"{plat}:{exc}")
                     platforms_out[plat] = {"ok": False, "error": str(exc)[:160]}
     finally:
-        release_persistent_context(
-            "firebase",
-            pw,
-            context,
-            headed=headed,
-            env_key="FIREBASE_CONSOLE_KEEP_OPEN",
-            label="Firebase",
-            profile=PROFILE_DIR,
-        )
+        if context is not None:
+            _release_firebase_context(
+                pw,
+                context,
+                headed=bool(headed),
+                selenium=selenium,
+            )
 
     ok = any(isinstance(v, dict) and v.get("ok") for v in platforms_out.values())
     msg = (

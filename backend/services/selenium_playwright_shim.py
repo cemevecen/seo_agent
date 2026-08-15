@@ -237,6 +237,12 @@ class SeleniumPage:
         except Exception:
             return True
 
+    def bring_to_front(self) -> None:
+        try:
+            self._driver.switch_to.window(self._driver.current_window_handle)
+        except Exception:
+            pass
+
     def goto(
         self,
         url: str,
