@@ -816,7 +816,7 @@ var PALETTE = modPalette();
           ygap: 2,
           colorscale: (window.seoMatteIsDark && window.seoMatteIsDark())
             ? [
-                [0, "#18181b"],
+                [0, "#2a2a2e"],
                 [0.001, "#3d4f5c"],
                 [0.35, "#5b7c99"],
                 [0.7, "#6b8aad"],
@@ -946,7 +946,7 @@ var PALETTE = modPalette();
           textfont: { size: chartW(el) < 480 ? 8 : 10 },
           colorscale: (window.seoMatteIsDark && window.seoMatteIsDark())
             ? [
-                [0, "#18181b"],
+                [0, "#2a2a2e"],
                 [0.2, "#a89a4a"],
                 [0.5, "#b87333"],
                 [1, "#a85a66"],

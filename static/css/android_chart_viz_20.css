@@ -16,7 +16,7 @@
 html.dark .chart-viz20-section .pa-viz20-drop,
 html.midnight .chart-viz20-section .pa-viz20-drop {
   border-color: #3f3f46;
-  background: #18181b;
+  background: #2a2a2e;
   color: #d4d4d8;
   box-shadow: none;
 }
@@ -25,7 +25,7 @@ html.midnight .chart-viz20-section .pa-viz20-drop {
 html.dark .chart-viz20-section .pa-viz20-drop:not([open]),
 html.midnight .chart-viz20-section .pa-viz20-drop:not([open]) {
   border-color: color-mix(in srgb, #6b8aad 14%, #3f3f46);
-  background: linear-gradient(160deg, #18181b 0%, #1c1c1f 100%);
+  background: linear-gradient(160deg, #2a2a2e 0%, #1c1c1f 100%);
   box-shadow:
     0 0 0 1px color-mix(in srgb, #6b8aad 4%, transparent),
     0 0 10px rgba(0, 0, 0, 0.22);
@@ -42,7 +42,7 @@ html.midnight .chart-viz20-section .pa-viz20-drop:not([open]):hover {
 html.dark .chart-viz20-section .pa-viz20-drop[open],
 html.midnight .chart-viz20-section .pa-viz20-drop[open] {
   border-color: #3f3f46;
-  background: #18181b;
+  background: #2a2a2e;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 
@@ -138,7 +138,7 @@ html.midnight .chart-viz20-section .pa-viz20-body {
 
 html.dark .chart-viz20-section .pa-viz20-chart,
 html.midnight .chart-viz20-section .pa-viz20-chart {
-  background: #18181b;
+  background: #2a2a2e;
 }
 
 /* Do NOT force SVG width/height — that stretches tiles and leaves empty gaps (treemap). */
@@ -220,7 +220,7 @@ html.midnight .pa-viz20-height-label {
 html.dark .pa-viz20-height-btns,
 html.midnight .pa-viz20-height-btns {
   border-color: rgb(63 63 70);
-  background: rgb(24 24 27);
+  background: rgb(42 42 46);
 }
 
 .pa-viz20-h-btn {
@@ -315,7 +315,7 @@ html.midnight .pa-viz20-metric-field {
 html.dark .pa-viz20-metric-trigger,
 html.midnight .pa-viz20-metric-trigger {
   border-color: #3f3f46;
-  background: #18181b;
+  background: #2a2a2e;
   color: #c4c4cc;
 }
 
@@ -406,7 +406,7 @@ html.midnight .pa-viz20-metric-list [role="option"][aria-selected="true"] {
 html.dark .pa-viz20-metric-info,
 html.midnight .pa-viz20-metric-info {
   border-color: #3f3f46;
-  background: #18181b;
+  background: #2a2a2e;
   color: #a1a1aa;
 }
 
@@ -454,7 +454,7 @@ html.midnight .pa-viz20-metric-info:focus-visible {
 html.dark .pa-viz20-metric-tip,
 html.midnight .pa-viz20-metric-tip {
   border-color: #3f3f46;
-  background: #18181b;
+  background: #2a2a2e;
   color: #e4e4e7;
 }
 
@@ -463,7 +463,7 @@ html.midnight .pa-viz20-metric-tip {
 html.dark .chart-viz20-section.viz20-shell,
 html.midnight .chart-viz20-section.viz20-shell {
   border-color: #3f3f46 !important;
-  background: linear-gradient(160deg, #18181b 0%, #1c1c1f 100%) !important;
+  background: linear-gradient(160deg, #2a2a2e 0%, #1c1c1f 100%) !important;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02);
   color: #d4d4d8;
 }

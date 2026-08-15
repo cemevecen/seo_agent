@@ -231,7 +231,7 @@ html.charcoal #content .inbox-page .inbox-card {
 
 /* Matte screenshot polish already via .seo-matte-shot; ensure wrap */
 html.charcoal .seo-matte-shot-wrap {
-  background: #18181b !important;
+  background: #2a2a2e !important;
   border-color: var(--seo-border-soft) !important;
 }
 
@@ -366,3 +366,15 @@ html.dark .ab-site-card {
   background-color: #2a2a2e !important;
   border-color: #3f3f46 !important;
 }
+
+/* Soften zinc-900 (#18181b) → matte charcoal */
+html.charcoal,
+html.dark {
+  /* surfaces that still referenced zinc-900 */
+}
+html.charcoal .dark\:bg-zinc-900,
+html.charcoal .bg-zinc-900,
+html.dark .dark\:bg-zinc-900 {
+  background-color: #2a2a2e !important;
+}
+

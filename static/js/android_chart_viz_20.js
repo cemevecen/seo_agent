@@ -48,7 +48,7 @@
       : {};
     /* Solid paper/plot — transparent theme bg + CSS svg stretch broke treemap packing */
     return {
-      paper: dark ? "#18181b" : "#ffffff",
+      paper: dark ? "#2a2a2e" : "#ffffff",
       plot: dark ? "#2a2a2e" : "#ffffff",
       text: dark ? "#d4d4d8" : "#334155",
       grid: dark ? "#27272a" : base.grid || "#e2e8f0",
@@ -805,7 +805,7 @@
           tiling: { packing: "squarify", pad: 2 },
           marker: {
             colors: tmColors,
-            line: { width: 1, color: th().paper || "#18181b" },
+            line: { width: 1, color: th().paper || "#2a2a2e" },
             pad: { t: 3, l: 3, r: 3, b: 3 },
           },
           hoverlabel: { bgcolor: "#27272a", font: { color: "#e4e4e7", size: 12 } },

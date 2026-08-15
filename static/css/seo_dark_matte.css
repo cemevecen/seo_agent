@@ -11,7 +11,7 @@ html.midnight .seo-matte-ink {
 
 html.dark .seo-matte-panel,
 html.midnight .seo-matte-panel {
-  background: #18181b !important;
+  background: #2a2a2e !important;
   border-color: #3f3f46 !important;
   color: #d4d4d8;
 }
@@ -45,7 +45,7 @@ html.midnight .wv-page {
 
 html.dark .wv-page .bg-white,
 html.midnight .wv-page .bg-white {
-  background-color: #18181b !important;
+  background-color: #2a2a2e !important;
 }
 
 html.dark .wv-page .border-slate-100,
@@ -64,7 +64,7 @@ html.dark .policy-page .bg-white,
 html.midnight .policy-page .bg-white,
 html.dark .sd-datas-page .bg-white,
 html.midnight .sd-datas-page .bg-white {
-  background-color: #18181b !important;
+  background-color: #2a2a2e !important;
 }
 
 html.dark .notification-page .text-white,

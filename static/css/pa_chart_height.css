@@ -316,7 +316,7 @@ html.dark .pa-chart-compress button.is-active,
 html.midnight .pa-chart-height button.is-active,
 html.midnight .pa-chart-compress button.is-active {
   background: rgb(244 244 245);
-  color: rgb(24 24 27);
+  color: rgb(42 42 46);
 }
 
 .pa-chart-height button svg,
