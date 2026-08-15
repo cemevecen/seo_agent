@@ -357,6 +357,20 @@
   .mz-targets-table tbody tr:last-child {
     border-bottom: 0;
   }
+  .mz-targets-table .mz-targets-project-divider th {
+    padding: 0.65rem 0.75rem;
+    background: rgb(241 245 249);
+    color: rgb(51 65 85);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  html.dark .mz-targets-table .mz-targets-project-divider th,
+  html.charcoal .mz-targets-table .mz-targets-project-divider th {
+    background: rgb(39 39 42);
+    color: rgb(212 212 216);
+  }
   .mz-targets-table th.num,
   .mz-targets-table td.num {
     text-align: right;
@@ -2049,7 +2063,8 @@
           <div class="min-w-0">
             <p class="mb-1 text-[10px] font-bold uppercase text-slate-500">Project</p>
             <div class="flex flex-wrap gap-1.5">
-              <button type="button" data-mz-target-project="doviz" class="mz-targets-proj rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white">Doviz.com</button>
+              <button type="button" data-mz-target-project="both" class="mz-targets-proj rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white">İki görünüm</button>
+              <button type="button" data-mz-target-project="doviz" class="mz-targets-proj rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200">Doviz.com</button>
               <button type="button" data-mz-target-project="sinemalar" class="mz-targets-proj rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200">Sinemalar.com</button>
             </div>
           </div>
@@ -13972,7 +13987,7 @@
     { key: "gunluk_kalan_80", label: "Daily Remaining (80%)", color: "#7a6b8a", unit: "money", dash: "dot" },
   ];
   var mzTargetsUi = {
-    project: "doviz",
+    project: "both",
     year: "",
     sort: "period_key_desc",
     headerSort: null,
@@ -14034,6 +14049,7 @@
 
   function mzTargetsProjectRows() {
     if (!mzTargetsCache || !mzTargetsCache.rows) return [];
+    if (mzTargetsUi.project === "both") return [];
     return mzTargetsCache.rows.filter(function (r) {
       return r.project === mzTargetsUi.project;
     });
@@ -14255,7 +14271,9 @@
   function mzTargetsFilteredRows() {
     if (!mzTargetsCache || !mzTargetsCache.rows) return [];
     var rows = mzTargetsCache.rows.filter(function (r) {
-      return r.project === mzTargetsUi.project;
+      return mzTargetsUi.project === "both"
+        ? r.project === "doviz" || r.project === "sinemalar"
+        : r.project === mzTargetsUi.project;
     });
     if (mzTargetsUi.year) {
       var y = parseInt(mzTargetsUi.year, 10);
@@ -14264,24 +14282,30 @@
     var sortKey = mzTargetsUi.headerSort || mzTargetsUi.sort;
     var desc = mzTargetsUi.headerSort ? mzTargetsUi.headerDir === "desc" : String(sortKey).indexOf("_desc") >= 0;
     var field = String(sortKey).replace(/_desc$|_asc$/, "");
-    rows = rows.slice().sort(function (a, b) {
-      var av = mzTargetsSortValue(a, field);
-      var bv = mzTargetsSortValue(b, field);
-      if (av == null && bv == null) return 0;
-      if (av == null) return 1;
-      if (bv == null) return -1;
-      if (typeof av === "string" || typeof bv === "string") {
-        av = String(av);
-        bv = String(bv);
-        return desc ? (bv < av ? -1 : bv > av ? 1 : 0) : (av < bv ? -1 : av > bv ? 1 : 0);
-      }
-      return desc ? bv - av : av - bv;
-    });
-    return rows;
+    function sortRows(list) {
+      return list.slice().sort(function (a, b) {
+        var av = mzTargetsSortValue(a, field);
+        var bv = mzTargetsSortValue(b, field);
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (typeof av === "string" || typeof bv === "string") {
+          av = String(av);
+          bv = String(bv);
+          return desc ? (bv < av ? -1 : bv > av ? 1 : 0) : (av < bv ? -1 : av > bv ? 1 : 0);
+        }
+        return desc ? bv - av : av - bv;
+      });
+    }
+    if (mzTargetsUi.project === "both") {
+      return sortRows(rows.filter(function (r) { return r.project === "doviz"; }))
+        .concat(sortRows(rows.filter(function (r) { return r.project === "sinemalar"; })));
+    }
+    return sortRows(rows);
   }
 
   function mzTargetsSetProject(pk) {
-    pk = (pk === "sinemalar") ? "sinemalar" : "doviz";
+    pk = pk === "both" ? "both" : pk === "sinemalar" ? "sinemalar" : "doviz";
     mzTargetsUi.project = pk;
     document.querySelectorAll(".mz-targets-proj").forEach(function (btn) {
       var on = btn.getAttribute("data-mz-target-project") === pk;
@@ -14307,7 +14331,18 @@
     if (!tbody) return;
     tbody.innerHTML = "";
     var colorize = !!mzTargetsUi.colorize;
+    var lastProject = "";
     rows.forEach(function (r) {
+      if (mzTargetsUi.project === "both" && r.project !== lastProject) {
+        var divider = document.createElement("tr");
+        divider.className = "mz-targets-project-divider";
+        divider.innerHTML =
+          '<th colspan="10" scope="rowgroup">' +
+          (r.project === "sinemalar" ? "Sinemalar.com" : "Doviz.com") +
+          "</th>";
+        tbody.appendChild(divider);
+        lastProject = r.project;
+      }
       var tr = document.createElement("tr");
       tr.className = "text-slate-800 dark:text-zinc-200";
       var c = mzTargetsRowCols(r);
@@ -14711,8 +14746,18 @@
     var tableRows = mzTargetsFilteredRows();
     var projectRows = mzTargetsProjectRows();
     mzTargetsRenderTable(tableRows);
-    mzTargetsRenderCharts(projectRows);
-    mzTargetsRenderPieSection(projectRows);
+    var charts = document.getElementById("mz-targets-charts");
+    var pieSection = document.getElementById("mz-targets-pie-section");
+    var both = mzTargetsUi.project === "both";
+    if (charts) charts.classList.toggle("hidden", both);
+    if (pieSection) pieSection.classList.toggle("hidden", both);
+    if (both) {
+      mzPurgePlot("mz-targets-chart-line");
+      mzPurgePlot("mz-targets-chart-bar");
+    } else {
+      mzTargetsRenderCharts(projectRows);
+      mzTargetsRenderPieSection(projectRows);
+    }
     var err = document.getElementById("mz-targets-error");
     if (err) err.classList.add("hidden");
     if (!tableRows.length && mzTargetsCache) {
