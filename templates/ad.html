@@ -357,7 +357,7 @@
   .mz-targets-table tbody tr:last-child {
     border-bottom: 0;
   }
-  .mz-targets-table .mz-targets-project-divider th {
+  .mz-targets-table .mz-targets-period-divider th {
     padding: 0.65rem 0.75rem;
     background: rgb(241 245 249);
     color: rgb(51 65 85);
@@ -366,8 +366,8 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
-  html.dark .mz-targets-table .mz-targets-project-divider th,
-  html.charcoal .mz-targets-table .mz-targets-project-divider th {
+  html.dark .mz-targets-table .mz-targets-period-divider th,
+  html.charcoal .mz-targets-table .mz-targets-period-divider th {
     background: rgb(39 39 42);
     color: rgb(212 212 216);
   }
@@ -2111,7 +2111,7 @@
           <table class="mz-targets-table w-full min-w-[56rem] text-left text-xs sm:text-sm">
             <thead class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-500 ">
               <tr>
-                <th class="period px-3 py-2" data-sort="period_key">Period</th>
+                <th id="mz-targets-first-column" class="period px-3 py-2" data-sort="period_key">Project</th>
                 <th class="num px-3 py-2" data-sort="hedef">Target</th>
                 <th class="num px-3 py-2" data-sort="hedef_80">Target (80%)</th>
                 <th class="num px-3 py-2" data-sort="kazanc">Achieved</th>
@@ -14298,8 +14298,23 @@
       });
     }
     if (mzTargetsUi.project === "both") {
-      return sortRows(rows.filter(function (r) { return r.project === "doviz"; }))
-        .concat(sortRows(rows.filter(function (r) { return r.project === "sinemalar"; })));
+      var groups = {};
+      rows.forEach(function (r) {
+        var key = String(r.period_key || "");
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      });
+      var keys = Object.keys(groups).sort(function (a, b) {
+        return desc ? b.localeCompare(a) : a.localeCompare(b);
+      });
+      return keys.reduce(function (out, key) {
+        var paired = groups[key].slice().sort(function (a, b) {
+          var order = { doviz: 0, sinemalar: 1 };
+          return (order[a.project] == null ? 9 : order[a.project])
+            - (order[b.project] == null ? 9 : order[b.project]);
+        });
+        return out.concat(paired);
+      }, []);
     }
     return sortRows(rows);
   }
@@ -14307,6 +14322,8 @@
   function mzTargetsSetProject(pk) {
     pk = pk === "both" ? "both" : pk === "sinemalar" ? "sinemalar" : "doviz";
     mzTargetsUi.project = pk;
+    var firstColumn = document.getElementById("mz-targets-first-column");
+    if (firstColumn) firstColumn.textContent = pk === "both" ? "Project" : "Period";
     document.querySelectorAll(".mz-targets-proj").forEach(function (btn) {
       var on = btn.getAttribute("data-mz-target-project") === pk;
       btn.classList.toggle("border-indigo-300", on);
@@ -14331,17 +14348,17 @@
     if (!tbody) return;
     tbody.innerHTML = "";
     var colorize = !!mzTargetsUi.colorize;
-    var lastProject = "";
+    var lastPeriod = "";
     rows.forEach(function (r) {
-      if (mzTargetsUi.project === "both" && r.project !== lastProject) {
+      if (mzTargetsUi.project === "both" && r.period_key !== lastPeriod) {
         var divider = document.createElement("tr");
-        divider.className = "mz-targets-project-divider";
+        divider.className = "mz-targets-period-divider";
         divider.innerHTML =
           '<th colspan="10" scope="rowgroup">' +
-          (r.project === "sinemalar" ? "Sinemalar.com" : "Doviz.com") +
+          (r.period || r.period_key || "—") +
           "</th>";
         tbody.appendChild(divider);
-        lastProject = r.project;
+        lastPeriod = r.period_key;
       }
       var tr = document.createElement("tr");
       tr.className = "text-slate-800 dark:text-zinc-200";
@@ -14356,7 +14373,11 @@
         : "px-3 py-2 tabular-nums font-semibold text-indigo-700 dark:text-indigo-300";
       var periodCls = "period px-3 py-2 font-medium" + heatCls;
       tr.innerHTML =
-        "<td class=\"" + periodCls + "\"" + heatAttr + ">" + (r.period || "—") + "</td>" +
+        "<td class=\"" + periodCls + "\"" + heatAttr + ">" +
+          (mzTargetsUi.project === "both"
+            ? (r.project === "sinemalar" ? "Sinemalar.com" : "Doviz.com")
+            : (r.period || "—")) +
+        "</td>" +
         "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.hedef) + "</td>" +
         "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.hedef_80) + "</td>" +
         "<td class=\"" + strongCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.kazanc) + "</td>" +
