@@ -2636,11 +2636,13 @@
               <a href="/sinemalar" data-nav-match="/sinemalar,/policy" data-nav-priority class="header-nav-link">sinemalar</a>
               <a href="/inbox" data-nav-match="/inbox" data-nav-priority class="header-nav-link">inbox</a>
               <a href="/boards" data-nav-match="/boards" data-nav-priority class="header-nav-link">gitlab</a>
-              <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" data-nav-priority class="header-nav-link">movie</a>
               <a href="/ai" data-nav-match="/ai" data-nav-priority class="header-nav-link">ai</a>
               <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" data-nav-priority class="header-nav-link">speed</a>
               {% if xdata_menu_visible(request) %}
               <a href="/x-data" data-nav-match="/x-data,/metrik" data-nav-priority class="header-nav-link">X-Data</a>
+              {% endif %}
+              {% if is_tmdb_only_member(request) %}
+              <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" data-nav-priority class="header-nav-link">movie</a>
               {% endif %}
               {% if settings_menu_visible(request) %}
               <a href="/settings" data-nav-match="/settings" data-nav-priority class="header-nav-link">settings</a>

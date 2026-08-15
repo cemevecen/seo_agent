@@ -1,5 +1,5 @@
 {% set _tab = policy_tab or "sinemalar" %}
-<div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-4 px-2" data-page-tarama="{% if _tab == 'sinemalar' %}moderation{% elif _tab == 'datas' %}empower-sinemalar{% else %}policy{% endif %}">
+<div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-4 px-2" data-page-tarama="{% if _tab == 'sinemalar' %}moderation{% elif _tab == 'datas' %}empower-sinemalar{% elif _tab == 'movie' %}{% elif _tab == 'policy' %}policy{% else %}policy{% endif %}">
   {% set _total = stats.get("total", 0) if stats else 0 %}
   {% set _new_import = (violations | selectattr("is_new_import") | list | length) if violations else 0 %}
   {% set _by_host = stats.get("by_host") if stats else {} %}
@@ -25,6 +25,12 @@
         {% if _tab == 'policy' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
         {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
       Policy
+    </a>
+    <a href="/sinemalar?tab=movie"
+      class="rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition
+        {% if _tab == 'movie' %}bg-slate-900 text-white ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100
+        {% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700{% endif %}">
+      Movie
     </a>
   </div>
 
@@ -443,6 +449,11 @@
 
   {% elif _tab == 'datas' %}
   {% include "partials/sinemalar_datas_content.html" %}
+  {% elif _tab == 'movie' %}
+  <div class="min-w-0" data-tmdb-surface="sinemalar">
+    {% set tmdb_embed = true %}
+    {% include "partials/tmdb_upcoming_content.html" %}
+  </div>
   {% else %}
   <div class="flex flex-col gap-2 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
     <div>

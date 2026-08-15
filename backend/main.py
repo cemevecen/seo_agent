@@ -15819,21 +15819,27 @@ def api_errors_widget(site_id: int, days: int = 7):
         return {"errors": [], "total_404": 0, "total_5xx": 0, "total_users": 0, "domain": "", "message": str(exc)}
 
 
-@app.get("/tmdb-upcoming")
-def tmdb_upcoming_page(request: Request, months: int = 5):
-    """TMDB vizyon takvimi — sinemalar.com içerik planlama."""
+def _build_tmdb_upcoming_payload(*, months: int = 5) -> dict:
+    """Shared TMDB vizyon payload — /tmdb-upcoming and /sinemalar?tab=movie."""
     from backend.services.tmdb import get_combined_upcoming
+
     months = max(1, min(int(months), 12))
     error = None
     data: dict = {
-        "theatrical": [], "theatrical_by_month": {},
-        "streaming":  [], "streaming_by_month":  {},
-        "turkish_only": [], "turkish_by_month": {},
-        "tv_series":  [], "tv_by_month": {},
+        "theatrical": [],
+        "theatrical_by_month": {},
+        "streaming": [],
+        "streaming_by_month": {},
+        "turkish_only": [],
+        "turkish_by_month": {},
+        "tv_series": [],
+        "tv_by_month": {},
         "high_potential": [],
         "months_ahead": months,
-        "total_theatrical": 0, "total_streaming": 0,
-        "total_turkish": 0,    "total_tv": 0,
+        "total_theatrical": 0,
+        "total_streaming": 0,
+        "total_turkish": 0,
+        "total_tv": 0,
     }
     try:
         data = get_combined_upcoming(months_ahead=months)
@@ -15843,6 +15849,7 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
 
     try:
         from datetime import date as _date
+
         from backend.services.sinemalar_match import attach_to_upcoming_data
 
         attach_to_upcoming_data(
@@ -15853,22 +15860,27 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
     except Exception:
         LOGGER.exception("Sinemalar eşleştirme (sayfa) atlandı")
 
-    # OMDB zenginleştirme verisini DB'den çek ve filmlere merge et
     if (settings.omdb_api_key or "").strip():
         try:
             from backend.services.omdb import get_enrichment_map
+
             all_lists = (
-                data.get("theatrical", []) +
-                data.get("streaming", []) +
-                data.get("turkish_only", [])
+                data.get("theatrical", [])
+                + data.get("streaming", [])
+                + data.get("turkish_only", [])
             )
             tmdb_ids = [m["id"] for m in all_lists if m.get("id")]
             with SessionLocal() as db:
                 omdb_map = get_enrichment_map(db, tmdb_ids)
-            for lst_key in ("theatrical", "streaming", "turkish_only",
-                            "theatrical_by_month", "streaming_by_month", "turkish_by_month"):
+            for lst_key in (
+                "theatrical",
+                "streaming",
+                "turkish_only",
+                "theatrical_by_month",
+                "streaming_by_month",
+                "turkish_by_month",
+            ):
                 lst = data.get(lst_key, [])
-                items = lst.values() if isinstance(lst, dict) else []
                 if isinstance(lst, list):
                     items = lst
                 else:
@@ -15877,17 +15889,17 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
                     mid = m.get("id")
                     if mid and mid in omdb_map:
                         row = omdb_map[mid]
-                        m["imdb_rating"]  = row.imdb_rating
-                        m["imdb_votes"]   = row.imdb_votes
-                        m["rt_score"]     = row.rt_score
-                        m["metacritic"]   = row.metacritic
-                        m["age_rating"]   = row.age_rating
-                        m["box_office"]   = row.box_office
-                        m["awards"]       = row.awards
+                        m["imdb_rating"] = row.imdb_rating
+                        m["imdb_votes"] = row.imdb_votes
+                        m["rt_score"] = row.rt_score
+                        m["metacritic"] = row.metacritic
+                        m["age_rating"] = row.age_rating
+                        m["box_office"] = row.box_office
+                        m["awards"] = row.awards
         except Exception:
             LOGGER.exception("OMDB merge hatası (sayfa yüklenmesini engellemez)")
 
-    from backend.services.tmdb import streaming_provider_filters, get_cache_fetched_at
+    from backend.services.tmdb import get_cache_fetched_at, streaming_provider_filters
 
     cached_at = None
     if isinstance(data, dict):
@@ -15896,11 +15908,15 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
         wall = get_cache_fetched_at()
         if wall is not None:
             cached_at = wall.isoformat().replace("+00:00", "Z")
-    last_fetch_label = format_datetime_like(
-        cached_at, fmt="%d.%m.%Y %H:%M", fallback="", include_suffix=False
-    ) if cached_at else ""
+    last_fetch_label = (
+        format_datetime_like(
+            cached_at, fmt="%d.%m.%Y %H:%M", fallback="", include_suffix=False
+        )
+        if cached_at
+        else ""
+    )
 
-    payload = {
+    return {
         "site_name": "Movie",
         "sites": get_sidebar_sites(),
         "data": data,
@@ -15909,8 +15925,36 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
         "streaming_provider_filters": streaming_provider_filters(),
         "last_fetch_label": last_fetch_label or "",
     }
-    return templates.TemplateResponse(request, "tmdb_upcoming.html",
-                                      context={"request": request, **payload})
+
+
+def _tmdb_standalone_allowed(request: Request) -> bool:
+    """Standalone /tmdb-upcoming: misafir veya Beren/Gözde (tmdb-only) hesaplar."""
+    from backend.services import app_member_auth as ama
+    from backend.services import tmdb_guest_auth as tga
+
+    if tga.is_tmdb_guest_authenticated(request):
+        return True
+    member = _app_member_from_request(request)
+    if member is not None and ama.is_tmdb_only_member_email(member.email):
+        return True
+    return False
+
+
+@app.get("/tmdb-upcoming")
+def tmdb_upcoming_page(request: Request, months: int = 5):
+    """TMDB vizyon takvimi — yalnızca tmdb-only üyeler + misafir linki.
+
+    Diğer panel kullanıcıları /sinemalar?tab=movie kullanır (aynı partial / cache).
+    """
+    if not _tmdb_standalone_allowed(request):
+        q = f"?tab=movie&months={int(months)}" if months else "?tab=movie"
+        return RedirectResponse(url="/sinemalar" + q, status_code=303)
+    payload = _build_tmdb_upcoming_payload(months=months)
+    return templates.TemplateResponse(
+        request,
+        "tmdb_upcoming.html",
+        context={"request": request, **payload},
+    )
 
 
 @app.post("/api/tmdb-upcoming/sinemalar-lookup")
@@ -21582,6 +21626,7 @@ def sinemalar_policy_page(
     mod_start: str | None = Query(default=None),
     mod_end: str | None = Query(default=None),
     mod_preset: str | None = Query(default=""),
+    months: int = Query(default=5),
     db: Session = Depends(get_db),
 ):
     from backend.services import policy_csv as pcsv
@@ -21590,13 +21635,46 @@ def sinemalar_policy_page(
     host_key = (host or "all").strip().lower()
     if host_key not in ("all", "sinemalar.com", "m.sinemalar.com"):
         host_key = "all"
-    # Varsayılan: Moderation (tab=sinemalar). Policy ?tab=policy · Datas ?tab=datas.
+    # Varsayılan: Moderation. Policy / Datas / Movie sekmeleri.
     default_tab = "sinemalar"
     tab_key = (tab or default_tab).strip().lower()
     if tab_key in ("moderation", "mod"):
         tab_key = "sinemalar"
-    if tab_key not in ("policy", "sinemalar", "datas"):
+    if tab_key in ("tmdb", "movies"):
+        tab_key = "movie"
+    if tab_key not in ("policy", "sinemalar", "datas", "movie"):
         tab_key = default_tab
+
+    # Movie sekmesi: yalnızca TMDB partial — moderation/policy işleri çalışmasın.
+    if tab_key == "movie":
+        tmdb_payload = _build_tmdb_upcoming_payload(months=months)
+        ctx = {
+            "request": request,
+            "stats": {
+                "total": 0,
+                "new": 0,
+                "with_title": 0,
+                "without_title": 0,
+                "total_ad_requests_7d": 0,
+                "last_fetch": None,
+                "by_category": {},
+                "by_status": {},
+                "by_host": {},
+            },
+            "violations": [],
+            "last_upload": None,
+            "last_upload_iso": None,
+            "title_job": {"running": False, "done": 0, "total": 0},
+            "host_filter": host_key,
+            "noads_summary": {"has_data": False, "entry_count": 0, "matched": 0, "missing": 0},
+            "policy_tab": tab_key,
+            "moderation_panel": {"ok": False, "users": [], "metric_types": [], "meta": {}},
+            "mod_preset": (mod_preset or "").strip(),
+            **tmdb_payload,
+        }
+        if request.headers.get("HX-Request") == "true":
+            return templates.TemplateResponse("partials/policy_content.html", ctx)
+        return templates.TemplateResponse("policy.html", ctx)
 
     # Sabit 2026-08-13 yerine TR dünü — Today boş / eski default karışmasın
     if not (mod_end or "").strip():

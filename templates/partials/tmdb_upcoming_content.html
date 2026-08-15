@@ -1,0 +1,1035 @@
+
+{# Shared surface: standalone /tmdb-upcoming or /sinemalar?tab=movie #}
+{% set tmdb_embed = tmdb_embed|default(false) %}
+{# ── Macro'lar — çağrılmadan ÖNCE tanımlanmalı ── #}
+
+{% macro month_label(month_key) %}
+  {%- set parts = month_key.split('-') -%}
+  {%- if parts|length == 2 -%}
+    {%- set mnames = {'01':'January','02':'February','03':'March','04':'April','05':'May','06':'June','07':'July','08':'August','09':'September','10':'October','11':'November','12':'December'} -%}
+    {{ mnames.get(parts[1], parts[1]) }} {{ parts[0] }}
+  {%- else -%}{{ month_key }}{%- endif -%}
+{% endmacro %}
+
+{% macro tmdb_release_date_line(item) %}
+  <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ item.release_date }}</span>
+  {% if item.release_date_tr and item.release_date_global %}
+    <span class="text-[10px] font-medium text-slate-400 dark:text-slate-500" title="TMDB world/premiere date">premiere {{ item.release_date_global }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro provider_badge(p) %}<span class="rounded px-1.5 py-0.5 text-[10px] font-bold leading-none
+  {% if p == 'Netflix' %}bg-red-600 text-white
+  {% elif p == 'Disney+' %}bg-blue-700 text-white
+  {% elif p == 'Max' %}bg-purple-700 text-white
+  {% elif p == 'Prime Video' %}bg-sky-500 text-white
+  {% elif p == 'Apple TV+' %}bg-zinc-800 text-white
+  {% elif p == 'Mubi' %}bg-rose-900 text-white
+  {% elif p == 'BluTV' %}bg-orange-500 text-white
+  {% elif p == 'beIN Connect' %}bg-green-700 text-white
+  {% elif p == 'exxen' %}bg-indigo-600 text-white
+  {% elif p == 'TV+' %}bg-cyan-700 text-white
+  {% else %}bg-slate-500 text-white{% endif %}">{{ p }}</span>{% endmacro %}
+
+{% macro poster_media_badge(media_type) %}
+{% set is_tv = (media_type or 'movie') == 'tv' %}
+<div class="pointer-events-none absolute left-2 top-2 z-[1] drop-shadow-md" aria-hidden="true">
+  <span class="inline-block rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ring-2 ring-white/90
+    {% if is_tv %}bg-violet-600 text-white dark:bg-violet-700 dark:ring-slate-800
+    {% else %}bg-slate-900/92 text-white dark:bg-slate-950/92 dark:ring-slate-600{% endif %}"
+    title="{% if is_tv %}Series{% else %}Movie{% endif %}">
+    {% if is_tv %}Series{% else %}Movie{% endif %}
+  </span>
+</div>
+{% endmacro %}
+
+{% macro media_type_chip(media_type) %}
+{% set is_tv = (media_type or 'movie') == 'tv' %}
+<span class="tmdb-media-chip inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide ring-1
+  {% if is_tv %}bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/55 dark:text-violet-200 dark:ring-violet-800/70
+  {% else %}bg-slate-100 text-slate-800 ring-slate-200 dark:bg-slate-700 dark:text-slate-100 dark:ring-slate-600{% endif %}"
+  title="{% if is_tv %}Series{% else %}Movie{% endif %}">
+  <span class="h-1.5 w-1.5 shrink-0 rounded-full {% if is_tv %}bg-violet-500{% else %}bg-slate-500 dark:bg-slate-300{% endif %}" aria-hidden="true"></span>
+  <span>{% if is_tv %}Series{% else %}Movie{% endif %}</span>
+</span>
+{% endmacro %}
+
+{% macro sinemalar_state(item) -%}
+{%- if item.sinemalar_found is none -%}pending{%- elif item.sinemalar_found -%}found{%- else -%}missing{%- endif -%}
+{%- endmacro %}
+
+{% macro sinemalar_slot(item) %}
+{% set is_tv = (item.media_type or '') == 'tv' %}
+<div class="sinemalar-slot w-full">
+  <div class="flex flex-wrap gap-1.5">
+    {% if item.sinemalar_found %}
+    <a href="{{ item.sinemalar_url }}" target="_blank" rel="noopener"
+       title="{{ item.sinemalar_title or item.title }}"
+       class="rounded-lg border border-emerald-400 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60">
+      On Sinemalar{% if item.sinemalar_match_quality == 'fuzzy' %} ~{% endif %} ↗
+    </a>
+    {% elif item.sinemalar_found == false %}
+    <span class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-400"
+          title="No reliable matches in the Sinemalar search">
+      Not on Sinemalar
+    </span>
+    <a href="https://www.google.com/search?q=site:sinemalar.com+{{ item.title | urlencode }}" target="_blank" rel="noopener"
+       class="rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-semibold text-sky-600 transition hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30">
+      Google ↗
+    </a>
+    {% else %}
+    <span class="rounded-lg border border-dashed border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-400 dark:border-slate-600 dark:text-slate-500">
+      Checking Sinemalar…
+    </span>
+    <a href="https://www.google.com/search?q=site:sinemalar.com+{{ item.title | urlencode }}" target="_blank" rel="noopener"
+       class="rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-semibold text-sky-600 transition hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30">
+      Google ↗
+    </a>
+    {% endif %}
+  </div>
+  {% if item.sinemalar_found %}
+  <p class="mt-1.5 w-full text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+    {% if item.sinemalar_has_release_date %}
+      {% if is_tv %}Sinemalar release{% else %}Sinemalar theatrical{% endif %}:
+      <span class="font-semibold text-emerald-700 dark:text-emerald-400">{{ item.sinemalar_release_label or item.sinemalar_release_date }}</span>
+    {% else %}
+      <span class="font-semibold text-amber-700 dark:text-amber-400">
+        {% if is_tv %}No release date on Sinemalar{% else %}No theatrical date on Sinemalar{% endif %}
+      </span>
+      {% if not is_tv %}
+        {% set tr_vizyon = item.release_date_tr or item.release_date %}
+        {% if tr_vizyon %}
+      <span class="mt-0.5 block font-semibold text-indigo-700 dark:text-indigo-300" title="TMDB — Turkey theatrical">
+        TMDB TR theatrical: {{ tr_vizyon }}
+      </span>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro film_card(movie) %}
+{# Dikey kart — afiş üstte tam genişlik, içerik altta #}
+<div class="tmdb-card group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
+  {% if movie.is_turkish %}border-rose-200 dark:border-rose-800/60
+  {% elif movie.importance_tier == 'high' %}border-amber-200 dark:border-amber-800/60
+  {% else %}border-slate-200 dark:border-slate-600{% endif %}
+  bg-white dark:bg-slate-800"
+  data-country="{{ movie.country_code }}"
+  data-provider-slugs="{{ movie.provider_slugs or '' }}"
+  data-pop="{{ movie.importance_tier or 'low' }}"
+  data-tmdb-id="{{ movie.id }}"
+  data-media-title="{{ movie.title | e }}"
+  data-media-original="{{ movie.original_title | e }}"
+  data-media-date="{{ movie.release_date or '' }}"
+  data-tmdb-tr-date="{{ movie.release_date_tr or movie.release_date or '' }}"
+  data-media-type="{{ movie.media_type or 'movie' }}"
+  data-is-turkish="{{ '1' if movie.is_turkish else '0' }}"
+  data-sinemalar-state="{{ sinemalar_state(movie) }}">
+
+  {# Afiş #}
+  <div class="relative aspect-[2/3] bg-slate-200 dark:bg-slate-700">
+    {% if movie.poster_url %}
+      <img src="{{ movie.poster_url }}" alt="{{ movie.title }}"
+           class="h-full w-full object-cover transition group-hover:scale-[1.02]" loading="lazy">
+    {% else %}
+      <div class="flex h-full items-center justify-center text-sm text-slate-400 dark:text-slate-500">No poster</div>
+    {% endif %}
+    {{ poster_media_badge(movie.media_type) }}
+    {# Bayrak — poster üstü sağ köşe #}
+    {% if movie.country_code %}
+    <div class="absolute right-2 top-2 drop-shadow">
+      <img src="https://flagcdn.com/w40/{{ movie.country_code }}.png"
+           alt="{{ movie.country_code }}"
+           class="h-8 w-8 rounded-full object-cover ring-2 ring-white/80 dark:ring-slate-700"
+           loading="lazy">
+    </div>
+    {% endif %}
+    {# Platform rozetleri — poster alt şeridi #}
+    {% if movie.providers %}
+    <div class="absolute bottom-0 left-0 right-0 flex flex-wrap gap-1 bg-gradient-to-t from-black/70 to-transparent px-2 pb-2 pt-4">
+      {% for p in movie.providers %}{{ provider_badge(p) }}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# Content #}
+  <div class="flex flex-1 flex-col p-3">
+    <div class="mb-2 flex flex-wrap items-center gap-1.5">
+      {{ media_type_chip(movie.media_type) }}
+      {% if movie.is_turkish %}
+        <span class="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/45 dark:text-rose-300 dark:ring-rose-800/60">TR</span>
+      {% endif %}
+    </div>
+    <p class="text-sm font-bold leading-snug text-slate-900 dark:text-slate-200" title="{{ movie.title }}">{{ movie.title }}</p>
+    {% if movie.original_title and movie.original_title != movie.title %}
+      <p class="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500">{{ movie.original_title }}</p>
+    {% endif %}
+
+    {# OMDB zenginleştirme satırı #}
+    {% if movie.imdb_rating or movie.rt_score or movie.age_rating %}
+    <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+      {% if movie.age_rating %}
+        <span class="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:border-slate-500 dark:text-slate-300">{{ movie.age_rating }}</span>
+      {% endif %}
+      {% if movie.imdb_rating %}
+        <span class="flex items-center gap-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+          <svg class="h-3 w-3 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+          {{ movie.imdb_rating }}
+          {% if movie.imdb_votes %}<span class="text-[9px] font-normal text-slate-400">({{ movie.imdb_votes }})</span>{% endif %}
+        </span>
+      {% endif %}
+      {% if movie.rt_score %}
+        <span class="text-[11px] font-semibold text-red-600 dark:text-red-400">🍅 {{ movie.rt_score }}</span>
+      {% endif %}
+      {% if movie.box_office %}
+        <span class="text-[10px] text-slate-400 dark:text-slate-500">{{ movie.box_office }}</span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+      {{ tmdb_release_date_line(movie) }}
+      <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
+        {% if movie.importance_tier == 'high' %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
+        {% elif movie.importance_tier == 'medium' %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300
+        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400{% endif %}"
+        title="Planning priority: TMDB interest + vote count (raw pop {{ movie.popularity }})">
+        {{ movie.importance_label or movie.popularity_label }}
+      </span>
+      {% if movie.vote_average > 0 %}
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ movie.vote_average }}</span>
+      {% endif %}
+    </div>
+
+    {% if movie.overview %}
+      <p class="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{{ movie.overview }}</p>
+    {% endif %}
+
+    <div class="mt-auto flex flex-col gap-1.5 pt-3">
+      <div class="flex flex-wrap gap-1.5">
+        <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
+           class="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
+          TMDB ↗
+        </a>
+      </div>
+      {{ sinemalar_slot(movie) }}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro tv_card(show) %}
+<div class="tmdb-card group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
+  {% if show.importance_tier == 'high' %}border-emerald-200 dark:border-emerald-800/60
+  {% else %}border-slate-200 dark:border-slate-600{% endif %}
+  bg-white dark:bg-slate-800"
+  data-country="{{ show.country_code }}"
+  data-provider-slugs="{{ show.provider_slugs or '' }}"
+  data-pop="{{ show.importance_tier or 'low' }}"
+  data-tmdb-id="{{ show.id }}"
+  data-media-title="{{ show.title | e }}"
+  data-media-original="{{ show.original_title | e }}"
+  data-media-date="{{ show.release_date or show.first_air_date or '' }}"
+  data-media-type="tv"
+  data-is-turkish="1"
+  data-sinemalar-state="{{ sinemalar_state(show) }}">
+
+  {# Afiş #}
+  <div class="relative aspect-[2/3] bg-slate-200 dark:bg-slate-700">
+    {% if show.poster_url %}
+      <img src="{{ show.poster_url }}" alt="{{ show.title }}"
+           class="h-full w-full object-cover transition group-hover:scale-[1.02]" loading="lazy">
+    {% else %}
+      <div class="flex h-full items-center justify-center text-sm text-slate-400 dark:text-slate-500">No poster</div>
+    {% endif %}
+    {{ poster_media_badge('tv') }}
+    {% if show.country_code %}
+    <div class="absolute right-2 top-2 drop-shadow">
+      <img src="https://flagcdn.com/w40/{{ show.country_code }}.png"
+           alt="{{ show.country_code }}"
+           class="h-8 w-8 rounded-full object-cover ring-2 ring-white/80 dark:ring-slate-700"
+           loading="lazy">
+    </div>
+    {% endif %}
+    {% if show.networks %}
+    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 pb-2 pt-4">
+      <p class="text-xs font-bold text-white/90">{{ show.networks | join(' · ') }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {# Content #}
+  <div class="flex flex-1 flex-col p-3">
+    <div class="mb-2 flex flex-wrap items-center gap-1.5">
+      {{ media_type_chip('tv') }}
+      <span class="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/45 dark:text-rose-300 dark:ring-rose-800/60">TR</span>
+    </div>
+    <p class="text-sm font-bold leading-snug text-slate-900 dark:text-slate-200" title="{{ show.title }}">{{ show.title }}</p>
+    {% if show.original_title and show.original_title != show.title %}
+      <p class="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500">{{ show.original_title }}</p>
+    {% endif %}
+
+    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+      {% if show.first_air_date %}
+        <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ show.first_air_date }}</span>
+      {% endif %}
+      {% if show.seasons > 0 %}
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-400">Season {{ show.seasons }}</span>
+      {% endif %}
+      {% if show.status %}
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500 dark:bg-slate-700 dark:text-slate-400">{{ show.status }}</span>
+      {% endif %}
+    </div>
+
+    <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
+        {% if show.importance_tier == 'high' %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
+        {% elif show.importance_tier == 'medium' %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300
+        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400{% endif %}"
+        title="Planning priority (raw pop {{ show.popularity }})">
+        {{ show.importance_label or show.popularity_label }}
+      </span>
+      {% if show.vote_average > 0 %}
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ show.vote_average }}</span>
+      {% endif %}
+    </div>
+
+    {% if show.overview %}
+      <p class="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{{ show.overview }}</p>
+    {% endif %}
+
+    <div class="mt-auto flex flex-col gap-1.5 pt-3">
+      <div class="flex flex-wrap gap-1.5">
+        <a href="{{ show.tmdb_url }}" target="_blank" rel="noopener"
+           class="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
+          TMDB ↗
+        </a>
+      </div>
+      {{ sinemalar_slot(show) }}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro month_grid(by_month, card_macro, label_suffix='', tv_macro=none) %}
+  {% set month_keys = by_month.keys() | sort %}
+  {% if not month_keys %}
+    <p class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">No results for this period.</p>
+  {% else %}
+  <div class="space-y-2">
+    {% for month_key in month_keys %}
+      {% set items = by_month[month_key] %}
+      {% set is_current = month_key == current_month %}
+      {% set is_past = month_key < current_month %}
+      {% set tr_c = items | selectattr('is_turkish') | list | length %}
+      <details class="tmdb-month-group group overflow-hidden rounded-2xl border shadow-sm transition
+        {% if is_past %}border-violet-200/90 bg-gradient-to-br from-violet-50/50 to-white ring-1 ring-violet-100/60 dark:border-violet-800/50 dark:from-violet-950/25 dark:to-slate-900/40 dark:ring-violet-900/30
+        {% elif is_current %}border-amber-200/90 bg-gradient-to-br from-amber-50/40 to-white ring-1 ring-amber-100/70 dark:border-amber-800/45 dark:from-amber-950/20 dark:to-slate-900/40 dark:ring-amber-900/25
+        {% else %}border-slate-200 bg-white ring-1 ring-slate-100/80 dark:border-slate-700 dark:bg-slate-900/50 dark:ring-slate-800/60{% endif %}"
+        {% if is_current %}id="current-month" open{% endif %}>
+        <summary class="flex cursor-pointer list-none select-none flex-wrap items-center gap-2 px-4 py-3.5 transition-colors sm:gap-2.5 sm:px-5 sm:py-4
+          {% if is_past %}hover:bg-violet-100/40 dark:hover:bg-violet-900/20
+          {% elif is_current %}hover:bg-amber-100/40 dark:hover:bg-amber-900/15
+          {% else %}hover:bg-slate-50 dark:hover:bg-slate-800/50{% endif %}">
+          <svg class="h-4 w-4 flex-none transition-transform duration-200 group-open:rotate-90
+            {% if is_past %}text-violet-500 dark:text-violet-400
+            {% elif is_current %}text-amber-500 dark:text-amber-400
+            {% else %}text-slate-400 dark:text-slate-500{% endif %}"
+               fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+          <h3 class="text-sm font-bold tracking-tight sm:text-base
+            {% if is_past %}text-violet-900 dark:text-violet-100
+            {% elif is_current %}text-amber-800 dark:text-amber-200
+            {% else %}text-slate-800 dark:text-slate-200{% endif %}">
+            {{ month_label(month_key) }}
+          </h3>
+          {% if is_current %}
+            <span class="rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">bu ay</span>
+          {% elif is_past %}
+            <span class="rounded-full bg-violet-200/70 px-2 py-0.5 text-[10px] font-semibold text-violet-800 dark:bg-violet-900/45 dark:text-violet-300">past</span>
+          {% endif %}
+          <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold
+            {% if is_past %}bg-violet-100/90 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200
+            {% elif is_current %}bg-amber-100/90 text-amber-900 dark:bg-amber-900/35 dark:text-amber-200
+            {% else %}bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300{% endif %}">{{ items|length }}{% if label_suffix %} {{ label_suffix }}{% endif %}</span>
+          {% if tr_c %}
+            <span class="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">🇹🇷 {{ tr_c }}</span>
+          {% endif %}
+        </summary>
+        <div class="border-t px-4 pb-5 pt-3 sm:px-5
+          {% if is_past %}border-violet-200/60 dark:border-violet-800/40
+          {% elif is_current %}border-amber-200/60 dark:border-amber-800/35
+          {% else %}border-slate-200 dark:border-slate-700/60{% endif %}">
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 min-[1200px]:grid-cols-6">
+            {% for item in items %}{% if tv_macro and item.media_type == 'tv' %}{{ tv_macro(item) }}{% else %}{{ card_macro(item) }}{% endif %}{% endfor %}
+          </div>
+        </div>
+      </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endmacro %}
+
+{# ── Sayfa gövdesi ── #}
+<div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-5">
+
+  {# Başlık — mobil: dikey yığın, masaüstü: yatay satır #}
+  <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:px-5 sm:py-4">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="min-w-0">
+        <h2 class="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl">Movie calendar</h2>
+        <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">Last fetch: {% if last_fetch_label %}{{ last_fetch_label }}{% else %}—{% endif %}</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        {# Önem filtresi #}
+        <div class="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/60">
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="all">All</button>
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="high"
+                  title="High: TMDB pop ≥35 or votes ≥120, or strong pop+votes together">High</button>
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="medium"
+                  title="Medium: TR production or pop ≥8 or votes ≥12">Medium</button>
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="low"
+                  title="Low: niche / little data — low planning priority">Low</button>
+        </div>
+        {# Ay seçici #}
+        <div class="flex gap-1">
+          {% for m in [3,5,8,12] %}
+          <a href="/tmdb-upcoming?months={{ m }}"
+             class="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition sm:px-3 sm:py-1.5 sm:text-xs
+                    {% if data.months_ahead == m %}bg-slate-900 text-white border-slate-900 dark:bg-zinc-200 dark:text-zinc-900 dark:border-zinc-300
+                    {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700{% endif %}">
+            {% if m == 12 %}1 year{% else %}{{ m }} mo{% endif %}
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
+    <strong>TMDB error:</strong> {{ error }}<br>
+    <span class="text-xs opacity-75">Railway Variables → check TMDB_READ_ACCESS_TOKEN.</span>
+  </div>
+  {% else %}
+
+  {# Sekmeler — yatay scroll, mobil uyumlu #}
+  <div class="flex gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none]" role="tablist">
+    <button type="button" class="tmdb-tab flex-none rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition sm:px-4 sm:text-sm"
+            data-tab="theatrical">Cinema <span class="ml-1 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] sm:px-2 sm:text-xs">{{ data.total_theatrical }}</span></button>
+    <button type="button" class="tmdb-tab flex-none rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition sm:px-4 sm:text-sm"
+            data-tab="streaming">Platform <span class="ml-1 rounded-full px-1.5 py-0.5 text-[10px] sm:px-2 sm:text-xs">{{ data.total_streaming }}</span></button>
+    <button type="button" class="tmdb-tab flex-none rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition sm:px-4 sm:text-sm"
+            data-tab="turkish">🇹🇷 Turkish movies <span class="ml-1 rounded-full px-1.5 py-0.5 text-[10px] sm:px-2 sm:text-xs">{{ data.total_turkish }}</span></button>
+    <button type="button" class="tmdb-tab flex-none rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition sm:px-4 sm:text-sm"
+            data-tab="tv">Turkish series <span class="ml-1 rounded-full px-1.5 py-0.5 text-[10px] sm:px-2 sm:text-xs">{{ data.total_tv }}</span></button>
+  </div>
+
+  {# Sinema paneli #}
+  <div id="panel-theatrical" class="tmdb-panel space-y-5">
+    <div id="cbar-theatrical" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
+    {{ month_grid(data.theatrical_by_month, film_card) }}
+  </div>
+
+  {# Platform paneli #}
+  <div id="panel-streaming" class="tmdb-panel hidden space-y-5">
+    <div class="rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-2.5 text-xs text-violet-900 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-200">
+      Netflix · Prime · Disney+ · Max (HBO) · Apple TV+ · TV+ and other OTT — movies + series; candidates are collected via discover, card badges are verified with TMDB TR flatrate (watch/providers).
+    </div>
+    <div id="pbar-streaming" class="tmdb-pbar flex flex-wrap gap-1.5"></div>
+    <div id="cbar-streaming" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
+    {{ month_grid(data.streaming_by_month, film_card, '', tv_card) }}
+  </div>
+
+  {# Türk filmleri paneli #}
+  <div id="panel-turkish" class="tmdb-panel hidden space-y-5">
+    <div class="rounded-xl border border-rose-200 bg-rose-50/60 px-4 py-2.5 text-xs text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300">
+      All Turkish-language or TR-produced movies (including those also listed on the Cinema / Platform tabs).
+    </div>
+    <div id="cbar-turkish" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
+    {{ month_grid(data.turkish_by_month, film_card) }}
+  </div>
+
+  {# Türk dizileri paneli #}
+  <div id="panel-tv" class="tmdb-panel hidden space-y-5">
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+      Broadcast channels + BluTV · exxen · Tabii + planned/in-production TR series + TMDB “on air” list are merged.
+    </div>
+    <div id="cbar-tv" class="tmdb-cbar flex flex-wrap gap-1.5"></div>
+    {{ month_grid(data.tv_by_month, tv_card, 'dizi') }}
+  </div>
+
+  {# Yüksek Potansiyel #}
+  {% if data.high_potential %}
+  <section class="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+    <h3 class="mb-3 text-sm font-bold text-amber-900 dark:text-amber-200">High potential — add first</h3>
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+      {% for movie in data.high_potential %}
+      <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
+         class="flex min-w-0 flex-col items-center gap-2 rounded-xl border border-amber-200 bg-white p-2.5 text-center transition hover:shadow-md dark:border-amber-900/40 dark:bg-slate-900">
+        <div class="relative w-full">
+        {% if movie.poster_url %}
+          <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="mx-auto h-28 w-[4.7rem] rounded-lg object-cover sm:h-24 sm:w-16">
+        {% else %}
+          <div class="mx-auto flex h-28 w-[4.7rem] items-center justify-center rounded-lg bg-slate-100 text-3xl dark:bg-slate-800 sm:h-24 sm:w-16">🎬</div>
+        {% endif %}
+        </div>
+        <div class="flex w-full flex-wrap items-center justify-center gap-1">
+          {{ media_type_chip(movie.media_type) }}
+          {% if movie.country_code %}
+          <img src="https://flagcdn.com/w40/{{ movie.country_code }}.png" alt="{{ movie.country_code }}"
+               class="h-5 w-5 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700">
+          {% endif %}
+        </div>
+        <p class="line-clamp-2 text-[10px] font-semibold leading-tight text-slate-800 dark:text-slate-200">{{ movie.title }}</p>
+        <p class="text-[9px] text-slate-400">{{ movie.release_date }}{% if movie.release_date_global %} · premiere {{ movie.release_date_global }}{% endif %}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% endif %}
+</div>
+
+<script>
+ if (window.__tmdbUpcomingBound) { /* already on page */ } else {
+ window.__tmdbUpcomingBound = true;
+
+(function () {
+  var STREAMING_PROVIDER_FILTERS = {{ streaming_provider_filters | default([]) | tojson }};
+  var tabs   = document.querySelectorAll('.tmdb-tab');
+  var panels = document.querySelectorAll('.tmdb-panel');
+
+  /* ── Önem / popülerlik filtresi ── */
+  var _activePop = 'all';
+  var _activeProvider = 'all';
+  var ALLOWED_COUNTRY_CODES = null; // null = tüm ülkeler
+  var popBtns = document.querySelectorAll('.tmdb-pop-btn');
+
+  function setActivePopBtn(val) {
+    popBtns.forEach(function (b) {
+      var on = b.getAttribute('data-pop') === val;
+      if (on) {
+        b.style.background = '#0f172a';
+        b.style.color      = '#f8fafc';
+      } else {
+        b.style.background = '';
+        b.style.color      = '';
+      }
+    });
+  }
+
+  function cardAllowedCountry(card) {
+    if (!ALLOWED_COUNTRY_CODES) return true;
+    var cc = (card.getAttribute('data-country') || '').toLowerCase();
+    if (cc && ALLOWED_COUNTRY_CODES[cc]) return true;
+    if (card.getAttribute('data-is-turkish') === '1') return true;
+    return false;
+  }
+
+  function applyCountryWhitelist(panel) {
+    if (!panel) return;
+    panel.querySelectorAll('.tmdb-card').forEach(function (card) {
+      var ok = cardAllowedCountry(card);
+      card.setAttribute('data-country-hidden', ok ? '0' : '1');
+      applyCardVisibility(card);
+    });
+    refreshPanelSections(panel);
+  }
+
+  function cardVisible(card) {
+    if (!cardAllowedCountry(card)) return false;
+    return card.getAttribute('data-pop-hidden') !== '1'
+      && card.getAttribute('data-country-hidden') !== '1'
+      && card.getAttribute('data-provider-hidden') !== '1';
+  }
+
+  function applyCardVisibility(card) {
+    card.style.display = cardVisible(card) ? '' : 'none';
+  }
+
+  function refreshPanelSections(panel) {
+    if (!panel) return;
+    panel.querySelectorAll('section, details.tmdb-past-group, details.tmdb-month-group').forEach(function (sec) {
+      var visible = Array.from(sec.querySelectorAll('.tmdb-card')).some(cardVisible);
+      sec.style.display = visible ? '' : 'none';
+    });
+  }
+
+  function applyPopFilter() {
+    document.querySelectorAll('.tmdb-card').forEach(function (card) {
+      var pop = card.getAttribute('data-pop') || 'low';
+      var show = _activePop === 'all' || pop === _activePop;
+      card.setAttribute('data-pop-hidden', show ? '0' : '1');
+      applyCardVisibility(card);
+    });
+    document.querySelectorAll('.tmdb-panel:not(.hidden)').forEach(refreshPanelSections);
+  }
+
+  function applyProviderFilter(panel) {
+    if (!panel) return;
+    panel.querySelectorAll('.tmdb-card').forEach(function (card) {
+      var slugs = (card.getAttribute('data-provider-slugs') || '').split('|').filter(Boolean);
+      var show = _activeProvider === 'all' || slugs.indexOf(_activeProvider) >= 0;
+      card.setAttribute('data-provider-hidden', show ? '0' : '1');
+      applyCardVisibility(card);
+    });
+    refreshPanelSections(panel);
+  }
+
+  popBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      _activePop = btn.getAttribute('data-pop');
+      setActivePopBtn(_activePop);
+      applyPopFilter();
+    });
+  });
+
+  // First yüklemede "All" aktif
+  setActivePopBtn('all');
+
+  /* ── Ülke filtresi ── */
+  var COUNTRY_NAMES = {
+    us:'USA', gb:'United Kingdom', fr:'France', de:'Germany', it:'Italy',
+    es:'Spain', tr:'Turkey', jp:'Japan', kr:'South Korea', cn:'China',
+    ru:'Russia', br:'Brazil', in:'India', au:'Australia', ca:'Canada',
+    mx:'Mexico', ar:'Argentina', se:'Sweden', dk:'Denmark', no:'Norway',
+    nl:'Netherlands', be:'Belgium', ch:'Switzerland', at:'Austria', pl:'Poland',
+    hu:'Hungary', cz:'Czechia', ro:'Romania', th:'Thailand', id:'Indonesia',
+    sa:'Saudi Arabia', il:'Israel', ie:'Ireland', nz:'New Zealand',
+    pt:'Portugal', gr:'Greece', eg:'Egypt', za:'South Africa', ng:'Nigeria',
+    pk:'Pakistan', bd:'Bangladesh', ph:'Philippines', vn:'Vietnam', my:'Malaysia',
+    sg:'Singapore', tw:'Taiwan', hk:'Hong Kong', ua:'Ukraine', fi:'Finland',
+    cl:'Chile', co:'Colombia', pe:'Peru', ae:'UAE', qa:'Qatar', kw:'Kuwait',
+    ir:'Iran', iq:'Iraq', az:'Azerbaijan', ge:'Georgia', kz:'Kazakhstan',
+    rs:'Serbia', hr:'Croatia', bg:'Bulgaria', sk:'Slovakia', si:'Slovenia',
+    lt:'Lithuania', lv:'Latvia', ee:'Estonia', is:'Iceland', lu:'Luxembourg',
+  };
+
+  function buildCountryBar(panelId) {
+    var panel = document.getElementById(panelId);
+    var bar   = document.getElementById('cbar-' + panelId.replace('panel-',''));
+    if (!panel || !bar) return;
+
+    // Sayfadaki kartları tara — tüm ülkeler
+    var counts = {};
+    panel.querySelectorAll('.tmdb-card[data-country]').forEach(function (c) {
+      var cc = (c.getAttribute('data-country') || '').toLowerCase();
+      if (!cc) return;
+      if (ALLOWED_COUNTRY_CODES && !ALLOWED_COUNTRY_CODES[cc]) return;
+      counts[cc] = (counts[cc] || 0) + 1;
+    });
+
+    var codes = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+    if (codes.length <= 1) { bar.innerHTML = ''; return; } // tek ülkeyse gösterme
+
+    var html = '<button class="tmdb-cf-btn rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200" data-cf="all">All</button>';
+    codes.forEach(function (cc) {
+      var name = COUNTRY_NAMES[cc] || cc.toUpperCase();
+      html += '<button class="tmdb-cf-btn flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-300" data-cf="' + cc + '">'
+            + '<img src="https://flagcdn.com/w20/' + cc + '.png" class="h-3.5 w-3.5 rounded-full object-cover" loading="lazy">'
+            + '<span>' + name + '</span>'
+            + '<span class="rounded-full bg-slate-100 px-1.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-600 dark:text-slate-300">' + counts[cc] + '</span>'
+            + '</button>';
+    });
+    bar.innerHTML = html;
+
+    // First btn (All) aktif
+    setActiveCF(bar, 'all');
+
+    bar.querySelectorAll('.tmdb-cf-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cf = btn.getAttribute('data-cf');
+        // Zaten aktifse → All'ne dön (toggle)
+        if (btn.getAttribute('data-active-cf') === '1' && cf !== 'all') {
+          cf = 'all';
+        }
+        filterByCountry(panel, bar, cf);
+      });
+    });
+  }
+
+  function setActiveCF(bar, cf) {
+    bar.querySelectorAll('.tmdb-cf-btn').forEach(function (b) {
+      var on = b.getAttribute('data-cf') === cf;
+      b.setAttribute('data-active-cf', on ? '1' : '0');
+      // Inline style — zinc override'ından bağımsız, her iki temada çalışır
+      if (on) {
+        b.style.background = '#0f172a';
+        b.style.color      = '#f8fafc';
+        b.style.borderColor= '#334155';
+        b.style.fontWeight = '700';
+      } else {
+        b.style.background  = '';
+        b.style.color       = '';
+        b.style.borderColor = '';
+        b.style.fontWeight  = '';
+      }
+    });
+  }
+
+  function filterByCountry(panel, bar, cf) {
+    setActiveCF(bar, cf);
+    panel.querySelectorAll('.tmdb-card').forEach(function (card) {
+      var cc = card.getAttribute('data-country') || '';
+      var countryOk = cardAllowedCountry(card) && (cf === 'all' || cc === cf);
+      card.setAttribute('data-country-hidden', countryOk ? '0' : '1');
+      applyCardVisibility(card);
+    });
+    refreshPanelSections(panel);
+  }
+
+  var PROVIDER_BTN_COLORS = {
+    netflix: '#dc2626', prime: '#0284c7', disney: '#1d4ed8', max: '#7c3aed',
+    apple: '#0f172a', tvplus: '#0891b2', mubi: '#9f1239', blutv: '#ea580c',
+    bein: '#15803d', exxen: '#4338ca'
+  };
+
+  function setActivePF(bar, slug) {
+    bar.querySelectorAll('.tmdb-pf-btn').forEach(function (b) {
+      var on = b.getAttribute('data-pf') === slug;
+      b.setAttribute('data-active-pf', on ? '1' : '0');
+      if (on) {
+        var col = PROVIDER_BTN_COLORS[slug] || '#0f172a';
+        b.style.background = col;
+        b.style.color = '#fff';
+        b.style.borderColor = col;
+        b.style.fontWeight = '700';
+      } else {
+        b.style.background = '';
+        b.style.color = '';
+        b.style.borderColor = '';
+        b.style.fontWeight = '';
+      }
+    });
+  }
+
+  function buildProviderBar(panelId) {
+    var panel = document.getElementById(panelId);
+    var bar = document.getElementById('pbar-' + panelId.replace('panel-', ''));
+    if (!panel || !bar || panelId !== 'panel-streaming') {
+      if (bar) bar.innerHTML = '';
+      return;
+    }
+
+    var counts = {};
+    panel.querySelectorAll('.tmdb-card[data-provider-slugs]').forEach(function (c) {
+      (c.getAttribute('data-provider-slugs') || '').split('|').filter(Boolean).forEach(function (s) {
+        counts[s] = (counts[s] || 0) + 1;
+      });
+    });
+
+    var html = '<button type="button" class="tmdb-pf-btn rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200" data-pf="all">All platforms</button>';
+    (STREAMING_PROVIDER_FILTERS || []).forEach(function (p) {
+      var n = counts[p.slug] || 0;
+      if (!n) return;
+      html += '<button type="button" class="tmdb-pf-btn rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-300" data-pf="' + p.slug + '">'
+        + p.label + ' <span class="rounded-full bg-slate-100 px-1.5 text-[10px] dark:bg-slate-600">' + n + '</span></button>';
+    });
+    bar.innerHTML = html;
+    setActivePF(bar, 'all');
+
+    bar.querySelectorAll('.tmdb-pf-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var pf = btn.getAttribute('data-pf');
+        if (btn.getAttribute('data-active-pf') === '1' && pf !== 'all') pf = 'all';
+        _activeProvider = pf;
+        setActivePF(bar, pf);
+        applyProviderFilter(panel);
+      });
+    });
+  }
+
+  function resetCF(panelId) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    panel.querySelectorAll('.tmdb-card').forEach(function (c) {
+      c.setAttribute('data-provider-hidden', '0');
+      c.setAttribute('data-pop-hidden', '0');
+      applyCardVisibility(c);
+    });
+    applyCountryWhitelist(panel);
+    var bar = document.getElementById('cbar-' + panelId.replace('panel-',''));
+    if (bar) setActiveCF(bar, 'all');
+    if (panelId === 'panel-streaming') {
+      _activeProvider = 'all';
+      var pbar = document.getElementById('pbar-streaming');
+      if (pbar) setActivePF(pbar, 'all');
+    }
+  }
+
+  /* ── Sekme geçişi — inline style (zinc override'dan bağımsız) ── */
+  function tabStyle(on) {
+    var dark = document.documentElement.classList.contains('dark');
+    if (on) {
+      return {
+        background:  dark ? '#3f3f46' : '#0f172a',
+        color:       '#ffffff',
+        borderColor: dark ? '#52525b' : '#0f172a',
+      };
+    }
+    return {
+      background:  dark ? 'rgba(39,39,42,0.85)' : '#ffffff',
+      color:       dark ? '#d4d4d8' : '#4b5563',
+      borderColor: dark ? '#3f3f46' : '#e2e8f0',
+    };
+  }
+
+  function activate(btn) {
+    var target = 'panel-' + btn.getAttribute('data-tab');
+    tabs.forEach(function (t) {
+      var st = tabStyle(t === btn);
+      t.style.background  = st.background;
+      t.style.color       = st.color;
+      t.style.borderColor = st.borderColor;
+    });
+    panels.forEach(function (p) {
+      var visible = p.id === target;
+      p.classList.toggle('hidden', !visible);
+      if (visible) {
+        resetCF(p.id);
+        buildCountryBar(p.id);
+        buildProviderBar(p.id);
+      }
+    });
+  }
+
+  // First yüklemede sekmeler stilini uygula
+  (function initTabStyles() {
+    var first = tabs[0];
+    tabs.forEach(function (t) {
+      var st = tabStyle(t === first);
+      t.style.background  = st.background;
+      t.style.color       = st.color;
+      t.style.borderColor = st.borderColor;
+    });
+  })();
+
+  // Tema değişince sekme stillerini newden uygula
+  document.addEventListener('seo-theme-change', function () {
+    var activeTab = Array.from(tabs).find(function (t) {
+      var tid = 'panel-' + t.getAttribute('data-tab');
+      var panel = document.getElementById(tid);
+      return panel && !panel.classList.contains('hidden');
+    }) || tabs[0];
+    tabs.forEach(function (t) {
+      var st = tabStyle(t === activeTab);
+      t.style.background  = st.background;
+      t.style.color       = st.color;
+      t.style.borderColor = st.borderColor;
+    });
+  });
+
+  tabs.forEach(function (t) { t.addEventListener('click', function () { activate(t); }); });
+
+  // First sekme için ülke barı
+  buildCountryBar('panel-theatrical');
+  applyCountryWhitelist(document.getElementById('panel-theatrical'));
+  ['panel-streaming', 'panel-turkish', 'panel-tv'].forEach(function (pid) {
+    applyCountryWhitelist(document.getElementById(pid));
+  });
+
+  /* ── "Bu aya git" sticky butonu ── */
+  var currentAnchor = document.getElementById('current-month');
+  var jumpBtn = document.getElementById('tmdb-jump-btn');
+
+  function scrollToCurrentMonth() {
+    if (!currentAnchor) return;
+    currentAnchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Sayfa açılışında aktif paneldeyken otomatik bu aya git
+  if (currentAnchor) {
+    setTimeout(function () {
+      var panel = currentAnchor.closest('.tmdb-panel');
+      if (panel && !panel.classList.contains('hidden')) {
+        currentAnchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 120);
+  }
+
+  // Sekme değişince new panel için de scroll yap
+  var origActivate = activate;
+  activate = function (btn) {
+    origActivate(btn);
+    var target = 'panel-' + btn.getAttribute('data-tab');
+    var panel  = document.getElementById(target);
+    var anchor = panel && panel.querySelector('#current-month');
+    if (anchor) {
+      setTimeout(function () { anchor.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+    }
+  };
+  // Sekme event'lerini newden bağla
+  tabs.forEach(function (t) { t.onclick = function () { activate(t); }; });
+
+  // Sticky buton görünürlüğü: #current-month görünür değilse göster
+  if (jumpBtn && currentAnchor) {
+    var observer = new IntersectionObserver(function (entries) {
+      jumpBtn.style.opacity  = entries[0].isIntersecting ? '0'   : '1';
+      jumpBtn.style.pointerEvents = entries[0].isIntersecting ? 'none' : 'auto';
+    }, { threshold: 0.1 });
+    observer.observe(currentAnchor);
+    jumpBtn.addEventListener('click', scrollToCurrentMonth);
+  }
+
+  (function sinemalarEnrichQueue() {
+    var busy = false;
+    var FETCH_MS = 36000;
+    var BATCH = 8;
+    function esc(s) {
+      var d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+    function cardEligible(card) {
+      if (!card || card.getAttribute('data-sinemalar-state') !== 'pending') return false;
+      if (typeof cardVisible === 'function' && !cardVisible(card)) return false;
+      var month = card.closest('details.tmdb-month-group');
+      return !month || month.open;
+    }
+    function pendingCards() {
+      return Array.prototype.slice.call(
+        document.querySelectorAll('.tmdb-card[data-sinemalar-state="pending"]')
+      ).filter(cardEligible);
+    }
+    function renderSlot(card, p) {
+      var slot = card.querySelector('.sinemalar-slot');
+      if (!slot || !p) return;
+      var title = card.getAttribute('data-media-title') || '';
+      var isTv = (card.getAttribute('data-media-type') || '') === 'tv';
+      var vizLabel = isTv ? 'Sinemalar release:' : 'Sinemalar theatrical:';
+      var noDate = isTv ? "No release date on Sinemalar" : "No theatrical date on Sinemalar";
+      var googleQ = 'https://www.google.com/search?q=site%3Asinemalar.com+' + encodeURIComponent(title);
+      var html = '<div class="flex flex-wrap gap-1.5">';
+      if (p.sinemalar_found) {
+        card.setAttribute('data-sinemalar-state', 'found');
+        var fuzzy = p.sinemalar_match_quality === 'fuzzy' ? ' ~' : '';
+        html += '<a href="' + esc(p.sinemalar_url) + '" target="_blank" rel="noopener" title="' + esc(p.sinemalar_title || title) + '" class="rounded-lg border border-emerald-400 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60">On Sinemalar' + fuzzy + ' ↗</a>';
+        html += '</div><p class="mt-1.5 w-full text-[10px] leading-snug text-slate-500 dark:text-slate-400">';
+        if (p.sinemalar_has_release_date) {
+          html += vizLabel + ' <span class="font-semibold text-emerald-700 dark:text-emerald-400">' + esc(p.sinemalar_release_label || p.sinemalar_release_date) + '</span>';
+        } else {
+          html += '<span class="font-semibold text-amber-700 dark:text-amber-400">' + noDate + '</span>';
+          if (!isTv) {
+            var trDate = card.getAttribute('data-tmdb-tr-date') || card.getAttribute('data-media-date') || '';
+            if (trDate) {
+              html += '<span class="mt-0.5 block font-semibold text-indigo-700 dark:text-indigo-300" title="TMDB — Turkey theatrical">TMDB TR theatrical: ' + esc(trDate) + '</span>';
+            }
+          }
+        }
+        html += '</p>';
+      } else {
+        card.setAttribute('data-sinemalar-state', 'missing');
+        html += '<span class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-400">Not on Sinemalar</span>';
+        html += '<a href="' + googleQ + '" target="_blank" rel="noopener" class="rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-semibold text-sky-600 transition hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30">Google ↗</a></div>';
+      }
+      slot.innerHTML = html;
+    }
+    function tick() {
+      if (busy) return;
+      var cards = pendingCards().slice(0, BATCH);
+      if (!cards.length) return;
+      busy = true;
+      var items = cards.map(function (c) {
+        return {
+          id: parseInt(c.getAttribute('data-tmdb-id'), 10),
+          title: c.getAttribute('data-media-title') || '',
+          original_title: c.getAttribute('data-media-original') || '',
+          release_date: c.getAttribute('data-media-date') || '',
+          media_type: c.getAttribute('data-media-type') || 'movie',
+        };
+      }).filter(function (it) { return Number.isFinite(it.id); });
+      if (!items.length) {
+        busy = false;
+        return;
+      }
+      var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      var timer = setTimeout(function () {
+        if (ctrl) ctrl.abort();
+      }, FETCH_MS);
+      fetch('/api/tmdb-upcoming/sinemalar-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'same-origin',
+        signal: ctrl ? ctrl.signal : undefined,
+        body: JSON.stringify({ items: items }),
+      })
+        .then(function (r) {
+          if (r.status === 401 || r.status === 403) {
+            cards.forEach(function (card) {
+              renderSlot(card, { sinemalar_found: false });
+            });
+            throw new Error('auth_' + r.status);
+          }
+          if (!r.ok) throw new Error('http_' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          var results = (data && data.results) ? data.results : {};
+          cards.forEach(function (card) {
+            var id = card.getAttribute('data-tmdb-id');
+            var p = results[id];
+            if (p) {
+              renderSlot(card, p);
+            } else if (card.getAttribute('data-sinemalar-state') === 'pending') {
+              renderSlot(card, { sinemalar_found: false });
+            }
+          });
+        })
+        .catch(function () {
+          cards.forEach(function (card) {
+            if (card.getAttribute('data-sinemalar-state') === 'pending') {
+              var tries = parseInt(card.getAttribute('data-sinemalar-tries') || '0', 10) + 1;
+              card.setAttribute('data-sinemalar-tries', String(tries));
+              if (tries >= 3) {
+                renderSlot(card, { sinemalar_found: false });
+              }
+            }
+          });
+        })
+        .finally(function () {
+          clearTimeout(timer);
+          busy = false;
+          if (pendingCards().length) setTimeout(tick, 400);
+        });
+    }
+    setTimeout(tick, 500);
+    setInterval(function () { if (pendingCards().length) tick(); }, 3000);
+    document.querySelectorAll('details.tmdb-month-group').forEach(function (det) {
+      det.addEventListener('toggle', function () {
+        if (det.open) setTimeout(tick, 80);
+      });
+    });
+  })();
+
+  window.__pcPageContext = function () {
+    var activeTab = Array.from(tabs).find(function (t) {
+      var tid = 'panel-' + t.getAttribute('data-tab');
+      var panel = document.getElementById(tid);
+      return panel && !panel.classList.contains('hidden');
+    });
+    return {
+      page: 'tmdb-upcoming',
+      active_tab: activeTab ? activeTab.getAttribute('data-tab') : 'theatrical',
+      filters: { pop: _activePop, provider: _activeProvider },
+    };
+  };
+})();
+
+ }
+</script>
+
+{# Sticky "Bu aya git" butonu #}
+<button id="tmdb-jump-btn"
+  style="position:fixed;bottom:1.5rem;right:1rem;z-index:50;opacity:0;pointer-events:none;transition:opacity 0.25s;max-width:calc(100vw - 2rem);"
+  class="flex items-center gap-1.5 rounded-full bg-amber-500 px-3.5 py-2 text-xs font-bold text-white shadow-lg hover:bg-amber-400 active:scale-95">
+  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+  </svg>
+  Bu aya git
+</button>
