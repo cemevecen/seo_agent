@@ -1,5 +1,7 @@
 /**
- * Ana sayfa — Top 25 sayfa paneli (tam genişlik, site kartları bağımsız).
+ * Ana sayfa — Top 25 / Spark KPI paneli (tam genişlik, site kartları bağımsız).
+ * Aynı panel_id birden fazla tetikleyicide olabilir (ör. SC clicks + position Spark);
+ * hepsi birlikte active olur; açık panele tekrar basınca kapanır.
  */
 (function () {
   'use strict';
@@ -16,17 +18,25 @@
     });
   }
 
+  function setTriggersActive(root, panelId, active) {
+    root.querySelectorAll('[data-home-top-pages-open="' + panelId + '"]').forEach(function (btn) {
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-expanded', active ? 'true' : 'false');
+    });
+  }
+
   function openPanel(root, panelId) {
     closeRoot(root);
     var panel = root.querySelector('[data-home-top-pages-panel="' + panelId + '"]');
-    var btn = root.querySelector('[data-home-top-pages-open="' + panelId + '"]');
     if (!panel) return;
     panel.hidden = false;
     panel.classList.add('is-open');
-    if (btn) {
-      btn.classList.add('is-active');
-      btn.setAttribute('aria-expanded', 'true');
-    }
+    setTriggersActive(root, panelId, true);
+  }
+
+  function panelIsOpen(root, panelId) {
+    var panel = root.querySelector('[data-home-top-pages-panel="' + panelId + '"]');
+    return !!(panel && panel.classList.contains('is-open') && !panel.hidden);
   }
 
   document.addEventListener('click', function (ev) {
@@ -42,7 +52,7 @@
     if (!root) return;
     var id = openBtn.getAttribute('data-home-top-pages-open');
     if (!id) return;
-    if (openBtn.classList.contains('is-active')) {
+    if (panelIsOpen(root, id)) {
       closeRoot(root);
     } else {
       openPanel(root, id);
