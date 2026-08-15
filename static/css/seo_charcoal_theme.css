@@ -313,25 +313,84 @@ html.charcoal #pc-agent-panel {
   border-color: var(--seo-border-soft);
 }
 
-/* KPI delta greens/reds stay; soften container chips */
-html.charcoal .home-container-chip {
-  background: var(--seo-surface) !important;
-  color: var(--seo-text) !important;
-  box-shadow: inset 0 0 0 1px var(--seo-border) !important;
+/*
+ * Chips / pills / segmented / inverted CTAs — force readable ink.
+ * Hardcoded hex (not only CSS vars): surface remaps previously left
+ * labels matching #36363c fill (home container chips looked empty).
+ */
+html.charcoal .home-container-chip,
+html.charcoal #home-board .home-container-chip,
+html.charcoal #home-board .home-readable .home-container-chip,
+html.charcoal #alerts-view .home-container-chip,
+html.dark.charcoal .home-container-chip {
+  background: #3f3f46 !important;
+  background-color: #3f3f46 !important;
+  color: #f4f4f5 !important;
+  -webkit-text-fill-color: #f4f4f5 !important;
+  box-shadow: inset 0 0 0 1px #71717a !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  font-size: 0.75rem !important;
+  line-height: 1.25 !important;
+  font-weight: 400 !important;
 }
 
 html.charcoal .home-period-chips {
-  background: var(--seo-surface) !important;
-  border-color: var(--seo-border) !important;
+  background: #36363c !important;
+  border-color: #52525b !important;
 }
 
 html.charcoal .home-period-chip {
-  color: var(--seo-muted);
+  color: #d4d4d8 !important;
+  -webkit-text-fill-color: #d4d4d8 !important;
 }
 html.charcoal .home-period-chip.bg-slate-900,
 html.charcoal .home-period-chip.dark\:bg-slate-600 {
-  background: var(--seo-surface-3) !important;
-  color: var(--seo-text-strong) !important;
+  background: #52525b !important;
+  color: #fafafa !important;
+  -webkit-text-fill-color: #fafafa !important;
+}
+
+html.charcoal .home-pos-mode-chip,
+html.charcoal .home-nt-chip {
+  color: #d4d4d8 !important;
+  -webkit-text-fill-color: #d4d4d8 !important;
+  border-color: #52525b !important;
+  background: #36363c !important;
+}
+html.charcoal .home-pos-mode-chip:hover,
+html.charcoal .home-nt-chip:hover {
+  color: #f4f4f5 !important;
+  -webkit-text-fill-color: #f4f4f5 !important;
+}
+html.charcoal .home-pos-mode-chip.is-active {
+  background: #52525b !important;
+  color: #fafafa !important;
+  -webkit-text-fill-color: #fafafa !important;
+  border-color: #a1a1aa !important;
+}
+
+html.charcoal .home-top-pages-trigger,
+html.charcoal .home-top-pages-trigger--rail,
+html.charcoal .home-top-pages-panel-close,
+html.charcoal .home-card-link {
+  color: #d4d4d8 !important;
+  -webkit-text-fill-color: #d4d4d8 !important;
+}
+
+html.charcoal .sin-tab {
+  color: #d4d4d8 !important;
+  -webkit-text-fill-color: #d4d4d8 !important;
+}
+html.charcoal .sin-tab.is-on {
+  color: #fafafa !important;
+  -webkit-text-fill-color: #fafafa !important;
+}
+
+/* Dropdown / details chevrons stay muted but visible */
+html.charcoal .home-wv-chevron,
+html.charcoal details > summary {
+  color: #a1a1aa;
 }
 
 
