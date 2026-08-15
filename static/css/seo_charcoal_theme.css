@@ -390,3 +390,10 @@ html.dark [style*="#19191c"] {
   background-color: #2a2a2e !important;
 }
 
+/* Soften #0d1422 (slate-near-black / navy void) → matte charcoal */
+html.charcoal [style*="#0d1422"],
+html.charcoal [style*="0d1422"],
+html.dark [style*="#0d1422"] {
+  background-color: #2a2a2e !important;
+}
+
