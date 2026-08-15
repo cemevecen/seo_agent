@@ -119,7 +119,7 @@ tr[data-sc-extra-row-more].sc-extra-row-visible { display: table-row; }
   }
   html.dark .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] {
     border-color: rgb(51 65 85);
-    background: rgb(15 23 42);
+    background: rgb(42 42 46);
   }
   .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] td {
     display: flex;

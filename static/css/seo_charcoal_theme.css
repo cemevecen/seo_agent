@@ -510,3 +510,31 @@ html.midnight [style*="rgb(24, 29, 43)"] {
   background: #2a2a2e !important;
 }
 
+
+/* Soften #0f172a / rgb(15,23,42) slate-900 surfaces → matte #2a2a2e (not text) */
+html.charcoal .bg-slate-900,
+html.charcoal .dark\:bg-slate-900,
+html.charcoal .midnight\:bg-slate-900,
+html.dark .bg-slate-900,
+html.dark .dark\:bg-slate-900,
+html.midnight .bg-slate-900,
+html.midnight .midnight\:bg-slate-900,
+html.charcoal [class*="bg-slate-900"],
+html.dark [class*="dark:bg-slate-900"],
+html.midnight [class*="midnight:bg-slate-900"],
+html.charcoal [style*="background: rgb(15, 23, 42)"],
+html.charcoal [style*="background:rgb(15,23,42)"],
+html.charcoal [style*="background: rgb(15 23 42)"],
+html.charcoal [style*="background:#0f172a"],
+html.charcoal [style*="background: #0f172a"],
+html.charcoal [style*="background-color: rgb(15, 23, 42)"],
+html.charcoal [style*="background-color:#0f172a"],
+html.dark [style*="background: rgb(15, 23, 42)"],
+html.dark [style*="background: rgb(15 23 42)"],
+html.dark [style*="background:#0f172a"],
+html.midnight [style*="background: rgb(15, 23, 42)"],
+html.midnight [style*="background:#0f172a"] {
+  background-color: #2a2a2e !important;
+  background: #2a2a2e !important;
+}
+
