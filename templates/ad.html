@@ -13553,7 +13553,7 @@
     return mzTargetsFmtMoney(gunluk);
   }
 
-  /** Eksik sheet sütunlarını satırdan türet (eski CSV / boş hücre). */
+  /** Eksik sheet sütunlarını satırdan türet (boş = hedef aşıldı / eski CSV). */
   function mzTargetsRowCols(row) {
     if (!row) {
       return {
@@ -13588,12 +13588,19 @@
         : hedef80 != null && kazanc != null
           ? Math.max(0, hedef80 - kazanc)
           : null;
+    // Sheet %80 / %100 aşıldığında Günlük Kalan hücrelerini boş bırakıyor → 0 veya kalan
     var gunlukKalan =
       row.gunluk_kalan != null && !isNaN(row.gunluk_kalan) ? Number(row.gunluk_kalan) : null;
+    if (gunlukKalan == null && kalan != null) {
+      gunlukKalan = kalan;
+    }
     var gunlukKalan80 =
       row.gunluk_kalan_80 != null && !isNaN(row.gunluk_kalan_80)
         ? Number(row.gunluk_kalan_80)
         : null;
+    if (gunlukKalan80 == null && kalan80 != null) {
+      gunlukKalan80 = kalan80;
+    }
     return {
       hedef: hedef,
       hedef_80: hedef80,
@@ -13715,21 +13722,22 @@
       var heat = colorize ? mzTargetsHeatStyle(pct) : "";
       var heatAttr = heat ? " style=\"" + heat + "\"" : "";
       var heatCls = colorize && heat ? " mz-targets-heat" : "";
-      var kazancCls = colorize
+      var numCls = "px-3 py-2 tabular-nums" + heatCls;
+      var strongCls = colorize
         ? "px-3 py-2 tabular-nums font-semibold" + heatCls
         : "px-3 py-2 tabular-nums font-semibold text-indigo-700 dark:text-indigo-300";
-      var tamCls = colorize ? "px-3 py-2 tabular-nums font-semibold" + heatCls : "px-3 py-2 tabular-nums";
+      var periodCls = "period px-3 py-2 font-medium" + heatCls;
       tr.innerHTML =
-        "<td class=\"period px-3 py-2 font-medium\">" + (r.period || "—") + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.hedef) + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.hedef_80) + "</td>" +
-        "<td class=\"" + kazancCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.kazanc) + "</td>" +
-        "<td class=\"" + tamCls + " num\"" + heatAttr + ">" + mzTargetsFmtPct(pct) + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtGunlukKazanc(r) + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.kalan) + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.kalan_80) + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.gunluk_kalan) + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(c.gunluk_kalan_80) + "</td>";
+        "<td class=\"" + periodCls + "\"" + heatAttr + ">" + (r.period || "—") + "</td>" +
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.hedef) + "</td>" +
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.hedef_80) + "</td>" +
+        "<td class=\"" + strongCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.kazanc) + "</td>" +
+        "<td class=\"" + strongCls + " num\"" + heatAttr + ">" + mzTargetsFmtPct(pct) + "</td>" +
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtGunlukKazanc(r) + "</td>" +
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.kalan) + "</td>" +
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.kalan_80) + "</td>" +
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.gunluk_kalan) + "</td>" +
+        "<td class=\"" + numCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(c.gunluk_kalan_80) + "</td>";
       tbody.appendChild(tr);
     });
     mzTargetsSyncColorizeButton();
