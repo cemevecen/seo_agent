@@ -2,7 +2,7 @@
 {% from 'partials/pa_chart_style_buttons.html' import chart_style_buttons %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/pa_chart_height.css?v=13">
-<link rel="stylesheet" href="/static/css/pa_chart_style.css?v=1">
+<link rel="stylesheet" href="/static/css/pa_chart_style.css?v=3">
 <link rel="stylesheet" href="/static/css/android_chart_viz_20.css?v=21">
 <style>
   .pa-orbit {
@@ -2226,7 +2226,12 @@
   var PA_STROKE_W_PREV = 1;
   /* Açılış her zaman alan dolgulu; users oturumda değiştirebilir. */
   var paChartStyle = "area";
-  try { localStorage.setItem("paChartStyle", "area"); } catch (_) {}
+  try {
+    var _pcs = localStorage.getItem("paChartStyle");
+    if (_pcs === "bar") _pcs = "heatmap";
+    if (_pcs === "line" || _pcs === "area" || _pcs === "heatmap") paChartStyle = _pcs;
+    localStorage.setItem("paChartStyle", paChartStyle);
+  } catch (_) {}
   function syncPaChartStyleUi() {
     var root = document.getElementById("pa-chart-style");
     if (!root) return;
@@ -2237,7 +2242,8 @@
     });
   }
   function setPaChartStyle(style) {
-    if (style !== "line" && style !== "area" && style !== "bar") return;
+    if (style === "bar") style = "heatmap";
+    if (style !== "line" && style !== "area" && style !== "heatmap") return;
     paChartStyle = style;
     try { localStorage.setItem("paChartStyle", style); } catch (_) {}
     syncPaChartStyleUi();
@@ -3707,28 +3713,28 @@
     var barSlot = n > 1 ? plotW / (n - 1) : plotW;
     var pathsHtml = "";
     var ovPathsHtml = "";
-    if (style === "bar") {
-      var stackList = seriesPts.map(function (sp) {
+    if (style === "heatmap" || style === "bar") {
+      var heatList = seriesPts.map(function (sp) {
         return {
           metric: sp.metric,
           color: overviewMetricColor(sp.metric),
-          heights: keys.map(function (key) {
+          values: keys.map(function (key) {
             if (!Object.prototype.hasOwnProperty.call(sp.map, key)) return 0;
-            return hOf(sp.map[key], sp.max);
+            return sp.map[key];
           })
         };
       }).concat(ovSeriesState.map(function (os) {
         return {
           metric: os.seriesKey || os.metric,
           color: os.color,
-          heights: keys.map(function (key) {
+          values: keys.map(function (key) {
             if (!Object.prototype.hasOwnProperty.call(os.map, key)) return 0;
-            return hOf(os.map[key], os.max);
+            return os.map[key];
           })
         };
       }));
-      pathsHtml = buildStackedBarsHtml(
-        stackList,
+      pathsHtml = buildHeatmapHtml(
+        heatList,
         curPts.map(function (p) { return p.x; }),
         baseY,
         plotH,
@@ -4600,6 +4606,42 @@
         c.classList.toggle("is-chart-focus", !!metric && c.getAttribute("data-metric") === metric);
       });
     }
+  }
+  /** Metrik × gün ısı haritası (stacked bar yerine) */
+  function buildHeatmapHtml(seriesList, xs, baseY, plotH, slotWidth) {
+    var n = xs.length;
+    var rows = (seriesList || []).length;
+    if (!n || !rows) return "";
+    var rowH = plotH / rows;
+    var slot = slotWidth > 0 ? slotWidth : 16;
+    var cellW = Math.max(2.2, Math.min(slot * 0.9, slot - 0.8));
+    var html = "";
+    for (var si = 0; si < rows; si++) {
+      var ser = seriesList[si];
+      var vals = ser.values || ser.heights || [];
+      var max = 0;
+      for (var i = 0; i < n; i++) {
+        var vv = Number(vals[i]) || 0;
+        if (vv > max) max = vv;
+      }
+      if (!(max > 0)) max = 1;
+      var y0 = baseY - plotH + si * rowH + 1.1;
+      var h = Math.max(2.4, rowH - 2.2);
+      var parts = "";
+      for (var j = 0; j < n; j++) {
+        var v = Number(vals[j]) || 0;
+        var t = Math.max(0, Math.min(1, v / max));
+        var op = (0.14 + t * 0.8).toFixed(3);
+        var x0 = xs[j] - cellW / 2;
+        parts +=
+          '<rect x="' + x0.toFixed(1) + '" y="' + y0.toFixed(1) +
+          '" width="' + cellW.toFixed(1) + '" height="' + h.toFixed(1) +
+          '" rx="1.6" fill="' + ser.color + '" fill-opacity="' + op +
+          '" shape-rendering="optimizeSpeed" />';
+      }
+      html += wrapChartSeriesG(ser.seriesKey || ser.metric, parts);
+    }
+    return html;
   }
   /** Çoklu seri → yığınlı çubuk (tek path / seri) */
   function buildStackedBarsHtml(seriesList, xs, baseY, plotH, slotWidth) {
@@ -5733,31 +5775,29 @@
     var ovPathsHtml = "";
     var dots = "";
     var ovDots = "";
-    if (style === "bar") {
-      var barSeriesN = 1 + overlaySeriesState.length + ((!hasOv && !useNorm && prevLinePts.length) ? 1 : 0);
+    if (style === "heatmap" || style === "bar") {
       var barSlot = n > 1 ? plotW / (n - 1) : plotW;
-      primaryHtml = buildSeriesStyleHtml("bar", curPts, PA_LINE_COLOR, baseYDraw, {
-        seriesIndex: 0,
-        seriesCount: barSeriesN,
-        barOpacity: 0.88,
-        slotWidth: barSlot
-      });
-      if (!hasOv && !useNorm && prevLinePts.length) {
-        prevHtml = buildSeriesStyleHtml("bar", prevLinePts, pal.prev, baseYDraw, {
-          seriesIndex: 1,
-          seriesCount: barSeriesN,
-          barOpacity: 0.45,
-          slotWidth: barSlot
+      var heatRows = [{
+        metric: (paLastChart && paLastChart.metric) || "metric",
+        color: PA_LINE_COLOR,
+        values: curPts.map(function (p) { return Math.max(0, baseYDraw - p.y); })
+      }];
+      overlaySeriesState.forEach(function (os) {
+        heatRows.push({
+          metric: os.seriesKey || os.metric,
+          color: os.color,
+          values: (os.pts || []).map(function (p) {
+            return p ? Math.max(0, baseYDraw - p.y) : 0;
+          })
         });
-      }
-      ovPathsHtml = overlaySeriesState.map(function (os, oi) {
-        return wrapChartSeriesG(os.seriesKey || paOverlaySeriesKey(os, oi), buildSeriesStyleHtml("bar", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
-          seriesIndex: 1 + oi,
-          seriesCount: Math.max(1, 1 + overlaySeriesState.length),
-          barOpacity: 0.75,
-          slotWidth: barSlot
-        }));
-      }).join("");
+      });
+      primaryHtml = buildHeatmapHtml(
+        heatRows,
+        curPts.map(function (p) { return p.x; }),
+        baseYDraw,
+        plotH,
+        barSlot
+      );
     } else if (style === "area") {
       primaryHtml = buildSeriesStyleHtml("area", curPts, PA_LINE_COLOR, baseYDraw, {
         strokeW: PA_STROKE_W,

@@ -2,7 +2,7 @@
 {% from 'partials/pa_chart_style_buttons.html' import chart_style_buttons %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/pa_chart_height.css?v=13">
-<link rel="stylesheet" href="/static/css/pa_chart_style.css?v=1">
+<link rel="stylesheet" href="/static/css/pa_chart_style.css?v=3">
 <link rel="stylesheet" href="/static/css/android_chart_viz_20.css?v=21">
 <style>
   .pa-filters {
@@ -1533,7 +1533,12 @@
   var STROKE = 0.68;
   /* Açılış her zaman alan dolgulu; users oturumda değiştirebilir. */
   var iaChartStyle = "area";
-  try { localStorage.setItem("iaChartStyle", "area"); } catch (_) {}
+  try {
+    var _ics = localStorage.getItem("iaChartStyle");
+    if (_ics === "bar") _ics = "heatmap";
+    if (_ics === "line" || _ics === "area" || _ics === "heatmap") iaChartStyle = _ics;
+    localStorage.setItem("iaChartStyle", iaChartStyle);
+  } catch (_) {}
   function syncIaChartStyleUi() {
     var root = document.getElementById("ia-chart-style");
     if (!root) return;
@@ -1544,7 +1549,8 @@
     });
   }
   function setIaChartStyle(style) {
-    if (style !== "line" && style !== "area" && style !== "bar") return;
+    if (style === "bar") style = "heatmap";
+    if (style !== "line" && style !== "area" && style !== "heatmap") return;
     iaChartStyle = style;
     try { localStorage.setItem("iaChartStyle", style); } catch (_) {}
     syncIaChartStyleUi();
@@ -3014,6 +3020,41 @@
       });
     }
   }
+  function buildIaHeatmapHtml(seriesList, xs, baseY, plotH, slotWidth) {
+    var n = xs.length;
+    var rows = (seriesList || []).length;
+    if (!n || !rows) return "";
+    var rowH = plotH / rows;
+    var slot = slotWidth > 0 ? slotWidth : 16;
+    var cellW = Math.max(2.2, Math.min(slot * 0.9, slot - 0.8));
+    var html = "";
+    for (var si = 0; si < rows; si++) {
+      var ser = seriesList[si];
+      var vals = ser.values || ser.heights || [];
+      var max = 0;
+      for (var i = 0; i < n; i++) {
+        var vv = Number(vals[i]) || 0;
+        if (vv > max) max = vv;
+      }
+      if (!(max > 0)) max = 1;
+      var y0 = baseY - plotH + si * rowH + 1.1;
+      var h = Math.max(2.4, rowH - 2.2);
+      var parts = "";
+      for (var j = 0; j < n; j++) {
+        var v = Number(vals[j]) || 0;
+        var tIntensity = Math.max(0, Math.min(1, v / max));
+        var op = (0.14 + tIntensity * 0.8).toFixed(3);
+        var x0 = xs[j] - cellW / 2;
+        parts +=
+          '<rect x="' + x0.toFixed(1) + '" y="' + y0.toFixed(1) +
+          '" width="' + cellW.toFixed(1) + '" height="' + h.toFixed(1) +
+          '" rx="1.6" fill="' + ser.color + '" fill-opacity="' + op +
+          '" shape-rendering="optimizeSpeed" />';
+      }
+      html += wrapIaChartSeriesG(ser.metric, parts);
+    }
+    return html;
+  }
   function buildIaStackedBarsHtml(seriesList, xs, baseY, plotH, slotWidth) {
     var n = xs.length;
     if (!n || !(seriesList || []).length) return "";
@@ -3212,15 +3253,15 @@
       : (pal.areaFill != null ? pal.areaFill : 0.22);
     var barSlot = n > 1 ? plotW / (n - 1) : plotW;
     var paths = "";
-    if (style === "bar") {
-      paths = buildIaStackedBarsHtml(
+    if (style === "heatmap" || style === "bar") {
+      paths = buildIaHeatmapHtml(
         seriesList.map(function (s) {
           return {
             metric: s.metric,
             color: s.color,
-            heights: keys.map(function (key) {
+            values: keys.map(function (key) {
               if (!Object.prototype.hasOwnProperty.call(s.map, key)) return 0;
-              return hOf(s.map[key], s.max);
+              return s.map[key];
             })
           };
         }),
@@ -3330,13 +3371,30 @@
     var baseY = top + plotH;
     var pal = iaChartPalette();
     var pts = buildIaSeriesPts(keys, map, max, xs, top, plotH);
-    var seriesHtml = wrapIaChartSeriesG(metric, buildIaSeriesStyleHtml(style, pts, lineColor, baseY, {
-      strokeW: STROKE,
-      fillOpacity: pal.areaFill != null ? pal.areaFill : 0.26,
-      seriesIndex: 0,
-      seriesCount: 1,
-      slotWidth: n > 1 ? plotW / (n - 1) : plotW
-    }));
+    var seriesHtml = "";
+    if (style === "heatmap" || style === "bar") {
+      seriesHtml = buildIaHeatmapHtml(
+        [{
+          metric: metric,
+          color: lineColor,
+          values: keys.map(function (key) {
+            return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : 0;
+          })
+        }],
+        xs,
+        baseY,
+        plotH,
+        n > 1 ? plotW / (n - 1) : plotW
+      );
+    } else {
+      seriesHtml = wrapIaChartSeriesG(metric, buildIaSeriesStyleHtml(style, pts, lineColor, baseY, {
+        strokeW: STROKE,
+        fillOpacity: pal.areaFill != null ? pal.areaFill : 0.26,
+        seriesIndex: 0,
+        seriesCount: 1,
+        slotWidth: n > 1 ? plotW / (n - 1) : plotW
+      }));
+    }
     iaChart.innerHTML =
       '<rect width="720" height="260" fill="transparent" />' +
       grid +

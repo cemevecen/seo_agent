@@ -63,6 +63,13 @@ html.charcoal .pa-chart-style button:hover {
   box-shadow: inset 0 0 0 1.5px #d97706;
 }
 
+.pa-chart-style button.is-active[data-pa-chart-style="heatmap"],
+.pa-chart-style button.is-active[data-ia-chart-style="heatmap"],
+.pa-chart-style button.is-active[data-sd-chart-style="heatmap"] {
+  background: #f5f3ff;
+  box-shadow: inset 0 0 0 1.5px #7c3aed;
+}
+
 html.dark .pa-chart-style button.is-active[data-pa-chart-style="line"],
 html.dark .pa-chart-style button.is-active[data-ia-chart-style="line"],
 html.dark .pa-chart-style button.is-active[data-mz-chart-style="line"],
@@ -97,6 +104,16 @@ html.charcoal .pa-chart-style button.is-active[data-mz-chart-style="bar"],
 html.charcoal .pa-chart-style button.is-active[data-sd-chart-style="bar"] {
   background: rgb(120 53 15 / 0.35);
   box-shadow: inset 0 0 0 1.5px #fbbf24;
+}
+
+html.dark .pa-chart-style button.is-active[data-pa-chart-style="heatmap"],
+html.dark .pa-chart-style button.is-active[data-ia-chart-style="heatmap"],
+html.dark .pa-chart-style button.is-active[data-sd-chart-style="heatmap"],
+html.charcoal .pa-chart-style button.is-active[data-pa-chart-style="heatmap"],
+html.charcoal .pa-chart-style button.is-active[data-ia-chart-style="heatmap"],
+html.charcoal .pa-chart-style button.is-active[data-sd-chart-style="heatmap"] {
+  background: rgb(76 29 149 / 0.4);
+  box-shadow: inset 0 0 0 1.5px #a78bfa;
 }
 
 .pa-chart-style button svg.pa-cs-icon {

@@ -1,5 +1,5 @@
-{# Renkli grafik tipi butonları — Android: data-pa-chart-style · iOS: data-ia-chart-style · Ad: data-mz-chart-style #}
-{% macro chart_style_buttons(root_id, style_attr, extra_class='') %}
+{# Renkli grafik tipi butonları — Android/iOS: heatmap · Ad: bar (third_style) #}
+{% macro chart_style_buttons(root_id, style_attr, extra_class='', third_style='heatmap', third_title='Isı haritası') %}
 <div id="{{ root_id }}" class="pa-chart-style {{ extra_class }}" role="group" aria-label="Grafik tipi">
   <button type="button" {{ style_attr }}="line" title="Çizgi grafik" aria-label="Çizgi grafik" aria-pressed="false">
     <svg viewBox="0 0 16 16" class="pa-cs-icon" aria-hidden="true">
@@ -17,6 +17,7 @@
       <path d="M2.8 11.2 L5.8 8.2 L8.2 9.6 L13.2 4.8" stroke="#059669" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
     </svg>
   </button>
+  {% if third_style == 'bar' %}
   <button type="button" {{ style_attr }}="bar" title="Yığılmış çubuk" aria-label="Yığılmış çubuk grafik" aria-pressed="false">
     <svg viewBox="0 0 16 16" class="pa-cs-icon" aria-hidden="true">
       <rect x="1.5" y="1.5" width="13" height="13" rx="2" fill="#fffbeb" stroke="#fcd34d" stroke-width="0.65"/>
@@ -28,5 +29,21 @@
       <rect x="9.5" y="4.5" width="2.9" height="2.8" rx="0.35" fill="#ea580c"/>
     </svg>
   </button>
+  {% else %}
+  <button type="button" {{ style_attr }}="heatmap" title="{{ third_title }}" aria-label="{{ third_title }}" aria-pressed="false">
+    <svg viewBox="0 0 16 16" class="pa-cs-icon" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="2" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="0.65"/>
+      <rect x="3.1" y="3.1" width="2.6" height="2.6" rx="0.35" fill="#ddd6fe"/>
+      <rect x="6.7" y="3.1" width="2.6" height="2.6" rx="0.35" fill="#a78bfa"/>
+      <rect x="10.3" y="3.1" width="2.6" height="2.6" rx="0.35" fill="#7c3aed"/>
+      <rect x="3.1" y="6.7" width="2.6" height="2.6" rx="0.35" fill="#8b5cf6"/>
+      <rect x="6.7" y="6.7" width="2.6" height="2.6" rx="0.35" fill="#6d28d9"/>
+      <rect x="10.3" y="6.7" width="2.6" height="2.6" rx="0.35" fill="#c4b5fd"/>
+      <rect x="3.1" y="10.3" width="2.6" height="2.6" rx="0.35" fill="#4c1d95"/>
+      <rect x="6.7" y="10.3" width="2.6" height="2.6" rx="0.35" fill="#a78bfa"/>
+      <rect x="10.3" y="10.3" width="2.6" height="2.6" rx="0.35" fill="#8b5cf6"/>
+    </svg>
+  </button>
+  {% endif %}
 </div>
 {% endmacro %}
