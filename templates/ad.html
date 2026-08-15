@@ -37,6 +37,58 @@
   .mz-targets-table th[data-sort]:hover {
     color: rgb(79 70 229);
   }
+  html.dark .mz-targets-table th[data-sort]:hover,
+  html.midnight .mz-targets-table th[data-sort]:hover {
+    color: rgb(129 140 248);
+  }
+  /* Targets tablo — dark: mat, dikey ışıltı / hücre “nokta” yok */
+  html.dark .mz-targets-table,
+  html.midnight .mz-targets-table {
+    border-collapse: collapse;
+    color: rgb(161 161 170);
+  }
+  html.dark .mz-targets-table thead,
+  html.midnight .mz-targets-table thead {
+    background: rgb(9 9 11) !important;
+    color: rgb(113 113 122) !important;
+    border-color: rgb(39 39 42) !important;
+  }
+  html.dark .mz-targets-table th,
+  html.midnight .mz-targets-table th {
+    color: rgb(113 113 122) !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent;
+  }
+  html.dark .mz-targets-table td,
+  html.midnight .mz-targets-table td {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+  html.dark .mz-targets-table tbody tr,
+  html.midnight .mz-targets-table tbody tr {
+    border-bottom: 1px solid rgb(24 24 27);
+  }
+  html.dark .mz-targets-table td.mz-targets-heat,
+  html.midnight .mz-targets-table td.mz-targets-heat {
+    border-radius: 0 !important;
+  }
+  html.dark #mz-targets-table-wrap > div,
+  html.midnight #mz-targets-table-wrap > div {
+    border-color: rgb(39 39 42) !important;
+    background: rgb(9 9 11) !important;
+  }
+  html.dark .mz-page.mz-virgul-mode[data-mz-main-view="targets"] h3,
+  html.midnight .mz-page.mz-virgul-mode[data-mz-main-view="targets"] h3 {
+    color: rgb(161 161 170) !important;
+  }
+  html.dark .mz-page.mz-virgul-mode[data-mz-main-view="targets"] .mz-main-view-chip:not(.is-active),
+  html.midnight .mz-page.mz-virgul-mode[data-mz-main-view="targets"] .mz-main-view-chip:not(.is-active) {
+    border-color: rgb(63 63 70);
+    color: rgb(161 161 170);
+    background: rgb(24 24 27);
+  }
   #mz-targets-colorize.is-active {
     border-color: rgb(20 83 45);
     background: rgb(20 83 45);
@@ -198,7 +250,7 @@
   }
   html.dark .mz-page .mz-ad-target-kpi-label,
   html.midnight .mz-page .mz-ad-target-kpi-label {
-    color: rgb(94 234 212);
+    color: rgb(94 167 155);
   }
   .mz-page .mz-ad-target-kpi-value {
     display: block;
@@ -218,7 +270,7 @@
   }
   html.dark .mz-page .mz-ad-target-kpi-value,
   html.midnight .mz-page .mz-ad-target-kpi-value {
-    color: rgb(244 244 245);
+    color: rgb(161 161 170);
   }
   .mz-page .mz-ad-target-kpi-sub {
     display: block;
@@ -298,7 +350,8 @@
   }
   html.dark .mz-targets-table .mz-targets-surplus,
   html.midnight .mz-targets-table .mz-targets-surplus {
-    color: #000 !important;
+    color: #71717a !important;
+    opacity: 0.9;
   }
   @media (min-width: 1280px) {
     .mz-targets-table {
@@ -6844,9 +6897,9 @@
     state._ga4MobileOverlayPromise = null;
   }
 
-  /** Ana seri mürekkep rengi (açıkta siyah, koyu temada okunaklı açık gri). */
+  /** Ana seri mürekkep rengi — dark’ta mat gri (beyaz patlamasın). */
   function mzInkColor() {
-    return isDarkTheme() ? "#f4f4f5" : "#0a0a0a";
+    return isDarkTheme() ? "#a1a1aa" : "#0a0a0a";
   }
 
   /** Karşı dal overlay — kesik fıstık yeşili (iOS↔Android, Web↔Mobil web). */
@@ -8799,7 +8852,7 @@
   }
 
   function plotFont() {
-    return { color: isDarkTheme() ? "#a1a1aa" : "#475569", size: 11 };
+    return { color: isDarkTheme() ? "#737373" : "#475569", size: 11 };
   }
 
   var DRILL_STACK_MARGIN = { l: 34, r: 6, t: 22, b: 48 };
@@ -8951,12 +9004,22 @@
   function plotAxis(title) {
     var dark = isDarkTheme();
     var ax = {
-      gridcolor: dark ? "#27272a" : "#e2e8f0",
-      zerolinecolor: dark ? "#3f3f46" : "#cbd5e1",
-      linecolor: dark ? "#3f3f46" : "#cbd5e1",
+      /* Dark: kılavuz çizgileri neredeyse yok — bembeyaz grid yok */
+      showgrid: !dark,
+      gridcolor: dark ? "rgba(0,0,0,0)" : "#e2e8f0",
+      gridwidth: 1,
+      zeroline: false,
+      showline: false,
+      zerolinecolor: dark ? "rgba(0,0,0,0)" : "#cbd5e1",
+      linecolor: dark ? "rgba(0,0,0,0)" : "#cbd5e1",
       tickfont: plotFont(),
+      tickcolor: dark ? "rgba(0,0,0,0)" : "#cbd5e1",
       automargin: true,
     };
+    if (dark) {
+      ax.gridcolor = "rgba(255,255,255,0.035)";
+      ax.showgrid = true;
+    }
     if (title) {
       ax.title = { text: title, font: plotFont(), standoff: 4 };
     }
@@ -9092,12 +9155,12 @@
         font: plotFont(),
         orientation: "h",
         bgcolor: "rgba(0,0,0,0)",
-        bordercolor: dark ? "#3f3f46" : "#e2e8f0",
+        bordercolor: dark ? "#27272a" : "#e2e8f0",
       },
       hoverlabel: {
         bgcolor: dark ? "#18181b" : "#ffffff",
-        bordercolor: dark ? "#52525b" : "#e2e8f0",
-        font: { color: dark ? "#e4e4e7" : "#1e293b", size: 11 },
+        bordercolor: dark ? "#3f3f46" : "#e2e8f0",
+        font: { color: dark ? "#a1a1aa" : "#1e293b", size: 11 },
       },
     };
     layout.xaxis = Object.assign({ domain: [0, 1], anchor: "y" }, layout.xaxis);
@@ -13661,15 +13724,15 @@
 
   var mzTargetsCache = null;
   var mzTargetsLineSeriesDefs = [
-    { key: "hedef", label: "Target", color: "#94a3b8", unit: "money" },
-    { key: "hedef_80", label: "Target (80%)", color: "#f59e0b", unit: "money", dash: "dot" },
-    { key: "kazanc", label: "Achieved", color: "#4f46e5", unit: "money", width: 2.5 },
-    { key: "tamamlama_orani", label: "Target Completion Rate", color: "#059669", unit: "pct" },
-    { key: "gunluk_kazanc", label: "Daily Earnings", color: "#0ea5e9", unit: "money" },
-    { key: "kalan", label: "Remaining", color: "#f97316", unit: "money" },
-    { key: "kalan_80", label: "Remaining (80%)", color: "#fb7185", unit: "money", dash: "dot" },
-    { key: "gunluk_kalan", label: "Daily Remaining", color: "#a855f7", unit: "money" },
-    { key: "gunluk_kalan_80", label: "Daily Remaining (80%)", color: "#c084fc", unit: "money", dash: "dot" },
+    { key: "hedef", label: "Target", color: "#71717a", unit: "money" },
+    { key: "hedef_80", label: "Target (80%)", color: "#a67c3d", unit: "money", dash: "dot" },
+    { key: "kazanc", label: "Achieved", color: "#6b8aad", unit: "money", width: 2.5 },
+    { key: "tamamlama_orani", label: "Target Completion Rate", color: "#4a8f73", unit: "pct" },
+    { key: "gunluk_kazanc", label: "Daily Earnings", color: "#5b7c99", unit: "money" },
+    { key: "kalan", label: "Remaining", color: "#b87333", unit: "money" },
+    { key: "kalan_80", label: "Remaining (80%)", color: "#a85a66", unit: "money", dash: "dot" },
+    { key: "gunluk_kalan", label: "Daily Remaining", color: "#8b7aa8", unit: "money" },
+    { key: "gunluk_kalan_80", label: "Daily Remaining (80%)", color: "#7a6b8a", unit: "money", dash: "dot" },
   ];
   var mzTargetsUi = {
     project: "doviz",
@@ -13881,7 +13944,7 @@
     return null;
   }
 
-  /** Tamamlama % — hafif opak kırmızı (≤60) → yeşil (≥100). */
+  /** Tamamlama % — mat kırmızı (≤60) → mat yeşil (≥100); dark’ta parlak fluo yok. */
   function mzTargetsHeatStyle(pct) {
     if (pct == null || isNaN(pct)) return "";
     var lo = 60;
@@ -13890,19 +13953,19 @@
     if (t < 0) t = 0;
     if (t > 1) t = 1;
     var dark = isDarkTheme();
-    var rLo = 220;
-    var gLo = 38;
-    var bLo = 38;
-    var rHi = 22;
-    var gHi = 163;
-    var bHi = 74;
+    var rLo = dark ? 140 : 220;
+    var gLo = dark ? 70 : 38;
+    var bLo = dark ? 78 : 38;
+    var rHi = dark ? 58 : 22;
+    var gHi = dark ? 120 : 163;
+    var bHi = dark ? 95 : 74;
     var r = Math.round(rLo + (rHi - rLo) * t);
     var g = Math.round(gLo + (gHi - gLo) * t);
     var b = Math.round(bLo + (bHi - bLo) * t);
-    var alpha = dark ? 0.28 : 0.17;
+    var alpha = dark ? 0.22 : 0.17;
     var text = t >= 0.52
-      ? (dark ? "#6ee7b7" : "#166534")
-      : (dark ? "#fca5a5" : "#b91c1c");
+      ? (dark ? "#4a8f73" : "#166534")
+      : (dark ? "#a85a66" : "#b91c1c");
     return "background-color:rgba(" + r + "," + g + "," + b + "," + alpha + ");color:" + text + ";";
   }
 
@@ -14314,8 +14377,12 @@
           type: "category",
           categoryorder: "array",
           categoryarray: labels,
-          tickfont: { size: labels.length > 18 ? 9 : 11 },
+          tickfont: Object.assign({}, plotFont(), { size: labels.length > 18 ? 9 : 11 }),
           tickmode: "linear",
+          showgrid: isDarkTheme(),
+          gridcolor: isDarkTheme() ? "rgba(255,255,255,0.035)" : "#e2e8f0",
+          zeroline: false,
+          showline: false,
         };
 
         var activeDefs = mzTargetsLineSeriesDefs.filter(function (d) {
@@ -14334,9 +14401,9 @@
             y: ys,
             name: def.label,
             type: "scatter",
-            mode: "lines+markers",
+            mode: "lines",
             line: { color: def.color, width: def.width || 2 },
-            marker: { size: def.key === "kazanc" ? 6 : 5 },
+            marker: { size: 0 },
           };
           if (def.dash) tr.line.dash = def.dash;
           if (dual && def.unit === "pct") {
@@ -14358,6 +14425,7 @@
             side: "right",
             showgrid: false,
             automargin: true,
+            tickfont: plotFont(),
           };
         }
         lineLay.title = { text: projLabel, font: plotFont(), x: 0 };
@@ -14366,9 +14434,11 @@
 
         var barHedef = chartRows.map(function (r) { return mzTargetsSeriesValue(r, "hedef"); });
         var barKazanc = chartRows.map(function (r) { return mzTargetsSeriesValue(r, "kazanc"); });
+        var barTargetColor = isDarkTheme() ? "#3f3f46" : "#cbd5e1";
+        var barAchievedColor = isDarkTheme() ? "#6b8aad" : "#6366f1";
         var barTraces = [
-          { x: labels, y: barHedef, name: "Target", type: "bar", marker: { color: "#cbd5e1" } },
-          { x: labels, y: barKazanc, name: "Achieved", type: "bar", marker: { color: "#6366f1" } },
+          { x: labels, y: barHedef, name: "Target", type: "bar", marker: { color: barTargetColor } },
+          { x: labels, y: barKazanc, name: "Achieved", type: "bar", marker: { color: barAchievedColor } },
         ];
         var barLay = plotTheme({
           yTitle: "TL",

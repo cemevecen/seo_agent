@@ -67,8 +67,9 @@
   /** /ad ana seriler: mürekkep siyah; karşı dönem de aynı ink (kesikli stil şablonda). */
   function seoMatteAdCompareColors() {
     var c = seoMatteChartColors();
-    var ink = pick("#0a0a0a", "#f4f4f5");
-    var inkSoft = pick("#525252", "#a1a1aa");
+    /* Dark: asla #f4f4f5 / beyaz — mat zinc */
+    var ink = pick("#0a0a0a", "#a1a1aa");
+    var inkSoft = pick("#525252", "#71717a");
     return {
       primary: ink,
       sparkCompare: c.sky,
