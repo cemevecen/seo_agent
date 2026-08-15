@@ -19,7 +19,7 @@ html.midnight .seo-matte-panel {
 /* GSC / CWV (and similar) screenshots — matte in dark only */
 html.dark .seo-matte-shot-wrap,
 html.midnight .seo-matte-shot-wrap {
-  background: #141416 !important;
+  background: #2a2a2e !important;
   border-color: #3f3f46 !important;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }

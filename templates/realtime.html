@@ -12,13 +12,20 @@
   .rt-change-flat{color:#64748b}.dark .rt-change-flat{color:#a1a1aa}
   /* Dark: tek palet — antrasit/siyah zinc */
   html.dark {
-    --rt-d-void: #09090b;
-    --rt-d-surface: #18181b;
-    --rt-d-raised: #27272a;
-    --rt-d-kpi-inset: #101012;
-    --rt-d-split: #131316;
-    --rt-d-border: rgba(113, 113, 122, 0.30);
+    --rt-d-void: #1c1c1f;
+    --rt-d-surface: #2a2a2e;
+    --rt-d-raised: #36363c;
+    --rt-d-kpi-inset: #242428;
+    --rt-d-split: #2e2e33;
+    --rt-d-border: rgba(113, 113, 122, 0.35);
     --rt-d-muted: #a1a1aa;
+  }
+  html.charcoal {
+    --rt-d-void: #242428;
+    --rt-d-surface: #2e2e33;
+    --rt-d-raised: #3f3f46;
+    --rt-d-kpi-inset: #323238;
+    --rt-d-split: #36363c;
   }
   html.dark .rt-surface-solid {
     background-color: var(--rt-d-void) !important;
@@ -626,13 +633,13 @@
     scrollbar-width: thin;
   }
   html.dark .rt-scroll-area {
-    scrollbar-color: rgb(82 82 91) rgb(9 9 11);
+    scrollbar-color: rgb(82 82 91) rgb(28 28 31);
   }
   .rt-scroll-area::-webkit-scrollbar {
     width: 8px;
   }
   html.dark .rt-scroll-area::-webkit-scrollbar-track {
-    background: rgb(9 9 11);
+    background: rgb(28 28 31);
     border-radius: 6px;
   }
   html.dark .rt-scroll-area::-webkit-scrollbar-thumb {

@@ -49,7 +49,7 @@
     /* Solid paper/plot — transparent theme bg + CSS svg stretch broke treemap packing */
     return {
       paper: dark ? "#18181b" : "#ffffff",
-      plot: dark ? "#141416" : "#ffffff",
+      plot: dark ? "#2a2a2e" : "#ffffff",
       text: dark ? "#d4d4d8" : "#334155",
       grid: dark ? "#27272a" : base.grid || "#e2e8f0",
       legend: dark ? "#a1a1aa" : base.legend || "#64748b",

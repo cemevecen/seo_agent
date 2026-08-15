@@ -80,7 +80,7 @@
       "html.dark .mtux-pin-mode table.mtux-grid-table thead .mtux-sticky-left," +
       "html.dark .mtux-pin-mode table.mtux-grid-table thead .mtux-sticky-corner{background:#18181b;}" +
       ".mtux-pin-mode table.mtux-grid-table tbody .mtux-sticky-left{background:#fff;}" +
-      "html.dark .mtux-pin-mode table.mtux-grid-table tbody .mtux-sticky-left{background:#09090b;}" +
+      "html.dark .mtux-pin-mode table.mtux-grid-table tbody .mtux-sticky-left{background:#1c1c1f;}" +
       ".mtux-pin-mode table.mtux-grid-table tbody tr:nth-child(even) .mtux-sticky-left{background:#f8fafc;}" +
       "html.dark .mtux-pin-mode table.mtux-grid-table tbody tr:nth-child(even) .mtux-sticky-left{background:#18181b;}" +
       "th.mtux-th{position:relative;user-select:none;}" +

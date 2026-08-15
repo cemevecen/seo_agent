@@ -300,3 +300,56 @@ html.charcoal .home-period-chip.dark\:bg-slate-600 {
   background: var(--seo-surface-3) !important;
   color: var(--seo-text-strong) !important;
 }
+
+
+/* ── Nuclear soften: any leftover kapkara under charcoal ── */
+html.charcoal body {
+  background: radial-gradient(circle at top, #323238, #2a2a2e 55%, #242428) !important;
+}
+
+html.charcoal #content,
+html.charcoal main,
+html.charcoal .rt-surface-solid,
+html.charcoal [class*="rt-surface"] {
+  background-color: var(--seo-bg) !important;
+}
+
+html.charcoal .rt-surface-solid {
+  background-color: var(--seo-bg-elevated) !important;
+}
+
+html.charcoal .dn-kpi,
+html.charcoal .dn-card,
+html.charcoal [class*="dn-card"],
+html.charcoal [class*="dn-kpi"] {
+  background-color: var(--seo-surface) !important;
+  border-color: var(--seo-border) !important;
+}
+
+html.charcoal #ia-chart-card,
+html.charcoal #pa-chart-card,
+html.charcoal #sd-chart-card,
+html.charcoal .pa-chart-card,
+html.charcoal .pa-viz20-chart,
+html.charcoal .js-plotly-plot,
+html.charcoal .plot-container {
+  background-color: var(--seo-surface) !important;
+}
+
+html.charcoal .pa-chart-stage,
+html.charcoal .pa-chart-viewport {
+  background-color: transparent !important;
+}
+
+/* Beat html.dark [class*="dark:bg-slate-950"] #242428 */
+html.charcoal [class*="dark:bg-slate-950"],
+html.charcoal [class*="dark:bg-zinc-950"],
+html.charcoal [class*="bg-zinc-950"] {
+  background-color: var(--seo-surface) !important;
+  background-image: none !important;
+}
+
+html.charcoal [class*="dark:bg-black"],
+html.charcoal [class*="bg-black"] {
+  background-color: var(--seo-bg) !important;
+}
