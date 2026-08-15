@@ -292,6 +292,18 @@
     border-radius: 0.35rem;
     transition: background-color 0.15s ease, color 0.15s ease;
   }
+  .mz-targets-table .mz-targets-surplus {
+    color: #000 !important;
+    opacity: 0.5;
+  }
+  html.dark .mz-targets-table .mz-targets-surplus,
+  html.midnight .mz-targets-table .mz-targets-surplus {
+    color: #000 !important;
+  }
+  .mz-targets-table .mz-targets-surplus-pct {
+    font-size: 50%;
+    font-weight: 600;
+  }
   @media (min-width: 1280px) {
     .mz-targets-table {
       font-size: 0.8125rem;
@@ -13659,12 +13671,19 @@
     return fmt(v, 0);
   }
 
-  /** Hedef aşıldıysa +miktar · +%; aksi halde kalan (veya —). */
+  /** Hedef aşıldıysa +miktar · +% (siyah %50 opak; yüzde yarı boy); aksi halde kalan. */
   function mzTargetsFmtRemainingOrSurplus(remaining, achieved, target) {
     if (target != null && !isNaN(target) && achieved != null && !isNaN(achieved) && target > 0 && achieved > target) {
       var over = Number(achieved) - Number(target);
       var pct = (over / Number(target)) * 100;
-      return "+" + mzTargetsFmtMoney(over) + " · +" + fmt(pct, 1) + "%";
+      return (
+        '<span class="mz-targets-surplus">' +
+        "+" +
+        mzTargetsFmtMoney(over) +
+        ' · <span class="mz-targets-surplus-pct">+' +
+        fmt(pct, 1) +
+        "%</span></span>"
+      );
     }
     return mzTargetsFmtMoney(remaining);
   }
