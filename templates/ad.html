@@ -44,43 +44,59 @@
   html.midnight .mz-targets-table th[data-sort]:hover {
     color: rgb(129 140 248);
   }
-  /* Targets tablo — dark: mat, dikey ışıltı / hücre “nokta” yok */
+  /* Targets tablo — dark: mat ayırıcılar, beyaz çerçeve yok */
   html.dark .mz-targets-table,
   html.midnight .mz-targets-table {
     border-collapse: collapse;
+    border-spacing: 0;
     color: rgb(161 161 170);
+    border: none !important;
   }
   html.dark .mz-targets-table thead,
   html.midnight .mz-targets-table thead {
     background: rgb(9 9 11) !important;
     color: rgb(113 113 122) !important;
-    border-color: rgb(39 39 42) !important;
+    border: none !important;
+    border-bottom: 1px solid rgb(39 39 42) !important;
+    box-shadow: none !important;
+  }
+  html.dark .mz-targets-table th,
+  html.midnight .mz-targets-table th,
+  html.dark .mz-targets-table td,
+  html.midnight .mz-targets-table td {
+    color: inherit;
+    border: 0 !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    background-clip: padding-box;
   }
   html.dark .mz-targets-table th,
   html.midnight .mz-targets-table th {
     color: rgb(113 113 122) !important;
-    border: none !important;
-    box-shadow: none !important;
     background: transparent;
-  }
-  html.dark .mz-targets-table td,
-  html.midnight .mz-targets-table td {
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
   }
   html.dark .mz-targets-table tbody tr,
   html.midnight .mz-targets-table tbody tr {
-    border-bottom: 1px solid rgb(24 24 27);
+    border: 0 !important;
+    border-bottom: 1px solid rgb(39 39 42) !important; /* zinc-800 mat */
+    box-shadow: none !important;
+  }
+  html.dark .mz-targets-table tbody tr:last-child,
+  html.midnight .mz-targets-table tbody tr:last-child {
+    border-bottom: 0 !important;
   }
   html.dark .mz-targets-table td.mz-targets-heat,
   html.midnight .mz-targets-table td.mz-targets-heat {
     border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
   }
   html.dark #mz-targets-table-wrap > div,
   html.midnight #mz-targets-table-wrap > div {
     border-color: rgb(39 39 42) !important;
     background: rgb(9 9 11) !important;
+    box-shadow: none !important;
   }
   html.dark .mz-page.mz-virgul-mode[data-mz-main-view="targets"] h3,
   html.midnight .mz-page.mz-virgul-mode[data-mz-main-view="targets"] h3 {
@@ -333,6 +349,13 @@
   .mz-targets-table {
     width: 100%;
     table-layout: auto;
+    border-collapse: collapse;
+  }
+  .mz-targets-table tbody tr {
+    border-bottom: 1px solid rgb(241 245 249);
+  }
+  .mz-targets-table tbody tr:last-child {
+    border-bottom: 0;
   }
   .mz-targets-table th.num,
   .mz-targets-table td.num {
@@ -2069,9 +2092,9 @@
           </div>
         </div>
         <div id="mz-targets-table-wrap" class="hidden w-full space-y-2">
-          <div class="w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <div class="w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 midnight:border-zinc-800 midnight:bg-black">
           <table class="mz-targets-table w-full min-w-[56rem] text-left text-xs sm:text-sm">
-            <thead class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
+            <thead class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-500 midnight:border-zinc-800 midnight:bg-black midnight:text-zinc-500">
               <tr>
                 <th class="period px-3 py-2" data-sort="period_key">Period</th>
                 <th class="num px-3 py-2" data-sort="hedef">Target</th>
@@ -2085,7 +2108,7 @@
                 <th class="num px-3 py-2" data-sort="gunluk_kalan_80">Daily Remaining (80%)</th>
               </tr>
             </thead>
-            <tbody id="mz-targets-tbody" class="divide-y divide-slate-100 dark:divide-zinc-900"></tbody>
+            <tbody id="mz-targets-tbody"></tbody>
           </table>
           </div>
         </div>
