@@ -359,40 +359,48 @@ def evaluate_notification_analytics_alerts(
 
     sent: list[str] = []
     if send_email and alerts:
-        day_key = ref.isoformat()
-        batch_key = f"nt-analytics:{day_key}"
-        if not _delivery_exists(db, notification_type=NOTIFICATION_TYPE, notification_key=batch_key):
-            subject = f"[Notification Analytics] {len(alerts)} alarm — {day_key}"
-            lines = [
-                "<h2>Notification Analytics alarmları</h2>",
-                f"<p>Dönem: son {WINDOW_DAYS} gün ({cur_start} – {cur_end})</p>",
-                "<ul>",
-            ]
-            for a in alerts:
-                lines.append(f"<li><b>{escape(a['title'])}</b> — {escape(a['summary'])}</li>")
-            lines.append("</ul>")
-            lines.append(
-                '<p><a href="https://projectcontrol.up.railway.app/notification">Paneli aç</a></p>'
-            )
-            body = "\n".join(lines)
-            if _send_operations_email(subject, body, notification_key=batch_key, db=db):
-                sent.append(batch_key)
-                db.commit()
-            try:
-                from backend.services.agent_tools import create_alert
+        from backend.config import settings as _settings
 
-                for a in alerts:
-                    create_alert(
-                        alert_type=f"notification_analytics_{a['id']}",
-                        severity=a["severity"],
-                        title=a["title"],
-                        summary=a["summary"],
-                        detail=a.get("metric") or {},
-                    )
-            except Exception as exc:  # noqa: BLE001
-                LOGGER.warning("create_alert failed: %s", exc)
+        if not bool(getattr(_settings, "notification_analytics_email_enabled", False)):
+            LOGGER.info(
+                "Notification analytics mail atlandı (NOTIFICATION_ANALYTICS_EMAIL_ENABLED=false); %d alarm",
+                len(alerts),
+            )
         else:
-            LOGGER.info("Notification analytics alert already sent for %s", day_key)
+            day_key = ref.isoformat()
+            batch_key = f"nt-analytics:{day_key}"
+            if not _delivery_exists(db, notification_type=NOTIFICATION_TYPE, notification_key=batch_key):
+                subject = f"[Notification Analytics] {len(alerts)} alarm — {day_key}"
+                lines = [
+                    "<h2>Notification Analytics alarmları</h2>",
+                    f"<p>Dönem: son {WINDOW_DAYS} gün ({cur_start} – {cur_end})</p>",
+                    "<ul>",
+                ]
+                for a in alerts:
+                    lines.append(f"<li><b>{escape(a['title'])}</b> — {escape(a['summary'])}</li>")
+                lines.append("</ul>")
+                lines.append(
+                    '<p><a href="https://projectcontrol.up.railway.app/notification">Paneli aç</a></p>'
+                )
+                body = "\n".join(lines)
+                if _send_operations_email(subject, body, notification_key=batch_key, db=db):
+                    sent.append(batch_key)
+                    db.commit()
+                try:
+                    from backend.services.agent_tools import create_alert
+
+                    for a in alerts:
+                        create_alert(
+                            alert_type=f"notification_analytics_{a['id']}",
+                            severity=a["severity"],
+                            title=a["title"],
+                            summary=a["summary"],
+                            detail=a.get("metric") or {},
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    LOGGER.warning("create_alert failed: %s", exc)
+            else:
+                LOGGER.info("Notification analytics alert already sent for %s", day_key)
 
     return {
         "ok": True,

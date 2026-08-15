@@ -280,6 +280,28 @@ class Settings(BaseSettings):
     # True iken operasyon/GA4 özet e-postaları yalnızca trigger_source=manual ile gider (zamanlayıcı ve monitör dahil).
     email_manual_triggers_only: bool = True
 
+    # Meta audit kritik değişiklik (~02:15 / ~04:00 TR civarı snapshot) — varsayılan kapalı.
+    meta_audit_email_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("META_AUDIT_EMAIL_ENABLED", "meta_audit_email_enabled"),
+        description="SEO meta audit kritik değişiklik e-postası. Varsayılan kapalı.",
+    )
+    # Notification analytics alarm (08:15 TR) — varsayılan kapalı.
+    notification_analytics_email_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "NOTIFICATION_ANALYTICS_EMAIL_ENABLED",
+            "notification_analytics_email_enabled",
+        ),
+        description="Notification analytics click/CTR alarm e-postası. Varsayılan kapalı.",
+    )
+    # GSC CWV regresyon (scrape sonrası) — varsayılan kapalı.
+    gsc_cwv_email_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("GSC_CWV_EMAIL_ENABLED", "gsc_cwv_email_enabled"),
+        description="GSC Core Web Vitals regresyon e-postası. Varsayılan kapalı.",
+    )
+
     # GA4 günlük toplama (Ankara saati; Search Console 04:00, PageSpeed+Crawler+CrUX tam yenileme 07:00 ile sıralı)
     ga4_scheduled_refresh_enabled: bool = True
     ga4_scheduled_refresh_hour: int = 4
@@ -520,8 +542,9 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_EXCLUDE_SLUGS", "doviz_asset_monitor_exclude_slugs"),
     )
     policy_noads_email_enabled: bool = Field(
-        default=True,
+        default=False,
         validation_alias=AliasChoices("POLICY_NOADS_EMAIL_ENABLED", "policy_noads_email_enabled"),
+        description="Sinemalar Policy/noAds alarm e-postası. Varsayılan kapalı.",
     )
     policy_noads_email_cooldown_hours: float = Field(
         default=6.0,

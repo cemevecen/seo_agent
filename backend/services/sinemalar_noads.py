@@ -229,7 +229,7 @@ def maybe_send_noads_alarm(
     if not missing_rows:
         return False, "eksik yok"
 
-    if not bool(getattr(settings, "policy_noads_email_enabled", True)):
+    if not bool(getattr(settings, "policy_noads_email_enabled", False)):
         return False, "POLICY_NOADS_EMAIL_ENABLED=false"
 
     cooldown_h = float(getattr(settings, "policy_noads_email_cooldown_hours", 6) or 6)

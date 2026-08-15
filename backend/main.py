@@ -20471,6 +20471,13 @@ def _run_meta_audit_snapshot_job() -> None:
         if not all_critical:
             return
 
+        if not bool(getattr(settings, "meta_audit_email_enabled", False)):
+            LOGGER.info(
+                "Meta audit kritik mail atlandı (META_AUDIT_EMAIL_ENABLED=false); %d değişiklik",
+                len(all_critical),
+            )
+            return
+
         # Kritik değişiklik maili
         from datetime import datetime as _dt
         from backend.services.ga4_page_urls import absolute_audit_href

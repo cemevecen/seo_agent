@@ -697,6 +697,9 @@ def _send_regression_email(site: Site, payload: dict[str, Any], alerts: list[dic
     if not getattr(settings, "outbound_email_enabled", False):
         LOGGER.info("CWV alert mail atlandı (outbound_email_enabled=false)")
         return False
+    if not bool(getattr(settings, "gsc_cwv_email_enabled", False)):
+        LOGGER.info("CWV alert mail atlandı (GSC_CWV_EMAIL_ENABLED=false)")
+        return False
     to_addr = (
         getattr(settings, "operations_mail_to", None)
         or getattr(settings, "mail_to", None)

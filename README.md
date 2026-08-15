@@ -384,7 +384,10 @@ Ortak parametreler:
 | **KPI alarmı** | Site geneli eşik aşımı (genel realtime) | Evet | Metrik adı + değer |
 | **404 spike** | Panel (mail kapalı) | — | — |
 | **404 günlük rapor** | İptal | — | — |
-| **Meta tag regresyon** | noindex eklenmesi, canonical değişimi | Hayır | `3 kritik değişiklik · site+url` |
+| **Meta tag regresyon** | İptal (`META_AUDIT_EMAIL_ENABLED=false`) | — | — |
+| **Notification analytics** | İptal (`NOTIFICATION_ANALYTICS_EMAIL_ENABLED=false`) | — | — |
+| **Policy / noAds alarm** | İptal (`POLICY_NOADS_EMAIL_ENABLED=false`) | — | — |
+| **GSC CWV regresyon** | İptal (`GSC_CWV_EMAIL_ENABLED=false`) | — | — |
 | **Inbox özeti** | 1.5 saatte bir (yalnızca env aktifse) | Hayır | Thread başlıkları + özet |
 | **SC alarm refresh** | 08:00 cron veya manuel "Yenile" | Hayır | Konsolide site listesi |
 | **Crawler raporu** | Manual veya scheduled crawler run | Hayır | Tek mail tüm siteler için |
