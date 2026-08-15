@@ -1546,6 +1546,12 @@
     background: rgb(225 29 72 / 0.3);
     box-shadow: inset 0 0 0 1px rgb(251 113 133 / 0.25);
   }
+  /* Split: sinemalar başlık bordo (#341f28 ← rose-950/30) yok; tekli odakta kalsın */
+  html.dark #home-board[data-home-focus="split"] .home-project-head--sinemalar,
+  html.charcoal #home-board[data-home-focus="split"] .home-project-head--sinemalar {
+    background-color: transparent !important;
+    background: transparent !important;
+  }
   #home-board[data-home-focus="doviz"] .home-project-heads .home-project-head,
   #home-board[data-home-focus="sinemalar"] .home-project-heads .home-project-head {
     background: transparent !important;
