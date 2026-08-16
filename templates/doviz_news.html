@@ -2648,7 +2648,7 @@
     var metricCols = state.trafficShown
       ? [
           {
-            key: "views", label: "Views", num: true, defaultDir: "desc",
+            key: "views", label: "GA4 views", num: true, defaultDir: "desc",
             render: function (r) { return r.views == null ? "—" : fmt(r.views); }
           },
           {
@@ -2679,17 +2679,8 @@
       columns: [
         { key: "date", label: "Date", render: function (r) { return esc(r.date || "—"); } },
         { key: "title", label: "Title", className: "dn-title-cell", render: function (r) { return esc(r.title || "—"); } },
-        { key: "category", label: "Category", render: function (r) { return esc(shortCat(r.category || "—")); } },
         {
-          key: "source", label: "Source",
-          render: function (r) {
-            return r.is_own
-              ? '<span class="dn-badge dn-badge-own">Original</span>'
-              : '<span class="dn-badge dn-badge-src">' + esc(r.source || "—") + "</span>";
-          }
-        },
-        {
-          key: "rt_views", label: "RT views", num: true, defaultDir: "desc",
+          key: "rt_views", label: "Views", num: true, defaultDir: "desc",
           render: function (r) {
             var v = Number(r.rt_views || 0);
             if (!v) return "—";
@@ -2701,7 +2692,16 @@
             }
             return '<span title="' + esc(tip.join(" · ")) + '">' + fmt(v) + "</span>";
           }
-        }
+        },
+        {
+          key: "source", label: "Source",
+          render: function (r) {
+            return r.is_own
+              ? '<span class="dn-badge dn-badge-own">Original</span>'
+              : '<span class="dn-badge dn-badge-src">' + esc(r.source || "—") + "</span>";
+          }
+        },
+        { key: "category", label: "Category", render: function (r) { return esc(shortCat(r.category || "—")); } }
       ].concat(metricCols)
     });
   }
