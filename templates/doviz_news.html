@@ -381,26 +381,32 @@
   .dn-muted { color: #64748b; font-size: 11px; }
   html.dark .dn-muted, html.charcoal .dn-muted { color: #a1a1aa; }
 
-  /* Mobile stacked cards for items table */
+  /* Mobilde de web'deki gibi liste/tablo düzeni: sütunlar yan yana, yatay scroll */
   @media (max-width: 639px) {
-    .dn-table--cards thead { display: none; }
-    .dn-table--cards, .dn-table--cards tbody, .dn-table--cards tr, .dn-table--cards td {
-      display: block; width: 100%;
+    .dn-table--mobilelist {
+      min-width: 34rem;
+      font-size: 0.68rem;
     }
-    .dn-table--cards { min-width: 0; }
-    .dn-table--cards tr {
-      border-bottom: 1px solid #e2e8f0; padding: 0.65rem 0.55rem;
+    .dn-table--mobilelist th {
+      padding: 0.4rem 0.5rem;
+      font-size: 9px;
     }
-    html.dark .dn-table--cards tr, html.charcoal .dn-table--cards tr { border-bottom-color: #3f3f46; }
-    .dn-table--cards td {
-      border: 0; padding: 0.15rem 0; text-align: left !important;
+    .dn-table--mobilelist td {
+      padding: 0.4rem 0.5rem;
+      white-space: nowrap;
     }
-    .dn-table--cards td::before {
-      content: attr(data-label);
-      display: block; font-size: 10px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.04em; color: #64748b; margin-bottom: 0.1rem;
+    .dn-table--mobilelist .dn-title-cell {
+      white-space: normal;
+      min-width: 11rem;
+      max-width: 15rem;
+      font-weight: 650;
+      line-height: 1.3;
     }
-    .dn-table--cards .dn-title-cell { font-weight: 650; }
+    #dn-card-items .dn-table-wrap {
+      max-height: min(420px, 60vh);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
   }
   .dn-chrome {
     container-type: inline-size;
@@ -1791,7 +1797,7 @@
     host.innerHTML =
       toolbar +
       '<div class="dn-table-wrap">' +
-        '<table class="dn-table' + (cfg.cardMobile ? " dn-table--cards" : "") + '">' +
+        '<table class="dn-table' + (cfg.mobileList ? " dn-table--mobilelist" : "") + '">' +
           "<thead><tr>" + thead + "</tr></thead>" +
           "<tbody>" + tbody + "</tbody>" +
         "</table>" +
@@ -2667,7 +2673,7 @@
       rows: tableRows,
       defaultSort: state.trafficShown ? "views" : "date",
       defaultDir: "desc",
-      cardMobile: true,
+      mobileList: true,
       searchPlaceholder: "Search title / source / category…",
       searchKeys: ["title", "source", "category", "date"],
       columns: [
