@@ -35,6 +35,7 @@ def test_auto_derived_worker_name_has_machine_suffix(monkeypatch):
 
 def test_readiness_marks_missing_credentials(monkeypatch):
     b = _load_bridge()
+    monkeypatch.setattr(b, "_job_session_ok", lambda jid: True)
     monkeypatch.delenv("VIRGUL_EMAIL", raising=False)
     monkeypatch.delenv("VIRGUL_PASSWORD", raising=False)
     monkeypatch.setenv("DOVIZ_ADMIN_EMAIL", "a@b.c")
@@ -51,6 +52,7 @@ def test_readiness_marks_missing_credentials(monkeypatch):
 def test_readiness_marks_missing_playwright_browser(monkeypatch):
     b = _load_bridge()
     monkeypatch.setattr(b, "_playwright_firefox_ready", lambda: False)
+    monkeypatch.setattr(b, "_job_session_ok", lambda jid: True)  # oturumdan bağımsız ölç
     b._readiness_cache = (0.0, {})
     ready = b._worker_readiness()
     assert ready["asc"] == "no_browser"
@@ -222,3 +224,17 @@ def test_login_helper_keeps_long_interactive_wait():
     src = Path(scrape_browser.__file__).read_text(encoding="utf-8")
     assert "timeout_sec = max(LOGIN_WAIT_SEC, int(timeout_sec or LOGIN_WAIT_SEC))" in src
     assert scrape_browser.login_wait_sec(default=150) == 150
+
+
+def test_google_jobs_are_not_pre_blocked_by_a_cookie_check():
+    """Google oturumu çerez tablosunda görünmeyebiliyor (session-restore deposu).
+
+    Ön kontrol yanlış negatif verirse çalışan Mac devre dışı kalır; bu işlerde
+    oturum sorunu taramanın needs_login sonucuyla ve devirle çözülür.
+    """
+    b = _load_bridge()
+    assert b.GOOGLE_SESSION_JOB_IDS == frozenset()
+    for jid in ("play", "cwv", "links", "policy", "firebase"):
+        assert b._job_session_ok(jid) is None, jid
+    # Profil tabanlı kesin kontroller duruyor
+    assert set(b.SESSION_JOB_PROFILES) == {"moderation", "noads", "asc"}

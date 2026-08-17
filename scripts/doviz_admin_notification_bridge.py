@@ -5290,8 +5290,12 @@ SESSION_JOB_PROFILES: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # needs_login devrine düşmek daha güvenli.
     "asc": ("asc", "apple.com", ("myacinfo", "itctx", "dqsid", "wosid")),
 }
-# Google oturumu (fx-google): Play/CWV/Backlinks/Policy/Firebase aynı profili kullanır
-GOOGLE_SESSION_JOB_IDS = frozenset({"play", "play_vitals", "cwv", "links", "policy", "firebase"})
+# Google işleri (Play/CWV/Backlinks/Policy/Firebase) bilerek ön kontrol DIŞINDA:
+# oturum fx-google/cookies.sqlite'ta durmayabiliyor (Firefox session-restore deposu),
+# bu yüzden çerez kontrolü yanlış negatif verip çalışan makineyi devre dışı bırakıyordu.
+# Bu işlerde oturum sorunu, taramanın kendi needs_login sonucuyla ve diğer Mac'e
+# devirle çözülür — ön kontrol yalnızca kesin bilinen durumlar için.
+GOOGLE_SESSION_JOB_IDS: frozenset[str] = frozenset()
 
 
 def _job_session_ok(job_id: str) -> bool | None:
