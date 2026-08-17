@@ -1899,6 +1899,10 @@ def _ensure_panel_session(request: Request) -> RedirectResponse | None:
     """Middleware dışı savunma: oturum yoksa login."""
     if not _auth_gate_enabled(request):
         return None
+    # Yerel geliştirme kapısı middleware'de açıksa burada da açık olmalı; aksi
+    # halde 127.0.0.1 panelinde yalnızca dashboard («/») login'e düşüyordu.
+    if _local_panel_open(request):
+        return None
     with SessionLocal() as db:
         password_ready = _admin_password_configured(db)
     if panel_session_granted(

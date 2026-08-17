@@ -8,6 +8,17 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 
 log() { echo "[seo-agent-boot] $(date '+%Y-%m-%d %H:%M:%S') $*" >&2; }
 
+# Yerele özel ortam değişkenleri (.env.local gitignore'da, repoya girmez).
+# .env yetmez: pydantic-settings onu Settings nesnesine yükler, os.environ'a değil —
+# LOCAL_PANEL_NO_AUTH gibi doğrudan os.environ'dan okunan bayraklar buradan gelir.
+if [[ -f "$ROOT/.env.local" ]]; then
+  log "Yerel ortam yükleniyor: .env.local"
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env.local"
+  set +a
+fi
+
 wait_for_docker() {
   local max="${1:-90}"
   local i

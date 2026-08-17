@@ -66,6 +66,19 @@ def test_middleware_consults_the_gate_before_auth():
     from pathlib import Path
 
     src = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
-    chunk = src.split("if _local_panel_open(request):", 1)[1][:400]
+    # Kapı iki yerde sorulur; burada özellikle middleware'deki çağrı sınanıyor.
+    middleware = src.split("async def ip_allowlist_middleware", 1)[1]
+    chunk = middleware.split("if _local_panel_open(request):", 1)[1][:400]
     assert "return await call_next(request)" in chunk
     assert chunk.index("return await call_next(request)") < chunk.index("password_ready")
+
+
+def test_route_level_guard_also_honours_the_gate():
+    """«/» dashboard'ı middleware dışı ikinci kapıyı kullanıyor — o da geçidi sormalı."""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
+    body = src.split("def _ensure_panel_session(request: Request)", 1)[1].split("\ndef ", 1)[0]
+    assert "_local_panel_open(request)" in body
+    # Oturum kontrolünden önce sorulmalı, sonra değil
+    assert body.index("_local_panel_open(request)") < body.index("panel_session_granted")
