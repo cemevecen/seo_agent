@@ -90,15 +90,23 @@ def _free_from_rate_pct(rate_pct: float | None) -> float | None:
     return round(100.0 - float(rate_pct), 4)
 
 
-def _fmt_free(pct: float | None, *, digits: int = 2) -> str | None:
+def _fmt_free(pct: float | None, *, digits: int = 3) -> str | None:
+    """Crash-free yüzdesi — 3 hane (99,994%). ANR tarafı digits=2 ile çağırır.
+
+    Değerler 99,9x aralığında sıkıştığı için iki hane gerçek farkları gizliyordu.
+    Yuvarlamanın %100 göstermesini engellemek için, istenen haneye göre hesaplanan
+    eşiğin üstünde bir hane fazlasına çıkılır (2 hane → 99,995; 3 hane → 99,9995).
+    """
     if pct is None:
         return None
     try:
         v = float(pct)
     except (TypeError, ValueError):
         return None
-    if v >= 99.995:
-        return f"{v:.4f}".replace(".", ",") + "%"
+    digits = max(0, int(digits))
+    round_up_threshold = 100.0 - (0.5 * (10 ** -digits))
+    if v >= round_up_threshold:
+        return f"{v:.{digits + 1}f}".replace(".", ",") + "%"
     return f"{v:.{digits}f}".replace(".", ",") + "%"
 
 
@@ -185,15 +193,18 @@ def _fb_window_kpi(
     if not isinstance(win, dict):
         return None
     pct = win.get("crash_free_pct")
-    fmt = win.get("crash_free_fmt") or _fmt_free(
-        pct if isinstance(pct, (int, float)) else None
-    )
+    # Sayısal değer varsa gösterimi burada üretiyoruz: scrape'in kaydettiği hazır
+    # metin iki haneli; hane sayısını tek yerden yönetelim ve eski kayıtlar için de
+    # yeniden tarama beklemeden geçerli olsun.
+    fmt = _fmt_free(pct) if isinstance(pct, (int, float)) else win.get("crash_free_fmt")
     if fmt is None and pct is None:
         return None
     ver = version or win.get("version")
     sess_pct = win.get("crash_free_sessions_pct")
-    sess_fmt = win.get("crash_free_sessions_fmt") or _fmt_free(
-        sess_pct if isinstance(sess_pct, (int, float)) else None
+    sess_fmt = (
+        _fmt_free(sess_pct)
+        if isinstance(sess_pct, (int, float))
+        else win.get("crash_free_sessions_fmt")
     )
     users_sum, delta = _series_users_and_delta(win.get("series"))
     if users_sum is None:
@@ -475,7 +486,7 @@ def _anr_item_from_rate(
         "version_name": name,
         "anr_rate_pct": anr_rate,
         "anr_free_pct": anr_free,
-        "anr_free_fmt": _fmt_free(anr_free),
+        "anr_free_fmt": _fmt_free(anr_free, digits=2),
         "anr_rate_fmt": anr_rate_fmt,
         "extra": _compact_extra(anr_rate_fmt) or None,
         "label": f"v{name}" if name else (f"code {code}" if code else "latest"),
@@ -739,7 +750,7 @@ def free_rates_from_vitals_overview(vitals: dict[str, Any] | None) -> dict[str, 
         "crash_free_pct": crash_free,
         "anr_free_pct": anr_free,
         "crash_free_fmt": _fmt_free(crash_free),
-        "anr_free_fmt": _fmt_free(anr_free),
+        "anr_free_fmt": _fmt_free(anr_free, digits=2),
         "crash_metric": crash_label,
         "anr_metric": anr_label,
         "extra": _compact_extra(anr_rate_fmt) or None,

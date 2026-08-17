@@ -60,7 +60,7 @@ def test_missing_24h_window_falls_back_to_7d_and_says_so():
     block = {"latest_version": "9.0.2", "latest_7d": GOOD_7D}
     kpi = _fb_kpi_with_fallback(block, {}, "24h", "9.0.2")
     assert kpi is not None
-    assert kpi["crash_free_fmt"] == "99,62%"
+    assert kpi["crash_free_fmt"] == "99,620%"
     assert kpi["fallback_from"] == "7d"
     assert "7 gün verisi" in (kpi["extra"] or "")
 
@@ -69,7 +69,7 @@ def test_falls_back_to_block_level_value():
     block = {"latest_version": "9.0.2", "crash_free_pct": 99.5, "crash_free_fmt": "99,50%"}
     kpi = _fb_kpi_with_fallback(block, {}, "24h", "9.0.2")
     assert kpi is not None
-    assert kpi["crash_free_fmt"] == "99,50%"
+    assert kpi["crash_free_fmt"] == "99,500%"
     assert kpi["fallback_from"] == "latest"
     assert "son bilinen" in (kpi["extra"] or "")
 
@@ -94,7 +94,7 @@ def test_last_resort_carries_the_last_day_from_the_series():
 def test_real_window_wins_over_fallback():
     block = {"latest_version": "9.0.2", "latest_24h": GOOD_24H, "latest_7d": GOOD_7D}
     kpi = _fb_kpi_with_fallback(block, {}, "24h", "9.0.2")
-    assert kpi["crash_free_fmt"] == "99,81%"
+    assert kpi["crash_free_fmt"] == "99,810%"
     assert "fallback_from" not in kpi
 
 

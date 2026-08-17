@@ -561,14 +561,21 @@ def _cf_from_sf_block(block: dict[str, Any] | None, *, method: str) -> dict[str,
     pct = block.get("crash_free_pct")
     if pct is None:
         return None
+    # Gösterim hane sayısı tek yerden (stability_free._fmt_free): scrape'in kaydettiği
+    # hazır metin iki haneli kalıyor, sayısal değerden yeniden üretiyoruz.
+    from backend.services.stability_free import _fmt_free
+
+    anr_pct = block.get("anr_free_pct")
     return {
         "crash_free_pct": pct,
         "crash_free_sessions_pct": block.get("crash_free_sessions_pct", pct),
         "crash_free_users_pct": block.get("crash_free_users_pct", pct),
         "method": method,
-        "anr_free_pct": block.get("anr_free_pct"),
-        "crash_free_fmt": block.get("crash_free_fmt"),
-        "anr_free_fmt": block.get("anr_free_fmt"),
+        "anr_free_pct": anr_pct,
+        "crash_free_fmt": _fmt_free(pct) or block.get("crash_free_fmt"),
+        "anr_free_fmt": (
+            _fmt_free(anr_pct, digits=2) if isinstance(anr_pct, (int, float)) else block.get("anr_free_fmt")
+        ),
     }
 
 
