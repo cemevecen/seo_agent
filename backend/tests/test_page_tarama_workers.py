@@ -147,6 +147,42 @@ def test_auto_lease_expires_after_ttl():
     assert store.auto_lease("play", "slot-1", OFFICE, ttl_sec=1)["granted"] is True
 
 
+def test_lease_request_does_not_create_a_phantom_worker():
+    """Kira isteği worker listesine satır eklemesin — panelde hayalet makine olmasın."""
+    store.reset_for_tests()
+    store.auto_lease("play", "slot-x", "tek-seferlik-istek")
+    assert [w["name"] for w in store.workers_public()] == []
+
+
+def test_stale_unknown_worker_records_are_forgotten():
+    """Eski protokol yoklaması kısa sürede düşsün; gerçek worker 24 saat kalsın."""
+    store.reset_for_tests()
+    store.heartbeat_worker(store.LEGACY_WORKER_NAME)
+    store.heartbeat_worker(OFFICE, ready=_ready())
+    with store._lock:
+        old = time.time() - store.WORKER_FORGET_UNKNOWN_SEC - 5
+        store._workers[store.LEGACY_WORKER_NAME]["last_seen"] = old
+        store._workers[OFFICE]["last_seen"] = old
+    store.claim_next(worker=HOME, ready=_ready())  # prune tetikler
+    names = {w["name"] for w in store.workers_public()}
+    assert store.LEGACY_WORKER_NAME not in names
+    assert OFFICE in names
+
+
+def test_capability_note_ignores_long_gone_machines():
+    store.reset_for_tests()
+    run = store.start_run("virgul")
+    store.heartbeat_worker(HOME, ready=_ready(virgul="no_creds", revenue_targets="no_creds"))
+    store.heartbeat_worker("cok-eski-mac", ready=_ready())
+    with store._lock:
+        store._workers["cok-eski-mac"]["last_seen"] = time.time() - store.WORKER_NOTE_WINDOW_SEC - 5
+        for job in store._runs[run["id"]]["jobs"]:
+            job["queued_at"] = time.time() - store.NO_CAPABLE_WORKER_SEC - 1
+    detail = next(j["detail"] for j in store.get_run(run["id"])["jobs"] if j["id"] == "virgul")
+    assert HOME in detail
+    assert "cok-eski-mac" not in detail
+
+
 def test_workers_public_reports_not_ready_jobs():
     store.reset_for_tests()
     store.heartbeat_worker(HOME, ready=_ready(virgul="no_creds"), version="2026.08.17")

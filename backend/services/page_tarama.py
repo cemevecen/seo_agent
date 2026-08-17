@@ -99,6 +99,12 @@ WORKER_STALE_SEC = 150.0
 NO_CAPABLE_WORKER_SEC = 75.0
 # Otomatik (zamanlı) taramalar için tek-çalıştırma kirası — iki Mac aynı slotu iki kez koşmasın.
 LEASE_TTL_SEC = 3 * 60 * 60.0
+# Kapalı Mac listede kalsın (akşam/sabah dönüşümlü çalışıyorlar) ama sonsuza kadar değil.
+WORKER_FORGET_SEC = 24 * 3600.0
+# Kabiliyet bildirmeyen kayıtlar (eski protokol yoklaması, tek seferlik istekler) çabuk düşsün.
+WORKER_FORGET_UNKNOWN_SEC = 30 * 60.0
+# "Kimse yapamıyor" açıklamasında yalnızca yakın zamanda görülmüş makineler anılsın.
+WORKER_NOTE_WINDOW_SEC = 60 * 60.0
 # SEO + Virgül gibi farklı işler birbirini bloklamasın (Mac kilitleri ayrıca korur)
 MAX_INFLIGHT_JOBS = 3
 # Play/Firebase/ASC/GSC/Policy aynı Firefox profili — biri bitmeden diğeri claim edilmesin
@@ -385,7 +391,9 @@ def _prune_locked(now: float) -> None:
     for rid in dead:
         _runs.pop(rid, None)
     for name, rec in list(_workers.items()):
-        if now - float(rec.get("last_seen") or 0) > 7 * 24 * 3600:
+        age = now - float(rec.get("last_seen") or 0)
+        knows_jobs = bool(rec.get("ready"))
+        if age > (WORKER_FORGET_SEC if knows_jobs else WORKER_FORGET_UNKNOWN_SEC):
             _workers.pop(name, None)
     for key, rec in list(_leases.items()):
         if now - float(rec.get("at") or 0) > float(rec.get("ttl") or LEASE_TTL_SEC):
@@ -468,7 +476,16 @@ def _capability_note_locked(job_id: str, now: float, *, exclude: list[str] | Non
     if not _workers:
         return "No Mac worker registered"
     bits = []
-    for name, rec in sorted(_workers.items()):
+    recent = {
+        name: rec
+        for name, rec in _workers.items()
+        if now - float(rec.get("last_seen") or 0) <= WORKER_NOTE_WINDOW_SEC
+    }
+    # Online olanlar önce yazılsın; uzun süredir görülmeyen kayıtlar mesajı kirletmesin.
+    for name, rec in sorted(
+        (recent or _workers).items(),
+        key=lambda kv: (now - float(kv[1].get("last_seen") or 0) > WORKER_STALE_SEC, kv[0]),
+    ):
         online = now - float(rec.get("last_seen") or 0) <= WORKER_STALE_SEC
         if not online:
             bits.append(f"{name}: offline")
@@ -533,7 +550,7 @@ def auto_lease(job: str, slot: str, worker: str, *, ttl_sec: float = LEASE_TTL_S
     now = time.time()
     with _state():
         _prune_locked(now)
-        _heartbeat_locked(name, now)
+        # Kira isteği worker kaydı oluşturmaz — yalnızca gerçek claim/ping worker sayılır.
         key = f"{job}:{slot}"
         held = _leases.get(key)
         if held and _worker_key(str(held.get("worker") or "")) != name:
