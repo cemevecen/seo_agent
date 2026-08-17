@@ -696,6 +696,38 @@
     text-transform: none;
     letter-spacing: normal;
   }
+  /* Crash-free / ANR-free kutuları: yukarıdaki `font-size: inherit !important`
+     katch-all kuralı bu kartın kendi boyutlarını da eziyordu (eski kodda
+     transform: scale() hileleri bu yüzden vardı). Boyutlar burada, kart
+     genişliğine (cqi) bağlı olarak açıkça tanımlanır — asıl özne yüzde. */
+  #home-board .home-readable .home-sf-metric__hero {
+    font-size: clamp(1.15rem, 15cqi, 2.4rem) !important;
+    line-height: 1 !important;
+    letter-spacing: -0.035em;
+  }
+  #home-board .home-readable .home-sf-metric--ios .home-sf-metric__hero {
+    font-size: clamp(1.45rem, 20cqi, 3.2rem) !important;
+  }
+  #home-board .home-readable .home-sf-metric--android .home-sf-metric__hero {
+    font-size: clamp(1.3rem, 19cqi, 2.9rem) !important;
+  }
+  #home-board .home-readable :where(
+    .home-sf-metric__kind,
+    .home-sf-metric__ver
+  ) {
+    font-size: clamp(0.46rem, 6.2cqi, 0.62rem) !important;
+    line-height: 1.2 !important;
+  }
+  #home-board .home-readable .home-sf-metric__meta,
+  #home-board .home-readable .home-sf-metric__meta-item,
+  #home-board .home-readable .home-sf-metric__meta-sep {
+    font-size: clamp(0.44rem, 5.8cqi, 0.6rem) !important;
+    line-height: 1.15 !important;
+  }
+  #home-board .home-readable .home-sf-metric__meta-src {
+    font-size: clamp(0.4rem, 5.2cqi, 0.55rem) !important;
+    line-height: 1.15 !important;
+  }
   /* Store & firebase metrik kartları: kart genişliğine göre fluid tipografi */
   #home-board .home-readable :where(
     .home-sf-metric__title,
@@ -2527,7 +2559,7 @@
 
     {# Mobil mağaza / Firebase — odak projesine göre (doviz | sinemalar) #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=42" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=43" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              data-home-app-product="doviz"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -2601,7 +2633,7 @@
     var product = mode === 'sinemalar' ? 'sinemalar' : 'doviz';
     var sec = board.querySelector('[data-home-container="crashlytics"]');
     if (!sec) return;
-    var url = '/api/home/crashlytics?product=' + product + '&v=42';
+    var url = '/api/home/crashlytics?product=' + product + '&v=43';
     var root = null;
     try { root = sec.querySelector('[data-home-crash-root]'); } catch (e) {}
     var loaded = (root && root.getAttribute('data-home-app-product')) || '';
