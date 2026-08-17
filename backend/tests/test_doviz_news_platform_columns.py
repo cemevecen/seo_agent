@@ -476,3 +476,127 @@ def test_title_cell_links_only_with_a_real_http_url():
     assert 'rel="noopener noreferrer"' in block
     # URL yoksa düz metin yolu duruyor
     assert '<span class="dn-title-text"' in block
+
+
+# ── Link kalıcılığı: bir kez görülen URL GA4 penceresinden düşse de kalır ────
+
+class _FakeQuery:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def filter(self, *a, **k):
+        return self
+
+    def all(self):
+        return self._rows
+
+
+class _FakeDB:
+    """Sadece link tablosu için yeterli sahte oturum."""
+
+    def __init__(self, stored=None):
+        self.stored = dict(stored or {})
+        self.added = []
+        self.committed = False
+
+    def query(self, *cols):
+        if len(cols) == 2:  # (article_id, url) çifti
+            return _FakeQuery([(aid, url) for aid, url in self.stored.items()])
+        return _FakeQuery([])
+
+    def add(self, obj):
+        self.added.append(obj)
+
+    def commit(self):
+        self.committed = True
+
+    def rollback(self):
+        pass
+
+
+def test_seen_url_is_persisted(monkeypatch, ga4_ready):
+    db = _FakeDB()
+    _patch_collectors(
+        monkeypatch,
+        pages=[{
+            "page": "/gundem-haberleri/dolar/1234567",
+            "page_url": "https://haber.doviz.com/gundem-haberleri/dolar/1234567",
+            "views": 10, "sessions": 8,
+        }],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(db, rows=ROWS)
+    assert db.committed is True
+    saved = {o.article_id: o.url for o in db.added}
+    assert saved == {"1234567": "https://haber.doviz.com/gundem-haberleri/dolar/1234567"}
+    assert out["urls"]["1234567"].startswith("https://haber.doviz.com/")
+
+
+def test_stored_url_survives_when_ga4_window_has_no_traffic(monkeypatch, ga4_ready):
+    """GA4 hiç satır döndürmese bile eski link görünmeli."""
+    db = _FakeDB(stored={"7654321": "https://haber.doviz.com/gundem-haberleri/altin/7654321"})
+    _patch_collectors(monkeypatch, pages=[])
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(db, rows=ROWS)
+    assert out["urls"]["7654321"] == "https://haber.doviz.com/gundem-haberleri/altin/7654321"
+
+
+def test_stored_urls_survive_when_ga4_is_disconnected(monkeypatch):
+    monkeypatch.setattr(
+        dnt, "get_ga4_connection_status",
+        lambda db, site_id: {"connected": False, "label": "GA4 not connected"},
+    )
+    db = _FakeDB(stored={"1234567": "https://haber.doviz.com/gundem-haberleri/dolar/1234567"})
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(db, rows=ROWS)
+    assert out["ok"] is False
+    assert out["urls"]["1234567"].startswith("https://haber.doviz.com/")
+
+
+def test_db_failure_never_breaks_the_payload(monkeypatch, ga4_ready):
+    class _BoomDB:
+        def query(self, *a, **k):
+            raise RuntimeError("db down")
+
+        def rollback(self):
+            pass
+
+    _patch_collectors(
+        monkeypatch,
+        pages=[{"page": "/x/1234567", "page_url": "https://haber.doviz.com/x/1234567",
+                "views": 3, "sessions": 2}],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(_BoomDB(), rows=ROWS)
+    assert out["ok"] is True
+    # DB çökse de bu turda GA4'ten gelen link kullanılabilir olmalı
+    assert out["urls"]["1234567"] == "https://haber.doviz.com/x/1234567"
+
+
+def test_url_model_exists_with_unique_article_per_site():
+    from backend.models import DovizNewsArticleUrl as M
+
+    cols = {c.name for c in M.__table__.columns}
+    assert {"site_id", "article_id", "url", "first_seen_at", "last_seen_at"} <= cols
+    uniques = [c for c in M.__table__.constraints if hasattr(c, "columns") and len(c.columns) == 2]
+    assert any({"site_id", "article_id"} == {col.name for col in c.columns} for c in uniques)
+
+
+# ── Title sütunu okunabilirliği ─────────────────────────────────────────────
+
+def test_title_column_width_is_enforced_on_header_too():
+    """className yalnızca <td>'ye verilince sütun eziliyordu."""
+    html = PAGE.read_text(encoding="utf-8")
+    head = html.split("var thead = cfg.columns.map(", 1)[1].split("}).join(\"\");", 1)[0]
+    assert "col.className" in head
+
+
+def test_title_text_cannot_collapse_or_break_mid_word():
+    html = PAGE.read_text(encoding="utf-8")
+    block = html.split(".dn-title-text {", 1)[1].split("}", 1)[0]
+    assert "width: 22rem" in block
+    assert "-webkit-line-clamp: 2" in block
+    assert "word-break: normal" in block
+    assert "overflow-wrap: normal" in block
+    # Mobilde de iç genişlik sabit
+    assert ".dn-table--mobilelist .dn-title-text { width: 13rem;" in html

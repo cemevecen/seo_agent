@@ -216,13 +216,22 @@
   html.dark .dn-bartrack, html.charcoal .dn-bartrack { background: #36363c; }
   .dn-barfill { height: 100%; border-radius: 999px; background: #4f46e5; }
 
-  /* Başlık sütunu: sabit genişlik, 80 karakterde kesilir (tam metin tooltip'te) */
+  /* Başlık sütunu: sabit genişlik, en fazla 2 satır (tam metin tooltip'te).
+     Genişlik iç öğede de zorlanır — sütun sayısı artınca (Show traffic) tarayıcı
+     tek sarılabilir sütunu ezip kelimeleri ortadan bölüyordu. */
   .dn-title-cell { width: 22rem; min-width: 22rem; max-width: 22rem; }
-  .dn-title-text { display: block; overflow: hidden; text-overflow: ellipsis; }
+  .dn-title-text {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    width: 22rem; max-width: 100%; overflow: hidden;
+    overflow-wrap: normal; word-break: normal; hyphens: none; line-height: 1.35;
+  }
   a.dn-title-link { color: inherit; text-decoration: none; }
   a.dn-title-link:hover { color: #2563eb; text-decoration: underline; }
   html.dark a.dn-title-link:hover, html.charcoal a.dn-title-link:hover { color: #93c5fd; }
-  @media (max-width: 900px) { .dn-title-cell { width: 14rem; min-width: 14rem; max-width: 14rem; } }
+  @media (max-width: 900px) {
+    .dn-title-cell { width: 14rem; min-width: 14rem; max-width: 14rem; }
+    .dn-title-text { width: 14rem; }
+  }
 
   .dn-items-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
   .dn-win-switch { display: inline-flex; border: 1px solid rgba(148,163,184,.45); border-radius: .5rem; overflow: hidden; }
@@ -415,11 +424,13 @@
     }
     .dn-table--mobilelist .dn-title-cell {
       white-space: normal;
-      min-width: 11rem;
-      max-width: 15rem;
+      width: 13rem;
+      min-width: 13rem;
+      max-width: 13rem;
       font-weight: 650;
-      line-height: 1.3;
     }
+    /* Mobilde de genişlik iç öğede sabit: aksi halde sütun eziliyor */
+    .dn-table--mobilelist .dn-title-text { width: 13rem; line-height: 1.3; }
     #dn-card-items .dn-table-wrap {
       max-height: min(420px, 60vh);
       overflow-x: auto;
@@ -1877,7 +1888,10 @@
 
     var thead = cfg.columns.map(function (col) {
       var sorted = st.sortKey === col.key;
-      return '<th class="' + (col.num ? "num " : "") + (sorted ? "is-sorted" : "") + '" data-key="' + esc(col.key) + '">' +
+      // className başlığa da verilir: sütun genişliği yalnızca <td>'den gelirse
+      // sütun sayısı arttığında tarayıcı bu sütunu ezip metni ortadan bölüyor.
+      return '<th class="' + (col.num ? "num " : "") + (sorted ? "is-sorted" : "") +
+        (col.className ? " " + col.className : "") + '" data-key="' + esc(col.key) + '">' +
         esc(col.label) + '<span class="dn-sort">' + (sorted ? (st.sortDir === "asc" ? "▲" : "▼") : "↕") + "</span></th>";
     }).join("");
 

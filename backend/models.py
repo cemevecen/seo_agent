@@ -1278,6 +1278,30 @@ class DovizNewsWorkspace(Base):
     background_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class DovizNewsArticleUrl(Base):
+    """Haber ID → gerçek yayın linki (GA4 detay sayfasında gözlemlenen mutlak URL).
+
+    Link ID'den üretilemiyor (slug yolun parçası) ve GA4 yalnızca son günlerin
+    trafiğini döndürüyor. Bir kez görülen URL burada kalıcılaşır; böylece haber
+    GA4 penceresinden düştükten sonra da başlık tıklanabilir kalır.
+    """
+
+    __tablename__ = "doviz_news_article_urls"
+
+    __table_args__ = (
+        UniqueConstraint("site_id", "article_id", name="uq_doviz_news_article_url"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    article_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    url: Mapped[str] = mapped_column(String(700), nullable=False, default="")
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    site: Mapped["Site"] = relationship("Site")
+
+
 class PlayConsoleWorkspace(Base):
     """Google Play Console scrape snapshot — tek paylaşımlı (id=1, Döviz Android)."""
 

@@ -467,7 +467,83 @@ _PLATFORM_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _PLATFORM_CACHE_TTL_SEC = 300.0
 
 
-def _empty_platform_matrix(*, error: str | None = None) -> dict[str, Any]:
+def _load_stored_article_urls(db: Session | None, site_id: int, aids: list[str]) -> dict[str, str]:
+    """Daha önce görülmüş linkler — GA4 penceresi dışındaki haberler için."""
+    if db is None or not aids:
+        return {}
+    try:
+        from backend.models import DovizNewsArticleUrl
+
+        out: dict[str, str] = {}
+        for i in range(0, len(aids), 500):
+            chunk = aids[i : i + 500]
+            rows = (
+                db.query(DovizNewsArticleUrl.article_id, DovizNewsArticleUrl.url)
+                .filter(
+                    DovizNewsArticleUrl.site_id == site_id,
+                    DovizNewsArticleUrl.article_id.in_(chunk),
+                )
+                .all()
+            )
+            for aid, url in rows:
+                if url:
+                    out[str(aid)] = str(url)
+        return out
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Doviz news kayıtlı link okuma başarısız: %s", exc)
+        return {}
+
+
+def _store_article_urls(db: Session | None, site_id: int, urls: dict[str, str]) -> None:
+    """Yeni görülen linkleri kalıcılaştır (upsert). Hata trafiği bozmamalı."""
+    if db is None or not urls:
+        return
+    try:
+        from datetime import datetime as _dt
+
+        from backend.models import DovizNewsArticleUrl
+
+        now = _dt.utcnow()
+        existing = {
+            str(r.article_id): r
+            for r in db.query(DovizNewsArticleUrl)
+            .filter(
+                DovizNewsArticleUrl.site_id == site_id,
+                DovizNewsArticleUrl.article_id.in_(list(urls.keys())[:1000]),
+            )
+            .all()
+        }
+        for aid, url in urls.items():
+            row = existing.get(aid)
+            if row is None:
+                db.add(
+                    DovizNewsArticleUrl(
+                        site_id=site_id,
+                        article_id=aid,
+                        url=url[:700],
+                        first_seen_at=now,
+                        last_seen_at=now,
+                    )
+                )
+            elif row.url != url:
+                row.url = url[:700]
+                row.last_seen_at = now
+            else:
+                row.last_seen_at = now
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Doviz news link kalıcılaştırma başarısız: %s", exc)
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _empty_platform_matrix(
+    *,
+    error: str | None = None,
+    urls: dict[str, str] | None = None,
+) -> dict[str, Any]:
     return {
         "ok": error is None,
         "error": error,
@@ -476,7 +552,8 @@ def _empty_platform_matrix(*, error: str | None = None) -> dict[str, Any]:
         "by_article": {},
         "totals": {},
         "matched": 0,
-        "urls": {},
+        # Trafik alınamasa bile daha önce görülen linkler kaybolmamalı
+        "urls": urls or {},
         "metrics": ["views", "sessions"],
     }
 
@@ -616,7 +693,10 @@ def fetch_news_platform_breakdown(
 
     ga4_status = get_ga4_connection_status(db, site_id)
     if not ga4_status.get("connected"):
-        return _empty_platform_matrix(error=str(ga4_status.get("label") or "GA4 not connected"))
+        return _empty_platform_matrix(
+            error=str(ga4_status.get("label") or "GA4 not connected"),
+            urls=_load_stored_article_urls(db, site_id, list(id_index.keys())),
+        )
     properties = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
 
     from backend.collectors.ga4 import (
@@ -684,14 +764,20 @@ def fetch_news_platform_breakdown(
         if str(properties.get(platform) or "").strip()
     ]
     if not tasks:
-        return _empty_platform_matrix(error="GA4 property tanımlı değil")
+        return _empty_platform_matrix(
+            error="GA4 property tanımlı değil",
+            urls=_load_stored_article_urls(db, site_id, list(id_index.keys())),
+        )
 
     try:
         with ThreadPoolExecutor(max_workers=min(4, len(tasks))) as pool:
             results = list(pool.map(_job, tasks))
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Doviz news platform kırılımı başarısız")
-        return _empty_platform_matrix(error=str(exc) or "GA4 fetch failed")
+        return _empty_platform_matrix(
+            error=str(exc) or "GA4 fetch failed",
+            urls=_load_stored_article_urls(db, site_id, list(id_index.keys())),
+        )
 
     by_article: dict[str, dict[str, dict[str, float]]] = {}
     totals: dict[str, dict[str, float]] = {}
@@ -712,6 +798,12 @@ def fetch_news_platform_breakdown(
         plat_totals[win_key] = round(tot_views, 1)
         plat_totals[f"{win_key}_sessions"] = round(tot_sessions, 1)
 
+    # Linkler: yeni görülenler kalıcılaşır, eskiden görülenler geri yüklenir.
+    # Böylece haber GA4 penceresinden düşse de başlık tıklanabilir kalır.
+    _store_article_urls(db, site_id, article_urls)
+    merged_urls = _load_stored_article_urls(db, site_id, list(id_index.keys()))
+    merged_urls.update(article_urls)
+
     out = {
         "ok": True,
         "error": None,
@@ -721,7 +813,7 @@ def fetch_news_platform_breakdown(
         "totals": totals,
         "matched": len(by_article),
         "diagnostics": diagnostics,
-        "urls": article_urls,
+        "urls": merged_urls,
         "metric": "views",
         "metrics": ["views", "sessions"],
         "note": (
