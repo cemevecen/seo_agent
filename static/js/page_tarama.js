@@ -30,6 +30,7 @@
     moderation: { id: "moderation", label: "Sinemalar Moderation", kind: "bridge", path: "/sync-sinemalar-moderation?which=both", timeoutMs: 60 * 60 * 1000 },
     empower_intel: { id: "empower_intel", label: "Empower Intel (Döviz)", kind: "bridge", path: "/sync-empower-intel?mode=yesterday", timeoutMs: 45 * 60 * 1000 },
     empower_intel_sinemalar: { id: "empower_intel_sinemalar", label: "Empower Intel (Sinemalar)", kind: "bridge", path: "/sync-empower-intel-sinemalar?mode=yesterday", timeoutMs: 45 * 60 * 1000 },
+    pagespeed: { id: "pagespeed", label: "PageSpeed (Lighthouse)", kind: "bridge", path: "/sync-pagespeed", timeoutMs: 45 * 60 * 1000 },
     seo: { id: "seo", label: "SEO audit", kind: "bridge", path: "/sync-seo-audit", timeoutMs: 50 * 60 * 1000 },
     errors: {
       id: "errors",
@@ -51,14 +52,14 @@
 
   var PAGES = {
     home: ["play", "asc", "firebase", "cwv", "notification", "virgul", "market"],
-    android: ["play", "firebase", "market"],
+    android: ["play_vitals", "play", "firebase", "market"],
     ios: ["asc", "firebase"],
     news: ["news"],
     virgul: ["virgul", "revenue_targets"],
     notification: ["notification"],
     firebase: ["firebase"],
     app: ["play", "asc", "firebase"],
-    vitals: ["cwv"],
+    vitals: ["cwv", "pagespeed"],
     alerts: ["alerts"],
     seo: ["seo"],
     backlinks: ["links"],

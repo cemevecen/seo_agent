@@ -5180,7 +5180,7 @@ _active_job_lock = threading.Lock()
 
 # Playwright Firefox şart olan işler (Firebase sistem Firefox'a düşebildiği için hariç)
 PLAYWRIGHT_JOB_IDS = frozenset(
-    {"asc", "cwv", "links", "play", "play_vitals", "policy", "moderation", "noads"}
+    {"asc", "cwv", "links", "play", "play_vitals", "policy", "moderation", "noads", "pagespeed"}
 )
 
 # page-tarama job id → bridge kind (needs_login sınıflandırması için)
@@ -5446,6 +5446,11 @@ def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
             "name": "Moderation",
             "lock": _moderation_lock,
             "runner": lambda: run_sinemalar_moderation_bridge_once(incremental_which="both"),
+        },
+        "pagespeed": {
+            "name": "PageSpeed",
+            "lock": _pagespeed_lock,
+            "runner": run_pagespeed_bridge_once,
         },
         "seo": {"name": "SEO Audit", "lock": _seo_audit_lock, "runner": run_seo_audit_bridge_once},
     }

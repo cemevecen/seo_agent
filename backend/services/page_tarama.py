@@ -52,6 +52,12 @@ JOBS: dict[str, dict[str, Any]] = {
         "kind": "bridge",
         "path": "/sync-empower-intel-sinemalar?mode=yesterday",
     },
+    "pagespeed": {
+        "id": "pagespeed",
+        "label": "PageSpeed (Lighthouse)",
+        "kind": "bridge",
+        "path": "/sync-pagespeed",
+    },
     "seo": {"id": "seo", "label": "SEO Audit", "kind": "bridge", "path": "/sync-seo-audit"},
     "errors": {
         "id": "errors",
@@ -78,7 +84,9 @@ PAGES: dict[str, list[str]] = {
     "notification": ["notification"],
     "firebase": ["firebase"],
     "app": ["play", "asc", "firebase"],
-    "vitals": ["cwv"],
+    # Performans sayfası: CrUX alan verisi + Lighthouse lab skorları birlikte tazelensin.
+    # Ağır olduğu için home'a eklenmedi — dashboard'un günlük akışı yavaşlamasın.
+    "vitals": ["cwv", "pagespeed"],
     "alerts": ["alerts"],
     "seo": ["seo"],
     "backlinks": ["links"],

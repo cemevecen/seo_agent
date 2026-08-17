@@ -48,12 +48,12 @@ def test_progress_shows_which_mac_runs_the_job():
 def test_login_failure_hands_job_to_the_other_mac():
     """Oturumu ölü makine hata dönerse iş diğerine devredilir, kullanıcı hata görmez."""
     store.reset_for_tests()
-    run = store.start_run("vitals")
+    run = store.start_run("backlinks")
     store.heartbeat_worker(OFFICE, ready=_ready())
     claimed = store.claim_next(worker=HOME, ready=_ready())
-    assert claimed["job_id"] == "cwv"
+    assert claimed["job_id"] == "links"
     store.record_result(
-        run["id"], "cwv", ok=False, message="GSC oturumu yok", worker=HOME, needs_login=True
+        run["id"], "links", ok=False, message="GSC oturumu yok", worker=HOME, needs_login=True
     )
     job = store.get_run(run["id"])["jobs"][0]
     assert job["status"] == "queued"
@@ -62,9 +62,9 @@ def test_login_failure_hands_job_to_the_other_mac():
     # Aynı makine ikinci kez alamaz; ofis alır → sonsuz ping-pong yok
     assert store.claim_next(worker=HOME, ready=_ready()) is None
     again = store.claim_next(worker=OFFICE, ready=_ready())
-    assert again is not None and again["job_id"] == "cwv"
+    assert again is not None and again["job_id"] == "links"
     store.record_result(
-        run["id"], "cwv", ok=False, message="GSC oturumu yok", worker=OFFICE, needs_login=True
+        run["id"], "links", ok=False, message="GSC oturumu yok", worker=OFFICE, needs_login=True
     )
     job = store.get_run(run["id"])["jobs"][0]
     assert job["status"] == "fail"

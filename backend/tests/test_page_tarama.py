@@ -182,7 +182,7 @@ def test_ios_and_news_and_notification_catalog():
     assert [j["id"] for j in store.jobs_for("ios")] == ["asc", "firebase"]
     assert [j["id"] for j in store.jobs_for("news")] == ["news"]
     assert [j["id"] for j in store.jobs_for("notification")] == ["notification"]
-    assert [j["id"] for j in store.jobs_for("vitals")] == ["cwv"]
+    assert [j["id"] for j in store.jobs_for("vitals")] == ["cwv", "pagespeed"]
     assert [j["id"] for j in store.jobs_for("policy")] == ["policy", "noads"]
     assert [j["id"] for j in store.jobs_for("moderation")] == ["moderation"]
     assert "which=both" in store.JOBS["moderation"]["path"]
@@ -209,10 +209,10 @@ def test_alerts_job_is_poll_status():
 def test_stale_inflight_unlocks_queue():
     """MAX_INFLIGHT dolunca progress kesilen iş fail olur; sıradaki claim edilir."""
     store.reset_for_tests()
-    run_a = store.start_run("vitals")
+    run_a = store.start_run("backlinks")
     run_b = store.start_run("news")
     run_c = store.start_run("notification")
-    assert store.claim_next() is not None  # cwv
+    assert store.claim_next() is not None  # links
     assert store.claim_next() is not None  # news
     assert store.claim_next() is not None  # notification
     run_d = store.start_run("seo")

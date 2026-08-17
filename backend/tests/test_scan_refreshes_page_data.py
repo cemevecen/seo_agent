@@ -104,6 +104,43 @@ def test_scrape_stores_persist_and_do_not_serve_stale_cache():
     assert missing == [], missing
 
 
+def test_panel_job_lists_match_the_queue_catalog():
+    """JS ile sunucu iş listeleri ayrışırsa panel bazı işleri hiç göstermez/çalıştırmaz."""
+    import re
+
+    from backend.services.page_tarama import JOBS, PAGES
+
+    js = (ROOT / "static/js/page_tarama.js").read_text(encoding="utf-8")
+    block = js.split("var PAGES = {", 1)[1].split("};", 1)[0]
+    pairs = re.findall(r'"?([a-zA-Z_-]+)"?\s*:\s*\[([^\]]*)\]', block)
+    js_pages = {
+        k: [x.strip().strip('"') for x in v.split(",") if x.strip()] for k, v in pairs
+    }
+    assert js_pages == {k: list(v) for k, v in PAGES.items()}
+
+    job_block = js.split("var JOBS = {", 1)[1].split("\n  };", 1)[0]
+    js_job_ids = set(re.findall(r"^\s{4}([a-z_]+):\s*\{", job_block, re.M))
+    assert js_job_ids == set(JOBS)
+
+
+def test_pagespeed_is_reachable_from_the_performance_page():
+    """PageSpeed yalnızca günde iki kez cron'la değil, Update page ile de tazelenebilsin."""
+    from backend.services.page_tarama import JOBS, PAGES
+
+    assert "pagespeed" in JOBS
+    assert JOBS["pagespeed"]["path"] == "/sync-pagespeed"
+    assert PAGES["vitals"] == ["cwv", "pagespeed"]
+    # Ağır Lighthouse taraması dashboard'un günlük akışını yavaşlatmasın
+    assert "pagespeed" not in PAGES["home"]
+
+    bridge = (
+        ROOT / "scripts/doviz_admin_notification_bridge.py"
+    ).read_text(encoding="utf-8")
+    registry = bridge.split("def _remote_claim_job_registry", 1)[1].split("\n\n\n", 1)[0]
+    assert '"pagespeed"' in registry, "Mac bridge bu işi tanımıyor"
+    assert '"pagespeed"' in bridge.split("PLAYWRIGHT_JOB_IDS", 1)[1][:300]
+
+
 def test_scan_finishes_with_a_page_reload():
     """Kuyruk bitince panel sayfayı yeniler — yeni veri ekrana gelsin."""
     js = (ROOT / "static/js/page_tarama.js").read_text(encoding="utf-8")
