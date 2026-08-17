@@ -161,6 +161,38 @@ def test_page_keeps_existing_columns_and_renames_views_to_realtime():
 def test_page_adds_four_platform_columns():
     html = PAGE.read_text(encoding="utf-8")
     for label in ('"Android"', '"iOS"', '"Web"', '"mWeb"'):
-        assert f'platformCol("' in html and label in html
+        assert 'platformCol("' in html and label in html
     assert "platformCols" in html
     assert ".concat(platformCols).concat(metricCols)" in html
+
+
+def test_platform_columns_do_not_depend_on_show_traffic():
+    """Sütunlar «Show traffic» olmadan da görünmeli (konu 2)."""
+    html = PAGE.read_text(encoding="utf-8")
+    block = html.split("var platformCols = [", 1)[1].split("];", 1)[0]
+    assert "state.trafficShown" not in block, block[:200]
+
+
+def test_day_window_switch_exists_and_drives_rendering():
+    """1 gün / 7 gün anahtarı (konu 3) — hem hücre hem sıralama etkilenir."""
+    html = PAGE.read_text(encoding="utf-8")
+    assert 'id="dn-pf-window"' in html
+    assert 'data-dn-window="d1"' in html and 'data-dn-window="d7"' in html
+    assert "bindPlatformWindowSwitch" in html
+    assert 'state.pfWindow === "d7" ? d7 : d1' in html
+    assert 'var sel = state.pfWindow === "d7" ? v.d7 : v.d1;' in html
+
+
+def test_empty_platform_data_explains_itself():
+    """Boş kalırsa sebebi ekranda yazsın — sessiz boşluk teşhis edilemiyor."""
+    html = PAGE.read_text(encoding="utf-8")
+    assert "renderPlatformMeta" in html
+    assert "eşleşen içerik yok" in html
+
+
+def test_payload_exposes_platform_traffic_outside_traffic_block():
+    src = (ROOT / "backend/services/doviz_news_sheet.py").read_text(encoding="utf-8")
+    assert '"platform_traffic": platform_matrix,' in src
+    # Trafik bloğunun içinde çağrılmamalı
+    traffic_block = src.split("if include_traffic and db is not None:", 1)[1].split("items = []", 1)[0]
+    assert "fetch_news_platform_breakdown" not in traffic_block

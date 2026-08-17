@@ -216,6 +216,12 @@
   html.dark .dn-bartrack, html.charcoal .dn-bartrack { background: #36363c; }
   .dn-barfill { height: 100%; border-radius: 999px; background: #4f46e5; }
 
+  .dn-items-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  .dn-win-switch { display: inline-flex; border: 1px solid rgba(148,163,184,.45); border-radius: .5rem; overflow: hidden; }
+  .dn-win-btn { padding: .18rem .5rem; font-size: .72rem; font-weight: 600; background: transparent; color: inherit; opacity: .65; }
+  .dn-win-btn.is-active { background: rgba(59,130,246,.14); color: #1d4ed8; opacity: 1; }
+  html.dark .dn-win-btn.is-active, html.charcoal .dn-win-btn.is-active { background: rgba(59,130,246,.22); color: #93c5fd; }
+
   /* Platform hücresi: solda son 1 gün (baskın), sağda son 7 gün (soluk) */
   .dn-pf-cell { display: inline-flex; align-items: baseline; gap: .18rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .dn-pf-cell b { font-weight: 700; }
@@ -1099,9 +1105,15 @@
           <h3>Latest content</h3>
           <p id="dn-items-meta" class="dn-card-sub"></p>
         </div>
-        <button type="button" id="dn-items-traffic-btn" class="dn-traffic-btn">
-          Show traffic
-        </button>
+        <div class="dn-items-actions">
+          <div class="dn-win-switch" id="dn-pf-window" role="group" aria-label="Platform trafiği dönemi">
+            <button type="button" class="dn-win-btn is-active" data-dn-window="d1">1 gün</button>
+            <button type="button" class="dn-win-btn" data-dn-window="d7">7 gün</button>
+          </div>
+          <button type="button" id="dn-items-traffic-btn" class="dn-traffic-btn">
+            Show traffic
+          </button>
+        </div>
       </div>
       <div id="dn-table-items"></div>
     </div>
@@ -1167,6 +1179,7 @@
 <script>
 (function () {
   var state = {
+    pfWindow: "d1",
     category: "all",
     period: "last_7d",
     customStart: null,
@@ -1378,7 +1391,8 @@
       var pf = it.platforms || {};
       ["android", "ios", "web", "mweb"].forEach(function (k) {
         var v = pf[k] || {};
-        it["pf_" + k] = Number(v.d7 || 0) || Number(v.d1 || 0) || null;
+        var sel = state.pfWindow === "d7" ? v.d7 : v.d1;
+        it["pf_" + k] = Number(sel || 0) || null;
       });
     });
     if (!state.trafficShown) return all;
@@ -1392,6 +1406,52 @@
         if (ds) return ds;
         return String(b.date || "").localeCompare(String(a.date || ""));
       });
+  }
+
+  function renderPlatformMeta(data) {
+    var wrap = $("dn-pf-window");
+    if (!wrap) return;
+    var pt = (data && data.platform_traffic) || null;
+    var note = "";
+    if (!pt) {
+      note = "Platform trafiği yok (sunucu yanıtında platform_traffic alanı yok)";
+    } else if (pt.ok === false) {
+      note = "Platform trafiği alınamadı: " + (pt.error || "bilinmeyen hata");
+    } else if (!pt.matched) {
+      note = "Platform trafiği: eşleşen içerik yok (GA4 sorgusu boş döndü)";
+    }
+    wrap.title = note || "Platform sütunlarında gösterilecek dönem";
+    var el = $("dn-pf-note");
+    if (!el) {
+      el = document.createElement("p");
+      el.id = "dn-pf-note";
+      el.className = "dn-card-sub dn-pf-note";
+      var head = wrap.parentElement && wrap.parentElement.parentElement;
+      if (head) head.appendChild(el);
+    }
+    el.textContent = note;
+    el.hidden = !note;
+  }
+
+  function bindPlatformWindowSwitch() {
+    var wrap = $("dn-pf-window");
+    if (!wrap || wrap.dataset.bound === "1") return;
+    wrap.dataset.bound = "1";
+    wrap.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest("[data-dn-window]");
+      if (!btn) return;
+      var win = btn.getAttribute("data-dn-window") === "d7" ? "d7" : "d1";
+      if (win === state.pfWindow) return;
+      state.pfWindow = win;
+      wrap.querySelectorAll("[data-dn-window]").forEach(function (b) {
+        b.classList.toggle("is-active", b.getAttribute("data-dn-window") === win);
+      });
+      // Tablo yeniden çizilsin (sıralama da seçili döneme göre)
+      if (state.data) {
+        if (state.tables) delete state.tables["dn-table-items"];
+        renderTables(state.data);
+      }
+    });
   }
 
   function setFilterTabsDisabled(disabled) {
@@ -2669,23 +2729,23 @@
           var d1 = Number(pf.d1 || 0);
           var d7 = Number(pf.d7 || 0);
           if (!d1 && !d7) return "—";
+          var main = state.pfWindow === "d7" ? d7 : d1;
+          var other = state.pfWindow === "d7" ? d1 : d7;
+          var otherLabel = state.pfWindow === "d7" ? "1 gün" : "7 gün";
           var tip = label + " · son 1 gün " + fmt(d1) + " · son 7 gün " + fmt(d7);
           return '<span class="dn-pf-cell" title="' + esc(tip) + '">' +
-            '<b>' + (d1 ? fmt(d1) : "0") + '</b>' +
-            '<span class="dn-pf-sep">/</span>' +
-            '<span class="dn-pf-week">' + (d7 ? fmt(d7) : "0") + '</span>' +
+            '<b>' + fmt(main) + '</b>' +
+            '<span class="dn-pf-week" title="' + esc(otherLabel) + '">' + fmt(other) + '</span>' +
             '</span>';
         }
       };
     }
-    var platformCols = state.trafficShown
-      ? [
-          platformCol("android", "Android"),
-          platformCol("ios", "iOS"),
-          platformCol("web", "Web"),
-          platformCol("mweb", "mWeb")
-        ]
-      : [];
+    var platformCols = [
+      platformCol("android", "Android"),
+      platformCol("ios", "iOS"),
+      platformCol("web", "Web"),
+      platformCol("mweb", "mWeb")
+    ];
     var metricCols = state.trafficShown
       ? [
           {
@@ -2767,6 +2827,8 @@
     }
     renderCharts(data);
     renderTables(data);
+    bindPlatformWindowSwitch();
+    renderPlatformMeta(data);
     requestAnimationFrame(syncPairCardHeights);
     syncTrafficButton();
     var meta = $("dn-meta");

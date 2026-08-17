@@ -1370,18 +1370,6 @@ def doviz_news_payload(
                 site_id=site_id,
             )
             by_article = (traffic or {}).get("by_article") or {}
-            try:
-                from backend.services.doviz_news_traffic import (
-                    fetch_news_platform_breakdown,
-                )
-
-                platform_matrix = fetch_news_platform_breakdown(
-                    db, rows=rows, site_id=site_id
-                )
-                traffic["platforms"] = platform_matrix
-                platform_by_article = platform_matrix.get("by_article") or {}
-            except Exception:
-                logger.exception("doviz news platform breakdown failed")
         except Exception as exc:
             logger.exception("doviz news traffic enrich failed")
             traffic = {
@@ -1394,6 +1382,21 @@ def doviz_news_payload(
     item_rows = cat_rows
     item_limit = max(1, min(int(items_limit or 250), 500))
     visible_rows = item_rows[:item_limit]
+
+    # Platform kırılımı (Android/iOS/Web/mWeb · 1g + 7g) — «Show traffic»tan bağımsız.
+    # Listelenen içerikler için çalışır; sonuç 5 dk önbellekte tutulur.
+    platform_matrix: dict[str, Any] | None = None
+    if db is not None:
+        try:
+            from backend.services.doviz_news_traffic import fetch_news_platform_breakdown
+
+            platform_matrix = fetch_news_platform_breakdown(
+                db, rows=visible_rows, site_id=site_id
+            )
+            platform_by_article = platform_matrix.get("by_article") or {}
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("doviz news platform breakdown failed")
+            platform_matrix = {"ok": False, "error": str(exc) or "Platform kırılımı başarısız"}
 
     # Realtime kovaları: 30 dk'lık ayrık dilimlerin toplamı — GA4 çağrısı yok, yerel DB.
     rt_totals: dict[str, Any] = {}
@@ -1497,5 +1500,6 @@ def doviz_news_payload(
         "items_total": len(item_rows),
         "items": items,
         "traffic": traffic,
+        "platform_traffic": platform_matrix,
         **analytics,
     }
