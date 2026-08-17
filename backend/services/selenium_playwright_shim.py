@@ -207,12 +207,88 @@ class _Mouse:
         ActionChains(self._page._driver).move_by_offset(int(x), int(y)).perform()
 
 
+# Sayfa içi ağ yakalayıcı: fetch + XHR sarmalanır, yanıt gövdeleri tampona yazılır.
+# Idempotent — her goto sonrası tekrar çalıştırmak güvenli.
+_CAPTURE_MAX_ENTRIES = 240
+_CAPTURE_MAX_BODY = 600_000
+_CAPTURE_JS = """
+(function () {
+  if (window.__pcNetCaptureInstalled) return;
+  window.__pcNetCaptureInstalled = true;
+  window.__pcNetCapture = window.__pcNetCapture || [];
+  var MAX = %(max_entries)d, MAXB = %(max_body)d;
+  function push(url, status, ctype, body) {
+    try {
+      if (!body || body.length > MAXB) return;
+      var buf = window.__pcNetCapture;
+      buf.push({ url: String(url || '').slice(0, 500), status: status || 0,
+                 content_type: ctype || '', body: body });
+      while (buf.length > MAX) buf.shift();
+    } catch (e) {}
+  }
+  var of = window.fetch;
+  if (typeof of === 'function') {
+    window.fetch = function () {
+      var args = arguments;
+      return of.apply(this, args).then(function (resp) {
+        try {
+          var u = (resp && resp.url) || (args[0] && args[0].url) || args[0];
+          resp.clone().text().then(function (t) {
+            push(u, resp.status, resp.headers && resp.headers.get('content-type'), t);
+          }).catch(function () {});
+        } catch (e) {}
+        return resp;
+      });
+    };
+  }
+  var XHR = window.XMLHttpRequest;
+  if (XHR && XHR.prototype) {
+    var oo = XHR.prototype.open, os = XHR.prototype.send;
+    XHR.prototype.open = function (m, u) { this.__pcUrl = u; return oo.apply(this, arguments); };
+    XHR.prototype.send = function () {
+      var self = this;
+      this.addEventListener('load', function () {
+        try {
+          push(self.__pcUrl || self.responseURL, self.status,
+               self.getResponseHeader && self.getResponseHeader('content-type'),
+               typeof self.responseText === 'string' ? self.responseText : '');
+        } catch (e) {}
+      });
+      return os.apply(this, arguments);
+    };
+  }
+})();
+""" % {"max_entries": _CAPTURE_MAX_ENTRIES, "max_body": _CAPTURE_MAX_BODY}
+
+
+class _CapturedResponse:
+    """Playwright Response uyumu — scrape handler'ları url/status/headers/text() bekler."""
+
+    def __init__(self, row: dict[str, Any]) -> None:
+        self.url = str(row.get("url") or "")
+        try:
+            self.status = int(row.get("status") or 0)
+        except (TypeError, ValueError):
+            self.status = 0
+        self.headers = {"content-type": str(row.get("content_type") or "")}
+        self._body = row.get("body") or ""
+
+    def text(self) -> str:
+        return self._body
+
+    def json(self) -> Any:
+        import json as _json
+
+        return _json.loads(self._body)
+
+
 class SeleniumPage:
     _selenium_mode = True
 
     def __init__(self, driver: Any, *, download_dir: Path) -> None:
         self._driver = driver
         self._download_dir = download_dir
+        self.context: Any = None  # SeleniumContext bağlar (page.context.on(...) uyumu)
         self.keyboard = _Keyboard(self)
         self.mouse = _Mouse(self)
         self._response_handlers: list[Callable[..., Any]] = []
@@ -251,8 +327,46 @@ class SeleniumPage:
         timeout: int | float = 30_000,
     ) -> None:
         _ = wait_until
+        # Sayfadan ayrılmadan önce birikeni boşalt — son RPC'ler kaybolmasın
+        self._drain_capture()
         self._driver.set_page_load_timeout(max(5, int(timeout / 1000)))
         self._driver.get(url)
+        self._install_capture()
+
+    def _install_capture(self) -> None:
+        """fetch/XHR sarmalayıcısını sayfaya kur.
+
+        Selenium'da Playwright'ın pasif `page.on("response")` olayı yok; Firefox
+        için CDP de yok. RPC gövdelerini yakalamanın tek güvenilir yolu sayfa
+        içinde fetch/XHR'yi sarmalamak (POST RPC'ler de böyle yakalanır).
+        """
+        if not self._response_handlers:
+            return
+        try:
+            self._driver.execute_script(_CAPTURE_JS)
+        except Exception:
+            pass
+
+    def _drain_capture(self) -> None:
+        """Sayfada biriken yanıtları çekip kayıtlı handler'lara dağıt."""
+        if not self._response_handlers:
+            return
+        try:
+            rows = self._driver.execute_script(
+                "try { const b = window.__pcNetCapture || []; "
+                "window.__pcNetCapture = []; return b; } catch (e) { return []; }"
+            )
+        except Exception:
+            return
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            resp = _CapturedResponse(row)
+            for handler in list(self._response_handlers):
+                try:
+                    handler(resp)
+                except Exception:
+                    pass
 
     def evaluate(self, expression: str, *args: Any) -> Any:
         script = (expression or "").strip()
@@ -285,7 +399,18 @@ class SeleniumPage:
         return (el.text or "").strip()
 
     def wait_for_timeout(self, ms: int | float) -> None:
-        time.sleep(max(0.0, float(ms) / 1000.0))
+        """Beklerken yakalananları periyodik boşalt — tampon taşmasın."""
+        total = max(0.0, float(ms) / 1000.0)
+        if not self._response_handlers:
+            time.sleep(total)
+            return
+        deadline = time.time() + total
+        while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            time.sleep(min(1.0, remaining))
+            self._drain_capture()
 
     def wait_for_load_state(self, state: str = "load", *, timeout: int | float = 30_000) -> None:
         _ = state
@@ -448,15 +573,31 @@ class SeleniumContext:
     def __init__(self, driver: Any, *, download_dir: Path) -> None:
         self._driver = driver
         self._download_dir = download_dir
-        self.pages: list[SeleniumPage] = [SeleniumPage(driver, download_dir=download_dir)]
+        self._response_handlers: list[Callable[..., Any]] = []
+        first = SeleniumPage(driver, download_dir=download_dir)
+        first.context = self
+        self.pages: list[SeleniumPage] = [first]
 
     def new_page(self) -> SeleniumPage:
         page = SeleniumPage(self._driver, download_dir=self._download_dir)
+        page.context = self
+        for handler in self._response_handlers:
+            page.on("response", handler)
         self.pages.append(page)
         return page
 
     def on(self, event: str, handler: Callable[..., Any]) -> None:
-        _ = (event, handler)
+        """Context düzeyi dinleyiciyi sayfalara dağıt.
+
+        Eskiden burası sessiz no-op'tu: `page.context.on("response", ...)` ile
+        bağlanan yakalayıcılar hiç çalışmıyor, Firebase crash-free RPC'leri
+        toplanmadığı için paneldeki hücreler boş kalıyordu.
+        """
+        if event != "response" or not callable(handler):
+            return
+        self._response_handlers.append(handler)
+        for page in self.pages:
+            page.on(event, handler)
 
     def close(self) -> None:
         quit_system_firefox_driver(self._driver)

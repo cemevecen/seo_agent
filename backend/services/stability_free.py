@@ -228,6 +228,94 @@ def _fb_window_kpi(
     }
 
 
+# Bir pencere boşsa hangi sırayla yedeğe düşülecek — hücre "—" kalmasın.
+_FB_WINDOW_FALLBACK: dict[str, tuple[str, ...]] = {
+    "24h": ("24h", "7d", "30d", "90d"),
+    "7d": ("7d", "30d", "90d", "24h"),
+    "30d": ("30d", "90d", "7d", "24h"),
+}
+_FB_PERIOD_LABEL = {"24h": "24 saat", "7d": "7 gün", "30d": "30 gün", "90d": "90 gün"}
+
+
+def _fb_window_by_key(block: dict[str, Any], windows: dict[str, Any], key: str) -> Any:
+    if key == "24h":
+        direct = block.get("latest_24h")
+    elif key == "7d":
+        direct = block.get("latest_7d")
+    else:
+        direct = None
+    if isinstance(direct, dict) and direct.get("crash_free_pct") is not None:
+        return direct
+    win = windows.get(key)
+    if isinstance(win, dict) and win.get("crash_free_pct") is not None:
+        return win
+    return direct if isinstance(direct, dict) else win
+
+
+def _fb_window_from_series(block: dict[str, Any]) -> dict[str, Any] | None:
+    """Son çare: günlük crash-free serisinin son dolu noktası."""
+    series = block.get("series") if isinstance(block.get("series"), list) else []
+    for item in reversed(series):
+        if not isinstance(item, dict):
+            continue
+        pct = item.get("crash_free_pct")
+        if pct is None:
+            pct = item.get("value") if isinstance(item.get("value"), (int, float)) else None
+        if isinstance(pct, (int, float)):
+            return {
+                "crash_free_pct": float(pct),
+                "series": [item],
+                "_carried_from_day": str(item.get("date") or item.get("day") or "")[:10],
+            }
+    return None
+
+
+def _fb_kpi_with_fallback(
+    block: dict[str, Any],
+    windows: dict[str, Any],
+    key: str,
+    ver: str | None,
+) -> dict[str, Any] | None:
+    """İstenen pencere yoksa sırayla diğer pencerelere, sonra blok geneline ve seriye düş."""
+    for candidate in _FB_WINDOW_FALLBACK.get(key, (key,)):
+        win = _fb_window_by_key(block, windows, candidate)
+        kpi = _fb_window_kpi(win if isinstance(win, dict) else None, period=key, version=ver)
+        if kpi and kpi.get("crash_free_fmt"):
+            if candidate != key:
+                kpi["fallback_from"] = candidate
+                kpi["extra"] = _compact_extra(
+                    kpi.get("extra"), f"{_FB_PERIOD_LABEL.get(candidate, candidate)} verisi"
+                )
+            return kpi
+    # Blok geneli (scrape'in kendi 7d→90d→24h yedeği)
+    if block.get("crash_free_pct") is not None or block.get("crash_free_fmt"):
+        kpi = _fb_window_kpi(
+            {
+                "crash_free_pct": block.get("crash_free_pct"),
+                "crash_free_fmt": block.get("crash_free_fmt"),
+                "crash_free_sessions_pct": block.get("crash_free_sessions_pct"),
+                "crash_free_sessions_fmt": block.get("crash_free_sessions_fmt"),
+                "series": block.get("series"),
+            },
+            period=key,
+            version=ver,
+        )
+        if kpi and kpi.get("crash_free_fmt"):
+            kpi["fallback_from"] = "latest"
+            kpi["extra"] = _compact_extra(kpi.get("extra"), "son bilinen")
+            return kpi
+    carried = _fb_window_from_series(block)
+    if carried:
+        kpi = _fb_window_kpi(carried, period=key, version=ver)
+        if kpi and kpi.get("crash_free_fmt"):
+            day = carried.get("_carried_from_day") or ""
+            kpi["fallback_from"] = "series"
+            kpi["carried_from"] = day
+            kpi["extra"] = _compact_extra(kpi.get("extra"), f"{day} verisi" if day else "son bilinen")
+            return kpi
+    return None
+
+
 def firebase_console_stability_kpis() -> dict[str, Any]:
     """S-Firebase scrape → son sürüm 24h / 7d crash-free KPI'ları (tek kaynak)."""
     try:
@@ -248,20 +336,10 @@ def firebase_console_stability_kpis() -> dict[str, Any]:
             continue
         windows = block.get("windows") if isinstance(block.get("windows"), dict) else {}
         ver = str(block.get("latest_version") or "").strip() or None
-        w24 = (
-            block.get("latest_24h")
-            if isinstance(block.get("latest_24h"), dict)
-            else windows.get("24h")
-        )
-        w7 = (
-            block.get("latest_7d")
-            if isinstance(block.get("latest_7d"), dict)
-            else windows.get("7d")
-        )
-        w30 = windows.get("30d") if isinstance(windows.get("30d"), dict) else None
-        kpi24 = _fb_window_kpi(w24 if isinstance(w24, dict) else None, period="24h", version=ver)
-        kpi7 = _fb_window_kpi(w7 if isinstance(w7, dict) else None, period="7d", version=ver)
-        kpi30 = _fb_window_kpi(w30, period="30d", version=ver)
+        # Pencere gelmediyse yedeğe düş — panelde "—" yerine son bilinen değer görünsün
+        kpi24 = _fb_kpi_with_fallback(block, windows, "24h", ver)
+        kpi7 = _fb_kpi_with_fallback(block, windows, "7d", ver)
+        kpi30 = _fb_kpi_with_fallback(block, windows, "30d", ver)
         out_plats[plat] = {
             "latest_version": ver,
             "latest_24h": kpi24,

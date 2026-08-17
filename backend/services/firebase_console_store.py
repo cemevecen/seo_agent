@@ -103,6 +103,34 @@ def _merge_explorer_facts(
     return list(by_key.values())
 
 
+# Crash-free KPI taşıyan bloklar: kısmi/başarısız tarama bunları boşla ezmemeli.
+_KPI_BLOCK_KEYS = ("latest_24h", "latest_7d", "release_monitoring")
+_KPI_VALUE_KEYS = ("crash_free_pct", "crash_free_fmt", "crash_free_sessions_pct")
+
+
+def _block_has_crash_free(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    for key in _KPI_VALUE_KEYS:
+        if value.get(key) is not None:
+            return True
+    nested = value.get("latest_24h") if isinstance(value.get("latest_24h"), dict) else None
+    if nested and _block_has_crash_free(nested):
+        return True
+    nested7 = value.get("latest_7d") if isinstance(value.get("latest_7d"), dict) else None
+    return bool(nested7 and _block_has_crash_free(nested7))
+
+
+def _merge_windows(old: Any, new: Any) -> dict[str, Any]:
+    """windows sözlüğü: yalnızca crash-free taşıyan pencereler güncellensin."""
+    base = dict(old) if isinstance(old, dict) else {}
+    inc = dict(new) if isinstance(new, dict) else {}
+    for wk, wv in inc.items():
+        if _block_has_crash_free(wv) or not _block_has_crash_free(base.get(wk)):
+            base[wk] = wv
+    return base
+
+
 def _merge_platform_block(old: dict[str, Any] | None, new: dict[str, Any] | None) -> dict[str, Any]:
     """Kısa scrape uzun Firebase geçmişini ezmesin — series / facts upsert."""
     base = dict(old) if isinstance(old, dict) else {}
@@ -116,7 +144,16 @@ def _merge_platform_block(old: dict[str, Any] | None, new: dict[str, Any] | None
         return inc
     out = dict(base)
     for k, v in inc.items():
-        if k in ("series", "sessions_series") and isinstance(v, list):
+        if k in _KPI_BLOCK_KEYS:
+            # Yeni tarama bu pencereyi getiremediyse eskisini koru — panelde "—" çıkmasın
+            if _block_has_crash_free(v) or not _block_has_crash_free(base.get(k)):
+                out[k] = v
+        elif k in ("crash_free_pct", "crash_free_fmt", "crash_free_sessions_pct", "crash_free_sessions_fmt"):
+            if v is not None or base.get(k) is None:
+                out[k] = v
+        elif k == "windows":
+            out[k] = _merge_windows(base.get(k), v)
+        elif k in ("series", "sessions_series") and isinstance(v, list):
             out[k] = _merge_series_by_date(base.get(k) if isinstance(base.get(k), list) else [], v)
         elif k == "windows" and isinstance(v, dict):
             old_w = base.get("windows") if isinstance(base.get("windows"), dict) else {}
