@@ -144,7 +144,7 @@ def test_compare_report_aggregates_date_range_rows(mock_client):
     resp.rows = [row0, row1]
     client.run_report.return_value = resp
 
-    last_map, prev_map = _run_event_param_compare_report(
+    last_map, prev_map, sess_map = _run_event_param_compare_report(
         client,
         property_id="1",
         event_name="screen_view",
@@ -157,3 +157,4 @@ def test_compare_report_aggregates_date_range_rows(mock_client):
     )
     assert last_map == {"(not set)": 100.0}
     assert prev_map == {"(not set)": 80.0}
+    assert sess_map == {}  # sessions istenmedi

@@ -455,7 +455,7 @@ def _merge_article_maps(
     return out
 
 
-# ── Platform kırılımı (Android / iOS / Web / mWeb · 1 gün + 7 gün) ────────────
+# ── Platform kırılımı (Android / iOS / Web / mWeb · 1g+7g · view+session) ─────
 # Web/mWeb: haber detay sayfa yolundan ID çıkarılır.
 # Android: `news_detail_opened` olayı · iOS: `screen_view` — ikisinde de `news_id`
 # özel parametresi taşınıyor (backend/services/ga4_app_event_config.py).
@@ -476,6 +476,7 @@ def _empty_platform_matrix(*, error: str | None = None) -> dict[str, Any]:
         "by_article": {},
         "totals": {},
         "matched": 0,
+        "metrics": ["views", "sessions"],
     }
 
 
@@ -504,20 +505,27 @@ def _fetch_app_platform_counts(
     platform: str,
     days: int,
     id_index: dict[str, dict[str, Any]],
-) -> tuple[dict[str, float], dict[str, Any]]:
+) -> tuple[dict[str, dict[str, float]], dict[str, Any]]:
     """Android/iOS haber açılışlarını ID'ye bağla — sırayla üç strateji.
 
     iOS'ta özel boyut adı property'ye göre değişebiliyor; tek bir isme güvenmek
     yerine ID → (ID+başlık) → başlık sırasıyla denenir ve hangisinin tuttuğu
-    teşhis olarak döner.
+    teşhis olarak döner. Her ID için `views` (olay sayısı) ve `sessions` döner;
+    session GA4 tarafından verilmediyse 0 kalır ve teşhiste işaretlenir.
     """
     event_name = _APP_PROFILE_EVENT[platform]
     title_index = {_norm_title_key(r.get("title") or ""): aid for aid, r in id_index.items()}
     title_index.pop("", None)
-    diag: dict[str, Any] = {"strategy": None, "fetched": 0, "matched": 0, "tried": []}
+    diag: dict[str, Any] = {
+        "strategy": None,
+        "fetched": 0,
+        "matched": 0,
+        "sessions_metric": False,
+        "tried": [],
+    }
 
-    def _collect(rows: list[dict[str, Any]], *, by_title: bool) -> dict[str, float]:
-        found: dict[str, float] = {}
+    def _collect(rows: list[dict[str, Any]], *, by_title: bool) -> dict[str, dict[str, float]]:
+        found: dict[str, dict[str, float]] = {}
         for row in rows or []:
             raw = str(row.get("value") or "")
             aid = None
@@ -529,7 +537,11 @@ def _fetch_app_platform_counts(
             if (not aid or aid not in id_index) and by_title:
                 aid = title_index.get(_norm_title_key(raw.split("·")[-1]))
             if aid and aid in id_index:
-                found[aid] = found.get(aid, 0.0) + float(row.get("count") or 0)
+                slot = found.setdefault(aid, {"views": 0.0, "sessions": 0.0})
+                slot["views"] += float(row.get("count") or 0)
+                if "sessions" in row:
+                    diag["sessions_metric"] = True
+                    slot["sessions"] += float(row.get("sessions") or 0)
         return found
 
     attempts = (
@@ -557,6 +569,7 @@ def _fetch_app_platform_counts(
                 event_name=event_name,
                 days=days,
                 limit=500,
+                with_sessions=True,
                 **kwargs,
             )
         except Exception as exc:  # noqa: BLE001
@@ -578,10 +591,14 @@ def fetch_news_platform_breakdown(
     rows: list[dict[str, Any]],
     site_id: int = _DEFAULT_SITE_ID,
 ) -> dict[str, Any]:
-    """Haber ID → platform × dönem görüntüleme sayısı.
+    """Haber ID → platform × dönem × metrik (view + session).
 
-    Web/mWeb `screenPageViews`, Android/iOS ilgili olayın `eventCount` değeridir;
-    ikisi de "haber kaç kez açıldı" sorusunu ölçer, sütunlar karşılaştırılabilir.
+    View: Web/mWeb `screenPageViews`, Android/iOS ilgili olayın `eventCount`
+    değeridir; ikisi de "haber kaç kez açıldı" sorusunu ölçer, sütunlar
+    karşılaştırılabilir. Session: Web/mWeb'de sayfanın görüldüğü oturum,
+    Android/iOS'ta açılış olayının geçtiği oturum sayısı — tahmin değil, GA4'ün
+    kendi `sessions` metriği. Dönüşte `d1`/`d7` view, `d1_sessions`/`d7_sessions`
+    session taşır.
     """
     id_index: dict[str, dict[str, Any]] = {}
     for r in rows or []:
@@ -608,12 +625,12 @@ def fetch_news_platform_breakdown(
 
     diagnostics: dict[str, dict[str, Any]] = {}
 
-    def _job(task: tuple[str, str, int]) -> tuple[str, str, dict[str, float]]:
+    def _job(task: tuple[str, str, int]) -> tuple[str, str, dict[str, dict[str, float]]]:
         platform, win_key, days = task
         prop = str(properties.get(platform) or "").strip()
         if not prop:
             return platform, win_key, {}
-        out: dict[str, float] = {}
+        out: dict[str, dict[str, float]] = {}
         try:
             if platform in _APP_PROFILE_EVENT:
                 out, diag = _fetch_app_platform_counts(
@@ -632,10 +649,13 @@ def fetch_news_platform_breakdown(
                 for page in pages or []:
                     aid = extract_article_id_from_path(str(page.get("page") or ""))
                     if aid and aid in id_index:
-                        out[aid] = out.get(aid, 0.0) + float(page.get("views") or 0)
+                        slot = out.setdefault(aid, {"views": 0.0, "sessions": 0.0})
+                        slot["views"] += float(page.get("views") or 0)
+                        slot["sessions"] += float(page.get("sessions") or 0)
                 diagnostics[f"{platform}:{win_key}"] = {
                     "fetched": len(pages or []),
                     "matched": len(out),
+                    "sessions_metric": True,
                     "strategy": "page_path",
                 }
         except Exception as exc:  # noqa: BLE001
@@ -662,13 +682,21 @@ def fetch_news_platform_breakdown(
     by_article: dict[str, dict[str, dict[str, float]]] = {}
     totals: dict[str, dict[str, float]] = {}
     for platform, win_key, values in results:
-        tot = 0.0
+        tot_views = 0.0
+        tot_sessions = 0.0
         for aid, val in values.items():
-            if val <= 0:
+            views = float(val.get("views") or 0)
+            sessions = float(val.get("sessions") or 0)
+            if views <= 0 and sessions <= 0:
                 continue
-            by_article.setdefault(aid, {}).setdefault(platform, {})[win_key] = round(val, 1)
-            tot += val
-        totals.setdefault(platform, {})[win_key] = round(tot, 1)
+            slot = by_article.setdefault(aid, {}).setdefault(platform, {})
+            slot[win_key] = round(views, 1)
+            slot[f"{win_key}_sessions"] = round(sessions, 1)
+            tot_views += views
+            tot_sessions += sessions
+        plat_totals = totals.setdefault(platform, {})
+        plat_totals[win_key] = round(tot_views, 1)
+        plat_totals[f"{win_key}_sessions"] = round(tot_sessions, 1)
 
     out = {
         "ok": True,
@@ -680,7 +708,11 @@ def fetch_news_platform_breakdown(
         "matched": len(by_article),
         "diagnostics": diagnostics,
         "metric": "views",
-        "note": "Web/mWeb screenPageViews · Android/iOS haber açılış olayı (news_id)",
+        "metrics": ["views", "sessions"],
+        "note": (
+            "Web/mWeb screenPageViews + sessions · "
+            "Android/iOS haber açılış olayı (news_id) + o olayın geçtiği sessions"
+        ),
     }
     _PLATFORM_CACHE[cache_key] = (time.time(), out)
     return out

@@ -180,7 +180,7 @@ def test_day_window_switch_exists_and_drives_rendering():
     assert 'data-dn-window="d1"' in html and 'data-dn-window="d7"' in html
     assert "bindPlatformWindowSwitch" in html
     assert 'state.pfWindow === "d7" ? d7 : d1' in html
-    assert 'var sel = state.pfWindow === "d7" ? v.d7 : v.d1;' in html
+    assert 'var sel = state.pfWindow === "d7" ? v["d7" + sfx] : v["d1" + sfx];' in html
 
 
 def test_empty_platform_data_explains_itself():
@@ -226,6 +226,11 @@ def _rows(*pairs):
     return [{"value": v, "count": c} for v, c in pairs]
 
 
+def _pf(views, sessions=0.0):
+    """`_fetch_app_platform_counts` çıktısındaki tek ID hücresi."""
+    return {"views": float(views), "sessions": float(sessions)}
+
+
 def test_ios_falls_back_to_id_plus_title_when_plain_id_is_empty():
     calls = []
 
@@ -238,7 +243,7 @@ def test_ios_falls_back_to_id_plus_title_when_plain_id_is_empty():
     out, diag = dnt._fetch_app_platform_counts(
         fake, property_id="4", platform="ios", days=1, id_index={"1234567": ROWS[0]}
     )
-    assert out == {"1234567": 42.0}
+    assert out == {"1234567": _pf(42.0)}
     assert diag["strategy"] == "news_id+title"
     assert len(calls) == 2  # önce sade ID denendi
 
@@ -252,7 +257,7 @@ def test_ios_falls_back_to_title_matching_as_last_resort():
     out, diag = dnt._fetch_app_platform_counts(
         fake, property_id="4", platform="ios", days=7, id_index={"1234567": ROWS[0]}
     )
-    assert out == {"1234567": 7.0}
+    assert out == {"1234567": _pf(7.0)}
     assert diag["strategy"] == "news_title"
 
 
@@ -266,7 +271,7 @@ def test_plain_id_is_preferred_and_stops_early():
     out, diag = dnt._fetch_app_platform_counts(
         fake, property_id="3", platform="android", days=1, id_index={"1234567": ROWS[0]}
     )
-    assert out == {"1234567": 99.0}
+    assert out == {"1234567": _pf(99.0)}
     assert diag["strategy"] == "news_id"
     assert calls == ["news_id"]  # gereksiz ek sorgu yok
 
@@ -280,7 +285,7 @@ def test_title_matching_ignores_punctuation_and_case():
     out, _ = dnt._fetch_app_platform_counts(
         fake, property_id="4", platform="ios", days=1, id_index={"1234567": {"title": "Dolar bugün"}}
     )
-    assert out == {"1234567": 5.0}
+    assert out == {"1234567": _pf(5.0)}
 
 
 def test_every_strategy_failing_reports_what_was_tried():
@@ -304,3 +309,87 @@ def test_breakdown_exposes_per_platform_diagnostics(monkeypatch, ga4_ready):
     diag = out["diagnostics"]
     assert "ios:d1" in diag and "web:d7" in diag
     assert diag["web:d7"]["strategy"] == "page_path"
+
+
+# ── Session metriği (view'ın yanına gerçek sessions — tahmin değil) ──────────
+
+def test_web_sessions_come_from_ga4_not_estimated(monkeypatch, ga4_ready):
+    """Web/mWeb session'ı zaten çekilen rapordan okunur, view'dan türetilmez."""
+    _patch_collectors(
+        monkeypatch,
+        pages=[{"page": "/haber/1234567/dolar-bugun", "views": 300, "sessions": 187}],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    web = out["by_article"]["1234567"]["web"]
+    assert web["d1"] == 300 and web["d7"] == 300
+    assert web["d1_sessions"] == 187 and web["d7_sessions"] == 187
+    assert out["totals"]["web"]["d7_sessions"] == 187
+
+
+def test_app_sessions_are_carried_when_ga4_returns_them(monkeypatch, ga4_ready):
+    _patch_collectors(
+        monkeypatch,
+        app_rows=[{"value": "1234567", "count": 120, "sessions": 74}],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    android = out["by_article"]["1234567"]["android"]
+    assert android["d1"] == 120 and android["d1_sessions"] == 74
+    assert out["diagnostics"]["android:d1"]["sessions_metric"] is True
+
+
+def test_app_without_sessions_metric_keeps_views_and_flags_diagnostics(monkeypatch, ga4_ready):
+    """GA4 sessions vermezse view kaybolmamalı; eksiklik teşhiste görünmeli."""
+    _patch_collectors(monkeypatch, app_rows=[{"value": "1234567", "count": 120}])
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    android = out["by_article"]["1234567"]["android"]
+    assert android["d1"] == 120
+    assert android["d1_sessions"] == 0
+    assert out["diagnostics"]["android:d1"]["sessions_metric"] is False
+
+
+def test_app_counts_request_sessions_from_the_collector():
+    seen = []
+
+    def fake(**kw):
+        seen.append(kw.get("with_sessions"))
+        return [{"value": "1234567", "count": 9, "sessions": 4}]
+
+    out, diag = dnt._fetch_app_platform_counts(
+        fake, property_id="3", platform="android", days=1, id_index={"1234567": ROWS[0]}
+    )
+    assert seen == [True]
+    assert out == {"1234567": _pf(9.0, 4.0)}
+    assert diag["sessions_metric"] is True
+
+
+def test_row_with_only_sessions_is_not_dropped(monkeypatch, ga4_ready):
+    """View 0 ama session varsa hücre yine dolmalı (aksi halde sessizce kaybolur)."""
+    _patch_collectors(
+        monkeypatch,
+        pages=[{"page": "/haber/1234567/x", "views": 0, "sessions": 12}],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    web = out["by_article"]["1234567"]["web"]
+    assert web["d7"] == 0 and web["d7_sessions"] == 12
+
+
+def test_metric_switch_exists_and_drives_cells_and_sorting():
+    html = PAGE.read_text(encoding="utf-8")
+    assert 'id="dn-pf-metric"' in html
+    assert 'data-dn-metric="views"' in html and 'data-dn-metric="sessions"' in html
+    assert "bindPlatformMetricSwitch" in html
+    # Hem hücre hem sıralama seçili metriğe bakar
+    assert 'var sfx = state.pfMetric === "sessions" ? "_sessions" : "";' in html
+    assert 'pfMetric: "views",' in html
+
+
+def test_tooltip_always_shows_both_metrics_for_both_windows():
+    """Anahtar hangi konumda olursa olsun dört sayı tooltip'te bulunmalı."""
+    html = PAGE.read_text(encoding="utf-8")
+    block = html.split("function platformCol(key, label)", 1)[1].split("var platformCols", 1)[0]
+    for needle in ("pf.d1 || 0", "pf.d1_sessions || 0", "pf.d7 || 0", "pf.d7_sessions || 0"):
+        assert needle in block, needle

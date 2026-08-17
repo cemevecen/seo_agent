@@ -1115,6 +1115,10 @@
             <button type="button" class="dn-win-btn is-active" data-dn-window="d1">1 gün</button>
             <button type="button" class="dn-win-btn" data-dn-window="d7">7 gün</button>
           </div>
+          <div class="dn-win-switch" id="dn-pf-metric" role="group" aria-label="Platform trafiği metriği">
+            <button type="button" class="dn-win-btn is-active" data-dn-metric="views">View</button>
+            <button type="button" class="dn-win-btn" data-dn-metric="sessions">Session</button>
+          </div>
           <button type="button" id="dn-items-traffic-btn" class="dn-traffic-btn">
             Show traffic
           </button>
@@ -1185,6 +1189,7 @@
 (function () {
   var state = {
     pfWindow: "d1",
+    pfMetric: "views",
     category: "all",
     period: "last_7d",
     customStart: null,
@@ -1391,12 +1396,13 @@
 
   function itemsForTable(data) {
     var all = (data && data.items) || [];
-    // Sıralama sayısal alan üzerinden çalışır: platform hücrelerinde 7 günlük değer
+    // Sıralama sayısal alan üzerinden çalışır: seçili dönem × seçili metrik
     all.forEach(function (it) {
       var pf = it.platforms || {};
+      var sfx = state.pfMetric === "sessions" ? "_sessions" : "";
       ["android", "ios", "web", "mweb"].forEach(function (k) {
         var v = pf[k] || {};
-        var sel = state.pfWindow === "d7" ? v.d7 : v.d1;
+        var sel = state.pfWindow === "d7" ? v["d7" + sfx] : v["d1" + sfx];
         it["pf_" + k] = Number(sel || 0) || null;
       });
     });
@@ -1432,6 +1438,8 @@
         if (d.error) { weak.push(k + ": " + String(d.error).slice(0, 60)); return; }
         if (!d.matched) {
           weak.push(k + ": " + (d.fetched || 0) + " satır geldi, 0 eşleşti");
+        } else if (state.pfMetric === "sessions" && d.sessions_metric === false) {
+          weak.push(k + ": session verisi yok (GA4 bu boyutla sessions vermedi)");
         }
       });
       if (weak.length) note = "Platform trafiği — " + weak.join(" · ");
@@ -1449,24 +1457,42 @@
     el.hidden = !note;
   }
 
-  function bindPlatformWindowSwitch() {
-    var wrap = $("dn-pf-window");
+  /** Platform anahtarları (dönem / metrik) — apply true dönerse tablo yenilenir. */
+  function bindPlatformSwitch(wrapId, attr, apply) {
+    var wrap = $(wrapId);
     if (!wrap || wrap.dataset.bound === "1") return;
     wrap.dataset.bound = "1";
     wrap.addEventListener("click", function (ev) {
-      var btn = ev.target && ev.target.closest && ev.target.closest("[data-dn-window]");
+      var btn = ev.target && ev.target.closest && ev.target.closest("[" + attr + "]");
       if (!btn) return;
-      var win = btn.getAttribute("data-dn-window") === "d7" ? "d7" : "d1";
-      if (win === state.pfWindow) return;
-      state.pfWindow = win;
-      wrap.querySelectorAll("[data-dn-window]").forEach(function (b) {
-        b.classList.toggle("is-active", b.getAttribute("data-dn-window") === win);
+      if (!apply(btn.getAttribute(attr))) return;
+      wrap.querySelectorAll("[" + attr + "]").forEach(function (b) {
+        b.classList.toggle("is-active", b === btn);
       });
-      // Tablo yeniden çizilsin (sıralama da seçili döneme göre)
+      // Tablo yeniden çizilsin (sıralama da seçili dönem/metriğe göre)
       if (state.data) {
         if (state.tables) delete state.tables["dn-table-items"];
         renderTables(state.data);
+        renderPlatformMeta(state.data);
       }
+    });
+  }
+
+  function bindPlatformWindowSwitch() {
+    bindPlatformSwitch("dn-pf-window", "data-dn-window", function (raw) {
+      var win = raw === "d7" ? "d7" : "d1";
+      if (win === state.pfWindow) return false;
+      state.pfWindow = win;
+      return true;
+    });
+  }
+
+  function bindPlatformMetricSwitch() {
+    bindPlatformSwitch("dn-pf-metric", "data-dn-metric", function (raw) {
+      var metric = raw === "sessions" ? "sessions" : "views";
+      if (metric === state.pfMetric) return false;
+      state.pfMetric = metric;
+      return true;
     });
   }
 
@@ -2735,20 +2761,27 @@
           " (newest) · use «Show traffic» for traffic";
       }
     }
-    // Platform kırılımı: hücrede "1 gün / 7 gün" (Web+mWeb screenPageViews,
-    // Android/iOS haber açılış olayı — ikisi de news_id ile eşleşir)
+    // Platform kırılımı: hücrede "1 gün / 7 gün", metrik View/Session anahtarıyla
+    // seçilir (Web+mWeb screenPageViews + sessions, Android/iOS haber açılış olayı
+    // ve o olayın geçtiği sessions — ikisi de news_id ile eşleşir)
     function platformCol(key, label) {
       return {
         key: "pf_" + key, label: label, num: true, defaultDir: "desc",
         render: function (r) {
           var pf = (r.platforms || {})[key] || {};
-          var d1 = Number(pf.d1 || 0);
-          var d7 = Number(pf.d7 || 0);
+          var sfx = state.pfMetric === "sessions" ? "_sessions" : "";
+          var d1 = Number(pf["d1" + sfx] || 0);
+          var d7 = Number(pf["d7" + sfx] || 0);
           if (!d1 && !d7) return "—";
           var main = state.pfWindow === "d7" ? d7 : d1;
           var other = state.pfWindow === "d7" ? d1 : d7;
           var otherLabel = state.pfWindow === "d7" ? "1 gün" : "7 gün";
-          var tip = label + " · son 1 gün " + fmt(d1) + " · son 7 gün " + fmt(d7);
+          // Tooltip her zaman dört sayının tamamını verir — anahtar ne olursa olsun
+          var tip = label +
+            " · son 1 gün " + fmt(Number(pf.d1 || 0)) + " view / " +
+            fmt(Number(pf.d1_sessions || 0)) + " session" +
+            " · son 7 gün " + fmt(Number(pf.d7 || 0)) + " view / " +
+            fmt(Number(pf.d7_sessions || 0)) + " session";
           return '<span class="dn-pf-cell" title="' + esc(tip) + '">' +
             '<b>' + fmt(main) + '</b>' +
             '<span class="dn-pf-week" title="' + esc(otherLabel) + '">' + fmt(other) + '</span>' +
@@ -2853,6 +2886,7 @@
     renderCharts(data);
     renderTables(data);
     bindPlatformWindowSwitch();
+    bindPlatformMetricSwitch();
     renderPlatformMeta(data);
     requestAnimationFrame(syncPairCardHeights);
     syncTrafficButton();

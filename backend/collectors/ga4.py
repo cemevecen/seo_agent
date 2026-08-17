@@ -2423,14 +2423,24 @@ def _run_event_param_compare_report(
     prev_start: str,
     prev_end: str,
     limit: int,
-) -> tuple[dict[str, float], dict[str, float]]:
-    """İki dönemi tek GA4 isteğinde çeker (eventCount × 2 date range)."""
+    with_sessions: bool = False,
+) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
+    """İki dönemi tek GA4 isteğinde çeker (eventCount × 2 date range).
+
+    `with_sessions` açıkken aynı rapora `sessions` metriği eklenir ve üçüncü
+    dönüş değeri güncel dönemin session sayılarını taşır (aksi halde boş).
+    Session, event-scoped özel boyutla her property'de uyumlu olmayabilir;
+    çağıran taraf hatayı yakalayıp metriksiz tekrar denemekten sorumlu.
+    """
     if not dimension_names:
-        return {}, {}
+        return {}, {}, {}
+    metrics = [Metric(name="eventCount")]
+    if with_sessions:
+        metrics.append(Metric(name="sessions"))
     req = RunReportRequest(
         property=f"properties/{property_id}",
         dimensions=[Dimension(name=d) for d in dimension_names],
-        metrics=[Metric(name="eventCount")],
+        metrics=metrics,
         date_ranges=[
             DateRange(start_date=last_start, end_date=last_end),
             DateRange(start_date=prev_start, end_date=prev_end),
@@ -2442,6 +2452,7 @@ def _run_event_param_compare_report(
     resp = client.run_report(req)
     last_map: dict[str, float] = {}
     prev_map: dict[str, float] = {}
+    last_sessions: dict[str, float] = {}
     req_dim_count = len(dimension_names)
     for row in resp.rows or []:
         key, range_tag = _split_compare_row_dimensions(
@@ -2450,19 +2461,26 @@ def _run_event_param_compare_report(
         )
         if _is_junk_event_param_key(key):
             continue
-        metrics = row.metric_values or []
+        values = row.metric_values or []
+
+        def _at(idx: int, _values: Any = values) -> float:
+            return float(_values[idx].value or 0.0) if len(_values) > idx else 0.0
+
         if range_tag == "date_range_0":
-            val = float(metrics[0].value or 0.0) if metrics else 0.0
-            last_map[key] = last_map.get(key, 0.0) + val
+            last_map[key] = last_map.get(key, 0.0) + _at(0)
+            if with_sessions:
+                last_sessions[key] = last_sessions.get(key, 0.0) + _at(1)
         elif range_tag == "date_range_1":
-            val = float(metrics[0].value or 0.0) if metrics else 0.0
-            prev_map[key] = prev_map.get(key, 0.0) + val
+            prev_map[key] = prev_map.get(key, 0.0) + _at(0)
+        elif with_sessions:
+            # dateRange boyutu yoksa metrik sırası [eventCount, sessions] —
+            # önceki dönem ayrıştırılamaz, sadece güncel dönem yazılır.
+            last_map[key] = last_map.get(key, 0.0) + _at(0)
+            last_sessions[key] = last_sessions.get(key, 0.0) + _at(1)
         else:
-            last_val = float(metrics[0].value or 0.0) if len(metrics) > 0 else 0.0
-            prev_val = float(metrics[1].value or 0.0) if len(metrics) > 1 else 0.0
-            last_map[key] = last_map.get(key, 0.0) + last_val
-            prev_map[key] = prev_map.get(key, 0.0) + prev_val
-    return last_map, prev_map
+            last_map[key] = last_map.get(key, 0.0) + _at(0)
+            prev_map[key] = prev_map.get(key, 0.0) + _at(1)
+    return last_map, prev_map, last_sessions
 
 
 def fetch_ga4_event_param_breakdown(
@@ -2475,8 +2493,15 @@ def fetch_ga4_event_param_breakdown(
     alt_params_2: list[str] | None = None,
     days: int = 30,
     limit: int = 100,
+    with_sessions: bool = False,
 ) -> list[dict]:
-    """Tek veya çift custom event parametresi — eventName filtresi ile eventCount (dönem karşılaştırmalı)."""
+    """Tek veya çift custom event parametresi — eventName filtresi ile eventCount (dönem karşılaştırmalı).
+
+    `with_sessions` açıkken satırlara güncel dönemin `sessions` değeri eklenir.
+    GA4 bu metriği bazı event-scoped boyutlarla reddedebiliyor; o durumda aynı
+    boyut kümesi metriksiz tekrar denenir ve `sessions` anahtarı hiç yazılmaz —
+    yani session eklemek eventCount'u asla kaybettirmez.
+    """
     safe_days = max(1, int(days))
     safe_limit = max(10, min(int(limit), 500))
     (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
@@ -2496,26 +2521,36 @@ def fetch_ga4_event_param_breakdown(
 
     last_map: dict[str, float] = {}
     prev_map: dict[str, float] = {}
+    sess_map: dict[str, float] = {}
     last_err: Exception | None = None
+    sessions_ok = False
+    done = False
 
     for dims in dim_sets:
-        try:
-            last_map, prev_map = _run_event_param_compare_report(
-                client,
-                property_id=property_id,
-                event_name=event_name,
-                dimension_names=dims,
-                last_start=last_start,
-                last_end=last_end,
-                prev_start=prev_start,
-                prev_end=prev_end,
-                limit=safe_limit,
-            )
+        # Session istendiyse önce metrikli, uyumsuzlukta aynı boyutla metriksiz.
+        for want_sessions in ((True, False) if with_sessions else (False,)):
+            try:
+                last_map, prev_map, sess_map = _run_event_param_compare_report(
+                    client,
+                    property_id=property_id,
+                    event_name=event_name,
+                    dimension_names=dims,
+                    last_start=last_start,
+                    last_end=last_end,
+                    prev_start=prev_start,
+                    prev_end=prev_end,
+                    limit=safe_limit,
+                    with_sessions=want_sessions,
+                )
+            except Exception as exc:
+                last_err = exc
+                continue
             last_err = None
+            sessions_ok = want_sessions
+            done = True
             break
-        except Exception as exc:
-            last_err = exc
-            continue
+        if done:
+            break
 
     if last_err is not None and not last_map:
         raise last_err
@@ -2527,6 +2562,7 @@ def fetch_ga4_event_param_breakdown(
             "count": last_val,
             "count_prev": prev_val,
             "change_pct": round((last_val - prev_val) / prev_val * 100, 1) if prev_val else None,
+            **({"sessions": sess_map.get(k, 0.0)} if sessions_ok else {}),
         }
         for k, (last_val, prev_val) in merged.items()
         if last_val > 0 or prev_val > 0
