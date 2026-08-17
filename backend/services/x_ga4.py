@@ -28,13 +28,57 @@ LOGGER = logging.getLogger(__name__)
 _DEFAULT_SITE_ID = 1
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _CACHE_TTL_SEC = 300.0
-_MAX_WORKERS = 6
+_MAX_WORKERS = 8  # property başına eşzamanlı istek sınırı 10
 
 # GA4 «değersiz» boyut değerleri — filtrelenmezse (not set) satırı listeyi yutuyor
 _EMPTY_VALUES = ("(not set)", "", "(none)")
 
 PROFILES: tuple[str, ...] = ("web", "mweb", "android", "ios")
 APP_PROFILES: tuple[str, ...] = ("android", "ios")
+SITE_PROFILES: tuple[str, ...] = ("web", "mweb")
+
+# Standart boyut kırılımları — bildirimsel, çünkü hepsi aynı şekli paylaşıyor.
+# `profiles` o kırılımın anlamlı olduğu yüzeyleri sınırlar (ör. appVersion yalnız
+# uygulamalarda). Ölçülen maliyet istek başına 1–3 token.
+BREAKDOWNS: tuple[dict[str, Any], ...] = (
+    {"key": "events", "label": "Olaylar", "dimension": "eventName",
+     "metric": "eventCount", "profiles": PROFILES,
+     "hint": "En çok tetiklenen olaylar"},
+    {"key": "app_version", "label": "Uygulama sürümü", "dimension": "appVersion",
+     "metric": "activeUsers", "profiles": APP_PROFILES,
+     "hint": "Sürüm benimsenmesi — eski sürümde kalan kullanıcı"},
+    {"key": "new_returning", "label": "Yeni / dönen", "dimension": "newVsReturning",
+     "metric": "activeUsers", "profiles": PROFILES,
+     "hint": "Sadık kitle mi, yeni kullanıcı mı"},
+    {"key": "channel", "label": "Kanal", "dimension": "sessionDefaultChannelGroup",
+     "metric": "sessions", "profiles": PROFILES,
+     "hint": "Oturum nereden geldi"},
+    {"key": "country", "label": "Ülke", "dimension": "country",
+     "metric": "activeUsers", "profiles": PROFILES, "hint": ""},
+    {"key": "language", "label": "Dil", "dimension": "language",
+     "metric": "activeUsers", "profiles": PROFILES, "hint": ""},
+    {"key": "os_version", "label": "İşletim sistemi sürümü", "dimension": "operatingSystemVersion",
+     "metric": "activeUsers", "profiles": PROFILES, "hint": ""},
+    {"key": "device", "label": "Cihaz modeli", "dimension": "deviceModel",
+     "metric": "activeUsers", "profiles": APP_PROFILES, "hint": ""},
+    {"key": "landing", "label": "Giriş sayfaları", "dimension": "landingPagePlusQueryString",
+     "metric": "sessions", "profiles": SITE_PROFILES,
+     "hint": "Siteye ilk girilen sayfa"},
+    {"key": "weekday", "label": "Haftanın günü", "dimension": "dayOfWeek",
+     "metric": "activeUsers", "profiles": PROFILES,
+     "hint": "0 = Pazar"},
+)
+
+_WEEKDAY_TR = ("Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi")
+
+
+def resolve_profiles(properties: dict[str, str], selected: str | None) -> list[str]:
+    """Filtre → çalışılacak profil listesi. «hepsi» tanımlı olanların tümü."""
+    available = [p for p in PROFILES if str(properties.get(p) or "").strip()]
+    key = (selected or "hepsi").strip().lower()
+    if key in ("", "hepsi", "all"):
+        return available
+    return [p for p in available if p == key]
 
 
 def _types() -> Any:
@@ -112,14 +156,14 @@ def _block(name: str, fn: Any) -> dict[str, Any]:
 USER_METRICS = ("active1DayUsers", "active7DayUsers", "active28DayUsers")
 
 
-def _user_stability(client: Any, properties: dict[str, str]) -> dict[str, Any]:
+def _user_stability(client: Any, properties: dict[str, str], profiles: list[str]) -> dict[str, Any]:
     """DAU / WAU / MAU — Firebase konsolu yerine doğrudan GA4.
 
     Crash-free burada gösterilmiyor: /firebase sayfasında zaten var, ikinci kez
     çekmek hem gereksiz istek hem çift kaynak olurdu.
     """
     rows = []
-    for pf in PROFILES:
+    for pf in profiles:
         pid = str(properties.get(pf) or "").strip()
         if not pid:
             continue
@@ -150,7 +194,8 @@ def _dimension_missing(exc: Exception) -> bool:
 
 
 def _asset_interest(
-    client: Any, properties: dict[str, str], start: str, end: str, limit: int
+    client: Any, properties: dict[str, str], profiles: list[str],
+    start: str, end: str, limit: int,
 ) -> dict[str, Any]:
     """`customEvent:asset_key` — hangi varlığa bakılıyor (işin merkezi).
 
@@ -163,7 +208,7 @@ def _asset_interest(
     combined: dict[str, float] = {}
     undefined: list[str] = []
     covered: list[str] = []
-    for pf in PROFILES:
+    for pf in profiles:
         pid = str(properties.get(pf) or "").strip()
         if not pid:
             continue
@@ -213,10 +258,13 @@ BEHAVIOR_DIMENSIONS: tuple[tuple[str, str, str], ...] = (
 
 
 def _behavior(
-    client: Any, properties: dict[str, str], start: str, end: str, limit: int
+    client: Any, properties: dict[str, str], profiles: list[str],
+    start: str, end: str, limit: int,
 ) -> dict[str, Any]:
     groups = []
     for pf, dim, label in BEHAVIOR_DIMENSIONS:
+        if pf not in profiles:
+            continue
         pid = str(properties.get(pf) or "").strip()
         if not pid:
             continue
@@ -245,7 +293,8 @@ DEPTH_METRICS = ("screenPageViews", "userEngagementDuration", "newUsers")
 
 
 def _content_depth(
-    client: Any, properties: dict[str, str], start: str, end: str, limit: int
+    client: Any, properties: dict[str, str], profiles: list[str],
+    start: str, end: str, limit: int,
 ) -> dict[str, Any]:
     """Sayfa başına gerçek okuma süresi ve yeni kullanıcı payı.
 
@@ -253,7 +302,7 @@ def _content_depth(
     yüzden okuma derinliği `userEngagementDuration` üzerinden hesaplanır.
     """
     rows_out: list[dict[str, Any]] = []
-    for pf in ("web", "mweb"):
+    for pf in [p for p in SITE_PROFILES if p in profiles]:
         pid = str(properties.get(pf) or "").strip()
         if not pid:
             continue
@@ -282,7 +331,7 @@ def _content_depth(
 # ── 5. Saatlik ritim ────────────────────────────────────────────────────────
 
 def _hourly(
-    client: Any, properties: dict[str, str], start: str, end: str
+    client: Any, properties: dict[str, str], profiles: list[str], start: str, end: str
 ) -> dict[str, Any]:
     """Saat × aktif kullanıcı — yayın saati kararı için.
 
@@ -290,7 +339,7 @@ def _hourly(
     satır olarak raporlanır.
     """
     series: dict[str, Any] = {}
-    for pf in ("web", "mweb", "android", "ios"):
+    for pf in profiles:
         pid = str(properties.get(pf) or "").strip()
         if not pid:
             continue
@@ -319,9 +368,12 @@ def _hourly(
 # ── 6. Kitle ────────────────────────────────────────────────────────────────
 
 def _audience(
-    client: Any, properties: dict[str, str], start: str, end: str, limit: int
+    client: Any, properties: dict[str, str], profiles: list[str],
+    start: str, end: str, limit: int,
 ) -> dict[str, Any]:
-    pid = str(properties.get("web") or "").strip()
+    # Demografi/ilgi verisi yüzey bağımsız; seçili profil yoksa web'e düşer
+    target = profiles[0] if profiles else "web"
+    pid = str(properties.get(target) or properties.get("web") or "").strip()
     if not pid:
         return {"interests": [], "demographics": [], "audiences": []}
 
@@ -346,6 +398,59 @@ def _audience(
     }
 
 
+# ── Standart kırılımlar (bildirimsel) ───────────────────────────────────────
+
+def _label_value(dimension: str, raw: str) -> str:
+    """Ham GA4 değerini okunur hale getir (şimdilik yalnızca gün numarası)."""
+    if dimension == "dayOfWeek" and str(raw).isdigit():
+        idx = int(raw)
+        if 0 <= idx < len(_WEEKDAY_TR):
+            return _WEEKDAY_TR[idx]
+    return raw
+
+
+def _breakdown_task(
+    client: Any, spec: dict[str, Any], profile: str, property_id: str,
+    start: str, end: str, limit: int,
+) -> dict[str, Any]:
+    dim = spec["dimension"]
+    metric = spec["metric"]
+    out: dict[str, Any] = {"key": spec["key"], "profile": profile}
+    try:
+        rows = _run(
+            client, property_id,
+            dimensions=[dim], metrics=[metric],
+            start=start, end=end, limit=limit,
+            dimension_filter=_exclude_empty(dim), order_metric=metric,
+        )
+        out["rows"] = [
+            {"value": _label_value(dim, r[dim]), "raw": r[dim], "metric": r[metric]}
+            for r in rows
+        ]
+    except Exception as exc:  # noqa: BLE001
+        out["rows"] = []
+        if _dimension_missing(exc):
+            out["undefined"] = True
+        else:
+            out["error"] = str(exc)[:140]
+    return out
+
+
+def _plan_breakdowns(
+    properties: dict[str, str], profiles: list[str]
+) -> list[tuple[dict[str, Any], str, str]]:
+    """(spec, profil, property) üçlüleri — tek düz paralel havuz için."""
+    plan = []
+    for spec in BREAKDOWNS:
+        for pf in profiles:
+            if pf not in spec["profiles"]:
+                continue
+            pid = str(properties.get(pf) or "").strip()
+            if pid:
+                plan.append((spec, pf, pid))
+    return plan
+
+
 # ── Toplayıcı ───────────────────────────────────────────────────────────────
 
 def build_x_ga4_report(
@@ -354,14 +459,22 @@ def build_x_ga4_report(
     site_id: int = _DEFAULT_SITE_ID,
     days: int = 7,
     limit: int = 15,
+    profile: str | None = None,
     force: bool = False,
 ) -> dict[str, Any]:
-    """Altı bloğu paralel çeker. Kota maliyeti ölçüldü: blok başına birkaç token."""
+    """Tüm blokları tek düz paralel havuzda çeker.
+
+    İstekler blok içinde değil, blok×profil düzeyinde düzleştirilir — aksi halde
+    iç içe havuzlar birbirini bekletiyor ve «hepsi» seçiliyken sayfa yavaşlıyor.
+    Ölçülen maliyet istek başına 1–3 token; tam sayfa ~50 istekte bile günlük
+    200.000 token bütçesinin binde biri.
+    """
     from backend.services.ga4_auth import get_ga4_connection_status
 
     safe_days = max(1, min(int(days or 7), 90))
     safe_limit = max(5, min(int(limit or 15), 50))
-    cache_key = f"{site_id}|{safe_days}|{safe_limit}"
+    profile_key = (profile or "hepsi").strip().lower()
+    cache_key = f"{site_id}|{safe_days}|{safe_limit}|{profile_key}"
     if not force:
         hit = _CACHE.get(cache_key)
         if hit and (time.time() - hit[0]) < _CACHE_TTL_SEC:
@@ -383,28 +496,61 @@ def build_x_ga4_report(
     client = _client()
     start = f"{safe_days}daysAgo" if safe_days > 1 else "yesterday"
     end = "yesterday"
+    profiles = resolve_profiles(properties, profile_key)
+    if not profiles:
+        return {"ok": False, "error": f"«{profile_key}» için GA4 property yok", "blocks": {}}
 
-    jobs = {
-        "user_stability": lambda: _block("user_stability", lambda: _user_stability(client, properties)),
-        "assets": lambda: _block("assets", lambda: _asset_interest(client, properties, start, end, safe_limit)),
-        "behavior": lambda: _block("behavior", lambda: _behavior(client, properties, start, end, safe_limit)),
-        "content_depth": lambda: _block("content_depth", lambda: _content_depth(client, properties, start, end, safe_limit)),
-        "hourly": lambda: _block("hourly", lambda: _hourly(client, properties, start, end)),
-        "audience": lambda: _block("audience", lambda: _audience(client, properties, start, end, safe_limit)),
+    jobs: dict[str, Any] = {
+        "user_stability": lambda: _block("user_stability", lambda: _user_stability(client, properties, profiles)),
+        "assets": lambda: _block("assets", lambda: _asset_interest(client, properties, profiles, start, end, safe_limit)),
+        "behavior": lambda: _block("behavior", lambda: _behavior(client, properties, profiles, start, end, safe_limit)),
+        "content_depth": lambda: _block("content_depth", lambda: _content_depth(client, properties, profiles, start, end, safe_limit)),
+        "hourly": lambda: _block("hourly", lambda: _hourly(client, properties, profiles, start, end)),
+        "audience": lambda: _block("audience", lambda: _audience(client, properties, profiles, start, end, safe_limit)),
     }
-
     names = list(jobs.keys())
-    with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(names))) as pool:
-        results = list(pool.map(lambda n: jobs[n](), names))
+    plan = _plan_breakdowns(properties, profiles)
 
-    blocks = dict(zip(names, results))
+    # Blok işleri ve kırılım istekleri aynı havuzda — hiçbiri diğerini bekletmez
+    tasks: list[Any] = [jobs[n] for n in names]
+    tasks += [
+        (lambda spec=spec, pf=pf, pid=pid: _breakdown_task(
+            client, spec, pf, pid, start, end, safe_limit))
+        for spec, pf, pid in plan
+    ]
+    with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, max(1, len(tasks)))) as pool:
+        results = list(pool.map(lambda fn: fn(), tasks))
+
+    blocks = dict(zip(names, results[: len(names)]))
+
+    # Kırılımlar: spec sırasını koru, profilleri altında topla
+    grouped: dict[str, dict[str, Any]] = {}
+    for item in results[len(names):]:
+        slot = grouped.setdefault(item["key"], {"per_profile": {}})
+        slot["per_profile"][item["profile"]] = {
+            k: v for k, v in item.items() if k not in ("key", "profile")
+        }
+    breakdowns = [
+        {
+            "key": spec["key"], "label": spec["label"], "hint": spec.get("hint") or "",
+            "dimension": spec["dimension"], "metric": spec["metric"],
+            "per_profile": grouped.get(spec["key"], {}).get("per_profile", {}),
+        }
+        for spec in BREAKDOWNS
+        if spec["key"] in grouped
+    ]
+
     out = {
         "ok": True,
         "error": None,
         "cached": False,
         "window": {"start": start, "end": end, "days": safe_days},
-        "profiles": [p for p in PROFILES if str(properties.get(p) or "").strip()],
+        "profile": profile_key,
+        "profiles": profiles,
+        "available_profiles": [p for p in PROFILES if str(properties.get(p) or "").strip()],
         "blocks": blocks,
+        "breakdowns": breakdowns,
+        "requests": len(tasks),
         "note": "Tüm veriler GA4 Data API'den gelir; başka kaynak kullanılmaz.",
     }
     _CACHE[cache_key] = (time.time(), out)

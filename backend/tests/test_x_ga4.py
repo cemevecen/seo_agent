@@ -101,7 +101,7 @@ def test_ga4_disconnected_is_reported_not_raised(monkeypatch):
 def test_empty_values_are_filtered_server_side():
     """(not set) satırı listeyi yutmamalı — filtre istekte olmalı."""
     client = _Client()
-    X._asset_interest(client, _props(), "7daysAgo", "yesterday", 10)
+    X._asset_interest(client, _props(), list(X.PROFILES), "7daysAgo", "yesterday", 10)
     assert client.requests, "istek yapılmadı"
     req = client.requests[0]
     assert req.dimension_filter is not None
@@ -117,7 +117,7 @@ def test_crash_free_is_not_fetched_at_all():
         seen.append([m.name for m in req.metrics])
         return _Resp([_Row([], [1, 1, 1])])
 
-    out = X._user_stability(_Client(handler), _props())
+    out = X._user_stability(_Client(handler), _props(), list(X.PROFILES))
     assert all("crashFreeUsersRate" not in mets for mets in seen)
     assert len(seen) == 4  # profil basina tek istek
     assert all("crashFreeUsersRate" not in r for r in out["rows"])
@@ -151,7 +151,7 @@ def test_seconds_per_view_is_computed_and_zero_safe():
     def handler(req):
         return _Resp([_Row(["/a"], [100, 500, 10]), _Row(["/b"], [0, 0, 0])])
 
-    out = X._content_depth(_Client(handler), {"web": "1"}, "7daysAgo", "yesterday", 10)
+    out = X._content_depth(_Client(handler), {"web": "1"}, ["web"], "7daysAgo", "yesterday", 10)
     a = next(r for r in out["rows"] if r["page"] == "/a")
     assert a["seconds_per_view"] == 5.0
     b = next(r for r in out["rows"] if r["page"] == "/b")
@@ -163,7 +163,7 @@ def test_hourly_keeps_the_other_bucket_visible():
     def handler(req):
         return _Resp([_Row(["9"], [10, 12]), _Row(["(other)"], [999, 1000])])
 
-    out = X._hourly(_Client(handler), {"web": "1"}, "7daysAgo", "yesterday")
+    out = X._hourly(_Client(handler), {"web": "1"}, ["web"], "7daysAgo", "yesterday")
     s = out["series"]["web"]
     assert [h["hour"] for h in s["hours"]] == [9]
     assert s["other_users"] == 999
@@ -173,13 +173,13 @@ def test_hours_are_sorted_numerically():
     def handler(req):
         return _Resp([_Row(["22"], [1, 1]), _Row(["3"], [1, 1]), _Row(["11"], [1, 1])])
 
-    out = X._hourly(_Client(handler), {"web": "1"}, "7daysAgo", "yesterday")
+    out = X._hourly(_Client(handler), {"web": "1"}, ["web"], "7daysAgo", "yesterday")
     assert [h["hour"] for h in out["series"]["web"]["hours"]] == [3, 11, 22]
 
 
 def test_missing_property_is_skipped_without_calling_ga4():
     client = _Client()
-    out = X._asset_interest(client, {"web": "", "ios": "4"}, "7daysAgo", "yesterday", 5)
+    out = X._asset_interest(client, {"web": "", "ios": "4"}, ["web", "ios"], "7daysAgo", "yesterday", 5)
     assert client.requests and len(client.requests) == 1  # yalnızca ios
     assert "web" not in out["per_profile"]
 
@@ -233,7 +233,7 @@ def test_undefined_dimension_is_reported_as_setup_gap_not_an_error():
             )
         return _Resp([_Row(["gram-altin"], [100])])
 
-    out = X._asset_interest(_Client(handler), _props(), "7daysAgo", "yesterday", 10)
+    out = X._asset_interest(_Client(handler), _props(), list(X.PROFILES), "7daysAgo", "yesterday", 10)
     assert out["undefined_profiles"] == ["mweb"]
     assert out["per_profile"]["mweb"] == {"undefined": True}
     assert "error" not in out["per_profile"]["mweb"]
@@ -245,7 +245,7 @@ def test_a_real_failure_is_still_reported_as_an_error():
     def handler(req):
         raise RuntimeError("503 backend unavailable")
 
-    out = X._asset_interest(_Client(handler), {"web": "1"}, "7daysAgo", "yesterday", 5)
+    out = X._asset_interest(_Client(handler), {"web": "1"}, ["web"], "7daysAgo", "yesterday", 5)
     assert out["undefined_profiles"] == []
     assert "503" in out["per_profile"]["web"]["error"]
 
@@ -268,7 +268,7 @@ def test_behavior_undefined_dimension_is_flagged_not_errored():
     def handler(req):
         raise RuntimeError("Field customEvent:from is not a valid dimension")
 
-    out = X._behavior(_Client(handler), _props(), "7daysAgo", "yesterday", 5)
+    out = X._behavior(_Client(handler), _props(), list(X.PROFILES), "7daysAgo", "yesterday", 5)
     g = out["groups"][0]
     assert g.get("undefined") is True
     assert "error" not in g
@@ -279,3 +279,101 @@ def test_ui_explains_the_undefined_case_and_warns_about_the_total():
     assert "undefined_profiles" in page
     assert "tanımlı değil" in page
     assert "Toplam " in page  # eksik profil uyarısı
+
+
+# ── Platform filtresi ───────────────────────────────────────────────────────
+
+def test_resolve_profiles_filters_and_defaults_to_all():
+    props = _props()
+    assert X.resolve_profiles(props, "hepsi") == ["web", "mweb", "android", "ios"]
+    assert X.resolve_profiles(props, None) == ["web", "mweb", "android", "ios"]
+    assert X.resolve_profiles(props, "ios") == ["ios"]
+    assert X.resolve_profiles(props, "IOS") == ["ios"]
+    # Tanımsız property filtreden düşer
+    assert X.resolve_profiles({"web": "1", "ios": ""}, "ios") == []
+
+
+def test_filter_limits_the_number_of_requests(monkeypatch):
+    """Tek platform seçilince kota da o oranda az harcanmalı."""
+    monkeypatch.setattr(
+        "backend.services.ga4_auth.get_ga4_connection_status",
+        lambda db, site_id: {"connected": True, "properties": _props()},
+    )
+    monkeypatch.setattr("backend.collectors.ga4._client", lambda: _Client())
+
+    every = X.build_x_ga4_report(None, days=7, profile="hepsi")
+    X._CACHE.clear()
+    only_ios = X.build_x_ga4_report(None, days=7, profile="ios")
+    assert only_ios["requests"] < every["requests"]
+    assert only_ios["profiles"] == ["ios"]
+    assert every["profiles"] == ["web", "mweb", "android", "ios"]
+
+
+def test_unknown_profile_is_reported_not_silently_empty(monkeypatch):
+    monkeypatch.setattr(
+        "backend.services.ga4_auth.get_ga4_connection_status",
+        lambda db, site_id: {"connected": True, "properties": {"web": "1"}},
+    )
+    out = X.build_x_ga4_report(None, profile="android")
+    assert out["ok"] is False
+    assert "android" in out["error"]
+
+
+def test_cache_key_separates_profiles(monkeypatch):
+    monkeypatch.setattr(
+        "backend.services.ga4_auth.get_ga4_connection_status",
+        lambda db, site_id: {"connected": True, "properties": _props()},
+    )
+    monkeypatch.setattr("backend.collectors.ga4._client", lambda: _Client())
+    X.build_x_ga4_report(None, days=7, profile="web")
+    other = X.build_x_ga4_report(None, days=7, profile="ios")
+    assert other["cached"] is False  # farklı filtre farklı önbellek
+
+
+# ── Bildirimsel kırılımlar ──────────────────────────────────────────────────
+
+def test_breakdowns_respect_their_profile_scope():
+    plan = X._plan_breakdowns(_props(), list(X.PROFILES))
+    pairs = {(spec["key"], pf) for spec, pf, _ in plan}
+    # appVersion / deviceModel yalnızca uygulamalarda
+    assert ("app_version", "web") not in pairs
+    assert ("app_version", "ios") in pairs
+    assert ("device", "mweb") not in pairs
+    # landing yalnızca site yüzeylerinde
+    assert ("landing", "android") not in pairs
+    assert ("landing", "web") in pairs
+    # events her yerde
+    assert all(("events", p) in pairs for p in X.PROFILES)
+
+
+def test_weekday_numbers_become_names():
+    assert X._label_value("dayOfWeek", "0") == "Pazar"
+    assert X._label_value("dayOfWeek", "5") == "Cuma"
+    assert X._label_value("dayOfWeek", "(other)") == "(other)"
+    assert X._label_value("country", "3") == "3"  # yalnızca gün dönüştürülür
+
+
+def test_breakdown_task_reports_undefined_dimension():
+    def handler(req):
+        raise RuntimeError("Field appVersion is not a valid dimension")
+
+    spec = next(s for s in X.BREAKDOWNS if s["key"] == "app_version")
+    out = X._breakdown_task(_Client(handler), spec, "ios", "4", "7daysAgo", "yesterday", 10)
+    assert out["undefined"] is True and out["rows"] == []
+
+
+def test_breakdown_rows_carry_value_and_metric():
+    def handler(req):
+        return _Resp([_Row(["screen_view"], [42])])
+
+    spec = next(s for s in X.BREAKDOWNS if s["key"] == "events")
+    out = X._breakdown_task(_Client(handler), spec, "ios", "4", "7daysAgo", "yesterday", 10)
+    assert out["rows"] == [{"value": "screen_view", "raw": "screen_view", "metric": 42.0}]
+
+
+def test_page_has_the_platform_filter():
+    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    for p in ("hepsi", "web", "mweb", "android", "ios"):
+        assert 'data-xg-profile="' + p + '"' in page
+    assert "profile=" in page          # istekte gönderiliyor
+    assert "renderBreakdown" in page   # kırılımlar çiziliyor

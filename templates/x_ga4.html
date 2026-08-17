@@ -35,6 +35,10 @@
   .xg-btn { padding: .3rem .7rem; font-size: .75rem; font-weight: 600; border-radius: .5rem;
             border: 1px solid rgba(148,163,184,.45); background: transparent; color: inherit; }
   .xg-btn.is-active { background: rgba(79,70,229,.14); color: #4338ca; }
+  .xg-sep { display: inline-flex; gap: .25rem; padding-right: .6rem; margin-right: .3rem;
+            border-right: 1px solid rgba(148,163,184,.4); }
+  .xg-pf { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: .04em; opacity: .65; margin: .6rem 0 .2rem; }
   html.dark .xg-btn.is-active, html.charcoal .xg-btn.is-active { color: #a5b4fc; }
 </style>
 
@@ -47,6 +51,13 @@
         <p class="xg-sub" id="xg-meta" hidden></p>
       </div>
       <div class="xg-toolbar">
+        <span class="xg-sep" role="group" aria-label="Platform">
+          <button type="button" class="xg-btn is-active" data-xg-profile="hepsi">Hepsi</button>
+          <button type="button" class="xg-btn" data-xg-profile="web">web</button>
+          <button type="button" class="xg-btn" data-xg-profile="mweb">mWeb</button>
+          <button type="button" class="xg-btn" data-xg-profile="android">Android</button>
+          <button type="button" class="xg-btn" data-xg-profile="ios">iOS</button>
+        </span>
         <button type="button" class="xg-btn" data-xg-days="1">1 gün</button>
         <button type="button" class="xg-btn is-active" data-xg-days="7">7 gün</button>
         <button type="button" class="xg-btn" data-xg-days="28">28 gün</button>
@@ -60,7 +71,7 @@
 
 <script>
 (function () {
-  var state = { days: 7, loading: false };
+  var state = { days: 7, profile: "hepsi", loading: false };
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {
@@ -283,6 +294,28 @@
     meta.hidden = !msg;
   }
 
+  // Bildirimsel kırılımlar: her biri kendi container'ı, içinde profil profil liste
+  function renderBreakdown(bd) {
+    var pp = bd.per_profile || {};
+    var keys = Object.keys(pp);
+    if (!keys.length) return "";
+    var inner = keys.map(function (pf) {
+      var d = pp[pf] || {};
+      var head = keys.length > 1 ? '<div class="xg-pf">' + esc(pf) + "</div>" : "";
+      if (d.undefined) {
+        return head + '<p class="xg-muted">Bu property\'de ' + esc(bd.dimension) + " tanımlı değil.</p>";
+      }
+      if (d.error) return head + '<p class="xg-err">Alınamadı: ' + esc(d.error) + "</p>";
+      var rows = d.rows || [];
+      if (!rows.length) return head + empty();
+      return head + table(
+        [{ label: "Değer" }, { label: bd.metric === "sessions" ? "Oturum" : "Değer", num: true }, { label: "" }],
+        barRows(rows, "value", "metric")
+      );
+    }).join("");
+    return card(bd.label, bd.hint || bd.dimension, inner);
+  }
+
   function render(data) {
     var body = $("xg-body");
     if (!data || data.ok === false) {
@@ -299,14 +332,15 @@
       renderHourly(b.hourly || {}),
       renderBehavior(b.behavior || {}),
       renderAudience(b.audience || {})
-    ].join("");
+    ].concat((data.breakdowns || []).map(renderBreakdown)).join("");
   }
 
   function load(force) {
     if (state.loading) return;
     state.loading = true;
     note("Yükleniyor…");
-    fetch("/api/x-ga4/report?days=" + state.days + (force ? "&force=true" : ""),
+    fetch("/api/x-ga4/report?days=" + state.days + "&profile=" + encodeURIComponent(state.profile) +
+          (force ? "&force=true" : ""),
           { headers: { Accept: "application/json" } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) { render(d); })
@@ -314,16 +348,30 @@
       .then(function () { state.loading = false; });
   }
 
-  document.querySelectorAll("[data-xg-days]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var d = Number(btn.getAttribute("data-xg-days")) || 7;
-      if (d === state.days) return;
-      state.days = d;
-      document.querySelectorAll("[data-xg-days]").forEach(function (b) {
-        b.classList.toggle("is-active", b === btn);
+  function bindSwitch(attr, apply) {
+    document.querySelectorAll("[" + attr + "]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (!apply(btn.getAttribute(attr))) return;
+        document.querySelectorAll("[" + attr + "]").forEach(function (b) {
+          b.classList.toggle("is-active", b === btn);
+        });
+        load(false);
       });
-      load(false);
     });
+  }
+
+  bindSwitch("data-xg-days", function (raw) {
+    var d = Number(raw) || 7;
+    if (d === state.days) return false;
+    state.days = d;
+    return true;
+  });
+
+  bindSwitch("data-xg-profile", function (raw) {
+    var p = String(raw || "hepsi");
+    if (p === state.profile) return false;
+    state.profile = p;
+    return true;
   });
   var rb = $("xg-refresh");
   if (rb) rb.addEventListener("click", function () { load(true); });
