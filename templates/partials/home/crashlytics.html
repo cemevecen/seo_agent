@@ -269,13 +269,13 @@
   .home-sf-metric {
     display: flex;
     flex-direction: column;
-    gap: 0.04rem;
+    gap: 0.1rem;
     min-width: 0;
     overflow: hidden;
     border-radius: 0.75rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(248 250 252 / 0.85);
-    padding: 0.22rem 0.55rem 0.2rem;
+    padding: 0.45rem 0.6rem 0.4rem;
     height: 100%;
     container-type: inline-size;
     container-name: home-sf-metric;
@@ -288,23 +288,18 @@
   .home-sf-metric__head {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: 0.35rem 0.65rem;
+    align-items: baseline;
+    gap: 0.1rem 0.4rem;
     min-width: 0;
-    transform: scale(0.5);
-    transform-origin: top left;
-    width: 200%;
-    max-width: 200%;
-    margin-bottom: -0.62rem;
-    line-height: 1;
+    line-height: 1.1;
   }
   .home-sf-metric__kind {
     margin: 0;
-    font-size: clamp(9px, 2.2cqi, 10px);
+    font-size: clamp(8.5px, 2.1cqi, 10px);
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
-    color: rgb(148 163 184 / 0.95);
+    color: rgb(100 116 139 / 0.85);
     line-height: 1.15;
     white-space: nowrap;
     overflow: hidden;
@@ -316,10 +311,10 @@
     display: inline-flex;
     align-items: center;
     max-width: 100%;
-    padding: 0.06rem 0.32rem;
-    border-radius: 999px;
-    background: rgb(241 245 249 / 0.9);
-    font-size: clamp(9px, 2.1cqi, 10px);
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: clamp(8.5px, 2cqi, 10px);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: rgb(100 116 139 / 0.92);
@@ -328,9 +323,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  html.dark .home-sf-metric__ver {
-    background: rgb(63 63 70 / 0.9);
-    color: rgb(161 161 170 / 0.82);
+  html.dark .home-sf-metric__ver,
+  html.charcoal .home-sf-metric__ver {
+    background: transparent;
+    color: rgb(161 161 170 / 0.8);
   }
   .home-sf-metric__hero {
     margin: 0;
@@ -338,23 +334,52 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 1.85rem;
-    font-size: clamp(1.05rem, 11.5cqi, 1.9rem);
+    min-height: 2.2rem;
+    padding: 0.12rem 0;
+    font-size: clamp(1.25rem, 13.5cqi, 2.25rem);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     line-height: 1;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.035em;
     white-space: nowrap;
     overflow: hidden;
     text-align: center;
   }
-  .home-sf-metric__hero.is-up { color: #059669; }
-  .home-sf-metric__hero.is-mid { color: #d97706; }
-  .home-sf-metric__hero.is-down { color: #e11d48; }
-  html.dark .home-sf-metric__hero { color: #e2e8f0; }
-  html.dark .home-sf-metric__hero.is-up { color: #34d399; }
+  .home-sf-metric__hero.is-up { color: #047857; }
+  .home-sf-metric__hero.is-mid { color: #b45309; }
+  .home-sf-metric__hero.is-down { color: #be123c; }
+  html.dark .home-sf-metric__hero { color: #f1f5f9; }
+  html.dark .home-sf-metric__hero.is-up { color: #4ade80; }
   html.dark .home-sf-metric__hero.is-mid { color: #fbbf24; }
   html.dark .home-sf-metric__hero.is-down { color: #fb7185; }
+  /* Değer kutunun asıl öznesi: durum rengi zeminden de okunsun */
+  .home-sf-metric:has(.home-sf-metric__hero.is-up) {
+    border-color: rgb(16 185 129 / 0.28);
+    background: rgb(236 253 245 / 0.75);
+  }
+  .home-sf-metric:has(.home-sf-metric__hero.is-mid) {
+    border-color: rgb(245 158 11 / 0.3);
+    background: rgb(255 251 235 / 0.75);
+  }
+  .home-sf-metric:has(.home-sf-metric__hero.is-down) {
+    border-color: rgb(244 63 94 / 0.3);
+    background: rgb(255 241 242 / 0.75);
+  }
+  html.dark .home-sf-metric:has(.home-sf-metric__hero.is-up),
+  html.charcoal .home-sf-metric:has(.home-sf-metric__hero.is-up) {
+    border-color: rgb(52 211 153 / 0.32);
+    background: linear-gradient(180deg, rgb(16 185 129 / 0.12), rgb(63 63 70 / 0.9));
+  }
+  html.dark .home-sf-metric:has(.home-sf-metric__hero.is-mid),
+  html.charcoal .home-sf-metric:has(.home-sf-metric__hero.is-mid) {
+    border-color: rgb(251 191 36 / 0.32);
+    background: linear-gradient(180deg, rgb(245 158 11 / 0.12), rgb(63 63 70 / 0.9));
+  }
+  html.dark .home-sf-metric:has(.home-sf-metric__hero.is-down),
+  html.charcoal .home-sf-metric:has(.home-sf-metric__hero.is-down) {
+    border-color: rgb(251 113 133 / 0.32);
+    background: linear-gradient(180deg, rgb(244 63 94 / 0.12), rgb(63 63 70 / 0.9));
+  }
   .home-sf-metric__meta {
     display: flex;
     flex-wrap: wrap;
@@ -379,15 +404,13 @@
   }
   .home-sf-metric__meta-src {
     display: inline-block;
-    font-size: clamp(8px, 1.9cqi, 10px);
-    transform: scale(0.5);
-    transform-origin: center center;
+    font-size: clamp(7.5px, 1.8cqi, 9px);
     vertical-align: middle;
     line-height: 1;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: rgb(100 116 139 / 0.78);
+    color: rgb(100 116 139 / 0.7);
     white-space: nowrap;
   }
   html.dark .home-sf-metric__meta-src { color: rgb(113 113 122 / 0.78); }
@@ -396,45 +419,37 @@
     user-select: none;
   }
 
-  /* Android: alt satır (Δ · oturum · ANR %) — %40 küçük; kaynak chip aynı kalır */
+  /* Android: 4 kutu yan yana — alt satır biraz daha küçük, ama okunur */
   .home-sf-metric--android .home-sf-metric__meta {
-    transform: scale(0.6);
-    transform-origin: center bottom;
-    margin-bottom: -0.34rem;
-    padding-top: 0;
-  }
-  .home-sf-metric--android .home-sf-metric__meta-src {
-    transform: scale(0.833333);
+    font-size: clamp(8px, 1.95cqi, 9.5px);
   }
 
-  /* Android: ana % (99,9983% vb.) — %60 büyük */
+  /* Ana yüzde kutunun öznesi: platform genişliğine göre büyük */
   .home-sf-metric--android .home-sf-metric__hero {
-    font-size: clamp(1.68rem, 18.4cqi, 3.04rem);
-    min-height: 1.85rem;
+    font-size: clamp(1.6rem, 19cqi, 3.1rem);
+    min-height: 2.2rem;
   }
-
-  /* iOS: ana % (99,98% vb.) — %80 büyük */
   .home-sf-metric--ios .home-sf-metric__hero {
-    font-size: clamp(1.89rem, 20.7cqi, 3.42rem);
-    min-height: 1.85rem;
+    font-size: clamp(1.9rem, 22cqi, 3.6rem);
+    min-height: 2.4rem;
   }
 
   @container home-sf-metric (max-width: 5.75rem) {
     .home-sf-metric__hero {
-      font-size: clamp(0.95rem, 10cqi, 1.35rem);
-      min-height: 1.45rem;
+      font-size: clamp(1.05rem, 11cqi, 1.5rem);
+      min-height: 1.7rem;
     }
     .home-sf-metric--android .home-sf-metric__hero {
-      font-size: clamp(1.52rem, 16cqi, 2.16rem);
-      min-height: 1.8rem;
+      font-size: clamp(1.45rem, 16.5cqi, 2.2rem);
+      min-height: 1.9rem;
     }
     .home-sf-metric--ios .home-sf-metric__hero {
-      font-size: clamp(1.71rem, 18cqi, 2.43rem);
-      min-height: 1.95rem;
+      font-size: clamp(1.6rem, 18.5cqi, 2.5rem);
+      min-height: 2rem;
     }
     .home-sf-metric__meta {
       flex-direction: column;
-      gap: 0.08rem;
+      gap: 0.06rem;
     }
     .home-sf-metric__meta-sep { display: none; }
   }
