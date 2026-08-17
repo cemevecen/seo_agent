@@ -15,13 +15,42 @@
   html.dark .xg-table td, html.charcoal .xg-table td { border-bottom-color: #36363c; }
   .xg-table td.num, .xg-table th.num { text-align: right; }
   .xg-key { max-width: 20rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* İçerik derinliği: yol sütunu sayısal sütunları ezmesin */
-  .xg-table--depth { table-layout: fixed; width: 100%; }
-  .xg-table--depth th:first-child, .xg-page-cell { width: 26rem; }
+
+  /* Tablolar: dar alanda ezilmek yerine yatay kayar; sayılar hiç sarmaz */
+  .xg-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .xg-table { min-width: 24rem; }
+  .xg-table td.num, .xg-table th.num { white-space: nowrap; }
+  /* İçerik derinliği: yol sütunu oransal, tablo bir eşiğin altına inmez */
+  .xg-table--depth { table-layout: fixed; width: 100%; min-width: 42rem; }
+  .xg-table--depth th:first-child, .xg-page-cell { width: 45%; }
   .xg-page-cell { white-space: nowrap; overflow: hidden; word-break: normal; }
   .xg-overflow td { border-bottom: 1px solid #f1f5f9; padding-top: 0; }
   html.dark .xg-overflow td, html.charcoal .xg-overflow td { border-bottom-color: #36363c; }
   .xg-page-tail { opacity: .62; padding-left: .5rem; word-break: break-all; }
+
+  /* Dar ekran: tablo yerine satır başına yığın — her hücre kendi etiketiyle */
+  @media (max-width: 640px) {
+    .xg-table, .xg-table--depth { min-width: 0; width: 100%; table-layout: auto; }
+    .xg-table thead { display: none; }
+    .xg-table tbody, .xg-table tr, .xg-table td { display: block; width: auto; }
+    .xg-table tr { padding: .45rem 0; border-bottom: 1px solid #e2e8f0; }
+    html.dark .xg-table tr, html.charcoal .xg-table tr { border-bottom-color: #36363c; }
+    .xg-table td { border: 0; padding: .12rem .1rem; display: flex; align-items: baseline;
+                   justify-content: space-between; gap: .75rem; text-align: right; }
+    .xg-table td::before {
+      content: attr(data-label); flex: 0 0 auto; text-align: left; opacity: .55;
+      font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+    }
+    /* Etiketsiz hücreler (bar, taşan yol) tam genişlik kalsın */
+    .xg-table td[data-label=""]::before { display: none; }
+    .xg-table td[data-label=""] { display: block; text-align: left; }
+    .xg-page-cell, .xg-table--depth th:first-child { width: auto; white-space: normal;
+                                                     word-break: break-word; text-align: left; }
+    .xg-page-cell { display: block; }
+    .xg-page-cell::before { display: block; margin-bottom: .1rem; }
+    .xg-key { max-width: none; white-space: normal; word-break: break-word; }
+    .xg-overflow { padding-top: 0; border-bottom: 0; }
+  }
   .xg-err { font-size: .72rem; color: #b91c1c; }
   html.dark .xg-err, html.charcoal .xg-err { color: #fca5a5; }
   .xg-muted { font-size: .75rem; opacity: .6; }
@@ -103,14 +132,17 @@
 
   function table(headers, rows) {
     if (!rows.length) return empty();
-    return '<div style="overflow-x:auto"><table class="xg-table"><thead><tr>' +
+    // data-label: dar ekranda başlık satırı gizlenip her hücre kendi etiketini taşır
+    return '<div class="xg-scroll"><table class="xg-table"><thead><tr>' +
       headers.map(function (h) {
         return '<th class="' + (h.num ? "num" : "") + '">' + esc(h.label) + "</th>";
       }).join("") +
       "</tr></thead><tbody>" +
       rows.map(function (r) {
         return "<tr>" + r.map(function (c, i) {
-          return '<td class="' + (headers[i].num ? "num" : "") + '">' + c + "</td>";
+          var h = headers[i] || {};
+          return '<td class="' + (h.num ? "num" : "") + '" data-label="' + esc(h.label || "") + '">' +
+            c + "</td>";
         }).join("") + "</tr>";
       }).join("") +
       "</tbody></table></div>";
@@ -220,18 +252,18 @@
       var head = full.length > PAGE_MAX ? full.slice(0, PAGE_MAX) : full;
       var tail = full.length > PAGE_MAX ? full.slice(PAGE_MAX) : "";
       var main =
-        '<tr><td class="xg-page-cell" title="' + esc(full) + '">' + esc(head) + "</td>" +
-        "<td>" + esc(r.profile) + "</td>" +
-        '<td class="num">' + num(r.views) + "</td>" +
-        '<td class="num">' + dur(r.seconds_per_view) + "</td>" +
-        '<td class="num">' + num(r.new_users) + "</td></tr>";
+        '<tr><td class="xg-page-cell" data-label="Sayfa" title="' + esc(full) + '">' + esc(head) + "</td>" +
+        '<td data-label="Profil">' + esc(r.profile) + "</td>" +
+        '<td class="num" data-label="Görüntüleme">' + num(r.views) + "</td>" +
+        '<td class="num" data-label="Görüntüleme başına süre">' + dur(r.seconds_per_view) + "</td>" +
+        '<td class="num" data-label="Yeni kullanıcı">' + num(r.new_users) + "</td></tr>";
       if (!tail) return main;
       return main +
-        '<tr class="xg-overflow"><td colspan="5" class="xg-page-tail" title="' + esc(full) + '">' +
-        esc(tail) + "</td></tr>";
+        '<tr class="xg-overflow"><td colspan="5" class="xg-page-tail" data-label="" title="' +
+        esc(full) + '">' + esc(tail) + "</td></tr>";
     }).join("");
     var inner =
-      '<div style="overflow-x:auto"><table class="xg-table xg-table--depth"><thead><tr>' +
+      '<div class="xg-scroll"><table class="xg-table xg-table--depth"><thead><tr>' +
         '<th>Sayfa</th><th>Profil</th><th class="num">Görüntüleme</th>' +
         '<th class="num">Görüntüleme başına süre</th><th class="num">Yeni kullanıcı</th>' +
       "</tr></thead><tbody>" + body + "</tbody></table></div>";

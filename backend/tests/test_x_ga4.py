@@ -377,3 +377,23 @@ def test_page_has_the_platform_filter():
         assert 'data-xg-profile="' + p + '"' in page
     assert "profile=" in page          # istekte gönderiliyor
     assert "renderBreakdown" in page   # kırılımlar çiziliyor
+
+
+# ── Responsive tablolar ─────────────────────────────────────────────────────
+
+def test_tables_are_responsive():
+    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    # Dar ekranda başlık gizlenip her hücre kendi etiketini gösterir
+    assert "@media (max-width: 640px)" in page
+    assert ".xg-table thead { display: none; }" in page
+    assert "content: attr(data-label)" in page
+    # Hücreler etiketi taşımalı, yoksa yığın düzeni anlamsız olur
+    assert 'data-label="' in page
+    assert 'data-label="Görüntüleme başına süre"' in page
+    # Sayılar sarmamalı — üst üste binme bundan çıkıyordu
+    assert ".xg-table td.num, .xg-table th.num { white-space: nowrap; }" in page
+    # Sabit rem genişlik yerine oransal + eşik: dar alanda ezilme yerine kaydırma
+    assert "width: 45%" in page
+    assert "min-width: 42rem" in page
+    assert "26rem" not in page
+    assert ".xg-scroll { overflow-x: auto" in page
