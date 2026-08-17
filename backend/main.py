@@ -15584,7 +15584,13 @@ def doviz_news_page(request: Request):
 
 
 @app.get("/x-ga4")
-def x_ga4_page(request: Request):
+def x_ga4_page_legacy() -> RedirectResponse:
+    """Eski adres — sayfa /d-lab olarak yeniden adlandırıldı."""
+    return RedirectResponse(url="/d-lab", status_code=308)
+
+
+@app.get("/d-lab")
+def d_lab_page(request: Request):
     """GA4'ün panelde kullanılmayan boyut/metrikleri — yalnızca GA4 Data API."""
     return templates.TemplateResponse(
         request,

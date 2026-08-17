@@ -1,19 +1,18 @@
-"""x-ga4 — GA4 Data API'nin panelde kullanılmayan alanları.
+"""d-lab — GA4 Data API'nin panelde kullanılmayan alanları.
 
-Property'de mevcut olan ama hiç sorgulanmayan boyut/metrikleri tek sayfada
-toplar. **Yalnızca GA4 Data API** kullanılır; başka servis, export veya kazıma
+Property'de mevcut olan ama hiç sorgulanmayan boyut/metrikleri container'lara
+böler. **Yalnızca GA4 Data API** kullanılır; başka servis, export veya kazıma
 yoktur.
 
-Bloklar:
-  1. Kullanıcı & kararlılık — active1/7/28DayUsers, crashFreeUsersRate
-  2. Varlık ilgisi        — customEvent:asset_key
-  3. Uygulama davranışı   — customEvent:from / search_text / menu_item / sections_*
-  4. İçerik derinliği     — pagePath × userEngagementDuration + newUsers
-  5. Saatlik ritim        — hour × activeUsers
-  6. Kitle                — brandingInterest, yaş/cinsiyet, audienceName
+Yapı:
+  · `BREAKDOWNS` — bildirimsel boyut kırılımları (özel + standart). Hepsi aynı
+    şekli paylaşır: container başına `per_profile`, böylece her container kendi
+    platform filtresini kurabilir.
+  · Bespoke bloklar — kullanıcı (DAU/WAU/MAU), içerik derinliği, saatlik ritim,
+    kitle.
 
-Her blok bağımsız çalışır: biri hata alırsa diğerleri etkilenmez, hata sayfada
-görünür. Sessiz boş blok bırakılmaz.
+Her istek bağımsızdır: biri hata alırsa diğerleri etkilenmez ve eksiklik sayfada
+görünür. Sessiz boş container bırakılmaz.
 """
 
 from __future__ import annotations
@@ -41,6 +40,23 @@ SITE_PROFILES: tuple[str, ...] = ("web", "mweb")
 # `profiles` o kırılımın anlamlı olduğu yüzeyleri sınırlar (ör. appVersion yalnız
 # uygulamalarda). Ölçülen maliyet istek başına 1–3 token.
 BREAKDOWNS: tuple[dict[str, Any], ...] = (
+    # Özel boyutlar (property başına tanımlı; olmayan yüzey «tanımlı değil» der)
+    {"key": "asset_key", "label": "Varlık ilgisi", "dimension": "customEvent:asset_key",
+     "metric": "eventCount", "profiles": PROFILES,
+     "hint": "Hangi varlığa bakılıyor"},
+    {"key": "nav_from", "label": "Habere nereden gelindi", "dimension": "customEvent:from",
+     "metric": "eventCount", "profiles": ("ios",), "hint": ""},
+    {"key": "search_text", "label": "Uygulama içi arama", "dimension": "customEvent:search_text",
+     "metric": "eventCount", "profiles": ("ios",), "hint": ""},
+    {"key": "sections_enabled", "label": "Açılan bölümler", "dimension": "customEvent:sections_enabled",
+     "metric": "eventCount", "profiles": ("ios",), "hint": ""},
+    {"key": "sections_disabled", "label": "Kapatılan bölümler", "dimension": "customEvent:sections_disabled",
+     "metric": "eventCount", "profiles": ("ios",), "hint": ""},
+    {"key": "menu_item", "label": "Menü kullanımı", "dimension": "customEvent:menu_item",
+     "metric": "eventCount", "profiles": SITE_PROFILES, "hint": ""},
+    {"key": "card_name", "label": "Ana sayfa kartları", "dimension": "customEvent:card_name",
+     "metric": "eventCount", "profiles": ("mweb",), "hint": ""},
+    # Standart boyutlar
     {"key": "events", "label": "Olaylar", "dimension": "eventName",
      "metric": "eventCount", "profiles": PROFILES,
      "hint": "En çok tetiklenen olaylar"},
@@ -181,7 +197,7 @@ def _user_stability(client: Any, properties: dict[str, str], profiles: list[str]
     return {"rows": rows}
 
 
-# ── 2. Varlık ilgisi ────────────────────────────────────────────────────────
+# ── Yardımcı: boyut tanımlı mı ───────────────────────────────────────────────
 
 def _dimension_missing(exc: Exception) -> bool:
     """GA4 «bu property'de böyle bir boyut yok» hatası mı?
@@ -191,100 +207,6 @@ def _dimension_missing(exc: Exception) -> bool:
     """
     text = str(exc).lower()
     return "is not a valid dimension" in text or "did you mean" in text
-
-
-def _asset_interest(
-    client: Any, properties: dict[str, str], profiles: list[str],
-    start: str, end: str, limit: int,
-) -> dict[str, Any]:
-    """`customEvent:asset_key` — hangi varlığa bakılıyor (işin merkezi).
-
-    Özel boyutlar GA4'te property başına tanımlıdır; bir profilde tanımlı
-    değilse o profil toplamdan düşer. Bu eksiklik gizlenmez, `undefined_profiles`
-    ile bildirilir — yoksa toplam sessizce eksik okunur.
-    """
-    dim = "customEvent:asset_key"
-    per_profile: dict[str, Any] = {}
-    combined: dict[str, float] = {}
-    undefined: list[str] = []
-    covered: list[str] = []
-    for pf in profiles:
-        pid = str(properties.get(pf) or "").strip()
-        if not pid:
-            continue
-        try:
-            rows = _run(
-                client, pid,
-                dimensions=[dim], metrics=["eventCount"],
-                start=start, end=end, limit=limit,
-                dimension_filter=_exclude_empty(dim), order_metric="eventCount",
-            )
-            per_profile[pf] = [
-                {"asset": r[dim], "events": r["eventCount"]} for r in rows
-            ]
-            covered.append(pf)
-            for r in rows:
-                combined[r[dim]] = combined.get(r[dim], 0.0) + r["eventCount"]
-        except Exception as exc:  # noqa: BLE001
-            if _dimension_missing(exc):
-                undefined.append(pf)
-                per_profile[pf] = {"undefined": True}
-            else:
-                per_profile[pf] = {"error": str(exc)[:140]}
-    top = sorted(combined.items(), key=lambda kv: -kv[1])[:limit]
-    return {
-        "per_profile": per_profile,
-        "combined": [{"asset": k, "events": v} for k, v in top],
-        "undefined_profiles": undefined,
-        "covered_profiles": covered,
-        "dimension": dim,
-    }
-
-
-# ── 3. Uygulama / site davranışı ────────────────────────────────────────────
-
-# (profil, boyut, başlık) — boyut o property'de yoksa blok kendi hatasını yazar
-BEHAVIOR_DIMENSIONS: tuple[tuple[str, str, str], ...] = (
-    ("ios", "customEvent:from", "Habere nereden gelindi (iOS)"),
-    ("ios", "customEvent:search_text", "Uygulama içi arama (iOS)"),
-    ("ios", "customEvent:sections_enabled", "Açılan bölümler (iOS)"),
-    ("ios", "customEvent:sections_disabled", "Kapatılan bölümler (iOS)"),
-    ("web", "customEvent:menu_item", "Menü kullanımı (web)"),
-    # mWeb'in kendi boyutları: menu_item burada web'dekinin katı hacimde,
-    # card_name ise ana sayfa kartı etkileşimini taşıyor (asset_key'in karşılığı değil).
-    ("mweb", "customEvent:menu_item", "Menü kullanımı (mWeb)"),
-    ("mweb", "customEvent:card_name", "Ana sayfa kartları (mWeb)"),
-)
-
-
-def _behavior(
-    client: Any, properties: dict[str, str], profiles: list[str],
-    start: str, end: str, limit: int,
-) -> dict[str, Any]:
-    groups = []
-    for pf, dim, label in BEHAVIOR_DIMENSIONS:
-        if pf not in profiles:
-            continue
-        pid = str(properties.get(pf) or "").strip()
-        if not pid:
-            continue
-        group: dict[str, Any] = {"profile": pf, "dimension": dim, "label": label}
-        try:
-            rows = _run(
-                client, pid,
-                dimensions=[dim], metrics=["eventCount"],
-                start=start, end=end, limit=limit,
-                dimension_filter=_exclude_empty(dim), order_metric="eventCount",
-            )
-            group["rows"] = [{"value": r[dim], "events": r["eventCount"]} for r in rows]
-        except Exception as exc:  # noqa: BLE001
-            group["rows"] = []
-            if _dimension_missing(exc):
-                group["undefined"] = True
-            else:
-                group["error"] = str(exc)[:140]
-        groups.append(group)
-    return {"groups": groups}
 
 
 # ── 4. İçerik derinliği ─────────────────────────────────────────────────────
@@ -502,8 +424,6 @@ def build_x_ga4_report(
 
     jobs: dict[str, Any] = {
         "user_stability": lambda: _block("user_stability", lambda: _user_stability(client, properties, profiles)),
-        "assets": lambda: _block("assets", lambda: _asset_interest(client, properties, profiles, start, end, safe_limit)),
-        "behavior": lambda: _block("behavior", lambda: _behavior(client, properties, profiles, start, end, safe_limit)),
         "content_depth": lambda: _block("content_depth", lambda: _content_depth(client, properties, profiles, start, end, safe_limit)),
         "hourly": lambda: _block("hourly", lambda: _hourly(client, properties, profiles, start, end)),
         "audience": lambda: _block("audience", lambda: _audience(client, properties, profiles, start, end, safe_limit)),
