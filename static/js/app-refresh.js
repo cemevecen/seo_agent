@@ -1,5 +1,8 @@
 /**
  * Ana ekran / standalone Safari: sayfa yenileme butonu + pull-to-refresh.
+ *
+ * Bu iki hareket YALNIZCA sayfayı yeniler (window.location.reload). Mac
+ * taraması başlatmaz — veri taraması ayrı bir eylem, «Update page» düğmesi.
  */
 (function () {
   "use strict";

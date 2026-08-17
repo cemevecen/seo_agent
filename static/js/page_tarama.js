@@ -872,12 +872,10 @@
     start(host ? host.getAttribute("data-page-tarama") : pageKey());
   });
 
-  document.addEventListener("pc:page-refresh", function (ev) {
-    var key = pageKey();
-    if (!key || !PAGES[key]) return;
-    if (ev && ev.preventDefault) ev.preventDefault();
-    start(key);
-  });
+  // Not: pull-to-refresh ve başlıktaki yenile düğmesi «pc:page-refresh» yayar.
+  // Bunlar SAYFAYI yeniler; tarama başlatmaz. Veri taraması yalnızca «Update page»
+  // düğmesiyle olur — mobilde parmakla çekince kota harcanmasın / Mac taraması
+  // beklenmeden sayfa gelsin.
 
   function init() {
     ensureButton(document);
