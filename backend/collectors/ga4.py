@@ -63,9 +63,12 @@ KPI_METRIC_NAMES = (
 
 
 def _client() -> BetaAnalyticsDataClient:
+    from backend.services.ga4_quota import track
+
     info = load_ga4_service_account_info()
     creds = service_account.Credentials.from_service_account_info(info, scopes=GA4_SCOPES)
-    return BetaAnalyticsDataClient(credentials=creds)
+    # Kota ölçümü: proxy `return_property_quota` açar ve yanıttaki kalanı örnekler.
+    return track(BetaAnalyticsDataClient(credentials=creds), kind="core")
 
 
 def _calendar_windows(days: int) -> tuple[tuple[str, str], tuple[str, str]]:

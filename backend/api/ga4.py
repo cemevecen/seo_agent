@@ -74,3 +74,16 @@ def ga4_latest(request: Request, site_id: int, db: Session = Depends(get_db)):
     items.sort(key=lambda row: row["metric_type"])
     return {"site_id": site.id, "domain": site.domain, "items": items}
 
+
+
+@router.get("/ga4/quota")
+@limiter.limit("60/minute")
+def ga4_quota(request: Request, hours: int = 24, db: Session = Depends(get_db)):
+    """GA4 Data API kota ölçümü — kalan token ve pencere içindeki en düşük değer.
+
+    Sıklığı artırmadan önce «ne kadar payımız var» sorusunun tek güvenilir
+    cevabı; sayılar API'nin kendi `PropertyQuota` alanından gelir.
+    """
+    from backend.services.ga4_quota import quota_summary
+
+    return quota_summary(db, hours=max(1, min(int(hours or 24), 720)))

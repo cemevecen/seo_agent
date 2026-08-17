@@ -378,9 +378,11 @@ def _build_ga4_client():
     from google.oauth2 import service_account
     from backend.services.ga4_auth import GA4_SCOPES, load_ga4_service_account_info
 
+    from backend.services.ga4_quota import track
+
     info = load_ga4_service_account_info()
     creds = service_account.Credentials.from_service_account_info(info, scopes=GA4_SCOPES)
-    return BetaAnalyticsDataClient(credentials=creds)
+    return track(BetaAnalyticsDataClient(credentials=creds), kind="core")
 
 
 def _ga4_error_fetch_limit(explicit: int | None = None) -> int:

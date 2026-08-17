@@ -564,6 +564,88 @@
       </button>
     </div>
 
+    <!-- API kota ölçümü: sıklığı artırmadan önce «ne kadar payımız var» sorusunun
+         tek güvenilir cevabı. Sayılar GA4'ün kendi PropertyQuota alanından gelir. -->
+    <details id="ga4-quota-card" class="mb-4 rounded-2xl border border-slate-200/80 bg-white/90 p-3 text-xs dark:border-slate-800 dark:bg-slate-900">
+      <summary class="cursor-pointer select-none font-semibold text-slate-700 dark:text-slate-200">
+        API kota <span id="ga4-quota-head" class="ml-2 font-normal text-slate-500 dark:text-zinc-500">…</span>
+      </summary>
+      <div id="ga4-quota-body" class="mt-3 overflow-x-auto"></div>
+      <p class="mt-2 text-[11px] text-slate-500 dark:text-zinc-500">
+        Kota token cinsindendir; bir isteğin maliyeti boyut sayısı, tarih aralığı ve dönen satır
+        sayısıyla büyür. Realtime ayrı kovadır. Ölçüm yalnızca GA4 çağrısı yapıldıkça birikir.
+      </p>
+    </details>
+    <script>
+      (function () {
+        var card = document.getElementById("ga4-quota-card");
+        if (!card) return;
+        function esc(s) {
+          return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+          });
+        }
+        function num(n) {
+          return (Number(n) || 0).toLocaleString("tr-TR");
+        }
+        function render(data) {
+          var head = document.getElementById("ga4-quota-head");
+          var body = document.getElementById("ga4-quota-body");
+          var win = (data && data.window) || [];
+          var latest = (data && data.latest) || [];
+          if (!win.length && !latest.length) {
+            head.textContent = "henüz ölçüm yok";
+            body.innerHTML = '<p class="text-slate-500 dark:text-zinc-500">' +
+              "GA4 çağrısı yapıldıkça dolar (gece işi, realtime job veya panel isteği)." + "</p>";
+            return;
+          }
+          // Başlıkta en dar kalan gösterilir — asıl risk odur
+          var lows = win.map(function (r) { return Number(r.tokens_per_day_remaining_min) || 0; });
+          head.textContent = lows.length
+            ? "son " + (data.window_hours || 24) + " saatte en düşük kalan: " + num(Math.min.apply(null, lows))
+            : latest.length + " property ölçüldü";
+
+          var byKey = {};
+          latest.forEach(function (r) { byKey[r.kind + ":" + r.property_id] = r; });
+          var rows = win.map(function (r) {
+            var now = byKey[r.kind + ":" + r.property_id] || {};
+            return "<tr class='border-t border-slate-200/70 dark:border-slate-800'>" +
+              "<td class='py-1 pr-3 font-mono'>" + esc(r.property_id) + "</td>" +
+              "<td class='py-1 pr-3'>" + esc(r.kind) + "</td>" +
+              "<td class='py-1 pr-3 text-right'>" + (now.tokens_per_day_remaining != null ? num(now.tokens_per_day_remaining) : "—") + "</td>" +
+              "<td class='py-1 pr-3 text-right'>" + num(r.tokens_per_day_remaining_min) + "</td>" +
+              "<td class='py-1 pr-3 text-right'>" + num(r.tokens_per_hour_remaining_min) + "</td>" +
+              "<td class='py-1 pr-3 text-right'>" + num(r.tokens_per_day_consumed_max) + "</td>" +
+              "<td class='py-1 text-right text-slate-500 dark:text-zinc-500'>" + num(r.samples) + "</td>" +
+              "</tr>";
+          }).join("");
+          body.innerHTML =
+            "<table class='w-full text-left'>" +
+              "<thead class='text-[10px] uppercase tracking-wide text-slate-500 dark:text-zinc-500'><tr>" +
+                "<th class='py-1 pr-3'>Property</th><th class='py-1 pr-3'>Tür</th>" +
+                "<th class='py-1 pr-3 text-right'>Kalan (şu an)</th>" +
+                "<th class='py-1 pr-3 text-right'>Gün · en düşük</th>" +
+                "<th class='py-1 pr-3 text-right'>Saat · en düşük</th>" +
+                "<th class='py-1 pr-3 text-right'>Tüketilen</th>" +
+                "<th class='py-1 text-right'>Örnek</th>" +
+              "</tr></thead><tbody>" + rows + "</tbody></table>";
+        }
+        var loaded = false;
+        function load() {
+          if (loaded) return;
+          loaded = true;
+          fetch("/api/ga4/quota?hours=24", { headers: { Accept: "application/json" } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) { if (d) render(d); })
+            .catch(function () {
+              var head = document.getElementById("ga4-quota-head");
+              if (head) head.textContent = "okunamadı";
+            });
+        }
+        card.addEventListener("toggle", function () { if (card.open) load(); });
+      })();
+    </script>
+
     <div
       class="ga4-global-filter-mobile-dock ga4-card-filter-bar mb-4 rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-0 sm:hidden"
       data-ga4-global-filter-slot-mobile

@@ -845,9 +845,12 @@ REALTIME_HOME_TREND_LIMIT = 120  # ana sayfa mini spark
 
 
 def _build_client() -> BetaAnalyticsDataClient:
+    from backend.services.ga4_quota import track
+
     info = load_ga4_service_account_info()
     creds = service_account.Credentials.from_service_account_info(info, scopes=GA4_SCOPES)
-    return BetaAnalyticsDataClient(credentials=creds)
+    # Realtime ayrı kota kovası; proxy çağrı türüne göre doğru kovaya yazar.
+    return track(BetaAnalyticsDataClient(credentials=creds), kind="realtime")
 
 
 def _fetch_realtime_comparison_with_metrics(

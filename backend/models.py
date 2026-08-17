@@ -1278,6 +1278,34 @@ class DovizNewsWorkspace(Base):
     background_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class Ga4QuotaSample(Base):
+    """GA4 Data API `PropertyQuota` ölçümü — her yanıttan okunup örneklenir.
+
+    Kota token cinsinden; maliyet boyut sayısı, tarih aralığı ve dönen satırla
+    büyür. Sıklığı artırmadan önce kalanı ölçebilmek için tutulur. Realtime ayrı
+    kova olduğu için `kind` ile ayrılır.
+    """
+
+    __tablename__ = "ga4_quota_samples"
+
+    __table_args__ = (
+        Index("ix_ga4_quota_property_time", "property_id", "recorded_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    property_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="core")
+    tokens_per_day_consumed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_per_day_remaining: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_per_hour_consumed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_per_hour_remaining: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_per_project_per_hour_consumed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_per_project_per_hour_remaining: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    concurrent_requests_consumed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    concurrent_requests_remaining: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class DovizNewsArticleUrl(Base):
     """Haber ID → gerçek yayın linki (GA4 detay sayfasında gözlemlenen mutlak URL).
 
