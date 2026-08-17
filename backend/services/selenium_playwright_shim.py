@@ -333,8 +333,61 @@ class SeleniumPage:
         self._driver.get(url)
         self._install_capture()
 
+    def _walk_frames(self, fn: Callable[[], None], *, depth: int = 2) -> None:
+        """fn'i üst belgede ve (çapraz-köken dahil) iframe'lerde çalıştır.
+
+        Firebase Analytics kartları analytics.google.com iframe'inden geliyor;
+        JS oraya erişemez ama Selenium frame'e geçebilir.
+        """
+        driver = self._driver
+
+        def _descend(level: int) -> None:
+            try:
+                fn()
+            except Exception:
+                pass
+            if level <= 0:
+                return
+            try:
+                count = len(driver.find_elements("tag name", "iframe"))
+            except Exception:
+                return
+            for idx in range(min(count, 8)):
+                try:
+                    frames = driver.find_elements("tag name", "iframe")
+                    if idx >= len(frames):
+                        break
+                    driver.switch_to.frame(frames[idx])
+                except Exception:
+                    continue
+                try:
+                    _descend(level - 1)
+                finally:
+                    restored = True
+                    try:
+                        driver.switch_to.parent_frame()
+                    except Exception:
+                        restored = False
+                if not restored:
+                    # Üst çerçeveye dönemedik: kökten başla, yarım gezinme bırakma
+                    try:
+                        driver.switch_to.default_content()
+                    except Exception:
+                        pass
+                    break
+
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+        _descend(depth)
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+
     def _install_capture(self) -> None:
-        """fetch/XHR sarmalayıcısını sayfaya kur.
+        """fetch/XHR sarmalayıcısını sayfaya ve iframe'lere kur.
 
         Selenium'da Playwright'ın pasif `page.on("response")` olayı yok; Firefox
         için CDP de yok. RPC gövdelerini yakalamanın tek güvenilir yolu sayfa
@@ -342,23 +395,26 @@ class SeleniumPage:
         """
         if not self._response_handlers:
             return
-        try:
-            self._driver.execute_script(_CAPTURE_JS)
-        except Exception:
-            pass
+        self._walk_frames(lambda: self._driver.execute_script(_CAPTURE_JS))
 
     def _drain_capture(self) -> None:
-        """Sayfada biriken yanıtları çekip kayıtlı handler'lara dağıt."""
+        """Sayfada ve iframe'lerde biriken yanıtları kayıtlı handler'lara dağıt."""
         if not self._response_handlers:
             return
-        try:
+        collected: list[Any] = []
+
+        def _take() -> None:
+            # Kurulum idempotent: sonradan yüklenen iframe'ler (Analytics) de yakalansın
+            self._driver.execute_script(_CAPTURE_JS)
             rows = self._driver.execute_script(
                 "try { const b = window.__pcNetCapture || []; "
                 "window.__pcNetCapture = []; return b; } catch (e) { return []; }"
             )
-        except Exception:
-            return
-        for row in rows or []:
+            if rows:
+                collected.extend(rows)
+
+        self._walk_frames(_take)
+        for row in collected:
             if not isinstance(row, dict):
                 continue
             resp = _CapturedResponse(row)
