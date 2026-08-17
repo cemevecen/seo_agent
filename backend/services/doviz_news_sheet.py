@@ -1356,6 +1356,7 @@ def doviz_news_payload(
     traffic: dict[str, Any] | None = None
     by_article: dict[str, Any] = {}
     platform_by_article: dict[str, Any] = {}
+    article_urls: dict[str, str] = {}
     from backend.services.notification_content_traffic import normalize_article_id as _norm_aid
 
     if include_traffic and db is not None:
@@ -1394,6 +1395,8 @@ def doviz_news_payload(
                 db, rows=visible_rows, site_id=site_id
             )
             platform_by_article = platform_matrix.get("by_article") or {}
+            # Gerçek yayın linkleri: GA4 detay sayfası satırlarından toplanır
+            article_urls = platform_matrix.get("urls") or {}
         except Exception as exc:  # noqa: BLE001
             logger.exception("doviz news platform breakdown failed")
             platform_matrix = {"ok": False, "error": str(exc) or "Platform kırılımı başarısız"}
@@ -1420,6 +1423,7 @@ def doviz_news_payload(
             {
                 "id": r.get("id"),
                 "title": r.get("title"),
+                "url": article_urls.get(aid) or None,
                 "source": r.get("source") or None,
                 "is_own": r.get("is_own"),
                 "category": r.get("category"),

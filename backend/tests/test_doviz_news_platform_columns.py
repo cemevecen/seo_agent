@@ -413,3 +413,66 @@ def test_cell_shows_a_single_number_decided_by_the_button():
     # Artık kullanılmayan stiller de kalmasın
     assert "dn-pf-week" not in html
     assert "dn-pf-sep" not in html
+
+
+# ── Başlık linki: gerçek yayın URL'i (uydurma yok) ──────────────────────────
+
+def test_real_article_url_is_harvested_from_ga4_pages(monkeypatch, ga4_ready):
+    _patch_collectors(
+        monkeypatch,
+        pages=[{
+            "page": "/gundem-haberleri/dolar-bugun/1234567",
+            "page_url": "https://haber.doviz.com/gundem-haberleri/dolar-bugun/1234567",
+            "views": 300, "sessions": 200,
+        }],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    assert out["urls"]["1234567"] == "https://haber.doviz.com/gundem-haberleri/dolar-bugun/1234567"
+    # Eşleşmeyen haber için link uydurulmamalı
+    assert "7654321" not in out["urls"]
+
+
+def test_url_is_never_invented_when_ga4_gives_no_absolute_link(monkeypatch, ga4_ready):
+    """page_url yoksa link yazılmaz — ID'den slug üretilemez."""
+    _patch_collectors(
+        monkeypatch,
+        pages=[{"page": "/gundem-haberleri/dolar-bugun/1234567", "views": 300, "sessions": 200}],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    assert out["urls"] == {}
+    # Trafik yine de sayılmalı
+    assert out["by_article"]["1234567"]["web"]["d7"] == 300
+
+
+def test_relative_or_junk_url_is_rejected(monkeypatch, ga4_ready):
+    _patch_collectors(
+        monkeypatch,
+        pages=[{
+            "page": "/gundem-haberleri/dolar-bugun/1234567",
+            "page_url": "/gundem-haberleri/dolar-bugun/1234567",
+            "views": 5, "sessions": 5,
+        }],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    assert out["urls"] == {}
+
+
+def test_sheet_puts_the_url_on_the_item():
+    src = (ROOT / "backend/services/doviz_news_sheet.py").read_text(encoding="utf-8")
+    assert 'article_urls = platform_matrix.get("urls") or {}' in src
+    assert '"url": article_urls.get(aid) or None,' in src
+
+
+def test_title_cell_links_only_with_a_real_http_url():
+    html = PAGE.read_text(encoding="utf-8")
+    block = html.split('key: "title", label: "Title"', 1)[1].split("key: \"rt_views\"", 1)[0]
+    assert 'r.url' in block
+    assert '/^https?:\\/\\//i.test(href)' in block
+    # Yeni sekmede ve güvenli açılsın
+    assert 'target="_blank"' in block
+    assert 'rel="noopener noreferrer"' in block
+    # URL yoksa düz metin yolu duruyor
+    assert '<span class="dn-title-text"' in block

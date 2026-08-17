@@ -476,6 +476,7 @@ def _empty_platform_matrix(*, error: str | None = None) -> dict[str, Any]:
         "by_article": {},
         "totals": {},
         "matched": 0,
+        "urls": {},
         "metrics": ["views", "sessions"],
     }
 
@@ -624,6 +625,18 @@ def fetch_news_platform_breakdown(
     )
 
     diagnostics: dict[str, dict[str, Any]] = {}
+    # Haber ID → gerçek yayın linki. GA4 detay sayfası satırları zaten mutlak
+    # `page_url` taşıyor (haber.doviz.com); ID'den slug üretilemediği için link
+    # yalnızca burada gözlemlenen yoldan gelir — uydurma URL yazılmaz.
+    article_urls: dict[str, str] = {}
+
+    def _remember_url(aid: str, page: dict[str, Any], *, platform: str) -> None:
+        url = str(page.get("page_url") or "").strip()
+        if not url.startswith(("http://", "https://")):
+            return
+        # Web (masaüstü) linki mWeb'e tercih edilir; ilk yazan diğerini ezmez.
+        if platform == "web" or aid not in article_urls:
+            article_urls[aid] = url
 
     def _job(task: tuple[str, str, int]) -> tuple[str, str, dict[str, dict[str, float]]]:
         platform, win_key, days = task
@@ -652,6 +665,7 @@ def fetch_news_platform_breakdown(
                         slot = out.setdefault(aid, {"views": 0.0, "sessions": 0.0})
                         slot["views"] += float(page.get("views") or 0)
                         slot["sessions"] += float(page.get("sessions") or 0)
+                        _remember_url(aid, page, platform=platform)
                 diagnostics[f"{platform}:{win_key}"] = {
                     "fetched": len(pages or []),
                     "matched": len(out),
@@ -707,6 +721,7 @@ def fetch_news_platform_breakdown(
         "totals": totals,
         "matched": len(by_article),
         "diagnostics": diagnostics,
+        "urls": article_urls,
         "metric": "views",
         "metrics": ["views", "sessions"],
         "note": (
