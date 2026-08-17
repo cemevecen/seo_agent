@@ -5602,6 +5602,8 @@ def _page_tarama_claim_loop() -> None:
         run_id = ""
         job_id = ""
         final_posted = False
+        # finally bloğu erken hatada da geri alabilsin diye burada tanımlı
+        prev_login_wait = os.environ.get("SCRAPE_LOGIN_WAIT_SEC")
         try:
             job_id = str(job.get("job_id") or "")
             meta = registry.get(job_id)
@@ -5626,6 +5628,18 @@ def _page_tarama_claim_loop() -> None:
             run_id = str(job.get("run_id") or "")
             started_mono = time.time()
             page_key = str(job.get("page") or "")
+            # Kullanıcı bu Mac'in başında ve oturum yok: gözetimsiz 150 sn yerine
+            # 15 dk beklenir ki açılan pencerede girişi yapabilsin.
+            login_ok = bool(job.get("login_ok"))
+            if login_ok:
+                os.environ["SCRAPE_LOGIN_WAIT_SEC"] = str(
+                    os.environ.get("PANEL_LOGIN_WAIT_SEC") or "900"
+                )
+                print(
+                    f"Uzaktan {meta['name']}: oturum yok — bu Mac'te giriş penceresi açılacak "
+                    f"(en fazla {int(os.environ['SCRAPE_LOGIN_WAIT_SEC']) // 60} dk)",
+                    flush=True,
+                )
 
             def _progress_post(info: dict[str, Any] | None = None) -> None:
                 info = info if isinstance(info, dict) else {}
@@ -5657,7 +5671,17 @@ def _page_tarama_claim_loop() -> None:
                         pass
                 _post_page_tarama_progress_async(payload)
 
-            _progress_post({"message": "Mac scan claimed · starting", "phase": "claimed", "step": 0})
+            _progress_post(
+                {
+                    "message": (
+                        f"Bu Mac'te giriş bekleniyor — açılan pencereden {meta['name']} girişini yap"
+                        if login_ok
+                        else "Mac scan claimed · starting"
+                    ),
+                    "phase": "login" if login_ok else "claimed",
+                    "step": 0,
+                }
+            )
             _set_job_progress(
                 job_id,
                 running=True,
@@ -5851,6 +5875,16 @@ def _page_tarama_claim_loop() -> None:
             if job_id:
                 with _active_job_lock:
                     _active_job_ids.discard(job_id)
+            try:
+                if prev_login_wait is None:
+                    os.environ.pop("SCRAPE_LOGIN_WAIT_SEC", None)
+                else:
+                    os.environ["SCRAPE_LOGIN_WAIT_SEC"] = prev_login_wait
+            except Exception:  # noqa: BLE001
+                pass
+            # Giriş yapılmış olabilir — kabiliyet raporu tazelensin
+            global _readiness_cache
+            _readiness_cache = (0.0, {})
             worker_slots.release()
 
     while True:

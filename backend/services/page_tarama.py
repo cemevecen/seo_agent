@@ -133,6 +133,9 @@ MANUAL_WINDOW_SEC = 60 * 60
 
 # Worker'ın iş bazlı hazırlık durumu — "ready" dışındaki her değer o işi alamaz demektir.
 READY_OK = "ready"
+# Tek eksiği oturum olan makine: kimse yapamıyorsa ve kullanıcı o makinenin başındaysa
+# (Update page oradan basıldı) iş yine ona verilir — giriş penceresi önünde açılsın.
+READY_LOGIN_REQUIRED = "login_required"
 # Kimliğini bildirmeyen (eski sürüm) Mac de kayda geçsin: kabiliyet listesi boş olduğu
 # için her işi alabilir sayılır — yalnızca biri güncellenmişken kuyruk yanlış hata vermesin.
 LEGACY_WORKER_NAME = "eski-surum-mac"
@@ -521,6 +524,13 @@ def _fail_uncapable_queued_locked(now: float) -> None:
             exclude = list(job.get("exclude_workers") or [])
             if _capable_workers_locked(jid, now, exclude=exclude):
                 continue
+            # Kullanıcı, tek eksiği giriş olan makinenin başındaysa iş düşürülmez —
+            # o Mac işi alıp giriş penceresini açacak.
+            prefer = _worker_key(str(job.get("prefer_worker") or ""))
+            if prefer and prefer not in {_worker_key(x) for x in exclude}:
+                rec = _online_workers_locked(now).get(prefer)
+                if rec and _worker_ready_state(rec, jid) == READY_LOGIN_REQUIRED:
+                    continue
             note = _capability_note_locked(jid, now, exclude=exclude)
             job["status"] = "fail"
             job["detail"] = f"No Mac can run this now — {note}"[:180]
@@ -704,53 +714,82 @@ def claim_next(
                         browser_inflight = True
         if inflight_n >= MAX_INFLIGHT_JOBS:
             return None
-        for run in sorted(_runs.values(), key=lambda r: float(r.get("started_at") or 0)):
-            _expire_locked(run, now)
-            for job in run["jobs"]:
-                if job.get("kind") != "bridge" or job.get("status") != "queued":
-                    continue
-                jid = str(job.get("id") or "")
-                if jid and jid in inflight_ids:
-                    continue
-                if jid in BROWSER_JOB_IDS and browser_inflight:
-                    continue
-                if wkey and wkey in {_worker_key(x) for x in (job.get("exclude_workers") or [])}:
-                    continue
-                # Update page'e basılan Mac'e öncelik — süresi dolunca ya da o makine
-                # çevrimdışıysa iş diğer worker'lara açılır.
-                prefer = _worker_key(str(job.get("prefer_worker") or ""))
-                if (
-                    prefer
-                    and prefer != wkey
-                    and now < float(job.get("prefer_until") or 0)
-                    and prefer in _online_workers_locked(now)
-                ):
-                    continue
-                if ready is not None and str(ready.get(jid) or READY_OK) != READY_OK:
-                    continue
-                job["status"] = "claimed"
-                job["claimed_at"] = now
-                job["progress_at"] = now
-                job["worker"] = wkey
-                job["detail"] = (
-                    f"Claimed by {wkey} · starting" if wkey else "Queued on Mac · starting"
-                )
-                if wkey:
-                    rec = _workers.get(wkey) or {"name": wkey, "last_seen": now}
-                    cur = list(rec.get("current") or [])
-                    if jid not in cur:
-                        cur.append(jid)
-                    rec["current"] = cur[:8]
-                    _workers[wkey] = rec
-                return {
-                    "run_id": run["id"],
-                    "job_id": job["id"],
-                    "path": job.get("path") or "",
-                    "label": job.get("label") or job["id"],
-                    "page": str(run.get("page") or ""),
-                    "worker": wkey,
-                }
-        return None
+        online = _online_workers_locked(now)
+
+        def _scan(login_pass: bool) -> dict[str, Any] | None:
+            """login_pass: yalnızca oturumu eksik olan ve kullanıcının başında olduğu makineye."""
+            for run in sorted(_runs.values(), key=lambda r: float(r.get("started_at") or 0)):
+                _expire_locked(run, now)
+                for job in run["jobs"]:
+                    if job.get("kind") != "bridge" or job.get("status") != "queued":
+                        continue
+                    jid = str(job.get("id") or "")
+                    if jid and jid in inflight_ids:
+                        continue
+                    if jid in BROWSER_JOB_IDS and browser_inflight:
+                        continue
+                    excluded = {_worker_key(x) for x in (job.get("exclude_workers") or [])}
+                    if wkey and wkey in excluded:
+                        continue
+                    # Update page'e basılan Mac'e öncelik — süresi dolunca ya da o makine
+                    # çevrimdışıysa iş diğer worker'lara açılır.
+                    # Tercih edilen Mac o işi yapamıyorsa (oturum/credential yok) ve
+                    # yapabilen başka makine varsa bekletmeye gerek yok.
+                    prefer = _worker_key(str(job.get("prefer_worker") or ""))
+                    prefer_rec = online.get(prefer) if prefer else None
+                    prefer_usable = bool(prefer_rec) and (
+                        _worker_ready_state(prefer_rec or {}, jid) == READY_OK
+                        or not _capable_workers_locked(jid, now, exclude=list(excluded))
+                    )
+                    if (
+                        prefer
+                        and prefer != wkey
+                        and now < float(job.get("prefer_until") or 0)
+                        and prefer_usable
+                    ):
+                        continue
+                    state = str(ready.get(jid) or READY_OK) if ready is not None else READY_OK
+                    login_needed = False
+                    if state != READY_OK:
+                        # Tek eksiği giriş olan makineye, kullanıcı orada oturuyorsa ve
+                        # başka yapabilen Mac yoksa iş verilir: pencere önünde açılsın.
+                        if (
+                            not login_pass
+                            or state != READY_LOGIN_REQUIRED
+                            or not wkey
+                            or prefer != wkey
+                            or _capable_workers_locked(jid, now, exclude=list(excluded))
+                        ):
+                            continue
+                        login_needed = True
+                    job["status"] = "claimed"
+                    job["claimed_at"] = now
+                    job["progress_at"] = now
+                    job["worker"] = wkey
+                    job["detail"] = (
+                        f"{wkey}: waiting for login on this Mac"
+                        if login_needed
+                        else (f"Claimed by {wkey} · starting" if wkey else "Queued on Mac · starting")
+                    )
+                    if wkey:
+                        rec = _workers.get(wkey) or {"name": wkey, "last_seen": now}
+                        cur = list(rec.get("current") or [])
+                        if jid not in cur:
+                            cur.append(jid)
+                        rec["current"] = cur[:8]
+                        _workers[wkey] = rec
+                    return {
+                        "run_id": run["id"],
+                        "job_id": job["id"],
+                        "path": job.get("path") or "",
+                        "label": job.get("label") or job["id"],
+                        "page": str(run.get("page") or ""),
+                        "worker": wkey,
+                        "login_ok": login_needed,
+                    }
+            return None
+
+        return _scan(False) or _scan(True)
 
 
 def requeue_claim(run_id: str, job_id: str, *, detail: str = "") -> bool:

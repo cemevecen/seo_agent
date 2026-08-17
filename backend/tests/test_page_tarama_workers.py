@@ -187,6 +187,60 @@ def test_no_preference_keeps_first_free_mac_behaviour():
     assert got is not None and got["job_id"] == "moderation"
 
 
+def test_login_window_opens_on_the_mac_you_pressed_from():
+    """İki Mac'te de oturum yoksa iş, düğmeye basılan makineye verilir (giriş penceresi orada)."""
+    store.reset_for_tests()
+    both_logged_out = _ready(moderation="login_required")
+    store.heartbeat_worker(HOME, ready=both_logged_out)
+    store.heartbeat_worker(OFFICE, ready=both_logged_out)
+    store.begin_manual("moderation", prefer=OFFICE)
+    # Kullanıcının başında olmadığı Mac işi almaz
+    assert store.claim_next(worker=HOME, ready=both_logged_out) is None
+    got = store.claim_next(worker=OFFICE, ready=both_logged_out)
+    assert got is not None
+    assert got["worker"] == OFFICE
+    assert got["login_ok"] is True
+    job = store.get_run(got["run_id"])["jobs"][0]
+    assert "waiting for login" in (job["detail"] or "")
+
+
+def test_capable_mac_still_wins_over_login_prompt():
+    """Diğer Mac'in oturumu varsa kullanıcıyı giriş yapmaya zorlama — iş oraya gitsin."""
+    store.reset_for_tests()
+    store.heartbeat_worker(HOME, ready=_ready())
+    store.heartbeat_worker(OFFICE, ready=_ready(moderation="login_required"))
+    store.begin_manual("moderation", prefer=OFFICE)
+    assert store.claim_next(worker=OFFICE, ready=_ready(moderation="login_required")) is None
+    got = store.claim_next(worker=HOME, ready=_ready())
+    assert got is not None and got["worker"] == HOME and got["login_ok"] is False
+
+
+def test_missing_credentials_never_trigger_a_login_prompt():
+    """Eksik olan credential ise giriş penceresi çözüm değil — iş düşsün, mesaj net olsun."""
+    store.reset_for_tests()
+    no_creds = _ready(virgul="no_creds", revenue_targets="no_creds")
+    store.heartbeat_worker(OFFICE, ready=no_creds)
+    out = store.begin_manual("virgul", prefer=OFFICE)
+    assert store.claim_next(worker=OFFICE, ready=no_creds) is None
+    with store._lock:
+        for job in store._runs[out["run"]["id"]]["jobs"]:
+            job["queued_at"] = time.time() - store.NO_CAPABLE_WORKER_SEC - 1
+    statuses = {j["id"]: j["status"] for j in store.get_run(out["run"]["id"])["jobs"]}
+    assert statuses["virgul"] == "fail"
+
+
+def test_job_is_not_failed_while_the_user_can_still_log_in():
+    """Giriş bekleyen makine varken kuyruk işi 75 sn'de düşürmesin."""
+    store.reset_for_tests()
+    logged_out = _ready(moderation="login_required")
+    store.heartbeat_worker(OFFICE, ready=logged_out)
+    out = store.begin_manual("moderation", prefer=OFFICE)
+    with store._lock:
+        for job in store._runs[out["run"]["id"]]["jobs"]:
+            job["queued_at"] = time.time() - store.NO_CAPABLE_WORKER_SEC - 1
+    assert store.get_run(out["run"]["id"])["jobs"][0]["status"] == "queued"
+
+
 def test_lease_request_does_not_create_a_phantom_worker():
     """Kira isteği worker listesine satır eklemesin — panelde hayalet makine olmasın."""
     store.reset_for_tests()
