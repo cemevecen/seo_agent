@@ -1511,6 +1511,30 @@ def _is_local_dev_first_password_client(request: Request) -> bool:
     return _is_loopback_direct_client(request) or _request_target_host_looks_local(request)
 
 
+def _local_panel_open(request: Request) -> bool:
+    """Yalnızca yerel geliştirme: 127.0.0.1'den gelen isteklerde panel girişsiz açılsın.
+
+    Panele giriş politikası «yalnızca Google» (şifreyle giriş bilerek kapalı) ve
+    OAuth redirect_uri canlıya sabit — bu yüzden 127.0.0.1:8012 panelinde oturum
+    açmak mümkün değil. Bu kapı üç koşulun hepsini ister:
+
+      1. LOCAL_PANEL_NO_AUTH=1 (varsayılan kapalı — açık uçlu bırakılmaz)
+      2. Railway çalışma zamanı DEĞİL (canlıda hiçbir koşulda devreye girmez)
+      3. TCP eşi loopback (X-Forwarded-For'a bakılmaz; sahte başlıkla aşılamaz)
+    """
+    raw = (os.environ.get("LOCAL_PANEL_NO_AUTH") or "").strip().lower()
+    if raw not in ("1", "true", "yes", "on"):
+        return False
+    try:
+        from backend.services.app_member_auth import is_railway_runtime
+
+        if is_railway_runtime():
+            return False
+    except Exception:  # noqa: BLE001
+        return False
+    return _is_loopback_direct_client(request)
+
+
 def _may_set_or_update_admin_password(request: Request) -> bool:
     """Allowlist / oturum VEYA (şifre hiç yokken yalnızca yerel ilk kurulum)."""
     if not _admin_auth_active():
@@ -2007,6 +2031,10 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/scrape-runs/report",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
+        return await call_next(request)
+
+    # Yerel geliştirme kapısı: 127.0.0.1 + LOCAL_PANEL_NO_AUTH=1 (canlıda asla)
+    if _local_panel_open(request):
         return await call_next(request)
 
     with SessionLocal() as db:
