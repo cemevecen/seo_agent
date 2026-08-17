@@ -148,13 +148,30 @@ def _user_stability(client: Any, properties: dict[str, str]) -> dict[str, Any]:
 
 # ── 2. Varlık ilgisi ────────────────────────────────────────────────────────
 
+def _dimension_missing(exc: Exception) -> bool:
+    """GA4 «bu property'de böyle bir boyut yok» hatası mı?
+
+    Bu bir arıza değil, ölçüm kurulumu eksikliği — kullanıcıya ham 400 metni
+    yerine anlaşılır bir not göstermek için ayrılır.
+    """
+    text = str(exc).lower()
+    return "is not a valid dimension" in text or "did you mean" in text
+
+
 def _asset_interest(
     client: Any, properties: dict[str, str], start: str, end: str, limit: int
 ) -> dict[str, Any]:
-    """`customEvent:asset_key` — hangi varlığa bakılıyor (işin merkezi)."""
+    """`customEvent:asset_key` — hangi varlığa bakılıyor (işin merkezi).
+
+    Özel boyutlar GA4'te property başına tanımlıdır; bir profilde tanımlı
+    değilse o profil toplamdan düşer. Bu eksiklik gizlenmez, `undefined_profiles`
+    ile bildirilir — yoksa toplam sessizce eksik okunur.
+    """
     dim = "customEvent:asset_key"
     per_profile: dict[str, Any] = {}
     combined: dict[str, float] = {}
+    undefined: list[str] = []
+    covered: list[str] = []
     for pf in PROFILES:
         pid = str(properties.get(pf) or "").strip()
         if not pid:
@@ -169,14 +186,22 @@ def _asset_interest(
             per_profile[pf] = [
                 {"asset": r[dim], "events": r["eventCount"]} for r in rows
             ]
+            covered.append(pf)
             for r in rows:
                 combined[r[dim]] = combined.get(r[dim], 0.0) + r["eventCount"]
         except Exception as exc:  # noqa: BLE001
-            per_profile[pf] = {"error": str(exc)[:140]}
+            if _dimension_missing(exc):
+                undefined.append(pf)
+                per_profile[pf] = {"undefined": True}
+            else:
+                per_profile[pf] = {"error": str(exc)[:140]}
     top = sorted(combined.items(), key=lambda kv: -kv[1])[:limit]
     return {
         "per_profile": per_profile,
         "combined": [{"asset": k, "events": v} for k, v in top],
+        "undefined_profiles": undefined,
+        "covered_profiles": covered,
+        "dimension": dim,
     }
 
 
@@ -189,6 +214,10 @@ BEHAVIOR_DIMENSIONS: tuple[tuple[str, str, str], ...] = (
     ("ios", "customEvent:sections_enabled", "Açılan bölümler (iOS)"),
     ("ios", "customEvent:sections_disabled", "Kapatılan bölümler (iOS)"),
     ("web", "customEvent:menu_item", "Menü kullanımı (web)"),
+    # mWeb'in kendi boyutları: menu_item burada web'dekinin katı hacimde,
+    # card_name ise ana sayfa kartı etkileşimini taşıyor (asset_key'in karşılığı değil).
+    ("mweb", "customEvent:menu_item", "Menü kullanımı (mWeb)"),
+    ("mweb", "customEvent:card_name", "Ana sayfa kartları (mWeb)"),
 )
 
 
@@ -210,8 +239,11 @@ def _behavior(
             )
             group["rows"] = [{"value": r[dim], "events": r["eventCount"]} for r in rows]
         except Exception as exc:  # noqa: BLE001
-            group["error"] = str(exc)[:140]
             group["rows"] = []
+            if _dimension_missing(exc):
+                group["undefined"] = True
+            else:
+                group["error"] = str(exc)[:140]
         groups.append(group)
     return {"groups": groups}
 

@@ -154,6 +154,10 @@
     var pp = b.per_profile || {};
     var detail = Object.keys(pp).map(function (pf) {
       var rows = pp[pf];
+      if (rows && rows.undefined) {
+        return "<li><b>" + esc(pf) + "</b>: <span class='xg-muted'>bu property'de " +
+          esc(b.dimension || "boyut") + " tanımlı değil</span></li>";
+      }
       if (!rows || rows.error) {
         return "<li><b>" + esc(pf) + "</b>: <span class='xg-err'>" +
           esc((rows && rows.error) || "veri yok") + "</span></li>";
@@ -162,8 +166,15 @@
         rows.slice(0, 4).map(function (r) { return esc(r.asset) + " " + num(r.events); }).join(" · ") +
         "</li>";
     }).join("");
+    // Eksik profil toplamı sessizce düşürmemeli — açıkça yazılır
+    var undef = b.undefined_profiles || [];
+    var warn = undef.length
+      ? '<p class="xg-err mt-2">Toplam ' + esc(undef.join(", ")) +
+        " profilini içermiyor: bu property'lerde " + esc(b.dimension || "boyut") +
+        " tanımlı değil, dolayısıyla gerçek ilgi bu sayılardan yüksek.</p>"
+      : "";
     return card("Varlık ilgisi", "customEvent:asset_key — hangi varlığa bakılıyor",
-      inner + '<ul class="xg-muted mt-2" style="line-height:1.6">' + detail + "</ul>");
+      inner + warn + '<ul class="xg-muted mt-2" style="line-height:1.6">' + detail + "</ul>");
   }
 
   // 3 — Uygulama / site davranışı
@@ -173,10 +184,15 @@
     var groups = b.groups || [];
     if (!groups.length) return card("Uygulama & site davranışı", "", empty());
     return groups.map(function (g) {
-      var inner = g.error
-        ? '<p class="xg-err">Alınamadı: ' + esc(g.error) + "</p>"
-        : table([{ label: "Değer" }, { label: "Olay", num: true }, { label: "" }],
-                barRows(g.rows || [], "value", "events"));
+      var inner;
+      if (g.undefined) {
+        inner = '<p class="xg-muted">Bu property\'de ' + esc(g.dimension) + " tanımlı değil.</p>";
+      } else if (g.error) {
+        inner = '<p class="xg-err">Alınamadı: ' + esc(g.error) + "</p>";
+      } else {
+        inner = table([{ label: "Değer" }, { label: "Olay", num: true }, { label: "" }],
+                      barRows(g.rows || [], "value", "events"));
+      }
       return card(g.label, g.dimension, inner);
     }).join("");
   }

@@ -202,3 +202,63 @@ def test_page_and_tab_are_registered():
     assert "x_ga4_router" in main
     page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
     assert "/api/x-ga4/report" in page
+
+
+# ── Özel boyut property başına tanımlı: eksiklik gizlenmemeli ───────────────
+
+def test_undefined_dimension_is_reported_as_setup_gap_not_an_error():
+    """GA4'ün «is not a valid dimension» 400'ü arıza değil, ölçüm eksiği."""
+    def handler(req):
+        if req.property == "properties/2":  # mweb
+            raise RuntimeError(
+                "400 Did you mean customEvent:card_name? "
+                "Field customEvent:asset_key is not a valid dimension."
+            )
+        return _Resp([_Row(["gram-altin"], [100])])
+
+    out = X._asset_interest(_Client(handler), _props(), "7daysAgo", "yesterday", 10)
+    assert out["undefined_profiles"] == ["mweb"]
+    assert out["per_profile"]["mweb"] == {"undefined": True}
+    assert "error" not in out["per_profile"]["mweb"]
+    # Kapsanan profiller ayrıca bildirilir ki toplam yanlış okunmasın
+    assert out["covered_profiles"] == ["web", "android", "ios"]
+
+
+def test_a_real_failure_is_still_reported_as_an_error():
+    def handler(req):
+        raise RuntimeError("503 backend unavailable")
+
+    out = X._asset_interest(_Client(handler), {"web": "1"}, "7daysAgo", "yesterday", 5)
+    assert out["undefined_profiles"] == []
+    assert "503" in out["per_profile"]["web"]["error"]
+
+
+def test_dimension_missing_detector():
+    assert X._dimension_missing(RuntimeError("Field customEvent:x is not a valid dimension")) is True
+    assert X._dimension_missing(RuntimeError("400 Did you mean customEvent:card_name?")) is True
+    assert X._dimension_missing(RuntimeError("503 backend unavailable")) is False
+    assert X._dimension_missing(RuntimeError("quota exhausted")) is False
+
+
+def test_mweb_own_dimensions_are_collected():
+    """mWeb'de menu_item web'dekinden yüksek hacimli; sorgulanmadan bırakılmamalı."""
+    pairs = {(pf, dim) for pf, dim, _ in X.BEHAVIOR_DIMENSIONS}
+    assert ("mweb", "customEvent:menu_item") in pairs
+    assert ("mweb", "customEvent:card_name") in pairs
+
+
+def test_behavior_undefined_dimension_is_flagged_not_errored():
+    def handler(req):
+        raise RuntimeError("Field customEvent:from is not a valid dimension")
+
+    out = X._behavior(_Client(handler), _props(), "7daysAgo", "yesterday", 5)
+    g = out["groups"][0]
+    assert g.get("undefined") is True
+    assert "error" not in g
+
+
+def test_ui_explains_the_undefined_case_and_warns_about_the_total():
+    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    assert "undefined_profiles" in page
+    assert "tanımlı değil" in page
+    assert "Toplam " in page  # eksik profil uyarısı
