@@ -230,8 +230,6 @@
   /* Platform hücresi: solda son 1 gün (baskın), sağda son 7 gün (soluk) */
   .dn-pf-cell { display: inline-flex; align-items: baseline; gap: .18rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .dn-pf-cell b { font-weight: 700; }
-  .dn-pf-sep { opacity: .4; }
-  .dn-pf-week { opacity: .62; font-size: .92em; }
 
   .dn-badge {
     display: inline-block; border-radius: 0.35rem; padding: 0.12rem 0.45rem; font-size: 10px; font-weight: 700;
@@ -1112,8 +1110,8 @@
         </div>
         <div class="dn-items-actions">
           <div class="dn-win-switch" id="dn-pf-window" role="group" aria-label="Platform trafiği dönemi">
-            <button type="button" class="dn-win-btn is-active" data-dn-window="d1">1 gün</button>
-            <button type="button" class="dn-win-btn" data-dn-window="d7">7 gün</button>
+            <button type="button" class="dn-win-btn" data-dn-window="d1">1 gün</button>
+            <button type="button" class="dn-win-btn is-active" data-dn-window="d7">7 gün</button>
           </div>
           <div class="dn-win-switch" id="dn-pf-metric" role="group" aria-label="Platform trafiği metriği">
             <button type="button" class="dn-win-btn is-active" data-dn-metric="views">View</button>
@@ -1188,7 +1186,7 @@
 <script>
 (function () {
   var state = {
-    pfWindow: "d1",
+    pfWindow: "d7",
     pfMetric: "views",
     category: "all",
     period: "last_7d",
@@ -2773,9 +2771,8 @@
           var d1 = Number(pf["d1" + sfx] || 0);
           var d7 = Number(pf["d7" + sfx] || 0);
           if (!d1 && !d7) return "—";
+          // Hücrede tek sayı: dönemi 1 gün / 7 gün butonu belirler
           var main = state.pfWindow === "d7" ? d7 : d1;
-          var other = state.pfWindow === "d7" ? d1 : d7;
-          var otherLabel = state.pfWindow === "d7" ? "1 gün" : "7 gün";
           // Tooltip her zaman dört sayının tamamını verir — anahtar ne olursa olsun
           var tip = label +
             " · son 1 gün " + fmt(Number(pf.d1 || 0)) + " view / " +
@@ -2784,7 +2781,6 @@
             fmt(Number(pf.d7_sessions || 0)) + " session";
           return '<span class="dn-pf-cell" title="' + esc(tip) + '">' +
             '<b>' + fmt(main) + '</b>' +
-            '<span class="dn-pf-week" title="' + esc(otherLabel) + '">' + fmt(other) + '</span>' +
             '</span>';
         }
       };

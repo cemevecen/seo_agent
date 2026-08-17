@@ -393,3 +393,23 @@ def test_tooltip_always_shows_both_metrics_for_both_windows():
     block = html.split("function platformCol(key, label)", 1)[1].split("var platformCols", 1)[0]
     for needle in ("pf.d1 || 0", "pf.d1_sessions || 0", "pf.d7 || 0", "pf.d7_sessions || 0"):
         assert needle in block, needle
+
+
+def test_window_default_is_seven_days():
+    """Açılışta 7 gün seçili — hem state hem aktif buton."""
+    html = PAGE.read_text(encoding="utf-8")
+    assert 'pfWindow: "d7",' in html
+    assert '<button type="button" class="dn-win-btn is-active" data-dn-window="d7">7 gün</button>' in html
+    assert '<button type="button" class="dn-win-btn" data-dn-window="d1">1 gün</button>' in html
+
+
+def test_cell_shows_a_single_number_decided_by_the_button():
+    """Hücrede tek sayı; ikinci soluk sayı kaldırıldı (dönemi buton belirler)."""
+    html = PAGE.read_text(encoding="utf-8")
+    block = html.split("function platformCol(key, label)", 1)[1].split("var platformCols", 1)[0]
+    assert "dn-pf-week" not in block
+    assert "otherLabel" not in block
+    assert block.count("<b>") == 1
+    # Artık kullanılmayan stiller de kalmasın
+    assert "dn-pf-week" not in html
+    assert "dn-pf-sep" not in html
