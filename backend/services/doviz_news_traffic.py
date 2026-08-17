@@ -451,3 +451,143 @@ def _merge_article_maps(
             "gsc_position": float(s.get("gsc_position") or 0),
         }
     return out
+
+
+# ── Platform kırılımı (Android / iOS / Web / mWeb · 1 gün + 7 gün) ────────────
+# Web/mWeb: haber detay sayfa yolundan ID çıkarılır.
+# Android: `news_detail_opened` olayı · iOS: `screen_view` — ikisinde de `news_id`
+# özel parametresi taşınıyor (backend/services/ga4_app_event_config.py).
+
+PLATFORM_KEYS: tuple[str, ...] = ("android", "ios", "web", "mweb")
+PLATFORM_WINDOWS: tuple[tuple[str, int], ...] = (("d1", 1), ("d7", 7))
+_APP_PROFILE_EVENT = {"android": "news_detail_opened", "ios": "screen_view"}
+_PLATFORM_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_PLATFORM_CACHE_TTL_SEC = 300.0
+
+
+def _empty_platform_matrix(*, error: str | None = None) -> dict[str, Any]:
+    return {
+        "ok": error is None,
+        "error": error,
+        "platforms": list(PLATFORM_KEYS),
+        "windows": [w for w, _ in PLATFORM_WINDOWS],
+        "by_article": {},
+        "totals": {},
+        "matched": 0,
+    }
+
+
+def _platform_window_dates(days: int) -> tuple[str, str]:
+    """GA4 collector'ıyla aynı takvim penceresi (dün bitişli N gün)."""
+    end = report_calendar_yesterday()
+    start = end - timedelta(days=max(1, int(days)) - 1)
+    return start.isoformat(), end.isoformat()
+
+
+def fetch_news_platform_breakdown(
+    db: Session,
+    *,
+    rows: list[dict[str, Any]],
+    site_id: int = _DEFAULT_SITE_ID,
+) -> dict[str, Any]:
+    """Haber ID → platform × dönem görüntüleme sayısı.
+
+    Web/mWeb `screenPageViews`, Android/iOS ilgili olayın `eventCount` değeridir;
+    ikisi de "haber kaç kez açıldı" sorusunu ölçer, sütunlar karşılaştırılabilir.
+    """
+    id_index: dict[str, dict[str, Any]] = {}
+    for r in rows or []:
+        aid = normalize_article_id(str(r.get("id") or ""))
+        if aid:
+            id_index.setdefault(aid, r)
+    if not id_index:
+        return _empty_platform_matrix()
+
+    cache_key = f"{site_id}|{len(id_index)}|{hash(frozenset(id_index.keys()))}"
+    hit = _PLATFORM_CACHE.get(cache_key)
+    if hit and (time.time() - hit[0]) < _PLATFORM_CACHE_TTL_SEC:
+        return hit[1]
+
+    ga4_status = get_ga4_connection_status(db, site_id)
+    if not ga4_status.get("connected"):
+        return _empty_platform_matrix(error=str(ga4_status.get("label") or "GA4 not connected"))
+    properties = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
+
+    from backend.collectors.ga4 import (
+        fetch_ga4_event_param_breakdown,
+        fetch_ga4_news_detail_pages_metrics,
+    )
+
+    def _job(task: tuple[str, str, int]) -> tuple[str, str, dict[str, float]]:
+        platform, win_key, days = task
+        prop = str(properties.get(platform) or "").strip()
+        if not prop:
+            return platform, win_key, {}
+        out: dict[str, float] = {}
+        try:
+            if platform in _APP_PROFILE_EVENT:
+                app_rows = fetch_ga4_event_param_breakdown(
+                    property_id=prop,
+                    event_name=_APP_PROFILE_EVENT[platform],
+                    param_key="news_id",
+                    alt_params=["newsId"],
+                    days=days,
+                    limit=500,
+                )
+                for row in app_rows or []:
+                    aid = normalize_article_id(str(row.get("value") or ""))
+                    if aid and aid in id_index:
+                        out[aid] = out.get(aid, 0.0) + float(row.get("count") or 0)
+            else:
+                start, end = _platform_window_dates(days)
+                pages = fetch_ga4_news_detail_pages_metrics(
+                    property_id=prop, start=start, end=end, limit=2000
+                )
+                for page in pages or []:
+                    aid = extract_article_id_from_path(str(page.get("page") or ""))
+                    if aid and aid in id_index:
+                        out[aid] = out.get(aid, 0.0) + float(page.get("views") or 0)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Doviz news platform kırılımı [%s/%s]: %s", platform, win_key, exc)
+        return platform, win_key, out
+
+    tasks = [
+        (platform, win_key, days)
+        for platform in PLATFORM_KEYS
+        for win_key, days in PLATFORM_WINDOWS
+        if str(properties.get(platform) or "").strip()
+    ]
+    if not tasks:
+        return _empty_platform_matrix(error="GA4 property tanımlı değil")
+
+    try:
+        with ThreadPoolExecutor(max_workers=min(4, len(tasks))) as pool:
+            results = list(pool.map(_job, tasks))
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Doviz news platform kırılımı başarısız")
+        return _empty_platform_matrix(error=str(exc) or "GA4 fetch failed")
+
+    by_article: dict[str, dict[str, dict[str, float]]] = {}
+    totals: dict[str, dict[str, float]] = {}
+    for platform, win_key, values in results:
+        tot = 0.0
+        for aid, val in values.items():
+            if val <= 0:
+                continue
+            by_article.setdefault(aid, {}).setdefault(platform, {})[win_key] = round(val, 1)
+            tot += val
+        totals.setdefault(platform, {})[win_key] = round(tot, 1)
+
+    out = {
+        "ok": True,
+        "error": None,
+        "platforms": list(PLATFORM_KEYS),
+        "windows": [w for w, _ in PLATFORM_WINDOWS],
+        "by_article": by_article,
+        "totals": totals,
+        "matched": len(by_article),
+        "metric": "views",
+        "note": "Web/mWeb screenPageViews · Android/iOS haber açılış olayı (news_id)",
+    }
+    _PLATFORM_CACHE[cache_key] = (time.time(), out)
+    return out

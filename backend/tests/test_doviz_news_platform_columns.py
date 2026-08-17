@@ -1,0 +1,166 @@
+"""Doviz News · Latest content — platform sütunları (Android / iOS / Web / mWeb).
+
+Eşleştirme haber ID'si üzerinden:
+  · Web / mWeb → haber detay sayfa yolundan ID
+  · Android    → `news_detail_opened` olayı + `news_id` parametresi
+  · iOS        → `screen_view` olayı + `news_id` parametresi
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from backend.services import doviz_news_traffic as dnt
+
+ROOT = Path(__file__).resolve().parents[2]
+PAGE = ROOT / "templates/doviz_news.html"
+
+ROWS = [
+    {"id": "1234567", "title": "Dolar bugün"},
+    {"id": "7654321", "title": "Altın rekor"},
+]
+
+
+class _Status(dict):
+    pass
+
+
+@pytest.fixture()
+def ga4_ready(monkeypatch):
+    monkeypatch.setattr(
+        dnt,
+        "get_ga4_connection_status",
+        lambda db, site_id: {
+            "connected": True,
+            "properties": {"web": "1", "mweb": "2", "android": "3", "ios": "4"},
+        },
+    )
+
+
+def _patch_collectors(monkeypatch, *, app_rows=None, pages=None):
+    import backend.collectors.ga4 as ga4
+
+    monkeypatch.setattr(
+        ga4, "fetch_ga4_event_param_breakdown", lambda **kw: list(app_rows or []), raising=False
+    )
+    monkeypatch.setattr(
+        ga4, "fetch_ga4_news_detail_pages_metrics", lambda **kw: list(pages or []), raising=False
+    )
+
+
+def test_app_rows_match_by_news_id(monkeypatch, ga4_ready):
+    _patch_collectors(
+        monkeypatch,
+        app_rows=[{"value": "1234567", "count": 120}, {"value": "9999999", "count": 5}],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    assert out["ok"] is True
+    android = out["by_article"]["1234567"]["android"]
+    assert android["d1"] == 120 and android["d7"] == 120
+    # Listede olmayan ID sızmamalı
+    assert "9999999" not in out["by_article"]
+
+
+def test_web_rows_match_by_article_path(monkeypatch, ga4_ready):
+    _patch_collectors(
+        monkeypatch,
+        pages=[
+            {"page": "/haber/1234567/dolar-bugun", "views": 300, "sessions": 200},
+            {"page": "/haber/2222222/baska", "views": 10, "sessions": 5},
+        ],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    web = out["by_article"]["1234567"]["web"]
+    assert web["d1"] == 300 and web["d7"] == 300
+    assert out["by_article"]["1234567"]["mweb"]["d7"] == 300
+
+
+def test_totals_and_matched_count(monkeypatch, ga4_ready):
+    _patch_collectors(
+        monkeypatch,
+        app_rows=[{"value": "1234567", "count": 10}],
+        pages=[{"page": "/haber/7654321/x", "views": 40, "sessions": 4}],
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    assert out["matched"] == 2
+    assert out["totals"]["android"]["d7"] == 10
+    assert out["totals"]["web"]["d7"] == 40
+
+
+def test_no_ids_returns_empty_without_calling_ga4(monkeypatch):
+    called = {"n": 0}
+
+    def _boom(*a, **k):
+        called["n"] += 1
+        raise AssertionError("GA4'e gidilmemeliydi")
+
+    monkeypatch.setattr(dnt, "get_ga4_connection_status", _boom)
+    out = dnt.fetch_news_platform_breakdown(None, rows=[{"id": ""}])
+    assert out["by_article"] == {}
+    assert called["n"] == 0
+
+
+def test_ga4_disconnected_is_reported_not_raised(monkeypatch):
+    monkeypatch.setattr(
+        dnt,
+        "get_ga4_connection_status",
+        lambda db, site_id: {"connected": False, "label": "GA4 not connected"},
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    assert out["ok"] is False
+    assert "GA4" in (out["error"] or "")
+    assert out["by_article"] == {}
+
+
+def test_one_platform_failure_does_not_kill_the_others(monkeypatch, ga4_ready):
+    import backend.collectors.ga4 as ga4
+
+    def _app(**kw):
+        raise RuntimeError("quota")
+
+    monkeypatch.setattr(ga4, "fetch_ga4_event_param_breakdown", _app, raising=False)
+    monkeypatch.setattr(
+        ga4,
+        "fetch_ga4_news_detail_pages_metrics",
+        lambda **kw: [{"page": "/haber/1234567/x", "views": 7}],
+        raising=False,
+    )
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    assert out["ok"] is True
+    assert out["by_article"]["1234567"]["web"]["d7"] == 7
+    assert "android" not in out["by_article"]["1234567"]
+
+
+def test_window_dates_end_yesterday():
+    from backend.services.timezone_utils import report_calendar_yesterday
+
+    y = report_calendar_yesterday()
+    s1, e1 = dnt._platform_window_dates(1)
+    s7, e7 = dnt._platform_window_dates(7)
+    assert e1 == y.isoformat() and s1 == y.isoformat()
+    assert e7 == y.isoformat() and s7 < e7
+
+
+def test_page_keeps_existing_columns_and_renames_views_to_realtime():
+    html = PAGE.read_text(encoding="utf-8")
+    assert 'key: "rt_views", label: "Realtime"' in html
+    assert 'label: "Views"' not in html
+    # Mevcut sütunlar duruyor
+    for needle in ('key: "source"', 'key: "category"', 'key: "date"',
+                   'label: "GA4 views"', 'label: "Sessions"', 'label: "GSC clicks"'):
+        assert needle in html, needle
+
+
+def test_page_adds_four_platform_columns():
+    html = PAGE.read_text(encoding="utf-8")
+    for label in ('"Android"', '"iOS"', '"Web"', '"mWeb"'):
+        assert f'platformCol("' in html and label in html
+    assert "platformCols" in html
+    assert ".concat(platformCols).concat(metricCols)" in html

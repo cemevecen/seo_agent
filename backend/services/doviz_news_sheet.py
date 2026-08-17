@@ -1355,6 +1355,7 @@ def doviz_news_payload(
 
     traffic: dict[str, Any] | None = None
     by_article: dict[str, Any] = {}
+    platform_by_article: dict[str, Any] = {}
     from backend.services.notification_content_traffic import normalize_article_id as _norm_aid
 
     if include_traffic and db is not None:
@@ -1369,6 +1370,18 @@ def doviz_news_payload(
                 site_id=site_id,
             )
             by_article = (traffic or {}).get("by_article") or {}
+            try:
+                from backend.services.doviz_news_traffic import (
+                    fetch_news_platform_breakdown,
+                )
+
+                platform_matrix = fetch_news_platform_breakdown(
+                    db, rows=rows, site_id=site_id
+                )
+                traffic["platforms"] = platform_matrix
+                platform_by_article = platform_matrix.get("by_article") or {}
+            except Exception:
+                logger.exception("doviz news platform breakdown failed")
         except Exception as exc:
             logger.exception("doviz news traffic enrich failed")
             traffic = {
@@ -1415,6 +1428,7 @@ def doviz_news_payload(
                 "gsc_impressions": tr.get("gsc_impressions"),
                 "gsc_ctr": tr.get("gsc_ctr"),
                 "gsc_position": tr.get("gsc_position"),
+                "platforms": platform_by_article.get(aid) or None,
                 "rt_views": rt.get("rt_views"),
                 "rt_peak_users": rt.get("rt_peak_users"),
                 "rt_buckets": rt.get("rt_buckets"),
