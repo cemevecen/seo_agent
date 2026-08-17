@@ -216,6 +216,11 @@
   html.dark .dn-bartrack, html.charcoal .dn-bartrack { background: #36363c; }
   .dn-barfill { height: 100%; border-radius: 999px; background: #4f46e5; }
 
+  /* Başlık sütunu: sabit genişlik, 80 karakterde kesilir (tam metin tooltip'te) */
+  .dn-title-cell { width: 22rem; min-width: 22rem; max-width: 22rem; }
+  .dn-title-text { display: block; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 900px) { .dn-title-cell { width: 14rem; min-width: 14rem; max-width: 14rem; } }
+
   .dn-items-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
   .dn-win-switch { display: inline-flex; border: 1px solid rgba(148,163,184,.45); border-radius: .5rem; overflow: hidden; }
   .dn-win-btn { padding: .18rem .5rem; font-size: .72rem; font-weight: 600; background: transparent; color: inherit; opacity: .65; }
@@ -2779,7 +2784,15 @@
       searchKeys: ["title", "source", "category", "date"],
       columns: [
         { key: "date", label: "Date", render: function (r) { return esc(r.date || "—"); } },
-        { key: "title", label: "Title", className: "dn-title-cell", render: function (r) { return esc(r.title || "—"); } },
+        {
+          key: "title", label: "Title", className: "dn-title-cell",
+          render: function (r) {
+            var full = String(r.title || "");
+            if (!full) return "—";
+            var shown = full.length > 80 ? full.slice(0, 80).replace(/\s+\S*$/, "") + "…" : full;
+            return '<span class="dn-title-text" title="' + esc(full) + '">' + esc(shown) + "</span>";
+          }
+        },
         {
           key: "rt_views", label: "Realtime", num: true, defaultDir: "desc",
           render: function (r) {
@@ -2794,6 +2807,7 @@
             return '<span title="' + esc(tip.join(" · ")) + '">' + fmt(v) + "</span>";
           }
         },
+      ].concat(platformCols).concat(metricCols).concat([
         {
           key: "source", label: "Source",
           render: function (r) {
@@ -2803,7 +2817,7 @@
           }
         },
         { key: "category", label: "Category", render: function (r) { return esc(shortCat(r.category || "—")); } }
-      ].concat(platformCols).concat(metricCols)
+      ])
     });
   }
 

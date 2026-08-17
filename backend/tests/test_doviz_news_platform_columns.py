@@ -196,3 +196,23 @@ def test_payload_exposes_platform_traffic_outside_traffic_block():
     # Trafik bloğunun içinde çağrılmamalı
     traffic_block = src.split("if include_traffic and db is not None:", 1)[1].split("items = []", 1)[0]
     assert "fetch_news_platform_breakdown" not in traffic_block
+
+
+def test_source_and_category_are_the_last_columns():
+    """Sütun sırası: … platform · metrikler · Source · Category."""
+    html = PAGE.read_text(encoding="utf-8")
+    tail = html.split(".concat(platformCols).concat(metricCols).concat([", 1)[1].split("])", 1)[0]
+    assert 'key: "source"' in tail
+    assert 'key: "category"' in tail
+    items_table = html.split('mountInteractiveTable("dn-table-items"', 1)[1]
+    fixed = items_table.split("columns: [", 1)[1].split(".concat(platformCols)", 1)[0]
+    assert 'key: "source"' not in fixed
+    assert 'key: "category"' not in fixed
+
+
+def test_title_is_clipped_at_80_chars_with_full_text_in_tooltip():
+    html = PAGE.read_text(encoding="utf-8")
+    assert "full.length > 80" in html
+    assert "dn-title-text" in html
+    assert "esc(full)" in html
+    assert ".dn-title-cell { width: 22rem;" in html
