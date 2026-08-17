@@ -131,6 +131,63 @@ def test_slot_job_marks_done_only_when_another_mac_holds_the_lease():
     assert "globals()[last_attr]" not in unavailable
 
 
+def test_readiness_marks_missing_session_as_login_required(monkeypatch):
+    """Oturumu olmayan Mac işi kapmasın — boşuna deneme ve hata olmasın."""
+    b = _load_bridge()
+    monkeypatch.setattr(b, "_playwright_firefox_ready", lambda: True)
+    monkeypatch.setattr(b, "_job_session_ok", lambda jid: False if jid == "asc" else True)
+    b._readiness_cache = (0.0, {})
+    ready = b._worker_readiness()
+    assert ready["asc"] == "login_required"
+    assert ready["moderation"] == "ready"
+
+
+def test_unknown_session_state_does_not_block_the_job(monkeypatch):
+    """Çerez veritabanı okunamıyorsa iş engellenmemeli."""
+    b = _load_bridge()
+    monkeypatch.setattr(b, "_playwright_firefox_ready", lambda: True)
+    monkeypatch.setattr(b, "_job_session_ok", lambda jid: None)
+    b._readiness_cache = (0.0, {})
+    assert set(b._worker_readiness().values()) <= {"ready", "no_creds"}
+
+
+def test_session_cookie_probe_reads_firefox_profile(tmp_path):
+    import sqlite3
+
+    from backend.services.system_firefox_driver import profile_has_session_cookie
+
+    profile = tmp_path / "fx-sinemalar"
+    profile.mkdir()
+    # Profil var ama çerez veritabanı yok → oturum yok
+    assert profile_has_session_cookie(profile, "sinemalar.com", ("PHPSESSID",)) is False
+    # Profil hiç yok → bilinmiyor
+    assert profile_has_session_cookie(tmp_path / "yok", "sinemalar.com", ("PHPSESSID",)) is None
+
+    con = sqlite3.connect(profile / "cookies.sqlite")
+    con.execute("CREATE TABLE moz_cookies (host TEXT, name TEXT, expiry INTEGER)")
+    con.execute("INSERT INTO moz_cookies VALUES ('.sinemalar.com', 'PHPSESSID', 0)")
+    con.execute("INSERT INTO moz_cookies VALUES ('.other.com', 'PHPSESSID', 0)")
+    con.commit()
+    con.close()
+    assert profile_has_session_cookie(profile, "sinemalar.com", ("PHPSESSID",)) is True
+    assert profile_has_session_cookie(profile, "sinemalar.com", ("myacinfo",)) is False
+
+
+def test_expired_session_cookie_counts_as_logged_out(tmp_path):
+    import sqlite3
+
+    from backend.services.system_firefox_driver import profile_has_session_cookie
+
+    profile = tmp_path / "fx-asc"
+    profile.mkdir()
+    con = sqlite3.connect(profile / "cookies.sqlite")
+    con.execute("CREATE TABLE moz_cookies (host TEXT, name TEXT, expiry INTEGER)")
+    con.execute("INSERT INTO moz_cookies VALUES ('.apple.com', 'myacinfo', 1000)")
+    con.commit()
+    con.close()
+    assert profile_has_session_cookie(profile, "apple.com", ("myacinfo",)) is False
+
+
 def test_whoami_endpoint_is_served_for_the_panel_probe():
     """Panel 127.0.0.1/whoami ile bastığın Mac'i tanır; CORS + PNA başlıkları şart."""
     src = (

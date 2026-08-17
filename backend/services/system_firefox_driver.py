@@ -15,6 +15,7 @@ import sqlite3
 import subprocess
 import tempfile
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -177,6 +178,47 @@ def google_profile_has_session(profile: Path) -> bool:
     cookies = _read_google_cookies(profile.expanduser())
     names = {str(c.get("name") or "") for c in cookies}
     return bool(names & _GOOGLE_SESSION_COOKIE_NAMES)
+
+
+def profile_has_session_cookie(
+    profile: Path,
+    host_like: str,
+    cookie_names: Iterable[str],
+) -> bool | None:
+    """Profilde ilgili site için süresi geçmemiş oturum çerezi var mı?
+
+    True/False kesin cevap; profil veya çerez veritabanı okunamıyorsa None döner
+    (bilinmiyor → çağıran taraf işi engellememeli).
+    """
+    profile = profile.expanduser()
+    db = profile / "cookies.sqlite"
+    if not db.is_file():
+        return False if profile.is_dir() else None
+    wanted = {str(n) for n in cookie_names}
+    tmp = Path(tempfile.mkdtemp(prefix="fxsess-"))
+    try:
+        for name in ("cookies.sqlite", "cookies.sqlite-wal", "cookies.sqlite-shm"):
+            src = profile / name
+            if src.is_file():
+                shutil.copy2(src, tmp / name)
+        con = sqlite3.connect(f"file:{tmp / 'cookies.sqlite'}?mode=ro", uri=True)
+        rows = con.execute(
+            "SELECT name, expiry FROM moz_cookies WHERE host LIKE ?",
+            (f"%{host_like}%",),
+        ).fetchall()
+        con.close()
+    except Exception:  # noqa: BLE001
+        return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    now = int(time.time())
+    for name, expiry in rows:
+        if str(name or "") not in wanted:
+            continue
+        if expiry and int(expiry) < now:
+            continue
+        return True
+    return False
 
 
 def bootstrap_google_cookies_into_profile(target_profile: Path) -> int:

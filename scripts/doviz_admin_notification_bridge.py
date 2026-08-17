@@ -5278,11 +5278,48 @@ def _playwright_firefox_ready() -> bool:
     return ok
 
 
-def _worker_readiness() -> dict[str, str]:
-    """İş bazlı hazırlık: ready / no_creds / no_browser.
+# Oturum çerezi tarama profilinde duruyor mu — iş dağıtılmadan önce bakılır ki
+# oturumu olmayan Mac boşuna deneyip hata döndürmesin.
+SESSION_JOB_PROFILES: dict[str, tuple[str, str, tuple[str, ...]]] = {
+    # job id → (profil, çerez host filtresi, oturum çerezi adları)
+    "moderation": ("sinemalar", "sinemalar.com", ("PHPSESSID",)),
+    "noads": ("sinemalar", "sinemalar.com", ("PHPSESSID",)),
+    "asc": ("asc", "apple.com", ("myacinfo",)),
+}
+# Google oturumu (fx-google): Play/CWV/Backlinks/Policy/Firebase aynı profili kullanır
+GOOGLE_SESSION_JOB_IDS = frozenset({"play", "play_vitals", "cwv", "links", "policy", "firebase"})
 
-    Oturum süresi dolması burada yakalanmaz (tarayıcı açmadan bilinemez) — onu
-    needs_login sonucu + Railway'in diğer worker'a devretmesi çözer.
+
+def _job_session_ok(job_id: str) -> bool | None:
+    """True/False kesin, None = bilinmiyor (engelleme)."""
+    try:
+        from backend.services.scrape_browser import (
+            asc_profile_dir,
+            google_profile_dir,
+            sinemalar_profile_dir,
+        )
+        from backend.services.system_firefox_driver import (
+            google_profile_has_session,
+            profile_has_session_cookie,
+        )
+
+        if job_id in GOOGLE_SESSION_JOB_IDS:
+            return bool(google_profile_has_session(google_profile_dir()))
+        spec = SESSION_JOB_PROFILES.get(job_id)
+        if not spec:
+            return None
+        profile_key, host_like, names = spec
+        profile = {"sinemalar": sinemalar_profile_dir, "asc": asc_profile_dir}[profile_key]()
+        return profile_has_session_cookie(profile, host_like, names)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _worker_readiness() -> dict[str, str]:
+    """İş bazlı hazırlık: ready / no_creds / no_browser / login_required.
+
+    Oturum kontrolü tarama profilindeki çerezlere bakar; okunamazsa iş engellenmez
+    (bilinmiyor → ready). Süresi dolmuş ama duran oturumları needs_login devri yakalar.
     """
     global _readiness_cache
     ts, cached = _readiness_cache
@@ -5301,6 +5338,8 @@ def _worker_readiness() -> dict[str, str]:
             state = "no_creds"
         elif jid in PLAYWRIGHT_JOB_IDS and not pw_ok:
             state = "no_browser"
+        elif _job_session_ok(jid) is False:
+            state = "login_required"
         out[jid] = state
     _readiness_cache = (now, out)
     return out
