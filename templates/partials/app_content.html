@@ -1022,10 +1022,6 @@
         <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">/android + /ios · vitals · stability-free (BQ iOS peek only)</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <button id="crash-refresh-btn" type="button"
-          class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
-          <span id="crash-refresh-icon">↺</span> Refresh
-        </button>
         <svg id="app-crashlytics-chevron" class="h-4 w-4 text-slate-400 transition-transform dark:text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
         </svg>
@@ -1157,25 +1153,6 @@
     if (crashState.pollTimer) { clearInterval(crashState.pollTimer); crashState.pollTimer = null; }
   }
 
-  function startProgressPoll() {
-    stopPoll();
-    showProgress(true);
-    setProgress(5, "Loading Play Console / iOS data…");
-    crashState.pollTimer = setInterval(function () {
-      fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store" })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          setProgress(j.pct || 0, j.step || "");
-          if (j.done) {
-            stopPoll();
-            showProgress(false);
-            loadCrashTab();
-          }
-        })
-        .catch(stopPoll);
-    }, 800);
-  }
-
   function loadCrashTab() {
     var content = document.getElementById("crash-content");
     if (!content) return;
@@ -1200,24 +1177,6 @@
         if (seq !== crashState.seq) return;
         content.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">'
           + (e.name === "AbortError" ? "Timed out (30s). Narrow the period." : "Could not load data.") + "</p>";
-      });
-  }
-
-  function triggerRefresh() {
-    var btn = document.getElementById("crash-refresh-btn");
-    var icon = document.getElementById("crash-refresh-icon");
-    if (btn) btn.disabled = true;
-    if (icon) icon.style.display = "inline-block", icon.style.animation = "spin 1s linear infinite";
-    fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product), { method: "POST", cache: "no-store" })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j.already_running) { loadCrashTab(); return; }
-        startProgressPoll();
-      })
-      .catch(function () { loadCrashTab(); })
-      .finally(function () {
-        if (btn) btn.disabled = false;
-        if (icon) icon.style.animation = "";
       });
   }
 
@@ -1250,10 +1209,6 @@
       loadCrashTab();
     });
   });
-
-  // Refresh butonu
-  var refreshBtn = document.getElementById("crash-refresh-btn");
-  if (refreshBtn) refreshBtn.addEventListener("click", triggerRefresh);
 
   function ensureCrashLoaded() {
     if (!crashState.loaded) {
@@ -1299,7 +1254,6 @@
   }
   if (crashHdr) {
     crashHdr.addEventListener("click", function (ev) {
-      if (ev.target.closest("#crash-refresh-btn")) return;
       crashToggle();
     });
     crashHdr.addEventListener("keydown", function (ev) {

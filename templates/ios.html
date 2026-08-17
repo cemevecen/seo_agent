@@ -3741,14 +3741,7 @@
     var local = host === "localhost" || host === "127.0.0.1";
     if (iaRefresh) iaRefresh.disabled = true;
     try {
-      if (local) {
-        if (iaStatus) iaStatus.textContent = "Scanning…";
-        try {
-          await fetch("http://127.0.0.1:18765/sync-asc", { method: "POST", mode: "cors" });
-        } catch (_) {
-          if (iaStatus) iaStatus.textContent = "Scan unavailable — try again later";
-        }
-      }
+      // Tarama tek noktadan: üstteki «Update page» (kuyruk + worker yönlendirme).
       try {
         if (iaStatus) iaStatus.textContent = "Reviews senkron…";
         var sj = await syncAppStoreReviews({ quick: false });

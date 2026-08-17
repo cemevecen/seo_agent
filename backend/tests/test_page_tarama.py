@@ -69,7 +69,7 @@ def test_all_listed_pages_have_slot_and_key():
         if key in ("policy", "moderation"):
             assert "data-page-tarama=" in text, rel
             assert "empower-sinemalar" in text
-            tabs = text.split('<div class="flex flex-wrap gap-1.5">', 1)[1].split("</div>", 1)[0]
+            tabs = text.split('class="sin-tabs', 1)[1].split("</div>", 1)[0]
             assert tabs.index("Moderation") < tabs.index("Datas") < tabs.index("Policy")
             assert 'href="/sinemalar"' in tabs
             assert "tab=policy" in tabs

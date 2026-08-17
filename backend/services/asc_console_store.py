@@ -92,6 +92,16 @@ def _normalize_store_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str,
     return cleaned
 
 
+def _invalidate_asc_read_caches() -> None:
+    """Taze ASC verisi geldi — /ios sayfasının okuma önbellekleri düşsün (5 dk TTL beklemesin)."""
+    try:
+        from backend.services.asc_metrics_warehouse import invalidate_asc_metrics_cache
+
+        invalidate_asc_metrics_cache()
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("asc metrics cache invalidate: %s", exc)
+
+
 def ingest_asc_console_payload(
     db: Session,
     *,
@@ -131,6 +141,7 @@ def ingest_asc_console_payload(
             row.background_synced_at = now
         db.commit()
         db.refresh(row)
+        _invalidate_asc_read_caches()
         return {
             "ok": True,
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -214,6 +225,7 @@ def ingest_asc_console_payload(
         row.background_synced_at = now
     db.commit()
     db.refresh(row)
+    _invalidate_asc_read_caches()
     LOGGER.info(
         "ASC console ingest · facts=%d · ok=%s · %s",
         len(merged_facts),

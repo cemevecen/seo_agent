@@ -140,6 +140,32 @@ def _merge_platform_block(old: dict[str, Any] | None, new: dict[str, Any] | None
     return out
 
 
+def invalidate_firebase_read_caches(product_id: str | None = None) -> None:
+    """Firebase/Crashlytics sayfalarını besleyen okuma önbelleklerini düşür.
+
+    Tarama sonrası panelde eski veri kalmasın diye ingest'ten çağrılır; elle
+    «Refresh» düğmesine gerek kalmaz.
+    """
+    try:
+        from backend.main import clear_crash_fetch_filter_cache
+
+        clear_crash_fetch_filter_cache(product_id)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("crash filter cache invalidate: %s", exc)
+    try:
+        from backend.services.firebase_from_store_tabs import invalidate_firebase_store_cache
+
+        invalidate_firebase_store_cache(product_id)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("firebase store cache invalidate: %s", exc)
+    try:
+        from backend.services.stability_free import invalidate_stability_cache
+
+        invalidate_stability_cache(product_id)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("stability cache invalidate: %s", exc)
+
+
 def ingest_firebase_console_payload(db: Session, body: dict[str, Any]) -> dict[str, Any]:
     row = _get_or_create(db)
     metrics = body.get("metrics") if isinstance(body.get("metrics"), list) else []
@@ -230,6 +256,9 @@ def ingest_firebase_console_payload(db: Session, body: dict[str, Any]) -> dict[s
     if row.sync_ok:
         row.background_synced_at = now
     db.commit()
+    # Taze veri geldi — Crashlytics/Firebase panellerinin okuma önbellekleri düşsün.
+    # Yapılmazsa tarama bitip sayfa yenilense bile 5-15 dk eski veri görünür.
+    invalidate_firebase_read_caches()
     return {
         "ok": True,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,

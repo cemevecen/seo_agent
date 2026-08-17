@@ -23,6 +23,13 @@ _SCRAPE_TTL_SEC = 300.0
 _bundle_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _scrape_cache: tuple[float, list[dict[str, Any]], dict[str, Any]] | None = None
 
+
+def invalidate_asc_metrics_cache() -> None:
+    """ASC ingest sonrası okuma önbelleklerini düşür — /ios sayfası taze veriyi görsün."""
+    global _scrape_cache
+    _scrape_cache = None
+    _bundle_cache.clear()
+
 _SALES_METRICS = frozenset({"units", "proceeds", "total_downloads", "sales"})
 _ANALYTICS_METRICS = frozenset(
     {

@@ -1793,23 +1793,6 @@
     });
   }
 
-  // ── Manuel Refresh ──
-  function triggerRefresh() {
-    var btn = document.getElementById("crash-refresh-btn");
-    var icon = document.getElementById("crash-refresh-icon");
-    if (btn) btn.disabled = true;
-    if (icon) icon.textContent = "…";
-    clearHtmlCache();
-    fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
-      { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
-      .then(function (r) { return r.json(); })
-      .then(function () {
-        bootstrapSplitLoad({ force: true });
-      })
-      .catch(function () { bootstrapSplitLoad({ force: true }); })
-      .finally(function () { if (btn) btn.disabled = false; if (icon) icon.textContent = "↺"; });
-  }
-
   // ── Filtre butonları ──
   daysBtns.forEach(function (b) {
     b.addEventListener("click", function () {
@@ -1912,9 +1895,6 @@
       if (modal) { modal.classList.remove("hidden"); modal.classList.add("flex"); modal.setAttribute("data-modal-state", "open"); }
     }).catch(function () {});
   });
-
-  var refreshBtn = document.getElementById("crash-refresh-btn");
-  if (refreshBtn) refreshBtn.addEventListener("click", triggerRefresh);
 
   // ── First yükleme: doğrudan bölümler (progress endpoint soğuk BQ beklemez) ──
   syncBtns();

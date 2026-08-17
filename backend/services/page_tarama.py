@@ -964,7 +964,7 @@ def _expire_locked(run: dict[str, Any], now: float) -> None:
     for job in run["jobs"]:
         if job.get("kind") == "bridge" and job.get("status") == "queued":
             job["status"] = "fail"
-            job["detail"] = "Automatic scan unavailable"
+            job["detail"] = "No Mac scan daemon online — start a Mac and try again"
             job["finished_at"] = now
 
 

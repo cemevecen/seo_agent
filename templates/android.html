@@ -8163,19 +8163,6 @@
     try {
       var host = (location.hostname || "").toLowerCase();
       var isLocal = host === "localhost" || host === "127.0.0.1";
-      // Yerelde bridge açıksa ara sıra vitals sync dene (ağır sync’i boğmamak için seyrek)
-      if (isLocal && Math.random() < 0.35) {
-        try {
-          var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-          var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 2500) : null;
-          await fetch("http://127.0.0.1:18765/sync-play-vitals", {
-            method: "POST",
-            headers: { Accept: "application/json" },
-            signal: ctrl ? ctrl.signal : undefined
-          });
-          if (t) clearTimeout(t);
-        } catch (_) {}
-      }
       var r = await fetch("/api/play-console/snapshot", {
         credentials: "same-origin",
         cache: "no-store"
@@ -8425,24 +8412,7 @@
     var host = (location.hostname || "").toLowerCase();
     var isLocal = host === "localhost" || host === "127.0.0.1";
     var bridgeOk = false;
-    // Canlı sitede (Railway) asla 127.0.0.1’e gitme — tarayıcı Private Network Access uyarısı verir.
-    if (isLocal) {
-      try {
-        var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-        var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 1500) : null;
-        var br = await fetch("http://127.0.0.1:18765/sync-play-vitals", {
-          method: "POST",
-          headers: { Accept: "application/json" },
-          signal: ctrl ? ctrl.signal : undefined
-        });
-        if (t) clearTimeout(t);
-        var body = null;
-        try { body = await br.json(); } catch (_) {}
-        if (br.ok && !(body && body.ok === false)) {
-          bridgeOk = true;
-        }
-      } catch (_) {}
-    }
+    // Tarama tek noktadan: üstteki «Update page» (kuyruk + worker yönlendirme).
     // Play Store’dan son 1 yıl yorumlarını sunucuda çek (Console DOM’a bağlı değil)
     try {
       setPcLine(statusEl, "Reviews senkron…");
