@@ -55,6 +55,7 @@ from backend.api.notification_analytics import router as notification_analytics_
 from backend.api.ad_analytics import router as ad_analytics_router
 from backend.api.virgul_analytics import router as virgul_analytics_router
 from backend.api.doviz_news import router as doviz_news_router
+from backend.api.x_ga4 import router as x_ga4_router
 from backend.api.play_console import router as play_console_router
 from backend.api.play_analytics import router as play_analytics_router
 from backend.api.asc_metrics import router as asc_metrics_router
@@ -1050,6 +1051,7 @@ app.include_router(notification_analytics_router, prefix="/api")
 app.include_router(ad_analytics_router, prefix="/api")
 app.include_router(virgul_analytics_router, prefix="/api")
 app.include_router(doviz_news_router, prefix="/api")
+app.include_router(x_ga4_router, prefix="/api")
 app.include_router(play_console_router, prefix="/api")
 app.include_router(pagespeed_web_router, prefix="/api")
 app.include_router(seo_audit_scrape_router, prefix="/api")
@@ -15576,6 +15578,21 @@ def doviz_news_page(request: Request):
             "request": request,
             "admin_authenticated": _is_admin_authenticated(request),
             "is_membership_admin": _is_membership_admin(request),
+        },
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/x-ga4")
+def x_ga4_page(request: Request):
+    """GA4'ün panelde kullanılmayan boyut/metrikleri — yalnızca GA4 Data API."""
+    return templates.TemplateResponse(
+        request,
+        "x_ga4.html",
+        context={
+            "request": request,
+            "sites": get_sidebar_sites(),
+            "admin_authenticated": _is_admin_authenticated(request),
         },
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )

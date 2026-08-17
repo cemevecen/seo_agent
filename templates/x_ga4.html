@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .xg-page { max-width: 1500px; }
+  .xg-card { border: 1px solid #e2e8f0; border-radius: .9rem; background: #fff; padding: 1rem; }
+  html.dark .xg-card, html.charcoal .xg-card { background: #232327; border-color: #3f3f46; }
+  .xg-card h3 { font-size: .95rem; font-weight: 700; margin: 0; }
+  .xg-sub { font-size: .72rem; opacity: .65; margin-top: .15rem; }
+  .xg-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 27rem), 1fr)); }
+  .xg-table { width: 100%; border-collapse: collapse; font-size: .75rem; font-variant-numeric: tabular-nums; }
+  .xg-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+                 opacity: .6; padding: .35rem .5rem; border-bottom: 1px solid #e2e8f0; }
+  html.dark .xg-table th, html.charcoal .xg-table th { border-bottom-color: #3f3f46; }
+  .xg-table td { padding: .35rem .5rem; border-bottom: 1px solid #f1f5f9; }
+  html.dark .xg-table td, html.charcoal .xg-table td { border-bottom-color: #36363c; }
+  .xg-table td.num, .xg-table th.num { text-align: right; }
+  .xg-key { max-width: 20rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .xg-err { font-size: .72rem; color: #b91c1c; }
+  html.dark .xg-err, html.charcoal .xg-err { color: #fca5a5; }
+  .xg-muted { font-size: .75rem; opacity: .6; }
+  .xg-kpi { display: flex; gap: 1.1rem; flex-wrap: wrap; }
+  .xg-kpi div span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; opacity: .6; }
+  .xg-kpi div b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+  .xg-bar { height: .4rem; border-radius: 999px; background: #4f46e5; }
+  .xg-bartrack { height: .4rem; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+  html.dark .xg-bartrack, html.charcoal .xg-bartrack { background: #3f3f46; }
+  .xg-toolbar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .xg-btn { padding: .3rem .7rem; font-size: .75rem; font-weight: 600; border-radius: .5rem;
+            border: 1px solid rgba(148,163,184,.45); background: transparent; color: inherit; }
+  .xg-btn.is-active { background: rgba(79,70,229,.14); color: #4338ca; }
+  html.dark .xg-btn.is-active, html.charcoal .xg-btn.is-active { color: #a5b4fc; }
+</style>
+
+<div class="xg-page mx-auto w-full space-y-4" data-header-title="x-ga4">
+  <div class="xg-card">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h3>x-ga4</h3>
+        <p class="xg-sub" id="xg-meta">Yükleniyor…</p>
+      </div>
+      <div class="xg-toolbar">
+        <span class="xg-muted">Dönem:</span>
+        <button type="button" class="xg-btn" data-xg-days="1">1 gün</button>
+        <button type="button" class="xg-btn is-active" data-xg-days="7">7 gün</button>
+        <button type="button" class="xg-btn" data-xg-days="28">28 gün</button>
+        <button type="button" class="xg-btn" id="xg-refresh">Yenile</button>
+      </div>
+    </div>
+    <p class="xg-sub mt-2">
+      Panelde kullanılmayan GA4 alanları. Tüm veriler yalnızca GA4 Data API'den gelir —
+      BigQuery, export veya konsol kazıma yok.
+    </p>
+  </div>
+
+  <div id="xg-body" class="xg-grid"></div>
+</div>
+
+<script>
+(function () {
+  var state = { days: 7, loading: false };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function num(n) { return (Number(n) || 0).toLocaleString("tr-TR"); }
+  function pct(n) { return ((Number(n) || 0) * 100).toFixed(3).replace(".", ",") + "%"; }
+  function dur(sec) {
+    var s = Number(sec) || 0;
+    if (s < 60) return s.toFixed(0) + " sn";
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + " dk " + Math.round(s % 60) + " sn";
+    return Math.floor(m / 60) + " sa " + (m % 60) + " dk";
+  }
+
+  function card(title, sub, inner) {
+    return '<section class="xg-card"><h3>' + esc(title) + "</h3>" +
+      (sub ? '<p class="xg-sub">' + esc(sub) + "</p>" : "") +
+      '<div class="mt-3">' + inner + "</div></section>";
+  }
+  function blockError(b) {
+    return b && b.ok === false
+      ? '<p class="xg-err">Alınamadı: ' + esc(b.error || "bilinmeyen hata") + "</p>"
+      : null;
+  }
+  function empty(msg) { return '<p class="xg-muted">' + esc(msg || "Veri yok.") + "</p>"; }
+
+  function table(headers, rows) {
+    if (!rows.length) return empty();
+    return '<div style="overflow-x:auto"><table class="xg-table"><thead><tr>' +
+      headers.map(function (h) {
+        return '<th class="' + (h.num ? "num" : "") + '">' + esc(h.label) + "</th>";
+      }).join("") +
+      "</tr></thead><tbody>" +
+      rows.map(function (r) {
+        return "<tr>" + r.map(function (c, i) {
+          return '<td class="' + (headers[i].num ? "num" : "") + '">' + c + "</td>";
+        }).join("") + "</tr>";
+      }).join("") +
+      "</tbody></table></div>";
+  }
+
+  function barRows(items, labelKey, valueKey) {
+    var max = items.reduce(function (m, r) { return Math.max(m, Number(r[valueKey]) || 0); }, 0) || 1;
+    return items.map(function (r) {
+      var v = Number(r[valueKey]) || 0;
+      return [
+        '<span class="xg-key" title="' + esc(r[labelKey]) + '">' + esc(r[labelKey]) + "</span>",
+        num(v),
+        '<div class="xg-bartrack"><div class="xg-bar" style="width:' + (v / max * 100).toFixed(1) + '%"></div></div>'
+      ];
+    });
+  }
+
+  // 1 — Kullanıcı & kararlılık
+  function renderUsers(b) {
+    var err = blockError(b);
+    if (err) return card("Kullanıcı & kararlılık", "", err);
+    var rows = (b.rows || []).map(function (r) {
+      var crash = r.crashFreeUsersRate == null
+        ? '<span class="xg-muted">—</span>'
+        : pct(r.crashFreeUsersRate);
+      return [
+        esc(r.profile),
+        num(r.active1DayUsers), num(r.active7DayUsers), num(r.active28DayUsers),
+        crash,
+        r.crashAffectedUsers == null ? "—" : num(r.crashAffectedUsers)
+      ];
+    });
+    return card(
+      "Kullanıcı & kararlılık",
+      "DAU / WAU / MAU ve crash-free — doğrudan GA4 API (dün)",
+      table(
+        [{ label: "Profil" }, { label: "DAU", num: true }, { label: "WAU", num: true },
+         { label: "MAU", num: true }, { label: "Crash-free", num: true },
+         { label: "Etkilenen", num: true }],
+        rows
+      )
+    );
+  }
+
+  // 2 — Varlık ilgisi
+  function renderAssets(b) {
+    var err = blockError(b);
+    if (err) return card("Varlık ilgisi", "", err);
+    var combined = b.combined || [];
+    if (!combined.length) return card("Varlık ilgisi", "customEvent:asset_key", empty());
+    var inner = table(
+      [{ label: "Varlık" }, { label: "Olay", num: true }, { label: "" }],
+      barRows(combined, "asset", "events")
+    );
+    var pp = b.per_profile || {};
+    var detail = Object.keys(pp).map(function (pf) {
+      var rows = pp[pf];
+      if (!rows || rows.error) {
+        return "<li><b>" + esc(pf) + "</b>: <span class='xg-err'>" +
+          esc((rows && rows.error) || "veri yok") + "</span></li>";
+      }
+      return "<li><b>" + esc(pf) + "</b>: " +
+        rows.slice(0, 4).map(function (r) { return esc(r.asset) + " " + num(r.events); }).join(" · ") +
+        "</li>";
+    }).join("");
+    return card("Varlık ilgisi", "customEvent:asset_key — hangi varlığa bakılıyor",
+      inner + '<ul class="xg-muted mt-2" style="line-height:1.6">' + detail + "</ul>");
+  }
+
+  // 3 — Uygulama / site davranışı
+  function renderBehavior(b) {
+    var err = blockError(b);
+    if (err) return card("Uygulama & site davranışı", "", err);
+    var groups = b.groups || [];
+    if (!groups.length) return card("Uygulama & site davranışı", "", empty());
+    return groups.map(function (g) {
+      var inner = g.error
+        ? '<p class="xg-err">Alınamadı: ' + esc(g.error) + "</p>"
+        : table([{ label: "Değer" }, { label: "Olay", num: true }, { label: "" }],
+                barRows(g.rows || [], "value", "events"));
+      return card(g.label, g.dimension, inner);
+    }).join("");
+  }
+
+  // 4 — İçerik derinliği
+  function renderDepth(b) {
+    var err = blockError(b);
+    if (err) return card("İçerik derinliği", "", err);
+    var rows = (b.rows || []).map(function (r) {
+      return [
+        '<span class="xg-key" title="' + esc(r.page) + '">' + esc(r.page) + "</span>",
+        esc(r.profile), num(r.views), dur(r.seconds_per_view), num(r.new_users)
+      ];
+    });
+    return card(
+      "İçerik derinliği",
+      "Görüntüleme başına gerçek okuma süresi ve yeni kullanıcı — pageview'dan daha iyi bir editoryal ölçü",
+      table([{ label: "Sayfa" }, { label: "Profil" }, { label: "Görüntüleme", num: true },
+             { label: "Görüntüleme başına süre", num: true }, { label: "Yeni kullanıcı", num: true }], rows)
+    );
+  }
+
+  // 5 — Saatlik ritim
+  function renderHourly(b) {
+    var err = blockError(b);
+    if (err) return card("Saatlik ritim", "", err);
+    var series = b.series || {};
+    var keys = Object.keys(series);
+    if (!keys.length) return card("Saatlik ritim", "", empty());
+    var inner = keys.map(function (pf) {
+      var s = series[pf];
+      if (s.error) return "<p class='xg-err'>" + esc(pf) + ": " + esc(s.error) + "</p>";
+      var hours = s.hours || [];
+      if (!hours.length) return "<p class='xg-muted'>" + esc(pf) + ": veri yok</p>";
+      var max = hours.reduce(function (m, h) { return Math.max(m, h.users); }, 0) || 1;
+      var bars = hours.map(function (h) {
+        return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:2px" ' +
+          'title="' + h.hour + ":00 · " + num(h.users) + ' kullanıcı">' +
+          '<div style="width:100%;background:#4f46e5;border-radius:2px;height:' +
+          Math.max(2, h.users / max * 46).toFixed(0) + 'px"></div>' +
+          '<span style="font-size:8px;opacity:.55">' + h.hour + "</span></div>";
+      }).join("");
+      var otherNote = s.other_users
+        ? ' <span class="xg-muted">· (other) kovası: ' + num(s.other_users) + " kullanıcı</span>"
+        : "";
+      return '<div class="mb-3"><p class="xg-sub"><b>' + esc(pf) + "</b>" + otherNote + "</p>" +
+        '<div style="display:flex;align-items:flex-end;gap:2px;height:62px">' + bars + "</div></div>";
+    }).join("");
+    return card("Saatlik ritim", "hour × activeUsers — yayın saati kararı için", inner);
+  }
+
+  // 6 — Kitle
+  function renderAudience(b) {
+    var err = blockError(b);
+    if (err) return card("Kitle", "", err);
+    function sub(title, items) {
+      if (!items || !items.length) return "<p class='xg-sub mt-2'><b>" + esc(title) + "</b></p>" + empty();
+      return "<p class='xg-sub mt-3'><b>" + esc(title) + "</b></p>" +
+        table([{ label: "" }, { label: "Kullanıcı", num: true }, { label: "" }],
+              barRows(items, "label", "users"));
+    }
+    return card("Kitle", "İlgi alanı, demografi ve GA4 kitleleri — reklam satışı için",
+      sub("İlgi alanları (brandingInterest)", b.interests) +
+      sub("Yaş / cinsiyet", b.demographics) +
+      sub("Tanımlı kitleler", b.audiences));
+  }
+
+  function render(data) {
+    var body = $("xg-body");
+    var meta = $("xg-meta");
+    if (!data || data.ok === false) {
+      meta.textContent = "Alınamadı: " + ((data && data.error) || "bilinmeyen hata");
+      body.innerHTML = "";
+      return;
+    }
+    var w = data.window || {};
+    meta.textContent = "Pencere " + (w.start || "?") + " → " + (w.end || "?") +
+      " · profiller: " + (data.profiles || []).join(", ") +
+      (data.cached ? " · önbellekten" : "");
+    var b = data.blocks || {};
+    body.innerHTML = [
+      renderUsers(b.user_stability || {}),
+      renderAssets(b.assets || {}),
+      renderDepth(b.content_depth || {}),
+      renderHourly(b.hourly || {}),
+      renderBehavior(b.behavior || {}),
+      renderAudience(b.audience || {})
+    ].join("");
+  }
+
+  function load(force) {
+    if (state.loading) return;
+    state.loading = true;
+    $("xg-meta").textContent = "Yükleniyor…";
+    fetch("/api/x-ga4/report?days=" + state.days + (force ? "&force=true" : ""),
+          { headers: { Accept: "application/json" } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { render(d); })
+      .catch(function () { $("xg-meta").textContent = "İstek başarısız."; })
+      .then(function () { state.loading = false; });
+  }
+
+  document.querySelectorAll("[data-xg-days]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var d = Number(btn.getAttribute("data-xg-days")) || 7;
+      if (d === state.days) return;
+      state.days = d;
+      document.querySelectorAll("[data-xg-days]").forEach(function (b) {
+        b.classList.toggle("is-active", b === btn);
+      });
+      load(false);
+    });
+  });
+  var rb = $("xg-refresh");
+  if (rb) rb.addEventListener("click", function () { load(true); });
+
+  load(false);
+})();
+</script>
+{% endblock %}
