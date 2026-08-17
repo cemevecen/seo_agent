@@ -5284,7 +5284,11 @@ SESSION_JOB_PROFILES: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # job id → (profil, çerez host filtresi, oturum çerezi adları)
     "moderation": ("sinemalar", "sinemalar.com", ("PHPSESSID",)),
     "noads": ("sinemalar", "sinemalar.com", ("PHPSESSID",)),
-    "asc": ("asc", "apple.com", ("myacinfo",)),
+    # Apple oturumu tek çerezle temsil edilmiyor: myacinfo (Apple ID),
+    # itctx/dqsid/wosid (App Store Connect oturumu). Herhangi biri yeterli sayılır —
+    # yanlışlıkla "oturum yok" deyip işi başka Mac'e yollamaktansa deneyip
+    # needs_login devrine düşmek daha güvenli.
+    "asc": ("asc", "apple.com", ("myacinfo", "itctx", "dqsid", "wosid")),
 }
 # Google oturumu (fx-google): Play/CWV/Backlinks/Policy/Firebase aynı profili kullanır
 GOOGLE_SESSION_JOB_IDS = frozenset({"play", "play_vitals", "cwv", "links", "policy", "firebase"})
