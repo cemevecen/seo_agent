@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from typing import Any
@@ -484,6 +486,92 @@ def _platform_window_dates(days: int) -> tuple[str, str]:
     return start.isoformat(), end.isoformat()
 
 
+_APP_ID_PARAM_ALTS = ["newsId", "news_ID", "newsid", "article_id", "content_id", "contentId"]
+_APP_TITLE_PARAMS = ("news_title", "newsTitle")
+_LEADING_ID_RE = re.compile(r"^\s*(\d{4,})")
+
+
+def _norm_title_key(raw: str) -> str:
+    """Başlık eşleşmesi için sadeleştirme — noktalama/boşluk/büyük-küçük farkı silinir."""
+    low = unicodedata.normalize("NFKD", str(raw or "")).lower()
+    return re.sub(r"[^a-z0-9ğüşıöç]+", "", low)[:90]
+
+
+def _fetch_app_platform_counts(
+    fetch_param_breakdown: Any,
+    *,
+    property_id: str,
+    platform: str,
+    days: int,
+    id_index: dict[str, dict[str, Any]],
+) -> tuple[dict[str, float], dict[str, Any]]:
+    """Android/iOS haber açılışlarını ID'ye bağla — sırayla üç strateji.
+
+    iOS'ta özel boyut adı property'ye göre değişebiliyor; tek bir isme güvenmek
+    yerine ID → (ID+başlık) → başlık sırasıyla denenir ve hangisinin tuttuğu
+    teşhis olarak döner.
+    """
+    event_name = _APP_PROFILE_EVENT[platform]
+    title_index = {_norm_title_key(r.get("title") or ""): aid for aid, r in id_index.items()}
+    title_index.pop("", None)
+    diag: dict[str, Any] = {"strategy": None, "fetched": 0, "matched": 0, "tried": []}
+
+    def _collect(rows: list[dict[str, Any]], *, by_title: bool) -> dict[str, float]:
+        found: dict[str, float] = {}
+        for row in rows or []:
+            raw = str(row.get("value") or "")
+            aid = None
+            hit = _LEADING_ID_RE.match(raw)
+            if hit:
+                aid = normalize_article_id(hit.group(1))
+            if not aid:
+                aid = normalize_article_id(raw)
+            if (not aid or aid not in id_index) and by_title:
+                aid = title_index.get(_norm_title_key(raw.split("·")[-1]))
+            if aid and aid in id_index:
+                found[aid] = found.get(aid, 0.0) + float(row.get("count") or 0)
+        return found
+
+    attempts = (
+        ("news_id", {"param_key": "news_id", "alt_params": list(_APP_ID_PARAM_ALTS)}, False),
+        (
+            "news_id+title",
+            {
+                "param_key": "news_id",
+                "alt_params": list(_APP_ID_PARAM_ALTS),
+                "param_key_2": _APP_TITLE_PARAMS[0],
+                "alt_params_2": [_APP_TITLE_PARAMS[1]],
+            },
+            True,
+        ),
+        (
+            "news_title",
+            {"param_key": _APP_TITLE_PARAMS[0], "alt_params": [_APP_TITLE_PARAMS[1]]},
+            True,
+        ),
+    )
+    for name, kwargs, by_title in attempts:
+        try:
+            rows = fetch_param_breakdown(
+                property_id=property_id,
+                event_name=event_name,
+                days=days,
+                limit=500,
+                **kwargs,
+            )
+        except Exception as exc:  # noqa: BLE001
+            diag["tried"].append({"strategy": name, "error": str(exc)[:160]})
+            continue
+        found = _collect(rows, by_title=by_title)
+        diag["tried"].append(
+            {"strategy": name, "fetched": len(rows or []), "matched": len(found)}
+        )
+        if found:
+            diag.update({"strategy": name, "fetched": len(rows or []), "matched": len(found)})
+            return found, diag
+    return {}, diag
+
+
 def fetch_news_platform_breakdown(
     db: Session,
     *,
@@ -518,6 +606,8 @@ def fetch_news_platform_breakdown(
         fetch_ga4_news_detail_pages_metrics,
     )
 
+    diagnostics: dict[str, dict[str, Any]] = {}
+
     def _job(task: tuple[str, str, int]) -> tuple[str, str, dict[str, float]]:
         platform, win_key, days = task
         prop = str(properties.get(platform) or "").strip()
@@ -526,18 +616,14 @@ def fetch_news_platform_breakdown(
         out: dict[str, float] = {}
         try:
             if platform in _APP_PROFILE_EVENT:
-                app_rows = fetch_ga4_event_param_breakdown(
+                out, diag = _fetch_app_platform_counts(
+                    fetch_ga4_event_param_breakdown,
                     property_id=prop,
-                    event_name=_APP_PROFILE_EVENT[platform],
-                    param_key="news_id",
-                    alt_params=["newsId"],
+                    platform=platform,
                     days=days,
-                    limit=500,
+                    id_index=id_index,
                 )
-                for row in app_rows or []:
-                    aid = normalize_article_id(str(row.get("value") or ""))
-                    if aid and aid in id_index:
-                        out[aid] = out.get(aid, 0.0) + float(row.get("count") or 0)
+                diagnostics[f"{platform}:{win_key}"] = diag
             else:
                 start, end = _platform_window_dates(days)
                 pages = fetch_ga4_news_detail_pages_metrics(
@@ -547,8 +633,14 @@ def fetch_news_platform_breakdown(
                     aid = extract_article_id_from_path(str(page.get("page") or ""))
                     if aid and aid in id_index:
                         out[aid] = out.get(aid, 0.0) + float(page.get("views") or 0)
+                diagnostics[f"{platform}:{win_key}"] = {
+                    "fetched": len(pages or []),
+                    "matched": len(out),
+                    "strategy": "page_path",
+                }
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Doviz news platform kırılımı [%s/%s]: %s", platform, win_key, exc)
+            diagnostics[f"{platform}:{win_key}"] = {"error": str(exc)[:200]}
         return platform, win_key, out
 
     tasks = [
@@ -586,6 +678,7 @@ def fetch_news_platform_breakdown(
         "by_article": by_article,
         "totals": totals,
         "matched": len(by_article),
+        "diagnostics": diagnostics,
         "metric": "views",
         "note": "Web/mWeb screenPageViews · Android/iOS haber açılış olayı (news_id)",
     }

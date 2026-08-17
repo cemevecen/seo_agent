@@ -1422,8 +1422,19 @@
       note = "Platform trafiği yok (sunucu yanıtında platform_traffic alanı yok)";
     } else if (pt.ok === false) {
       note = "Platform trafiği alınamadı: " + (pt.error || "bilinmeyen hata");
-    } else if (!pt.matched) {
-      note = "Platform trafiği: eşleşen içerik yok (GA4 sorgusu boş döndü)";
+    } else {
+      // Platform başına: kaç satır geldi, kaçı eşleşti, hangi strateji tuttu
+      var diag = pt.diagnostics || {};
+      var weak = [];
+      ["android", "ios", "web", "mweb"].forEach(function (k) {
+        var d = diag[k + ":d7"] || diag[k + ":d1"] || null;
+        if (!d) { weak.push(k + ": property yok"); return; }
+        if (d.error) { weak.push(k + ": " + String(d.error).slice(0, 60)); return; }
+        if (!d.matched) {
+          weak.push(k + ": " + (d.fetched || 0) + " satır geldi, 0 eşleşti");
+        }
+      });
+      if (weak.length) note = "Platform trafiği — " + weak.join(" · ");
     }
     wrap.title = note || "Platform sütunlarında gösterilecek dönem";
     var el = $("dn-pf-note");

@@ -187,7 +187,9 @@ def test_empty_platform_data_explains_itself():
     """Boş kalırsa sebebi ekranda yazsın — sessiz boşluk teşhis edilemiyor."""
     html = PAGE.read_text(encoding="utf-8")
     assert "renderPlatformMeta" in html
-    assert "eşleşen içerik yok" in html
+    # Platform başına: kaç satır geldi / kaçı eşleşti / hata
+    assert "satır geldi, 0 eşleşti" in html
+    assert "Platform trafiği alınamadı" in html
 
 
 def test_payload_exposes_platform_traffic_outside_traffic_block():
@@ -216,3 +218,89 @@ def test_title_is_clipped_at_80_chars_with_full_text_in_tooltip():
     assert "dn-title-text" in html
     assert "esc(full)" in html
     assert ".dn-title-cell { width: 22rem;" in html
+
+
+# ── iOS: özel boyut adı property'ye göre değişebiliyor ───────────────────────
+
+def _rows(*pairs):
+    return [{"value": v, "count": c} for v, c in pairs]
+
+
+def test_ios_falls_back_to_id_plus_title_when_plain_id_is_empty():
+    calls = []
+
+    def fake(**kw):
+        calls.append(kw)
+        if kw.get("param_key_2"):
+            return _rows(("1234567 · Dolar bugün", 42))
+        return []
+
+    out, diag = dnt._fetch_app_platform_counts(
+        fake, property_id="4", platform="ios", days=1, id_index={"1234567": ROWS[0]}
+    )
+    assert out == {"1234567": 42.0}
+    assert diag["strategy"] == "news_id+title"
+    assert len(calls) == 2  # önce sade ID denendi
+
+
+def test_ios_falls_back_to_title_matching_as_last_resort():
+    def fake(**kw):
+        if kw.get("param_key") == "news_title":
+            return _rows(("Dolar bugün", 7), ("Alakasız haber", 3))
+        return []
+
+    out, diag = dnt._fetch_app_platform_counts(
+        fake, property_id="4", platform="ios", days=7, id_index={"1234567": ROWS[0]}
+    )
+    assert out == {"1234567": 7.0}
+    assert diag["strategy"] == "news_title"
+
+
+def test_plain_id_is_preferred_and_stops_early():
+    calls = []
+
+    def fake(**kw):
+        calls.append(kw.get("param_key"))
+        return _rows(("1234567", 99))
+
+    out, diag = dnt._fetch_app_platform_counts(
+        fake, property_id="3", platform="android", days=1, id_index={"1234567": ROWS[0]}
+    )
+    assert out == {"1234567": 99.0}
+    assert diag["strategy"] == "news_id"
+    assert calls == ["news_id"]  # gereksiz ek sorgu yok
+
+
+def test_title_matching_ignores_punctuation_and_case():
+    def fake(**kw):
+        if kw.get("param_key") == "news_title":
+            return _rows(("DOLAR BUGÜN!", 5))
+        return []
+
+    out, _ = dnt._fetch_app_platform_counts(
+        fake, property_id="4", platform="ios", days=1, id_index={"1234567": {"title": "Dolar bugün"}}
+    )
+    assert out == {"1234567": 5.0}
+
+
+def test_every_strategy_failing_reports_what_was_tried():
+    def fake(**kw):
+        raise RuntimeError("dimension not found")
+
+    out, diag = dnt._fetch_app_platform_counts(
+        fake, property_id="4", platform="ios", days=1, id_index={"1234567": ROWS[0]}
+    )
+    assert out == {}
+    assert diag["strategy"] is None
+    assert len(diag["tried"]) == 3
+    assert all("error" in t for t in diag["tried"])
+
+
+def test_breakdown_exposes_per_platform_diagnostics(monkeypatch, ga4_ready):
+    _patch_collectors(monkeypatch, app_rows=[{"value": "1234567", "count": 3}],
+                      pages=[{"page": "/haber/1234567/x", "views": 9}])
+    dnt._PLATFORM_CACHE.clear()
+    out = dnt.fetch_news_platform_breakdown(None, rows=ROWS)
+    diag = out["diagnostics"]
+    assert "ios:d1" in diag and "web:d7" in diag
+    assert diag["web:d7"]["strategy"] == "page_path"
