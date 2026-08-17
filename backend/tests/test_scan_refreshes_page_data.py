@@ -61,6 +61,49 @@ def test_ingest_paths_call_their_cache_invalidation():
     assert "global _CACHE" in save_body
 
 
+# Tarama verisini saklayan modüller: okuma önbelleği eklenirse ingest'te düşürülmeli.
+# Aksi halde tarama biter, sayfa yenilenir, kullanıcı yine eski veriyi görür.
+SCRAPE_STORE_MODULES = (
+    "backend/services/firebase_console_store.py",
+    "backend/services/asc_console_store.py",
+    "backend/services/play_console_store.py",
+    "backend/services/gsc_cwv_scrape_store.py",
+    "backend/services/gsc_links_scrape_store.py",
+    "backend/services/policy_csv.py",
+    "backend/services/sinemalar_noads.py",
+    "backend/services/sinemalar_moderation.py",
+    "backend/services/seo_audit_store.py",
+    "backend/services/market_sheets_sync.py",
+    "backend/services/doviz_news_sheet.py",
+    "backend/services/revenue_targets_sheet.py",
+    "backend/services/notification_analytics_store.py",
+)
+
+
+def test_scrape_stores_persist_and_do_not_serve_stale_cache():
+    """Her tarama deposu ya veriyi DB'ye yazar ve önbelleksizdir, ya da önbelleğini tazeler."""
+    missing = []
+    for rel in SCRAPE_STORE_MODULES:
+        path = ROOT / rel
+        assert path.is_file(), rel
+        src = path.read_text(encoding="utf-8")
+        assert ".commit()" in src, f"{rel}: veriyi kalıcı yazmıyor"
+        # Okuma önbelleği = TTL + veri tutan bir kap. Yalnız TTL varsa bu bir
+        # senkron kısıtıdır (ör. Sheet'i 5 dk'da birden sık çekme), staleness yaratmaz.
+        has_ttl = "_CACHE_TTL" in src or "_TTL_S" in src or "_TTL_SEC" in src
+        has_store = "_CACHE" in src or "_cache" in src
+        if not (has_ttl and has_store):
+            continue
+        refreshes = (
+            "invalidate" in src
+            or "global _CACHE" in src
+            or "set_doviz_news_rows_cache" in src
+        )
+        if not refreshes:
+            missing.append(rel)
+    assert missing == [], missing
+
+
 def test_scan_finishes_with_a_page_reload():
     """Kuyruk bitince panel sayfayı yeniler — yeni veri ekrana gelsin."""
     js = (ROOT / "static/js/page_tarama.js").read_text(encoding="utf-8")
