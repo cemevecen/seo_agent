@@ -131,6 +131,26 @@ def test_slot_job_marks_done_only_when_another_mac_holds_the_lease():
     assert "globals()[last_attr]" not in unavailable
 
 
+def test_whoami_endpoint_is_served_for_the_panel_probe():
+    """Panel 127.0.0.1/whoami ile bastığın Mac'i tanır; CORS + PNA başlıkları şart."""
+    src = (
+        Path(__file__).resolve().parents[2] / "scripts" / "doviz_admin_notification_bridge.py"
+    ).read_text(encoding="utf-8")
+    assert 'if path in ("/whoami", "/worker"):' in src
+    assert '"Access-Control-Allow-Private-Network": "true"' in src
+    assert "https://projectcontrol.up.railway.app" in src
+
+
+def test_panel_sends_local_worker_as_preference():
+    js = (
+        Path(__file__).resolve().parents[2] / "static" / "js" / "page_tarama.js"
+    ).read_text(encoding="utf-8")
+    assert "function probeLocalWorker()" in js
+    assert 'BRIDGE + "/whoami"' in js
+    assert "claimManual(key, localWorker)" in js
+    assert "prefer: prefer" in js
+
+
 def test_login_endpoint_targets_cover_every_session():
     b = _load_bridge()
     assert set(b.LOGIN_TARGETS) == {"google", "asc", "sinemalar", "empower"}

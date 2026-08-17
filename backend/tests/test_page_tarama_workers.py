@@ -147,6 +147,46 @@ def test_auto_lease_expires_after_ttl():
     assert store.auto_lease("play", "slot-1", OFFICE, ttl_sec=1)["granted"] is True
 
 
+def test_button_press_prefers_the_mac_you_pressed_it_on():
+    """Ofiste Update page'e basınca tarayıcı ev Mac'inde açılmasın."""
+    store.reset_for_tests()
+    store.heartbeat_worker(OFFICE, ready=_ready())
+    store.heartbeat_worker(HOME, ready=_ready())
+    store.begin_manual("moderation", prefer=OFFICE)
+    assert store.claim_next(worker=HOME, ready=_ready()) is None
+    got = store.claim_next(worker=OFFICE, ready=_ready())
+    assert got is not None and got["worker"] == OFFICE
+
+
+def test_preference_expires_so_the_other_mac_can_take_over():
+    """Tercih edilen Mac meşgulse iş sonsuza kadar beklemesin."""
+    store.reset_for_tests()
+    store.heartbeat_worker(OFFICE, ready=_ready())
+    store.heartbeat_worker(HOME, ready=_ready())
+    out = store.begin_manual("moderation", prefer=OFFICE)
+    with store._lock:
+        for job in store._runs[out["run"]["id"]]["jobs"]:
+            job["prefer_until"] = time.time() - 1
+    got = store.claim_next(worker=HOME, ready=_ready())
+    assert got is not None and got["worker"] == HOME
+
+
+def test_preference_ignored_when_that_mac_is_offline():
+    store.reset_for_tests()
+    store.heartbeat_worker(HOME, ready=_ready())
+    store.begin_manual("moderation", prefer=OFFICE)  # ofis hiç kayıtlı değil → offline
+    got = store.claim_next(worker=HOME, ready=_ready())
+    assert got is not None and got["worker"] == HOME
+
+
+def test_no_preference_keeps_first_free_mac_behaviour():
+    store.reset_for_tests()
+    store.heartbeat_worker(HOME, ready=_ready())
+    store.begin_manual("moderation")
+    got = store.claim_next(worker=HOME, ready=_ready())
+    assert got is not None and got["job_id"] == "moderation"
+
+
 def test_lease_request_does_not_create_a_phantom_worker():
     """Kira isteği worker listesine satır eklemesin — panelde hayalet makine olmasın."""
     store.reset_for_tests()

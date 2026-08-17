@@ -105,6 +105,9 @@ WORKER_FORGET_SEC = 24 * 3600.0
 WORKER_FORGET_UNKNOWN_SEC = 30 * 60.0
 # "Kimse yapamıyor" açıklamasında yalnızca yakın zamanda görülmüş makineler anılsın.
 WORKER_NOTE_WINDOW_SEC = 60 * 60.0
+# Update page'e hangi Mac'ten basıldıysa iş önce ona teklif edilir (tarayıcı penceresi
+# kullanıcının önünde açılsın). Bu süre dolunca iş diğer makineye de açılır.
+PREFER_WORKER_SEC = 90.0
 # SEO + Virgül gibi farklı işler birbirini bloklamasın (Mac kilitleri ayrıca korur)
 MAX_INFLIGHT_JOBS = 3
 # Play/Firebase/ASC/GSC/Policy aynı Firefox profili — biri bitmeden diğeri claim edilmesin
@@ -283,8 +286,12 @@ def begin_manual(
     *,
     email: str | None = None,
     unlimited: bool = False,
+    prefer: str = "",
 ) -> dict[str, Any]:
-    """Kotadan 1 hak düş; köprü işi varsa kuyruğa yaz. Admin e-postaları kotadan muaf."""
+    """Kotadan 1 hak düş; köprü işi varsa kuyruğa yaz. Admin e-postaları kotadan muaf.
+
+    prefer: Update page'e basılan Mac'in worker adı — iş önce ona teklif edilir.
+    """
     page = (page or "").strip()
     if page not in PAGES:
         raise ValueError("unknown_page")
@@ -313,6 +320,8 @@ def begin_manual(
                         "detail": "",
                         "claimed_at": None,
                         "queued_at": now,
+                        "prefer_worker": _worker_key(prefer),
+                        "prefer_until": (now + PREFER_WORKER_SEC) if _worker_key(prefer) else 0.0,
                     }
                 )
             rec = {
@@ -706,6 +715,16 @@ def claim_next(
                 if jid in BROWSER_JOB_IDS and browser_inflight:
                     continue
                 if wkey and wkey in {_worker_key(x) for x in (job.get("exclude_workers") or [])}:
+                    continue
+                # Update page'e basılan Mac'e öncelik — süresi dolunca ya da o makine
+                # çevrimdışıysa iş diğer worker'lara açılır.
+                prefer = _worker_key(str(job.get("prefer_worker") or ""))
+                if (
+                    prefer
+                    and prefer != wkey
+                    and now < float(job.get("prefer_until") or 0)
+                    and prefer in _online_workers_locked(now)
+                ):
                     continue
                 if ready is not None and str(ready.get(jid) or READY_OK) != READY_OK:
                     continue

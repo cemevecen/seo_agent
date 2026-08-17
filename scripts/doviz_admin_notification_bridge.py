@@ -3968,6 +3968,19 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         if path in ("/", "/health"):
             self._send(200, _health_payload())
             return
+        if path in ("/whoami", "/worker"):
+            # Panel bu ucu 127.0.0.1 üzerinden yoklar: Update page'e basılan Mac'e öncelik verilir
+            self._send(
+                200,
+                {
+                    "ok": True,
+                    "worker": _worker_name(),
+                    "version": BRIDGE_VERSION,
+                    "auto_jobs": BRIDGE_AUTO_JOBS,
+                    "not_ready": {k: v for k, v in _worker_readiness().items() if v != "ready"},
+                },
+            )
+            return
         if path in ("/news-progress", "/progress-news"):
             self._send(200, {"ok": True, **dict(_news_progress)})
             return

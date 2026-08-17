@@ -60,6 +60,8 @@ def _caller_quota_context(request: Request) -> tuple[str | None, bool]:
 
 class StartBody(BaseModel):
     page: str = ""
+    # Panelin 127.0.0.1:18765/whoami ile bulduğu yerel worker adı — o Mac'e öncelik verilir
+    prefer: str = ""
 
 
 class ResultBody(BaseModel):
@@ -107,8 +109,14 @@ def _manual_limit_response(exc: store.ManualLimitExceeded) -> JSONResponse:
     )
 
 
-def _begin_payload(page: str, *, email: str | None = None, unlimited: bool = False) -> dict[str, Any]:
-    out = store.begin_manual(page, email=email, unlimited=unlimited)
+def _begin_payload(
+    page: str,
+    *,
+    email: str | None = None,
+    unlimited: bool = False,
+    prefer: str = "",
+) -> dict[str, Any]:
+    out = store.begin_manual(page, email=email, unlimited=unlimited, prefer=prefer)
     payload: dict[str, Any] = {"ok": True, **(out.get("quota") or {})}
     run = out.get("run")
     if run:
@@ -134,7 +142,7 @@ def manual(body: StartBody, request: Request) -> Any:
         raise HTTPException(status_code=400, detail="Bilinmeyen sayfa")
     email, unlimited = _caller_quota_context(request)
     try:
-        return _begin_payload(page, email=email, unlimited=unlimited)
+        return _begin_payload(page, email=email, unlimited=unlimited, prefer=body.prefer or "")
     except store.ManualLimitExceeded as exc:
         return _manual_limit_response(exc)
 
@@ -148,7 +156,7 @@ def start(body: StartBody, request: Request) -> Any:
         raise HTTPException(status_code=400, detail="no_bridge_jobs")
     email, unlimited = _caller_quota_context(request)
     try:
-        return _begin_payload(page, email=email, unlimited=unlimited)
+        return _begin_payload(page, email=email, unlimited=unlimited, prefer=body.prefer or "")
     except store.ManualLimitExceeded as exc:
         return _manual_limit_response(exc)
 

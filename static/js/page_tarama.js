@@ -634,13 +634,27 @@
     return d || (data && (data.message || data.status)) || fallback;
   }
 
-  function claimManual(page) {
+  function claimManual(page, prefer) {
     return fetchJson("/api/page-tarama/manual", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ page: page }),
+      body: JSON.stringify({ page: page, prefer: prefer || "" }),
     }, 20000);
+  }
+
+  // Bu cihazda bridge çalışıyor mu? Çalışıyorsa iş önce bu Mac'e teklif edilir —
+  // tarayıcı penceresi (giriş vb.) düğmeye bastığın makinede açılsın.
+  function probeLocalWorker() {
+    return fetchJson(BRIDGE + "/whoami", { mode: "cors" }, 2000).then(
+      function (out) {
+        var name = out && out.data && out.data.worker;
+        return typeof name === "string" ? name : "";
+      },
+      function () {
+        return "";
+      }
+    );
   }
 
   function pollQueue(initial, jobs, steps) {
@@ -789,7 +803,21 @@
     });
 
     var bridgeJobs = jobs.filter(function (j) { return j.kind === "bridge"; });
-    claimManual(key).then(function (out) {
+    probeLocalWorker().then(function (localWorker) {
+      if (localWorker) {
+        setProgressUI({
+          done: 0,
+          total: jobs.length,
+          waiting: jobs.length,
+          waitingLabels: jobs.map(function (j) { return j.label; }),
+          pct: 0,
+          status: "Starting on this Mac (" + localWorker + ")…",
+          worker: localWorker,
+          snap: lastProgressSnap,
+        });
+      }
+      return claimManual(key, localWorker);
+    }).then(function (out) {
       applyQuota(out.data);
       if (!out.resp.ok) {
         finish(false, errDetail(out.data, "At most 3 scans per hour"));
