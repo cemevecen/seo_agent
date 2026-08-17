@@ -110,11 +110,14 @@ def _block(name: str, fn: Any) -> dict[str, Any]:
 # ── 1. Kullanıcı & kararlılık ───────────────────────────────────────────────
 
 USER_METRICS = ("active1DayUsers", "active7DayUsers", "active28DayUsers")
-STABILITY_METRICS = ("crashFreeUsersRate", "crashAffectedUsers")
 
 
 def _user_stability(client: Any, properties: dict[str, str]) -> dict[str, Any]:
-    """DAU / WAU / MAU + crash-free — Firebase konsolu yerine doğrudan GA4."""
+    """DAU / WAU / MAU — Firebase konsolu yerine doğrudan GA4.
+
+    Crash-free burada gösterilmiyor: /firebase sayfasında zaten var, ikinci kez
+    çekmek hem gereksiz istek hem çift kaynak olurdu.
+    """
     rows = []
     for pf in PROFILES:
         pid = str(properties.get(pf) or "").strip()
@@ -130,18 +133,6 @@ def _user_stability(client: Any, properties: dict[str, str]) -> dict[str, Any]:
             entry.update(data[0] if data else {})
         except Exception as exc:  # noqa: BLE001
             entry["users_error"] = str(exc)[:140]
-        # Crash-free yalnızca uygulamalarda anlamlı; web/mWeb'de GA4 sabit 1.0
-        # döndürüyor ve bu "ölçüldü de çökme yok" izlenimi veriyor — yazılmaz.
-        if pf in APP_PROFILES:
-            try:
-                data = _run(
-                    client, pid,
-                    dimensions=[], metrics=list(STABILITY_METRICS),
-                    start="yesterday", end="yesterday", limit=1,
-                )
-                entry.update(data[0] if data else {})
-            except Exception as exc:  # noqa: BLE001
-                entry["stability_error"] = str(exc)[:140]
         rows.append(entry)
     return {"rows": rows}
 

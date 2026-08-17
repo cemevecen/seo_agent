@@ -15,6 +15,13 @@
   html.dark .xg-table td, html.charcoal .xg-table td { border-bottom-color: #36363c; }
   .xg-table td.num, .xg-table th.num { text-align: right; }
   .xg-key { max-width: 20rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* İçerik derinliği: yol sütunu sayısal sütunları ezmesin */
+  .xg-table--depth { table-layout: fixed; width: 100%; }
+  .xg-table--depth th:first-child, .xg-page-cell { width: 26rem; }
+  .xg-page-cell { white-space: nowrap; overflow: hidden; word-break: normal; }
+  .xg-overflow td { border-bottom: 1px solid #f1f5f9; padding-top: 0; }
+  html.dark .xg-overflow td, html.charcoal .xg-overflow td { border-bottom-color: #36363c; }
+  .xg-page-tail { opacity: .62; padding-left: .5rem; word-break: break-all; }
   .xg-err { font-size: .72rem; color: #b91c1c; }
   html.dark .xg-err, html.charcoal .xg-err { color: #fca5a5; }
   .xg-muted { font-size: .75rem; opacity: .6; }
@@ -36,20 +43,16 @@
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3>x-ga4</h3>
-        <p class="xg-sub" id="xg-meta">Yükleniyor…</p>
+        <!-- Yalnızca yükleme/hata durumunda dolar; normalde boş kalır -->
+        <p class="xg-sub" id="xg-meta" hidden></p>
       </div>
       <div class="xg-toolbar">
-        <span class="xg-muted">Dönem:</span>
         <button type="button" class="xg-btn" data-xg-days="1">1 gün</button>
         <button type="button" class="xg-btn is-active" data-xg-days="7">7 gün</button>
         <button type="button" class="xg-btn" data-xg-days="28">28 gün</button>
         <button type="button" class="xg-btn" id="xg-refresh">Yenile</button>
       </div>
     </div>
-    <p class="xg-sub mt-2">
-      Panelde kullanılmayan GA4 alanları. Tüm veriler yalnızca GA4 Data API'den gelir —
-      BigQuery, export veya konsol kazıma yok.
-    </p>
   </div>
 
   <div id="xg-body" class="xg-grid"></div>
@@ -119,23 +122,17 @@
     var err = blockError(b);
     if (err) return card("Kullanıcı & kararlılık", "", err);
     var rows = (b.rows || []).map(function (r) {
-      var crash = r.crashFreeUsersRate == null
-        ? '<span class="xg-muted">—</span>'
-        : pct(r.crashFreeUsersRate);
       return [
         esc(r.profile),
-        num(r.active1DayUsers), num(r.active7DayUsers), num(r.active28DayUsers),
-        crash,
-        r.crashAffectedUsers == null ? "—" : num(r.crashAffectedUsers)
+        num(r.active1DayUsers), num(r.active7DayUsers), num(r.active28DayUsers)
       ];
     });
     return card(
-      "Kullanıcı & kararlılık",
-      "DAU / WAU / MAU ve crash-free — doğrudan GA4 API (dün)",
+      "Kullanıcı",
+      "DAU / WAU / MAU — doğrudan GA4 API (dün)",
       table(
         [{ label: "Profil" }, { label: "DAU", num: true }, { label: "WAU", num: true },
-         { label: "MAU", num: true }, { label: "Crash-free", num: true },
-         { label: "Etkilenen", num: true }],
+         { label: "MAU", num: true }],
         rows
       )
     );
@@ -198,20 +195,39 @@
   }
 
   // 4 — İçerik derinliği
+  var PAGE_MAX = 50;
+
   function renderDepth(b) {
     var err = blockError(b);
     if (err) return card("İçerik derinliği", "", err);
-    var rows = (b.rows || []).map(function (r) {
-      return [
-        '<span class="xg-key" title="' + esc(r.page) + '">' + esc(r.page) + "</span>",
-        esc(r.profile), num(r.views), dur(r.seconds_per_view), num(r.new_users)
-      ];
-    });
+    var rows = b.rows || [];
+    if (!rows.length) return card("İçerik derinliği", "", empty());
+    // Uzun yollar sayısal sütunları kenara itiyordu: hücrede en fazla 50 karakter,
+    // artanı satırın hemen altındaki ek satıra taşınır (tam yol yine görünür).
+    var body = rows.map(function (r) {
+      var full = String(r.page || "");
+      var head = full.length > PAGE_MAX ? full.slice(0, PAGE_MAX) : full;
+      var tail = full.length > PAGE_MAX ? full.slice(PAGE_MAX) : "";
+      var main =
+        '<tr><td class="xg-page-cell" title="' + esc(full) + '">' + esc(head) + "</td>" +
+        "<td>" + esc(r.profile) + "</td>" +
+        '<td class="num">' + num(r.views) + "</td>" +
+        '<td class="num">' + dur(r.seconds_per_view) + "</td>" +
+        '<td class="num">' + num(r.new_users) + "</td></tr>";
+      if (!tail) return main;
+      return main +
+        '<tr class="xg-overflow"><td colspan="5" class="xg-page-tail" title="' + esc(full) + '">' +
+        esc(tail) + "</td></tr>";
+    }).join("");
+    var inner =
+      '<div style="overflow-x:auto"><table class="xg-table xg-table--depth"><thead><tr>' +
+        '<th>Sayfa</th><th>Profil</th><th class="num">Görüntüleme</th>' +
+        '<th class="num">Görüntüleme başına süre</th><th class="num">Yeni kullanıcı</th>' +
+      "</tr></thead><tbody>" + body + "</tbody></table></div>";
     return card(
       "İçerik derinliği",
       "Görüntüleme başına gerçek okuma süresi ve yeni kullanıcı — pageview'dan daha iyi bir editoryal ölçü",
-      table([{ label: "Sayfa" }, { label: "Profil" }, { label: "Görüntüleme", num: true },
-             { label: "Görüntüleme başına süre", num: true }, { label: "Yeni kullanıcı", num: true }], rows)
+      inner
     );
   }
 
@@ -260,18 +276,21 @@
       sub("Tanımlı kitleler", b.audiences));
   }
 
+  function note(msg) {
+    var meta = $("xg-meta");
+    if (!meta) return;
+    meta.textContent = msg || "";
+    meta.hidden = !msg;
+  }
+
   function render(data) {
     var body = $("xg-body");
-    var meta = $("xg-meta");
     if (!data || data.ok === false) {
-      meta.textContent = "Alınamadı: " + ((data && data.error) || "bilinmeyen hata");
+      note("Alınamadı: " + ((data && data.error) || "bilinmeyen hata"));
       body.innerHTML = "";
       return;
     }
-    var w = data.window || {};
-    meta.textContent = "Pencere " + (w.start || "?") + " → " + (w.end || "?") +
-      " · profiller: " + (data.profiles || []).join(", ") +
-      (data.cached ? " · önbellekten" : "");
+    note("");
     var b = data.blocks || {};
     body.innerHTML = [
       renderUsers(b.user_stability || {}),
@@ -286,12 +305,12 @@
   function load(force) {
     if (state.loading) return;
     state.loading = true;
-    $("xg-meta").textContent = "Yükleniyor…";
+    note("Yükleniyor…");
     fetch("/api/x-ga4/report?days=" + state.days + (force ? "&force=true" : ""),
           { headers: { Accept: "application/json" } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) { render(d); })
-      .catch(function () { $("xg-meta").textContent = "İstek başarısız."; })
+      .catch(function () { note("İstek başarısız."); })
       .then(function () { state.loading = false; });
   }
 

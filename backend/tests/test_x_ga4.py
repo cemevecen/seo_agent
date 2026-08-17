@@ -109,19 +109,36 @@ def test_empty_values_are_filtered_server_side():
     assert "(not set)" in values and "" in values
 
 
-def test_crash_free_is_only_requested_for_apps():
-    """Web'de GA4 sabit 1.0 döndürüyor; ölçülmemiş değeri yazmayız."""
+def test_crash_free_is_not_fetched_at_all():
+    """Crash-free /firebase sayfasinda zaten var; burada istek bile atilmaz."""
     seen = []
 
     def handler(req):
-        seen.append((req.property, [m.name for m in req.metrics]))
+        seen.append([m.name for m in req.metrics])
         return _Resp([_Row([], [1, 1, 1])])
 
     out = X._user_stability(_Client(handler), _props())
-    crash_props = {p for p, mets in seen if "crashFreeUsersRate" in mets}
-    assert crash_props == {"properties/3", "properties/4"}  # yalnızca android + ios
-    web = next(r for r in out["rows"] if r["profile"] == "web")
-    assert "crashFreeUsersRate" not in web
+    assert all("crashFreeUsersRate" not in mets for mets in seen)
+    assert len(seen) == 4  # profil basina tek istek
+    assert all("crashFreeUsersRate" not in r for r in out["rows"])
+    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    assert "Crash-free" not in page and "crashFreeUsersRate" not in page
+
+
+def test_header_clutter_is_removed():
+    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    assert "Pencere " not in page
+    assert ">Dönem:<" not in page and "Dönem:" not in page
+    assert "BigQuery" not in page
+
+
+def test_page_column_is_capped_and_overflow_moves_to_a_sub_row():
+    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    assert "var PAGE_MAX = 50;" in page
+    assert "full.slice(0, PAGE_MAX)" in page
+    assert "full.slice(PAGE_MAX)" in page
+    assert 'colspan="5"' in page          # artan kisim alt satirda
+    assert "table-layout: fixed" in page  # sayisal sutunlar ezilmesin
 
 
 def test_content_depth_uses_engagement_not_scroll():
