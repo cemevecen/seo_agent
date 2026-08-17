@@ -76,36 +76,39 @@ def test_job_id_aliases_reach_the_needs_login_classifier():
         assert b._result_needs_login(kind, None, "GSC oturumu yok — giriş gerekli")
 
 
-def test_auto_lease_denied_skips_the_scheduled_run(monkeypatch):
-    b = _load_bridge()
-    monkeypatch.setattr(b, "_ingest_token", lambda: "t")
-
+def _lease_resp(monkeypatch, bridge, status: int, payload: dict | None = None):
     class _Resp:
-        status_code = 200
+        status_code = status
 
         def json(self):
-            return {"ok": True, "granted": False, "holder": "cem-home-mac"}
+            return payload or {}
 
-    monkeypatch.setattr(b.requests, "post", lambda *a, **k: _Resp())
-    assert b._auto_lease_ok("sinemalar_moderation", "2026-08-17T14:17") is False
+    monkeypatch.setattr(bridge, "_ingest_token", lambda: "t")
+    monkeypatch.setattr(bridge.requests, "post", lambda *a, **k: _Resp())
 
 
-def test_auto_lease_allows_when_railway_is_old(monkeypatch):
-    """Uç henüz deploy edilmediyse (404) mevcut davranış korunur."""
+def test_auto_lease_held_by_other_mac(monkeypatch):
     b = _load_bridge()
-    monkeypatch.setattr(b, "_ingest_token", lambda: "t")
-
-    class _Resp:
-        status_code = 404
-
-        def json(self):
-            return {}
-
-    monkeypatch.setattr(b.requests, "post", lambda *a, **k: _Resp())
-    assert b._auto_lease_ok("play", "slot") is True
+    _lease_resp(monkeypatch, b, 200, {"ok": True, "granted": False, "holder": "cem-home-mac"})
+    assert b._auto_lease_state("sinemalar_moderation", "2026-08-17T14:17") == b.LEASE_HELD
 
 
-def test_auto_lease_skips_when_railway_unreachable(monkeypatch):
+def test_auto_lease_granted(monkeypatch):
+    b = _load_bridge()
+    _lease_resp(monkeypatch, b, 200, {"ok": True, "granted": True, "holder": "cem-office-mac"})
+    assert b._auto_lease_state("play", "slot") == b.LEASE_GRANTED
+
+
+def test_auto_lease_falls_back_when_endpoint_missing_or_unauthorized(monkeypatch):
+    """Deploy penceresi / eski Railway: kira yüzünden zamanlı taramalar durmasın."""
+    for status in (401, 403, 404):
+        b = _load_bridge()
+        _lease_resp(monkeypatch, b, status, {})
+        assert b._auto_lease_state("play", "slot") == b.LEASE_GRANTED, status
+
+
+def test_auto_lease_unavailable_when_railway_unreachable(monkeypatch):
+    """Slot 'yapıldı' diye işaretlenmemeli — geçici hata kalıcı atlamaya dönüşmesin."""
     b = _load_bridge()
     monkeypatch.setattr(b, "_ingest_token", lambda: "t")
 
@@ -113,7 +116,19 @@ def test_auto_lease_skips_when_railway_unreachable(monkeypatch):
         raise RuntimeError("network down")
 
     monkeypatch.setattr(b.requests, "post", _boom)
-    assert b._auto_lease_ok("play", "slot") is False
+    assert b._auto_lease_state("play", "slot") == b.LEASE_UNAVAILABLE
+
+
+def test_slot_job_marks_done_only_when_another_mac_holds_the_lease():
+    """held → slot işaretlenir; unavailable → işaretlenmez (kaynak koda dair sözleşme)."""
+    src = (
+        Path(__file__).resolve().parents[2] / "scripts" / "doviz_admin_notification_bridge.py"
+    ).read_text(encoding="utf-8")
+    chunk = src.split("lease = _auto_lease_state(kind, slot)", 1)[1][:400]
+    assert "if lease == LEASE_HELD:" in chunk
+    assert "globals()[last_attr] = slot" in chunk
+    unavailable = chunk.split("if lease == LEASE_UNAVAILABLE:", 1)[1][:120]
+    assert "globals()[last_attr]" not in unavailable
 
 
 def test_login_endpoint_targets_cover_every_session():

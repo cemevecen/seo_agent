@@ -4873,20 +4873,26 @@ def _auto_loop() -> None:
         # Gece: dünü kayda al (mühür)
         seal_due, seal_slot = _notification_night_seal_due()
         seal_due = seal_due and "notification_seal" not in _job_retries
-        # İki Mac de açıkken aynı pencereyi iki kez çekmesin
-        if nt_due and not _auto_lease_ok(
-            "notification", _interval_lease_slot("nt", AUTO_INTERVAL_SEC)
-        ):
-            nt_due = False
-            _last_nt_auto_at = time.time()
-        if news_due and not _auto_lease_ok(
-            "news", _interval_lease_slot("news", NEWS_AUTO_INTERVAL_SEC)
-        ):
-            news_due = False
-            _last_news_auto_at = time.time()
-        if seal_due and not _auto_lease_ok("notification_seal", seal_slot):
-            seal_due = False
-            _last_notification_night_seal_slot = seal_slot
+        # İki Mac de açıkken aynı pencereyi iki kez çekmesin.
+        # held → bu turu atla ve tekrarlama; unavailable → işaretleme, sonraki poll dener.
+        if nt_due:
+            state = _auto_lease_state("notification", _interval_lease_slot("nt", AUTO_INTERVAL_SEC))
+            if state != LEASE_GRANTED:
+                nt_due = False
+                if state == LEASE_HELD:
+                    _last_nt_auto_at = time.time()
+        if news_due:
+            state = _auto_lease_state("news", _interval_lease_slot("news", NEWS_AUTO_INTERVAL_SEC))
+            if state != LEASE_GRANTED:
+                news_due = False
+                if state == LEASE_HELD:
+                    _last_news_auto_at = time.time()
+        if seal_due:
+            state = _auto_lease_state("notification_seal", seal_slot)
+            if state != LEASE_GRANTED:
+                seal_due = False
+                if state == LEASE_HELD:
+                    _last_notification_night_seal_slot = seal_slot
         if nt_due or news_due or seal_due:
             if _nt_lock.acquire(blocking=False):
                 try:
@@ -4959,9 +4965,12 @@ def _auto_loop() -> None:
             due, slot = _slot_due(nonlocal_last, hours, minute)
             if not due:
                 return
-            if not _auto_lease_ok(kind, slot):
+            lease = _auto_lease_state(kind, slot)
+            if lease == LEASE_HELD:
                 globals()[last_attr] = slot  # slot başka makinede koşuyor — burada tekrarlama
                 return
+            if lease == LEASE_UNAVAILABLE:
+                return  # slotu işaretleme; bir sonraki poll'da yeniden sorulur
             _clear_job_retry(kind)
 
             def _mark_slot(result: dict[str, Any], *, _slot: str = slot) -> None:
@@ -5040,9 +5049,12 @@ def _auto_loop() -> None:
         )
         if "sinemalar_moderation" not in _job_retries:
             mod_due, mod_slot, mod_which = _moderation_slot_due()
-            if mod_due and not _auto_lease_ok("sinemalar_moderation", mod_slot):
-                _last_moderation_auto_slot = mod_slot
-                mod_due = False
+            if mod_due:
+                state = _auto_lease_state("sinemalar_moderation", mod_slot)
+                if state != LEASE_GRANTED:
+                    mod_due = False
+                    if state == LEASE_HELD:
+                        _last_moderation_auto_slot = mod_slot
             if mod_due:
 
                 def _mark_mod_slot(result: dict[str, Any], *, _slot: str = mod_slot) -> None:
@@ -5299,15 +5311,20 @@ def _worker_ping_payload() -> dict[str, Any]:
     }
 
 
-def _auto_lease_ok(kind: str, slot: str) -> bool:
-    """Zamanlı taramayı bu makine mi koşsun.
+LEASE_GRANTED = "granted"  # bu makine koşsun
+LEASE_HELD = "held"  # diğer Mac aldı → slot burada tekrarlanmasın
+LEASE_UNAVAILABLE = "unavailable"  # sorulamadı → slotu işaretleme, sonraki poll'da yeniden dene
+
+
+def _auto_lease_state(kind: str, slot: str) -> str:
+    """Zamanlı taramayı bu makine mi koşsun (granted / held / unavailable).
 
     İki Mac de açıkken aynı slot iki kez koşmasın diye Railway'den kira alınır.
-    Railway'e ulaşılamıyorsa koşulmaz — veri zaten oraya yazılacaktı; bir sonraki
-    poll'da yeniden denenir.
+    Uç yoksa veya yetki hatası varsa (deploy penceresi / eski sürüm) eski davranışa
+    dönülür — kira yüzünden zamanlı taramaların tamamen durması daha kötüdür.
     """
     if not _ingest_token():
-        return True
+        return LEASE_GRANTED
     url = _page_tarama_api_base() + "/api/page-tarama/auto-lease"
     try:
         resp = requests.post(
@@ -5317,25 +5334,28 @@ def _auto_lease_ok(kind: str, slot: str) -> bool:
             timeout=20,
         )
     except Exception as exc:  # noqa: BLE001
-        print(f"Auto kira alınamadı ({kind}/{slot}): {exc}", flush=True)
-        return False
-    if resp.status_code == 404:
-        return True  # Railway eski sürüm — mevcut davranış korunur
+        print(f"Auto kira sorulamadı ({kind}/{slot}): {exc}", flush=True)
+        return LEASE_UNAVAILABLE
+    if resp.status_code in (401, 403, 404):
+        print(
+            f"Auto kira ucu yok/yetkisiz HTTP {resp.status_code} ({kind}) — kirasız çalışılıyor",
+            flush=True,
+        )
+        return LEASE_GRANTED
     if resp.status_code >= 400:
         print(f"Auto kira HTTP {resp.status_code} ({kind}/{slot})", flush=True)
-        return False
-    data = {}
+        return LEASE_UNAVAILABLE
     try:
         data = resp.json() or {}
     except Exception:  # noqa: BLE001
-        return False
+        return LEASE_UNAVAILABLE
     if data.get("granted"):
-        return True
+        return LEASE_GRANTED
     print(
         f"Auto {kind} atlandı — {slot} slotunu {data.get('holder') or 'başka makine'} aldı",
         flush=True,
     )
-    return False
+    return LEASE_HELD
 
 
 def _interval_lease_slot(prefix: str, seconds: int) -> str:
