@@ -39,8 +39,16 @@ LOGIN_WAIT_SEC = 900
 _NAV_URL_BAD_PREFIX = re.compile(r"^[a-z0-9._+-]+(?=https?://)", re.I)
 
 
+LOGIN_WAIT_MIN_SEC = 30
+
+
 def login_wait_sec(*, env_key: str | None = None, default: int = LOGIN_WAIT_SEC) -> int:
-    """Giriş bekleme süresi (sn). Env varsa onu kullanır; taban en az 900 (15 dk)."""
+    """Giriş bekleme süresi (sn).
+
+    Env verilmişse onu kullanır (taban 30 sn). Gözetimsiz koşan bridge daemon'ı
+    kısa bir değer verir: oturum ölüyse 15 dk beklemek yerine hızlı düşüp
+    kuyruğu ve global tarayıcı slotunu serbest bırakmak gerekir.
+    """
     raw = ""
     if env_key:
         raw = (os.environ.get(env_key) or "").strip()
@@ -50,7 +58,7 @@ def login_wait_sec(*, env_key: str | None = None, default: int = LOGIN_WAIT_SEC)
         val = int(raw) if raw else int(default)
     except ValueError:
         val = int(default)
-    return max(LOGIN_WAIT_SEC, val)
+    return max(LOGIN_WAIT_MIN_SEC, val)
 
 
 def normalize_nav_url(raw: str, *, fallback: str = "") -> str:

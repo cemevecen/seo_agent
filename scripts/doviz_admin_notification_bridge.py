@@ -36,6 +36,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -81,6 +82,18 @@ _load_dotenv()
 
 BRIDGE_HOST = "127.0.0.1"
 BRIDGE_PORT = int(os.environ.get("NOTIFICATION_BRIDGE_PORT") or "18765")
+# Worker protokolü: kimlik + kabiliyet + otomatik iş kirası
+BRIDGE_VERSION = "2026.08.17"
+# Zamanlı (otomatik) taramalar bu makinede koşsun mu — iki Mac aynı işi iki kez yapmasın.
+# 0/false → yalnızca panel kuyruğu işlenir. Varsayılan: açık (kira ile tekilleştirilir).
+BRIDGE_AUTO_JOBS = (os.environ.get("BRIDGE_AUTO_JOBS") or "1").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
+# Gözetimsiz daemon: oturum ölüyse 15 dk beklemek yerine hızlı düş, kuyruğu bloklama.
+os.environ.setdefault("SCRAPE_LOGIN_WAIT_SEC", os.environ.get("BRIDGE_LOGIN_WAIT_SEC") or "150")
 # Auto-loop poll (slot kaçırmamak için kısa); iş aralıkları ayrı.
 AUTO_POLL_SEC = int(os.environ.get("BRIDGE_AUTO_POLL_SEC") or "60")
 # Interval-based
@@ -625,16 +638,24 @@ def _result_needs_login(
     )
     if not loginish:
         return False
+    # Hem bridge kind'ları hem page-tarama iş id'leri kabul edilir (cwv/gsc_cwv gibi
+    # iki isim de dolaşımda; biri eksik kalırsa oturum hatası diğer Mac'e devredilmez).
     return kind in (
         "play",
+        "play_vitals",
         "asc",
         "notification",
         "firebase",
         "gsc_links",
+        "links",
         "gsc_cwv",
+        "cwv",
         "admanager_policy",
+        "policy",
         "noads",
+        "sinemalar_noads",
         "sinemalar_moderation",
+        "moderation",
     )
 
 
@@ -1692,6 +1713,106 @@ def run_open_noads_prefill(url: str) -> dict[str, Any]:
     }
 
 
+# Oturum açma hedefleri — her Mac'in kendi Firefox profili (~/.seo-agent/fx-*)
+LOGIN_TARGETS: dict[str, dict[str, Any]] = {
+    "google": {
+        "profile": "google",
+        "url": "https://accounts.google.com/ServiceLogin?continue="
+        "https%3A%2F%2Fsearch.google.com%2Fsearch-console",
+        "verify": True,
+        "covers": "Play Console · Firebase · Search Console (CWV/Backlinks) · Ad Manager Policy",
+    },
+    "asc": {
+        "profile": "asc",
+        "url": "https://appstoreconnect.apple.com/login",
+        "verify": False,
+        "covers": "App Store Connect (iOS)",
+    },
+    "sinemalar": {
+        "profile": "sinemalar",
+        "url": "https://www.sinemalar.com/management/noAds",
+        "verify": False,
+        "covers": "Sinemalar Moderation · noAds",
+    },
+    "empower": {
+        "profile": "empower",
+        "url": (os.environ.get("EMPOWER_INTEL_LOGIN_URL") or "").strip(),
+        "verify": False,
+        "covers": "Empower Intelligence",
+    },
+}
+
+
+def run_open_login(target: str) -> tuple[int, dict[str, Any]]:
+    """Bu Mac'te ilgili profille Firefox aç, kullanıcı girişi yapsın (en az 15 dk bekler)."""
+    spec = LOGIN_TARGETS.get(target)
+    if not spec:
+        return 400, {
+            "ok": False,
+            "message": f"target gerekli: {', '.join(sorted(LOGIN_TARGETS))}",
+            "targets": {k: v["covers"] for k, v in LOGIN_TARGETS.items()},
+        }
+    url = str(spec.get("url") or "")
+    if not url:
+        return 400, {
+            "ok": False,
+            "message": f"{target} için giriş adresi tanımlı değil (EMPOWER_INTEL_LOGIN_URL)",
+        }
+    if not _browser_scrape_lock.acquire(blocking=False):
+        return 409, {
+            "ok": False,
+            "message": "Tarayıcı şu an bir taramada meşgul — bitince tekrar deneyin",
+        }
+
+    def _job() -> None:
+        try:
+            from backend.services.scrape_browser import (
+                asc_profile_dir,
+                empower_profile_dir,
+                google_profile_dir,
+                launch_system_firefox_login,
+                sinemalar_profile_dir,
+            )
+
+            dirs = {
+                "google": google_profile_dir,
+                "asc": asc_profile_dir,
+                "sinemalar": sinemalar_profile_dir,
+                "empower": empower_profile_dir,
+            }
+            profile = dirs[str(spec["profile"])]()
+            print(f"Oturum açma penceresi: {target} · profil={profile}", flush=True)
+            out = launch_system_firefox_login(
+                profile,
+                url,
+                success_hint=(
+                    f"{target} girişini yap → hedef sayfa açılsın → Firefox penceresini KAPAT"
+                ),
+                verify_session=bool(spec.get("verify")),
+            )
+            print(f"Oturum açma sonucu ({target}): {out}", flush=True)
+            _job_event(f"Oturum açma · {target} · {'ok' if out.get('ok') else 'başarısız'}")
+        except Exception as exc:  # noqa: BLE001
+            traceback.print_exc()
+            print(f"Oturum açma hatası ({target}): {exc}", flush=True)
+        finally:
+            try:
+                _browser_scrape_lock.release()
+            except Exception:
+                pass
+            # Oturum durumu değişti — kabiliyet raporu tazelensin
+            global _readiness_cache
+            _readiness_cache = (0.0, {})
+
+    threading.Thread(target=_job, name=f"login-{target}", daemon=True).start()
+    return 200, {
+        "ok": True,
+        "target": target,
+        "covers": spec["covers"],
+        "message": "Firefox açılıyor — girişi yapıp pencereyi kapatın (en fazla 15 dk)",
+    }
+
+
 def run_sinemalar_noads_bridge_once() -> dict[str, Any]:
     """Sinemalar management/noAds → Railway /api/policy/noads/ingest."""
     global _last_noads_result
@@ -2654,7 +2775,8 @@ def run_gsc_cwv_shots_bridge_once(site_key: str | None = None) -> dict[str, Any]
             or "https://projectcontrol.up.railway.app/api/gsc-cwv/ingest"
         ).strip(),
     )
-    timeout_sec = int(os.environ.get("GSC_CWV_SHOTS_TIMEOUT_SEC") or "1800")
+    # 30 dk global tarayıcı slotunu kilitliyordu — oturum ölüyse çok daha erken düşsün.
+    timeout_sec = int(os.environ.get("GSC_CWV_SHOTS_TIMEOUT_SEC") or "900")
     box: dict[str, Any] = {}
 
     def _worker() -> None:
@@ -4349,6 +4471,10 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             result = run_open_noads_prefill(url)
             self._send(200 if result.get("ok") else 502, result)
             return
+        elif path in ("/login", "/oturum", "/open-login"):
+            target = (qs.get("target") or qs.get("t") or [""])[0].strip().lower()
+            self._send(*run_open_login(target))
+            return
         elif path in ("/sync-all", "/all"):
             lock, busy, runner = (_nt_lock, "Sync zaten çalışıyor, bekleyin.", run_all_once)
         else:
@@ -4747,6 +4873,20 @@ def _auto_loop() -> None:
         # Gece: dünü kayda al (mühür)
         seal_due, seal_slot = _notification_night_seal_due()
         seal_due = seal_due and "notification_seal" not in _job_retries
+        # İki Mac de açıkken aynı pencereyi iki kez çekmesin
+        if nt_due and not _auto_lease_ok(
+            "notification", _interval_lease_slot("nt", AUTO_INTERVAL_SEC)
+        ):
+            nt_due = False
+            _last_nt_auto_at = time.time()
+        if news_due and not _auto_lease_ok(
+            "news", _interval_lease_slot("news", NEWS_AUTO_INTERVAL_SEC)
+        ):
+            news_due = False
+            _last_news_auto_at = time.time()
+        if seal_due and not _auto_lease_ok("notification_seal", seal_slot):
+            seal_due = False
+            _last_notification_night_seal_slot = seal_slot
         if nt_due or news_due or seal_due:
             if _nt_lock.acquire(blocking=False):
                 try:
@@ -4818,6 +4958,9 @@ def _auto_loop() -> None:
                 return
             due, slot = _slot_due(nonlocal_last, hours, minute)
             if not due:
+                return
+            if not _auto_lease_ok(kind, slot):
+                globals()[last_attr] = slot  # slot başka makinede koşuyor — burada tekrarlama
                 return
             _clear_job_retry(kind)
 
@@ -4897,6 +5040,9 @@ def _auto_loop() -> None:
         )
         if "sinemalar_moderation" not in _job_retries:
             mod_due, mod_slot, mod_which = _moderation_slot_due()
+            if mod_due and not _auto_lease_ok("sinemalar_moderation", mod_slot):
+                _last_moderation_auto_slot = mod_slot
+                mod_due = False
             if mod_due:
 
                 def _mark_mod_slot(result: dict[str, Any], *, _slot: str = mod_slot) -> None:
@@ -4995,6 +5141,205 @@ def _page_tarama_auth_headers() -> dict[str, str]:
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
+
+
+# ── Worker kimliği + kabiliyet ────────────────────────────────────────────────
+# Ofis ve ev Mac'i aynı kuyruğa bağlanır. Railway hangi makinenin hangi işi
+# gerçekten yapabileceğini bilmezse iş yapamayacak makineye düşer ve hata döner.
+
+_worker_name_cache: str = ""
+_readiness_cache: tuple[float, dict[str, str]] = (0.0, {})
+_playwright_cache: tuple[float, bool] = (0.0, False)
+_active_job_ids: set[str] = set()
+_active_job_lock = threading.Lock()
+
+# Playwright Firefox şart olan işler (Firebase sistem Firefox'a düşebildiği için hariç)
+PLAYWRIGHT_JOB_IDS = frozenset(
+    {"asc", "cwv", "links", "play", "play_vitals", "policy", "moderation", "noads"}
+)
+
+# page-tarama job id → bridge kind (needs_login sınıflandırması için)
+JOB_ID_KIND_ALIASES = {
+    "cwv": "gsc_cwv",
+    "links": "gsc_links",
+    "policy": "admanager_policy",
+    "moderation": "sinemalar_moderation",
+    "noads": "sinemalar_noads",
+}
+
+
+def _machine_fingerprint() -> str:
+    """Donanım UUID'sinden kısa, makineye özgü sonek — iki Mac'in adı çakışmasın."""
+    raw = ""
+    try:
+        out = subprocess.run(
+            ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        hit = re.search(r'"IOPlatformUUID"\s*=\s*"([^"]+)"', out.stdout or "")
+        raw = hit.group(1) if hit else ""
+    except Exception:  # noqa: BLE001
+        raw = ""
+    if not raw:
+        try:
+            import socket
+
+            raw = socket.gethostname()
+        except Exception:  # noqa: BLE001
+            raw = "mac"
+    return hashlib.sha1(raw.encode("utf-8", "ignore")).hexdigest()[:4]
+
+
+def _worker_name() -> str:
+    """Bu makinenin kuyrukta görünen adı — panelde 'Running on: …' olarak çıkar.
+
+    BRIDGE_WORKER_NAME verilirse (önerilen: cem-office-mac / cem-home-mac) o kullanılır.
+    Verilmezse bilgisayar adı + donanım soneki: iki Mac'in adı aynı olsa bile ayrışır.
+    """
+    global _worker_name_cache
+    if _worker_name_cache:
+        return _worker_name_cache
+    raw = (os.environ.get("BRIDGE_WORKER_NAME") or "").strip()
+    explicit = bool(raw)
+    if not raw:
+        try:
+            out = subprocess.run(
+                ["scutil", "--get", "ComputerName"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            raw = (out.stdout or "").strip()
+        except Exception:  # noqa: BLE001
+            raw = ""
+    if not raw:
+        try:
+            import socket
+
+            raw = socket.gethostname().split(".")[0]
+        except Exception:  # noqa: BLE001
+            raw = "mac"
+    slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")[:44] or "mac"
+    _worker_name_cache = slug if explicit else f"{slug}-{_machine_fingerprint()}"
+    return _worker_name_cache
+
+
+def _playwright_firefox_ready() -> bool:
+    """Kurulu playwright'ın beklediği Firefox revizyonu gerçekten var mı."""
+    global _playwright_cache
+    ts, val = _playwright_cache
+    now = time.time()
+    if now - ts < 600:
+        return val
+    ok = False
+    try:
+        import playwright  # noqa: PLC0415
+
+        meta = Path(playwright.__file__).resolve().parent / "driver" / "package" / "browsers.json"
+        rev = ""
+        data = json.loads(meta.read_text(encoding="utf-8"))
+        for entry in data.get("browsers") or []:
+            if entry.get("name") == "firefox":
+                rev = str(entry.get("revision") or "")
+                break
+        if rev:
+            base = Path.home() / "Library" / "Caches" / "ms-playwright" / f"firefox-{rev}"
+            ok = (base / "firefox" / "Nightly.app").exists() or (base / "firefox").exists()
+    except Exception:  # noqa: BLE001
+        ok = False
+    _playwright_cache = (now, ok)
+    return ok
+
+
+def _worker_readiness() -> dict[str, str]:
+    """İş bazlı hazırlık: ready / no_creds / no_browser.
+
+    Oturum süresi dolması burada yakalanmaz (tarayıcı açmadan bilinemez) — onu
+    needs_login sonucu + Railway'in diğer worker'a devretmesi çözer.
+    """
+    global _readiness_cache
+    ts, cached = _readiness_cache
+    now = time.time()
+    if now - ts < 60 and cached:
+        return cached
+    doviz = bool(os.environ.get("DOVIZ_ADMIN_EMAIL") and os.environ.get("DOVIZ_ADMIN_PASSWORD"))
+    virgul = bool(os.environ.get("VIRGUL_EMAIL") and os.environ.get("VIRGUL_PASSWORD"))
+    pw_ok = _playwright_firefox_ready()
+    out: dict[str, str] = {}
+    for jid in _remote_claim_job_registry():
+        state = "ready"
+        if jid in ("notification", "news") and not doviz:
+            state = "no_creds"
+        elif jid in ("virgul", "revenue_targets") and not virgul:
+            state = "no_creds"
+        elif jid in PLAYWRIGHT_JOB_IDS and not pw_ok:
+            state = "no_browser"
+        out[jid] = state
+    _readiness_cache = (now, out)
+    return out
+
+
+def _ready_param() -> str:
+    return ",".join(f"{jid}:{state}" for jid, state in sorted(_worker_readiness().items()))
+
+
+def _active_jobs() -> list[str]:
+    with _active_job_lock:
+        return sorted(_active_job_ids)
+
+
+def _worker_ping_payload() -> dict[str, Any]:
+    return {
+        "worker": _worker_name(),
+        "ready": _worker_readiness(),
+        "current": _active_jobs(),
+        "version": BRIDGE_VERSION,
+    }
+
+
+def _auto_lease_ok(kind: str, slot: str) -> bool:
+    """Zamanlı taramayı bu makine mi koşsun.
+
+    İki Mac de açıkken aynı slot iki kez koşmasın diye Railway'den kira alınır.
+    Railway'e ulaşılamıyorsa koşulmaz — veri zaten oraya yazılacaktı; bir sonraki
+    poll'da yeniden denenir.
+    """
+    if not _ingest_token():
+        return True
+    url = _page_tarama_api_base() + "/api/page-tarama/auto-lease"
+    try:
+        resp = requests.post(
+            url,
+            headers=_page_tarama_auth_headers(),
+            json={"job": kind, "slot": str(slot), "worker": _worker_name()},
+            timeout=20,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"Auto kira alınamadı ({kind}/{slot}): {exc}", flush=True)
+        return False
+    if resp.status_code == 404:
+        return True  # Railway eski sürüm — mevcut davranış korunur
+    if resp.status_code >= 400:
+        print(f"Auto kira HTTP {resp.status_code} ({kind}/{slot})", flush=True)
+        return False
+    data = {}
+    try:
+        data = resp.json() or {}
+    except Exception:  # noqa: BLE001
+        return False
+    if data.get("granted"):
+        return True
+    print(
+        f"Auto {kind} atlandı — {slot} slotunu {data.get('holder') or 'başka makine'} aldı",
+        flush=True,
+    )
+    return False
+
+
+def _interval_lease_slot(prefix: str, seconds: int) -> str:
+    return f"{prefix}-{int(time.time() // max(60, int(seconds)))}"
 
 
 def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
@@ -5106,6 +5451,36 @@ def _post_page_tarama_progress_async(payload: dict[str, Any]) -> None:
         _pt_progress_wake.set()
 
 
+def _keepalive_claim_touch(claim_url: str, headers: dict[str, str]) -> None:
+    """Ping yoksa claim ile canlılık ver — ama kapılan işi düşürme, kuyruğa iade et."""
+    try:
+        resp = requests.get(
+            claim_url,
+            headers=headers,
+            params={"worker": _worker_name(), "ready": _ready_param()},
+            timeout=45,
+        )
+        job = (resp.json() or {}).get("job") if resp.status_code == 200 else None
+    except Exception as exc:  # noqa: BLE001
+        print(f"page-tarama keepalive claim: {exc}", flush=True)
+        return
+    if not job:
+        return
+    try:
+        requests.post(
+            _page_tarama_api_base() + "/api/page-tarama/requeue",
+            headers=headers,
+            json={
+                "run_id": job.get("run_id"),
+                "job_id": job.get("job_id"),
+                "message": "Keepalive touch · back in queue",
+            },
+            timeout=30,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"page-tarama keepalive requeue: {exc}", flush=True)
+
+
 def _page_tarama_keepalive_loop() -> None:
     """Uzun tarama sırasında claim thread bloklansa bile Railway'e canlılık sinyali.
 
@@ -5113,23 +5488,28 @@ def _page_tarama_keepalive_loop() -> None:
     """
     ping_url = _page_tarama_api_base() + "/api/page-tarama/bridge-ping"
     claim_url = _page_tarama_api_base() + "/api/page-tarama/claim"
-    print(f"Uzaktan tarama keepalive: {ping_url}", flush=True)
+    print(
+        f"Uzaktan tarama keepalive: {ping_url} · worker={_worker_name()}",
+        flush=True,
+    )
     use_ping = True
     while True:
         try:
             if _ingest_token():
                 headers = _page_tarama_auth_headers()
                 if use_ping:
-                    resp = requests.post(ping_url, headers=headers, timeout=45)
+                    resp = requests.post(
+                        ping_url, headers=headers, json=_worker_ping_payload(), timeout=45
+                    )
                     if resp.status_code in (401, 403, 404):
                         use_ping = False
                         print(
                             f"page-tarama keepalive: ping HTTP {resp.status_code} → claim fallback",
                             flush=True,
                         )
-                        requests.get(claim_url, headers=headers, timeout=45)
+                        _keepalive_claim_touch(claim_url, headers)
                 else:
-                    requests.get(claim_url, headers=headers, timeout=45)
+                    _keepalive_claim_touch(claim_url, headers)
         except Exception as exc:  # noqa: BLE001
             print(f"page-tarama keepalive: {exc}", flush=True)
         time.sleep(20)
@@ -5159,10 +5539,13 @@ def _page_tarama_claim_loop() -> None:
                         "run_id": job.get("run_id"),
                         "job_id": job_id,
                         "ok": False,
+                        "worker": _worker_name(),
                         "message": "Unknown job",
                     }
                 )
                 return
+            with _active_job_lock:
+                _active_job_ids.add(job_id)
             print(
                 f"Uzaktan tarama başladı: {meta['name']}"
                 + (f" · page={job.get('page')}" if job.get("page") else ""),
@@ -5184,6 +5567,7 @@ def _page_tarama_claim_loop() -> None:
                     "run_id": run_id,
                     "job_id": job_id,
                     "running": True,
+                    "worker": _worker_name(),
                     "message": msg,
                     "phase": str(info.get("phase") or "running")[:80],
                     "platform": str(info.get("platform") or "")[:40],
@@ -5357,14 +5741,22 @@ def _page_tarama_claim_loop() -> None:
                 trigger="page-tarama",
                 name=str(meta.get("name") or job_id),
             )
+            final_msg = str(
+                result.get("message") or ("Done" if result.get("ok") else "Error")
+            )[:180]
+            needs_login = False
+            if not result.get("ok"):
+                needs_login = _result_needs_login(
+                    JOB_ID_KIND_ALIASES.get(job_id, job_id), result, final_msg
+                )
             _post_page_tarama_result(
                 {
                     "run_id": run_id,
                     "job_id": job_id,
                     "ok": bool(result.get("ok")),
-                    "message": str(
-                        result.get("message") or ("Done" if result.get("ok") else "Error")
-                    )[:180],
+                    "worker": _worker_name(),
+                    "needs_login": bool(needs_login),
+                    "message": final_msg,
                 }
             )
             final_posted = True
@@ -5377,12 +5769,16 @@ def _page_tarama_claim_loop() -> None:
                             "run_id": run_id,
                             "job_id": job_id,
                             "ok": False,
+                            "worker": _worker_name(),
                             "message": f"Mac error: {exc}"[:180],
                         }
                     )
                 except Exception:
                     pass
         finally:
+            if job_id:
+                with _active_job_lock:
+                    _active_job_ids.discard(job_id)
             worker_slots.release()
 
     while True:
@@ -5393,7 +5789,12 @@ def _page_tarama_claim_loop() -> None:
             if not worker_slots.acquire(blocking=False):
                 time.sleep(2)
                 continue
-            resp = requests.get(url, headers=_page_tarama_auth_headers(), timeout=20)
+            resp = requests.get(
+                url,
+                headers=_page_tarama_auth_headers(),
+                params={"worker": _worker_name(), "ready": _ready_param()},
+                timeout=20,
+            )
             if resp.status_code != 200:
                 worker_slots.release()
                 time.sleep(5)
@@ -5445,7 +5846,19 @@ def run_daemon() -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"Oturum bekçi başlatılamadı: {exc}", flush=True)
     _fail_page_tarama_orphans_on_boot()
-    threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()
+    print(
+        f"Worker: {_worker_name()} · auto_jobs={'on' if BRIDGE_AUTO_JOBS else 'off'} "
+        f"· login_wait={os.environ.get('SCRAPE_LOGIN_WAIT_SEC')}s "
+        f"· playwright_firefox={'ok' if _playwright_firefox_ready() else 'YOK'}",
+        flush=True,
+    )
+    not_ready = {k: v for k, v in _worker_readiness().items() if v != "ready"}
+    if not_ready:
+        print(f"Bu makinede hazır olmayan işler: {not_ready}", flush=True)
+    if BRIDGE_AUTO_JOBS:
+        threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()
+    else:
+        print("Otomatik zamanlı taramalar kapalı (BRIDGE_AUTO_JOBS=0)", flush=True)
     threading.Thread(target=_page_tarama_claim_loop, name="page-tarama-claim", daemon=True).start()
     threading.Thread(target=_page_tarama_keepalive_loop, name="page-tarama-keepalive", daemon=True).start()
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), _BridgeHandler)

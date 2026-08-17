@@ -2003,6 +2003,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/page-tarama/bridge-ping",
         "/api/page-tarama/fail-inflight",
         "/api/page-tarama/requeue",
+        "/api/page-tarama/auto-lease",
         "/api/scrape-runs/report",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):

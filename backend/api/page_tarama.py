@@ -73,12 +73,28 @@ class ResultBody(BaseModel):
     total_steps: int | None = None
     platform: str = ""
     sub_label: str = ""
+    worker: str = ""
+    needs_login: bool = False
 
 
 class RequeueBody(BaseModel):
     run_id: str = ""
     job_id: str = ""
     message: str = ""
+
+
+class PingBody(BaseModel):
+    worker: str = ""
+    ready: dict[str, str] | None = None
+    current: list[str] | None = None
+    version: str = ""
+
+
+class LeaseBody(BaseModel):
+    job: str = ""
+    slot: str = ""
+    worker: str = ""
+    ttl_sec: float = store.LEASE_TTL_SEC
 
 
 def _manual_limit_response(exc: store.ManualLimitExceeded) -> JSONResponse:
@@ -145,25 +161,75 @@ def progress(run_id: str = "") -> dict[str, Any]:
     return {"ok": True, **run}
 
 
+def _parse_ready(raw: str) -> dict[str, str] | None:
+    """`play:ready,virgul:no_creds` → {"play": "ready", ...}. Boşsa None (eski worker)."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    out: dict[str, str] = {}
+    for chunk in raw.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        if ":" in chunk:
+            jid, state = chunk.split(":", 1)
+        else:
+            jid, state = chunk, store.READY_OK
+        jid = jid.strip()[:40]
+        if jid:
+            out[jid] = (state.strip() or store.READY_OK)[:40]
+    return out or None
+
+
 @router.get("/page-tarama/claim")
 def claim(
+    worker: str = "",
+    ready: str = "",
     authorization: str | None = Header(default=None),
     x_notification_ingest_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     _check_ingest_token(authorization, x_notification_ingest_token)
-    job = store.claim_next()
+    job = store.claim_next(worker=worker, ready=_parse_ready(ready))
     return {"ok": True, "job": job}
+
+
+@router.get("/page-tarama/workers")
+def workers() -> dict[str, Any]:
+    """Panel: hangi Mac online, ne yapıyor, hangi iş için giriş gerekiyor."""
+    return {"ok": True, "workers": store.workers_public()}
 
 
 @router.post("/page-tarama/bridge-ping")
 def bridge_ping(
+    body: PingBody | None = None,
     authorization: str | None = Header(default=None),
     x_notification_ingest_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     """Mac keepalive — bridge canlı; zombie job'ları progress_at ile sonsuza uzatma."""
     _check_ingest_token(authorization, x_notification_ingest_token)
-    store.touch_bridge(refresh_inflight=False)
+    name = (body.worker if body else "") or ""
+    if name.strip():
+        store.heartbeat_worker(
+            name,
+            ready=(body.ready if body else None),
+            current=(body.current if body else None),
+            version=(body.version if body else "") or "",
+        )
+    else:
+        store.touch_bridge(refresh_inflight=False)
     return {"ok": True}
+
+
+@router.post("/page-tarama/auto-lease")
+def auto_lease(
+    body: LeaseBody,
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Zamanlı tarama tek-çalıştırma kirası — iki Mac aynı slotu koşmasın."""
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    out = store.auto_lease(body.job, body.slot, body.worker, ttl_sec=body.ttl_sec)
+    return {"ok": True, **out}
 
 
 @router.post("/page-tarama/fail-inflight")
@@ -217,9 +283,17 @@ def result(
             total_steps=body.total_steps,
             platform=body.platform or "",
             sub_label=body.sub_label or "",
+            worker=body.worker or "",
         )
         return {"ok": True}
-    found = store.record_result(body.run_id, body.job_id, ok=body.ok, message=body.message)
+    found = store.record_result(
+        body.run_id,
+        body.job_id,
+        ok=body.ok,
+        message=body.message,
+        worker=body.worker or "",
+        needs_login=bool(body.needs_login),
+    )
     if not found:
         raise HTTPException(status_code=404, detail="İş bulunamadı")
     return {"ok": True}

@@ -196,10 +196,12 @@
     if (statusEl) statusEl.textContent = opts.status || "";
     if (detailEl) {
       var dParts = [];
+      if (opts.worker) dParts.push("Running on: " + opts.worker);
       if (opts.platform) dParts.push("Platform: " + opts.platform);
       if (opts.phase) dParts.push("Phase: " + opts.phase);
       if (step != null && totalSteps) dParts.push("Sub-step " + step + "/" + totalSteps);
       if (opts.detail) dParts.push(opts.detail);
+      if (opts.blockedNote) dParts.push(opts.blockedNote);
       detailEl.textContent = dParts.length ? dParts.join(" · ") : "—";
     }
     if (queueEl) {
@@ -588,7 +590,9 @@
       var st = s.status === "ok" ? "ok" : s.status === "fail" ? "fail"
         : (s.status === "claimed" || s.status === "running") ? "run" : "wait";
       steps[i].status = st;
-      steps[i].detail = (s.detail || s.sub_label || "").slice(0, 160);
+      var sDetail = (s.detail || s.sub_label || "").slice(0, 160);
+      if (s.worker && sDetail.indexOf(s.worker) === -1) sDetail = s.worker + " · " + sDetail;
+      steps[i].detail = sDetail;
       steps[i].phase = s.phase || "";
       steps[i].platform = s.platform || "";
       if (s.step != null) steps[i].step = s.step;
@@ -616,6 +620,8 @@
       detail: d.current_detail || d.current_sub_label || "",
       phase: d.current_phase || "",
       platform: d.current_platform || "",
+      worker: d.current_worker || "",
+      blockedNote: d.blocked_note || "",
       snap: d,
     });
   }
