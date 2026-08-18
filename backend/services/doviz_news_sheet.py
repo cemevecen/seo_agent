@@ -885,12 +885,15 @@ def resolve_period(
         kpi_label = "Yesterday vs last week"
         cmp_label = "Same day last week"
     elif key == "last_2d":
+        # 2 günlük pencerede «önceki 2 gün» hafta içi/hafta sonu karışımına düşüyor
+        # (ör. Pzt+Sal vs Cmt+Paz). today/yesterday gibi geçen haftanın aynı
+        # günleriyle karşılaştır — haftalık mevsimsellik elenir.
         end = today
         start = today - timedelta(days=1)
-        cmp_end = start - timedelta(days=1)
-        cmp_start = cmp_end - timedelta(days=1)
-        kpi_label = "2 days vs previous"
-        cmp_label = "Previous 2 days"
+        cmp_start = start - timedelta(days=7)
+        cmp_end = end - timedelta(days=7)
+        kpi_label = "2 days vs last week"
+        cmp_label = "Same 2 days last week"
     elif key == "last_7d":
         end = today
         start = today - timedelta(days=6)
@@ -966,8 +969,13 @@ def _shift_last_7d_if_today_empty(
     span = (period_info["end"] - period_info["start"]).days
     end = today - timedelta(days=1)
     start = end - timedelta(days=span)
-    cmp_end = start - timedelta(days=1)
-    cmp_start = cmp_end - timedelta(days=span)
+    if period_info["key"] == "last_2d":
+        # Karşılaştırma geçen haftanın aynı günleri — kayarken de o ofset korunur
+        cmp_start = start - timedelta(days=7)
+        cmp_end = end - timedelta(days=7)
+    else:
+        cmp_end = start - timedelta(days=1)
+        cmp_start = cmp_end - timedelta(days=span)
     return {
         **period_info,
         "start": start,
