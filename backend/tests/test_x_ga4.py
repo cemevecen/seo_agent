@@ -443,3 +443,82 @@ def test_tables_are_responsive():
     assert ".xg-scroll { overflow-x: auto" in page
 
 
+# ── İlerleme çubuğu ─────────────────────────────────────────────────────────
+
+def test_unknown_progress_token_is_not_an_error():
+    """Yoklama rapordan önce başlayabilir; bilinmeyen anahtar 'bekliyor' demeli."""
+    out = X.progress_snapshot("yok-boyle-bir-sey")
+    assert out["known"] is False
+    assert out["percent"] == 0 and out["finished"] is False
+
+
+def test_progress_counts_every_request(monkeypatch):
+    """Çubuk uydurma değil: tamamlanan GA4 isteği sayısından gelir."""
+    monkeypatch.setattr(
+        "backend.services.ga4_auth.get_ga4_connection_status",
+        lambda db, site_id: {"connected": True, "properties": _props()},
+    )
+    monkeypatch.setattr("backend.collectors.ga4._client", lambda: _Client())
+    out = X.build_x_ga4_report(None, days=7, progress_token="tok-1")
+    snap = X.progress_snapshot("tok-1")
+    assert snap["known"] is True
+    assert snap["finished"] is True
+    assert snap["percent"] == 100
+    # Sayaç, raporun bildirdiği istek sayısıyla birebir
+    assert snap["total"] == out["requests"] and snap["done"] == out["requests"]
+
+
+def test_progress_finishes_on_the_cached_path(monkeypatch):
+    """Önbellek isabetinde çubuk asılı kalmamalı."""
+    monkeypatch.setattr(
+        "backend.services.ga4_auth.get_ga4_connection_status",
+        lambda db, site_id: {"connected": True, "properties": _props()},
+    )
+    monkeypatch.setattr("backend.collectors.ga4._client", lambda: _Client())
+    X.build_x_ga4_report(None, days=7, progress_token="tok-a")
+    second = X.build_x_ga4_report(None, days=7, progress_token="tok-b")
+    assert second["cached"] is True
+    assert X.progress_snapshot("tok-b")["finished"] is True
+
+
+def test_progress_finishes_when_ga4_is_disconnected(monkeypatch):
+    monkeypatch.setattr(
+        "backend.services.ga4_auth.get_ga4_connection_status",
+        lambda db, site_id: {"connected": False, "label": "GA4 bağlı değil"},
+    )
+    out = X.build_x_ga4_report(None, progress_token="tok-err")
+    assert out["ok"] is False
+    snap = X.progress_snapshot("tok-err")
+    assert snap["finished"] is True and snap["ok"] is False
+
+
+def test_progress_records_are_pruned():
+    """Kayıtlar sınırsız birikmemeli."""
+    for i in range(X._PROGRESS_MAX + 20):
+        X.progress_start(f"prune-{i}", total=1)
+    assert len(X._PROGRESS) <= X._PROGRESS_MAX
+
+
+def test_progress_endpoint_polls_faster_than_the_report_limit():
+    """Yoklama sık; rapor ucunun 30/dk sınırı çubuğu kendi kendine kilitlerdi."""
+    api = (ROOT / "backend/api/x_ga4.py").read_text(encoding="utf-8")
+    assert '@router.get("/x-ga4/progress")' in api
+    assert 'progress_token=progress' in api
+    report_limit = api.split('@router.get("/x-ga4/report")', 1)[1].split("\n", 2)[1]
+    poll_limit = api.split('@router.get("/x-ga4/progress")', 1)[1].split("\n", 2)[1]
+    def _per_min(line):
+        return int(line.split('"')[1].split("/")[0])
+    assert _per_min(poll_limit) > _per_min(report_limit)
+
+
+def test_ui_shows_a_real_progress_bar():
+    page = _dlab_ui()
+    assert "xg-progress" in page
+    # Sunucudan sayı gelmeden sahte yüzde yazılmamalı
+    assert "xg-progress--indeterminate" in page
+    assert "/api/x-ga4/progress?token=" in page
+    assert '"&progress=" + encodeURIComponent(token)' in page
+    # Yoklama her durumda durmalı, aksi halde sekme sonsuza kadar istek atar
+    cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
+    assert cards.count("stopPoll()") >= 3
+    assert 'role", "progressbar"' in cards

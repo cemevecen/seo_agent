@@ -18,6 +18,7 @@ görünür. Sessiz boş container bırakılmaz.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -28,6 +29,101 @@ _DEFAULT_SITE_ID = 1
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _CACHE_TTL_SEC = 300.0
 _MAX_WORKERS = 8  # property başına eşzamanlı istek sınırı 10
+
+# ── İlerleme ────────────────────────────────────────────────────────────────
+# Rapor tek bir HTTP isteği ama içeride onlarca GA4 çağrısı var; istemci
+# bekleme süresince ne olduğunu göremiyordu. Havuzdaki her iş bitince sayaç
+# artar, istemci ayrı bir uçtan okur. Uydurma animasyon değil, gerçek sayım.
+_PROGRESS: dict[str, dict[str, Any]] = {}
+_PROGRESS_TTL_SEC = 300.0
+_PROGRESS_MAX = 64  # aynı anda izlenebilecek istek sayısı (üst sınır)
+_PROGRESS_LOCK = threading.Lock()
+
+
+def _progress_prune(now: float) -> None:
+    """Süresi geçmiş kayıtları at — kilit tutulurken çağrılır."""
+    stale = [
+        key for key, rec in _PROGRESS.items()
+        if (now - float(rec.get("updated_at") or 0)) > _PROGRESS_TTL_SEC
+    ]
+    for key in stale:
+        _PROGRESS.pop(key, None)
+    # Aşırı birikmeye karşı: en eskiden başlayarak kırp
+    if len(_PROGRESS) > _PROGRESS_MAX:
+        for key in sorted(_PROGRESS, key=lambda k: _PROGRESS[k].get("updated_at") or 0)[
+            : len(_PROGRESS) - _PROGRESS_MAX
+        ]:
+            _PROGRESS.pop(key, None)
+
+
+def progress_start(token: str, *, total: int, phase: str = "fetch") -> None:
+    if not token:
+        return
+    now = time.time()
+    with _PROGRESS_LOCK:
+        _PROGRESS[token] = {
+            "total": max(0, int(total)),
+            "done": 0,
+            "phase": phase,
+            "label": "",
+            "started_at": now,
+            "updated_at": now,
+            "finished": False,
+            "ok": None,
+        }
+        # Budama eklemeden SONRA: önce budayınca yeni kayıt sınırı bir aşıyordu
+        _progress_prune(now)
+
+
+def progress_tick(token: str, label: str = "") -> None:
+    if not token:
+        return
+    with _PROGRESS_LOCK:
+        rec = _PROGRESS.get(token)
+        if not rec:
+            return
+        rec["done"] = int(rec.get("done") or 0) + 1
+        rec["label"] = str(label or "")[:60]
+        rec["updated_at"] = time.time()
+
+
+def progress_finish(token: str, *, ok: bool = True, phase: str = "done") -> None:
+    if not token:
+        return
+    with _PROGRESS_LOCK:
+        rec = _PROGRESS.get(token)
+        if not rec:
+            return
+        rec["finished"] = True
+        rec["ok"] = bool(ok)
+        rec["phase"] = phase
+        rec["done"] = int(rec.get("total") or rec.get("done") or 0)
+        rec["updated_at"] = time.time()
+
+
+def progress_snapshot(token: str) -> dict[str, Any]:
+    """İstemcinin okuduğu durum. Bilinmeyen token sessizce 'bekliyor' döner."""
+    with _PROGRESS_LOCK:
+        rec = _PROGRESS.get(str(token or ""))
+        if not rec:
+            return {"known": False, "total": 0, "done": 0, "percent": 0,
+                    "phase": "waiting", "label": "", "finished": False}
+        total = int(rec.get("total") or 0)
+        done = min(int(rec.get("done") or 0), total or int(rec.get("done") or 0))
+        percent = 100 if rec.get("finished") else (
+            int(round(100.0 * done / total)) if total else 0
+        )
+        return {
+            "known": True,
+            "total": total,
+            "done": done,
+            "percent": percent,
+            "phase": str(rec.get("phase") or ""),
+            "label": str(rec.get("label") or ""),
+            "finished": bool(rec.get("finished")),
+            "ok": rec.get("ok"),
+            "elapsed_sec": round(time.time() - float(rec.get("started_at") or 0), 1),
+        }
 
 # GA4 «değersiz» boyut değerleri — filtrelenmezse (not set) satırı listeyi yutuyor
 _EMPTY_VALUES = ("(not set)", "", "(none)")
@@ -383,6 +479,7 @@ def build_x_ga4_report(
     limit: int = 15,
     profile: str | None = None,
     force: bool = False,
+    progress_token: str | None = None,
 ) -> dict[str, Any]:
     """Tüm blokları tek düz paralel havuzda çeker.
 
@@ -397,21 +494,29 @@ def build_x_ga4_report(
     safe_limit = max(5, min(int(limit or 15), 50))
     profile_key = (profile or "hepsi").strip().lower()
     cache_key = f"{site_id}|{safe_days}|{safe_limit}|{profile_key}"
+    token = str(progress_token or "").strip()[:64]
+    progress_start(token, total=1, phase="starting")
+
+    def _bail(payload: dict[str, Any]) -> dict[str, Any]:
+        """Erken çıkış — çubuk asılı kalmasın."""
+        progress_finish(token, ok=bool(payload.get("ok")), phase="done")
+        return payload
+
     if not force:
         hit = _CACHE.get(cache_key)
         if hit and (time.time() - hit[0]) < _CACHE_TTL_SEC:
-            return {**hit[1], "cached": True}
+            return _bail({**hit[1], "cached": True})
 
     status = get_ga4_connection_status(db, site_id)
     if not status.get("connected"):
-        return {
+        return _bail({
             "ok": False,
             "error": str(status.get("label") or "GA4 bağlı değil"),
             "blocks": {},
-        }
+        })
     properties = (status.get("properties") or {}) if isinstance(status, dict) else {}
     if not properties:
-        return {"ok": False, "error": "GA4 property tanımlı değil", "blocks": {}}
+        return _bail({"ok": False, "error": "GA4 property tanımlı değil", "blocks": {}})
 
     from backend.collectors.ga4 import _client
 
@@ -420,7 +525,9 @@ def build_x_ga4_report(
     end = "yesterday"
     profiles = resolve_profiles(properties, profile_key)
     if not profiles:
-        return {"ok": False, "error": f"«{profile_key}» için GA4 property yok", "blocks": {}}
+        return _bail(
+            {"ok": False, "error": f"«{profile_key}» için GA4 property yok", "blocks": {}}
+        )
 
     jobs: dict[str, Any] = {
         "user_stability": lambda: _block("user_stability", lambda: _user_stability(client, properties, profiles)),
@@ -438,8 +545,19 @@ def build_x_ga4_report(
             client, spec, pf, pid, start, end, safe_limit))
         for spec, pf, pid in plan
     ]
+    # İlerleme etiketleri görev sırasıyla birebir aynı — pool.map sırayı korur
+    labels = list(names) + [f"{spec['key']} · {pf}" for spec, pf, _pid in plan]
+    progress_start(token, total=len(tasks), phase="fetch")
+
+    def _run(indexed: tuple[int, Any]) -> Any:
+        idx, fn = indexed
+        try:
+            return fn()
+        finally:
+            progress_tick(token, labels[idx] if idx < len(labels) else "")
+
     with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, max(1, len(tasks)))) as pool:
-        results = list(pool.map(lambda fn: fn(), tasks))
+        results = list(pool.map(_run, enumerate(tasks)))
 
     blocks = dict(zip(names, results[: len(names)]))
 
@@ -474,4 +592,5 @@ def build_x_ga4_report(
         "note": "Tüm veriler GA4 Data API'den gelir; başka kaynak kullanılmaz.",
     }
     _CACHE[cache_key] = (time.time(), out)
+    progress_finish(token, ok=True, phase="done")
     return out

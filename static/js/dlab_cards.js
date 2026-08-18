@@ -78,6 +78,64 @@
       metaEl.hidden = !msg;
     }
 
+    // ── İlerleme çubuğu ─────────────────────────────────────────────────────
+    // Genişlik sunucudan gelen «tamamlanan / toplam GA4 isteği» sayısına bağlı.
+    // Sunucu henüz sayı vermediyse belirsiz (kayan) kip kullanılır; sahte bir
+    // yüzde uydurmak, uzun bekleyişte yanlış bilgi vermek olurdu.
+    var bar = null;
+    (function buildBar() {
+      if (!host.parentNode) return;
+      bar = document.createElement("div");
+      bar.className = "xg-progress";
+      bar.hidden = true;
+      bar.setAttribute("role", "progressbar");
+      bar.setAttribute("aria-valuemin", "0");
+      bar.setAttribute("aria-valuemax", "100");
+      bar.innerHTML =
+        '<div class="xg-progress__track"><div class="xg-progress__bar"></div></div>' +
+        '<div class="xg-progress__label">' +
+        '<span class="xg-progress__what"></span>' +
+        '<span class="xg-progress__count"></span></div>';
+      host.parentNode.insertBefore(bar, host);
+    })();
+
+    function barShow(what) {
+      if (!bar) return;
+      bar.hidden = false;
+      bar.classList.add("xg-progress--indeterminate");
+      bar.removeAttribute("aria-valuenow");
+      bar.querySelector(".xg-progress__bar").style.width = "";
+      bar.querySelector(".xg-progress__what").textContent = what || "GA4'e bağlanılıyor…";
+      bar.querySelector(".xg-progress__count").textContent = "";
+    }
+
+    function barPaint(p) {
+      if (!bar || bar.hidden) return;
+      if (!p || !p.known || !p.total) return;      // sayı yoksa kayan kipte kal
+      bar.classList.remove("xg-progress--indeterminate");
+      var pct = Math.max(0, Math.min(100, Number(p.percent) || 0));
+      bar.setAttribute("aria-valuenow", String(pct));
+      bar.querySelector(".xg-progress__bar").style.width = pct + "%";
+      bar.querySelector(".xg-progress__what").textContent =
+        p.label ? "Alınıyor: " + p.label : "GA4 istekleri…";
+      bar.querySelector(".xg-progress__count").textContent =
+        p.done + " / " + p.total + " · %" + pct;
+    }
+
+    function barDone(okText) {
+      if (!bar) return;
+      bar.classList.remove("xg-progress--indeterminate");
+      bar.querySelector(".xg-progress__bar").style.width = "100%";
+      bar.setAttribute("aria-valuenow", "100");
+      if (okText) bar.querySelector(".xg-progress__what").textContent = okText;
+      // Dolu çubuk bir an görünsün, sonra kaybolsun
+      window.setTimeout(function () { if (bar) bar.hidden = true; }, 420);
+    }
+
+    function newToken() {
+      return "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
     /**
      * Container iskeleti. Filtre yalnızca GERÇEKTEN verisi olan platformları
      * listeler — boş ya da tanımsız yüzey seçenek olarak sunulmaz. Sabit
@@ -302,17 +360,44 @@
       paintAll();
     }
 
+    var pollTimer = null;
+    function stopPoll() {
+      if (pollTimer) { window.clearInterval(pollTimer); pollTimer = null; }
+    }
+
     function load(force) {
       if (state.loading) return;
       state.loading = true;
-      note("Yükleniyor…");
+      var token = newToken();
+      barShow();
+      note("");
       var url = "/api/x-ga4/report?days=" + state.days +
         (fixedProfile ? "&profile=" + encodeURIComponent(fixedProfile) : "") +
-        (force ? "&force=true" : "");
+        (force ? "&force=true" : "") +
+        "&progress=" + encodeURIComponent(token);
+
+      stopPoll();
+      pollTimer = window.setInterval(function () {
+        fetch("/api/x-ga4/progress?token=" + encodeURIComponent(token),
+              { headers: { Accept: "application/json" } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (p) { barPaint(p); })
+          .catch(function () { /* yoklama hatası yüklemeyi bozmasın */ });
+      }, 700);
+
       fetch(url, { headers: { Accept: "application/json" } })
         .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) { state.loaded = true; render(d); })
-        .catch(function () { note("İstek başarısız."); })
+        .then(function (d) {
+          state.loaded = true;
+          stopPoll();
+          barDone(d && d.cached ? "Önbellekten" : "Tamam");
+          render(d);
+        })
+        .catch(function () {
+          stopPoll();
+          barDone("");
+          note("İstek başarısız.");
+        })
         .then(function () { state.loading = false; });
     }
 
