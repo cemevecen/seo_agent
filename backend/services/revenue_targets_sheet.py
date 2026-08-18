@@ -364,6 +364,46 @@ def load_ingested_revenue_targets(
     return data
 
 
+
+def _existing_target_rows() -> list[dict[str, Any]]:
+    """Kayıtlı hedef satırları (Postgres, yoksa lokal dosya).
+
+    Yaş kontrolü olmadan okunur: burada amaç "önbellek taze mi" değil, geçmiş
+    ayları kaybetmemek. `load_ingested_revenue_targets` eski payload'u yaşlı
+    diye None döndürebiliyor ve bu birleştirmeyi sessizce boşaltırdı.
+    """
+    for reader in (_existing_rows_from_db, _existing_rows_from_file):
+        try:
+            rows = reader()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("revenue targets mevcut satır okuma: %s", exc)
+            continue
+        if rows:
+            return rows
+    return []
+
+
+def _existing_rows_from_db() -> list[dict[str, Any]]:
+    from backend.database import SessionLocal
+    from backend.models import RevenueTargetsCache
+
+    with SessionLocal() as db:
+        row = db.get(RevenueTargetsCache, "current")
+        if not row or not row.payload_json:
+            return []
+        parsed = json.loads(row.payload_json)
+    rows = parsed.get("rows") if isinstance(parsed, dict) else None
+    return rows if isinstance(rows, list) else []
+
+
+def _existing_rows_from_file() -> list[dict[str, Any]]:
+    if not _INGEST_PATH.is_file():
+        return []
+    parsed = json.loads(_INGEST_PATH.read_text(encoding="utf-8"))
+    rows = parsed.get("rows") if isinstance(parsed, dict) else None
+    return rows if isinstance(rows, list) else []
+
+
 def save_ingested_revenue_targets(
     csv_text: str | None = None,
     *,
@@ -378,14 +418,23 @@ def save_ingested_revenue_targets(
     if not parsed_rows:
         raise ValueError("No Doviz/Sinemalar rows to ingest")
 
-    # Aynı period+project için son gelen kazanır
+    # Aynı period+project için son gelen kazanır — ama ÖNCE mevcut satırlar
+    # yüklenir. Eskiden yalnızca gelen satırlardan kurulduğu için tek aylık bir
+    # scrape (ör. yalnız bu ayın MCM sekmesi) tüm geçmiş ayları siliyordu.
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
-    for r in parsed_rows:
-        pk = str(r.get("period_key") or "")
-        proj = str(r.get("project") or "")
-        if not pk or proj not in ("doviz", "sinemalar"):
-            continue
-        by_key[(pk, proj)] = r
+
+    def _absorb(rows_in: Any) -> None:
+        for r in rows_in or []:
+            if not isinstance(r, dict):
+                continue
+            pk = str(r.get("period_key") or "")
+            proj = str(r.get("project") or "")
+            if not pk or proj not in ("doviz", "sinemalar"):
+                continue
+            by_key[(pk, proj)] = r
+
+    _absorb(_existing_target_rows())   # geçmiş
+    _absorb(parsed_rows)               # bu tur — aynı dönemde üzerine yazar
     merged = sorted(by_key.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or ""))
 
     url = source_url or REVENUE_TARGETS_SHEET_URL
