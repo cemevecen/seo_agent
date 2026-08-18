@@ -357,27 +357,59 @@
     }
 
     // ── Kitle: her liste kendi container'ında ───────────────────────────────
-    function audienceCards(b) {
+    function audienceCards(b, emit) {
       if (b.ok === false) {
-        return card({ title: "Kitle", profiles: [], body: function () {
-          return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } });
+        emit(card({ title: "Kitle", profiles: [], body: function () {
+          return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } }));
+        return;
       }
       var defs = [
         ["İlgi alanları", "brandingInterest", b.interests],
         ["Yaş / cinsiyet", "userAgeBracket × userGender", b.demographics],
         ["Tanımlı kitleler", "audienceName", b.audiences]
       ];
-      return defs.map(function (d) {
+      defs.forEach(function (d) {
         var items = d[2] || [];
-        if (!items.length) return "";
-        return card({
+        if (!items.length) return;
+        emit(card({
           title: d[0], sub: d[1], profiles: [],
           body: function () {
             return table([{ label: "" }, { label: "Kullanıcı", num: true }, { label: "" }],
                          barRows(items, "label", "users"));
           }
-        });
-      }).join("");
+        }));
+      });
+    }
+
+    // Bespoke blokların hangi başlık altında duracağı — kırılımlar bunu
+    // sunucudan `group` ile taşıyor, bloklar burada eşleşiyor.
+    var BLOCK_GROUP = {
+      user_stability: "engagement",
+      engagement: "engagement",
+      content_depth: "behavior",
+      hourly: "behavior",
+      audience: "audience"
+    };
+    var DEFAULT_GROUPS = [
+      { key: "engagement", label: "Kullanıcı & etkileşim" },
+      { key: "acquisition", label: "Edinim" },
+      { key: "behavior", label: "Davranış" },
+      { key: "audience", label: "Kitle & cihaz" },
+      { key: "app", label: "Uygulama" }
+    ];
+    // İlk iki grup açık gelir; gerisi kapalı. Veri zaten tek istekte geldiği
+    // için kapalı olmak istek tasarrufu değil, yalnızca göz yorgunluğunu azaltır.
+    var OPEN_BY_DEFAULT = 2;
+
+    function groupSection(g, cardsHtml, count, index) {
+      if (!count) return "";
+      return '<details class="xg-group"' + (index < OPEN_BY_DEFAULT ? " open" : "") + '>' +
+        "<summary>" +
+        '<span class="xg-group__title"><span class="xg-group__caret">▶</span>' +
+        esc(g.label) + "</span>" +
+        '<span class="xg-group__count">' + count + " kart</span>" +
+        "</summary>" +
+        '<div class="xg-grid">' + cardsHtml + "</div></details>";
     }
 
     function render(data) {
@@ -389,14 +421,37 @@
       }
       note("");
       var b = data.blocks || {};
-      var html = [
-        usersCard(b.user_stability || {}),
-        depthCard(b.content_depth || {}),
-        hourlyCard(b.hourly || {}),
-        engagementCard(b.engagement || {})
-      ].concat((data.breakdowns || []).map(breakdownCard))
-       .concat([audienceCards(b.audience || {})])
-       .join("");
+      var groups = (data.groups && data.groups.length) ? data.groups : DEFAULT_GROUPS;
+
+      // Kart html'i grubuna göre biriktirilir; kart sayısı üretim sırasında
+      // sayılır çünkü veri dönmeyen container hiç çizilmiyor.
+      var bucket = {}, counts = {};
+      groups.forEach(function (g) { bucket[g.key] = []; counts[g.key] = 0; });
+
+      function put(groupKey, html) {
+        if (!html) return;
+        var key = bucket[groupKey] ? groupKey : groups[0].key;
+        bucket[key].push(html);
+        counts[key] += 1;
+      }
+
+      put(BLOCK_GROUP.user_stability, usersCard(b.user_stability || {}));
+      put(BLOCK_GROUP.engagement, engagementCard(b.engagement || {}));
+      put(BLOCK_GROUP.content_depth, depthCard(b.content_depth || {}));
+      put(BLOCK_GROUP.hourly, hourlyCard(b.hourly || {}));
+
+      (data.breakdowns || []).forEach(function (bd) {
+        put(bd.group || "behavior", breakdownCard(bd));
+      });
+
+      // Kitle blokları üç ayrı kart üretiyor; her biri kendi container'ı
+      audienceCards(b.audience || {}, function (html) {
+        put(BLOCK_GROUP.audience, html);
+      });
+
+      var html = groups.map(function (g, i) {
+        return groupSection(g, bucket[g.key].join(""), counts[g.key], i);
+      }).join("");
       host.innerHTML = html || empty("Bu yüzey için veri dönmedi.");
       paintAll();
     }

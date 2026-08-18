@@ -124,3 +124,26 @@ html.dark .xg-progress__track, html.charcoal .xg-progress__track { background: #
   .xg-progress__bar { transition: none; }
   .xg-progress--indeterminate .xg-progress__bar { animation: none; width: 100%; opacity: .35; }
 }
+
+/* ── Konu grupları ────────────────────────────────────────────────────────── */
+/* 34 container tek düz akışta aranamaz hale gelmişti; ilgili kartlar araya
+   onlarca kart girdiği için birbirinden kopuyordu. */
+.xg-group { margin: 0 0 1rem; }
+.xg-group > summary {
+  list-style: none; cursor: pointer; padding: .55rem .2rem;
+  display: flex; align-items: baseline; justify-content: space-between; gap: .75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+html.dark .xg-group > summary, html.charcoal .xg-group > summary { border-bottom-color: #3f3f46; }
+.xg-group > summary::-webkit-details-marker { display: none; }
+.xg-group__title {
+  font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  display: flex; align-items: center; gap: .45rem; opacity: .75;
+}
+.xg-group__caret { font-size: .6rem; opacity: .55; transition: transform .15s ease; }
+.xg-group[open] .xg-group__caret { transform: rotate(90deg); }
+.xg-group__count { font-size: .68rem; opacity: .45; flex: 0 0 auto; }
+.xg-group > .xg-grid { padding-top: .9rem; }
+@media (prefers-reduced-motion: reduce) {
+  .xg-group__caret { transition: none; }
+}

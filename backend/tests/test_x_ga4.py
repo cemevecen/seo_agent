@@ -692,3 +692,47 @@ def test_engagement_is_registered_and_rendered():
     cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
     assert "engagementCard(b.engagement || {})" in cards
     assert "Etkileşim kalitesi" in cards
+
+
+# ── Konu grupları ───────────────────────────────────────────────────────────
+
+def test_every_breakdown_belongs_to_a_declared_group():
+    """Grupsuz bir kırılım sessizce yanlış başlığa düşerdi."""
+    valid = {g["key"] for g in X.GROUPS}
+    for spec in X.BREAKDOWNS:
+        assert spec.get("group") in valid, f"{spec['key']}: grup yok/geçersiz"
+
+
+def test_related_containers_land_in_the_same_group():
+    """Ayrılmaları görünümü bozan çiftler — asıl şikâyet buydu."""
+    by = {s["key"]: s["group"] for s in X.BREAKDOWNS}
+    assert by["channel"] == by["source_medium"] == by["campaign"] == by["first_channel"]
+    assert by["device"] == by["device_category"] == by["device_brand"]
+    assert by["os"] == by["os_version"] == by["screen_resolution"]
+    assert by["country"] == by["city"]
+
+
+def test_groups_are_exposed_to_the_client():
+    """İstemci grup sırasını sunucudan almalı; iki yerde ayrı liste tutmak
+    kaçınılmaz olarak birbirinden ayrılır."""
+    src = (ROOT / "backend/services/x_ga4.py").read_text(encoding="utf-8")
+    assert '"groups": [dict(g) for g in GROUPS],' in src
+    assert '"group": spec.get("group") or _DEFAULT_GROUP,' in src
+    cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
+    assert "data.groups" in cards
+    assert "bd.group" in cards
+
+
+def test_bespoke_blocks_are_placed_in_groups_too():
+    """Bloklar sunucudan group taşımıyor; istemcideki eşleşme eksik kalmasın."""
+    cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
+    block_map = cards.split("var BLOCK_GROUP = {", 1)[1].split("};", 1)[0]
+    for block in ("user_stability", "engagement", "content_depth", "hourly", "audience"):
+        assert block in block_map, block
+
+
+def test_empty_group_is_not_drawn():
+    """Veri dönmeyen container çizilmiyor; grubu boş kalırsa başlık da kalmamalı."""
+    cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
+    body = cards.split("function groupSection(", 1)[1].split("\n    }", 1)[0]
+    assert "if (!count) return \"\";" in body

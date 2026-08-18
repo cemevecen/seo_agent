@@ -132,15 +132,29 @@ PROFILES: tuple[str, ...] = ("web", "mweb", "android", "ios")
 APP_PROFILES: tuple[str, ...] = ("android", "ios")
 SITE_PROFILES: tuple[str, ...] = ("web", "mweb")
 
+
+# Container grupları — sayfada bu sırayla, bu başlıklarla toplanır.
+# 34 container tek düz akışta arama yapılamaz hale gelmişti; ilgili olanlar
+# (ör. Kanal ile Kaynak/aracı, Cihaz modeli ile Cihaz kategorisi) araya onlarca
+# kart girdiği için birbirinden kopuyordu.
+GROUPS: tuple[dict[str, str], ...] = (
+    {"key": "engagement", "label": "Kullanıcı & etkileşim"},
+    {"key": "acquisition", "label": "Edinim"},
+    {"key": "behavior", "label": "Davranış"},
+    {"key": "audience", "label": "Kitle & cihaz"},
+    {"key": "app", "label": "Uygulama"},
+)
+_DEFAULT_GROUP = "behavior"
+
 # Standart boyut kırılımları — bildirimsel, çünkü hepsi aynı şekli paylaşıyor.
 # `profiles` o kırılımın anlamlı olduğu yüzeyleri sınırlar (ör. appVersion yalnız
 # uygulamalarda). Ölçülen maliyet istek başına 1–3 token.
 BREAKDOWNS: tuple[dict[str, Any], ...] = (
     # Özel boyutlar (property başına tanımlı; olmayan yüzey «tanımlı değil» der)
-    {"key": "asset_key", "label": "Varlık ilgisi", "dimension": "customEvent:asset_key",
+    {"key": "asset_key", "group": "behavior", "label": "Varlık ilgisi", "dimension": "customEvent:asset_key",
      "metric": "eventCount", "profiles": PROFILES,
      "hint": "Hangi varlığa bakılıyor"},
-    {"key": "nav_from", "label": "Habere nereden gelindi", "dimension": "customEvent:from",
+    {"key": "nav_from", "group": "behavior", "label": "Habere nereden gelindi", "dimension": "customEvent:from",
      "metric": "eventCount", "profiles": ("ios",),
      "hint": "iOS: from parametresi · Android: giriş olayı",
      # Android'de `customEvent:from` tanımlı değil (GA4 400 veriyor), ama aynı
@@ -165,78 +179,78 @@ BREAKDOWNS: tuple[dict[str, Any], ...] = (
              },
          }
      }},
-    {"key": "search_text", "label": "Uygulama içi arama", "dimension": "customEvent:search_text",
+    {"key": "search_text", "group": "behavior", "label": "Uygulama içi arama", "dimension": "customEvent:search_text",
      "metric": "eventCount", "profiles": ("ios",), "hint": ""},
-    {"key": "sections_enabled", "label": "Açılan bölümler", "dimension": "customEvent:sections_enabled",
+    {"key": "sections_enabled", "group": "app", "label": "Açılan bölümler", "dimension": "customEvent:sections_enabled",
      "metric": "eventCount", "profiles": ("ios",), "hint": ""},
-    {"key": "sections_disabled", "label": "Kapatılan bölümler", "dimension": "customEvent:sections_disabled",
+    {"key": "sections_disabled", "group": "app", "label": "Kapatılan bölümler", "dimension": "customEvent:sections_disabled",
      "metric": "eventCount", "profiles": ("ios",), "hint": ""},
-    {"key": "menu_item", "label": "Menü kullanımı", "dimension": "customEvent:menu_item",
+    {"key": "menu_item", "group": "behavior", "label": "Menü kullanımı", "dimension": "customEvent:menu_item",
      "metric": "eventCount", "profiles": SITE_PROFILES, "hint": ""},
-    {"key": "card_name", "label": "Ana sayfa kartları", "dimension": "customEvent:card_name",
+    {"key": "card_name", "group": "behavior", "label": "Ana sayfa kartları", "dimension": "customEvent:card_name",
      "metric": "eventCount", "profiles": ("mweb",), "hint": ""},
     # Standart boyutlar
-    {"key": "events", "label": "Olaylar", "dimension": "eventName",
+    {"key": "events", "group": "behavior", "label": "Olaylar", "dimension": "eventName",
      "metric": "eventCount", "profiles": PROFILES,
      "hint": "En çok tetiklenen olaylar"},
-    {"key": "app_version", "label": "Uygulama sürümü", "dimension": "appVersion",
+    {"key": "app_version", "group": "app", "label": "Uygulama sürümü", "dimension": "appVersion",
      "metric": "activeUsers", "profiles": APP_PROFILES,
      "hint": "Sürüm benimsenmesi — eski sürümde kalan kullanıcı"},
-    {"key": "new_returning", "label": "Yeni / dönen", "dimension": "newVsReturning",
+    {"key": "new_returning", "group": "engagement", "label": "Yeni / dönen", "dimension": "newVsReturning",
      "metric": "activeUsers", "profiles": PROFILES,
      "hint": "Sadık kitle mi, yeni kullanıcı mı"},
-    {"key": "channel", "label": "Kanal", "dimension": "sessionDefaultChannelGroup",
+    {"key": "channel", "group": "acquisition", "label": "Kanal", "dimension": "sessionDefaultChannelGroup",
      "metric": "sessions", "profiles": PROFILES,
      "hint": "Oturum nereden geldi"},
-    {"key": "country", "label": "Ülke", "dimension": "country",
+    {"key": "country", "group": "audience", "label": "Ülke", "dimension": "country",
      "metric": "activeUsers", "profiles": PROFILES, "hint": ""},
-    {"key": "language", "label": "Dil", "dimension": "language",
+    {"key": "language", "group": "audience", "label": "Dil", "dimension": "language",
      "metric": "activeUsers", "profiles": PROFILES, "hint": ""},
-    {"key": "os_version", "label": "İşletim sistemi sürümü", "dimension": "operatingSystemVersion",
+    {"key": "os_version", "group": "audience", "label": "İşletim sistemi sürümü", "dimension": "operatingSystemVersion",
      "metric": "activeUsers", "profiles": PROFILES, "hint": ""},
-    {"key": "device", "label": "Cihaz modeli", "dimension": "deviceModel",
+    {"key": "device", "group": "audience", "label": "Cihaz modeli", "dimension": "deviceModel",
      "metric": "activeUsers", "profiles": APP_PROFILES, "hint": ""},
-    {"key": "landing", "label": "Giriş sayfaları", "dimension": "landingPagePlusQueryString",
+    {"key": "landing", "group": "acquisition", "label": "Giriş sayfaları", "dimension": "landingPagePlusQueryString",
      "metric": "sessions", "profiles": SITE_PROFILES,
      "hint": "Siteye ilk girilen sayfa"},
     # ── Edinim ──────────────────────────────────────────────────────────────
-    {"key": "source_medium", "label": "Kaynak / aracı", "dimension": "sessionSourceMedium",
+    {"key": "source_medium", "group": "acquisition", "label": "Kaynak / aracı", "dimension": "sessionSourceMedium",
      "metric": "sessions", "profiles": PROFILES,
      "hint": "Kanal grubundan bir kademe derin — hangi site, hangi yolla"},
-    {"key": "campaign", "label": "Kampanya", "dimension": "sessionCampaignName",
+    {"key": "campaign", "group": "acquisition", "label": "Kampanya", "dimension": "sessionCampaignName",
      "metric": "sessions", "profiles": PROFILES,
      "hint": "Etiketli kampanyalar; (direct) etiketsiz trafiktir"},
-    {"key": "first_channel", "label": "İlk edinim kanalı", "dimension": "firstUserDefaultChannelGroup",
+    {"key": "first_channel", "group": "acquisition", "label": "İlk edinim kanalı", "dimension": "firstUserDefaultChannelGroup",
      "metric": "newUsers", "profiles": PROFILES,
      "hint": "Kullanıcıyı ilk kez getiren kanal — oturum kanalından farklı"},
-    {"key": "referrer", "label": "Yönlendiren sayfa", "dimension": "pageReferrer",
+    {"key": "referrer", "group": "acquisition", "label": "Yönlendiren sayfa", "dimension": "pageReferrer",
      "metric": "sessions", "profiles": SITE_PROFILES,
      "hint": "Ziyaretin geldiği tam adres"},
     # ── Kitle / cihaz ───────────────────────────────────────────────────────
-    {"key": "city", "label": "Şehir", "dimension": "city",
+    {"key": "city", "group": "audience", "label": "Şehir", "dimension": "city",
      "metric": "activeUsers", "profiles": PROFILES,
      "hint": "Ülke kırılımının altı — yerel içerik kararı için"},
-    {"key": "device_category", "label": "Cihaz kategorisi", "dimension": "deviceCategory",
+    {"key": "device_category", "group": "audience", "label": "Cihaz kategorisi", "dimension": "deviceCategory",
      "metric": "activeUsers", "profiles": PROFILES, "hint": "masaüstü / mobil / tablet"},
-    {"key": "device_brand", "label": "Cihaz markası", "dimension": "mobileDeviceBranding",
+    {"key": "device_brand", "group": "audience", "label": "Cihaz markası", "dimension": "mobileDeviceBranding",
      "metric": "activeUsers", "profiles": ("web", "mweb", "android"),
      "hint": "iOS'ta tek marka olduğu için sorulmaz"},
-    {"key": "browser", "label": "Tarayıcı", "dimension": "browser",
+    {"key": "browser", "group": "audience", "label": "Tarayıcı", "dimension": "browser",
      "metric": "activeUsers", "profiles": SITE_PROFILES, "hint": ""},
-    {"key": "os", "label": "İşletim sistemi", "dimension": "operatingSystem",
+    {"key": "os", "group": "audience", "label": "İşletim sistemi", "dimension": "operatingSystem",
      "metric": "activeUsers", "profiles": SITE_PROFILES,
      "hint": "Uygulamalarda tek değer olduğu için yalnız web/mWeb"},
-    {"key": "screen_resolution", "label": "Ekran çözünürlüğü", "dimension": "screenResolution",
+    {"key": "screen_resolution", "group": "audience", "label": "Ekran çözünürlüğü", "dimension": "screenResolution",
      "metric": "activeUsers", "profiles": SITE_PROFILES,
      "hint": "Tasarım kırılım noktaları hangi genişliğe göre seçilmeli"},
     # ── Davranış ────────────────────────────────────────────────────────────
-    {"key": "screen_name", "label": "Ekran / sayfa adı", "dimension": "unifiedScreenName",
+    {"key": "screen_name", "group": "behavior", "label": "Ekran / sayfa adı", "dimension": "unifiedScreenName",
      "metric": "screenPageViews", "profiles": PROFILES,
      "hint": "Uygulamada ekran, sitede sayfa başlığı — tek isimlendirmede"},
-    {"key": "signed_in", "label": "Üyelik durumu", "dimension": "signedInWithUserId",
+    {"key": "signed_in", "group": "engagement", "label": "Üyelik durumu", "dimension": "signedInWithUserId",
      "metric": "activeUsers", "profiles": SITE_PROFILES,
      "hint": "Giriş yapmış kullanıcı payı"},
-    {"key": "weekday", "label": "Haftanın günü", "dimension": "dayOfWeek",
+    {"key": "weekday", "group": "behavior", "label": "Haftanın günü", "dimension": "dayOfWeek",
      "metric": "activeUsers", "profiles": PROFILES,
      "hint": "0 = Pazar"},
 )
@@ -701,6 +715,7 @@ def build_x_ga4_report(
         {
             "key": spec["key"], "label": spec["label"], "hint": spec.get("hint") or "",
             "dimension": spec["dimension"], "metric": spec["metric"],
+            "group": spec.get("group") or _DEFAULT_GROUP,
             "per_profile": grouped.get(spec["key"], {}).get("per_profile", {}),
         }
         for spec in BREAKDOWNS
@@ -717,6 +732,7 @@ def build_x_ga4_report(
         "available_profiles": [p for p in PROFILES if str(properties.get(p) or "").strip()],
         "blocks": blocks,
         "breakdowns": breakdowns,
+        "groups": [dict(g) for g in GROUPS],
         "requests": len(tasks),
         "note": "Tüm veriler GA4 Data API'den gelir; başka kaynak kullanılmaz.",
     }
