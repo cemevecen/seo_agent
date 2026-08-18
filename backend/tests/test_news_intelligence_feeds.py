@@ -75,8 +75,22 @@ def test_retention_hours_is_twelve():
 
 
 def test_parse_pub_date_aware_vs_naive_cutoff():
-    published = ni.parse_pub_date("2026-06-03T19:39:15+03:00")
+    """Aware RSS tarihi naive UTC'ye çevrilmeli, karşılaştırma patlamamalı.
+
+    Tarih sabit yazılmamalı: testin amacı «offset-aware ile naive kıyaslanınca
+    TypeError atmasın» — sabit tarih takvim ilerleyince retention penceresinin
+    dışına düşüp testi kendiliğinden kırıyordu.
+    """
+    now = ni._utc_naive_now()
+    one_hour_ago_utc = now - timedelta(hours=1)
+    # Aynı anı +03:00 ofsetiyle yazılmış gibi biçimlendir
+    raw = (one_hour_ago_utc + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S") + "+03:00"
+
+    published = ni.parse_pub_date(raw)
     assert published is not None
-    assert published.tzinfo is None
-    cutoff = ni._utc_naive_now() - timedelta(hours=ni.RETENTION_HOURS)
+    assert published.tzinfo is None  # naive UTC'ye çevrildi
+
+    cutoff = now - timedelta(hours=ni.RETENTION_HOURS)
     assert published >= cutoff  # offset-naive vs aware karşılaştırma patlamamalı
+    # Ofset gerçekten uygulanmış olmalı — yerel saat naive'e kopyalanmamalı
+    assert abs((published - one_hour_ago_utc).total_seconds()) < 120

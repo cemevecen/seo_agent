@@ -95,11 +95,38 @@ def test_revenue_week_anomaly_requires_14_days():
 
 
 def test_revenue_week_anomaly_delta():
-    days = [{"date": f"2026-01-{i:02d}", "net_revenue": 10.0 if i <= 7 else (5.0 if i <= 14 else 1.0)} for i in range(1, 21)]
+    """İlk hafta 10/gün, ikinci hafta 1/gün → %90 düşüş.
+
+    Not: fonksiyon son 7 günü days[-7:], öncekini days[-14:-7] alır. Veri bu
+    pencerelere birebir oturacak şekilde 14 gün olmalı; daha uzun seride
+    kademeler pencerelere yayılıp beklentiyi anlamsızlaştırıyordu.
+    """
+    days = [
+        {"date": f"2026-01-{i:02d}", "net_revenue": 10.0 if i <= 7 else 1.0}
+        for i in range(1, 15)
+    ]
     out = store._revenue_week_anomaly(days)
     assert out["ok"] is True
-    assert out["last7_revenue"] == 7.0
-    assert out["prev7_revenue"] == 70.0
+    assert out["prev7_revenue"] == 70.0   # 1–7 Ocak
+    assert out["last7_revenue"] == 7.0    # 8–14 Ocak
+    assert out["delta_pct"] == -90.0
+
+
+def test_revenue_week_anomaly_needs_two_full_weeks():
+    out = store._revenue_week_anomaly(
+        [{"date": f"2026-01-{i:02d}", "net_revenue": 1.0} for i in range(1, 14)]
+    )
+    assert out["ok"] is False
+
+
+def test_revenue_week_anomaly_handles_zero_previous_week():
+    """prev7 = 0 iken yüzde hesaplanamaz; sıfıra bölme olmamalı."""
+    days = [
+        {"date": f"2026-01-{i:02d}", "net_revenue": 0.0 if i <= 7 else 5.0}
+        for i in range(1, 15)
+    ]
+    out = store._revenue_week_anomaly(days)
+    assert out["ok"] is True and out["delta_pct"] is None
 
 
 def test_resolve_compare_range_previous_period():

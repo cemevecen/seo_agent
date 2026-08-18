@@ -199,15 +199,22 @@ def finalize_domain_risk_summary(bucket: dict[str, Any]) -> None:
             bucket["recommended_action"] = ACTION_IGNORE
         return
 
-    if low_pct >= 75 and max_score < 65:
-        bucket["domain_category"] = "mostly_clean"
-        bucket["recommended_action"] = ACTION_IGNORE
-        return
-
+    # Önce gerçek spam çoğunluğu: yoğun disavow/review varsa domain temiz sayılmaz.
     disavow_n = ac.get(ACTION_DISAVOW, 0)
     review_n = ac.get(ACTION_REVIEW, 0)
     if disavow_n / total_links >= 0.25 or (disavow_n + review_n) / total_links >= 0.5:
         bucket["domain_category"] = "spammy"
+        return
+
+    # Çoğunluk temizse tek bir outlier'ın max skoru domaini mahkûm etmemeli.
+    # Eskiden burada `max_score < 65` koşulu vardı; 10 linkin 9'u temiz olsa da
+    # tek 80'lik link domaini bu daldan düşürüyor ve aşağıdaki son dal
+    # recommended_action'a dokunmadığı için domain "disavow" olarak kalıyordu —
+    # tam da bu fonksiyonun engellemek için yazıldığı durum. Kötü link kendi
+    # bağlantı düzeyindeki disavow'unu korur; burada domain özeti üretiliyor.
+    if low_pct >= 75:
+        bucket["domain_category"] = "mostly_clean"
+        bucket["recommended_action"] = ACTION_IGNORE
         return
 
     if low_pct >= 50 and max_score < 55:
@@ -216,3 +223,6 @@ def finalize_domain_risk_summary(bucket: dict[str, Any]) -> None:
         return
 
     bucket["domain_category"] = "mixed"
+    # Hiçbir domain kuralı disavow demediyse tek linkten miras kalan öneriyi taşıma
+    if bucket.get("recommended_action") == ACTION_DISAVOW:
+        bucket["recommended_action"] = ACTION_MONITOR

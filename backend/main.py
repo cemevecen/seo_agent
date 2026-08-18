@@ -14586,6 +14586,45 @@ def _ga4_fill_daily_trend_from_source(
     return out
 
 
+
+def _ga4_overlay_daily_trend(
+    base: dict,
+    overlay: dict,
+    *,
+    keys: tuple[str, ...] = _GA4_DAILY_TREND_METRICS,
+) -> dict:
+    """Ortak tarihlerde overlay değerleri baskın olsun.
+
+    `_ga4_fill_daily_trend_from_source` yalnızca tamamen sinyalsiz seriyi
+    doldurur, gün bazında üzerine yazmaz. Bu yüzden kartın KPI'ı seçili
+    dönemden gelirken spark 12 aylık gece anlık görüntüsünden geliyor ve en
+    yeni gün(ler)de ikisi çelişebiliyordu. Dönem verisi o günler için daha
+    taze olduğundan spark'ta da o değer görünmeli.
+    """
+    out = _ga4_align_daily_trend(base)
+    ov = _ga4_align_daily_trend(overlay)
+    if not ov.get("dates") or not out.get("dates"):
+        return out
+    index = {d: i for i, d in enumerate(out["dates"])}
+    for key in keys:
+        ov_arr = ov.get(key) or []
+        if not _ga4_daily_series_has_signal(ov_arr):
+            continue
+        arr = [float(x or 0.0) for x in (out.get(key) or [])]
+        if len(arr) < len(out["dates"]):
+            arr += [0.0] * (len(out["dates"]) - len(arr))
+        touched = False
+        for i, d in enumerate(ov["dates"]):
+            j = index.get(d)
+            if j is None or i >= len(ov_arr):
+                continue
+            arr[j] = float(ov_arr[i] or 0.0)
+            touched = True
+        if touched:
+            out[key] = arr
+    return out
+
+
 def _ga4_slice_daily_trend_last_days(daily: dict | None, days: int) -> dict:
     aligned = _ga4_align_daily_trend(daily)
     dates = aligned.get("dates") or []
@@ -14620,6 +14659,8 @@ def _ga4_daily_trends_for_ui(
     spark_merged = _ga4_fill_daily_trend_from_source(long_daily, daily)
     if len(daily.get("dates") or []) >= len(spark_merged.get("dates") or []):
         spark_merged = _ga4_fill_daily_trend_from_source(daily, long_daily)
+    # Seçili dönem, kapsadığı günlerde gece anlık görüntüsünden tazedir
+    spark_merged = _ga4_overlay_daily_trend(spark_merged, daily)
     n_avail = len(spark_merged.get("dates") or [])
     if n_avail <= 0:
         spark = _ga4_empty_daily_trend_dict()

@@ -20,11 +20,13 @@ def test_combined_bucket_top_pages_splits_web_and_mweb():
         db.add(site)
         db.flush()
 
+        # Sorgu «son 1 saat»e bakıyor; sabit tarih takvim ilerleyince pencerenin
+        # dışına düşüp testi kendiliğinden kırıyordu. Kova şimdiye göre seçilir.
         bucket_ms = 15 * 60 * 1000
-        base = datetime(2026, 6, 15, 14, 32, 0)
-        key = int(base.replace(tzinfo=timezone.utc).timestamp() * 1000)
+        base = datetime.now(timezone.utc)
+        key = int(base.timestamp() * 1000)
         key = (key // bucket_ms) * bucket_ms
-        ts = datetime.utcfromtimestamp(key / 1000.0)
+        ts = datetime.fromtimestamp(key / 1000.0, tz=timezone.utc).replace(tzinfo=None)
 
         db.add_all(
             [

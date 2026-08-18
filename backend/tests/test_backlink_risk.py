@@ -60,3 +60,41 @@ def test_parse_csv_turkish_headers():
     rows = parse_csv_text(csv, report_type="latest_links")
     assert len(rows) == 2
     assert rows[0]["source_url"].startswith("http://evil")
+
+
+def test_real_spam_domain_still_flagged_despite_some_clean_links():
+    """Düzeltme temiz çoğunluğu korur ama gerçek spam domaini kaçırmamalı."""
+    bucket = {
+        "domain": "spam.example.com",
+        "link_count": 10,
+        "max_risk_score": 90,
+        "min_risk_score": 40,
+        "low_risk_links": 6,
+        "action_counts": {"ignore": 6, "monitor": 0, "review": 0, "disavow": 4},
+        "recommended_action": "disavow",
+        "risk_flags": set(),
+        "sample_urls": [],
+        "sample_links": [],
+    }
+    finalize_domain_risk_summary(bucket)
+    assert bucket["domain_category"] == "spammy"
+    assert bucket["recommended_action"] == ACTION_DISAVOW  # spam'de öneri korunur
+
+
+def test_inherited_disavow_is_downgraded_when_no_domain_rule_says_so():
+    """Son dal önceden recommended_action'a dokunmuyordu — tek link domaini mahkûm ediyordu."""
+    bucket = {
+        "domain": "orta.example.com",
+        "link_count": 10,
+        "max_risk_score": 60,
+        "min_risk_score": 10,
+        "low_risk_links": 3,          # ne temiz çoğunluk ne spam eşiği
+        "action_counts": {"ignore": 3, "monitor": 5, "review": 1, "disavow": 1},
+        "recommended_action": "disavow",
+        "risk_flags": set(),
+        "sample_urls": [],
+        "sample_links": [],
+    }
+    finalize_domain_risk_summary(bucket)
+    assert bucket["domain_category"] == "mixed"
+    assert bucket["recommended_action"] != ACTION_DISAVOW

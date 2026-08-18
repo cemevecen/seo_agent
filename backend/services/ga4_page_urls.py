@@ -558,7 +558,9 @@ def _doviz_mweb_resolve_path(path: str) -> str:
     p = _doviz_mweb_strip_phantom_breadcrumb(p)
     low = p.lower()
     if low in ("/", "/altin", "/altin/"):
-        return p if low != "/altin" else "/altin/"
+        # Kanonik biçim sondaki eğik çizgisiz: m.doviz.com/altin/ → 301 → /altin
+        # Eskiden buraya "/altin/" yazılıyordu; audit her turda 301 yiyordu.
+        return "/" if low == "/" else "/altin"
     if low.startswith("/altin/"):
         return p
     parts = [x for x in p.split("/") if x]

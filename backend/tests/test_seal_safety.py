@@ -25,6 +25,7 @@ from backend.services.firebase_console_store import ingest_firebase_console_payl
 from backend.services.history_seal import (
     DEFAULT_HISTORY_SEAL,
     DEFAULT_HISTORY_START,
+    calendar_yesterday,
     scheduled_fetch_window,
 )
 from backend.services.play_console_store import _pack_metrics_blob as play_pack
@@ -272,47 +273,54 @@ def test_empower_upsert_skips_today_keeps_history(monkeypatch):
     assert "2026-08-15" not in by
 
 
-def test_local_play_cache_covers_history_start_to_near_seal():
-    """Mac scrapeden kalan gövde: 2025-01-01 → ≥2026-08-12 (Aug13 dün dilimiyle tamamlanır)."""
-    if not PLAY_CACHE.is_file():
+def _cache_dates(payload: dict) -> list[str]:
+    """Döküm içindeki benzersiz gün listesi (iki farklı şekil de desteklenir)."""
+    out: set[str] = set()
+    for fact in (payload.get("panels") or {}).get("explorer_facts") or []:
+        if isinstance(fact, dict) and fact.get("date"):
+            out.add(str(fact["date"])[:10])
+    for platform in payload.get("platforms") or []:
+        if not isinstance(platform, dict):
+            continue
+        for row in platform.get("rows") or []:
+            if isinstance(row, dict) and (row.get("report_date") or row.get("date")):
+                out.add(str(row.get("report_date") or row.get("date"))[:10])
+    return sorted(out)
+
+
+def _assert_dump_invariants(path, label: str) -> None:
+    """Yerel scrape dökümü için gerçek değişmezler.
+
+    Bu dosyalar «son tarama» çıktısıdır (her turda üzerine yazılır, geri
+    okunmaz). Eskiden burada sabit tarih aralığı sınanıyordu; kısa bir tarama
+    dosyayı daraltınca test kendiliğinden kırılıyordu — dosyanın taşımadığı bir
+    özellik sınanıyordu. Mühür güvenliğinin kendisi zaten upsert testlerinde.
+    """
+    if not path.is_file():
         return
-    data = json.loads(PLAY_CACHE.read_text(encoding="utf-8"))
-    facts = (data.get("panels") or {}).get("explorer_facts") or []
-    dates = sorted(
-        {
-            str(f.get("date") or "")[:10]
-            for f in facts
-            if isinstance(f, dict) and f.get("date")
-        }
-    )
-    assert dates[0] == "2025-01-01"
-    assert dates[-1] >= "2026-08-12"
-    # sealed body continuous in overlap
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    dates = _cache_dates(payload)
+    if not dates:
+        return
+    yesterday = calendar_yesterday().isoformat()
+    # Bugün hiçbir zaman tam gün değildir; döküme kalıcı gün olarak girmemeli
+    assert dates[-1] <= yesterday, f"{label}: bugün/gelecek tarih var → {dates[-1]}"
+    # Aralık kendi içinde sürekli olmalı: kısa tarama bile delikli seri üretmemeli
+    span_start = date.fromisoformat(dates[0])
+    span_end = date.fromisoformat(dates[-1])
     have = set(dates)
-    d = date(2025, 1, 1)
-    end = min(date.fromisoformat(dates[-1]), date(2026, 8, 13))
-    miss = []
-    while d <= end:
-        if d.isoformat() not in have:
-            miss.append(d.isoformat())
-        d = date.fromordinal(d.toordinal() + 1)
-    assert miss == [], miss[:5]
+    missing = []
+    cur = span_start
+    while cur <= span_end:
+        if cur.isoformat() not in have:
+            missing.append(cur.isoformat())
+        cur = date.fromordinal(cur.toordinal() + 1)
+    assert missing == [], f"{label}: döküm içinde gün boşluğu {missing[:5]}"
 
 
-def test_local_empower_cache_covers_seal_range():
-    if not EMPOWER_CACHE.is_file():
-        return
-    data = json.loads(EMPOWER_CACHE.read_text(encoding="utf-8"))
-    rows = []
-    for pl in data.get("platforms") or []:
-        if isinstance(pl, dict):
-            rows.extend(pl.get("rows") or [])
-    dates = sorted(
-        {
-            str(r.get("report_date") or r.get("date") or "")[:10]
-            for r in rows
-            if isinstance(r, dict) and (r.get("report_date") or r.get("date"))
-        }
-    )
-    assert dates[0] == "2025-01-01"
-    assert "2026-08-13" in dates
+def test_local_play_cache_dump_is_consistent():
+    _assert_dump_invariants(PLAY_CACHE, "play")
+
+
+def test_local_empower_cache_dump_is_consistent():
+    _assert_dump_invariants(EMPOWER_CACHE, "empower")
