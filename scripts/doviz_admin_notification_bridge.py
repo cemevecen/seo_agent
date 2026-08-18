@@ -545,6 +545,49 @@ def _flush_deferred_browser_scrapes() -> None:
         on_done(result)
 
 
+# ── Tarayıcı işleri: TEK kalıcı thread ───────────────────────────────────────
+# Playwright'ın sync nesneleri thread'e bağlı. Köprü her işi ayrı thread'de
+# çalıştırdığı için sıcak pencere (warm session) bir sonraki turda kullanılamıyor,
+# düşürülüyor ve Firefox öldürülüp yeniden açılıyor. ASC'de bu oturumu kaybettiriyor:
+# 30 günlük Apple güven çerezi diskte kalsa da dqsid oturum çerezi tarayıcıyla
+# birlikte ölüyor ve sessiz doğrulama authResult=FAILED dönüyor — kullanıcı her
+# turda yeniden giriş yapmak zorunda kalıyordu.
+#
+# Tarayıcı scrape'leri zaten _browser_scrape_lock ve BRIDGE_SCRAPE_MIN_GAP_SEC ile
+# sırayla koşuyor; hepsini tek bir kalıcı thread'e almak paralellikten hiçbir şey
+# kaybettirmez ama sıcak pencerenin gerçekten yeniden kullanılmasını sağlar.
+_BROWSER_WORKER: Any | None = None
+_BROWSER_WORKER_LOCK = threading.Lock()
+_BROWSER_WORKER_PREFIX = "browser-worker"
+
+
+def _browser_worker() -> Any:
+    global _BROWSER_WORKER
+    with _BROWSER_WORKER_LOCK:
+        if _BROWSER_WORKER is None:
+            from concurrent.futures import ThreadPoolExecutor
+
+            _BROWSER_WORKER = ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix=_BROWSER_WORKER_PREFIX
+            )
+        return _BROWSER_WORKER
+
+
+def _on_browser_worker() -> bool:
+    return threading.current_thread().name.startswith(_BROWSER_WORKER_PREFIX)
+
+
+def _call_on_browser_worker(fn, /, **kwargs):
+    """Tarayıcı işini kalıcı thread'de çalıştır.
+
+    Zaten o thread'deysek doğrudan çağırırız — aksi halde executor'a iş verip
+    sonucunu beklemek kendi kendini kilitler (tek işçi, kendi kuyruğunu bekler).
+    """
+    if _on_browser_worker():
+        return fn(**kwargs)
+    return _browser_worker().submit(lambda: fn(**kwargs)).result()
+
+
 def _run_browser_scrape_job(
     *,
     kind: str,
@@ -560,12 +603,9 @@ def _run_browser_scrape_job(
         return None
     if _is_browser_scrape_kind(kind):
         _last_browser_scrape_at = time.time()
+    # Thread geçişi _run_locked_job içinde merkezî olarak yapılıyor
     result = _run_locked_job(
-        name=name,
-        lock=lock,
-        runner=runner,
-        kind=kind,
-        notify=notify,
+        name=name, lock=lock, runner=runner, kind=kind, notify=notify
     )
     if result is not None and _is_browser_scrape_kind(kind):
         _last_browser_scrape_at = time.time()
@@ -4707,6 +4747,17 @@ def _run_locked_job(
     notify: bool = True,
     trigger: str = "schedule",
 ) -> dict[str, Any] | None:
+    # Tarayıcı işleri TEK kalıcı thread'de koşmalı: Playwright'ın sync nesneleri
+    # thread'e bağlı olduğu için başka thread sıcak pencereyi kullanamıyor,
+    # düşürüyor ve Firefox'u öldürüp yeniden açıyor — ASC oturumu böyle
+    # kayboluyordu. Geçiş burada yapılır ki zamanlı, elle (/sync-*), claim ve
+    # ertelenmiş yolların hepsi aynı thread'e düşsün.
+    if _is_browser_scrape_kind(kind) and not _on_browser_worker():
+        return _call_on_browser_worker(
+            _run_locked_job,
+            name=name, lock=lock, runner=runner, kind=kind,
+            notify=notify, trigger=trigger,
+        )
     if not lock.acquire(blocking=False):
         print(f"Auto {name} atlandı (manuel sync sürüyor)", flush=True)
         return None
