@@ -2766,13 +2766,23 @@
     requestAnimationFrame(syncOwnVsTopDaysHeights);
 
     var tableRows = itemsForTable(data);
+    // GA4 penceresi dün sonunda mühürlü: bugün yayınlanan içerik hiçbir GA4
+    // sütununda veri alamaz. Liste en yeniden sıralı olduğu için «Today»
+    // seçildiğinde üst satırların tamamı boş görünüyordu. Böyle bir durumda
+    // dönemin gerçekten ölçtüğü sütuna (Realtime) göre sırala.
+    var withTraffic = tableRows.filter(itemHasTraffic).length;
+    var itemsSortKey = !state.trafficShown
+      ? "date"
+      : (withTraffic ? "views" : "rt_views");
     var itemsMeta = $("dn-items-meta");
     if (itemsMeta) {
       if (state.trafficShown) {
-        var withTraffic = tableRows.filter(itemHasTraffic).length;
-        itemsMeta.textContent =
-          fmt(tableRows.length) + " / " + fmt(data.items_total) +
-          " listed · " + fmt(withTraffic) + " with GA4/GSC traffic (views descending)";
+        itemsMeta.textContent = withTraffic
+          ? fmt(tableRows.length) + " / " + fmt(data.items_total) +
+            " listed · " + fmt(withTraffic) + " with GA4/GSC traffic (views descending)"
+          : fmt(tableRows.length) + " / " + fmt(data.items_total) +
+            " listed · GA4 has no data for this period yet (sealed through yesterday)" +
+            " — sorted by Realtime";
       } else {
         itemsMeta.textContent =
           "Showing " + fmt((data.items || []).length) + " / " + fmt(data.items_total) +
@@ -2837,7 +2847,7 @@
       : [];
     mountInteractiveTable("dn-table-items", {
       rows: tableRows,
-      defaultSort: state.trafficShown ? "views" : "date",
+      defaultSort: itemsSortKey,
       defaultDir: "desc",
       mobileList: true,
       searchPlaceholder: "Search title / source / category…",

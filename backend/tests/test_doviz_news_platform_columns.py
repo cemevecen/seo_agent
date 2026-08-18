@@ -208,6 +208,21 @@ def test_latest_content_is_not_emptied_when_traffic_is_sparse():
     assert "itemHasTraffic" in html, "yardımcı tamamen silinmemeli (sayaç kullanıyor)"
 
 
+def test_today_falls_back_to_realtime_sorting_and_says_why():
+    """GA4 dün sonunda mühürlü; bugünün içeriği hiçbir GA4 sütununda veri almaz.
+
+    Liste en yeniden sıralı olduğu için «Today» seçilince üst satırların hepsi
+    boş görünüyordu — tablo bozuk sanılıyor. Böyle bir durumda dönemin gerçekten
+    ölçtüğü sütuna (Realtime) göre sıralanır ve sebebi yazılır.
+    """
+    html = PAGE.read_text(encoding="utf-8")
+    assert 'var itemsSortKey' in html
+    assert '(withTraffic ? "views" : "rt_views")' in html
+    assert "defaultSort: itemsSortKey," in html
+    assert "sealed through yesterday" in html
+    assert "sorted by Realtime" in html
+
+
 def test_day_window_switch_exists_and_drives_rendering():
     """1 gün / 7 gün anahtarı (konu 3) — hem hücre hem sıralama etkilenir."""
     html = PAGE.read_text(encoding="utf-8")
