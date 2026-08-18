@@ -1419,8 +1419,11 @@
       });
     });
     if (!state.trafficShown) return all;
+    // Trafik artık her yüklemede geliyor; «trafiği olmayanı ele» kuralı burada
+    // listeyi sessizce boşaltıyordu (örn. Today — GA4 o gün için henüz eşleşme
+    // döndürmüyor). Eleme yerine sıralama: trafikli içerik üste çıkar, geri
+    // kalanı listede kalır.
     return all
-      .filter(itemHasTraffic)
       .slice()
       .sort(function (a, b) {
         var dv = (Number(b.views) || 0) - (Number(a.views) || 0);
@@ -2766,10 +2769,10 @@
     var itemsMeta = $("dn-items-meta");
     if (itemsMeta) {
       if (state.trafficShown) {
+        var withTraffic = tableRows.filter(itemHasTraffic).length;
         itemsMeta.textContent =
-          "With traffic " + fmt(tableRows.length) + " / " + fmt((data.items || []).length) +
-          " listed · period " + fmt(data.items_total) +
-          " (GA4/GSC matches, views descending)";
+          fmt(tableRows.length) + " / " + fmt(data.items_total) +
+          " listed · " + fmt(withTraffic) + " with GA4/GSC traffic (views descending)";
       } else {
         itemsMeta.textContent =
           "Showing " + fmt((data.items || []).length) + " / " + fmt(data.items_total) +

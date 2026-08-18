@@ -192,6 +192,22 @@ def test_traffic_arrives_on_the_first_load_without_pressing_show_traffic():
     assert 'delete state.tables["dn-table-items"]' in load_body
 
 
+def test_latest_content_is_not_emptied_when_traffic_is_sparse():
+    """«Today» seçilince Latest content boşalıyordu.
+
+    Trafik opt-in'ken «trafiği olmayanı ele» kuralı bilinçli bir seçimdi. Trafik
+    her yüklemede gelince aynı kural, GA4'ün henüz eşleşme döndürmediği
+    dönemlerde (Today) listeyi sessizce boşaltıyor. Eleme yerine sıralama.
+    """
+    html = PAGE.read_text(encoding="utf-8")
+    body = html.split("function itemsForTable(", 1)[1].split("\n  }", 1)[0]
+    assert ".filter(itemHasTraffic)" not in body, "liste hâlâ trafiksizleri eliyor"
+    assert "state.trafficShown" in body and ".sort(" in body
+    # Sayaç yine de kaç içeriğin trafiği olduğunu söylemeli
+    assert "with GA4/GSC traffic" in html
+    assert "itemHasTraffic" in html, "yardımcı tamamen silinmemeli (sayaç kullanıyor)"
+
+
 def test_day_window_switch_exists_and_drives_rendering():
     """1 gün / 7 gün anahtarı (konu 3) — hem hücre hem sıralama etkilenir."""
     html = PAGE.read_text(encoding="utf-8")
