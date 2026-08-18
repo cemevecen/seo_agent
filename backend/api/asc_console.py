@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -133,3 +133,18 @@ def post_asc_console_ingest(
     except Exception:
         pass
     return result
+
+
+@router.get("/asc-console/coverage")
+def get_asc_console_coverage(
+    start: str | None = Query(None, description="YYYY-MM-DD (varsayılan: mühür+1)"),
+    end: str | None = Query(None, description="YYYY-MM-DD (varsayılan: dün)"),
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+):
+    """«Elimde şu günler var» — köprü boşluk doldurmak için bunu sorar."""
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    from backend.services.console_coverage import asc_coverage
+
+    return asc_coverage(db, start=start, end=end)

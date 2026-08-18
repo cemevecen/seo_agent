@@ -90,3 +90,18 @@ def post_firebase_console_ingest(
     except Exception as exc:  # noqa: BLE001
         logger.exception("firebase-console ingest failed")
         raise HTTPException(status_code=500, detail=str(exc)[:200]) from exc
+
+
+@router.get("/firebase-console/coverage")
+def get_firebase_console_coverage(
+    start: str | None = Query(None, description="YYYY-MM-DD (varsayılan: mühür+1)"),
+    end: str | None = Query(None, description="YYYY-MM-DD (varsayılan: dün)"),
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+):
+    """«Elimde şu günler var» — köprü boşluk doldurmak için bunu sorar."""
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    from backend.services.console_coverage import firebase_coverage
+
+    return firebase_coverage(db, start=start, end=end)
