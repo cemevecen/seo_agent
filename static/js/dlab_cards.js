@@ -143,41 +143,37 @@
      */
     function card(o) {
       var id = "c" + (++seq);
-      CARDS[id] = { profiles: o.profiles || [], selected: "hepsi", body: o.body };
-      var pf = o.profiles || [];
-      var right = "";
-      if (!fixedProfile && pf.length > 1) {
-        right = '<div class="xg-cardfilter" data-card="' + id + '">' +
-          ["hepsi"].concat(pf).map(function (p, i) {
-            return '<button type="button" class="xg-chip' + (i === 0 ? " is-active" : "") +
-              '" data-p="' + esc(p) + '">' + esc(p === "hepsi" ? "Hepsi" : p) + "</button>";
-          }).join("") + "</div>";
-      } else if (!fixedProfile && pf.length === 1) {
-        right = '<span class="xg-onlypf">' + esc(pf[0]) + "</span>";
-      }
+      CARDS[id] = { body: o.body };
       return '<section class="xg-card" data-cardid="' + id + '">' +
         '<div class="xg-cardhead"><div><h3>' + esc(o.title) + "</h3>" +
-          (o.sub ? '<p class="xg-sub">' + esc(o.sub) + "</p>" : "") + "</div>" + right + "</div>" +
+          (o.sub ? '<p class="xg-sub">' + esc(o.sub) + "</p>" : "") + "</div></div>" +
         '<div class="xg-cardbody" data-body="' + id + '"></div></section>';
+
     }
 
     function paintCard(id) {
       var c = CARDS[id];
       var body = host.querySelector('[data-body="' + id + '"]');
       if (!c || !body) return;
-      body.innerHTML = c.body(c.selected);
+      body.innerHTML = c.body();
     }
     function paintAll() { Object.keys(CARDS).forEach(paintCard); }
 
-    /** Profil profil bölüm — «hepsi» seçiliyse hepsi, değilse yalnızca seçilen. */
-    function perProfile(profiles, selected, fn) {
-      var list = selected === "hepsi"
-        ? profiles
-        : profiles.filter(function (p) { return p === selected; });
+    /** Profil profil bölüm — yüzeyler YAN YANA, hepsi açık.
+     *
+     * Eskiden «hepsi / web / mweb / …» chip'leriyle tek yüzey gösteriliyordu;
+     * karşılaştırma için tıklamak gerekiyordu. Artık dört yüzey aynı anda
+     * görünüyor, container tam genişlikte.
+     */
+    function perProfile(profiles, fn) {
+      var list = profiles || [];
       if (!list.length) return empty();
-      return list.map(function (p) {
-        return (list.length > 1 ? '<span class="xg-pf">' + esc(p) + "</span>" : "") + fn(p);
-      }).join("");
+      return '<div class="xg-cols" style="--xg-cols:' + list.length + '">' +
+        list.map(function (p) {
+          return '<div class="xg-col"><span class="xg-pf">' + esc(p) + "</span>" +
+            fn(p) + "</div>";
+        }).join("") + "</div>";
+
     }
 
     // ── Bildirimsel kırılımlar ──────────────────────────────────────────────
@@ -196,9 +192,9 @@
         title: bd.label,
         sub: bd.hint || bd.dimension,
         profiles: withData,
-        body: function (sel) {
+        body: function () {
           var main = withData.length
-            ? perProfile(withData, sel, function (p) {
+            ? perProfile(withData, function (p) {
                 return table(
                   [{ label: "Değer" },
                    { label: bd.metric === "sessions" ? "Oturum" : "Sayı", num: true },
@@ -226,8 +222,8 @@
       return card({
         title: "Kullanıcı", sub: "DAU / WAU / MAU (dün)",
         profiles: rows.map(function (r) { return r.profile; }),
-        body: function (sel) {
-          var use = sel === "hepsi" ? rows : rows.filter(function (r) { return r.profile === sel; });
+        body: function () {
+          var use = rows;
           return table(
             [{ label: "Profil" }, { label: "DAU", num: true },
              { label: "WAU", num: true }, { label: "MAU", num: true }],
@@ -255,8 +251,8 @@
         title: "İçerik derinliği",
         sub: "Görüntüleme başına gerçek okuma süresi ve yeni kullanıcı",
         profiles: profiles,
-        body: function (sel) {
-          var use = sel === "hepsi" ? rows : rows.filter(function (r) { return r.profile === sel; });
+        body: function () {
+          var use = rows;
           if (!use.length) return empty();
           // Yol 50 karakteri aşarsa artan kısım hemen altındaki satıra taşınır
           var tb = use.map(function (r) {
@@ -295,8 +291,8 @@
       return card({
         title: "Saatlik ritim", sub: "hour × activeUsers — yayın saati kararı için",
         profiles: profiles,
-        body: function (sel) {
-          return perProfile(profiles, sel, function (p) {
+        body: function () {
+          return perProfile(profiles, function (p) {
             var s = series[p], hours = s.hours || [];
             var max = hours.reduce(function (m, h) { return Math.max(m, h.users); }, 0) || 1;
             var bars = hours.map(function (h) {
@@ -336,8 +332,8 @@
         title: "Etkileşim kalitesi",
         sub: "Oturum başına derinlik ve kalma — yüzeyler yan yana",
         profiles: rows.map(function (r) { return r.profile; }),
-        body: function (sel) {
-          var use = sel === "hepsi" ? rows : rows.filter(function (r) { return r.profile === sel; });
+        body: function () {
+          var use = rows;
           if (!use.length) return empty();
           return table(
             [{ label: "Profil" }, { label: "Oturum", num: true },
@@ -496,23 +492,6 @@
         })
         .then(function () { state.loading = false; });
     }
-
-    // Container filtreleri: tek delege dinleyici, kart yeniden çizilir
-    host.addEventListener("click", function (ev) {
-      var btn = ev.target && ev.target.closest && ev.target.closest("[data-p]");
-      if (!btn) return;
-      var wrap = btn.closest("[data-card]");
-      if (!wrap) return;
-      var id = wrap.getAttribute("data-card");
-      var c = CARDS[id];
-      var p = btn.getAttribute("data-p");
-      if (!c || c.selected === p) return;
-      c.selected = p;
-      wrap.querySelectorAll("[data-p]").forEach(function (x) {
-        x.classList.toggle("is-active", x === btn);
-      });
-      paintCard(id);
-    });
 
     // Gün seçici + yenile
     var scope = opts.toolbar || document;

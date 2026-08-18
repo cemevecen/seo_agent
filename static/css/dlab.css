@@ -12,23 +12,32 @@ html.dark .xg-err, html.charcoal .xg-err { color: #fca5a5; }
 /* Container yerleşimi: her kart içeriği bittiği yerde biter, bir sonraki
    hemen altından başlar. Grid satırları en uzun karta göre hizalayıp
    aralarda boşluk bırakıyordu; sütun akışı bunu ortadan kaldırır. */
-.xg-grid { column-width: 25rem; column-gap: 1rem; }
-.xg-grid > .xg-card {
-  break-inside: avoid; -webkit-column-break-inside: avoid; page-break-inside: avoid;
-  display: inline-block; width: 100%; margin: 0 0 1rem;
+/* Container'lar alt alta, tam genişlik: içeride dört yüzey yan yana durabilsin
+   diye kart artık dar bir sütuna sıkışmıyor. */
+.xg-grid { display: flex; flex-direction: column; gap: 1rem; }
+.xg-grid > .xg-card { width: 100%; margin: 0; }
+
+/* Yüzeyler yan yana — chip'e tıklamadan hepsi görünür */
+.xg-cols {
+  display: grid;
+  grid-template-columns: repeat(var(--xg-cols, 4), minmax(0, 1fr));
+  gap: 1rem;
+}
+.xg-col { min-width: 0; }
+.xg-col .xg-table { min-width: 0; }
+.xg-col .xg-key { max-width: none; }
+@media (max-width: 1100px) {
+  .xg-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .xg-cols { grid-template-columns: 1fr; }
 }
 
 .xg-cardhead { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; }
 .xg-cardbody { margin-top: .75rem; }
-.xg-cardfilter { display: inline-flex; flex-wrap: wrap; gap: .2rem; justify-content: flex-end; }
-.xg-chip { padding: .12rem .42rem; font-size: .66rem; font-weight: 600; border-radius: .4rem;
-           border: 1px solid rgba(148,163,184,.42); background: transparent; color: inherit; opacity: .7; }
-.xg-chip.is-active { background: rgba(79,70,229,.14); color: #4338ca; opacity: 1; border-color: transparent; }
-html.dark .xg-chip.is-active, html.charcoal .xg-chip.is-active { color: #a5b4fc; }
-.xg-onlypf { font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; opacity: .5; }
 .xg-pf { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase;
-         letter-spacing: .04em; opacity: .6; margin: .7rem 0 .2rem; }
-.xg-pf:first-child { margin-top: 0; }
+         letter-spacing: .04em; opacity: .55; margin: 0 0 .35rem;
+         padding-bottom: .25rem; border-bottom: 1px solid rgba(148,163,184,.28); }
 
 .xg-toolbar { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
 .xg-btn { padding: .3rem .7rem; font-size: .75rem; font-weight: 600; border-radius: .5rem;
@@ -70,11 +79,9 @@ html.dark .xg-lab, html.charcoal .xg-lab { background: #232327; border-color: #3
 .xg-lab[open] .xg-lab__caret { transform: rotate(90deg); }
 .xg-lab__inner { padding: 0 1rem 1rem; }
 /* Kapalıyken kart ızgarası dar bir alana sıkışmasın diye açılışta ölçülür */
-.xg-lab .xg-grid { column-width: 24rem; }
+.xg-lab .xg-grid { gap: .9rem; }
 
 @media (max-width: 640px) {
-  .xg-grid { column-width: auto; column-count: 1; }
-  .xg-lab .xg-grid { column-width: auto; column-count: 1; }
   .xg-table, .xg-table--depth { min-width: 0; width: 100%; table-layout: auto; }
   .xg-table thead { display: none; }
   .xg-table tbody, .xg-table tr, .xg-table td { display: block; width: auto; }

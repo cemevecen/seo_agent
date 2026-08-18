@@ -419,20 +419,35 @@ def test_global_platform_filter_is_gone():
     assert "data-xg-profile" not in page
 
 
-def test_each_container_has_its_own_filter():
+def test_surfaces_are_shown_side_by_side_without_chips():
+    """Karsilastirma icin tiklamak gerekmemeli.
+
+    Onceden container basina «hepsi / web / mweb / …» chip'leri vardi ve ayni
+    anda tek yuzey gorunuyordu; iki yuzeyi kiyaslamak icin ileri geri tiklamak
+    gerekiyordu. Artik dort yuzey yan yana, hepsi acik.
+    """
     page = _dlab_ui()
-    assert 'data-card="' in page and 'data-p="' in page
-    assert "paintCard" in page
-    # Filtre yalnizca verisi olan profilleri listeler
+    assert "xg-cols" in page                      # yan yana sutun duzeni
+    assert 'data-p="' not in page                 # chip kalmadi
+    assert "xg-chip" not in page
+    # Yalnizca verisi olan yuzeyler sutun acar — bos sutun cizilmez
     assert "withData" in page
     assert "(pp[p].rows || []).length > 0" in page
 
 
-def test_containers_flow_without_row_gaps():
-    """Grid satirlari en uzun karta hizalayip bosluk birakiyordu; sutun akisi."""
+def test_containers_stack_full_width():
+    """Container'lar alt alta ve tam genislikte olmali.
+
+    Eskiden sutun akisi (masonry) vardi; kartlar dar sutunlara sikistigi icin
+    icine dort yuzey yan yana sigmiyordu. Artik her container tam genislik.
+    """
     page = _dlab_ui()
-    assert "column-width" in page
-    assert "break-inside: avoid" in page
+    grid = page.split(".xg-grid {", 1)[1].split("}", 1)[0]
+    assert "flex-direction: column" in grid
+    assert "column-width" not in grid              # masonry kalmadi
+    # Yuzey sutunlari dar ekranda alt alta insin
+    assert "grid-template-columns: repeat(var(--xg-cols" in page
+    assert "@media (max-width: 640px)" in page
 
 
 # ── Responsive tablolar ─────────────────────────────────────────────────────
