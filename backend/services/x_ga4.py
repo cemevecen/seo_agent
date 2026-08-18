@@ -199,6 +199,43 @@ BREAKDOWNS: tuple[dict[str, Any], ...] = (
     {"key": "landing", "label": "Giriş sayfaları", "dimension": "landingPagePlusQueryString",
      "metric": "sessions", "profiles": SITE_PROFILES,
      "hint": "Siteye ilk girilen sayfa"},
+    # ── Edinim ──────────────────────────────────────────────────────────────
+    {"key": "source_medium", "label": "Kaynak / aracı", "dimension": "sessionSourceMedium",
+     "metric": "sessions", "profiles": PROFILES,
+     "hint": "Kanal grubundan bir kademe derin — hangi site, hangi yolla"},
+    {"key": "campaign", "label": "Kampanya", "dimension": "sessionCampaignName",
+     "metric": "sessions", "profiles": PROFILES,
+     "hint": "Etiketli kampanyalar; (direct) etiketsiz trafiktir"},
+    {"key": "first_channel", "label": "İlk edinim kanalı", "dimension": "firstUserDefaultChannelGroup",
+     "metric": "newUsers", "profiles": PROFILES,
+     "hint": "Kullanıcıyı ilk kez getiren kanal — oturum kanalından farklı"},
+    {"key": "referrer", "label": "Yönlendiren sayfa", "dimension": "pageReferrer",
+     "metric": "sessions", "profiles": SITE_PROFILES,
+     "hint": "Ziyaretin geldiği tam adres"},
+    # ── Kitle / cihaz ───────────────────────────────────────────────────────
+    {"key": "city", "label": "Şehir", "dimension": "city",
+     "metric": "activeUsers", "profiles": PROFILES,
+     "hint": "Ülke kırılımının altı — yerel içerik kararı için"},
+    {"key": "device_category", "label": "Cihaz kategorisi", "dimension": "deviceCategory",
+     "metric": "activeUsers", "profiles": PROFILES, "hint": "masaüstü / mobil / tablet"},
+    {"key": "device_brand", "label": "Cihaz markası", "dimension": "mobileDeviceBranding",
+     "metric": "activeUsers", "profiles": ("web", "mweb", "android"),
+     "hint": "iOS'ta tek marka olduğu için sorulmaz"},
+    {"key": "browser", "label": "Tarayıcı", "dimension": "browser",
+     "metric": "activeUsers", "profiles": SITE_PROFILES, "hint": ""},
+    {"key": "os", "label": "İşletim sistemi", "dimension": "operatingSystem",
+     "metric": "activeUsers", "profiles": SITE_PROFILES,
+     "hint": "Uygulamalarda tek değer olduğu için yalnız web/mWeb"},
+    {"key": "screen_resolution", "label": "Ekran çözünürlüğü", "dimension": "screenResolution",
+     "metric": "activeUsers", "profiles": SITE_PROFILES,
+     "hint": "Tasarım kırılım noktaları hangi genişliğe göre seçilmeli"},
+    # ── Davranış ────────────────────────────────────────────────────────────
+    {"key": "screen_name", "label": "Ekran / sayfa adı", "dimension": "unifiedScreenName",
+     "metric": "screenPageViews", "profiles": PROFILES,
+     "hint": "Uygulamada ekran, sitede sayfa başlığı — tek isimlendirmede"},
+    {"key": "signed_in", "label": "Üyelik durumu", "dimension": "signedInWithUserId",
+     "metric": "activeUsers", "profiles": SITE_PROFILES,
+     "hint": "Giriş yapmış kullanıcı payı"},
     {"key": "weekday", "label": "Haftanın günü", "dimension": "dayOfWeek",
      "metric": "activeUsers", "profiles": PROFILES,
      "hint": "0 = Pazar"},
@@ -423,6 +460,44 @@ def _hourly(
 
 # ── 6. Kitle ────────────────────────────────────────────────────────────────
 
+def _engagement(
+    client: Any, properties: dict[str, str], profiles: list[str], start: str, end: str,
+) -> dict[str, Any]:
+    """Etkileşim kalitesi — yüzeyler yan yana.
+
+    Kırılım değil, tek satırlık oran/ortalama metrikleri. Bunlar boyut
+    listesiyle gelmiyor; ayrı bir blok olarak toplanır ki yüzeyler doğrudan
+    kıyaslanabilsin (ör. iOS oturum başına 16 ekran, mWeb 1.8).
+    """
+    mets = [
+        "sessions", "engagementRate", "bounceRate",
+        "averageSessionDuration", "screenPageViewsPerSession", "eventsPerSession",
+    ]
+    rows: list[dict[str, Any]] = []
+    for pf in profiles:
+        pid = str(properties.get(pf) or "").strip()
+        if not pid:
+            continue
+        try:
+            got = _run(client, pid, dimensions=[], metrics=mets, start=start, end=end, limit=1)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("x-ga4 etkileşim [%s]: %s", pf, exc)
+            continue
+        if not got:
+            continue
+        r = got[0]
+        rows.append({
+            "profile": pf,
+            "sessions": r.get("sessions"),
+            "engagement_rate": r.get("engagementRate"),
+            "bounce_rate": r.get("bounceRate"),
+            "avg_session_sec": r.get("averageSessionDuration"),
+            "views_per_session": r.get("screenPageViewsPerSession"),
+            "events_per_session": r.get("eventsPerSession"),
+        })
+    return {"rows": rows}
+
+
 def _audience(
     client: Any, properties: dict[str, str], profiles: list[str],
     start: str, end: str, limit: int,
@@ -587,6 +662,7 @@ def build_x_ga4_report(
         "content_depth": lambda: _block("content_depth", lambda: _content_depth(client, properties, profiles, start, end, safe_limit)),
         "hourly": lambda: _block("hourly", lambda: _hourly(client, properties, profiles, start, end)),
         "audience": lambda: _block("audience", lambda: _audience(client, properties, profiles, start, end, safe_limit)),
+        "engagement": lambda: _block("engagement", lambda: _engagement(client, properties, profiles, start, end)),
     }
     names = list(jobs.keys())
     plan = _plan_breakdowns(properties, profiles)

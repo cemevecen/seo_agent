@@ -316,6 +316,46 @@
       });
     }
 
+    // ── Etkileşim kalitesi ──────────────────────────────────────────────────
+    function pct(v) {
+      var n = Number(v);
+      return isFinite(n) ? (n * 100).toFixed(1) + "%" : "—";
+    }
+    function ratio(v) {
+      var n = Number(v);
+      return isFinite(n) ? n.toFixed(1) : "—";
+    }
+    function engagementCard(b) {
+      if (b.ok === false) {
+        return card({ title: "Etkileşim kalitesi", profiles: [], body: function () {
+          return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } });
+      }
+      var rows = b.rows || [];
+      if (!rows.length) return "";
+      return card({
+        title: "Etkileşim kalitesi",
+        sub: "Oturum başına derinlik ve kalma — yüzeyler yan yana",
+        profiles: rows.map(function (r) { return r.profile; }),
+        body: function (sel) {
+          var use = sel === "hepsi" ? rows : rows.filter(function (r) { return r.profile === sel; });
+          if (!use.length) return empty();
+          return table(
+            [{ label: "Profil" }, { label: "Oturum", num: true },
+             { label: "Etkileşim", num: true }, { label: "Hemen çıkma", num: true },
+             { label: "Ort. süre", num: true }, { label: "Görünt./oturum", num: true },
+             { label: "Olay/oturum", num: true }],
+            use.map(function (r) {
+              return [
+                esc(r.profile), num(r.sessions),
+                pct(r.engagement_rate), pct(r.bounce_rate),
+                dur(r.avg_session_sec),
+                ratio(r.views_per_session), ratio(r.events_per_session)
+              ];
+            }));
+        }
+      });
+    }
+
     // ── Kitle: her liste kendi container'ında ───────────────────────────────
     function audienceCards(b) {
       if (b.ok === false) {
@@ -352,7 +392,8 @@
       var html = [
         usersCard(b.user_stability || {}),
         depthCard(b.content_depth || {}),
-        hourlyCard(b.hourly || {})
+        hourlyCard(b.hourly || {}),
+        engagementCard(b.engagement || {})
       ].concat((data.breakdowns || []).map(breakdownCard))
        .concat([audienceCards(b.audience || {})])
        .join("");

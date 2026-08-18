@@ -608,3 +608,87 @@ def test_unmapped_profiles_keep_the_original_dimension():
     assert seen["dims"] == ["customEvent:from"]
     assert "mapped_from" not in out
     assert out["rows"][0]["value"] == "home_follow"
+
+
+# ── Genişletilmiş kapsam ────────────────────────────────────────────────────
+
+NEW_BREAKDOWN_KEYS = {
+    "source_medium", "campaign", "first_channel", "referrer",
+    "city", "device_category", "device_brand", "browser", "os",
+    "screen_resolution", "screen_name", "signed_in",
+}
+
+
+def test_new_breakdowns_are_registered():
+    keys = {s["key"] for s in X.BREAKDOWNS}
+    assert NEW_BREAKDOWN_KEYS <= keys
+    assert len(X.BREAKDOWNS) >= 29
+
+
+def test_every_breakdown_is_well_formed():
+    """Tek bir bozuk spec tüm sayfayı değil ama kendi container'ını düşürür."""
+    seen = set()
+    for spec in X.BREAKDOWNS:
+        for field in ("key", "label", "dimension", "metric", "profiles"):
+            assert spec.get(field), f"{spec.get('key')}: {field} eksik"
+        assert spec["key"] not in seen, f"tekrar eden key: {spec['key']}"
+        seen.add(spec["key"])
+        assert set(spec["profiles"]) <= set(X.PROFILES), spec["key"]
+
+
+def test_dimensions_are_not_asked_where_they_are_meaningless():
+    """Ölçüldü: uygulamalarda tarayıcı/OS tek değer, iOS'ta tek marka.
+
+    Boşuna istek atmak hem kota hem gürültü.
+    """
+    by = {s["key"]: set(s["profiles"]) for s in X.BREAKDOWNS}
+    assert by["browser"] == set(X.SITE_PROFILES)
+    assert by["os"] == set(X.SITE_PROFILES)
+    assert by["screen_resolution"] == set(X.SITE_PROFILES)
+    assert by["signed_in"] == set(X.SITE_PROFILES)
+    assert "ios" not in by["device_brand"]
+
+
+def test_probed_empty_dimensions_are_not_shipped():
+    """searchTerm / contentGroup / linkUrl dört property'de de boş döndü."""
+    dims = {s["dimension"] for s in X.BREAKDOWNS}
+    for dead in ("searchTerm", "contentGroup", "linkUrl"):
+        assert dead not in dims, dead
+
+
+def test_engagement_block_collects_comparable_rates():
+    """Kırılım değil metrik bloğu: yüzeyler yan yana kıyaslanabilsin."""
+    def handler(req):
+        assert not req.dimensions
+        return _Resp([_Row([], [100, 0.5, 0.5, 60.0, 2.0, 9.0])])
+
+    out = X._engagement(_Client(handler), _props(), list(X.PROFILES), "7daysAgo", "yesterday")
+    assert [r["profile"] for r in out["rows"]] == list(X.PROFILES)
+    first = out["rows"][0]
+    for field in ("sessions", "engagement_rate", "bounce_rate",
+                  "avg_session_sec", "views_per_session", "events_per_session"):
+        assert field in first, field
+
+
+def test_engagement_skips_profiles_without_a_property():
+    out = X._engagement(_Client(), {"web": "1"}, ["web", "ios"], "7daysAgo", "yesterday")
+    assert [r["profile"] for r in out["rows"]] == ["web"]
+
+
+def test_engagement_failure_does_not_take_down_the_block():
+    """Bir yüzey düşerse diğerleri listede kalmalı."""
+    def handler(req):
+        if req.property == "properties/4":
+            raise RuntimeError("ios patladı")
+        return _Resp([_Row([], [1, 1, 1, 1, 1, 1])])
+
+    out = X._engagement(_Client(handler), _props(), ["web", "ios"], "7daysAgo", "yesterday")
+    assert [r["profile"] for r in out["rows"]] == ["web"]
+
+
+def test_engagement_is_registered_and_rendered():
+    src = (ROOT / "backend/services/x_ga4.py").read_text(encoding="utf-8")
+    assert '"engagement": lambda: _block("engagement"' in src
+    cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
+    assert "engagementCard(b.engagement || {})" in cards
+    assert "Etkileşim kalitesi" in cards
