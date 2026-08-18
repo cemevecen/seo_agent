@@ -344,7 +344,9 @@ def _release_firebase_context(pw, context, *, headed: bool, selenium: bool) -> N
         from backend.services.selenium_playwright_shim import release_selenium_context
 
         release_selenium_context(pw, context)
-        print("Firebase: Selenium Firefox kapatıldı (oturum disk profilinde)", flush=True)
+        # Pencerenin kapanıp kapanmadığına artık shim karar veriyor (sıcak
+        # pencere); burada "kapatıldı" demek yanıltıcıydı.
+        print("Firebase: Selenium turu bitti (pencere yönetimi shim'de)", flush=True)
         return
     from backend.services.scrape_browser import release_persistent_context
 

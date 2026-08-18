@@ -670,15 +670,68 @@ def play_console_use_selenium() -> bool:
     return resolve_system_firefox_executable() is not None
 
 
+# Profil → açık Selenium context. Playwright tarafındaki «sıcak pencere»
+# davranışının Selenium karşılığı: pencere tur bitince kapanmaz, bir sonraki
+# tarama aynı pencereden devam eder. Böylece kullanıcının girdiği oturum ve
+# yarım kalan iki adımlı doğrulama ekranı ayakta kalır.
+_SELENIUM_WARM: dict[str, SeleniumContext] = {}
+
+
+def _selenium_profile_key(profile: Path) -> str:
+    try:
+        return str(Path(str(profile)).expanduser().resolve())
+    except Exception:  # noqa: BLE001
+        return str(profile)
+
+
+def _selenium_alive(ctx: SeleniumContext | None) -> bool:
+    """Sürücüye gerçek bir çağrı yap — kapanmış pencere canlı sayılmasın."""
+    if ctx is None:
+        return False
+    try:
+        _ = ctx._driver.current_url
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def selenium_keep_window_open() -> bool:
+    from backend.services.scrape_browser import scrape_keep_window_open
+
+    return scrape_keep_window_open(env_key="SELENIUM_KEEP_OPEN")
+
+
 def launch_selenium_context(profile: Path, *, headed: bool) -> tuple[None, SeleniumContext, bool]:
     dl = STATE_DIR / "cache" / "play-downloads"
+    key = _selenium_profile_key(profile)
+
+    warm = _SELENIUM_WARM.get(key)
+    if selenium_keep_window_open() and _selenium_alive(warm):
+        print("Selenium: mevcut Firefox penceresi yeniden kullanılıyor (kapatılmadı)", flush=True)
+        return None, warm, True
+    if warm is not None:
+        _SELENIUM_WARM.pop(key, None)  # ölü kayıt
+
     driver = launch_system_firefox_driver(profile, headed=headed, download_dir=dl)
     ctx = SeleniumContext(driver, download_dir=dl)
+    if selenium_keep_window_open():
+        _SELENIUM_WARM[key] = ctx
     print("Play: sistem Firefox.app (Selenium) · profil oturumu korunur", flush=True)
     return None, ctx, False
 
 
 def release_selenium_context(_pw: Any, context: SeleniumContext) -> None:
+    """Pencereyi kapatma — sıcak tut. Yalnızca KEEP_OPEN kapalıysa kapatılır."""
+    if selenium_keep_window_open() and _selenium_alive(context):
+        print(
+            "Selenium: Firefox penceresi açık bırakıldı (sonraki tarama buradan "
+            "devam eder; kapatmak için SELENIUM_KEEP_OPEN=0)",
+            flush=True,
+        )
+        return
+    for k, v in list(_SELENIUM_WARM.items()):
+        if v is context:
+            _SELENIUM_WARM.pop(k, None)
     try:
         context.close()
     except Exception:
