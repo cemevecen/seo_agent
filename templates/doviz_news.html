@@ -1199,11 +1199,13 @@
 
 <script>
 (function () {
+  // Sayfa bu dönemle açılır; dönem seçimi saklanmıyor, her açılış buradan başlar.
+  var DEFAULT_PERIOD = "today";
   var state = {
     pfWindow: "d7",
     pfMetric: "views",
     category: "all",
-    period: "last_7d",
+    period: DEFAULT_PERIOD,
     customStart: null,
     customEnd: null,
     data: null,
@@ -1310,7 +1312,7 @@
 
   function reportUrl(opts) {
     opts = opts || {};
-    var url = "/api/doviz-news/report?items_limit=250&period=" + encodeURIComponent(state.period || "last_7d");
+    var url = "/api/doviz-news/report?items_limit=250&period=" + encodeURIComponent(state.period || DEFAULT_PERIOD);
     if (state.category && state.category !== "all") {
       url += "&category=" + encodeURIComponent(state.category);
     }
@@ -2536,7 +2538,7 @@
   }
 
   function syncPeriodCardVisibility(period) {
-    var p = period || "last_7d";
+    var p = period || DEFAULT_PERIOD;
     var hideWeekly = p === "today" || p === "yesterday" || p === "last_7d" || p === "prev_week";
     var hideDaySeries = p === "today" || p === "yesterday";
     if (p === "custom") {
@@ -2611,7 +2613,7 @@
   function renderPlotlyCharts(data, vis) {
     if (typeof Plotly === "undefined" || typeof Plotly.newPlot !== "function") return;
     if (!vis) {
-      vis = syncPeriodCardVisibility(data.period || state.period || "last_7d");
+      vis = syncPeriodCardVisibility(data.period || state.period || DEFAULT_PERIOD);
     }
 
     if (!vis.hideDaySeries) {
@@ -2704,7 +2706,7 @@
   }
 
   function renderCharts(data) {
-    var period = data.period || state.period || "last_7d";
+    var period = data.period || state.period || DEFAULT_PERIOD;
     var vis = syncPeriodCardVisibility(period);
     renderHBarCharts(data);
     ensurePlotly(function () { renderPlotlyCharts(data, vis); });
@@ -2713,7 +2715,7 @@
   function renderTables(data) {
     renderSourceTable(data);
 
-    var period = data.period || state.period || "last_7d";
+    var period = data.period || state.period || DEFAULT_PERIOD;
     var vis = syncPeriodCardVisibility(period);
     if (!vis.hideWeekly) {
       mountInteractiveTable("dn-table-week", {
