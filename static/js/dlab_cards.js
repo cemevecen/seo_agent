@@ -352,6 +352,32 @@
       });
     }
 
+    // ── Uygulama yapışkanlığı ───────────────────────────────────────────────
+    function stickinessCard(b) {
+      if (b.ok === false) {
+        return card({ title: "Uygulama yapışkanlığı", profiles: [], body: function () {
+          return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } });
+      }
+      var rows = b.rows || [];
+      if (!rows.length) return "";
+      return card({
+        title: "Uygulama yapışkanlığı",
+        sub: "Ne sıklıkla geri dönülüyor (dün) — yalnız Android / iOS",
+        body: function () {
+          return table(
+            [{ label: "Profil" }, { label: "DAU/MAU", num: true }, { label: "DAU/WAU", num: true },
+             { label: "WAU/MAU", num: true }, { label: "Oturum/kullanıcı", num: true },
+             { label: "Olay/kullanıcı", num: true }, { label: "Etkileşimli oturum", num: true }],
+            rows.map(function (r) {
+              return [
+                esc(r.profile), pct(r.dau_per_mau), pct(r.dau_per_wau), pct(r.wau_per_mau),
+                ratio(r.sessions_per_user), ratio(r.events_per_user), num(r.engaged_sessions)
+              ];
+            }));
+        }
+      });
+    }
+
     // ── Kitle: her liste kendi container'ında ───────────────────────────────
     function audienceCards(b, emit) {
       if (b.ok === false) {
@@ -382,6 +408,7 @@
     var BLOCK_GROUP = {
       user_stability: "engagement",
       engagement: "engagement",
+      app_stickiness: "app",
       content_depth: "behavior",
       hourly: "behavior",
       audience: "audience"
@@ -433,6 +460,7 @@
 
       put(BLOCK_GROUP.user_stability, usersCard(b.user_stability || {}));
       put(BLOCK_GROUP.engagement, engagementCard(b.engagement || {}));
+      put(BLOCK_GROUP.app_stickiness, stickinessCard(b.app_stickiness || {}));
       put(BLOCK_GROUP.content_depth, depthCard(b.content_depth || {}));
       put(BLOCK_GROUP.hourly, hourlyCard(b.hourly || {}));
 

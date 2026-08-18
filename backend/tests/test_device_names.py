@@ -9,20 +9,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from backend.services.device_names import (
-    _IOS_MODELS,
-    android_table_size,
-    pretty_device_model,
-)
+from backend.services.device_names import _IOS_MODELS, pretty_device_model
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_android_codes_become_marketing_names():
-    assert pretty_device_model("SM-S938B", platform="android") == "Samsung Galaxy S25 Ultra"
-    assert pretty_device_model("SM-S928B", platform="android") == "Samsung Galaxy S24 Ultra"
-    # Marka adı zaten adın içindeyse tekrarlanmamalı ("Redmi Redmi Note 13 Pro")
-    assert pretty_device_model("23117RA68G", platform="android") == "Redmi Note 13 Pro"
+def test_android_is_left_to_ga4():
+    """GA4'ün `mobileDeviceMarketingName` boyutu Android'de adı zaten veriyor.
+
+    Önce 40 bin satırlık bir tablo gömülmüştü; hazır boyut hem bayatlamıyor hem
+    bakım istemiyor. Burada Android çevirisi OLMAMALI, yoksa iki kaynak
+    birbiriyle çelişir.
+    """
+    assert pretty_device_model("SM-S938B", platform="android") == "SM-S938B"
+    src = (ROOT / "backend/services/x_ga4.py").read_text(encoding="utf-8")
+    dev = src.split('{"key": "device"', 1)[1].split("},", 1)[0]
+    assert '"android": {"dimension": "mobileDeviceMarketingName"}' in dev
 
 
 def test_ios_codes_become_marketing_names():
@@ -47,20 +49,16 @@ def test_ga4_buckets_are_not_translated():
 
 def test_platform_is_inferred_when_not_given():
     assert pretty_device_model("iPhone14,5") == "iPhone 13"
-    assert pretty_device_model("SM-S938B") == "Samsung Galaxy S25 Ultra"
 
 
-def test_table_is_bundled_and_loads():
-    """Tablo depoda olmalı; indirilmesi gereken bir şey kalmamalı."""
-    data = ROOT / "backend/data/android_device_names.json.gz"
-    assert data.is_file(), "gömülü tablo yok"
-    assert data.stat().st_size < 2_000_000, "tablo şişmiş"
-    assert android_table_size() > 30_000
+def test_no_bundled_android_table_is_left_behind():
+    """Gereksiz kalan 319 KB'lık tablo depoda kalmasın."""
+    assert not (ROOT / "backend/data/android_device_names.json.gz").exists()
 
 
 def test_lookup_does_no_network_at_runtime():
     src = (ROOT / "backend/services/device_names.py").read_text(encoding="utf-8")
-    for forbidden in ("requests", "httpx", "urllib.request", "socket"):
+    for forbidden in ("requests", "httpx", "urllib.request", "socket", "gzip"):
         assert forbidden not in src, forbidden
 
 

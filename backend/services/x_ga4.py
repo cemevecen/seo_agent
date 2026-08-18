@@ -183,6 +183,24 @@ BREAKDOWNS: tuple[dict[str, Any], ...] = (
              },
          }
      }},
+    {"key": "position", "group": "behavior", "label": "Tıklanan sıra",
+     "dimension": "customEvent:position", "metric": "eventCount", "profiles": ("web",),
+     "hint": "Listede kaçıncı sıradaki öğeye tıklandı — sıralamanın etkisi"},
+    {"key": "converter_interaction", "group": "behavior", "label": "Çevirici kullanımı",
+     "dimension": "customEvent:converter_interaction_type", "metric": "eventCount",
+     "profiles": ("web",), "hint": "Çeviricide hangi sekme/eylem"},
+    {"key": "ios_category", "group": "behavior", "label": "İçerik kategorisi",
+     "dimension": "customEvent:category", "metric": "eventCount", "profiles": ("ios",),
+     "hint": "Hangi kategori açılıyor"},
+    {"key": "ios_action", "group": "behavior", "label": "Etkileşim türü",
+     "dimension": "customEvent:action", "metric": "eventCount", "profiles": ("ios",),
+     "hint": "Görüntüleme / dokunma / kaydırma"},
+    {"key": "news_title", "group": "behavior", "label": "Haber başlığı",
+     "dimension": "customEvent:news_title", "metric": "eventCount", "profiles": APP_PROFILES,
+     "hint": "Uygulamada en çok etkileşim alan haberler"},
+    {"key": "screen_class", "group": "app", "label": "Ekran sınıfı",
+     "dimension": "unifiedScreenClass", "metric": "screenPageViews", "profiles": APP_PROFILES,
+     "hint": "Activity / ViewController bazında — hangi ekran taşıyor"},
     {"key": "sections_enabled", "group": "app", "label": "Açılan bölümler", "dimension": "customEvent:sections_enabled",
      "metric": "eventCount", "profiles": ("ios",), "hint": ""},
     {"key": "sections_disabled", "group": "app", "label": "Kapatılan bölümler", "dimension": "customEvent:sections_disabled",
@@ -211,7 +229,13 @@ BREAKDOWNS: tuple[dict[str, Any], ...] = (
     {"key": "os_version", "group": "audience", "label": "İşletim sistemi sürümü", "dimension": "operatingSystemVersion",
      "metric": "activeUsers", "profiles": PROFILES, "hint": ""},
     {"key": "device", "group": "audience", "label": "Cihaz modeli", "dimension": "deviceModel",
-     "metric": "activeUsers", "profiles": APP_PROFILES, "hint": ""},
+     "metric": "activeUsers", "profiles": APP_PROFILES,
+     "hint": "Android'de GA4 pazarlama adını kendi veriyor; iOS'ta kod gelir ve çevrilir",
+     # GA4'te `mobileDeviceMarketingName` diye hazır bir boyut var ve Android'de
+     # doğrudan «Galaxy S25 Ultra» döndürüyor — gömülü çeviri tablosuna gerek yok,
+     # üstelik bayatlamıyor. iOS'ta bu boyut BOŞ dönüyor, orada deviceModel kodu
+     # (iPhone14,5) gelip elle yazılmış tabloyla çevriliyor.
+     "per_profile": {"android": {"dimension": "mobileDeviceMarketingName"}}},
     {"key": "landing", "group": "acquisition", "label": "Giriş sayfaları", "dimension": "landingPagePlusQueryString",
      "metric": "sessions", "profiles": SITE_PROFILES,
      "hint": "Siteye ilk girilen sayfa"},
@@ -511,6 +535,48 @@ def _engagement(
     return {"rows": rows}
 
 
+def _app_stickiness(
+    client: Any, properties: dict[str, str], profiles: list[str],
+) -> dict[str, Any]:
+    """Uygulama yapışkanlığı — yalnızca android/ios.
+
+    DAU/MAU gibi oranlar **tek gün** sorulmalı. Aralık verilince GA4 günleri
+    topluyor ve 2.93 gibi anlamsız bir sayı dönüyor; elle hesapla
+    doğrulandı: dün için dauPerMau=0.438, DAU/MAU=%44.27. Bu yüzden pencere
+    burada sabit «dün».
+    """
+    mets = [
+        "dauPerMau", "dauPerWau", "wauPerMau",
+        "sessionsPerUser", "eventCountPerUser", "engagedSessions",
+    ]
+    rows: list[dict[str, Any]] = []
+    for pf in profiles:
+        if pf not in APP_PROFILES:
+            continue
+        pid = str(properties.get(pf) or "").strip()
+        if not pid:
+            continue
+        try:
+            got = _run(client, pid, dimensions=[], metrics=mets,
+                       start="yesterday", end="yesterday", limit=1)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("x-ga4 yapışkanlık [%s]: %s", pf, exc)
+            continue
+        if not got:
+            continue
+        r = got[0]
+        rows.append({
+            "profile": pf,
+            "dau_per_mau": r.get("dauPerMau"),
+            "dau_per_wau": r.get("dauPerWau"),
+            "wau_per_mau": r.get("wauPerMau"),
+            "sessions_per_user": r.get("sessionsPerUser"),
+            "events_per_user": r.get("eventCountPerUser"),
+            "engaged_sessions": r.get("engagedSessions"),
+        })
+    return {"rows": rows, "window": "yesterday"}
+
+
 def _audience(
     client: Any, properties: dict[str, str], profiles: list[str],
     start: str, end: str, limit: int,
@@ -683,6 +749,7 @@ def build_x_ga4_report(
         "hourly": lambda: _block("hourly", lambda: _hourly(client, properties, profiles, start, end)),
         "audience": lambda: _block("audience", lambda: _audience(client, properties, profiles, start, end, safe_limit)),
         "engagement": lambda: _block("engagement", lambda: _engagement(client, properties, profiles, start, end)),
+        "app_stickiness": lambda: _block("app_stickiness", lambda: _app_stickiness(client, properties, profiles)),
     }
     names = list(jobs.keys())
     plan = _plan_breakdowns(properties, profiles)

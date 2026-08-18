@@ -751,3 +751,65 @@ def test_empty_group_is_not_drawn():
     cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
     body = cards.split("function groupSection(", 1)[1].split("\n    }", 1)[0]
     assert "if (!count) return \"\";" in body
+
+
+# ── Uygulama yapışkanlığı + yeni davranış kırılımları ───────────────────────
+
+def test_stickiness_is_asked_for_a_single_day():
+    """DAU/MAU aralık verilince anlamsız çıkıyor.
+
+    Ölçüldü: 7 gün sorulunca dauPerMau=2.93 (oran 0-1 olmalı), tek gün
+    sorulunca 0.438 ve elle hesapla (%44.27) uyuşuyor. Pencere sabit «dün».
+    """
+    seen = {}
+
+    def handler(req):
+        seen["start"] = req.date_ranges[0].start_date
+        seen["end"] = req.date_ranges[0].end_date
+        return _Resp([_Row([], [0.4, 0.6, 0.8, 13.0, 300.0, 700000])])
+
+    out = X._app_stickiness(_Client(handler), _props(), list(X.PROFILES))
+    assert seen["start"] == "yesterday" and seen["end"] == "yesterday"
+    assert out["window"] == "yesterday"
+
+
+def test_stickiness_is_app_only():
+    """web/mWeb'de DAU/MAU var ama «uygulama yapışkanlığı» kavramı değil."""
+    out = X._app_stickiness(_Client(), _props(), list(X.PROFILES))
+    assert {r["profile"] for r in out["rows"]} == set(X.APP_PROFILES)
+
+
+def test_stickiness_survives_one_failing_surface():
+    def handler(req):
+        if req.property == "properties/4":
+            raise RuntimeError("ios patladı")
+        return _Resp([_Row([], [1, 1, 1, 1, 1, 1])])
+
+    out = X._app_stickiness(_Client(handler), _props(), ["android", "ios"])
+    assert [r["profile"] for r in out["rows"]] == ["android"]
+
+
+def test_requested_behaviour_breakdowns_exist():
+    """Kullanıcının açıkça istedikleri."""
+    by = {s["key"]: s for s in X.BREAKDOWNS}
+    assert by["position"]["dimension"] == "customEvent:position"
+    assert by["converter_interaction"]["dimension"] == "customEvent:converter_interaction_type"
+    assert by["ios_category"]["dimension"] == "customEvent:category"
+    assert by["ios_action"]["dimension"] == "customEvent:action"
+    # Ölçüldü: bu boyutlar yalnızca ilgili yüzeyde tanımlı
+    assert by["position"]["profiles"] == ("web",)
+    assert by["ios_category"]["profiles"] == ("ios",)
+
+
+def test_app_only_breakdowns_are_scoped_to_apps():
+    by = {s["key"]: set(s["profiles"]) for s in X.BREAKDOWNS}
+    assert by["news_title"] == set(X.APP_PROFILES)
+    assert by["screen_class"] == set(X.APP_PROFILES)
+
+
+def test_stickiness_block_is_registered_and_rendered():
+    src = (ROOT / "backend/services/x_ga4.py").read_text(encoding="utf-8")
+    assert '"app_stickiness": lambda: _block("app_stickiness"' in src
+    cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
+    assert "stickinessCard(b.app_stickiness || {})" in cards
+    assert 'app_stickiness: "app"' in cards
