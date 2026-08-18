@@ -487,7 +487,12 @@ def _launch_context(*, headed: bool):
             warm_session_forget_profile(PROFILE_DIR)
         except Exception:  # noqa: BLE001
             pass
-        pw, ctx, reused = launch_selenium_context(PROFILE_DIR, headed=headed)
+        # Playwright bağlamı `service_workers: "block"` ile açılıyordu. Selenium'a
+        # geçerken bu güvence kaybolmuştu: profilde kalan bayat bir service
+        # worker, Apple giriş bileşenini sonsuz spinner'da bırakıyor.
+        pw, ctx, reused = launch_selenium_context(
+            PROFILE_DIR, headed=headed, prefs={"dom.serviceWorkers.enabled": False}
+        )
         print(
             "ASC: sistem Firefox.app (Selenium) · pencere köprüden bağımsız yaşar"
             + (" · mevcut pencere" if reused else ""),

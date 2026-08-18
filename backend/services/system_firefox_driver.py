@@ -367,7 +367,14 @@ def _free_port() -> int:
         s.close()
 
 
-def _firefox_options(profile: Path, *, exe: str, headed: bool, download_dir: Path) -> Any:
+def _firefox_options(
+    profile: Path,
+    *,
+    exe: str,
+    headed: bool,
+    download_dir: Path,
+    prefs: dict[str, Any] | None = None,
+) -> Any:
     from selenium.webdriver.firefox.options import Options
 
     opts = Options()
@@ -392,6 +399,12 @@ def _firefox_options(profile: Path, *, exe: str, headed: bool, download_dir: Pat
     opts.set_preference("pdfjs.disabled", True)
     opts.set_preference("browser.download.manager.showWhenStarting", False)
     opts.set_preference("browser.helperApps.alwaysAsk.force", False)
+    # Çağırana özel tercihler (ör. ASC'de service worker kapatma — Playwright
+    # bağlamı `service_workers: "block"` ile aynı işi yapıyordu; Selenium'a
+    # geçince bu güvence kaybolmuş ve ASC giriş bileşeni bayat bir worker
+    # yüzünden sonsuz spinner'da kalmıştı).
+    for key, value in (prefs or {}).items():
+        opts.set_preference(str(key), value)
     return opts
 
 
@@ -577,6 +590,7 @@ def launch_system_firefox_driver(
     headed: bool = True,
     download_dir: Path | None = None,
     page_load_timeout: int = 120,
+    prefs: dict[str, Any] | None = None,
 ) -> Any:
     """Selenium WebDriver → yalnızca sistem Firefox.app + verilen profil."""
     from selenium import webdriver
@@ -657,7 +671,7 @@ def launch_system_firefox_driver(
             flush=True,
         )
 
-    opts = _firefox_options(profile, exe=exe, headed=headed, download_dir=dl)
+    opts = _firefox_options(profile, exe=exe, headed=headed, download_dir=dl, prefs=prefs)
     driver = webdriver.Firefox(options=opts)
     driver.set_page_load_timeout(page_load_timeout)
     driver._seo_profile = profile  # type: ignore[attr-defined]

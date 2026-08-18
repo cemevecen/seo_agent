@@ -115,3 +115,29 @@ def test_asc_release_routes_by_context_type():
     assert '_selenium_mode' in body
     assert "release_selenium_context(pw, ctx)" in body
     assert "release_persistent_context(" in body
+
+
+def test_asc_blocks_service_workers_like_the_playwright_context_did():
+    """Playwright bağlamı `service_workers: "block"` ile açılıyordu.
+
+    Selenium'a geçerken bu güvence kaybolmuştu; profilde kalan bayat bir
+    service worker Apple giriş bileşenini sonsuz spinner'da bırakabiliyor
+    (ASC kodunun üç ayrı yerde _unregister_service_workers çağırması da bu
+    sorunun daha önce yaşandığını gösteriyor).
+    """
+    src = (ROOT / "scripts" / "asc_console_scrape.py").read_text(encoding="utf-8")
+    body = src.split("def _launch_context(", 1)[1].split("\ndef ", 1)[0]
+    assert '"dom.serviceWorkers.enabled": False' in body
+    # Playwright yolu da eski davranışını korumalı
+    assert '"service_workers": "block"' in body
+
+
+def test_launcher_applies_caller_prefs():
+    """prefs sessizce yutulmamalı — yutulursa koruma hiç uygulanmaz."""
+    sfd = (ROOT / "backend/services/system_firefox_driver.py").read_text(encoding="utf-8")
+    opts = sfd.split("def _firefox_options(", 1)[1].split("\ndef ", 1)[0]
+    assert "for key, value in (prefs or {}).items():" in opts
+    assert "opts.set_preference(str(key), value)" in opts
+    shim = (ROOT / "backend/services/selenium_playwright_shim.py").read_text(encoding="utf-8")
+    launch = shim.split("def launch_selenium_context(", 1)[1].split("\ndef ", 1)[0]
+    assert "prefs=prefs" in launch

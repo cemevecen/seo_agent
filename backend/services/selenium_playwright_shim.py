@@ -804,7 +804,9 @@ def selenium_keep_window_open() -> bool:
     return scrape_keep_window_open(env_key="SELENIUM_KEEP_OPEN")
 
 
-def launch_selenium_context(profile: Path, *, headed: bool) -> tuple[None, SeleniumContext, bool]:
+def launch_selenium_context(
+    profile: Path, *, headed: bool, prefs: dict[str, Any] | None = None
+) -> tuple[None, SeleniumContext, bool]:
     dl = STATE_DIR / "cache" / "play-downloads"
     key = _selenium_profile_key(profile)
 
@@ -815,7 +817,9 @@ def launch_selenium_context(profile: Path, *, headed: bool) -> tuple[None, Selen
     if warm is not None:
         _SELENIUM_WARM.pop(key, None)  # ölü kayıt
 
-    driver = launch_system_firefox_driver(profile, headed=headed, download_dir=dl)
+    driver = launch_system_firefox_driver(
+        profile, headed=headed, download_dir=dl, prefs=prefs
+    )
     ctx = SeleniumContext(driver, download_dir=dl)
     if selenium_keep_window_open():
         _SELENIUM_WARM[key] = ctx

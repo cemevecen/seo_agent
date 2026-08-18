@@ -66,7 +66,7 @@ def test_next_launch_reuses_the_same_window(monkeypatch):
     prof = Path("/tmp/fx-google-test")
     launched = {"n": 0}
 
-    def _fake_launch(profile, *, headed, download_dir):
+    def _fake_launch(profile, *, headed, download_dir, prefs=None):
         launched["n"] += 1
         return _Driver()
 
@@ -88,7 +88,7 @@ def test_dead_window_is_replaced_not_reused(monkeypatch):
     prof = Path("/tmp/fx-google-test2")
     monkeypatch.setattr(shim, "SeleniumContext", _Ctx)
     monkeypatch.setattr(shim, "launch_system_firefox_driver",
-                        lambda profile, *, headed, download_dir: _Driver())
+                        lambda profile, *, headed, download_dir, prefs=None: _Driver())
 
     _, first, _ = shim.launch_selenium_context(prof, headed=True)
     first._driver._alive = False           # pencere dışarıdan öldü
@@ -107,7 +107,7 @@ def test_profiles_are_tracked_separately(monkeypatch):
     monkeypatch.setattr(shim, "selenium_keep_window_open", lambda: True)
     monkeypatch.setattr(shim, "SeleniumContext", _Ctx)
     monkeypatch.setattr(shim, "launch_system_firefox_driver",
-                        lambda profile, *, headed, download_dir: _Driver())
+                        lambda profile, *, headed, download_dir, prefs=None: _Driver())
     _, a, _ = shim.launch_selenium_context(Path("/tmp/p-a"), headed=True)
     _, b, _ = shim.launch_selenium_context(Path("/tmp/p-b"), headed=True)
     assert a is not b
