@@ -447,7 +447,9 @@ def _attach_detached_driver(
         )
         _ = driver.current_url  # oturum gerçekten canlı mı
     except Exception:  # noqa: BLE001
-        _clear_detach_state(profile)
+        # Oturum ölmüş ama geckodriver ayakta kalmış olabilir; ayrık
+        # başlattığımız için kimse toplamıyor, biriktikçe port sızdırıyor.
+        shutdown_detached_firefox(profile)
         return None
     try:
         driver.set_page_load_timeout(page_load_timeout)
@@ -525,17 +527,44 @@ def _spawn_detached_driver(
     return driver
 
 
+def _session_alive(url: str, session_id: str, timeout: float = 2.5) -> bool:
+    """geckodriver'daki oturum gerçekten kullanılabilir mi?
+
+    Port açık olması yetmiyor: Firefox öldüğünde geckodriver ayakta kalıyor
+    (ayrık başlattığımız için kimse toplamıyor) ve port hâlâ cevap veriyor.
+    Bu yüzden oturuma gerçek bir WebDriver çağrısı yapılır.
+    """
+    if not url or not session_id:
+        return False
+    import urllib.error
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(  # noqa: S310
+            f"{url}/session/{session_id}/url", timeout=timeout
+        ) as resp:
+            return 200 <= int(resp.status) < 300
+    except urllib.error.HTTPError:
+        return False  # 404/500 → oturum yok
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def detached_window_is_live(profile: Path) -> bool:
-    """Bu profil için bilerek açık bırakılmış ayrık pencere var mı?
+    """Bu profil için bilerek açık bırakılmış, ÇALIŞAN ayrık pencere var mı?
 
     Köprü açılışındaki kalıntı temizliği bunu sormadan öldürüyordu; korumaya
-    çalıştığımız oturum her yeniden başlatmada gidiyordu.
+    çalıştığımız oturum her yeniden başlatmada gidiyordu. Ama yalnızca porta
+    bakmak da yanlış: ölü Firefox + yaşayan geckodriver "canlı" görünüyor ve
+    temizlik gerçekten kalıntı olan profili atlıyordu.
     """
     state = _read_detach_state(Path(str(profile)).expanduser())
     if not state:
         return False
     port = int(state.get("port") or 0)
-    return bool(port) and _port_open(port)
+    if not port or not _port_open(port):
+        return False
+    return _session_alive(str(state.get("url") or ""), str(state.get("session") or ""))
 
 
 def shutdown_detached_firefox(profile: Path) -> bool:

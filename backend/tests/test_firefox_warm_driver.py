@@ -265,9 +265,60 @@ def test_boot_cleanup_spares_a_live_detached_window(monkeypatch, tmp_path):
 def test_detached_window_is_live_needs_an_open_port(monkeypatch, tmp_path):
     prof = tmp_path / "fx-asc"
     monkeypatch.setattr(sfd, "_detach_state_path", lambda p: tmp_path / "s.json")
+    # Oturum canlılığı ayrıca sınanıyor; burada port koşulu izole edilir
+    monkeypatch.setattr(sfd, "_session_alive", lambda url, sid, timeout=2.5: True)
     assert sfd.detached_window_is_live(prof) is False       # kayıt yok
-    sfd._write_detach_state(prof, {"port": 1234})
+    sfd._write_detach_state(prof, {
+        "url": "http://127.0.0.1:1234", "port": 1234, "session": "abc",
+    })
     monkeypatch.setattr(sfd, "_port_open", lambda port, timeout=0.35: False)
     assert sfd.detached_window_is_live(prof) is False       # kayıt var, süreç ölü
     monkeypatch.setattr(sfd, "_port_open", lambda port, timeout=0.35: True)
     assert sfd.detached_window_is_live(prof) is True
+
+
+def test_live_check_rejects_a_dead_session_behind_a_live_port(monkeypatch, tmp_path):
+    """Firefox ölüp geckodriver kalınca port hâlâ cevap veriyor.
+
+    Yalnızca porta bakmak «canlı» diyordu; köprü açılış temizliği de bu yalana
+    bakıp gerçekten kalıntı olan profili atlıyordu.
+    """
+    prof = tmp_path / "fx-asc"
+    monkeypatch.setattr(sfd, "_detach_state_path", lambda p: tmp_path / "s.json")
+    sfd._write_detach_state(prof, {
+        "url": "http://127.0.0.1:1234", "port": 1234, "session": "abc",
+    })
+    monkeypatch.setattr(sfd, "_port_open", lambda port, timeout=0.35: True)
+
+    monkeypatch.setattr(sfd, "_session_alive", lambda url, sid, timeout=2.5: False)
+    assert sfd.detached_window_is_live(prof) is False, "ölü oturum canlı sayıldı"
+
+    monkeypatch.setattr(sfd, "_session_alive", lambda url, sid, timeout=2.5: True)
+    assert sfd.detached_window_is_live(prof) is True
+
+
+def test_failed_attach_reaps_the_orphan_geckodriver(monkeypatch, tmp_path):
+    """Ayrık başlattığımız için öksüz geckodriver'ı kimse toplamıyor."""
+    prof = tmp_path / "fx-asc"
+    monkeypatch.setattr(sfd, "_detach_state_path", lambda p: tmp_path / "s.json")
+    monkeypatch.setattr(sfd, "_port_open", lambda port, timeout=0.35: True)
+    monkeypatch.setattr(sfd, "resolve_system_firefox_executable", lambda: "/x/firefox")
+    monkeypatch.setattr(sfd, "_firefox_options", lambda *a, **kw: object())
+
+    def _boom(*_a, **_kw):
+        raise RuntimeError("oturum yok")
+
+    monkeypatch.setattr(sfd, "_attached_driver", _boom)
+    reaped: list[int] = []
+    monkeypatch.setattr(sfd.os, "kill", lambda pid, sig: reaped.append(pid))
+    sfd._write_detach_state(prof, {
+        "url": "http://127.0.0.1:1234", "port": 1234, "session": "abc",
+        "gecko_pid": 4242, "headed": True, "download_dir": str(tmp_path / "dl"),
+    })
+
+    got = sfd._attach_detached_driver(
+        prof, headed=True, download_dir=tmp_path / "dl", page_load_timeout=30
+    )
+    assert got is None
+    assert reaped == [4242], "öksüz geckodriver toplanmadı"
+    assert not (tmp_path / "s.json").exists()
