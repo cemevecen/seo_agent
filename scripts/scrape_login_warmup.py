@@ -43,6 +43,71 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+def _bridge_interpreter() -> Path | None:
+    """Köprü LaunchAgent'ının kullandığı python — çalıştığı bilinen tek yorumlayıcı."""
+    plist = Path.home() / "Library/LaunchAgents/com.cemevecen.doviz-admin-notification-bridge.plist"
+    try:
+        import plistlib
+
+        data = plistlib.loads(plist.read_bytes())
+        args = data.get("ProgramArguments") or []
+        if args:
+            candidate = Path(str(args[0]))
+            return candidate if candidate.exists() else None
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def interpreter_candidates() -> list[Path]:
+    """playwright aranacak yorumlayıcılar — ilk uyan kullanılır.
+
+    Tek bir `.venv` yoluna güvenmek yetmiyor: makineler farklı kurulmuş
+    olabiliyor (ofis Mac'inde sistem python3 seçiliyordu ve orada playwright
+    yoktu). Köprünün kendi yorumlayıcısı en güvenilir aday, çünkü zamanlanmış
+    scrape'ler onunla koşuyor.
+    """
+    out: list[Path] = []
+    seen: set[str] = set()
+
+    def _add(path: Path | None) -> None:
+        if path is None:
+            return
+        try:
+            key = str(path.resolve())
+        except Exception:  # noqa: BLE001
+            key = str(path)
+        if key in seen or not path.exists():
+            return
+        try:
+            if path.resolve() == Path(sys.executable).resolve():
+                return  # zaten buradayız
+        except Exception:  # noqa: BLE001
+            pass
+        seen.add(key)
+        out.append(path)
+
+    _add(_bridge_interpreter())
+    for name in (".venv", "venv", "env"):
+        _add(ROOT / name / "bin" / "python")
+    return out
+
+
+def _interpreter_has_playwright(python_path: Path) -> bool:
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            [str(python_path), "-c", "import playwright"],
+            capture_output=True,
+            timeout=25,
+            check=False,
+        )
+        return proc.returncode == 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _has_playwright() -> bool:
     try:
         import playwright  # noqa: F401
@@ -63,15 +128,11 @@ def _ensure_playwright_interpreter() -> None:
         return
     if os.environ.get("_WARMUP_REEXEC") == "1":
         return  # bir kez denendi; sonsuz döngü olmasın
-    venv_python = ROOT / ".venv" / "bin" / "python"
-    try:
-        same = venv_python.resolve() == Path(sys.executable).resolve()
-    except Exception:  # noqa: BLE001
-        same = str(venv_python) == sys.executable
-    if not venv_python.exists() or same:
-        return
-    os.environ["_WARMUP_REEXEC"] = "1"
-    os.execv(str(venv_python), [str(venv_python), *sys.argv])
+    for candidate in interpreter_candidates():
+        if _interpreter_has_playwright(candidate):
+            os.environ["_WARMUP_REEXEC"] = "1"
+            os.execv(str(candidate), [str(candidate), *sys.argv])
+    # Hiçbiri yoksa akış devam eder; teşhis/çalışma net hata verir.
 
 
 _ensure_playwright_interpreter()
@@ -333,6 +394,117 @@ def warm_target(name: str, *, check_only: bool = False, headed: bool = True) -> 
                 LOGGER.warning("warm-up context bırakılamadı (%s): %s", name, exc)
 
 
+
+# ── E-posta uyarısı (iki Mac için de) ───────────────────────────────────────
+
+# Aynı arıza her turda mail atmasın; ama sessizce de kaybolmasın.
+ALERT_REPEAT_HOURS = 6.0
+
+
+def _alert_state_path() -> Path:
+    return Path.home() / ".seo-agent" / "cache" / "login-warmup-alerts.json"
+
+
+def _load_alert_state() -> dict[str, Any]:
+    try:
+        return json.loads(_alert_state_path().read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _save_alert_state(state: dict[str, Any]) -> None:
+    try:
+        path = _alert_state_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Uyarı durumu yazılamadı: %s", exc)
+
+
+def _machine_name() -> str:
+    import platform
+
+    return platform.node() or "bilinmeyen-mac"
+
+
+def _alert_html(machine: str, rows: list[TargetResult], *, recovered: bool) -> str:
+    if recovered:
+        items = "".join(
+            f"<li><b>{r.label}</b> — oturum yeniden geçerli</li>" for r in rows
+        )
+        return (
+            f"<p><b>{machine}</b> üzerinde konsol oturumları düzeldi.</p>"
+            f"<ul>{items}</ul>"
+        )
+    items = "".join(
+        f"<li><b>{r.label}</b> — {r.message}</li>" for r in rows
+    )
+    return (
+        f"<p><b>{machine}</b> üzerinde konsol girişi müdahale bekliyor.</p>"
+        f"<ul>{items}</ul>"
+        "<p>Otomatik giriş Keychain'deki kimlikle denendi. İkinci faktör (2FA) "
+        "veya bot kontrolü çıktıysa bilerek durulur — otomatik aşılmaya "
+        "çalışılmaz. Bu Mac'te açık bırakılan Firefox penceresinden doğrulamayı "
+        "tamamlayın; oturum profile kaydolur ve genelde günlerce tekrar sorulmaz.</p>"
+        "<p>Durumu görmek için: "
+        "<code>python3 scripts/scrape_login_warmup.py --doctor</code></p>"
+    )
+
+
+def send_alert_emails(results: list[TargetResult]) -> dict[str, Any]:
+    """Arıza başlayınca uyar, düzelince haber ver. Tekrarları saatle sınırla."""
+    machine = _machine_name()
+    state = _load_alert_state()
+    now = time.time()
+
+    failing = [r for r in results if r.needs_action]
+    healthy = [r for r in results if not r.needs_action]
+
+    to_alert: list[TargetResult] = []
+    for r in failing:
+        key = f"{machine}|{r.target}"
+        last = float((state.get(key) or {}).get("last_sent") or 0)
+        if (now - last) >= ALERT_REPEAT_HOURS * 3600:
+            to_alert.append(r)
+
+    recovered = [r for r in healthy if state.get(f"{machine}|{r.target}")]
+
+    sent = {"alert": False, "recovery": False}
+    try:
+        from backend.services.mailer import send_email
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Mailer yüklenemedi: %s", exc)
+        return sent
+
+    def _try_send(subject: str, html: str) -> bool:
+        """SMTP arızası warm-up'ı düşürmemeli — uyarı yan iş, asıl iş oturum."""
+        try:
+            return bool(send_email(subject, html))
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Uyarı e-postası gönderilemedi: %s", exc)
+            return False
+
+    if to_alert:
+        subject = f"[{machine}] Konsol girişi müdahale bekliyor — " + ", ".join(
+            r.target for r in to_alert
+        )
+        sent["alert"] = _try_send(subject, _alert_html(machine, to_alert, recovered=False))
+        # Gönderilemese bile işaretle: her turda tekrar denemek posta kuyruğunu
+        # döver; bir sonraki pencerede yeniden denenir.
+        for r in to_alert:
+            state[f"{machine}|{r.target}"] = {"last_sent": now, "message": r.message[:200]}
+
+    if recovered:
+        subject = f"[{machine}] Konsol oturumu düzeldi — " + ", ".join(r.target for r in recovered)
+        sent["recovery"] = _try_send(subject, _alert_html(machine, recovered, recovered=True))
+        for r in recovered:
+            state.pop(f"{machine}|{r.target}", None)
+
+    if to_alert or recovered:
+        _save_alert_state(state)
+    return sent
+
+
 def report_to_panel(results: list[TargetResult]) -> bool:
     """Project Control'a bildir — panelde «login müdahalesi gerekiyor» görünsün."""
     base = (os.environ.get("PROJECT_CONTROL_BASE_URL")
@@ -393,8 +565,16 @@ def doctor(*, with_browser: bool = True) -> int:
     print(f"Yorumlayıcı: {sys.executable} · playwright {pw_state}")
     if pw_state == "YOK":
         ok = False
-        print(f"   Çare: {ROOT / '.venv' / 'bin' / 'python'} -m pip install playwright "
-              "&& python -m playwright install firefox")
+        cands = interpreter_candidates()
+        if cands:
+            print("   Denenen diğer yorumlayıcılar:")
+            for c in cands:
+                print(f"     playwright {'var' if _interpreter_has_playwright(c) else 'YOK'} · {c}")
+        else:
+            print("   Başka yorumlayıcı bulunamadı (venv yok, köprü plist'i okunamadı).")
+        target = next((c for c in cands), ROOT / ".venv" / "bin" / "python")
+        print(f"   Çare: {target} -m pip install playwright "
+              f"&& {target} -m playwright install firefox")
     print()
 
     print("1) Keychain kimlikleri")
@@ -483,6 +663,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_report:
         report_to_panel(results)
+        send_alert_emails(results)
 
     print(json.dumps({"results": [r.as_dict() for r in results]}, ensure_ascii=False, indent=2))
     return 1 if any(r.needs_action for r in results) else 0

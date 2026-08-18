@@ -5512,6 +5512,10 @@ def run_login_warmup_bridge_once() -> dict[str, Any]:
         mod.report_to_panel(results)
     except Exception as exc:  # noqa: BLE001
         print(f"warm-up panel bildirimi hata: {exc}", flush=True)
+    try:
+        mod.send_alert_emails(results)
+    except Exception as exc:  # noqa: BLE001
+        print(f"warm-up e-posta uyarısı hata: {exc}", flush=True)
 
     needs = [r for r in results if r.needs_action]
     out = {
