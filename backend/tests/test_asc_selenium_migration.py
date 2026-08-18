@@ -141,3 +141,24 @@ def test_launcher_applies_caller_prefs():
     shim = (ROOT / "backend/services/selenium_playwright_shim.py").read_text(encoding="utf-8")
     launch = shim.split("def launch_selenium_context(", 1)[1].split("\ndef ", 1)[0]
     assert "prefs=prefs" in launch
+
+
+def test_human_is_always_handed_the_plain_login_url():
+    """Derin bağlantıda giriş bileşeni bazı makinelerde hiç render olmuyor.
+
+    `login?targetUrl=...` beyaz sayfa + sonsuz spinner bırakıyor ve kullanıcı
+    elle bile giriş yapamıyor; düz `/login` aynı makinede açılıyor. Derin
+    bağlantının tek faydası girişten sonra yönlendirme, ona ihtiyaç yok:
+    oturum geçerli olunca bekleme döngüsü analytics sayfasına kendisi gidiyor.
+    """
+    src = (ROOT / "scripts" / "asc_console_scrape.py").read_text(encoding="utf-8")
+    body = src.split("def _focus_apple_login_once(", 1)[1].split("\ndef ", 1)[0]
+    assert '"https://appstoreconnect.apple.com/login"' in body
+    assert "targetUrl" not in body.replace("# ", "").split("cur =")[1]
+    # Yalnızca authResult=FAILED değil, her giriş ekranında toparlamalı
+    assert '"/login" in cur' in body
+
+    # Warm-up da düz adrese gitmeli (aynı sayfayı iki yol farklı bırakmasın)
+    warm = (ROOT / "scripts" / "scrape_login_warmup.py").read_text(encoding="utf-8")
+    asc_spec = warm.split('"asc": {', 1)[1].split("},", 1)[0]
+    assert '"login_url": "https://appstoreconnect.apple.com/login"' in asc_spec

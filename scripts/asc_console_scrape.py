@@ -341,13 +341,19 @@ def _focus_apple_login_once(page) -> None:
         page.bring_to_front()
     except Exception:
         pass
-    # authResult=FAILED kalıntısı: temiz login URL
+    # İnsana DAİMA düz giriş adresini ver.
+    #
+    # `login?targetUrl=...` derin bağlantısında Apple giriş bileşeni bazı
+    # makinelerde hiç render olmuyor: sayfa beyaz kalıp sonsuz spinner
+    # gösteriyor ve kullanıcı elle bile giriş yapamıyor. Düz `/login` aynı
+    # makinede sorunsuz açılıyor. Derin bağlantının tek faydası girişten sonra
+    # otomatik yönlendirme; ona ihtiyacımız yok, çünkü oturum geçerli olunca
+    # bekleme döngüsü zaten analytics sayfasına kendisi gidiyor.
     cur = _page_url_safe(page).lower()
-    if "authresult=failed" in cur:
+    if "authresult=failed" in cur or "/login" in cur or _url_looks_like_login(cur):
         try:
             page.goto(
-                f"https://appstoreconnect.apple.com/login?"
-                f"targetUrl=%2Fapps%2F{APP_ID}%2Fanalytics%2Fmetrics",
+                "https://appstoreconnect.apple.com/login",
                 wait_until="domcontentloaded",
                 timeout=90_000,
             )
