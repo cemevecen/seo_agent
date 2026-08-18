@@ -575,12 +575,19 @@ def _breakdown_task(
             ),
             order_metric=metric,
         )
+        # deviceModel üretici kodu veriyor (SM-S938B / iPhone18,2); panelde
+        # okunabilir ada çevrilir. Bilinmeyen kod olduğu gibi kalır.
+        if dim == "deviceModel":
+            from backend.services.device_names import pretty_device_model
+
+            def _label(value: Any) -> str:
+                return pretty_device_model(value, platform=profile)
+        else:
+            def _label(value: Any) -> str:
+                return value_map.get(value) or _label_value(dim, value)
+
         out["rows"] = [
-            {
-                "value": value_map.get(r[dim]) or _label_value(dim, r[dim]),
-                "raw": r[dim],
-                "metric": r[metric],
-            }
+            {"value": _label(r[dim]), "raw": r[dim], "metric": r[metric]}
             for r in rows
         ]
         if value_map:
