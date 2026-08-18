@@ -421,6 +421,16 @@ def kill_profile_browsers(profile: Path, *, force: bool = True) -> int:
     return int(result.get("term") or 0) + int(result.get("kill") or 0)
 
 
+def _detached_window_is_live(profile: Path) -> bool:
+    """system_firefox_driver'a geç bağlanma — döngüsel import olmasın."""
+    try:
+        from backend.services.system_firefox_driver import detached_window_is_live
+
+        return bool(detached_window_is_live(profile))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def kill_legacy_chrome_scrapers() -> int:
     """Eski Chrome / Chromium / Chrome for Testing tarama süreçlerini kapat.
 
@@ -436,7 +446,13 @@ def kill_legacy_chrome_scrapers() -> int:
         "fx-asc",
         "fx-sinemalar",
     ):
-        n += kill_profile_browsers(STATE_DIR / name)
+        profile = STATE_DIR / name
+        # Bilerek açık bırakılmış ayrık pencere kalıntı değildir — köprü her
+        # yeniden başladığında onu da öldürünce oturum baştan giriş istiyordu.
+        if _detached_window_is_live(profile):
+            print(f"Kalıntı temizliği: {name} atlandı (ayrık pencere canlı)", flush=True)
+            continue
+        n += kill_profile_browsers(profile)
     # STATE_DIR'in tamamını tarama — ~/.seo-agent yolu canlı Firefox'u da SIGTERM eder.
 
     try:

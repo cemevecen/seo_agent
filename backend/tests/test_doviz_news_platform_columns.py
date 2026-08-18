@@ -173,6 +173,25 @@ def test_platform_columns_do_not_depend_on_show_traffic():
     assert "state.trafficShown" not in block, block[:200]
 
 
+def test_traffic_arrives_on_the_first_load_without_pressing_show_traffic():
+    """«Show traffic» beklemeden trafik sütunları dolu gelsin.
+
+    Eskiden ilk istek `include_traffic=0` ile gidiyordu; trafik yalnızca butona
+    basınca ikinci bir turda geliyordu. Artık tek turda isteniyor.
+    """
+    html = PAGE.read_text(encoding="utf-8")
+    load_body = html.split("async function load(force, opts)", 1)[1].split(
+        "async function loadTraffic", 1
+    )[0]
+    assert "traffic: true" in load_body, "ilk yükleme hâlâ trafiksiz istiyor"
+    assert "traffic: false" not in load_body
+    # Gelen trafik satırlara işlenmeli, aksi halde sütunlar boş görünür
+    assert "applyTrafficToItems(data)" in load_body
+    assert "state.trafficShown = !!(data && data.traffic)" in load_body
+    # Sıralama varsayılanı uygulansın diye items tablosu state'i sıfırlanır
+    assert 'delete state.tables["dn-table-items"]' in load_body
+
+
 def test_day_window_switch_exists_and_drives_rendering():
     """1 gün / 7 gün anahtarı (konu 3) — hem hücre hem sıralama etkilenir."""
     html = PAGE.read_text(encoding="utf-8")

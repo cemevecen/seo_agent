@@ -8460,4 +8460,9 @@
   })();
 })();
 </script>
+
+{# Sekmenin en altı: d-lab kartlarının bu yüzeye indirgenmiş hâli #}
+{% with lab_profile="android", lab_title="android-lab" %}
+  {% include "partials/dlab_section.html" %}
+{% endwith %}
 {% endblock %}

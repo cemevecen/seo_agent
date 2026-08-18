@@ -280,6 +280,267 @@ def firefox_keep_window_open() -> bool:
     return scrape_keep_window_open(env_key="SELENIUM_KEEP_OPEN")
 
 
+# ── Köprü yeniden başlasa da yaşayan pencere ────────────────────────────────
+# Sıcak pencere kaydı yalnızca bellekte olduğu için köprü her yeniden
+# başladığında pencere de ölüyordu — ASC'de oturum sürecin içinde yaşadığından
+# bu «yine şifre iste» demekti. Çözüm: geckodriver'ı ayrık bir oturum grubunda
+# başlat (köprüyle birlikte ölmesin), oturum kimliğini diske yaz, sonraki
+# süreçte yeni oturum açmak yerine mevcuduna bağlan.
+#
+# Her adım güvenli düşer: bağlanma başarısız olursa normal açılışa dönülür,
+# yani en kötü ihtimalle bugünkü davranış.
+
+def firefox_detached_enabled() -> bool:
+    raw = (os.environ.get("SELENIUM_DETACHED") or "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return firefox_keep_window_open()
+
+
+def _detach_state_path(profile: Path) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", Path(str(profile)).name or "profile")
+    return STATE_DIR / "state" / f"warm-driver-{safe}.json"
+
+
+def _read_detach_state(profile: Path) -> dict[str, Any] | None:
+    import json
+
+    path = _detach_state_path(profile)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _write_detach_state(profile: Path, data: dict[str, Any]) -> None:
+    import json
+
+    path = _detach_state_path(profile)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _clear_detach_state(profile: Path) -> None:
+    try:
+        _detach_state_path(profile).unlink(missing_ok=True)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _resolve_geckodriver() -> str | None:
+    """geckodriver yolu — PATH, sonra Selenium Manager önbelleği."""
+    found = shutil.which("geckodriver")
+    if found:
+        return found
+    try:
+        from selenium.webdriver.common.selenium_manager import SeleniumManager
+
+        out = SeleniumManager().binary_paths(["--browser", "firefox"])
+        path = str((out or {}).get("driver_path") or "").strip()
+        return path or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _port_open(port: int, timeout: float = 0.35) -> bool:
+    import socket
+
+    try:
+        socket.create_connection(("127.0.0.1", int(port)), timeout).close()
+        return True
+    except OSError:
+        return False
+
+
+def _free_port() -> int:
+    import socket
+
+    s = socket.socket()
+    try:
+        s.bind(("127.0.0.1", 0))
+        return int(s.getsockname()[1])
+    finally:
+        s.close()
+
+
+def _firefox_options(profile: Path, *, exe: str, headed: bool, download_dir: Path) -> Any:
+    from selenium.webdriver.firefox.options import Options
+
+    opts = Options()
+    opts.binary_location = exe
+    # geckodriver, moz:debuggerAddress istendiğinde Firefox'a SABİT
+    # `--remote-debugging-port 9222` verir. Tek pencereyle sorun değildi; artık
+    # birden çok profil aynı anda açık kaldığı için ikinci pencere
+    # NS_ERROR_SOCKET_ADDRESS_IN_USE alıp kapanıyordu. CDP'yi hiç kullanmıyoruz.
+    opts.set_capability("moz:debuggerAddress", False)
+    opts.add_argument("-profile")
+    opts.add_argument(str(profile))
+    if not headed:
+        opts.add_argument("-headless")
+    # CSV export indirilsin
+    opts.set_preference("browser.download.folderList", 2)
+    opts.set_preference("browser.download.dir", str(download_dir))
+    opts.set_preference("browser.download.useDownloadDir", True)
+    opts.set_preference(
+        "browser.helperApps.neverAsk.saveToDisk",
+        "text/csv,application/csv,application/vnd.ms-excel,text/plain",
+    )
+    opts.set_preference("pdfjs.disabled", True)
+    opts.set_preference("browser.download.manager.showWhenStarting", False)
+    opts.set_preference("browser.helperApps.alwaysAsk.force", False)
+    return opts
+
+
+def _attached_driver(url: str, session_id: str, options: Any) -> Any:
+    """Yeni oturum açmadan, diskte kayıtlı oturuma bağlan."""
+    from selenium import webdriver
+
+    class _Attached(webdriver.Remote):
+        def start_session(self, capabilities):  # noqa: ANN001, ANN202
+            self.session_id = session_id
+            self.caps = {}
+
+    return _Attached(command_executor=url, options=options)
+
+
+def _attach_detached_driver(
+    profile: Path, *, headed: bool, download_dir: Path, page_load_timeout: int
+) -> Any | None:
+    """Önceki süreçten kalan pencereye bağlan; olmazsa None."""
+    state = _read_detach_state(profile)
+    if not state:
+        return None
+    url = str(state.get("url") or "")
+    session_id = str(state.get("session") or "")
+    port = int(state.get("port") or 0)
+    if not url or not session_id or not port or not _port_open(port):
+        _clear_detach_state(profile)
+        return None
+    # Açılışta sabitlenen ayarlar tutmuyorsa bağlanmak yanlış olur
+    if bool(state.get("headed", True)) != headed:
+        return None
+    if Path(str(state.get("download_dir") or "")) != download_dir:
+        return None
+
+    exe = resolve_system_firefox_executable() or ""
+    try:
+        driver = _attached_driver(
+            url, session_id,
+            _firefox_options(profile, exe=exe, headed=headed, download_dir=download_dir),
+        )
+        _ = driver.current_url  # oturum gerçekten canlı mı
+    except Exception:  # noqa: BLE001
+        _clear_detach_state(profile)
+        return None
+    try:
+        driver.set_page_load_timeout(page_load_timeout)
+    except Exception:  # noqa: BLE001
+        pass
+    driver._seo_profile = profile  # type: ignore[attr-defined]
+    driver._seo_download_dir = download_dir  # type: ignore[attr-defined]
+    driver._seo_headed = headed  # type: ignore[attr-defined]
+    driver._seo_detached = True  # type: ignore[attr-defined]
+    return driver
+
+
+def _spawn_detached_driver(
+    profile: Path, *, exe: str, headed: bool, download_dir: Path, page_load_timeout: int
+) -> Any | None:
+    """geckodriver'ı ayrık başlat + yeni oturum aç; olmazsa None (normal yola düş)."""
+    gecko = _resolve_geckodriver()
+    if not gecko:
+        return None
+    port = _free_port()
+    log_dir = STATE_DIR / "logs"
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_fh = open(log_dir / f"geckodriver-{Path(str(profile)).name}.log", "ab")  # noqa: SIM115
+    except Exception:  # noqa: BLE001
+        log_fh = subprocess.DEVNULL  # type: ignore[assignment]
+    try:
+        proc = subprocess.Popen(  # noqa: S603
+            [gecko, "--port", str(port)],
+            stdout=log_fh, stderr=log_fh, stdin=subprocess.DEVNULL,
+            start_new_session=True,  # köprü ölünce birlikte ölmesin
+        )
+    except Exception:  # noqa: BLE001
+        return None
+
+    deadline = time.time() + 12
+    while time.time() < deadline and not _port_open(port):
+        if proc.poll() is not None:
+            return None
+        time.sleep(0.2)
+    if not _port_open(port):
+        return None
+
+    url = f"http://127.0.0.1:{port}"
+    try:
+        from selenium import webdriver
+
+        driver = webdriver.Remote(
+            command_executor=url,
+            options=_firefox_options(profile, exe=exe, headed=headed, download_dir=download_dir),
+        )
+    except Exception:  # noqa: BLE001
+        try:
+            proc.terminate()
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
+    try:
+        driver.set_page_load_timeout(page_load_timeout)
+    except Exception:  # noqa: BLE001
+        pass
+    driver._seo_profile = profile  # type: ignore[attr-defined]
+    driver._seo_download_dir = download_dir  # type: ignore[attr-defined]
+    driver._seo_headed = headed  # type: ignore[attr-defined]
+    driver._seo_detached = True  # type: ignore[attr-defined]
+    _write_detach_state(profile, {
+        "url": url,
+        "port": port,
+        "session": driver.session_id,
+        "gecko_pid": proc.pid,
+        "headed": headed,
+        "download_dir": str(download_dir),
+    })
+    return driver
+
+
+def detached_window_is_live(profile: Path) -> bool:
+    """Bu profil için bilerek açık bırakılmış ayrık pencere var mı?
+
+    Köprü açılışındaki kalıntı temizliği bunu sormadan öldürüyordu; korumaya
+    çalıştığımız oturum her yeniden başlatmada gidiyordu.
+    """
+    state = _read_detach_state(Path(str(profile)).expanduser())
+    if not state:
+        return False
+    port = int(state.get("port") or 0)
+    return bool(port) and _port_open(port)
+
+
+def shutdown_detached_firefox(profile: Path) -> bool:
+    """Ayrık pencereyi bilerek kapat (teşhis / temizlik)."""
+    state = _read_detach_state(profile)
+    _clear_detach_state(profile)
+    if not state:
+        return False
+    pid = int(state.get("gecko_pid") or 0)
+    if pid > 0:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except Exception:  # noqa: BLE001
+            return False
+    _WARM_DRIVERS.pop(_driver_profile_key(profile), None)
+    return True
+
+
 def _reusable_warm_driver(
     profile: Path,
     *,
@@ -319,7 +580,6 @@ def launch_system_firefox_driver(
 ) -> Any:
     """Selenium WebDriver → yalnızca sistem Firefox.app + verilen profil."""
     from selenium import webdriver
-    from selenium.webdriver.firefox.options import Options
 
     exe = resolve_system_firefox_executable()
     if not exe:
@@ -354,6 +614,20 @@ def launch_system_firefox_driver(
         )
         return warm
 
+    # Önceki süreçten (köprü yeniden başlamış olabilir) kalan pencere
+    if firefox_detached_enabled():
+        attached = _attach_detached_driver(
+            profile, headed=headed, download_dir=dl, page_load_timeout=page_load_timeout
+        )
+        if attached is not None:
+            print(
+                f"Firefox: önceki süreçten kalan pencereye bağlanıldı ({profile.name}) — "
+                "oturum korunuyor",
+                flush=True,
+            )
+            _WARM_DRIVERS[_driver_profile_key(profile)] = attached
+            return attached
+
     ban_playwright_nightly_processes(profile)
 
     ensure_profile_free_for_launch(
@@ -362,24 +636,28 @@ def launch_system_firefox_driver(
         reason="system_firefox_driver",
     )
 
-    opts = Options()
-    opts.binary_location = exe
-    opts.add_argument("-profile")
-    opts.add_argument(str(profile))
-    if not headed:
-        opts.add_argument("-headless")
-    # CSV export indirilsin
-    opts.set_preference("browser.download.folderList", 2)
-    opts.set_preference("browser.download.dir", str(dl))
-    opts.set_preference("browser.download.useDownloadDir", True)
-    opts.set_preference(
-        "browser.helperApps.neverAsk.saveToDisk",
-        "text/csv,application/csv,application/vnd.ms-excel,text/plain",
-    )
-    opts.set_preference("pdfjs.disabled", True)
-    opts.set_preference("browser.download.manager.showWhenStarting", False)
-    opts.set_preference("browser.helperApps.alwaysAsk.force", False)
+    # Ayrık açılış: pencere köprüden bağımsız yaşasın. Başarısız olursa
+    # aşağıdaki normal açılışa düşer — en kötü ihtimalle bugünkü davranış.
+    if firefox_detached_enabled():
+        _clear_detach_state(profile)
+        spawned = _spawn_detached_driver(
+            profile, exe=exe, headed=headed, download_dir=dl,
+            page_load_timeout=page_load_timeout,
+        )
+        if spawned is not None:
+            print(
+                f"Firefox: ayrık pencere açıldı ({profile.name}) — köprü yeniden "
+                "başlasa da oturum yaşar",
+                flush=True,
+            )
+            _WARM_DRIVERS[_driver_profile_key(profile)] = spawned
+            return spawned
+        print(
+            f"Firefox: ayrık açılış olmadı ({profile.name}), normal açılışa dönülüyor",
+            flush=True,
+        )
 
+    opts = _firefox_options(profile, exe=exe, headed=headed, download_dir=dl)
     driver = webdriver.Firefox(options=opts)
     driver.set_page_load_timeout(page_load_timeout)
     driver._seo_profile = profile  # type: ignore[attr-defined]
@@ -409,6 +687,9 @@ def quit_system_firefox_driver(driver: Any) -> None:
     except Exception:
         pass
     if profile is not None:
+        # Ayrık geckodriver quit() ile ölmez; kaydı da bırakmayalım
+        if getattr(driver, "_seo_detached", False):
+            shutdown_detached_firefox(Path(profile))
         align_firefox_profile_compatibility(Path(profile))
 
 

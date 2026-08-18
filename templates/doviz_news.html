@@ -2896,7 +2896,7 @@
     renderPeriodTabs(data.period_tabs || [], pm);
     renderTabs(data.category_tabs || []);
     renderKpis(data.summary || {}, data);
-    // Trafik asla otomatik gelmez; yalnızca butonla yüklenir
+    // Trafik ilk yüklemede gelir; yine de payload'da yoksa blok gizli kalır
     if (!state.trafficShown) {
       var block = $("dn-traffic-block");
       if (block) block.classList.add("hidden");
@@ -3106,7 +3106,9 @@
           }
         }
       }
-      var r = await fetch(reportUrl({ force: !preferBridge && !!force, traffic: false }), {
+      // Trafik ilk yüklemede gelir — «Show traffic» beklemeden sütunlar dolu
+      // gelsin diye tek turda istenir (iki ayrı tur atmak yerine).
+      var r = await fetch(reportUrl({ force: !preferBridge && !!force, traffic: true }), {
         credentials: "same-origin",
       });
       if (!r.ok) {
@@ -3121,7 +3123,13 @@
       paintProgress(96, (opts.reason || "Loading") + " · render", { indeterminate: false });
       if (loading) loading.classList.add("hidden");
       if (body) body.classList.remove("hidden");
-      if (!opts.keepTraffic) resetTrafficUi();
+      state.data = data;
+      state.trafficShown = !!(data && data.traffic);
+      if (state.trafficShown) {
+        applyTrafficToItems(data);
+        // items tablosu state sıfırlansın ki views varsayılan sıralaması uygulansın
+        if (state.tables) delete state.tables["dn-table-items"];
+      }
       renderAll(data);
       ok = true;
     } catch (e) {

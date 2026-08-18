@@ -1,0 +1,52 @@
+{#
+  d-lab'in tek yüzeye indirgenmiş hâli — android/ios sekmelerinin en altında
+  kapalı bir dropdown olarak durur.
+
+  Kullanım:
+    {% with lab_profile="android", lab_title="android-lab" %}
+      {% include "partials/dlab_section.html" %}
+    {% endwith %}
+
+  Kapalıyken hiçbir istek atılmaz; ilk açılışta yüklenir (GA4 kotası boşa
+  gitmesin diye). Veriyi sunucu `profile=` ile zaten daraltıyor.
+#}
+<link rel="stylesheet" href="/static/css/dlab.css?v=1">
+<details class="xg-lab" id="lab-{{ lab_profile }}">
+  <summary>
+    <span class="xg-lab__title">
+      <span class="xg-lab__caret">▶</span>{{ lab_title }}
+      <span class="xg-sub" style="margin:0">GA4'ün az kullanılan boyutları — yalnızca {{ lab_profile }}</span>
+    </span>
+    <span class="xg-toolbar" id="lab-{{ lab_profile }}-toolbar" onclick="event.preventDefault();event.stopPropagation();">
+      <button type="button" class="xg-btn" data-xg-days="1">1 gün</button>
+      <button type="button" class="xg-btn is-active" data-xg-days="7">7 gün</button>
+      <button type="button" class="xg-btn" data-xg-days="28">28 gün</button>
+      <button type="button" class="xg-btn" id="lab-{{ lab_profile }}-refresh">Yenile</button>
+    </span>
+  </summary>
+  <div class="xg-lab__inner">
+    <p class="xg-sub" id="lab-{{ lab_profile }}-meta" hidden></p>
+    <div id="lab-{{ lab_profile }}-body" class="xg-grid"></div>
+  </div>
+</details>
+
+<script src="/static/js/dlab_cards.js?v=1"></script>
+<script>
+(function () {
+  var profile = "{{ lab_profile }}";
+  var wrap = document.getElementById("lab-" + profile);
+  if (!wrap || !window.DLab) return;
+  var lab = DLab.mount({
+    host: document.getElementById("lab-" + profile + "-body"),
+    meta: document.getElementById("lab-" + profile + "-meta"),
+    toolbar: document.getElementById("lab-" + profile + "-toolbar"),
+    refresh: document.getElementById("lab-" + profile + "-refresh"),
+    profile: profile,
+    days: 7,
+    autoload: false
+  });
+  if (!lab) return;
+  wrap.addEventListener("toggle", function () { if (wrap.open) lab.loadOnce(); });
+  if (wrap.open) lab.loadOnce();
+})();
+</script>

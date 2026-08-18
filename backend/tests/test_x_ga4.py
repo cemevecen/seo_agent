@@ -6,6 +6,7 @@ kalır, `(not set)` satırları listeyi yutmaz ve web/mWeb'de crash-free yazılm
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -114,19 +115,19 @@ def test_crash_free_is_not_fetched_at_all():
     assert all("crashFreeUsersRate" not in mets for mets in seen)
     assert len(seen) == 4  # profil basina tek istek
     assert all("crashFreeUsersRate" not in r for r in out["rows"])
-    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    page = _dlab_ui()
     assert "Crash-free" not in page and "crashFreeUsersRate" not in page
 
 
 def test_header_clutter_is_removed():
-    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    page = _dlab_ui()
     assert "Pencere " not in page
     assert ">Dönem:<" not in page and "Dönem:" not in page
     assert "BigQuery" not in page
 
 
 def test_page_column_is_capped_and_overflow_moves_to_a_sub_row():
-    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    page = _dlab_ui()
     assert "var PAGE_MAX = 50;" in page
     assert "full.slice(0, PAGE_MAX)" in page
     assert "full.slice(PAGE_MAX)" in page
@@ -194,6 +195,22 @@ def test_cache_prevents_a_second_round_trip(monkeypatch):
     assert calls["n"] == 1
 
 
+def _dlab_ui() -> str:
+    """d-lab arayüzünün tamamı — sayfa + ortak CSS + ortak JS.
+
+    Kart çizimi android/ios sekmeleriyle paylaşıldığı için üç dosyaya bölündü.
+    Testler davranışı sınıyor, dosya yerleşimini değil; hepsi birlikte okunur.
+    """
+    return "\n".join(
+        (ROOT / part).read_text(encoding="utf-8")
+        for part in (
+            "templates/x_ga4.html",
+            "static/css/dlab.css",
+            "static/js/dlab_cards.js",
+        )
+    )
+
+
 # ── Yalnızca GA4: başka kaynak sızmamalı ────────────────────────────────────
 
 def test_module_uses_only_the_ga4_data_api():
@@ -208,8 +225,34 @@ def test_page_and_tab_are_registered():
     main = (ROOT / "backend/main.py").read_text(encoding="utf-8")
     assert '@app.get("/d-lab")' in main
     assert "x_ga4_router" in main
-    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
-    assert "/api/x-ga4/report" in page
+    page = _dlab_ui()
+    # Kart çizimi android/ios sekmeleriyle paylaşıldığı için ortak dosyaya taşındı
+    assert "/static/js/dlab_cards.js" in page
+    cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
+    assert "/api/x-ga4/report" in cards
+
+
+def test_android_and_ios_tabs_embed_their_own_lab_section():
+    """android-lab / ios-lab: sekmenin en altında, kapalı, yalnızca kendi yüzeyi."""
+    partial = (ROOT / "templates/partials/dlab_section.html").read_text(encoding="utf-8")
+    # Kapalı dropdown olmalı: <details> «open» ile başlamamalı
+    assert "<details" in partial and "<details open" not in partial
+    # Kapalıyken istek atılmamalı; ilk açılışta yüklenmeli
+    assert "autoload: false" in partial
+    assert "loadOnce" in partial and 'addEventListener("toggle"' in partial
+    # Sunucuya yüzey filtresi gitmeli (istemcide ayıklamak kota harcardı)
+    cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
+    assert '"&profile=" + encodeURIComponent(fixedProfile)' in cards
+
+    for tab, profile in (("android", "android"), ("ios", "ios")):
+        page = (ROOT / f"templates/{tab}.html").read_text(encoding="utf-8")
+        assert 'partials/dlab_section.html' in page, tab
+        assert f'lab_profile="{profile}"' in page, tab
+        assert f'lab_title="{profile}-lab"' in page, tab
+        # En altta olmalı: include'dan sonra jinja etiketi dışında içerik kalmamalı
+        tail = page.rsplit('{% include "partials/dlab_section.html" %}', 1)[1]
+        rest = re.sub(r"\{%.*?%\}", "", tail).strip()
+        assert rest == "", f"{tab}: lab bölümünden sonra içerik var → {rest[:80]}"
 
 
 def test_old_url_still_resolves():
@@ -270,7 +313,7 @@ def test_custom_dimensions_are_containers_too():
 
 
 def test_ui_reports_gaps_outside_the_filter():
-    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    page = _dlab_ui()
     assert "Kapsam disi" in page or "Kapsam d" in page
     assert "tanimli degil" in page or "tanml" in page or "tanımlı değil" in page
 
@@ -367,12 +410,12 @@ def test_breakdown_rows_carry_value_and_metric():
 
 def test_global_platform_filter_is_gone():
     """Filtre artik container basina; sayfa ustunde toplu filtre yok."""
-    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    page = _dlab_ui()
     assert "data-xg-profile" not in page
 
 
 def test_each_container_has_its_own_filter():
-    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    page = _dlab_ui()
     assert 'data-card="' in page and 'data-p="' in page
     assert "paintCard" in page
     # Filtre yalnizca verisi olan profilleri listeler
@@ -382,7 +425,7 @@ def test_each_container_has_its_own_filter():
 
 def test_containers_flow_without_row_gaps():
     """Grid satirlari en uzun karta hizalayip bosluk birakiyordu; sutun akisi."""
-    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    page = _dlab_ui()
     assert "column-width" in page
     assert "break-inside: avoid" in page
 
@@ -390,7 +433,7 @@ def test_containers_flow_without_row_gaps():
 # ── Responsive tablolar ─────────────────────────────────────────────────────
 
 def test_tables_are_responsive():
-    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    page = _dlab_ui()
     assert "@media (max-width: 640px)" in page
     assert ".xg-table thead { display: none; }" in page
     assert "content: attr(data-label)" in page

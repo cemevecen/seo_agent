@@ -1,0 +1,95 @@
+/* d-lab kart stilleri — /d-lab sayfası ve android/ios sekmelerindeki
+   «android-lab» / «ios-lab» bölümleri aynı stili paylaşır. */
+.xg-page { max-width: 1600px; }
+.xg-card { border: 1px solid #e2e8f0; border-radius: .9rem; background: #fff; padding: 1rem; }
+html.dark .xg-card, html.charcoal .xg-card { background: #232327; border-color: #3f3f46; }
+.xg-card h3 { font-size: .95rem; font-weight: 700; margin: 0; }
+.xg-sub { font-size: .72rem; opacity: .65; margin-top: .15rem; }
+.xg-muted { font-size: .75rem; opacity: .6; }
+.xg-err { font-size: .72rem; color: #b91c1c; }
+html.dark .xg-err, html.charcoal .xg-err { color: #fca5a5; }
+
+/* Container yerleşimi: her kart içeriği bittiği yerde biter, bir sonraki
+   hemen altından başlar. Grid satırları en uzun karta göre hizalayıp
+   aralarda boşluk bırakıyordu; sütun akışı bunu ortadan kaldırır. */
+.xg-grid { column-width: 25rem; column-gap: 1rem; }
+.xg-grid > .xg-card {
+  break-inside: avoid; -webkit-column-break-inside: avoid; page-break-inside: avoid;
+  display: inline-block; width: 100%; margin: 0 0 1rem;
+}
+
+.xg-cardhead { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; }
+.xg-cardbody { margin-top: .75rem; }
+.xg-cardfilter { display: inline-flex; flex-wrap: wrap; gap: .2rem; justify-content: flex-end; }
+.xg-chip { padding: .12rem .42rem; font-size: .66rem; font-weight: 600; border-radius: .4rem;
+           border: 1px solid rgba(148,163,184,.42); background: transparent; color: inherit; opacity: .7; }
+.xg-chip.is-active { background: rgba(79,70,229,.14); color: #4338ca; opacity: 1; border-color: transparent; }
+html.dark .xg-chip.is-active, html.charcoal .xg-chip.is-active { color: #a5b4fc; }
+.xg-onlypf { font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; opacity: .5; }
+.xg-pf { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+         letter-spacing: .04em; opacity: .6; margin: .7rem 0 .2rem; }
+.xg-pf:first-child { margin-top: 0; }
+
+.xg-toolbar { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+.xg-btn { padding: .3rem .7rem; font-size: .75rem; font-weight: 600; border-radius: .5rem;
+          border: 1px solid rgba(148,163,184,.45); background: transparent; color: inherit; }
+.xg-btn.is-active { background: rgba(79,70,229,.14); color: #4338ca; }
+html.dark .xg-btn.is-active, html.charcoal .xg-btn.is-active { color: #a5b4fc; }
+
+.xg-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.xg-table { width: 100%; border-collapse: collapse; font-size: .75rem;
+            font-variant-numeric: tabular-nums; min-width: 20rem; }
+.xg-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+               opacity: .6; padding: .3rem .45rem; border-bottom: 1px solid #e2e8f0; }
+html.dark .xg-table th, html.charcoal .xg-table th { border-bottom-color: #3f3f46; }
+.xg-table td { padding: .3rem .45rem; border-bottom: 1px solid #f1f5f9; }
+html.dark .xg-table td, html.charcoal .xg-table td { border-bottom-color: #36363c; }
+.xg-table td.num, .xg-table th.num { text-align: right; white-space: nowrap; }
+.xg-key { display: block; max-width: 15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.xg-table--depth { table-layout: fixed; min-width: 30rem; }
+.xg-table--depth th:first-child, .xg-page-cell { width: 45%; }
+.xg-page-cell { white-space: nowrap; overflow: hidden; word-break: normal; }
+.xg-overflow td { padding-top: 0; }
+.xg-page-tail { opacity: .62; word-break: break-all; }
+
+.xg-bartrack { height: .35rem; border-radius: 999px; background: #e2e8f0; overflow: hidden; min-width: 3rem; }
+html.dark .xg-bartrack, html.charcoal .xg-bartrack { background: #3f3f46; }
+.xg-bar { height: 100%; border-radius: 999px; background: #4f46e5; }
+
+/* ── Sekme içi lab bölümü (android-lab / ios-lab) ─────────────────────────── */
+.xg-lab { border: 1px solid #e2e8f0; border-radius: .9rem; background: #fff; margin-top: 1rem; }
+html.dark .xg-lab, html.charcoal .xg-lab { background: #232327; border-color: #3f3f46; }
+.xg-lab > summary {
+  list-style: none; cursor: pointer; padding: .8rem 1rem;
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap;
+}
+.xg-lab > summary::-webkit-details-marker { display: none; }
+.xg-lab__title { font-size: .95rem; font-weight: 700; display: flex; align-items: center; gap: .45rem; }
+.xg-lab__caret { font-size: .7rem; opacity: .5; transition: transform .15s ease; }
+.xg-lab[open] .xg-lab__caret { transform: rotate(90deg); }
+.xg-lab__inner { padding: 0 1rem 1rem; }
+/* Kapalıyken kart ızgarası dar bir alana sıkışmasın diye açılışta ölçülür */
+.xg-lab .xg-grid { column-width: 24rem; }
+
+@media (max-width: 640px) {
+  .xg-grid { column-width: auto; column-count: 1; }
+  .xg-lab .xg-grid { column-width: auto; column-count: 1; }
+  .xg-table, .xg-table--depth { min-width: 0; width: 100%; table-layout: auto; }
+  .xg-table thead { display: none; }
+  .xg-table tbody, .xg-table tr, .xg-table td { display: block; width: auto; }
+  .xg-table tr { padding: .4rem 0; border-bottom: 1px solid #e2e8f0; }
+  html.dark .xg-table tr, html.charcoal .xg-table tr { border-bottom-color: #36363c; }
+  .xg-table td { border: 0; padding: .1rem; display: flex; align-items: baseline;
+                 justify-content: space-between; gap: .75rem; text-align: right; }
+  .xg-table td::before {
+    content: attr(data-label); flex: 0 0 auto; text-align: left; opacity: .55;
+    font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .xg-table td[data-label=""]::before { display: none; }
+  .xg-table td[data-label=""] { display: block; text-align: left; }
+  .xg-page-cell, .xg-table--depth th:first-child { width: auto; white-space: normal;
+                                                   word-break: break-word; text-align: left; }
+  .xg-page-cell { display: block; }
+  .xg-key { max-width: none; white-space: normal; word-break: break-word; }
+}
