@@ -1,4 +1,5 @@
 [build]
+# GitHub webhook bu dosyayı okumalı (RAILPACK fallback /health’siz kalır).
 builder = "nixpacks"
 
 # PostgreSQL volume boyutu (GB) yalnızca Railway arayüzünden ayarlanır:
