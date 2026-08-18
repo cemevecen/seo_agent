@@ -227,39 +227,46 @@
   /**
    * Metrik satırı ısı rampası — stroke/legend renginden ayrı, charcoal'da daha parlak.
    * index: 0 ANR-mavi ailesi, 1 crash-amber, 2 sessions-yeşil, …
+   *
+   * Rampalar mat: her uç için chroma tek bir tavana çekildi (light hi 30,
+   * dark hi 18, charcoal hi 22; lo uçları 8–10). Doygunluk düşerken L*
+   * korunuyor — kademeler arası açıklık farkı (ΔL* ≈ 12) aynı kalır, yani
+   * hücreler baskın görünmeden ayırt edilebilir olmayı sürdürür. Tek tavan
+   * kullanmanın sebebi: sabit oranla kısmak zaten yumuşak olan yeşil/cyan'ı
+   * griye düşürüp seri kimliğini siliyordu.
    */
   function seoMatteSeriesHeatRamp(seriesIndex) {
     var i = Math.abs(Number(seriesIndex) || 0) % 7;
     if (isCharcoal()) {
       return [
-        { lo: "#243447", hi: "#7dd3fc" }, /* sky */
-        { lo: "#3a2a18", hi: "#fdba74" }, /* amber */
-        { lo: "#1a3a2c", hi: "#86efac" }, /* green */
-        { lo: "#3a2430", hi: "#f9a8d4" }, /* pink */
-        { lo: "#2a2438", hi: "#c4b5fd" }, /* violet */
-        { lo: "#1e3338", hi: "#67e8f9" }, /* cyan */
-        { lo: "#3a2820", hi: "#fca5a5" }, /* rose */
+        { lo: "#293441", hi: "#9bd0ec" }, /* sky */
+        { lo: "#362b1f", hi: "#e4c1a1" }, /* amber */
+        { lo: "#26382f", hi: "#b9e4c6" }, /* green */
+        { lo: "#36262f", hi: "#e3b3cc" }, /* pink */
+        { lo: "#292533", hi: "#c3b9e2" }, /* violet */
+        { lo: "#1e3338", hi: "#9ee2eb" }, /* cyan */
+        { lo: "#392821", hi: "#e6aead" }, /* rose */
       ][i];
     }
     if (isDark()) {
       return [
-        { lo: "#1e293b", hi: "#6b8aad" },
-        { lo: "#292016", hi: "#b87333" },
-        { lo: "#162820", hi: "#4a8f73" },
-        { lo: "#2a1820", hi: "#a86b7f" },
-        { lo: "#221c30", hi: "#8b7aa8" },
-        { lo: "#162428", hi: "#5b9aa8" },
-        { lo: "#2a1c1c", hi: "#a85a66" },
+        { lo: "#232934", hi: "#7189a6" },
+        { lo: "#282017", hi: "#9a7e67" },
+        { lo: "#192721", hi: "#648a79" },
+        { lo: "#271a1f", hi: "#9a727e" },
+        { lo: "#211e28", hi: "#887d9b" },
+        { lo: "#162428", hi: "#6699a4" },
+        { lo: "#2a1c1c", hi: "#90666b" },
       ][i];
     }
     return [
-      { lo: "#dbeafe", hi: "#1d4ed8" },
-      { lo: "#ffedd5", hi: "#c2410c" },
-      { lo: "#dcfce7", hi: "#047857" },
-      { lo: "#fce7f3", hi: "#be185d" },
-      { lo: "#ede9fe", hi: "#6d28d9" },
-      { lo: "#cffafe", hi: "#0e7490" },
-      { lo: "#fee2e2", hi: "#b91c1c" },
+      { lo: "#dfeaf8", hi: "#595788" },
+      { lo: "#f9eee0", hi: "#975f49" },
+      { lo: "#e8f8ed", hi: "#2f755b" },
+      { lo: "#f9e8f2", hi: "#914f60" },
+      { lo: "#edeaf9", hi: "#654f7d" },
+      { lo: "#dff7f9", hi: "#0e7490" },
+      { lo: "#f9e3e3", hi: "#8a4e43" },
     ][i];
   }
 
