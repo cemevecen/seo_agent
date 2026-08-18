@@ -42,6 +42,40 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+
+def _has_playwright() -> bool:
+    try:
+        import playwright  # noqa: F401
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
+def _ensure_playwright_interpreter() -> None:
+    """playwright bulunmuyorsa proje venv'ine geç.
+
+    Köprü zaten `.venv/bin/python` ile koşuyor, ama elle çalıştırırken sistem
+    `python3`'ü seçilebiliyor ve orada playwright kurulu olmayabiliyor (ofis
+    Mac'inde tam olarak bu oldu). Kullanıcıyı doğru komutu hatırlamaya
+    zorlamak yerine betik kendini doğru yorumlayıcıya taşır.
+    """
+    if _has_playwright():
+        return
+    if os.environ.get("_WARMUP_REEXEC") == "1":
+        return  # bir kez denendi; sonsuz döngü olmasın
+    venv_python = ROOT / ".venv" / "bin" / "python"
+    try:
+        same = venv_python.resolve() == Path(sys.executable).resolve()
+    except Exception:  # noqa: BLE001
+        same = str(venv_python) == sys.executable
+    if not venv_python.exists() or same:
+        return
+    os.environ["_WARMUP_REEXEC"] = "1"
+    os.execv(str(venv_python), [str(venv_python), *sys.argv])
+
+
+_ensure_playwright_interpreter()
+
 from backend.services.scrape_browser import (  # noqa: E402
     acquire_persistent_context,
     asc_profile_dir,
@@ -355,6 +389,12 @@ def doctor(*, with_browser: bool = True) -> int:
 
     ok = True
     print(f"Makine: {platform.node()} ({socket.gethostname()})")
+    pw_state = "var" if _has_playwright() else "YOK"
+    print(f"Yorumlayıcı: {sys.executable} · playwright {pw_state}")
+    if pw_state == "YOK":
+        ok = False
+        print(f"   Çare: {ROOT / '.venv' / 'bin' / 'python'} -m pip install playwright "
+              "&& python -m playwright install firefox")
     print()
 
     print("1) Keychain kimlikleri")

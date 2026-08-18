@@ -292,3 +292,45 @@ def test_data_window_is_last_day_and_persists_yesterday():
     assert w["mode"] in ("yesterday_only", "gap_fill")
     assert w["store_end"] == w["yesterday"]      # bugün kalıcı kaydedilmez
     assert w["days"] <= 3                         # tüm geçmiş çekilmez
+
+
+# ── Yorumlayıcı kendini düzeltmeli (ofis Mac: sistem python3'te playwright yok)
+
+def test_reexecs_into_venv_when_playwright_is_missing(monkeypatch):
+    m = _warmup_module()
+    calls = {}
+
+    monkeypatch.setattr(m, "_has_playwright", lambda: False)
+    monkeypatch.delenv("_WARMUP_REEXEC", raising=False)
+    monkeypatch.setattr(m.os, "execv", lambda p, a: calls.setdefault("exec", (p, a)))
+    monkeypatch.setattr(m.sys, "executable", "/usr/bin/python3")
+    monkeypatch.setattr(m, "sys", m.sys)
+
+    venv = m.ROOT / ".venv" / "bin" / "python"
+    if not venv.exists():
+        return  # venv yoksa davranış zaten "hiçbir şey yapma"
+    m._ensure_playwright_interpreter()
+    assert "exec" in calls, "venv'e geçilmedi"
+    assert calls["exec"][0] == str(venv)
+
+
+def test_no_reexec_when_playwright_is_available(monkeypatch):
+    m = _warmup_module()
+    monkeypatch.setattr(m, "_has_playwright", lambda: True)
+    monkeypatch.setattr(m.os, "execv", lambda p, a: (_ for _ in ()).throw(AssertionError("exec olmamalı")))
+    m._ensure_playwright_interpreter()   # patlamamalı
+
+
+def test_reexec_guard_prevents_infinite_loop(monkeypatch):
+    """venv'de de playwright yoksa tekrar tekrar exec edilmemeli."""
+    m = _warmup_module()
+    monkeypatch.setattr(m, "_has_playwright", lambda: False)
+    monkeypatch.setenv("_WARMUP_REEXEC", "1")
+    monkeypatch.setattr(m.os, "execv", lambda p, a: (_ for _ in ()).throw(AssertionError("exec olmamalı")))
+    m._ensure_playwright_interpreter()
+
+
+def test_doctor_reports_interpreter_and_the_fix():
+    src = (ROOT / "scripts/scrape_login_warmup.py").read_text(encoding="utf-8")
+    assert "Yorumlayıcı:" in src
+    assert "pip install playwright" in src   # çaresi yazılı
