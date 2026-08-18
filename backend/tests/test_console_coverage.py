@@ -181,3 +181,211 @@ def test_coverage_uses_real_stored_json():
 
     out = CC.asc_coverage(_DB(), start=yday.isoformat(), end=yday.isoformat())
     assert out["known_count"] == 1 and out["has_gap"] is False
+
+
+# ── Boşluk doldurma: sınırlı, idempotent, hatada zararsız ───────────────────
+
+def test_gap_fill_is_bounded_so_one_hole_cannot_trigger_a_huge_scrape():
+    """Mühür aylar öncesine düşse bile tarama penceresi lookback ile sınırlı."""
+    from backend.services.history_seal import calendar_yesterday, scheduled_fetch_window
+
+    yday = calendar_yesterday()
+    # Son 14 günün tamamı eksik gibi davran (kayıtlı gün yok)
+    known = CC.bounded_known_dates([], pipeline="asc", lookback_days=14)
+    win = scheduled_fetch_window("asc", force_full=False, known_dates=known)
+    assert win["mode"] == "gap_fill"
+    span = (win["end"] - win["start"]).days + 1
+    assert span <= 14, f"pencere {span} gün — sınır aşıldı"
+    assert win["end"] <= yday
+    assert win["store_end"] <= yday          # bugün asla kaydedilmez
+
+
+def test_only_the_missing_day_is_fetched_not_the_whole_history():
+    from backend.services.history_seal import calendar_yesterday, scheduled_fetch_window
+
+    yday = calendar_yesterday()
+    hole = yday - timedelta(days=3)
+    have = [yday - timedelta(days=i) for i in range(14) if (yday - timedelta(days=i)) != hole]
+    known = CC.bounded_known_dates(have, pipeline="asc", lookback_days=14)
+    win = scheduled_fetch_window("asc", force_full=False, known_dates=known)
+    assert win["mode"] == "gap_fill"
+    assert win["start"] == hole and win["end"] == hole   # tek gün, fazlası yok
+
+
+def test_no_gap_falls_back_to_yesterday_only():
+    from backend.services.history_seal import calendar_yesterday, scheduled_fetch_window
+
+    yday = calendar_yesterday()
+    have = [yday - timedelta(days=i) for i in range(14)]
+    known = CC.bounded_known_dates(have, pipeline="asc", lookback_days=14)
+    win = scheduled_fetch_window("asc", force_full=False, known_dates=known)
+    assert win["mode"] == "yesterday_only"
+    assert win["store_end"] == yday
+
+
+def test_dates_older_than_lookback_are_treated_as_known():
+    """Geçmiş backfill force_full'un işi; boşluk doldurma oraya taşmamalı."""
+    from backend.services.history_seal import calendar_yesterday, pipeline_seal_through
+
+    yday = calendar_yesterday()
+    known = set(CC.bounded_known_dates([], pipeline="asc", lookback_days=7))
+    old_day = pipeline_seal_through("asc") + timedelta(days=1)
+    boundary = yday - timedelta(days=6)
+    if old_day < boundary:
+        assert old_day in known          # eski gün "var" sayıldı
+    assert boundary not in known         # pencere içi gerçekten eksik
+
+
+def test_coverage_failure_leaves_behaviour_unchanged(monkeypatch):
+    """Uca ulaşılamazsa None döner → çağıran taraf bugünkü davranışta kalır."""
+    monkeypatch.setattr(CC, "fetch_remote_coverage", lambda p, base_url=None: None)
+    assert CC.known_dates_for_scrape("asc") is None
+    assert CC.oldest_missing_within("firebase") is None
+
+
+def test_missing_token_does_not_call_the_network(monkeypatch):
+    monkeypatch.delenv("NOTIFICATION_INGEST_TOKEN", raising=False)
+    called = {"n": 0}
+
+    def _boom(*a, **k):
+        called["n"] += 1
+        raise AssertionError("ağa gidilmemeliydi")
+
+    monkeypatch.setattr("requests.get", _boom, raising=False)
+    assert CC.fetch_remote_coverage("asc") is None
+    assert called["n"] == 0
+
+
+def test_coverage_url_prefers_explicit_env(monkeypatch):
+    monkeypatch.setenv("ASC_CONSOLE_COVERAGE_URL", "https://x.test/cov")
+    assert CC.coverage_url("asc") == "https://x.test/cov"
+    monkeypatch.delenv("ASC_CONSOLE_COVERAGE_URL")
+    monkeypatch.setenv("PROJECT_CONTROL_BASE_URL", "https://panel.test/")
+    assert CC.coverage_url("firebase") == "https://panel.test/api/firebase-console/coverage"
+
+
+def test_oldest_missing_returns_the_earliest_hole(monkeypatch):
+    """Arama alanı mühür+1 → dün; mühürlü geçmişteki delik yeniden çekilmez."""
+    from backend.services.history_seal import calendar_yesterday, pipeline_seal_through
+
+    yday = calendar_yesterday()
+    gap_start = pipeline_seal_through("firebase") + timedelta(days=1)
+    span = max(2, (yday - gap_start).days + 1)
+    holes = {yday - timedelta(days=1), yday}
+    have = [(yday - timedelta(days=i)).isoformat() for i in range(span + 3)
+            if (yday - timedelta(days=i)) not in holes]
+    monkeypatch.setattr(CC, "fetch_remote_coverage",
+                        lambda p, base_url=None: {"ok": True, "dates": have})
+    got = CC.oldest_missing_within("firebase", lookback_days=14)
+    assert got == max(yday - timedelta(days=1), gap_start)
+
+
+def test_holes_before_the_seal_are_not_refetched(monkeypatch):
+    """Mühürlü gövde nihai kabul edilir; oradaki eksik yeniden taranmaz."""
+    from backend.services.history_seal import calendar_yesterday, pipeline_seal_through
+
+    yday = calendar_yesterday()
+    seal = pipeline_seal_through("firebase")
+    have = [(yday - timedelta(days=i)).isoformat() for i in range(30)
+            if (yday - timedelta(days=i)) > seal]
+    monkeypatch.setattr(CC, "fetch_remote_coverage",
+                        lambda p, base_url=None: {"ok": True, "dates": have})
+    assert CC.oldest_missing_within("firebase", lookback_days=14) is None
+
+
+# ── Scraper bağlantıları ────────────────────────────────────────────────────
+
+def test_asc_scraper_passes_known_dates():
+    src = (ROOT / "scripts/asc_console_scrape.py").read_text(encoding="utf-8")
+    assert "known_dates_for_scrape" in src
+    assert 'scheduled_fetch_window("asc", known_dates=known)' in src
+    # Hata yutulmalı, scrape düşmemeli
+    block = src.split("def _scrape_window", 1)[1].split("\ndef ", 1)[0]
+    assert "except Exception" in block
+
+
+def test_firebase_scraper_widens_window_only_for_gaps():
+    src = (ROOT / "scripts/firebase_console_scrape.py").read_text(encoding="utf-8")
+    assert "_gap_days" in src and "oldest_missing_within" in src
+    block = src.split("def _gap_days", 1)[1].split("\ndef _scrape_days", 1)[0]
+    assert "min(span, 90)" in block          # Console UI üst sınırı
+    assert "return 0" in block               # boşluk yoksa genişletme yok
+    use = src.split("def _scrape_days", 1)[1].split("\ndef ", 1)[0]
+    assert "if gap > 1:" in use and "return 1" in use
+
+
+def test_stores_upsert_by_date_so_refetch_cannot_duplicate_rows():
+    """Bir günü tekrar çekmek satır çoğaltmamalı — boşluk doldurmanın şartı."""
+    asc = (ROOT / "backend/services/asc_console_store.py").read_text(encoding="utf-8")
+    fb = (ROOT / "backend/services/firebase_console_store.py").read_text(encoding="utf-8")
+    # ASC: (metric, date, dim) anahtarı
+    assert 'str(f.get("date") or "")[:10]' in asc and "by_key[key] = f" in asc
+    # Firebase: tarih anahtarlı sözlük
+    assert "by_d[ds] = it" in fb
+    # İkisi de bugünü kalıcı yazmaz
+    assert "never_store_today" in asc and "never_store_today" in fb
+
+
+# ── Yanlış gün üretmeme garantileri ─────────────────────────────────────────
+
+def test_today_never_enters_coverage():
+    """Bugün yarım gündür; kapsamada görünürse gerçek boşluğu maskeler."""
+    from backend.services.history_seal import calendar_today, calendar_yesterday
+
+    today = calendar_today()
+    yday = calendar_yesterday()
+    out = CC._coverage_payload("asc", {today: 5, yday: 2}, start=None, end=None)
+    assert today.isoformat() not in out["dates"]
+    assert today.isoformat() not in out["counts"]
+    assert out["known_count"] == 1
+
+
+def test_today_is_ignored_in_known_dates_too():
+    from backend.services.history_seal import calendar_today
+
+    known = CC.bounded_known_dates([calendar_today().isoformat()], pipeline="asc", lookback_days=7)
+    assert calendar_today() not in known
+
+
+def test_pre_history_is_not_treated_as_a_gap():
+    """Hattın hiç verisi olmayan geçmişi «eksik» sayılmamalı — boşuna tarama."""
+    from backend.services.history_seal import calendar_yesterday, scheduled_fetch_window
+
+    yday = calendar_yesterday()
+    # Hat yalnızca 3 gündür veri üretiyor, ortada da bir delik var
+    have = [yday, yday - timedelta(days=1), yday - timedelta(days=3)]
+    known = CC.bounded_known_dates(have, pipeline="firebase", lookback_days=14)
+    win = scheduled_fetch_window("firebase", force_full=False, known_dates=known)
+    assert win["mode"] == "gap_fill"
+    # Yalnızca gerçek delik (yday-2), ilk kayıttan öncesi değil
+    assert win["start"] == yday - timedelta(days=2)
+    assert win["end"] == yday - timedelta(days=2)
+
+
+def test_new_pipeline_with_only_yesterday_has_no_gap():
+    from backend.services.history_seal import calendar_yesterday, scheduled_fetch_window
+
+    yday = calendar_yesterday()
+    known = CC.bounded_known_dates([yday], pipeline="firebase", lookback_days=14)
+    win = scheduled_fetch_window("firebase", force_full=False, known_dates=known)
+    assert win["mode"] == "yesterday_only"    # geçmiş yok ≠ boşluk var
+
+
+def test_earliest_is_computed_from_real_records_not_synthetic_fill():
+    """(a) sentetik doldurma (b) ilk-kayıt kuralını bozmamalı."""
+    from backend.services.history_seal import calendar_yesterday
+
+    yday = calendar_yesterday()
+    from backend.services.history_seal import missing_days, pipeline_seal_through
+
+    have = [yday - timedelta(days=1)]
+    known = set(CC.bounded_known_dates(have, pipeline="firebase", lookback_days=14))
+    gap_start = pipeline_seal_through("firebase") + timedelta(days=1)
+
+    # İlk kayıttan (dün-1) önceki hiçbir gün eksik sayılmamalı
+    earliest = yday - timedelta(days=1)
+    before = missing_days(known, start=gap_start, end=earliest - timedelta(days=1))
+    assert before == [], f"ilk kayıttan öncesi boşluk sayıldı: {before}"
+
+    # Gerçek delik yalnızca dün
+    assert missing_days(known, start=gap_start, end=yday) == [yday]

@@ -95,9 +95,13 @@ def _coverage_payload(
 ) -> dict[str, Any]:
     from backend.services.history_seal import calendar_yesterday, pipeline_seal_through
 
-    known = set(counts)
     yday = calendar_yesterday()
     seal = pipeline_seal_through(pipeline)
+    # Bugün hiçbir zaman tam gün değildir ve kalıcı kaydedilmez. Ham blob'da
+    # yarım gün olarak görünebiliyor; kapsamaya alınırsa gerçek bir boşluğu
+    # maskeler ya da "bugün elimde var" yanılgısı üretir.
+    counts = {d: n for d, n in counts.items() if d <= yday}
+    known = set(counts)
 
     # Varsayılan pencere: mühürden sonraki ilk günden düne kadar — gap_fill'in
     # baktığı aralığın aynısı, böylece panel ile scraper aynı şeyi konuşur.
@@ -149,3 +153,144 @@ COVERAGE_BY_PIPELINE = {
     "asc": asc_coverage,
     "firebase": firebase_coverage,
 }
+
+
+# ── Scraper tarafı: paneldeki kapsamayı sor, boşluğu SINIRLI tut ─────────────
+
+# Boşluk doldurmanın amacı kaçan bir turu telafi etmek; geçmişi yeniden çekmek
+# değil (o `force_full` işi). Sınır olmazsa mühür aylar öncesine düşebildiği
+# için tek bir eksik gün yüzünden yüzlerce günlük tarama tetiklenebilir.
+DEFAULT_GAP_LOOKBACK_DAYS = 14
+_HTTP_TIMEOUT_SEC = 30
+
+
+def coverage_url(pipeline: str, base_url: str | None = None) -> str:
+    import os
+
+    key = (pipeline or "").strip().lower()
+    explicit = (os.environ.get(f"{key.upper()}_CONSOLE_COVERAGE_URL") or "").strip()
+    if explicit:
+        return explicit
+    base = (
+        base_url
+        or os.environ.get("PROJECT_CONTROL_BASE_URL")
+        or os.environ.get("NOTIFICATION_INGEST_BASE_URL")
+        or "https://projectcontrol.up.railway.app"
+    ).strip().rstrip("/")
+    return f"{base}/api/{key}-console/coverage"
+
+
+def fetch_remote_coverage(pipeline: str, *, base_url: str | None = None) -> dict[str, Any] | None:
+    """Paneldeki kapsamayı getir. Her hata durumunda None — scrape asla bozulmaz."""
+    import os
+
+    token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
+    if not token:
+        LOGGER.info("Kapsama sorgusu atlandı: ingest token yok (%s)", pipeline)
+        return None
+    try:
+        import requests
+
+        resp = requests.get(
+            coverage_url(pipeline, base_url),
+            headers={"X-Notification-Ingest-Token": token},
+            timeout=_HTTP_TIMEOUT_SEC,
+        )
+        if resp.status_code != 200:
+            LOGGER.warning("Kapsama sorgusu HTTP %s (%s)", resp.status_code, pipeline)
+            return None
+        data = resp.json()
+        return data if isinstance(data, dict) and data.get("ok") else None
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Kapsama sorgusu başarısız (%s): %s", pipeline, exc)
+        return None
+
+
+def bounded_known_dates(
+    stored: Any,
+    *,
+    pipeline: str,
+    lookback_days: int = DEFAULT_GAP_LOOKBACK_DAYS,
+) -> list[date]:
+    """Kayıtlı günler + pencere dışındaki tüm günler «biliniyor» sayılır.
+
+    `scheduled_fetch_window` boşlukları mühür+1'den düne kadar arıyor. Yalnızca
+    son N günü telafi etmek istediğimiz için, N'den eski günleri bilerek
+    «var» işaretliyoruz — böylece test edilmiş gap_fill mantığı olduğu gibi
+    kullanılır ama tarama penceresi sınırlı kalır.
+    """
+    from backend.services.history_seal import (
+        calendar_yesterday,
+        iter_dates_inclusive,
+        pipeline_seal_through,
+    )
+
+    yday = calendar_yesterday()
+    span = max(1, int(lookback_days))
+    boundary = yday - timedelta(days=span - 1)
+
+    actual: set[date] = set()
+    for raw in stored or []:
+        parsed = _parse_iso(raw)
+        if parsed and parsed <= yday:      # bugün ve ötesi hiç sayılmaz
+            actual.add(parsed)
+
+    known = set(actual)
+    gap_start = pipeline_seal_through(pipeline) + timedelta(days=1)
+
+    # (a) Lookback penceresinin dışı: geçmiş backfill force_full'un işi
+    if boundary > gap_start:
+        known.update(iter_dates_inclusive(gap_start, boundary - timedelta(days=1)))
+
+    # (b) İlk kayıttan öncesi: boşluk, elde olan günlerin ARASINDAKİ deliktir.
+    # Hattın geçmişi hiç yoksa (yeni kurulmuş, kaynak o günleri vermiyor) o
+    # günler "eksik" değildir — aksi halde her tur boşuna geniş tarama açar.
+    # Not: gerçek kayıtlardan hesaplanır, (a)'da eklenen sentetik günlerden değil.
+    if actual:
+        earliest = min(actual)
+        if earliest > gap_start:
+            known.update(iter_dates_inclusive(gap_start, earliest - timedelta(days=1)))
+    return sorted(known)
+
+
+def known_dates_for_scrape(
+    pipeline: str,
+    *,
+    lookback_days: int = DEFAULT_GAP_LOOKBACK_DAYS,
+    base_url: str | None = None,
+) -> list[date] | None:
+    """`scheduled_fetch_window(known_dates=...)` için hazır liste.
+
+    None dönerse çağıran taraf mevcut davranışta kalır (yalnızca dün) — yani
+    kapsama ucuna ulaşılamaması asla yanlış/eksik veri üretmez.
+    """
+    cov = fetch_remote_coverage(pipeline, base_url=base_url)
+    if cov is None:
+        return None
+    return bounded_known_dates(
+        cov.get("dates") or [], pipeline=pipeline, lookback_days=lookback_days
+    )
+
+
+def oldest_missing_within(
+    pipeline: str,
+    *,
+    lookback_days: int = DEFAULT_GAP_LOOKBACK_DAYS,
+    base_url: str | None = None,
+) -> date | None:
+    """Sınır içindeki en eski eksik gün — Firebase gibi gün sayısı isteyenler için."""
+    known = known_dates_for_scrape(
+        pipeline, lookback_days=lookback_days, base_url=base_url
+    )
+    if known is None:
+        return None
+    from backend.services.history_seal import calendar_yesterday, pipeline_seal_through
+
+    yday = calendar_yesterday()
+    # Arama alanı `scheduled_fetch_window` ile AYNI olmalı: mühür+1'den düne.
+    # Lookback sınırı zaten `bounded_known_dates` içinde uygulanıyor; burada da
+    # sınırdan başlamak, mühürden önceki günleri yanlışlıkla eksik gösterip
+    # her turda gereksiz geniş pencere açıyordu.
+    gap_start = pipeline_seal_through(pipeline) + timedelta(days=1)
+    missing = missing_between(set(known), gap_start, yday)
+    return missing[0] if missing else None

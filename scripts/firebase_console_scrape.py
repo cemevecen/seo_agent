@@ -83,12 +83,41 @@ PLATFORMS: dict[str, dict[str, str]] = {
 SCRAPE_WINDOWS: tuple[str, ...] = ("24h", "7d", "30d", "90d")
 
 
+def _gap_days() -> int:
+    """Eksik gün varsa onu kapsayacak gün sayısı, yoksa 0.
+
+    Firebase Console keyfi tarih aralığı kabul etmiyor; yalnızca 24h/7d/30d/90d
+    filtreleri var. Bu yüzden boşluk «pencereyi genişletmek» demek: en eski
+    eksik günü kapsayan en küçük filtre seçilir. Kapsama sorusu başarısız
+    olursa 0 döner ve davranış değişmez.
+    """
+    try:
+        from backend.services.console_coverage import oldest_missing_within
+        from backend.services.history_seal import calendar_yesterday
+
+        oldest = oldest_missing_within("firebase")
+        if oldest is None:
+            return 0
+        span = (calendar_yesterday() - oldest).days + 1
+        return max(1, min(span, 90))
+    except Exception as exc:  # noqa: BLE001
+        print(f"Firebase kapsama sorgusu atlandı: {exc}", flush=True)
+        return 0
+
+
 def _scrape_days() -> int:
-    """Mühürlü: kısa pencere (1); geçmiş platform merge ile korunur."""
+    """Mühürlü: kısa pencere (1); geçmiş platform merge ile korunur.
+
+    Eksik gün varsa pencere yalnızca o boşluğu kapsayacak kadar genişler.
+    """
     try:
         from backend.services.history_seal import force_full_history, is_pipeline_sealed
 
         if is_pipeline_sealed("firebase") and not force_full_history("firebase"):
+            gap = _gap_days()
+            if gap > 1:
+                print(f"Firebase: {gap} günlük boşluk penceresi", flush=True)
+                return gap
             return 1
     except Exception:
         pass

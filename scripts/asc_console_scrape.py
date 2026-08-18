@@ -90,7 +90,17 @@ def _scrape_window() -> dict:
             "end": end,
             "days": (end - start).days + 1,
         }
-    return scheduled_fetch_window("asc")
+    # Boşluk doldurma: panele "elimde hangi günler var" diye sor. Ulaşılamazsa
+    # known_dates None kalır ve davranış aynen bugünkü gibi (yalnızca dün) olur —
+    # yani kapsama sorgusu başarısız olsa bile yanlış veya eksik veri üretilmez.
+    known = None
+    try:
+        from backend.services.console_coverage import known_dates_for_scrape
+
+        known = known_dates_for_scrape("asc")
+    except Exception as exc:  # noqa: BLE001
+        print(f"ASC kapsama sorgusu atlandı: {exc}", flush=True)
+    return scheduled_fetch_window("asc", known_dates=known)
 
 
 def _scrape_days() -> int:
