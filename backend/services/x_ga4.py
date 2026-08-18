@@ -149,6 +149,10 @@ _DEFAULT_GROUP = "behavior"
 # Standart boyut kırılımları — bildirimsel, çünkü hepsi aynı şekli paylaşıyor.
 # `profiles` o kırılımın anlamlı olduğu yüzeyleri sınırlar (ör. appVersion yalnız
 # uygulamalarda). Ölçülen maliyet istek başına 1–3 token.
+# Kaldırılanlar (kullanıcı isteğiyle, geri getirilebilir):
+#   search_text — «Uygulama içi arama», customEvent:search_text, yalnız iOS
+#   campaign    — «Kampanya», sessionCampaignName, dört yüzey
+# İkisi de çalışıyordu; şimdilik sayfadan çıkarıldı.
 BREAKDOWNS: tuple[dict[str, Any], ...] = (
     # Özel boyutlar (property başına tanımlı; olmayan yüzey «tanımlı değil» der)
     {"key": "asset_key", "group": "behavior", "label": "Varlık ilgisi", "dimension": "customEvent:asset_key",
@@ -179,8 +183,6 @@ BREAKDOWNS: tuple[dict[str, Any], ...] = (
              },
          }
      }},
-    {"key": "search_text", "group": "behavior", "label": "Uygulama içi arama", "dimension": "customEvent:search_text",
-     "metric": "eventCount", "profiles": ("ios",), "hint": ""},
     {"key": "sections_enabled", "group": "app", "label": "Açılan bölümler", "dimension": "customEvent:sections_enabled",
      "metric": "eventCount", "profiles": ("ios",), "hint": ""},
     {"key": "sections_disabled", "group": "app", "label": "Kapatılan bölümler", "dimension": "customEvent:sections_disabled",
@@ -217,9 +219,6 @@ BREAKDOWNS: tuple[dict[str, Any], ...] = (
     {"key": "source_medium", "group": "acquisition", "label": "Kaynak / aracı", "dimension": "sessionSourceMedium",
      "metric": "sessions", "profiles": PROFILES,
      "hint": "Kanal grubundan bir kademe derin — hangi site, hangi yolla"},
-    {"key": "campaign", "group": "acquisition", "label": "Kampanya", "dimension": "sessionCampaignName",
-     "metric": "sessions", "profiles": PROFILES,
-     "hint": "Etiketli kampanyalar; (direct) etiketsiz trafiktir"},
     {"key": "first_channel", "group": "acquisition", "label": "İlk edinim kanalı", "dimension": "firstUserDefaultChannelGroup",
      "metric": "newUsers", "profiles": PROFILES,
      "hint": "Kullanıcıyı ilk kez getiren kanal — oturum kanalından farklı"},

@@ -314,7 +314,7 @@ def test_mweb_own_dimensions_are_collected():
 def test_custom_dimensions_are_containers_too():
     """Davranis boyutlari ayri blok degil, ayni bildirimsel listede."""
     keys = {s["key"] for s in X.BREAKDOWNS}
-    assert {"asset_key", "nav_from", "search_text", "menu_item", "card_name"} <= keys
+    assert {"asset_key", "nav_from", "menu_item", "card_name"} <= keys
 
 
 def test_ui_reports_gaps_outside_the_filter():
@@ -628,7 +628,7 @@ def test_unmapped_profiles_keep_the_original_dimension():
 # ── Genişletilmiş kapsam ────────────────────────────────────────────────────
 
 NEW_BREAKDOWN_KEYS = {
-    "source_medium", "campaign", "first_channel", "referrer",
+    "source_medium", "first_channel", "referrer",
     "city", "device_category", "device_brand", "browser", "os",
     "screen_resolution", "screen_name", "signed_in",
 }
@@ -637,7 +637,7 @@ NEW_BREAKDOWN_KEYS = {
 def test_new_breakdowns_are_registered():
     keys = {s["key"] for s in X.BREAKDOWNS}
     assert NEW_BREAKDOWN_KEYS <= keys
-    assert len(X.BREAKDOWNS) >= 29
+    assert len(X.BREAKDOWNS) >= 27
 
 
 def test_every_breakdown_is_well_formed():
@@ -721,7 +721,7 @@ def test_every_breakdown_belongs_to_a_declared_group():
 def test_related_containers_land_in_the_same_group():
     """Ayrılmaları görünümü bozan çiftler — asıl şikâyet buydu."""
     by = {s["key"]: s["group"] for s in X.BREAKDOWNS}
-    assert by["channel"] == by["source_medium"] == by["campaign"] == by["first_channel"]
+    assert by["channel"] == by["source_medium"] == by["first_channel"]
     assert by["device"] == by["device_category"] == by["device_brand"]
     assert by["os"] == by["os_version"] == by["screen_resolution"]
     assert by["country"] == by["city"]
