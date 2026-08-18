@@ -165,13 +165,69 @@ def test_warmup_shares_the_same_warm_session_keys_as_the_scrapers():
     assert m.TARGETS["firebase"]["env_key"] == "FIREBASE_CONSOLE_KEEP_OPEN"
 
 
-def test_bridge_runs_warmup_before_the_morning_scrapes():
+def _bridge():
+    import importlib.util as iu
+    import os
+
+    os.environ.setdefault("NOTIFICATION_INGEST_TOKEN", "x")
+    spec = iu.spec_from_file_location(
+        "bridge_sched", ROOT / "scripts/doviz_admin_notification_bridge.py"
+    )
+    mod = iu.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    try:
+        spec.loader.exec_module(mod)
+    except SystemExit:
+        pass
+    return mod
+
+
+def test_asc_and_firebase_run_four_times_a_day():
+    m = _bridge()
+    assert [f"{h:02d}:{mi:02d}" for h, mi in m.ASC_SLOTS] == ["06:30", "11:15", "14:00", "20:00"]
+    assert len(m.FIREBASE_SLOTS) == 4
+
+
+def test_firebase_follows_asc_by_three_minutes():
+    """Köprünün tarayıcı kuyruğu da 3 dk aralık istiyor; slotlar buna uymalı."""
+    m = _bridge()
+    gap_min = max(3, int(m.BRIDGE_SCRAPE_MIN_GAP_SEC) // 60)
+    for (ah, am), (fh, fm) in zip(m.ASC_SLOTS, m.FIREBASE_SLOTS):
+        delta = (fh * 60 + fm) - (ah * 60 + am)
+        assert delta == 3, f"ASC {ah:02d}:{am:02d} → Firebase {fh:02d}:{fm:02d} = {delta} dk"
+        assert delta >= gap_min
+
+
+def test_warmup_runs_before_every_asc_slot():
+    m = _bridge()
+    assert len(m.LOGIN_WARMUP_SLOTS) == len(m.ASC_SLOTS)
+    for (wh, wm), (ah, am) in zip(m.LOGIN_WARMUP_SLOTS, m.ASC_SLOTS):
+        lead = (ah * 60 + am) - (wh * 60 + wm)
+        assert lead == 10, f"warm-up {wh:02d}:{wm:02d} → ASC {ah:02d}:{am:02d} = {lead} dk"
+
+
+def test_slot_pairs_parser_ignores_junk():
+    m = _bridge()
+    assert m._parse_slot_pairs("7:05, 12:40 ,bozuk, 19:00") == ((7, 5), (12, 40), (19, 0))
+    assert m._parse_slot_pairs("") == ()
+
+
+def test_history_seal_no_longer_caps_asc_frequency():
+    """Mühür geçmiş derinliği içindi; tur sıklığını kısmamalı (PLAY'de kalır)."""
     src = (ROOT / "scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
-    assert "LOGIN_WARMUP_SLOT_HOURS = (5,)" in src
+    seal = src.split("from backend.services.history_seal import", 1)[1].split("except Exception", 1)[0]
+    assert "PLAY_SLOT_HOURS = (6,)" in seal
+    assert "ASC_SLOTS = ((6, 30),)" not in seal
+    assert "mark_all_expensive_pipelines_sealed()" in seal
+
+
+def test_bridge_wires_the_warmup_runner():
+    src = (ROOT / "scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
     assert "run_login_warmup_bridge_once" in src
     assert '"login_warmup"' in src
-    # Warm-up ASC (06:11) ve Firebase (06:46) slotlarından önce olmalı
-    assert 'LOGIN_WARMUP_BRIDGE_MINUTE") or "45"' in src
+    assert "slots=LOGIN_WARMUP_SLOTS" in src
+    assert "slots=ASC_SLOTS" in src
+    assert "slots=FIREBASE_SLOTS" in src
 
 
 def test_report_is_sent_to_project_control():

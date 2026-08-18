@@ -131,46 +131,59 @@ if _VIRGUL_HOURS_RAW:
     ) or VIRGUL_SLOT_HOURS
 PLAY_SLOT_HOURS = (0, 6, 12, 18)  # 6 saatte bir — login baskısını düşür
 PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "2")
-ASC_SLOT_HOURS = (0, 3, 6, 9, 12, 15, 18, 21)  # ASC 3 saat (Play’den ayrı)
-ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "11")
-# Mühürlü gövde: Play/ASC/GSC Links günde 1 (dün dilimi) — full history yok
+def _parse_slot_pairs(raw: str) -> tuple[tuple[int, int], ...]:
+    """«6:30,11:15» → ((6,30),(11,15)). Geçersiz parça sessizce atlanır."""
+    out: list[tuple[int, int]] = []
+    for part in (raw or "").split(","):
+        chunk = part.strip()
+        if not chunk:
+            continue
+        hh, _, mm = chunk.partition(":")
+        if hh.strip().isdigit() and (mm.strip().isdigit() or not mm):
+            out.append((int(hh.strip()) % 24, int(mm.strip() or 0) % 60))
+    return tuple(out)
+
+
+# ASC + Firebase günde 4 tur; Firebase her turda ASC'den 3 dk sonra. Köprü zaten
+# tarayıcı scrape'leri arasında BRIDGE_SCRAPE_MIN_GAP_SEC (180 sn) bırakıyor,
+# yani ikisi çakışmaz, sırayla koşar. Warm-up her turdan 10 dk önce oturumu
+# doğrular — düşmüşse tur boşa gitmeden Keychain'den giriş denenir.
+# Saatler farklı dakikalarda olduğu için (saat, dakika) çifti tutulur.
+ASC_SLOTS: tuple[tuple[int, int], ...] = ((6, 30), (11, 15), (14, 0), (20, 0))
+FIREBASE_SLOTS: tuple[tuple[int, int], ...] = ((6, 33), (11, 18), (14, 3), (20, 3))
+LOGIN_WARMUP_SLOTS: tuple[tuple[int, int], ...] = ((6, 20), (11, 5), (13, 50), (19, 50))
+
+# Mühürlü gövde: Play/ASC günde 1 (dün dilimi) — full history yok
 try:
     from backend.services.history_seal import is_pipeline_sealed, mark_all_expensive_pipelines_sealed
 
     if is_pipeline_sealed("play") and not (os.environ.get("PLAY_CONSOLE_BRIDGE_HOURS") or "").strip():
         PLAY_SLOT_HOURS = (6,)
-    if is_pipeline_sealed("asc") and not (os.environ.get("ASC_CONSOLE_BRIDGE_HOURS") or "").strip():
-        ASC_SLOT_HOURS = (6,)
+    # NOT: ASC/Firebase artık mühürle günde 1'e düşürülmüyor. Mühürün amacı
+    # geçmişi yeniden çekmemek; tur sıklığı ayrı bir karar ve 4 tur açıkça
+    # istendi. Geri almak için ASC_CONSOLE_BRIDGE_SLOTS="6:30" yeterli.
     # Mevcut panel verisini mühürle (idempotent meta)
     mark_all_expensive_pipelines_sealed()
 except Exception:
     pass
+
 _PLAY_HOURS_RAW = (os.environ.get("PLAY_CONSOLE_BRIDGE_HOURS") or "").strip()
 if _PLAY_HOURS_RAW:
     PLAY_SLOT_HOURS = tuple(
         int(h.strip()) for h in _PLAY_HOURS_RAW.split(",") if h.strip().isdigit()
     ) or PLAY_SLOT_HOURS
-_ASC_HOURS_RAW = (os.environ.get("ASC_CONSOLE_BRIDGE_HOURS") or "").strip()
-if _ASC_HOURS_RAW:
-    ASC_SLOT_HOURS = tuple(
-        int(h.strip()) for h in _ASC_HOURS_RAW.split(",") if h.strip().isdigit()
-    ) or ASC_SLOT_HOURS
-# Login warm-up: sabah scrape'lerinden ÖNCE oturumları doğrula. Oturum düşmüşse
-# tur boşa gitmeden haber verilir (ASC 06:11 / Firebase 06:46 slotlarından önce).
-LOGIN_WARMUP_SLOT_HOURS = (5,)
-LOGIN_WARMUP_SLOT_MINUTE = int(os.environ.get("LOGIN_WARMUP_BRIDGE_MINUTE") or "45")
-if (os.environ.get("LOGIN_WARMUP_BRIDGE_HOURS") or "").strip():
-    LOGIN_WARMUP_SLOT_HOURS = tuple(
-        int(x) for x in os.environ["LOGIN_WARMUP_BRIDGE_HOURS"].split(",") if x.strip().isdigit()
-    ) or LOGIN_WARMUP_SLOT_HOURS
 
-FIREBASE_SLOT_HOURS = (6,)  # günde bir — sabah Firebase Console scrape
-_FIREBASE_HOURS_RAW = (os.environ.get("FIREBASE_CONSOLE_BRIDGE_HOURS") or "").strip()
-if _FIREBASE_HOURS_RAW:
-    FIREBASE_SLOT_HOURS = tuple(
-        int(h.strip()) for h in _FIREBASE_HOURS_RAW.split(",") if h.strip().isdigit()
-    ) or FIREBASE_SLOT_HOURS
-FIREBASE_SLOT_MINUTE = int(os.environ.get("FIREBASE_CONSOLE_BRIDGE_MINUTE") or "46")
+# «HH:MM,HH:MM» biçiminde override
+for _env_key, _name in (
+    ("ASC_CONSOLE_BRIDGE_SLOTS", "ASC_SLOTS"),
+    ("FIREBASE_CONSOLE_BRIDGE_SLOTS", "FIREBASE_SLOTS"),
+    ("LOGIN_WARMUP_BRIDGE_SLOTS", "LOGIN_WARMUP_SLOTS"),
+):
+    _raw = (os.environ.get(_env_key) or "").strip()
+    if _raw:
+        _parsed = _parse_slot_pairs(_raw)
+        if _parsed:
+            globals()[_name] = _parsed
 TWICE_DAILY_HOURS = (1, 13)  # 01:xx + 13:xx
 GSC_LINKS_SLOT_HOURS = TWICE_DAILY_HOURS
 try:
@@ -381,6 +394,7 @@ _last_virgul_auto_slot = ""
 _last_play_auto_slot = ""
 _last_asc_auto_slot = ""
 _last_firebase_auto_slot = ""
+_last_login_warmup_auto_slot = ""
 _last_gsc_links_auto_slot = ""
 _last_revenue_targets_auto_slot = ""
 _last_policy_auto_slot = ""
@@ -464,7 +478,7 @@ def browser_scrape_slot_defs() -> tuple[tuple[str, tuple[int, ...], int], ...]:
     """Test / health: tarayıcı slot tanımları (ad, saatler, dakika)."""
     return (
         ("play", PLAY_SLOT_HOURS, PLAY_SLOT_MINUTE),
-        ("asc", ASC_SLOT_HOURS, ASC_SLOT_MINUTE),
+        *(("asc", (h,), m) for h, m in ASC_SLOTS),
         ("virgul", VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE),
         ("market", MARKET_SLOT_HOURS, MARKET_SLOT_MINUTE),
         ("gsc_links", GSC_LINKS_SLOT_HOURS, GSC_SLOT_MINUTE),
@@ -474,8 +488,8 @@ def browser_scrape_slot_defs() -> tuple[tuple[str, tuple[int, ...], int], ...]:
         ("revenue_targets", REVENUE_TARGETS_SLOT_HOURS, REVENUE_TARGETS_SLOT_MINUTE),
         ("seo_audit", SEO_AUDIT_SLOT_HOURS, SEO_AUDIT_SLOT_MINUTE),
         ("gsc_cwv", GSC_CWV_SLOT_HOURS, GSC_CWV_SLOT_MINUTE),
-        ("firebase", FIREBASE_SLOT_HOURS, FIREBASE_SLOT_MINUTE),
-        ("login_warmup", LOGIN_WARMUP_SLOT_HOURS, LOGIN_WARMUP_SLOT_MINUTE),
+        *(("firebase", (h,), m) for h, m in FIREBASE_SLOTS),
+        *(("login_warmup", (h,), m) for h, m in LOGIN_WARMUP_SLOTS),
     )
 
 
@@ -3557,9 +3571,10 @@ def _upcoming_slots(limit: int = 14) -> list[dict[str, Any]]:
             add(kind, (int(h),), int(m))
 
     add("play", PLAY_SLOT_HOURS, PLAY_SLOT_MINUTE)
-    add("asc", ASC_SLOT_HOURS, ASC_SLOT_MINUTE)
+    add_pairs("asc", ASC_SLOTS)
     add("virgul", VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE)
-    add("firebase", FIREBASE_SLOT_HOURS, FIREBASE_SLOT_MINUTE)
+    add_pairs("firebase", FIREBASE_SLOTS)
+    add_pairs("login_warmup", LOGIN_WARMUP_SLOTS)
     add("gsc_links", GSC_LINKS_SLOT_HOURS, GSC_SLOT_MINUTE)
     add("policy", TWICE_DAILY_HOURS, POLICY_SLOT_MINUTE)
     add("pagespeed", TWICE_DAILY_HOURS, SPEED_SLOT_MINUTE)
@@ -3716,8 +3731,9 @@ def _health_payload() -> dict[str, Any]:
             "news_sec": NEWS_AUTO_INTERVAL_SEC,
             "virgul_slots_tr": [f"{h:02d}:{VIRGUL_SLOT_MINUTE:02d}" for h in VIRGUL_SLOT_HOURS],
             "play_slots_tr": [f"{h:02d}:{PLAY_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
-            "asc_slots_tr": [f"{h:02d}:{ASC_SLOT_MINUTE:02d}" for h in ASC_SLOT_HOURS],
-            "firebase_slots_tr": [f"{h:02d}:{FIREBASE_SLOT_MINUTE:02d}" for h in FIREBASE_SLOT_HOURS],
+            "asc_slots_tr": [f"{h:02d}:{m:02d}" for h, m in ASC_SLOTS],
+            "firebase_slots_tr": [f"{h:02d}:{m:02d}" for h, m in FIREBASE_SLOTS],
+            "login_warmup_slots_tr": [f"{h:02d}:{m:02d}" for h, m in LOGIN_WARMUP_SLOTS],
             "gsc_slots_tr": [f"{h:02d}:{GSC_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
             "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
             "pagespeed_slots_tr": [f"{h:02d}:{SPEED_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
@@ -4983,15 +4999,24 @@ def _auto_loop() -> None:
             lock: threading.Lock,
             runner,
             last_attr: str,
-            hours: tuple[int, ...] | list[int],
-            minute: int,
+            hours: tuple[int, ...] | list[int] | None = None,
+            minute: int = 0,
             *,
+            slots: tuple[tuple[int, int], ...] | list[tuple[int, int]] | None = None,
             browser: bool = True,
         ) -> None:
+            """`slots` verilirse (saat, dakika) çiftleri kullanılır.
+
+            ASC/Firebase gibi her turu farklı dakikada olan işler tek dakika
+            alanına sığmıyordu; çift listesi bunu karşılar.
+            """
             nonlocal_last = globals()[last_attr]
             if kind in _job_retries:
                 return
-            due, slot = _slot_due(nonlocal_last, hours, minute)
+            if slots:
+                due, slot = _multi_slot_due(nonlocal_last, slots)
+            else:
+                due, slot = _slot_due(nonlocal_last, hours or (), minute)
             if not due:
                 return
             lease = _auto_lease_state(kind, slot)
@@ -5043,13 +5068,19 @@ def _auto_loop() -> None:
             "play", "Play", _play_lock, run_play_bridge_once,
             "_last_play_auto_slot", PLAY_SLOT_HOURS, PLAY_SLOT_MINUTE,
         )
+        # Warm-up her turdan 10 dk önce: oturum düşmüşse ASC/Firebase boşa gitmesin
+        _slot_job(
+            "login_warmup", "Login warm-up", _browser_scrape_lock,
+            run_login_warmup_bridge_once,
+            "_last_login_warmup_auto_slot", slots=LOGIN_WARMUP_SLOTS,
+        )
         _slot_job(
             "asc", "ASC", _asc_lock, run_asc_bridge_once,
-            "_last_asc_auto_slot", ASC_SLOT_HOURS, ASC_SLOT_MINUTE,
+            "_last_asc_auto_slot", slots=ASC_SLOTS,
         )
         _slot_job(
             "firebase", "Firebase", _firebase_lock, run_firebase_bridge_once,
-            "_last_firebase_auto_slot", FIREBASE_SLOT_HOURS, FIREBASE_SLOT_MINUTE,
+            "_last_firebase_auto_slot", slots=FIREBASE_SLOTS,
         )
         _slot_job(
             "gsc_links", "GSC Links", _gsc_links_lock, run_gsc_links_bridge_once,
@@ -6068,7 +6099,9 @@ def run_daemon() -> int:
         f"notify+news={AUTO_INTERVAL_SEC}s@{NT_NEWS_ACTIVE_START_HOUR:02d}-{NT_NEWS_ACTIVE_END_HOUR:02d} "
         f"nt_night_seal={NOTIFICATION_NIGHT_SEAL_HOUR:02d}:{NOTIFICATION_NIGHT_SEAL_MINUTE:02d} "
         f"virgul={list(VIRGUL_SLOT_HOURS)}:{VIRGUL_SLOT_MINUTE:02d} play={list(PLAY_SLOT_HOURS)}:{PLAY_SLOT_MINUTE:02d} "
-        f"asc={list(ASC_SLOT_HOURS)}:{ASC_SLOT_MINUTE:02d} firebase=:{FIREBASE_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
+        f"asc={[f'{h:02d}:{m:02d}' for h, m in ASC_SLOTS]} "
+        f"firebase={[f'{h:02d}:{m:02d}' for h, m in FIREBASE_SLOTS]} "
+        f"warmup={[f'{h:02d}:{m:02d}' for h, m in LOGIN_WARMUP_SLOTS]} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
         f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d} "
         f"moderation=03:04,14:17 "
         f"seo={list(SEO_AUDIT_SLOT_HOURS)}:{SEO_AUDIT_SLOT_MINUTE:02d} "
