@@ -302,8 +302,13 @@ def test_mweb_own_dimensions_are_collected():
     assert ("menu_item", "mweb") in pairs
     assert ("card_name", "mweb") in pairs
     assert ("nav_from", "ios") in pairs
-    # from yalnizca iOS'ta gecerli — Android'e bosuna istek atilmaz
-    assert ("nav_from", "android") not in pairs
+    # Eskiden Android'e hic istek atilmiyordu (customEvent:from orada tanimli
+    # degil). Artik ayni bilgi olay adlarindan toplaniyor, bu yuzden Android de
+    # planda — bosuna degil, farkli bir boyutla.
+    assert ("nav_from", "android") in pairs
+    # Tanimsiz oldugu yuzeylere yine istek atilmamali
+    assert ("nav_from", "web") not in pairs
+    assert ("nav_from", "mweb") not in pairs
 
 
 def test_custom_dimensions_are_containers_too():
@@ -522,3 +527,84 @@ def test_ui_shows_a_real_progress_bar():
     cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
     assert cards.count("stopPoll()") >= 3
     assert 'role", "progressbar"' in cards
+
+
+# ── Android «habere nereden gelindi» eşlemesi ───────────────────────────────
+
+def _nav_from_spec():
+    return next(s for s in X.BREAKDOWNS if s["key"] == "nav_from")
+
+
+def test_android_reuses_event_names_where_the_custom_dimension_is_missing():
+    """Android'de customEvent:from tanımlı değil (GA4 400); aynı bilgi olay adında.
+
+    İki yüzey TEK container'da toplanmalı, yoksa karşılaştırma yapılamaz.
+    """
+    spec = _nav_from_spec()
+    android = (spec.get("per_profile") or {}).get("android") or {}
+    assert android.get("dimension") == "eventName"
+    assert spec["dimension"] == "customEvent:from"      # iOS değişmedi
+    # Plan her iki yüzeyi de kapsamalı
+    plan = X._plan_breakdowns({"ios": "4", "android": "3"}, ["ios", "android"])
+    profiles = {pf for sp, pf, _ in plan if sp["key"] == "nav_from"}
+    assert profiles == {"ios", "android"}
+
+
+def test_android_mapping_counts_only_entry_surfaces():
+    """Gösterim / teslim / makale içi eylemler giriş yüzeyi değildir.
+
+    notification_news_impression tek başına 2,9M — sayılsaydı listeyi yutardı.
+    """
+    values = (_nav_from_spec()["per_profile"]["android"]["values"])
+    for entry in ("home_news_clicked", "bottom_navigation_news",
+                  "notification_news_clicked", "asset_detail_news_analyzes_opened"):
+        assert entry in values, entry
+    for not_entry in ("notification_news_impression", "notification_received_news",
+                      "news_detail_opened", "news_pull_to_refresh",
+                      "news_comment_add", "news_reaction_clicked", "news_analysis_share"):
+        assert not_entry not in values, not_entry
+
+
+def test_android_labels_line_up_with_ios_where_the_surface_is_the_same():
+    """Aynı yüzey iki platformda aynı etiketi taşımalı — kıyas ancak öyle olur."""
+    values = _nav_from_spec()["per_profile"]["android"]["values"]
+    assert values["bottom_navigation_news"] == "navigation_manager"
+    assert values["notification_news_clicked"] == "notification"
+    assert values["home_news_clicked"] == "home"
+
+
+def test_mapped_breakdown_filters_server_side_and_relabels():
+    """Daraltma sunucuda olmalı: limit yüzünden bir yüzey listeden düşmesin."""
+    seen = {}
+
+    def handler(req):
+        seen["dims"] = [d.name for d in req.dimensions]
+        seen["filter"] = req.dimension_filter
+        return _Resp([_Row(["home_news_clicked"], [5]), _Row(["first_tab_news"], [3])])
+
+    out = X._breakdown_task(
+        _Client(handler), _nav_from_spec(), "android", "3", "7daysAgo", "yesterday", 10
+    )
+    assert seen["dims"] == ["eventName"]
+    # in_list filtresi (not_expression DEĞİL) — yani sadece bunları getir
+    values = list(seen["filter"].filter.in_list_filter.values)
+    assert "home_news_clicked" in values
+    assert [r["value"] for r in out["rows"]] == ["home", "first_tab"]
+    assert out["rows"][0]["raw"] == "home_news_clicked"   # ham değer korunur
+    assert out["mapped_from"] == "eventName"
+
+
+def test_unmapped_profiles_keep_the_original_dimension():
+    """iOS yolu değişmemeli."""
+    seen = {}
+
+    def handler(req):
+        seen["dims"] = [d.name for d in req.dimensions]
+        return _Resp([_Row(["home_follow"], [9])])
+
+    out = X._breakdown_task(
+        _Client(handler), _nav_from_spec(), "ios", "4", "7daysAgo", "yesterday", 10
+    )
+    assert seen["dims"] == ["customEvent:from"]
+    assert "mapped_from" not in out
+    assert out["rows"][0]["value"] == "home_follow"

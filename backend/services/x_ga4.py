@@ -141,7 +141,30 @@ BREAKDOWNS: tuple[dict[str, Any], ...] = (
      "metric": "eventCount", "profiles": PROFILES,
      "hint": "Hangi varlığa bakılıyor"},
     {"key": "nav_from", "label": "Habere nereden gelindi", "dimension": "customEvent:from",
-     "metric": "eventCount", "profiles": ("ios",), "hint": ""},
+     "metric": "eventCount", "profiles": ("ios",),
+     "hint": "iOS: from parametresi · Android: giriş olayı",
+     # Android'de `customEvent:from` tanımlı değil (GA4 400 veriyor), ama aynı
+     # bilgi ayrı olay adlarıyla geliyor. Yalnızca «bir yüzeyden habere girildi»
+     # anlamına gelen olaylar sayılır; gösterim (impression), bildirim teslimi
+     # ve makale içi eylemler (yorum, tepki, paylaşım, pull-to-refresh) giriş
+     # yüzeyi değildir ve dışarıda bırakılır — yoksa 2,9M'lik impression tek
+     # başına listeyi yutar.
+     "per_profile": {
+         "android": {
+             "dimension": "eventName",
+             "values": {
+                 "asset_detail_news_analyzes_opened": "asset_detail",
+                 "notification_news_clicked": "notification",
+                 "home_news_clicked": "home",
+                 "bottom_navigation_news": "navigation_manager",
+                 "first_tab_news": "first_tab",
+                 "news_item_clicked": "news_list",
+                 "home_header_news_clicked": "home_header",
+                 "asset_detail_home_news_clicked": "asset_detail_home",
+                 "asset_detail_news_analyzes_item_clicked": "asset_detail_item",
+             },
+         }
+     }},
     {"key": "search_text", "label": "Uygulama içi arama", "dimension": "customEvent:search_text",
      "metric": "eventCount", "profiles": ("ios",), "hint": ""},
     {"key": "sections_enabled", "label": "Açılan bölümler", "dimension": "customEvent:sections_enabled",
@@ -207,6 +230,21 @@ def _exclude_empty(dimension: str) -> Any:
                 field_name=dimension,
                 in_list_filter=t.Filter.InListFilter(values=list(_EMPTY_VALUES)),
             )
+        )
+    )
+
+
+def _only_values(dimension: str, values: list[str]) -> Any:
+    """Yalnızca sayılan değerler — sunucu tarafında daraltma.
+
+    İstemcide ayıklamak yerine GA4'ten baştan sadece bunları istemek hem daha
+    ucuz hem de kesin: limit yüzünden bir yüzeyin listeden düşmesi imkânsız.
+    """
+    t = _types()
+    return t.FilterExpression(
+        filter=t.Filter(
+            field_name=dimension,
+            in_list_filter=t.Filter.InListFilter(values=list(values)),
         )
     )
 
@@ -431,7 +469,12 @@ def _breakdown_task(
     client: Any, spec: dict[str, Any], profile: str, property_id: str,
     start: str, end: str, limit: int,
 ) -> dict[str, Any]:
-    dim = spec["dimension"]
+    # Bir yüzeyde boyut yoksa aynı bilgiyi taşıyan başka bir boyut kullanılabilir
+    # (ör. Android'de `customEvent:from` tanımlı değil ama giriş yüzeyi ayrı ayrı
+    # olay adlarıyla geliyor). Böylece platformlar tek container'da karşılaştırılır.
+    override = (spec.get("per_profile") or {}).get(profile) or {}
+    dim = override.get("dimension") or spec["dimension"]
+    value_map: dict[str, str] = override.get("values") or {}
     metric = spec["metric"]
     out: dict[str, Any] = {"key": spec["key"], "profile": profile}
     try:
@@ -439,12 +482,21 @@ def _breakdown_task(
             client, property_id,
             dimensions=[dim], metrics=[metric],
             start=start, end=end, limit=limit,
-            dimension_filter=_exclude_empty(dim), order_metric=metric,
+            dimension_filter=(
+                _only_values(dim, list(value_map)) if value_map else _exclude_empty(dim)
+            ),
+            order_metric=metric,
         )
         out["rows"] = [
-            {"value": _label_value(dim, r[dim]), "raw": r[dim], "metric": r[metric]}
+            {
+                "value": value_map.get(r[dim]) or _label_value(dim, r[dim]),
+                "raw": r[dim],
+                "metric": r[metric],
+            }
             for r in rows
         ]
+        if value_map:
+            out["mapped_from"] = dim
     except Exception as exc:  # noqa: BLE001
         out["rows"] = []
         if _dimension_missing(exc):
@@ -460,8 +512,9 @@ def _plan_breakdowns(
     """(spec, profil, property) üçlüleri — tek düz paralel havuz için."""
     plan = []
     for spec in BREAKDOWNS:
+        allowed = set(spec["profiles"]) | set((spec.get("per_profile") or {}).keys())
         for pf in profiles:
-            if pf not in spec["profiles"]:
+            if pf not in allowed:
                 continue
             pid = str(properties.get(pf) or "").strip()
             if pid:
