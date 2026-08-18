@@ -339,15 +339,99 @@ def report_to_panel(results: list[TargetResult]) -> bool:
     return ok
 
 
+
+# ── Teşhis: kurulum bu makinede hazır mı? ───────────────────────────────────
+
+def doctor(*, with_browser: bool = True) -> int:
+    """Yeni bir Mac'te kurulumu tek komutla doğrula.
+
+    Keychain makineye özeldir; her makinede ayrı kurulur. Bu mod hangi parçanın
+    eksik olduğunu tek bakışta gösterir.
+    """
+    import platform
+    import socket
+
+    from backend.services.scrape_credentials import credentials_status
+
+    ok = True
+    print(f"Makine: {platform.node()} ({socket.gethostname()})")
+    print()
+
+    print("1) Keychain kimlikleri")
+    for key in ("asc", "google"):
+        st = credentials_status(key)
+        good = bool(st["ready"])
+        ok = ok and good
+        mark = "OK  " if good else "EKSİK"
+        detail = "e-posta+parola var" if good else (
+            "keychain yok" if not st["keychain_available"]
+            else f"e-posta:{'var' if st['has_email'] else 'YOK'} parola:{'var' if st['has_password'] else 'YOK'}"
+        )
+        print(f"   {mark} {key:<8} {st['keychain_service']:<20} {detail}")
+
+    print()
+    print("2) Firefox profilleri")
+    for name, spec in TARGETS.items():
+        path = spec["profile"]()
+        exists = path.exists()
+        cookies = (path / "cookies.sqlite").exists()
+        state = "profil+çerez" if cookies else ("profil var, çerez yok" if exists else "YOK")
+        print(f"   {'OK  ' if cookies else 'NOT '} {name:<8} {state:<22} {path}")
+
+    print()
+    print("3) Panel bağlantısı (boşluk doldurma için)")
+    import os
+
+    base = (os.environ.get("PROJECT_CONTROL_BASE_URL")
+            or "https://projectcontrol.up.railway.app")
+    # Köprü .env'i kendi yüklüyor (bkz. bridge._load_dotenv); bu yüzden token
+    # etkileşimli kabukta görünmeyebilir ama koşarken mevcut olur. İkisine de bak.
+    token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
+    where = "ortam"
+    if not token:
+        env_file = ROOT / ".env"
+        try:
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                if line.strip().startswith("NOTIFICATION_INGEST_TOKEN="):
+                    token = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    where = ".env"
+        except Exception:  # noqa: BLE001
+            pass
+    has_token = bool(token)
+    ok = ok and has_token
+    print(f"   {'OK  ' if has_token else 'EKSİK'} ingest token "
+          f"{'var (' + where + ')' if has_token else 'YOK — .env kontrol et'} · {base}")
+
+    if with_browser:
+        print()
+        print("4) Oturumlar (tarayıcı açılır, giriş DENENMEZ)")
+        for name in TARGETS:
+            r = warm_target(name, check_only=True, headed=True)
+            good = not r.needs_action
+            ok = ok and good
+            print(f"   {'OK  ' if good else 'DİKKAT'} {name:<8} {r.message}")
+    else:
+        print()
+        print("4) Oturum kontrolü atlandı (--no-browser)")
+
+    print()
+    print("SONUÇ: " + ("kurulum hazır" if ok else "eksik var — yukarıdaki EKSİK/DİKKAT satırlarına bak"))
+    return 0 if ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Scrape login warm-up")
     parser.add_argument("--only", choices=sorted(TARGETS), help="tek hedef")
     parser.add_argument("--check", action="store_true", help="yalnızca kontrol, login denemez")
     parser.add_argument("--headless", action="store_true", help="pencere açma (müdahale gerekirse işe yaramaz)")
     parser.add_argument("--no-report", action="store_true", help="panele bildirme")
+    parser.add_argument("--doctor", action="store_true", help="kurulum teşhisi (yeni makine)")
+    parser.add_argument("--no-browser", action="store_true", help="teşhiste tarayıcı açma")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if args.doctor:
+        return doctor(with_browser=not args.no_browser)
     names = [args.only] if args.only else list(TARGETS)
 
     results: list[TargetResult] = []
