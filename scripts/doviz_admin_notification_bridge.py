@@ -4696,8 +4696,26 @@ def _retry_policy(kind: str, *, failed_slot: str = "") -> tuple[int, int]:
     return BRIDGE_RETRY_MAX, max(60, BRIDGE_RETRY_GAP_SEC)
 
 
-def _arm_job_retry(kind: str, *, name: str, failed_slot: str = "") -> None:
+def _arm_job_retry(
+    kind: str,
+    *,
+    name: str,
+    failed_slot: str = "",
+    result: dict[str, Any] | None = None,
+) -> None:
     """Başarısız tur sonrası bir sonraki yeniden denemeyi planla."""
+    # İnsan bekleyen arıza tekrar denemekle düzelmez. ASC'de her deneme
+    # Apple'a başarısız bir giriş daha yazıyor (hesap kilidi riski) ve her
+    # turda yeni bir uyarı e-postası çıkıyordu — 2FA'yı ancak kullanıcı
+    # tamamlayabilir, sistem bir sonraki planlı slotu bekler.
+    if isinstance(result, dict) and result.get("needs_login"):
+        print(
+            f"Auto {name}: giriş müdahalesi bekleniyor — yeniden deneme yok, "
+            "sonraki planlı slota bırakıldı",
+            flush=True,
+        )
+        _clear_job_retry(kind)
+        return
     if _config_fail.get(kind):
         print(
             f"Auto {name}: eksik ayar — yeniden deneme yok, sonraki planlı slota bırakıldı",
@@ -5086,7 +5104,7 @@ def _auto_loop() -> None:
                     _clear_job_retry(kind)
                 else:
                     _notify_auto_failure(kind, result)
-                    _arm_job_retry(kind, name=name, failed_slot=_slot)
+                    _arm_job_retry(kind, name=name, failed_slot=_slot, result=result)
 
             if browser and _is_browser_scrape_kind(kind):
                 result = _run_browser_scrape_job(
@@ -5110,7 +5128,7 @@ def _auto_loop() -> None:
                     _clear_job_retry(kind)
                 else:
                     _notify_auto_failure(kind, result)
-                    _arm_job_retry(kind, name=name)
+                    _arm_job_retry(kind, name=name, result=result)
 
         _slot_job(
             "virgul", "Virgul", _virgul_lock, run_virgul_bridge_once,
@@ -5527,6 +5545,44 @@ def _interval_lease_slot(prefix: str, seconds: int) -> str:
 _last_login_warmup_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 
 
+# Aynı hesapla iki makineden eşzamanlı giriş denemesi kaldırmayan hedefler.
+# Apple, aynı Apple ID ile arka arkaya gelen otomatik girişlerde oturumu
+# düşürüyor ve `authResult=FAILED` veriyor: iki Mac 3 dakika arayla girmeye
+# çalışınca birbirinin oturumunu bozuyordu. Google (firebase/play) bunu
+# tolere ediyor ve oturumu diskte tuttuğu için makine başına serbest.
+_WARMUP_EXCLUSIVE_TARGETS = ("asc",)
+
+
+def _warmup_slot_key() -> str:
+    """Bu turun kira anahtarı — iki makine aynı slotta aynı anahtarı üretir."""
+    from datetime import datetime
+
+    now = datetime.now()
+    past = [(h, m) for h, m in LOGIN_WARMUP_SLOTS if (h, m) <= (now.hour, now.minute)]
+    hour, minute = past[-1] if past else LOGIN_WARMUP_SLOTS[0]
+    return f"{now:%Y-%m-%d}T{hour:02d}:{minute:02d}"
+
+
+def _warmup_target_allowed_here(name: str) -> bool:
+    """Bu hedefi bu makine mi denesin?
+
+    Yalnızca hesabı paylaşılan hedefler kiraya bağlanır; kira alınamazsa
+    (uç yok / ağ hatası) eski davranışa dönülür — kira yüzünden oturumun hiç
+    yenilenmemesi, iki kez denenmesinden daha kötü.
+    """
+    if name not in _WARMUP_EXCLUSIVE_TARGETS:
+        return True
+    lease = _auto_lease_state(f"login_warmup_{name}", _warmup_slot_key())
+    if lease == LEASE_HELD:
+        print(
+            f"warm-up {name}: bu turu başka makine üstlendi (aynı hesapla "
+            "eşzamanlı giriş oturumu düşürüyor) — atlandı",
+            flush=True,
+        )
+        return False
+    return True
+
+
 def run_login_warmup_bridge_once() -> dict[str, Any]:
     """Sabah scrape'lerinden önce ASC + Firebase oturumlarını doğrula.
 
@@ -5557,6 +5613,8 @@ def run_login_warmup_bridge_once() -> dict[str, Any]:
 
     results = []
     for name in mod.TARGETS:
+        if not _warmup_target_allowed_here(name):
+            continue
         try:
             results.append(mod.warm_target(name, headed=True))
         except Exception as exc:  # noqa: BLE001

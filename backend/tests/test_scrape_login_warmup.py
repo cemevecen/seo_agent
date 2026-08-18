@@ -580,3 +580,41 @@ def test_pending_verification_stops_the_job():
     assert body.index('warn = ' ) if False else True
     # warm-up sonucu kontrol edilip iş iptal edilmeli
     assert "if warm and not warm.get(\"ok\")" in body
+
+
+# ── Aynı hesapla iki makine · e-posta fırtınası ─────────────────────────────
+
+def test_asc_warmup_is_leased_across_machines():
+    """İki Mac aynı Apple ID ile 3 dk arayla giriş deneyince oturum düşüyordu.
+
+    Google hedefleri (firebase/play) makine başına serbest kalmalı: oturumları
+    diskte ve eşzamanlı girişi tolere ediyorlar.
+    """
+    src = (ROOT / "scripts" / "doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
+    assert '_WARMUP_EXCLUSIVE_TARGETS = ("asc",)' in src
+    assert "_warmup_target_allowed_here(name)" in src
+    body = src.split("def _warmup_target_allowed_here(", 1)[1].split("\ndef ", 1)[0]
+    # Kira alınamazsa eski davranışa dönülmeli; kira yüzünden hiç yenilememek daha kötü
+    assert "LEASE_HELD" in body
+    assert "return True" in body
+
+
+def test_needs_login_does_not_arm_a_retry():
+    """2FA'yı insan tamamlar; tekrar denemek Apple'a başarısız giriş yazıyor."""
+    src = (ROOT / "scripts" / "doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
+    body = src.split("def _arm_job_retry(", 1)[1].split("\ndef ", 1)[0]
+    assert 'result.get("needs_login")' in body
+    assert "_clear_job_retry(kind)" in body
+    # Çağrı yerleri sonucu geçmeli, yoksa kapı hiç çalışmaz
+    assert "_arm_job_retry(kind, name=name, failed_slot=_slot, result=result)" in src
+    assert "_arm_job_retry(kind, name=name, result=result)" in src
+
+
+def test_failed_login_lands_on_a_usable_page():
+    """authResult=FAILED sayfasında form render olmuyor; elle giriş imkânsızdı."""
+    src = (ROOT / "scripts" / "scrape_login_warmup.py").read_text(encoding="utf-8")
+    assert "def _land_on_clean_login(" in src
+    assert "_land_on_clean_login(page, spec, result)" in src
+    body = src.split("def _land_on_clean_login(", 1)[1].split("\ndef ", 1)[0]
+    assert "stale_markers" in body
+    assert "login_url" in body

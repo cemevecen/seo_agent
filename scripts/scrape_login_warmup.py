@@ -339,6 +339,30 @@ def _submit(page: Any) -> None:
 
 
 
+def _land_on_clean_login(page: Any, spec: dict[str, Any], result: TargetResult) -> None:
+    """Pencereyi elle giriş yapılabilir bir sayfada bırak.
+
+    `authResult=FAILED` gibi bayat adreslerde form render olmuyor; kullanıcı
+    açık pencereye gelip hiçbir şey yapamıyor. Temiz giriş adresi varsa oraya
+    gidilir — hata bildirimini değiştirmez, yalnızca pencereyi kullanışlı kılar.
+    """
+    login_url = str(spec.get("login_url") or "").strip()
+    if not login_url:
+        return
+    try:
+        cur = str(page.url or "").lower()
+    except Exception:  # noqa: BLE001
+        cur = ""
+    stale = any(mark in cur for mark in spec.get("stale_markers", ()))
+    if cur and not stale and login_url.lower().split("?")[0] in cur:
+        return  # zaten kullanılabilir bir giriş sayfasındayız
+    try:
+        page.goto(login_url, wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
+        result.detail["landed_on"] = login_url
+    except Exception as exc:  # noqa: BLE001
+        result.detail["land_error"] = str(exc)[:120]
+
+
 def _blind_login(page: Any, spec: dict[str, Any], creds: Any, result: TargetResult) -> bool:
     """DOM'a erişilemeyen giriş formunu koordinat + klavye ile doldur.
 
@@ -474,6 +498,11 @@ def _attempt_login(page: Any, spec: dict[str, Any], result: TargetResult) -> Non
             f"{spec['label']}: otomatik giriş tamamlanamadı, giriş ekranı duruyor. Pencere açık."
         )
         result.detail["reason"] = "still_on_login"
+        # Doğrulama turu hedef sayfaya gidiyor; Apple oradan
+        # `?authResult=FAILED` adresine atıyor ve o sayfada form HİÇ
+        # render olmuyor. Pencereyi böyle bırakmak, elle giriş yapmak
+        # isteyeni ölü bir ekranda bekletiyordu. Temiz giriş adresine al.
+        _land_on_clean_login(page, spec, result)
         return
 
     result.status = "logged_in"
