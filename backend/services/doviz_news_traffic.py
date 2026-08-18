@@ -84,7 +84,7 @@ def _resolve_traffic_window(
 
 def _gsc_scope_for_period(period_key: str | None, start: str, end: str) -> str:
     key = (period_key or "").strip().lower()
-    if key in ("today", "yesterday", "last_7d", "prev_week"):
+    if key in ("today", "yesterday", "last_2d", "last_7d", "prev_week"):
         return "current_7d_pages"
     s = _parse_day(start)
     e = _parse_day(end)

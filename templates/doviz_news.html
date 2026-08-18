@@ -1200,7 +1200,7 @@
 <script>
 (function () {
   // Sayfa bu dönemle açılır; dönem seçimi saklanmıyor, her açılış buradan başlar.
-  var DEFAULT_PERIOD = "today";
+  var DEFAULT_PERIOD = "last_2d";
   var state = {
     pfWindow: "d7",
     pfMetric: "views",
@@ -1985,6 +1985,7 @@
     var list = (tabs && tabs.length ? tabs.slice() : [
       { key: "today", label: "Today" },
       { key: "yesterday", label: "Yesterday" },
+      { key: "last_2d", label: "Last 2 days" },
       { key: "last_7d", label: "Last 1 week" },
       { key: "prev_week", label: "Last week" },
       { key: "this_month", label: "Bu ay" },
@@ -2539,7 +2540,7 @@
 
   function syncPeriodCardVisibility(period) {
     var p = period || DEFAULT_PERIOD;
-    var hideWeekly = p === "today" || p === "yesterday" || p === "last_7d" || p === "prev_week";
+    var hideWeekly = p === "today" || p === "yesterday" || p === "last_2d" || p === "last_7d" || p === "prev_week";
     var hideDaySeries = p === "today" || p === "yesterday";
     if (p === "custom") {
       var meta = (state.data && state.data.period_meta) || {};

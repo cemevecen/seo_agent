@@ -53,8 +53,8 @@ class IngestNewsBody(BaseModel):
 def get_doviz_news_report(
     category: str | None = Query(None, description="Kategori filtresi (boş = tümü)"),
     period: str | None = Query(
-        "last_7d",
-        description="Dönem: all | today | yesterday | last_7d | prev_week | this_month | last_month | custom",
+        "last_2d",
+        description="Dönem: all | today | yesterday | last_2d | last_7d | prev_week | this_month | last_month | custom",
     ),
     start: str | None = Query(
         None,

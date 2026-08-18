@@ -223,13 +223,15 @@ def test_today_falls_back_to_realtime_sorting_and_says_why():
     assert "sorted by Realtime" in html
 
 
-def test_page_opens_on_today():
-    """Açılış dönemi «today» — dönem seçimi saklanmadığı için tek kaynak burası."""
+def test_page_opens_on_last_2d():
+    """Açılış dönemi «last_2d» — dönem seçimi saklanmadığı için tek kaynak burası."""
     html = PAGE.read_text(encoding="utf-8")
-    assert 'var DEFAULT_PERIOD = "today";' in html
+    assert 'var DEFAULT_PERIOD = "last_2d";' in html
     assert "period: DEFAULT_PERIOD," in html
     # Eski varsayılan istek URL'inde de kalmamalı
     assert 'state.period || "last_7d"' not in html
+    # Chip listesinde de bulunmalı (sunucu sekmeleri gelmezse fallback)
+    assert '{ key: "last_2d", label: "Last 2 days" }' in html
 
 
 def test_day_window_switch_exists_and_drives_rendering():

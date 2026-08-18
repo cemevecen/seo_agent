@@ -46,6 +46,7 @@ def filter_news_rows_in_scope(rows: list[dict[str, Any]] | None) -> list[dict[st
 PERIOD_TABS = (
     {"key": "today", "label": "Today"},
     {"key": "yesterday", "label": "Yesterday"},
+    {"key": "last_2d", "label": "Last 2 days"},
     {"key": "last_7d", "label": "Last 7 days"},
     {"key": "prev_week", "label": "Previous week"},
     {"key": "this_month", "label": "This month"},
@@ -834,6 +835,12 @@ def resolve_period(
         "bugün": "today",
         "dun": "yesterday",
         "dün": "yesterday",
+        "son_2_gun": "last_2d",
+        "son_2_gün": "last_2d",
+        "son2gun": "last_2d",
+        "last_2_days": "last_2d",
+        "last_48h": "last_2d",
+        "2d": "last_2d",
         "son_1_hafta": "last_7d",
         "son1hafta": "last_7d",
         "last_week": "last_7d",
@@ -877,6 +884,13 @@ def resolve_period(
         cmp_start = cmp_end = start - timedelta(days=7)
         kpi_label = "Yesterday vs last week"
         cmp_label = "Same day last week"
+    elif key == "last_2d":
+        end = today
+        start = today - timedelta(days=1)
+        cmp_end = start - timedelta(days=1)
+        cmp_start = cmp_end - timedelta(days=1)
+        kpi_label = "2 days vs previous"
+        cmp_label = "Previous 2 days"
     elif key == "last_7d":
         end = today
         start = today - timedelta(days=6)
@@ -939,19 +953,21 @@ def _shift_last_7d_if_today_empty(
     *,
     today: date | None = None,
 ) -> dict[str, Any]:
-    """Son 1 hafta: bugün henüz veri yoksa pencereyi önceki aynı günden düne kaydır.
+    """Bugünle biten kayan pencereler: bugün veri yoksa pencereyi bir gün geri kaydır.
 
-    Örn. Salı ve bugün boş → geçen Salı … Pazartesi (bu Salı dahil değil).
+    Örn. son 7 gün, Salı ve bugün boş → geçen Salı … Pazartesi (bu Salı dahil değil).
+    Aynı mantık son 2 gün için de geçerli (bugün boşsa dün + önceki gün).
     """
-    if period_info.get("key") != "last_7d":
+    if period_info.get("key") not in ("last_2d", "last_7d"):
         return period_info
     today = today or _today_tr()
     if _day_has_rows(rows, today):
         return period_info
+    span = (period_info["end"] - period_info["start"]).days
     end = today - timedelta(days=1)
-    start = end - timedelta(days=6)
+    start = end - timedelta(days=span)
     cmp_end = start - timedelta(days=1)
-    cmp_start = cmp_end - timedelta(days=6)
+    cmp_start = cmp_end - timedelta(days=span)
     return {
         **period_info,
         "start": start,
@@ -1379,8 +1395,9 @@ def doviz_news_payload(
             }
 
     items = []
-    # Son içerikler: dönem KPI'sından bağımsız — kategoriye göre en yeni N kayıt
-    item_rows = cat_rows
+    # Son içerikler: seçili dönem penceresindeki en yeni N kayıt.
+    # Pencerede hiç kayıt yoksa liste boş kalmasın diye kategorinin tamamına düşülür.
+    item_rows = rows if rows else cat_rows
     item_limit = max(1, min(int(items_limit or 250), 500))
     visible_rows = item_rows[:item_limit]
 
