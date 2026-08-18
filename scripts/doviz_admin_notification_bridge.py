@@ -155,6 +155,15 @@ if _ASC_HOURS_RAW:
     ASC_SLOT_HOURS = tuple(
         int(h.strip()) for h in _ASC_HOURS_RAW.split(",") if h.strip().isdigit()
     ) or ASC_SLOT_HOURS
+# Login warm-up: sabah scrape'lerinden ÖNCE oturumları doğrula. Oturum düşmüşse
+# tur boşa gitmeden haber verilir (ASC 06:11 / Firebase 06:46 slotlarından önce).
+LOGIN_WARMUP_SLOT_HOURS = (5,)
+LOGIN_WARMUP_SLOT_MINUTE = int(os.environ.get("LOGIN_WARMUP_BRIDGE_MINUTE") or "45")
+if (os.environ.get("LOGIN_WARMUP_BRIDGE_HOURS") or "").strip():
+    LOGIN_WARMUP_SLOT_HOURS = tuple(
+        int(x) for x in os.environ["LOGIN_WARMUP_BRIDGE_HOURS"].split(",") if x.strip().isdigit()
+    ) or LOGIN_WARMUP_SLOT_HOURS
+
 FIREBASE_SLOT_HOURS = (6,)  # günde bir — sabah Firebase Console scrape
 _FIREBASE_HOURS_RAW = (os.environ.get("FIREBASE_CONSOLE_BRIDGE_HOURS") or "").strip()
 if _FIREBASE_HOURS_RAW:
@@ -442,6 +451,7 @@ _BROWSER_SCRAPE_KINDS = frozenset(
         "market",
         "empower_intel",
         "empower_intel_sinemalar",
+        "login_warmup",
     }
 )
 
@@ -465,6 +475,7 @@ def browser_scrape_slot_defs() -> tuple[tuple[str, tuple[int, ...], int], ...]:
         ("seo_audit", SEO_AUDIT_SLOT_HOURS, SEO_AUDIT_SLOT_MINUTE),
         ("gsc_cwv", GSC_CWV_SLOT_HOURS, GSC_CWV_SLOT_MINUTE),
         ("firebase", FIREBASE_SLOT_HOURS, FIREBASE_SLOT_MINUTE),
+        ("login_warmup", LOGIN_WARMUP_SLOT_HOURS, LOGIN_WARMUP_SLOT_MINUTE),
     )
 
 
@@ -4731,6 +4742,11 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
         "play": {"name": "Play", "lock": _play_lock, "runner": run_play_bridge_once},
         "asc": {"name": "ASC", "lock": _asc_lock, "runner": run_asc_bridge_once},
         "firebase": {"name": "Firebase", "lock": _firebase_lock, "runner": run_firebase_bridge_once},
+        "login_warmup": {
+            "name": "Login warm-up",
+            "lock": _browser_scrape_lock,
+            "runner": run_login_warmup_bridge_once,
+        },
         "gsc_links": {
             "name": "GSC Links",
             "lock": _gsc_links_lock,
@@ -5422,11 +5438,77 @@ def _interval_lease_slot(prefix: str, seconds: int) -> str:
     return f"{prefix}-{int(time.time() // max(60, int(seconds)))}"
 
 
+
+_last_login_warmup_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+
+
+def run_login_warmup_bridge_once() -> dict[str, Any]:
+    """Sabah scrape'lerinden önce ASC + Firebase oturumlarını doğrula.
+
+    Oturum geçerliyse hiçbir şey yapmaz. Düşmüşse Keychain'deki kimlikle
+    girmeyi dener; 2FA/CAPTCHA çıkarsa **denemeyi bırakır**, pencereyi açık
+    bırakır ve panele «müdahale gerekiyor» diye bildirir. İkinci faktörü
+    otomatik aşmaya çalışmak hem hesabı kilitletir hem de doğru olmaz.
+    """
+    global _last_login_warmup_result
+    try:
+        import importlib.util
+
+        path = ROOT / "scripts" / "scrape_login_warmup.py"
+        spec = importlib.util.spec_from_file_location("scrape_login_warmup", path)
+        if spec is None or spec.loader is None:
+            out = {"ok": False, "message": "warm-up betiği yüklenemedi"}
+            _last_login_warmup_result = out
+            return out
+        mod = importlib.util.module_from_spec(spec)
+        # dataclass tanımlı modüller exec_module öncesi sys.modules'ta olmalı,
+        # yoksa @dataclass çözümlemesi NoneType üzerinde patlıyor.
+        sys.modules[spec.name] = mod
+        spec.loader.exec_module(mod)
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "message": f"warm-up import: {exc}"}
+        _last_login_warmup_result = out
+        return out
+
+    results = []
+    for name in mod.TARGETS:
+        try:
+            results.append(mod.warm_target(name, headed=True))
+        except Exception as exc:  # noqa: BLE001
+            print(f"warm-up {name} hata: {exc}", flush=True)
+
+    try:
+        mod.report_to_panel(results)
+    except Exception as exc:  # noqa: BLE001
+        print(f"warm-up panel bildirimi hata: {exc}", flush=True)
+
+    needs = [r for r in results if r.needs_action]
+    out = {
+        "ok": not needs,
+        "kind": "login_warmup",
+        "needs_login": bool(needs),
+        "message": (
+            "; ".join(r.message for r in needs)
+            if needs
+            else "Tüm oturumlar geçerli (" + ", ".join(r.target for r in results) + ")"
+        ),
+        "results": [r.as_dict() for r in results],
+    }
+    _last_login_warmup_result = out
+    print(f"Login warm-up: {out['message']}", flush=True)
+    return out
+
+
 def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
     return {
         "play": {"name": "Play", "lock": _play_lock, "runner": run_play_bridge_once},
         "asc": {"name": "ASC", "lock": _asc_lock, "runner": run_asc_bridge_once},
         "firebase": {"name": "Firebase", "lock": _firebase_lock, "runner": run_firebase_bridge_once},
+        "login_warmup": {
+            "name": "Login warm-up",
+            "lock": _browser_scrape_lock,
+            "runner": run_login_warmup_bridge_once,
+        },
         "cwv": {"name": "GSC CWV", "lock": _gsc_cwv_lock, "runner": run_gsc_cwv_bridge_once},
         "notification": {"name": "Notification", "lock": _nt_lock, "runner": run_notification_bridge_once},
         "news": {"name": "News", "lock": _nt_lock, "runner": lambda: run_news_bridge_once(days=7)},
