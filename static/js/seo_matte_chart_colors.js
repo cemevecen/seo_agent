@@ -229,23 +229,28 @@
    * index: 0 ANR-mavi ailesi, 1 crash-amber, 2 sessions-yeşil, …
    *
    * Rampalar mat: her uç için chroma tek bir tavana çekildi (light hi 30,
-   * dark hi 18, charcoal hi 22; lo uçları 8–10). Doygunluk düşerken L*
-   * korunuyor — kademeler arası açıklık farkı (ΔL* ≈ 12) aynı kalır, yani
-   * hücreler baskın görünmeden ayırt edilebilir olmayı sürdürür. Tek tavan
-   * kullanmanın sebebi: sabit oranla kısmak zaten yumuşak olan yeşil/cyan'ı
-   * griye düşürüp seri kimliğini siliyordu.
+   * dark hi 18; lo uçları 8–10). Doygunluk düşerken L* korunuyor — kademeler
+   * arası açıklık farkı (ΔL* ≈ 12) aynı kalır, yani hücreler baskın
+   * görünmeden ayırt edilebilir olmayı sürdürür. Tek tavan kullanmanın
+   * sebebi: sabit oranla kısmak zaten yumuşak olan yeşil/cyan'ı griye
+   * düşürüp seri kimliğini siliyordu.
+   *
+   * Charcoal'da mat olmak için chroma yetmiyor: koyu zeminde asıl parlayan
+   * şey açıklık. Üst uç L* 76–87'den L* 62'ye indirildi (alt uç L* 16,
+   * chroma 20/9). Hücreler artık koyu zeminde göz almıyor; kademe ΔL* ≈ 9
+   * ile ayrım korunuyor.
    */
   function seoMatteSeriesHeatRamp(seriesIndex) {
     var i = Math.abs(Number(seriesIndex) || 0) % 7;
     if (isCharcoal()) {
       return [
-        { lo: "#293441", hi: "#9bd0ec" }, /* sky */
-        { lo: "#362b1f", hi: "#e4c1a1" }, /* amber */
-        { lo: "#26382f", hi: "#b9e4c6" }, /* green */
-        { lo: "#36262f", hi: "#e3b3cc" }, /* pink */
-        { lo: "#292533", hi: "#c3b9e2" }, /* violet */
-        { lo: "#1e3338", hi: "#9ee2eb" }, /* cyan */
-        { lo: "#392821", hi: "#e6aead" }, /* rose */
+        { lo: "#1f2934", hi: "#6d9cb4" }, /* sky */
+        { lo: "#30261c", hi: "#ae9175" }, /* amber */
+        { lo: "#1c2b23", hi: "#7a9e85" }, /* green */
+        { lo: "#32242c", hi: "#b48aa0" }, /* pink */
+        { lo: "#2a2632", hi: "#9a91b4" }, /* violet */
+        { lo: "#162b30", hi: "#649fa7" }, /* cyan */
+        { lo: "#33251e", hi: "#ba8a89" }, /* rose */
       ][i];
     }
     if (isDark()) {
