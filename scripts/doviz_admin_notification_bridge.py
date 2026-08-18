@@ -3614,26 +3614,44 @@ def _upcoming_slots(limit: int = 14) -> list[dict[str, Any]]:
     for h, m, _mode in MODERATION_SLOTS:
         add("sinemalar_moderation", (h,), m)
 
-    for kind, last, interval in (
-        ("notification", _last_result, AUTO_INTERVAL_SEC),
-        ("news", _last_news_result, NEWS_AUTO_INTERVAL_SEC),
+    # Aralıklı işler (notification + news): son otomatik koşunun epoch'u
+    # _last_*_auto_at globallerinde tutulur. Eskiden _last_result["ts"]
+    # okunuyordu ama o sözlükte "ts" alanı hiç yok — her yoklamada 0 dönüp
+    # "şimdi" yazıyordu. Ayrıca bu ikisi yalnızca aktif pencerede (08–20 TR)
+    # koşuyor; pencere dışına düşen zaman bir sonraki pencerenin başına
+    # kaydırılır, aksi halde gece boyunca "şimdi" görünüyordu.
+    from datetime import timedelta
+
+    def _into_active_window(at):
+        start = max(0, min(23, int(NT_NEWS_ACTIVE_START_HOUR)))
+        end = max(0, min(23, int(NT_NEWS_ACTIVE_END_HOUR)))
+        if start > end:  # pencere yapılandırması bozuksa kaydırma yapma
+            return at
+        if start <= at.hour <= end:
+            return at
+        if at.hour < start:
+            return at.replace(hour=start, minute=0, second=0, microsecond=0)
+        return (at + timedelta(days=1)).replace(
+            hour=start, minute=0, second=0, microsecond=0
+        )
+
+    for kind, last_at, interval in (
+        ("notification", _last_nt_auto_at, AUTO_INTERVAL_SEC),
+        ("news", _last_news_auto_at, NEWS_AUTO_INTERVAL_SEC),
     ):
         try:
-            ts = float((last or {}).get("ts") or 0)
+            prev = float(last_at or 0)
         except (TypeError, ValueError):
-            ts = 0.0
-        if ts <= 0:
-            left = 0
-        else:
-            left = max(0, int(interval - (time.time() - ts)))
+            prev = 0.0
+        left = 0 if prev <= 0 else max(0, int(interval - (time.time() - prev)))
         try:
-            from datetime import timedelta
-
-            at = now + timedelta(seconds=left)
+            at = _into_active_window(now + timedelta(seconds=left))
             hm = at.strftime("%H:%M")
+            delta_m = max(0, int((at - now).total_seconds() // 60))
         except Exception:
             hm = "—"
-        entries.append((max(0, left // 60), kind, hm))
+            delta_m = max(0, left // 60)
+        entries.append((delta_m, kind, hm))
 
     entries.sort(key=lambda x: x[0])
     out: list[dict[str, Any]] = []
