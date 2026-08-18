@@ -1545,3 +1545,18 @@ class OwnerPmLabWorkspace(Base):
     sync_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     sync_message: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class IpoHalkarzVisit(Base):
+    """halkarz.com 09:09 / 14:14 ziyareti — yeni şirket ve alan farkı."""
+
+    __tablename__ = "ipo_halkarz_visits"
+    __table_args__ = (Index("ix_ipo_halkarz_visits_fetched", "fetched_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slot: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    is_baseline: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    delta_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    snapshot_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")

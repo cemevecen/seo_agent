@@ -12,6 +12,7 @@ import time
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_HALF_UP
+from functools import partial
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 from urllib.parse import parse_qsl, quote, unquote, urlparse
@@ -2294,6 +2295,11 @@ def _run_deferred_startup() -> None:
                     int(settings.scheduled_refresh_minute),
                     settings.scheduled_refresh_timezone,
                 )
+            _threading.Thread(
+                target=_seed_ipo_halkarz_baseline,
+                daemon=True,
+                name="ipo-halkarz-baseline",
+            ).start()
     except Exception:
         LOGGER.exception("Deferred startup scheduler failed")
 
@@ -4716,6 +4722,20 @@ def _run_market_sheets_sync_job(*, trigger_source: str = "scheduler") -> None:
         LOGGER.warning("Market sheets sync failed (%s): %s", trigger_source, exc)
 
 
+def _seed_ipo_halkarz_baseline() -> None:
+    """İlk deploy'da 09:09'u beklemeden taban snapshot al."""
+    try:
+        from backend.models import IpoHalkarzVisit
+        from backend.services.ipo_compare import run_scheduled_visit
+
+        with SessionLocal() as db:
+            if db.query(IpoHalkarzVisit.id).first() is not None:
+                return
+            run_scheduled_visit(db, slot="startup")
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("IPO halkarz baseline seed: %s", exc)
+
+
 def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     try:
         timezone = ZoneInfo(settings.scheduled_refresh_timezone)
@@ -5238,6 +5258,43 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         coalesce=True,
         misfire_grace_time=600,
     )
+
+    def _run_ipo_halkarz_visit(slot: str) -> None:
+        try:
+            from backend.services.ipo_compare import run_scheduled_visit
+
+            with SessionLocal() as db:
+                out = run_scheduled_visit(db, slot=slot)
+            LOGGER.info(
+                "IPO halkarz visit %s baseline=%s new=%s changed=%s",
+                slot,
+                (out or {}).get("is_baseline"),
+                ((out or {}).get("summary") or {}).get("new"),
+                ((out or {}).get("summary") or {}).get("changed"),
+            )
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("IPO halkarz visit %s failed: %s", slot, exc)
+
+    scheduler.add_job(
+        partial(_run_ipo_halkarz_visit, "09:09"),
+        trigger=CronTrigger(hour=9, minute=9, timezone=timezone),
+        id="ipo-halkarz-0909",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+    scheduler.add_job(
+        partial(_run_ipo_halkarz_visit, "14:14"),
+        trigger=CronTrigger(hour=14, minute=14, timezone=timezone),
+        id="ipo-halkarz-1414",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+    job_count += 2
+    LOGGER.info("IPO halkarz ziyareti aktif: 09:09 ve 14:14 TR.")
 
     return scheduler
 
@@ -15744,6 +15801,32 @@ def api_doviz_asset_monitor_latest():
 
     with SessionLocal() as db:
         return JSONResponse(get_latest_run(db) or {})
+
+
+@app.get("/ipo")
+def ipo_page(request: Request):
+    """halkarz.com × doviz.com halka arz eksik/fazla."""
+    return templates.TemplateResponse(
+        request,
+        "ipo.html",
+        context={
+            "request": request,
+            "sites": get_sidebar_sites(),
+            "site_name": "IPO",
+        },
+    )
+
+
+@app.get("/api/ipo/compare")
+def api_ipo_compare(refresh: int = 0):
+    from backend.services.ipo_compare import fetch_compare, latest_visit_public, next_visit_slot
+
+    payload = fetch_compare(force=bool(refresh), details=True)
+    payload.pop("halkarz_snapshot", None)
+    with SessionLocal() as db:
+        payload["visit"] = latest_visit_public(db)
+    payload["next_slot"] = next_visit_slot()
+    return JSONResponse(payload)
 
 
 @app.get("/errors")
