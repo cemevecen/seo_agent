@@ -4616,22 +4616,31 @@
     var slot = slotWidth > 0 ? slotWidth : 16;
     var cellW = Math.max(2.2, Math.min(slot * 0.9, slot - 0.8));
     var heatFn = window.seoMatteHeatCellColor;
+    var levelFn = window.seoMatteHeatLevels;
     var html = "";
     for (var si = 0; si < rows; si++) {
       var ser = seriesList[si];
       var vals = ser.values || ser.heights || [];
-      var max = 0;
-      for (var i = 0; i < n; i++) {
-        var vv = Number(vals[i]) || 0;
-        if (vv > max) max = vv;
-      }
-      if (!(max > 0)) max = 1;
+      /* Eşikler serinin kendi p10–p90 aralığına oturur; v/max ile tüm günler
+         rampanın tepesine sıkışıp aynı renk görünüyordu. */
+      var levels = levelFn
+        ? levelFn(vals.slice(0, n))
+        : (function () {
+            var mx = 0;
+            for (var i = 0; i < n; i++) {
+              var vv = Number(vals[i]) || 0;
+              if (vv > mx) mx = vv;
+            }
+            if (!(mx > 0)) mx = 1;
+            return vals.slice(0, n).map(function (x) {
+              return Math.max(0, Math.min(1, (Number(x) || 0) / mx));
+            });
+          })();
       var y0 = baseY - plotH + si * rowH + 1.1;
       var h = Math.max(2.4, rowH - 2.2);
       var parts = "";
       for (var j = 0; j < n; j++) {
-        var v = Number(vals[j]) || 0;
-        var t = Math.max(0, Math.min(1, v / max));
+        var t = Number(levels[j]) || 0;
         var fill = heatFn
           ? heatFn(si, t)
           : ser.color;

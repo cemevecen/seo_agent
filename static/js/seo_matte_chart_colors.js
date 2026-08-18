@@ -273,6 +273,73 @@
     return _mixHex(ramp.lo, ramp.hi, tt);
   }
 
+  /* Isı hücresi eşikleri — rampanın açık ucundan koyu ucuna 5 kademe.
+     Kademeler arası ΔL* ≈ 12; yan yana iki hücre bakışta ayırt edilebilsin. */
+  var HEAT_LEVELS = [0.06, 0.3, 0.53, 0.76, 1];
+
+  function _pctOfSorted(sorted, p) {
+    var n = sorted.length;
+    if (!n) return 0;
+    if (n === 1) return sorted[0];
+    var idx = (n - 1) * Math.max(0, Math.min(1, p));
+    var lo = Math.floor(idx);
+    var hi = Math.ceil(idx);
+    if (lo === hi) return sorted[lo];
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  }
+
+  /**
+   * Bir ısı satırının değerlerini renk eşiklerine (t) çevirir.
+   *
+   * Eskiden `t = v / max` kullanılıyordu: 42k–55k arası gezinen bir seri
+   * t=0.77..1.0'a sıkışıp rampanın yalnızca %22'sini kullanıyor, tüm günler
+   * aynı renk görünüyordu. Burada eşikler serinin kendi p10–p90 aralığına
+   * oturtulur (tek günlük sıçrama ölçeği ele geçirmesin) ve 5 kademeye
+   * yuvarlanır — «yüksek/düşük gün» bakışta okunur.
+   *
+   * Gerçekten düz bir seride yapay renk farkı üretilmez: yayılım medyanın
+   * %1'inden küçükse tüm hücreler orta kademede kalır.
+   */
+  function seoMatteHeatLevels(values) {
+    var n = (values || []).length;
+    var out = new Array(n);
+    var finite = [];
+    var i;
+    for (i = 0; i < n; i++) {
+      var v = Number(values[i]);
+      if (isFinite(v)) finite.push(v);
+    }
+    if (!finite.length) {
+      for (i = 0; i < n; i++) out[i] = 0;
+      return out;
+    }
+    var sorted = finite.slice().sort(function (a, b) { return a - b; });
+    var lo = _pctOfSorted(sorted, 0.1);
+    var hi = _pctOfSorted(sorted, 0.9);
+    var med = _pctOfSorted(sorted, 0.5);
+    var span = hi - lo;
+    var flat = !(span > 0) || (Math.abs(med) > 0 && span / Math.abs(med) < 0.01);
+    var mid = HEAT_LEVELS[Math.floor(HEAT_LEVELS.length / 2)];
+    for (i = 0; i < n; i++) {
+      var val = Number(values[i]);
+      if (!isFinite(val)) {
+        out[i] = 0;
+        continue;
+      }
+      if (flat) {
+        out[i] = mid;
+        continue;
+      }
+      var t = (val - lo) / span;
+      if (t < 0) t = 0;
+      else if (t > 1) t = 1;
+      var k = Math.floor(t * HEAT_LEVELS.length);
+      if (k >= HEAT_LEVELS.length) k = HEAT_LEVELS.length - 1;
+      out[i] = HEAT_LEVELS[k];
+    }
+    return out;
+  }
+
   /** Piyasa overlay — mavi / yeşil / teal ağırlıklı. */
   function seoMatteMarketOverlayPalette() {
     return [
@@ -349,6 +416,7 @@
   global.seoMatteAreaFillFromStroke = seoMatteAreaFillFromStroke;
   global.seoMatteSeriesHeatRamp = seoMatteSeriesHeatRamp;
   global.seoMatteHeatCellColor = seoMatteHeatCellColor;
+  global.seoMatteHeatLevels = seoMatteHeatLevels;
   global.seoMatteMarketOverlayPalette = seoMatteMarketOverlayPalette;
   global.seoMatteEmpowerOverlayPalette = seoMatteEmpowerOverlayPalette;
   global.seoMatteSeriesPalette = seoMatteSeriesPalette;
