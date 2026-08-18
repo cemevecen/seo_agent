@@ -455,7 +455,46 @@ def _asc_keep_window_open() -> bool:
     return scrape_keep_window_open(env_key="ASC_CONSOLE_KEEP_OPEN")
 
 
+def _asc_use_selenium() -> bool:
+    """ASC sistem Firefox (Selenium) üzerinden mi sürülsün?
+
+    Neden: Playwright'ın kalıcı bağlamına başka bir süreçten bağlanılamıyor,
+    bu yüzden köprü her yeniden başladığında ASC oturumu ölüyor ve Apple
+    tekrar 2FA istiyordu. Selenium yolunda geckodriver ayrık başlatılıp
+    oturum kimliği diske yazılıyor; yeni süreç aynı pencereye geri bağlanıyor.
+
+    `ASC_CONSOLE_USE_SELENIUM=0` ile eski Playwright yoluna dönülür — göç
+    beklenmedik bir yerde tökezlerse tek değişkenle geri alınabilsin diye.
+    """
+    import os
+
+    raw = (os.environ.get("ASC_CONSOLE_USE_SELENIUM") or "1").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    from backend.services.scrape_browser import resolve_system_firefox_executable
+
+    return resolve_system_firefox_executable() is not None
+
+
 def _launch_context(*, headed: bool):
+    if _asc_use_selenium():
+        from backend.services.scrape_browser import warm_session_forget_profile
+        from backend.services.selenium_playwright_shim import launch_selenium_context
+
+        # Playwright tarafında bu profile ait ölü bir sıcak kayıt kalmışsa
+        # temizle; aksi halde iki katman aynı profili kendi penceresi sanar.
+        try:
+            warm_session_forget_profile(PROFILE_DIR)
+        except Exception:  # noqa: BLE001
+            pass
+        pw, ctx, reused = launch_selenium_context(PROFILE_DIR, headed=headed)
+        print(
+            "ASC: sistem Firefox.app (Selenium) · pencere köprüden bağımsız yaşar"
+            + (" · mevcut pencere" if reused else ""),
+            flush=True,
+        )
+        return pw, ctx
+
     from backend.services.scrape_browser import acquire_persistent_context
 
     pw, ctx, reused = acquire_persistent_context(
@@ -474,6 +513,12 @@ def _launch_context(*, headed: bool):
 
 def _release_context(pw, ctx) -> None:
     """Headed ASC'te pencereyi kapatma — oturum/şifre ekranı açık kalsın."""
+    if getattr(ctx, "_selenium_mode", False):
+        from backend.services.selenium_playwright_shim import release_selenium_context
+
+        release_selenium_context(pw, ctx)
+        return
+
     from backend.services.scrape_browser import release_persistent_context
 
     release_persistent_context(

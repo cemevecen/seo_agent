@@ -7,6 +7,7 @@ bu shim üzerinden gider.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import time
@@ -623,6 +624,92 @@ class SeleniumPage:
             time.sleep(0.4)
 
 
+class _ApiResponse:
+    """Playwright APIResponse karşılığı."""
+
+    def __init__(self, raw: Any) -> None:
+        data = raw if isinstance(raw, dict) else {}
+        self.status = int(data.get("status") or 0)
+        self.headers: dict[str, str] = {
+            str(k).lower(): str(v) for k, v in (data.get("headers") or {}).items()
+        }
+        self._body = str(data.get("body") or "")
+        self.ok = 200 <= self.status < 300
+
+    def text(self) -> str:
+        return self._body
+
+    def json(self) -> Any:
+        import json as _json
+
+        try:
+            return _json.loads(self._body)
+        except Exception:  # noqa: BLE001
+            return None
+
+
+class SeleniumRequest:
+    """`context.request` karşılığı — isteği sayfanın İÇİNDEN fetch ile atar.
+
+    Playwright'ın APIRequestContext'i tarayıcı çerezlerini paylaşan ayrı bir
+    HTTP istemcisi; Selenium'da doğrudan karşılığı yok. Sayfa içinden
+    `credentials: 'include'` ile fetch etmek aynı işi görür ve aslında daha
+    sadıktır: gerçek çerezler, gerçek origin, gerçek TLS oturumu.
+
+    Bu yüzden istek, hedefle aynı origin'de duran sayfada koşmalı — ASC zaten
+    çağrılarını ASC sayfası açıkken yapıyor.
+    """
+
+    _JS = """async ({url, method, headers, body}) => {
+      try {
+        const init = { method: method, credentials: 'include', headers: headers || {} };
+        if (body !== null && body !== undefined) init.body = body;
+        const r = await fetch(url, init);
+        const text = await r.text();
+        const h = {};
+        try { r.headers.forEach(function (v, k) { h[String(k).toLowerCase()] = v; }); }
+        catch (_) {}
+        return { status: r.status, headers: h, body: text };
+      } catch (e) {
+        return { status: 0, headers: {}, body: String(e) };
+      }
+    }"""
+
+    def __init__(self, context: SeleniumContext) -> None:
+        self._ctx = context
+
+    def _send(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        data: Any = None,
+        **_ignored: Any,
+    ) -> _ApiResponse:
+        pages = getattr(self._ctx, "pages", None) or []
+        page = pages[0] if pages else self._ctx.new_page()
+        body: str | None = None
+        if data is not None:
+            body = data if isinstance(data, str) else json.dumps(data)
+        raw = page.evaluate(
+            self._JS,
+            {
+                "url": str(url),
+                "method": method.upper(),
+                "headers": {str(k): str(v) for k, v in (headers or {}).items()},
+                "body": body,
+            },
+        )
+        return _ApiResponse(raw)
+
+    def get(self, url: str, **kw: Any) -> _ApiResponse:
+        return self._send("GET", url, **kw)
+
+    def post(self, url: str, **kw: Any) -> _ApiResponse:
+        return self._send("POST", url, **kw)
+
+
 class SeleniumContext:
     _selenium_mode = True
 
@@ -633,6 +720,18 @@ class SeleniumContext:
         first = SeleniumPage(driver, download_dir=download_dir)
         first.context = self
         self.pages: list[SeleniumPage] = [first]
+        self.request = SeleniumRequest(self)
+
+    def cookies(self, *_urls: Any) -> list[dict[str, Any]]:
+        """Playwright `context.cookies()` karşılığı.
+
+        ASC oturum kontrolü buna bakıyor (itctx / dqsid / wosid); olmadan
+        «oturum yok» sanılıp gereksiz giriş denenirdi.
+        """
+        try:
+            return list(self._driver.get_cookies() or [])
+        except Exception:  # noqa: BLE001
+            return []
 
     def new_page(self) -> SeleniumPage:
         page = SeleniumPage(self._driver, download_dir=self._download_dir)
