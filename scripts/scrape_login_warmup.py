@@ -139,10 +139,12 @@ _ensure_playwright_interpreter()
 
 from backend.services.scrape_browser import (  # noqa: E402
     acquire_persistent_context,
+    list_profile_browser_pids,
     asc_profile_dir,
     firebase_profile_dir,
     google_profile_dir,
     release_persistent_context,
+    warm_session_get_for_profile,
 )
 from backend.services.scrape_credentials import load_credentials  # noqa: E402
 
@@ -471,10 +473,34 @@ def _attempt_login(page: Any, spec: dict[str, Any], result: TargetResult) -> Non
     result.message = f"{spec['label']}: oturum yenilendi."
 
 
-def warm_target(name: str, *, check_only: bool = False, headed: bool = True) -> TargetResult:
+def warm_target(
+    name: str,
+    *,
+    check_only: bool = False,
+    headed: bool = True,
+    takeover: bool = False,
+) -> TargetResult:
     spec = TARGETS[name]
     result = TargetResult(target=name, label=spec["label"])
     profile = spec["profile"]()
+
+    # ASC oturumu tarayıcı süreci yaşadığı sürece geçerli: 30 günlük Apple güven
+    # çerezi diskte dursa bile yeniden başlatmada sessiz doğrulama FAILED
+    # dönüyor (ölçüldü). Playwright var olan pencereye attach edemediği için
+    # başka bir süreçten profile dokunmak = pencereyi öldürmek = oturumu
+    # kaybetmek. Bu yüzden köprünün penceresi açıkken buradan el sürülmez.
+    if not takeover and warm_session_get_for_profile(profile) is None:
+        others = list_profile_browser_pids(profile)
+        if others:
+            result.status = "ok"
+            result.message = (
+                f"{spec['label']}: başka süreçte açık pencere var (pid={others[:2]}) — "
+                "oturumu bozmamak için dokunulmadı."
+            )
+            result.detail["skipped_reason"] = "foreign_window"
+            result.detail["pids"] = others[:4]
+            return result
+
     pw = ctx = None
     try:
         # kill_existing=False kritik: Apple/Google oturum çerezleri tarayıcı
@@ -785,6 +811,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-report", action="store_true", help="panele bildirme")
     parser.add_argument("--doctor", action="store_true", help="kurulum teşhisi (yeni makine)")
     parser.add_argument("--no-browser", action="store_true", help="teşhiste tarayıcı açma")
+    parser.add_argument("--takeover", action="store_true",
+                        help="açık pencereyi devral (oturum kaybına yol açabilir)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -795,7 +823,8 @@ def main(argv: list[str] | None = None) -> int:
     results: list[TargetResult] = []
     for name in names:
         LOGGER.info("warm-up başlıyor: %s", name)
-        r = warm_target(name, check_only=args.check, headed=not args.headless)
+        r = warm_target(name, check_only=args.check, headed=not args.headless,
+                        takeover=args.takeover)
         LOGGER.info("%s → %s · %s", name, r.status, r.message)
         results.append(r)
 

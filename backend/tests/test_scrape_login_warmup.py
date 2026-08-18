@@ -502,3 +502,48 @@ def test_warmup_reuses_the_open_window():
     src = (ROOT / "scripts/scrape_login_warmup.py").read_text(encoding="utf-8")
     block = src.split("def warm_target", 1)[1].split("acquire_persistent_context", 1)[1][:400]
     assert "kill_existing=False" in block
+
+
+# ── Açık pencereyi koru: ASC oturumu süreç yaşadıkça geçerli ────────────────
+
+def test_foreign_window_is_not_touched(monkeypatch):
+    """Başka süreçte açık pencere varsa dokunulmamalı — dokunmak oturumu öldürür.
+
+    Ölçüldü: 30 günlük Apple güven çerezi diskte olsa bile tarayıcı yeniden
+    başlatılınca ASC sessiz doğrulaması authResult=FAILED dönüyor. Playwright
+    var olan pencereye attach edemediği için başka süreçten profile dokunmak
+    pencereyi öldürüp oturumu kaybettiriyor.
+    """
+    m = _warmup_module()
+    monkeypatch.setattr(m, "warm_session_get_for_profile", lambda p: None)
+    monkeypatch.setattr(m, "list_profile_browser_pids", lambda p: [4242])
+    monkeypatch.setattr(m, "acquire_persistent_context",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("tarayıcı açılmamalı")))
+
+    r = m.warm_target("asc", check_only=True)
+    assert r.needs_action is False
+    assert r.detail["skipped_reason"] == "foreign_window"
+    assert "dokunulmadı" in r.message
+
+
+def test_takeover_flag_allows_explicit_override(monkeypatch):
+    m = _warmup_module()
+    monkeypatch.setattr(m, "warm_session_get_for_profile", lambda p: None)
+    monkeypatch.setattr(m, "list_profile_browser_pids", lambda p: [4242])
+    calls = {}
+    monkeypatch.setattr(m, "acquire_persistent_context",
+                        lambda *a, **k: calls.setdefault("n", 1) or (_ for _ in ()).throw(RuntimeError("dur")))
+    m.warm_target("asc", check_only=True, takeover=True)
+    assert calls.get("n") == 1
+
+
+def test_own_warm_session_is_reused_not_skipped(monkeypatch):
+    """Köprünün kendi süreci: warm oturum varsa atlamamalı, kullanmalı."""
+    m = _warmup_module()
+    monkeypatch.setattr(m, "warm_session_get_for_profile", lambda p: ("pw", "ctx"))
+    monkeypatch.setattr(m, "list_profile_browser_pids", lambda p: [4242])
+    calls = {}
+    monkeypatch.setattr(m, "acquire_persistent_context",
+                        lambda *a, **k: calls.setdefault("n", 1) or (_ for _ in ()).throw(RuntimeError("dur")))
+    m.warm_target("asc", check_only=True)
+    assert calls.get("n") == 1
