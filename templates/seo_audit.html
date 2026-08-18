@@ -34,8 +34,11 @@
         </span>
         {% endif %}
         {% if sched.next_run and sched.next_run != '—' %}
-        <span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] sm:text-xs text-sky-800 whitespace-nowrap dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
-          Next: {{ sched.next_run|e }}
+        {# Sunucu gerçek zamanı bilemiyor (köprü kullanıcının Mac'inde); metin
+           aşağıdaki script ile köprüden okunan gerçek slotla değiştirilir. #}
+        <span id="seo-audit-next-chip"
+              class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] sm:text-xs text-sky-800 whitespace-nowrap dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+          Next: <span id="seo-audit-next-text">{{ sched.next_run|e }}</span>
         </span>
         {% endif %}
         <span data-page-tarama-slot></span>
@@ -350,6 +353,42 @@ var _siteId = {{ selected_site_id if selected_site_id else 'null' }};
 var _bridgePrimary = {{ 'true' if seo_audit_scrape_primary else 'false' }};
 var _bridgeSeoUrl = 'http://127.0.0.1:18765/sync-seo-audit';
 var _openDetail = {};  // rid → active issue type
+
+/* «Next» rozeti: sunucu sabit bir metin basıyor (köprü kullanıcının Mac'inde,
+   Railway ona ulaşamıyor). Gerçek slotu köprüden okuyup yerine yazar; köprü
+   kapalıysa rozet uyarıya döner — sessizce «her şey yolunda» göstermesin. */
+(function () {
+  function paint() {
+    var chip = document.getElementById('seo-audit-next-chip');
+    var text = document.getElementById('seo-audit-next-text');
+    if (!chip || !text || typeof window.seoBridgeNextFor !== 'function') return;
+    window.seoBridgeNextFor('seo_audit').then(function (res) {
+      if (!res.ok) {
+        chip.className = chip.className
+          .replace(/border-sky-200/, 'border-amber-300')
+          .replace(/bg-sky-50/, 'bg-amber-50')
+          .replace(/text-sky-800/, 'text-amber-800')
+          .replace(/dark:border-sky-800/, 'dark:border-amber-800')
+          .replace(/dark:bg-sky-950\/40/, 'dark:bg-amber-950/40')
+          .replace(/dark:text-sky-200/, 'dark:text-amber-200');
+        text.textContent = 'Mac bridge unreachable — schedule unknown';
+        return;
+      }
+      if (!res.item) {
+        text.textContent = 'no slot queued';
+        return;
+      }
+      var when = window.seoBridgeFormatIn ? window.seoBridgeFormatIn(res.item.inMin) : '';
+      text.textContent = res.item.slot + (when ? ' · in ' + when : '');
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', paint);
+  } else {
+    paint();
+  }
+  window.setInterval(paint, 60000);
+})();
 
 function toggleDetail(rid, issue) {
   var detailRow = document.getElementById('detail-' + rid);

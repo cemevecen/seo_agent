@@ -1950,6 +1950,118 @@
     html.dark #header-online-popover .online-login-time {
       color: #a1a1aa;
     }
+    /* Sıradaki taramalar — online rozetiyle aynı popover dili */
+    #header-scan-next {
+      position: relative;
+      flex: 0 0 auto;
+    }
+    #header-scan-trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 9999px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: rgb(100 116 139);
+      cursor: default;
+      padding: 0;
+    }
+    #header-scan-trigger svg {
+      width: 1rem;
+      height: 1rem;
+      pointer-events: none;
+    }
+    html.dark #header-scan-trigger {
+      color: rgb(161 161 170);
+    }
+    #header-scan-trigger:hover,
+    #header-scan-next:focus-within #header-scan-trigger {
+      border-color: rgb(203 213 225);
+      background: rgb(255 255 255 / 0.85);
+      color: rgb(51 65 85);
+    }
+    html.dark #header-scan-trigger:hover,
+    html.dark #header-scan-next:focus-within #header-scan-trigger {
+      border-color: rgb(63 63 70);
+      background: rgb(24 24 27 / 0.9);
+      color: rgb(228 228 231);
+    }
+    /* Köprüye ulaşılamıyor: ikon sessizleşir ama tıklanabilir kalır (sebebi popover'da) */
+    #header-scan-next.is-offline #header-scan-trigger {
+      color: rgb(203 213 225);
+    }
+    html.dark #header-scan-next.is-offline #header-scan-trigger {
+      color: rgb(82 82 91);
+    }
+    #header-scan-popover {
+      position: fixed;
+      z-index: 300;
+      min-width: 15rem;
+      max-width: min(24rem, calc(100vw - 16px));
+      width: max-content;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      border: 1px solid rgb(226 232 240);
+      background: rgb(255 255 255);
+      box-shadow: 0 10px 28px rgb(42 42 46 / 0.18);
+      font-size: 11px;
+      line-height: 1.45;
+      color: rgb(51 65 85);
+      pointer-events: none;
+      visibility: hidden;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+    }
+    html.dark #header-scan-popover {
+      border-color: rgb(63 63 70);
+      background: rgb(42 42 46);
+      color: rgb(212 212 216);
+      box-shadow: 0 10px 32px rgb(0 0 0 / 0.5);
+    }
+    #header-scan-popover.is-visible {
+      visibility: visible;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    #header-scan-popover ul {
+      margin: 0.35rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    #header-scan-popover li {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.22rem 0;
+      white-space: nowrap;
+    }
+    #header-scan-popover li.scan-empty {
+      display: block;
+      white-space: normal;
+      color: #64748b;
+    }
+    html.dark #header-scan-popover li.scan-empty {
+      color: #a1a1aa;
+    }
+    #header-scan-popover .scan-when {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: #64748b;
+    }
+    html.dark #header-scan-popover .scan-when {
+      color: #a1a1aa;
+    }
+    #header-scan-popover .scan-soon .scan-when {
+      color: #0e7490;
+    }
+    html.dark #header-scan-popover .scan-soon .scan-when {
+      color: #67b6c7;
+    }
+
     #header-online-toast {
       position: fixed;
       z-index: 320;
@@ -2425,6 +2537,7 @@
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=3" defer></script>
   <script src="/static/js/app-refresh.js?v=2" defer></script>
+  <script src="/static/js/bridge_upcoming.js?v=1" defer></script>
   <script src="/static/js/page_tarama.js?v=16" defer></script>
   <script src="/static/js/market_chart_overlay.js?v=25" defer></script>
   <script src="/static/js/app_empower_overlay.js?v=10" defer></script>
@@ -2537,6 +2650,20 @@
                   <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
                 </svg>
               </button>
+              <div id="header-scan-next" aria-live="polite">
+                <button type="button" id="header-scan-trigger" aria-label="Next scheduled scans" aria-describedby="header-scan-popover">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20.2 15.5A9 9 0 1 0 8.5 20.2"/>
+                    <path d="M16.2 13.9A5 5 0 1 0 10.1 16.2"/>
+                    <path d="M12 12 19.5 7.5"/>
+                    <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/>
+                  </svg>
+                </button>
+                <div id="header-scan-popover" role="tooltip">
+                  <p id="header-scan-title" class="font-bold text-slate-800 dark:text-zinc-100">Next scans</p>
+                  <ul id="header-scan-list"><li class="scan-empty">Loading…</li></ul>
+                </div>
+              </div>
               <div
                 id="theme-switcher"
                 class="relative isolate inline-flex h-7 shrink-0 items-center rounded-full border border-transparent bg-slate-200/70 p-0.5 dark:border-transparent dark:bg-zinc-800/55"
@@ -3545,6 +3672,107 @@
         });
         pollOnlinePresence();
         window.setInterval(pollOnlinePresence, 20000);
+      });
+    })();
+  </script>
+  <script>
+    /* Header: sıradaki 5 tarama — Mac köprüsünden (127.0.0.1:18765) okunur.
+       Köprü kullanıcının makinesinde olduğu için veri tarayıcı tarafında alınır. */
+    (function () {
+      var MAX_ROWS = 5;
+
+      function esc(s) {
+        return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+
+      function placeScanPopover() {
+        var btn = document.getElementById("header-scan-trigger");
+        var pop = document.getElementById("header-scan-popover");
+        if (!btn || !pop) return;
+        pop.style.display = "block";
+        pop.style.visibility = "hidden";
+        var br = btn.getBoundingClientRect();
+        var pw = pop.offsetWidth || 220;
+        var ph = pop.offsetHeight || 60;
+        var margin = 10;
+        var left = br.right - pw;
+        if (left < margin) left = margin;
+        if (left + pw > window.innerWidth - margin) {
+          left = Math.max(margin, window.innerWidth - margin - pw);
+        }
+        var top = br.bottom + 8;
+        if (top + ph > window.innerHeight - margin) {
+          top = Math.max(margin, br.top - 8 - ph);
+        }
+        pop.style.left = left + "px";
+        pop.style.top = top + "px";
+        pop.style.removeProperty("visibility");
+      }
+
+      function renderScanList(res) {
+        var root = document.getElementById("header-scan-next");
+        var list = document.getElementById("header-scan-list");
+        if (!root || !list) return;
+        if (!res || !res.ok) {
+          root.classList.add("is-offline");
+          list.innerHTML =
+            '<li class="scan-empty">Mac bridge unreachable at 127.0.0.1:18765 — ' +
+            "scans run there, so no schedule can be read.</li>";
+          return;
+        }
+        root.classList.remove("is-offline");
+        var rows = (res.upcoming || []).slice(0, MAX_ROWS);
+        if (!rows.length) {
+          list.innerHTML = '<li class="scan-empty">Bridge is up but no slots are queued.</li>';
+          return;
+        }
+        list.innerHTML = rows
+          .map(function (u) {
+            var when = window.seoBridgeFormatIn ? window.seoBridgeFormatIn(u.inMin) : "";
+            var soon = Number(u.inMin) <= 60 ? " scan-soon" : "";
+            return (
+              '<li class="' + soon.trim() + '"><span>' + esc(u.label) + "</span>" +
+              '<span class="scan-when">' + esc(u.slot) + (when ? " · " + esc(when) : "") + "</span></li>"
+            );
+          })
+          .join("");
+      }
+
+      function refresh(force) {
+        if (typeof window.seoBridgeUpcoming !== "function") {
+          renderScanList({ ok: false });
+          return;
+        }
+        window.seoBridgeUpcoming({ force: !!force }).then(renderScanList);
+      }
+
+      function setScanPopoverOpen(open) {
+        var pop = document.getElementById("header-scan-popover");
+        if (!pop) return;
+        if (open) {
+          refresh(false);
+          placeScanPopover();
+          pop.classList.add("is-visible");
+        } else {
+          pop.classList.remove("is-visible");
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        var root = document.getElementById("header-scan-next");
+        if (!root) return;
+        root.addEventListener("mouseenter", function () { setScanPopoverOpen(true); });
+        root.addEventListener("mouseleave", function () { setScanPopoverOpen(false); });
+        root.addEventListener("focusin", function () { setScanPopoverOpen(true); });
+        root.addEventListener("focusout", function () { setScanPopoverOpen(false); });
+        window.addEventListener("resize", function () {
+          var pop = document.getElementById("header-scan-popover");
+          if (pop && pop.classList.contains("is-visible")) placeScanPopover();
+        });
+        /* İlk yoklama: ikonun sönük mü normal mi duracağını belirler */
+        refresh(false);
       });
     })();
   </script>
