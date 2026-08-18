@@ -46,6 +46,7 @@ from backend.services.scrape_browser import (  # noqa: E402
     acquire_persistent_context,
     asc_profile_dir,
     firebase_profile_dir,
+    google_profile_dir,
     release_persistent_context,
 )
 from backend.services.scrape_credentials import load_credentials  # noqa: E402
@@ -80,6 +81,27 @@ TARGETS: dict[str, dict[str, Any]] = {
         "email_selectors": ('input[type="email"]', "#identifierId"),
         "password_selectors": ('input[type="password"]', 'input[name="Passwd"]'),
     },
+    # Play, Firebase ile aynı Google profilini (fx-google) paylaşır: biri giriş
+    # yapınca diğeri de açılır. Yine de ayrı kontrol edilir, çünkü Play konsolu
+    # bazen kendi ek onayını isteyebiliyor.
+    "play": {
+        "label": "Play Console",
+        "key": "play",
+        "env_key": "PLAY_CONSOLE_KEEP_OPEN",
+        "profile": google_profile_dir,
+        "url": "https://play.google.com/console",
+        "credential_key": "google",
+        "login_host_hints": ("accounts.google.com", "signin/v2", "ServiceLogin"),
+        "email_selectors": ('input[type="email"]', "#identifierId"),
+        "password_selectors": ('input[type="password"]', 'input[name="Passwd"]'),
+    },
+}
+
+# Elle tetiklenen «yenile / güncelle» işlerinde önce bu hedefin oturumu doğrulanır
+JOB_WARMUP_TARGETS: dict[str, tuple[str, ...]] = {
+    "asc": ("asc",),
+    "firebase": ("firebase",),
+    "play": ("play",),
 }
 
 # Bu metinler görünürse ikinci faktör / bot kontrolü var demektir — durulur
@@ -344,3 +366,14 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def warm_for_job(job_id: str, *, headed: bool = True) -> list[TargetResult]:
+    """Elle tetiklenen iş öncesi ilgili oturumu doğrula.
+
+    Panel «yenile / güncelle» düğmeleri de planlı turlarla aynı yoldan geçsin
+    diye ayrı tutuldu: oturum geçerliyse hiçbir maliyet yok, düşmüşse Keychain
+    ile giriş denenir ve iş boşa gitmez.
+    """
+    targets = JOB_WARMUP_TARGETS.get((job_id or "").strip().lower(), ())
+    return [warm_target(t, headed=headed) for t in targets]

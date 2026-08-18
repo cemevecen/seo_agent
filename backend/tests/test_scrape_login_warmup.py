@@ -236,3 +236,59 @@ def test_report_is_sent_to_project_control():
     assert "/api/scrape-runs/report" in src
     assert "X-Notification-Ingest-Token" in src
     assert hasattr(m, "report_to_panel")
+
+
+# ── 3 alan: ASC + Firebase + Play ───────────────────────────────────────────
+
+def test_all_three_login_areas_are_covered():
+    m = _warmup_module()
+    assert set(m.TARGETS) == {"asc", "firebase", "play"}
+    assert m.TARGETS["play"]["credential_key"] == "google"
+    assert m.TARGETS["firebase"]["credential_key"] == "google"
+    assert m.TARGETS["asc"]["credential_key"] == "asc"
+
+
+def test_play_shares_the_google_profile_and_its_own_key():
+    m = _warmup_module()
+    from backend.services.scrape_browser import firebase_profile_dir, google_profile_dir
+
+    assert m.TARGETS["play"]["profile"]() == google_profile_dir()
+    assert m.TARGETS["firebase"]["profile"]() == firebase_profile_dir()
+    # Warm-session anahtarları scrape'lerle birebir
+    assert m.TARGETS["play"]["key"] == "play"
+    assert m.TARGETS["play"]["env_key"] == "PLAY_CONSOLE_KEEP_OPEN"
+
+
+def test_job_warmup_mapping_covers_manual_buttons():
+    m = _warmup_module()
+    assert set(m.JOB_WARMUP_TARGETS) == {"asc", "firebase", "play"}
+    assert hasattr(m, "warm_for_job")
+
+
+def test_manual_trigger_runs_warmup_first():
+    """Panel «yenile» düğmesi de planlı turla aynı yoldan geçmeli."""
+    src = (ROOT / "scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
+    assert "_warmup_before_job" in src
+    assert "_WARMUP_JOB_IDS" in src
+    # İş başlamadan önce çağrılmalı
+    body = src.split("def _run_claimed_job", 1)[1]
+    assert body.index("_warmup_before_job(job_id)") < body.index("meta[\"runner\"]")
+
+
+def test_manual_warmup_only_for_login_kinds():
+    src = (ROOT / "scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
+    block = src.split("_WARMUP_JOB_IDS = frozenset(", 1)[1].split(")", 1)[0]
+    for kind in ("asc", "firebase", "play"):
+        assert kind in block
+    # Login gerektirmeyen işler warm-up maliyeti ödemesin
+    assert "market" not in block and "news" not in block
+
+
+def test_data_window_is_last_day_and_persists_yesterday():
+    """“Tüm geçmişi çekme, dünü kaydet, boşluk bırakma” — pencere sözleşmesi."""
+    from backend.services.history_seal import scheduled_fetch_window
+
+    w = scheduled_fetch_window("asc", force_full=False)
+    assert w["mode"] in ("yesterday_only", "gap_fill")
+    assert w["store_end"] == w["yesterday"]      # bugün kalıcı kaydedilmez
+    assert w["days"] <= 3                         # tüm geçmiş çekilmez

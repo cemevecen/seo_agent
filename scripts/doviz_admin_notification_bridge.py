@@ -5713,6 +5713,46 @@ def _page_tarama_keepalive_loop() -> None:
         time.sleep(20)
 
 
+
+_WARMUP_JOB_IDS = frozenset({"asc", "firebase", "play"})
+
+
+def _warmup_before_job(job_id: str) -> dict[str, Any] | None:
+    """Elle tetiklenen iş öncesi oturumu doğrula (planlı turlarla aynı yol).
+
+    Oturum geçerliyse maliyeti yok. Düşmüşse Keychain'den giriş denenir; böylece
+    panelden «yenile» diyen kişinin Mac'in başına gitmesi gerekmez. 2FA çıkarsa
+    warm-up durur ve iş kendi login penceresiyle devam eder (mevcut davranış).
+    """
+    jid = (job_id or "").strip().lower()
+    if jid not in _WARMUP_JOB_IDS:
+        return None
+    try:
+        import importlib.util
+
+        path = ROOT / "scripts" / "scrape_login_warmup.py"
+        spec = importlib.util.spec_from_file_location("scrape_login_warmup", path)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = mod
+        spec.loader.exec_module(mod)
+        results = mod.warm_for_job(jid, headed=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"Elle tetikleme warm-up atlandı ({jid}): {exc}", flush=True)
+        return None
+    if not results:
+        return None
+    needs = [r for r in results if r.needs_action]
+    summary = {
+        "ok": not needs,
+        "messages": [r.message for r in results],
+    }
+    for r in results:
+        print(f"Warm-up ({jid}) → {r.status}: {r.message}", flush=True)
+    return summary
+
+
 def _page_tarama_claim_loop() -> None:
     """Mobil/Railway «Sayfayı güncelle» kuyruğunu Mac’te çalıştır.
 
@@ -5754,6 +5794,8 @@ def _page_tarama_claim_loop() -> None:
             run_id = str(job.get("run_id") or "")
             started_mono = time.time()
             page_key = str(job.get("page") or "")
+            # Planlı turlarla aynı düzen: önce oturum, sonra iş
+            _warmup_before_job(job_id)
             # Kullanıcı bu Mac'in başında ve oturum yok: gözetimsiz 150 sn yerine
             # 15 dk beklenir ki açılan pencerede girişi yapabilsin.
             login_ok = bool(job.get("login_ok"))
