@@ -160,6 +160,10 @@ TARGETS: dict[str, dict[str, Any]] = {
         "url": "https://appstoreconnect.apple.com/apps",
         "credential_key": "asc",
         "login_host_hints": ("idmsa.apple.com", "appleid.apple.com", "signin"),
+        "logged_out_markers": ("idmsa.apple.com", "appleid.apple.com", "/login"),
+        # authResult=FAILED kalıntısında form render olmuyor; temiz adrese gidilir
+        "login_url": "https://appstoreconnect.apple.com/login",
+        "stale_markers": ("authresult=failed",),
         "email_selectors": ("#account_name_text_field", 'input[name="accountName"]',
                             'input[type="email"]'),
         "password_selectors": ("#password_text_field", 'input[name="password"]',
@@ -173,6 +177,8 @@ TARGETS: dict[str, dict[str, Any]] = {
         "url": "https://console.firebase.google.com/",
         "credential_key": "google",
         "login_host_hints": ("accounts.google.com", "signin/v2", "ServiceLogin"),
+        "logged_out_markers": ("accounts.google.com", "servicelogin", "/signin/"),
+        "login_url": "https://accounts.google.com/ServiceLogin?continue=https://console.firebase.google.com/",
         "email_selectors": ('input[type="email"]', "#identifierId"),
         "password_selectors": ('input[type="password"]', 'input[name="Passwd"]'),
     },
@@ -187,6 +193,11 @@ TARGETS: dict[str, dict[str, Any]] = {
         "url": "https://play.google.com/console",
         "credential_key": "google",
         "login_host_hints": ("accounts.google.com", "signin/v2", "ServiceLogin"),
+        # Oturum yokken Play giriş formu göstermiyor, /console/about/ pazarlama
+        # sayfasına yönlendiriyor. Yalnızca "form var mı" bakmak bunu "oturum
+        # geçerli" sanıyordu — pozitif işaret şart.
+        "logged_out_markers": ("accounts.google.com", "servicelogin", "/console/about"),
+        "login_url": "https://accounts.google.com/ServiceLogin?continue=https://play.google.com/console",
         "email_selectors": ('input[type="email"]', "#identifierId"),
         "password_selectors": ('input[type="password"]', 'input[name="Passwd"]'),
     },
@@ -242,10 +253,17 @@ def _page_text(page: Any, limit: int = 6000) -> str:
             return ""
 
 
-def _looks_like_login(page: Any, hints: tuple[str, ...]) -> bool:
+def _looks_like_login(page: Any, hints: tuple[str, ...], extra: tuple[str, ...] = ()) -> bool:
+    """Oturum düşmüş mü?
+
+    Yalnızca "giriş formu görünüyor mu" yetmiyor: Play, oturum yokken form
+    göstermeden pazarlama sayfasına yönlendiriyor ve bu "oturum geçerli" gibi
+    okunuyordu. Bu yüzden hedefe özel «çıkış yapılmış» URL işaretleri de var.
+    """
     url = (getattr(page, "url", "") or "").lower()
-    if any(h.lower() in url for h in hints):
-        return True
+    for marker in tuple(hints) + tuple(extra):
+        if marker and marker.lower() in url:
+            return True
     for sel in ('input[type="password"]', "#account_name_text_field", "#identifierId"):
         try:
             if page.locator(sel).first.is_visible(timeout=1200):
@@ -264,16 +282,38 @@ def _needs_human(page: Any) -> str:
     return ""
 
 
+def _search_roots(page: Any) -> list[Any]:
+    """Ana sayfa + tüm frame'ler. Apple giriş formu iframe içinde gelebiliyor."""
+    roots = [page]
+    try:
+        roots.extend(list(page.frames or [])[:12])
+    except Exception:  # noqa: BLE001
+        pass
+    return roots
+
+
+def _any_visible(page: Any, selectors: tuple[str, ...]) -> bool:
+    for root in _search_roots(page):
+        for sel in selectors:
+            try:
+                if root.locator(sel).first.is_visible(timeout=800):
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
+    return False
+
+
 def _fill_first(page: Any, selectors: tuple[str, ...], value: str) -> bool:
-    for sel in selectors:
-        try:
-            loc = page.locator(sel).first
-            if loc.is_visible(timeout=2000):
-                loc.click()
-                loc.fill(value)
-                return True
-        except Exception:  # noqa: BLE001
-            continue
+    for root in _search_roots(page):
+        for sel in selectors:
+            try:
+                loc = root.locator(sel).first
+                if loc.is_visible(timeout=1200):
+                    loc.click()
+                    loc.fill(value)
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
     return False
 
 
@@ -296,6 +336,18 @@ def _attempt_login(page: Any, spec: dict[str, Any], result: TargetResult) -> Non
         )
         result.detail["reason"] = "no_credentials"
         return
+
+    # İki durumda temiz giriş adresine gidilir:
+    #  · Play gibi konsollar oturum yokken form göstermiyor (pazarlama sayfası)
+    #  · ASC'de authResult=FAILED kalıntısıyla form hiç render olmuyor
+    cur_url = (getattr(page, "url", "") or "").lower()
+    stale = any(mark in cur_url for mark in spec.get("stale_markers", ()))
+    if spec.get("login_url") and (stale or not _any_visible(page, spec["email_selectors"])):
+        try:
+            page.goto(spec["login_url"], wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
+            time.sleep(SETTLE_SEC)
+        except Exception as exc:  # noqa: BLE001
+            result.detail["login_url_error"] = str(exc)[:120]
 
     filled_email = _fill_first(page, spec["email_selectors"], creds.email)
     if filled_email:
@@ -325,7 +377,7 @@ def _attempt_login(page: Any, spec: dict[str, Any], result: TargetResult) -> Non
         result.detail["blocker"] = blocker
         return
 
-    if _looks_like_login(page, spec["login_host_hints"]):
+    if _looks_like_login(page, spec["login_host_hints"], spec.get("logged_out_markers", ())):
         result.status = "intervention"
         result.needs_action = True
         result.message = (
@@ -358,7 +410,7 @@ def warm_target(name: str, *, check_only: bool = False, headed: bool = True) -> 
         page.goto(spec["url"], wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
         time.sleep(SETTLE_SEC)
 
-        if not _looks_like_login(page, spec["login_host_hints"]):
+        if not _looks_like_login(page, spec["login_host_hints"], spec.get("logged_out_markers", ())):
             result.status = "ok"
             result.message = f"{spec['label']}: oturum geçerli."
             return result
