@@ -144,7 +144,7 @@ from backend.services.scrape_browser import (  # noqa: E402
     firebase_profile_dir,
     google_profile_dir,
     release_persistent_context,
-    warm_session_get_for_profile,
+    warm_session_registered_for_profile,
 )
 from backend.services.scrape_credentials import load_credentials  # noqa: E402
 
@@ -197,14 +197,21 @@ TARGETS: dict[str, dict[str, Any]] = {
         "key": "play",
         "env_key": "PLAY_CONSOLE_KEEP_OPEN",
         "profile": google_profile_dir,
-        "url": "https://play.google.com/console",
+        # Çıplak /console adresi «Geliştirici hesabı seçin» ekranını açıyor;
+        # asıl scraper zaten geliştirici kimliğiyle derin bağlantıya gidip bu
+        # adımı atlıyor. Warm-up da aynı adrese gitmeli ki hem seçim ekranı
+        # çıkmasın hem de oturum kontrolü gerçek hedefi yansıtsın.
+        "url": (
+            "https://play.google.com/console/u/0/developers/"
+            + (os.environ.get("PLAY_CONSOLE_DEVELOPER_ID") or "7587799419591090593").strip()
+        ),
         "credential_key": "google",
         "login_host_hints": ("accounts.google.com", "signin/v2", "ServiceLogin"),
         # Oturum yokken Play giriş formu göstermiyor, /console/about/ pazarlama
         # sayfasına yönlendiriyor. Yalnızca "form var mı" bakmak bunu "oturum
         # geçerli" sanıyordu — pozitif işaret şart.
         "logged_out_markers": ("accounts.google.com", "servicelogin", "/console/about"),
-        "login_url": "https://accounts.google.com/ServiceLogin?continue=https://play.google.com/console",
+        "login_url": "https://accounts.google.com/ServiceLogin?continue=https://play.google.com/console/u/0/",
         "email_selectors": ('input[type="email"]', "#identifierId"),
         "password_selectors": ('input[type="password"]', 'input[name="Passwd"]'),
     },
@@ -489,7 +496,7 @@ def warm_target(
     # dönüyor (ölçüldü). Playwright var olan pencereye attach edemediği için
     # başka bir süreçten profile dokunmak = pencereyi öldürmek = oturumu
     # kaybetmek. Bu yüzden köprünün penceresi açıkken buradan el sürülmez.
-    if not takeover and warm_session_get_for_profile(profile) is None:
+    if not takeover and not warm_session_registered_for_profile(profile):
         others = list_profile_browser_pids(profile)
         if others:
             result.status = "ok"

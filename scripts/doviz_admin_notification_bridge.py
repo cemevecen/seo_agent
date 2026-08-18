@@ -5866,8 +5866,29 @@ def _page_tarama_claim_loop() -> None:
             run_id = str(job.get("run_id") or "")
             started_mono = time.time()
             page_key = str(job.get("page") or "")
-            # Planlı turlarla aynı düzen: önce oturum, sonra iş
-            _warmup_before_job(job_id)
+            # Planlı turlarla aynı düzen: önce oturum, sonra iş.
+            # Tarayıcı thread'inde koşar: Playwright nesneleri thread'e bağlı ve
+            # sıcak pencere sorgusu yanlış thread'den yapılınca kaydı bozuyor.
+            if _is_browser_scrape_kind(job_id):
+                warm = _call_on_browser_worker(lambda **_: _warmup_before_job(job_id))
+            else:
+                warm = _warmup_before_job(job_id)
+            # Doğrulama bekleniyorsa işi BAŞLATMA. Aksi halde asıl scrape hemen
+            # açılıyor ve (Selenium yolu aynı profildeki Playwright penceresini
+            # kapattığı için) kullanıcı telefonundaki onayı veremeden ekran
+            # kayboluyordu. Pencere açık kalsın, kullanıcı doğrulamayı bitirsin.
+            if warm and not warm.get("ok"):
+                msg = "; ".join(warm.get("messages") or []) or "Giriş doğrulaması bekleniyor"
+                print(f"Uzaktan {meta['name']}: {msg} — iş başlatılmadı", flush=True)
+                _post_page_tarama_result({
+                    "run_id": job.get("run_id"),
+                    "job_id": job_id,
+                    "ok": False,
+                    "worker": _worker_name(),
+                    "message": f"Giriş doğrulaması bekleniyor: {msg}"[:300],
+                })
+                final_posted = True
+                return
             # Kullanıcı bu Mac'in başında ve oturum yok: gözetimsiz 150 sn yerine
             # 15 dk beklenir ki açılan pencerede girişi yapabilsin.
             login_ok = bool(job.get("login_ok"))

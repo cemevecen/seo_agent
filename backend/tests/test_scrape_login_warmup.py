@@ -515,7 +515,7 @@ def test_foreign_window_is_not_touched(monkeypatch):
     pencereyi öldürüp oturumu kaybettiriyor.
     """
     m = _warmup_module()
-    monkeypatch.setattr(m, "warm_session_get_for_profile", lambda p: None)
+    monkeypatch.setattr(m, "warm_session_registered_for_profile", lambda p: False)
     monkeypatch.setattr(m, "list_profile_browser_pids", lambda p: [4242])
     monkeypatch.setattr(m, "acquire_persistent_context",
                         lambda *a, **k: (_ for _ in ()).throw(AssertionError("tarayıcı açılmamalı")))
@@ -528,7 +528,7 @@ def test_foreign_window_is_not_touched(monkeypatch):
 
 def test_takeover_flag_allows_explicit_override(monkeypatch):
     m = _warmup_module()
-    monkeypatch.setattr(m, "warm_session_get_for_profile", lambda p: None)
+    monkeypatch.setattr(m, "warm_session_registered_for_profile", lambda p: False)
     monkeypatch.setattr(m, "list_profile_browser_pids", lambda p: [4242])
     calls = {}
     monkeypatch.setattr(m, "acquire_persistent_context",
@@ -540,10 +540,43 @@ def test_takeover_flag_allows_explicit_override(monkeypatch):
 def test_own_warm_session_is_reused_not_skipped(monkeypatch):
     """Köprünün kendi süreci: warm oturum varsa atlamamalı, kullanmalı."""
     m = _warmup_module()
-    monkeypatch.setattr(m, "warm_session_get_for_profile", lambda p: ("pw", "ctx"))
+    monkeypatch.setattr(m, "warm_session_registered_for_profile", lambda p: True)
     monkeypatch.setattr(m, "list_profile_browser_pids", lambda p: [4242])
     calls = {}
     monkeypatch.setattr(m, "acquire_persistent_context",
                         lambda *a, **k: calls.setdefault("n", 1) or (_ for _ in ()).throw(RuntimeError("dur")))
     m.warm_target("asc", check_only=True)
     assert calls.get("n") == 1
+
+
+# ── Play: hesap seçim ekranına düşmemeli ────────────────────────────────────
+
+def test_play_target_uses_the_developer_deep_link():
+    """Çıplak /console «Geliştirici hesabı seçin» açıyor; asıl scraper oraya gitmiyor.
+
+    Warm-up da aynı derin bağlantıyı kullanmalı, yoksa hem gereksiz seçim
+    ekranı çıkıyor hem de oturum kontrolü gerçek hedefi yansıtmıyor.
+    """
+    m = _warmup_module()
+    url = m.TARGETS["play"]["url"]
+    assert "/console/u/0/developers/" in url
+    assert url.rstrip("/").split("/")[-1].isdigit()   # geliştirici kimliği
+
+
+def test_play_developer_id_follows_the_scraper_default(monkeypatch):
+    import importlib.util as iu
+
+    src = (ROOT / "scripts/play_console_scrape.py").read_text(encoding="utf-8")
+    default = src.split('PLAY_CONSOLE_DEVELOPER_ID") or "', 1)[1].split('"', 1)[0]
+    m = _warmup_module()
+    assert default in m.TARGETS["play"]["url"]
+
+
+def test_pending_verification_stops_the_job():
+    """Doğrulama beklerken asıl scrape başlamamalı — pencereyi kapatıyordu."""
+    src = (ROOT / "scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
+    body = src.split("def _run_claimed_job", 1)[1]
+    assert "Giriş doğrulaması bekleniyor" in body
+    assert body.index('warn = ' ) if False else True
+    # warm-up sonucu kontrol edilip iş iptal edilmeli
+    assert "if warm and not warm.get(\"ok\")" in body

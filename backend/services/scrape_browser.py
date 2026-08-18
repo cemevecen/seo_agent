@@ -785,6 +785,21 @@ def warm_session_get_for_profile(profile: Path) -> tuple[Any, Any] | None:
     return warm_session_get(owner)
 
 
+def warm_session_registered_for_profile(profile: Path) -> bool:
+    """Bu profil için sıcak oturum KAYITLI mı — yan etkisiz sorgu.
+
+    `warm_session_get_for_profile` thread muhafızı yüzünden farklı bir
+    thread'den çağrılınca kaydı SİLİYOR. Yalnızca "kayıt var mı" bilmek isteyen
+    çağıranlar bunu kullanmalı; aksi halde sorgu, korumaya çalıştığı pencereyi
+    yetim ilan edip öldürtüyor.
+    """
+    owner = _WARM_BY_PROFILE.get(_profile_key(profile))
+    if not owner:
+        return False
+    slot = _WARM_SESSIONS.get(owner) or {}
+    return slot.get("ctx") is not None
+
+
 def warm_session_remember(
     key: str,
     pw: Any,
