@@ -477,3 +477,28 @@ def test_warmup_is_exempt_from_the_shared_lease():
     body = src.split("def _slot_job(", 1)[1].split("\n        def ", 1)[0]
     assert "if shared:" in body
     assert body.index("if shared:") < body.index("_auto_lease_state(kind, slot)")
+
+
+# ── Koordinat girişi: varsayılan kapalı (hesap kilitlenme riski) ────────────
+
+def test_blind_login_is_off_by_default(monkeypatch):
+    m = _warmup_module()
+    monkeypatch.delenv("WARMUP_BLIND_LOGIN", raising=False)
+    res = m.TargetResult(target="asc", label="ASC")
+
+    class _P:
+        url = "https://appstoreconnect.apple.com/login"
+
+        def goto(self, *a, **k):
+            raise AssertionError("kapalıyken sayfaya gidilmemeli")
+
+    creds = type("C", (), {"email": "a@b.c", "password": "x", "complete": True})()
+    assert m._blind_login(_P(), m.TARGETS["asc"], creds, res) is False
+    assert "kapalı" in str(res.detail.get("blind_login"))
+
+
+def test_warmup_reuses_the_open_window():
+    """Tarayıcı öldürülürse ASC oturum çerezi kayboluyor — pencere korunmalı."""
+    src = (ROOT / "scripts/scrape_login_warmup.py").read_text(encoding="utf-8")
+    block = src.split("def warm_target", 1)[1].split("acquire_persistent_context", 1)[1][:400]
+    assert "kill_existing=False" in block

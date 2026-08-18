@@ -164,6 +164,11 @@ TARGETS: dict[str, dict[str, Any]] = {
         # authResult=FAILED kalıntısında form render olmuyor; temiz adrese gidilir
         "login_url": "https://appstoreconnect.apple.com/login",
         "stale_markers": ("authresult=failed",),
+        # Apple giriş bileşeni KAPALI shadow root içinde: sayfada görünüyor ama
+        # DOM'dan (locator/evaluate) erişilemiyor. Bu yüzden alan konumuna
+        # tıklanıp klavyeyle yazılır. Oranlar viewport'a göre; pencere boyutu
+        # değişse de alan yatayda ortada, dikeyde ~%27'de kalıyor.
+        "blind_login": {"field_xy": (0.5, 0.273), "settle_sec": 9.0},
         "email_selectors": ("#account_name_text_field", 'input[name="accountName"]',
                             'input[type="email"]'),
         "password_selectors": ("#password_text_field", 'input[name="password"]',
@@ -324,6 +329,64 @@ def _submit(page: Any) -> None:
         pass
 
 
+
+def _blind_login(page: Any, spec: dict[str, Any], creds: Any, result: TargetResult) -> bool:
+    """DOM'a erişilemeyen giriş formunu koordinat + klavye ile doldur.
+
+    Yalnızca normal yol (DOM alanları) başarısız olunca çağrılır. Apple, giriş
+    bileşenini kapalı shadow root içinde render ettiği için locator hiçbir input
+    görmüyor; ekran görüntüsüyle doğrulandı ki alan görünür ve yazılabilir.
+    """
+    cfg = spec.get("blind_login") or {}
+    if not cfg:
+        return False
+    # Varsayılan KAPALI. Koordinat+klavye girişi tek başına çalıştığı ekran
+    # görüntüsüyle doğrulandı, ama otomatik akışta güvenilir biçimde
+    # tamamlanmıyor. Açık bırakılırsa sistem günde 4 kez Apple'a başarısız
+    # giriş denemesi yapar ve bu hesap kilitlenmesine yol açabilir — arıza
+    # bildirip beklemek, körlemesine denemekten iyidir.
+    if (os.environ.get("WARMUP_BLIND_LOGIN") or "").strip().lower() not in ("1", "true", "yes", "on"):
+        result.detail["blind_login"] = "kapalı (WARMUP_BLIND_LOGIN=1 ile açılır)"
+        return False
+    ratio_x, ratio_y = cfg.get("field_xy", (0.5, 0.27))
+    settle = float(cfg.get("settle_sec", SETTLE_SEC))
+    try:
+        if spec.get("login_url"):
+            page.goto(spec["login_url"], wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
+        try:
+            page.bring_to_front()
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(settle)
+        vp = page.viewport_size or {"width": 1440, "height": 1100}
+        x, y = vp["width"] * ratio_x, vp["height"] * ratio_y
+
+        page.mouse.click(x, y)
+        time.sleep(0.4)
+        page.keyboard.type(creds.email, delay=40)
+        time.sleep(0.3)
+        page.keyboard.press("Enter")
+        time.sleep(settle)
+
+        blocker = _needs_human(page)
+        if blocker:
+            result.detail["blocker"] = blocker
+            return False
+
+        # Parola alanı e-postanın ALTINDA beliriyor ve zaten odaklı geliyor.
+        # Aynı koordinata tıklamak parolayı e-posta alanına yazdırıyordu —
+        # bu yüzden burada tıklanmaz, doğrudan yazılır.
+        page.keyboard.type(creds.password, delay=40)
+        time.sleep(0.3)
+        page.keyboard.press("Enter")
+        time.sleep(settle + 4)
+        result.detail["blind_login"] = True
+        return True
+    except Exception as exc:  # noqa: BLE001
+        result.detail["blind_login_error"] = str(exc)[:140]
+        return False
+
+
 def _attempt_login(page: Any, spec: dict[str, Any], result: TargetResult) -> None:
     """Kimlik bilgisi varsa doldur. 2FA çıkarsa dur ve bildir."""
     creds = load_credentials(spec["credential_key"])
@@ -369,6 +432,24 @@ def _attempt_login(page: Any, spec: dict[str, Any], result: TargetResult) -> Non
 
     result.detail["filled"] = {"email": filled_email, "password": filled_password}
 
+    # DOM'dan hiçbir alan doldurulamadıysa koordinat yedeği (kapalı shadow DOM)
+    if not filled_email and not filled_password:
+        _blind_login(page, spec, creds, result)
+        # Başarıyı iddia etmiyoruz: ölçüt, hedef sayfada oturumun geçerli olması.
+        # Giriş hemen sonrasında URL bir süre /login'de kalabiliyor ve çerez
+        # yerleşmemiş olabiliyor; tek atışta karar vermek başarılı girişi
+        # "başarısız" göstermişti. Kısa aralıklarla birkaç kez doğrulanır.
+        for attempt in range(3):
+            try:
+                page.goto(spec["url"], wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
+            except Exception as exc:  # noqa: BLE001
+                result.detail["verify_error"] = str(exc)[:120]
+            time.sleep(SETTLE_SEC + 2 * attempt)
+            if not _looks_like_login(page, spec["login_host_hints"],
+                                     spec.get("logged_out_markers", ())):
+                result.detail["verified_after"] = attempt + 1
+                break
+
     blocker = _needs_human(page)
     if blocker:
         result.status = "intervention"
@@ -396,6 +477,10 @@ def warm_target(name: str, *, check_only: bool = False, headed: bool = True) -> 
     profile = spec["profile"]()
     pw = ctx = None
     try:
+        # kill_existing=False kritik: Apple/Google oturum çerezleri tarayıcı
+        # yeniden başlatılınca kayboluyor. Bu kod tabanı oturumu pencereyi açık
+        # tutarak koruyor (KEEP_OPEN); warm-up her koşuda Firefox'u öldürseydi
+        # kendi kurduğu oturumu da düşürürdü — nitekim düşürüyordu.
         pw, ctx, reused = acquire_persistent_context(
             spec["key"],
             profile=profile,
@@ -403,6 +488,7 @@ def warm_target(name: str, *, check_only: bool = False, headed: bool = True) -> 
             env_key=spec["env_key"],
             label=f"warmup:{spec['label']}",
             locale="tr-TR",
+            kill_existing=False,
         )
         result.detail["profile"] = str(profile)
         result.detail["reused_warm_session"] = bool(reused)
