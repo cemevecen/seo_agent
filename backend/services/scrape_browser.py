@@ -719,18 +719,29 @@ def _profile_key(profile: Path) -> str:
 
 
 def _warm_alive(ctx: Any) -> bool:
+    """Sıcak context gerçekten canlı mı?
+
+    Eskiden `pages` boşsa True dönüyordu; tarayıcı dışarıdan öldürülünce (ör.
+    Selenium yolu Playwright süreçlerini kapatınca) slot ölü context tutuyor ve
+    sonraki her tarama «Target page, context or browser has been closed» ile
+    düşüyordu. Boş sekme listesi canlılık kanıtı değil — sürücüye gerçek bir
+    çağrı yapılır.
+    """
     if ctx is None:
         return False
     try:
         pages = ctx.pages
     except Exception:
         return False
-    # Playwright: pages list dolu olsa bile sekmeler ölü olabilir
     try:
-        if not pages:
+        if pages:
+            _ = pages[0].url
             return True
-        page0 = pages[0]
-        _ = page0.url
+        # Sekme yok: sürücüyü yokla. Kapalıysa burada patlar.
+        probe = getattr(ctx, "cookies", None)
+        if not callable(probe):
+            return True  # yoklanamayan nesne (ör. shim/sahte) — canlı say
+        probe()
         return True
     except Exception:
         return False

@@ -35,9 +35,25 @@ _NIGHTLY_MARKERS = (
 )
 
 
-def ban_playwright_nightly_processes() -> int:
-    """Çalışan Playwright Nightly scrape süreçlerini kapat."""
+def ban_playwright_nightly_processes(profile: Any = None) -> int:
+    """Playwright Nightly scrape süreçlerini kapat.
+
+    `profile` verilirse YALNIZCA o profili kullanan süreçler kapatılır.
+
+    Neden önemli: Google, Playwright Nightly'yi engellediği için Selenium yolu
+    açılmadan önce Nightly süreçleri kapatılıyor. Ama bu tarama profil ayrımı
+    yapmadığında, Firebase taraması ASC'nin açık Firefox penceresini de
+    öldürüyordu — ASC oturumu yalnızca tarayıcı süreci yaşadığı sürece geçerli
+    olduğu için kullanıcı her Firebase turundan sonra ASC'ye yeniden giriş
+    yapmak zorunda kalıyordu.
+    """
     killed = 0
+    marker = None
+    if profile is not None:
+        try:
+            marker = str(Path(str(profile)).expanduser().resolve())
+        except Exception:
+            marker = str(profile)
     try:
         out = subprocess.check_output(["ps", "ax", "-o", "pid=,command="], text=True)
     except Exception:
@@ -45,6 +61,8 @@ def ban_playwright_nightly_processes() -> int:
     for line in out.splitlines():
         if not any(m in line for m in _NIGHTLY_MARKERS):
             continue
+        if marker is not None and marker not in line:
+            continue  # başka profilin penceresi — dokunma
         try:
             pid = int(line.split(None, 1)[0])
         except Exception:
@@ -250,7 +268,7 @@ def launch_system_firefox_driver(
     if "ms-playwright" in exe or "Nightly" in exe:
         raise RuntimeError(f"Nightly yasak: {exe}")
 
-    ban_playwright_nightly_processes()
+    ban_playwright_nightly_processes(profile)
     profile = profile.expanduser()
     profile.mkdir(parents=True, exist_ok=True)
 

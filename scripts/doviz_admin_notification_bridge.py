@@ -4240,6 +4240,14 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "Sinemalar moderasyon sync zaten çalışıyor, bekleyin.",
                 _mod_runner,
             )
+        elif path in ("/sync-login-warmup", "/login-warmup", "/warmup"):
+            # Oturum tazeleme köprünün KENDİ penceresinde koşmalı; dışarıdan
+            # çalıştırılan komut ayrı süreç açıp oturumu bozuyor.
+            lock, busy, runner = (
+                _browser_scrape_lock,
+                "Login warm-up zaten çalışıyor, bekleyin.",
+                run_login_warmup_bridge_once,
+            )
         elif path in ("/sync-asc", "/asc", "/sync-ios"):
             lock, busy, runner = (
                 _asc_lock,
