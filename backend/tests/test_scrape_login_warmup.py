@@ -453,3 +453,27 @@ def pathlib_resolve(p):
     from pathlib import Path as _P
 
     return _P(p).resolve()
+
+
+def test_warmup_is_exempt_from_the_shared_lease():
+    """Oturum makineye özel: kira uygulanırsa kaybeden Mac'in oturumu yenilenmez.
+
+    Veri taramaları (asc/firebase) kirayla tekilleştirilmeli — iki kez koşarsa
+    boşa gider. Warm-up tam tersi: her makine kendi Firefox profilini kontrol
+    etmeli, yoksa kirayı kaybeden Mac ölü oturumla scrape'e girer.
+    """
+    src = (ROOT / "scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
+
+    # warm-up çağrısı shared=False olmalı
+    warm_call = src.split('"login_warmup", "Login warm-up"', 1)[1].split(")", 1)[0]
+    assert "shared=False" in warm_call
+
+    # veri taramaları kirada kalmalı
+    for kind in ('"asc", "ASC"', '"firebase", "Firebase"'):
+        call = src.split(kind, 1)[1].split(")", 1)[0]
+        assert "shared=False" not in call, f"{kind} kirada kalmalı"
+
+    # kira yalnızca shared işlerde sorulmalı
+    body = src.split("def _slot_job(", 1)[1].split("\n        def ", 1)[0]
+    assert "if shared:" in body
+    assert body.index("if shared:") < body.index("_auto_lease_state(kind, slot)")

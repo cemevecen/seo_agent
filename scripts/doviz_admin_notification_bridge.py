@@ -5004,11 +5004,18 @@ def _auto_loop() -> None:
             *,
             slots: tuple[tuple[int, int], ...] | list[tuple[int, int]] | None = None,
             browser: bool = True,
+            shared: bool = True,
         ) -> None:
             """`slots` verilirse (saat, dakika) çiftleri kullanılır.
 
             ASC/Firebase gibi her turu farklı dakikada olan işler tek dakika
             alanına sığmıyordu; çift listesi bunu karşılar.
+
+            `shared=False`: iş makineye özeldir, Railway kirası sorulmaz. Veri
+            taramaları bir kez koşmalı (kira doğru), ama login warm-up her
+            makinede kendi Firefox profilini kontrol eder — kiraya bağlanırsa
+            kirayı kaybeden Mac'in oturumu hiç yenilenmez ve ölü oturumla
+            scrape'e girer.
             """
             nonlocal_last = globals()[last_attr]
             if kind in _job_retries:
@@ -5019,12 +5026,13 @@ def _auto_loop() -> None:
                 due, slot = _slot_due(nonlocal_last, hours or (), minute)
             if not due:
                 return
-            lease = _auto_lease_state(kind, slot)
-            if lease == LEASE_HELD:
-                globals()[last_attr] = slot  # slot başka makinede koşuyor — burada tekrarlama
-                return
-            if lease == LEASE_UNAVAILABLE:
-                return  # slotu işaretleme; bir sonraki poll'da yeniden sorulur
+            if shared:
+                lease = _auto_lease_state(kind, slot)
+                if lease == LEASE_HELD:
+                    globals()[last_attr] = slot  # slot başka makinede koşuyor
+                    return
+                if lease == LEASE_UNAVAILABLE:
+                    return  # slotu işaretleme; bir sonraki poll'da yeniden sorulur
             _clear_job_retry(kind)
 
             def _mark_slot(result: dict[str, Any], *, _slot: str = slot) -> None:
@@ -5073,6 +5081,7 @@ def _auto_loop() -> None:
             "login_warmup", "Login warm-up", _browser_scrape_lock,
             run_login_warmup_bridge_once,
             "_last_login_warmup_auto_slot", slots=LOGIN_WARMUP_SLOTS,
+            shared=False,  # oturum makineye özel — her Mac kendi profilini yeniler
         )
         _slot_job(
             "asc", "ASC", _asc_lock, run_asc_bridge_once,
