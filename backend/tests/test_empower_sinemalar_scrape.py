@@ -45,8 +45,27 @@ def test_bridge_sinemalar_slots_are_five_minutes_after_doviz():
     text = path.read_text(encoding="utf-8")
     assert "EMPOWER_INTEL_SINEMALAR_SLOTS" in text
     assert "run_empower_intel_sinemalar_bridge_once" in text
-    assert "--project" in text and "sinemalar" in text
+    # Eskiden alt süreçteki `--project sinemalar` bayrağı aranıyordu. Empower
+    # artık süreç içinde çalışıyor (pencere kapanmasın diye); proje seçimi
+    # doğrudan çağrı argümanıyla yapılıyor.
+    assert 'project="sinemalar"' in text
     assert "/sync-empower-intel-sinemalar" in text
+
+
+def test_empower_bridge_runs_in_process_not_as_a_subprocess():
+    """Alt süreç Firefox penceresini de öldürüyordu → tekrar tekrar giriş.
+
+    ASC/Firebase gibi Empower da süreç içinde çalışmalı; aksi halde
+    system_firefox_driver'daki sıcak pencere kaydı hiçbir işe yaramaz.
+    """
+    path = ROOT / "scripts" / "doviz_admin_notification_bridge.py"
+    text = path.read_text(encoding="utf-8")
+    start = text.index("def _run_empower_inprocess(")
+    end = text.index("def run_pagespeed_bridge_once(")
+    body = text[start:end]
+    assert "subprocess" not in body, "Empower yeniden alt sürece döndü — pencere kapanır"
+    assert "mod.scrape_empower(" in body
+    assert "mod.post_ingest(" in body
 
 
 def test_read_property_ids_filters_by_project_report_path():

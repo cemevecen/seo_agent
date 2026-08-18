@@ -248,6 +248,68 @@ def bootstrap_google_cookies_into_profile(target_profile: Path) -> int:
     return 0
 
 
+# ── Sıcak pencere ────────────────────────────────────────────────────────────
+# Her tarama turu kendi penceresini açıp kapatınca oturum da ölüyordu (ASC/
+# empower gibi yerlerde tekrar tekrar giriş isteniyordu). Kayıt burada, en alt
+# katmanda tutulur; hem shim üzerinden geçen işler (play, firebase) hem de
+# doğrudan çağıran işler (empower) aynı davranışı alsın.
+_WARM_DRIVERS: dict[str, Any] = {}
+
+
+def _driver_profile_key(profile: Path) -> str:
+    try:
+        return str(Path(str(profile)).expanduser().resolve())
+    except Exception:  # noqa: BLE001
+        return str(profile)
+
+
+def _driver_alive(driver: Any) -> bool:
+    """Sürücüye gerçek bir çağrı yap — kapanmış pencere canlı sayılmasın."""
+    if driver is None:
+        return False
+    try:
+        _ = driver.current_url
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def firefox_keep_window_open() -> bool:
+    from backend.services.scrape_browser import scrape_keep_window_open
+
+    return scrape_keep_window_open(env_key="SELENIUM_KEEP_OPEN")
+
+
+def _reusable_warm_driver(
+    profile: Path,
+    *,
+    headed: bool,
+    download_dir: Path,
+    page_load_timeout: int,
+) -> Any | None:
+    """Aynı profil/başlık/indirme dizini için canlı pencere varsa onu döndür."""
+    if not firefox_keep_window_open():
+        return None
+    key = _driver_profile_key(profile)
+    warm = _WARM_DRIVERS.get(key)
+    if warm is None:
+        return None
+    if not _driver_alive(warm):
+        _WARM_DRIVERS.pop(key, None)  # ölü kayıt — yenisi açılsın
+        return None
+    # İndirme dizini ve headed durumu açılışta sabitlenir; farklıysa yeniden
+    # kullanmak sessizce yanlış yere indirme yapar.
+    if getattr(warm, "_seo_headed", True) != headed:
+        return None
+    if Path(str(getattr(warm, "_seo_download_dir", ""))) != download_dir:
+        return None
+    try:
+        warm.set_page_load_timeout(page_load_timeout)
+    except Exception:  # noqa: BLE001
+        pass
+    return warm
+
+
 def launch_system_firefox_driver(
     profile: Path,
     *,
@@ -268,21 +330,37 @@ def launch_system_firefox_driver(
     if "ms-playwright" in exe or "Nightly" in exe:
         raise RuntimeError(f"Nightly yasak: {exe}")
 
-    ban_playwright_nightly_processes(profile)
     profile = profile.expanduser()
     profile.mkdir(parents=True, exist_ok=True)
 
     if profile_login_lock_active(profile):
         raise RuntimeError(f"Login kilidi aktif: {profile}")
 
+    dl = download_dir or (STATE_DIR / "cache" / "downloads")
+    dl.mkdir(parents=True, exist_ok=True)
+
+    # Sıcak pencere kontrolü, profili boşaltan adımlardan ÖNCE olmalı; aksi
+    # halde korumaya çalıştığımız pencereyi kendimiz kapatırız.
+    warm = _reusable_warm_driver(
+        profile,
+        headed=headed,
+        download_dir=dl,
+        page_load_timeout=page_load_timeout,
+    )
+    if warm is not None:
+        print(
+            f"Firefox: mevcut pencere yeniden kullanılıyor ({profile.name}) — oturum korunuyor",
+            flush=True,
+        )
+        return warm
+
+    ban_playwright_nightly_processes(profile)
+
     ensure_profile_free_for_launch(
         profile,
         takeover=True,
         reason="system_firefox_driver",
     )
-
-    dl = download_dir or (STATE_DIR / "cache" / "downloads")
-    dl.mkdir(parents=True, exist_ok=True)
 
     opts = Options()
     opts.binary_location = exe
@@ -306,11 +384,26 @@ def launch_system_firefox_driver(
     driver.set_page_load_timeout(page_load_timeout)
     driver._seo_profile = profile  # type: ignore[attr-defined]
     driver._seo_download_dir = dl  # type: ignore[attr-defined]
+    driver._seo_headed = headed  # type: ignore[attr-defined]
+    if firefox_keep_window_open():
+        _WARM_DRIVERS[_driver_profile_key(profile)] = driver
     return driver
 
 
 def quit_system_firefox_driver(driver: Any) -> None:
+    """Pencereyi kapat — sıcak pencere açıkken kapatma, oturum yaşasın."""
     profile = getattr(driver, "_seo_profile", None)
+    if firefox_keep_window_open() and _driver_alive(driver):
+        name = Path(str(profile)).name if profile is not None else "?"
+        print(
+            f"Firefox: pencere açık bırakıldı ({name}) — sonraki tarama buradan "
+            "devam eder; kapatmak için SELENIUM_KEEP_OPEN=0",
+            flush=True,
+        )
+        return
+    for key, val in list(_WARM_DRIVERS.items()):
+        if val is driver:
+            _WARM_DRIVERS.pop(key, None)
     try:
         driver.quit()
     except Exception:

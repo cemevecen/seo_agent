@@ -2238,6 +2238,136 @@ def run_firebase_bridge_once(on_progress=None, platforms=None) -> dict[str, Any]
             )
 
 
+_empower_module: Any = None
+
+
+def _load_empower_module() -> Any:
+    """Empower tarama betiğini süreç içinde yükle (bir kez).
+
+    Alt süreçle çalıştırınca her tur Firefox penceresi de ölüyordu; oturum
+    kalıcı olmadığı için Empower sık sık yeniden giriş istiyordu. ASC ve
+    Firebase zaten süreç içi çalışıyor — Empower da aynı yola alındı, böylece
+    sıcak pencere kaydı (system_firefox_driver) burada da geçerli.
+    """
+    global _empower_module
+    if _empower_module is not None:
+        return _empower_module
+    import importlib.util
+
+    path = ROOT / "scripts" / "empower_intelligence_scrape.py"
+    if not path.is_file():
+        raise RuntimeError("Empower Intel tarama betiği yok")
+    spec = importlib.util.spec_from_file_location("empower_intelligence_scrape", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Empower Intel tarama betiği yüklenemedi")
+    mod = importlib.util.module_from_spec(spec)
+    # dataclass/tip çözümlemesi modülü sys.modules'ta arıyor — önce kaydet
+    sys.modules["empower_intelligence_scrape"] = mod
+    spec.loader.exec_module(mod)
+    _empower_module = mod
+    return mod
+
+
+def _empower_window(mode: str, pipeline: str) -> tuple[Any, Any, bool]:
+    """(start, end, yesterday) — mühür kurallarıyla."""
+    if (mode or "").strip().lower() != "backfill":
+        return None, None, True
+    try:
+        from backend.services.history_seal import scheduled_fetch_window
+
+        win = scheduled_fetch_window(pipeline, force_full=True)
+        return win["start"], win["end"], False
+    except Exception:  # noqa: BLE001
+        from backend.services.history_seal import history_seal, history_start
+
+        return history_start(), history_seal(), False
+
+
+def _run_empower_inprocess(
+    *,
+    kind: str,
+    mode: str,
+    pipeline: str,
+    project: str | None,
+    platforms: list[str] | None,
+    label: str,
+) -> dict[str, Any]:
+    """Ortak Empower turu — scrape + döküm + ingest, hepsi süreç içinde."""
+    mode_l = (mode or "yesterday").strip().lower()
+    try:
+        mod = _load_empower_module()
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "kind": kind, "message": f"{label} import: {exc}"}
+
+    start, end, yesterday = _empower_window(mode_l, pipeline)
+    os.environ.setdefault(
+        "EMPOWER_INTEL_INGEST_URL",
+        (
+            os.environ.get("EMPOWER_INTEL_INGEST_URL")
+            or "https://projectcontrol.up.railway.app/api/empower-intel/ingest"
+        ).strip(),
+    )
+    headed = (os.environ.get("EMPOWER_INTEL_HEADLESS") or "").strip().lower() not in (
+        "1",
+        "true",
+        "yes",
+    )
+    prev_project = os.environ.get("EMPOWER_INTEL_PROJECT")
+    print(f"{label} scrape başlıyor… ({mode_l})", flush=True)
+    try:
+        result = mod.scrape_empower(
+            platforms=platforms,
+            start=start,
+            end=end,
+            yesterday=yesterday,
+            headed=headed,
+            project=project,
+        )
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": kind, "mode": mode_l, "message": f"{label} scrape: {exc}"}
+        print(f"{label} · {out['message']}", flush=True)
+        return out
+    finally:
+        # scrape_empower bu değişkeni kendi projesine ayarlıyor; süreç içi
+        # çalıştığımız için sızmasın (sinemalar turu doviz turunu etkilemesin).
+        if prev_project is None:
+            os.environ.pop("EMPOWER_INTEL_PROJECT", None)
+        else:
+            os.environ["EMPOWER_INTEL_PROJECT"] = prev_project
+
+    # Alt süreç sürümü bu dökümü yazıyordu; testler ve teşhis buna bakıyor.
+    try:
+        out_path = mod.STATE_DIR / "cache" / "empower-intel-last.json"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        ing = mod.post_ingest(result)
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": kind, "mode": mode_l, "message": f"{label} ingest: {exc}"}
+        print(f"{label} · {out['message']}", flush=True)
+        return out
+
+    ok = bool(result.get("ok")) and bool(ing.get("ok"))
+    out = {
+        "ok": ok,
+        "kind": kind,
+        "mode": mode_l,
+        "message": (
+            f"{label} sync OK"
+            if ok
+            else (result.get("message") or ing.get("message") or f"{label} sync başarısız")
+        ),
+        "ingest": ing,
+    }
+    print(f"{label} · {out['message']}", flush=True)
+    return out
+
+
 def run_empower_intel_bridge_once(*, mode: str = "yesterday") -> dict[str, Any]:
     """Empower Intelligence Yesterday (veya backfill) → Railway ingest."""
     global _last_empower_intel_result
@@ -2246,75 +2376,15 @@ def run_empower_intel_bridge_once(*, mode: str = "yesterday") -> dict[str, Any]:
         _last_empower_intel_result = err
         return err
 
-    import subprocess
-
-    script = ROOT / "scripts" / "empower_intelligence_scrape.py"
-    if not script.is_file():
-        err = {"ok": False, "kind": "empower_intel", "message": "Empower Intel tarama betiği yok"}
-        _last_empower_intel_result = err
-        return err
-
-    mode_l = (mode or "yesterday").strip().lower()
-    print(f"Empower Intel scrape başlıyor… ({mode_l})", flush=True)
-    cmd = [sys.executable, str(script), "--ingest"]
-    if mode_l == "backfill":
-        try:
-            from backend.services.history_seal import history_seal, history_start, scheduled_fetch_window
-
-            win = scheduled_fetch_window("empower", force_full=True)
-            start_s = win["start"].isoformat()
-            end_s = win["end"].isoformat()
-        except Exception:
-            from backend.services.history_seal import history_seal, history_start
-
-            start_s = history_start().isoformat()
-            end_s = history_seal().isoformat()
-        cmd.extend(["--backfill", "--start", start_s, "--end", end_s])
-    else:
-        cmd.append("--yesterday")
-    env = os.environ.copy()
-    env.setdefault(
-        "EMPOWER_INTEL_INGEST_URL",
-        (
-            os.environ.get("EMPOWER_INTEL_INGEST_URL")
-            or "https://projectcontrol.up.railway.app/api/empower-intel/ingest"
-        ).strip(),
+    out = _run_empower_inprocess(
+        kind="empower_intel",
+        mode=mode,
+        pipeline="empower",
+        project=None,
+        platforms=None,
+        label="Empower Intel",
     )
-    timeout_sec = int(os.environ.get("EMPOWER_INTEL_BRIDGE_TIMEOUT_SEC") or "1800")
-    try:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(ROOT),
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout_sec,
-        )
-    except subprocess.TimeoutExpired:
-        out = {
-            "ok": False,
-            "kind": "empower_intel",
-            "message": f"Empower Intel timeout ({timeout_sec}s)",
-        }
-        _last_empower_intel_result = out
-        return out
-    except Exception as exc:  # noqa: BLE001
-        out = {"ok": False, "kind": "empower_intel", "message": f"Empower Intel subprocess: {exc}"}
-        _last_empower_intel_result = out
-        return out
-
-    tail = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()[-1200:]
-    if proc.returncode == 0:
-        out = {"ok": True, "kind": "empower_intel", "mode": mode_l, "message": "Empower Intel sync OK"}
-    else:
-        out = {
-            "ok": False,
-            "kind": "empower_intel",
-            "mode": mode_l,
-            "message": tail or f"exit {proc.returncode}",
-        }
     _last_empower_intel_result = out
-    print(f"Empower Intel · {out['message']}", flush=True)
     return out
 
 
@@ -2330,99 +2400,15 @@ def run_empower_intel_sinemalar_bridge_once(*, mode: str = "yesterday") -> dict[
         _last_empower_intel_sinemalar_result = err
         return err
 
-    import subprocess
-
-    script = ROOT / "scripts" / "empower_intelligence_scrape.py"
-    if not script.is_file():
-        err = {
-            "ok": False,
-            "kind": "empower_intel_sinemalar",
-            "message": "Empower Intel tarama betiği yok",
-        }
-        _last_empower_intel_sinemalar_result = err
-        return err
-
-    mode_l = (mode or "yesterday").strip().lower()
-    print(f"Empower Intel Sinemalar scrape başlıyor… ({mode_l})", flush=True)
-    cmd = [
-        sys.executable,
-        str(script),
-        "--project",
-        "sinemalar",
-        "--platform",
-        "web",
-        "--platform",
-        "mweb",
-        "--ingest",
-    ]
-    if mode_l == "backfill":
-        try:
-            from backend.services.history_seal import scheduled_fetch_window
-
-            win = scheduled_fetch_window("empower_sinemalar", force_full=True)
-            start_s = win["start"].isoformat()
-            end_s = win["end"].isoformat()
-        except Exception:
-            from backend.services.history_seal import history_seal, history_start
-
-            start_s = history_start().isoformat()
-            end_s = history_seal().isoformat()
-        cmd.extend(["--backfill", "--start", start_s, "--end", end_s])
-    else:
-        cmd.append("--yesterday")
-    env = os.environ.copy()
-    env["EMPOWER_INTEL_PROJECT"] = "sinemalar"
-    env.setdefault(
-        "EMPOWER_INTEL_INGEST_URL",
-        (
-            os.environ.get("EMPOWER_INTEL_INGEST_URL")
-            or "https://projectcontrol.up.railway.app/api/empower-intel/ingest"
-        ).strip(),
+    out = _run_empower_inprocess(
+        kind="empower_intel_sinemalar",
+        mode=mode,
+        pipeline="empower_sinemalar",
+        project="sinemalar",
+        platforms=["web", "mweb"],
+        label="Empower Intel Sinemalar",
     )
-    timeout_sec = int(os.environ.get("EMPOWER_INTEL_BRIDGE_TIMEOUT_SEC") or "1800")
-    try:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(ROOT),
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout_sec,
-        )
-    except subprocess.TimeoutExpired:
-        out = {
-            "ok": False,
-            "kind": "empower_intel_sinemalar",
-            "message": f"Empower Intel Sinemalar timeout ({timeout_sec}s)",
-        }
-        _last_empower_intel_sinemalar_result = out
-        return out
-    except Exception as exc:  # noqa: BLE001
-        out = {
-            "ok": False,
-            "kind": "empower_intel_sinemalar",
-            "message": f"Empower Intel Sinemalar subprocess: {exc}",
-        }
-        _last_empower_intel_sinemalar_result = out
-        return out
-
-    tail = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()[-1200:]
-    if proc.returncode == 0:
-        out = {
-            "ok": True,
-            "kind": "empower_intel_sinemalar",
-            "mode": mode_l,
-            "message": "Empower Intel Sinemalar sync OK",
-        }
-    else:
-        out = {
-            "ok": False,
-            "kind": "empower_intel_sinemalar",
-            "mode": mode_l,
-            "message": tail or f"exit {proc.returncode}",
-        }
     _last_empower_intel_sinemalar_result = out
-    print(f"Empower Intel Sinemalar · {out['message']}", flush=True)
     return out
 
 

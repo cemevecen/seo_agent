@@ -1,8 +1,7 @@
 """GitLab board sütun sırası kalıcılığı."""
 
+import asyncio
 from unittest.mock import AsyncMock, patch
-
-import pytest
 
 from backend.database import Base, SessionLocal, engine
 from backend.models import GitlabBoardIssueOrder, GitlabBoardProjectSettings
@@ -52,8 +51,7 @@ def test_save_and_load_board_sort_settings():
         db.close()
 
 
-@pytest.mark.asyncio
-async def test_sync_column_order_moves_first_issue_before_current_top():
+def test_sync_column_order_moves_first_issue_before_current_top():
     target = [
         {"iid": 45, "id": 1045},
         {"iid": 42, "id": 1042},
@@ -71,7 +69,9 @@ async def test_sync_column_order_moves_first_issue_before_current_top():
         return {"iid": issue_iid, "id": issue_iid + 1000}
 
     with patch("backend.services.gitlab_board.reorder_issue_async", new=AsyncMock(side_effect=fake_reorder)):
-        result = await sync_column_order_to_gitlab("nokta/sinemalar", target, current_ordered=current)
+        result = asyncio.run(
+            sync_column_order_to_gitlab("nokta/sinemalar", target, current_ordered=current)
+        )
 
     assert result["synced"] == 3
     assert result["failed"] == 0
@@ -80,8 +80,7 @@ async def test_sync_column_order_moves_first_issue_before_current_top():
     assert calls[2] == (38, 1042, None)
 
 
-@pytest.mark.asyncio
-async def test_sync_column_order_skips_already_aligned_prefix():
+def test_sync_column_order_skips_already_aligned_prefix():
     target = [
         {"iid": 6, "id": 1006},
         {"iid": 45, "id": 1045},
@@ -97,7 +96,9 @@ async def test_sync_column_order_skips_already_aligned_prefix():
         return {"iid": issue_iid}
 
     with patch("backend.services.gitlab_board.reorder_issue_async", new=AsyncMock(side_effect=fake_reorder)):
-        result = await sync_column_order_to_gitlab("nokta/sinemalar", target, current_ordered=current)
+        result = asyncio.run(
+            sync_column_order_to_gitlab("nokta/sinemalar", target, current_ordered=current)
+        )
 
     assert result["skipped"] == 1
     assert calls == [(45, 1006, None)]
