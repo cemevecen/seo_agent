@@ -72,6 +72,9 @@ def test_request_get_runs_in_page_with_credentials():
 
     script, args = driver.async_calls[0]
     assert "credentials: 'include'" in script
+    # `window.` olmadan Firefox: "'fetch' called on an object that does not
+    # implement interface Window" — canlı ASC probe'u tam burada düşmüştü.
+    assert "window.fetch(" in script
     payload = args[0]
     assert payload["method"] == "GET"
     assert payload["body"] is None

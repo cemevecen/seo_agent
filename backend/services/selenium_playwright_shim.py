@@ -664,7 +664,11 @@ class SeleniumRequest:
       try {
         const init = { method: method, credentials: 'include', headers: headers || {} };
         if (body !== null && body !== undefined) init.body = body;
-        const r = await fetch(url, init);
+        // `window.` şart: execute_async_script fonksiyonu apply(null, ...) ile
+        // çağırdığı için çıplak `fetch` bağlamsız kalıyor ve Firefox
+        // "'fetch' called on an object that does not implement interface Window"
+        // hatası veriyor.
+        const r = await window.fetch(url, init);
         const text = await r.text();
         const h = {};
         try { r.headers.forEach(function (v, k) { h[String(k).toLowerCase()] = v; }); }
