@@ -80,6 +80,26 @@ else
   warn "playwright install firefox başarısız — ağ/proxy kontrol et"
 fi
 
+# ── 3b) geckodriver (kalıcı pencere için) ───────────────────────────────────
+# Ayrık pencere (köprü yeniden başlasa da yaşayan oturum) geckodriver ister.
+# Selenium Manager ilk kullanımda indirir; burada peşinen indirilir ki ilk
+# tarama sessizce eski davranışa düşmesin.
+step "3b) geckodriver (kalıcı oturum penceresi)"
+GECKO_PATH="$("$PY" - <<'PYEOF' 2>/dev/null
+try:
+    from selenium.webdriver.common.selenium_manager import SeleniumManager
+    out = SeleniumManager().binary_paths(["--browser", "firefox"])
+    print((out or {}).get("driver_path") or "")
+except Exception:
+    print("")
+PYEOF
+)"
+if [[ -n "$GECKO_PATH" && -x "$GECKO_PATH" ]]; then
+  ok "hazır — $GECKO_PATH"
+else
+  warn "indirilemedi — kalıcı pencere devre dışı kalır (ağ/proxy kontrol et)"
+fi
+
 # ── 4) Köprü LaunchAgent ────────────────────────────────────────────────────
 if [[ "$WITH_BRIDGE" == "1" ]]; then
   step "4) Köprü LaunchAgent (zamanlanmış scrape'ler)"

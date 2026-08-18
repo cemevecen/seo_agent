@@ -770,7 +770,40 @@ def doctor(*, with_browser: bool = True) -> int:
         print(f"   {'OK  ' if cookies else 'NOT '} {name:<8} {state:<22} {path}")
 
     print()
-    print("3) Panel bağlantısı (boşluk doldurma için)")
+    print("3) Kalıcı pencere (köprü yeniden başlasa da oturum yaşar)")
+    try:
+        from backend.services.scrape_browser import (
+            empower_profile_dir,
+            google_profile_dir,
+        )
+        from backend.services.system_firefox_driver import (
+            _resolve_geckodriver,
+            detached_window_is_live,
+            firefox_detached_enabled,
+        )
+
+        gecko = _resolve_geckodriver()
+        # geckodriver yoksa özellik sessizce devre dışı kalır (normal açılışa
+        # düşer) — bunu teşhiste görmek gerek, yoksa «neden yine giriş istedi»
+        # sorusunun cevabı bulunamıyor.
+        print(f"   {'OK  ' if gecko else 'EKSİK'} geckodriver "
+              f"{gecko or 'YOK — Selenium Manager indiremedi, ağ/proxy kontrol et'}")
+        ok = ok and bool(gecko)
+        print(f"   {'OK  ' if firefox_detached_enabled() else 'KAPALI'} ayrık mod "
+              f"(SELENIUM_DETACHED / SELENIUM_KEEP_OPEN)")
+        for label, path in (
+            ("google", google_profile_dir()),
+            ("empower", empower_profile_dir()),
+        ):
+            live = detached_window_is_live(path)
+            print(f"   {'AÇIK' if live else '—   '} {label:<8} "
+                  f"{'pencere yaşıyor, sonraki tarama buraya bağlanır' if live else 'açık pencere yok (ilk taramada açılır)'}")
+    except Exception as exc:  # noqa: BLE001
+        ok = False
+        print(f"   EKSİK kalıcı pencere kontrolü yapılamadı: {exc}")
+
+    print()
+    print("4) Panel bağlantısı (boşluk doldurma için)")
     import os
 
     base = (os.environ.get("PROJECT_CONTROL_BASE_URL")
@@ -795,7 +828,7 @@ def doctor(*, with_browser: bool = True) -> int:
 
     if with_browser:
         print()
-        print("4) Oturumlar (tarayıcı açılır, giriş DENENMEZ)")
+        print("5) Oturumlar (tarayıcı açılır, giriş DENENMEZ)")
         for name in TARGETS:
             r = warm_target(name, check_only=True, headed=True)
             good = not r.needs_action
@@ -803,7 +836,7 @@ def doctor(*, with_browser: bool = True) -> int:
             print(f"   {'OK  ' if good else 'DİKKAT'} {name:<8} {r.message}")
     else:
         print()
-        print("4) Oturum kontrolü atlandı (--no-browser)")
+        print("5) Oturum kontrolü atlandı (--no-browser)")
 
     print()
     print("SONUÇ: " + ("kurulum hazır" if ok else "eksik var — yukarıdaki EKSİK/DİKKAT satırlarına bak"))
