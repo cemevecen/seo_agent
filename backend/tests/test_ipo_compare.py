@@ -308,6 +308,7 @@ def test_next_visit_slot_is_0909_or_1414():
     main = (root / "backend/main.py").read_text(encoding="utf-8")
     html = (root / "templates/ipo.html").read_text(encoding="utf-8")
     assert 'href="/ipo" data-nav-match="/ipo"' in base
+    assert 'ipo_menu_visible(request)' in base
     assert '@app.get("/ipo")' in main
     assert '@app.get("/api/ipo/compare")' in main
     assert 'ipo-halkarz-0909' in main

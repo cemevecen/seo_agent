@@ -1965,6 +1965,15 @@ def _template_xdata_menu_visible(request: Request | None) -> bool:
 jinja_env.globals["xdata_menu_visible"] = _template_xdata_menu_visible
 
 
+def _template_ipo_menu_visible(request: Request | None) -> bool:
+    if request is None:
+        return False
+    return bool(getattr(request.state, "ipo_menu_visible", False))
+
+
+jinja_env.globals["ipo_menu_visible"] = _template_ipo_menu_visible
+
+
 def _template_online_presence_visible(request: Request | None) -> bool:
     from backend.services import app_member_auth as ama
 
@@ -2073,6 +2082,11 @@ async def ip_allowlist_middleware(request: Request, call_next):
             is_xdata_page_path,
             resolve_xdata_menu_visible,
         )
+        from backend.services.ipo_page_access import (
+            is_ipo_page_allowed_email,
+            is_ipo_page_path,
+            resolve_ipo_menu_visible,
+        )
 
         request.state.settings_menu_visible = resolve_settings_menu_visible(
             member_email=member.email if member else None,
@@ -2082,6 +2096,9 @@ async def ip_allowlist_middleware(request: Request, call_next):
             member_email=member.email if member else None,
         )
         request.state.xdata_menu_visible = resolve_xdata_menu_visible(
+            member_email=member.email if member else None,
+        )
+        request.state.ipo_menu_visible = resolve_ipo_menu_visible(
             member_email=member.email if member else None,
         )
         if member is not None:
@@ -2111,6 +2128,15 @@ async def ip_allowlist_middleware(request: Request, call_next):
             em = member.email if member else None
             if not is_xdata_page_allowed_email(em or ""):
                 return RedirectResponse(url="/?xdata_denied=1", status_code=303)
+        if is_ipo_page_path(path):
+            em = member.email if member else None
+            if not is_ipo_page_allowed_email(em or ""):
+                if path.startswith("/api/"):
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "IPO bu hesap için kapalı."},
+                    )
+                return RedirectResponse(url="/?ipo_denied=1", status_code=303)
         if path.startswith("/settings") and not _is_settings_authenticated(request):
             if _member_denied_settings_menu(request):
                 return RedirectResponse(url="/admin/settings-denied", status_code=303)

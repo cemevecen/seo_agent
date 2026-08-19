@@ -17,8 +17,8 @@
   <div id="ipo-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
 
   <div class="flex flex-wrap gap-1.5" id="ipo-tabs" role="tablist">
-    <button type="button" data-tab="yeni" class="ipo-tab ipo-tab-on rounded-full border px-3 py-1.5 text-xs font-semibold">Yeni</button>
-    <button type="button" data-tab="olan" class="ipo-tab rounded-full border px-3 py-1.5 text-xs font-semibold">Olan</button>
+    <button type="button" data-tab="olan" class="ipo-tab ipo-tab-on rounded-full border px-3 py-1.5 text-xs font-semibold">Olan</button>
+    <button type="button" data-tab="yeni" class="ipo-tab rounded-full border px-3 py-1.5 text-xs font-semibold">Yeni</button>
     <button type="button" data-tab="arz_olacak" class="ipo-tab rounded-full border px-3 py-1.5 text-xs font-semibold">Arz olacak</button>
     <button type="button" data-tab="olmus" class="ipo-tab rounded-full border px-3 py-1.5 text-xs font-semibold">Olmuş</button>
     <button type="button" data-tab="missing" class="ipo-tab rounded-full border px-3 py-1.5 text-xs font-semibold">Doviz’de yok</button>
@@ -29,8 +29,8 @@
     <input id="ipo-q" type="search" placeholder="Şirket / kod ara…"
            class="w-full max-w-xs rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs dark:border-transparent dark:bg-zinc-800 dark:text-zinc-300 sm:w-64">
     <label class="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-zinc-400">
-      <input id="ipo-only-gap" type="checkbox" class="rounded border-slate-300">
-      yalnız eksik / uyuşmayan
+      <input id="ipo-only-gap" type="checkbox" class="rounded border-slate-300" checked>
+      yalnız eksik / uyuşmayan alan
     </label>
   </div>
 
@@ -66,7 +66,7 @@
     extra: "Halkarz’da yok",
   };
   let data = null;
-  let tab = "yeni";
+  let tab = "olan";
 
   function el(id) { return document.getElementById(id); }
   function esc(s) {
@@ -102,6 +102,7 @@
       kpi("Eşleşen", c.matched || 0, "aynı başlık"),
       kpi("Doviz’de yok", c.missing || 0, "halkarz’da var"),
       kpi("Halkarz’da yok", c.extra || 0, "doviz’de fazla"),
+      kpi("Alan farkı", c.field_missing || 0, ((c.field_mismatch || 0) ? ((c.field_mismatch || 0) + " farklı · ") : "") + "doviz kartında eksik alan"),
       kpi("Son ziyaret Δ", v ? ((vs.new || 0) + " yeni / " + (vs.changed || 0) + " bilgi") : "—", v && v.is_baseline ? "taban tarama" : (vs.not_on_doviz != null ? ("doviz’de yok: " + vs.not_on_doviz) : "09:09 · 14:14")),
     ].join("");
     document.querySelectorAll(".ipo-tab").forEach((b) => {
@@ -112,6 +113,50 @@
       const label = LABELS[b.dataset.tab] || b.dataset.tab;
       b.textContent = n == null ? label : `${label} (${n})`;
     });
+  }
+
+  function allCompareRows() {
+    if (!data || !data.buckets) return [];
+    return (data.buckets.olan || []).concat(
+      data.buckets.arz_olacak || [],
+      data.buckets.olmus || []
+    );
+  }
+
+  function findCompareRow(item) {
+    const t = String((item && item.ticker) || "").trim().toUpperCase();
+    const name = String((item && item.name) || "").trim().toLocaleLowerCase("tr");
+    const rows = allCompareRows();
+    if (t) {
+      const hit = rows.find((r) => String(r.ticker || "").toUpperCase() === t);
+      if (hit) return hit;
+    }
+    if (name) {
+      return rows.find((r) => String(r.name || "").trim().toLocaleLowerCase("tr") === name);
+    }
+    return null;
+  }
+
+  function diffTable(diffs, emptyText) {
+    if (!diffs || !diffs.length) {
+      return `<p class="mt-3 text-xs text-slate-400 dark:text-zinc-500">${esc(emptyText || "Karşılaştırılacak alan yok")}</p>`;
+    }
+    return `<div class="mt-3 overflow-x-auto">
+      <table class="min-w-full text-left">
+        <thead><tr class="text-[10px] uppercase tracking-wide text-slate-400">
+          <th class="py-1 pr-3">Alan</th><th class="py-1 pr-3">halkarz</th><th class="py-1 pr-3">doviz</th><th class="py-1">Δ</th>
+        </tr></thead>
+        <tbody>${diffs.map(fieldRow).join("")}</tbody>
+      </table>
+    </div>`;
+  }
+
+  function gapPills(row) {
+    if (!row) return "";
+    return [
+      ...(row.missing_on_doviz || []).slice(0, 4).map((f) => pill("missing", (data.field_labels || {})[f] || f)),
+      ...(row.mismatch || []).slice(0, 3).map((f) => pill("mismatch", (data.field_labels || {})[f] || f)),
+    ].join("");
   }
 
   function rowsForTab() {
@@ -130,35 +175,43 @@
     const q = (el("ipo-q").value || "").trim().toLocaleLowerCase("tr");
     const hay = `${r.name} ${r.ticker}`.toLocaleLowerCase("tr");
     if (q && !hay.includes(q)) return "";
+    const compare = findCompareRow(r);
+    const diffs = (compare && compare.diffs) || [];
+    const gapOnly = el("ipo-only-gap").checked;
+    const hasGap = compare && ((compare.missing_on_doviz || []).length || (compare.mismatch || []).length);
+    if (gapOnly && compare && compare.match === "both" && !hasGap) return "";
     const id = "ipo-v-" + kind + "-" + idx;
     const changes = r.changes || [];
+    const openByDefault = kind !== "new" || (compare && hasGap);
     return `<article class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
       <button type="button" class="flex w-full flex-wrap items-start gap-2 px-4 py-3 text-left" data-open="${id}">
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
             ${r.ticker ? `<span class="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-300">${esc(r.ticker)}</span>` : ""}
             <span class="text-sm font-semibold text-slate-900 dark:text-zinc-100">${esc(r.name)}</span>
-            ${pill(kind === "new" ? "missing" : "mismatch", kind === "new" ? "yeni şirket" : "yeni bilgi")}
-            ${dovizFlag(r.on_doviz)}
+            ${kind === "new" ? pill("missing", "yeni şirket") : kind === "changed" ? pill("mismatch", "yeni bilgi") : ""}
+            ${compare ? matchPill(compare.match) : dovizFlag(r.on_doviz)}
           </div>
           <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">
-            halkarz: ${esc(r.status || "—")} ${r.date_label ? "· " + esc(r.date_label) : ""}
-            ${r.on_doviz ? " · doviz: " + esc(r.doviz_status || "var") : " · doviz sayfası yok"}
+            halkarz: ${esc(r.status || (compare && compare.halkarz && compare.halkarz.status) || "—")} ${r.date_label ? "· " + esc(r.date_label) : ""}
+            ${compare && compare.doviz ? " · doviz: " + esc(compare.doviz.status || "—") : (r.on_doviz ? " · doviz: " + esc(r.doviz_status || "var") : " · doviz sayfası yok")}
           </p>
+          ${compare ? `<div class="mt-1 flex flex-wrap gap-1">${gapPills(compare)}</div>` : ""}
         </div>
       </button>
-      <div id="${id}" class="hidden border-t border-slate-100 px-4 py-3 dark:border-zinc-800">
+      <div id="${id}" class="${openByDefault ? "" : "hidden"} border-t border-slate-100 px-4 py-3 dark:border-zinc-800">
         <div class="grid gap-3 sm:grid-cols-2">
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">halkarz.com</p>
-            ${r.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a>` : `<p class="text-xs">${esc(r.name)}</p>`}
+            ${(compare && compare.halkarz && compare.halkarz.url) || r.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc((compare && compare.halkarz && compare.halkarz.url) || r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a>` : `<p class="text-xs">${esc(r.name)}</p>`}
           </div>
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">doviz.com</p>
-            ${r.doviz_url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(r.doviz_url)}" target="_blank" rel="noopener">Kayıt var</a>` : `<p class="text-xs text-rose-600 dark:text-rose-300">Yok</p>`}
+            ${compare && compare.doviz && compare.doviz.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(compare.doviz.url)}" target="_blank" rel="noopener">${esc(compare.doviz.name || r.name)}</a>` : (r.doviz_url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(r.doviz_url)}" target="_blank" rel="noopener">Kayıt var</a>` : `<p class="text-xs text-rose-600 dark:text-rose-300">Yok</p>`)}
           </div>
         </div>
-        ${changes.length ? `<table class="mt-3 min-w-full text-left">${changes.map((ch) => `<tr>
+        ${compare ? diffTable(diffs, "Alan karşılaştırması yok") : ""}
+        ${changes.length ? `<p class="mt-3 text-[10px] font-bold uppercase tracking-wide text-slate-400">Son ziyaret farkı</p><table class="mt-1 min-w-full text-left">${changes.map((ch) => `<tr>
           <td class="py-1 pr-3 text-[11px] text-slate-500">${esc(ch.label || ch.field)}</td>
           <td class="py-1 pr-3 text-[12px]">${esc(ch.before || "—")}</td>
           <td class="py-1 text-[12px]">${esc(ch.after || "—")}</td>
@@ -176,8 +229,8 @@
       return;
     }
     if (v.is_baseline) {
-      el("ipo-list").innerHTML = `<p class="rounded-xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm dark:bg-zinc-900 dark:text-zinc-400">Taban tarama alındı (${esc(v.fetched_at)} · ${esc(v.slot)}). Sonraki 09:09 / 14:14 ziyaretinde yeni şirket ve yeni bilgi burada, yanında doviz’de var/yok ile listelenir.</p>`
-        + flagged.map((r, i) => visitCard(r, "new", "f"+i)).join("");
+      el("ipo-list").innerHTML = `<p class="rounded-xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm dark:bg-zinc-900 dark:text-zinc-400">Taban tarama alındı (${esc(v.fetched_at)} · ${esc(v.slot)}). «Olan» sekmesinde halkarz ↔ doviz alan karşılaştırması var; aşağıda «Yeni!» rozetliler.</p>`
+        + flagged.map((r, i) => visitCard({...r, on_doviz: r.on_doviz}, "new", "f"+i)).join("");
       return;
     }
     const parts = [];
@@ -205,6 +258,7 @@
     if (q && !hay.includes(q)) return "";
     if (el("ipo-only-gap").checked && r.match === "both" && !(r.missing_on_doviz || []).length && !(r.mismatch || []).length) return "";
     const id = "ipo-row-" + idx;
+    const openByDefault = (r.missing_on_doviz || []).length || (r.mismatch || []).length;
     return `<article class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
       <button type="button" class="flex w-full flex-wrap items-start gap-2 px-4 py-3 text-left" data-open="${id}">
         <div class="min-w-0 flex-1">
@@ -223,7 +277,7 @@
           ${(r.mismatch || []).slice(0,2).map((f) => pill("mismatch", (data.field_labels || {})[f] || f)).join("")}
         </div>
       </button>
-      <div id="${id}" class="hidden border-t border-slate-100 px-4 py-3 dark:border-zinc-800">
+      <div id="${id}" class="${openByDefault ? "" : "hidden"} border-t border-slate-100 px-4 py-3 dark:border-zinc-800">
         <div class="grid gap-3 sm:grid-cols-2">
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">halkarz.com</p>
@@ -234,14 +288,7 @@
             ${dv.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(dv.url)}" target="_blank" rel="noopener">${esc(dv.name || r.name)}</a>` : `<p class="text-xs text-rose-600 dark:text-rose-300">${r.match === "halkarz_only" ? "Sayfa yok" : esc(dv.name || "—")}</p>`}
           </div>
         </div>
-        <div class="mt-3 overflow-x-auto">
-          <table class="min-w-full text-left">
-            <thead><tr class="text-[10px] uppercase tracking-wide text-slate-400">
-              <th class="py-1 pr-3">Alan</th><th class="py-1 pr-3">halkarz</th><th class="py-1 pr-3">doviz</th><th class="py-1">Δ</th>
-            </tr></thead>
-            <tbody>${diffs.length ? diffs.map(fieldRow).join("") : `<tr><td colspan="4" class="py-2 text-xs text-slate-400">Karşılaştırılacak alan yok</td></tr>`}</tbody>
-          </table>
-        </div>
+        ${diffTable(diffs, "Karşılaştırılacak alan yok")}
       </div>
     </article>`;
   }
