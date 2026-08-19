@@ -1547,6 +1547,19 @@ class OwnerPmLabWorkspace(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class IpoHiddenCompany(Base):
+    """«Bunu bir daha gösterme» denen halka arz kayıtları."""
+
+    __tablename__ = "ipo_hidden_companies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    row_key: Mapped[str] = mapped_column(String(191), nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    ticker: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    hidden_by: Mapped[str] = mapped_column(String(191), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class IpoHalkarzVisit(Base):
     """halkarz.com 09:09 / 14:14 ziyareti — yeni şirket ve alan farkı."""
 

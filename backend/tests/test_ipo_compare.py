@@ -263,6 +263,83 @@ def test_build_payload_eksik_fazla_and_buckets():
     assert hedef["fields"].get("araci_kurum") == "X Yatırım"
 
 
+def test_slug_key_matches_when_names_are_written_differently():
+    """Aynı şirket iki sitede farklı yazılıyor; detay URL slug'ı aynı."""
+    ha = {
+        "name": "Bewen Enerji A.Ş.",
+        "url": "https://halkarz.com/bewen-enerji-a-s/",
+        "ticker": "",
+    }
+    dv = {
+        "name": "BEWEN Enerji Anonim Şirketi",
+        "url": "https://borsa.doviz.com/halka-arz/bewen-enerji-a-s/196",
+        "ticker": "",
+    }
+    assert ipo._score_pair(ha, dv) >= 0.97
+    ha2 = {
+        "name": "Teknika Plast Teknik Kalıp Plastik San. ve Tic. A.Ş.",
+        "url": "https://halkarz.com/teknika-plast-teknik-kalip-plastik-san-ve-tic-a-s/",
+    }
+    dv2 = {
+        "name": "Teknika Plast",
+        "url": "https://borsa.doviz.com/halka-arz/teknika-plast-teknik-kalip-plastik-san-ve-tic-a-s/206",
+    }
+    assert ipo._score_pair(ha2, dv2) >= 0.97
+
+
+def test_rare_word_overlap_matches_reordered_names():
+    """Kelime sırası/yazımı farklı, ayırt edici kelimeler aynı."""
+    ha = {"name": "Cms Jant ve Makina Sanayii A.Ş."}
+    dv = {"name": "CMS Jant Makina San. ve Tic. A.Ş."}
+    corpus_h = [ha, {"name": "Başka Bir Şirket A.Ş."}]
+    corpus_d = [dv, {"name": "Cevher Jant Sanayii A.Ş."}]
+    weights = ipo._token_weights(corpus_h, corpus_d)
+    assert ipo._score_pair(ha, dv, weights) >= 0.84
+    # jenerik kelimeler tek başına eşleştirmez
+    a = {"name": "Bulls Yatırım Menkul Değerler A.Ş."}
+    b = {"name": "Alnus Yatırım Menkul Değerler A.Ş."}
+    weights2 = ipo._token_weights([a], [b])
+    assert ipo._score_pair(a, b, weights2) < 0.84
+
+
+def test_conflicting_tickers_never_match():
+    a = {"name": "Aynı İsim A.Ş.", "ticker": "AAAAA"}
+    b = {"name": "Aynı İsim A.Ş.", "ticker": "BBBBB"}
+    assert ipo._score_pair(a, b) == 0.0
+
+
+def test_short_page_falls_back_to_last_good_copy(monkeypatch):
+    """Kaynak sayfa boş/kısmi gelirse 'karşı tarafta yok' demeyiz."""
+    ipo._page_cache.clear()
+    ipo._cache["payload"] = None
+    ipo._cache["ts"] = 0.0
+    pages = {
+        ipo.HALKARZ_HOME: HALKARZ_HOME,
+        ipo.DOVIZ_IPO: DOVIZ_HOME,
+        ipo.DOVIZ_TASLAK: DOVIZ_TASLAK,
+        ipo.DOVIZ_GECMIS: DOVIZ_GECMIS,
+    }
+    monkeypatch.setattr(ipo, "_MIN_ROWS", {"doviz_taslak": 2})
+    monkeypatch.setattr(ipo, "_http_get", lambda url: pages[url])
+    first = ipo.fetch_compare(force=True, details=False)
+    assert not first["errors"]
+    doviz_first = first["counts"]["doviz"]
+
+    def broken(url):
+        if url == ipo.DOVIZ_TASLAK:
+            return "<html><body>bakim</body></html>"
+        return pages[url]
+
+    monkeypatch.setattr(ipo, "_http_get", broken)
+    second = ipo.fetch_compare(force=True, details=False)
+    assert "doviz_taslak" in second["errors"]
+    assert "son başarılı kopya" in second["errors"]["doviz_taslak"]
+    assert second["counts"]["doviz"] == doviz_first
+    assert second["counts"]["missing"] == first["counts"]["missing"]
+    ipo._page_cache.clear()
+    ipo._cache["payload"] = None
+
+
 def test_payload_exposes_sort_and_filter_fields():
     payload = ipo.build_payload(
         halkarz_home_html=HALKARZ_HOME,
@@ -358,3 +435,61 @@ def test_next_visit_slot_is_0909_or_1414():
     assert 'data-tab="yeni"' in html
     log = (root / "backend/services/admin_access_log.py").read_text(encoding="utf-8")
     assert '("/ipo", "IPO / Halka Arz")' in log
+
+
+def test_hidden_companies_roundtrip():
+    """«Bunu bir daha gösterme» kaydı kalıcı; geri alınca listeden düşer."""
+    from backend.database import Base, SessionLocal, engine
+    from backend.models import IpoHiddenCompany
+
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        db.query(IpoHiddenCompany).delete()
+        db.commit()
+        key = ipo.row_key(
+            {"name": "Volta Motor San. ve Tic. A.Ş.", "url": "https://halkarz.com/volta-motor-san-ve-tic-a-s/"},
+            None,
+        )
+        assert key.startswith("s:")
+        out = ipo.set_hidden(db, key=key, hidden=True, name="Volta Motor", ticker="", by="x@y.com")
+        assert out["hidden"] == [key]
+        # aynı anahtar iki kez gizlenince tek kayıt kalır
+        ipo.set_hidden(db, key=key, hidden=True, name="Volta Motor")
+        assert db.query(IpoHiddenCompany).count() == 1
+        rows = ipo.hidden_rows_public(db)
+        assert rows[0]["name"] == "Volta Motor"
+        assert rows[0]["hidden_by"] == "x@y.com"
+        ipo.set_hidden(db, key=key, hidden=False)
+        assert ipo.hidden_keys(db) == []
+    finally:
+        db.query(IpoHiddenCompany).delete()
+        db.commit()
+        db.close()
+
+
+def test_row_key_is_stable_across_scans():
+    """Aynı şirket her taramada aynı anahtarı üretmeli."""
+    ha = {"name": "Bewen Enerji A.Ş.", "url": "https://halkarz.com/bewen-enerji-a-s/", "ticker": "BEWEN"}
+    dv = {"name": "Bewen Enerji A.Ş.", "url": "https://borsa.doviz.com/halka-arz/bewen-enerji-a-s/196"}
+    key = ipo.row_key(ha, dv)
+    assert key.startswith("s:") and "bewen" in key
+    assert ipo.row_key(ha, None) == key
+    # halkarz tarafı yoksa doviz slug'ı kullanılır (slug'lar aynı)
+    assert ipo.row_key(None, dv) == key
+    # URL yoksa BIST koduna, o da yoksa ada düşer
+    assert ipo.row_key({"name": "X A.Ş.", "ticker": "XXXXX"}, None) == "t:XXXXX"
+    assert ipo.row_key({"name": "Şirket Adı A.Ş."}, None).startswith("n:")
+
+
+def test_compare_rows_carry_row_key():
+    payload = ipo.build_payload(
+        halkarz_home_html=HALKARZ_HOME,
+        doviz_home_html=DOVIZ_HOME,
+        doviz_taslak_html=DOVIZ_TASLAK,
+        doviz_gecmis_html=DOVIZ_GECMIS,
+    )
+    rows = [r for rs in payload["buckets"].values() for r in rs]
+    keys = [r["row_key"] for r in rows]
+    assert all(keys)
+    assert len(keys) == len(set(keys)), "row_key'ler benzersiz olmalı"

@@ -79,6 +79,7 @@
         yalnız «Yeni!» rozetli
       </label>
 
+      <button type="button" id="ipo-hidden-toggle" class="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800">Gizlediklerimi göster</button>
       <button type="button" id="ipo-reset" class="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800">Filtreleri temizle</button>
       <span id="ipo-count" class="ml-auto text-[11px] font-semibold text-slate-400 dark:text-zinc-500"></span>
     </div>
@@ -147,6 +148,14 @@
   .ipo-col-dv { background: rgb(241 245 249); }
   html.dark .ipo-col-ha, html.charcoal .ipo-col-ha { background: rgb(30 30 34); }
   html.dark .ipo-col-dv, html.charcoal .ipo-col-dv { background: rgb(36 36 41); }
+  .ipo-hide {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 12px;
+    font-size: 11px; font-weight: 600; color: rgb(100 116 139); cursor: pointer;
+  }
+  html.dark .ipo-hide, html.charcoal .ipo-hide { color: rgb(161 161 170); }
+  .ipo-hide input { cursor: pointer; }
+  .ipo-hidden-on { border-color: rgb(99 102 241) !important; color: rgb(67 56 202) !important; background: rgb(238 242 255) !important; }
+  html.dark .ipo-hidden-on, html.charcoal .ipo-hidden-on { background: rgb(49 46 129 / .35) !important; color: rgb(199 210 254) !important; }
   .ipo-pill { display:inline-flex; align-items:center; border-radius:999px; padding:1px 8px; font-size:10px; font-weight:700; letter-spacing:.02em; }
   .ipo-missing { background:#fef2f2; color:#b91c1c; }
   .ipo-extra { background:#fffbeb; color:#b45309; }
@@ -182,6 +191,8 @@
   };
   let data = null;
   let state = Object.assign({}, DEFAULTS);
+  let hidden = new Set();
+  let showHidden = false;
 
   function el(id) { return document.getElementById(id); }
   function esc(s) {
@@ -344,6 +355,7 @@
 
   function rowsForTab() {
     if (!data) return [];
+    if (showHidden) return allCompareRows();
     if (state.tab === "all") return allCompareRows();
     if (state.tab === "missing") return allCompareRows().filter((r) => r.match === "halkarz_only");
     if (state.tab === "extra") return allCompareRows().filter((r) => r.match === "doviz_only");
@@ -382,6 +394,12 @@
 
   function passFilters(meta) {
     const q = state.q.trim().toLocaleLowerCase("tr");
+    const isHidden = !!(meta.row_key && hidden.has(meta.row_key));
+    if (showHidden) {
+      // gizlenenler görünümünde yalnız arama uygulanır
+      return isHidden && (!q || meta.hay.includes(q));
+    }
+    if (isHidden) return false;
     if (q && !meta.hay.includes(q)) return false;
     if (!passSource(meta.match)) return false;
     if (!passTime(meta.date_iso)) return false;
@@ -390,12 +408,22 @@
     return true;
   }
 
+  function hideBox(key, name, ticker) {
+    if (!key) return "";
+    const on = hidden.has(key);
+    return `<label class="ipo-hide">
+      <input type="checkbox" data-hide-key="${esc(key)}" data-hide-name="${esc(name || "")}" data-hide-ticker="${esc(ticker || "")}" ${on ? "checked" : ""}>
+      <span>${on ? "Gizli — listede gösterme" : "Bunu bir daha gösterme"}</span>
+    </label>`;
+  }
+
   function rowMeta(r) {
     return {
       row: r,
       name: r.name || "",
       ticker: r.ticker || "",
       match: r.match,
+      row_key: r.row_key || "",
       date_iso: r.date_iso || "",
       date_source: r.date_source || "",
       gap_count: r.gap_count != null ? r.gap_count : ((r.missing_on_doviz || []).length + (r.mismatch || []).length),
@@ -438,7 +466,31 @@
     if (state.time !== "all") bits.push(el("ipo-time").selectedOptions[0].textContent.trim());
     if (state.onlyGap) bits.push("eksik alan");
     if (state.onlyNew) bits.push("«Yeni!»");
+    if (showHidden) bits.unshift("gizlenenler");
+    else if (hidden.size) bits.push(hidden.size + " gizli");
     el("ipo-count").textContent = `${shown} / ${total} kayıt` + (bits.length ? " · " + bits.join(" · ") : "");
+  }
+
+  function syncHiddenToggle() {
+    const btn = el("ipo-hidden-toggle");
+    if (!btn) return;
+    btn.textContent = showHidden
+      ? "Listeye dön"
+      : "Gizlediklerimi göster" + (hidden.size ? " (" + hidden.size + ")" : "");
+    btn.classList.toggle("ipo-hidden-on", showHidden);
+  }
+
+  async function setHidden(key, on, name, ticker) {
+    const r = await fetch("/api/ipo/hidden", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ row_key: key, hidden: !!on, name: name || "", ticker: ticker || "" }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error((j && j.detail) || "Kaydedilemedi");
+    hidden = new Set(j.hidden || []);
+    if (data) { data.hidden = j.hidden || []; data.hidden_rows = j.hidden_rows || []; }
   }
 
   /* ---------- kartlar ---------- */
@@ -487,7 +539,7 @@
     const dv = r.doviz || {};
     const diffs = r.diffs || [];
     const id = "ipo-row-" + idx;
-    const openByDefault = meta.gap_count > 0;
+    const openByDefault = meta.gap_count > 0 || showHidden;
     return `<article class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
       <button type="button" class="flex w-full flex-wrap items-start gap-2 px-4 py-3 text-left" data-open="${id}">
         <div class="min-w-0 flex-1">
@@ -516,6 +568,7 @@
             + (dv.status ? `<p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">${esc(dv.status)}${dv.date_label ? " · " + esc(dv.date_label) : ""}</p>` : ""))}
         </div>
         ${diffTable(diffs, "Karşılaştırılacak alan yok")}
+        ${hideBox(meta.row_key, r.name, r.ticker)}
       </div>
     </article>`;
   }
@@ -530,6 +583,7 @@
       name: r.name || "",
       ticker: r.ticker || "",
       match: compare ? compare.match : (r.on_doviz ? "both" : "halkarz_only"),
+      row_key: r.row_key || (compare && compare.row_key) || "",
       date_iso: r.date_iso || (compare && compare.date_iso) || "",
       date_source: (compare && compare.date_source) || "halkarz · liste",
       gap_count: gap,
@@ -580,6 +634,7 @@
           <td class="py-1 pr-3 text-[12px]">${esc(ch.before || "—")}</td>
           <td class="py-1 text-[12px]">${esc(ch.after || "—")}</td>
         </tr>`).join("")}</table>` : ""}
+        ${hideBox(meta.row_key, r.name, r.ticker)}
       </div>
     </article>`;
   }
@@ -609,7 +664,7 @@
 
   function renderList() {
     if (!data) return;
-    if (state.tab === "yeni") {
+    if (state.tab === "yeni" && !showHidden) {
       renderYeni();
       return;
     }
@@ -621,7 +676,9 @@
   }
 
   function render() {
+    hidden = new Set((data && data.hidden) || []);
     syncControls();
+    syncHiddenToggle();
     renderKpis();
     renderList();
     const err = data && data.errors && Object.keys(data.errors).length
@@ -655,6 +712,7 @@
     if (!(opts && opts.keepKpi)) state.kpi = (patch && "kpi" in patch) ? patch.kpi : "";
     saveState();
     syncControls();
+    syncHiddenToggle();
     renderKpis();
     renderList();
   }
@@ -683,6 +741,29 @@
   el("ipo-only-new").addEventListener("change", () => update({ onlyNew: el("ipo-only-new").checked }, { keepKpi: true }));
   el("ipo-reset").addEventListener("click", () => update(Object.assign({}, DEFAULTS, { tab: state.tab })));
   el("ipo-refresh").addEventListener("click", () => load(true));
+  el("ipo-hidden-toggle").addEventListener("click", () => {
+    showHidden = !showHidden;
+    syncHiddenToggle();
+    renderList();
+  });
+  el("ipo-list").addEventListener("change", async (ev) => {
+    const cb = ev.target.closest("input[data-hide-key]");
+    if (!cb) return;
+    const key = cb.getAttribute("data-hide-key");
+    const on = cb.checked;
+    cb.disabled = true;
+    try {
+      await setHidden(key, on, cb.getAttribute("data-hide-name"), cb.getAttribute("data-hide-ticker"));
+      syncHiddenToggle();
+      renderKpis();
+      renderList();
+    } catch (e) {
+      cb.checked = !on;
+      cb.disabled = false;
+      el("ipo-err").textContent = (e && e.message) || "Gizleme kaydedilemedi";
+      el("ipo-err").classList.remove("hidden");
+    }
+  });
   el("ipo-list").addEventListener("click", (ev) => {
     const btn = ev.target.closest("[data-open]");
     if (!btn) return;

@@ -1,17 +1,20 @@
-"""IPO (/ipo) — yalnızca cemevecen admin üye hesapları."""
+"""IPO (/ipo) — panelin tüm üyelerine açık.
+
+Sekme başlangıçta yalnız cemevecen hesaplarındaydı; artık herkese açık.
+Fonksiyonlar korunuyor: middleware ve şablonlar bunları çağırıyor, ayrıca
+ileride yeniden kısıtlamak gerekirse tek yerden dönülür.
+"""
 
 from __future__ import annotations
 
-from backend.services.app_member_auth import ADMIN_MEMBER_EMAILS, _normalize_email
-
 
 def is_ipo_page_allowed_email(email: str | None) -> bool:
-    em = _normalize_email(email or "")
-    return bool(em) and em in ADMIN_MEMBER_EMAILS
+    """IPO artık herkese açık; e-posta kısıtı yok."""
+    return True
 
 
 def resolve_ipo_menu_visible(*, member_email: str | None) -> bool:
-    return is_ipo_page_allowed_email(member_email)
+    return True
 
 
 def is_ipo_page_path(path: str) -> bool:
@@ -22,5 +25,4 @@ def is_ipo_page_path(path: str) -> bool:
 
 
 def member_denied_ipo_access(member_email: str | None) -> bool:
-    em = _normalize_email(member_email or "")
-    return bool(em) and not is_ipo_page_allowed_email(em)
+    return False

@@ -15848,14 +15848,62 @@ def ipo_page(request: Request):
 
 @app.get("/api/ipo/compare")
 def api_ipo_compare(refresh: int = 0):
-    from backend.services.ipo_compare import fetch_compare, latest_visit_public, next_visit_slot
+    from backend.services.ipo_compare import (
+        fetch_compare,
+        hidden_rows_public,
+        latest_visit_public,
+        next_visit_slot,
+    )
 
-    payload = fetch_compare(force=bool(refresh), details=True)
+    # fetch_compare cache'lenmiş dict'i döndürür; kopya üzerinde çalış
+    payload = dict(fetch_compare(force=bool(refresh), details=True))
     payload.pop("halkarz_snapshot", None)
     with SessionLocal() as db:
         payload["visit"] = latest_visit_public(db)
+        payload["hidden_rows"] = hidden_rows_public(db)
+    payload["hidden"] = [r["row_key"] for r in payload["hidden_rows"]]
     payload["next_slot"] = next_visit_slot()
     return JSONResponse(payload)
+
+
+@app.post("/api/ipo/hidden")
+async def api_ipo_hidden_set(request: Request):
+    """«Bunu bir daha gösterme» / geri getir."""
+    from backend.services.ipo_compare import hidden_rows_public, set_hidden
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    key = str((body or {}).get("row_key") or "").strip()
+    if not key:
+        return JSONResponse(status_code=400, content={"detail": "row_key gerekli"})
+    hidden = bool((body or {}).get("hidden", True))
+    member = _app_member_from_request(request)
+    with SessionLocal() as db:
+        set_hidden(
+            db,
+            key=key,
+            hidden=hidden,
+            name=str((body or {}).get("name") or ""),
+            ticker=str((body or {}).get("ticker") or ""),
+            by=(getattr(member, "email", "") or "") if member else "",
+        )
+        rows = hidden_rows_public(db)
+    return JSONResponse(
+        {"ok": True, "hidden": [r["row_key"] for r in rows], "hidden_rows": rows}
+    )
+
+
+@app.get("/api/ipo/hidden")
+def api_ipo_hidden_list():
+    from backend.services.ipo_compare import hidden_rows_public
+
+    with SessionLocal() as db:
+        rows = hidden_rows_public(db)
+    return JSONResponse(
+        {"ok": True, "hidden": [r["row_key"] for r in rows], "hidden_rows": rows}
+    )
 
 
 @app.get("/errors")

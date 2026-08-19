@@ -6,11 +6,11 @@ from backend.services.ipo_page_access import (
 )
 
 
-def test_ipo_page_allowed_emails():
+def test_ipo_page_is_open_to_everyone():
+    """IPO sekmesi herkese açık: e-posta kısıtı yok."""
     assert is_ipo_page_allowed_email("cemevecen@nokta.com")
-    assert is_ipo_page_allowed_email("CEMEVECEN@Gmail.com")
-    assert not is_ipo_page_allowed_email("onurtorun@nokta.com")
-    assert not is_ipo_page_allowed_email("")
+    assert is_ipo_page_allowed_email("onurtorun@nokta.com")
+    assert is_ipo_page_allowed_email("")
 
 
 def test_ipo_paths():
@@ -19,8 +19,9 @@ def test_ipo_paths():
     assert not is_ipo_page_path("/api/ipo-other")
 
 
-def test_ipo_menu_and_denied():
+def test_ipo_menu_visible_for_all_members():
     assert resolve_ipo_menu_visible(member_email="cemevecen@gmail.com")
-    assert not resolve_ipo_menu_visible(member_email="other@nokta.com")
-    assert member_denied_ipo_access("other@nokta.com")
+    assert resolve_ipo_menu_visible(member_email="other@nokta.com")
+    assert resolve_ipo_menu_visible(member_email=None)
+    assert not member_denied_ipo_access("other@nokta.com")
     assert not member_denied_ipo_access("cemevecen@nokta.com")

@@ -4,6 +4,7 @@ from __future__ import annotations
 import html as html_lib
 import json
 import logging
+import math
 import re
 import threading
 import time
@@ -36,6 +37,12 @@ _DETAIL_LIMIT = 24
 
 _cache_lock = threading.Lock()
 _cache: dict[str, Any] = {"ts": 0.0, "payload": None}
+# Kaynak sayfa çekimi patlarsa listeyi boş sanıp her şeyi "karşı tarafta yok"
+# göstermemek için son başarılı kopyayı saklarız.
+_page_cache_lock = threading.Lock()
+_page_cache: dict[str, str] = {}
+# Bir sayfa beklenenden azını döndürüyorsa (WAF / kısmi render) yine stale'e düş.
+_MIN_ROWS = {"halkarz": 20, "doviz_taslak": 40, "doviz_gecmis": 40}
 
 _LEGAL = re.compile(
     r"\b(a\.?\s*ş\.?|anonim\s+sirketi|san(?:ayi)?\.?|tic(?:aret)?\.?|"
@@ -83,11 +90,18 @@ def _core_name(name: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def _name_keys(name: str) -> set[str]:
+def _name_keys(name: str, url: str = "") -> set[str]:
     keys: set[str] = set()
+    slug = _slug_key(url)
+    if len(slug) >= 6:
+        keys.add(slug)
+        legal_free = _LEGAL.sub(" ", slug)
+        legal_free = re.sub(r"\s+", " ", legal_free).strip()
+        if len(legal_free) >= 6:
+            keys.add(legal_free)
     raw = (name or "").strip()
     if not raw:
-        return keys
+        return {k for k in keys if k}
     keys.add(_fold(raw))
     core = _core_name(raw)
     if core:
@@ -97,6 +111,77 @@ def _name_keys(name: str) -> set[str]:
         if len(a) >= 3:
             keys.add(a)
     return {k for k in keys if k}
+
+
+_GENERIC_TOKENS = {
+    "anonim", "sirketi", "sirket", "holding", "grup", "group", "turk", "turkiye",
+    "sanayi", "sanayii", "ticaret", "ticari", "yatirim", "yatirimlari", "enerji",
+    "gida", "insaat", "teknoloji", "teknolojileri", "uretim", "ithalat", "ihracat",
+    "elektrik", "makina", "makine", "otomotiv", "tekstil", "kimya", "lojistik",
+    "hizmetleri", "hizmet", "endustri", "endustriyel", "urunleri", "pazarlama",
+}
+
+
+def _slug_key(url: str) -> str:
+    """doviz ve halkarz detay URL'lerindeki slug'ı ada indirger.
+
+    halkarz: /bewen-enerji-a-s/  ·  doviz: /halka-arz/bewen-enerji-a-s/196
+    """
+    raw = (url or "").split("?", 1)[0].rstrip("/")
+    if not raw:
+        return ""
+    parts = [p for p in raw.split("/") if p]
+    if not parts:
+        return ""
+    slug = parts[-1]
+    if slug.isdigit() and len(parts) >= 2:
+        slug = parts[-2]
+    if slug.isdigit() or slug in {"halka-arz", "halkarz.com"}:
+        return ""
+    return _core_name(slug.replace("-", " "))
+
+
+def _tokens(name: str) -> set[str]:
+    return {
+        t
+        for t in _core_name(name).split()
+        if len(t) >= 3 and t not in _GENERIC_TOKENS
+    }
+
+
+def _token_weights(*groups: list[dict[str, Any]]) -> dict[str, float]:
+    """Korpusta seyrek geçen kelime ayırt edicidir (IDF benzeri ağırlık)."""
+    counts: dict[str, int] = {}
+    total = 0
+    for group in groups:
+        for item in group:
+            total += 1
+            for tok in _tokens(item.get("name") or ""):
+                counts[tok] = counts.get(tok, 0) + 1
+    if not counts:
+        return {}
+    base = max(2, total)
+    return {tok: math.log(1 + base / (1 + c)) for tok, c in counts.items()}
+
+
+def _weighted_overlap(
+    a: str, b: str, weights: dict[str, float]
+) -> tuple[float, float]:
+    """(örtüşme oranı, ortak kelimelerin en yüksek ağırlığı)."""
+    ta, tb = _tokens(a), _tokens(b)
+    if not ta or not tb:
+        return 0.0, 0.0
+    inter = ta & tb
+    if not inter:
+        return 0.0, 0.0
+
+    def w(tokens: set[str]) -> float:
+        return sum(weights.get(t, 1.0) for t in tokens) or 0.0
+
+    denom = max(w(ta), w(tb))
+    if denom <= 0:
+        return 0.0, 0.0
+    return w(inter) / denom, max(weights.get(t, 1.0) for t in inter)
 
 
 def _ticker_norm(s: str) -> str:
@@ -399,11 +484,24 @@ def _first_token(s: str) -> str:
     return (s.split() or [""])[0]
 
 
-def _score_pair(a: dict[str, Any], b: dict[str, Any]) -> float:
+# Ayırt edici kelime örtüşmesiyle eşleşme için alt sınırlar
+_OVERLAP_MIN = 0.72
+_RARE_WEIGHT_MIN = 1.6
+
+
+def _score_pair(
+    a: dict[str, Any],
+    b: dict[str, Any],
+    weights: dict[str, float] | None = None,
+) -> float:
     ta, tb = _ticker_norm(a.get("ticker") or ""), _ticker_norm(b.get("ticker") or "")
     if ta and tb and ta == tb:
         return 1.0
-    keys_a, keys_b = _name_keys(a.get("name") or ""), _name_keys(b.get("name") or "")
+    # Farklı BIST kodu taşıyan iki kayıt aynı şirket değildir
+    if ta and tb and ta != tb:
+        return 0.0
+    keys_a = _name_keys(a.get("name") or "", a.get("url") or "")
+    keys_b = _name_keys(b.get("name") or "", b.get("url") or "")
     if keys_a & keys_b:
         return 0.97
     first_a = {_first_token(k) for k in keys_a if _first_token(k)}
@@ -420,6 +518,14 @@ def _score_pair(a: dict[str, Any], b: dict[str, Any]) -> float:
                     best = max(best, 0.93)
             if share_first:
                 best = max(best, SequenceMatcher(None, ka, kb).ratio())
+    if weights and best < 0.9:
+        ratio, rare = _weighted_overlap(
+            a.get("name") or "", b.get("name") or "", weights
+        )
+        if ratio >= _OVERLAP_MIN and rare >= _RARE_WEIGHT_MIN:
+            # "Cms Jant ve Makina Sanayii" ↔ "CMS Jant Makina San. Tic." gibi
+            # yazımı farklı ama ayırt edici kelimeleri aynı olan çiftler
+            best = max(best, 0.88 if ratio < 0.9 else 0.92)
     return best
 
 
@@ -432,9 +538,10 @@ def match_companies(
     """1-1 eşleştirme; artanları halkarz_only / doviz_only bırakır."""
     used_d: set[int] = set()
     pairs: list[tuple[float, int, int]] = []
+    weights = _token_weights(halkarz, doviz)
     for i, ha in enumerate(halkarz):
         for j, dv in enumerate(doviz):
-            sc = _score_pair(ha, dv)
+            sc = _score_pair(ha, dv, weights)
             if sc >= threshold:
                 pairs.append((sc, i, j))
     pairs.sort(reverse=True)
@@ -490,6 +597,7 @@ def _paired_row(
     return {
         "name": name,
         "ticker": ticker,
+        "row_key": row_key(ha, dv, ticker),
         "match": "both" if ha and dv else ("halkarz_only" if ha else "doviz_only"),
         "score": round(float(score), 3),
         "bucket": _bucket(ha, dv),
@@ -506,6 +614,23 @@ def _paired_row(
         "is_new": "Yeni" in ((ha or {}).get("badges") or []),
         "status": ((ha or {}).get("status") or (dv or {}).get("status") or ""),
     }
+
+
+def row_key(
+    ha: dict[str, Any] | None,
+    dv: dict[str, Any] | None,
+    ticker: str = "",
+) -> str:
+    """Taramalar arasında sabit kalan satır kimliği (gizleme için)."""
+    for src in (ha, dv):
+        slug = _slug_key((src or {}).get("url") or "")
+        if len(slug) >= 4:
+            return "s:" + slug
+    t = _ticker_norm(ticker or (ha or {}).get("ticker") or (dv or {}).get("ticker") or "")
+    if t:
+        return "t:" + t
+    name = (ha or dv or {}).get("name") or ""
+    return "n:" + (_core_name(name) or _fold(name))
 
 
 def _public_side(item: dict[str, Any]) -> dict[str, Any]:
@@ -863,6 +988,25 @@ def _fetch_halkarz_details(urls: list[str], *, limit: int | None = None) -> dict
     return out
 
 
+def _page_row_count(key: str, html: str) -> int:
+    """Sayfa gerçekten liste döndürmüş mü? (boş/kısmi yanıtı yakalamak için)"""
+    if not html:
+        return 0
+    try:
+        if key == "halkarz":
+            lists = parse_halkarz_home(html)
+            return len(lists["ilk"]) + len(lists["taslak"])
+        if key == "doviz_home":
+            return len(parse_doviz_aktif(html))
+        if key == "doviz_taslak":
+            return len(parse_doviz_taslak(html))
+        if key == "doviz_gecmis":
+            return len(parse_doviz_gecmis(html))
+    except Exception:  # parse patlarsa sayfayı sağlıksız say
+        return 0
+    return 0
+
+
 def fetch_compare(*, force: bool = False, details: bool = True, detail_scope: str = "ilk") -> dict[str, Any]:
     now = time.monotonic()
     with _cache_lock:
@@ -878,11 +1022,20 @@ def fetch_compare(*, force: bool = False, details: bool = True, detail_scope: st
 
     def grab(key: str, url: str) -> None:
         try:
-            pages[key] = _http_get(url)
+            html = _http_get(url)
+            if _page_row_count(key, html) < _MIN_ROWS.get(key, 0):
+                raise ValueError("liste beklenenden kısa geldi")
+            pages[key] = html
+            with _page_cache_lock:
+                _page_cache[key] = html
         except Exception as exc:
-            errors[key] = str(exc)
-            pages[key] = ""
-            logger.warning("ipo fetch %s failed: %s", key, exc)
+            with _page_cache_lock:
+                stale = _page_cache.get(key) or ""
+            pages[key] = stale
+            errors[key] = (
+                f"{exc} (son başarılı kopya kullanıldı)" if stale else str(exc)
+            )
+            logger.warning("ipo fetch %s failed: %s (stale=%s)", key, exc, bool(stale))
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         futs = [
@@ -929,6 +1082,7 @@ def snapshot_company(item: dict[str, Any]) -> dict[str, Any]:
     fields.pop("şirket", None)
     return {
         "id": _company_id(item),
+        "row_key": row_key(item, None),
         "name": item.get("name") or "",
         "ticker": item.get("ticker") or "",
         "section": item.get("section") or "",
@@ -1036,6 +1190,7 @@ def diff_halkarz_snapshots(
         dv = lookup.get(item.get("id") or "") or {}
         return {
             "id": item.get("id") or "",
+            "row_key": item.get("row_key") or row_key(item, None),
             "name": item.get("name") or "",
             "ticker": item.get("ticker") or "",
             "section": item.get("section") or "",
@@ -1220,3 +1375,69 @@ def run_scheduled_visit(db, *, slot: str = "manual") -> dict[str, Any]:
     )
     return out
 
+
+
+# --- «Bunu bir daha gösterme» ------------------------------------------------
+
+
+def hidden_keys(db) -> list[str]:
+    from backend.models import IpoHiddenCompany
+
+    rows = db.query(IpoHiddenCompany).order_by(IpoHiddenCompany.created_at.desc()).all()
+    return [r.row_key for r in rows if r.row_key]
+
+
+def hidden_rows_public(db) -> list[dict[str, Any]]:
+    from backend.models import IpoHiddenCompany
+
+    rows = db.query(IpoHiddenCompany).order_by(IpoHiddenCompany.created_at.desc()).all()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        created = r.created_at
+        out.append(
+            {
+                "row_key": r.row_key,
+                "name": r.name or "",
+                "ticker": r.ticker or "",
+                "hidden_by": r.hidden_by or "",
+                "created_at": created.strftime("%Y-%m-%d %H:%M") if created else "",
+            }
+        )
+    return out
+
+
+def set_hidden(
+    db,
+    *,
+    key: str,
+    hidden: bool,
+    name: str = "",
+    ticker: str = "",
+    by: str = "",
+) -> dict[str, Any]:
+    """Bir satırı gizle / geri getir. Sonuç: güncel gizli anahtar listesi."""
+    from backend.models import IpoHiddenCompany
+
+    key = (key or "").strip()[:191]
+    if not key:
+        raise ValueError("row_key gerekli")
+    row = db.query(IpoHiddenCompany).filter(IpoHiddenCompany.row_key == key).first()
+    if hidden:
+        if row is None:
+            db.add(
+                IpoHiddenCompany(
+                    row_key=key,
+                    name=(name or "")[:255],
+                    ticker=_ticker_norm(ticker or "")[:16],
+                    hidden_by=(by or "")[:191],
+                )
+            )
+        else:
+            if name:
+                row.name = name[:255]
+            if ticker:
+                row.ticker = _ticker_norm(ticker)[:16]
+    elif row is not None:
+        db.delete(row)
+    db.commit()
+    return {"ok": True, "hidden": hidden_keys(db)}
