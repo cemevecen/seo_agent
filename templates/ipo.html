@@ -119,6 +119,34 @@
   .ipo-kpi-value { font-size: clamp(15px, 1.5vw, 26px); line-height: 1.15; margin-top: 2px; }
   .ipo-kpi-sub { font-size: clamp(8.5px, 0.6vw, 10px); margin-top: 3px; }
   @media (max-width: 640px) { .ipo-kpi { min-width: 132px; } }
+  /* kaynak panelleri: halkarz.com vs doviz.com */
+  .ipo-src {
+    border-radius: 14px; border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252); padding: 10px 12px;
+  }
+  .ipo-src--halkarz { border-left: 3px solid #3b62b5; }
+  .ipo-src--doviz { border-left: 3px solid #22357a; }
+  html.dark .ipo-src, html.charcoal .ipo-src { border-color: rgb(39 39 42); background: rgb(32 32 36); }
+  html.dark .ipo-src--halkarz, html.charcoal .ipo-src--halkarz { border-left-color: #5b83d6; }
+  html.dark .ipo-src--doviz, html.charcoal .ipo-src--doviz { border-left-color: #6d8ae8; }
+  .ipo-src-head { display: flex; align-items: center; gap: 8px; }
+  .ipo-src-name {
+    font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+    color: rgb(71 85 105);
+  }
+  html.dark .ipo-src-name, html.charcoal .ipo-src-name { color: rgb(161 161 170); }
+  .ipo-src-body { margin-top: 6px; }
+  .ipo-logo {
+    width: 28px; height: 28px; flex: none;
+    border-radius: 9999px; object-fit: cover; object-position: center;
+    background: #fff; box-shadow: 0 0 0 1px rgb(15 23 42 / .10);
+  }
+  .ipo-logo--sm { width: 18px; height: 18px; }
+  .ipo-col-head { display: inline-flex; align-items: center; gap: 6px; }
+  .ipo-col-ha, .ipo-col-dv { background: rgb(248 250 252); }
+  .ipo-col-dv { background: rgb(241 245 249); }
+  html.dark .ipo-col-ha, html.charcoal .ipo-col-ha { background: rgb(30 30 34); }
+  html.dark .ipo-col-dv, html.charcoal .ipo-col-dv { background: rgb(36 36 41); }
   .ipo-pill { display:inline-flex; align-items:center; border-radius:999px; padding:1px 8px; font-size:10px; font-weight:700; letter-spacing:.02em; }
   .ipo-missing { background:#fef2f2; color:#b91c1c; }
   .ipo-extra { background:#fffbeb; color:#b45309; }
@@ -172,6 +200,29 @@
     if (m === "both") return pill("both", "eşleşti");
     if (m === "halkarz_only") return pill("missing", "doviz’de yok");
     return pill("extra", "halkarz’da yok");
+  }
+
+  const SOURCES = {
+    halkarz: { label: "halkarz.com", short: "halkarz", logo: "/static/brand/halkarz-app-icon.png?v=1" },
+    doviz: { label: "doviz.com", short: "doviz", logo: "/static/brand/dovizcom-app-icon.png?v=1" },
+  };
+  function logoImg(src, small) {
+    const m = SOURCES[src];
+    const px = small ? 18 : 28;
+    return `<img class="ipo-logo${small ? " ipo-logo--sm" : ""}" src="${m.logo}" width="${px}" height="${px}" alt="${esc(m.label)}" decoding="async" loading="lazy">`;
+  }
+  function srcPanel(src, body) {
+    const m = SOURCES[src];
+    return `<section class="ipo-src ipo-src--${src}">
+      <header class="ipo-src-head">${logoImg(src)}<span class="ipo-src-name">${esc(m.label)}</span></header>
+      <div class="ipo-src-body">${body}</div>
+    </section>`;
+  }
+  function srcLink(src, url, text, fallback) {
+    if (url) {
+      return `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`;
+    }
+    return fallback;
   }
 
   function today() { return (data && data.today) || new Date().toISOString().slice(0, 10); }
@@ -398,7 +449,10 @@
     return `<div class="mt-3 overflow-x-auto">
       <table class="min-w-full text-left">
         <thead><tr class="text-[10px] uppercase tracking-wide text-slate-400">
-          <th class="py-1 pr-3">Alan</th><th class="py-1 pr-3">halkarz</th><th class="py-1 pr-3">doviz</th><th class="py-1">Δ</th>
+          <th class="py-1 pr-3">Alan</th>
+          <th class="ipo-col-ha px-2 py-1"><span class="ipo-col-head">${logoImg("halkarz", true)}halkarz</span></th>
+          <th class="ipo-col-dv px-2 py-1"><span class="ipo-col-head">${logoImg("doviz", true)}doviz</span></th>
+          <th class="py-1 pl-3">Δ</th>
         </tr></thead>
         <tbody>${diffs.map(fieldRow).join("")}</tbody>
       </table>
@@ -409,9 +463,9 @@
     const kind = d.kind || "ok";
     return `<tr class="align-top">
       <td class="py-1 pr-3 text-[11px] text-slate-500 dark:text-zinc-500 whitespace-nowrap">${esc(d.label || d.field)}</td>
-      <td class="py-1 pr-3 text-[12px] text-slate-800 dark:text-zinc-200">${esc(d.halkarz || "—")}</td>
-      <td class="py-1 pr-3 text-[12px] text-slate-800 dark:text-zinc-200">${esc(d.doviz || "—")}</td>
-      <td class="py-1">${pill(kind, kind === "ok" ? "aynı" : kind === "missing" ? "doviz eksik" : kind === "extra" ? "halkarz yok" : "farklı")}</td>
+      <td class="ipo-col-ha px-2 py-1 text-[12px] text-slate-800 dark:text-zinc-200">${esc(d.halkarz || "—")}</td>
+      <td class="ipo-col-dv px-2 py-1 text-[12px] text-slate-800 dark:text-zinc-200">${esc(d.doviz || "—")}</td>
+      <td class="py-1 pl-3">${pill(kind, kind === "ok" ? "aynı" : kind === "missing" ? "doviz eksik" : kind === "extra" ? "halkarz yok" : "farklı")}</td>
     </tr>`;
   }
 
@@ -444,10 +498,10 @@
             ${r.is_new ? pill("mismatch", "Yeni!") : ""}
             ${datePill(meta.date_iso, meta.date_source)}
           </div>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">
-            halkarz: ${esc(ha.status || "—")} ${ha.date_label ? "· " + esc(ha.date_label) : ""}
-            &nbsp;·&nbsp; doviz: ${esc(dv.status || "—")} ${dv.date_label ? "· " + esc(dv.date_label) : ""}
-          </p>
+          <span class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-zinc-500">
+            <span class="ipo-col-head">${logoImg("halkarz", true)}${esc(ha.status || "—")}${ha.date_label ? " · " + esc(ha.date_label) : ""}</span>
+            <span class="ipo-col-head">${logoImg("doviz", true)}${esc(dv.status || (r.match === "halkarz_only" ? "kayıt yok" : "—"))}${dv.date_label ? " · " + esc(dv.date_label) : ""}</span>
+          </span>
         </div>
         <div class="flex flex-wrap gap-1">
           ${(r.missing_on_doviz || []).slice(0,3).map((f) => pill("missing", (data.field_labels || {})[f] || f)).join("")}
@@ -456,14 +510,10 @@
       </button>
       <div id="${id}" class="${openByDefault ? "" : "hidden"} border-t border-slate-100 px-4 py-3 dark:border-zinc-800">
         <div class="grid gap-3 sm:grid-cols-2">
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">halkarz.com</p>
-            ${ha.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(ha.url)}" target="_blank" rel="noopener">${esc(ha.name || r.name)}</a>` : `<p class="text-xs">${esc(ha.name || "—")}</p>`}
-          </div>
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">doviz.com</p>
-            ${dv.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(dv.url)}" target="_blank" rel="noopener">${esc(dv.name || r.name)}</a>` : `<p class="text-xs text-rose-600 dark:text-rose-300">${r.match === "halkarz_only" ? "Sayfa yok" : esc(dv.name || "—")}</p>`}
-          </div>
+          ${srcPanel("halkarz", srcLink("halkarz", ha.url, ha.name || r.name, `<p class="text-xs text-slate-700 dark:text-zinc-300">${esc(ha.name || "—")}</p>`)
+            + (ha.status ? `<p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">${esc(ha.status)}${ha.date_label ? " · " + esc(ha.date_label) : ""}</p>` : ""))}
+          ${srcPanel("doviz", srcLink("doviz", dv.url, dv.name || r.name, `<p class="text-xs font-medium text-rose-600 dark:text-rose-300">${r.match === "halkarz_only" ? "Sayfa yok" : esc(dv.name || "—")}</p>`)
+            + (dv.status ? `<p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">${esc(dv.status)}${dv.date_label ? " · " + esc(dv.date_label) : ""}</p>` : ""))}
         </div>
         ${diffTable(diffs, "Karşılaştırılacak alan yok")}
       </div>
@@ -508,23 +558,21 @@
             ${compare ? matchPill(compare.match) : dovizFlag(r.on_doviz)}
             ${datePill(meta.date_iso, meta.date_source)}
           </div>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">
-            halkarz: ${esc(r.status || (compare && compare.halkarz && compare.halkarz.status) || "—")} ${r.date_label ? "· " + esc(r.date_label) : ""}
-            ${compare && compare.doviz ? " · doviz: " + esc(compare.doviz.status || "—") : (r.on_doviz ? " · doviz: " + esc(r.doviz_status || "var") : " · doviz sayfası yok")}
-          </p>
+          <span class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-zinc-500">
+            <span class="ipo-col-head">${logoImg("halkarz", true)}${esc(r.status || (compare && compare.halkarz && compare.halkarz.status) || "—")}${r.date_label ? " · " + esc(r.date_label) : ""}</span>
+            <span class="ipo-col-head">${logoImg("doviz", true)}${compare && compare.doviz ? esc(compare.doviz.status || "—") : (r.on_doviz ? esc(r.doviz_status || "var") : "sayfa yok")}</span>
+          </span>
           ${compare ? `<div class="mt-1 flex flex-wrap gap-1">${gapPills(compare)}</div>` : ""}
         </div>
       </button>
       <div id="${id}" class="${openByDefault ? "" : "hidden"} border-t border-slate-100 px-4 py-3 dark:border-zinc-800">
         <div class="grid gap-3 sm:grid-cols-2">
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">halkarz.com</p>
-            ${(compare && compare.halkarz && compare.halkarz.url) || r.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc((compare && compare.halkarz && compare.halkarz.url) || r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a>` : `<p class="text-xs">${esc(r.name)}</p>`}
-          </div>
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">doviz.com</p>
-            ${compare && compare.doviz && compare.doviz.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(compare.doviz.url)}" target="_blank" rel="noopener">${esc(compare.doviz.name || r.name)}</a>` : (r.doviz_url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(r.doviz_url)}" target="_blank" rel="noopener">Kayıt var</a>` : `<p class="text-xs text-rose-600 dark:text-rose-300">Yok</p>`)}
-          </div>
+          ${srcPanel("halkarz", srcLink("halkarz", (compare && compare.halkarz && compare.halkarz.url) || r.url, r.name, `<p class="text-xs text-slate-700 dark:text-zinc-300">${esc(r.name)}</p>`)
+            + (r.status ? `<p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">${esc(r.status)}${r.date_label ? " · " + esc(r.date_label) : ""}</p>` : ""))}
+          ${srcPanel("doviz", (compare && compare.doviz && compare.doviz.url)
+            ? srcLink("doviz", compare.doviz.url, compare.doviz.name || r.name, "")
+              + (compare.doviz.status ? `<p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">${esc(compare.doviz.status)}</p>` : "")
+            : (r.doviz_url ? srcLink("doviz", r.doviz_url, "Kayıt var", "") : `<p class="text-xs font-medium text-rose-600 dark:text-rose-300">Yok</p>`))}
         </div>
         ${compare ? diffTable(diffs, "Alan karşılaştırması yok") : ""}
         ${changes.length ? `<p class="mt-3 text-[10px] font-bold uppercase tracking-wide text-slate-400">Son ziyaret farkı</p><table class="mt-1 min-w-full text-left">${changes.map((ch) => `<tr>
