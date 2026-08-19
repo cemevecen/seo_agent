@@ -148,6 +148,14 @@
   .ipo-col-dv { background: rgb(241 245 249); }
   html.dark .ipo-col-ha, html.charcoal .ipo-col-ha { background: rgb(30 30 34); }
   html.dark .ipo-col-dv, html.charcoal .ipo-col-dv { background: rgb(36 36 41); }
+  .ipo-chev {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 8px; flex: none;
+    color: rgb(100 116 139); transition: transform .2s ease, background .15s ease;
+  }
+  .ipo-chev:hover { background: rgb(241 245 249); color: rgb(67 56 202); }
+  html.dark .ipo-chev:hover, html.charcoal .ipo-chev:hover { background: rgb(39 39 42); color: rgb(199 210 254); }
+  .ipo-chev.is-open { transform: rotate(180deg); }
   .ipo-group {
     margin-top: 14px; font-size: 10px; font-weight: 800; letter-spacing: .08em;
     text-transform: uppercase; color: rgb(100 116 139);
@@ -438,6 +446,12 @@
     return true;
   }
 
+  function chevron(id, open) {
+    return `<span class="ipo-chev${open ? " is-open" : ""}" data-chev="${esc(id)}" title="${open ? "Daralt" : "Genişlet"}" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </span>`;
+  }
+
   function hideBox(key, name, ticker) {
     if (!key) return "";
     const on = hidden.has(key);
@@ -641,9 +655,10 @@
             <span class="ipo-col-head">${logoImg("doviz", true)}${esc(dv.status || (r.match === "halkarz_only" ? "kayıt yok" : "—"))}${dv.date_label ? " · " + esc(dv.date_label) : ""}</span>
           </span>
         </div>
-        <div class="flex flex-wrap gap-1">
+        <div class="flex flex-wrap items-center justify-end gap-1">
           ${(r.missing_on_doviz || []).slice(0,3).map((f) => pill("missing", (data.field_labels || {})[f] || f)).join("")}
           ${(r.mismatch || []).slice(0,2).map((f) => pill("mismatch", (data.field_labels || {})[f] || f)).join("")}
+          ${chevron(id, openByDefault)}
         </div>
       </button>
       <div id="${id}" class="${openByDefault ? "" : "hidden"} border-t border-slate-100 px-4 py-3 dark:border-zinc-800">
@@ -704,6 +719,7 @@
           </span>
           ${compare ? `<div class="mt-1 flex flex-wrap gap-1">${gapPills(compare)}</div>` : ""}
         </div>
+        <div class="flex items-center justify-end">${chevron(id, openByDefault)}</div>
       </button>
       <div id="${id}" class="${openByDefault ? "" : "hidden"} border-t border-slate-100 px-4 py-3 dark:border-zinc-800">
         <div class="grid gap-3 sm:grid-cols-2">
@@ -858,8 +874,15 @@
   el("ipo-list").addEventListener("click", (ev) => {
     const btn = ev.target.closest("[data-open]");
     if (!btn) return;
-    const box = document.getElementById(btn.getAttribute("data-open"));
-    if (box) box.classList.toggle("hidden");
+    const id = btn.getAttribute("data-open");
+    const box = document.getElementById(id);
+    if (!box) return;
+    const collapsed = box.classList.toggle("hidden");
+    const chev = btn.querySelector(`[data-chev="${id}"]`);
+    if (chev) {
+      chev.classList.toggle("is-open", !collapsed);
+      chev.setAttribute("title", collapsed ? "Genişlet" : "Daralt");
+    }
   });
 
   loadState();
