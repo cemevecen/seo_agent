@@ -43,6 +43,15 @@ _page_cache_lock = threading.Lock()
 _page_cache: dict[str, str] = {}
 # Bir sayfa beklenenden azını döndürüyorsa (WAF / kısmi render) yine stale'e düş.
 _MIN_ROWS = {"halkarz": 20, "doviz_taslak": 40, "doviz_gecmis": 40}
+# Detay sayfaları (halkarz + doviz) uzun ömürlü cache'lenir: taslak bilgileri
+# saatlerce değişmez, her istekte yüzlerce sayfa çekmenin anlamı yok.
+_detail_lock = threading.Lock()
+_detail_cache: dict[str, tuple[float, dict[str, str]]] = {}
+_DETAIL_TTL_S = 12 * 60 * 60
+_DETAIL_WORKERS = 10
+# Tek istekte çekilecek yeni detay sayısı (kalanı sonraki turda / Yenile'de dolar)
+_DETAIL_BUDGET = 140
+_DETAIL_BUDGET_REFRESH = 700
 
 _LEGAL = re.compile(
     r"\b(a\.?\s*ş\.?|anonim\s+sirketi|san(?:ayi)?\.?|tic(?:aret)?\.?|"
@@ -306,9 +315,226 @@ def parse_halkarz_detail(raw_html: str) -> dict[str, str]:
             continue
         val = _strip_tags(raw_val)
         val = re.sub(r"\(Konsorsiyum\)", "", val, flags=re.I).strip()
+        val = _clean_value(val)
         if val:
             fields[key] = val
+    fields.update(_parse_halkarz_summary(raw_html))
     return fields
+
+
+_HALKARZ_SUMMARY_RE = re.compile(
+    r'<ul class="aex-in">(.*?)</ul>', re.I | re.S
+)
+_HALKARZ_SUMMARY_ITEM_RE = re.compile(
+    r"<li[^>]*>\s*<h5>(.*?)</h5>\s*<p>(.*?)</p>", re.I | re.S
+)
+_HALKARZ_FS_TABLE_RE = re.compile(
+    r'<table class="fs-extra[^"]*">(.*?)</table>', re.I | re.S
+)
+
+
+def _parse_halkarz_summary(raw_html: str) -> dict[str, str]:
+    """halkarz «Özet Bilgiler» blokları (taslaklarda da dolu)."""
+    out: dict[str, str] = {}
+    chunk_m = _HALKARZ_SUMMARY_RE.search(raw_html or "")
+    if not chunk_m:
+        return out
+    chunk = chunk_m.group(1)
+    for raw_title, raw_body in _HALKARZ_SUMMARY_ITEM_RE.findall(chunk):
+        key = _section_key(_strip_tags(raw_title))
+        if key in _SKIP_SECTIONS:
+            continue
+        val = _clean_value(_block_text(raw_body))
+        if val and key not in out:
+            out[key] = val
+    fs = _HALKARZ_FS_TABLE_RE.search(chunk)
+    if fs:
+        table = _financial_table_text(fs.group(1))
+        if table:
+            out["finansal"] = table
+    return out
+
+
+def _financial_table_text(raw: str) -> str:
+    """Finansal tabloyu 'Hasılat: 2025 2,9 Milyar TL · 2024 …' satırlarına indirger."""
+    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", raw or "", re.I | re.S)
+    if not rows:
+        return ""
+    years: list[str] = []
+    lines: list[str] = []
+    for row in rows:
+        heads = [
+            _strip_tags(x) for x in re.findall(r"<th[^>]*>(.*?)</th>", row, re.I | re.S)
+        ]
+        if heads:
+            years = [h for h in heads[1:] if h]
+            continue
+        cells = [
+            _strip_tags(x) for x in re.findall(r"<td[^>]*>(.*?)</td>", row, re.I | re.S)
+        ]
+        if not cells:
+            continue
+        label = cells[0].lstrip("- ").strip()
+        vals = cells[1:]
+        parts = [
+            f"{years[i] if i < len(years) else ''} {v}".strip()
+            for i, v in enumerate(vals)
+            if v
+        ]
+        if label and parts:
+            lines.append(f"{label}: " + " · ".join(parts))
+    return "\n".join(lines)
+
+
+_DOVIZ_DETAIL_BOX_RE = re.compile(
+    r'<div class="ipo-detail">\s*<div class="text-xs[^"]*">(.*?)</div>\s*'
+    r'<div class="text-md[^"]*">(.*?)</div>',
+    re.I | re.S,
+)
+_DOVIZ_SECTION_RE = re.compile(
+    r"<h3>(.*?)</h3>(.*?)(?=<h3>|$)", re.I | re.S
+)
+_DOVIZ_SECTION_BLOCK_RE = re.compile(
+    r'<h2>(.*?)</h2>\s*<div class="ipo-section">(.*?)</div>', re.I | re.S
+)
+
+
+def enrich_fields(fields: dict[str, str]) -> dict[str, str]:
+    """İki sitenin farklı kırdığı alanları ortak anahtarlara açar.
+
+    halkarz «Halka Arz Satış Yöntemi» iki satır verir; doviz aynı bilgiyi
+    «Talep Toplama Yöntemi» + «Aracılık Yöntemi» diye ayrı gösterir.
+    """
+    out = dict(fields or {})
+    lines = [
+        ln.lstrip("- ").strip()
+        for ln in (out.get("satis_yontemi") or "").split("\n")
+        if ln.strip()
+    ]
+    for line in lines:
+        folded = _fold(line)
+        if not out.get("talep_yontemi") and "talep toplama" in folded:
+            out["talep_yontemi"] = line
+        elif not out.get("aracilik_yontemi") and "aracilig" in folded.replace("ğ", "g"):
+            out["aracilik_yontemi"] = line
+    if not out.get("satis_yontemi"):
+        parts = [out.get("talep_yontemi") or "", out.get("aracilik_yontemi") or ""]
+        parts = [p for p in parts if p]
+        if len(parts) >= 2:
+            out["satis_yontemi"] = "\n".join("- " + p for p in parts)
+    return out
+
+
+def parse_doviz_detail(raw_html: str) -> dict[str, str]:
+    """doviz.com halka arz detay sayfası: üst kutu + «Halka Arz Detayı» blokları."""
+    fields: dict[str, str] = {}
+    for raw_label, raw_val in _DOVIZ_DETAIL_BOX_RE.findall(raw_html or ""):
+        key = _section_key(_strip_tags(raw_label))
+        val = _clean_value(_strip_tags(raw_val))
+        if val and key not in fields:
+            fields[key] = val
+    for raw_title, raw_body in _DOVIZ_SECTION_BLOCK_RE.findall(raw_html or ""):
+        title_key = _section_key(_strip_tags(raw_title))
+        inner = list(_DOVIZ_SECTION_RE.findall(raw_body))
+        if not inner:
+            if title_key in _SKIP_SECTIONS:
+                continue
+            val = _clean_value(_block_text(raw_body))
+            if val and title_key not in fields:
+                fields[title_key] = val
+            continue
+        for sub_title, sub_body in inner:
+            key = _section_key(_strip_tags(sub_title))
+            if key in _SKIP_SECTIONS:
+                continue
+            val = _clean_value(_block_text(sub_body))
+            if val and key not in fields:
+                fields[key] = val
+    return fields
+
+
+# Detay sayfalarındaki bölüm başlıklarının ortak anahtara indirgenmesi
+_SECTION_KEYS = {
+    "halka arz tarihi": "halka_arz_tarihi",
+    "talep toplama tarihleri": "halka_arz_tarihi",
+    "halka arz fiyati": "fiyat",
+    "halka arz fiyati araligi": "fiyat",
+    "fiyat": "fiyat",
+    "dagitim yontemi": "dagitim",
+    "pay": "pay",
+    "ek pay": "ek_pay",
+    "araci kurum": "araci_kurum",
+    "aracilik yontemi": "aracilik_yontemi",
+    "talep toplama yontemi": "talep_yontemi",
+    "bist kodu": "bist_kodu",
+    "pazar": "pazar",
+    "bist ilk islem tarihi": "ilk_islem",
+    "ilk islem tarihi": "ilk_islem",
+    "halka arz buyuklugu": "buyukluk",
+    "halka arz sekli": "arz_sekli",
+    "fonun kullanim yeri": "fon_kullanim",
+    "halka arz satis yontemi": "satis_yontemi",
+    "tahsisat gruplari": "tahsisat",
+    "dagitilacak pay miktari": "dagitilacak_pay",
+    "dagitilacak pay miktari olasi": "dagitilacak_pay",
+    "fiyat istikrari": "fiyat_istikrari",
+    "satmama taahhudu": "satmama",
+    "halka aciklik": "halka_aciklik",
+    "halka aciklik orani": "halka_aciklik",
+    "finansal tablo": "finansal",
+    "sirket bilgisi": "sirket_bilgisi",
+    "sirket hakkinda": "sirket_bilgisi",
+    # doviz aynı bilgiyi başka başlıkla veriyor
+    "halka arz edilecek paylar": "arz_sekli",
+    "elde edilecek fonun kullanim yeri": "fon_kullanim",
+    "fonun kullanilacagi yer": "fon_kullanim",
+    "taahhutler": "satmama",
+    "satmama taahhutleri": "satmama",
+    "dagitilan pay miktari": "dagitilacak_pay",
+    "halka aciklik orani sonrasi": "halka_aciklik",
+    "halka arz iskontosu": "iskonto",
+    "talep toplama gunu": "talep_gunu",
+    "tahmini halka arz takvimi": "takvim",
+}
+# Sadece tek kaynakta bulunan, karşılaştırması anlamsız bölümler
+_SKIP_SECTIONS = {"sirket_bilgisi"}
+_PLACEHOLDERS = {"hazirlaniyor", "belli degil", "belirsiz", "aciklanmadi", "-", "—", ""}
+
+
+def _section_key(title: str) -> str:
+    folded = _fold(title).replace("/", " ").strip()
+    folded = re.sub(r"\s+", " ", folded)
+    if folded in _SECTION_KEYS:
+        return _SECTION_KEYS[folded]
+    # "(Olası)" gibi parantezli ekleri at
+    bare = re.sub(r"\(.*?\)", " ", folded)
+    bare = re.sub(r"\s+", " ", bare).strip()
+    if bare in _SECTION_KEYS:
+        return _SECTION_KEYS[bare]
+    return "x_" + re.sub(r"[^a-z0-9]+", "_", bare).strip("_")
+
+
+def _clean_value(value: str) -> str:
+    """Satır yapısını koruyarak sadeleştirir; yer tutucuları boş sayar."""
+    raw = (value or "").replace("\xa0", " ")
+    lines = [re.sub(r"[^\S\n]+", " ", ln).strip() for ln in raw.split("\n")]
+    val = "\n".join([ln for ln in lines if ln])
+    if _fold(val.replace("\n", " ")).rstrip(". ") in _PLACEHOLDERS:
+        return ""
+    return val
+
+
+def _block_text(raw: str) -> str:
+    """<br>'ları satıra çevirip metni sadeleştirir."""
+    text = re.sub(r"<br\s*/?>", "\n", raw or "", flags=re.I)
+    text = re.sub(r"</(p|li|tr|div|h[1-6])>", "\n", text, flags=re.I)
+    text = _strip_tags_keep_lines(text)
+    lines = [re.sub(r"\s+", " ", ln).strip() for ln in text.split("\n")]
+    return "\n".join([ln for ln in lines if ln])
+
+
+def _strip_tags_keep_lines(raw: str) -> str:
+    return html_lib.unescape(re.sub(r"<[^>]+>", " ", raw or ""))
 
 
 def parse_doviz_aktif(raw_html: str) -> list[dict[str, Any]]:
@@ -579,16 +805,18 @@ def _paired_row(
     diffs = _diff_fields(ha_fields, dv_fields) if ha and dv else []
     if ha and not dv:
         diffs = [
-            {"field": k, "halkarz": v, "doviz": "", "kind": "missing"}
+            {"field": k, "label": _pretty_label(k), "halkarz": v, "doviz": "", "kind": "missing"}
             for k, v in ha_fields.items()
             if k != "şirket"
         ]
     elif dv and not ha:
         diffs = [
-            {"field": k, "halkarz": "", "doviz": v, "kind": "extra"}
+            {"field": k, "label": _pretty_label(k), "halkarz": "", "doviz": v, "kind": "extra"}
             for k, v in dv_fields.items()
             if k != "şirket"
         ]
+    for d in diffs:
+        d["long"] = is_long_field(d.get("field") or "", d.get("halkarz") or "", d.get("doviz") or "")
     missing_on_doviz = [d["field"] for d in diffs if d["kind"] == "missing"]
     mismatch = [d["field"] for d in diffs if d["kind"] == "mismatch"]
     date_iso, date_source = _row_date(ha, dv)
@@ -666,8 +894,45 @@ def _bucket(ha: dict[str, Any] | None, dv: dict[str, Any] | None) -> str:
     return "arz_olacak"
 
 
+FIELD_GROUPS: list[dict[str, Any]] = [
+    {
+        "key": "arz",
+        "label": "Halka arz bilgileri",
+        "fields": [
+            "bist_kodu", "halka_arz_tarihi", "ilk_islem", "fiyat", "pay", "ek_pay",
+            "buyukluk", "dagitim", "talep_yontemi", "aracilik_yontemi",
+            "araci_kurum", "pazar", "katilimci", "son", "getiri",
+        ],
+    },
+    {
+        "key": "ozet",
+        "label": "Özet bilgiler",
+        "fields": [
+            "arz_sekli", "fon_kullanim", "satis_yontemi", "tahsisat",
+            "dagitilacak_pay", "halka_aciklik", "fiyat_istikrari", "satmama",
+            "iskonto", "talep_gunu", "takvim", "finansal",
+        ],
+    },
+]
+
+
 _FIELD_LABELS = {
     "şirket": "Şirket",
+    "talep_yontemi": "Talep toplama yöntemi",
+    "aracilik_yontemi": "Aracılık yöntemi",
+    "arz_sekli": "Halka arz şekli",
+    "fon_kullanim": "Fonun kullanım yeri",
+    "satis_yontemi": "Halka arz satış yöntemi",
+    "tahsisat": "Tahsisat grupları",
+    "dagitilacak_pay": "Dağıtılacak pay (olası)",
+    "fiyat_istikrari": "Fiyat istikrarı",
+    "satmama": "Satmama taahhüdü",
+    "halka_aciklik": "Halka açıklık",
+    "finansal": "Finansal tablo",
+    "sirket_bilgisi": "Şirket bilgisi",
+    "iskonto": "Halka arz iskontosu",
+    "talep_gunu": "Talep toplama günü",
+    "takvim": "Tahmini takvim",
     "bist_kodu": "BIST kodu",
     "halka_arz_tarihi": "Talep / tarih",
     "fiyat": "Fiyat",
@@ -685,6 +950,13 @@ _FIELD_LABELS = {
 }
 
 
+def _pretty_label(key: str) -> str:
+    if key in _FIELD_LABELS:
+        return _FIELD_LABELS[key]
+    bare = key[2:] if key.startswith("x_") else key
+    return bare.replace("_", " ").strip().capitalize() or key
+
+
 def _diff_fields(ha: dict[str, str], dv: dict[str, str]) -> list[dict[str, str]]:
     keys = []
     for k in list(ha) + [k for k in dv if k not in ha]:
@@ -699,19 +971,63 @@ def _diff_fields(ha: dict[str, str], dv: dict[str, str]) -> list[dict[str, str]]
         if not a and not b:
             continue
         if a and not b:
-            out.append({"field": key, "label": _FIELD_LABELS.get(key, key), "halkarz": a, "doviz": "", "kind": "missing"})
+            out.append({"field": key, "label": _pretty_label(key), "halkarz": a, "doviz": "", "kind": "missing"})
         elif b and not a:
-            out.append({"field": key, "label": _FIELD_LABELS.get(key, key), "halkarz": "", "doviz": b, "kind": "extra"})
+            out.append({"field": key, "label": _pretty_label(key), "halkarz": "", "doviz": b, "kind": "extra"})
         elif _values_equal(key, a, b):
-            out.append({"field": key, "label": _FIELD_LABELS.get(key, key), "halkarz": a, "doviz": b, "kind": "ok"})
+            out.append({"field": key, "label": _pretty_label(key), "halkarz": a, "doviz": b, "kind": "ok"})
         else:
-            out.append({"field": key, "label": _FIELD_LABELS.get(key, key), "halkarz": a, "doviz": b, "kind": "mismatch"})
+            out.append({"field": key, "label": _pretty_label(key), "halkarz": a, "doviz": b, "kind": "mismatch"})
+    return out
+
+
+# Çok satırlı, madde madde gelen alanlar
+_LONG_FIELDS = {
+    "arz_sekli", "fon_kullanim", "satis_yontemi", "tahsisat", "dagitilacak_pay",
+    "fiyat_istikrari", "satmama", "halka_aciklik", "finansal", "sirket_bilgisi",
+}
+_FOOTNOTE_RE = re.compile(r"^(taslak\s+)?izahname|^kaynak\b|^\*+$")
+
+
+def is_long_field(key: str, *values: str) -> bool:
+    if key in _LONG_FIELDS:
+        return True
+    return any("\n" in (v or "") or len(v or "") > 90 for v in values)
+
+
+def _norm_lines(text: str) -> set[str]:
+    """Madde listelerini karşılaştırılabilir satır kümesine indirger."""
+    out: set[str] = set()
+    for raw in (text or "").split("\n"):
+        line = raw.strip().lstrip("-•*—– ").strip()
+        folded = _fold(line)
+        if not folded or _FOOTNOTE_RE.match(folded):
+            continue
+        out.add(re.sub(r"\s+", " ", folded))
     return out
 
 
 def _values_equal(key: str, a: str, b: str) -> bool:
     if _fold(a) == _fold(b):
         return True
+    if key == "araci_kurum":
+        fa, fb = _core_name(a), _core_name(b)
+        if fa and fb and (fa.startswith(fb) or fb.startswith(fa)):
+            return True
+        ta = {t for t in fa.split() if len(t) >= 3}
+        tb = {t for t in fb.split() if len(t) >= 3}
+        if ta and tb and (ta <= tb or tb <= ta):
+            return True
+    if is_long_field(key, a, b):
+        la, lb = _norm_lines(a), _norm_lines(b)
+        if la and lb and la == lb:
+            return True
+        # aynı bilgi farklı satırlara bölünmüş olabilir ("6 ay İhraççı, 6 ay
+        # Ortaklar" ↔ "- 6 Ay, İhraççı." + "- 6 Ay, Ortaklar.")
+        wa = {w for line in la for w in line.split() if len(w) > 1}
+        wb = {w for line in lb for w in line.split() if len(w) > 1}
+        if wa and wb and wa == wb:
+            return True
     if key in {"fiyat", "pay", "ek_pay", "buyukluk", "katilimci"}:
         da, db = _digits(a), _digits(b)
         return bool(da) and da == db
@@ -838,6 +1154,8 @@ def build_payload(
     doviz_taslak_html: str,
     doviz_gecmis_html: str,
     halkarz_details: dict[str, dict[str, str]] | None = None,
+    doviz_details: dict[str, dict[str, str]] | None = None,
+    detail_progress: dict[str, Any] | None = None,
     errors: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     ha_lists = parse_halkarz_home(halkarz_home_html)
@@ -851,6 +1169,15 @@ def build_payload(
             item["fields"] = {**item["fields"], **extra}
             if extra.get("bist_kodu") and not item.get("ticker"):
                 item["ticker"] = _ticker_norm(extra["bist_kodu"])
+        item["fields"] = enrich_fields(item["fields"])
+    dv_details = doviz_details or {}
+    for item in aktif + taslak + gecmis:
+        extra = dv_details.get(item.get("url") or "")
+        if extra:
+            item["fields"] = {**item["fields"], **extra}
+            if extra.get("bist_kodu") and not item.get("ticker"):
+                item["ticker"] = _ticker_norm(extra["bist_kodu"])
+        item["fields"] = enrich_fields(item["fields"])
     ha_all = merge_halkarz(ha_lists["ilk"], ha_lists["taslak"])
     dv_all = merge_doviz(aktif, taslak, gecmis)
     # kaynak sayfalardaki sıra = "en son girilen üstte"; sıralama için sakla
@@ -931,6 +1258,9 @@ def build_payload(
         "missing": [_brief(r) for r in missing],
         "extra": [_brief(r) for r in extra],
         "field_labels": _FIELD_LABELS,
+        "field_groups": FIELD_GROUPS,
+        "long_fields": sorted(_LONG_FIELDS),
+        "detail_progress": detail_progress or {},
         "sources": {
             "halkarz": HALKARZ_HOME,
             "doviz_aktif": DOVIZ_IPO,
@@ -957,34 +1287,184 @@ def _flagged_new(ha_all: list[dict[str, Any]], rows: list[dict[str, Any]]) -> li
     return out
 
 
-def _fetch_halkarz_details(urls: list[str], *, limit: int | None = None) -> dict[str, dict[str, str]]:
+_db_cache_ok = True
+
+
+def _db_session():
+    """DB yoksa (test / offline) detay cache'i yalnız bellekte tutulur."""
+    if not _db_cache_ok:
+        return None
+    try:
+        from backend.database import SessionLocal
+
+        return SessionLocal()
+    except Exception as exc:  # pragma: no cover - kurulum hatası
+        logger.debug("ipo detail cache db yok: %s", exc)
+        return None
+
+
+def _disable_db_cache(action: str, exc: Exception) -> None:
+    """Tablo yoksa/erişilemiyorsa her istekte tekrar denemeyelim."""
+    global _db_cache_ok
+    _db_cache_ok = False
+    logger.warning("ipo detail cache %s kapatıldı: %s", action, str(exc)[:200])
+
+
+def _load_details_from_db(urls: list[str]) -> dict[str, dict[str, str]]:
+    if not urls:
+        return {}
+    db = _db_session()
+    if db is None:
+        return {}
     out: dict[str, dict[str, str]] = {}
-    cap = _DETAIL_LIMIT if limit is None else max(0, int(limit))
-    uniq = []
+    try:
+        from backend.models import IpoDetailCache
+
+        fresh_after = datetime.utcnow() - timedelta(seconds=_DETAIL_TTL_S)
+        rows = (
+            db.query(IpoDetailCache)
+            .filter(IpoDetailCache.url.in_(urls[:900]))
+            .filter(IpoDetailCache.fetched_at >= fresh_after)
+            .all()
+        )
+        for row in rows:
+            try:
+                fields = json.loads(row.fields_json or "{}")
+            except json.JSONDecodeError:
+                continue
+            if isinstance(fields, dict):
+                out[row.url] = {str(k): str(v) for k, v in fields.items()}
+                with _detail_lock:
+                    _detail_cache[row.url] = (time.monotonic(), out[row.url])
+    except Exception as exc:
+        _disable_db_cache("read", exc)
+    finally:
+        db.close()
+    return out
+
+
+def _save_details_to_db(source: str, fetched: dict[str, dict[str, str]]) -> None:
+    if not fetched:
+        return
+    db = _db_session()
+    if db is None:
+        return
+    try:
+        from backend.models import IpoDetailCache
+
+        existing = {
+            row.url: row
+            for row in db.query(IpoDetailCache)
+            .filter(IpoDetailCache.url.in_(list(fetched)[:900]))
+            .all()
+        }
+        now = datetime.utcnow()
+        for url, fields in fetched.items():
+            blob = json.dumps(fields, ensure_ascii=False)
+            row = existing.get(url)
+            if row is None:
+                db.add(
+                    IpoDetailCache(
+                        url=url[:500], source=source[:16], fields_json=blob, fetched_at=now
+                    )
+                )
+            else:
+                row.fields_json = blob
+                row.source = source[:16]
+                row.fetched_at = now
+        db.commit()
+    except Exception as exc:
+        _disable_db_cache("write", exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+def _cached_detail(url: str) -> dict[str, str] | None:
+    with _detail_lock:
+        hit = _detail_cache.get(url)
+    if not hit:
+        return None
+    ts, fields = hit
+    if (time.monotonic() - ts) > _DETAIL_TTL_S:
+        return None
+    return dict(fields)
+
+
+def fetch_details(
+    urls: list[str],
+    parser,
+    *,
+    budget: int = _DETAIL_BUDGET,
+    label: str = "detail",
+) -> tuple[dict[str, dict[str, str]], dict[str, int]]:
+    """Detay sayfalarını cache'li ve bütçeli çeker.
+
+    Dönen ikinci değer ilerleme bilgisidir: {"total", "ready", "fetched"}.
+    Bütçe dolduğunda kalanlar bir sonraki turda tamamlanır.
+    """
+    uniq: list[str] = []
     seen: set[str] = set()
     for u in urls:
+        u = (u or "").strip()
         if u and u not in seen:
             seen.add(u)
             uniq.append(u)
-        if len(uniq) >= cap:
-            break
 
-    def one(url: str) -> tuple[str, dict[str, str]]:
+    out: dict[str, dict[str, str]] = {}
+    todo: list[str] = []
+    for url in uniq:
+        cached = _cached_detail(url)
+        if cached is not None:
+            if cached:
+                out[url] = cached
+        else:
+            todo.append(url)
+
+    if todo:
+        from_db = _load_details_from_db(todo)
+        if from_db:
+            out.update({u: f for u, f in from_db.items() if f})
+            todo = [u for u in todo if u not in from_db]
+
+    picked = todo[: max(0, int(budget))]
+
+    def one(url: str) -> tuple[str, dict[str, str] | None]:
         try:
-            html = _http_get(url)
-            return url, parse_halkarz_detail(html)
+            return url, parser(_http_get(url))
         except Exception as exc:
-            logger.warning("halkarz detail fail %s: %s", url, exc)
-            return url, {}
+            logger.warning("ipo %s detail fail %s: %s", label, url, exc)
+            return url, None
 
-    if not uniq:
-        return out
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        futs = [pool.submit(one, u) for u in uniq]
-        for fut in as_completed(futs):
-            url, fields = fut.result()
-            if fields:
-                out[url] = fields
+    if picked:
+        fresh: dict[str, dict[str, str]] = {}
+        with ThreadPoolExecutor(max_workers=_DETAIL_WORKERS) as pool:
+            futs = [pool.submit(one, u) for u in picked]
+            for fut in as_completed(futs):
+                url, fields = fut.result()
+                if fields is None:
+                    continue
+                with _detail_lock:
+                    _detail_cache[url] = (time.monotonic(), dict(fields))
+                fresh[url] = dict(fields)
+                if fields:
+                    out[url] = fields
+        _save_details_to_db(label, fresh)
+    progress = {
+        "total": len(uniq),
+        "ready": len(uniq) - max(0, len(todo) - len(picked)),
+        "fetched": len(picked),
+    }
+    return out, progress
+
+
+def _fetch_halkarz_details(urls: list[str], *, limit: int | None = None) -> dict[str, dict[str, str]]:
+    """Geriye dönük sarmalayıcı (eski çağrılar için)."""
+    budget = _DETAIL_LIMIT if limit is None else max(0, int(limit))
+    out, _ = fetch_details(urls, parse_halkarz_detail, budget=budget, label="halkarz")
     return out
 
 
@@ -1048,14 +1528,44 @@ def fetch_compare(*, force: bool = False, details: bool = True, detail_scope: st
             fut.result()
 
     detail_map: dict[str, dict[str, str]] = {}
-    if details and pages.get("halkarz"):
-        ha_lists = parse_halkarz_home(pages["halkarz"])
-        urls = [it["url"] for it in ha_lists["ilk"] if it.get("url")]
+    doviz_detail_map: dict[str, dict[str, str]] = {}
+    progress: dict[str, Any] = {}
+    if details:
         if detail_scope == "all":
-            urls.extend(it["url"] for it in ha_lists["taslak"] if it.get("url"))
-            detail_map = _fetch_halkarz_details(urls, limit=280)
+            budget = 10_000
+        elif force:
+            budget = _DETAIL_BUDGET_REFRESH
         else:
-            detail_map = _fetch_halkarz_details(urls)
+            budget = _DETAIL_BUDGET
+        if pages.get("halkarz"):
+            ha_lists = parse_halkarz_home(pages["halkarz"])
+            # taslaklar da detay taşıyor; ikisini birden çek
+            urls = [
+                it["url"]
+                for it in ha_lists["ilk"] + ha_lists["taslak"]
+                if it.get("url")
+            ]
+            detail_map, progress["halkarz"] = fetch_details(
+                urls, parse_halkarz_detail, budget=budget, label="halkarz"
+            )
+        dv_urls: list[str] = []
+        for key, parser in (
+            ("doviz_home", parse_doviz_aktif),
+            ("doviz_taslak", parse_doviz_taslak),
+            ("doviz_gecmis", parse_doviz_gecmis),
+        ):
+            if not pages.get(key):
+                continue
+            try:
+                dv_urls.extend(
+                    it["url"] for it in parser(pages[key]) if it.get("url")
+                )
+            except Exception as exc:  # parse hatası detayları engellemesin
+                logger.warning("ipo detail url scan %s: %s", key, exc)
+        if dv_urls:
+            doviz_detail_map, progress["doviz"] = fetch_details(
+                dv_urls, parse_doviz_detail, budget=budget, label="doviz"
+            )
 
     payload = build_payload(
         halkarz_home_html=pages.get("halkarz") or "",
@@ -1063,6 +1573,8 @@ def fetch_compare(*, force: bool = False, details: bool = True, detail_scope: st
         doviz_taslak_html=pages.get("doviz_taslak") or "",
         doviz_gecmis_html=pages.get("doviz_gecmis") or "",
         halkarz_details=detail_map,
+        doviz_details=doviz_detail_map,
+        detail_progress=progress,
         errors=errors,
     )
     payload["ok"] = not bool(errors.get("halkarz") and errors.get("doviz_taslak"))
@@ -1143,7 +1655,7 @@ def _snap_changes(prev: dict[str, Any], curr: dict[str, Any]) -> list[dict[str, 
         out.append(
             {
                 "field": key,
-                "label": _FIELD_LABELS.get(key, key),
+                "label": _pretty_label(key),
                 "before": a,
                 "after": b,
             }

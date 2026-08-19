@@ -493,3 +493,168 @@ def test_compare_rows_carry_row_key():
     keys = [r["row_key"] for r in rows]
     assert all(keys)
     assert len(keys) == len(set(keys)), "row_key'ler benzersiz olmalı"
+
+
+HALKARZ_TASLAK_DETAIL = """
+<table class="sp-table">
+<tr><td><em>Halka Arz Tarihi : </em></td><td><time>Hazırlanıyor...</time></td></tr>
+<tr><td><em>Halka Arz Fiyatı/Aralığı : </em></td><td><strong>Hazırlanıyor...</strong></td></tr>
+<tr><td><em>Dağıtım Yöntemi : </em></td><td><strong>Eşit Dağıtım **</strong></td></tr>
+<tr><td><em>Pay : </em></td><td><strong>40.000.000 Lot</strong></td></tr>
+<tr><td><em>Ek Pay : </em></td><td><strong>8.000.000 Lot</strong></td></tr>
+<tr><td><em>Aracı Kurum : </em></td><td><strong>Bulls Yatırım Menkul Değerler A.Ş.</strong></td></tr>
+</table>
+<ul class="aex-in"><div class="aexi-title">Özet Bilgiler</div>
+<li><h5>Halka Arz Şekli</h5><p>
+- Sermaye Artırımı : 10.000.000 Lot<br>
+- Ortak Satışı : 30.000.000 Lot (İzmir Demir Çelik Sanayi A.Ş.)<br>
+<small>* Taslak İzahname, Sayfa 1.</small></p></li>
+<li><h5>Halka Arz Satış Yöntemi</h5><p>
+- Sabit Fiyatla Talep Toplama <br>
+- En İyi Gayret Aracılığı <br></p></li>
+<li><h5>Satmama Taahhüdü</h5><p>
+- 1 Yıl, İhraççı. <br>
+- 1 Yıl, Ortaklar. <br></p></li>
+<li><p><table class="fs-extra rwd-table">
+<tr><th><h5>Finansal Tablo</h5></th><th>2025</th><th>2024</th></tr>
+<tr><td>- Hasılat</td><td data-th="2025">2,9 Milyar TL</td><td data-th="2024">882,6 Milyon TL</td></tr>
+</table></p></li>
+</ul>
+"""
+
+DOVIZ_DETAIL = """
+<div class="flex wrap justify-between ipo-details">
+  <div class="ipo-detail">
+    <div class="text-xs text-blue-gray-2">Dağıtım Yöntemi</div>
+    <div class="text-md font-semibold text-white mt-4"><span>Bireysele Eşit</span></div>
+  </div>
+  <div class="ipo-detail">
+    <div class="text-xs text-blue-gray-2">Pay</div>
+    <div class="text-md font-semibold text-white mt-4"><span>40.000.000 Lot</span></div>
+  </div>
+  <div class="ipo-detail">
+    <div class="text-xs text-blue-gray-2">Talep Toplama Yöntemi</div>
+    <div class="text-md font-semibold text-white mt-4"><span>Sabit Fiyatla Talep Toplama</span></div>
+  </div>
+  <div class="ipo-detail">
+    <div class="text-xs text-blue-gray-2">Aracı Kurum</div>
+    <div class="text-md font-semibold text-white mt-4"><span>Bulls Yatırım</span></div>
+  </div>
+  <div class="ipo-detail">
+    <div class="text-xs text-blue-gray-2">Aracılık Yöntemi</div>
+    <div class="text-md font-semibold text-white mt-4"><span>En İyi Gayret Aracılığı</span></div>
+  </div>
+</div>
+<h2>Halka Arz Detayı</h2>
+<div class="ipo-section">
+  <h3>Halka Arz Şekli</h3>
+  <p>- Sermaye Artırımı : 10.000.000 Lot<br />
+- Ortak Satışı : 30.000.000 Lot (İzmir Demir Çelik Sanayi A.Ş.)<br />
+<small>* Taslak İzahname, Sayfa 1.</small></p>
+  <h3>Taahhütler</h3>
+  <p>1 yıl İhraççı, 1 yıl Ortaklar</p>
+</div>
+<h2>Şirket Bilgisi</h2>
+<div class="ipo-section"><p>Şirket limancılık yapar.</p></div>
+"""
+
+
+def test_halkarz_detail_reads_draft_summary_sections():
+    """Taslak sayfalarında tablo + «Özet Bilgiler» blokları okunmalı."""
+    fields = ipo.parse_halkarz_detail(HALKARZ_TASLAK_DETAIL)
+    assert fields["dagitim"] == "Eşit Dağıtım **"
+    assert fields["pay"] == "40.000.000 Lot"
+    assert fields["ek_pay"] == "8.000.000 Lot"
+    assert fields["araci_kurum"].startswith("Bulls Yatırım")
+    # "Hazırlanıyor..." yer tutucusu alan sayılmaz
+    assert "halka_arz_tarihi" not in fields
+    assert "fiyat" not in fields
+    assert fields["arz_sekli"].startswith("- Sermaye Artırımı")
+    assert "\n" in fields["arz_sekli"], "satır yapısı korunmalı"
+    assert fields["satis_yontemi"].count("\n") == 1
+    assert fields["satmama"].startswith("- 1 Yıl")
+    assert fields["finansal"].startswith("Hasılat: 2025 2,9 Milyar TL")
+
+
+def test_doviz_detail_reads_header_box_and_sections():
+    fields = ipo.parse_doviz_detail(DOVIZ_DETAIL)
+    assert fields["dagitim"] == "Bireysele Eşit"
+    assert fields["pay"] == "40.000.000 Lot"
+    assert fields["talep_yontemi"] == "Sabit Fiyatla Talep Toplama"
+    assert fields["aracilik_yontemi"] == "En İyi Gayret Aracılığı"
+    assert fields["araci_kurum"] == "Bulls Yatırım"
+    assert fields["arz_sekli"].startswith("- Sermaye Artırımı")
+    # "Taahhütler" halkarz'daki "Satmama Taahhüdü" ile aynı anahtara düşer
+    assert fields["satmama"] == "1 yıl İhraççı, 1 yıl Ortaklar"
+    # şirket tanıtımı karşılaştırma dışı
+    assert "sirket_bilgisi" not in fields
+
+
+def test_enrich_splits_sales_method_into_two_fields():
+    ha = ipo.enrich_fields(ipo.parse_halkarz_detail(HALKARZ_TASLAK_DETAIL))
+    assert ha["talep_yontemi"] == "Sabit Fiyatla Talep Toplama"
+    assert ha["aracilik_yontemi"] == "En İyi Gayret Aracılığı"
+    dv = ipo.enrich_fields(ipo.parse_doviz_detail(DOVIZ_DETAIL))
+    # tersi de olur: doviz'de ayrı gelen alanlardan satış yöntemi kurulur
+    assert "Sabit Fiyatla Talep Toplama" in dv["satis_yontemi"]
+
+
+def test_draft_details_are_compared_field_by_field():
+    """Taslak arzlarda iki tarafın detayları karşılaştırılabilmeli."""
+    ha = ipo.enrich_fields(ipo.parse_halkarz_detail(HALKARZ_TASLAK_DETAIL))
+    dv = ipo.enrich_fields(ipo.parse_doviz_detail(DOVIZ_DETAIL))
+    kinds = {d["field"]: d["kind"] for d in ipo._diff_fields(ha, dv)}
+    assert kinds["pay"] == "ok"
+    assert kinds["dagitim"] == "ok"          # "Eşit Dağıtım **" ↔ "Bireysele Eşit"
+    assert kinds["araci_kurum"] == "ok"      # kısa ünvan tam ünvanın ön eki
+    assert kinds["arz_sekli"] == "ok"        # çok satırlı metin
+    assert kinds["satmama"] == "ok"          # satırlara bölünmüş aynı bilgi
+    assert kinds["talep_yontemi"] == "ok"
+    assert kinds["ek_pay"] == "missing"      # doviz'de gerçekten yok
+    assert kinds["finansal"] == "missing"
+
+
+def test_detail_fetch_uses_budget_and_cache(monkeypatch):
+    ipo._detail_cache.clear()
+    monkeypatch.setattr(ipo, "_db_cache_ok", False)
+    calls = []
+
+    def fake_get(url):
+        calls.append(url)
+        return DOVIZ_DETAIL
+
+    monkeypatch.setattr(ipo, "_http_get", fake_get)
+    urls = [f"https://borsa.doviz.com/halka-arz/x-{i}/{i}" for i in range(10)]
+    out, progress = ipo.fetch_details(urls, ipo.parse_doviz_detail, budget=4, label="doviz")
+    assert len(calls) == 4
+    assert len(out) == 4
+    assert progress == {"total": 10, "ready": 4, "fetched": 4}
+    # ikinci turda cache'tekiler tekrar çekilmez, kalanlar sıradan devam eder
+    out2, progress2 = ipo.fetch_details(urls, ipo.parse_doviz_detail, budget=4, label="doviz")
+    assert len(calls) == 8
+    assert len(out2) == 8
+    assert progress2["ready"] == 8
+    ipo._detail_cache.clear()
+
+
+def test_payload_merges_both_sides_details():
+    details_ha = {
+        "https://halkarz.com/turker-vangolu-enerji-yatirim-a-s/": ipo.parse_halkarz_detail(HALKARZ_TASLAK_DETAIL),
+    }
+    payload = ipo.build_payload(
+        halkarz_home_html=HALKARZ_HOME,
+        doviz_home_html=DOVIZ_HOME,
+        doviz_taslak_html=DOVIZ_TASLAK,
+        doviz_gecmis_html=DOVIZ_GECMIS,
+        halkarz_details=details_ha,
+        doviz_details={},
+        detail_progress={"halkarz": {"total": 1, "ready": 1, "fetched": 1}},
+    )
+    assert payload["detail_progress"]["halkarz"]["total"] == 1
+    assert payload["field_groups"] and payload["field_groups"][0]["fields"]
+    assert "arz_sekli" in payload["long_fields"]
+    rows = [r for rs in payload["buckets"].values() for r in rs]
+    veyas = next(r for r in rows if r["ticker"] == "VEYAS")
+    fields = {d["field"] for d in veyas["diffs"]}
+    assert "arz_sekli" in fields, "halkarz özet alanları karşılaştırmaya girmeli"
+    assert all("long" in d for d in veyas["diffs"])

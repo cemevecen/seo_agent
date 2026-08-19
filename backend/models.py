@@ -1547,6 +1547,18 @@ class OwnerPmLabWorkspace(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class IpoDetailCache(Base):
+    """halkarz / doviz halka arz detay sayfalarının ayrıştırılmış hali."""
+
+    __tablename__ = "ipo_detail_cache"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    url: Mapped[str] = mapped_column(String(500), nullable=False, unique=True, index=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    fields_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class IpoHiddenCompany(Base):
     """«Bunu bir daha gösterme» denen halka arz kayıtları."""
 

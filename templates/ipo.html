@@ -148,6 +148,36 @@
   .ipo-col-dv { background: rgb(241 245 249); }
   html.dark .ipo-col-ha, html.charcoal .ipo-col-ha { background: rgb(30 30 34); }
   html.dark .ipo-col-dv, html.charcoal .ipo-col-dv { background: rgb(36 36 41); }
+  .ipo-group {
+    margin-top: 14px; font-size: 10px; font-weight: 800; letter-spacing: .08em;
+    text-transform: uppercase; color: rgb(100 116 139);
+  }
+  html.dark .ipo-group, html.charcoal .ipo-group { color: rgb(161 161 170); }
+  .ipo-group:first-child { margin-top: 0; }
+  .ipo-field {
+    margin-top: 8px; border-radius: 12px; border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252); padding: 8px 10px;
+  }
+  html.dark .ipo-field, html.charcoal .ipo-field { border-color: rgb(39 39 42); background: rgb(32 32 36); }
+  .ipo-field-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .ipo-field-title { font-size: 12px; font-weight: 700; color: rgb(30 41 59); }
+  html.dark .ipo-field-title, html.charcoal .ipo-field-title { color: rgb(228 228 231); }
+  .ipo-field-cols { display: grid; gap: 10px; margin-top: 6px; }
+  @media (min-width: 640px) { .ipo-field-cols { grid-template-columns: 1fr 1fr; } }
+  .ipo-field-col { min-width: 0; }
+  .ipo-field-src {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 10px;
+    font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: rgb(100 116 139);
+  }
+  html.dark .ipo-field-src, html.charcoal .ipo-field-src { color: rgb(161 161 170); }
+  .ipo-field-text {
+    margin-top: 3px; font-size: 12px; line-height: 1.5; white-space: pre-line;
+    overflow-wrap: anywhere; color: rgb(30 41 59);
+  }
+  html.dark .ipo-field-text, html.charcoal .ipo-field-text { color: rgb(212 212 216); }
+  .ipo-field-text.is-empty { color: rgb(148 163 184); }
+  .ipo-diff-table { width: 100%; }
+  .ipo-diff-table td, .ipo-diff-table th { vertical-align: top; }
   .ipo-hide {
     display: inline-flex; align-items: center; gap: 6px; margin-top: 12px;
     font-size: 11px; font-weight: 600; color: rgb(100 116 139); cursor: pointer;
@@ -494,21 +524,77 @@
   }
 
   /* ---------- kartlar ---------- */
-  function diffTable(diffs, emptyText) {
-    if (!diffs || !diffs.length) {
-      return `<p class="mt-3 text-xs text-slate-400 dark:text-zinc-500">${esc(emptyText || "Karşılaştırılacak alan yok")}</p>`;
-    }
-    return `<div class="mt-3 overflow-x-auto">
-      <table class="min-w-full text-left">
+  function diffKindPill(kind) {
+    return pill(kind, kind === "ok" ? "aynı" : kind === "missing" ? "doviz eksik" : kind === "extra" ? "halkarz yok" : "farklı");
+  }
+
+  function isLong(d) {
+    if (d.long != null) return !!d.long;
+    const longSet = new Set((data && data.long_fields) || []);
+    if (longSet.has(d.field)) return true;
+    const a = d.halkarz || "", b = d.doviz || "";
+    return a.indexOf("\n") >= 0 || b.indexOf("\n") >= 0 || a.length > 90 || b.length > 90;
+  }
+
+  function shortTable(rows) {
+    if (!rows.length) return "";
+    return `<div class="mt-2 overflow-x-auto">
+      <table class="ipo-diff-table min-w-full text-left">
         <thead><tr class="text-[10px] uppercase tracking-wide text-slate-400">
           <th class="py-1 pr-3">Alan</th>
           <th class="ipo-col-ha px-2 py-1"><span class="ipo-col-head">${logoImg("halkarz", true)}halkarz</span></th>
           <th class="ipo-col-dv px-2 py-1"><span class="ipo-col-head">${logoImg("doviz", true)}doviz</span></th>
           <th class="py-1 pl-3">Δ</th>
         </tr></thead>
-        <tbody>${diffs.map(fieldRow).join("")}</tbody>
+        <tbody>${rows.map(fieldRow).join("")}</tbody>
       </table>
     </div>`;
+  }
+
+  function longField(d) {
+    const side = (src, value) => `<div class="ipo-field-col">
+      <span class="ipo-field-src">${logoImg(src, true)}${esc(SOURCES[src].short)}</span>
+      <p class="ipo-field-text${value ? "" : " is-empty"}">${esc(value || "—")}</p>
+    </div>`;
+    return `<section class="ipo-field">
+      <header class="ipo-field-head">
+        <span class="ipo-field-title">${esc(d.label || d.field)}</span>
+        ${diffKindPill(d.kind || "ok")}
+      </header>
+      <div class="ipo-field-cols">${side("halkarz", d.halkarz)}${side("doviz", d.doviz)}</div>
+    </section>`;
+  }
+
+  function groupOrder() {
+    const groups = (data && data.field_groups) || [];
+    return groups.length ? groups : [{ key: "all", label: "Alanlar", fields: [] }];
+  }
+
+  function diffTable(diffs, emptyText) {
+    if (!diffs || !diffs.length) {
+      return `<p class="mt-3 text-xs text-slate-400 dark:text-zinc-500">${esc(emptyText || "Karşılaştırılacak alan yok")}</p>`;
+    }
+    const groups = groupOrder();
+    const seen = new Set();
+    const blocks = [];
+    groups.forEach((g) => {
+      const order = g.fields || [];
+      const picked = order.length
+        ? order.map((f) => diffs.find((d) => d.field === f)).filter(Boolean)
+        : diffs.slice();
+      if (!picked.length) return;
+      picked.forEach((d) => seen.add(d.field));
+      const shorts = picked.filter((d) => !isLong(d));
+      const longs = picked.filter(isLong);
+      blocks.push(`<p class="ipo-group">${esc(g.label)}</p>${shortTable(shorts)}${longs.map(longField).join("")}`);
+    });
+    const rest = diffs.filter((d) => !seen.has(d.field));
+    if (rest.length) {
+      const shorts = rest.filter((d) => !isLong(d));
+      const longs = rest.filter(isLong);
+      blocks.push(`<p class="ipo-group">Diğer alanlar</p>${shortTable(shorts)}${longs.map(longField).join("")}`);
+    }
+    return `<div class="mt-3">${blocks.join("")}</div>`;
   }
 
   function fieldRow(d) {
@@ -517,7 +603,7 @@
       <td class="py-1 pr-3 text-[11px] text-slate-500 dark:text-zinc-500 whitespace-nowrap">${esc(d.label || d.field)}</td>
       <td class="ipo-col-ha px-2 py-1 text-[12px] text-slate-800 dark:text-zinc-200">${esc(d.halkarz || "—")}</td>
       <td class="ipo-col-dv px-2 py-1 text-[12px] text-slate-800 dark:text-zinc-200">${esc(d.doviz || "—")}</td>
-      <td class="py-1 pl-3">${pill(kind, kind === "ok" ? "aynı" : kind === "missing" ? "doviz eksik" : kind === "extra" ? "halkarz yok" : "farklı")}</td>
+      <td class="py-1 pl-3">${diffKindPill(kind)}</td>
     </tr>`;
   }
 
@@ -689,10 +775,15 @@
     if (data && data.fetched_at) {
       const nx = data.next_slot || {};
       const v = data.visit;
+      const dp = data.detail_progress || {};
+      const detailBits = ["halkarz", "doviz"]
+        .filter((k) => dp[k] && dp[k].total)
+        .map((k) => `${k} ${dp[k].ready}/${dp[k].total}`);
       el("ipo-fetched").textContent =
         "Son çekim: " + data.fetched_at + " TR"
         + (v ? " · ziyaret " + (v.slot || "") + " " + (v.fetched_at || "") : "")
-        + (nx.slot ? " · sonraki " + nx.slot + (nx.at ? " (" + nx.at + ")" : "") : "");
+        + (nx.slot ? " · sonraki " + nx.slot + (nx.at ? " (" + nx.at + ")" : "") : "")
+        + (detailBits.length ? " · detay " + detailBits.join(" / ") : "");
     }
   }
 
