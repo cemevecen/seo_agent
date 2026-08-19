@@ -482,6 +482,11 @@ def _paired_row(
             for k, v in dv_fields.items()
             if k != "şirket"
         ]
+    missing_on_doviz = [d["field"] for d in diffs if d["kind"] == "missing"]
+    mismatch = [d["field"] for d in diffs if d["kind"] == "mismatch"]
+    date_iso, date_source = _row_date(ha, dv)
+    ha_order = (ha or {}).get("order")
+    dv_order = (dv or {}).get("order")
     return {
         "name": name,
         "ticker": ticker,
@@ -491,8 +496,15 @@ def _paired_row(
         "halkarz": _public_side(ha) if ha else None,
         "doviz": _public_side(dv) if dv else None,
         "diffs": diffs,
-        "missing_on_doviz": [d["field"] for d in diffs if d["kind"] == "missing"],
-        "mismatch": [d["field"] for d in diffs if d["kind"] == "mismatch"],
+        "missing_on_doviz": missing_on_doviz,
+        "mismatch": mismatch,
+        "gap_count": len(missing_on_doviz) + len(mismatch),
+        "date_iso": date_iso,
+        "date_source": date_source,
+        "ha_order": ha_order if isinstance(ha_order, int) else None,
+        "dv_order": dv_order if isinstance(dv_order, int) else None,
+        "is_new": "Yeni" in ((ha or {}).get("badges") or []),
+        "status": ((ha or {}).get("status") or (dv or {}).get("status") or ""),
     }
 
 
@@ -505,6 +517,8 @@ def _public_side(item: dict[str, Any]) -> dict[str, Any]:
         "date_label": item.get("date_label") or "",
         "url": item.get("url") or "",
         "logo": item.get("logo") or "",
+        "badges": list(item.get("badges") or []),
+        "order": item.get("order") if isinstance(item.get("order"), int) else None,
         "fields": dict(item.get("fields") or {}),
     }
 
@@ -615,6 +629,44 @@ def _date_tokens(s: str) -> tuple[str, ...]:
     return tuple(sorted(set(found)))
 
 
+def _iso_dates(s: str) -> list[str]:
+    """'15-16 Eylül 2025' -> ['2025-09-15', '2025-09-16']."""
+    out = {f"{t[4:]}-{t[2:4]}-{t[:2]}" for t in _date_tokens(s or "")}
+    return sorted(out)
+
+
+def _first_iso_date(*values: str) -> str:
+    for value in values:
+        dates = _iso_dates(value)
+        if dates:
+            return dates[0]
+    return ""
+
+
+_DATE_SOURCES: tuple[tuple[str, str, str], ...] = (
+    ("halkarz", "halka_arz_tarihi", "halkarz · talep"),
+    ("doviz", "halka_arz_tarihi", "doviz · talep"),
+    ("halkarz", "ilk_islem", "halkarz · ilk işlem"),
+    ("doviz", "ilk_islem", "doviz · ilk işlem"),
+)
+
+
+def _row_date(ha: dict[str, Any] | None, dv: dict[str, Any] | None) -> tuple[str, str]:
+    """Satır için sıralanabilir ISO tarih + hangi alandan geldiği."""
+    sides = {"halkarz": ha or {}, "doviz": dv or {}}
+    for side, key, label in _DATE_SOURCES:
+        item = sides.get(side) or {}
+        value = (dict(item.get("fields") or {})).get(key) or ""
+        iso = _first_iso_date(value)
+        if iso:
+            return iso, label
+    for side in ("halkarz", "doviz"):
+        iso = _first_iso_date((sides.get(side) or {}).get("date_label") or "")
+        if iso:
+            return iso, f"{side} · liste"
+    return "", ""
+
+
 def merge_halkarz(ilk: list[dict[str, Any]], taslak: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """İlk listedeki şirket taslakta da varsa ilk kazanır."""
     out: list[dict[str, Any]] = []
@@ -676,6 +728,11 @@ def build_payload(
                 item["ticker"] = _ticker_norm(extra["bist_kodu"])
     ha_all = merge_halkarz(ha_lists["ilk"], ha_lists["taslak"])
     dv_all = merge_doviz(aktif, taslak, gecmis)
+    # kaynak sayfalardaki sıra = "en son girilen üstte"; sıralama için sakla
+    for idx, item in enumerate(ha_all):
+        item["order"] = idx
+    for idx, item in enumerate(dv_all):
+        item["order"] = idx
     rows = match_companies(ha_all, dv_all)
     # halkarz ana sayfada geçmiş arz arşivi yok; eşleşmeyen eski doviz
     # geçmişini "fazla" diye şişirme.
@@ -715,9 +772,13 @@ def build_payload(
             "doviz_status": (r.get("doviz") or {}).get("status") if r.get("doviz") else "",
         }
 
+    dated = sum(1 for r in rows if r.get("date_iso"))
+    today_iso = datetime.now(_TR).date().isoformat()
+    upcoming = sum(1 for r in rows if (r.get("date_iso") or "") >= today_iso and r.get("date_iso"))
     return {
         "ok": True,
         "fetched_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "today": today_iso,
         "errors": errors or {},
         "counts": {
             "halkarz_ilk": len(ha_lists["ilk"]),
@@ -735,6 +796,11 @@ def build_payload(
             "olan": len(buckets["olan"]),
             "arz_olacak": len(buckets["arz_olacak"]),
             "olmus": len(buckets["olmus"]),
+            "total": len(rows),
+            "dated": dated,
+            "upcoming": upcoming,
+            "past": dated - upcoming,
+            "new_badge": sum(1 for r in rows if r.get("is_new")),
         },
         "buckets": buckets,
         "missing": [_brief(r) for r in missing],
@@ -870,6 +936,12 @@ def snapshot_company(item: dict[str, Any]) -> dict[str, Any]:
         "date_label": item.get("date_label") or "",
         "url": item.get("url") or "",
         "badges": list(item.get("badges") or []),
+        "order": item.get("order") if isinstance(item.get("order"), int) else None,
+        "date_iso": _first_iso_date(
+            fields.get("halka_arz_tarihi") or "",
+            item.get("date_label") or "",
+            fields.get("ilk_islem") or "",
+        ),
         "fields": fields,
     }
 
@@ -969,6 +1041,11 @@ def diff_halkarz_snapshots(
             "section": item.get("section") or "",
             "status": item.get("status") or "",
             "date_label": item.get("date_label") or "",
+            "date_iso": item.get("date_iso") or _first_iso_date(
+                (dict(item.get("fields") or {})).get("halka_arz_tarihi") or "",
+                item.get("date_label") or "",
+            ),
+            "order": item.get("order") if isinstance(item.get("order"), int) else None,
             "url": item.get("url") or "",
             "on_doviz": bool(dv.get("on_doviz")),
             "doviz_url": dv.get("doviz_url") or "",

@@ -263,6 +263,45 @@ def test_build_payload_eksik_fazla_and_buckets():
     assert hedef["fields"].get("araci_kurum") == "X Yatırım"
 
 
+def test_payload_exposes_sort_and_filter_fields():
+    payload = ipo.build_payload(
+        halkarz_home_html=HALKARZ_HOME,
+        doviz_home_html=DOVIZ_HOME,
+        doviz_taslak_html=DOVIZ_TASLAK,
+        doviz_gecmis_html=DOVIZ_GECMIS,
+        halkarz_details={
+            "https://halkarz.com/turker-vangolu-enerji-yatirim-a-s/": ipo.parse_halkarz_detail(HALKARZ_DETAIL),
+        },
+    )
+    assert payload["today"]
+    rows = [r for rows in payload["buckets"].values() for r in rows]
+    assert payload["counts"]["total"] == len(rows)
+    veyas = next(r for r in rows if r["ticker"] == "VEYAS")
+    # halkarz listesinde en üstteki kayıt -> sıralama için order 0
+    assert veyas["ha_order"] == 0
+    assert veyas["dv_order"] == 0
+    assert veyas["date_iso"] == "2026-08-12"
+    assert veyas["date_source"].startswith("halkarz")
+    assert veyas["is_new"] is True
+    assert veyas["gap_count"] == len(veyas["missing_on_doviz"]) + len(veyas["mismatch"])
+    # yalnız doviz'de olan kayıtta halkarz sırası yok
+    solo = next(r for r in rows if "Sadece Doviz" in r["name"])
+    assert solo["ha_order"] is None
+    assert solo["dv_order"] is not None
+    orders = [r["ha_order"] for r in rows if r["ha_order"] is not None]
+    assert len(orders) == len(set(orders))
+    snap = next(x for x in payload["halkarz_snapshot"] if x["ticker"] == "VEYAS")
+    assert snap["date_iso"] == "2026-08-12"
+    assert snap["order"] == 0
+
+
+def test_iso_date_parsing_handles_tr_ranges():
+    assert ipo._iso_dates("15-16-17 Eylül 2025") == ["2025-09-15", "2025-09-16", "2025-09-17"]
+    assert ipo._iso_dates("02.09.2025") == ["2025-09-02"]
+    assert ipo._iso_dates("yakında") == []
+    assert ipo._first_iso_date("", "1 Ekim 2025") == "2025-10-01"
+
+
 def test_halkarz_visit_delta_marks_doviz():
     prev = [
         ipo.snapshot_company(

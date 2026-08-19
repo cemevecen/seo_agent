@@ -14,9 +14,10 @@
     </div>
   </div>
 
-  <div id="ipo-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
+  <div id="ipo-kpis" class="ipo-kpi-row"></div>
 
   <div class="flex flex-wrap gap-1.5" id="ipo-tabs" role="tablist">
+    <button type="button" data-tab="all" class="ipo-tab rounded-full border px-3 py-1.5 text-xs font-semibold">Tümü</button>
     <button type="button" data-tab="olan" class="ipo-tab ipo-tab-on rounded-full border px-3 py-1.5 text-xs font-semibold">Olan</button>
     <button type="button" data-tab="yeni" class="ipo-tab rounded-full border px-3 py-1.5 text-xs font-semibold">Yeni</button>
     <button type="button" data-tab="arz_olacak" class="ipo-tab rounded-full border px-3 py-1.5 text-xs font-semibold">Arz olacak</button>
@@ -25,13 +26,62 @@
     <button type="button" data-tab="extra" class="ipo-tab rounded-full border px-3 py-1.5 text-xs font-semibold">Halkarz’da yok</button>
   </div>
 
-  <div class="flex flex-wrap items-center gap-2">
-    <input id="ipo-q" type="search" placeholder="Şirket / kod ara…"
-           class="w-full max-w-xs rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs dark:border-transparent dark:bg-zinc-800 dark:text-zinc-300 sm:w-64">
-    <label class="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-zinc-400">
-      <input id="ipo-only-gap" type="checkbox" class="rounded border-slate-300" checked>
-      yalnız eksik / uyuşmayan alan
-    </label>
+  <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
+    <div class="flex flex-wrap items-center gap-2">
+      <input id="ipo-q" type="search" placeholder="Şirket / kod / aracı kurum ara…"
+             class="w-full max-w-xs rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs dark:border-transparent dark:bg-zinc-800 dark:text-zinc-300 sm:w-64">
+
+      <label class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">
+        Sırala
+        <select id="ipo-sort" class="ipo-select">
+          <option value="halkarz_new">halkarz sırası (son girilen üstte)</option>
+          <option value="date_asc">Tarih · yakın → uzak</option>
+          <option value="date_desc">Tarih · uzak → yakın</option>
+          <option value="gap_desc">Eksik/farklı alan · çok → az</option>
+          <option value="match">Eşleşme durumu</option>
+          <option value="name_asc">Şirket A → Z</option>
+          <option value="name_desc">Şirket Z → A</option>
+          <option value="ticker_asc">BIST kodu</option>
+          <option value="doviz_new">doviz sırası (son girilen üstte)</option>
+        </select>
+      </label>
+
+      <label class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">
+        Kaynak
+        <select id="ipo-source" class="ipo-select">
+          <option value="all">Hepsi</option>
+          <option value="both">Yalnız eşleşenler</option>
+          <option value="in_halkarz">halkarz’da olanlar</option>
+          <option value="in_doviz">doviz’de olanlar</option>
+          <option value="halkarz_only">Yalnız halkarz’da</option>
+          <option value="doviz_only">Yalnız doviz’de</option>
+        </select>
+      </label>
+
+      <label class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">
+        Tarih
+        <select id="ipo-time" class="ipo-select">
+          <option value="all">Hepsi</option>
+          <option value="upcoming">Bugün ve sonrası</option>
+          <option value="today">Bugün</option>
+          <option value="week">Önümüzdeki 7 gün</option>
+          <option value="past">Geçmiş</option>
+          <option value="undated">Tarihi yok</option>
+        </select>
+      </label>
+
+      <label class="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-zinc-400">
+        <input id="ipo-only-gap" type="checkbox" class="rounded border-slate-300" checked>
+        yalnız eksik / uyuşmayan alan
+      </label>
+      <label class="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-zinc-400">
+        <input id="ipo-only-new" type="checkbox" class="rounded border-slate-300">
+        yalnız «Yeni!» rozetli
+      </label>
+
+      <button type="button" id="ipo-reset" class="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800">Filtreleri temizle</button>
+      <span id="ipo-count" class="ml-auto text-[11px] font-semibold text-slate-400 dark:text-zinc-500"></span>
+    </div>
   </div>
 
   <div id="ipo-err" class="hidden rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"></div>
@@ -43,21 +93,52 @@
   html.dark .ipo-tab, html.charcoal .ipo-tab { border-color: transparent; color: rgb(161 161 170); background: rgb(24 24 27); }
   .ipo-tab-on { border-color: rgb(99 102 241) !important; background: rgb(238 242 255) !important; color: rgb(67 56 202) !important; }
   html.dark .ipo-tab-on, html.charcoal .ipo-tab-on { background: rgb(49 46 129 / 0.35) !important; color: rgb(199 210 254) !important; }
+  .ipo-select {
+    border-radius: 8px; border: 1px solid rgb(226 232 240); background: rgb(248 250 252);
+    padding: 4px 6px; font-size: 11px; font-weight: 600; color: rgb(51 65 85);
+    text-transform: none; letter-spacing: 0;
+  }
+  html.dark .ipo-select, html.charcoal .ipo-select { border-color: transparent; background: rgb(39 39 42); color: rgb(212 212 216); }
+  /* KPI kartları: kaç tane olursa olsun tek satır, kalan genişliği eşit paylaş */
+  .ipo-kpi-row {
+    display: flex; flex-wrap: nowrap; gap: 12px;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: thin; padding-bottom: 2px;
+  }
+  .ipo-kpi {
+    flex: 1 1 0; min-width: 118px; max-width: none;
+    text-align: left; padding: clamp(10px, 0.9vw, 16px);
+    transition: box-shadow .12s ease, outline-color .12s ease;
+  }
+  .ipo-kpi:hover { box-shadow: 0 1px 10px rgb(15 23 42 / 0.10); }
+  .ipo-kpi-on { outline: 2px solid rgb(99 102 241); outline-offset: 1px; }
+  .ipo-kpi-label, .ipo-kpi-value, .ipo-kpi-sub {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
+  }
+  .ipo-kpi-label { font-size: clamp(8.5px, 0.62vw, 10px); }
+  .ipo-kpi-value { font-size: clamp(15px, 1.5vw, 26px); line-height: 1.15; margin-top: 2px; }
+  .ipo-kpi-sub { font-size: clamp(8.5px, 0.6vw, 10px); margin-top: 3px; }
+  @media (max-width: 640px) { .ipo-kpi { min-width: 132px; } }
   .ipo-pill { display:inline-flex; align-items:center; border-radius:999px; padding:1px 8px; font-size:10px; font-weight:700; letter-spacing:.02em; }
   .ipo-missing { background:#fef2f2; color:#b91c1c; }
   .ipo-extra { background:#fffbeb; color:#b45309; }
   .ipo-mismatch { background:#fff7ed; color:#c2410c; }
   .ipo-ok { background:#ecfdf5; color:#047857; }
   .ipo-both { background:#eef2ff; color:#4338ca; }
+  .ipo-date { background:#f1f5f9; color:#475569; }
+  .ipo-soon { background:#eef2ff; color:#4338ca; }
   html.dark .ipo-missing, html.charcoal .ipo-missing { background:#3f1d1d; color:#fca5a5; }
   html.dark .ipo-extra, html.charcoal .ipo-extra { background:#422006; color:#fcd34d; }
   html.dark .ipo-mismatch, html.charcoal .ipo-mismatch { background:#431407; color:#fdba74; }
   html.dark .ipo-ok, html.charcoal .ipo-ok { background:#14532d; color:#6ee7b7; }
   html.dark .ipo-both, html.charcoal .ipo-both { background:#1e1b4b; color:#c7d2fe; }
+  html.dark .ipo-date, html.charcoal .ipo-date { background:#27272a; color:#a1a1aa; }
+  html.dark .ipo-soon, html.charcoal .ipo-soon { background:#1e1b4b; color:#c7d2fe; }
 </style>
 <script>
 (function () {
   const LABELS = {
+    all: "Tümü",
     yeni: "Yeni (ziyaret)",
     olan: "Olan (aktif)",
     arz_olacak: "Arz olacak (taslak)",
@@ -65,8 +146,14 @@
     missing: "Doviz’de yok",
     extra: "Halkarz’da yok",
   };
+  const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+  const STORE_KEY = "ipo-filters-v1";
+  const DEFAULTS = {
+    tab: "olan", q: "", sort: "halkarz_new", source: "all",
+    time: "all", onlyGap: true, onlyNew: false, kpi: "",
+  };
   let data = null;
-  let tab = "olan";
+  let state = Object.assign({}, DEFAULTS);
 
   function el(id) { return document.getElementById(id); }
   function esc(s) {
@@ -75,7 +162,10 @@
     }[c]));
   }
   function pill(kind, text) {
-    const cls = { missing: "ipo-missing", extra: "ipo-extra", mismatch: "ipo-mismatch", ok: "ipo-ok", both: "ipo-both" }[kind] || "ipo-ok";
+    const cls = {
+      missing: "ipo-missing", extra: "ipo-extra", mismatch: "ipo-mismatch",
+      ok: "ipo-ok", both: "ipo-both", date: "ipo-date", soon: "ipo-soon",
+    }[kind] || "ipo-ok";
     return `<span class="ipo-pill ${cls}">${esc(text)}</span>`;
   }
   function matchPill(m) {
@@ -84,29 +174,92 @@
     return pill("extra", "halkarz’da yok");
   }
 
-  function kpi(label, value, sub) {
-    return `<div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
-      <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">${esc(label)}</p>
-      <p class="mt-1 text-2xl font-black text-slate-900 dark:text-zinc-100">${esc(String(value))}</p>
-      ${sub ? `<p class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500">${esc(sub)}</p>` : ""}
-    </div>`;
+  function today() { return (data && data.today) || new Date().toISOString().slice(0, 10); }
+
+  function fmtDate(iso) {
+    if (!iso || iso.length < 10) return "";
+    const y = iso.slice(0, 4), m = parseInt(iso.slice(5, 7), 10), d = parseInt(iso.slice(8, 10), 10);
+    return `${d} ${MONTHS[m - 1] || ""} ${y}`;
   }
+  function dayDiff(iso) {
+    if (!iso) return null;
+    const a = Date.parse(iso + "T00:00:00Z"), b = Date.parse(today() + "T00:00:00Z");
+    if (isNaN(a) || isNaN(b)) return null;
+    return Math.round((a - b) / 86400000);
+  }
+  function datePill(iso, source) {
+    if (!iso) return "";
+    const diff = dayDiff(iso);
+    let suffix = "";
+    if (diff === 0) suffix = " · bugün";
+    else if (diff != null && diff > 0) suffix = ` · ${diff} gün`;
+    else if (diff != null) suffix = ` · ${Math.abs(diff)} gün önce`;
+    const kind = diff != null && diff >= 0 ? "soon" : "date";
+    const title = source ? ` (${source})` : "";
+    return `<span class="ipo-pill ${kind === "soon" ? "ipo-soon" : "ipo-date"}" title="${esc(iso + title)}">${esc(fmtDate(iso) + suffix)}</span>`;
+  }
+
+  /* ---------- state kalıcılığı ---------- */
+  function saveState() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* yoksay */ }
+  }
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) state = Object.assign({}, DEFAULTS, JSON.parse(raw) || {});
+    } catch (e) { state = Object.assign({}, DEFAULTS); }
+  }
+  function syncControls() {
+    el("ipo-q").value = state.q;
+    el("ipo-sort").value = state.sort;
+    el("ipo-source").value = state.source;
+    el("ipo-time").value = state.time;
+    el("ipo-only-gap").checked = !!state.onlyGap;
+    el("ipo-only-new").checked = !!state.onlyNew;
+    document.querySelectorAll(".ipo-tab").forEach((b) => {
+      b.classList.toggle("ipo-tab-on", b.dataset.tab === state.tab);
+    });
+  }
+
+  /* ---------- KPI ---------- */
+  function kpi(key, label, value, sub) {
+    const on = state.kpi === key ? " ipo-kpi-on" : "";
+    const title = `${label}: ${value}` + (sub ? ` · ${sub}` : "");
+    return `<button type="button" data-kpi="${esc(key)}" title="${esc(title)}" class="ipo-kpi${on} rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
+      <span class="ipo-kpi-label font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">${esc(label)}</span>
+      <span class="ipo-kpi-value font-black text-slate-900 dark:text-zinc-100">${esc(String(value))}</span>
+      ${sub ? `<span class="ipo-kpi-sub text-slate-400 dark:text-zinc-500">${esc(sub)}</span>` : ""}
+    </button>`;
+  }
+
+  const KPI_PRESETS = {
+    halkarz: { tab: "all", source: "in_halkarz", onlyGap: false, onlyNew: false, sort: "halkarz_new", time: "all" },
+    doviz: { tab: "all", source: "in_doviz", onlyGap: false, onlyNew: false, sort: "doviz_new", time: "all" },
+    matched: { tab: "all", source: "both", onlyGap: false, onlyNew: false, sort: "name_asc", time: "all" },
+    missing: { tab: "missing", source: "all", onlyGap: false, onlyNew: false, sort: "date_asc", time: "all" },
+    extra: { tab: "extra", source: "all", onlyGap: false, onlyNew: false, sort: "date_asc", time: "all" },
+    gap: { tab: "all", source: "both", onlyGap: true, onlyNew: false, sort: "gap_desc", time: "all" },
+    visit: { tab: "yeni", source: "all", onlyGap: false, onlyNew: false, sort: "halkarz_new", time: "all" },
+    upcoming: { tab: "all", source: "all", onlyGap: false, onlyNew: false, sort: "date_asc", time: "upcoming" },
+  };
 
   function renderKpis() {
     const c = (data && data.counts) || {};
     const v = (data && data.visit) || null;
     const vs = (v && v.summary) || {};
     el("ipo-kpis").innerHTML = [
-      kpi("Halkarz", c.halkarz || 0, `ilk ${c.halkarz_ilk || 0} · taslak ${c.halkarz_taslak || 0}`),
-      kpi("Doviz", c.doviz || 0, `aktif ${c.doviz_aktif || 0} · taslak ${c.doviz_taslak || 0}`),
-      kpi("Eşleşen", c.matched || 0, "aynı başlık"),
-      kpi("Doviz’de yok", c.missing || 0, "halkarz’da var"),
-      kpi("Halkarz’da yok", c.extra || 0, "doviz’de fazla"),
-      kpi("Alan farkı", c.field_missing || 0, ((c.field_mismatch || 0) ? ((c.field_mismatch || 0) + " farklı · ") : "") + "doviz kartında eksik alan"),
-      kpi("Son ziyaret Δ", v ? ((vs.new || 0) + " yeni / " + (vs.changed || 0) + " bilgi") : "—", v && v.is_baseline ? "taban tarama" : (vs.not_on_doviz != null ? ("doviz’de yok: " + vs.not_on_doviz) : "09:09 · 14:14")),
+      kpi("halkarz", "Halkarz", c.halkarz || 0, `ilk ${c.halkarz_ilk || 0} · taslak ${c.halkarz_taslak || 0}`),
+      kpi("doviz", "Doviz", c.doviz || 0, `aktif ${c.doviz_aktif || 0} · taslak ${c.doviz_taslak || 0}`),
+      kpi("matched", "Eşleşen", c.matched || 0, "aynı başlık"),
+      kpi("missing", "Doviz’de yok", c.missing || 0, "halkarz’da var"),
+      kpi("extra", "Halkarz’da yok", c.extra || 0, "doviz’de fazla"),
+      kpi("gap", "Alan farkı", c.field_missing || 0, ((c.field_mismatch || 0) ? ((c.field_mismatch || 0) + " farklı · ") : "") + "doviz kartında eksik alan"),
+      kpi("upcoming", "Yaklaşan", c.upcoming || 0, `tarihli ${c.dated || 0} · geçmiş ${c.past || 0}`),
+      kpi("visit", "Son ziyaret Δ", v ? ((vs.new || 0) + " / " + (vs.changed || 0)) : "—", v && v.is_baseline ? "taban tarama" : ("yeni / bilgi" + (vs.not_on_doviz != null ? (" · doviz’de yok " + vs.not_on_doviz) : " · 09:09 · 14:14"))),
     ].join("");
     document.querySelectorAll(".ipo-tab").forEach((b) => {
       const n = {
+        all: c.total,
         yeni: v ? (v.is_baseline ? 0 : (vs.new || 0) + (vs.changed || 0)) : (data.halkarz_flagged_new || []).length,
         olan: c.olan, arz_olacak: c.arz_olacak, olmus: c.olmus, missing: c.missing, extra: c.extra
       }[b.dataset.tab];
@@ -115,6 +268,7 @@
     });
   }
 
+  /* ---------- veri erişimi ---------- */
   function allCompareRows() {
     if (!data || !data.buckets) return [];
     return (data.buckets.olan || []).concat(
@@ -137,6 +291,106 @@
     return null;
   }
 
+  function rowsForTab() {
+    if (!data) return [];
+    if (state.tab === "all") return allCompareRows();
+    if (state.tab === "missing") return allCompareRows().filter((r) => r.match === "halkarz_only");
+    if (state.tab === "extra") return allCompareRows().filter((r) => r.match === "doviz_only");
+    return (data.buckets[state.tab] || []);
+  }
+
+  /* ---------- filtre + sıralama ---------- */
+  function haystack(r) {
+    const ha = r.halkarz || {}, dv = r.doviz || {};
+    const f = Object.assign({}, ha.fields || {}, dv.fields || {});
+    return [r.name, r.ticker, ha.status, dv.status, f.araci_kurum, f.pazar, f.halka_arz_tarihi, f.ilk_islem]
+      .filter(Boolean).join(" ").toLocaleLowerCase("tr");
+  }
+
+  function passSource(match) {
+    const s = state.source;
+    if (s === "all") return true;
+    if (s === "in_halkarz") return match === "both" || match === "halkarz_only";
+    if (s === "in_doviz") return match === "both" || match === "doviz_only";
+    return match === s;
+  }
+
+  function passTime(iso) {
+    const t = state.time;
+    if (t === "all") return true;
+    if (t === "undated") return !iso;
+    if (!iso) return false;
+    const diff = dayDiff(iso);
+    if (diff == null) return false;
+    if (t === "upcoming") return diff >= 0;
+    if (t === "today") return diff === 0;
+    if (t === "week") return diff >= 0 && diff <= 7;
+    if (t === "past") return diff < 0;
+    return true;
+  }
+
+  function passFilters(meta) {
+    const q = state.q.trim().toLocaleLowerCase("tr");
+    if (q && !meta.hay.includes(q)) return false;
+    if (!passSource(meta.match)) return false;
+    if (!passTime(meta.date_iso)) return false;
+    if (state.onlyNew && !meta.is_new) return false;
+    if (state.onlyGap && meta.match === "both" && !meta.gap_count) return false;
+    return true;
+  }
+
+  function rowMeta(r) {
+    return {
+      row: r,
+      name: r.name || "",
+      ticker: r.ticker || "",
+      match: r.match,
+      date_iso: r.date_iso || "",
+      date_source: r.date_source || "",
+      gap_count: r.gap_count != null ? r.gap_count : ((r.missing_on_doviz || []).length + (r.mismatch || []).length),
+      ha_order: r.ha_order,
+      dv_order: r.dv_order,
+      is_new: !!r.is_new,
+      hay: haystack(r),
+    };
+  }
+
+  const MATCH_ORDER = { halkarz_only: 0, doviz_only: 1, both: 2 };
+  function ord(v) { return v == null ? Number.MAX_SAFE_INTEGER : v; }
+  function byName(a, b) { return String(a.name).localeCompare(String(b.name), "tr"); }
+  function byDate(a, b, dir) {
+    if (!a.date_iso && !b.date_iso) return byName(a, b);
+    if (!a.date_iso) return 1;
+    if (!b.date_iso) return -1;
+    if (a.date_iso === b.date_iso) return byName(a, b);
+    return a.date_iso < b.date_iso ? -dir : dir;
+  }
+  const SORTERS = {
+    halkarz_new: (a, b) => ord(a.ha_order) - ord(b.ha_order) || byName(a, b),
+    doviz_new: (a, b) => ord(a.dv_order) - ord(b.dv_order) || byName(a, b),
+    date_asc: (a, b) => byDate(a, b, 1),
+    date_desc: (a, b) => byDate(a, b, -1),
+    gap_desc: (a, b) => (b.gap_count - a.gap_count) || byName(a, b),
+    match: (a, b) => (MATCH_ORDER[a.match] ?? 9) - (MATCH_ORDER[b.match] ?? 9) || byName(a, b),
+    name_asc: byName,
+    name_desc: (a, b) => byName(b, a),
+    ticker_asc: (a, b) => String(a.ticker || "zzz").localeCompare(String(b.ticker || "zzz"), "tr") || byName(a, b),
+  };
+  function sortMetas(metas) {
+    return metas.slice().sort(SORTERS[state.sort] || SORTERS.halkarz_new);
+  }
+
+  function setCount(shown, total) {
+    const bits = [];
+    if (state.q) bits.push("arama");
+    if (state.source !== "all") bits.push(el("ipo-source").selectedOptions[0].textContent.trim());
+    if (state.time !== "all") bits.push(el("ipo-time").selectedOptions[0].textContent.trim());
+    if (state.onlyGap) bits.push("eksik alan");
+    if (state.onlyNew) bits.push("«Yeni!»");
+    el("ipo-count").textContent = `${shown} / ${total} kayıt` + (bits.length ? " · " + bits.join(" · ") : "");
+  }
+
+  /* ---------- kartlar ---------- */
   function diffTable(diffs, emptyText) {
     if (!diffs || !diffs.length) {
       return `<p class="mt-3 text-xs text-slate-400 dark:text-zinc-500">${esc(emptyText || "Karşılaştırılacak alan yok")}</p>`;
@@ -151,6 +405,16 @@
     </div>`;
   }
 
+  function fieldRow(d) {
+    const kind = d.kind || "ok";
+    return `<tr class="align-top">
+      <td class="py-1 pr-3 text-[11px] text-slate-500 dark:text-zinc-500 whitespace-nowrap">${esc(d.label || d.field)}</td>
+      <td class="py-1 pr-3 text-[12px] text-slate-800 dark:text-zinc-200">${esc(d.halkarz || "—")}</td>
+      <td class="py-1 pr-3 text-[12px] text-slate-800 dark:text-zinc-200">${esc(d.doviz || "—")}</td>
+      <td class="py-1">${pill(kind, kind === "ok" ? "aynı" : kind === "missing" ? "doviz eksik" : kind === "extra" ? "halkarz yok" : "farklı")}</td>
+    </tr>`;
+  }
+
   function gapPills(row) {
     if (!row) return "";
     return [
@@ -159,30 +423,81 @@
     ].join("");
   }
 
-  function rowsForTab() {
-    if (!data) return [];
-    if (tab === "yeni") return [];
-    if (tab === "missing") return (data.buckets.olan || []).concat(data.buckets.arz_olacak || [], data.buckets.olmus || []).filter((r) => r.match === "halkarz_only");
-    if (tab === "extra") return (data.buckets.olan || []).concat(data.buckets.arz_olacak || [], data.buckets.olmus || []).filter((r) => r.match === "doviz_only");
-    return (data.buckets[tab] || []);
-  }
-
   function dovizFlag(on) {
     return on ? pill("ok", "doviz’de var") : pill("missing", "doviz’de yok");
   }
 
-  function visitCard(r, kind, idx) {
-    const q = (el("ipo-q").value || "").trim().toLocaleLowerCase("tr");
-    const hay = `${r.name} ${r.ticker}`.toLocaleLowerCase("tr");
-    if (q && !hay.includes(q)) return "";
+  function card(meta, idx) {
+    const r = meta.row;
+    const ha = r.halkarz || {};
+    const dv = r.doviz || {};
+    const diffs = r.diffs || [];
+    const id = "ipo-row-" + idx;
+    const openByDefault = meta.gap_count > 0;
+    return `<article class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
+      <button type="button" class="flex w-full flex-wrap items-start gap-2 px-4 py-3 text-left" data-open="${id}">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            ${r.ticker ? `<span class="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-300">${esc(r.ticker)}</span>` : ""}
+            <span class="text-sm font-semibold text-slate-900 dark:text-zinc-100">${esc(r.name)}</span>
+            ${matchPill(r.match)}
+            ${r.is_new ? pill("mismatch", "Yeni!") : ""}
+            ${datePill(meta.date_iso, meta.date_source)}
+          </div>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">
+            halkarz: ${esc(ha.status || "—")} ${ha.date_label ? "· " + esc(ha.date_label) : ""}
+            &nbsp;·&nbsp; doviz: ${esc(dv.status || "—")} ${dv.date_label ? "· " + esc(dv.date_label) : ""}
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-1">
+          ${(r.missing_on_doviz || []).slice(0,3).map((f) => pill("missing", (data.field_labels || {})[f] || f)).join("")}
+          ${(r.mismatch || []).slice(0,2).map((f) => pill("mismatch", (data.field_labels || {})[f] || f)).join("")}
+        </div>
+      </button>
+      <div id="${id}" class="${openByDefault ? "" : "hidden"} border-t border-slate-100 px-4 py-3 dark:border-zinc-800">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">halkarz.com</p>
+            ${ha.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(ha.url)}" target="_blank" rel="noopener">${esc(ha.name || r.name)}</a>` : `<p class="text-xs">${esc(ha.name || "—")}</p>`}
+          </div>
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">doviz.com</p>
+            ${dv.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(dv.url)}" target="_blank" rel="noopener">${esc(dv.name || r.name)}</a>` : `<p class="text-xs text-rose-600 dark:text-rose-300">${r.match === "halkarz_only" ? "Sayfa yok" : esc(dv.name || "—")}</p>`}
+          </div>
+        </div>
+        ${diffTable(diffs, "Karşılaştırılacak alan yok")}
+      </div>
+    </article>`;
+  }
+
+  function visitMeta(r, kind) {
     const compare = findCompareRow(r);
+    const gap = compare ? (compare.gap_count != null ? compare.gap_count : ((compare.missing_on_doviz || []).length + (compare.mismatch || []).length)) : 0;
+    return {
+      row: r,
+      kind: kind,
+      compare: compare,
+      name: r.name || "",
+      ticker: r.ticker || "",
+      match: compare ? compare.match : (r.on_doviz ? "both" : "halkarz_only"),
+      date_iso: r.date_iso || (compare && compare.date_iso) || "",
+      date_source: (compare && compare.date_source) || "halkarz · liste",
+      gap_count: gap,
+      ha_order: r.order != null ? r.order : (compare ? compare.ha_order : null),
+      dv_order: compare ? compare.dv_order : null,
+      is_new: kind === "new" || !!(compare && compare.is_new),
+      hay: [r.name, r.ticker, r.status, r.date_label].filter(Boolean).join(" ").toLocaleLowerCase("tr"),
+    };
+  }
+
+  function visitCard(meta, idx) {
+    const r = meta.row;
+    const kind = meta.kind;
+    const compare = meta.compare;
     const diffs = (compare && compare.diffs) || [];
-    const gapOnly = el("ipo-only-gap").checked;
-    const hasGap = compare && ((compare.missing_on_doviz || []).length || (compare.mismatch || []).length);
-    if (gapOnly && compare && compare.match === "both" && !hasGap) return "";
     const id = "ipo-v-" + kind + "-" + idx;
     const changes = r.changes || [];
-    const openByDefault = kind !== "new" || (compare && hasGap);
+    const openByDefault = kind !== "new" || meta.gap_count > 0;
     return `<article class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
       <button type="button" class="flex w-full flex-wrap items-start gap-2 px-4 py-3 text-left" data-open="${id}">
         <div class="min-w-0 flex-1">
@@ -191,6 +506,7 @@
             <span class="text-sm font-semibold text-slate-900 dark:text-zinc-100">${esc(r.name)}</span>
             ${kind === "new" ? pill("missing", "yeni şirket") : kind === "changed" ? pill("mismatch", "yeni bilgi") : ""}
             ${compare ? matchPill(compare.match) : dovizFlag(r.on_doviz)}
+            ${datePill(meta.date_iso, meta.date_source)}
           </div>
           <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">
             halkarz: ${esc(r.status || (compare && compare.halkarz && compare.halkarz.status) || "—")} ${r.date_label ? "· " + esc(r.date_label) : ""}
@@ -220,90 +536,44 @@
     </article>`;
   }
 
+  /* ---------- listeler ---------- */
   function renderYeni() {
     const v = data && data.visit;
     const flagged = data.halkarz_flagged_new || [];
+    let metas = [];
+    let note = "";
     if (!v) {
-      const html = flagged.map((r, i) => visitCard(r, "new", i)).join("");
-      el("ipo-list").innerHTML = `<p class="rounded-xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm dark:bg-zinc-900 dark:text-zinc-400">İlk 09:09 / 14:14 ziyareti henüz kaydedilmedi. halkarz’daki «Yeni!» rozetliler:</p>` + (html || "");
-      return;
+      note = `<p class="rounded-xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm dark:bg-zinc-900 dark:text-zinc-400">İlk 09:09 / 14:14 ziyareti henüz kaydedilmedi. halkarz’daki «Yeni!» rozetliler:</p>`;
+      metas = flagged.map((r) => visitMeta(r, "new"));
+    } else if (v.is_baseline) {
+      note = `<p class="rounded-xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm dark:bg-zinc-900 dark:text-zinc-400">Taban tarama alındı (${esc(v.fetched_at)} · ${esc(v.slot)}). «Olan» sekmesinde halkarz ↔ doviz alan karşılaştırması var; aşağıda «Yeni!» rozetliler.</p>`;
+      metas = flagged.map((r) => visitMeta(r, "new"));
+    } else {
+      metas = (v.new || []).map((r) => visitMeta(r, "new"))
+        .concat((v.changed || []).map((r) => visitMeta(r, "changed")));
     }
-    if (v.is_baseline) {
-      el("ipo-list").innerHTML = `<p class="rounded-xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm dark:bg-zinc-900 dark:text-zinc-400">Taban tarama alındı (${esc(v.fetched_at)} · ${esc(v.slot)}). «Olan» sekmesinde halkarz ↔ doviz alan karşılaştırması var; aşağıda «Yeni!» rozetliler.</p>`
-        + flagged.map((r, i) => visitCard({...r, on_doviz: r.on_doviz}, "new", "f"+i)).join("");
-      return;
-    }
-    const parts = [];
-    (v.new || []).forEach((r, i) => parts.push(visitCard(r, "new", i)));
-    (v.changed || []).forEach((r, i) => parts.push(visitCard(r, "changed", i)));
-    el("ipo-list").innerHTML = parts.join("") || `<p class="rounded-xl bg-white px-4 py-6 text-sm text-slate-500 shadow-sm dark:bg-zinc-900 dark:text-zinc-400">Son ziyarette (${esc(v.fetched_at)}) yeni şirket veya bilgi yok.</p>`;
-  }
-
-  function fieldRow(d) {
-    const kind = d.kind || "ok";
-    return `<tr class="align-top">
-      <td class="py-1 pr-3 text-[11px] text-slate-500 dark:text-zinc-500 whitespace-nowrap">${esc(d.label || d.field)}</td>
-      <td class="py-1 pr-3 text-[12px] text-slate-800 dark:text-zinc-200">${esc(d.halkarz || "—")}</td>
-      <td class="py-1 pr-3 text-[12px] text-slate-800 dark:text-zinc-200">${esc(d.doviz || "—")}</td>
-      <td class="py-1">${pill(kind, kind === "ok" ? "aynı" : kind === "missing" ? "doviz eksik" : kind === "extra" ? "halkarz yok" : "farklı")}</td>
-    </tr>`;
-  }
-
-  function card(r, idx) {
-    const ha = r.halkarz || {};
-    const dv = r.doviz || {};
-    const diffs = r.diffs || [];
-    const q = (el("ipo-q").value || "").trim().toLocaleLowerCase("tr");
-    const hay = `${r.name} ${r.ticker} ${ha.status || ""} ${dv.status || ""}`.toLocaleLowerCase("tr");
-    if (q && !hay.includes(q)) return "";
-    if (el("ipo-only-gap").checked && r.match === "both" && !(r.missing_on_doviz || []).length && !(r.mismatch || []).length) return "";
-    const id = "ipo-row-" + idx;
-    const openByDefault = (r.missing_on_doviz || []).length || (r.mismatch || []).length;
-    return `<article class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
-      <button type="button" class="flex w-full flex-wrap items-start gap-2 px-4 py-3 text-left" data-open="${id}">
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-2">
-            ${r.ticker ? `<span class="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-300">${esc(r.ticker)}</span>` : ""}
-            <span class="text-sm font-semibold text-slate-900 dark:text-zinc-100">${esc(r.name)}</span>
-            ${matchPill(r.match)}
-          </div>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">
-            halkarz: ${esc(ha.status || "—")} ${ha.date_label ? "· " + esc(ha.date_label) : ""}
-            &nbsp;·&nbsp; doviz: ${esc(dv.status || "—")} ${dv.date_label ? "· " + esc(dv.date_label) : ""}
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-1">
-          ${(r.missing_on_doviz || []).slice(0,3).map((f) => pill("missing", (data.field_labels || {})[f] || f)).join("")}
-          ${(r.mismatch || []).slice(0,2).map((f) => pill("mismatch", (data.field_labels || {})[f] || f)).join("")}
-        </div>
-      </button>
-      <div id="${id}" class="${openByDefault ? "" : "hidden"} border-t border-slate-100 px-4 py-3 dark:border-zinc-800">
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">halkarz.com</p>
-            ${ha.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(ha.url)}" target="_blank" rel="noopener">${esc(ha.name || r.name)}</a>` : `<p class="text-xs">${esc(ha.name || "—")}</p>`}
-          </div>
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">doviz.com</p>
-            ${dv.url ? `<a class="text-xs font-medium text-indigo-600 underline dark:text-indigo-300" href="${esc(dv.url)}" target="_blank" rel="noopener">${esc(dv.name || r.name)}</a>` : `<p class="text-xs text-rose-600 dark:text-rose-300">${r.match === "halkarz_only" ? "Sayfa yok" : esc(dv.name || "—")}</p>`}
-          </div>
-        </div>
-        ${diffTable(diffs, "Karşılaştırılacak alan yok")}
-      </div>
-    </article>`;
+    const total = metas.length;
+    const shown = sortMetas(metas.filter(passFilters));
+    setCount(shown.length, total);
+    const html = shown.map((m, i) => visitCard(m, i)).join("");
+    el("ipo-list").innerHTML = note + (html || `<p class="rounded-xl bg-white px-4 py-6 text-sm text-slate-500 shadow-sm dark:bg-zinc-900 dark:text-zinc-400">${total ? "Filtreye uyan kayıt yok." : (v ? "Son ziyarette (" + esc(v.fetched_at) + ") yeni şirket veya bilgi yok." : "Kayıt yok.")}</p>`);
   }
 
   function renderList() {
-    if (tab === "yeni") {
+    if (!data) return;
+    if (state.tab === "yeni") {
       renderYeni();
       return;
     }
-    const rows = rowsForTab();
-    const html = rows.map(card).filter(Boolean).join("");
-    el("ipo-list").innerHTML = html || `<p class="rounded-xl bg-white px-4 py-6 text-sm text-slate-500 shadow-sm dark:bg-zinc-900 dark:text-zinc-400">Kayıt yok.</p>`;
+    const metas = rowsForTab().map(rowMeta);
+    const shown = sortMetas(metas.filter(passFilters));
+    setCount(shown.length, metas.length);
+    const html = shown.map((m, i) => card(m, i)).join("");
+    el("ipo-list").innerHTML = html || `<p class="rounded-xl bg-white px-4 py-6 text-sm text-slate-500 shadow-sm dark:bg-zinc-900 dark:text-zinc-400">${metas.length ? "Filtreye uyan kayıt yok." : "Kayıt yok."}</p>`;
   }
 
   function render() {
+    syncControls();
     renderKpis();
     renderList();
     const err = data && data.errors && Object.keys(data.errors).length
@@ -332,15 +602,38 @@
     }
   }
 
+  function update(patch, opts) {
+    Object.assign(state, patch || {});
+    if (!(opts && opts.keepKpi)) state.kpi = (patch && "kpi" in patch) ? patch.kpi : "";
+    saveState();
+    syncControls();
+    renderKpis();
+    renderList();
+  }
+
+  /* ---------- olaylar ---------- */
   document.querySelectorAll(".ipo-tab").forEach((b) => {
-    b.addEventListener("click", () => {
-      tab = b.dataset.tab;
-      document.querySelectorAll(".ipo-tab").forEach((x) => x.classList.toggle("ipo-tab-on", x === b));
-      renderList();
-    });
+    b.addEventListener("click", () => update({ tab: b.dataset.tab }));
   });
-  el("ipo-q").addEventListener("input", renderList);
-  el("ipo-only-gap").addEventListener("change", renderList);
+  el("ipo-kpis").addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-kpi]");
+    if (!btn) return;
+    const key = btn.dataset.kpi;
+    if (state.kpi === key) {
+      update(Object.assign({}, DEFAULTS, { q: state.q }));
+      return;
+    }
+    const preset = KPI_PRESETS[key];
+    if (!preset) return;
+    update(Object.assign({ kpi: key }, preset), { keepKpi: true });
+  });
+  el("ipo-q").addEventListener("input", () => update({ q: el("ipo-q").value }, { keepKpi: true }));
+  el("ipo-sort").addEventListener("change", () => update({ sort: el("ipo-sort").value }, { keepKpi: true }));
+  el("ipo-source").addEventListener("change", () => update({ source: el("ipo-source").value }, { keepKpi: true }));
+  el("ipo-time").addEventListener("change", () => update({ time: el("ipo-time").value }, { keepKpi: true }));
+  el("ipo-only-gap").addEventListener("change", () => update({ onlyGap: el("ipo-only-gap").checked }, { keepKpi: true }));
+  el("ipo-only-new").addEventListener("change", () => update({ onlyNew: el("ipo-only-new").checked }, { keepKpi: true }));
+  el("ipo-reset").addEventListener("click", () => update(Object.assign({}, DEFAULTS, { tab: state.tab })));
   el("ipo-refresh").addEventListener("click", () => load(true));
   el("ipo-list").addEventListener("click", (ev) => {
     const btn = ev.target.closest("[data-open]");
@@ -348,6 +641,9 @@
     const box = document.getElementById(btn.getAttribute("data-open"));
     if (box) box.classList.toggle("hidden");
   });
+
+  loadState();
+  syncControls();
   load(false);
 })();
 </script>
