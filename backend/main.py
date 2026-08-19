@@ -2170,18 +2170,12 @@ async def ip_allowlist_middleware(request: Request, call_next):
 def on_startup() -> None:
     """Uvicorn’u hemen dinlemeye al — Railway /health için şart.
 
-    Ağır DB DDL / create_all / scheduler eski replica’nın sheet sync kilitlerinde
-    dakikalar bekleyebilir; senkron startup healthcheck’i düşürür.
+    DB/migration/init_db scheduler arka planda; startup event’te Postgres
+    çağrısı yok (healthcheck 60–300s içinde geçmeli).
     """
     import threading as _threading
 
     LOGGER.info("Startup: healthcheck-safe — DB/scheduler arka planda başlatılıyor")
-    try:
-        from backend.database import ensure_auth_log_tables_ready
-
-        ensure_auth_log_tables_ready()
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("Startup auth-log tables: %s", exc)
     _threading.Thread(
         target=_run_deferred_startup,
         daemon=True,
@@ -2194,16 +2188,21 @@ def _run_deferred_startup() -> None:
     global SCHEDULER
     import threading as _threading
 
-    try:
-        from sqlalchemy import text
+    from backend.database import run_with_db_backoff, wait_for_db_ready
+
+    if not wait_for_db_ready(max_attempts=15):
+        LOGGER.error("Deferred startup: Postgres hazır değil — migration/init atlandı")
+        return
+
+    def _auth_log_bootstrap() -> None:
         from backend.database import engine, _ensure_auth_log_columns, ensure_auth_log_tables_ready
 
         ensure_auth_log_tables_ready()
         with engine.connect() as _conn:
             _ensure_auth_log_columns(_conn)
             _conn.commit()
-    except Exception as e:
-        LOGGER.warning("Deferred startup auth-log columns: %s", e)
+
+    run_with_db_backoff(_auth_log_bootstrap, label="auth-log bootstrap", max_attempts=15)
 
     try:
         from sqlalchemy import text
@@ -2221,39 +2220,42 @@ def _run_deferred_startup() -> None:
                 _conn.execute(text(stmt))
                 _conn.commit()
 
-        for stmt in [
-            "ALTER TABLE news_intelligence_items ADD COLUMN source_url VARCHAR(512)",
-            "ALTER TABLE news_intelligence_items ADD COLUMN image_url VARCHAR(1024)",
-            "CREATE INDEX IF NOT EXISTS ix_news_intel_published_at ON news_intelligence_items (published_at DESC)",
-            "CREATE INDEX IF NOT EXISTS ix_news_intel_cat_pub ON news_intelligence_items (category, published_at DESC)",
-            "ALTER TABLE ad_policy_violations ADD COLUMN page_title VARCHAR(500) NOT NULL DEFAULT ''",
-            "ALTER TABLE ad_policy_violations ADD COLUMN page_title_fetched_at TIMESTAMP",
-            "ALTER TABLE ad_policy_violations ADD COLUMN extra_json TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE ad_policy_violations ADD COLUMN first_seen_at TIMESTAMP",
-            "UPDATE ad_policy_violations SET first_seen_at = fetched_at WHERE first_seen_at IS NULL",
-            "ALTER TABLE ad_policy_violations ADD CONSTRAINT uq_adpolicy_url_issue UNIQUE (url, issue_type)",
-            "ALTER TABLE ad_policy_violations ADD COLUMN in_noads BOOLEAN",
-            "ALTER TABLE ad_policy_violations ADD COLUMN noads_checked_at TIMESTAMP",
-            "CREATE INDEX IF NOT EXISTS ix_adpolicy_in_noads ON ad_policy_violations (in_noads)",
-            "ALTER TABLE realtime_alarm_logs ADD COLUMN email_sent_at TIMESTAMP",
-            "CREATE INDEX IF NOT EXISTS ix_realtime_alarm_logs_email_sent_at ON realtime_alarm_logs (email_sent_at)",
-            "ALTER TABLE inbox_gmail_credentials ADD COLUMN scheduled_sync_last_success_at TIMESTAMP",
-            "ALTER TABLE support_inbox_messages ADD COLUMN body_html TEXT DEFAULT ''",
-            "ALTER TABLE notification_analytics_workspace ADD COLUMN source VARCHAR(64) NOT NULL DEFAULT ''",
-            "ALTER TABLE notification_analytics_workspace ADD COLUMN source_url VARCHAR(512) NOT NULL DEFAULT ''",
-            "ALTER TABLE doviz_news_workspace ADD COLUMN sync_ok BOOLEAN NOT NULL DEFAULT TRUE",
-            "ALTER TABLE doviz_news_workspace ADD COLUMN sync_message VARCHAR(512) NOT NULL DEFAULT ''",
-            "ALTER TABLE doviz_news_workspace ADD COLUMN sync_mode VARCHAR(32) NOT NULL DEFAULT ''",
-            "ALTER TABLE doviz_news_workspace ADD COLUMN background_synced_at TIMESTAMP",
-        ]:
-            try:
-                _exec_stmt(stmt)
-            except Exception:
-                pass
+        def _run_migrations() -> None:
+            for stmt in [
+                "ALTER TABLE news_intelligence_items ADD COLUMN source_url VARCHAR(512)",
+                "ALTER TABLE news_intelligence_items ADD COLUMN image_url VARCHAR(1024)",
+                "CREATE INDEX IF NOT EXISTS ix_news_intel_published_at ON news_intelligence_items (published_at DESC)",
+                "CREATE INDEX IF NOT EXISTS ix_news_intel_cat_pub ON news_intelligence_items (category, published_at DESC)",
+                "ALTER TABLE ad_policy_violations ADD COLUMN page_title VARCHAR(500) NOT NULL DEFAULT ''",
+                "ALTER TABLE ad_policy_violations ADD COLUMN page_title_fetched_at TIMESTAMP",
+                "ALTER TABLE ad_policy_violations ADD COLUMN extra_json TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE ad_policy_violations ADD COLUMN first_seen_at TIMESTAMP",
+                "UPDATE ad_policy_violations SET first_seen_at = fetched_at WHERE first_seen_at IS NULL",
+                "ALTER TABLE ad_policy_violations ADD CONSTRAINT uq_adpolicy_url_issue UNIQUE (url, issue_type)",
+                "ALTER TABLE ad_policy_violations ADD COLUMN in_noads BOOLEAN",
+                "ALTER TABLE ad_policy_violations ADD COLUMN noads_checked_at TIMESTAMP",
+                "CREATE INDEX IF NOT EXISTS ix_adpolicy_in_noads ON ad_policy_violations (in_noads)",
+                "ALTER TABLE realtime_alarm_logs ADD COLUMN email_sent_at TIMESTAMP",
+                "CREATE INDEX IF NOT EXISTS ix_realtime_alarm_logs_email_sent_at ON realtime_alarm_logs (email_sent_at)",
+                "ALTER TABLE inbox_gmail_credentials ADD COLUMN scheduled_sync_last_success_at TIMESTAMP",
+                "ALTER TABLE support_inbox_messages ADD COLUMN body_html TEXT DEFAULT ''",
+                "ALTER TABLE notification_analytics_workspace ADD COLUMN source VARCHAR(64) NOT NULL DEFAULT ''",
+                "ALTER TABLE notification_analytics_workspace ADD COLUMN source_url VARCHAR(512) NOT NULL DEFAULT ''",
+                "ALTER TABLE doviz_news_workspace ADD COLUMN sync_ok BOOLEAN NOT NULL DEFAULT TRUE",
+                "ALTER TABLE doviz_news_workspace ADD COLUMN sync_message VARCHAR(512) NOT NULL DEFAULT ''",
+                "ALTER TABLE doviz_news_workspace ADD COLUMN sync_mode VARCHAR(32) NOT NULL DEFAULT ''",
+                "ALTER TABLE doviz_news_workspace ADD COLUMN background_synced_at TIMESTAMP",
+            ]:
+                try:
+                    _exec_stmt(stmt)
+                except Exception:
+                    pass
+
+        run_with_db_backoff(_run_migrations, label="deferred migrations", max_attempts=15)
     except Exception as e:
         LOGGER.warning("Deferred startup migration hatası: %s", e)
 
-    try:
+    def _core_db_init() -> None:
         LOGGER.info("Deferred startup: init_db (create_all)…")
         init_db(with_indexes=False)
         try:
@@ -2264,8 +2266,9 @@ def _run_deferred_startup() -> None:
             LOGGER.warning("ensure_indexes_background kayıt hatası: %s", exc)
         _bootstrap_admin_password_from_env()
         LOGGER.info("Deferred startup: core DB ready")
-    except Exception:
-        LOGGER.exception("Deferred startup init_db failed")
+
+    if run_with_db_backoff(_core_db_init, label="init_db", max_attempts=15) is None:
+        LOGGER.error("Deferred startup: init_db başarısız — scheduler atlanabilir")
 
     try:
         if is_railway_runtime():

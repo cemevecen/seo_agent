@@ -10,7 +10,7 @@ builder = "nixpacks"
 startCommand = "sh -lc \"exec uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8012}\""
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 5
-# Healthcheck: /health startup bitmeden cevap vermez. create_all hızlı; index’ler arka planda.
+# Healthcheck: /health anında döner; create_all/migration arka planda (deferred startup).
 # Sheet sync sonrası büyük tablolarda yine de nefes payı bırak.
 healthcheckPath = "/health"
 healthcheckTimeout = 300

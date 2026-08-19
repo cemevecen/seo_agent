@@ -2,9 +2,11 @@
 
 import logging
 import socket
+import time
 from pathlib import Path
+from typing import Callable, TypeVar
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -93,6 +95,79 @@ if _IS_SQLITE:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+_T = TypeVar("_T")
+
+
+def wait_for_db_ready(
+    *,
+    max_attempts: int = 15,
+    base_delay_s: float = 1.0,
+    max_delay_s: float = 30.0,
+) -> bool:
+    """Postgres/SQLite hazır olana kadar dene (arka plan startup için).
+
+    Uvicorn startup event'i bloke etmeden healthcheck geçsin diye
+    deferred thread içinde çağrılır.
+    """
+    if max_attempts < 1:
+        max_attempts = 1
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            if attempt > 1:
+                LOGGER.info("DB ready (attempt %s/%s)", attempt, max_attempts)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            if attempt >= max_attempts:
+                LOGGER.error(
+                    "DB not ready after %s attempts: %s",
+                    max_attempts,
+                    exc,
+                )
+                return False
+            delay = min(max_delay_s, base_delay_s * (2 ** (attempt - 1)))
+            LOGGER.warning(
+                "DB not ready (attempt %s/%s): %s — retry in %.1fs",
+                attempt,
+                max_attempts,
+                exc,
+                delay,
+            )
+            time.sleep(delay)
+    return False
+
+
+def run_with_db_backoff(
+    fn: Callable[[], _T],
+    *,
+    label: str,
+    max_attempts: int = 15,
+    base_delay_s: float = 1.0,
+    max_delay_s: float = 30.0,
+) -> _T | None:
+    """DB işlemini exponential backoff ile tekrar dene."""
+    if max_attempts < 1:
+        max_attempts = 1
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001
+            if attempt >= max_attempts:
+                LOGGER.error("%s failed after %s attempts: %s", label, max_attempts, exc)
+                return None
+            delay = min(max_delay_s, base_delay_s * (2 ** (attempt - 1)))
+            LOGGER.warning(
+                "%s failed (attempt %s/%s): %s — retry in %.1fs",
+                label,
+                attempt,
+                max_attempts,
+                exc,
+                delay,
+            )
+            time.sleep(delay)
+    return None
 
 
 def get_db():
