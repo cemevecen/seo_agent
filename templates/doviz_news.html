@@ -2,7 +2,7 @@
 
 {% block content %}
 <style>
-  .dn-page { max-width: 1600px; width: 100%; margin: 0 auto; padding: 1rem 0.85rem 3rem; }
+  .dn-page { max-width: none; width: 100%; margin: 0 auto; padding: 1rem 0.85rem 3rem; }
   @media (min-width: 640px) { .dn-page { padding: 1.25rem 1rem 3rem; } }
   .dn-page #dn-panel-stats,
   .dn-page #dn-body,
@@ -16,6 +16,76 @@
   }
   .dn-page #dn-google-news-root {
     margin-top: 1rem;
+  }
+  /* Publish stats: sol içerik + sağda dikey Trend news rayı */
+  .dn-stats-shell { display: flex; align-items: flex-start; gap: 0.85rem; width: 100%; }
+  .dn-stats-shell.hidden { display: none !important; }
+  .dn-stats-main { flex: 1 1 auto; min-width: 0; }
+  .dn-trend-rail {
+    flex: 0 0 auto;
+    width: 46px;
+    align-self: stretch;
+    position: sticky;
+    top: 0.5rem;
+    height: calc(100vh - 1.25rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 20px;
+    border: 1px solid rgb(226 232 240);
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(15 23 42 / .04);
+    transition: width .3s cubic-bezier(.4, 0, .2, 1), box-shadow .3s ease;
+  }
+  html.dark .dn-trend-rail, html.charcoal .dn-trend-rail {
+    border-color: #33333a; background: #2a2a2e; box-shadow: none;
+  }
+  .dn-trend-rail.is-open { width: clamp(320px, 25vw, 440px); }
+  .dn-trend-rail.is-peeking { box-shadow: 0 0 0 3px rgb(99 102 241 / .45); }
+  .dn-rail-head {
+    display: flex; align-items: center; gap: 8px; padding: 10px 8px;
+    border-bottom: 1px solid transparent;
+  }
+  .dn-trend-rail.is-open .dn-rail-head {
+    border-bottom-color: rgb(226 232 240); padding: 10px 14px;
+  }
+  html.dark .dn-trend-rail.is-open .dn-rail-head,
+  html.charcoal .dn-trend-rail.is-open .dn-rail-head { border-bottom-color: #33333a; }
+  .dn-rail-toggle {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    min-width: 30px; height: 30px; border-radius: 10px; cursor: pointer;
+    border: 1px solid rgb(226 232 240); background: rgb(248 250 252);
+    color: rgb(71 85 105); font-size: 12px; font-weight: 700;
+  }
+  html.dark .dn-rail-toggle, html.charcoal .dn-rail-toggle {
+    border-color: #33333a; background: #1f1f24; color: #a8a8b3;
+  }
+  .dn-rail-toggle:hover { border-color: #6366f1; color: #4338ca; }
+  .dn-rail-title {
+    font-size: 12px; font-weight: 800; letter-spacing: .04em; color: rgb(51 65 85);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  html.dark .dn-rail-title, html.charcoal .dn-rail-title { color: #bdbdc6; }
+  .dn-trend-rail:not(.is-open) .dn-rail-title { display: none; }
+  .dn-rail-vertical {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+    color: rgb(100 116 139); cursor: pointer; user-select: none; padding-bottom: 12px;
+  }
+  html.dark .dn-rail-vertical, html.charcoal .dn-rail-vertical { color: #8b8b96; }
+  .dn-trend-rail.is-open .dn-rail-vertical { display: none; }
+  .dn-rail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 10px 12px 16px; }
+  .dn-rail-hint { font-size: 11px; line-height: 1.6; color: rgb(100 116 139); }
+  html.dark .dn-rail-hint, html.charcoal .dn-rail-hint { color: #8b8b96; }
+  .dn-trend-rail:not(.is-open) .dn-rail-body { display: none; }
+  /* Trend paneli dar rayda tek sütuna insin */
+  .dn-rail-body .rt-intel-container { border-radius: 16px; padding: 12px; border: 0; box-shadow: none; background: transparent; }
+  .dn-rail-body #rt-intel-list { grid-template-columns: minmax(0, 1fr) !important; gap: 12px; }
+  .dn-rail-body .dn-trend-bar { flex-wrap: wrap; gap: 6px; }
+  .dn-rail-body .dn-trend-wrap { width: 100%; }
+  @media (max-width: 1279px) {
+    .dn-trend-rail { display: none; }
   }
   .dn-page #dn-sc-google-news {
     margin-top: 1rem;
@@ -1006,10 +1076,14 @@
     </div>
   </div>
 
-  <div id="dn-panel-trend" class="hidden" role="tabpanel">
-    {% include "partials/trend_haberler_panel.html" %}
+  <div id="dn-panel-trend-home">
+    <div id="dn-panel-trend" class="hidden" role="tabpanel">
+      {% include "partials/trend_haberler_panel.html" %}
+    </div>
   </div>
 
+  <div class="dn-stats-shell">
+  <div class="dn-stats-main">
   <div id="dn-panel-stats" role="tabpanel">
   <p id="dn-error" class="mb-4 hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
   <p id="dn-loading" class="mb-4 hidden text-xs text-slate-500 dark:text-zinc-400">Loading data…</p>
@@ -1154,6 +1228,23 @@
 
     {% include "partials/doviz_news_sc_google_news.html" %}
   </div>
+  </div>
+
+  <aside id="dn-trend-rail" class="dn-trend-rail" aria-label="Trend news">
+    <div class="dn-rail-head">
+      <button type="button" id="dn-trend-rail-toggle" class="dn-rail-toggle"
+              aria-expanded="false" aria-controls="dn-trend-rail-body" title="Trend news">
+        <span id="dn-trend-rail-icon" aria-hidden="true">‹</span>
+      </button>
+      <span class="dn-rail-title">Trend news</span>
+    </div>
+    <div id="dn-trend-rail-vertical" class="dn-rail-vertical" role="button" tabindex="0"
+         aria-controls="dn-trend-rail-body">Trend news</div>
+    <div id="dn-trend-rail-body" class="dn-rail-body">
+      <p id="dn-trend-rail-hint" class="dn-rail-hint">Trend news paneli burada. Açmak için başlığa tıklayın.</p>
+    </div>
+  </aside>
+  </div>
 </div>
 
 <script>
@@ -1164,12 +1255,88 @@
   } catch (_) {}
   if (pageTab !== "trend") pageTab = "stats";
 
+  var railBooted = false;
+  var railPeeked = false;
+
+  function railEl() { return document.getElementById("dn-trend-rail"); }
+  function railOpen() {
+    var rail = railEl();
+    return !!(rail && rail.classList.contains("is-open"));
+  }
+
+  /* Trend paneli tek DOM: stats sekmesinde sağdaki raya, trend sekmesinde
+     ana alana taşınır. Kopyalanmaz ki id'ler ve JS bağları bozulmasın. */
+  function moveTrendPanel(toRail) {
+    var panel = document.getElementById("dn-panel-trend");
+    var body = document.getElementById("dn-trend-rail-body");
+    var home = document.getElementById("dn-panel-trend-home");
+    if (!panel) return;
+    if (toRail) {
+      if (!body) {                      // ray yoksa panel stats görünümünde durmasın
+        panel.classList.add("hidden");
+        return;
+      }
+      if (panel.parentNode !== body) body.appendChild(panel);
+      panel.classList.remove("hidden");
+    } else {
+      if (home && panel.parentNode !== home) home.appendChild(panel);
+      panel.classList.remove("hidden");
+    }
+  }
+
+  function syncRailUi() {
+    var rail = railEl();
+    if (!rail) return;
+    var open = rail.classList.contains("is-open");
+    var toggle = document.getElementById("dn-trend-rail-toggle");
+    var icon = document.getElementById("dn-trend-rail-icon");
+    if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    if (icon) icon.textContent = open ? "›" : "‹";
+  }
+
+  function setRailOpen(open, opts) {
+    opts = opts || {};
+    var rail = railEl();
+    if (!rail) return;
+    rail.classList.toggle("is-open", !!open);
+    syncRailUi();
+    if (open && !opts.peek && !railBooted) {
+      railBooted = true;
+      var hint = document.getElementById("dn-trend-rail-hint");
+      if (hint) hint.remove();
+      if (typeof window.rtBootTrendNews === "function") window.rtBootTrendNews();
+    }
+    if (open) {
+      // taşınan panel yeni genişliğe göre yeniden ölçsün
+      window.setTimeout(function () {
+        try { window.dispatchEvent(new Event("resize")); } catch (_) {}
+      }, 320);
+    }
+  }
+
+  /* İlk açılışta "burada bir panel var" işareti: kısa süre açılıp kapanır. */
+  function peekRail() {
+    var rail = railEl();
+    if (!rail || railPeeked || railOpen()) return;
+    railPeeked = true;
+    window.setTimeout(function () {
+      if (railOpen()) return;
+      rail.classList.add("is-peeking");
+      setRailOpen(true, { peek: true });
+      window.setTimeout(function () {
+        rail.classList.remove("is-peeking");
+        if (!railBooted) setRailOpen(false, { peek: true });
+      }, 1400);
+    }, 700);
+  }
+
   function setPageTab(tab, pushUrl) {
     pageTab = tab === "trend" ? "trend" : "stats";
-    var trend = document.getElementById("dn-panel-trend");
     var stats = document.getElementById("dn-panel-stats");
-    if (trend) trend.classList.toggle("hidden", pageTab !== "trend");
+    var shell = document.querySelector(".dn-stats-shell");
+    moveTrendPanel(pageTab === "stats");
     if (stats) stats.classList.toggle("hidden", pageTab !== "stats");
+    if (shell) shell.classList.toggle("hidden", pageTab !== "stats");
     var chromeMeta = document.getElementById("dn-chrome-meta");
     if (chromeMeta) chromeMeta.hidden = pageTab !== "stats";
     var adminLink = document.getElementById("dn-source-link");
@@ -1205,7 +1372,25 @@
       setPageTab(btn.getAttribute("data-dn-page-tab") || "stats", true);
     });
   });
+
+  var railToggle = document.getElementById("dn-trend-rail-toggle");
+  if (railToggle) railToggle.addEventListener("click", function () {
+    setRailOpen(!railOpen());
+  });
+  var railVertical = document.getElementById("dn-trend-rail-vertical");
+  if (railVertical) {
+    railVertical.addEventListener("click", function () { setRailOpen(true); });
+    railVertical.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        setRailOpen(true);
+      }
+    });
+  }
+
   setPageTab(pageTab, false);
+  syncRailUi();
+  if (pageTab === "stats") peekRail();
 })();
 </script>
 
