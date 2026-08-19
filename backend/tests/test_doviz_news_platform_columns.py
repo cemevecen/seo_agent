@@ -173,23 +173,30 @@ def test_platform_columns_do_not_depend_on_show_traffic():
     assert "state.trafficShown" not in block, block[:200]
 
 
-def test_traffic_arrives_on_the_first_load_without_pressing_show_traffic():
-    """«Show traffic» beklemeden trafik sütunları dolu gelsin.
+def test_first_load_stays_traffic_free_until_the_user_opts_in():
+    """Total grafik verileri varsayılan kapalı.
 
-    Eskiden ilk istek `include_traffic=0` ile gidiyordu; trafik yalnızca butona
-    basınca ikinci bir turda geliyordu. Artık tek turda isteniyor.
+    GA4 + GSC kartları/grafikleri ve hesaplamaları ilk yüklemede istenmez;
+    yalnız kullanıcı «Total grafik verilerini göster» derse bir daha ki
+    isteklerde de gelir (opt-in dönem değişiminde korunur).
     """
     html = PAGE.read_text(encoding="utf-8")
     load_body = html.split("async function load(force, opts)", 1)[1].split(
         "async function loadTraffic", 1
     )[0]
-    assert "traffic: true" in load_body, "ilk yükleme hâlâ trafiksiz istiyor"
-    assert "traffic: false" not in load_body
-    # Gelen trafik satırlara işlenmeli, aksi halde sütunlar boş görünür
+    assert "traffic: !!state.trafficOptIn" in load_body, "ilk yükleme hâlâ trafik istiyor"
+    assert "traffic: true" not in load_body
+    # Trafik geldiğinde satırlara işlenmeli, aksi halde sütunlar boş görünür
     assert "applyTrafficToItems(data)" in load_body
     assert "state.trafficShown = !!(data && data.traffic)" in load_body
     # Sıralama varsayılanı uygulansın diye items tablosu state'i sıfırlanır
     assert 'delete state.tables["dn-table-items"]' in load_body
+    # Açma butonu ve opt-in bayrağı
+    assert 'id="dn-traffic-show"' in html
+    assert "Total grafik verilerini göster" in html
+    assert "state.trafficOptIn = true" in html
+    # Blok varsayılan gizli
+    assert '<div id="dn-traffic-block" class="hidden space-y-3">' in html
 
 
 def test_latest_content_is_not_emptied_when_traffic_is_sparse():

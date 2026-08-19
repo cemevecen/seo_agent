@@ -623,6 +623,10 @@
     cursor: pointer;
     white-space: nowrap;
   }
+  .dn-traffic-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+  }
   .dn-traffic-btn:hover { border-color: #6366f1; color: #4338ca; }
   .dn-traffic-btn:disabled { opacity: 0.55; cursor: wait; }
   .dn-traffic-btn.is-on {
@@ -1047,6 +1051,14 @@
   <div id="dn-body" class="hidden space-y-4">
     <div id="dn-kpis" class="dn-kpi-flow"></div>
 
+    <div id="dn-traffic-toggle" class="dn-card dn-traffic-toggle">
+      <div>
+        <h3>Total grafik verileri</h3>
+        <p class="dn-card-sub">GA4 + GSC trafik kartları ve grafikleri varsayılan olarak kapalı; açtığınızda hesaplanır.</p>
+      </div>
+      <button type="button" id="dn-traffic-show" class="dn-traffic-btn">Total grafik verilerini göster</button>
+    </div>
+
     <div id="dn-traffic-block" class="hidden space-y-3">
       <div class="dn-card">
         <div class="dn-card-head">
@@ -1212,6 +1224,7 @@
     loading: false,
     trafficLoading: false,
     trafficShown: false,
+    trafficOptIn: false,
     sourceShowAll: false,
     tables: {},
     progressTimer: null,
@@ -1336,7 +1349,7 @@
       btn.disabled = false;
       btn.textContent = id === "dn-items-traffic-btn"
         ? "Show traffic"
-        : "Show traffic for related content";
+        : "Total grafik verilerini göster";
     });
     if (state.data) {
       state.data.traffic = null;
@@ -1348,10 +1361,15 @@
     }
   }
 
+  function trafficBlockVisible() {
+    var block = $("dn-traffic-block");
+    return !!(block && !block.classList.contains("hidden"));
+  }
+
   function syncTrafficButton() {
     var busy = !!(state.loading || state.trafficLoading);
     [
-      { id: "dn-traffic-btn", idle: "Show traffic for related content", done: "Traffic loaded" },
+      { id: "dn-traffic-btn", idle: "Total grafik verilerini göster", done: "Grafik verileri yüklendi" },
       { id: "dn-items-traffic-btn", idle: "Show traffic", done: "Traffic loaded" }
     ].forEach(function (cfg) {
       var btn = $(cfg.id);
@@ -1365,6 +1383,15 @@
         btn.textContent = cfg.idle;
       }
     });
+    var showBtn = $("dn-traffic-show");
+    if (showBtn) {
+      showBtn.disabled = busy;
+      var visible = trafficBlockVisible();
+      showBtn.classList.toggle("is-on", visible);
+      showBtn.textContent = busy && state.trafficLoading
+        ? "Grafik verileri yükleniyor…"
+        : (visible ? "Grafik verilerini gizle" : "Total grafik verilerini göster");
+    }
   }
 
   function normItemId(raw) {
@@ -3124,7 +3151,7 @@
       }
       // Trafik ilk yüklemede gelir — «Show traffic» beklemeden sütunlar dolu
       // gelsin diye tek turda istenir (iki ayrı tur atmak yerine).
-      var r = await fetch(reportUrl({ force: !preferBridge && !!force, traffic: true }), {
+      var r = await fetch(reportUrl({ force: !preferBridge && !!force, traffic: !!state.trafficOptIn }), {
         credentials: "same-origin",
       });
       if (!r.ok) {
@@ -3199,6 +3226,7 @@
       paintProgress(96, "Traffic · render", { indeterminate: false });
       applyTrafficToItems(data);
       state.trafficShown = true;
+      state.trafficOptIn = true;
       renderTraffic(state.data);
       // items tablosu state sıfırlansın ki sort/views varsayılanı uygulansın
       if (state.tables) delete state.tables["dn-table-items"];
@@ -3233,6 +3261,18 @@
   });
   var trafficBtn = $("dn-traffic-btn");
   if (trafficBtn) trafficBtn.addEventListener("click", function () { loadTraffic({}); });
+  var trafficShowBtn = $("dn-traffic-show");
+  if (trafficShowBtn) trafficShowBtn.addEventListener("click", function () {
+    if (state.loading || state.trafficLoading) return;
+    var block = $("dn-traffic-block");
+    if (state.trafficShown && state.data && state.data.traffic && block) {
+      var nowHidden = block.classList.toggle("hidden");
+      syncTrafficButton();
+      if (!nowHidden) block.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
+    loadTraffic({});
+  });
   var itemsTrafficBtn = $("dn-items-traffic-btn");
   if (itemsTrafficBtn) itemsTrafficBtn.addEventListener("click", function () {
     loadTraffic({ fromItems: true });
