@@ -1300,7 +1300,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--detail-range",
-        help="getModerationDetail aralığı YYYY-MM-DD:YYYY-MM-DD (6 moderatör × 11 tip)",
+        help="getModerationDetail aralığı YYYY-MM-DD:YYYY-MM-DD (moderatör × metrik tipi)",
     )
     parser.add_argument(
         "--detail-ingest-each",
@@ -1452,9 +1452,15 @@ def main() -> int:
         except ValueError:
             print("Geçersiz --detail-range tarihleri", file=sys.stderr)
             return 1
+        from backend.services.sinemalar_moderation import (
+            METRIC_TYPE_KEYS,
+            TRACKED_MODERATORS,
+        )
+
         print(
             f"Detail range: {start_d.isoformat()} → {end_d.isoformat()} "
-            f"(6 moderatör × 11 tip = 66 istek)",
+            f"({len(TRACKED_MODERATORS)} moderatör × {len(METRIC_TYPE_KEYS)} tip = "
+            f"{len(TRACKED_MODERATORS) * len(METRIC_TYPE_KEYS)} istek)",
             flush=True,
         )
         out = scrape_detail_range(

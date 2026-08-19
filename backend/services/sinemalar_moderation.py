@@ -30,8 +30,13 @@ METRIC_TYPES: tuple[tuple[str, str], ...] = (
     ("movie_cast_remove", "Kadrodan Çıkarma"),
     ("movie_poster", "Film Afişi"),
     ("person_image", "Sanatçı Fotoğrafı"),
+    ("movie_tmdb", "Film TMDB ID"),
+    ("person_tmdb", "Sanatçı TMDB ID"),
     ("news", "Haber"),
 )
+
+# TMDB sütunlarının detay tablosu: ID | İsim | Aksiyon | Eski TMDB ID | Yeni TMDB ID | Tarih
+TMDB_METRIC_TYPES: frozenset[str] = frozenset({"movie_tmdb", "person_tmdb"})
 
 METRIC_DISPLAY_LABELS: dict[str, str] = {
     "movie": "Movie",
@@ -44,6 +49,8 @@ METRIC_DISPLAY_LABELS: dict[str, str] = {
     "movie_cast_remove": "Cast remove",
     "movie_poster": "Movie poster",
     "person_image": "Artist photo",
+    "movie_tmdb": "Movie TMDB ID",
+    "person_tmdb": "Artist TMDB ID",
     "news": "News",
 }
 
@@ -212,6 +219,10 @@ def parse_detail_rows(
             continue
         title = texts[1] if len(texts) > 1 else ""
         subtitle = texts[2] if len(texts) > 3 else ""
+        if metric_type in TMDB_METRIC_TYPES and len(texts) >= 6:
+            old_id, new_id = texts[3].strip(), texts[4].strip()
+            change = f"{old_id or '—'} → {new_id or '—'}"
+            subtitle = f"{subtitle} · {change}" if subtitle else change
         event_raw = texts[-1] if texts else ""
         event_at = _parse_event_dt(event_raw)
         if event_at is None:

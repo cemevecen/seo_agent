@@ -461,3 +461,73 @@ def test_panel_metric_labels_are_english():
     assert labels["person"] == "Artist"
     assert labels["movie_cast_add"] == "Cast add"
     assert panel["range_min"] == "2026-01-01"
+
+
+def test_tmdb_id_metrics_are_tracked():
+    """Sinemalar özetine eklenen Film/Sanatçı TMDB ID sütunları da toplanır."""
+    assert "movie_tmdb" in mod.METRIC_TYPE_KEYS
+    assert "person_tmdb" in mod.METRIC_TYPE_KEYS
+    assert mod.METRIC_LABEL_BY_TYPE["movie_tmdb"] == "Film TMDB ID"
+    assert mod.METRIC_LABEL_BY_TYPE["person_tmdb"] == "Sanatçı TMDB ID"
+    assert mod.metric_display_label("movie_tmdb") == "Movie TMDB ID"
+    assert mod.metric_display_label("person_tmdb") == "Artist TMDB ID"
+    # özet satırı: sinemalar linkindeki type doğrudan kullanılır
+    rows = mod.parse_summary_rows([
+        {
+            "moderator": "berend",
+            "moderatorUserId": "883754",
+            "metrics": {
+                "Film TMDB ID": {"count": 88, "type": "movie_tmdb", "href": "x"},
+                "Sanatçı TMDB ID": {"count": 495, "type": "person_tmdb", "href": "y"},
+            },
+        }
+    ])
+    got = {r["metric_type"]: r["count"] for r in rows}
+    assert got == {"movie_tmdb": 88, "person_tmdb": 495}
+    # link/type gelmese bile başlıktan çözülür
+    rows2 = mod.parse_summary_rows([
+        {
+            "moderator": "berend",
+            "moderatorUserId": "883754",
+            "metrics": {"Film TMDB ID": {"count": 5}},
+        }
+    ])
+    assert [r["metric_type"] for r in rows2] == ["movie_tmdb"]
+
+
+def test_parse_detail_rows_tmdb_keeps_old_and_new_id():
+    """TMDB detayında aksiyon + eski→yeni kimlik alt satırda saklanır."""
+    rows = [
+        {
+            "cells": [
+                {"text": "300037", "href": "/management/movie/300037"},
+                {"text": "Best of the Best"},
+                {"text": "Eklendi"},
+                {"text": "-"},
+                {"text": "1514863"},
+                {"text": "2026-08-18 16:26:55"},
+            ]
+        }
+    ]
+    items = mod.parse_detail_rows(rows, user_id=883754, username="berend", metric_type="movie_tmdb")
+    assert len(items) == 1
+    item = items[0]
+    assert item["item_id"] == "300037"
+    assert item["title"] == "Best of the Best"
+    assert item["subtitle"] == "Eklendi · - → 1514863"
+    assert item["metric_label"] == "Film TMDB ID"
+    assert item["event_at"].startswith("2026-08-18")
+
+
+def test_panel_exposes_tmdb_metric_columns():
+    db = _session()
+    panel = mod.get_panel_payload(db, start="2026-08-01", end="2026-08-19")
+    keys = [mt["key"] for mt in panel["metric_types"]]
+    assert "movie_tmdb" in keys and "person_tmdb" in keys
+    labels = {mt["key"]: mt["label"] for mt in panel["metric_types"]}
+    assert labels["movie_tmdb"] == "Movie TMDB ID"
+    # eksik veri taraması yeni tipleri de görmeli (özette var, DB'de yok)
+    expected = {"883754|movie_tmdb": 88, "883754|person_tmdb": 495}
+    gaps = mod.compute_gaps(expected, {})
+    assert {g["metric_type"] for g in gaps} == {"movie_tmdb", "person_tmdb"}
+    assert {g["missing"] for g in gaps} == {88, 495}
