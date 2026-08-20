@@ -21,8 +21,8 @@
   return (window.seoMatteSeriesPalette && window.seoMatteSeriesPalette()) || ["#6b8aad", "#8b7aa8", "#3d8b6e", "#b87333", "#a85a66", "#a86b7f"];
 }
 var PALETTE = modPalette();
-  /** Sinemalar_Yonetim (53), ivicincim (748975) — varsayılan kapalı; legend yalnızca o grafiği etkiler */
-  var DEFAULT_HIDDEN_USER_IDS = { "53": true, "748975": true };
+  /** Sinemalar_Yonetim (53), ivicincim (748975), gezginozlem (873391) — varsayılan kapalı; legend yalnızca o grafiği etkiler */
+  var DEFAULT_HIDDEN_USER_IDS = { "53": true, "748975": true, "873391": true };
   var chartModVisibility = {};
   function defaultModVisibilityMap() {
     var v = {};
