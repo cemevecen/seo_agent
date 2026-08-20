@@ -1182,7 +1182,6 @@ def get_panel_payload(
     detail_rows: list[SinemalarModerationDetailItem] = []
     analytics: dict[str, Any] = {}
     if detail_total > 0:
-        users = {}
         detail_rows = (
             db.query(SinemalarModerationDetailItem)
             .filter(
@@ -1193,19 +1192,20 @@ def get_panel_payload(
             .all()
         )
         analytics = build_panel_analytics(detail_rows, start_d=start_d, end_d=end_d)
-        for r in detail_rows:
-            if not is_tracked_user_id(r.user_id):
-                continue
-            uname = resolve_username(r.user_id) or r.username
-            if uname not in users:
-                users[uname] = {
-                    "username": uname,
-                    "user_id": r.user_id,
-                    "totals": {k: 0 for k, _ in METRIC_TYPES},
-                    "total_all": 0,
-                }
-            users[uname]["totals"][r.metric_type] = users[uname]["totals"].get(r.metric_type, 0) + 1
-            users[uname]["total_all"] += 1
+        if not users:
+            for r in detail_rows:
+                if not is_tracked_user_id(r.user_id):
+                    continue
+                uname = resolve_username(r.user_id) or r.username
+                if uname not in users:
+                    users[uname] = {
+                        "username": uname,
+                        "user_id": r.user_id,
+                        "totals": {k: 0 for k, _ in METRIC_TYPES},
+                        "total_all": 0,
+                    }
+                users[uname]["totals"][r.metric_type] = users[uname]["totals"].get(r.metric_type, 0) + 1
+                users[uname]["total_all"] += 1
 
     ordered_users = []
     for uid, want in TRACKED_MODERATORS:
