@@ -108,7 +108,11 @@
             aria-expanded="true"
             aria-controls="home-vg-shell-body">
       <div class="min-w-0">
-        {{ container_chip('virgül') }}
+        <div class="flex flex-wrap items-center gap-2">
+          {{ container_chip('virgül') }}
+          {% set _vg_date = (week_end[8:10] ~ '.' ~ week_end[5:7]) if week_end and week_end|length >= 10 else (now_label if now_label else none) %}
+          {% if _vg_date %}<span class="home-meta tabular-nums text-[10px] text-slate-500 dark:text-slate-400">· {{ _vg_date }}</span>{% endif %}
+        </div>
         <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">
           Last week (excluding today) vs last 3 months — Virgül
           {% if week_start and week_end %}

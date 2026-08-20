@@ -9,6 +9,7 @@
       <div class="home-rt-head-title flex min-w-0 flex-wrap items-center gap-2">
         <span class="home-rt-live-dot" aria-hidden="true"></span>
         {{ container_chip('active users') }}
+        {% if now_label %}<span class="home-meta tabular-nums text-[10px] text-slate-500 dark:text-slate-400">· {{ now_label }}</span>{% endif %}
       </div>
     </button>
     <div class="home-shell-head-tools home-rt-head-chips">

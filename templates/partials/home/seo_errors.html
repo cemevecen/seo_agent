@@ -8,6 +8,8 @@
             aria-controls="home-seo-err-shell-body">
       <div class="flex min-w-0 flex-wrap items-center gap-2">
         {{ container_chip('SEO · Critical errors') }}
+        {% set _seo_asof = as_of_label if as_of_label else (now_label if now_label else none) %}
+        {% if _seo_asof %}<span class="home-meta tabular-nums text-[10px] text-slate-500 dark:text-slate-400">· {{ _seo_asof }}</span>{% endif %}
       </div>
     </button>
     <div class="home-shell-head-tools">

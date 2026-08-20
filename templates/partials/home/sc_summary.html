@@ -256,6 +256,8 @@
       <div class="flex min-w-0 flex-wrap items-center gap-2">
         {{ brand_icon(site_key | default('doviz')) }}
         {{ container_chip('search console') }}
+        {% set _sc_end = period_current_label if period_current_label else (sites[0].devices[0].table_label_current if sites and sites[0] and sites[0].devices and sites[0].devices[0] else none) %}
+        {% if _sc_end %}<span class="home-meta tabular-nums text-[10px] text-slate-500 dark:text-slate-400">· {{ _sc_end }}</span>{% endif %}
       </div>
     </button>
     <div class="home-shell-head-tools">

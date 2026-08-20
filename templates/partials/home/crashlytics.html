@@ -653,6 +653,8 @@
       <div class="flex min-w-0 flex-wrap items-center gap-2">
         {{ brand_icon(_pid) }}
         {{ container_chip('store & firebase') }}
+        {% set _crash_asof = card.as_of_label if card and card.as_of_label else (now_label if now_label else none) %}
+        {% if _crash_asof %}<span class="home-meta tabular-nums text-[10px] text-slate-500 dark:text-slate-400">· {{ _crash_asof }}</span>{% endif %}
       </div>
     </div>
     <span class="home-crash-shell-chevron" aria-hidden="true"></span>

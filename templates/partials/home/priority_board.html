@@ -352,6 +352,8 @@
       <div class="flex min-w-0 flex-wrap items-center gap-2">
         <span class="home-container-chip">git.nokta</span>
         <span x-show="vpnOffline && !panelOpen" class="home-meta text-amber-600 dark:text-amber-300" x-cloak>No VPN</span>
+        {% set _gl_date = as_of_label if as_of_label else (now_label if now_label else none) %}
+        {% if _gl_date %}<span class="home-meta tabular-nums text-[10px] text-slate-500 dark:text-slate-400">· {{ _gl_date }}</span>{% endif %}
       </div>
     </button>
     <div class="home-shell-head-tools">

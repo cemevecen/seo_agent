@@ -10,6 +10,7 @@
         <div class="flex flex-wrap items-center gap-2">
           {{ brand_icon('doviz') }}
           {{ container_chip('store & firebase') }}
+          {% if now_label %}<span class="home-meta tabular-nums text-[10px] text-slate-500 dark:text-slate-400">· {{ now_label }}</span>{% endif %}
         </div>
         <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">App Store · Play Store version and rating summary</p>
       </div>

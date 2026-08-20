@@ -493,6 +493,8 @@
         {% if connected and file_count %}
           <span class="home-meta tabular-nums text-slate-400">({{ file_count }})</span>
         {% endif %}
+        {% set _dr_date = as_of_label if as_of_label else (now_label if now_label else none) %}
+        {% if _dr_date %}<span class="home-meta tabular-nums text-[10px] text-slate-500 dark:text-slate-400">· {{ _dr_date }}</span>{% endif %}
       </div>
       {% if connected and account_email %}
         <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">connected · {{ account_email }}</p>
