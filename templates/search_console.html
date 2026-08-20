@@ -388,7 +388,9 @@
     border-color: #36363c !important;
   }
   html.dark .sc-card-filter-bar [data-market-overlay-trigger],
-  html.charcoal .sc-card-filter-bar [data-market-overlay-trigger] {
+  html.charcoal .sc-card-filter-bar [data-market-overlay-trigger],
+  html.dark .sc-card-filter-bar [data-play-metric-overlay-trigger],
+  html.charcoal .sc-card-filter-bar [data-play-metric-overlay-trigger] {
     background-color: #2a2a2e !important;
     border-color: #3f3f46 !important;
   }
@@ -444,14 +446,14 @@
     <div
       class="sc-global-filter-mobile-dock sc-card-filter-bar mb-4 rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-0 sm:hidden"
       data-sc-global-filter-slot-mobile
-      aria-label="Market and date comparison"
+      aria-label="Metric overlay and date comparison"
     ></div>
 
     {# Split görünümde ortak filtre şeridi — kart içine gömülünce KPI/spark/grafik hizasız kalıyordu #}
     <div
       class="sc-global-filter-desktop-dock sc-card-filter-bar mb-4 hidden rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-4"
       data-sc-global-filter-slot-desktop
-      aria-label="Market and date comparison"
+      aria-label="Metric overlay and date comparison"
     ></div>
 
     <div id="sc-global-filter-chrome-holder" class="sr-only" aria-hidden="true">
@@ -1446,9 +1448,10 @@
               dragmode: false,
             };
           var overlayModes =
-            isDailyTrend && window.SeoMarketOverlay
-              ? SeoMarketOverlay.modes("seo-market-overlay-root")
-              : [];
+            isDailyTrend && window.PlayMetricOverlay
+              ? PlayMetricOverlay.modes("sc-play-metric-overlay-root")
+              : (isDailyTrend && window.SeoMarketOverlay ? SeoMarketOverlay.modes("seo-market-overlay-root") : []);
+          var overlayPlat = 'web';
           var runPlot = function () {
           if (window.seoPlotlyResolveHeight) {
             layoutObj.height = seoPlotlyResolveHeight(element, layoutObj, {
@@ -1475,12 +1478,17 @@
           });
           };
           var overlayPromise =
-            overlayModes.length && xValues && xValues.length && window.SeoMarketOverlay
-              ? SeoMarketOverlay.apply(traces, layoutObj, xValues, overlayModes, {
+            overlayModes.length && isDailyTrend && xValues && xValues.length && window.PlayMetricOverlay
+              ? PlayMetricOverlay.apply(traces, layoutObj, xValues, overlayPlat, overlayModes, {
                   marginRight: 72,
                   chartWidth: chartW,
                 })
-              : Promise.resolve();
+              : (overlayModes.length && xValues && xValues.length && window.SeoMarketOverlay
+                  ? SeoMarketOverlay.apply(traces, layoutObj, xValues, overlayModes, {
+                      marginRight: 72,
+                      chartWidth: chartW,
+                    })
+                  : Promise.resolve());
           if (isLongDaily) {
             scRunWhenIdle(function () {
               overlayPromise.then(runPlot);
@@ -1873,6 +1881,8 @@
     if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
       SeoAnalyticsCompare.bindWhenReady('sc');
     }
+    scBindPlayMetricOverlay();
+    scSyncPlayMetricOverlay();
     if (window.SeoMarketOverlay) {
       if (SeoMarketOverlay.ensureClosed) SeoMarketOverlay.ensureClosed();
       if (SeoMarketOverlay.ensureBound) {
@@ -2457,6 +2467,25 @@
     });
   }
 
+  function scBindPlayMetricOverlay() {
+    if (!window.PlayMetricOverlay) return;
+    if (PlayMetricOverlay.bindWhenReady) {
+      PlayMetricOverlay.bindWhenReady('sc-play-metric-overlay-root', scOnPlayMetricOverlayChange);
+    } else if (PlayMetricOverlay.autoBindPlayMetricOverlays) {
+      PlayMetricOverlay.autoBindPlayMetricOverlays();
+    }
+  }
+
+  function scSyncPlayMetricOverlay() {
+    if (!window.PlayMetricOverlay || !PlayMetricOverlay.setPlatform) return;
+    PlayMetricOverlay.setPlatform('sc-play-metric-overlay-root', 'web');
+  }
+
+  window.scOnPlayMetricOverlayChange = function scOnPlayMetricOverlayChange() {
+    if (window.PlayMetricOverlay && PlayMetricOverlay.clearCache) PlayMetricOverlay.clearCache();
+    scRerenderTrendChartsForMarket();
+  };
+
   function scRerenderTrendChartsForMarket(keys) {
     if (window.SeoMarketOverlay && SeoMarketOverlay.setForcedModes && Array.isArray(keys)) {
       SeoMarketOverlay.setForcedModes(keys);
@@ -2479,6 +2508,8 @@
     if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
       SeoAnalyticsCompare.bindWhenReady('sc');
     }
+    scBindPlayMetricOverlay();
+    scSyncPlayMetricOverlay();
     if (window.SeoMarketOverlay) {
       SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', scRerenderTrendChartsForMarket);
     }

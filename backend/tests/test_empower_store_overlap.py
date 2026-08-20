@@ -178,6 +178,13 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert "PlayMetricOverlay.apply" in ga4
     assert "function ga4ChartOverlayPlatform" in ga4
     assert "function ga4SyncPlayMetricOverlay" in ga4
+    sc_chrome = (ROOT / "templates" / "partials" / "sc_global_filter_chrome.html").read_text(encoding="utf-8")
+    assert "sc-play-metric-overlay-root" in sc_chrome
+    assert "market_overlay_select" not in sc_chrome
+    sc = (ROOT / "templates" / "search_console.html").read_text(encoding="utf-8")
+    assert "function scOnPlayMetricOverlayChange" in sc
+    assert "PlayMetricOverlay.apply" in sc
+    assert "function scSyncPlayMetricOverlay" in sc
 
 
 def test_query_series_rejects_unknown_without_db():
