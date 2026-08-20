@@ -2520,6 +2520,43 @@
     padding: 0.5rem 0.5rem 1rem 0.65rem;
     -webkit-overflow-scrolling: touch;
   }
+  .rt-drawer-view {
+    width: 100%;
+    min-height: 100%;
+  }
+  .rt-drawer-content-card {
+    line-height: 1.45;
+  }
+  .rt-drawer-content-card .rt-tip-pages {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+  }
+  html.dark .rt-drawer-content-card .rt-tip-pages {
+    border-top-color: rgba(63, 63, 70, 0.6);
+  }
+  .rt-drawer-content-card .rt-tip-pages-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    margin-bottom: 0.4rem;
+  }
+  html.dark .rt-drawer-content-card .rt-tip-pages-title {
+    color: #a1a1aa;
+  }
+  .rt-drawer-content-card .rt-tip-pages > div:not(.rt-tip-pages-title) {
+    padding: 0.35rem 0.5rem;
+    margin-bottom: 0.35rem;
+    border-radius: 0.375rem;
+    background: rgba(241, 245, 249, 0.7);
+    word-break: break-word;
+    font-size: 11px;
+  }
+  html.dark .rt-drawer-content-card .rt-tip-pages > div:not(.rt-tip-pages-title) {
+    background: rgba(39, 39, 42, 0.85);
+  }
   .rt-spark-table-open-btn {
     font-size: 10px;
     font-weight: 700;
@@ -3189,9 +3226,31 @@
           title="Close"
         >×</button>
       </div>
+
+      <div class="mt-2.5 flex items-center justify-between gap-1.5 border-t border-slate-200/60 pt-2 dark:border-zinc-700/60">
+        <button type="button" id="rt-drawer-nav-prev" class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700" title="Önceki görünüm (Sol Ok)">‹</button>
+        <div class="flex flex-1 items-center justify-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-zinc-800/80">
+          <button type="button" id="rt-drawer-tab-table" class="flex-1 rounded-md px-2 py-1 text-[11px] font-bold transition bg-white text-slate-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100" data-view="table">
+            📊 Saatlik Liste
+          </button>
+          <button type="button" id="rt-drawer-tab-content" class="flex-1 rounded-md px-2 py-1 text-[11px] font-bold transition text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-100" data-view="content">
+            🚀 Popüler İçerikler
+          </button>
+        </div>
+        <button type="button" id="rt-drawer-nav-next" class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700" title="Sonraki görünüm (Sağ Ok)">›</button>
+      </div>
     </div>
-    <div class="rt-spark-table-drawer-body" id="rt-spark-table-body">
-      <p class="py-6 text-center text-xs text-slate-400 dark:text-zinc-500">Click a spark area or the <strong class="font-semibold">Table</strong> button.</p>
+    <div class="rt-spark-table-drawer-body">
+      <div id="rt-drawer-view-table" class="rt-drawer-view">
+        <div id="rt-spark-table-body">
+          <p class="py-6 text-center text-xs text-slate-400 dark:text-zinc-500">Click a spark area or the <strong class="font-semibold">Table</strong> button.</p>
+        </div>
+      </div>
+      <div id="rt-drawer-view-content" class="rt-drawer-view hidden">
+        <div id="rt-spark-content-body">
+          <p class="py-6 text-center text-xs text-slate-400 dark:text-zinc-500">Popüler içerik detayları yükleniyor...</p>
+        </div>
+      </div>
     </div>
   </aside>
 
@@ -7437,6 +7496,69 @@
     body.innerHTML = html;
   }
 
+  var _rtDrawerCurrentView = 'table';
+
+  function rtSwitchDrawerTab(viewName) {
+    _rtDrawerCurrentView = viewName === 'content' ? 'content' : 'table';
+    var viewTable = document.getElementById('rt-drawer-view-table');
+    var viewContent = document.getElementById('rt-drawer-view-content');
+    var tabTable = document.getElementById('rt-drawer-tab-table');
+    var tabContent = document.getElementById('rt-drawer-tab-content');
+
+    if (viewTable && viewContent) {
+      if (_rtDrawerCurrentView === 'table') {
+        viewTable.classList.remove('hidden');
+        viewContent.classList.add('hidden');
+      } else {
+        viewTable.classList.add('hidden');
+        viewContent.classList.remove('hidden');
+      }
+    }
+
+    if (tabTable && tabContent) {
+      if (_rtDrawerCurrentView === 'table') {
+        tabTable.className = 'flex-1 rounded-md px-2 py-1 text-[11px] font-bold transition bg-white text-slate-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100';
+        tabContent.className = 'flex-1 rounded-md px-2 py-1 text-[11px] font-bold transition text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-100';
+      } else {
+        tabTable.className = 'flex-1 rounded-md px-2 py-1 text-[11px] font-bold transition text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-100';
+        tabContent.className = 'flex-1 rounded-md px-2 py-1 text-[11px] font-bold transition bg-white text-slate-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100';
+      }
+    }
+  }
+  window.rtSwitchDrawerTab = rtSwitchDrawerTab;
+
+  function _renderSparkDrawerTopContent(ctx, fromEl) {
+    var container = document.getElementById('rt-spark-content-body');
+    if (!container) return;
+    var html = '';
+    var box = fromEl ? fromEl.closest('[data-rt-profile-box]') : null;
+    var siteEl = fromEl ? fromEl.closest('[data-rt-site]') : null;
+    if (!siteEl && ctx && ctx.anchor) siteEl = ctx.anchor.closest('[data-rt-site]') || ctx.anchor;
+
+    var tipInnerHtml = '';
+    if (box) {
+      var disp = box._rtSparkDisplay || [];
+      var hoverIdx = box._rtSparkHoverIdx != null ? box._rtSparkHoverIdx : (disp.length - 1);
+      var row = disp[hoverIdx] || disp[disp.length - 1];
+      tipInnerHtml = _profileSparkTipInnerHtml(box, row);
+    } else if (siteEl) {
+      var metric = siteEl._rtSparkMetricCurrent || 'au';
+      var disp = siteEl._rtSparkDisplay || [];
+      var hoverIdx = siteEl._rtSparkHoverIdx != null ? siteEl._rtSparkHoverIdx : (disp.length - 1);
+      var row = disp[hoverIdx] || disp[disp.length - 1];
+      tipInnerHtml = _siteSparkTipInnerHtml(siteEl, row, metric);
+    }
+
+    if (tipInnerHtml) {
+      html = '<div class="rt-drawer-content-card rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-zinc-700/80 dark:bg-zinc-900/90 text-xs text-slate-800 dark:text-zinc-200 space-y-3">';
+      html += tipInnerHtml;
+      html += '</div>';
+    } else {
+      html = '<p class="py-8 text-center text-xs text-slate-400 dark:text-zinc-500">Bu zaman dilimi için popüler içerik detayları bulunmuyor.</p>';
+    }
+    container.innerHTML = html;
+  }
+
   function rtCloseSparkTable() {
     document.documentElement.classList.remove('rt-spark-table-open');
     var drawer = document.getElementById('rt-spark-table-drawer');
@@ -7454,6 +7576,13 @@
     if (titleEl) titleEl.textContent = ctx.title;
     if (subEl) subEl.textContent = ctx.sub;
     _rtRenderSparkTableBody(_rtSparkTableRowsFromTrend(ctx.trend, ctx.rangeKey));
+    _renderSparkDrawerTopContent(ctx, fromEl);
+
+    // Hide any floating hover tips on page so they don't overlap under drawer
+    document.querySelectorAll('[data-rt-site-spark-tip], .rt-site-spark-tip').forEach(function (el) {
+      el.classList.add('hidden');
+    });
+
     document.documentElement.classList.add('rt-spark-table-open');
     var drawer = document.getElementById('rt-spark-table-drawer');
     if (drawer) drawer.setAttribute('aria-hidden', 'false');
@@ -7470,9 +7599,26 @@
     if (!root) return;
     var closeBtn = document.getElementById('rt-spark-table-close');
     if (closeBtn) closeBtn.addEventListener('click', rtCloseSparkTable);
+
+    var tabTable = document.getElementById('rt-drawer-tab-table');
+    var tabContent = document.getElementById('rt-drawer-tab-content');
+    var navPrev = document.getElementById('rt-drawer-nav-prev');
+    var navNext = document.getElementById('rt-drawer-nav-next');
+
+    if (tabTable) tabTable.addEventListener('click', function () { rtSwitchDrawerTab('table'); });
+    if (tabContent) tabContent.addEventListener('click', function () { rtSwitchDrawerTab('content'); });
+    if (navPrev) navPrev.addEventListener('click', function () { rtSwitchDrawerTab(_rtDrawerCurrentView === 'table' ? 'content' : 'table'); });
+    if (navNext) navNext.addEventListener('click', function () { rtSwitchDrawerTab(_rtDrawerCurrentView === 'table' ? 'content' : 'table'); });
+
     document.addEventListener('keydown', function (ev) {
       if (ev.key === 'Escape') rtCloseSparkTable();
+      if (document.documentElement.classList.contains('rt-spark-table-open')) {
+        if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+          rtSwitchDrawerTab(_rtDrawerCurrentView === 'table' ? 'content' : 'table');
+        }
+      }
     });
+
     root.addEventListener('click', function (ev) {
       if (ev.target.closest('#rt-spark-table-drawer')) return;
       var openBtn = ev.target.closest('[data-rt-spark-table-open]');
