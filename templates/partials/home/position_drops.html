@@ -138,9 +138,10 @@
   .home-pos-drops .home-pos-pad {
     min-height: 1.45rem;
   }
-  /* ~8 tek-satır; kalanı dikey scroll */
+  /* Sabit yükseklik (5 satır hizalama); kalanı dikey scroll */
   .home-pos-drops .home-pos-list {
-    max-height: calc(8 * 1.55rem);
+    height: 11.25rem;
+    max-height: 11.25rem;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -251,7 +252,9 @@
             {% for d in drops %}{{ pos_row(d, 'drop') }}{% endfor %}
           </ul>
         {% else %}
-          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">No significant drop</p>
+          <div class="home-pos-list flex items-start pt-3">
+            <p class="text-sm text-slate-400 dark:text-slate-500">No significant drop</p>
+          </div>
         {% endif %}
       </div>
       <div class="min-w-0">
@@ -261,12 +264,16 @@
             {% for d in rises %}{{ pos_row(d, 'rise') }}{% endfor %}
           </ul>
         {% else %}
-          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">No significant rise</p>
+          <div class="home-pos-list flex items-start pt-3">
+            <p class="text-sm text-slate-400 dark:text-slate-500">No significant rise</p>
+          </div>
         {% endif %}
       </div>
     </div>
   {% else %}
-    <p class="mt-4 text-center text-sm text-slate-400 dark:text-slate-500">{{ empty_msg }}</p>
+    <div class="mt-4 flex items-center justify-center text-sm text-slate-400 dark:text-slate-500" style="height: 11.25rem;">
+      <p>{{ empty_msg }}</p>
+    </div>
   {% endif %}
 {% endmacro %}
 
