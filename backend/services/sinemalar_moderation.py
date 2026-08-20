@@ -57,6 +57,20 @@ METRIC_DISPLAY_LABELS: dict[str, str] = {
 METRIC_LABEL_BY_TYPE = {k: v for k, v in METRIC_TYPES}
 METRIC_TYPE_BY_LABEL = {v: k for k, v in METRIC_TYPES}
 METRIC_TYPE_BY_LABEL.update({v: k for k, v in METRIC_DISPLAY_LABELS.items()})
+METRIC_TYPE_BY_LABEL.update({
+    "Film TMDB ID": "movie_tmdb",
+    "Film TMDB Id": "movie_tmdb",
+    "Film TMDB": "movie_tmdb",
+    "Movie TMDB ID": "movie_tmdb",
+    "Movie TMDB Id": "movie_tmdb",
+    "Movie TMDB": "movie_tmdb",
+    "Sanatçı TMDB ID": "person_tmdb",
+    "Sanatçı TMDB Id": "person_tmdb",
+    "Sanatçı TMDB": "person_tmdb",
+    "Artist TMDB ID": "person_tmdb",
+    "Artist TMDB Id": "person_tmdb",
+    "Artist TMDB": "person_tmdb",
+})
 METRIC_TYPE_KEYS = tuple(k for k, _ in METRIC_TYPES)
 
 
