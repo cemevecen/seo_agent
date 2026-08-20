@@ -41,6 +41,7 @@
               <select id="nt-range-preset" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
                 <option value="custom">Custom range</option>
                 <option value="all">All</option>
+                <option value="today">Today</option>
                 <option value="1d" selected>Yesterday</option>
                 <option value="1w">Last 1 week</option>
                 <option value="1m">Last 1 month</option>
@@ -152,6 +153,7 @@
         <select id="nt-range-preset-secondary" class="nt-metric-bar-select rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
           <option value="custom">Custom range</option>
           <option value="all">All</option>
+          <option value="today">Today</option>
           <option value="1d" selected>Yesterday</option>
           <option value="1w">Last 1 week</option>
           <option value="1m">Last 1 month</option>
@@ -2752,7 +2754,10 @@
     }
     var end = todayKey();
     var start = minusYears(end, 1);
-    if (preset === "1d") {
+    if (preset === "today") {
+      start = todayKey();
+      end = start;
+    } else if (preset === "1d") {
       start = yesterdayKey();
       end = start;
     } else if (preset === "1w") start = minusDays(end, 6);

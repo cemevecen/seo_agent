@@ -750,11 +750,11 @@
   }
 </style>
 
-<div class="home-nt-week home-readable" data-home-nt-root data-nt-rev="{{ nt_rev | default('dev') }}">
+<div class="home-nt-week home-readable is-open" data-home-nt-root data-nt-rev="{{ nt_rev | default('dev') }}">
   <button type="button"
           class="home-nt-shell-toggle"
           data-home-nt-shell-toggle
-          aria-expanded="false"
+          aria-expanded="true"
           aria-controls="home-nt-shell-body">
     <div class="min-w-0 flex-1">
       <div class="flex flex-wrap items-center gap-2">
@@ -772,13 +772,13 @@
           {% endif %}
         </p>
       {% else %}
-        <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">closed · click to open</p>
+        <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">click to toggle</p>
       {% endif %}
     </div>
     <span class="home-nt-shell-chevron" aria-hidden="true"></span>
   </button>
 
-  <div id="home-nt-shell-body" class="home-nt-shell-body" data-home-nt-shell-body hidden>
+  <div id="home-nt-shell-body" class="home-nt-shell-body" data-home-nt-shell-body>
   <div class="flex flex-wrap items-center justify-end gap-2">
     <a href="/notification" hx-get="/notification" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
        class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
