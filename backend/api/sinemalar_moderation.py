@@ -114,7 +114,7 @@ def sinemalar_moderation_details(
     end: str | None = Query(None),
     user_id: int | None = Query(None),
     metric_type: str | None = Query(None),
-    limit: int = Query(200, ge=1, le=500),
+    limit: int = Query(5000, ge=1, le=10000),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
     return mod.get_detail_payload(

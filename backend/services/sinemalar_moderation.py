@@ -855,7 +855,7 @@ def get_detail_payload(
     rows = (
         q.order_by(SinemalarModerationDetailItem.event_at.desc())
         .offset(max(0, offset))
-        .limit(min(500, max(1, limit)))
+        .limit(min(10000, max(1, limit)))
         .all()
     )
     return {

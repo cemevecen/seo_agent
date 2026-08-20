@@ -1324,7 +1324,7 @@ var PALETTE = modPalette();
       end: RAW.end || "",
       user_id: String(userId),
       metric_type: metricType,
-      limit: "500",
+      limit: "5000",
     });
 
     fetch("/api/sinemalar-moderation/details?" + qs.toString(), { credentials: "same-origin" })
@@ -1334,8 +1334,8 @@ var PALETTE = modPalette();
       .then(function (data) {
         var items = data.items || [];
         if (!items.length) {
-          bodyEl.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">No records</td></tr>';
-          if (footEl) footEl.textContent = "0 records";
+          bodyEl.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">Kayıt bulunamadı</td></tr>';
+          if (footEl) footEl.textContent = "0 kayıt";
           return;
         }
         bodyEl.innerHTML = items
@@ -1363,10 +1363,10 @@ var PALETTE = modPalette();
             );
           })
           .join("");
-        if (footEl) footEl.textContent = items.length + " / " + (data.total || items.length) + " records";
+        if (footEl) footEl.textContent = items.length + " / " + (data.total || items.length) + " kayıt gösteriliyor";
       })
       .catch(function () {
-        bodyEl.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-rose-500">Could not load</td></tr>';
+        bodyEl.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-rose-500">Kayıtlar yüklenemedi</td></tr>';
       });
   }
 
