@@ -60,7 +60,7 @@
           <select id="mod-range-preset" name="mod_preset"
             data-all-start="{{ _mp.get('range_min') or '2026-01-01' }}"
             class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-            <option value="custom"{% if _preset in ("", "custom") %} selected{% endif %}>Custom</option>
+            <option value="mtd"{% if _preset in ("", "mtd", "this_month") %} selected{% endif %}>Ay başından bu yana</option>
             <option value="today"{% if _preset == "today" %} selected{% endif %}>Today</option>
             <option value="yesterday"{% if _preset == "yesterday" %} selected{% endif %}>Yesterday</option>
             <option value="3d"{% if _preset == "3d" %} selected{% endif %}>Last 3 days</option>
@@ -75,6 +75,7 @@
             <option value="9m"{% if _preset == "9m" %} selected{% endif %}>Last 9 months</option>
             <option value="1y"{% if _preset == "1y" %} selected{% endif %}>Last 1 year</option>
             <option value="all"{% if _preset == "all" %} selected{% endif %}>All</option>
+            <option value="custom"{% if _preset == "custom" %} selected{% endif %}>Custom</option>
           </select>
         </label>
         <label class="flex flex-col gap-0.5 text-[10px] text-slate-500">
@@ -438,6 +439,9 @@
     }
     function rangeFor(preset) {
       var end = today();
+      if (preset === "mtd" || preset === "this_month") {
+        return { start: new Date(end.getFullYear(), end.getMonth(), 1), end: end };
+      }
       if (preset === "today") return { start: end, end: end };
       if (preset === "yesterday") {
         var y = addDays(end, -1);

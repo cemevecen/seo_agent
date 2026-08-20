@@ -21993,11 +21993,18 @@ def sinemalar_policy_page(
             return templates.TemplateResponse("partials/policy_content.html", ctx)
         return templates.TemplateResponse("policy.html", ctx)
 
-    # Sabit 2026-08-13 yerine TR dünü — Today boş / eski default karışmasın
+    from backend.services.sinemalar_moderation import today_tr as _mod_today_tr
+
+    # Default açılış: Ay başından bu yana (mtd)
+    p_key = (mod_preset or "").strip().lower()
+    if not p_key or p_key in ("mtd", "this_month"):
+        mod_preset = "mtd"
+        if not (mod_start or "").strip():
+            mod_start = _mod_today_tr().replace(day=1).isoformat()
     if not (mod_end or "").strip():
         mod_end = _mod_yesterday_tr().isoformat()
     if not (mod_start or "").strip():
-        mod_start = "2026-01-01"
+        mod_start = _mod_today_tr().replace(day=1).isoformat()
 
     try:
         stats = pcsv.get_stats(db)
