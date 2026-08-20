@@ -2576,14 +2576,23 @@
       .replace(/"/g, '&quot;');
   }
 
+  function scFindTrendChartForKpiRow(row) {
+    if (!row) return null;
+    var scope =
+      row.closest('[data-device-panel]') ||
+      row.closest('[data-sc-period-panel]') ||
+      row.closest('[data-sc-site-card]') ||
+      row.parentElement;
+    return scope ? scope.querySelector('[data-search-console-trend]') : null;
+  }
+
   function scClearOverlayKpiCardsInRow(row) {
     if (!row) return;
     var grid = row.querySelector('.grid') || row;
     grid.querySelectorAll('[data-sc-overlay-kpi]').forEach(function (el) {
       el.remove();
     });
-    var scope = row.closest('[data-sc-site-card]') || row.closest('[data-sc-period-panel]') || row.parentElement;
-    var chart = scope ? scope.querySelector('[data-search-console-trend]') : null;
+    var chart = scFindTrendChartForKpiRow(row);
     if (chart && chart.dataset.scDailyTrendBase) {
       chart.setAttribute('data-search-console-trend', chart.dataset.scDailyTrendBase);
       var jsonId = chart.getAttribute('data-sc-trend-json-id');
@@ -2650,8 +2659,7 @@
   function scApplyOverlayKpisToRow(row, packs, prevByMetric, dates) {
     var grid = row.querySelector('.grid');
     if (!grid) return;
-    var scope = row.closest('[data-sc-site-card]') || row.closest('[data-sc-period-panel]') || row.parentElement;
-    var chart = scope ? scope.querySelector('[data-search-console-trend]') : null;
+    var chart = scFindTrendChartForKpiRow(row);
     if (!chart) return;
 
     if (!chart.dataset.scDailyTrendBase) {
@@ -2736,8 +2744,7 @@
 
     var groups = {};
     targetRows.forEach(function (row) {
-      var rowScope = row.closest('[data-sc-site-card]') || row.closest('[data-sc-period-panel]') || row.parentElement;
-      var chart = rowScope ? rowScope.querySelector('[data-search-console-trend]') : null;
+      var chart = scFindTrendChartForKpiRow(row);
       var jsonId = chart ? chart.getAttribute('data-sc-trend-json-id') : null;
       var jsonNode = jsonId ? document.getElementById(jsonId) : null;
       var trendRaw = (jsonNode && jsonNode.textContent) ? jsonNode.textContent.trim() : (chart ? (chart.getAttribute('data-search-console-trend') || chart.dataset.scDailyTrendBase || '') : '');
