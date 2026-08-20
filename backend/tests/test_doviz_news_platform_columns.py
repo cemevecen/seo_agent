@@ -531,7 +531,7 @@ def test_relative_or_junk_url_is_rejected(monkeypatch, ga4_ready):
 def test_sheet_puts_the_url_on_the_item():
     src = (ROOT / "backend/services/doviz_news_sheet.py").read_text(encoding="utf-8")
     assert 'article_urls = platform_matrix.get("urls") or {}' in src
-    assert '"url": article_urls.get(aid) or None,' in src
+    assert '"url": article_urls.get(aid) or r.get("url") or r.get("source_url")' in src
 
 
 def test_title_cell_links_only_with_a_real_http_url():

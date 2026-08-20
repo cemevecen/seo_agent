@@ -1448,7 +1448,7 @@ def doviz_news_payload(
             {
                 "id": r.get("id"),
                 "title": r.get("title"),
-                "url": article_urls.get(aid) or None,
+                "url": article_urls.get(aid) or r.get("url") or r.get("source_url") or r.get("link") or None,
                 "source": r.get("source") or None,
                 "is_own": r.get("is_own"),
                 "category": r.get("category"),
