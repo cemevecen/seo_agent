@@ -603,12 +603,12 @@
                 class="policy-cell-clamp block font-medium text-blue-700 hover:underline dark:text-blue-400"
                 title="{{ v.page_title or v.url }}">
                 {% if v.page_title and not v.page_title.startswith('[') %}
-                  {{ v.page_title }}
+                  {{ v.page_title | truncate(45, True, '…') }}
                 {% else %}
-                  {{ v.url | replace("https://","") | replace("http://","") }}
+                  {{ (v.url | replace("https://","") | replace("http://","")) | truncate(45, True, '…') }}
                 {% endif %}
               </a>
-              <div class="policy-cell-clamp mt-0.5 font-mono text-[10px] text-slate-400" title="{{ v.url }}">{{ v.url | replace("https://","") }}</div>
+              <div class="policy-cell-clamp mt-0.5 font-mono text-[10px] text-slate-400" title="{{ v.url }}">{{ (v.url | replace("https://","")) | truncate(45, True, '…') }}</div>
             </td>
             <td class="px-1.5 py-1.5 text-right font-mono font-semibold tabular-nums text-slate-700 dark:text-slate-300 whitespace-nowrap">
               {{ "{:,}".format(v.ad_requests_7d) }}
