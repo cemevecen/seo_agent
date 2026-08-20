@@ -722,16 +722,18 @@
     opts = opts || {};
     if (!root) return;
     var minPx = opts.minPx != null ? opts.minPx : 8;
-    var sel = selector || ".sf-card__value, .home-sf-metric__value";
+    var sel = selector || ".sf-card__value, .home-sf-metric__value, .home-sf-metric__hero";
     root.querySelectorAll(sel).forEach(function (el) {
       el.style.whiteSpace = "nowrap";
       el.style.overflow = "hidden";
-      el.style.fontSize = "";
+      el.style.textOverflow = "ellipsis";
+      el.style.maxWidth = "100%";
+      el.style.removeProperty("font-size");
       var boxW = el.clientWidth;
       if (!(boxW > 1)) return;
       var maxPx = parseFloat(window.getComputedStyle(el).fontSize) || 22;
       if (!(maxPx > minPx)) {
-        el.style.fontSize = minPx + "px";
+        el.style.setProperty("font-size", minPx + "px", "important");
         return;
       }
       if (el.scrollWidth <= boxW + 1) return;
@@ -740,7 +742,7 @@
       var best = minPx;
       for (var i = 0; i < 16; i++) {
         var mid = (lo + hi) / 2;
-        el.style.fontSize = mid + "px";
+        el.style.setProperty("font-size", mid + "px", "important");
         if (el.scrollWidth <= el.clientWidth + 1) {
           best = mid;
           lo = mid;
@@ -748,13 +750,13 @@
           hi = mid;
         }
       }
-      el.style.fontSize = Math.max(minPx, best) + "px";
+      el.style.setProperty("font-size", Math.max(minPx, best) + "px", "important");
     });
   }
 
   var SF_FIT_SEL =
     ".sf-card__title, .sf-card__sub, .sf-card__value, " +
-    ".home-sf-metric__title, .home-sf-metric__sub, .home-sf-metric__value, " +
+    ".home-sf-metric__title, .home-sf-metric__sub, .home-sf-metric__value, .home-sf-metric__hero, " +
     ".home-store-kpi__l, .home-store-kpi__v";
 
   function fitSideChips(root) {

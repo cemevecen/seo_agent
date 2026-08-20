@@ -50,7 +50,7 @@
     gap: 0.75rem;
     margin-top: 0.85rem;
   }
-  @container home-card (min-width: 380px) {
+  @container home-card (min-width: 520px) {
     .home-crash-pair {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 0.75rem 1.25rem;
@@ -80,6 +80,8 @@
     border: 1px solid rgb(241 245 249);
     background: rgb(248 250 252 / 0.5);
     padding: 0.75rem 0.875rem;
+    container-type: inline-size;
+    container-name: home-crash-plat;
   }
   html.dark .home-crash-plat,
   html.charcoal .home-crash-plat {
@@ -119,6 +121,12 @@
     margin-top: 0.35rem;
     align-items: stretch;
   }
+  @container home-crash-plat (max-width: 275px) {
+    .home-store-kpi-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.35rem;
+    }
+  }
   .home-store-kpi {
     min-width: 0;
     display: flex;
@@ -129,6 +137,7 @@
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255 / 0.9);
     padding: 0.18rem 0.35rem 0.2rem;
+    overflow: hidden;
   }
   html.dark .home-store-kpi,
   html.charcoal .home-store-kpi {
@@ -145,25 +154,30 @@
   }
   .home-store-kpi__l {
     margin: 0;
+    font-size: clamp(0.55rem, 3.8cqi, 0.68rem);
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: #64748b;
-    line-height: 1;
+    line-height: 1.1;
     white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
     min-width: 0;
+    max-width: 100%;
   }
   .home-store-kpi__v {
     margin: 0;
-    font-size: clamp(0.7rem, 4.5cqi, 0.85rem);
+    font-size: clamp(0.68rem, 5cqi, 0.9rem);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: #0f172a;
-    line-height: 1;
+    line-height: 1.1;
     white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
     min-width: 0;
+    max-width: 100%;
   }
   html.dark .home-store-kpi__v { color: #e2e8f0; }
   .home-store-stars {
@@ -266,6 +280,12 @@
   .home-sf-metrics--android {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+  @container home-crash-plat (max-width: 275px) {
+    .home-sf-metrics--android {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.35rem;
+    }
+  }
   .home-sf-metric {
     display: flex;
     flex-direction: column;
@@ -334,16 +354,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 2.2rem;
-    padding: 0.12rem 0;
-    font-size: clamp(1.25rem, 13.5cqi, 2.25rem);
+    min-height: 1.8rem;
+    padding: 0.1rem 0;
+    font-size: clamp(0.85rem, 11.5cqi, 1.85rem);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
-    line-height: 1;
+    line-height: 1.05;
     letter-spacing: -0.035em;
     white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
     text-align: center;
+    max-width: 100%;
   }
   .home-sf-metric__hero.is-up { color: #047857; }
   .home-sf-metric__hero.is-mid { color: #b45309; }
@@ -419,33 +441,28 @@
     user-select: none;
   }
 
-  /* Android: 4 kutu yan yana — alt satır biraz daha küçük, ama okunur */
-  .home-sf-metric--android .home-sf-metric__meta {
-    font-size: clamp(8px, 1.95cqi, 9.5px);
-  }
-
-  /* Ana yüzde kutunun öznesi: platform genişliğine göre büyük */
+  /* Android & iOS: fluid hero % */
   .home-sf-metric--android .home-sf-metric__hero {
-    font-size: clamp(1.6rem, 19cqi, 3.1rem);
-    min-height: 2.2rem;
+    font-size: clamp(0.85rem, 11cqi, 1.75rem);
+    min-height: 1.75rem;
   }
   .home-sf-metric--ios .home-sf-metric__hero {
-    font-size: clamp(1.9rem, 22cqi, 3.6rem);
-    min-height: 2.4rem;
+    font-size: clamp(0.9rem, 12cqi, 1.95rem);
+    min-height: 1.85rem;
   }
 
   @container home-sf-metric (max-width: 5.75rem) {
     .home-sf-metric__hero {
-      font-size: clamp(1.05rem, 11cqi, 1.5rem);
-      min-height: 1.7rem;
+      font-size: clamp(0.8rem, 10cqi, 1.4rem);
+      min-height: 1.6rem;
     }
     .home-sf-metric--android .home-sf-metric__hero {
-      font-size: clamp(1.45rem, 16.5cqi, 2.2rem);
-      min-height: 1.9rem;
+      font-size: clamp(0.8rem, 10.5cqi, 1.5rem);
+      min-height: 1.65rem;
     }
     .home-sf-metric--ios .home-sf-metric__hero {
-      font-size: clamp(1.6rem, 18.5cqi, 2.5rem);
-      min-height: 2rem;
+      font-size: clamp(0.85rem, 11.5cqi, 1.6rem);
+      min-height: 1.7rem;
     }
     .home-sf-metric__meta {
       flex-direction: column;
@@ -746,19 +763,21 @@
       function fitEl(el, minPx, maxPx) {
         el.style.whiteSpace = 'nowrap';
         el.style.overflow = 'hidden';
-        el.style.fontSize = '';
+        el.style.textOverflow = 'ellipsis';
+        el.style.maxWidth = '100%';
+        el.style.removeProperty('font-size');
         var boxW = el.clientWidth;
         if (!(boxW > 1)) return;
         maxPx = maxPx || parseFloat(window.getComputedStyle(el).fontSize) || 22;
         if (!(maxPx > minPx)) {
-          el.style.fontSize = minPx + 'px';
+          el.style.setProperty('font-size', minPx + 'px', 'important');
           return;
         }
         if (el.scrollWidth <= boxW + 1) return;
         var lo = minPx, hi = maxPx, best = minPx;
         for (var i = 0; i < 16; i++) {
           var mid = (lo + hi) / 2;
-          el.style.fontSize = mid + 'px';
+          el.style.setProperty('font-size', mid + 'px', 'important');
           if (el.scrollWidth <= el.clientWidth + 1) {
             best = mid;
             lo = mid;
@@ -766,19 +785,19 @@
             hi = mid;
           }
         }
-        el.style.fontSize = Math.max(minPx, best) + 'px';
+        el.style.setProperty('font-size', Math.max(minPx, best) + 'px', 'important');
       }
       if (ux && ux.fitCardTexts) {
         ux.fitCardTexts(root);
       }
       root.querySelectorAll('.home-sf-metric--android .home-sf-metric__hero').forEach(function (el) {
-        fitEl(el, 21, 48);
+        fitEl(el, 10, 28);
       });
       root.querySelectorAll('.home-sf-metric--ios .home-sf-metric__hero').forEach(function (el) {
-        fitEl(el, 23, 54);
+        fitEl(el, 10, 30);
       });
       root.querySelectorAll('.home-store-kpi__l, .home-store-kpi__v').forEach(function (el) {
-        fitEl(el, 11, 22);
+        fitEl(el, 8, 14);
       });
       if (ux && ux.fitSideChips) ux.fitSideChips(root);
     }

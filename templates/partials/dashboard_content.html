@@ -701,15 +701,19 @@
      transform: scale() hileleri bu yüzden vardı). Boyutlar burada, kart
      genişliğine (cqi) bağlı olarak açıkça tanımlanır — asıl özne yüzde. */
   #home-board .home-readable .home-sf-metric__hero {
-    font-size: clamp(1.15rem, 15cqi, 2.4rem) !important;
-    line-height: 1 !important;
+    font-size: clamp(0.85rem, 11.5cqi, 1.85rem) !important;
+    line-height: 1.05 !important;
     letter-spacing: -0.035em;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
   }
   #home-board .home-readable .home-sf-metric--ios .home-sf-metric__hero {
-    font-size: clamp(1.45rem, 20cqi, 3.2rem) !important;
+    font-size: clamp(0.9rem, 12cqi, 1.95rem) !important;
   }
   #home-board .home-readable .home-sf-metric--android .home-sf-metric__hero {
-    font-size: clamp(1.3rem, 19cqi, 2.9rem) !important;
+    font-size: clamp(0.85rem, 11cqi, 1.75rem) !important;
   }
   #home-board .home-readable :where(
     .home-sf-metric__kind,
