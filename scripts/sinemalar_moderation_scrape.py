@@ -70,12 +70,13 @@ DETAIL_INGEST_CHUNK_MIN = int(os.environ.get("SINEMALAR_MODERATION_DETAIL_CHUNK_
 # 2026 backfill — aylık pencereler (üst üste binmez; dedup ingest birleştirir)
 DETAIL_MONTHLY_WINDOWS_2026: list[tuple[date, date]] = [
     (date(2026, 1, 1), date(2026, 2, 1)),
-    (date(2026, 2, 2), date(2026, 3, 1)),
-    (date(2026, 3, 2), date(2026, 4, 1)),
-    (date(2026, 4, 2), date(2026, 5, 1)),
-    (date(2026, 5, 2), date(2026, 6, 1)),
-    (date(2026, 6, 2), date(2026, 7, 1)),
-    (date(2026, 7, 2), date(2026, 8, 13)),
+    (date(2026, 2, 1), date(2026, 3, 1)),
+    (date(2026, 3, 1), date(2026, 4, 1)),
+    (date(2026, 4, 1), date(2026, 5, 1)),
+    (date(2026, 5, 1), date(2026, 6, 1)),
+    (date(2026, 6, 1), date(2026, 7, 1)),
+    (date(2026, 7, 1), date(2026, 8, 1)),
+    (date(2026, 8, 1), date(2026, 8, 22)),
 ]
 META_URL = INGEST_URL.rsplit("/", 1)[0] + "/meta"
 
