@@ -1643,6 +1643,7 @@
           if (window.renderScKpiSparks) renderScKpiSparks(scope);
           fitSearchConsoleText(scope);
           scScheduleSplitCardChromeSync();
+          if (window.scScheduleOverlayKpiRefresh) scScheduleOverlayKpiRefresh(document, 80);
         }, 400);
       };
 
@@ -1720,6 +1721,7 @@
           if (window.renderScKpiSparks) renderScKpiSparks(visiblePeriod || hostCard);
           fitSearchConsoleText(visiblePeriod || hostCard);
           scScheduleSplitCardChromeSync();
+          if (window.scScheduleOverlayKpiRefresh) scScheduleOverlayKpiRefresh(document, 80);
         }, periodKey === '12m' ? 900 : 400);
       };
 

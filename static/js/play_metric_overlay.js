@@ -282,10 +282,19 @@
     return document.querySelector("[data-play-metric-overlay-root]");
   }
 
-  function storageKeyForRoot(root) {
+  function sharedStorageKeyForRoot(root) {
+    var base = (root && root.getAttribute("data-overlay-storage-key")) || "play";
+    return "play-metric-overlay-keys-v2-" + base;
+  }
+
+  function platformStorageKeyForRoot(root) {
     var base = (root && root.getAttribute("data-overlay-storage-key")) || "play";
     var plat = platformForRoot(root);
     return "play-metric-overlay-keys-v2-" + base + "-" + plat;
+  }
+
+  function storageKeyForRoot(root) {
+    return sharedStorageKeyForRoot(root);
   }
 
   function persistOverlaySelection(root) {
@@ -296,7 +305,8 @@
 
   function clearStored(root) {
     try {
-      global.localStorage.removeItem(storageKeyForRoot(root));
+      global.localStorage.removeItem(sharedStorageKeyForRoot(root));
+      global.localStorage.removeItem(platformStorageKeyForRoot(root));
     } catch (e) {
       /* ignore */
     }
@@ -358,7 +368,10 @@
     if (!persistOverlaySelection(root)) return [];
     var plat = platformForRoot(root);
     try {
-      var raw = global.localStorage.getItem(storageKeyForRoot(root));
+      var raw = global.localStorage.getItem(sharedStorageKeyForRoot(root));
+      if (!raw) {
+        raw = global.localStorage.getItem(platformStorageKeyForRoot(root));
+      }
       if (!raw) return [];
       var arr = JSON.parse(raw);
       return Array.isArray(arr)
@@ -376,8 +389,10 @@
       clearStored(root);
       return;
     }
+    var json = JSON.stringify(keys || []);
     try {
-      global.localStorage.setItem(storageKeyForRoot(root), JSON.stringify(keys || []));
+      global.localStorage.setItem(sharedStorageKeyForRoot(root), json);
+      global.localStorage.setItem(platformStorageKeyForRoot(root), json);
     } catch (e) {
       /* ignore */
     }
@@ -866,13 +881,21 @@
     var plat = platformForRoot(root);
     var panel = panelForRoot(root);
     if (!panel) return null;
+
+    var activeBeforeFill = selectedFromDom(root);
+    if (!activeBeforeFill.length) {
+      activeBeforeFill = readStored(root);
+    }
+
     panel.innerHTML = buildPanelHtml(plat);
     panel.dataset.playMetricBuilt = "1";
     root.dataset.playMetricPlatformReady = plat;
     root.dataset.playMetricXdataReady = (XDATA_ITEMS[plat] || []).length ? "1" : "0";
     if (root.id) panel.setAttribute("data-play-metric-overlay-for", root.id);
     if (!persistOverlaySelection(root)) clearStored(root);
-    applyStoredChecks(panel, readStored(root));
+
+    applyStoredChecks(panel, activeBeforeFill);
+    writeStored(root, activeBeforeFill);
     return panel;
   }
 
