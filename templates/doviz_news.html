@@ -2753,7 +2753,7 @@
   function syncPeriodCardVisibility(period) {
     var p = period || DEFAULT_PERIOD;
     var hideWeekly = p === "today" || p === "yesterday" || p === "last_2d" || p === "last_7d" || p === "prev_week";
-    var hideDaySeries = p === "today" || p === "yesterday";
+    var hideDaySeries = p === "today" || p === "yesterday" || p === "last_2d";
     if (p === "custom") {
       var meta = (state.data && state.data.period_meta) || {};
       var span = daysBetween(
@@ -2761,7 +2761,7 @@
         (meta.end || state.customEnd || "").toString().slice(0, 10)
       );
       if (span != null) {
-        hideDaySeries = span <= 1;
+        hideDaySeries = span < 7;
         hideWeekly = span <= 7;
       } else {
         hideDaySeries = true;
