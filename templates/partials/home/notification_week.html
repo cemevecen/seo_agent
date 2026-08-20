@@ -535,22 +535,22 @@
   }
 
   .home-nt-week .home-nt-legend {
-    flex: 1 1 7.5rem;
-    min-width: 6.5rem;
-    max-width: 13rem;
+    flex: 1 1 8.5rem;
+    min-width: 7.5rem;
+    max-width: 16rem;
     margin: 0;
     padding: 0;
     list-style: none;
   }
   .home-nt-week .home-nt-legend li {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.65rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
     font-size: clamp(0.8125rem, 0.72rem + 0.4cqi, 0.9375rem);
-    line-height: 1.4;
+    line-height: 1.35;
     border-radius: 0.45rem;
-    padding: 0.2rem 0.35rem;
+    padding: 0.25rem 0.4rem;
     margin: 0 -0.35rem;
     cursor: pointer;
     transition: background 140ms ease, opacity 140ms ease;
@@ -803,12 +803,25 @@
             {{ nt_pie(click_pie) }}
             <ul class="home-nt-legend">
               {% for row in click_pie.legend %}
+                {% set plat = platforms[loop.index0] if platforms and loop.index0 < platforms|length else none %}
                 <li data-nt-legend-idx="{{ loop.index0 }}" data-nt-legend-hex="{{ row.hex }}" data-nt-legend-start="{{ row.start }}" data-nt-legend-end="{{ row.end }}">
-                  <span class="inline-flex min-w-0 items-center gap-1.5">
-                    <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
-                    <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
-                  </span>
-                  <span class="shrink-0 tabular-nums home-delta text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
+                  <div class="flex items-center justify-between gap-1.5 w-full">
+                    <span class="inline-flex min-w-0 items-center gap-1.5">
+                      <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
+                      <span class="home-nt-legend-label text-slate-700 dark:text-slate-200 font-semibold">{{ row.label }}</span>
+                    </span>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      {% if plat and plat.clicks %}
+                        <span class="text-[11px] font-bold tabular-nums {{ tone_text(plat.clicks.delta_pct) }}">{{ plat.clicks.delta_fmt }}</span>
+                      {% endif %}
+                      <span class="shrink-0 tabular-nums home-delta text-slate-900 dark:text-slate-100 font-bold">{{ row.share_fmt }}</span>
+                    </div>
+                  </div>
+                  {% if plat and plat.clicks %}
+                    <div class="pl-4 text-[10px] tabular-nums font-medium text-slate-500 dark:text-slate-400">
+                      {{ plat.clicks.cur_fmt }} ← {{ plat.clicks.prev_fmt }}
+                    </div>
+                  {% endif %}
                 </li>
               {% endfor %}
             </ul>
