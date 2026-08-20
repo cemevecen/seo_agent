@@ -2586,6 +2586,13 @@
     var chart = scope ? scope.querySelector('[data-search-console-trend]') : null;
     if (chart && chart.dataset.scDailyTrendBase) {
       chart.setAttribute('data-search-console-trend', chart.dataset.scDailyTrendBase);
+      var jsonId = chart.getAttribute('data-sc-trend-json-id');
+      if (jsonId) {
+        var jsonNode = document.getElementById(jsonId);
+        if (jsonNode) {
+          jsonNode.textContent = chart.dataset.scDailyTrendBase;
+        }
+      }
     }
   }
 
@@ -2648,7 +2655,13 @@
     if (!chart) return;
 
     if (!chart.dataset.scDailyTrendBase) {
-      chart.dataset.scDailyTrendBase = chart.getAttribute('data-search-console-trend') || '{"dates":[]}';
+      var baseTrendStr = chart.getAttribute('data-search-console-trend');
+      var baseJsonId = chart.getAttribute('data-sc-trend-json-id');
+      if ((!baseTrendStr || baseTrendStr === '{}') && baseJsonId) {
+        var baseJsonNode = document.getElementById(baseJsonId);
+        if (baseJsonNode && baseJsonNode.textContent) baseTrendStr = baseJsonNode.textContent.trim();
+      }
+      chart.dataset.scDailyTrendBase = baseTrendStr || '{"dates":[]}';
     }
     var trend = { dates: (dates || []).slice() };
     try {
@@ -2679,7 +2692,15 @@
       html += scBuildOverlayKpiCardHtml(pack, prevTotal, pct, sparkKey, tone, idx % 2 === 1);
     });
     if (html) grid.insertAdjacentHTML('beforeend', html);
-    chart.setAttribute('data-search-console-trend', JSON.stringify(trend));
+    var updatedTrendStr = JSON.stringify(trend);
+    chart.setAttribute('data-search-console-trend', updatedTrendStr);
+    var jsonId = chart.getAttribute('data-sc-trend-json-id');
+    if (jsonId) {
+      var jsonNode = document.getElementById(jsonId);
+      if (jsonNode) {
+        jsonNode.textContent = updatedTrendStr;
+      }
+    }
   }
 
   var _scOverlayKpiSeq = 0;
@@ -2717,7 +2738,9 @@
     targetRows.forEach(function (row) {
       var rowScope = row.closest('[data-sc-site-card]') || row.closest('[data-sc-period-panel]') || row.parentElement;
       var chart = rowScope ? rowScope.querySelector('[data-search-console-trend]') : null;
-      var trendRaw = chart ? (chart.getAttribute('data-search-console-trend') || chart.dataset.scDailyTrendBase || '') : '';
+      var jsonId = chart ? chart.getAttribute('data-sc-trend-json-id') : null;
+      var jsonNode = jsonId ? document.getElementById(jsonId) : null;
+      var trendRaw = (jsonNode && jsonNode.textContent) ? jsonNode.textContent.trim() : (chart ? (chart.getAttribute('data-search-console-trend') || chart.dataset.scDailyTrendBase || '') : '');
       var dates = [];
       if (trendRaw) {
         try {
