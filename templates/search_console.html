@@ -2380,6 +2380,7 @@
     bindSearchConsoleRefreshForms(root);
     renderSearchConsoleTrendCharts(root);
     if (window.renderScKpiSparks) renderScKpiSparks(root);
+    scScheduleOverlayKpiRefresh(root, 140);
     initSearchConsoleTables(root);
     fitSearchConsoleText(root);
     mountScGlobalFilters();
@@ -2467,6 +2468,326 @@
     });
   }
 
+  function scShiftIsoDays(isoStr, days) {
+    if (!isoStr) return '';
+    var d = new Date(isoStr + 'T12:00:00Z');
+    if (isNaN(d.getTime())) return isoStr;
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function scResolveOverlayCompareRange(startIso, endIso) {
+    if (!startIso || !endIso) return { start: '', end: '' };
+    var s = new Date(startIso + 'T12:00:00Z');
+    var e = new Date(endIso + 'T12:00:00Z');
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return { start: '', end: '' };
+    var diffMs = e.getTime() - s.getTime();
+    var days = Math.max(1, Math.round(diffMs / (86400 * 1000)) + 1);
+    var prevEnd = scShiftIsoDays(startIso, -1);
+    var prevStart = scShiftIsoDays(prevEnd, -(days - 1));
+    return { start: prevStart, end: prevEnd };
+  }
+
+  function scOverlayMetricIsAvg(metricKey) {
+    var m = String(metricKey || '');
+    if (m === 'ga4:avg_session') return true;
+    if (m.indexOf('market:') === 0) return true;
+    if (m.indexOf('virgul:') === 0) {
+      return /ecpm|_pct$|viewability|ctr|coverage/.test(m);
+    }
+    return false;
+  }
+
+  function scAggregateSeriesValues(series, asAvg) {
+    var vals = [];
+    (series || []).forEach(function (r) {
+      var nv = Number(r && r.value);
+      if (Number.isFinite(nv)) vals.push(nv);
+    });
+    if (!vals.length) return null;
+    var sum = 0;
+    vals.forEach(function (v) { sum += v; });
+    return asAvg ? sum / vals.length : sum;
+  }
+
+  function scAlignOverlayToDates(series, dates) {
+    var map = {};
+    (series || []).forEach(function (r) {
+      if (!r || r.key == null) return;
+      var nv = Number(r.value);
+      map[String(r.key).slice(0, 10)] = Number.isFinite(nv) ? nv : 0;
+    });
+    return (dates || []).map(function (d) {
+      var k = String(d).slice(0, 10);
+      return Object.prototype.hasOwnProperty.call(map, k) ? map[k] : 0;
+    });
+  }
+
+  function scOverlaySignedPctTr(value) {
+    if (value == null || !Number.isFinite(value)) return 'N/A';
+    var clipped = Math.round(value * 100) / 100;
+    if (clipped === 0) return '0';
+    var absText = Math.abs(clipped).toLocaleString('tr-TR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+    return (clipped > 0 ? '+' : '-') + absText;
+  }
+
+  function scOverlayPctClass(value) {
+    if (value == null || !Number.isFinite(value) || value === 0) {
+      return 'text-slate-500 dark:text-slate-400';
+    }
+    if (value >= 5) return 'text-emerald-600 dark:text-emerald-400';
+    if (value > 0) return 'text-emerald-500 dark:text-emerald-300';
+    if (value > -5) return 'text-orange-500 dark:text-orange-400';
+    return 'text-rose-600 dark:text-rose-400';
+  }
+
+  function scFmtOverlayKpiValue(metricKey, n) {
+    if (n == null || !Number.isFinite(n)) return '—';
+    var m = String(metricKey || '');
+    if (m === 'ga4:avg_session') {
+      return Math.round(n).toLocaleString('tr-TR') + ' s';
+    }
+    if (/_pct$|viewability|ctr|coverage/.test(m)) {
+      return n.toLocaleString('tr-TR', { maximumFractionDigits: 2 }) + '%';
+    }
+    if (/ecpm|net_revenue|market:/.test(m)) {
+      return n.toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+    }
+    return Math.round(n).toLocaleString('tr-TR');
+  }
+
+  function scOverlayKpiTitle(label, metric) {
+    var s = String(label || metric || '')
+      .replace(/^GA4\s*·\s*/i, '')
+      .replace(/^Virgül\s*·\s*/i, '')
+      .replace(/^X-Data\s*·\s*/i, '')
+      .trim();
+    return (s || metric || 'METRIC').toUpperCase();
+  }
+
+  function scEscHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function scClearOverlayKpiCardsInRow(row) {
+    if (!row) return;
+    var grid = row.querySelector('.grid') || row;
+    grid.querySelectorAll('[data-sc-overlay-kpi]').forEach(function (el) {
+      el.remove();
+    });
+    var scope = row.closest('[data-sc-site-card]') || row.closest('[data-sc-period-panel]') || row.parentElement;
+    var chart = scope ? scope.querySelector('[data-search-console-trend]') : null;
+    if (chart && chart.dataset.scDailyTrendBase) {
+      chart.setAttribute('data-search-console-trend', chart.dataset.scDailyTrendBase);
+    }
+  }
+
+  function scClearOverlayKpiCards(root) {
+    (root || document).querySelectorAll('[data-kpi-spark-row]').forEach(scClearOverlayKpiCardsInRow);
+  }
+
+  function scBuildOverlayKpiCardHtml(pack, prevTotal, pct, sparkKey, tone, altBg) {
+    var label = scOverlayKpiTitle(pack.label, pack.metric);
+    var asAvg = scOverlayMetricIsAvg(pack.metric);
+    var total = scAggregateSeriesValues(pack.series, asAvg);
+    var pctClass = scOverlayPctClass(pct);
+    var pctSigned = scOverlaySignedPctTr(pct);
+    var mainLine = scFmtOverlayKpiValue(pack.metric, total);
+    var prevLine = 'prev: ' + scFmtOverlayKpiValue(pack.metric, prevTotal);
+    var cardBg = altBg ? 'bg-slate-50/80 dark:bg-slate-900/55' : 'bg-white dark:bg-slate-900';
+    return (
+      '<article class="flex h-full min-h-[13rem] min-w-0 flex-col rounded-3xl border border-slate-200 dark:border-slate-700 ' +
+      cardBg +
+      ' p-3 sm:min-h-[14rem] sm:p-4 xl:min-h-0" data-sc-overlay-kpi="' +
+      scEscHtml(pack.metric) +
+      '">' +
+      '<p lang="en" class="shrink-0 text-[10px] font-medium tracking-[0.1em] text-slate-500 dark:text-slate-400 sm:text-xs sm:tracking-[0.12em]">' +
+      scEscHtml(label) +
+      '</p>' +
+      '<div class="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">' +
+      '<div class="min-w-0 space-y-1">' +
+      '<p class="whitespace-nowrap text-lg font-bold tabular-nums leading-none sm:text-xl ' +
+      pctClass +
+      '">' +
+      scEscHtml(pctSigned) +
+      (pct != null ? '%' : '') +
+      '</p>' +
+      '<p class="min-w-0 truncate text-sm font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base">' +
+      scEscHtml(mainLine) +
+      '</p>' +
+      '</div>' +
+      '<div class="kpi-mini-spark mt-1 shrink-0" data-kpi-spark data-kpi-spark-key="' +
+      scEscHtml(sparkKey) +
+      '" data-kpi-spark-tone="' +
+      scEscHtml(tone) +
+      '" role="img" aria-label="' +
+      scEscHtml(label) +
+      ' daily trend"></div>' +
+      '<div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">' +
+      '<p class="min-w-0 truncate text-xs font-medium text-slate-500 dark:text-slate-400">' +
+      scEscHtml(prevLine) +
+      '</p>' +
+      '</div>' +
+      '</div>' +
+      '</article>'
+    );
+  }
+
+  function scApplyOverlayKpisToRow(row, packs, prevByMetric, dates) {
+    var grid = row.querySelector('.grid');
+    if (!grid) return;
+    var scope = row.closest('[data-sc-site-card]') || row.closest('[data-sc-period-panel]') || row.parentElement;
+    var chart = scope ? scope.querySelector('[data-search-console-trend]') : null;
+    if (!chart) return;
+
+    if (!chart.dataset.scDailyTrendBase) {
+      chart.dataset.scDailyTrendBase = chart.getAttribute('data-search-console-trend') || '{"dates":[]}';
+    }
+    var trend = { dates: (dates || []).slice() };
+    try {
+      trend = JSON.parse(chart.dataset.scDailyTrendBase);
+    } catch (err) {
+      trend = { dates: (dates || []).slice() };
+    }
+    if (!trend.dates || !trend.dates.length) {
+      trend.dates = (dates || []).slice();
+    }
+    grid.querySelectorAll('[data-sc-overlay-kpi]').forEach(function (el) {
+      el.remove();
+    });
+    var html = '';
+    (packs || []).forEach(function (pack, idx) {
+      if (!pack || !pack.metric) return;
+      var sparkKey = 'overlay:' + pack.metric;
+      trend[sparkKey] = scAlignOverlayToDates(pack.series, trend.dates);
+      var asAvg = scOverlayMetricIsAvg(pack.metric);
+      var total = scAggregateSeriesValues(pack.series, asAvg);
+      var prevPack = prevByMetric && prevByMetric[pack.metric];
+      var prevTotal = scAggregateSeriesValues(prevPack && prevPack.series, asAvg);
+      var pct = null;
+      if (total != null && prevTotal != null && prevTotal !== 0) {
+        pct = ((total - prevTotal) / Math.abs(prevTotal)) * 100;
+      }
+      var tone = pct == null ? 'flat' : pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+      html += scBuildOverlayKpiCardHtml(pack, prevTotal, pct, sparkKey, tone, idx % 2 === 1);
+    });
+    if (html) grid.insertAdjacentHTML('beforeend', html);
+    chart.setAttribute('data-search-console-trend', JSON.stringify(trend));
+  }
+
+  var _scOverlayKpiSeq = 0;
+  var _scOverlayKpiRefreshTimer = null;
+  function scScheduleOverlayKpiRefresh(root, delayMs) {
+    if (_scOverlayKpiRefreshTimer) window.clearTimeout(_scOverlayKpiRefreshTimer);
+    _scOverlayKpiRefreshTimer = window.setTimeout(function () {
+      _scOverlayKpiRefreshTimer = null;
+      scRefreshOverlayKpiCards(document).catch(function () { /* ignore */ });
+    }, delayMs == null ? 120 : delayMs);
+  }
+
+  async function scRefreshOverlayKpiCards(root) {
+    var my = ++_scOverlayKpiSeq;
+    var scope = root || document;
+    var keys =
+      window.PlayMetricOverlay && typeof PlayMetricOverlay.modes === 'function'
+        ? PlayMetricOverlay.modes('sc-play-metric-overlay-root')
+        : [];
+    if (!keys.length || !window.PlayMetricOverlay || typeof PlayMetricOverlay.fetchSelectedSeries !== 'function') {
+      scClearOverlayKpiCards(scope);
+      return;
+    }
+    var targetRows = [];
+    scope.querySelectorAll('[data-kpi-spark-row]').forEach(function (row) {
+      if (row.closest('.hidden')) {
+        scClearOverlayKpiCardsInRow(row);
+        return;
+      }
+      targetRows.push(row);
+    });
+    if (!targetRows.length) return;
+
+    var groups = {};
+    targetRows.forEach(function (row) {
+      var rowScope = row.closest('[data-sc-site-card]') || row.closest('[data-sc-period-panel]') || row.parentElement;
+      var chart = rowScope ? rowScope.querySelector('[data-search-console-trend]') : null;
+      var trendRaw = chart ? (chart.getAttribute('data-search-console-trend') || chart.dataset.scDailyTrendBase || '') : '';
+      var dates = [];
+      if (trendRaw) {
+        try {
+          var tObj = JSON.parse(trendRaw);
+          dates = tObj.dates || [];
+        } catch (e) {}
+      }
+      if (!dates.length) {
+        scClearOverlayKpiCardsInRow(row);
+        return;
+      }
+      var start = dates[0];
+      var end = dates[dates.length - 1];
+      var prev = scResolveOverlayCompareRange(start, end);
+      var gk = 'web|' + start + '|' + end + '|' + prev.start + '|' + prev.end;
+      if (!groups[gk]) {
+        groups[gk] = {
+          plat: 'web',
+          start: start,
+          end: end,
+          prevStart: prev.start,
+          prevEnd: prev.end,
+          dates: dates,
+          rows: [],
+        };
+      }
+      groups[gk].rows.push(row);
+    });
+
+    await Promise.all(
+      Object.keys(groups).map(function (gk) {
+        var g = groups[gk];
+        return Promise.all([
+          PlayMetricOverlay.fetchSelectedSeries('sc-play-metric-overlay-root', g.start, g.end, g.plat),
+          PlayMetricOverlay.fetchSelectedSeries(
+            'sc-play-metric-overlay-root',
+            g.prevStart,
+            g.prevEnd,
+            g.plat
+          ),
+        ]).then(function (pair) {
+          if (my !== _scOverlayKpiSeq) return;
+          var packs = pair[0] || [];
+          var prevPacks = pair[1] || [];
+          var prevByMetric = {};
+          prevPacks.forEach(function (p) {
+            if (p && p.metric) prevByMetric[p.metric] = p;
+          });
+          g.rows.forEach(function (row) {
+            if (!row.isConnected) return;
+            scApplyOverlayKpisToRow(row, packs, prevByMetric, g.dates);
+          });
+        }).catch(function () {
+          if (my !== _scOverlayKpiSeq) return;
+          g.rows.forEach(function (row) {
+            if (row.isConnected) scClearOverlayKpiCardsInRow(row);
+          });
+        });
+      })
+    );
+
+    if (my !== _scOverlayKpiSeq) return;
+    if (window.KpiMiniSpark) {
+      KpiMiniSpark.clearCache(document);
+      KpiMiniSpark.render(document);
+    }
+  }
+  window.scRefreshOverlayKpiCards = scRefreshOverlayKpiCards;
+  window.scScheduleOverlayKpiRefresh = scScheduleOverlayKpiRefresh;
+
   function scBindPlayMetricOverlay() {
     if (!window.PlayMetricOverlay) return;
     if (PlayMetricOverlay.bindWhenReady) {
@@ -2484,6 +2805,7 @@
   window.scOnPlayMetricOverlayChange = function scOnPlayMetricOverlayChange() {
     if (window.PlayMetricOverlay && PlayMetricOverlay.clearCache) PlayMetricOverlay.clearCache();
     scRerenderTrendChartsForMarket();
+    scScheduleOverlayKpiRefresh(document, 80);
   };
 
   function scRerenderTrendChartsForMarket(keys) {
@@ -2497,10 +2819,7 @@
       }
     });
     renderSearchConsoleTrendCharts(document);
-    if (window.KpiMiniSpark) {
-      KpiMiniSpark.clearCache(document);
-      KpiMiniSpark.render(document);
-    }
+    scRefreshOverlayKpiCards(document).catch(function () { /* ignore */ });
   }
   window.scRerenderTrendChartsForMarket = scRerenderTrendChartsForMarket;
 

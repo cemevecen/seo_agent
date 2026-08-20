@@ -185,6 +185,7 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert "function scOnPlayMetricOverlayChange" in sc
     assert "PlayMetricOverlay.apply" in sc
     assert "function scSyncPlayMetricOverlay" in sc
+    assert "scRefreshOverlayKpiCards" in sc
 
 
 def test_query_series_rejects_unknown_without_db():
