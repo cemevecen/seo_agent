@@ -21,9 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Tarama tarayıcısı: yalnızca Firefox (Chrome/Chromium kurulmaz)
-RUN playwright install firefox \
-    && find /root/.cache/ms-playwright -name "*.map" -delete || true
+# Playwright/Firefox: Railway/Docker app imajında KURULMAZ (RAM faturası).
+# Mac bridge: `playwright install firefox` (yerel .venv).
+# Acil bulut debug: ALLOW_BROWSER_SCRAPE_ON_RAILWAY=1 + elle install.
 
 COPY . .
 

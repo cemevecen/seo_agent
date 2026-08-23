@@ -32,9 +32,39 @@ from typing import Any
 
 STATE_DIR = Path.home() / ".seo-agent"
 
-# Elle giriş bekleyen tüm taramalar (ASC / Play / Firebase / GSC / Policy…)
+# Elle giriş bekleyen tüm taramalar (ASC / Play / Firefox / GSC / Policy…)
 # Update page & headed sync: 15 dakika; giriş sonrası aynı pencerede kazıma devam eder.
 LOGIN_WAIT_SEC = 900
+
+
+def browser_scrape_forbidden() -> bool:
+    """Railway (bulut) üzerinde tarayıcı scrape yasak — Mac bridge tek kaynak.
+
+    Acil debug: ALLOW_BROWSER_SCRAPE_ON_RAILWAY=1 (üretimde kullanma).
+    """
+    allow = (os.environ.get("ALLOW_BROWSER_SCRAPE_ON_RAILWAY") or "").strip().lower()
+    if allow in ("1", "true", "yes", "on"):
+        return False
+    try:
+        from backend.config import is_railway_runtime
+
+        return bool(is_railway_runtime())
+    except Exception:
+        return bool(
+            os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID")
+        )
+
+
+def assert_browser_scrape_allowed(*, context: str = "") -> None:
+    """Playwright/Firefox launch öncesi — Railway'de hard fail (RAM faturası koruması)."""
+    if not browser_scrape_forbidden():
+        return
+    where = f" ({context})" if context else ""
+    raise RuntimeError(
+        "Browser scrape Railway'de kapalı"
+        f"{where} — Playwright/Firefox yalnız Mac bridge'de çalışır. "
+        "Panel ingest API'lerini kullanın; ALLOW_BROWSER_SCRAPE_ON_RAILWAY=1 yalnızca acil debug."
+    )
 
 _NAV_URL_BAD_PREFIX = re.compile(r"^[a-z0-9._+-]+(?=https?://)", re.I)
 
@@ -536,6 +566,7 @@ def launch_system_firefox_login(
     Playwright Nightly / juggler Google'da 'This browser may not be secure' alır.
     Firefox kapanınca (verify_session) Google oturum çerezi kontrol edilir.
     """
+    assert_browser_scrape_allowed(context="launch_system_firefox_login")
     exe = resolve_system_firefox_executable()
     if not exe:
         raise RuntimeError(
@@ -663,6 +694,7 @@ def launch_persistent(
     kill_existing=False: yalnızca stale lock temizliği; canlı browser varsa ProfileBusyError.
     Auth state (cookies/storage) asla silinmez.
     """
+    assert_browser_scrape_allowed(context="launch_persistent")
     assert_firefox_only(pw)
     if kill_existing:
         ensure_profile_free_for_launch(
@@ -693,6 +725,7 @@ def launch_ephemeral(
     headed: bool = False,
     **context_kwargs: Any,
 ) -> tuple[Any, Any]:
+    assert_browser_scrape_allowed(context="launch_ephemeral")
     assert_firefox_only(pw)
     launch_kwargs: dict[str, Any] = {"headless": not headed}
     exe = resolve_firefox_executable()
@@ -870,6 +903,7 @@ def _prune_dead_thread_playwrights() -> None:
 
 
 def _thread_playwright() -> Any:
+    assert_browser_scrape_allowed(context="_thread_playwright")
     from playwright.sync_api import sync_playwright
 
     _prune_dead_thread_playwrights()
@@ -923,6 +957,7 @@ def acquire_persistent_context(
     Süreç dışı yetim Firefox varsa (subprocess KEEP_OPEN kalıntısı) hızlı takeover —
     Playwright Firefox attach etmez; çerezler diskte kalır, pencere yeniden açılır.
     """
+    assert_browser_scrape_allowed(context=f"acquire_persistent_context:{key or label}")
     tag = label or key
     profile = profile.expanduser()
     keep = bool(headed and scrape_keep_window_open(env_key=env_key))

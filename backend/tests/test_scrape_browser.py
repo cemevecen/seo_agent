@@ -56,14 +56,39 @@ def test_align_firefox_profile_compatibility(tmp_path):
     assert "LastVersion=0" in text
 
 
-def test_deploy_installs_firefox_not_chromium():
+def test_deploy_skips_firefox_on_railway_image():
+    """Railway/Docker app imajında Playwright Firefox yok — Mac bridge kurar."""
     root = Path(__file__).resolve().parents[2]
     dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
     nix = (root / "nixpacks.toml").read_text(encoding="utf-8")
-    assert "playwright install firefox" in dockerfile
+    assert "RUN playwright install firefox" not in dockerfile
     assert "playwright install chromium" not in dockerfile
-    assert "playwright install firefox" in nix
+    assert "playwright install firefox" not in nix
     assert "playwright install chromium" not in nix
+    assert "Mac bridge" in dockerfile
+
+
+def test_browser_scrape_forbidden_on_railway(monkeypatch):
+    from backend.services import scrape_browser as sb
+
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    monkeypatch.delenv("ALLOW_BROWSER_SCRAPE_ON_RAILWAY", raising=False)
+    assert sb.browser_scrape_forbidden() is True
+    try:
+        sb.assert_browser_scrape_allowed(context="test")
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "Mac bridge" in str(exc)
+
+
+def test_browser_scrape_allowed_off_railway(monkeypatch):
+    from backend.services import scrape_browser as sb
+
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("RAILWAY_PROJECT_ID", raising=False)
+    monkeypatch.delenv("ALLOW_BROWSER_SCRAPE_ON_RAILWAY", raising=False)
+    assert sb.browser_scrape_forbidden() is False
+    sb.assert_browser_scrape_allowed(context="test")
 
 
 def test_clear_stale_locks_skips_when_pids(monkeypatch, tmp_path):

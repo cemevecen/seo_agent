@@ -4722,14 +4722,21 @@ _RANK_REFRESH_LOCK = threading.Lock()
 
 
 def _run_rank_refresh_job() -> None:
-    """Sadece kategori sırasını çekip kaydeder. 3 saatte bir çalışır."""
+    """Kategori sırası — Railway'de HTTP/API only (Playwright yok); Mac bridge tam tarama."""
     if not _RANK_REFRESH_LOCK.acquire(blocking=False):
         LOGGER.info("Rank refresh zaten çalışıyor, atlandı.")
         return
     try:
         from backend.services.app_intel import refresh_category_ranks
-        results = refresh_category_ranks()
-        LOGGER.info("Periyodik rank refresh tamamlandı: %s", results)
+        from backend.services.scrape_browser import browser_scrape_forbidden
+
+        # Bulutta asla Playwright; Mac bridge ingest ile tam sıra gelir.
+        results = refresh_category_ranks(allow_playwright=False)
+        LOGGER.info(
+            "Periyodik rank refresh tamamlandı (playwright=%s): %s",
+            "forbidden" if browser_scrape_forbidden() else "off",
+            results,
+        )
     except Exception:  # noqa: BLE001
         LOGGER.exception("Periyodik rank refresh başarısız.")
     finally:
@@ -12412,13 +12419,17 @@ def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: boo
         try:
             if product_id == "sinemalar":
                 raw = _home_ensure_android_star_hist(raw, product_id)
-                from backend.services.app_intel import _enrich_raw_category_ranks
+                from backend.services.app_intel import (
+                    _enrich_raw_category_ranks,
+                    _skip_android_playwright_rank,
+                )
 
+                # Railway'de Playwright yok — DB/API; Mac'te canlı chart tarama.
                 raw = _enrich_raw_category_ranks(
                     product_id,
                     raw,
                     allow_live_fetch=True,
-                    skip_playwright=False,
+                    skip_playwright=_skip_android_playwright_rank(),
                 )
             else:
                 from backend.services.app_intel import ensure_android_category_rank_on_raw
@@ -16394,18 +16405,58 @@ def api_app_store_rollout(product: str = "doviz", refresh: int = 0):
 
 @app.post("/api/app/category-ranks/refresh")
 def api_app_category_ranks_refresh(product: str = "doviz"):
-    """Tek ürün kategori sırası — cache/DB güncelle (yorum çekmez)."""
+    """Tek ürün kategori sırası — Railway'de Playwright yok (HTTP/API + DB)."""
     from backend.services.app_intel import APP_PRODUCTS, intel_json_safe, refresh_category_ranks_for_product
+    from backend.services.scrape_browser import browser_scrape_forbidden
 
     pid = (product or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
         return JSONResponse({"error": "unknown_product"}, status_code=400)
     try:
-        out = refresh_category_ranks_for_product(pid)
-        return JSONResponse(intel_json_safe({"ok": True, **out}))
+        out = refresh_category_ranks_for_product(
+            pid, allow_playwright=False if browser_scrape_forbidden() else None
+        )
+        return JSONResponse(
+            intel_json_safe(
+                {
+                    "ok": True,
+                    "browser_scrape": "mac_bridge_only" if browser_scrape_forbidden() else "local",
+                    **out,
+                }
+            )
+        )
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("category-ranks refresh failed: %s", exc)
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/api/app/category-ranks/ingest")
+async def api_app_category_ranks_ingest(request: Request):
+    """Mac bridge: Playwright ile toplanan sıra snapshot'larını yazar (sunucuda tarayıcı yok)."""
+    from fastapi import HTTPException
+
+    from backend.services.app_intel import ingest_category_ranks_payload, intel_json_safe
+
+    expected = (settings.notification_ingest_token or "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="NOTIFICATION_INGEST_TOKEN yok")
+    got = (request.headers.get("x-notification-ingest-token") or "").strip()
+    auth = (request.headers.get("authorization") or "").strip()
+    if not got and auth.lower().startswith("bearer "):
+        got = auth[7:].strip()
+    elif not got and auth:
+        got = auth
+    if got != expected:
+        raise HTTPException(status_code=401, detail="Geçersiz ingest token")
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"ok": False, "error": "expected_object"}, status_code=400)
+    payload = body.get("products") if isinstance(body.get("products"), dict) else body
+    out = ingest_category_ranks_payload(payload)
+    return JSONResponse(intel_json_safe(out))
 
 
 @app.get("/api/app/asc-stream")

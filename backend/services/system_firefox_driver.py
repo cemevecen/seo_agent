@@ -22,6 +22,7 @@ from typing import Any
 from backend.services.scrape_browser import (
     STATE_DIR,
     align_firefox_profile_compatibility,
+    assert_browser_scrape_allowed,
     ensure_profile_free_for_launch,
     profile_login_lock_active,
     resolve_system_firefox_executable,
@@ -622,6 +623,7 @@ def launch_system_firefox_driver(
     prefs: dict[str, Any] | None = None,
 ) -> Any:
     """Selenium WebDriver → yalnızca sistem Firefox.app + verilen profil."""
+    assert_browser_scrape_allowed(context="launch_system_firefox_driver")
     from selenium import webdriver
 
     exe = resolve_system_firefox_executable()

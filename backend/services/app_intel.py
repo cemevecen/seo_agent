@@ -99,13 +99,20 @@ def _play_review_cap() -> int:
 
 
 def _skip_android_playwright_rank() -> bool:
-    """Railway'de varsayılan kapalı (süre); canlı boşsa DB'deki son gerçek snapshot kullanılır.
+    """Railway'de her zaman True (skip). Playwright yalnız Mac bridge.
 
-    Tam kategori listesi taraması için: APP_INTEL_ALLOW_PLAYWRIGHT_ON_RAILWAY=1
+    Eski APP_INTEL_ALLOW_PLAYWRIGHT_ON_RAILWAY artık yok sayılır — merkezi guard
+    scrape_browser.assert_browser_scrape_allowed.
     """
-    if (os.environ.get("APP_INTEL_ALLOW_PLAYWRIGHT_ON_RAILWAY") or "").strip().lower() in ("1", "true", "yes"):
-        return False
-    return _railway_fast_mode()
+    try:
+        from backend.services.scrape_browser import browser_scrape_forbidden
+
+        if browser_scrape_forbidden():
+            return True
+    except Exception:
+        if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"):
+            return True
+    return False
 
 
 def _ios_review_storefronts() -> tuple[str, ...]:
@@ -1448,6 +1455,14 @@ def _fetch_android_rank_playwright(
         from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
     except ImportError:
         logger.debug("playwright kurulu değil; android rank fallback kullanılıyor")
+        return None
+
+    try:
+        from backend.services.scrape_browser import assert_browser_scrape_allowed
+
+        assert_browser_scrape_allowed(context="android_rank_playwright")
+    except RuntimeError:
+        logger.info("Android rank Playwright atlandı (Railway — Mac bridge)")
         return None
 
     slug = _android_play_category_slug(category_slug)
@@ -2839,8 +2854,16 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
     return intel
 
 
-def refresh_category_ranks_for_product(product_id: str) -> dict[str, Any]:
-    """Tek ürün için kategori sıralarını günceller (yorum çekmez)."""
+def refresh_category_ranks_for_product(
+    product_id: str,
+    *,
+    allow_playwright: bool | None = None,
+) -> dict[str, Any]:
+    """Tek ürün için kategori sıralarını günceller (yorum çekmez).
+
+    allow_playwright=True → Mac bridge tam tarama (Sinemalar dahil).
+    None → Railway'de asla Playwright; Mac'te Sinemalar için Playwright.
+    """
     pid = (product_id or "").strip().lower()
     if pid not in APP_PRODUCTS:
         return {"error": "unknown_product"}
@@ -2873,13 +2896,21 @@ def refresh_category_ranks_for_product(product_id: str) -> dict[str, Any]:
     block["ios"] = i_rank
     logger.info("Rank refresh (%s) iOS: %s", pid, i_rank)
 
+    if allow_playwright is True:
+        skip_pw = False
+    elif allow_playwright is False or _skip_android_playwright_rank():
+        skip_pw = True
+    else:
+        # Mac yerel: Sinemalar chart API çoğu zaman yetersiz → Playwright
+        skip_pw = False if pid == "sinemalar" else True
+
     meta_play, _, _ = _fetch_google_bundle(spec["android_package"], 0)
     a_rank = _fetch_android_category_rank(
         spec["android_package"],
         country="tr",
         lang="tr",
         category_id=str((meta_play or {}).get("genreId") or "") or None,
-        skip_playwright=False if pid == "sinemalar" else True,
+        skip_playwright=skip_pw,
         genre_name_hint=(str((meta_play or {}).get("genre") or "").strip() or None),
         product_id=pid,
     )
@@ -2893,23 +2924,61 @@ def refresh_category_ranks_for_product(product_id: str) -> dict[str, Any]:
     return block
 
 
-def refresh_category_ranks() -> dict[str, Any]:
+def refresh_category_ranks(*, allow_playwright: bool | None = None) -> dict[str, Any]:
     """Tüm ürünler için sadece kategori sırasını çekip DB'ye kaydeder.
 
     Tam yorum yenileme yapmaz — sadece iOS ve Android chart sıralarını
-    günceller. 3 saatlik cron job tarafından çağrılır.
+    günceller. Mac bridge 3 saatte bir Playwright ile; Railway HTTP/API only.
     """
     results: dict[str, Any] = {}
 
     for product_id in APP_PRODUCTS:
         try:
-            block = refresh_category_ranks_for_product(product_id)
+            block = refresh_category_ranks_for_product(
+                product_id, allow_playwright=allow_playwright
+            )
             results[product_id] = block
         except Exception as exc:  # noqa: BLE001
             logger.warning("Rank refresh hatası (%s): %s", product_id, exc)
             results[product_id] = {"error": str(exc)}
 
     return results
+
+
+def ingest_category_ranks_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Mac bridge'ten gelen rank snapshot'larını DB'ye yazar (tarayıcı yok)."""
+    now_iso = datetime.now(tz=_UTC).isoformat()
+    written = 0
+    errors: list[str] = []
+    for product_id, block in (payload or {}).items():
+        if not isinstance(block, dict):
+            continue
+        pid = str(product_id or "").strip().lower()
+        if pid not in APP_PRODUCTS:
+            continue
+        try:
+            ios = block.get("ios")
+            android = block.get("android")
+            if isinstance(ios, dict) and ios.get("rank") is not None:
+                _append_rank_snapshot(
+                    pid,
+                    "ios",
+                    {
+                        **ios,
+                        "category_name": ios.get("category_name")
+                        or ios.get("chart_label")
+                        or "Finans",
+                    },
+                    at_iso=str(block.get("at") or now_iso),
+                )
+                written += 1
+            if isinstance(android, dict) and android.get("rank") is not None:
+                _append_rank_snapshot(pid, "android", android, at_iso=str(block.get("at") or now_iso))
+                written += 1
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{pid}:{exc}")
+    _save_rank_history()
+    return {"ok": True, "written": written, "errors": errors}
 
 
 def refresh_android_category_rank_for_package(package_name: str | None) -> dict[str, Any] | None:
@@ -2927,12 +2996,16 @@ def refresh_android_category_rank_for_package(package_name: str | None) -> dict[
     if not product_id or not spec:
         return None
     meta_play, _, _ = _fetch_google_bundle(spec["android_package"], 1)
+    if _skip_android_playwright_rank():
+        skip_pw = True
+    else:
+        skip_pw = False if product_id == "sinemalar" else True
     a_rank = _fetch_android_category_rank(
         spec["android_package"],
         country="tr",
         lang="tr",
         category_id=str((meta_play or {}).get("genreId") or "") or None,
-        skip_playwright=False if product_id == "sinemalar" else True,
+        skip_playwright=skip_pw,
         genre_name_hint=(str((meta_play or {}).get("genre") or "").strip() or None),
         product_id=product_id,
     )

@@ -131,6 +131,14 @@ if _VIRGUL_HOURS_RAW:
     ) or VIRGUL_SLOT_HOURS
 PLAY_SLOT_HOURS = (0, 6, 12, 18)  # 6 saatte bir — login baskısını düşür
 PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "2")
+# App kategori sırası (Playwright) — Railway'de yasak; Mac 3 saatte bir + ingest
+APP_RANKS_SLOT_HOURS = (1, 4, 7, 10, 13, 16, 19, 22)
+APP_RANKS_SLOT_MINUTE = int(os.environ.get("APP_RANKS_BRIDGE_MINUTE") or "25")
+_APP_RANKS_HOURS_RAW = (os.environ.get("APP_RANKS_BRIDGE_HOURS") or "").strip()
+if _APP_RANKS_HOURS_RAW:
+    APP_RANKS_SLOT_HOURS = tuple(
+        int(h.strip()) for h in _APP_RANKS_HOURS_RAW.split(",") if h.strip().isdigit()
+    ) or APP_RANKS_SLOT_HOURS
 def _parse_slot_pairs(raw: str) -> tuple[tuple[int, int], ...]:
     """«6:30,11:15» → ((6,30),(11,15)). Geçersiz parça sessizce atlanır."""
     out: list[tuple[int, int]] = []
@@ -359,6 +367,7 @@ _empower_intel_sinemalar_lock = _browser_scrape_lock
 _noads_lock = threading.Lock()
 _moderation_lock = threading.Lock()
 _pagespeed_lock = threading.Lock()
+_app_ranks_lock = threading.Lock()
 _seo_audit_lock = threading.Lock()
 _market_lock = threading.Lock()
 _noads_open_lock = threading.Lock()
@@ -384,6 +393,7 @@ _last_policy_result: dict[str, Any] = {"ok": False, "message": "henüz çalışm
 _last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_moderation_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_pagespeed_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_app_ranks_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_empower_intel_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_empower_intel_sinemalar_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_seo_audit_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -403,6 +413,7 @@ _last_policy_auto_slot = ""
 _last_noads_auto_slot = ""
 _last_moderation_auto_slot = ""
 _last_pagespeed_auto_slot = ""
+_last_app_ranks_auto_slot = ""
 _last_seo_audit_auto_slot = ""
 _last_gsc_cwv_auto_slot = ""
 _last_market_auto_slot = ""
@@ -468,6 +479,7 @@ _BROWSER_SCRAPE_KINDS = frozenset(
         "empower_intel",
         "empower_intel_sinemalar",
         "login_warmup",
+        "app_ranks",
     }
 )
 
@@ -486,6 +498,7 @@ def browser_scrape_slot_defs() -> tuple[tuple[str, tuple[int, ...], int], ...]:
         ("gsc_links", GSC_LINKS_SLOT_HOURS, GSC_SLOT_MINUTE),
         ("policy", TWICE_DAILY_HOURS, POLICY_SLOT_MINUTE),
         ("pagespeed", TWICE_DAILY_HOURS, SPEED_SLOT_MINUTE),
+        ("app_ranks", APP_RANKS_SLOT_HOURS, APP_RANKS_SLOT_MINUTE),
         ("noads", TWICE_DAILY_HOURS, NOADS_SLOT_MINUTE),
         ("revenue_targets", REVENUE_TARGETS_SLOT_HOURS, REVENUE_TARGETS_SLOT_MINUTE),
         ("seo_audit", SEO_AUDIT_SLOT_HOURS, SEO_AUDIT_SLOT_MINUTE),
@@ -2365,6 +2378,88 @@ def run_pagespeed_bridge_once() -> dict[str, Any]:
         out = {"ok": False, "kind": "pagespeed", "message": tail}
     _last_pagespeed_result = out
     print(f"PageSpeed sync · {out['message']}", flush=True)
+    return out
+
+
+def run_app_ranks_bridge_once() -> dict[str, Any]:
+    """Play Store / App Store kategori sırası — Mac Playwright → Railway ingest.
+
+    Railway'de browser scrape kapalı; bu job tek Playwright kaynağıdır.
+    """
+    global _last_app_ranks_result
+    if not _ingest_token():
+        err = {"ok": False, "kind": "app_ranks", "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_app_ranks_result = err
+        return err
+
+    # Bu süreç Mac'te — Railway env sızmışsa scrape'i reddet
+    if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"):
+        err = {
+            "ok": False,
+            "kind": "app_ranks",
+            "message": "RAILWAY_* env var — browser scrape yalnız Mac'te",
+        }
+        _last_app_ranks_result = err
+        return err
+
+    try:
+        from backend.services.app_intel import refresh_category_ranks
+    except Exception as exc:
+        err = {"ok": False, "kind": "app_ranks", "message": f"app_intel yüklenemedi: {exc}"}
+        _last_app_ranks_result = err
+        return err
+
+    print("App ranks (Playwright) başlıyor…", flush=True)
+    try:
+        results = refresh_category_ranks(allow_playwright=True)
+    except Exception as exc:
+        err = {"ok": False, "kind": "app_ranks", "message": str(exc)[:400]}
+        _last_app_ranks_result = err
+        return err
+
+    # Ürün map → Railway DB (yerel SessionLocal farklı olabilir)
+    ingest_url = (
+        os.environ.get("APP_RANKS_INGEST_URL")
+        or (_page_tarama_api_base() + "/api/app/category-ranks/ingest")
+    ).strip()
+    try:
+        import requests
+
+        r = requests.post(
+            ingest_url,
+            headers=_page_tarama_auth_headers(),
+            json={"products": results, "source": "mac_bridge"},
+            timeout=120,
+        )
+        if r.status_code >= 400:
+            out = {
+                "ok": False,
+                "kind": "app_ranks",
+                "message": f"ingest HTTP {r.status_code}: {r.text[:200]}",
+                "local": results,
+            }
+            _last_app_ranks_result = out
+            return out
+        body = r.json() if r.content else {}
+    except Exception as exc:
+        out = {
+            "ok": False,
+            "kind": "app_ranks",
+            "message": f"ingest hata: {exc}",
+            "local": results,
+        }
+        _last_app_ranks_result = out
+        return out
+
+    out = {
+        "ok": True,
+        "kind": "app_ranks",
+        "message": f"ranks ok · ingest written={body.get('written')}",
+        "products": list(results.keys()),
+        "ingest": body,
+    }
+    _last_app_ranks_result = out
+    print(f"App ranks · {out['message']}", flush=True)
     return out
 
 
@@ -4878,7 +4973,7 @@ def _auto_loop() -> None:
     global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
     global _last_gsc_links_auto_slot, _last_policy_auto_slot
     global _last_noads_auto_slot, _last_moderation_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
-    global _last_gsc_cwv_auto_slot, _last_market_auto_slot
+    global _last_app_ranks_auto_slot, _last_gsc_cwv_auto_slot, _last_market_auto_slot
 
     while True:
         _auto_cycle += 1
@@ -5084,6 +5179,10 @@ def _auto_loop() -> None:
         _slot_job(
             "pagespeed", "PageSpeed", _pagespeed_lock, run_pagespeed_bridge_once,
             "_last_pagespeed_auto_slot", TWICE_DAILY_HOURS, SPEED_SLOT_MINUTE,
+        )
+        _slot_job(
+            "app_ranks", "AppRanks", _app_ranks_lock, run_app_ranks_bridge_once,
+            "_last_app_ranks_auto_slot", APP_RANKS_SLOT_HOURS, APP_RANKS_SLOT_MINUTE,
         )
         _slot_job(
             "sinemalar_noads", "noAds", _noads_lock, run_sinemalar_noads_bridge_once,
