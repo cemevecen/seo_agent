@@ -424,6 +424,16 @@ def _worker_key(name: str) -> str:
     return (name or "").strip()[:60]
 
 
+def _auto_lease_deny_workers() -> set[str]:
+    try:
+        from backend.config import settings
+
+        raw = str(getattr(settings, "bridge_auto_lease_deny_workers", "") or "")
+    except Exception:  # noqa: BLE001
+        raw = ""
+    return {_worker_key(x) for x in raw.split(",") if _worker_key(x)}
+
+
 def _heartbeat_locked(
     name: str,
     now: float,
@@ -574,6 +584,8 @@ def auto_lease(job: str, slot: str, worker: str, *, ttl_sec: float = LEASE_TTL_S
     name = _worker_key(worker)
     if not job or not slot or not name:
         return {"granted": False, "holder": "", "reason": "bad_request"}
+    if name in _auto_lease_deny_workers():
+        return {"granted": False, "holder": "denied", "reason": "worker_denied"}
     now = time.time()
     with _state():
         _prune_locked(now)

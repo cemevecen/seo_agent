@@ -287,3 +287,16 @@ def test_workers_public_reports_not_ready_jobs():
     assert row["online"] is True
     assert row["not_ready"] == {"virgul": "no_creds"}
     assert row["version"] == "2026.08.17"
+
+
+def test_auto_lease_denied_worker(monkeypatch):
+    store.reset_for_tests()
+    monkeypatch.setattr(
+        "backend.services.page_tarama._auto_lease_deny_workers",
+        lambda: {"cems-macbook-pro-e87f"},
+    )
+    out = store.auto_lease("admanager_policy", "2026-08-23-1324", "cems-macbook-pro-e87f")
+    assert out["granted"] is False
+    assert out["reason"] == "worker_denied"
+    ok = store.auto_lease("admanager_policy", "2026-08-23-1324", HOME)
+    assert ok["granted"] is True

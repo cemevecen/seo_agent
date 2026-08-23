@@ -222,88 +222,10 @@ def maybe_send_noads_alarm(
     entry_count: int,
     scraped_at: str,
 ) -> tuple[bool, str]:
-    """Bariz eksikler için alarm: yüksek istekli veya çok sayıda noAds dışı policy URL."""
-    from backend.config import settings
-    from backend.services.mailer import send_email
+    """Policy/noAds alarm e-postası kalıcı kapalı."""
+    _ = (db, snap, missing_rows, entry_count, scraped_at)
+    return False, "policy_noads_email_disabled"
 
-    if not missing_rows:
-        return False, "eksik yok"
-
-    if not bool(getattr(settings, "policy_noads_email_enabled", False)):
-        return False, "POLICY_NOADS_EMAIL_ENABLED=false"
-
-    cooldown_h = float(getattr(settings, "policy_noads_email_cooldown_hours", 6) or 6)
-    if snap.last_email_at:
-        age_h = (datetime.utcnow() - snap.last_email_at).total_seconds() / 3600.0
-        if age_h < cooldown_h:
-            return False, f"cooldown ({age_h:.1f}h < {cooldown_h}h)"
-
-    req_floor = int(getattr(settings, "policy_noads_alarm_min_ad_requests", 500) or 500)
-    count_floor = int(getattr(settings, "policy_noads_alarm_min_missing", 15) or 15)
-
-    high = [r for r in missing_rows if int(r.get("ad_requests_7d") or 0) >= req_floor]
-    restricted = [
-        r
-        for r in missing_rows
-        if "kısıt" in str(r.get("enforcement") or "").lower()
-        or "restrict" in str(r.get("enforcement") or "").lower()
-    ]
-
-    obvious = False
-    reasons: list[str] = []
-    if len(missing_rows) >= count_floor:
-        obvious = True
-        reasons.append(f"{len(missing_rows)} policy URL noAds'te yok (≥{count_floor})")
-    if len(high) >= 3:
-        obvious = True
-        reasons.append(f"{len(high)} URL ≥{req_floor} reklam isteği ile noAds dışı")
-    if len(restricted) >= 5 and len(high) >= 1:
-        obvious = True
-        reasons.append(f"{len(restricted)} kısıtlı reklam URL'si noAds dışı")
-
-    if not obvious:
-        return False, "eşik altı (bariz değil)"
-
-    top = sorted(missing_rows, key=lambda r: int(r.get("ad_requests_7d") or 0), reverse=True)[:25]
-    rows_html = "".join(
-        (
-            "<tr>"
-            f"<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0'>{int(r.get('ad_requests_7d') or 0):,}</td>"
-            f"<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0'>{_esc(r.get('enforcement'))}</td>"
-            f"<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0'>{_esc(r.get('issue_type'))}</td>"
-            f"<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;word-break:break-all'>"
-            f"<a href='{_esc(r.get('url'))}'>{_esc(r.get('page_title') or r.get('url'))}</a></td>"
-            "</tr>"
-        )
-        for r in top
-    )
-    subject = f"Policy · noAds eksik · {len(missing_rows)} URL"
-    body = f"""
-    <div style="font-family:system-ui,sans-serif;font-size:14px;color:#0f172a">
-      <p><b>Sinemalar Policy ↔ noAds uyumsuzluğu</b></p>
-      <p>{_esc(' · '.join(reasons))}</p>
-      <p>noAds kayıt: <b>{entry_count}</b> · eksik policy: <b>{len(missing_rows)}</b> · tarama: {_esc(scraped_at)}</p>
-      <p>Panel: <a href="https://projectcontrol.up.railway.app/sinemalar">/sinemalar</a>
-         · noAds: <a href="https://www.sinemalar.com/management/noAds">management/noAds</a></p>
-      <table style="border-collapse:collapse;width:100%;margin-top:12px">
-        <thead>
-          <tr style="background:#f1f5f9;text-align:left">
-            <th style="padding:6px 8px">İstek</th>
-            <th style="padding:6px 8px">Durum</th>
-            <th style="padding:6px 8px">Sorun</th>
-            <th style="padding:6px 8px">URL</th>
-          </tr>
-        </thead>
-        <tbody>{rows_html}</tbody>
-      </table>
-    </div>
-    """
-    ok = bool(send_email(subject, body))
-    if ok:
-        snap.last_email_at = datetime.utcnow()
-        db.commit()
-        return True, ""
-    return False, "send_email false (SMTP/OUTBOUND kapalı olabilir)"
 
 
 def _esc(v: Any) -> str:

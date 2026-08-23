@@ -515,6 +515,15 @@ class Settings(BaseSettings):
             "notification_ingest_token",
         ),
     )
+    # Eski bridge (hâlâ mail atan Mac) otomatik kira alamasın — virgülle worker adları.
+    bridge_auto_lease_deny_workers: str = Field(
+        default="cems-macbook-pro-e87f",
+        validation_alias=AliasChoices(
+            "BRIDGE_AUTO_LEASE_DENY_WORKERS",
+            "bridge_auto_lease_deny_workers",
+        ),
+        description="Bu worker adları zamanlı tarama kirası alamaz (eski Mac mail spam'ini keser).",
+    )
     doviz_asset_monitor_interval_minutes: int = Field(
         default=180,
         ge=5,
