@@ -2866,7 +2866,12 @@ def _digest_profile_block(
     )
 
 
-def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: int = 0) -> str:
+def build_realtime_periodic_digest_html(
+    db: Session,
+    *,
+    queued_alarm_sections: int = 0,
+    lock_preview_title: str | None = None,
+) -> str:
     """SEO Realtime periyodik özet maili — 6 alanda pencere içi top sayfa/haber/event."""
     from backend.models import Site as SiteModel
     from datetime import datetime
@@ -2908,7 +2913,10 @@ def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: i
             f"Bu dönemde kuyruğa alınan alarm bölümü: {queued_alarm_sections}</p>"
         )
 
-    pre = _preheader(f"SEO Realtime {interval_short} özet · {stamp}")
+    lock_preview = (lock_preview_title or "").strip() or realtime_digest_top_news_lock_title(
+        db, max_len=140
+    )
+    pre = _preheader(lock_preview)
     return (
         '<div style="background:#0b1120;margin:0;padding:18px 10px;">'
         f'<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
@@ -2928,16 +2936,58 @@ def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: i
     )
 
 
-def realtime_periodic_digest_subject() -> str:
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
+def realtime_digest_top_news_lock_title(db: Session, *, max_len: int = 90) -> str:
+    """Web + mweb haber sayfalarından en yüksek trafikli başlık (kilit / preview)."""
+    from backend.models import Site as SiteModel
 
-    from backend.config import settings
+    window_minutes = _digest_window_minutes()
+    sites = _sort_sites(db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all())
+    best_title = ""
+    best_au = -1.0
+    for brand, profile in REALTIME_DIGEST_AREAS:
+        if profile not in ("web", "mweb"):
+            continue
+        site = _site_for_digest_brand(sites, brand)
+        if not site:
+            continue
+        try:
+            news_bundle = aggregate_news_snapshots_over_window(
+                db,
+                site_id=int(site.id),
+                profile=profile,
+                site_domain=str(site.domain or ""),
+                window_minutes=window_minutes,
+                limit=3,
+                sort_by="activeUsers",
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "Digest lock title: news aggregate failed brand=%s profile=%s",
+                brand,
+                profile,
+            )
+            continue
+        for row in news_bundle.get("pages") or []:
+            au = float(row.get("activeUsers") or 0)
+            raw = str(row.get("page") or "").strip()
+            if not raw:
+                continue
+            title = _rt_alarm_screen_title_one_line(raw, max_len=max(24, int(max_len)))
+            if title in ("", "—"):
+                continue
+            if au > best_au:
+                best_au = au
+                best_title = title
+    if best_title:
+        return best_title[: max(1, int(max_len))]
+    return "SEO Realtime"
 
-    tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
-    minutes = _digest_window_minutes()
-    time_stamp = datetime.now(ZoneInfo(tz_name)).strftime("%H:%M")
-    return f"SEO {minutes} - {time_stamp}"[:120]
+
+def realtime_periodic_digest_subject(db: Session | None = None) -> str:
+    """Telefon kilit / gelen kutusu konusu — top haber başlığı (SEO 180 - HH:MM yok)."""
+    if db is None:
+        return "SEO Realtime"
+    return realtime_digest_top_news_lock_title(db, max_len=90)[:120]
 
 
 def check_site_realtime(

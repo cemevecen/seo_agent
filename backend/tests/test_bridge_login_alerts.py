@@ -15,6 +15,11 @@ def _load_bridge():
     return mod
 
 
+def test_bridge_alert_email_disabled():
+    b = _load_bridge()
+    assert b._send_bridge_alert_email(kind="login:asc", subject="x", body_text="y") is False
+
+
 def test_needs_login_sends_then_cooldown(monkeypatch):
     b = _load_bridge()
     sent: list[str] = []

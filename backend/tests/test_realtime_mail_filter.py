@@ -60,11 +60,13 @@ def _ready_mailer(monkeypatch, sent_subjects: list[str]) -> None:
     monkeypatch.setattr("backend.database.SessionLocal", lambda: _FakeSession())
     monkeypatch.setattr(
         "backend.services.ga4_realtime.build_realtime_periodic_digest_html",
-        lambda _db, queued_alarm_sections=0: f"<p>digest queued={queued_alarm_sections}</p>",
+        lambda _db, queued_alarm_sections=0, lock_preview_title=None: (
+            f"<p>digest queued={queued_alarm_sections}</p>"
+        ),
     )
     monkeypatch.setattr(
         "backend.services.ga4_realtime.realtime_periodic_digest_subject",
-        lambda: "SEO 90 - 21:19",
+        lambda _db=None: "Dolar kuru rekor kırdı: piyasalarda son durum",
     )
 
 
@@ -77,7 +79,8 @@ def test_realtime_batch_flush_sends_periodic_digest(monkeypatch):
     assert mailer.realtime_email_batch_flush() is True
 
     assert len(sent) == 1
-    assert sent[0].startswith("SEO 90 - ")
+    assert "Dolar kuru" in sent[0]
+    assert not sent[0].startswith("SEO 90 - ")
 
 
 def test_realtime_batch_deferred_items_queued_not_dropped(monkeypatch):

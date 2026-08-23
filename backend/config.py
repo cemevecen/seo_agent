@@ -156,7 +156,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ADMIN_LOGIN_ALERT_EMAIL", "admin_login_alert_email"),
     )
     admin_login_alert_enabled: bool = Field(
-        default=True,
+        default=False,
         validation_alias=AliasChoices("ADMIN_LOGIN_ALERT_ENABLED", "admin_login_alert_enabled"),
     )
     admin_login_alert_nav_delay_seconds: int = Field(

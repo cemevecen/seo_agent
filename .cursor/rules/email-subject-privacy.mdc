@@ -9,10 +9,11 @@ Toplantıda ekran yansıtılırken gelen kutusu ve panel toast’ları görünü
 
 ## E-posta konusu
 
-- Panel giriş / kayıt / başarısız giriş / gezinti / güvenlik uyarıları.
+- Panel giriş / kayıt / başarısız giriş / gezinti uyarı **mailleri kapalı** (`_deliver_unknown_login_alert` no-op).
+- Bridge / konsol giriş mailleri de kapalı.
+- SEO Realtime özet: konu + preheader = web/mweb en çok trafikli **haber başlığı** (SEO 180 - HH:MM yok).
 - Konuda e-posta veya isim **yok**; gövdede olabilir.
-- Örnek konu: `panel girişi - 'Chrome' - '176.x.x.x'`.
-- Kod: `backend/services/admin_access_log.py`.
+- Kod: `backend/services/admin_access_log.py`, `backend/services/ga4_realtime.py`.
 
 ## Panel (on-screen)
 

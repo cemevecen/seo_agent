@@ -19,13 +19,20 @@ def test_digest_interval_short_label_90_minutes():
 
 
 def test_realtime_periodic_digest_subject_format(monkeypatch):
+    db = MagicMock()
+
     monkeypatch.setattr(
-        "backend.services.ga4_realtime._digest_window_minutes",
-        lambda: 90,
+        "backend.services.ga4_realtime.realtime_digest_top_news_lock_title",
+        lambda _db, max_len=90: "Dolar kuru rekor kırdı: piyasalarda son durum",
     )
-    subj = realtime_periodic_digest_subject()
-    assert subj.startswith("SEO 90 - ")
-    assert len(subj.split(" - ", 1)[1]) == 5  # HH:MM
+    subj = realtime_periodic_digest_subject(db)
+    assert subj == "Dolar kuru rekor kırdı: piyasalarda son durum"
+    assert "SEO 90" not in subj
+    assert " - " not in subj or "rekor" in subj
+
+
+def test_realtime_periodic_digest_subject_fallback_without_db():
+    assert realtime_periodic_digest_subject(None) == "SEO Realtime"
 
 
 def test_realtime_digest_areas_are_six_streams():

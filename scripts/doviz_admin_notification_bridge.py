@@ -735,48 +735,10 @@ def _set_nt_progress(**kwargs: Any) -> None:
 
 
 def _send_bridge_alert_email(*, kind: str, subject: str, body_text: str) -> bool:
-    """Auto-refresh hatasında cemevecen@nokta.com (veya BRIDGE_ALERT_EMAIL)."""
-    to_addr = (
-        os.environ.get("BRIDGE_ALERT_EMAIL")
-        or os.environ.get("OPERATIONS_MAIL_TO")
-        or os.environ.get("MAIL_TO")
-        or BRIDGE_ALERT_TO
-        or "cemevecen@nokta.com"
-    ).strip()
-    host = (os.environ.get("SMTP_HOST") or "").strip()
-    user = (os.environ.get("SMTP_USER") or "").strip()
-    password = (os.environ.get("SMTP_PASSWORD") or "").strip()
-    mail_from = (os.environ.get("MAIL_FROM") or user or to_addr).strip()
-    if not to_addr or not host or not user or not password:
-        print(
-            f"Bridge alert e-posta atlandı (SMTP/alıcı eksik) kind={kind}",
-            flush=True,
-        )
-        return False
-    try:
-        port = int(os.environ.get("SMTP_PORT") or "587")
-    except ValueError:
-        port = 587
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = mail_from
-    msg["To"] = to_addr
-    msg.set_content(body_text)
-    try:
-        with smtplib.SMTP(host, port, timeout=45) as smtp:
-            smtp.ehlo()
-            try:
-                smtp.starttls()
-                smtp.ehlo()
-            except smtplib.SMTPException:
-                pass
-            smtp.login(user, password)
-            smtp.send_message(msg)
-        print(f"Bridge alert e-posta gönderildi → {to_addr} ({kind})", flush=True)
-        return True
-    except Exception as exc:  # noqa: BLE001
-        print(f"Bridge alert e-posta hatası ({kind}): {exc}", flush=True)
-        return False
+    """Bridge e-posta uyarıları kapatıldı (giriş/oturum/auto-refresh)."""
+    _ = (subject, body_text)
+    print(f"Bridge alert e-posta kapalı (gönderilmedi) kind={kind}", flush=True)
+    return False
 
 
 def _notify_login_session_alert(kind: str, msg: str) -> None:

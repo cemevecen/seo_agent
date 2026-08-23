@@ -246,8 +246,11 @@ def realtime_email_batch_flush() -> bool:
             return False
 
         try:
+            combined_subject = realtime_periodic_digest_subject(db)
             combined_body = build_realtime_periodic_digest_html(
-                db, queued_alarm_sections=len(items)
+                db,
+                queued_alarm_sections=len(items),
+                lock_preview_title=combined_subject,
             )
         except Exception:
             logging.exception("SEO Realtime özet maili HTML üretilemedi")
@@ -257,8 +260,6 @@ def realtime_email_batch_flush() -> bool:
 
     _batch_ctx.collecting = False
     _batch_ctx.items = []
-
-    combined_subject = realtime_periodic_digest_subject()
 
     ok = send_realtime_email(
         combined_subject,

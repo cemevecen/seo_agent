@@ -652,57 +652,10 @@ def _alert_html(machine: str, rows: list[TargetResult], *, recovered: bool) -> s
 
 
 def send_alert_emails(results: list[TargetResult]) -> dict[str, Any]:
-    """Arıza başlayınca uyar, düzelince haber ver. Tekrarları saatle sınırla."""
-    machine = _machine_name()
-    state = _load_alert_state()
-    now = time.time()
-
-    failing = [r for r in results if r.needs_action]
-    healthy = [r for r in results if not r.needs_action]
-
-    to_alert: list[TargetResult] = []
-    for r in failing:
-        key = f"{machine}|{r.target}"
-        last = float((state.get(key) or {}).get("last_sent") or 0)
-        if (now - last) >= ALERT_REPEAT_HOURS * 3600:
-            to_alert.append(r)
-
-    recovered = [r for r in healthy if state.get(f"{machine}|{r.target}")]
-
-    sent = {"alert": False, "recovery": False}
-    try:
-        from backend.services.mailer import send_email
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("Mailer yüklenemedi: %s", exc)
-        return sent
-
-    def _try_send(subject: str, html: str) -> bool:
-        """SMTP arızası warm-up'ı düşürmemeli — uyarı yan iş, asıl iş oturum."""
-        try:
-            return bool(send_email(subject, html))
-        except Exception as exc:  # noqa: BLE001
-            LOGGER.warning("Uyarı e-postası gönderilemedi: %s", exc)
-            return False
-
-    if to_alert:
-        subject = f"[{machine}] Konsol girişi müdahale bekliyor — " + ", ".join(
-            r.target for r in to_alert
-        )
-        sent["alert"] = _try_send(subject, _alert_html(machine, to_alert, recovered=False))
-        # Gönderilemese bile işaretle: her turda tekrar denemek posta kuyruğunu
-        # döver; bir sonraki pencerede yeniden denenir.
-        for r in to_alert:
-            state[f"{machine}|{r.target}"] = {"last_sent": now, "message": r.message[:200]}
-
-    if recovered:
-        subject = f"[{machine}] Konsol oturumu düzeldi — " + ", ".join(r.target for r in recovered)
-        sent["recovery"] = _try_send(subject, _alert_html(machine, recovered, recovered=True))
-        for r in recovered:
-            state.pop(f"{machine}|{r.target}", None)
-
-    if to_alert or recovered:
-        _save_alert_state(state)
-    return sent
+    """Konsol giriş uyarı e-postaları kapalı — gönderim yok."""
+    _ = results
+    LOGGER.info("Konsol giriş uyarı e-postası kapalı (gönderilmedi).")
+    return {"alert": False, "recovery": False}
 
 
 def report_to_panel(results: list[TargetResult]) -> bool:

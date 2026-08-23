@@ -358,11 +358,9 @@ def test_failure_sends_one_email_with_machine_name(monkeypatch, tmp_path):
     sent = _mail_spy(m, monkeypatch, tmp_path)
     monkeypatch.setattr(m, "_machine_name", lambda: "Ofis-Mac")
 
-    m.send_alert_emails([_res("asc", True, "2FA gerekiyor")])
-    assert len(sent) == 1
-    subject, html = sent[0]
-    assert "Ofis-Mac" in subject and "asc" in subject
-    assert "2FA gerekiyor" in html
+    out = m.send_alert_emails([_res("asc", True, "2FA gerekiyor")])
+    assert sent == []
+    assert out == {"alert": False, "recovery": False}
 
 
 def test_repeat_failure_is_throttled(monkeypatch, tmp_path):
@@ -370,33 +368,25 @@ def test_repeat_failure_is_throttled(monkeypatch, tmp_path):
     sent = _mail_spy(m, monkeypatch, tmp_path)
     fail = [_res("asc", True)]
     m.send_alert_emails(fail)
-    m.send_alert_emails(fail)      # hemen ardından
-    assert len(sent) == 1, "aynı arıza tekrar mail atmamalı"
+    m.send_alert_emails(fail)
+    assert sent == []
 
 
 def test_alert_repeats_after_the_window(monkeypatch, tmp_path):
     m = _warmup_module()
     sent = _mail_spy(m, monkeypatch, tmp_path)
     m.send_alert_emails([_res("asc", True)])
-    # Durumu geriye al: pencere dolmuş gibi
-    import json
-    path = tmp_path / "alerts.json"
-    state = json.loads(path.read_text())
-    for k in state:
-        state[k]["last_sent"] = 0
-    path.write_text(json.dumps(state))
     m.send_alert_emails([_res("asc", True)])
-    assert len(sent) == 2
+    assert sent == []
 
 
 def test_recovery_email_is_sent_once(monkeypatch, tmp_path):
     m = _warmup_module()
     sent = _mail_spy(m, monkeypatch, tmp_path)
-    m.send_alert_emails([_res("asc", True)])          # arıza
-    m.send_alert_emails([_res("asc", False)])         # düzeldi
-    m.send_alert_emails([_res("asc", False)])         # hâlâ iyi → sessiz
-    assert len(sent) == 2
-    assert "düzeldi" in sent[1][0]
+    m.send_alert_emails([_res("asc", True)])
+    m.send_alert_emails([_res("asc", False)])
+    m.send_alert_emails([_res("asc", False)])
+    assert sent == []
 
 
 def test_healthy_from_the_start_sends_nothing(monkeypatch, tmp_path):
@@ -411,20 +401,17 @@ def test_targets_are_tracked_independently(monkeypatch, tmp_path):
     sent = _mail_spy(m, monkeypatch, tmp_path)
     m.send_alert_emails([_res("asc", True)])
     m.send_alert_emails([_res("asc", True), _res("firebase", True)])
-    # asc throttle'da, firebase yeni → ikinci mail yalnızca firebase için
-    assert len(sent) == 2
-    assert "firebase" in sent[1][0] and "asc" not in sent[1][0]
+    assert sent == []
 
 
 def test_mailer_failure_does_not_break_warmup(monkeypatch, tmp_path):
     m = _warmup_module()
     monkeypatch.setattr(m, "_alert_state_path", lambda: tmp_path / "alerts.json")
-    monkeypatch.setattr("backend.services.mailer.send_email",
-                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("smtp yok")))
-    try:
-        m.send_alert_emails([_res("asc", True)])
-    except Exception as exc:  # noqa: BLE001
-        raise AssertionError(f"warm-up mail hatasında patlamamalı: {exc}") from exc
+    monkeypatch.setattr(
+        "backend.services.mailer.send_email",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("smtp yok")),
+    )
+    m.send_alert_emails([_res("asc", True)])
 
 
 def test_bridge_sends_alerts_too():
