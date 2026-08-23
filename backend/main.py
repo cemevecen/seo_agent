@@ -20557,7 +20557,7 @@ def _run_db_retention_cleanup() -> dict:
                 db.rollback()
                 stats[table_label] = -1
 
-        # ── keep_days tabloları: belirli gün sayısından eski satırlar ──
+        # ── keep_days: gün sayısı settings.*_days (hardcode yok) ──
         keep_days_tables = [
             # (Model, time_column, days, label)
             (CollectorRun, CollectorRun.requested_at, settings.db_retention_collector_run_days, "collector_runs"),
@@ -20571,28 +20571,36 @@ def _run_db_retention_cleanup() -> dict:
             ),
             (RealtimeSnapshot, RealtimeSnapshot.collected_at, settings.db_retention_realtime_snapshot_days, "realtime_snapshots"),
             (RealtimeAlarmLog, RealtimeAlarmLog.triggered_at, settings.db_retention_realtime_alarm_log_days, "realtime_alarm_logs"),
-            (RealtimePageSnapshot, RealtimePageSnapshot.collected_at, 3, "realtime_page_snapshots"),
-            (RealtimeNewsSnapshot, RealtimeNewsSnapshot.collected_at, 3, "realtime_news_snapshots"),
-            # App event zirve karşılaştırması kısa pencere; retention yoksa GB şişer.
-            (RealtimeAppEventSnapshot, RealtimeAppEventSnapshot.collected_at, 3, "realtime_app_event_snapshots"),
-            # Haber kovaları sütunda kümülatif gösterildiği için snapshot'lardan uzun yaşar.
+            (RealtimePageSnapshot, RealtimePageSnapshot.collected_at, settings.db_retention_realtime_page_snapshot_days, "realtime_page_snapshots"),
+            (RealtimeNewsSnapshot, RealtimeNewsSnapshot.collected_at, settings.db_retention_realtime_news_snapshot_days, "realtime_news_snapshots"),
+            (
+                RealtimeAppEventSnapshot,
+                RealtimeAppEventSnapshot.collected_at,
+                settings.db_retention_realtime_app_event_snapshot_days,
+                "realtime_app_event_snapshots",
+            ),
             (
                 RealtimeNewsArticleBucket,
                 RealtimeNewsArticleBucket.bucket_start,
-                90,
+                settings.db_retention_realtime_news_article_bucket_days,
                 "realtime_news_article_buckets",
             ),
-            (AppStoreRankSnapshot, AppStoreRankSnapshot.collected_at, 30, "app_store_rank_snapshots"),
+            (AppStoreRankSnapshot, AppStoreRankSnapshot.collected_at, settings.db_retention_app_store_rank_days, "app_store_rank_snapshots"),
             (AiDailyBriefReport, AiDailyBriefReport.created_at, settings.db_retention_ai_report_days, "ai_daily_brief_reports"),
             (AiBriefRunLog, AiBriefRunLog.created_at, settings.db_retention_ai_report_days, "ai_brief_run_logs"),
             (AppIntelRawCache, AppIntelRawCache.updated_at, settings.db_retention_app_intel_cache_days, "app_intel_raw_cache"),
-            (SupportInboxThread, SupportInboxThread.last_synced_at, 90, "support_inbox_threads"),
-            (SiteErrorLog, SiteErrorLog.last_seen, 60, "site_error_logs"),
+            (
+                SupportInboxThread,
+                SupportInboxThread.last_synced_at,
+                settings.db_retention_support_inbox_thread_days,
+                "support_inbox_threads",
+            ),
+            (SiteErrorLog, SiteErrorLog.last_seen, settings.db_retention_site_error_log_days, "site_error_logs"),
         ]
         cutoff_now = datetime.utcnow()
         for Model, time_col, days, table_label in keep_days_tables:
             try:
-                cutoff = cutoff_now - timedelta(days=days)
+                cutoff = cutoff_now - timedelta(days=int(days))
                 count = db.query(Model).filter(time_col < cutoff).delete(synchronize_session=False)
                 db.commit()
                 stats[table_label] = count
@@ -20600,6 +20608,23 @@ def _run_db_retention_cleanup() -> dict:
                 logging.exception("Retention cleanup hatası: %s", table_label)
                 db.rollback()
                 stats[table_label] = -1
+
+        # Meta tag snapshots (tarih alanı date) — aynı gecelik pencereden
+        try:
+            from backend.models import MetaTagSnapshot
+
+            cutoff_meta = (cutoff_now - timedelta(days=int(settings.db_retention_meta_tag_snapshot_days))).date()
+            n = (
+                db.query(MetaTagSnapshot)
+                .filter(MetaTagSnapshot.snapshot_date < cutoff_meta)
+                .delete(synchronize_session=False)
+            )
+            db.commit()
+            stats["meta_tag_snapshots"] = int(n or 0)
+        except Exception:
+            logging.exception("meta_tag_snapshots retention hatası")
+            db.rollback()
+            stats["meta_tag_snapshots"] = -1
 
         # Kapalı RSS / News Intelligence — tablo tamamen boşaltılır
         if not getattr(settings, "news_intelligence_enabled", False):
@@ -20614,24 +20639,9 @@ def _run_db_retention_cleanup() -> dict:
                 db.rollback()
                 stats["news_intelligence_items"] = -1
 
-        # Reklam satırları: panel son ayları kullanır; 365 günden eski satırlar arşivlenmeden silinir
-        try:
-            from backend.models import AdReportRow
+        # ad_report_rows: otomatik silme yok (iş verisi)
 
-            cutoff_ad = (cutoff_now - timedelta(days=int(settings.db_retention_ad_report_days))).date()
-            n = (
-                db.query(AdReportRow)
-                .filter(AdReportRow.report_date < cutoff_ad)
-                .delete(synchronize_session=False)
-            )
-            db.commit()
-            stats["ad_report_rows_old"] = int(n or 0)
-        except Exception:
-            logging.exception("ad_report_rows retention hatası")
-            db.rollback()
-            stats["ad_report_rows_old"] = -1
-
-        # PostgreSQL: isteğe bağlı tam VACUUM ANALYZE (varsayılan kapalı — bkz. settings.db_retention_run_vacuum)
+        # PostgreSQL: isteğe bağlı VACUUM ANALYZE (varsayılan kapalı — settings.db_retention_run_vacuum)
         if not _IS_SQLITE and settings.db_retention_run_vacuum:
             try:
                 from backend.database import engine
@@ -20879,7 +20889,7 @@ def _run_meta_audit_snapshot_job() -> None:
                 LOGGER.warning("Meta snapshot hatası [site=%s]: %s", site.domain, exc)
 
         with SessionLocal() as db:
-            cleanup_old_snapshots(db, retention_days=90)
+            cleanup_old_snapshots(db, retention_days=int(settings.db_retention_meta_tag_snapshot_days))
 
         if not all_critical:
             return

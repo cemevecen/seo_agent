@@ -447,20 +447,26 @@ class Settings(BaseSettings):
     live_refresh_timeout: int = 8
     live_refresh_urls: str = ""
 
-    # Zaman serisi temizliği (gecelik job). Railway disk sıkışırsa süreleri kısaltın.
+    # Zaman serisi temizliği — daily-db-retention-cleanup (03:30 TR). Hepsi settings üzerinden.
     db_retention_collector_run_days: int = Field(default=30, ge=1, le=3650)
     db_retention_alert_log_days: int = Field(default=60, ge=1, le=3650)
     db_retention_metric_days: int = Field(default=90, ge=1, le=3650)
     db_retention_notification_delivery_days: int = Field(default=30, ge=1, le=3650)
-    # Realtime ve Uygulama verileri (Hızlı büyüyen tablolar)
-    db_retention_realtime_snapshot_days: int = Field(default=8, ge=1, le=365) # Kullanıcı talebi: 8 gün
-    db_retention_realtime_alarm_log_days: int = Field(default=14, ge=1, le=365)
+    db_retention_realtime_snapshot_days: int = Field(default=8, ge=1, le=365)
+    db_retention_realtime_alarm_log_days: int = Field(default=7, ge=1, le=365)
+    db_retention_realtime_page_snapshot_days: int = Field(default=3, ge=1, le=90)
+    db_retention_realtime_news_snapshot_days: int = Field(default=3, ge=1, le=90)
+    db_retention_realtime_app_event_snapshot_days: int = Field(default=3, ge=1, le=90)
+    db_retention_realtime_news_article_bucket_days: int = Field(default=90, ge=1, le=730)
+    db_retention_app_store_rank_days: int = Field(default=30, ge=1, le=365)
     db_retention_app_intel_cache_days: int = Field(default=7, ge=1, le=365)
     db_retention_ai_report_days: int = Field(default=30, ge=1, le=365)
-    # Ad report günlük satırlar — panel son ayları kullanır
-    db_retention_ad_report_days: int = Field(default=365, ge=90, le=3650)
+    db_retention_support_inbox_thread_days: int = Field(default=90, ge=1, le=730)
+    db_retention_site_error_log_days: int = Field(default=14, ge=1, le=365)
+    db_retention_meta_tag_snapshot_days: int = Field(default=90, ge=1, le=730)
+    # ad_report_rows: otomatik silme YOK (kalıcı iş verisi)
 
-    # Gecelik cleanup sonrası tam DB VACUUM ANALYZE (Postgres). Varsayılan kapalı.
+    # Gecelik cleanup sonrası VACUUM ANALYZE (Postgres). Varsayılan kapalı.
     db_retention_run_vacuum: bool = False
 
     # Döviz banka altını / varlık katalog + fiyat satırı izleme (web → app veri kaybı).
