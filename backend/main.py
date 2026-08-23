@@ -749,16 +749,20 @@ def admin_omdb_enrich_now():
 
 @app.get("/api/admin/refresh-tmdb-cache")
 def admin_refresh_tmdb_cache():
-    """TMDB vizyon takvimi cache'ini MANUEL yeniler."""
+    """TMDB vizyon takvimi + Sinemalar eşleştirme cache'ini MANUEL yeniler."""
     try:
+        from backend.services.sinemalar_match import attach_to_upcoming_data
         from backend.services.tmdb import refresh_combined_cache
+
         result = refresh_combined_cache(months_ahead=5)
+        warmed = attach_to_upcoming_data(result, max_lookups=5000)
         return {
             "status": "ok",
             "theatrical": len(result.get("theatrical", [])),
             "streaming":  len(result.get("streaming", [])),
             "tv_series":  len(result.get("tv_series", [])),
             "turkish_only": len(result.get("turkish_only", [])),
+            "sinemalar_warmed": warmed,
         }
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
@@ -5057,10 +5061,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         except Exception:
             pass
 
-    # TMDB vizyon takvimi cache — her gece 02:30'da
+    # TMDB vizyon takvimi + Sinemalar.com eşleştirme — günde bir, 04:37 TR
     scheduler.add_job(
         _run_tmdb_cache_refresh_job,
-        trigger=CronTrigger(hour=2, minute=30, timezone=timezone),
+        trigger=CronTrigger(hour=4, minute=37, timezone=timezone),
         id="daily-tmdb-cache-refresh",
         replace_existing=True,
         max_instances=1,
@@ -16242,7 +16246,8 @@ async def api_tmdb_sinemalar_lookup(request: Request):
         return JSONResponse({"results": {}}, status_code=400)
     from backend.services.sinemalar_match import lookup_items_batch
 
-    return {"results": lookup_items_batch(items, max_items=16)}
+    # Gündüz canlı tarama yok — yalnızca gece 04:37 önbelleği.
+    return {"results": lookup_items_batch(items, max_items=16, allow_live=False)}
 
 
 @app.get("/app")
@@ -20702,15 +20707,20 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
 
 
 def _run_tmdb_cache_refresh_job() -> None:
-    """TMDB combined cache'ini günlük tazeler (02:30)."""
+    """TMDB combined cache + Sinemalar.com eşleştirmesini günlük tazeler (04:37)."""
     try:
+        from backend.services.sinemalar_match import attach_to_upcoming_data
         from backend.services.tmdb import refresh_combined_cache
+
         result = refresh_combined_cache(months_ahead=5)
+        # Canlı sinemalar.com taraması yalnızca bu job'da (gündüz API cache-only).
+        warmed = attach_to_upcoming_data(result, max_lookups=5000)
         LOGGER.info(
-            "TMDB cache refresh tamamlandı: theatrical=%d streaming=%d tv=%d",
+            "TMDB cache refresh tamamlandı: theatrical=%d streaming=%d tv=%d sinemalar_warm=%s",
             len(result.get("theatrical", [])),
             len(result.get("streaming", [])),
             len(result.get("tv_series", [])),
+            warmed,
         )
     except Exception as exc:
         LOGGER.error("TMDB cache refresh hatası: %s", exc)

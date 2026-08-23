@@ -98,3 +98,38 @@ def test_lookup_uses_mocked_http(monkeypatch):
 
     out2 = sm.lookup(title="Dune", release_date="2021-10-01", media_type="movie")
     assert out2["sinemalar_found"] is True
+
+
+def test_lookup_cache_only_skips_http(monkeypatch):
+    sm._cache.clear()
+    calls = {"n": 0}
+
+    def boom(*_a, **_k):
+        calls["n"] += 1
+        raise AssertionError("canlı HTTP olmamalı")
+
+    monkeypatch.setattr(sm.requests, "get", boom)
+    assert sm.lookup(title="Dune", release_date="2021-10-01", allow_live=False) is None
+    assert calls["n"] == 0
+
+    sm._cache["v2:movie:dune:2021"] = {
+        "mono": __import__("time").monotonic(),
+        "payload": {"sinemalar_found": True, "sinemalar_url": "https://www.sinemalar.com/film/1/x"},
+    }
+    hit = sm.lookup(title="Dune", release_date="2021-10-01", allow_live=False)
+    assert hit and hit["sinemalar_found"] is True
+    assert calls["n"] == 0
+
+
+def test_lookup_items_batch_default_no_live(monkeypatch):
+    sm._cache.clear()
+
+    def boom(*_a, **_k):
+        raise AssertionError("batch varsayılan canlı tarama yapmamalı")
+
+    monkeypatch.setattr(sm.requests, "get", boom)
+    out = sm.lookup_items_batch(
+        [{"id": 1, "title": "Dune", "release_date": "2021-10-01"}],
+        max_items=4,
+    )
+    assert out == {}

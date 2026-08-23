@@ -974,10 +974,9 @@
           cards.forEach(function (card) {
             var id = card.getAttribute('data-tmdb-id');
             var p = results[id];
+            // Cache miss: gece taraması bekleniyor — "Not on Sinemalar" diye işaretleme.
             if (p) {
               renderSlot(card, p);
-            } else if (card.getAttribute('data-sinemalar-state') === 'pending') {
-              renderSlot(card, { sinemalar_found: false });
             }
           });
         })
@@ -986,9 +985,7 @@
             if (card.getAttribute('data-sinemalar-state') === 'pending') {
               var tries = parseInt(card.getAttribute('data-sinemalar-tries') || '0', 10) + 1;
               card.setAttribute('data-sinemalar-tries', String(tries));
-              if (tries >= 3) {
-                renderSlot(card, { sinemalar_found: false });
-              }
+              // Canlı tarama kapalı; hata sonrası da missing'e düşürme.
             }
           });
         })

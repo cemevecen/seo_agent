@@ -276,7 +276,7 @@ Ortak parametreler:
 | **01:00** | `news-intelligence-sync` | Tüm RSS kaynakları taranır, news_intelligence_items güncellenir |
 | **01:30** | `daily-error-detection` | GA4 üzerinden 404 sayfaları tüm sitelerde 4 periyot (1g/7g/14g/30g) çekilir |
 | **02:15** | `daily-meta-audit-snapshot` | UrlAuditRecord → MetaTagSnapshot; noindex/canonical değişimi varsa kritik alarm maili |
-| **02:30** | `tmdb-cache-refresh` | TMDB film takvimi yenilenir (5 ay ilerisi) |
+| **04:37** | `tmdb-cache-refresh` | TMDB film takvimi + Sinemalar.com eşleştirme (günde bir) |
 | **03:00** | `daily-seo-audit` | GA4 top 250 web + 250 mweb sayfası crawl edilir, UrlAuditRecord güncellenir |
 | **03:30** | `daily-db-retention-cleanup` | 90 günü aşan snapshot ve loglar silinir |
 | **05:00** | `daily-data-explorer-refresh` | PSI + CrUX otomatik yenileme (her aktif site için mobile + desktop) |
@@ -978,7 +978,7 @@ Aynı dark mode matlaştırma `home-de-card` scope'unda uygulanır.
 ### 21.6 TMDB
 
 - **Limit:** 50 istek/sn
-- **Tüketim:** Gece 02:30 tek refresh + manuel anlık
+- **Tüketim:** Gece 04:37 tek refresh (TMDB + Sinemalar.com) + manuel anlık
 - **Risk:** Yok
 
 ### 21.7 Gmail API
@@ -1178,7 +1178,7 @@ GMAIL_REDIRECT_URI=...
 01:00  ── haber senkronizasyonu (RSS + Yahoo Finance)
 01:30  ── GA4 404 çekimi (1g/7g/14g/30g × tüm siteler)
 02:15  ── meta tag snapshot + regresyon alarm kontrolü
-02:30  ── TMDB film takvimi yenileme
+04:37  ── TMDB film takvimi + Sinemalar.com eşleştirme
 03:00  ── SEO audit crawl
 03:30  ── DB retention cleanup
 05:00  ── Data Explorer (PSI + CrUX) refresh

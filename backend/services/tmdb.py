@@ -120,14 +120,15 @@ def _resolve_flag(m: dict) -> str:
     return _country_flag(code)
 
 
-# ── In-memory cache (6 saat TTL, stale-while-revalidate) ─────────────────────
+# ── In-memory cache (günlük job + stale-while-revalidate) ─────────────────────
 _cache_lock        = threading.Lock()
 _refresh_lock      = threading.Lock()   # aynı anda sadece bir yenileme
 _bg_refresh_active = threading.Event()  # birden fazla bg thread spawn olmasın
 _cache_data:   dict | None = None
 _cache_mono:   float | None = None  # time.monotonic() snapshots
 _cache_wall:   datetime | None = None  # wall-clock when cache was populated
-_CACHE_TTL_S   = 6 * 3600           # 6 saat TTL
+# Gece 04:37 job'u + bir miktar tolerans; gündüz otomatik yenileme olmasın.
+_CACHE_TTL_S   = 26 * 3600
 
 
 def _cache_fresh() -> bool:

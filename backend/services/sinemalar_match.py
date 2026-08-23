@@ -227,8 +227,13 @@ def lookup(
     release_date: str = "",
     media_type: Literal["movie", "tv"] = "movie",
     use_cache: bool = True,
-) -> dict[str, Any]:
-    """Tek yapım için Sinemalar eşleşmesi. Önbellek: 7 gün."""
+    allow_live: bool = True,
+) -> dict[str, Any] | None:
+    """Tek yapım için Sinemalar eşleşmesi. Önbellek: 7 gün.
+
+    allow_live=False → yalnızca bellek önbelleği; yoksa None (HTTP yok).
+    Canlı tarama yalnızca gece 04:37 job'unda.
+    """
     year = _year_from_date(release_date)
     key = _cache_key(media_type, title or original_title, year)
     now = time.monotonic()
@@ -238,6 +243,9 @@ def lookup(
             row = _cache.get(key)
             if row and now - row["mono"] < _CACHE_TTL_S:
                 return dict(row["payload"])
+
+    if not allow_live:
+        return None
 
     queries: list[str] = []
     for q in (title, original_title):
@@ -314,7 +322,7 @@ def warm_sinemalar_cache(
     max_lookups: int = 200,
     delay_s: float = 0.18,
 ) -> int:
-    """Önbellekte olmayan kayıtlar için Sinemalar araması yapar."""
+    """Önbellekte olmayan kayıtlar için Sinemalar araması yapar (canlı HTTP)."""
     done = 0
     for m in items:
         if done >= max_lookups:
@@ -330,16 +338,26 @@ def warm_sinemalar_cache(
             release_date=m.get("release_date") or m.get("first_air_date") or "",
             media_type=media_type,
             use_cache=True,
+            allow_live=True,
         )
-        _merge_item(m, payload)
+        if payload is not None:
+            _merge_item(m, payload)
         done += 1
         if delay_s > 0:
             time.sleep(delay_s)
     return done
 
 
-def lookup_items_batch(items: list[dict[str, Any]], *, max_items: int = 20) -> dict[str, dict[str, Any]]:
-    """API / istemci: TMDB id → sinemalar payload."""
+def lookup_items_batch(
+    items: list[dict[str, Any]],
+    *,
+    max_items: int = 20,
+    allow_live: bool = False,
+) -> dict[str, dict[str, Any]]:
+    """API / istemci: TMDB id → sinemalar payload.
+
+    Varsayılan allow_live=False — gündüz sinemalar.com'a gitmez; yalnızca gece job önbelleği.
+    """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     out: dict[str, dict[str, Any]] = {}
@@ -358,7 +376,10 @@ def lookup_items_batch(items: list[dict[str, Any]], *, max_items: int = 20) -> d
             release_date=str(raw.get("release_date") or raw.get("first_air_date") or ""),
             media_type=media_type,
             use_cache=True,
+            allow_live=allow_live,
         )
+        if payload is None:
+            return None
         return str(int(tid)), payload
 
     workers = min(4, max(1, len(slice_)))
@@ -394,8 +415,11 @@ def attach_to_upcoming_data(
     *,
     max_lookups: int = 0,
     current_month: str | None = None,
-) -> None:
-    """TMDB upcoming dict içindeki tüm film/dizi listelerine Sinemalar alanları ekler."""
+) -> int:
+    """TMDB upcoming dict içindeki tüm film/dizi listelerine Sinemalar alanları ekler.
+
+    Returns: canlı warm edilen kayıt sayısı (max_lookups=0 ise 0).
+    """
     from datetime import date
 
     if not current_month:
@@ -426,4 +450,5 @@ def attach_to_upcoming_data(
     apply_cached_sinemalar(unique)
     if max_lookups > 0:
         unique.sort(key=lambda m: _sinemalar_warm_sort_key(m, current_month))
-        warm_sinemalar_cache(unique, max_lookups=max_lookups, delay_s=0.12)
+        return warm_sinemalar_cache(unique, max_lookups=max_lookups, delay_s=0.12)
+    return 0
