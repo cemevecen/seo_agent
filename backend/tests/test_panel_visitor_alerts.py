@@ -18,20 +18,19 @@ def test_maybe_alert_requires_owner_online():
             "last_seen": datetime.utcnow(),
         }
     }
-    with patch.object(pva, "send_admin_security_email", create=True):
-        with patch("backend.services.mailer.send_admin_security_email") as send:
-            send.return_value = True
-            ok = pva.maybe_alert_visitor_joined(
-                sessions,
-                email="onur@nokta.com",
-                session=sessions["v1"],
-                owner_emails=ADMIN_MEMBER_EMAILS,
-            )
-            assert ok is False
-            send.assert_not_called()
+    with patch("backend.services.mailer.send_admin_security_email") as send:
+        ok = pva.maybe_alert_visitor_joined(
+            sessions,
+            email="onur@nokta.com",
+            session=sessions["v1"],
+            owner_emails=ADMIN_MEMBER_EMAILS,
+        )
+    assert ok is False
+    send.assert_not_called()
 
 
 def test_maybe_alert_when_owner_online():
+    """Panel bağlantı e-postası kalıcı kapalı."""
     pva._last_visitor_alert_at.clear()
     now = datetime.utcnow()
     sessions = {
@@ -57,13 +56,12 @@ def test_maybe_alert_when_owner_online():
             session=sessions["v1"],
             owner_emails=ADMIN_MEMBER_EMAILS,
         )
-        assert ok is True
-        send.assert_called_once()
-        assert send.call_args[0][0] == "PC panel bildirimi"
-        assert "cemevecen@nokta.com" in send.call_args[0][2]
+    assert ok is False
+    send.assert_not_called()
 
 
 def test_usage_summary_subject_fixed():
+    """PC kullanım özeti e-postası kalıcı kapalı."""
     with patch("backend.services.mailer.send_admin_security_email", return_value=True) as send:
         ok = pva.send_usage_summary_email(
             email="onur@nokta.com",
@@ -77,11 +75,8 @@ def test_usage_summary_subject_fixed():
                 "paths": [{"path": "/realtime", "label": "Realtime", "at_tr": "10:05:00"}],
             },
         )
-        assert ok is True
-        assert send.call_args[0][0] == "PC kullanım özeti"
-        body = send.call_args[0][1]
-        assert "onur@nokta.com" in body
-        assert "/realtime" in body
+    assert ok is False
+    send.assert_not_called()
 
 
 def test_cemevecen_local_part_is_owner():

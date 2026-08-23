@@ -416,7 +416,9 @@ def test_mailer_failure_does_not_break_warmup(monkeypatch, tmp_path):
 
 def test_bridge_sends_alerts_too():
     src = (ROOT / "scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
-    assert "send_alert_emails" in src
+    assert "BRIDGE_EMAIL_ALERTS_ENABLED = False" in src
+    assert "Konsol giriş e-postası kapalı" in src
+    assert "mod.send_alert_emails" not in src
 
 
 # ── Yorumlayıcı adayları ────────────────────────────────────────────────────

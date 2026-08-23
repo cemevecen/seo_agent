@@ -10,7 +10,7 @@ Tek sefer (ikisi):
 
 Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
-  Play/ASC Firefox profili (~/.seo-agent/fx-*). needs_login → mail (ilk + 6 saat cooldown + resolved).
+  Play/ASC Firefox profili (~/.seo-agent/fx-*). needs_login → e-posta YOK (kalıcı kapalı).
 
   POST /sync       → notification (08–20 her 30 dk live; gece 00:08 dünü mühürle)
   POST /sync-news  → news (08–20 her 30 dk)
@@ -295,6 +295,8 @@ if _MOD_SLOTS_RAW:
             parsed_mod.append((int(bits[0]), int(bits[1]), which))
     if parsed_mod:
         MODERATION_SLOTS = tuple(parsed_mod)
+# Bridge e-posta uyarıları kalıcı kapalı (giriş / oturum / scrape / auto-refresh).
+BRIDGE_EMAIL_ALERTS_ENABLED = False
 BRIDGE_ALERT_TO = (
     os.environ.get("BRIDGE_ALERT_EMAIL")
     or os.environ.get("OPERATIONS_MAIL_TO")
@@ -735,81 +737,35 @@ def _set_nt_progress(**kwargs: Any) -> None:
 
 
 def _send_bridge_alert_email(*, kind: str, subject: str, body_text: str) -> bool:
-    """Bridge e-posta uyarıları kapatıldı (giriş/oturum/auto-refresh)."""
-    _ = (subject, body_text)
+    """Bridge e-posta uyarıları kalıcı kapalı — asla SMTP yok."""
+    _ = (subject, body_text, BRIDGE_EMAIL_ALERTS_ENABLED)
     print(f"Bridge alert e-posta kapalı (gönderilmedi) kind={kind}", flush=True)
     return False
 
 
 def _notify_login_session_alert(kind: str, msg: str) -> None:
-    """needs_login: ilk mail hemen, açık alert varken 6 saat cooldown."""
-    now = time.time()
-    cooldown = max(300, BRIDGE_LOGIN_ALERT_COOLDOWN_SEC)
-    open_alert = bool(_login_alert_open.get(kind))
-    last = float(_last_login_email_at.get(kind) or 0)
-    if open_alert and last and (now - last) < cooldown:
-        left = int(cooldown - (now - last))
-        print(f"Bridge login alert cooldown ({kind}) · ~{left}s", flush=True)
-        return
-    label = _bridge_kind_label(kind)
-    subject = f"[SEO Agent Bridge] {label} oturumu düştü"
-    body = (
-        f"Kaynak: Mac VPN bridge (127.0.0.1:{BRIDGE_PORT})\n"
-        f"Tür: {label} ({kind})\n"
-        f"Zaman (UTC): {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}Z\n"
-        f"Durum: needs_login\n"
-        f"Hata: {msg}\n\n"
-        f"Firefox profilinde tekrar giriş gerekir "
-        f"(fx-google / fx-asc / ilgili fx-*); scrape schedule aynı.\n"
-        f"Kontrol: curl -s http://127.0.0.1:{BRIDGE_PORT}/health | python3 -m json.tool\n"
-    )
-    if _send_bridge_alert_email(kind=f"login:{kind}", subject=subject, body_text=body):
-        _login_alert_open[kind] = True
-        _last_login_email_at[kind] = now
-    else:
-        # SMTP yokken bile open say — resolved path tutarlı olsun; tekrar deneme cooldown'suz spam olmasın
-        _login_alert_open[kind] = True
-        _last_login_email_at[kind] = now
+    """needs_login — e-posta yok; yalnızca bellek bayrağı."""
+    _ = msg
+    _login_alert_open[kind] = True
+    _last_login_email_at[kind] = time.time()
+    print(f"Bridge login alert mail yok ({kind})", flush=True)
 
 
 def _notify_login_session_resolved(kind: str) -> None:
+    """Oturum düzeldi — e-posta yok."""
     if not _login_alert_open.get(kind):
         return
-    label = _bridge_kind_label(kind)
-    subject = f"[SEO Agent Bridge] {label} oturumu düzeldi"
-    body = (
-        f"Kaynak: Mac VPN bridge (127.0.0.1:{BRIDGE_PORT})\n"
-        f"Tür: {label} ({kind})\n"
-        f"Zaman (UTC): {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}Z\n"
-        f"Durum: resolved — scrape tekrar başarılı.\n"
-    )
-    if _send_bridge_alert_email(kind=f"login-ok:{kind}", subject=subject, body_text=body):
-        _login_alert_open[kind] = False
-        print(f"Bridge login resolved mail ({kind})", flush=True)
-    else:
-        # SMTP yoksa bile bayrağı kapat; sonraki needs_login yine uyarsın
-        _login_alert_open[kind] = False
+    _login_alert_open[kind] = False
+    print(f"Bridge login resolved (mail yok) ({kind})", flush=True)
 
 
 def _notify_config_alert(kind: str, msg: str) -> None:
-    """Eksik ayar: düzeltilene kadar tek mail (retry/cooldown spam'i yok)."""
+    """Eksik ayar — e-posta yok."""
     if _config_alert_open.get(kind):
         print(f"Bridge config uyarısı zaten açık ({kind}): {msg[:120]}", flush=True)
         return
-    label = _bridge_kind_label(kind)
-    subject = f"[SEO Agent Bridge] {label} yapılandırma eksik"
-    body = (
-        f"Kaynak: Mac VPN bridge (127.0.0.1:{BRIDGE_PORT})\n"
-        f"Tür: {label} ({kind})\n"
-        f"Zaman (UTC): {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}Z\n"
-        f"Hata: {msg}\n\n"
-        f"Bu iş, eksik ayar giderilene kadar duraklatıldı — yeniden deneme ve "
-        f"tekrar uyarı yapılmayacak.\n"
-        f"Değeri bridge'in .env dosyasına ekleyip daemon'ı yeniden başlatın.\n"
-        f"Kontrol: curl -s http://127.0.0.1:{BRIDGE_PORT}/health | python3 -m json.tool\n"
-    )
-    _send_bridge_alert_email(kind=f"config:{kind}", subject=subject, body_text=body)
     _config_alert_open[kind] = True
+    print(f"Bridge config alert mail yok ({kind}): {msg[:160]}", flush=True)
 
 
 def _note_auto_success(kind: str) -> None:
@@ -825,7 +781,7 @@ def _notify_auto_failure(
     *,
     exc: BaseException | None = None,
 ) -> None:
-    """Başarısız auto sync → e-posta (kind başına cooldown / transient streak)."""
+    """Başarısız auto sync — e-posta yok; yalnızca log + bellek durumu."""
     msg = (_failure_message(result, exc) or "bilinmeyen hata")[:800]
     http_status = None
     if isinstance(result, dict):
@@ -850,37 +806,11 @@ def _notify_auto_failure(
             flush=True,
         )
         return
-
-    now = time.time()
-    last = float(_last_fail_email_at.get(kind) or 0)
-    cooldown = max(300, BRIDGE_ALERT_COOLDOWN_SEC)
-    if transient:
-        cooldown = max(cooldown, BRIDGE_ALERT_TRANSIENT_COOLDOWN_SEC)
-    if last and (now - last) < cooldown:
-        left = int(cooldown - (now - last))
-        print(f"Bridge alert cooldown ({kind}) · ~{left}s", flush=True)
-        return
-    label = _bridge_kind_label(kind)
-    subject = f"[SEO Agent Bridge] {label} auto-refresh başarısız"
-    suffix = ""
-    if kind == "news":
-        suffix = "-news"
-    elif kind == "virgul":
-        suffix = "-virgul"
-    body = (
-        f"Kaynak: Mac VPN bridge (127.0.0.1:{BRIDGE_PORT})\n"
-        f"Tür: {label} ({kind})\n"
-        f"Zaman (UTC): {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}Z\n"
-        f"Hata: {msg}\n"
-        f"Ardışık hata: {streak}"
-        + (" · geçici/Railway" if transient else "")
-        + "\n\n"
-        f"Kontrol: curl -s http://127.0.0.1:{BRIDGE_PORT}/health | python3 -m json.tool\n"
-        f"Elle: POST http://127.0.0.1:{BRIDGE_PORT}/sync{suffix}\n"
+    print(
+        f"Bridge auto-failure mail yok ({kind}) streak={streak}"
+        f"{' · geçici' if transient else ''}: {msg[:160]}",
+        flush=True,
     )
-    if _send_bridge_alert_email(kind=kind, subject=subject, body_text=body):
-        _last_fail_email_at[kind] = now
-
 
 def _news_pages_estimate() -> int:
     last = int(_last_news_result.get("last_page") or 0)
@@ -5604,10 +5534,7 @@ def run_login_warmup_bridge_once() -> dict[str, Any]:
         mod.report_to_panel(results)
     except Exception as exc:  # noqa: BLE001
         print(f"warm-up panel bildirimi hata: {exc}", flush=True)
-    try:
-        mod.send_alert_emails(results)
-    except Exception as exc:  # noqa: BLE001
-        print(f"warm-up e-posta uyarısı hata: {exc}", flush=True)
+    # Konsol giriş e-postası kapalı — send_alert_emails çağrılmaz.
 
     needs = [r for r in results if r.needs_action]
     out = {
