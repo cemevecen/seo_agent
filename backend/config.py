@@ -454,9 +454,11 @@ class Settings(BaseSettings):
     db_retention_notification_delivery_days: int = Field(default=30, ge=1, le=3650)
     # Realtime ve Uygulama verileri (Hızlı büyüyen tablolar)
     db_retention_realtime_snapshot_days: int = Field(default=8, ge=1, le=365) # Kullanıcı talebi: 8 gün
-    db_retention_realtime_alarm_log_days: int = Field(default=30, ge=1, le=365)
+    db_retention_realtime_alarm_log_days: int = Field(default=14, ge=1, le=365)
     db_retention_app_intel_cache_days: int = Field(default=7, ge=1, le=365)
     db_retention_ai_report_days: int = Field(default=30, ge=1, le=365)
+    # Ad report günlük satırlar — panel son ayları kullanır
+    db_retention_ad_report_days: int = Field(default=365, ge=90, le=3650)
 
     # Gecelik cleanup sonrası tam DB VACUUM ANALYZE (Postgres). Varsayılan kapalı.
     db_retention_run_vacuum: bool = False

@@ -96,7 +96,7 @@ from backend.models import (
     Alert, AlertLog, CollectorRun, CruxHistorySnapshot, ExternalOnboardingJob,
     ExternalSite, Ga4ReportSnapshot, LighthouseAuditRecord, Metric,
     NotificationDeliveryLog, PageSpeedAuditSnapshot, PageSpeedPayloadSnapshot,
-    RealtimeAlarmLog, RealtimeNewsArticleBucket, RealtimeNewsSnapshot, RealtimePageSnapshot, RealtimeSnapshot,
+    RealtimeAlarmLog, RealtimeAppEventSnapshot, RealtimeNewsArticleBucket, RealtimeNewsSnapshot, RealtimePageSnapshot, RealtimeSnapshot,
     SearchConsoleQuerySnapshot, Site, SiteCredential, SiteErrorLog, UrlAuditRecord, UrlInspectionSnapshot, AdminAuthSetting,
     AppMember,
     AppStoreRankSnapshot, AiDailyBriefReport, AiBriefRunLog, AppIntelRawCache, RevenueTargetsCache,
@@ -20573,6 +20573,8 @@ def _run_db_retention_cleanup() -> dict:
             (RealtimeAlarmLog, RealtimeAlarmLog.triggered_at, settings.db_retention_realtime_alarm_log_days, "realtime_alarm_logs"),
             (RealtimePageSnapshot, RealtimePageSnapshot.collected_at, 3, "realtime_page_snapshots"),
             (RealtimeNewsSnapshot, RealtimeNewsSnapshot.collected_at, 3, "realtime_news_snapshots"),
+            # App event zirve karşılaştırması kısa pencere; retention yoksa GB şişer.
+            (RealtimeAppEventSnapshot, RealtimeAppEventSnapshot.collected_at, 3, "realtime_app_event_snapshots"),
             # Haber kovaları sütunda kümülatif gösterildiği için snapshot'lardan uzun yaşar.
             (
                 RealtimeNewsArticleBucket,
@@ -20585,6 +20587,7 @@ def _run_db_retention_cleanup() -> dict:
             (AiBriefRunLog, AiBriefRunLog.created_at, settings.db_retention_ai_report_days, "ai_brief_run_logs"),
             (AppIntelRawCache, AppIntelRawCache.updated_at, settings.db_retention_app_intel_cache_days, "app_intel_raw_cache"),
             (SupportInboxThread, SupportInboxThread.last_synced_at, 90, "support_inbox_threads"),
+            (SiteErrorLog, SiteErrorLog.last_seen, 60, "site_error_logs"),
         ]
         cutoff_now = datetime.utcnow()
         for Model, time_col, days, table_label in keep_days_tables:
@@ -20597,6 +20600,36 @@ def _run_db_retention_cleanup() -> dict:
                 logging.exception("Retention cleanup hatası: %s", table_label)
                 db.rollback()
                 stats[table_label] = -1
+
+        # Kapalı RSS / News Intelligence — tablo tamamen boşaltılır
+        if not getattr(settings, "news_intelligence_enabled", False):
+            try:
+                from backend.models import NewsIntelligenceItem
+
+                n = db.query(NewsIntelligenceItem).delete(synchronize_session=False)
+                db.commit()
+                stats["news_intelligence_items"] = int(n or 0)
+            except Exception:
+                logging.exception("news_intelligence_items truncate hatası")
+                db.rollback()
+                stats["news_intelligence_items"] = -1
+
+        # Reklam satırları: panel son ayları kullanır; 365 günden eski satırlar arşivlenmeden silinir
+        try:
+            from backend.models import AdReportRow
+
+            cutoff_ad = (cutoff_now - timedelta(days=int(settings.db_retention_ad_report_days))).date()
+            n = (
+                db.query(AdReportRow)
+                .filter(AdReportRow.report_date < cutoff_ad)
+                .delete(synchronize_session=False)
+            )
+            db.commit()
+            stats["ad_report_rows_old"] = int(n or 0)
+        except Exception:
+            logging.exception("ad_report_rows retention hatası")
+            db.rollback()
+            stats["ad_report_rows_old"] = -1
 
         # PostgreSQL: isteğe bağlı tam VACUUM ANALYZE (varsayılan kapalı — bkz. settings.db_retention_run_vacuum)
         if not _IS_SQLITE and settings.db_retention_run_vacuum:
