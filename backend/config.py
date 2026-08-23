@@ -321,11 +321,11 @@ class Settings(BaseSettings):
     seo_audit_scheduled_hour: int = 3
     seo_audit_scheduled_minute: int = 0
 
-    # Inbox Gmail → DB (e-posta göndermez).
+    # Inbox Gmail → DB (e-posta göndermez). Varsayılan 160 dk — Railway RAM/CPU yükünü düşürür.
     inbox_scheduled_sync_enabled: bool = True
-    inbox_scheduled_sync_interval_minutes: int = Field(default=5, ge=2, le=60)
+    inbox_scheduled_sync_interval_minutes: int = Field(default=160, ge=2, le=360)
     inbox_firebase_sync_enabled: bool = True
-    inbox_firebase_sync_interval_minutes: int = Field(default=5, ge=2, le=60)
+    inbox_firebase_sync_interval_minutes: int = Field(default=160, ge=2, le=360)
     inbox_startup_sync_enabled: bool = True
     inbox_startup_sync_delay_seconds: int = Field(default=45, ge=10, le=600)
 
