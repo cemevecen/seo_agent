@@ -131,8 +131,8 @@ if _VIRGUL_HOURS_RAW:
     ) or VIRGUL_SLOT_HOURS
 PLAY_SLOT_HOURS = (0, 6, 12, 18)  # 6 saatte bir — login baskısını düşür
 PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "2")
-# App kategori sırası (Playwright) — Railway'de yasak; Mac 3 saatte bir + ingest
-APP_RANKS_SLOT_HOURS = (1, 4, 7, 10, 13, 16, 19, 22)
+# App kategori sırası (Playwright) — Railway'de yasak; Mac 8 saatte bir + ingest
+APP_RANKS_SLOT_HOURS = (2, 10, 18)
 APP_RANKS_SLOT_MINUTE = int(os.environ.get("APP_RANKS_BRIDGE_MINUTE") or "25")
 _APP_RANKS_HOURS_RAW = (os.environ.get("APP_RANKS_BRIDGE_HOURS") or "").strip()
 if _APP_RANKS_HOURS_RAW:

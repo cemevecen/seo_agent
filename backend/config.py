@@ -329,10 +329,14 @@ class Settings(BaseSettings):
     inbox_startup_sync_enabled: bool = True
     inbox_startup_sync_delay_seconds: int = Field(default=45, ge=10, le=600)
 
-    # App Store + Google Play analitik günlük özet (TSİ)
+    # App Store + Google Play analitik — 8 saatte bir (Railway HTTP; Playwright Mac bridge)
     app_intel_scheduled_refresh_enabled: bool = True
     app_intel_scheduled_refresh_hour: int = 7
     app_intel_scheduled_refresh_minute: int = 0
+    app_intel_scheduled_refresh_interval_hours: int = Field(default=8, ge=1, le=24)
+
+    # Çok kanallı RSS / News Intelligence — kapalı (Trend news UI kaldırıldı)
+    news_intelligence_enabled: bool = False
 
     # Eski Google Sheets piyasa çekimi — kapalı; tarama (00:05 TR, Mac köprüsü) kullanılıyor.
     market_sheets_sync_enabled: bool = False
@@ -383,23 +387,22 @@ class Settings(BaseSettings):
 
     # GA4 Realtime monitoring (anlık karşılaştırma & alarm)
     ga4_realtime_enabled: bool = True
-    # Backend alarm + KPI snapshot job. Grafik için en az ~10 dk'da bir nokta gerekir;
-    # tam alarm taraması yine batch mail ile sınırlıdır.
-    ga4_realtime_interval_minutes: int = 10
+    # Backend alarm + KPI snapshot job. UI poll ayrı; job aralığı 30 dk (yük ↓).
+    ga4_realtime_interval_minutes: int = Field(default=30, ge=5, le=120)
     # KPI toplam penceresi: GA4 Realtime UI ile aynı (max 30 dk).
     ga4_realtime_window_minutes: int = 30
     # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız.
     ga4_realtime_ui_poll_seconds: int = Field(default=60, ge=15, le=600)   # 1 dakika
-    # Sunucu-tarafı GA4 Realtime cache TTL'leri (saniye). Çok-istemcili/sık polling'in
-    # GA4 saatlik token kotasını tüketmesini engeller; aynı pencerede tek upstream çağrı.
-    ga4_realtime_kpi_cache_seconds: int = Field(default=30, ge=0, le=300)
-    ga4_realtime_list_cache_seconds: int = Field(default=60, ge=0, le=300)
+    # Sunucu-tarafı GA4 Realtime cache TTL'leri (saniye). Job 30 dk; cache biraz daha uzun olabilir.
+    ga4_realtime_kpi_cache_seconds: int = Field(default=60, ge=0, le=600)
+    ga4_realtime_list_cache_seconds: int = Field(default=90, ge=0, le=600)
     # 429/hata anında son başarılı CANLI sonucun gösterileceği azami yaş (saniye).
     ga4_realtime_last_good_seconds: int = Field(default=1800, ge=0, le=21600)
     ga4_realtime_page_alerts_enabled: bool = True
     # Haberler (unifiedScreenName): snapshot karşılaştırması + e-posta; kontrol aralığı ayrı (dakika).
     ga4_realtime_news_alerts_enabled: bool = True
-    ga4_realtime_news_alert_interval_minutes: int = Field(default=5, ge=5, le=120)   # 5dk
+    # Haber alarmı: ana realtime job ile aynı sıklıkta (job 30 dk → en az 30 dk).
+    ga4_realtime_news_alert_interval_minutes: int = Field(default=30, ge=5, le=120)
     ga4_realtime_news_alert_window_minutes: int = Field(default=15, ge=5, le=30)
     # Realtime alarm e-postaları (site + sayfa): OUTBOUND_EMAIL_ENABLED veya günlük GA4/AI özetlerinden bağımsız.
     ga4_realtime_email_enabled: bool = True

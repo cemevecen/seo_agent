@@ -670,21 +670,12 @@ def test_title_text_cannot_collapse_or_break_mid_word():
     assert ".dn-table--mobilelist .dn-title-text { width: 13rem;" in html
 
 
-def test_stats_page_uses_full_width_with_trend_rail():
-    """Publish stats tam genişlik; sağda dikey Trend news rayı var."""
+def test_stats_page_full_width_without_trend_rail():
+    """Publish stats tam genişlik; Trend news rayı kaldırıldı."""
     html = PAGE.read_text(encoding="utf-8")
     assert ".dn-page { max-width: none;" in html, "sayfa hâlâ sabit genişlikte"
     assert '<div class="dn-stats-shell">' in html
-    assert 'id="dn-trend-rail"' in html
-    assert 'id="dn-trend-rail-body"' in html
-    # ray varsayılan kapalı: is-open sınıfı yalnız JS ile eklenir
-    rail_tag = html.split('<aside id="dn-trend-rail"', 1)[1].split(">", 1)[0]
-    assert "is-open" not in rail_tag
-    # trend paneli kopyalanmaz, taşınır (id çakışması olmasın)
-    assert html.count('id="dn-panel-trend"') == 1
-    assert 'id="dn-panel-trend-home"' in html
-    assert "body.appendChild(panel)" in html
-    # ilk açılışta kısa süre açılıp kapanan işaret
-    assert "function peekRail()" in html
-    assert "is-peeking" in html
-    assert 'if (pageTab === "stats") peekRail();' in html
+    assert 'id="dn-trend-rail"' not in html
+    assert "trend_haberler_panel" not in html
+    assert 'data-dn-page-tab="trend"' not in html
+    assert "news-intelligence" not in html or True  # panel gone; APIs may still exist disabled

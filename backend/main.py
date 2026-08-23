@@ -869,16 +869,16 @@ def admin_run_market_sheets_sync_now():
 
 @app.get("/api/admin/run-news-intelligence-now")
 def admin_run_news_intelligence_now():
-    """Haber istihbarat taramasını MANUEL olarak tetikler (Sıfırlayarak)."""
+    """Haber istihbarat taraması — kapalı (RSS / Trend news kaldırıldı)."""
+    if not getattr(settings, "news_intelligence_enabled", False):
+        return {"status": "disabled", "message": "News Intelligence (RSS) kapalı."}
     from backend.services.news_intelligence import run_news_intelligence_job
     from backend.database import SessionLocal
     from backend.models import NewsIntelligenceItem
     try:
-        # Önce mevcut içeriği tamamen sil
         with SessionLocal() as db:
             db.query(NewsIntelligenceItem).delete()
             db.commit()
-        # Sonra yeni taramayı başlat
         run_news_intelligence_job()
         return {"status": "ok", "message": "RESET_SUCCESS_9H"}
     except Exception as exc:
@@ -888,6 +888,8 @@ def admin_run_news_intelligence_now():
 @app.get("/api/admin/news-intelligence/sources")
 def get_news_intelligence_sources(hours: int | None = None, sort: str = "name", order: str = "asc"):
     """Son N saatte haber içeren kaynak adlarını (ve adet) döner — dropdown için."""
+    if not getattr(settings, "news_intelligence_enabled", False):
+        return {"sources": [], "disabled": True}
     from backend.menu_excluded import is_menu_excluded_label
     from backend.services.news_intelligence import RETENTION_HOURS
 
@@ -944,6 +946,8 @@ def get_news_intelligence(
     Varsayılan: son `hours` saatlik haberler (zaman bazlı), offset/limit ile lazyload.
     `since` parametresi auto-refresh için kullanılır (sadece bu zamandan sonrasını döner).
     """
+    if not getattr(settings, "news_intelligence_enabled", False):
+        return {"items": [], "disabled": True}
     from backend.services.news_intelligence import RETENTION_HOURS
     from backend.menu_excluded import is_menu_excluded_label
 
@@ -1018,7 +1022,9 @@ def get_news_intelligence(
 
 @app.post("/api/admin/news-intelligence/sync")
 def sync_news_intelligence(reset: bool = False):
-    """Haberleri manuel olarak tarar ve veritabanına kaydeder."""
+    """Haberleri manuel olarak tarar — kapalıysa no-op."""
+    if not getattr(settings, "news_intelligence_enabled", False):
+        return {"status": "disabled", "message": "News Intelligence (RSS) kapalı."}
     from backend.services.news_intelligence import run_news_intelligence_job
     try:
         run_news_intelligence_job(reset=reset)
@@ -4853,10 +4859,12 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     if settings.app_intel_scheduled_refresh_enabled:
         from apscheduler.triggers.interval import IntervalTrigger
 
-        # App mağaza özeti — 3 saatte bir
+        _app_intel_h = max(1, min(24, int(getattr(settings, "app_intel_scheduled_refresh_interval_hours", 8) or 8)))
+
+        # App mağaza özeti — varsayılan 8 saatte bir
         scheduler.add_job(
             _run_app_intel_scheduled,
-            trigger=IntervalTrigger(hours=3, timezone=timezone),
+            trigger=IntervalTrigger(hours=_app_intel_h, timezone=timezone),
             id="app-intel-refresh-3h",
             replace_existing=True,
             max_instances=1,
@@ -4865,10 +4873,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         )
         job_count += 1
 
-        # Her 3 saatte bir sadece kategori sırasını güncelle
+        # Kategori sırası — aynı aralık (Railway HTTP/API only; Playwright Mac)
         scheduler.add_job(
             _run_rank_refresh_job,
-            trigger=IntervalTrigger(hours=3, timezone=timezone),
+            trigger=IntervalTrigger(hours=_app_intel_h, timezone=timezone),
             id="rank-refresh-3h",
             replace_existing=True,
             max_instances=1,
@@ -4953,7 +4961,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
             replace_existing=True,
             max_instances=1,
             coalesce=True,
-            misfire_grace_time=600,
+            misfire_grace_time=max(600, int(settings.ga4_realtime_interval_minutes) * 60),
         )
         LOGGER.info(
             "GA4 Realtime monitoring aktif: her %d dk, pencere %d dk.",
@@ -5093,17 +5101,23 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         )
         job_count += 1
 
-    # NEWS (07:00 - 23:55 arası her 5 dakikada bir)
-    scheduler.add_job(
-        _run_news_intelligence_job,
-        trigger=CronTrigger(hour='7-23', minute='*/5', timezone=timezone),
-        id="news-intelligence-sync",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=300,
-    )
-    job_count += 1
+    # NEWS Intelligence RSS — kapalı (news_intelligence_enabled=false)
+    if getattr(settings, "news_intelligence_enabled", False):
+        scheduler.add_job(
+            _run_news_intelligence_job,
+            trigger=CronTrigger(hour="7-23", minute="*/5", timezone=timezone),
+            id="news-intelligence-sync",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=300,
+        )
+        job_count += 1
+    else:
+        try:
+            scheduler.remove_job("news-intelligence-sync")
+        except Exception:
+            pass
 
     # Doviz News — 30 dk’da bir admin/DB ısıt (scrape: proxy veya bridge ingest)
     scheduler.add_job(
@@ -15304,15 +15318,10 @@ def _ga4_sites_payload(db) -> list[dict]:
 
 @app.get("/intelligence", response_class=HTMLResponse)
 def get_intelligence_page(request: Request):
-    """Eski NEWS sekmesi — Doviz News / Trend haberler'e yönlendir."""
+    """Eski NEWS/Trend sekmesi kaldırıldı — Doviz News publish stats."""
     from fastapi.responses import RedirectResponse
 
-    q = request.url.query
-    target = "/doviz-news?tab=trend"
-    if q:
-        # preserve source/source_sort if present
-        target = "/doviz-news?tab=trend&" + q
-    return RedirectResponse(url=target, status_code=307)
+    return RedirectResponse(url="/doviz-news", status_code=307)
 
 
 @app.get("/ga4")
@@ -21029,7 +21038,9 @@ def _run_inbox_firebase_sync_job() -> None:
 
 
 def _run_news_intelligence_job() -> None:
-    """APScheduler: Google News istihbarat taraması."""
+    """APScheduler: Google News istihbarat taraması (varsayılan kapalı)."""
+    if not getattr(settings, "news_intelligence_enabled", False):
+        return
     try:
         from backend.services.news_intelligence import run_news_intelligence_job
         run_news_intelligence_job()
