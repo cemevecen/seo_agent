@@ -40,13 +40,11 @@ import hashlib
 import json
 import os
 import re
-import smtplib
 import subprocess
 import sys
 import threading
 import time
 import traceback
-from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -303,28 +301,11 @@ if _MOD_SLOTS_RAW:
             parsed_mod.append((int(bits[0]), int(bits[1]), which))
     if parsed_mod:
         MODERATION_SLOTS = tuple(parsed_mod)
-# Bridge e-posta uyarıları kalıcı kapalı (giriş / oturum / scrape / auto-refresh).
+# Bridge e-posta uyarıları kalıcı kapalı — SMTP yok; giriş/oturum/scrape maili atılmaz.
 BRIDGE_EMAIL_ALERTS_ENABLED = False
-BRIDGE_ALERT_TO = (
-    os.environ.get("BRIDGE_ALERT_EMAIL")
-    or os.environ.get("OPERATIONS_MAIL_TO")
-    or os.environ.get("MAIL_TO")
-    or "cemevecen@nokta.com"
-).strip()
-BRIDGE_ALERT_COOLDOWN_SEC = int(
-    os.environ.get("BRIDGE_ALERT_COOLDOWN_SEC") or str(60 * 60)
-)
-# Railway 502 / "Application failed to respond" gibi geçici hatalarda
-# peş peşe N kez olmadan e-posta gitmesin; olunca da daha uzun cooldown.
+# Geçici ingest hatalarında streak log eşiği (e-posta yok).
 BRIDGE_ALERT_TRANSIENT_STREAK = int(
     os.environ.get("BRIDGE_ALERT_TRANSIENT_STREAK") or "3"
-)
-BRIDGE_ALERT_TRANSIENT_COOLDOWN_SEC = int(
-    os.environ.get("BRIDGE_ALERT_TRANSIENT_COOLDOWN_SEC") or str(6 * 60 * 60)
-)
-# needs_login: ilk uyarı hemen, sonrası 6 saat sessiz; success → resolved mail
-BRIDGE_LOGIN_ALERT_COOLDOWN_SEC = int(
-    os.environ.get("BRIDGE_LOGIN_ALERT_COOLDOWN_SEC") or str(6 * 60 * 60)
 )
 VIRGUL_INGEST_TRIES = int(os.environ.get("VIRGUL_INGEST_TRIES") or "4")
 VIRGUL_INGEST_TIMEOUT_SEC = int(os.environ.get("VIRGUL_INGEST_TIMEOUT_SEC") or "180")

@@ -347,16 +347,16 @@ def _res(target, needs_action, msg="mesaj"):
 
 def _mail_spy(m, monkeypatch, tmp_path):
     sent = []
-    monkeypatch.setattr(m, "_alert_state_path", lambda: tmp_path / "alerts.json")
-    monkeypatch.setattr("backend.services.mailer.send_email",
-                        lambda s, h, r=None: sent.append((s, h)) or True)
+    monkeypatch.setattr(
+        "backend.services.mailer.send_email",
+        lambda s, h, r=None: sent.append((s, h)) or True,
+    )
     return sent
 
 
 def test_failure_sends_one_email_with_machine_name(monkeypatch, tmp_path):
     m = _warmup_module()
     sent = _mail_spy(m, monkeypatch, tmp_path)
-    monkeypatch.setattr(m, "_machine_name", lambda: "Ofis-Mac")
 
     out = m.send_alert_emails([_res("asc", True, "2FA gerekiyor")])
     assert sent == []
@@ -406,7 +406,6 @@ def test_targets_are_tracked_independently(monkeypatch, tmp_path):
 
 def test_mailer_failure_does_not_break_warmup(monkeypatch, tmp_path):
     m = _warmup_module()
-    monkeypatch.setattr(m, "_alert_state_path", lambda: tmp_path / "alerts.json")
     monkeypatch.setattr(
         "backend.services.mailer.send_email",
         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("smtp yok")),
@@ -414,11 +413,21 @@ def test_mailer_failure_does_not_break_warmup(monkeypatch, tmp_path):
     m.send_alert_emails([_res("asc", True)])
 
 
+def test_warmup_main_never_calls_send_alert_emails():
+    src = (ROOT / "scripts/scrape_login_warmup.py").read_text(encoding="utf-8")
+    main_body = src.split("def main(", 1)[1].split("\ndef warm_for_job", 1)[0]
+    assert "send_alert_emails(" not in main_body
+    assert "Konsol girişi müdahale bekliyor" not in src
+
+
 def test_bridge_sends_alerts_too():
     src = (ROOT / "scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
     assert "BRIDGE_EMAIL_ALERTS_ENABLED = False" in src
     assert "Konsol giriş e-postası kapalı" in src
     assert "mod.send_alert_emails" not in src
+    assert "import smtplib" not in src
+    assert "from email.message import EmailMessage" not in src
+    assert "Bridge alert e-posta gönderildi" not in src
 
 
 # ── Yorumlayıcı adayları ────────────────────────────────────────────────────

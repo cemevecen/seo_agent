@@ -597,62 +597,8 @@ def warm_target(
 
 # ── E-posta uyarısı (iki Mac için de) ───────────────────────────────────────
 
-# Aynı arıza her turda mail atmasın; ama sessizce de kaybolmasın.
-ALERT_REPEAT_HOURS = 6.0
-
-
-def _alert_state_path() -> Path:
-    return Path.home() / ".seo-agent" / "cache" / "login-warmup-alerts.json"
-
-
-def _load_alert_state() -> dict[str, Any]:
-    try:
-        return json.loads(_alert_state_path().read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        return {}
-
-
-def _save_alert_state(state: dict[str, Any]) -> None:
-    try:
-        path = _alert_state_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("Uyarı durumu yazılamadı: %s", exc)
-
-
-def _machine_name() -> str:
-    import platform
-
-    return platform.node() or "bilinmeyen-mac"
-
-
-def _alert_html(machine: str, rows: list[TargetResult], *, recovered: bool) -> str:
-    if recovered:
-        items = "".join(
-            f"<li><b>{r.label}</b> — oturum yeniden geçerli</li>" for r in rows
-        )
-        return (
-            f"<p><b>{machine}</b> üzerinde konsol oturumları düzeldi.</p>"
-            f"<ul>{items}</ul>"
-        )
-    items = "".join(
-        f"<li><b>{r.label}</b> — {r.message}</li>" for r in rows
-    )
-    return (
-        f"<p><b>{machine}</b> üzerinde konsol girişi müdahale bekliyor.</p>"
-        f"<ul>{items}</ul>"
-        "<p>Otomatik giriş Keychain'deki kimlikle denendi. İkinci faktör (2FA) "
-        "veya bot kontrolü çıktıysa bilerek durulur — otomatik aşılmaya "
-        "çalışılmaz. Bu Mac'te açık bırakılan Firefox penceresinden doğrulamayı "
-        "tamamlayın; oturum profile kaydolur ve genelde günlerce tekrar sorulmaz.</p>"
-        "<p>Durumu görmek için: "
-        "<code>python3 scripts/scrape_login_warmup.py --doctor</code></p>"
-    )
-
-
 def send_alert_emails(results: list[TargetResult]) -> dict[str, Any]:
-    """Konsol giriş uyarı e-postaları kapalı — gönderim yok."""
+    """Konsol giriş uyarı e-postaları kalıcı kapalı — SMTP yok, HTML yok."""
     _ = results
     LOGGER.info("Konsol giriş uyarı e-postası kapalı (gönderilmedi).")
     return {"alert": False, "recovery": False}
@@ -852,7 +798,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_report:
         report_to_panel(results)
-        send_alert_emails(results)
+        # E-posta yok — send_alert_emails kasıtlı çağrılmaz.
 
     print(json.dumps({"results": [r.as_dict() for r in results]}, ensure_ascii=False, indent=2))
     return 1 if any(r.needs_action for r in results) else 0

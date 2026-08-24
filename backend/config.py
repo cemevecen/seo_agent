@@ -526,7 +526,8 @@ class Settings(BaseSettings):
             "notification_ingest_token",
         ),
     )
-    # Eski bridge (hâlâ mail atan Mac) otomatik kira alamasın — virgülle worker adları.
+    # Eski ofis Mac (Cems-MacBook-Pro / e87f): otomatik kira yok. Lokal SMTP maili
+    # için o makinede bridge durdur veya git pull + LaunchAgent restart şart.
     bridge_auto_lease_deny_workers: str = Field(
         default="cems-macbook-pro-e87f",
         validation_alias=AliasChoices(
