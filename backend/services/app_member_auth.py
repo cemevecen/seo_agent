@@ -68,6 +68,7 @@ TMDB_ONLY_MEMBER_EMAILS = frozenset(
 INVITED_NOKTA_MEMBER_EMAILS = frozenset(
     {
         "melihengin@nokta.com",
+        "sevketsirin@nokta.com",
     }
 )
 

@@ -14,6 +14,7 @@ def test_ad_page_allowed_emails():
     assert is_ad_page_allowed_email("CemEvecen@Gmail.com")
     assert is_ad_page_allowed_email("onurtorun@nokta.com")
     assert is_ad_page_allowed_email("melihengin@nokta.com")
+    assert is_ad_page_allowed_email("sevketsirin@nokta.com")
     assert not is_ad_page_allowed_email("gozdeunaldi@nokta.com")
     assert not is_ad_page_allowed_email("berendemirci@gmail.com")
     assert not is_ad_page_allowed_email("outsider@gmail.com")

@@ -1,4 +1,4 @@
-"""Monetizasyon (Virgül /ad-virgul) — @nokta.com (Gözde/Beren hariç) + admin."""
+"""Monetizasyon (Virgül /ad-virgul) — @nokta.com (Gözde/Beren hariç) + admin + ekstra allowlist."""
 
 from __future__ import annotations
 
@@ -12,12 +12,19 @@ AD_PAGE_DENIED_EMAILS = frozenset(
     }
 )
 
+# Açıkça izinli (admin dışında); @nokta.com kuralına ek / dokümantasyon.
+AD_PAGE_ALLOWED_EMAILS = frozenset(
+    {
+        "sevketsirin@nokta.com",
+    }
+)
+
 
 def is_ad_page_allowed_email(email: str | None) -> bool:
     em = _normalize_email(email or "")
     if not em or em in AD_PAGE_DENIED_EMAILS:
         return False
-    if em in ADMIN_MEMBER_EMAILS:
+    if em in ADMIN_MEMBER_EMAILS or em in AD_PAGE_ALLOWED_EMAILS:
         return True
     return em.endswith("@nokta.com")
 

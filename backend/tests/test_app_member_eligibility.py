@@ -80,6 +80,10 @@ def test_member_list_shows_pending_tmdb_only_before_first_login():
     assert melih is not None
     assert melih["pending_first_login"] is True
     assert melih["access_note"] == "invited"
+    sevket = next((r for r in out if r["email"] == "sevketsirin@nokta.com"), None)
+    assert sevket is not None
+    assert sevket["pending_first_login"] is True
+    assert sevket["access_note"] == "invited"
 
 
 def test_member_last_login_uses_later_panel_visit():
