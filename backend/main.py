@@ -5131,7 +5131,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Realtime haber kovaları — :00/:30'da kapanan yarım saati haber ID'sine yazar.
+    # Realtime haber kovaları — :00/:30 (GA4 ~30 dk penceresi; job interval 60 olsa da kova 30 dk kalır).
     # misfire_grace_time kısa: geç çalışan iş kovayı yanlış dilime yazmasın.
     scheduler.add_job(
         _run_realtime_news_bucket_job,

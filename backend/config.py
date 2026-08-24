@@ -387,27 +387,27 @@ class Settings(BaseSettings):
 
     # GA4 Realtime monitoring (anlık karşılaştırma & alarm)
     ga4_realtime_enabled: bool = True
-    # Backend alarm + KPI snapshot job. UI poll ayrı; job aralığı 30 dk (yük ↓).
-    ga4_realtime_interval_minutes: int = Field(default=30, ge=5, le=120)
+    # Backend alarm + KPI snapshot job. UI poll ayrı; job aralığı 60 dk (RAM/API ↓).
+    ga4_realtime_interval_minutes: int = Field(default=60, ge=5, le=120)
     # KPI toplam penceresi: GA4 Realtime UI ile aynı (max 30 dk).
     ga4_realtime_window_minutes: int = 30
     # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız.
     ga4_realtime_ui_poll_seconds: int = Field(default=60, ge=15, le=600)   # 1 dakika
-    # Sunucu-tarafı GA4 Realtime cache TTL'leri (saniye). Job 30 dk; cache biraz daha uzun olabilir.
+    # Sunucu-tarafı GA4 Realtime cache TTL'leri (saniye). Job 60 dk; cache kısa kalabilir.
     ga4_realtime_kpi_cache_seconds: int = Field(default=60, ge=0, le=600)
     ga4_realtime_list_cache_seconds: int = Field(default=90, ge=0, le=600)
     # 429/hata anında son başarılı CANLI sonucun gösterileceği azami yaş (saniye).
     ga4_realtime_last_good_seconds: int = Field(default=1800, ge=0, le=21600)
     ga4_realtime_page_alerts_enabled: bool = True
-    # Haberler (unifiedScreenName): snapshot karşılaştırması + e-posta; kontrol aralığı ayrı (dakika).
+    # Haberler (unifiedScreenName): snapshot karşılaştırması; mail kapalı (aşağıdaki email bayrakları).
     ga4_realtime_news_alerts_enabled: bool = True
-    # Haber alarmı: ana realtime job ile aynı sıklıkta (job 30 dk → en az 30 dk).
-    ga4_realtime_news_alert_interval_minutes: int = Field(default=30, ge=5, le=120)
+    # Haber alarmı: ana realtime job ile aynı sıklıkta (job 60 dk → en az 60 dk).
+    ga4_realtime_news_alert_interval_minutes: int = Field(default=60, ge=5, le=120)
     ga4_realtime_news_alert_window_minutes: int = Field(default=15, ge=5, le=30)
-    # Realtime alarm e-postaları (site + sayfa): OUTBOUND_EMAIL_ENABLED veya günlük GA4/AI özetlerinden bağımsız.
-    ga4_realtime_email_enabled: bool = True
-    ga4_realtime_page_alert_email: bool = True
-    ga4_realtime_news_alert_email: bool = True
+    # Realtime alarm e-postaları kapalı (panel alarmları kalır). Yeniden açmak için env.
+    ga4_realtime_email_enabled: bool = False
+    ga4_realtime_page_alert_email: bool = False
+    ga4_realtime_news_alert_email: bool = False
     # Aynı site/kural için e-posta tekrar baskılama süresi (dakika). 0 = baskılama yok.
     ga4_realtime_alarm_email_cooldown_minutes: int = Field(default=90, ge=0, le=480)
     # Konsolide «SEO Realtime» özet maili: en az bu kadar dakika arayla (07:00–22:00 TR).
