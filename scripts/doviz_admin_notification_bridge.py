@@ -158,6 +158,16 @@ def _parse_slot_pairs(raw: str) -> tuple[tuple[int, int], ...]:
 ASC_SLOTS: tuple[tuple[int, int], ...] = ((6, 30), (11, 15), (14, 0), (20, 0))
 FIREBASE_SLOTS: tuple[tuple[int, int], ...] = ((6, 33), (11, 18), (14, 3), (20, 3))
 LOGIN_WARMUP_SLOTS: tuple[tuple[int, int], ...] = ((6, 20), (11, 5), (13, 50), (19, 50))
+# Otomatik warm-up Playwright/Firefox açıp 2FA'da takılıyordu (maliyet + spam).
+# Varsayılan kapalı — asıl scrape needs_login ile düşer; elle /sync-login-warmup.
+LOGIN_WARMUP_AUTO = (os.environ.get("LOGIN_WARMUP_AUTO") or "0").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+if not LOGIN_WARMUP_AUTO:
+    LOGIN_WARMUP_SLOTS = ()
 
 # Mühürlü gövde: Play/ASC günde 1 (dün dilimi) — full history yok
 try:
@@ -190,6 +200,9 @@ for _env_key, _name in (
         _parsed = _parse_slot_pairs(_raw)
         if _parsed:
             globals()[_name] = _parsed
+# LOGIN_WARMUP_AUTO=0 iken env slot listesi de yok sayılır (maliyet koruması).
+if not LOGIN_WARMUP_AUTO:
+    LOGIN_WARMUP_SLOTS = ()
 TWICE_DAILY_HOURS = (1, 13)  # 01:xx + 13:xx
 GSC_LINKS_SLOT_HOURS = TWICE_DAILY_HOURS
 try:
@@ -5574,14 +5587,18 @@ def _warmup_target_allowed_here(name: str) -> bool:
 
 
 def run_login_warmup_bridge_once() -> dict[str, Any]:
-    """Sabah scrape'lerinden önce ASC + Firebase oturumlarını doğrula.
+    """Oturum kontrolü — otomatik Keychain/2FA login yok (masrafsız / spam yok).
 
-    Oturum geçerliyse hiçbir şey yapmaz. Düşmüşse Keychain'deki kimlikle
-    girmeyi dener; 2FA/CAPTCHA çıkarsa **denemeyi bırakır**, pencereyi açık
-    bırakır ve panele «müdahale gerekiyor» diye bildirir. İkinci faktörü
-    otomatik aşmaya çalışmak hem hesabı kilitletir hem de doğru olmaz.
+    Varsayılan: check_only (yalnızca oturum düşmüş mü). Elle giriş paneli veya
+    `scrape_login_warmup.py` (LOGIN_WARMUP_AUTO=1) ile açılır.
     """
     global _last_login_warmup_result
+    check_only = (os.environ.get("LOGIN_WARMUP_CHECK_ONLY") or "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
     try:
         import importlib.util
 
@@ -5606,7 +5623,7 @@ def run_login_warmup_bridge_once() -> dict[str, Any]:
         if not _warmup_target_allowed_here(name):
             continue
         try:
-            results.append(mod.warm_target(name, headed=True))
+            results.append(mod.warm_target(name, headed=True, check_only=check_only))
         except Exception as exc:  # noqa: BLE001
             print(f"warm-up {name} hata: {exc}", flush=True)
 
@@ -5627,6 +5644,7 @@ def run_login_warmup_bridge_once() -> dict[str, Any]:
             else "Tüm oturumlar geçerli (" + ", ".join(r.target for r in results) + ")"
         ),
         "results": [r.as_dict() for r in results],
+        "check_only": bool(check_only),
     }
     _last_login_warmup_result = out
     print(f"Login warm-up: {out['message']}", flush=True)

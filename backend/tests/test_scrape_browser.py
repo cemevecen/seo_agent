@@ -61,11 +61,15 @@ def test_deploy_skips_firefox_on_railway_image():
     root = Path(__file__).resolve().parents[2]
     dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
     nix = (root / "nixpacks.toml").read_text(encoding="utf-8")
+    req = (root / "requirements.txt").read_text(encoding="utf-8")
     assert "RUN playwright install firefox" not in dockerfile
     assert "playwright install chromium" not in dockerfile
+    assert "libgtk-3-0" not in dockerfile
     assert "playwright install firefox" not in nix
     assert "playwright install chromium" not in nix
     assert "Mac bridge" in dockerfile
+    assert 'sys_platform == "darwin"' in req
+    assert "playwright==" in req
 
 
 def test_browser_scrape_forbidden_on_railway(monkeypatch):

@@ -1,6 +1,5 @@
-# Railway Nixpacks: Playwright/Firefox KURULMAZ.
-# Browser scrape yalnız Mac bridge'de (scripts/doviz_admin_notification_bridge.py).
-# Bulutta firefox binary = gereksiz disk + yanlışlıkla launch riski + RAM faturası.
+# Railway Nixpacks: Playwright/Firefox/Selenium KURULMAZ (requirements Darwin marker).
+# Browser scrape yalnız Mac bridge — bulutta RAM/disk faturası yok.
 [phases.build]
 dependsOn = ["install"]
 cmds = ["echo 'nixpacks: playwright/firefox skipped (Mac bridge only)'"]

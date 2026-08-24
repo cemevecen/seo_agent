@@ -170,8 +170,10 @@ def _bridge():
     import os
 
     os.environ.setdefault("NOTIFICATION_INGEST_TOKEN", "x")
+    name = "bridge_sched"
+    sys.modules.pop(name, None)
     spec = iu.spec_from_file_location(
-        "bridge_sched", ROOT / "scripts/doviz_admin_notification_bridge.py"
+        name, ROOT / "scripts/doviz_admin_notification_bridge.py"
     )
     mod = iu.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -198,12 +200,31 @@ def test_firebase_follows_asc_by_three_minutes():
         assert delta >= gap_min
 
 
-def test_warmup_runs_before_every_asc_slot():
+def test_warmup_auto_disabled_by_default(monkeypatch):
+    """Otomatik warm-up varsayılan kapalı — Playwright login maliyeti yok."""
+    monkeypatch.delenv("LOGIN_WARMUP_AUTO", raising=False)
+    monkeypatch.delenv("LOGIN_WARMUP_BRIDGE_SLOTS", raising=False)
     m = _bridge()
+    assert m.LOGIN_WARMUP_AUTO is False
+    assert m.LOGIN_WARMUP_SLOTS == ()
+
+
+def test_warmup_slots_when_auto_enabled(monkeypatch):
+    monkeypatch.setenv("LOGIN_WARMUP_AUTO", "1")
+    monkeypatch.delenv("LOGIN_WARMUP_BRIDGE_SLOTS", raising=False)
+    m = _bridge()
+    assert m.LOGIN_WARMUP_AUTO is True
     assert len(m.LOGIN_WARMUP_SLOTS) == len(m.ASC_SLOTS)
     for (wh, wm), (ah, am) in zip(m.LOGIN_WARMUP_SLOTS, m.ASC_SLOTS):
         lead = (ah * 60 + am) - (wh * 60 + wm)
         assert lead == 10, f"warm-up {wh:02d}:{wm:02d} → ASC {ah:02d}:{am:02d} = {lead} dk"
+
+
+def test_warmup_bridge_uses_check_only_by_default():
+    src = (ROOT / "scripts/doviz_admin_notification_bridge.py").read_text(encoding="utf-8")
+    body = src.split("def run_login_warmup_bridge_once", 1)[1].split("\ndef ", 1)[0]
+    assert "check_only=check_only" in body
+    assert 'LOGIN_WARMUP_CHECK_ONLY") or "1"' in body
 
 
 def test_slot_pairs_parser_ignores_junk():
