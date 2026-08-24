@@ -11,7 +11,8 @@ Toplantıda ekran yansıtılırken gelen kutusu ve panel toast’ları görünü
 
 - Panel giriş / kayıt / başarısız giriş / gezinti uyarı **mailleri kapalı** (`_deliver_unknown_login_alert` no-op).
 - Bridge / konsol giriş mailleri de kapalı.
-- SEO Realtime özet: konu + preheader = web/mweb en çok trafikli **haber başlığı** (SEO 180 - HH:MM yok).
+- SEO Realtime özet: konu + preheader = web/mweb en çok trafikli **haber başlıkları**, her biri **ilk 20 karakter** (`altında sert ivmelen… · …`). `SEO 180 - HH:MM` yok.
+- Bridge / konsol giriş **ve** «oturumu düzeldi» mailleri kapalı.
 - Konuda e-posta veya isim **yok**; gövdede olabilir.
 - Kod: `backend/services/admin_access_log.py`, `backend/services/ga4_realtime.py`.
 

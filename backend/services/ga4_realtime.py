@@ -213,25 +213,18 @@ def _email_site_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
 
 
 def _email_page_alarm_subject(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
-    """sinemalar.com — Altın haberi +57 · Dolar +32 [mweb]"""
-    short = _email_site_short_label(domain)
-    p = _email_profile_abbr(profile)
-    suffix = f" [{p}]" if p not in ("web", "") else ""
-    chips = []
-    for a in alarms[:10]:
-        t = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=20)
-        c = int(a.get("current_users", 0))
-        pv = int(a.get("previous_users", 0))
-        rid = str(a.get("rule_id", ""))
-        if rid == "page_disappeared":
-            chips.append(f"{t} ↓{pv}")
-        elif rid == "page_new_entry":
-            chips.append(f"{t} ↑{c}")
-        else:
-            d = c - pv
-            chips.append(f"{t} {'+' if d >= 0 else ''}{d}")
-    rest = f" +{len(alarms) - 10}" if len(alarms) > 10 else ""
-    return f"{short} — {' · '.join(chips)}{rest}{suffix}"
+    """Sayfa alarm konusu: başlıkların ilk 20 karakteri sırayla (SEO preview)."""
+    chips: list[str] = []
+    for a in alarms[:12]:
+        chip = _news_preview_chip(str(a.get("page") or ""), max_len=20)
+        if chip and chip not in chips:
+            chips.append(chip)
+    if not chips:
+        short = _email_site_short_label(domain)
+        p = _email_profile_abbr(profile)
+        suffix = f" [{p}]" if p not in ("web", "") else ""
+        return f"{short} — sayfa{suffix}"
+    return " · ".join(chips)[:120]
 
 
 def _sort_news_alarms(alarms: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -248,39 +241,22 @@ def _sort_news_alarms(alarms: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
-    """Konu: en yüksek trafikli ilk 10 haber alarmının özeti."""
-    short = _email_site_short_label(domain)
-    p = _email_profile_abbr(profile)
-    suffix = f" [{p}]" if p not in ("web", "") else ""
-
-    def _alarm_chip(a: dict[str, Any]) -> str:
-        title = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=22)
-        rid = str(a.get("rule_id", ""))
-        curr = int(a.get("current_users", 0))
-        prev = int(a.get("previous_users", 0))
-        if rid == "news_new_entry":
-            return f"{title} ↑{curr}"
-        if rid == "news_disappeared":
-            return f"{title} ↓{prev}"
-        if rid == "news_peak_drop":
-            peak = int(a.get("peak_users", prev))
-            return f"{title} ↓{curr}"
-        delta = curr - prev
-        sign = "+" if delta >= 0 else ""
-        return f"{title} {sign}{delta}"
-
-    # Negatifleri (drop/disappeared/peak_drop) ayır, ikisinin de konuda kesinlikle görünmesini garantile
+    """Konu/preview: alarmdaki haber başlıklarının ilk 20 karakteri, sırayla."""
+    # Negatifleri de dahil et — önce trafik sırası, sonra drop'lar kaybolmasın
     neg_alarms = [a for a in alarms if str(a.get("rule_id", "")) in NEGATIVE_ALARM_RULE_IDS]
     pos_alarms = [a for a in alarms if str(a.get("rule_id", "")) not in NEGATIVE_ALARM_RULE_IDS]
-    pos_sorted = _sort_news_alarms(pos_alarms)
-    neg_sorted = _sort_news_alarms(neg_alarms)
-    # Pozitif slot: max 8, Negatif slot: max 7 — toplam 15
-    chosen = pos_sorted[:8] + neg_sorted[:7]
-    sorted_chosen = _sort_news_alarms(chosen)
-    chips = [_alarm_chip(a) for a in sorted_chosen]
-    remainder = max(0, len(alarms) - len(chosen))
-    rest = f" +{remainder}" if remainder > 0 else ""
-    return f"{short} — {' · '.join(chips)}{rest}{suffix}"
+    chosen = _sort_news_alarms(pos_alarms)[:8] + _sort_news_alarms(neg_alarms)[:7]
+    chips: list[str] = []
+    for a in _sort_news_alarms(chosen):
+        chip = _news_preview_chip(str(a.get("page") or ""), max_len=20)
+        if chip and chip not in chips:
+            chips.append(chip)
+    if not chips:
+        short = _email_site_short_label(domain)
+        p = _email_profile_abbr(profile)
+        suffix = f" [{p}]" if p not in ("web", "") else ""
+        return f"{short} — haber{suffix}"
+    return " · ".join(chips)[:120]
 
 
 def _html_site_alarm_body(
@@ -369,21 +345,20 @@ def _html_page_alarm_body(
                 f'<span style="font-size:16px;color:#94a3b8;margin:0 6px;">→</span>'
                 f'<span style="font-size:22px;font-weight:900;color:{pct_c};">0</span>'
             )
-            pre_parts.append(f"{title[:18]} {prev:,}→0")
         elif rid == "page_new_entry":
             metric_html = (
                 f'<span style="font-size:22px;font-weight:900;color:{pct_c};">0</span>'
                 f'<span style="font-size:16px;color:#94a3b8;margin:0 6px;">→</span>'
                 f'<span style="font-size:22px;font-weight:900;color:{pct_c};">{curr:,}</span>'
             )
-            pre_parts.append(f"{title[:18]} 0→{curr:,}")
         elif prev > 0:
             metric_html = _html_email_metric_row(prev, curr, pct)
-            pre_parts.append(f"{title[:18]} {prev:,}→{curr:,} {pct:+.0f}%")
         else:
             metric_html = f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr:,}</span>'
-            pre_parts.append(f"{title[:18]} {curr:,}")
 
+        chip = _news_preview_chip(str(page or title), max_len=20)
+        if chip and chip not in pre_parts:
+            pre_parts.append(chip)
         paths_html = ""
         page_paths = alarm.get("page_paths") or []
         if page_paths:
@@ -529,16 +504,10 @@ def _html_news_alarm_body(
             )
 
     pre_parts: list[str] = []
-    if kpi.get("current"):
-        cur_k = int(kpi["current"])
-        pct_k = float(kpi.get("change_pct", 0))
-        pre_parts.append(f"site {cur_k:,} {pct_k:+.0f}%")
-    for a in alarms[:10]:
-        title = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=18)
-        curr  = int(a.get("current_users", 0))
-        prev_a = int(a.get("previous_users", 0))
-        if title and title != "—":
-            pre_parts.append(f"{title}: {prev_a:,}→{curr:,}")
+    for a in _sort_news_alarms(alarms)[:12]:
+        chip = _news_preview_chip(str(a.get("page") or ""), max_len=20)
+        if chip and chip not in pre_parts:
+            pre_parts.append(chip)
     preheader_str = " · ".join(pre_parts) if pre_parts else f"{len(alarms)} haber"
 
     return f"""
@@ -2936,14 +2905,31 @@ def build_realtime_periodic_digest_html(
     )
 
 
-def realtime_digest_top_news_lock_title(db: Session, *, max_len: int = 90) -> str:
-    """Web + mweb haber sayfalarından en yüksek trafikli başlık (kilit / preview)."""
+def _news_preview_chip(title: str, *, max_len: int = 20) -> str:
+    """Kilit / gelen kutusu preview: haber başlığının ilk N karakteri (+ …)."""
+    t = " ".join(str(title or "").split()).strip()
+    if not t or t == "—":
+        return ""
+    n = max(4, int(max_len))
+    if len(t) <= n:
+        return t
+    return t[: n - 1].rstrip(" .,;:") + "…"
+
+
+def realtime_digest_news_preview_line(
+    db: Session,
+    *,
+    chip_len: int = 20,
+    max_chips: int = 10,
+    max_total: int = 140,
+) -> str:
+    """Web/mweb en çok trafikli haber başlıkları — her biri chip_len, · ile sıralı."""
     from backend.models import Site as SiteModel
 
     window_minutes = _digest_window_minutes()
     sites = _sort_sites(db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all())
-    best_title = ""
-    best_au = -1.0
+    scored: list[tuple[float, str]] = []
+    seen: set[str] = set()
     for brand, profile in REALTIME_DIGEST_AREAS:
         if profile not in ("web", "mweb"):
             continue
@@ -2957,12 +2943,12 @@ def realtime_digest_top_news_lock_title(db: Session, *, max_len: int = 90) -> st
                 profile=profile,
                 site_domain=str(site.domain or ""),
                 window_minutes=window_minutes,
-                limit=3,
+                limit=max(8, int(max_chips)),
                 sort_by="activeUsers",
             )
         except Exception:  # noqa: BLE001
             logger.exception(
-                "Digest lock title: news aggregate failed brand=%s profile=%s",
+                "Digest news preview: aggregate failed brand=%s profile=%s",
                 brand,
                 profile,
             )
@@ -2972,22 +2958,54 @@ def realtime_digest_top_news_lock_title(db: Session, *, max_len: int = 90) -> st
             raw = str(row.get("page") or "").strip()
             if not raw:
                 continue
-            title = _rt_alarm_screen_title_one_line(raw, max_len=max(24, int(max_len)))
+            # Path değil başlık; path ise tek satır kısalt
+            title = _rt_alarm_screen_title_one_line(raw, max_len=120)
             if title in ("", "—"):
                 continue
-            if au > best_au:
-                best_au = au
-                best_title = title
-    if best_title:
-        return best_title[: max(1, int(max_len))]
-    return "SEO Realtime"
+            key = title.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            scored.append((au, title))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    chips: list[str] = []
+    seen_chip: set[str] = set()
+    for _, title in scored:
+        if len(chips) >= max(1, int(max_chips)):
+            break
+        chip = _news_preview_chip(title, max_len=chip_len)
+        if not chip:
+            continue
+        ck = chip.casefold()
+        if ck in seen_chip:
+            continue
+        seen_chip.add(ck)
+        chips.append(chip)
+    if not chips:
+        return "SEO Realtime"
+    line = " · ".join(chips)
+    cap = max(20, int(max_total))
+    if len(line) > cap:
+        line = line[: cap - 1].rstrip(" ·") + "…"
+    return line
+
+
+def realtime_digest_top_news_lock_title(db: Session, *, max_len: int = 90) -> str:
+    """Geriye uyum: kilit/preview satırı = sıralı 20 karakterlik haber chip’leri."""
+    return realtime_digest_news_preview_line(
+        db,
+        chip_len=20,
+        max_chips=10,
+        max_total=max(40, int(max_len)),
+    )
 
 
 def realtime_periodic_digest_subject(db: Session | None = None) -> str:
-    """Telefon kilit / gelen kutusu konusu — top haber başlığı (SEO 180 - HH:MM yok)."""
+    """Gelen kutusu konusu = sıralı haber chip’leri (SEO 180 - HH:MM yok)."""
     if db is None:
         return "SEO Realtime"
-    return realtime_digest_top_news_lock_title(db, max_len=90)[:120]
+    return realtime_digest_news_preview_line(db, chip_len=20, max_chips=10, max_total=120)
+
 
 
 def check_site_realtime(

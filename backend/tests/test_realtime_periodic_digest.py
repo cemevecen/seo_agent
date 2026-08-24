@@ -22,13 +22,27 @@ def test_realtime_periodic_digest_subject_format(monkeypatch):
     db = MagicMock()
 
     monkeypatch.setattr(
-        "backend.services.ga4_realtime.realtime_digest_top_news_lock_title",
-        lambda _db, max_len=90: "Dolar kuru rekor kırdı: piyasalarda son durum",
+        "backend.services.ga4_realtime.realtime_digest_news_preview_line",
+        lambda _db, chip_len=20, max_chips=10, max_total=120: (
+            "altında sert ivmelen… · fed kararı sonrası a… · dolar yükselirken…"
+        ),
     )
     subj = realtime_periodic_digest_subject(db)
-    assert subj == "Dolar kuru rekor kırdı: piyasalarda son durum"
+    assert "altında sert ivmelen…" in subj
     assert "SEO 90" not in subj
-    assert " - " not in subj or "rekor" in subj
+    assert "SEO 180" not in subj
+    assert "07:00" not in subj
+
+
+def test_news_preview_chip_truncates_to_20():
+    from backend.services.ga4_realtime import _news_preview_chip
+
+    long = "altında sert ivmelenme. fed kararı sonrası altın yükseliyor"
+    chip = _news_preview_chip(long, max_len=20)
+    assert chip.endswith("…")
+    assert len(chip) == 20
+    assert chip.startswith("altında sert")
+    assert _news_preview_chip("kısa", max_len=20) == "kısa"
 
 
 def test_realtime_periodic_digest_subject_fallback_without_db():
