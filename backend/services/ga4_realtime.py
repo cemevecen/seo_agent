@@ -5448,28 +5448,8 @@ def save_app_event_snapshots(
     profile: str,
     events: list[dict[str, Any]],
 ) -> None:
-    """Şu anki event sayımlarını DB'ye yazar (zirve karşılaştırması için)."""
-    from backend.models import RealtimeAppEventSnapshot
-
-    for e in events[:200]:
-        name = str(e.get("eventName") or "").strip()[:200]
-        if not name or name.lower() in _APP_EVENT_BLACKLIST:
-            continue
-        cnt = float(e.get("eventCount") or 0)
-        if cnt <= 0:
-            continue
-        snap = RealtimeAppEventSnapshot(
-            site_id=site_id,
-            profile=profile,
-            event_name=name,
-            event_count=cnt,
-        )
-        db.add(snap)
-    try:
-        db.commit()
-    except Exception:
-        db.rollback()
-        logger.exception("RealtimeAppEventSnapshot kayıt hatası (site_id=%s)", site_id)
+    """App event snapshot yazımı kapalı (Screens/News detail + peak alarm birikimi yok)."""
+    return
 
 
 def get_peak_app_event_snapshots(

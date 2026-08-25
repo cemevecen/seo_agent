@@ -20737,6 +20737,17 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             except Exception:
                 LOGGER.exception("realtime_alarm_logs temizlik hatası")
 
+        # App event snapshot yazımı kapalıysa tabloyu hemen boşalt
+        if int(getattr(settings, "db_retention_realtime_app_event_snapshot_days", 0) or 0) <= 0:
+            try:
+                with SessionLocal() as db:
+                    n = db.query(RealtimeAppEventSnapshot).delete(synchronize_session=False)
+                    db.commit()
+                    if n:
+                        LOGGER.info("realtime_app_event_snapshots temizlendi: %s satır", n)
+            except Exception:
+                LOGGER.exception("realtime_app_event_snapshots temizlik hatası")
+
         from backend.services.ga4_realtime import (
             run_all_sites_realtime_check,
             run_news_alarm_check_all_sites,

@@ -463,7 +463,12 @@ class Settings(BaseSettings):
     )
     db_retention_realtime_page_snapshot_days: int = Field(default=3, ge=1, le=90)
     db_retention_realtime_news_snapshot_days: int = Field(default=3, ge=1, le=90)
-    db_retention_realtime_app_event_snapshot_days: int = Field(default=3, ge=1, le=90)
+    db_retention_realtime_app_event_snapshot_days: int = Field(
+        default=0,
+        ge=0,
+        le=90,
+        description="0 = realtime_app_event_snapshots tablosunu tamamen boşalt (yeni yazım da kapalı).",
+    )
     db_retention_realtime_news_article_bucket_days: int = Field(default=90, ge=1, le=730)
     db_retention_app_store_rank_days: int = Field(default=30, ge=1, le=365)
     db_retention_app_intel_cache_days: int = Field(default=7, ge=1, le=365)
