@@ -671,6 +671,9 @@ def _split_alarms_by_sentiment(alarms: list[dict[str, Any]]) -> tuple[list[dict[
 ALARM_EMAIL_TOP_N = 10
 REALTIME_DETAIL_TOP_N = 10
 REALTIME_BUCKET_TOP_PAGES_N = 10
+# Spark tooltip / page snapshot DB — üst N yeter; 100 satır gereksiz şişme yaratıyordu.
+PAGE_SNAPSHOT_SAVE_LIMIT = 20
+PAGE_SNAPSHOT_TOOLTIP_MIN_INTERVAL_SEC = 300
 
 # 4 saatlik özet maili: doviz web/mweb/android/ios + sinemalar web/mweb (monetizasyon 6 akış)
 REALTIME_DIGEST_AREAS: tuple[tuple[str, str], ...] = (
@@ -3160,7 +3163,6 @@ def check_site_realtime(
 
 
 CHART_SNAPSHOT_MIN_INTERVAL_SEC = 50
-PAGE_SNAPSHOT_TOOLTIP_MIN_INTERVAL_SEC = 300
 
 
 def _maybe_record_chart_snapshot(db: Session, site_id: int, profile: str, result: dict[str, Any]) -> None:
@@ -4003,7 +4005,7 @@ def _maybe_save_page_snapshots_for_tooltip(
         result = fetch_realtime_top_pages(
             property_id,
             window_minutes=15,
-            limit=100,
+            limit=PAGE_SNAPSHOT_SAVE_LIMIT,
             compare_previous=False,
         )
         pages = result.get("pages") or []
@@ -4024,10 +4026,11 @@ def save_page_snapshots(
     profile: str,
     pages: list[dict[str, Any]],
 ) -> None:
-    """Top sayfa sonuçlarını DB'ye kaydeder."""
+    """Top sayfa sonuçlarını DB'ye kaydeder (en fazla PAGE_SNAPSHOT_SAVE_LIMIT)."""
     from backend.models import RealtimePageSnapshot
 
-    for i, page in enumerate(pages[:100]):
+    cap = max(1, int(PAGE_SNAPSHOT_SAVE_LIMIT))
+    for i, page in enumerate(pages[:cap]):
         snap = RealtimePageSnapshot(
             site_id=site_id,
             profile=profile,
