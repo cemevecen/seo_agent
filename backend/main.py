@@ -5119,10 +5119,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         except Exception:
             pass
 
-    # Doviz News — 30 dk’da bir admin/DB ısıt (scrape: proxy veya bridge ingest)
+    # Doviz News — saatte bir (07–22 TR); gece 23–07 güncelleme yok. Asıl scrape: Mac bridge.
     scheduler.add_job(
         _run_doviz_news_sheet_refresh_job,
-        trigger=CronTrigger(minute="*/30", timezone=timezone),
+        trigger=CronTrigger(hour="7-22", minute=0, timezone=timezone),
         id="doviz-news-sheet-refresh",
         replace_existing=True,
         max_instances=1,
@@ -5287,6 +5287,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
 
     def _run_notification_sheet_sync() -> None:
         try:
+            from datetime import datetime as _dt
+            from zoneinfo import ZoneInfo as _ZoneInfo
+
+            tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
+            hour = _dt.now(_ZoneInfo(tz_name)).hour
+            # 07:00–22:59 TR; gece 23:00–06:59 yok (manuel refresh serbest)
+            if hour < 7 or hour >= 23:
+                logging.getLogger(__name__).info(
+                    "Notification auto-sync atlandı (gece penceresi, hour=%s TR).", hour
+                )
+                return
+
             from backend.services.notification_analytics_store import sync_notification_analytics
 
             with SessionLocal() as db:
@@ -5301,11 +5313,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).warning("Notification sheet sync job: %s", exc)
 
-    from apscheduler.triggers.interval import IntervalTrigger as _NtSheetTrigger
-
+    # Notification sheet — saatte bir (07–22 TR); gece kapalı. Sık bakış: panel refresh.
     scheduler.add_job(
         _run_notification_sheet_sync,
-        trigger=_NtSheetTrigger(minutes=15),
+        trigger=CronTrigger(hour="7-22", minute=0, timezone=timezone),
         id="notification-analytics-sheet-sync",
         replace_existing=True,
         max_instances=1,
@@ -21092,8 +21103,17 @@ def _run_news_intelligence_job() -> None:
 
 
 def _run_doviz_news_sheet_refresh_job() -> None:
-    """APScheduler: 30 dk — DB snapshot ısıt / proxy varsa admin; asıl scrape Mac bridge."""
+    """APScheduler: saatte bir (07–22 TR) DB snapshot ısıt; asıl scrape Mac bridge."""
     try:
+        from datetime import datetime as _dt
+        from zoneinfo import ZoneInfo as _ZoneInfo
+
+        tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
+        hour = _dt.now(_ZoneInfo(tz_name)).hour
+        if hour < 7 or hour >= 23:
+            LOGGER.info("Doviz News warm atlandı (gece penceresi, hour=%s TR).", hour)
+            return
+
         from backend.services.doviz_news_sheet import fetch_doviz_news_rows, _CACHE
 
         rows = fetch_doviz_news_rows(force=True)
@@ -21111,11 +21131,12 @@ def _run_doviz_news_sheet_refresh_job() -> None:
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
                 age = (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()
-                stale = age > (45 * 60)
+                # 60 dk hedef + ~15 dk tolerans
+                stale = age > (75 * 60)
             except Exception:
                 pass
         LOGGER.info(
-            "Doviz News 30dk warm: rows=%s source=%s sync_ok=%s stale=%s bg=%s admin_err=%s",
+            "Doviz News hourly warm: rows=%s source=%s sync_ok=%s stale=%s bg=%s admin_err=%s",
             len(rows),
             cache.get("source"),
             sync_ok,
