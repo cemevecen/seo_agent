@@ -1280,11 +1280,19 @@ def doviz_news_payload(
     force: bool = False,
     items_limit: int = 250,
     db: Any | None = None,
-    include_traffic: bool = True,
+    include_traffic: bool = False,
     site_id: int = 1,
     custom_start: str | None = None,
     custom_end: str | None = None,
 ) -> dict[str, Any]:
+    """Yayın listesi + analytics.
+
+    ``include_traffic=False`` (varsayılan): GA4/GSC views-clicks, platform kırılımı
+    ve realtime kova toplamları **hiç** hesaplanmaz — sayfa yükü hafif kalır.
+
+    ``include_traffic=True`` («Show traffic»): önbellek temizlenir; trafik **dün**
+    (yesterday) bitişli pencereden sıfırdan çekilir.
+    """
     all_rows = fetch_doviz_news_rows(force=force)
     period_info = resolve_period(
         period,
@@ -1381,12 +1389,27 @@ def doviz_news_payload(
     by_article: dict[str, Any] = {}
     platform_by_article: dict[str, Any] = {}
     article_urls: dict[str, str] = {}
+    platform_matrix: dict[str, Any] | None = None
+    rt_totals: dict[str, Any] = {}
     from backend.services.notification_content_traffic import normalize_article_id as _norm_aid
 
+    items = []
+    # Son içerikler: seçili dönem penceresindeki en yeni N kayıt.
+    # Pencerede hiç kayıt yoksa liste boş kalmasın diye kategorinin tamamına düşülür.
+    item_rows = rows if rows else cat_rows
+    item_limit = max(1, min(int(items_limit or 250), 500))
+    visible_rows = item_rows[:item_limit]
+
+    # Trafik / platform / realtime — yalnız «Show traffic» (include_traffic=True).
     if include_traffic and db is not None:
         try:
-            from backend.services.doviz_news_traffic import enrich_doviz_news_traffic
+            from backend.services.doviz_news_traffic import (
+                clear_doviz_news_traffic_caches,
+                enrich_doviz_news_traffic,
+                fetch_news_platform_breakdown,
+            )
 
+            clear_doviz_news_traffic_caches()
             traffic = enrich_doviz_news_traffic(
                 db,
                 rows=rows,
@@ -1401,18 +1424,8 @@ def doviz_news_payload(
                 "ok": False,
                 "error": str(exc) or "Trafik zenginleştirme başarısız",
             }
+            by_article = {}
 
-    items = []
-    # Son içerikler: seçili dönem penceresindeki en yeni N kayıt.
-    # Pencerede hiç kayıt yoksa liste boş kalmasın diye kategorinin tamamına düşülür.
-    item_rows = rows if rows else cat_rows
-    item_limit = max(1, min(int(items_limit or 250), 500))
-    visible_rows = item_rows[:item_limit]
-
-    # Platform kırılımı (Android/iOS/Web/mWeb · 1g + 7g) — «Show traffic»tan bağımsız.
-    # Listelenen içerikler için çalışır; sonuç 5 dk önbellekte tutulur.
-    platform_matrix: dict[str, Any] | None = None
-    if db is not None:
         try:
             from backend.services.doviz_news_traffic import fetch_news_platform_breakdown
 
@@ -1420,15 +1433,11 @@ def doviz_news_payload(
                 db, rows=visible_rows, site_id=site_id
             )
             platform_by_article = platform_matrix.get("by_article") or {}
-            # Gerçek yayın linkleri: GA4 detay sayfası satırlarından toplanır
             article_urls = platform_matrix.get("urls") or {}
         except Exception as exc:  # noqa: BLE001
             logger.exception("doviz news platform breakdown failed")
             platform_matrix = {"ok": False, "error": str(exc) or "Platform kırılımı başarısız"}
 
-    # Realtime kovaları: 30 dk'lık ayrık dilimlerin toplamı — GA4 çağrısı yok, yerel DB.
-    rt_totals: dict[str, Any] = {}
-    if db is not None:
         try:
             from backend.services.realtime_news_buckets import get_article_realtime_totals
 
@@ -1439,6 +1448,7 @@ def doviz_news_payload(
             )
         except Exception:
             logger.exception("doviz news realtime bucket lookup failed")
+            rt_totals = {}
 
     for r in visible_rows:
         aid = _norm_aid(str(r.get("id") or ""))
@@ -1454,17 +1464,17 @@ def doviz_news_payload(
                 "category": r.get("category"),
                 "date": r.get("date"),
                 "active": r.get("active"),
-                "views": tr.get("views"),
-                "sessions": tr.get("sessions"),
-                "gsc_clicks": tr.get("gsc_clicks"),
-                "gsc_impressions": tr.get("gsc_impressions"),
-                "gsc_ctr": tr.get("gsc_ctr"),
-                "gsc_position": tr.get("gsc_position"),
-                "platforms": platform_by_article.get(aid) or None,
-                "rt_views": rt.get("rt_views"),
-                "rt_peak_users": rt.get("rt_peak_users"),
-                "rt_buckets": rt.get("rt_buckets"),
-                "rt_last_bucket": rt.get("rt_last_bucket"),
+                "views": tr.get("views") if include_traffic else None,
+                "sessions": tr.get("sessions") if include_traffic else None,
+                "gsc_clicks": tr.get("gsc_clicks") if include_traffic else None,
+                "gsc_impressions": tr.get("gsc_impressions") if include_traffic else None,
+                "gsc_ctr": tr.get("gsc_ctr") if include_traffic else None,
+                "gsc_position": tr.get("gsc_position") if include_traffic else None,
+                "platforms": platform_by_article.get(aid) if include_traffic else None,
+                "rt_views": rt.get("rt_views") if include_traffic else None,
+                "rt_peak_users": rt.get("rt_peak_users") if include_traffic else None,
+                "rt_buckets": rt.get("rt_buckets") if include_traffic else None,
+                "rt_last_bucket": rt.get("rt_last_bucket") if include_traffic else None,
             }
         )
 

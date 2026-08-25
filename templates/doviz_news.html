@@ -1289,6 +1289,7 @@
 
   function resetTrafficUi() {
     state.trafficShown = false;
+    state.trafficOptIn = false;
     var block = $("dn-traffic-block");
     if (block) block.classList.add("hidden");
     ["dn-traffic-btn", "dn-items-traffic-btn"].forEach(function (id) {
@@ -1302,9 +1303,12 @@
     });
     if (state.data) {
       state.data.traffic = null;
+      state.data.platform_traffic = null;
       if (state.data.items) {
         state.data.items.forEach(function (it) {
           it.views = it.sessions = it.gsc_clicks = it.gsc_impressions = it.gsc_ctr = it.gsc_position = null;
+          it.platforms = null;
+          it.rt_views = it.rt_peak_users = it.rt_buckets = it.rt_last_bucket = null;
         });
       }
     }
@@ -1376,12 +1380,15 @@
       if (tr.gsc_impressions != null) it.gsc_impressions = tr.gsc_impressions;
       if (tr.gsc_ctr != null) it.gsc_ctr = tr.gsc_ctr;
       if (tr.gsc_position != null) it.gsc_position = tr.gsc_position;
-      var rt = fromItems[aid] || {};
-      if (rt.rt_views != null) it.rt_views = rt.rt_views;
-      if (rt.rt_peak_users != null) it.rt_peak_users = rt.rt_peak_users;
-      if (rt.rt_buckets != null) it.rt_buckets = rt.rt_buckets;
-      if (rt.rt_last_bucket != null) it.rt_last_bucket = rt.rt_last_bucket;
+      var src = fromItems[aid] || {};
+      if (src.platforms != null) it.platforms = src.platforms;
+      if (src.url) it.url = src.url;
+      if (src.rt_views != null) it.rt_views = src.rt_views;
+      if (src.rt_peak_users != null) it.rt_peak_users = src.rt_peak_users;
+      if (src.rt_buckets != null) it.rt_buckets = src.rt_buckets;
+      if (src.rt_last_bucket != null) it.rt_last_bucket = src.rt_last_bucket;
     });
+    if (data && data.platform_traffic) state.data.platform_traffic = data.platform_traffic;
   }
 
   function itemsForTable(data) {
@@ -2794,12 +2801,15 @@
         }
       };
     }
-    var platformCols = [
-      platformCol("android", "Android"),
-      platformCol("ios", "iOS"),
-      platformCol("web", "Web"),
-      platformCol("mweb", "mWeb")
-    ];
+    // Platform / Realtime / GA4-GSC sütunları yalnız «Show traffic» sonrası.
+    var platformCols = state.trafficShown
+      ? [
+          platformCol("android", "Android"),
+          platformCol("ios", "iOS"),
+          platformCol("web", "Web"),
+          platformCol("mweb", "mWeb")
+        ]
+      : [];
     var metricCols = state.trafficShown
       ? [
           {
@@ -2821,6 +2831,24 @@
           {
             key: "gsc_ctr", label: "CTR %", num: true,
             render: function (r) { return r.gsc_ctr == null ? "—" : fmt(r.gsc_ctr, 1); }
+          }
+        ]
+      : [];
+    var realtimeCols = state.trafficShown
+      ? [
+          {
+            key: "rt_views", label: "Realtime", num: true, defaultDir: "desc",
+            render: function (r) {
+              var v = Number(r.rt_views || 0);
+              if (!v) return "—";
+              var tip = ["30 dk'lık ayrık realtime kovalarının toplamı"];
+              if (r.rt_buckets) tip.push(r.rt_buckets + " kova");
+              if (r.rt_peak_users) tip.push("zirve " + fmt(r.rt_peak_users) + " aktif kullanıcı");
+              if (r.rt_last_bucket) {
+                tip.push("son kova " + String(r.rt_last_bucket).replace("T", " ").slice(0, 16) + " UTC");
+              }
+              return '<span title="' + esc(tip.join(" · ")) + '">' + fmt(v) + "</span>";
+            }
           }
         ]
       : [];
@@ -2849,21 +2877,7 @@
             return '<span class="dn-title-text" title="' + esc(full) + '">' + esc(shown) + "</span>";
           }
         },
-        {
-          key: "rt_views", label: "Realtime", num: true, defaultDir: "desc",
-          render: function (r) {
-            var v = Number(r.rt_views || 0);
-            if (!v) return "—";
-            var tip = ["30 dk'lık ayrık realtime kovalarının toplamı"];
-            if (r.rt_buckets) tip.push(r.rt_buckets + " kova");
-            if (r.rt_peak_users) tip.push("zirve " + fmt(r.rt_peak_users) + " aktif kullanıcı");
-            if (r.rt_last_bucket) {
-              tip.push("son kova " + String(r.rt_last_bucket).replace("T", " ").slice(0, 16) + " UTC");
-            }
-            return '<span title="' + esc(tip.join(" · ")) + '">' + fmt(v) + "</span>";
-          }
-        },
-      ].concat(platformCols).concat(metricCols).concat([
+      ].concat(realtimeCols).concat(platformCols).concat(metricCols).concat([
         {
           key: "source", label: "Source",
           render: function (r) {
@@ -3098,8 +3112,8 @@
           }
         }
       }
-      // Trafik ilk yüklemede gelir — «Show traffic» beklemeden sütunlar dolu
-      // gelsin diye tek turda istenir (iki ayrı tur atmak yerine).
+      // Varsayılan: include_traffic=0 — views/clicks/realtime/platform yok.
+      // Yalnız kullanıcı «Show traffic» dediyse (trafficOptIn) tekrar istenir.
       var r = await fetch(reportUrl({ force: !preferBridge && !!force, traffic: !!state.trafficOptIn }), {
         credentials: "same-origin",
       });

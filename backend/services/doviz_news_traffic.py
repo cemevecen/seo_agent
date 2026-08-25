@@ -467,6 +467,12 @@ _PLATFORM_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _PLATFORM_CACHE_TTL_SEC = 300.0
 
 
+def clear_doviz_news_traffic_caches() -> None:
+    """Show traffic: önbelleği at — GA4/GSC + platform kırılımı sıfırdan çekilsin."""
+    _CACHE.clear()
+    _PLATFORM_CACHE.clear()
+
+
 def _load_stored_article_urls(db: Session | None, site_id: int, aids: list[str]) -> dict[str, str]:
     """Daha önce görülmüş linkler — GA4 penceresi dışındaki haberler için."""
     if db is None or not aids:

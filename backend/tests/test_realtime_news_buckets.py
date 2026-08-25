@@ -241,8 +241,8 @@ def test_separate_properties_are_both_collected(db_site, monkeypatch):
     assert totals["913794"]["rt_buckets"] == 1
 
 
-def test_payload_items_expose_realtime_totals(db_site, monkeypatch):
-    """/api/doviz-news/report items'ında rt_views görünmeli (GA4 çağrısı olmadan)."""
+def test_payload_items_expose_realtime_totals_only_with_traffic(db_site, monkeypatch):
+    """rt_views yalnız include_traffic=True iken gelir (Show traffic)."""
     from backend.services import doviz_news_sheet
 
     db, site = db_site
@@ -279,8 +279,31 @@ def test_payload_items_expose_realtime_totals(db_site, monkeypatch):
         ],
     )
 
-    payload = doviz_news_sheet.doviz_news_payload(
+    bare = doviz_news_sheet.doviz_news_payload(
         db=db, include_traffic=False, site_id=site.id, period="last_7d"
+    )
+    bare_item = next(i for i in bare["items"] if str(i["id"]) == "913794")
+    assert bare_item["rt_views"] is None
+    assert bare_item["views"] is None
+    assert bare_item["platforms"] is None
+    assert bare.get("platform_traffic") is None
+    assert bare.get("traffic") is None
+
+    monkeypatch.setattr(
+        "backend.services.doviz_news_traffic.enrich_doviz_news_traffic",
+        lambda *a, **k: {"ok": True, "by_article": {}},
+    )
+    monkeypatch.setattr(
+        "backend.services.doviz_news_traffic.fetch_news_platform_breakdown",
+        lambda *a, **k: {"ok": True, "by_article": {}, "urls": {}},
+    )
+    monkeypatch.setattr(
+        "backend.services.doviz_news_traffic.clear_doviz_news_traffic_caches",
+        lambda: None,
+    )
+
+    payload = doviz_news_sheet.doviz_news_payload(
+        db=db, include_traffic=True, site_id=site.id, period="last_7d"
     )
     item = next(i for i in payload["items"] if str(i["id"]) == "913794")
     assert item["rt_views"] == 40

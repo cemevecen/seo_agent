@@ -66,7 +66,13 @@ def get_doviz_news_report(
     ),
     force: bool = Query(False, description="Önbelleği atla ve yeniden çek (admin → sheet)"),
     items_limit: int = Query(250, ge=1, le=500),
-    include_traffic: bool = Query(False, description="GA4 + GSC trafik zenginleştirmesi (varsayılan kapalı)"),
+    include_traffic: bool = Query(
+        False,
+        description=(
+            "GA4/GSC + platform + realtime kovaları. Varsayılan kapalı; "
+            "yalnız «Show traffic» ile açın (dün bitişli, önbelleksiz)."
+        ),
+    ),
     site_id: int = Query(1, ge=1, description="Site ID (GA4/GSC)"),
     db: Session = Depends(get_db),
 ):

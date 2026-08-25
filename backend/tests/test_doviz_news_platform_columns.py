@@ -152,10 +152,11 @@ def test_page_keeps_existing_columns_and_renames_views_to_realtime():
     html = PAGE.read_text(encoding="utf-8")
     assert 'key: "rt_views", label: "Realtime"' in html
     assert 'label: "Views"' not in html
-    # Mevcut sütunlar duruyor
+    # Mevcut sütunlar duruyor (Show traffic sonrası)
     for needle in ('key: "source"', 'key: "category"', 'key: "date"',
                    'label: "GA4 views"', 'label: "Sessions"', 'label: "GSC clicks"'):
         assert needle in html, needle
+    assert "var realtimeCols = state.trafficShown" in html
 
 
 def test_page_adds_four_platform_columns():
@@ -163,22 +164,22 @@ def test_page_adds_four_platform_columns():
     for label in ('"Android"', '"iOS"', '"Web"', '"mWeb"'):
         assert 'platformCol("' in html and label in html
     assert "platformCols" in html
-    assert ".concat(platformCols).concat(metricCols)" in html
+    assert ".concat(realtimeCols).concat(platformCols).concat(metricCols)" in html
 
 
-def test_platform_columns_do_not_depend_on_show_traffic():
-    """Sütunlar «Show traffic» olmadan da görünmeli (konu 2)."""
+def test_platform_columns_depend_on_show_traffic():
+    """Platform / Realtime sütunları yalnız trafficShown iken (Show traffic)."""
     html = PAGE.read_text(encoding="utf-8")
-    block = html.split("var platformCols = [", 1)[1].split("];", 1)[0]
-    assert "state.trafficShown" not in block, block[:200]
+    assert "var platformCols = state.trafficShown" in html
+    assert "var realtimeCols = state.trafficShown" in html
+    assert ".concat(realtimeCols).concat(platformCols).concat(metricCols)" in html
 
 
 def test_first_load_stays_traffic_free_until_the_user_opts_in():
     """Total grafik verileri varsayılan kapalı.
 
     GA4 + GSC kartları/grafikleri ve hesaplamaları ilk yüklemede istenmez;
-    yalnız kullanıcı «Total grafik verilerini göster» derse bir daha ki
-    isteklerde de gelir (opt-in dönem değişiminde korunur).
+    yalnız kullanıcı «Total grafik verilerini göster» / «Show traffic» derse gelir.
     """
     html = PAGE.read_text(encoding="utf-8")
     load_body = html.split("async function load(force, opts)", 1)[1].split(
@@ -186,6 +187,7 @@ def test_first_load_stays_traffic_free_until_the_user_opts_in():
     )[0]
     assert "traffic: !!state.trafficOptIn" in load_body, "ilk yükleme hâlâ trafik istiyor"
     assert "traffic: true" not in load_body
+    assert "include_traffic=0" in load_body or "Varsayılan: include_traffic=0" in load_body
     # Trafik geldiğinde satırlara işlenmeli, aksi halde sütunlar boş görünür
     assert "applyTrafficToItems(data)" in load_body
     assert "state.trafficShown = !!(data && data.traffic)" in load_body
@@ -260,22 +262,29 @@ def test_empty_platform_data_explains_itself():
     assert "Platform trafiği alınamadı" in html
 
 
-def test_payload_exposes_platform_traffic_outside_traffic_block():
+def test_payload_gates_platform_and_realtime_behind_include_traffic():
     src = (ROOT / "backend/services/doviz_news_sheet.py").read_text(encoding="utf-8")
-    assert '"platform_traffic": platform_matrix,' in src
-    # Trafik bloğunun içinde çağrılmamalı
-    traffic_block = src.split("if include_traffic and db is not None:", 1)[1].split("items = []", 1)[0]
-    assert "fetch_news_platform_breakdown" not in traffic_block
+    assert "include_traffic: bool = False" in src
+    assert "clear_doviz_news_traffic_caches()" in src
+    # Platform + realtime yalnız include_traffic bloğunda
+    block = src.split("# Trafik / platform / realtime", 1)[1].split("for r in visible_rows:", 1)[0]
+    assert "fetch_news_platform_breakdown" in block
+    assert "get_article_realtime_totals" in block
+    assert "if include_traffic and db is not None:" in src
+    # Varsayılan yükte çağrılmamalı — include_traffic dışında platform yok
+    before = src.split("if include_traffic and db is not None:", 1)[0]
+    assert "fetch_news_platform_breakdown" not in before
+    assert "get_article_realtime_totals" not in before
 
 
 def test_source_and_category_are_the_last_columns():
     """Sütun sırası: … platform · metrikler · Source · Category."""
     html = PAGE.read_text(encoding="utf-8")
-    tail = html.split(".concat(platformCols).concat(metricCols).concat([", 1)[1].split("])", 1)[0]
+    tail = html.split(".concat(realtimeCols).concat(platformCols).concat(metricCols).concat([", 1)[1].split("])", 1)[0]
     assert 'key: "source"' in tail
     assert 'key: "category"' in tail
     items_table = html.split('mountInteractiveTable("dn-table-items"', 1)[1]
-    fixed = items_table.split("columns: [", 1)[1].split(".concat(platformCols)", 1)[0]
+    fixed = items_table.split("columns: [", 1)[1].split(".concat(realtimeCols)", 1)[0]
     assert 'key: "source"' not in fixed
     assert 'key: "category"' not in fixed
 
@@ -536,7 +545,7 @@ def test_sheet_puts_the_url_on_the_item():
 
 def test_title_cell_links_only_with_a_real_http_url():
     html = PAGE.read_text(encoding="utf-8")
-    block = html.split('key: "title", label: "Title"', 1)[1].split("key: \"rt_views\"", 1)[0]
+    block = html.split('key: "title", label: "Title"', 1)[1].split(".concat(realtimeCols)", 1)[0]
     assert 'r.url' in block
     assert '/^https?:\\/\\//i.test(href)' in block
     # Yeni sekmede ve güvenli açılsın
