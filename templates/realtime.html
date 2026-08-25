@@ -2801,7 +2801,7 @@
     <div class="rt-names-board-head">
       <div>
         <h2>Live links</h2>
-        <p>Last ~15 min · page name + live traffic · Doviz &amp; Sinemalar web/mweb · top 50</p>
+        <p>Last ~15 min · on open only (no background poll) · Doviz &amp; Sinemalar web/mweb · top 50</p>
       </div>
       <p class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-names-board-ts>—</p>
     </div>
@@ -3281,6 +3281,7 @@
   var RT_NAMES_RANGE = '15m';
   var _pageTimers = {};
   var _namesBoardTimer = null;
+  var _namesFetchGen = 0;
   var _alarmExpanded = false;
   var RT_VIEW_LS_KEY = 'rt_view_mode';
   var _liveCountdownSec = LIVE_POLL_SEC;
@@ -3419,21 +3420,16 @@
 
   function _refreshLiveCycle() {
     var night = _isNightMode();
-    /* Linkler görünümü: KPI/spark/app yok — sadece isim panosunu yenile (kota) */
-    if (!night && rtGetViewMode() === 'names') {
-      rtFetchNamesBoard();
-      return;
-    }
+    /* Linkler: otomatik yok — yalnız tıklanınca / Check All */
+    if (rtGetViewMode() === 'names') return;
     _rtProfileBoxes().forEach(function (box) {
       var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
       var prof = box.getAttribute('data-rt-profile');
       if (isNaN(sid) || !prof) return;
 
       if (night) {
-        /* Gece modu: Sadece spark (trend) yenile. GA4 API çağrısı yapılmaz, DB'den son trend çekilir. */
         rtFetchTrend(sid, prof);
       } else {
-        /* Gündüz modu: Tam yenileme (KPI + Alarm + Trend). */
         rtFetchProfile(sid, prof);
       }
     });
@@ -6538,10 +6534,12 @@
       });
     }
     if (m === 'names') {
-      rtFetchNamesBoard();
-      _ensureNamesBoardTimer(true);
+      _ensureNamesBoardTimer(false);
+      /* Yalnız bu sekmeye tıklanınca bir kez çek — timer/arka plan yok */
+      if (!document.hidden) rtFetchNamesBoard();
     } else {
       _ensureNamesBoardTimer(false);
+      _namesFetchGen++; /* devam eden Linkler isteklerini iptal say */
       /* Linkler'den çıkınca Tam/Özet verisini yeniden doldur */
       if (prev === 'names') _resumeStandardRealtime();
     }
@@ -6609,7 +6607,8 @@
     var kpiP = fetch(
       '/api/ga4/realtime/' + siteId
         + '?window=' + WINDOW
-        + '&profile=' + encodeURIComponent(profile),
+        + '&profile=' + encodeURIComponent(profile)
+        + '&persist=0',
       { credentials: 'same-origin', cache: 'no-store' }
     ).then(function (r) { return r.json(); }).catch(function () { return null; });
 
@@ -6652,6 +6651,9 @@
   }
 
   function rtFetchNamesBoard() {
+    /* Arka plan / yanlış sekme: asla çekme */
+    if (document.hidden || rtGetViewMode() !== 'names') return;
+    var gen = ++_namesFetchGen;
     var cols = document.querySelectorAll('[data-rt-names-col]');
     if (!cols.length) return;
     var boardTs = document.querySelector('[data-rt-names-board-ts]');
@@ -6659,6 +6661,7 @@
     var latest = null;
     cols.forEach(function (col, idx) {
       setTimeout(function () {
+        if (gen !== _namesFetchGen || document.hidden || rtGetViewMode() !== 'names') return;
         _fetchNamesCol(col).then(function (d) {
           if (d && d.fetched_at) {
             var t = new Date(d.fetched_at);
@@ -6677,15 +6680,11 @@
   window.rtFetchNamesBoard = rtFetchNamesBoard;
 
   function _ensureNamesBoardTimer(on) {
+    /* Linkler otomatik poll kapalı — sadece tıklanınca rtFetchNamesBoard */
     if (_namesBoardTimer) {
       clearInterval(_namesBoardTimer);
       _namesBoardTimer = null;
     }
-    if (!on) return;
-    _namesBoardTimer = setInterval(function () {
-      if (_isNightMode() || document.hidden || rtGetViewMode() !== 'names') return;
-      rtFetchNamesBoard();
-    }, PAGES_INTERVAL_MS);
   }
 
   function _fetchGlobalAlarms(limit) {
@@ -7120,17 +7119,15 @@
     }, 1000);
     _startLiveCountdown();
     if (rtGetViewMode() === 'names') {
-      rtFetchNamesBoard();
-      _ensureNamesBoardTimer(true);
+      /* Sayfa Linkler ile açıldıysa tek çekim; timer yok */
+      if (!document.hidden) rtFetchNamesBoard();
     }
 
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState !== 'visible') return;
       _resetLiveCountdown();
-      if (rtGetViewMode() === 'names') {
-        rtFetchNamesBoard();
-        return;
-      }
+      /* Linkler arka plandan dönüşte yeniden çekilmez — yalnız tıklanınca */
+      if (rtGetViewMode() === 'names') return;
       _rtProfileBoxes().forEach(function (box, vidx) {
         var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
         var prof = box.getAttribute('data-rt-profile');

@@ -3019,15 +3019,14 @@ def check_site_realtime(
     profile: str = "web",
     skip_alarms: bool = False,
     skip_emails: bool = False,
+    persist: bool = True,
 ) -> dict[str, Any]:
     """Tek bir site+profil için realtime kontrol çalıştırır.
 
     1. GA4 property_id bulunur
     2. Realtime API çağrılır
     3. Alarm kuralları değerlendirilir
-    4. Sonuç DB'ye kaydedilir
-
-    Returns full result dict.
+    4. persist=True ise sonuç DB'ye kaydedilir
     """
     record = get_ga4_credentials_record(db, site.id)
     properties = load_ga4_properties(record)
@@ -3113,7 +3112,8 @@ def check_site_realtime(
     result["alarms"] = alarms
     result["alarm_count"] = len(alarms)
 
-    _save_snapshot(db, site.id, profile, result)
+    if persist:
+        _save_snapshot(db, site.id, profile, result)
 
     if alarms:
         _save_alarm_logs(db, site.id, alarms, profile=profile)
@@ -3641,6 +3641,7 @@ def fetch_realtime_profile_bundle(
     trend_limit: int = REALTIME_TREND_LIMIT_DEFAULT,
     trend_hours: float | None = None,
     skip_alarms: bool = True,
+    persist: bool = True,
 ) -> dict[str, Any]:
     """Realtime sayfası ve ana sayfa KPI/spark için ortak veri yolu (TTL cache + trend)."""
     from backend.config import settings
@@ -3655,28 +3656,35 @@ def fetch_realtime_profile_bundle(
         ttl = max(ttl, 120)
 
     def _produce() -> dict[str, Any]:
-        return check_site_realtime(db, site, window_minutes=w, profile=prof, skip_alarms=skip_alarms)
+        return check_site_realtime(
+            db, site, window_minutes=w, profile=prof, skip_alarms=skip_alarms, persist=persist
+        )
 
+    # persist=False (Linkler): cache anahtarını ayır — kalıcı snapshot yazan yollarla karışmasın
+    cache_key = f"rt:kpi:{sid}:{prof}:{w}" + ("" if persist else ":nopersist")
     result = dict(
         get_or_call(
-            f"rt:kpi:{sid}:{prof}:{w}",
+            cache_key,
             ttl,
             _produce,
             is_error=lambda r: bool(r.get("error")),
             last_good_ttl=settings.ga4_realtime_last_good_seconds,
         )
     )
-    _maybe_record_chart_snapshot(db, sid, prof, result)
-    if not result.get("error") and prof in ("web", "mweb"):
-        record = get_ga4_credentials_record(db, site.id)
-        properties = load_ga4_properties(record)
-        property_id = properties.get(prof) or properties.get("web")
-        if property_id:
-            _maybe_save_page_snapshots_for_tooltip(db, sid, prof, str(property_id))
-    if trend_hours is not None and trend_hours > 0:
-        result["trend"] = get_recent_snapshots(db, sid, profile=prof, hours=trend_hours)
+    if persist:
+        _maybe_record_chart_snapshot(db, sid, prof, result)
+        if not result.get("error") and prof in ("web", "mweb"):
+            record = get_ga4_credentials_record(db, site.id)
+            properties = load_ga4_properties(record)
+            property_id = properties.get(prof) or properties.get("web")
+            if property_id:
+                _maybe_save_page_snapshots_for_tooltip(db, sid, prof, str(property_id))
+        if trend_hours is not None and trend_hours > 0:
+            result["trend"] = get_recent_snapshots(db, sid, profile=prof, hours=trend_hours)
+        else:
+            result["trend"] = get_recent_snapshots(db, sid, profile=prof, limit=trend_limit)
     else:
-        result["trend"] = get_recent_snapshots(db, sid, profile=prof, limit=trend_limit)
+        result["trend"] = []
     return result
 
 

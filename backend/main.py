@@ -18464,11 +18464,16 @@ def ad_app_banner_ga4_page(request: Request):
 
 
 @app.get("/api/ga4/realtime/{site_id}")
-def api_ga4_realtime(site_id: int, window: int | None = None, profile: str = "web"):
+def api_ga4_realtime(
+    site_id: int,
+    window: int | None = None,
+    profile: str = "web",
+    persist: bool = True,
+):
     """Tek site için GA4 Realtime karşılaştırma — frontend polling bu endpoint'i çağırır.
 
-    GA4 Realtime token kotasını korumak için sonuç kısa süreli (TTL) cache'lenir;
-    429/hata anında son başarılı CANLI sonuç (stale) döndürülür."""
+    persist=false: Linkler sekmesi — DB snapshot yazılmaz (birikim yok).
+    """
     from backend.services.ga4_realtime import (
         REALTIME_TREND_HOURS_DEFAULT,
         fetch_realtime_profile_bundle,
@@ -18486,10 +18491,14 @@ def api_ga4_realtime(site_id: int, window: int | None = None, profile: str = "we
             site,
             profile=profile,
             window_minutes=w,
-            trend_hours=REALTIME_TREND_HOURS_DEFAULT,
+            trend_hours=REALTIME_TREND_HOURS_DEFAULT if persist else None,
             skip_alarms=True,
+            persist=persist,
         )
-        result["recent_alarms"] = get_recent_alarms(db, site_id, limit=10)
+        if persist:
+            result["recent_alarms"] = get_recent_alarms(db, site_id, limit=10)
+        else:
+            result["recent_alarms"] = []
     return JSONResponse(result)
 
 
