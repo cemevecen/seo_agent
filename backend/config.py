@@ -398,9 +398,9 @@ class Settings(BaseSettings):
     ga4_realtime_list_cache_seconds: int = Field(default=90, ge=0, le=600)
     # 429/hata anında son başarılı CANLI sonucun gösterileceği azami yaş (saniye).
     ga4_realtime_last_good_seconds: int = Field(default=1800, ge=0, le=21600)
-    ga4_realtime_page_alerts_enabled: bool = True
-    # Haberler (unifiedScreenName): snapshot karşılaştırması; mail kapalı (aşağıdaki email bayrakları).
-    ga4_realtime_news_alerts_enabled: bool = True
+    ga4_realtime_page_alerts_enabled: bool = False
+    # Haberler (unifiedScreenName): snapshot karşılaştırması; varsayılan kapalı (log/mail yok).
+    ga4_realtime_news_alerts_enabled: bool = False
     # Haber alarmı: ana realtime job ile aynı sıklıkta (job 60 dk → en az 60 dk).
     ga4_realtime_news_alert_interval_minutes: int = Field(default=60, ge=5, le=120)
     ga4_realtime_news_alert_window_minutes: int = Field(default=15, ge=5, le=30)
@@ -408,6 +408,8 @@ class Settings(BaseSettings):
     ga4_realtime_email_enabled: bool = False
     ga4_realtime_page_alert_email: bool = False
     ga4_realtime_news_alert_email: bool = False
+    # RealtimeAlarmLog tablosuna yazma — varsayılan kapalı (yer kaplamasın).
+    ga4_realtime_alarm_logs_enabled: bool = False
     # Aynı site/kural için e-posta tekrar baskılama süresi (dakika). 0 = baskılama yok.
     ga4_realtime_alarm_email_cooldown_minutes: int = Field(default=90, ge=0, le=480)
     # Konsolide «SEO Realtime» özet maili: en az bu kadar dakika arayla (07:00–22:00 TR).
@@ -453,7 +455,12 @@ class Settings(BaseSettings):
     db_retention_metric_days: int = Field(default=90, ge=1, le=3650)
     db_retention_notification_delivery_days: int = Field(default=30, ge=1, le=3650)
     db_retention_realtime_snapshot_days: int = Field(default=8, ge=1, le=365)
-    db_retention_realtime_alarm_log_days: int = Field(default=7, ge=1, le=365)
+    db_retention_realtime_alarm_log_days: int = Field(
+        default=0,
+        ge=0,
+        le=365,
+        description="0 = realtime_alarm_logs tablosunu tamamen boşalt (yeni yazım da kapalı).",
+    )
     db_retention_realtime_page_snapshot_days: int = Field(default=3, ge=1, le=90)
     db_retention_realtime_news_snapshot_days: int = Field(default=3, ge=1, le=90)
     db_retention_realtime_app_event_snapshot_days: int = Field(default=3, ge=1, le=90)

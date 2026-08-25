@@ -20611,8 +20611,13 @@ def _run_db_retention_cleanup() -> dict:
         cutoff_now = datetime.utcnow()
         for Model, time_col, days, table_label in keep_days_tables:
             try:
-                cutoff = cutoff_now - timedelta(days=int(days))
-                count = db.query(Model).filter(time_col < cutoff).delete(synchronize_session=False)
+                days_i = int(days)
+                if days_i <= 0:
+                    # 0 = tabloyu tamamen boşalt (realtime_alarm_logs varsayılanı)
+                    count = db.query(Model).delete(synchronize_session=False)
+                else:
+                    cutoff = cutoff_now - timedelta(days=days_i)
+                    count = db.query(Model).filter(time_col < cutoff).delete(synchronize_session=False)
                 db.commit()
                 stats[table_label] = count
             except Exception:
@@ -20712,6 +20717,17 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
     
     LOGGER.info(">>> GA4 Realtime Job HEARTBEAT: Kontrol döngüsü BAŞLADI (local_time=%s, force=%s)", now_local.isoformat(), force_run)
     try:
+        # Alarm log kapalıysa eski satırları hemen boşalt (gece retention beklemeden)
+        if not getattr(settings, "ga4_realtime_alarm_logs_enabled", False):
+            try:
+                with SessionLocal() as db:
+                    n = db.query(RealtimeAlarmLog).delete(synchronize_session=False)
+                    db.commit()
+                    if n:
+                        LOGGER.info("realtime_alarm_logs temizlendi: %s satır", n)
+            except Exception:
+                LOGGER.exception("realtime_alarm_logs temizlik hatası")
+
         from backend.services.ga4_realtime import (
             run_all_sites_realtime_check,
             run_news_alarm_check_all_sites,
@@ -20734,13 +20750,13 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
         # Alarm tespiti / DB mantığına dokunulmaz; sadece gönderim batche alınır.
         realtime_email_batch_begin()
 
-        # 1. Site-level KPI (gece: yalnızca snapshot, alarm/mail yok — 24s grafik boşluğu azalır)
+        # 1. Site-level KPI — alarm değerlendirme/log kapalı (yalnızca snapshot)
         with SessionLocal() as db:
             results = run_all_sites_realtime_check(
                 db,
                 window_minutes=settings.ga4_realtime_window_minutes,
-                skip_alarms=is_night,
-                skip_emails=is_night,
+                skip_alarms=True,
+                skip_emails=True,
             )
 
         for res in results:
@@ -20759,6 +20775,29 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
                 len(results),
             )
             return {"total_alarms": 0, "status": "night_mode_snapshot_only", "site_check_count": len(results)}
+
+        # 2–5. Sayfa/haber/404/app alarm taramaları — log+mail kapalıyken atlanır (API/DB yükü ↓)
+        _alarms_wanted = bool(
+            getattr(settings, "ga4_realtime_alarm_logs_enabled", False)
+            or getattr(settings, "ga4_realtime_email_enabled", False)
+            or getattr(settings, "ga4_realtime_page_alerts_enabled", False)
+            or getattr(settings, "ga4_realtime_news_alerts_enabled", False)
+        )
+        if not _alarms_wanted:
+            LOGGER.info(
+                "<<< GA4 Realtime Job BİTTİ (alarm kapalı). KPI snapshot: %d site/profil turu.",
+                len(results),
+            )
+            return {
+                "total_alarms": 0,
+                "site_alarms": 0,
+                "page_alarms": 0,
+                "news_alarms": 0,
+                "404_alarms": 0,
+                "app_event_alarms": 0,
+                "site_check_count": len(results),
+                "status": "completed_kpi_only",
+            }
 
         # 2. Sayfa bazlı alarmlar
         if settings.ga4_realtime_page_alerts_enabled:

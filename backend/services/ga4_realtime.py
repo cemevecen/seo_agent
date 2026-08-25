@@ -3214,8 +3214,17 @@ def _save_snapshot(db: Session, site_id: int, profile: str, result: dict[str, An
         logger.exception("RealtimeSnapshot kayıt hatası (site_id=%s)", site_id)
 
 
+def _realtime_alarm_logs_enabled() -> bool:
+    """RealtimeAlarmLog yazılsın mı — varsayılan kapalı (disk/şişme yok)."""
+    from backend.config import settings
+
+    return bool(getattr(settings, "ga4_realtime_alarm_logs_enabled", False))
+
+
 def _save_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]], profile: str = "web") -> None:
-    """Tetiklenen alarmları DB'ye kaydeder."""
+    """Tetiklenen alarmları DB'ye kaydeder (ga4_realtime_alarm_logs_enabled açıkken)."""
+    if not alarms or not _realtime_alarm_logs_enabled():
+        return
     from backend.models import RealtimeAlarmLog
 
     for alarm in alarms:
@@ -4302,6 +4311,8 @@ def check_page_alarms_for_site(
 
 def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]], profile: str = "web") -> None:
     """Sayfa bazlı alarmları RealtimeAlarmLog'a kaydeder."""
+    if not alarms or not _realtime_alarm_logs_enabled():
+        return
     from backend.models import RealtimeAlarmLog
 
     for a in alarms:
@@ -4877,6 +4888,8 @@ def evaluate_news_alarms(
 
 
 def _save_news_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]], profile: str = "web") -> None:
+    if not alarms or not _realtime_alarm_logs_enabled():
+        return
     from backend.models import RealtimeAlarmLog
 
     for a in alarms:
@@ -5271,7 +5284,6 @@ def check_realtime_404_for_site(
 ) -> dict[str, Any]:
     """Tek site+profil için realtime 404 spike kontrolü."""
     from backend.config import settings
-    from backend.models import RealtimeAlarmLog
 
     if not getattr(settings, "ga4_realtime_404_enabled", True):
         return {}
@@ -5315,28 +5327,31 @@ def check_realtime_404_for_site(
     if severity is None:
         return result
 
-    # DB'ye kaydet
-    rule_id = f"rt_404_{severity}"
-    profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
-    change_pct = (delta / previous * 100) if previous > 0 else (100.0 if total > 0 else 0.0)
-    log = RealtimeAlarmLog(
-        site_id=site.id,
-        rule_id=rule_id,
-        metric=f"{profile}:active_404_users",
-        severity=severity,
-        current_value=float(total),
-        previous_value=float(previous),
-        change_pct=change_pct,
-        message=(
-            f"{site.domain} {profile_label} — 404 spike: {previous:.0f} → {total:.0f} kul. "
-            f"({delta:+.0f}, {change_pct:+.0f}%)"
-        ),
-    )
-    db.add(log)
-    try:
-        db.commit()
-    except Exception:
-        db.rollback()
+    # DB'ye kaydet (alarm log kapalıysa atla)
+    if _realtime_alarm_logs_enabled():
+        from backend.models import RealtimeAlarmLog
+
+        rule_id = f"rt_404_{severity}"
+        profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
+        change_pct = (delta / previous * 100) if previous > 0 else (100.0 if total > 0 else 0.0)
+        log = RealtimeAlarmLog(
+            site_id=site.id,
+            rule_id=rule_id,
+            metric=f"{profile}:active_404_users",
+            severity=severity,
+            current_value=float(total),
+            previous_value=float(previous),
+            change_pct=change_pct,
+            message=(
+                f"{site.domain} {profile_label} — 404 spike: {previous:.0f} → {total:.0f} kul. "
+                f"({delta:+.0f}, {change_pct:+.0f}%)"
+            ),
+        )
+        db.add(log)
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
 
     if skip_emails:
         return result
