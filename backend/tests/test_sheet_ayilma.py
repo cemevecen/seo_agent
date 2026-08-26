@@ -283,3 +283,21 @@ def test_gun_asiri_streak_helpers():
     grid[name][days[9].iso] = "24"
     assert _gun_asiri_streak_if_24(name, 15, days, grid) == 4  # day 16 back
     assert GUN_ASIRI_STREAK_MAX == 3
+
+
+def test_no_consecutive_eights_for_staff():
+    from backend.services.ayilma_schedule import _count_consecutive_8_runs, month_days
+
+    out = generate_ayilma_schedule(2026, 9)
+    grid = {r["name"]: r["cells"] for r in out["rows"]}
+    days_meta = month_days(2026, 9)
+    assert _count_consecutive_8_runs(grid, days_meta) == 0
+    for row in out["rows"]:
+        if row["role"] != "staff":
+            continue
+        cells = row["cells"]
+        for i in range(1, len(out["days"])):
+            iso = out["days"][i]["iso"]
+            prev = out["days"][i - 1]["iso"]
+            if cells.get(iso) == "8" and cells.get(prev) == "8":
+                raise AssertionError(f"{row['name']} consecutive 8 at {prev} / {iso}")

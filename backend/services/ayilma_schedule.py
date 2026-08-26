@@ -259,12 +259,43 @@ def _prefer_8_after_24_gap(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
 ) -> int:
-    """24 sonrası ilk uygun günde 8 serpiştir (düşük = tercih)."""
+    """24 sonrası boş günde 8 serpiştir (düşük = tercih)."""
     if day_index >= 2 and grid[name].get(days[day_index - 2].iso, "") == "24":
-        return 0
+        mid = grid[name].get(days[day_index - 1].iso, "")
+        if mid in ("", "Yİ", "RP", "İST"):
+            return 0
     if day_index >= 3 and grid[name].get(days[day_index - 3].iso, "") == "24":
         return 1
     return 4
+
+
+def _prev_day_is_8(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> bool:
+    if day_index <= 0:
+        return False
+    return grid[name].get(days[day_index - 1].iso, "") == "8"
+
+
+def _count_consecutive_8_runs(
+    grid: dict[str, dict[str, str]],
+    days: list[DayMeta],
+    *,
+    staff_only: bool = True,
+) -> int:
+    """Ardışık 8 çifti sayısı (üst üste 8+8)."""
+    names = list(STAFF_NURSES) if staff_only else list(ALL_NURSES)
+    runs = 0
+    for name in names:
+        for i in range(1, len(days)):
+            if grid[name].get(days[i].iso, "") != "8":
+                continue
+            if grid[name].get(days[i - 1].iso, "") == "8":
+                runs += 1
+    return runs
 
 
 def generate_ayilma_schedule(
@@ -339,9 +370,10 @@ def generate_ayilma_schedule(
             pen = _rest_penalty(n, idx, days, grid)
             break_streak = 0 if over_streak(n) else 1
             break24 = 0 if is_gun_asiri_candidate(n) else 1
+            prev8 = 1 if _prev_day_is_8(n, idx, days, grid) else 0
             after24 = _prefer_8_after_24_gap(n, idx, days, grid)
-            # Az toplam saat alan önce (fazla mesai dengesi)
-            return (pen, break_streak, accounted(n), n8[n], break24, after24, n)
+            # Önce denge; sonra üst üste 8 kaçın / 24 arasına serpiştir
+            return (pen, break_streak, accounted(n), prev8, after24, n8[n], break24, n)
 
         def rank_for_24(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
@@ -515,6 +547,7 @@ def generate_ayilma_schedule(
                 break
             if not trimmed:
                 break
+
     # Sert tavan 4 (örtü yoksa bile bırakmamak için son çare budama yok)
     for name in STAFF_NURSES:
         while n8[name] > EIGHT_PER_PERSON_MAX:
@@ -544,16 +577,16 @@ def generate_ayilma_schedule(
             hours[name] -= 8
             n8[name] -= 1
 
-    # ── Eksik 8 (min 2): yalnız hafta içi boş güne ──
+    # ── Eksik 8 (min 2): hafta içi; üst üste 8 yazma ──
     for name in STAFF_NURSES:
         for i, dm in enumerate(days):
             if n8[name] >= EIGHT_PER_PERSON_MIN:
                 break
-            if dm.is_weekend:
-                continue
-            if grid[name].get(dm.iso, ""):
+            if dm.is_weekend or grid[name].get(dm.iso, ""):
                 continue
             if _blocked_by_rest(name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
+                continue
+            if _prev_day_is_8(name, i, days, grid):
                 continue
             if n8[name] >= EIGHT_PER_PERSON_MAX:
                 break
@@ -837,6 +870,42 @@ def generate_ayilma_schedule(
             if moved:
                 break
         if not moved:
+            break
+
+    # Son: kalan üst üste 8 → yalnız 24 arasına kaydır (saat silme)
+    for _e8f in range(8):
+        fixed = False
+        for name in STAFF_NURSES:
+            for i in range(1, len(days)):
+                iso = days[i].iso
+                if grid[name].get(iso, "") != "8":
+                    continue
+                if grid[name].get(days[i - 1].iso, "") != "8":
+                    continue
+                for j in range(2, len(days)):
+                    if days[j].is_weekend or grid[name].get(days[j].iso, ""):
+                        continue
+                    if _blocked_by_rest(
+                        name, j, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    ):
+                        continue
+                    if _prev_day_is_8(name, j, days, grid):
+                        continue
+                    if _prefer_8_after_24_gap(name, j, days, grid) > 0:
+                        continue
+                    if grid[name].get(days[j - 2].iso, "") != "24":
+                        continue
+                    if grid[name].get(days[j - 1].iso, "") not in ("", "Yİ", "RP", "İST"):
+                        continue
+                    grid[name][iso] = ""
+                    grid[name][days[j].iso] = "8"
+                    fixed = True
+                    break
+                if fixed:
+                    break
+            if fixed:
+                break
+        if not fixed:
             break
 
     last = days[-1]
