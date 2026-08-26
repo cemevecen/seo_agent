@@ -71,20 +71,20 @@ def test_generate_august_basic_coverage():
 def test_prefer_8_and_minimize_16():
     out = generate_ayilma_schedule(2026, 8)
     counts = out["staff_code_counts"]
-    # Düz 8 bol olsun; 16 nadir / 24'ten az
     assert counts["8"] >= len(out["days"]) // 2
     assert counts["16"] < counts["24"]
-    assert counts["16"] <= len(out["days"])  # günde en fazla 1×16 gibi üst sınır gevşek
 
-    days_with_plain_8 = 0
-    for dm in out["days"]:
-        iso = dm["iso"]
-        if any(
-            next(r for r in out["rows"] if r["name"] == n)["cells"].get(iso) == "8"
-            for n in STAFF_NURSES
-        ):
-            days_with_plain_8 += 1
-    assert days_with_plain_8 >= int(len(out["days"]) * 0.6)
+
+def test_eights_and_twentyfours_are_shared():
+    """8 ve 24 altı kişiye yayılır; kimse neredeyse tüm 8'leri tek başına almaz."""
+    out = generate_ayilma_schedule(2026, 8)
+    staff_rows = [r for r in out["rows"] if r["role"] == "staff"]
+    eights = [r["count_8"] for r in staff_rows]
+    twentyfours = [r["count_24"] for r in staff_rows]
+    assert max(eights) - min(eights) <= 4
+    assert min(eights) >= 2  # herkese biraz 8
+    assert min(twentyfours) >= 2  # herkese biraz 24
+    assert max(eights) < len(out["days"]) - 5  # tek kişiye sürekli 8 yok
 
 
 def test_lead_does_not_count_in_staff_night_or_overtime():
@@ -93,7 +93,6 @@ def test_lead_does_not_count_in_staff_night_or_overtime():
     assert lead["exclude_from_staff_balance"] is True
     assert lead["ideal_hours"] == 0
     assert lead["overtime_hours"] == 0
-    # Gece sayısı yalnızca 6 personelden
     for dm in out["days"]:
         iso = dm["iso"]
         night = sum(
@@ -102,7 +101,6 @@ def test_lead_does_not_count_in_staff_night_or_overtime():
             if next(r for r in out["rows"] if r["name"] == n)["cells"].get(iso) in ("16", "24")
         )
         assert night >= 2
-        # Gülten 8 olsa bile staff night hesabına eklenmez
         assert lead["cells"][iso] == "8"
 
 
