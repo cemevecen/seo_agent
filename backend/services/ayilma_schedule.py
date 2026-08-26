@@ -358,6 +358,13 @@ def _count_consecutive_8_runs(
     return runs
 
 
+NIGHT_SHIFTS_PER_DAY = 2
+
+
+def _staff_night_count(grid: dict[str, dict[str, str]], iso: str) -> int:
+    return sum(1 for n in STAFF_NURSES if grid[n].get(iso, "") in ("16", "24"))
+
+
 def generate_ayilma_schedule(
     year: int,
     month: int,
@@ -894,19 +901,7 @@ def generate_ayilma_schedule(
                     n24[other] += 1
                     broke = True
                     break
-                # 8'e düş (gündüz başka 24 varsa)
-                if (
-                    n8[name] < EIGHT_PER_PERSON_MAX
-                    and sum(1 for o in STAFF_NURSES if o != name and grid[o].get(iso, "") == "24")
-                    >= 1
-                    and _can_assign_8(name, i, days, grid)
-                ):
-                    grid[name][iso] = "8"
-                    hours[name] -= 16
-                    n24[name] -= 1
-                    n8[name] += 1
-                    broke = True
-                    break
+                # 24→8 düşürme: günde zaten 2. gece varken kapsamayı 1'e indirir — yapma
             if broke:
                 break
         if not broke:
@@ -1073,6 +1068,75 @@ def generate_ayilma_schedule(
             if fixed:
                 break
         if not fixed:
+            break
+
+    # ── Zorunlu: her gün tam 2× gece nöbeti (post-pass sonrası boşluk kalmasın) ──
+    for idx, dm in enumerate(days):
+        iso = dm.iso
+        while _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY:
+            leave_heavy = _week_is_leave_heavy(idx, days, grid)
+            filled = False
+
+            def _rank_night_fill(n: str) -> tuple:
+                code = grid[n].get(iso, "")
+                empty = 0 if code == "" else 1
+                over = 0
+                if not leave_heavy:
+                    over = max(0, _gun_asiri_streak_if_24(n, idx, days, grid) - GUN_ASIRI_STREAK_MAX)
+                return (empty, over, accounted(n), n24[n], n)
+
+            for relax_streak in (False, True):
+                pool = [
+                    n
+                    for n in STAFF_NURSES
+                    if n not in day_only_set
+                    and grid[n].get(iso, "") not in LEAVE_CODES
+                    and grid[n].get(iso, "") in ("", "8")
+                    and not _blocked_by_rest(
+                        n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    )
+                    and (
+                        relax_streak
+                        or leave_heavy
+                        or _gun_asiri_streak_if_24(n, idx, days, grid) <= GUN_ASIRI_STREAK_MAX
+                    )
+                ]
+                if not pool:
+                    continue
+                pick = sorted(pool, key=_rank_night_fill)[0]
+                prev = grid[pick].get(iso, "")
+                grid[pick][iso] = "24"
+                if prev == "8":
+                    hours[pick] += 16
+                    n8[pick] -= 1
+                else:
+                    hours[pick] += 24
+                n24[pick] += 1
+                filled = True
+                break
+
+            if filled:
+                continue
+
+            pool16 = [
+                n
+                for n in STAFF_NURSES
+                if n not in day_only_set
+                and not grid[n].get(iso)
+                and not _blocked_by_rest(
+                    n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                )
+            ]
+            if pool16:
+                pick = sorted(pool16, key=lambda n: (accounted(n), n24[n], n))[0]
+                grid[pick][iso] = "16"
+                hours[pick] += 16
+                n16[pick] += 1
+                continue
+
+            warnings.append(
+                f"{iso}: Gece nöbeti eksik ({_staff_night_count(grid, iso)}/{NIGHT_SHIFTS_PER_DAY})."
+            )
             break
 
     last = days[-1]

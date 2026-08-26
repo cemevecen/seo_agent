@@ -340,3 +340,30 @@ def test_no_three_eights_after_long_leave():
         semanur["cells"].get("2026-09-16", ""),
     )
     assert not (d14 == d15 == d16 == "8"), f"3×8 block: {d14}/{d15}/{d16}"
+
+
+def test_two_night_shifts_every_day_with_mixed_leaves():
+    """15 Eylül gibi İST/Yİ karışımında da her gün 2× gece nöbeti."""
+    leaves = {
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
+        "Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"},
+        "Rabia Kumtepe": {"2026-09-03": "İST"},
+        "Emine Türker": {"2026-09-15": "İST", "2026-09-22": "İST"},
+        "Nuray Durna": {"2026-09-18": "İST"},
+        "Şengül Zamur": {"2026-09-28": "İST"},
+    }
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
+    iso = "2026-09-15"
+    night = [
+        (r["name"], r["cells"].get(iso, ""))
+        for r in out["rows"]
+        if r["role"] == "staff" and r["cells"].get(iso, "") in ("16", "24")
+    ]
+    assert len(night) >= 2, f"2026-09-15 only {night}"
+    for dm in out["days"]:
+        n = sum(
+            1
+            for r in out["rows"]
+            if r["role"] == "staff" and r["cells"].get(dm["iso"], "") in ("16", "24")
+        )
+        assert n >= 2, f"{dm['iso']}: {n} night shifts"
