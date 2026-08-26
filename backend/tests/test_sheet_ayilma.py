@@ -162,3 +162,28 @@ def test_ist_request_blocks_assignment():
     sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
     assert sema["cells"]["2026-08-10"] == "İST"
     assert sema["cells"]["2026-08-11"] == "İST"
+
+
+def _count_gun_asiri(out: dict) -> int:
+    days = out["days"]
+    n = 0
+    for row in out["rows"]:
+        if row["role"] != "staff":
+            continue
+        cells = row["cells"]
+        for i in range(2, len(days)):
+            if cells.get(days[i]["iso"]) != "24":
+                continue
+            if cells.get(days[i - 2]["iso"]) != "24":
+                continue
+            mid = cells.get(days[i - 1]["iso"], "")
+            if mid in ("", "Yİ", "RP", "İST"):
+                n += 1
+    return n
+
+
+def test_avoid_gun_asiri_24_pattern():
+    """24+boş+24 (gün aşırı) mümkün olduğunca az olsun."""
+    out = generate_ayilma_schedule(2026, 9)
+    # Tam sıfır zor (6 kişi / 2×24); ceza + filtre ile sınırlı kalsın
+    assert _count_gun_asiri(out) <= 35
