@@ -37,6 +37,10 @@ MAX_MONTHLY_HOURS = 300
 YI_DAY_HOURS = 8
 # Personel arası toplam (mesai+Yİ) farkı hedefi: ortalama ±16
 HOURS_BALANCE_TOLERANCE = 16
+# Kişi başı düz 8 sayısı (3×8≈24s + boş gün üretir; az tut)
+EIGHT_PER_PERSON_MIN = 2
+EIGHT_PER_PERSON_TARGET = 3
+EIGHT_PER_PERSON_MAX = 4
 
 
 def _yi_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
@@ -211,7 +215,7 @@ def generate_ayilma_schedule(
 
     Gülten yalnız kendi satırı (kadroya karışmaz).
 
-    Her gün: mümkünse 1×«8» + 2×«24» (6 kişi arasında döner).
+    Her gün: mümkünse 2×«24»; düz «8» kişi başı aylık ~2–4 (hedef 3).
     Gün aşırı 24 yumuşak kaçınılır (mümkünse araya 8); olursa kabul.
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
     """
@@ -239,6 +243,7 @@ def generate_ayilma_schedule(
     n24 = {n: 0 for n in STAFF_NURSES}
     n16 = {n: 0 for n in STAFF_NURSES}
     warnings: list[str] = []
+    eight_budget = EIGHT_PER_PERSON_TARGET * len(STAFF_NURSES)
 
     def accounted(n: str) -> int:
         """Mesai + Yİ (8s/gün) — dengelenecek toplam."""
@@ -257,16 +262,15 @@ def generate_ayilma_schedule(
 
         def rank_for_8(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
-            # Mümkünse gün aşırı riskini 8 ile kır
+            # Önce az 8 alan; gün aşırı kırıcı ikincil
             break24 = 0 if is_gun_asiri_candidate(n) else 1
             after24 = _prefer_8_after_24_gap(n, idx, days, grid)
-            return (pen, break24, n8[n], after24, accounted(n), n)
+            return (pen, n8[n], break24, after24, accounted(n), n)
 
         def rank_for_24(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
             if n in day_only_set:
                 pen += 500
-            # Gün aşırı yumuşak: mümkünse başka kişi; yine de 24 yazılır
             gun = _gun_asiri_24_penalty(n, idx, days, grid)
             behind = 0 if hours[n] < min_shift[n] else 1
             return (pen, gun, behind, accounted(n), n24[n], n)
@@ -274,8 +278,30 @@ def generate_ayilma_schedule(
         morning: str | None = None
         night_needed = 2
 
-        morning_cands = sorted(available, key=rank_for_8)
-        if morning_cands:
+        def _want_morning_8() -> bool:
+            under_max = [n for n in available if n8[n] < EIGHT_PER_PERSON_MAX]
+            if not under_max:
+                return False
+            total8 = sum(n8.values())
+            remaining = len(days) - idx
+            need_min = sum(max(0, EIGHT_PER_PERSON_MIN - n8[n]) for n in STAFF_NURSES)
+            # Bütçe doluysa yalnız min eksiği / gün aşırı kırıcı
+            if any(is_gun_asiri_candidate(n) and n8[n] < EIGHT_PER_PERSON_TARGET for n in under_max):
+                return True
+            if need_min > 0 and remaining <= need_min + 1:
+                return True
+            if total8 >= eight_budget:
+                return False
+            # Tempo: ayın ilerleyişine göre 8'leri serpiştir, önden doldurma
+            paced = ((idx + 1) / max(1, len(days))) * eight_budget
+            if total8 >= paced + 0.75:
+                return False
+            return any(n8[n] < EIGHT_PER_PERSON_TARGET for n in under_max)
+
+        morning_cands = [
+            n for n in sorted(available, key=rank_for_8) if n8[n] < EIGHT_PER_PERSON_MAX
+        ]
+        if morning_cands and _want_morning_8():
             morning = morning_cands[0]
             grid[morning][dm.iso] = "8"
             hours[morning] += 8
@@ -338,7 +364,7 @@ def generate_ayilma_schedule(
         if night_needed > 0:
             warnings.append(f"{dm.iso}: Gece nöbeti eksik ({2 - night_needed}/2).")
 
-    # ── Post: gün aşırı 24 varsa mümkünse 8 ile takas (düşürme yok — 16 üretme) ──
+    # ── Post: gün aşırı 24 → mümkünse 8 ile takas (max 8 aşmadan) ──
     for _pass in range(3):
         swapped = False
         for name in STAFF_NURSES:
@@ -346,6 +372,8 @@ def generate_ayilma_schedule(
                 if grid[name].get(days[i].iso, "") != "24":
                     continue
                 if _gun_asiri_24_penalty(name, i, days, grid) == 0:
+                    continue
+                if n8[name] >= EIGHT_PER_PERSON_TARGET:
                     continue
                 iso = days[i].iso
                 prev_iso = days[i - 1].iso
@@ -375,6 +403,56 @@ def generate_ayilma_schedule(
                 swapped = True
         if not swapped:
             break
+
+    # ── Fazla 8 budama (hedef üstü / max): gündüz 24 ile örtülüyse 8'i kaldır ──
+    for name in STAFF_NURSES:
+        while n8[name] > EIGHT_PER_PERSON_TARGET:
+            trimmed = False
+            for dm in days:
+                if grid[name].get(dm.iso, "") != "8":
+                    continue
+                day_24 = sum(1 for o in STAFF_NURSES if grid[o].get(dm.iso, "") == "24")
+                if day_24 < 1:
+                    continue
+                grid[name][dm.iso] = ""
+                hours[name] -= 8
+                n8[name] -= 1
+                trimmed = True
+                break
+            if not trimmed:
+                break
+    # Sert tavan 4 (örtü yoksa bile bırakmamak için son çare budama yok)
+    for name in STAFF_NURSES:
+        while n8[name] > EIGHT_PER_PERSON_MAX:
+            trimmed = False
+            for dm in days:
+                if grid[name].get(dm.iso, "") != "8":
+                    continue
+                day_24 = sum(1 for o in STAFF_NURSES if grid[o].get(dm.iso, "") == "24")
+                if day_24 < 1:
+                    continue
+                grid[name][dm.iso] = ""
+                hours[name] -= 8
+                n8[name] -= 1
+                trimmed = True
+                break
+            if not trimmed:
+                break
+
+    # ── Eksik 8 (min 2): boş güne 8 yaz (gündüz zaten 24 varsa ek yük yok) ──
+    for name in STAFF_NURSES:
+        for i, dm in enumerate(days):
+            if n8[name] >= EIGHT_PER_PERSON_MIN:
+                break
+            if grid[name].get(dm.iso, ""):
+                continue
+            if _blocked_by_rest(name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
+                continue
+            if n8[name] >= EIGHT_PER_PERSON_MAX:
+                break
+            grid[name][dm.iso] = "8"
+            hours[name] += 8
+            n8[name] += 1
 
     last = days[-1]
     next_month_rest = [
