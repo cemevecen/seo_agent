@@ -416,21 +416,46 @@
     openMonthCalendar();
   }
 
+  var MONTH_TR = [
+    '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+  ];
+
   function applyMonthFromInput() {
-    var inp = $('sh-month');
-    if (!inp) return;
-    var parts = (inp.value || '').split('-');
-    if (parts.length !== 2) return;
-    state.year = parseInt(parts[0], 10);
-    state.month = parseInt(parts[1], 10);
+    var yEl = $('sh-year');
+    var mEl = $('sh-month');
+    if (!yEl || !mEl) return;
+    var y = parseInt(yEl.value, 10);
+    var m = parseInt(mEl.value, 10);
+    if (!y || !m) return;
+    state.year = y;
+    state.month = m;
     openMonthCalendar();
   }
 
   function initMonthInput() {
-    var inp = $('sh-month');
-    if (!inp) return;
-    inp.value = ymValue();
-    inp.addEventListener('change', applyMonthFromInput);
+    var yEl = $('sh-year');
+    var mEl = $('sh-month');
+    if (!yEl || !mEl) return;
+    var base = state.year || new Date().getFullYear();
+    yEl.innerHTML = '';
+    for (var y = base - 2; y <= base + 3; y++) {
+      var o = document.createElement('option');
+      o.value = String(y);
+      o.textContent = String(y);
+      if (y === state.year) o.selected = true;
+      yEl.appendChild(o);
+    }
+    mEl.innerHTML = '';
+    for (var m = 1; m <= 12; m++) {
+      var om = document.createElement('option');
+      om.value = String(m);
+      om.textContent = MONTH_TR[m];
+      if (m === state.month) om.selected = true;
+      mEl.appendChild(om);
+    }
+    yEl.addEventListener('change', applyMonthFromInput);
+    mEl.addEventListener('change', applyMonthFromInput);
   }
 
   fetch('/api/sheet/ayilma/meta', { credentials: 'same-origin', cache: 'no-store' })
