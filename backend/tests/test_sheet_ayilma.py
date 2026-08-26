@@ -183,7 +183,18 @@ def _count_gun_asiri(out: dict) -> int:
 
 
 def test_avoid_gun_asiri_24_pattern():
-    """24+boş+24 (gün aşırı) mümkün olduğunca az olsun."""
+    """24+boş+24 (gün aşırı) yazılmamalı; 24 arasına 8 serpiştirilir."""
     out = generate_ayilma_schedule(2026, 9)
-    # Tam sıfır zor (6 kişi / 2×24); ceza + filtre ile sınırlı kalsın
-    assert _count_gun_asiri(out) <= 35
+    assert _count_gun_asiri(out) == 0
+    for row in out["rows"]:
+        if row["role"] != "staff":
+            continue
+        cells = row["cells"]
+        days = out["days"]
+        for i in range(2, len(days)):
+            if cells.get(days[i - 2]["iso"]) != "24":
+                continue
+            mid = cells.get(days[i - 1]["iso"], "")
+            if mid not in ("", "Yİ", "RP", "İST"):
+                continue
+            assert cells.get(days[i]["iso"]) != "24", row["name"]

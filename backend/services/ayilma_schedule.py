@@ -253,18 +253,21 @@ def generate_ayilma_schedule(
             and not _blocked_by_rest(n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24)
         ]
 
+        def is_gun_asiri_candidate(n: str) -> bool:
+            return _gun_asiri_24_penalty(n, idx, days, grid) > 0
+
         def rank_for_8(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
-            # 24 sonrası dönüşte 8 tercih (gün aşırı 24'ü kırmak)
+            # Gün aşırı riski olanı mutlaka 8'e çek (24 alma)
+            break24 = 0 if is_gun_asiri_candidate(n) else 1
             after24 = _prefer_8_after_24_gap(n, idx, days, grid)
-            return (pen, after24, n8[n], accounted(n), n)
+            # Önce az 8 alan; 24 sonrası 8 tercihi yalnızca dengede
+            return (pen, break24, n8[n], after24, accounted(n), n)
 
         def rank_for_24(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
             if n in day_only_set:
                 pen += 500
-            # Gün aşırı 24'ü güçlü cezalandır
-            pen += _gun_asiri_24_penalty(n, idx, days, grid)
             behind = 0 if hours[n] < min_shift[n] else 1
             return (pen, behind, accounted(n), n24[n], n)
 
@@ -295,33 +298,21 @@ def generate_ayilma_schedule(
             night_needed -= 1
             available = [x for x in available if x != n]
 
+        # 24: yalnızca gün aşırı olmayanlar. Sabah 8'i bozma (araya 8 serpiştir).
         while night_needed > 0:
-            c24_all = [n for n in available if n not in day_only_set]
-            # Gün aşırı adayları ele — başka kimse yoksa mecburen kullan
-            c24_ok = [
-                n for n in c24_all
-                if _gun_asiri_24_penalty(n, idx, days, grid) == 0
-            ]
-            pool = c24_ok if c24_ok else c24_all
-            c24 = sorted(pool, key=rank_for_24)
-            if not c24:
+            c24_ok = sorted(
+                [
+                    n
+                    for n in available
+                    if n not in day_only_set and not is_gun_asiri_candidate(n)
+                ],
+                key=rank_for_24,
+            )
+            if not c24_ok:
                 break
-            _assign24(c24[0])
+            _assign24(c24_ok[0])
 
-        if (
-            night_needed > 0
-            and morning
-            and grid[morning][dm.iso] == "8"
-            and morning not in day_only_set
-            # Gün aşırıya düşecekse sabahçıyı 24'e yükseltme
-            and _gun_asiri_24_penalty(morning, idx, days, grid) == 0
-        ):
-            grid[morning][dm.iso] = "24"
-            hours[morning] += 16
-            n8[morning] -= 1
-            n24[morning] += 1
-            night_needed -= 1
-
+        # Son çare 16 — gün aşırı 24 yazma; sabah 8 korunur
         while night_needed > 0:
             c16 = sorted(
                 [n for n in available if n not in day_only_set],
@@ -336,9 +327,48 @@ def generate_ayilma_schedule(
             warnings.append(f"{dm.iso}: Kat-1 gündüz hemşiresi atanamadı (izin/dinlenme).")
         if night_needed > 0:
             warnings.append(
-                f"{dm.iso}: Gece nöbeti eksik ({2 - night_needed}/2). "
-                "İzin veya dinlenme nedeniyle yetersiz kadro."
+                f"{dm.iso}: Gece nöbeti eksik ({2 - night_needed}/2) — "
+                "gün aşırı 24 yazılmadı (sağlık)."
             )
+
+    # ── Post: kalan gün aşırı 24'leri 8 ile takas et ──
+    for _pass in range(3):
+        swapped = False
+        for name in STAFF_NURSES:
+            for i in range(2, len(days)):
+                if grid[name].get(days[i].iso, "") != "24":
+                    continue
+                if _gun_asiri_24_penalty(name, i, days, grid) == 0:
+                    continue
+                iso = days[i].iso
+                partners = [
+                    o
+                    for o in STAFF_NURSES
+                    if o != name
+                    and grid[o].get(iso, "") == "8"
+                    and _gun_asiri_24_penalty(o, i, days, grid) == 0
+                ]
+                if not partners:
+                    # 8 yoksa boşta birini 24 yapıp bu kişiyi 8 yapamayız; 24→8 düşür
+                    # (gece eksiği olabilir — uyarıda kalır) sağlık öncelikli
+                    grid[name][iso] = "8"
+                    hours[name] -= 16
+                    n24[name] -= 1
+                    n8[name] += 1
+                    swapped = True
+                    continue
+                other = sorted(partners, key=lambda o: (n24[o], hours[o], o))[0]
+                grid[name][iso] = "8"
+                grid[other][iso] = "24"
+                hours[name] -= 16
+                hours[other] += 16
+                n8[name] += 1
+                n24[name] -= 1
+                n8[other] -= 1
+                n24[other] += 1
+                swapped = True
+        if not swapped:
+            break
 
     last = days[-1]
     next_month_rest = [
