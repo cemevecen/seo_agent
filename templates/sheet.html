@@ -433,20 +433,8 @@
       return;
     }
     var mk = monthKey();
-    var cleared = 0;
     state.days = buildDays(state.year, state.month);
     state.last = null;
-    (meta.all || []).forEach(function (name) {
-      if (!state.grid[name]) state.grid[name] = {};
-      state.days.forEach(function (dm) {
-        if (state.grid[name][dm.iso]) cleared += 1;
-      });
-    });
-    Object.keys((state.leaves[mk] || {})).forEach(function (name) {
-      Object.keys(state.leaves[mk][name] || {}).forEach(function (iso) {
-        if (state.leaves[mk][name][iso]) cleared += 1;
-      });
-    });
     /* Görüntülenen ay: mesai + İST/Yİ/RP tamamen sil (localStorage dahil) */
     delete state.leaves[mk];
     saveLeaves();
