@@ -28,8 +28,25 @@ def test_sheet_page_paths():
     assert is_sheet_page_path("/sheet/")
     assert is_sheet_page_path("/api/sheet/ayilma/meta")
     assert is_sheet_page_path("/api/sheet/ayilma/generate")
+    assert is_sheet_page_path("/api/sheet/ayilma/export.xlsx")
     assert not is_sheet_page_path("/ipo")
     assert not is_sheet_page_path("/")
+
+
+def test_export_xlsx_opens():
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from backend.services.ayilma_schedule import build_ayilma_xlsx_bytes
+
+    out = generate_ayilma_schedule(2026, 9)
+    raw = build_ayilma_xlsx_bytes(year=2026, month=9, days=out["days"], rows=out["rows"])
+    assert raw[:2] == b"PK"
+    wb = load_workbook(BytesIO(raw))
+    ws = wb.active
+    assert "Ayılma" in str(ws["A1"].value)
+    assert ws.cell(row=4, column=1).value  # first nurse name
 
 
 def test_sheet_menu_visible():

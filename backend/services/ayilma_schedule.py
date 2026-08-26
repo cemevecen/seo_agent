@@ -499,3 +499,105 @@ def roster_defaults() -> dict[str, Any]:
             "İST": "Özel gün isteği",
         },
     }
+
+
+def build_ayilma_xlsx_bytes(
+    *,
+    year: int,
+    month: int,
+    days: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+) -> bytes:
+    """Win + Mac Excel / Numbers / LibreOffice uyumlu .xlsx."""
+    from io import BytesIO
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"{month:02d}-{year}"[:31]
+
+    month_tr = (
+        "",
+        "Ocak",
+        "Şubat",
+        "Mart",
+        "Nisan",
+        "Mayıs",
+        "Haziran",
+        "Temmuz",
+        "Ağustos",
+        "Eylül",
+        "Ekim",
+        "Kasım",
+        "Aralık",
+    )
+    ws["A1"] = f"Ayılma hemşireleri — {month_tr[month]} {year}"
+    ws["A1"].font = Font(bold=True, size=14)
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max(4, 1 + len(days) + 3))
+
+    headers = ["Ad Soyadı"] + [str(d.get("day", "")) for d in days] + ["Çalıştığı", "Aylık", "Fazla"]
+    for col, h in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col, value=h)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+
+    # Hafta sonu başlık boyası
+    wknd_fill = PatternFill("solid", fgColor="BBF7D0")
+    for i, d in enumerate(days):
+        if d.get("is_weekend"):
+            ws.cell(row=3, column=2 + i).fill = wknd_fill
+
+    fills = {
+        "Yİ": PatternFill("solid", fgColor="FDE68A"),
+        "RP": PatternFill("solid", fgColor="FECACA"),
+        "İST": PatternFill("solid", fgColor="BAE6FD"),
+        "8": PatternFill("solid", fgColor="E0E7FF"),
+        "16": PatternFill("solid", fgColor="FEF3C7"),
+        "24": PatternFill("solid", fgColor="DDD6FE"),
+    }
+
+    for r_i, row in enumerate(rows, start=4):
+        name = row.get("name") or ""
+        cells_map = row.get("cells") or {}
+        ws.cell(row=r_i, column=1, value=name).font = Font(bold=True)
+        worked = 0
+        for c_i, d in enumerate(days):
+            code = cells_map.get(d.get("iso") or "", "") or ""
+            cell = ws.cell(row=r_i, column=2 + c_i, value=code)
+            cell.alignment = Alignment(horizontal="center")
+            if code in fills:
+                cell.fill = fills[code]
+            if code == "8":
+                worked += 8
+            elif code == "16":
+                worked += 16
+            elif code == "24":
+                worked += 24
+            elif code == "Yİ":
+                worked += 8
+        ideal = int(row.get("ideal_hours") or 0)
+        if row.get("role") == "lead":
+            ideal = 0
+        ot = max(0, worked - ideal) if row.get("role") != "lead" else 0
+        # İstemci ideal göndermediyse satırdaki değerleri kullan
+        if "worked_hours" in row:
+            worked = int(row.get("worked_hours") or worked)
+        if "overtime_hours" in row and row.get("role") != "lead":
+            ot = int(row.get("overtime_hours") or ot)
+        if "ideal_hours" in row and row.get("role") != "lead":
+            ideal = int(row.get("ideal_hours") or ideal)
+        ws.cell(row=r_i, column=2 + len(days), value=worked)
+        ws.cell(row=r_i, column=3 + len(days), value=ideal)
+        ws.cell(row=r_i, column=4 + len(days), value=ot)
+
+    ws.column_dimensions["A"].width = 18
+    for i in range(len(days)):
+        ws.column_dimensions[ws.cell(row=3, column=2 + i).column_letter].width = 4.2
+    for j in range(3):
+        ws.column_dimensions[ws.cell(row=3, column=2 + len(days) + j).column_letter].width = 10
+
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

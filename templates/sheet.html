@@ -15,21 +15,27 @@
           Personel toplamları birbirine yakın tutulur (±16).
         </p>
       </div>
-      <div class="flex flex-wrap items-end gap-2">
-        <label class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          Yıl
-          <select id="sh-year" class="mt-0.5 block rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold dark:border-transparent dark:bg-zinc-800 dark:text-zinc-200"></select>
-        </label>
-        <label class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          Ay
-          <select id="sh-month" class="mt-0.5 block min-w-[8.5rem] rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold dark:border-transparent dark:bg-zinc-800 dark:text-zinc-200"></select>
-        </label>
-        <button type="button" id="sh-open-month" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
-          Takvimi getir
-        </button>
-        <button type="button" id="sh-clear-work" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800" title="Mesai kodlarını sil, istek/izinleri bırak">
-          Mesaiyi temizle
-        </button>
+      <div class="flex flex-col items-stretch gap-1 lg:items-end">
+        <div class="flex flex-wrap items-end gap-2">
+          <label class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Yıl
+            <select id="sh-year" class="mt-0.5 block rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold dark:border-transparent dark:bg-zinc-800 dark:text-zinc-200"></select>
+          </label>
+          <label class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Ay
+            <select id="sh-month" class="mt-0.5 block min-w-[8.5rem] rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold dark:border-transparent dark:bg-zinc-800 dark:text-zinc-200"></select>
+          </label>
+          <button type="button" id="sh-open-month" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+            Takvimi getir
+          </button>
+          <button type="button" id="sh-clear-work" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800" title="Görüntülenen aydaki 8/16/24 kodlarını sil; İST/Yİ/RP kalır">
+            Mesaiyi temizle
+          </button>
+          <button type="button" id="sh-download" class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/70" title="Excel (.xlsx) — Windows ve Mac">
+            Excel indir
+          </button>
+        </div>
+        <p id="sh-action-msg" class="text-[11px] text-slate-500 dark:text-zinc-400"></p>
       </div>
     </div>
 
@@ -198,9 +204,33 @@
     return code === 'İST' || code === 'Yİ' || code === 'RP';
   }
 
+  function setActionMsg(text, ok) {
+    var el = $('sh-action-msg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'text-[11px] ' +
+      (ok === false
+        ? 'text-rose-600 dark:text-rose-300'
+        : 'text-slate-500 dark:text-zinc-400');
+  }
+
+  function syncMonthFromInputs() {
+    var yEl = $('sh-year');
+    var mEl = $('sh-month');
+    if (!yEl || !mEl) return false;
+    var y = parseInt(yEl.value, 10);
+    var m = parseInt(mEl.value, 10);
+    if (!y || !m) return false;
+    state.year = y;
+    state.month = m;
+    return true;
+  }
+
   function openMonthCalendar() {
+    if (!syncMonthFromInputs() && !(state.year && state.month)) return;
     state.grid = {};
     state.days = buildDays(state.year, state.month);
+    state.last = null;
     (meta.all || []).forEach(function (name) {
       state.grid[name] = {};
       state.days.forEach(function (dm) {
@@ -357,6 +387,10 @@
   }
 
   function generate() {
+    if (!syncMonthFromInputs()) {
+      setActionMsg('Ay seçilemedi.', false);
+      return;
+    }
     var btn = $('sh-generate');
     if (btn) { btn.disabled = true; btn.textContent = 'Oluşturuluyor…'; }
     var dayOnly = [];
@@ -377,10 +411,12 @@
       .then(function (x) {
         if (!x.ok) throw new Error((x.d && x.d.detail) || 'Hata');
         renderFromServer(x.d);
+        setActionMsg(MONTH_TR[state.month] + ' ' + state.year + ' çizelgesi oluşturuldu.', true);
       })
       .catch(function (err) {
         var w = $('sh-warn');
         if (w) { w.classList.remove('hidden'); w.textContent = String(err.message || err); }
+        setActionMsg(String(err.message || err), false);
       })
       .finally(function () {
         if (btn) { btn.disabled = false; btn.textContent = 'Çizelgeyi oluştur'; }
@@ -388,7 +424,114 @@
   }
 
   function clearWorkKeepLeaves() {
-    openMonthCalendar();
+    if (!meta) {
+      setActionMsg('Önce sayfa yüklensin.', false);
+      return;
+    }
+    if (!syncMonthFromInputs()) {
+      setActionMsg('Ay seçilemedi.', false);
+      return;
+    }
+    var cleared = 0;
+    state.days = buildDays(state.year, state.month);
+    state.last = null;
+    (meta.all || []).forEach(function (name) {
+      if (!state.grid[name]) state.grid[name] = {};
+      state.days.forEach(function (dm) {
+        var leave = leaveFor(name, dm.iso) || '';
+        var cur = state.grid[name][dm.iso] || '';
+        if (cur && !isConstraint(cur) && cur !== leave) cleared += 1;
+        state.grid[name][dm.iso] = leave;
+      });
+    });
+    var sum = $('sh-summary');
+    if (sum) { sum.classList.add('hidden'); sum.innerHTML = ''; }
+    var w = $('sh-warn');
+    if (w) { w.classList.add('hidden'); w.innerHTML = ''; }
+    updateConstraintCount();
+    renderTable();
+    var label = MONTH_TR[state.month] + ' ' + state.year;
+    setActionMsg(
+      label + ' mesaisi temizlendi (' + cleared + ' hücre). İST / Yİ / RP bırakıldı.',
+      true
+    );
+  }
+
+  function buildExportRows() {
+    ensureGridSkeleton();
+    var ideal = 0;
+    state.days.forEach(function (dm) { if (!dm.is_weekend) ideal += 8; });
+    return (meta.all || []).map(function (name) {
+      var isLead = name === meta.lead;
+      var cells = {};
+      var worked = 0;
+      state.days.forEach(function (dm) {
+        var code = (state.grid[name] && state.grid[name][dm.iso]) || '';
+        cells[dm.iso] = code;
+        worked += hoursOf(code);
+      });
+      var target = isLead ? 0 : ideal;
+      return {
+        name: name,
+        role: isLead ? 'lead' : 'staff',
+        cells: cells,
+        worked_hours: worked,
+        ideal_hours: target,
+        overtime_hours: isLead ? 0 : Math.max(0, worked - target),
+      };
+    });
+  }
+
+  function downloadXlsx() {
+    if (!meta) {
+      setActionMsg('Önce sayfa yüklensin.', false);
+      return;
+    }
+    if (!syncMonthFromInputs()) {
+      setActionMsg('Ay seçilemedi.', false);
+      return;
+    }
+    ensureGridSkeleton();
+    var btn = $('sh-download');
+    if (btn) { btn.disabled = true; btn.textContent = 'İndiriliyor…'; }
+    fetch('/api/sheet/ayilma/export.xlsx', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        year: state.year,
+        month: state.month,
+        days: state.days,
+        rows: buildExportRows(),
+      }),
+    })
+      .then(function (r) {
+        if (!r.ok) {
+          return r.text().then(function (t) {
+            var msg = 'İndirme hatası';
+            try { msg = (JSON.parse(t).detail) || msg; } catch (e) {}
+            throw new Error(msg);
+          });
+        }
+        return r.blob();
+      })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'ayilma_cizelge_' + state.year + '-' + String(state.month).padStart(2, '0') + '.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+        setActionMsg('Excel indirildi (Windows / Mac uyumlu .xlsx).', true);
+      })
+      .catch(function (err) {
+        setActionMsg(String(err.message || err), false);
+      })
+      .finally(function () {
+        if (btn) { btn.disabled = false; btn.textContent = 'Excel indir'; }
+      });
   }
 
   var MONTH_TR = [
@@ -397,15 +540,9 @@
   ];
 
   function applyMonthFromInput() {
-    var yEl = $('sh-year');
-    var mEl = $('sh-month');
-    if (!yEl || !mEl) return;
-    var y = parseInt(yEl.value, 10);
-    var m = parseInt(mEl.value, 10);
-    if (!y || !m) return;
-    state.year = y;
-    state.month = m;
+    if (!syncMonthFromInputs()) return;
     openMonthCalendar();
+    setActionMsg(MONTH_TR[state.month] + ' ' + state.year + ' takvimi açıldı.', true);
   }
 
   function initMonthInput() {
@@ -453,6 +590,8 @@
   if (g) g.addEventListener('click', generate);
   var c = $('sh-clear-work');
   if (c) c.addEventListener('click', clearWorkKeepLeaves);
+  var dl = $('sh-download');
+  if (dl) dl.addEventListener('click', downloadXlsx);
   var om = $('sh-open-month');
   if (om) om.addEventListener('click', applyMonthFromInput);
 })();
