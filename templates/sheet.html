@@ -5,17 +5,6 @@
     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-200">Ayılma hemşireleri · aylık çizelge</h2>
-        <ol class="mt-2 list-decimal space-y-1 pl-4 text-xs text-slate-500 dark:text-zinc-400">
-          <li>Ayı seç — boş takvim gelir.</li>
-          <li>Hücreye tıkla: <strong>İST</strong> (özel istek) → <strong>Yİ</strong> → <strong>RP</strong> → boş. Gülten satırına dokunulmaz.</li>
-          <li>Aşağıdaki kutuyu işaretleyip «Çizelgeyi oluştur» — işaretli günler korunur, kalan günlere mesai yazılır.</li>
-        </ol>
-        <p class="mt-2 text-[11px] text-slate-400 dark:text-zinc-500">
-          Mesai: hafta içi 8+24; hafta sonu yalnız 2×24 (kat-1 yok). Gülten hafta sonu boş. Fazla mesai aynı ~16s bantta.
-          Yİ/RP bitişinin ertesi gün o kişi nöbet tutar (24 tercih, kat-1 8 değil).
-          Kişi başı düz 8 ≈ 2–4/ay; 24 arasına serpiştirilir. Üst üste 8 kaçınılır (en fazla 2 gün).
-          Gün aşırı zinciri ≤3×24 (izin yoğun haftada esnek).
-        </p>
       </div>
       <div class="flex flex-col items-stretch gap-1 lg:items-end">
         <div class="flex flex-wrap items-end gap-2">
@@ -37,20 +26,13 @@
             Excel indir
           </button>
         </div>
-        <p id="sh-action-msg" class="text-[11px] text-slate-500 dark:text-zinc-400"></p>
       </div>
     </div>
 
     <div class="mt-4 flex flex-col gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 dark:border-indigo-900/50 dark:bg-indigo-950/30">
-      <label class="inline-flex items-start gap-2 text-sm font-semibold text-slate-800 dark:text-zinc-100">
-        <input id="sh-use-constraints" type="checkbox" class="mt-0.5 rounded border-slate-300" checked>
-        <span>
-          Bu bilgilere göre çizelgeyi oluştur
-          <span class="mt-0.5 block text-[11px] font-normal text-slate-500 dark:text-zinc-400">
-            İşaretliyse tablodaki İST / Yİ / RP günleri sabit kalır; motor sadece boş günlere 8 / 24 (/16) yazar.
-            İşaretsizse istekleri yok sayıp ayı sıfırdan doldurur.
-          </span>
-        </span>
+      <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-zinc-100">
+        <input id="sh-use-constraints" type="checkbox" class="rounded border-slate-300" checked>
+        <span>Bu bilgilere göre çizelgeyi oluştur</span>
       </label>
       <div class="flex flex-wrap items-center gap-2">
         <button type="button" id="sh-generate" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500">
@@ -66,15 +48,13 @@
 
   </div>
 
-  <div id="sh-summary" class="hidden grid gap-2 sm:grid-cols-2 lg:grid-cols-4"></div>
-  <div id="sh-warn" class="hidden rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"></div>
+  <div id="sh-summary" class="hidden grid gap-2 sm:grid-cols-2 lg:grid-cols-3"></div>
 
   <div class="overflow-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
     <div class="flex flex-wrap gap-2 border-b border-slate-100 px-3 py-2 text-[10px] font-semibold dark:border-zinc-800">
       <span class="rounded bg-sky-100 px-1.5 py-0.5 text-sky-800 dark:bg-sky-950 dark:text-sky-200">İST istek</span>
       <span class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-900 dark:bg-amber-950 dark:text-amber-200">Yİ izin</span>
       <span class="rounded bg-rose-100 px-1.5 py-0.5 text-rose-900 dark:bg-rose-950 dark:text-rose-200">RP rapor</span>
-      <span class="text-slate-400">Tıkla → döngü · kayıt tarayıcıda saklanır</span>
     </div>
     <table class="sh-table min-w-full border-collapse text-[11px]">
       <thead id="sh-head"></thead>
@@ -206,15 +186,7 @@
     return code === 'İST' || code === 'Yİ' || code === 'RP';
   }
 
-  function setActionMsg(text, ok) {
-    var el = $('sh-action-msg');
-    if (!el) return;
-    el.textContent = text || '';
-    el.className = 'text-[11px] ' +
-      (ok === false
-        ? 'text-rose-600 dark:text-rose-300'
-        : 'text-slate-500 dark:text-zinc-400');
-  }
+  function setActionMsg(_text, _ok) {}
 
   function syncMonthFromInputs() {
     var yEl = $('sh-year');
@@ -241,8 +213,6 @@
     });
     var sum = $('sh-summary');
     if (sum) { sum.classList.add('hidden'); sum.innerHTML = ''; }
-    var w = $('sh-warn');
-    if (w) { w.classList.add('hidden'); w.innerHTML = ''; }
     updateConstraintCount();
     renderTable();
   }
@@ -367,18 +337,7 @@
       sum.innerHTML =
         '<div class="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200 text-xs dark:bg-zinc-900 dark:ring-0"><div class="text-slate-400">Hafta içi</div><div class="text-lg font-black">' + payload.weekday_count + ' × 8 = ' + payload.ideal_hours_staff + 's</div></div>' +
         '<div class="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200 text-xs dark:bg-zinc-900 dark:ring-0"><div class="text-slate-400">Max / kişi</div><div class="text-lg font-black">' + payload.max_monthly_hours + 's</div></div>' +
-        '<div class="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200 text-xs dark:bg-zinc-900 dark:ring-0"><div class="text-slate-400">Sonraki ay 1. gün boş</div><div class="text-sm font-bold">' + ((payload.next_month_must_rest || []).join(', ') || '—') + '</div></div>' +
-        '<div class="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200 text-xs dark:bg-zinc-900 dark:ring-0"><div class="text-slate-400">Uyarı</div><div class="text-sm font-bold">' + ((payload.warnings || []).length) + '</div></div>';
-    }
-    var w = $('sh-warn');
-    if (w) {
-      if (payload.warnings && payload.warnings.length) {
-        w.classList.remove('hidden');
-        w.innerHTML = payload.warnings.map(function (x) { return '<div>• ' + x + '</div>'; }).join('');
-      } else {
-        w.classList.add('hidden');
-        w.innerHTML = '';
-      }
+        '<div class="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200 text-xs dark:bg-zinc-900 dark:ring-0"><div class="text-slate-400">Sonraki ay 1. gün boş</div><div class="text-sm font-bold">' + ((payload.next_month_must_rest || []).join(', ') || '—') + '</div></div>';
     }
   }
 
@@ -413,12 +372,8 @@
       .then(function (x) {
         if (!x.ok) throw new Error((x.d && x.d.detail) || 'Hata');
         renderFromServer(x.d);
-        setActionMsg(MONTH_TR[state.month] + ' ' + state.year + ' çizelgesi oluşturuldu.', true);
       })
-      .catch(function (err) {
-        var w = $('sh-warn');
-        if (w) { w.classList.remove('hidden'); w.textContent = String(err.message || err); }
-        setActionMsg(String(err.message || err), false);
+      .catch(function (_err) {
       })
       .finally(function () {
         if (btn) { btn.disabled = false; btn.textContent = 'Çizelgeyi oluştur'; }
@@ -448,15 +403,8 @@
     });
     var sum = $('sh-summary');
     if (sum) { sum.classList.add('hidden'); sum.innerHTML = ''; }
-    var w = $('sh-warn');
-    if (w) { w.classList.add('hidden'); w.innerHTML = ''; }
     updateConstraintCount();
     renderTable();
-    var label = MONTH_TR[state.month] + ' ' + state.year;
-    setActionMsg(
-      label + ' tamamen temizlendi (mesai + İST / Yİ / RP). Diğer aylara dokunulmadı.',
-      true
-    );
   }
 
   function buildExportRows() {
@@ -526,10 +474,8 @@
         a.click();
         a.remove();
         setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-        setActionMsg('Excel indirildi (Windows / Mac uyumlu .xlsx).', true);
       })
-      .catch(function (err) {
-        setActionMsg(String(err.message || err), false);
+      .catch(function (_err) {
       })
       .finally(function () {
         if (btn) { btn.disabled = false; btn.textContent = 'Excel indir'; }
@@ -544,7 +490,6 @@
   function applyMonthFromInput() {
     if (!syncMonthFromInputs()) return;
     openMonthCalendar();
-    setActionMsg(MONTH_TR[state.month] + ' ' + state.year + ' takvimi açıldı.', true);
   }
 
   function initMonthInput() {
@@ -583,10 +528,7 @@
       initMonthInput();
       openMonthCalendar();
     })
-    .catch(function () {
-      var w = $('sh-warn');
-      if (w) { w.classList.remove('hidden'); w.textContent = 'Sheet meta yüklenemedi (yetki?).'; }
-    });
+    .catch(function () {});
 
   var g = $('sh-generate');
   if (g) g.addEventListener('click', generate);
