@@ -28,7 +28,7 @@
           <button type="button" id="sh-open-month" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
             Takvimi getir
           </button>
-          <button type="button" id="sh-clear-work" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800" title="Görüntülenen aydaki 8/16/24 kodlarını sil; İST/Yİ/RP kalır">
+          <button type="button" id="sh-clear-work" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800" title="Görüntülenen ayı tamamen boşalt (mesai + İST/Yİ/RP)">
             Mesaiyi temizle
           </button>
           <button type="button" id="sh-download" class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/70" title="Excel (.xlsx) — Windows ve Mac">
@@ -432,16 +432,28 @@
       setActionMsg('Ay seçilemedi.', false);
       return;
     }
+    var mk = monthKey();
     var cleared = 0;
     state.days = buildDays(state.year, state.month);
     state.last = null;
     (meta.all || []).forEach(function (name) {
       if (!state.grid[name]) state.grid[name] = {};
       state.days.forEach(function (dm) {
-        var leave = leaveFor(name, dm.iso) || '';
-        var cur = state.grid[name][dm.iso] || '';
-        if (cur && !isConstraint(cur) && cur !== leave) cleared += 1;
-        state.grid[name][dm.iso] = leave;
+        if (state.grid[name][dm.iso]) cleared += 1;
+      });
+    });
+    Object.keys((state.leaves[mk] || {})).forEach(function (name) {
+      Object.keys(state.leaves[mk][name] || {}).forEach(function (iso) {
+        if (state.leaves[mk][name][iso]) cleared += 1;
+      });
+    });
+    /* Görüntülenen ay: mesai + İST/Yİ/RP tamamen sil (localStorage dahil) */
+    delete state.leaves[mk];
+    saveLeaves();
+    (meta.all || []).forEach(function (name) {
+      state.grid[name] = {};
+      state.days.forEach(function (dm) {
+        state.grid[name][dm.iso] = '';
       });
     });
     var sum = $('sh-summary');
@@ -452,7 +464,7 @@
     renderTable();
     var label = MONTH_TR[state.month] + ' ' + state.year;
     setActionMsg(
-      label + ' mesaisi temizlendi (' + cleared + ' hücre). İST / Yİ / RP bırakıldı.',
+      label + ' tamamen temizlendi (mesai + İST / Yİ / RP). Diğer aylara dokunulmadı.',
       true
     );
   }
