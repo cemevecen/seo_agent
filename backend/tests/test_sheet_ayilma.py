@@ -151,6 +151,22 @@ def test_lead_does_not_count_in_staff_night_or_overtime():
             assert lead["cells"][iso] == "8"
 
 
+def test_first_day_after_leave_gets_night_shift():
+    """Yİ/RP bitişinin ertesi gün nöbet (24 veya 16); hafta içi kat-1 8 değil."""
+    leaves = {
+        "Nuray Durna": {
+            "2026-08-17": "Yİ",
+            "2026-08-18": "Yİ",
+            "2026-08-19": "Yİ",
+        }
+    }
+    out = generate_ayilma_schedule(2026, 8, leaves=leaves)
+    nuray = next(r for r in out["rows"] if r["name"] == "Nuray Durna")
+    first_back = nuray["cells"]["2026-08-20"]
+    assert first_back in ("16", "24"), f"expected nöbet, got {first_back!r}"
+    assert first_back != "8"
+
+
 def test_generate_respects_leave_and_rest_after_24():
     leaves = {
         "Nuray Durna": {
@@ -286,18 +302,41 @@ def test_gun_asiri_streak_helpers():
 
 
 def test_no_consecutive_eights_for_staff():
-    from backend.services.ayilma_schedule import _count_consecutive_8_runs, month_days
+    from backend.services.ayilma_schedule import (
+        CONSECUTIVE_8_STREAK_MAX,
+        _max_consecutive_8_streak,
+        month_days,
+    )
 
     out = generate_ayilma_schedule(2026, 9)
     grid = {r["name"]: r["cells"] for r in out["rows"]}
     days_meta = month_days(2026, 9)
-    assert _count_consecutive_8_runs(grid, days_meta) == 0
     for row in out["rows"]:
         if row["role"] != "staff":
             continue
-        cells = row["cells"]
-        for i in range(1, len(out["days"])):
-            iso = out["days"][i]["iso"]
-            prev = out["days"][i - 1]["iso"]
-            if cells.get(iso) == "8" and cells.get(prev) == "8":
-                raise AssertionError(f"{row['name']} consecutive 8 at {prev} / {iso}")
+        streak = _max_consecutive_8_streak(row["name"], days_meta, grid)
+        assert streak <= CONSECUTIVE_8_STREAK_MAX, (
+            f"{row['name']} has {streak} consecutive 8s (max {CONSECUTIVE_8_STREAK_MAX})"
+        )
+
+
+def test_no_three_eights_after_long_leave():
+    """Uzun Yİ sonrası ardışık 3×8 olmamalı (ör. Semanur senaryosu)."""
+    from backend.services.ayilma_schedule import _max_consecutive_8_streak, month_days
+
+    leaves = {
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
+    }
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
+    semanur = next(r for r in out["rows"] if r["name"] == "Semanur Çınar")
+    days_meta = month_days(2026, 9)
+    grid = {"Semanur Çınar": semanur["cells"]}
+    streak = _max_consecutive_8_streak("Semanur Çınar", days_meta, grid)
+    assert streak <= 2, f"Semanur consecutive 8 streak={streak}"
+    # Dönüş günü (14) nöbet veya en az tek 8; üçlü blok yok
+    d14, d15, d16 = (
+        semanur["cells"].get("2026-09-14", ""),
+        semanur["cells"].get("2026-09-15", ""),
+        semanur["cells"].get("2026-09-16", ""),
+    )
+    assert not (d14 == d15 == d16 == "8"), f"3×8 block: {d14}/{d15}/{d16}"
