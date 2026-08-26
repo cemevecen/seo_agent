@@ -174,15 +174,14 @@ def _gun_asiri_24_penalty(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
 ) -> int:
-    """24 + (1 gün boş) + 24 = 'gün aşırı nöbet' — sağlık için kaçın."""
+    """24 + (1 gün boş) + 24 = 'gün aşırı nöbet' — yumuşak ceza (16 yazmak için değil)."""
     if day_index < 2:
         return 0
     if grid[name].get(days[day_index - 2].iso, "") != "24":
         return 0
     mid = grid[name].get(days[day_index - 1].iso, "")
-    # Ortadaki gün boş / izin / istek ise klasik gün aşırı kalıbı
     if mid in ("", "Yİ", "RP", "İST"):
-        return 220
+        return 1
     return 0
 
 
@@ -213,8 +212,8 @@ def generate_ayilma_schedule(
     Gülten yalnız kendi satırı (kadroya karışmaz).
 
     Her gün: mümkünse 1×«8» + 2×«24» (6 kişi arasında döner).
-    Gün aşırı 24 (24+boş+24) kaçınılır; 24 aralarına 8 serpiştirilir.
-    «16» yalnızca başka çare yoksa.
+    Gün aşırı 24 yumuşak kaçınılır (mümkünse araya 8); olursa kabul.
+    «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
     """
     if not (1 <= month <= 12):
         raise ValueError("month 1–12 olmalı")
@@ -258,18 +257,19 @@ def generate_ayilma_schedule(
 
         def rank_for_8(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
-            # Gün aşırı riski olanı mutlaka 8'e çek (24 alma)
+            # Mümkünse gün aşırı riskini 8 ile kır
             break24 = 0 if is_gun_asiri_candidate(n) else 1
             after24 = _prefer_8_after_24_gap(n, idx, days, grid)
-            # Önce az 8 alan; 24 sonrası 8 tercihi yalnızca dengede
             return (pen, break24, n8[n], after24, accounted(n), n)
 
         def rank_for_24(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
             if n in day_only_set:
                 pen += 500
+            # Gün aşırı yumuşak: mümkünse başka kişi; yine de 24 yazılır
+            gun = _gun_asiri_24_penalty(n, idx, days, grid)
             behind = 0 if hours[n] < min_shift[n] else 1
-            return (pen, behind, accounted(n), n24[n], n)
+            return (pen, gun, behind, accounted(n), n24[n], n)
 
         morning: str | None = None
         night_needed = 2
@@ -298,21 +298,31 @@ def generate_ayilma_schedule(
             night_needed -= 1
             available = [x for x in available if x != n]
 
-        # 24: yalnızca gün aşırı olmayanlar. Sabah 8'i bozma (araya 8 serpiştir).
+        # 24 her zaman önce — gün aşırı olsa bile (16'ya kaçma)
         while night_needed > 0:
-            c24_ok = sorted(
-                [
-                    n
-                    for n in available
-                    if n not in day_only_set and not is_gun_asiri_candidate(n)
-                ],
+            c24 = sorted(
+                [n for n in available if n not in day_only_set],
                 key=rank_for_24,
             )
-            if not c24_ok:
+            if not c24:
                 break
-            _assign24(c24_ok[0])
+            _assign24(c24[0])
 
-        # Son çare 16 — gün aşırı 24 yazma; sabah 8 korunur
+        # Hâlâ eksikse sabah 8 → 24 yükselt (16'dan önce)
+        if (
+            night_needed > 0
+            and morning
+            and grid[morning][dm.iso] == "8"
+            and morning not in day_only_set
+        ):
+            grid[morning][dm.iso] = "24"
+            hours[morning] += 16
+            n8[morning] -= 1
+            n24[morning] += 1
+            night_needed -= 1
+            morning = None
+
+        # 16 yalnızca kimse 24 alamıyorsa (çok uç)
         while night_needed > 0:
             c16 = sorted(
                 [n for n in available if n not in day_only_set],
@@ -326,12 +336,9 @@ def generate_ayilma_schedule(
         if not has_morning:
             warnings.append(f"{dm.iso}: Kat-1 gündüz hemşiresi atanamadı (izin/dinlenme).")
         if night_needed > 0:
-            warnings.append(
-                f"{dm.iso}: Gece nöbeti eksik ({2 - night_needed}/2) — "
-                "gün aşırı 24 yazılmadı (sağlık)."
-            )
+            warnings.append(f"{dm.iso}: Gece nöbeti eksik ({2 - night_needed}/2).")
 
-    # ── Post: kalan gün aşırı 24'leri 8 ile takas et ──
+    # ── Post: gün aşırı 24 varsa mümkünse 8 ile takas (düşürme yok — 16 üretme) ──
     for _pass in range(3):
         swapped = False
         for name in STAFF_NURSES:
@@ -341,21 +348,20 @@ def generate_ayilma_schedule(
                 if _gun_asiri_24_penalty(name, i, days, grid) == 0:
                     continue
                 iso = days[i].iso
+                prev_iso = days[i - 1].iso
                 partners = [
                     o
                     for o in STAFF_NURSES
                     if o != name
                     and grid[o].get(iso, "") == "8"
+                    and grid[o].get(prev_iso, "") not in ("16", "24")
+                    and (
+                        i + 1 >= len(days)
+                        or grid[o].get(days[i + 1].iso, "") not in ("8", "16", "24")
+                    )
                     and _gun_asiri_24_penalty(o, i, days, grid) == 0
                 ]
                 if not partners:
-                    # 8 yoksa boşta birini 24 yapıp bu kişiyi 8 yapamayız; 24→8 düşür
-                    # (gece eksiği olabilir — uyarıda kalır) sağlık öncelikli
-                    grid[name][iso] = "8"
-                    hours[name] -= 16
-                    n24[name] -= 1
-                    n8[name] += 1
-                    swapped = True
                     continue
                 other = sorted(partners, key=lambda o: (n24[o], hours[o], o))[0]
                 grid[name][iso] = "8"
@@ -396,7 +402,7 @@ def generate_ayilma_schedule(
                 gun_asiri += 1
     if gun_asiri:
         warnings.append(
-            f"Gün aşırı 24 kalıbı {gun_asiri} kez kaldı (kaçınıldı ama tamamen sıfırlanamadı)."
+            f"Gün aşırı 24 kalıbı {gun_asiri} kez oluştu (mümkün olduğunca azaltıldı; 16 tercih edilmedi)."
         )
 
     rows: list[dict[str, Any]] = []

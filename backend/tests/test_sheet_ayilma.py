@@ -90,6 +90,8 @@ def test_prefer_8_and_minimize_16():
     counts = out["staff_code_counts"]
     assert counts["8"] >= len(out["days"]) // 2
     assert counts["16"] < counts["24"]
+    # 16 çok uç çare — normal ayda neredeyse hiç
+    assert counts["16"] <= 2
 
 
 def test_eights_and_twentyfours_are_shared():
@@ -199,19 +201,11 @@ def _count_gun_asiri(out: dict) -> int:
     return n
 
 
-def test_avoid_gun_asiri_24_pattern():
-    """24+boş+24 (gün aşırı) yazılmamalı; 24 arasına 8 serpiştirilir."""
+def test_soft_avoid_gun_asiri_prefer_24_over_16():
+    """Gün aşırı yumuşak kaçınılır; 16 neredeyse hiç; 24 gün aşırı olsa bile 16'ya kaçılmaz."""
     out = generate_ayilma_schedule(2026, 9)
-    assert _count_gun_asiri(out) == 0
-    for row in out["rows"]:
-        if row["role"] != "staff":
-            continue
-        cells = row["cells"]
-        days = out["days"]
-        for i in range(2, len(days)):
-            if cells.get(days[i - 2]["iso"]) != "24":
-                continue
-            mid = cells.get(days[i - 1]["iso"], "")
-            if mid not in ("", "Yİ", "RP", "İST"):
-                continue
-            assert cells.get(days[i]["iso"]) != "24", row["name"]
+    counts = out["staff_code_counts"]
+    assert counts["16"] <= 2
+    assert counts["24"] >= counts["8"]
+    # Mümkün olduğunca azaltılmış; sıfır zorunlu değil
+    assert _count_gun_asiri(out) <= 40
