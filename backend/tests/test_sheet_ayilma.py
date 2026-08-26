@@ -216,11 +216,54 @@ def _count_gun_asiri(out: dict) -> int:
     return n
 
 
+def _max_gun_asiri_streak(out: dict) -> int:
+    """Bir kişide 24+boş+24… zincirinin en uzun 24 sayısı."""
+    days = out["days"]
+    gap = ("", "Yİ", "RP", "İST")
+    best = 0
+    for row in out["rows"]:
+        if row["role"] != "staff":
+            continue
+        cells = row["cells"]
+        for i, dm in enumerate(days):
+            if cells.get(dm["iso"]) != "24":
+                continue
+            streak = 1
+            j = i
+            while j >= 2:
+                if cells.get(days[j - 2]["iso"]) != "24":
+                    break
+                if cells.get(days[j - 1]["iso"], "") not in gap:
+                    break
+                streak += 1
+                j -= 2
+            best = max(best, streak)
+    return best
+
+
 def test_soft_avoid_gun_asiri_prefer_24_over_16():
-    """Gün aşırı yumuşak kaçınılır; 16 neredeyse hiç; 24 gün aşırı olsa bile 16'ya kaçılmaz."""
+    """16 neredeyse hiç; gün aşırı zinciri ≤3 (izin yoksa)."""
     out = generate_ayilma_schedule(2026, 9)
     counts = out["staff_code_counts"]
     assert counts["16"] <= 2
     assert counts["24"] >= counts["8"]
-    # Mümkün olduğunca azaltılmış; sıfır zorunlu değil
-    assert _count_gun_asiri(out) <= 40
+    assert _max_gun_asiri_streak(out) <= 3
+
+
+def test_gun_asiri_streak_helpers():
+    from backend.services.ayilma_schedule import (
+        GUN_ASIRI_STREAK_MAX,
+        _gun_asiri_streak_if_24,
+        month_days,
+    )
+
+    days = month_days(2026, 9)
+    grid = {n: {d.iso: "" for d in days} for n in STAFF_NURSES}
+    name = STAFF_NURSES[0]
+    # 1,3,5 → streak 3; 7 would be 4
+    grid[name][days[0].iso] = "24"
+    grid[name][days[2].iso] = "24"
+    grid[name][days[4].iso] = "24"
+    assert _gun_asiri_streak_if_24(name, 4, days, grid) == 3
+    assert _gun_asiri_streak_if_24(name, 6, days, grid) == 4
+    assert GUN_ASIRI_STREAK_MAX == 3
