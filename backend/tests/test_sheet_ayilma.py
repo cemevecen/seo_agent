@@ -6,6 +6,7 @@ from backend.services.ayilma_schedule import (
     STAFF_NURSES,
     generate_ayilma_schedule,
     ideal_hours,
+    roster_defaults,
 )
 from backend.services.sheet_page_access import (
     is_sheet_page_allowed_email,
@@ -21,6 +22,19 @@ def test_sheet_page_allowed_emails():
     assert not is_sheet_page_allowed_email("onurtorun@nokta.com")
     assert not is_sheet_page_allowed_email("melihengin@nokta.com")
     assert not is_sheet_page_allowed_email("")
+
+
+def test_roster_defaults_next_month():
+    from datetime import date
+
+    d = roster_defaults()
+    today = date.today()
+    if today.month == 12:
+        assert d["default_year"] == today.year + 1
+        assert d["default_month"] == 1
+    else:
+        assert d["default_year"] == today.year
+        assert d["default_month"] == today.month + 1
 
 
 def test_sheet_page_paths():

@@ -567,12 +567,16 @@ def generate_ayilma_schedule(
 
 def roster_defaults() -> dict[str, Any]:
     today = date.today()
+    if today.month == 12:
+        default_year, default_month = today.year + 1, 1
+    else:
+        default_year, default_month = today.year, today.month + 1
     return {
         "lead": LEAD_NURSE,
         "staff": list(STAFF_NURSES),
         "all": list(ALL_NURSES),
-        "default_year": today.year,
-        "default_month": today.month,
+        "default_year": default_year,
+        "default_month": default_month,
         "max_monthly_hours": MAX_MONTHLY_HOURS,
         "legend": {
             "8": "08:00–16:00",
