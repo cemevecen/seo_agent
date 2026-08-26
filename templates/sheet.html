@@ -11,7 +11,8 @@
           <li>Aşağıdaki kutuyu işaretleyip «Çizelgeyi oluştur» — işaretli günler korunur, kalan günlere mesai yazılır.</li>
         </ol>
         <p class="mt-2 text-[11px] text-slate-400 dark:text-zinc-500">
-          Mesai: 8 = 08–16 · 24 = 08–08 · 16 = 16–08 (son çare). 8 ve 24 altı kişiye bölüşülür.
+          Mesai: 8 / 24 (/16 son çare). Yİ günü = 8s sayılır (ör. 5 gün Yİ → 40s; kota 176 ise en az 136s nöbet).
+          Personel toplamları birbirine yakın tutulur (±16).
         </p>
       </div>
       <div class="flex flex-wrap items-end gap-2">
@@ -277,6 +278,7 @@
     if (code === '8') return 8;
     if (code === '16') return 16;
     if (code === '24') return 24;
+    if (code === 'Yİ') return 8; /* yıllık izin = 8s kullanılmış */
     return 0;
   }
 

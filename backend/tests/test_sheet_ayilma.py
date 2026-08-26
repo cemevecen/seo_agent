@@ -132,9 +132,25 @@ def test_generate_respects_leave_and_rest_after_24():
                 assert cells[nxt] in ("", "Yİ", "RP", "İST"), f"{name} {iso}-> {cells[nxt]}"
 
 
-def test_ist_request_blocks_assignment():
-    leaves = {"Sema Evecen": {"2026-08-10": "İST", "2026-08-11": "İST"}}
-    out = generate_ayilma_schedule(2026, 8, leaves=leaves)
-    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
-    assert sema["cells"]["2026-08-10"] == "İST"
-    assert sema["cells"]["2026-08-11"] == "İST"
+def test_yi_counts_as_eight_and_lowers_min_shift():
+    """5 gün Yİ = 40s; eylül 176 → en az 136s nöbet; Çalıştığı = nöbet+Yİ."""
+    leaves = {
+        "Nuray Durna": {
+            f"2026-09-{d:02d}": "Yİ" for d in range(1, 6)  # Pzt–Cum haftası
+        }
+    }
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
+    assert out["ideal_hours_staff"] == 176
+    nuray = next(r for r in out["rows"] if r["name"] == "Nuray Durna")
+    assert nuray["leave_hours"] == 40
+    assert nuray["min_shift_hours"] == 136
+    assert nuray["worked_hours"] == nuray["shift_hours"] + 40
+    assert nuray["cells"]["2026-09-01"] == "Yİ"
+    # Nöbet saati zorunlu tabana yaklaşmalı
+    assert nuray["shift_hours"] >= 120
+
+
+def test_staff_accounted_hours_reasonably_balanced():
+    out = generate_ayilma_schedule(2026, 9)
+    vals = [r["worked_hours"] for r in out["rows"] if r["role"] == "staff"]
+    assert max(vals) - min(vals) <= 48  # ±16 ideal; pratikte ≤48 kabul

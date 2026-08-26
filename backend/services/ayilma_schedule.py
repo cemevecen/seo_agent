@@ -33,6 +33,18 @@ ALL_NURSES: tuple[str, ...] = (LEAD_NURSE, *STAFF_NURSES)
 LEAVE_CODES = frozenset({"Yİ", "RP", "İST"})
 WORK_CODES = frozenset({"8", "16", "24"})
 MAX_MONTHLY_HOURS = 300
+# Yıllık izin günü = 8 saat mesai kullanılmış sayılır
+YI_DAY_HOURS = 8
+# Personel arası toplam (mesai+Yİ) farkı hedefi: ortalama ±16
+HOURS_BALANCE_TOLERANCE = 16
+
+
+def _yi_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
+    return sum(YI_DAY_HOURS for dm in days if grid[name].get(dm.iso, "") == "Yİ")
+
+
+def _shift_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
+    return sum(_hours_for(grid[name].get(dm.iso, "")) for dm in days)
 
 
 @dataclass(frozen=True)
@@ -191,11 +203,20 @@ def generate_ayilma_schedule(
         if not grid[LEAD_NURSE][dm.iso]:
             grid[LEAD_NURSE][dm.iso] = "8"
 
+    # Yİ peşin: her gün 8s sayılır; zorunlu nöbet saati = aylık kota − Yİ
+    ideal = ideal_hours(year, month)
+    yi_hours = {n: _yi_hours_from_grid(grid, n, days) for n in STAFF_NURSES}
+    min_shift = {n: max(0, ideal - yi_hours[n]) for n in STAFF_NURSES}
+
     hours = {n: 0 for n in STAFF_NURSES}
     n8 = {n: 0 for n in STAFF_NURSES}
     n24 = {n: 0 for n in STAFF_NURSES}
     n16 = {n: 0 for n in STAFF_NURSES}
     warnings: list[str] = []
+
+    def accounted(n: str) -> int:
+        """Mesai + Yİ (8s/gün) — dengelenecek toplam."""
+        return hours[n] + yi_hours[n]
 
     for idx, dm in enumerate(days):
         available = [
@@ -206,34 +227,22 @@ def generate_ayilma_schedule(
         ]
 
         def rank_for_8(n: str) -> tuple:
-            """8'i az alan öne; day_only hafif bonus; saat dengesi ikincil."""
             pen = _rest_penalty(n, idx, days, grid)
-            # Asıl hedef: 8'leri bölüş — en az 8 yazanı seç
-            return (
-                pen,
-                n8[n],
-                n8[n] - n24[n],  # fazla 8 / az 24 dengesizliği
-                hours[n],
-                n,
-            )
+            # 8'leri bölüş (n8); sonra toplam saati düşük olan
+            return (pen, n8[n], accounted(n), n)
 
         def rank_for_24(n: str) -> tuple:
-            """24'ü az alan öne; zaten çok 24'ü olanı geriye at."""
             pen = _rest_penalty(n, idx, days, grid)
             if n in day_only_set:
                 pen += 500
-            return (
-                pen,
-                n24[n],
-                n24[n] - n8[n],  # yalnız 24 gidenleri cezalandır
-                hours[n],
-                n,
-            )
+            # Önce saati geride kalan (Yİ sonrası düşük nöbet / az toplam);
+            # sonra 24 rotasyonu
+            behind = 0 if hours[n] < min_shift[n] else 1
+            return (pen, behind, accounted(n), n24[n], n)
 
         morning: str | None = None
         night_needed = 2
 
-        # 1) Kat-1: bir kişiye «8» — rotasyon (en az 8 almış olan)
         morning_cands = sorted(available, key=rank_for_8)
         if morning_cands:
             morning = morning_cands[0]
@@ -258,7 +267,6 @@ def generate_ayilma_schedule(
             night_needed -= 1
             available = [x for x in available if x != n]
 
-        # 2) Gece: 2×«24» (8 alan kişiden farklı, 24 sayısı düşük olanlar)
         while night_needed > 0:
             c24 = sorted(
                 [n for n in available if n not in day_only_set],
@@ -268,7 +276,6 @@ def generate_ayilma_schedule(
                 break
             _assign24(c24[0])
 
-        # 3) Hâlâ eksiğe: sabah 8→24 yükseltme (8 rotasyonunu bozar; 16'dan önce)
         if (
             night_needed > 0
             and morning
@@ -281,7 +288,6 @@ def generate_ayilma_schedule(
             n24[morning] += 1
             night_needed -= 1
 
-        # 4) Son çare «16»
         while night_needed > 0:
             c16 = sorted(
                 [n for n in available if n not in day_only_set],
@@ -305,23 +311,50 @@ def generate_ayilma_schedule(
         n for n in STAFF_NURSES if grid[n].get(last.iso, "") in ("16", "24")
     ]
 
-    ideal = ideal_hours(year, month)
+    accounted_list = [hours[n] + yi_hours[n] for n in STAFF_NURSES]
+    if accounted_list:
+        spread = max(accounted_list) - min(accounted_list)
+        if spread > HOURS_BALANCE_TOLERANCE * 2:
+            warnings.append(
+                f"Personel toplam saat farkı {spread:.0f}s "
+                f"(hedef ≤±{HOURS_BALANCE_TOLERANCE} ≈ {HOURS_BALANCE_TOLERANCE * 2}s aralık)."
+            )
+
     rows: list[dict[str, Any]] = []
     for name in ALL_NURSES:
-        worked = sum(_hours_for(grid[name][dm.iso]) for dm in days)
         is_lead = name == LEAD_NURSE
-        target = 0 if is_lead else ideal
-        overtime = 0 if is_lead else max(0, worked - target)
+        if is_lead:
+            shift_h = sum(_hours_for(grid[name][dm.iso]) for dm in days)
+            leave_h = 0
+            acc = shift_h
+            target = 0
+            min_s = 0
+            overtime = 0
+        else:
+            shift_h = hours[name]
+            leave_h = yi_hours[name]
+            acc = shift_h + leave_h  # Yİ günleri 8s gibi yazılır
+            target = ideal
+            min_s = min_shift[name]
+            overtime = acc - target  # eksi = eksik, artı = fazla
+            if shift_h < min_s:
+                warnings.append(
+                    f"{name}: zorunlu mesai eksiği — en az {min_s}s nöbet "
+                    f"(kota {ideal} − Yİ {leave_h}), şu an {shift_h}s."
+                )
         rows.append(
             {
                 "name": name,
                 "role": "lead" if is_lead else "staff",
                 "day_only": name in day_only_set,
                 "cells": {dm.iso: grid[name][dm.iso] for dm in days},
-                "worked_hours": worked,
+                "worked_hours": acc,
+                "shift_hours": shift_h,
+                "leave_hours": leave_h,
                 "ideal_hours": target,
+                "min_shift_hours": min_s,
                 "overtime_hours": overtime,
-                "over_cap": (not is_lead) and worked > MAX_MONTHLY_HOURS,
+                "over_cap": (not is_lead) and shift_h > MAX_MONTHLY_HOURS,
                 "exclude_from_staff_balance": is_lead,
                 "count_8": 0 if is_lead else n8[name],
                 "count_24": 0 if is_lead else n24[name],
@@ -352,6 +385,8 @@ def generate_ayilma_schedule(
         "ideal_hours_staff": ideal,
         "weekday_count": count_weekdays(year, month),
         "max_monthly_hours": MAX_MONTHLY_HOURS,
+        "hours_balance_tolerance": HOURS_BALANCE_TOLERANCE,
+        "yi_day_hours": YI_DAY_HOURS,
         "rows": rows,
         "warnings": warnings,
         "next_month_must_rest": next_month_rest,
@@ -360,7 +395,7 @@ def generate_ayilma_schedule(
             "8": "08:00–16:00 (6 kişiye dağıtılır)",
             "16": "16:00–08:00 (son çare)",
             "24": "08:00–08:00 (6 kişiye dağıtılır)",
-            "Yİ": "Yıllık izin",
+            "Yİ": f"Yıllık izin ({YI_DAY_HOURS}s sayılır)",
             "RP": "Rapor",
             "İST": "Özel gün isteği / rezervasyon",
         },
