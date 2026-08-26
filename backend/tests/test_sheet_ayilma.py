@@ -154,3 +154,11 @@ def test_staff_accounted_hours_reasonably_balanced():
     out = generate_ayilma_schedule(2026, 9)
     vals = [r["worked_hours"] for r in out["rows"] if r["role"] == "staff"]
     assert max(vals) - min(vals) <= 48  # ±16 ideal; pratikte ≤48 kabul
+
+
+def test_ist_request_blocks_assignment():
+    leaves = {"Sema Evecen": {"2026-08-10": "İST", "2026-08-11": "İST"}}
+    out = generate_ayilma_schedule(2026, 8, leaves=leaves)
+    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
+    assert sema["cells"]["2026-08-10"] == "İST"
+    assert sema["cells"]["2026-08-11"] == "İST"
