@@ -81,13 +81,18 @@ def test_generate_august_basic_coverage():
     lead = next(r for r in out["rows"] if r["name"] == LEAD_NURSE)
     assert lead["role"] == "lead"
     assert lead["overtime_hours"] == 0
-    # Her gün 8 (izin yok)
-    assert all(v == "8" for v in lead["cells"].values())
+    for dm in out["days"]:
+        code = lead["cells"][dm["iso"]]
+        if dm["is_weekend"]:
+            assert code == "", f"lead weekend {dm['iso']}"
+        else:
+            assert code == "8", f"lead weekday {dm['iso']}"
 
     for dm in out["days"]:
         iso = dm["iso"]
         morning = 0
         night = 0
+        staff8 = 0
         for name in STAFF_NURSES:
             row = next(r for r in out["rows"] if r["name"] == name)
             code = row["cells"].get(iso, "")
@@ -95,8 +100,13 @@ def test_generate_august_basic_coverage():
                 morning += 1
             if code in ("16", "24"):
                 night += 1
-        assert morning >= 1, f"morning missing {iso}"
+            if code == "8":
+                staff8 += 1
         assert night >= 2, f"night short {iso}: {night}"
+        if dm["is_weekend"]:
+            assert staff8 == 0, f"weekend staff 8 on {iso}"
+        else:
+            assert morning >= 1, f"morning missing {iso}"
 
 
 def test_prefer_8_and_minimize_16():
@@ -135,7 +145,10 @@ def test_lead_does_not_count_in_staff_night_or_overtime():
             if next(r for r in out["rows"] if r["name"] == n)["cells"].get(iso) in ("16", "24")
         )
         assert night >= 2
-        assert lead["cells"][iso] == "8"
+        if dm["is_weekend"]:
+            assert lead["cells"][iso] == ""
+        else:
+            assert lead["cells"][iso] == "8"
 
 
 def test_generate_respects_leave_and_rest_after_24():
@@ -187,7 +200,9 @@ def test_yi_counts_as_eight_and_lowers_min_shift():
 def test_staff_accounted_hours_reasonably_balanced():
     out = generate_ayilma_schedule(2026, 9)
     vals = [r["worked_hours"] for r in out["rows"] if r["role"] == "staff"]
-    assert max(vals) - min(vals) <= 48  # ±16 ideal; pratikte ≤48 kabul
+    ots = [r["overtime_hours"] for r in out["rows"] if r["role"] == "staff"]
+    assert max(vals) - min(vals) <= 16
+    assert max(ots) - min(ots) <= 16
 
 
 def test_ist_request_blocks_assignment():
@@ -260,10 +275,11 @@ def test_gun_asiri_streak_helpers():
     days = month_days(2026, 9)
     grid = {n: {d.iso: "" for d in days} for n in STAFF_NURSES}
     name = STAFF_NURSES[0]
-    # 1,3,5 → streak 3; 7 would be 4
-    grid[name][days[0].iso] = "24"
-    grid[name][days[2].iso] = "24"
-    grid[name][days[4].iso] = "24"
-    assert _gun_asiri_streak_if_24(name, 4, days, grid) == 3
-    assert _gun_asiri_streak_if_24(name, 6, days, grid) == 4
+    # 12,14,16 dolu → gün 10'a yazmak zinciri 4 yapar
+    grid[name][days[11].iso] = "24"
+    grid[name][days[13].iso] = "24"
+    grid[name][days[15].iso] = "24"
+    assert _gun_asiri_streak_if_24(name, 9, days, grid) == 4  # day 10
+    grid[name][days[9].iso] = "24"
+    assert _gun_asiri_streak_if_24(name, 15, days, grid) == 4  # day 16 back
     assert GUN_ASIRI_STREAK_MAX == 3
