@@ -129,4 +129,12 @@ def test_generate_respects_leave_and_rest_after_24():
                 continue
             nxt = f"2026-08-{dm['day'] + 1:02d}"
             if nxt in cells:
-                assert cells[nxt] in ("", "Yİ", "RP"), f"{name} {iso}-> {cells[nxt]}"
+                assert cells[nxt] in ("", "Yİ", "RP", "İST"), f"{name} {iso}-> {cells[nxt]}"
+
+
+def test_ist_request_blocks_assignment():
+    leaves = {"Sema Evecen": {"2026-08-10": "İST", "2026-08-11": "İST"}}
+    out = generate_ayilma_schedule(2026, 8, leaves=leaves)
+    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
+    assert sema["cells"]["2026-08-10"] == "İST"
+    assert sema["cells"]["2026-08-11"] == "İST"

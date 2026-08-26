@@ -6,6 +6,7 @@ Hücre kodları (örnek SSE ile uyumlu):
   24 → 08:00–08:00 (24 saat)
   Yİ → yıllık izin
   RP → rapor
+  İST → özel gün isteği / rezervasyon (çalıştırılmaz)
   '' → boş / dinlenme
 """
 
@@ -29,7 +30,7 @@ STAFF_NURSES: tuple[str, ...] = (
 
 ALL_NURSES: tuple[str, ...] = (LEAD_NURSE, *STAFF_NURSES)
 
-LEAVE_CODES = frozenset({"Yİ", "RP"})
+LEAVE_CODES = frozenset({"Yİ", "RP", "İST"})
 WORK_CODES = frozenset({"8", "16", "24"})
 MAX_MONTHLY_HOURS = 300
 
@@ -65,6 +66,8 @@ def _norm_code(raw: Any) -> str:
         return "Yİ"
     if up == "RP":
         return "RP"
+    if up in ("IST", "İST"):
+        return "İST"
     if s in ("8", "16", "24"):
         return s
     return ""
@@ -359,6 +362,7 @@ def generate_ayilma_schedule(
             "24": "08:00–08:00 (6 kişiye dağıtılır)",
             "Yİ": "Yıllık izin",
             "RP": "Rapor",
+            "İST": "Özel gün isteği / rezervasyon",
         },
     }
 
@@ -378,5 +382,6 @@ def roster_defaults() -> dict[str, Any]:
             "24": "08:00–08:00",
             "Yİ": "Yıllık izin",
             "RP": "Rapor",
+            "İST": "Özel gün isteği",
         },
     }

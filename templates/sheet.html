@@ -5,12 +5,13 @@
     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-200">Ayılma hemşireleri · aylık çizelge</h2>
-        <p class="mt-0.5 max-w-3xl text-xs text-slate-500 dark:text-zinc-400">
-          6+1 kadro. Gülten yalnız kendi satırı. Her gün bir «8» + iki «24» — 8 ve 24 altı kişiye bölüşülür.
-          «16» yalnızca zorunluysa. Hücre: boş → Yİ → RP → boş; sonra «Çizelgeyi doldur».
-        </p>
-        <p class="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">
-          8 = 08–16 (rotasyon) · 24 = 08–08 (rotasyon) · 16 = 16–08 (son çare) · Yİ / RP = izin
+        <ol class="mt-2 list-decimal space-y-1 pl-4 text-xs text-slate-500 dark:text-zinc-400">
+          <li>Ayı seç — boş takvim gelir.</li>
+          <li>Hücreye tıkla: <strong>İST</strong> (özel istek) → <strong>Yİ</strong> → <strong>RP</strong> → boş. Gülten satırına dokunulmaz.</li>
+          <li>Aşağıdaki kutuyu işaretleyip «Çizelgeyi oluştur» — işaretli günler korunur, kalan günlere mesai yazılır.</li>
+        </ol>
+        <p class="mt-2 text-[11px] text-slate-400 dark:text-zinc-500">
+          Mesai: 8 = 08–16 · 24 = 08–08 · 16 = 16–08 (son çare). 8 ve 24 altı kişiye bölüşülür.
         </p>
       </div>
       <div class="flex flex-wrap items-end gap-2">
@@ -18,25 +19,51 @@
           Ay
           <input id="sh-month" type="month" class="mt-0.5 block rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold dark:border-transparent dark:bg-zinc-800 dark:text-zinc-200">
         </label>
-        <button type="button" id="sh-generate" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500">
-          Çizelgeyi doldur
+        <button type="button" id="sh-open-month" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+          Takvimi getir
         </button>
-        <button type="button" id="sh-clear-work" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800" title="İş kodlarını sil, izinleri koru">
+        <button type="button" id="sh-clear-work" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800" title="Mesai kodlarını sil, istek/izinleri bırak">
           Mesaiyi temizle
         </button>
       </div>
     </div>
+
+    <div class="mt-4 flex flex-col gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 dark:border-indigo-900/50 dark:bg-indigo-950/30">
+      <label class="inline-flex items-start gap-2 text-sm font-semibold text-slate-800 dark:text-zinc-100">
+        <input id="sh-use-constraints" type="checkbox" class="mt-0.5 rounded border-slate-300" checked>
+        <span>
+          Bu bilgilere göre çizelgeyi oluştur
+          <span class="mt-0.5 block text-[11px] font-normal text-slate-500 dark:text-zinc-400">
+            İşaretliyse tablodaki İST / Yİ / RP günleri sabit kalır; motor sadece boş günlere 8 / 24 (/16) yazar.
+            İşaretsizse istekleri yok sayıp ayı sıfırdan doldurur.
+          </span>
+        </span>
+      </label>
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" id="sh-generate" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500">
+          Çizelgeyi oluştur
+        </button>
+        <label class="inline-flex items-center gap-2 text-[11px] text-slate-500 dark:text-zinc-400">
+          <input id="sh-prefer-48" type="checkbox" class="rounded border-slate-300" checked>
+          24 saat sonrası mümkünse 2 gün boşluk tercih et
+        </label>
+        <span id="sh-constraint-count" class="text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></span>
+      </div>
+    </div>
+
     <div class="mt-3 flex flex-wrap gap-3" id="sh-day-only"></div>
-    <label class="mt-2 inline-flex items-center gap-2 text-[11px] text-slate-500 dark:text-zinc-400">
-      <input id="sh-prefer-48" type="checkbox" class="rounded border-slate-300" checked>
-      24 saat sonrası mümkünse 2 gün boşluk tercih et
-    </label>
   </div>
 
   <div id="sh-summary" class="hidden grid gap-2 sm:grid-cols-2 lg:grid-cols-4"></div>
   <div id="sh-warn" class="hidden rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"></div>
 
   <div class="overflow-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
+    <div class="flex flex-wrap gap-2 border-b border-slate-100 px-3 py-2 text-[10px] font-semibold dark:border-zinc-800">
+      <span class="rounded bg-sky-100 px-1.5 py-0.5 text-sky-800 dark:bg-sky-950 dark:text-sky-200">İST istek</span>
+      <span class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-900 dark:bg-amber-950 dark:text-amber-200">Yİ izin</span>
+      <span class="rounded bg-rose-100 px-1.5 py-0.5 text-rose-900 dark:bg-rose-950 dark:text-rose-200">RP rapor</span>
+      <span class="text-slate-400">Tıkla → döngü · kayıt tarayıcıda saklanır</span>
+    </div>
     <table class="sh-table min-w-full border-collapse text-[11px]">
       <thead id="sh-head"></thead>
       <tbody id="sh-body"></tbody>
@@ -68,8 +95,12 @@
   html.dark .sh-table thead th, html.charcoal .sh-table thead th { background: rgb(39 39 42); }
   .sh-wknd { background: rgb(220 252 231 / 0.55); }
   html.dark .sh-wknd, html.charcoal .sh-wknd { background: rgb(20 83 45 / 0.25); }
-  .sh-leave { background: rgb(254 249 195) !important; color: rgb(133 77 14); font-weight: 800; }
-  html.dark .sh-leave, html.charcoal .sh-leave { background: rgb(113 63 18 / 0.45) !important; color: rgb(253 230 138); }
+  .sh-leave-yi { background: rgb(254 243 199) !important; color: rgb(146 64 14); font-weight: 800; }
+  .sh-leave-rp { background: rgb(254 226 226) !important; color: rgb(153 27 27); font-weight: 800; }
+  .sh-leave-ist { background: rgb(224 242 254) !important; color: rgb(7 89 133); font-weight: 800; }
+  html.dark .sh-leave-yi, html.charcoal .sh-leave-yi { background: rgb(113 63 18 / 0.45) !important; color: rgb(253 230 138); }
+  html.dark .sh-leave-rp, html.charcoal .sh-leave-rp { background: rgb(127 29 29 / 0.45) !important; color: rgb(254 202 202); }
+  html.dark .sh-leave-ist, html.charcoal .sh-leave-ist { background: rgb(12 74 110 / 0.45) !important; color: rgb(186 230 253); }
   .sh-lead td.sh-name { color: rgb(67 56 202); }
   .sh-cell { cursor: pointer; min-width: 28px; }
   .sh-cell:hover { outline: 2px solid rgb(99 102 241); outline-offset: -2px; }
@@ -88,14 +119,14 @@
     dayOnly: {},
     last: null,
   };
-  var LS_LEAVES = 'sheet_ayilma_leaves_v1';
+  var LS_LEAVES = 'sheet_ayilma_leaves_v2';
   var LS_DAYONLY = 'sheet_ayilma_dayonly_v1';
+  var CONSTRAINT_CYCLE = ['', 'İST', 'Yİ', 'RP'];
 
   function $(id) { return document.getElementById(id); }
 
   function ymValue() {
-    var y = state.year, m = state.month;
-    return y + '-' + String(m).padStart(2, '0');
+    return state.year + '-' + String(state.month).padStart(2, '0');
   }
 
   function loadPersisted() {
@@ -103,8 +134,14 @@
       state.leaves = JSON.parse(localStorage.getItem(LS_LEAVES) || '{}') || {};
     } catch (e) { state.leaves = {}; }
     try {
+      var legacy = JSON.parse(localStorage.getItem('sheet_ayilma_leaves_v1') || '{}') || {};
+      Object.keys(legacy).forEach(function (mk) {
+        if (!state.leaves[mk]) state.leaves[mk] = legacy[mk];
+      });
+    } catch (e2) {}
+    try {
       state.dayOnly = JSON.parse(localStorage.getItem(LS_DAYONLY) || '{}') || {};
-    } catch (e) { state.dayOnly = {}; }
+    } catch (e3) { state.dayOnly = {}; }
   }
 
   function saveLeaves() {
@@ -114,13 +151,10 @@
     try { localStorage.setItem(LS_DAYONLY, JSON.stringify(state.dayOnly)); } catch (e) {}
   }
 
-  function monthKey() {
-    return ymValue();
-  }
+  function monthKey() { return ymValue(); }
 
   function leaveFor(name, iso) {
-    var mk = monthKey();
-    return (((state.leaves[mk] || {})[name] || {})[iso]) || '';
+    return (((state.leaves[monthKey()] || {})[name] || {})[iso]) || '';
   }
 
   function setLeave(name, iso, code) {
@@ -130,6 +164,25 @@
     if (!code) delete state.leaves[mk][name][iso];
     else state.leaves[mk][name][iso] = code;
     saveLeaves();
+    updateConstraintCount();
+  }
+
+  function countConstraints() {
+    var bag = state.leaves[monthKey()] || {};
+    var n = 0;
+    Object.keys(bag).forEach(function (name) {
+      Object.keys(bag[name] || {}).forEach(function (iso) {
+        if (bag[name][iso]) n += 1;
+      });
+    });
+    return n;
+  }
+
+  function updateConstraintCount() {
+    var el = $('sh-constraint-count');
+    if (!el) return;
+    var n = countConstraints();
+    el.textContent = n ? (n + ' işaretli gün (bu ay)') : 'Bu ay işaretli gün yok';
   }
 
   function buildDays(year, month) {
@@ -145,35 +198,63 @@
     return days;
   }
 
+  function isConstraint(code) {
+    return code === 'İST' || code === 'Yİ' || code === 'RP';
+  }
+
+  function openMonthCalendar() {
+    state.grid = {};
+    state.days = buildDays(state.year, state.month);
+    (meta.all || []).forEach(function (name) {
+      state.grid[name] = {};
+      state.days.forEach(function (dm) {
+        state.grid[name][dm.iso] = leaveFor(name, dm.iso) || '';
+      });
+    });
+    var sum = $('sh-summary');
+    if (sum) { sum.classList.add('hidden'); sum.innerHTML = ''; }
+    var w = $('sh-warn');
+    if (w) { w.classList.add('hidden'); w.innerHTML = ''; }
+    updateConstraintCount();
+    renderTable();
+  }
+
   function ensureGridSkeleton() {
     state.days = buildDays(state.year, state.month);
-    var names = (meta && meta.all) || [];
-    names.forEach(function (name) {
+    (meta.all || []).forEach(function (name) {
       if (!state.grid[name]) state.grid[name] = {};
       state.days.forEach(function (dm) {
         var leave = leaveFor(name, dm.iso);
         if (leave) state.grid[name][dm.iso] = leave;
-        else if (!state.grid[name][dm.iso]) state.grid[name][dm.iso] = '';
-        else if (state.grid[name][dm.iso] === 'Yİ' || state.grid[name][dm.iso] === 'RP') {
+        else if (state.grid[name][dm.iso] == null) state.grid[name][dm.iso] = '';
+        else if (isConstraint(state.grid[name][dm.iso])) {
           /* keep */
         }
       });
     });
   }
 
-  function cycleLeave(name, iso) {
+  function cycleConstraint(name, iso) {
     if (name === ((meta && meta.lead) || 'Gülten Çelik')) return;
     var cur = leaveFor(name, iso) || '';
-    var next = cur === '' ? 'Yİ' : (cur === 'Yİ' ? 'RP' : '');
+    var i = CONSTRAINT_CYCLE.indexOf(cur);
+    if (i < 0) i = 0;
+    var next = CONSTRAINT_CYCLE[(i + 1) % CONSTRAINT_CYCLE.length];
     setLeave(name, iso, next);
-    state.grid[name][iso] = next;
+    /* Mesai hücrelerinin üstüne yazma: yalnız işaret / temizle */
+    if (next) state.grid[name][iso] = next;
+    else if (isConstraint(state.grid[name][iso]) || !state.grid[name][iso]) state.grid[name][iso] = '';
+    else {
+      /* mesai vardı, işaret kalkınca boş bırak — yeniden oluşturulsun */
+      state.grid[name][iso] = '';
+    }
     renderTable();
   }
 
   function renderDayOnly() {
     var box = $('sh-day-only');
     if (!box || !meta) return;
-    box.innerHTML = '<span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400 w-full">Yalnız gündüz (08–16)</span>';
+    box.innerHTML = '<span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400 w-full">Yalnız gündüz (08–16) — isteğe bağlı</span>';
     (meta.staff || []).forEach(function (name) {
       var id = 'sh-do-' + name.replace(/\s+/g, '-');
       var lab = document.createElement('label');
@@ -193,6 +274,14 @@
     if (code === '16') return 16;
     if (code === '24') return 24;
     return 0;
+  }
+
+  function cellClass(code, isWeekend) {
+    var cls = 'sh-cell' + (isWeekend ? ' sh-wknd' : '');
+    if (code === 'Yİ') cls += ' sh-leave-yi';
+    else if (code === 'RP') cls += ' sh-leave-rp';
+    else if (code === 'İST') cls += ' sh-leave-ist';
+    return cls;
   }
 
   function renderTable() {
@@ -220,8 +309,7 @@
       state.days.forEach(function (dm) {
         var code = (state.grid[name] && state.grid[name][dm.iso]) || '';
         worked += hoursOf(code);
-        var cls = 'sh-cell' + (dm.is_weekend ? ' sh-wknd' : '') + ((code === 'Yİ' || code === 'RP') ? ' sh-leave' : '');
-        html += '<td class="' + cls + '" data-name="' + name.replace(/"/g, '&quot;') + '" data-iso="' + dm.iso + '">' + (code || '') + '</td>';
+        html += '<td class="' + cellClass(code, dm.is_weekend) + '" data-name="' + name.replace(/"/g, '&quot;') + '" data-iso="' + dm.iso + '">' + (code || '') + '</td>';
       });
       var target = isLead ? 0 : ideal;
       var ot = isLead ? 0 : Math.max(0, worked - target);
@@ -233,9 +321,10 @@
 
     body.querySelectorAll('.sh-cell').forEach(function (td) {
       td.addEventListener('click', function () {
-        cycleLeave(td.getAttribute('data-name'), td.getAttribute('data-iso'));
+        cycleConstraint(td.getAttribute('data-name'), td.getAttribute('data-iso'));
       });
     });
+    updateConstraintCount();
   }
 
   function renderFromServer(payload) {
@@ -245,6 +334,20 @@
     (payload.rows || []).forEach(function (row) {
       state.grid[row.name] = Object.assign({}, row.cells || {});
     });
+    /* Sunucudan gelen izinleri localStorage ile senkron tut */
+    var mk = monthKey();
+    if (!state.leaves[mk]) state.leaves[mk] = {};
+    (payload.rows || []).forEach(function (row) {
+      if (row.role === 'lead') return;
+      Object.keys(row.cells || {}).forEach(function (iso) {
+        var c = row.cells[iso];
+        if (isConstraint(c)) {
+          if (!state.leaves[mk][row.name]) state.leaves[mk][row.name] = {};
+          state.leaves[mk][row.name][iso] = c;
+        }
+      });
+    });
+    saveLeaves();
     renderTable();
 
     var sum = $('sh-summary');
@@ -269,14 +372,16 @@
   }
 
   function collectLeavesPayload() {
-    var mk = monthKey();
-    return state.leaves[mk] || {};
+    var use = $('sh-use-constraints');
+    if (use && !use.checked) return {};
+    return state.leaves[monthKey()] || {};
   }
 
   function generate() {
     var btn = $('sh-generate');
-    if (btn) { btn.disabled = true; btn.textContent = 'Dolduruluyor…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Oluşturuluyor…'; }
     var dayOnly = Object.keys(state.dayOnly).filter(function (k) { return state.dayOnly[k]; });
+    var leaves = collectLeavesPayload();
     fetch('/api/sheet/ayilma/generate', {
       method: 'POST',
       credentials: 'same-origin',
@@ -284,7 +389,7 @@
       body: JSON.stringify({
         year: state.year,
         month: state.month,
-        leaves: collectLeavesPayload(),
+        leaves: leaves,
         day_only: dayOnly,
         prefer_48h_after_24: !!( $('sh-prefer-48') && $('sh-prefer-48').checked ),
       }),
@@ -299,34 +404,29 @@
         if (w) { w.classList.remove('hidden'); w.textContent = String(err.message || err); }
       })
       .finally(function () {
-        if (btn) { btn.disabled = false; btn.textContent = 'Çizelgeyi doldur'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Çizelgeyi oluştur'; }
       });
   }
 
   function clearWorkKeepLeaves() {
-    ensureGridSkeleton();
-    (meta.all || []).forEach(function (name) {
-      state.days.forEach(function (dm) {
-        var leave = leaveFor(name, dm.iso);
-        state.grid[name][dm.iso] = leave || '';
-      });
-    });
-    renderTable();
+    openMonthCalendar();
+  }
+
+  function applyMonthFromInput() {
+    var inp = $('sh-month');
+    if (!inp) return;
+    var parts = (inp.value || '').split('-');
+    if (parts.length !== 2) return;
+    state.year = parseInt(parts[0], 10);
+    state.month = parseInt(parts[1], 10);
+    openMonthCalendar();
   }
 
   function initMonthInput() {
     var inp = $('sh-month');
     if (!inp) return;
     inp.value = ymValue();
-    inp.addEventListener('change', function () {
-      var parts = (inp.value || '').split('-');
-      if (parts.length !== 2) return;
-      state.year = parseInt(parts[0], 10);
-      state.month = parseInt(parts[1], 10);
-      state.grid = {};
-      ensureGridSkeleton();
-      renderTable();
-    });
+    inp.addEventListener('change', applyMonthFromInput);
   }
 
   fetch('/api/sheet/ayilma/meta', { credentials: 'same-origin', cache: 'no-store' })
@@ -339,8 +439,7 @@
       state.month = d.default_month;
       initMonthInput();
       renderDayOnly();
-      ensureGridSkeleton();
-      renderTable();
+      openMonthCalendar();
     })
     .catch(function () {
       var w = $('sh-warn');
@@ -351,6 +450,8 @@
   if (g) g.addEventListener('click', generate);
   var c = $('sh-clear-work');
   if (c) c.addEventListener('click', clearWorkKeepLeaves);
+  var om = $('sh-open-month');
+  if (om) om.addEventListener('click', applyMonthFromInput);
 })();
 </script>
 {% endblock %}
