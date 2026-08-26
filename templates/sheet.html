@@ -11,7 +11,7 @@
           <li>Aşağıdaki kutuyu işaretleyip «Çizelgeyi oluştur» — işaretli günler korunur, kalan günlere mesai yazılır.</li>
         </ol>
         <p class="mt-2 text-[11px] text-slate-400 dark:text-zinc-500">
-          Mesai: 8 / 24 (/16 son çare). Yİ günü = 8s sayılır (ör. 5 gün Yİ → 40s; kota 176 ise en az 136s nöbet).
+          Mesai: 8 / 24 (/16 son çare). Yİ günü = 8s sayılır. Gün aşırı 24 (24+boş+24) kaçınılır; aralara 8 serpiştirilir.
           Personel toplamları birbirine yakın tutulur (±16).
         </p>
       </div>
@@ -56,7 +56,6 @@
       </div>
     </div>
 
-    <div class="mt-3 flex flex-wrap gap-3" id="sh-day-only"></div>
   </div>
 
   <div id="sh-summary" class="hidden grid gap-2 sm:grid-cols-2 lg:grid-cols-4"></div>
@@ -121,11 +120,9 @@
     days: [],
     leaves: {},
     grid: {},
-    dayOnly: {},
     last: null,
   };
   var LS_LEAVES = 'sheet_ayilma_leaves_v2';
-  var LS_DAYONLY = 'sheet_ayilma_dayonly_v1';
   var CONSTRAINT_CYCLE = ['', 'İST', 'Yİ', 'RP'];
 
   function $(id) { return document.getElementById(id); }
@@ -144,16 +141,10 @@
         if (!state.leaves[mk]) state.leaves[mk] = legacy[mk];
       });
     } catch (e2) {}
-    try {
-      state.dayOnly = JSON.parse(localStorage.getItem(LS_DAYONLY) || '{}') || {};
-    } catch (e3) { state.dayOnly = {}; }
   }
 
   function saveLeaves() {
     try { localStorage.setItem(LS_LEAVES, JSON.stringify(state.leaves)); } catch (e) {}
-  }
-  function saveDayOnly() {
-    try { localStorage.setItem(LS_DAYONLY, JSON.stringify(state.dayOnly)); } catch (e) {}
   }
 
   function monthKey() { return ymValue(); }
@@ -254,24 +245,6 @@
       state.grid[name][iso] = '';
     }
     renderTable();
-  }
-
-  function renderDayOnly() {
-    var box = $('sh-day-only');
-    if (!box || !meta) return;
-    box.innerHTML = '<span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400 w-full">Yalnız gündüz (08–16) — isteğe bağlı</span>';
-    (meta.staff || []).forEach(function (name) {
-      var id = 'sh-do-' + name.replace(/\s+/g, '-');
-      var lab = document.createElement('label');
-      lab.className = 'inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] dark:border-zinc-700';
-      lab.innerHTML = '<input type="checkbox" id="' + id + '"' + (state.dayOnly[name] ? ' checked' : '') + '> ' + name;
-      box.appendChild(lab);
-      lab.querySelector('input').addEventListener('change', function (ev) {
-        if (ev.target.checked) state.dayOnly[name] = true;
-        else delete state.dayOnly[name];
-        saveDayOnly();
-      });
-    });
   }
 
   function hoursOf(code) {
@@ -386,7 +359,7 @@
   function generate() {
     var btn = $('sh-generate');
     if (btn) { btn.disabled = true; btn.textContent = 'Oluşturuluyor…'; }
-    var dayOnly = Object.keys(state.dayOnly).filter(function (k) { return state.dayOnly[k]; });
+    var dayOnly = [];
     var leaves = collectLeavesPayload();
     fetch('/api/sheet/ayilma/generate', {
       method: 'POST',
