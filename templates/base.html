@@ -2758,6 +2758,9 @@
               {% if xdata_menu_visible(request) %}
               <a href="/x-data" data-nav-match="/x-data,/metrik" data-nav-priority class="header-nav-link">X-Data</a>
               {% endif %}
+              {% if sheet_menu_visible(request) %}
+              <a href="/sheet" data-nav-match="/sheet" data-nav-priority class="header-nav-link">sheet</a>
+              {% endif %}
               {% if is_tmdb_only_member(request) %}
               <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" data-nav-priority class="header-nav-link">movie</a>
               {% endif %}
