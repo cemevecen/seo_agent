@@ -119,10 +119,6 @@ def _apply_leaves(
                 grid[name][iso] = nc
 
 
-def _is_leave(code: str) -> bool:
-    return (code or "").strip().upper() in {"YI", "Yİ", "RP"} or (code or "") in LEAVE_CODES
-
-
 def _blocked_by_rest(
     name: str,
     day_index: int,
