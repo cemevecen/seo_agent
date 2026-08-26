@@ -2727,6 +2727,9 @@
               {% else %}
               <a href="/tmdb-upcoming?guest_logout=1" class="header-nav-link header-nav-link--guest">Sign out</a>
               {% endif %}
+              {% elif is_sheet_only_member(request) %}
+              <a href="/sheet" data-nav-match="/sheet" data-nav-priority class="header-nav-link">sheet</a>
+              <a href="/auth/logout" class="header-nav-link header-nav-link--guest">Çıkış</a>
               {% else %}
               <a href="/" data-nav-match="/" data-nav-priority class="header-nav-link">home</a>
               <a href="/realtime" data-nav-match="/realtime" data-nav-priority class="header-nav-link">realtime</a>
@@ -2770,7 +2773,7 @@
               <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden">external</a>
               {% endif %}
               </div>
-              {% if not is_tmdb_guest_view(request) %}
+              {% if not is_tmdb_guest_view(request) and not is_sheet_only_member(request) %}
               <div class="header-nav-more" id="header-nav-more" hidden>
                 <button type="button" id="header-nav-more-trigger" class="header-nav-link header-nav-more-trigger" aria-expanded="false" aria-haspopup="true" title="More tabs" aria-label="More tabs">⋯</button>
                 <div class="header-nav-more-menu" id="header-nav-more-menu" role="menu"></div>
@@ -3860,7 +3863,7 @@
     })();
   </script>
 
-  {% if not is_tmdb_guest_view(request) %}
+  {% if not is_tmdb_guest_view(request) and not is_sheet_only_member(request) %}
   <style id="seo-pc-agent-float">
     #pc-agent-btn {
       position: fixed;

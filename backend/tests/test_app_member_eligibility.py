@@ -24,6 +24,13 @@ def test_tmdb_only_gmail_allowed():
     assert ama.prelogin_access_note("berendemirci@gmail.com") == "tmdb-only"
 
 
+def test_sheet_only_gmail_allowed():
+    assert ama.is_email_eligible_for_membership("evecensema@gmail.com") is True
+    assert ama.is_sheet_only_member_email("evecensema@gmail.com") is True
+    assert ama.prelogin_access_note("evecensema@gmail.com") == "sheet-only"
+    assert ama.sheet_only_home_path() == "/sheet"
+
+
 def test_redirect_mismatch_message():
     msg = ama.format_member_oauth_login_error("redirect_uri_mismatch", request=None)
     assert "redirect_uri_mismatch" in msg

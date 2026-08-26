@@ -9,16 +9,20 @@ from backend.services.ayilma_schedule import (
     roster_defaults,
 )
 from backend.services.sheet_page_access import (
+    is_sheet_only_member_email,
     is_sheet_page_allowed_email,
     is_sheet_page_path,
     member_denied_sheet_access,
     resolve_sheet_menu_visible,
+    sheet_only_member_path_allowed,
 )
 
 
 def test_sheet_page_allowed_emails():
     assert is_sheet_page_allowed_email("cemevecen@nokta.com")
     assert is_sheet_page_allowed_email("CemEvecen@Gmail.com")
+    assert is_sheet_page_allowed_email("evecensema@gmail.com")
+    assert is_sheet_page_allowed_email("EvecenSema@gmail.com")
     assert not is_sheet_page_allowed_email("onurtorun@nokta.com")
     assert not is_sheet_page_allowed_email("melihengin@nokta.com")
     assert not is_sheet_page_allowed_email("")
@@ -66,9 +70,22 @@ def test_export_xlsx_opens():
 def test_sheet_menu_visible():
     assert resolve_sheet_menu_visible(member_email="cemevecen@nokta.com") is True
     assert resolve_sheet_menu_visible(member_email="cemevecen@gmail.com") is True
+    assert resolve_sheet_menu_visible(member_email="evecensema@gmail.com") is True
     assert resolve_sheet_menu_visible(member_email="other@nokta.com") is False
     assert member_denied_sheet_access("other@nokta.com") is True
     assert member_denied_sheet_access("cemevecen@gmail.com") is False
+    assert member_denied_sheet_access("evecensema@gmail.com") is False
+
+
+def test_sheet_only_member_paths():
+    assert is_sheet_only_member_email("evecensema@gmail.com")
+    assert not is_sheet_only_member_email("cemevecen@gmail.com")
+    assert sheet_only_member_path_allowed("/sheet")
+    assert sheet_only_member_path_allowed("/api/sheet/ayilma/meta")
+    assert sheet_only_member_path_allowed("/auth/logout")
+    assert sheet_only_member_path_allowed("/static/js/app.js")
+    assert not sheet_only_member_path_allowed("/realtime")
+    assert not sheet_only_member_path_allowed("/api/panel/online-users")
 
 
 def test_generate_august_basic_coverage():

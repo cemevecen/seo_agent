@@ -59,6 +59,8 @@ def google_member_oauth_start(request: Request, next: str = "/"):
         member = ama.member_from_request(request)
         if member and ama.is_tmdb_only_member_email(member.email):
             return RedirectResponse(url=ama.tmdb_only_home_path(), status_code=303)
+        if member and ama.is_sheet_only_member_email(member.email):
+            return RedirectResponse(url=ama.sheet_only_home_path(), status_code=303)
         return RedirectResponse(url=safe_next, status_code=303)
     state = ama.encode_oauth_state(safe_next, request=request)
     flow = ama.build_member_oauth_flow(state=state, request=request)
@@ -135,6 +137,8 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
     dest = _safe_next_path(str(payload.get("return_path") or "/"))
     if ama.is_tmdb_only_member_email(member.email):
         dest = ama.tmdb_only_home_path()
+    elif ama.is_sheet_only_member_email(member.email):
+        dest = ama.sheet_only_home_path()
     resp = RedirectResponse(url=dest, status_code=303)
     token = ama.set_member_session_cookie(resp, request, member)
     _record_member_access_event(

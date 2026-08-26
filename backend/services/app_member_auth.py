@@ -64,6 +64,8 @@ TMDB_ONLY_MEMBER_EMAILS = frozenset(
     }
 )
 
+# Sheet-only üyeler — tanım sheet_page_access.SHEET_ONLY_MEMBER_EMAILS
+
 # Tam panel @nokta.com — ilk Google girişinden önce Settings listesinde gri satır.
 INVITED_NOKTA_MEMBER_EMAILS = frozenset(
     {
@@ -75,17 +77,24 @@ INVITED_NOKTA_MEMBER_EMAILS = frozenset(
 
 def prelogin_display_member_emails() -> frozenset[str]:
     """Kodda tanımlı; henüz OAuth yapmamış olsa da üyelik listesinde gösterilir."""
+    from backend.services.sheet_page_access import SHEET_ONLY_MEMBER_EMAILS
+
     return frozenset(
         set(TMDB_ONLY_MEMBER_EMAILS)
+        | set(SHEET_ONLY_MEMBER_EMAILS)
         | set(MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS)
         | set(INVITED_NOKTA_MEMBER_EMAILS)
     )
 
 
 def prelogin_access_note(email: str) -> str:
+    from backend.services.sheet_page_access import SHEET_ONLY_MEMBER_EMAILS
+
     em = _normalize_email(email)
     if em in TMDB_ONLY_MEMBER_EMAILS:
         return "tmdb-only"
+    if em in SHEET_ONLY_MEMBER_EMAILS:
+        return "sheet-only"
     if em in MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS:
         return "allowlist"
     if em in INVITED_NOKTA_MEMBER_EMAILS:
@@ -154,10 +163,22 @@ def is_tmdb_only_member_email(email: str) -> bool:
     return _normalize_email(email) in TMDB_ONLY_MEMBER_EMAILS
 
 
+def is_sheet_only_member_email(email: str) -> bool:
+    from backend.services.sheet_page_access import is_sheet_only_member_email as _iso
+
+    return _iso(email)
+
+
 def tmdb_only_home_path() -> str:
     from backend.services.tmdb_guest_auth import TMDB_GUEST_PATH
 
     return TMDB_GUEST_PATH
+
+
+def sheet_only_home_path() -> str:
+    from backend.services.sheet_page_access import sheet_only_home_path as _home
+
+    return _home()
 
 
 def is_email_eligible_for_membership(email: str) -> bool:
@@ -167,6 +188,8 @@ def is_email_eligible_for_membership(email: str) -> bool:
     if em in MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS:
         return True
     if em in TMDB_ONLY_MEMBER_EMAILS:
+        return True
+    if is_sheet_only_member_email(em):
         return True
     return em.endswith("@nokta.com")
 

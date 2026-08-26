@@ -1995,6 +1995,15 @@ def _template_sheet_menu_visible(request: Request | None) -> bool:
 jinja_env.globals["sheet_menu_visible"] = _template_sheet_menu_visible
 
 
+def _template_is_sheet_only_member(request: Request | None) -> bool:
+    if request is None:
+        return False
+    return bool(getattr(request.state, "sheet_only_member", False))
+
+
+jinja_env.globals["is_sheet_only_member"] = _template_is_sheet_only_member
+
+
 def _template_online_presence_visible(request: Request | None) -> bool:
     from backend.services import app_member_auth as ama
 
@@ -2111,7 +2120,10 @@ async def ip_allowlist_middleware(request: Request, call_next):
         from backend.services.sheet_page_access import (
             is_sheet_page_allowed_email,
             is_sheet_page_path,
+            is_sheet_only_member_email,
             resolve_sheet_menu_visible,
+            sheet_only_home_path,
+            sheet_only_member_path_allowed,
         )
 
         request.state.settings_menu_visible = resolve_settings_menu_visible(
@@ -2144,6 +2156,20 @@ async def ip_allowlist_middleware(request: Request, call_next):
                     return RedirectResponse(url=_tga_member.TMDB_GUEST_PATH, status_code=303)
                 request.state.tmdb_guest_view = True
                 request.state.tmdb_only_member = True
+            elif is_sheet_only_member_email(member.email):
+                request.state.settings_menu_visible = False
+                request.state.ad_menu_visible = False
+                request.state.xdata_menu_visible = False
+                request.state.ipo_menu_visible = False
+                request.state.sheet_menu_visible = True
+                request.state.sheet_only_member = True
+                if path.startswith("/api/") and not sheet_only_member_path_allowed(path):
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "Bu hesap yalnızca Sheet (/sheet) sayfasına erişebilir."},
+                    )
+                if not sheet_only_member_path_allowed(path):
+                    return RedirectResponse(url=sheet_only_home_path(), status_code=303)
         if is_ad_page_path(path):
             em = member.email if member else None
             if not is_ad_page_allowed_email(em or ""):
