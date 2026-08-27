@@ -558,6 +558,7 @@ def generate_ayilma_schedule(
     Düz «8» kişi başı aylık ~2–4 (hedef 3). Fazla mesai personelde aynı ~16s bantta.
     Üst üste «8» kaçınılır; mecbur kalınırsa en fazla 2 gün.
     Özel koşul ile pinlenen «8» birincil: o kişide art arda 8 serbest; motor ezmez.
+    Hafta içi 8 pin / hafta içi 8 ile mesaisi dolan → hafta sonu nöbet (ek mesai) yok.
     Gün aşırı zinciri en fazla 3×24 (kati).
     Arka arkaya 24 yasak. «16» motor yazmaz — yalnız sorumlu pin ile.
     """
