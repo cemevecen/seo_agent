@@ -284,6 +284,36 @@ def _max_gun_asiri_streak(out: dict) -> int:
     return best
 
 
+def test_no_back_to_back_24():
+    """Aynı kişide ardışık gün 24+24 olmamalı (pin yokken)."""
+    leaves = {
+        "Nuray Durna": {
+            "2026-09-03": "İST",
+            "2026-09-04": "İST",
+            "2026-09-10": "İST",
+            "2026-09-17": "İST",
+            "2026-09-24": "İST",
+        },
+        "Sema Evecen": {"2026-09-12": "İST", "2026-09-13": "İST"},
+        "Şengül Zamur": {"2026-09-20": "İST"},
+        "Emine Türker": {f"2026-09-{d:02d}": "Yİ" for d in range(8, 13)},
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(14, 25)},
+    }
+    for v in range(5):
+        out = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=v)
+        for row in out["rows"]:
+            if row["role"] != "staff":
+                continue
+            cells = row["cells"]
+            days = out["days"]
+            for i in range(len(days) - 1):
+                a = cells.get(days[i]["iso"], "")
+                b = cells.get(days[i + 1]["iso"], "")
+                assert not (a == "24" and b == "24"), (
+                    f"variant={v} {row['name']} {days[i]['iso']}+{days[i+1]['iso']}"
+                )
+
+
 def test_soft_avoid_gun_asiri_prefer_24_over_16():
     """16 neredeyse hiç; gün aşırı zinciri kati ≤3."""
     out = generate_ayilma_schedule(2026, 9)
