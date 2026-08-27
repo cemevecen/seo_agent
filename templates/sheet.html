@@ -288,6 +288,49 @@
     width: 100%;
     font-size: clamp(0.8125rem, 0.74rem + 0.38vw, 1rem);
     min-height: clamp(2.75rem, 2.45rem + 1.2vw, 3.25rem);
+    position: relative;
+    z-index: 0;
+  }
+  @keyframes sh-regen-neon-pulse {
+    0%, 100% {
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      border-color: rgb(129 140 248);
+    }
+    50% {
+      box-shadow:
+        0 0 0 3px rgba(129, 140, 248, 0.55),
+        0 0 14px 4px rgba(99, 102, 241, 0.95),
+        0 0 32px 10px rgba(79, 70, 229, 0.45);
+      border-color: rgb(196 181 253);
+    }
+  }
+  html.dark #sheet-page .sh-regenerate-btn.sh-regen-neon-pulse,
+  html.charcoal #sheet-page .sh-regenerate-btn.sh-regen-neon-pulse {
+    animation-name: sh-regen-neon-pulse-dark;
+  }
+  @keyframes sh-regen-neon-pulse-dark {
+    0%, 100% {
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+      border-color: rgb(99 102 241);
+    }
+    50% {
+      box-shadow:
+        0 0 0 3px rgba(165, 180, 252, 0.5),
+        0 0 16px 5px rgba(129, 140, 248, 0.9),
+        0 0 36px 12px rgba(99, 102, 241, 0.55);
+      border-color: rgb(224 231 255);
+    }
+  }
+  #sheet-page .sh-regenerate-btn.sh-regen-neon-pulse {
+    animation: sh-regen-neon-pulse 0.72s ease-in-out 3;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #sheet-page .sh-regenerate-btn.sh-regen-neon-pulse {
+      animation: none;
+      box-shadow:
+        0 0 0 3px rgba(129, 140, 248, 0.55),
+        0 0 14px 4px rgba(99, 102, 241, 0.75);
+    }
   }
   @media (min-width: 640px) {
     #sheet-page .sh-regenerate-btn {
@@ -877,6 +920,23 @@
     }
   }
 
+  function pulseRegenerateNeon() {
+    var btn = $('sh-regenerate');
+    if (!btn) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      btn.classList.add('sh-regen-neon-pulse');
+      window.setTimeout(function () { btn.classList.remove('sh-regen-neon-pulse'); }, 1200);
+      return;
+    }
+    btn.classList.remove('sh-regen-neon-pulse');
+    void btn.offsetWidth;
+    btn.classList.add('sh-regen-neon-pulse');
+    btn.addEventListener('animationend', function onEnd() {
+      btn.classList.remove('sh-regen-neon-pulse');
+      btn.removeEventListener('animationend', onEnd);
+    });
+  }
+
   function openMonthCalendar() {
     if (!syncMonthFromInputs() && !(state.year && state.month)) return;
     state.grid = {};
@@ -1062,6 +1122,7 @@
         if (!x.ok) throw new Error((x.d && x.d.detail) || 'Hata');
         renderFromServer(x.d);
         setRegenerateVisible(true);
+        if (!opts.reroll) pulseRegenerateNeon();
       })
       .catch(function (_err) {
       })
