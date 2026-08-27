@@ -550,12 +550,12 @@ def generate_ayilma_schedule(
     special_rules: çalışsın / çalışmasın / sabit vardiya (8/16/24).
 
     Gülten panelde boş satır; hesaba karışmaz.
-    Hafta içi: mümkünse 1×«8» + 2×«24». Hafta sonu: yalnız 2×«24» (kat-1 / 8 yok).
+    Hafta içi: 1×«8» + 2×«24». Hafta sonu: yalnız 2×«24» (kat-1 / 8 yok).
     Yİ/RP bitişinin ertesi günü o kişiye nöbet (24) tercih.
     Düz «8» kişi başı aylık ~2–4 (hedef 3). Fazla mesai personelde aynı ~16s bantta.
     Üst üste «8» kaçınılır; mecbur kalınırsa en fazla 2 gün.
     Gün aşırı zinciri en fazla 3×24 (kati).
-    «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
+    Arka arkaya 24 yasak. «16» motor yazmaz — yalnız sorumlu pin ile.
     """
     if not (1 <= month <= 12):
         raise ValueError("month 1–12 olmalı")
@@ -604,7 +604,6 @@ def generate_ayilma_schedule(
         (name, iso) for name, by_day in pins.items() for iso in by_day
         if grid[name].get(iso, "") in WORK_CODES
     }
-    eight_budget = EIGHT_PER_PERSON_TARGET * len(STAFF_NURSES)
 
     def accounted(n: str) -> int:
         """Mesai + Yİ (8s/gün) — dengelenecek toplam."""
@@ -689,50 +688,6 @@ def generate_ayilma_schedule(
         morning: str | None = None
         night_needed = max(0, NIGHT_SHIFTS_PER_DAY - _staff_night_count(grid, dm.iso))
 
-        def _want_morning_8() -> bool:
-            # Hafta sonu kat-1 / 8 yok — yalnız 2×24
-            if dm.is_weekend:
-                return False
-            under_max = [n for n in available if n8[n] < EIGHT_PER_PERSON_MAX]
-            if not under_max:
-                return False
-            total8 = sum(n8.values())
-            remaining = sum(1 for d in days[idx:] if d.is_weekday)
-            need_min = sum(max(0, EIGHT_PER_PERSON_MIN - n8[n]) for n in STAFF_NURSES)
-            if any(over_streak(n) for n in under_max):
-                return True
-            if any(is_gun_asiri_candidate(n) and n8[n] < EIGHT_PER_PERSON_TARGET for n in under_max):
-                return True
-            if need_min > 0 and remaining <= need_min + 1:
-                return True
-            if total8 >= eight_budget:
-                return False
-            weekday_i = sum(1 for d in days[: idx + 1] if d.is_weekday)
-            weekday_n = sum(1 for d in days if d.is_weekday) or 1
-            paced = (weekday_i / weekday_n) * eight_budget
-            if total8 >= paced + 0.75:
-                return False
-            return any(n8[n] < EIGHT_PER_PERSON_TARGET for n in under_max)
-
-        morning_cands = [
-            n
-            for n in sorted(available, key=rank_for_8)
-            if n8[n] < EIGHT_PER_PERSON_MAX and _can_assign_8(n, idx, days, grid)
-        ]
-        # İzinden dönüş günü: kat-1 8 yerine nöbet (24) beklenir
-        if morning_cands and not dm.is_weekend:
-            no_return = [
-                n for n in morning_cands if not _first_day_after_leave(n, idx, days, grid)
-            ]
-            if no_return:
-                morning_cands = no_return
-        if morning_cands and _want_morning_8():
-            morning = morning_cands[0]
-            grid[morning][dm.iso] = "8"
-            hours[morning] += 8
-            n8[morning] += 1
-            available = [n for n in available if n != morning]
-
         def _assign24(n: str) -> None:
             nonlocal night_needed, available
             grid[n][dm.iso] = "24"
@@ -741,14 +696,7 @@ def generate_ayilma_schedule(
             night_needed -= 1
             available = [x for x in available if x != n]
 
-        def _assign16(n: str) -> None:
-            nonlocal night_needed, available
-            grid[n][dm.iso] = "16"
-            hours[n] += 16
-            n16[n] += 1
-            night_needed -= 1
-            available = [x for x in available if x != n]
-
+        # Önce 2×24 nöbet (16 yok — sorumlu pinler)
         while night_needed > 0:
             pool = [
                 n
@@ -773,35 +721,43 @@ def generate_ayilma_schedule(
             pick_from = return_pool if return_pool else pool
             _assign24(sorted(pick_from, key=rank_for_24)[0])
 
-        if (
-            night_needed > 0
-            and morning
-            and grid[morning][dm.iso] == "8"
-            and (morning, dm.iso) not in pinned_cells
-            and morning not in day_only_set
-            and (leave_heavy or not over_streak(morning))
-            and not _next_day_blocks_24(morning, idx, days, grid)
-        ):
-            grid[morning][dm.iso] = "24"
-            hours[morning] += 16
-            n8[morning] -= 1
-            n24[morning] += 1
-            night_needed -= 1
-            morning = None
-
-        while night_needed > 0:
-            c16 = sorted(
-                [n for n in available if n not in day_only_set],
-                key=rank_for_24,
-            )
-            if not c16:
-                break
-            _assign16(c16[0])
+        # Hafta içi kat-1: her zaman bir «8» (nöbetlerden sonra; 8→24 çalma yok)
+        if not dm.is_weekend:
+            morning_cands = [
+                n
+                for n in sorted(available, key=rank_for_8)
+                if n8[n] < EIGHT_PER_PERSON_MAX and _can_assign_8(n, idx, days, grid)
+            ]
+            no_return = [
+                n for n in morning_cands if not _first_day_after_leave(n, idx, days, grid)
+            ]
+            if no_return:
+                morning_cands = no_return
+            if not morning_cands:
+                # Max dolu olsa bile kat-1 için bir aday dene
+                morning_cands = [
+                    n
+                    for n in sorted(available, key=rank_for_8)
+                    if _can_assign_8(n, idx, days, grid)
+                ]
+                no_return = [
+                    n
+                    for n in morning_cands
+                    if not _first_day_after_leave(n, idx, days, grid)
+                ]
+                if no_return:
+                    morning_cands = no_return
+            if morning_cands:
+                morning = morning_cands[0]
+                grid[morning][dm.iso] = "8"
+                hours[morning] += 8
+                n8[morning] += 1
+                available = [n for n in available if n != morning]
 
         if dm.is_weekday:
-            has_morning = any(grid[n][dm.iso] in ("8", "24") for n in STAFF_NURSES)
-            if not has_morning:
-                warnings.append(f"{dm.iso}: Kat-1 gündüz hemşiresi atanamadı (izin/dinlenme).")
+            has_kat1 = any(grid[n][dm.iso] == "8" for n in STAFF_NURSES)
+            if not has_kat1:
+                warnings.append(f"{dm.iso}: Kat-1 gündüz 8 atanamadı (izin/dinlenme).")
         if night_needed > 0:
             warnings.append(f"{dm.iso}: Gece nöbeti eksik ({2 - night_needed}/2).")
 
@@ -840,6 +796,7 @@ def generate_ayilma_schedule(
                     for o in STAFF_NURSES
                     if o != name
                     and grid[o].get(iso, "") == "8"
+                    and (o, iso) not in pinned_cells
                     and not _cannot_assign_24(
                         o, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     )
@@ -1006,6 +963,8 @@ def generate_ayilma_schedule(
                 continue
             if grid[lo].get(dm.iso, "") != "8":
                 continue
+            if (lo, dm.iso) in pinned_cells:
+                continue
             if _cannot_assign_24(
                 lo, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
             ):
@@ -1090,6 +1049,8 @@ def generate_ayilma_schedule(
                 if grid[hi].get(dm.iso, "") != "24":
                     continue
                 if grid[mid].get(dm.iso, "") != "8":
+                    continue
+                if (mid, dm.iso) in pinned_cells:
                     continue
                 if _cannot_assign_24(
                     mid, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
@@ -1211,6 +1172,8 @@ def generate_ayilma_schedule(
                 for i, dm in enumerate(days):
                     if grid[hi].get(dm.iso, "") != "24" or grid[lo].get(dm.iso, "") != "8":
                         continue
+                    if (lo, dm.iso) in pinned_cells:
+                        continue
                     if _cannot_assign_24(
                         lo, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     ):
@@ -1291,6 +1254,7 @@ def generate_ayilma_schedule(
                 leave_heavy_day = _week_is_leave_heavy(target_i, days, grid)
                 if (
                     name not in day_only_set
+                    and (name, iso) not in pinned_cells
                     and not _cannot_assign_24(
                         name, target_i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     )
@@ -1346,6 +1310,18 @@ def generate_ayilma_schedule(
         if not fixed:
             break
 
+    def _can_steal_8_for_24(n: str, day_index: int, iso: str) -> bool:
+        """Kat-1 tek 8'i çalma; pin'e dokunma; hafta sonu veya başka 8 varken izin ver."""
+        if grid[n].get(iso, "") != "8":
+            return False
+        if (n, iso) in pinned_cells:
+            return False
+        if days[day_index].is_weekend:
+            return True
+        return any(
+            o != n and grid[o].get(iso, "") == "8" for o in STAFF_NURSES
+        )
+
     # ── Zorunlu: her gün tam 2× gece nöbeti (post-pass sonrası boşluk kalmasın) ──
     for idx, dm in enumerate(days):
         iso = dm.iso
@@ -1361,18 +1337,40 @@ def generate_ayilma_schedule(
                 )
                 return (empty, over, accounted(n), n24[n], _order(n), _tie(n), n)
 
-            # Kati: streak ≤3; aşacak aday yoksa 16'ya düş
+            # Kati: streak ≤3; aşacak aday yoksa streak gevşet — 16 yok
             pool = [
                 n
                 for n in STAFF_NURSES
                 if n not in day_only_set
                 and grid[n].get(iso, "") not in LEAVE_CODES
-                and grid[n].get(iso, "") in ("", "8")
+                and grid[n].get(iso, "") == ""
                 and not _cannot_assign_24(
                     n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
                 )
                 and _gun_asiri_streak_if_24(n, idx, days, grid) <= GUN_ASIRI_STREAK_MAX
             ]
+            if not pool:
+                pool = [
+                    n
+                    for n in STAFF_NURSES
+                    if n not in day_only_set
+                    and grid[n].get(iso, "") not in LEAVE_CODES
+                    and grid[n].get(iso, "") == ""
+                    and not _cannot_assign_24(
+                        n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    )
+                ]
+            # Son çare: hafta sonu veya kat-1 başka 8 varsa 8→24
+            if not pool:
+                pool = [
+                    n
+                    for n in STAFF_NURSES
+                    if n not in day_only_set
+                    and _can_steal_8_for_24(n, idx, iso)
+                    and not _cannot_assign_24(
+                        n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    )
+                ]
             if pool:
                 pick = sorted(pool, key=_rank_night_fill)[0]
                 prev = grid[pick].get(iso, "")
@@ -1386,24 +1384,6 @@ def generate_ayilma_schedule(
                 filled = True
 
             if filled:
-                continue
-
-            pool16 = [
-                n
-                for n in STAFF_NURSES
-                if n not in day_only_set
-                and not grid[n].get(iso)
-                and not _blocked_by_rest(
-                    n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
-                )
-            ]
-            if pool16:
-                pick = sorted(
-                    pool16, key=lambda n: (accounted(n), n24[n], _order(n), _tie(n), n)
-                )[0]
-                grid[pick][iso] = "16"
-                hours[pick] += 16
-                n16[pick] += 1
                 continue
 
             warnings.append(
@@ -1432,19 +1412,41 @@ def generate_ayilma_schedule(
         grid[name][iso] = ""
         hours[name] -= 24
         n24[name] -= 1
-        # Gün gece eksiği: streak-safe 24 veya 16
+        # Gün gece eksiği: yalnız 24 (16 yok)
         while _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY:
             pool = [
                 n
                 for n in STAFF_NURSES
                 if n != name
                 and n not in day_only_set
-                and grid[n].get(iso, "") in ("", "8")
+                and grid[n].get(iso, "") == ""
                 and not _cannot_assign_24(
                     n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                 )
                 and _gun_asiri_streak_if_24(n, i, days, grid) <= GUN_ASIRI_STREAK_MAX
             ]
+            if not pool:
+                pool = [
+                    n
+                    for n in STAFF_NURSES
+                    if n != name
+                    and n not in day_only_set
+                    and grid[n].get(iso, "") == ""
+                    and not _cannot_assign_24(
+                        n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    )
+                ]
+            if not pool:
+                pool = [
+                    n
+                    for n in STAFF_NURSES
+                    if n != name
+                    and n not in day_only_set
+                    and _can_steal_8_for_24(n, i, iso)
+                    and not _cannot_assign_24(
+                        n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    )
+                ]
             if pool:
                 pick = sorted(
                     pool, key=lambda n: (accounted(n), n24[n], _order(n), _tie(n), n)
@@ -1457,23 +1459,6 @@ def generate_ayilma_schedule(
                 else:
                     hours[pick] += 24
                 n24[pick] += 1
-                continue
-            pool16 = [
-                n
-                for n in STAFF_NURSES
-                if n not in day_only_set
-                and not grid[n].get(iso)
-                and not _blocked_by_rest(
-                    n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
-                )
-            ]
-            if pool16:
-                pick = sorted(
-                    pool16, key=lambda n: (accounted(n), n24[n], _order(n), _tie(n), n)
-                )[0]
-                grid[pick][iso] = "16"
-                hours[pick] += 16
-                n16[pick] += 1
                 continue
             break
 
@@ -1509,12 +1494,34 @@ def generate_ayilma_schedule(
                 for n in STAFF_NURSES
                 if n != name
                 and n not in day_only_set
-                and grid[n].get(iso, "") in ("", "8")
+                and grid[n].get(iso, "") == ""
                 and not _cannot_assign_24(
                     n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                 )
                 and _gun_asiri_streak_if_24(n, i, days, grid) <= GUN_ASIRI_STREAK_MAX
             ]
+            if not pool:
+                pool = [
+                    n
+                    for n in STAFF_NURSES
+                    if n != name
+                    and n not in day_only_set
+                    and grid[n].get(iso, "") == ""
+                    and not _cannot_assign_24(
+                        n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    )
+                ]
+            if not pool:
+                pool = [
+                    n
+                    for n in STAFF_NURSES
+                    if n != name
+                    and n not in day_only_set
+                    and _can_steal_8_for_24(n, i, iso)
+                    and not _cannot_assign_24(
+                        n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    )
+                ]
             if pool:
                 pick = sorted(
                     pool, key=lambda n: (accounted(n), n24[n], _order(n), _tie(n), n)
@@ -1528,24 +1535,177 @@ def generate_ayilma_schedule(
                     hours[pick] += 24
                 n24[pick] += 1
                 continue
-            pool16 = [
-                n
-                for n in STAFF_NURSES
-                if n not in day_only_set
-                and not grid[n].get(iso)
-                and not _blocked_by_rest(
-                    n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
-                )
-            ]
-            if pool16:
-                pick = sorted(
-                    pool16, key=lambda n: (accounted(n), n24[n], _order(n), _tie(n), n)
-                )[0]
-                grid[pick][iso] = "16"
-                hours[pick] += 16
-                n16[pick] += 1
-                continue
             break
+
+    # Motor 16 yazmaz: pin olmayan 16 → mümkünse 24, değilse boş
+    for name in STAFF_NURSES:
+        for i, dm in enumerate(days):
+            if grid[name].get(dm.iso, "") != "16":
+                continue
+            if (name, dm.iso) in pinned_cells:
+                continue
+            grid[name][dm.iso] = ""
+            hours[name] -= 16
+            n16[name] -= 1
+            if (
+                name not in day_only_set
+                and not _cannot_assign_24(
+                    name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                )
+            ):
+                grid[name][dm.iso] = "24"
+                hours[name] += 24
+                n24[name] += 1
+
+    # Hafta içi kat-1 8 son geçiş (post-pass sonrası eksik kalmasın)
+    for idx, dm in enumerate(days):
+        if dm.is_weekend:
+            continue
+        if any(grid[n].get(dm.iso, "") == "8" for n in STAFF_NURSES):
+            continue
+        cands = [
+            n
+            for n in sorted(STAFF_NURSES, key=lambda n: (n8[n], accounted(n), _tie(n), n))
+            if not grid[n].get(dm.iso, "")
+            and dm.iso not in force_avoid[n]
+            and not _blocked_by_rest(
+                n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+            )
+            and _can_assign_8(n, idx, days, grid)
+            and not _first_day_after_leave(n, idx, days, grid)
+        ]
+        if not cands:
+            cands = [
+                n
+                for n in sorted(STAFF_NURSES, key=lambda n: (n8[n], accounted(n), _tie(n), n))
+                if not grid[n].get(dm.iso, "")
+                and dm.iso not in force_avoid[n]
+                and not _blocked_by_rest(
+                    n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                )
+                and _can_assign_8(n, idx, days, grid)
+            ]
+        if cands:
+            pick = cands[0]
+            grid[pick][dm.iso] = "8"
+            hours[pick] += 8
+            n8[pick] += 1
+
+    # Son gece kilidi: her gün 2×24 (16 yok); pin koru; gerekirse yarınki 24'ü kaydır
+    for idx, dm in enumerate(days):
+        iso = dm.iso
+        guard = 0
+        while _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY and guard < 8:
+            guard += 1
+
+            def _try_place_24(n: str) -> bool:
+                if n in day_only_set or (n, iso) in pinned_cells:
+                    return False
+                code = grid[n].get(iso, "")
+                if code in LEAVE_CODES or code in ("16", "24"):
+                    return False
+                if code == "8" and (n, iso) in pinned_cells:
+                    return False
+                if _blocked_by_rest(
+                    n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                ):
+                    return False
+                # Yarın 24 ise (pin değilse) kaydırıp bugün yaz
+                if _next_day_blocks_24(n, idx, days, grid):
+                    nxt = days[idx + 1]
+                    if (n, nxt.iso) in pinned_cells:
+                        return False
+                    if grid[n].get(nxt.iso, "") != "24":
+                        return False
+                    # Yarını boşalt; gece eksiği sonraki turda dolar
+                    grid[n][nxt.iso] = ""
+                    hours[n] -= 24
+                    n24[n] -= 1
+                if code == "8":
+                    grid[n][iso] = "24"
+                    hours[n] += 16
+                    n8[n] -= 1
+                    n24[n] += 1
+                    return True
+                if code == "":
+                    grid[n][iso] = "24"
+                    hours[n] += 24
+                    n24[n] += 1
+                    return True
+                return False
+
+            placed = False
+            # 1) boş + streak güvenli
+            pool = sorted(
+                [
+                    n
+                    for n in STAFF_NURSES
+                    if grid[n].get(iso, "") == ""
+                    and not _cannot_assign_24(
+                        n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    )
+                    and _gun_asiri_streak_if_24(n, idx, days, grid) <= GUN_ASIRI_STREAK_MAX
+                ],
+                key=lambda n: (accounted(n), n24[n], _tie(n), n),
+            )
+            for n in pool:
+                if _try_place_24(n):
+                    placed = True
+                    break
+            if placed:
+                continue
+            # 2) boş (streak gevşek)
+            pool = sorted(
+                [n for n in STAFF_NURSES if grid[n].get(iso, "") == ""],
+                key=lambda n: (accounted(n), n24[n], _tie(n), n),
+            )
+            for n in pool:
+                if _try_place_24(n):
+                    placed = True
+                    break
+            if placed:
+                continue
+            # 3) 8 çal (pin hariç) — kat-1 sonra yeniden yazılır
+            pool = sorted(
+                [
+                    n
+                    for n in STAFF_NURSES
+                    if grid[n].get(iso, "") == "8" and (n, iso) not in pinned_cells
+                ],
+                key=lambda n: (accounted(n), n24[n], _tie(n), n),
+            )
+            for n in pool:
+                if _try_place_24(n):
+                    placed = True
+                    break
+            if placed:
+                continue
+            warnings.append(
+                f"{iso}: Gece nöbeti eksik ({_staff_night_count(grid, iso)}/{NIGHT_SHIFTS_PER_DAY})."
+            )
+            break
+
+    # Kat-1 8'i gece kilidinden sonra bir kez daha
+    for idx, dm in enumerate(days):
+        if dm.is_weekend:
+            continue
+        if any(grid[n].get(dm.iso, "") == "8" for n in STAFF_NURSES):
+            continue
+        cands = [
+            n
+            for n in sorted(STAFF_NURSES, key=lambda n: (n8[n], accounted(n), _tie(n), n))
+            if not grid[n].get(dm.iso, "")
+            and dm.iso not in force_avoid[n]
+            and not _blocked_by_rest(
+                n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+            )
+            and _can_assign_8(n, idx, days, grid)
+        ]
+        if cands:
+            pick = cands[0]
+            grid[pick][dm.iso] = "8"
+            hours[pick] += 8
+            n8[pick] += 1
 
     last = days[-1]
     next_month_rest = [
@@ -1664,8 +1824,8 @@ def generate_ayilma_schedule(
         "staff_code_counts": code_counts,
         "legend": {
             "8": "08:00–16:00 (6 kişiye dağıtılır)",
-            "16": "16:00–08:00 (son çare)",
-            "24": "08:00–08:00 (6 kişiye dağıtılır)",
+            "16": "16:00–08:00 (yalnız sabit pin)",
+            "24": "08:00–08:00 (nöbet — motor her zaman 24)",
             "Yİ": f"Yıllık izin ({YI_DAY_HOURS}s sayılır)",
             "RP": "Rapor",
             "İST": "Özel gün isteği / rezervasyon",

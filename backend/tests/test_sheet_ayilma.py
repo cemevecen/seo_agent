@@ -120,16 +120,27 @@ def test_generate_august_basic_coverage():
         if dm["is_weekend"]:
             assert staff8 == 0, f"weekend staff 8 on {iso}"
         else:
-            assert morning >= 1, f"morning missing {iso}"
+            assert staff8 >= 1, f"kat-1 8 missing {iso}"
+
+
+def test_engine_never_writes_16_without_pin():
+    """Nöbet motoru 16 yazmaz; yalnız sabit pin ile gelir."""
+    out = generate_ayilma_schedule(2026, 9)
+    assert out["staff_code_counts"]["16"] == 0
+    leaves = {
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
+        "Şengül Zamur": {f"2026-09-{d:02d}": "Yİ" for d in range(14, 21)},
+    }
+    out2 = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=1)
+    assert out2["staff_code_counts"]["16"] == 0
 
 
 def test_prefer_8_and_minimize_16():
     out = generate_ayilma_schedule(2026, 8)
     counts = out["staff_code_counts"]
-    # Kişi başı ~2–4 → toplam ~12–24; her güne 8 şart değil
-    assert 12 <= counts["8"] <= 24
-    assert counts["16"] < counts["24"]
-    assert counts["16"] <= 2
+    # Hafta içi her gün ~1×8 → Ağustos ~21–22
+    assert counts["8"] >= 20
+    assert counts["16"] == 0
 
 
 def test_eights_and_twentyfours_are_shared():
@@ -164,7 +175,7 @@ def test_lead_does_not_count_in_staff_night_or_overtime():
 
 
 def test_first_day_after_leave_gets_night_shift():
-    """Yİ/RP bitişinin ertesi gün nöbet (24 veya 16); hafta içi kat-1 8 değil."""
+    """Yİ/RP bitişinin ertesi gün nöbet (24); hafta içi kat-1 8 değil."""
     leaves = {
         "Nuray Durna": {
             "2026-08-17": "Yİ",
@@ -175,7 +186,7 @@ def test_first_day_after_leave_gets_night_shift():
     out = generate_ayilma_schedule(2026, 8, leaves=leaves)
     nuray = next(r for r in out["rows"] if r["name"] == "Nuray Durna")
     first_back = nuray["cells"]["2026-08-20"]
-    assert first_back in ("16", "24"), f"expected nöbet, got {first_back!r}"
+    assert first_back == "24", f"expected 24 nöbet, got {first_back!r}"
     assert first_back != "8"
 
 
@@ -315,10 +326,10 @@ def test_no_back_to_back_24():
 
 
 def test_soft_avoid_gun_asiri_prefer_24_over_16():
-    """16 neredeyse hiç; gün aşırı zinciri kati ≤3."""
+    """16 yok; gün aşırı zinciri kati ≤3."""
     out = generate_ayilma_schedule(2026, 9)
     counts = out["staff_code_counts"]
-    assert counts["16"] <= 2
+    assert counts["16"] == 0
     assert counts["24"] >= counts["8"]
     assert _max_gun_asiri_streak(out) <= 3
 

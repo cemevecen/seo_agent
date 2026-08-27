@@ -11,10 +11,11 @@ Geri dönüş (önceki uzun motor): tag `ayilma-calc-before-rollback-20260827`.
 2. Dinlenme (16/24 sonrası tercih; `prefer_48h_after_24`)  
 3. Günde 2 gece nöbeti  
 4. Yİ/RP dönüşü → ertesi gün 24 tercih  
-5. Hafta içi mümkünse 1×8 + 2×24 · hafta sonu yalnız 2×24  
+5. Hafta içi **1×8 + 2×24** · hafta sonu yalnız 2×24  
 6. Mesai: Yİ 8s kredi · personel arası ~16s bant · üst 300s  
 7. Gün aşırı zincir **≤3 kati** (4. yasak; izin yoğun haftada da)  
 7b. **Arka arkaya 24 yasak** (aynı kişide ardışık gün 24+24; pin hariç)  
+7c. **Nöbet = 24** — motor `16` yazmaz; `16` yalnız sorumlu sabit pin  
 8. Kişi başı 8 · hedef 3 (2–4) · art arda 8 en fazla 2  
 
 ## Yeniden oluştur (`variant`)
