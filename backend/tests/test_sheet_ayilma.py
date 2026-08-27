@@ -142,14 +142,56 @@ def test_every_weekday_has_kat1_eight():
     out = generate_ayilma_schedule(2026, 9, leaves=leaves)
     grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
     missing = []
+    multi = []
     for dm in out["days"]:
-        if dm["is_weekend"]:
-            continue
         iso = dm["iso"]
-        if not any(grid[n].get(iso, "") == "8" for n in STAFF_NURSES):
+        eights = sum(1 for n in STAFF_NURSES if grid[n].get(iso, "") == "8")
+        if dm["is_weekend"]:
+            assert eights == 0, f"weekend 8 on {iso}"
+            continue
+        if eights == 0:
             missing.append(iso)
+        elif eights > 1:
+            multi.append((iso, eights))
     assert not missing, f"kat-1 8 missing: {missing}"
+    assert not multi, f"same-day multiple 8s: {multi}"
     assert not any("Kat-1 «8» eksik" in w for w in (out.get("warnings") or []))
+    assert not any("birden fazla «8»" in w for w in (out.get("warnings") or []))
+
+
+def test_at_most_one_eight_per_day():
+    """Aynı günde 2–3 «8» olmamalı; art arda 8 mümkün olduğunca yok."""
+    from backend.services.ayilma_schedule import (
+        CONSECUTIVE_8_STREAK_MAX,
+        _count_consecutive_8_runs,
+        _max_consecutive_8_streak,
+        month_days,
+    )
+
+    leaves = {
+        "Nuray Durna": {"2026-09-18": "İST"},
+        "Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"},
+        "Şengül Zamur": {"2026-09-23": "İST"},
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)}
+        | {"2026-09-27": "İST"},
+        "Rabia Kumtepe": {"2026-09-19": "İST"},
+    }
+    for variant in range(8):
+        out = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=variant)
+        grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
+        days_meta = month_days(2026, 9)
+        for dm in out["days"]:
+            iso = dm["iso"]
+            eights = sum(1 for n in STAFF_NURSES if grid[n].get(iso, "") == "8")
+            if dm["is_weekend"]:
+                assert eights == 0, f"v{variant} weekend 8 {iso}"
+            else:
+                assert eights <= 1, f"v{variant} {iso} has {eights} eights"
+        pairs = _count_consecutive_8_runs(grid, days_meta)
+        assert pairs <= 3, f"v{variant} consecutive-8 pairs={pairs}"
+        for name in STAFF_NURSES:
+            streak = _max_consecutive_8_streak(name, days_meta, grid)
+            assert streak <= CONSECUTIVE_8_STREAK_MAX, f"{name} streak={streak}"
 
 
 def test_generate_august_basic_coverage():
@@ -185,7 +227,7 @@ def test_generate_august_basic_coverage():
             assert staff8 == 0, f"weekend staff 8 on {iso}"
         else:
             assert morning >= 1, f"morning missing {iso}"
-            assert staff8 >= 1, f"kat-1 8 missing {iso}"
+            assert staff8 == 1, f"kat-1 8 count {staff8} on {iso}"
 
 
 def test_prefer_8_and_minimize_16():
