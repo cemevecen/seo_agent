@@ -507,13 +507,34 @@ def test_soft_avoid_gun_asiri_prefer_24_over_16():
 
 
 def test_soft_avoid_repeated_pair24():
-    """Aynı ikili 24'te çok sık / üst üste eşleşmesin (yumuşak çeşitlilik)."""
-    from backend.services.ayilma_schedule import PAIR24_MONTHLY_SOFT, generate_ayilma_schedule
+    """Aynı ikili 24'te çok sık / üst üste eşleşmesin."""
+    from backend.services.ayilma_schedule import (
+        PAIR24_MONTHLY_SOFT,
+        PAIR24_NEAR_STREAK_MAX,
+        generate_ayilma_schedule,
+    )
 
     for variant in range(40):
         out = generate_ayilma_schedule(2026, 9, variant=variant)
         assert _max_pair24_monthly(out) <= PAIR24_MONTHLY_SOFT
-        assert _max_pair24_near_streak(out) <= 2
+        assert _max_pair24_near_streak(out) <= PAIR24_NEAR_STREAK_MAX
+
+
+def test_pair24_near_streak_cap_with_leaves():
+    """İzinli ayda da aynı ikili yakın 24 zinciri ≤2 (ör. Şengül+Emine 24-boş-24-boş-24)."""
+    from backend.services.ayilma_schedule import PAIR24_NEAR_STREAK_MAX
+
+    leaves = {
+        "Nuray Durna": {"2026-09-18": "İST"},
+        "Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"},
+        "Şengül Zamur": {"2026-09-23": "İST"},
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)}
+        | {"2026-09-27": "İST"},
+        "Rabia Kumtepe": {"2026-09-19": "İST"},
+    }
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
+    assert _max_pair24_near_streak(out) <= PAIR24_NEAR_STREAK_MAX
+    assert not any("yakın 24 zinciri" in w for w in (out.get("warnings") or []))
 
 
 def test_pair24_soft_penalty_discourages_third_near():

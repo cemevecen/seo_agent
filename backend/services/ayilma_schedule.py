@@ -55,11 +55,12 @@ CONSECUTIVE_8_STREAK_SOFT = 1
 CONSECUTIVE_8_STREAK_MAX = 2
 # Haftada bu kadar Yİ/RP/İST hücresi varsa streak limiti gevşer
 LEAVE_HEAVY_WEEK_THRESHOLD = 6
-# Aynı ikili aynı gün 24 — yumuşak çeşitlilik (sert kural değil)
-PAIR24_RECENT_GAP = 4  # son eşleşmeden bu kadar gün içinde tekrar → ek ceza
+# Aynı ikili aynı gün 24 — çeşitlilik
+PAIR24_RECENT_GAP = 4  # son eşleşmeden bu kadar gün içinde tekrar → «üst üste»
+PAIR24_NEAR_STREAK_MAX = 2  # üst üste (yakın) birlikte 24 tavanı
 PAIR24_PRIOR_WEIGHT = 7  # ay içi önceki birlikte 24 (her biri)
 PAIR24_NEAR_REPEAT = 18  # yakın aralıkta tekrar eşleşme
-PAIR24_THIRD_NEAR = 28  # ay içi 2+ kez eşleşmiş ikilinin yakın 3. kez
+PAIR24_THIRD_NEAR = 80  # 3. yakın eşleşme — neredeyse yasak (seçimde)
 PAIR24_MONTHLY_SOFT = 4  # post-pass: hedef üstü aylık birlikte 24
 # 24 arası boş hücre: KATİ tavan 3 (4+ yasak); hedef 2+24+2
 IDLE_24_GAP_MAX = 3
@@ -1278,6 +1279,19 @@ def _ensure_two_nights_per_day(
                 ]
                 if not pool:
                     continue
+                partners_now = _partners_on_24_today(idx, days, grid)
+                if partners_now:
+                    pair_ok = [
+                        n
+                        for n in pool
+                        if all(
+                            _pair24_near_streak(n, p, idx, days, grid)
+                            < PAIR24_NEAR_STREAK_MAX
+                            for p in partners_now
+                        )
+                    ]
+                    if pair_ok:
+                        pool = pair_ok
                 pick = sorted(pool, key=lambda n: (n24[n], n))[0]
                 if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
                     continue
@@ -2200,7 +2214,11 @@ def _pair24_near_streak(
             streak += 1
         else:
             break
-    return streak
+    # Bugün de eklenirse streak+1; çağıran ceza için «mevcut yakın zincir» ister
+    last = idxs[-1]
+    if day_index - last <= PAIR24_RECENT_GAP:
+        return streak
+    return 0
 
 
 def _pair24_soft_penalty(
@@ -2218,9 +2236,9 @@ def _pair24_soft_penalty(
         return 0
     pen = prior * PAIR24_PRIOR_WEIGHT
     near_streak = _pair24_near_streak(candidate, partner, day_index, days, grid)
-    if near_streak >= 2:
-        # Üst üste 3. kez aynı ikili (ör. gün 6-8-10) — güçlü ama yumuşak ceza
-        pen += PAIR24_THIRD_NEAR + 16
+    # near_streak = bugünden önceki yakın zincir; bugün 3. olur ≥ MAX
+    if near_streak >= PAIR24_NEAR_STREAK_MAX:
+        pen += PAIR24_THIRD_NEAR
     else:
         last_j = _pair24_last_day(candidate, partner, day_index, days, grid)
         if last_j is not None and day_index - last_j <= PAIR24_RECENT_GAP:
@@ -2239,6 +2257,325 @@ def _pair24_month_count(
         for dm in days
         if grid[a].get(dm.iso, "") == "24" and grid[b].get(dm.iso, "") == "24"
     )
+
+
+def _pair24_near_streak_segments(
+    a: str,
+    b: str,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> list[list[int]]:
+    """Aynı ikilinin yakın (≤GAP) birlikte-24 zincirleri."""
+    idxs = [
+        j
+        for j, dm in enumerate(days)
+        if grid[a].get(dm.iso, "") == "24" and grid[b].get(dm.iso, "") == "24"
+    ]
+    if not idxs:
+        return []
+    segs: list[list[int]] = [[idxs[0]]]
+    for k in range(1, len(idxs)):
+        if idxs[k] - idxs[k - 1] <= PAIR24_RECENT_GAP:
+            segs[-1].append(idxs[k])
+        else:
+            segs.append([idxs[k]])
+    return segs
+
+
+def _max_pair24_near_streak_in_grid(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    best = 0
+    for i, a in enumerate(STAFF_NURSES):
+        for b in STAFF_NURSES[i + 1 :]:
+            for seg in _pair24_near_streak_segments(a, b, days, grid):
+                best = max(best, len(seg))
+    return best
+
+
+def _try_swap_pair24_across_days(
+    a: str,
+    b: str,
+    day_j: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+) -> bool:
+    """a+b gün j'de birlikteyse; b'yi başka günün 24'çüsüyle takas et."""
+    iso_j = days[day_j].iso
+    if grid[a].get(iso_j, "") != "24" or grid[b].get(iso_j, "") != "24":
+        return False
+    for k, dm in enumerate(days):
+        if k == day_j:
+            continue
+        iso_k = dm.iso
+        nights_k = [n for n in STAFF_NURSES if grid[n].get(iso_k, "") == "24"]
+        if len(nights_k) < 2:
+            continue
+        for c in nights_k:
+            if c in (a, b):
+                continue
+            # b → k, c → j
+            if iso_k in force_avoid[b] or b in day_only_set:
+                continue
+            if iso_j in force_avoid[c] or c in day_only_set:
+                continue
+            if grid[b].get(iso_k, "") not in ("", "8"):
+                continue
+            if grid[c].get(iso_j, "") not in ("", "8"):
+                continue
+            if _blocked_by_rest(
+                b, k, days, grid, prefer_48h_after_24=prefer_48h_after_24
+            ):
+                continue
+            if _blocked_by_rest(
+                c, day_j, days, grid, prefer_48h_after_24=prefer_48h_after_24
+            ):
+                continue
+            if _gun_asiri_streak_if_24(b, k, days, grid) > GUN_ASIRI_STREAK_ABSOLUTE:
+                continue
+            if _gun_asiri_streak_if_24(c, day_j, days, grid) > GUN_ASIRI_STREAK_ABSOLUTE:
+                continue
+            # takas sonrası a+c ve (nights_k - c)+b yakın zincir tavanını aşmasın
+            partner_k = next(n for n in nights_k if n != c)
+            if _pair24_near_streak(a, c, day_j, days, grid) >= PAIR24_NEAR_STREAK_MAX:
+                continue
+            if _pair24_near_streak(partner_k, b, k, days, grid) >= PAIR24_NEAR_STREAK_MAX:
+                continue
+
+            def _lift_8(name: str, iso: str) -> None:
+                if grid[name].get(iso, "") == "8":
+                    grid[name][iso] = ""
+                    hours[name] -= 8
+                    n8[name] -= 1
+
+            _lift_8(b, iso_k)
+            _lift_8(c, iso_j)
+            grid[b][iso_j] = ""
+            hours[b] -= 24
+            n24[b] -= 1
+            grid[c][iso_k] = ""
+            hours[c] -= 24
+            n24[c] -= 1
+            grid[c][iso_j] = "24"
+            hours[c] += 24
+            n24[c] += 1
+            grid[b][iso_k] = "24"
+            hours[b] += 24
+            n24[b] += 1
+            return True
+    return False
+
+
+def _try_break_pair24_on_day(
+    who: str,
+    other: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+    relax: bool = False,
+) -> bool:
+    """who'nun bu günkü 24'ünü başka birine kaydır (other ile eşleşmeyi boz)."""
+    iso = days[day_index].iso
+    if grid[who].get(iso, "") != "24":
+        return False
+    gun_cap = GUN_ASIRI_STREAK_ABSOLUTE if relax else GUN_ASIRI_STREAK_MAX
+    alts = []
+    for o in STAFF_NURSES:
+        if o in (who, other):
+            continue
+        if grid[o].get(iso) not in ("", "8"):
+            continue
+        if iso in force_avoid[o] or o in day_only_set:
+            continue
+        if not relax and _blocked_by_rest(
+            o, day_index, days, grid, prefer_48h_after_24=prefer_48h_after_24
+        ):
+            continue
+        if relax:
+            # Sert dinlenme: önceki/sonraki gece 16/24 ise yine verme
+            if day_index > 0 and grid[o].get(days[day_index - 1].iso, "") in (
+                "16",
+                "24",
+            ):
+                continue
+            if day_index + 1 < len(days) and grid[o].get(
+                days[day_index + 1].iso, ""
+            ) in ("16", "24"):
+                continue
+        if _gun_asiri_streak_if_24(o, day_index, days, grid) > gun_cap:
+            continue
+        if _pair24_near_streak(o, other, day_index, days, grid) >= PAIR24_NEAR_STREAK_MAX:
+            continue
+        alts.append(o)
+    if not alts:
+        return False
+
+    def alt_score(o: str) -> tuple:
+        return (
+            _pair24_soft_penalty(o, other, day_index, days, grid),
+            _pair24_prior_count(o, other, day_index, days, grid),
+            n24[o],
+            hours[o],
+            o,
+        )
+
+    alt = sorted(alts, key=alt_score)[0]
+    prev_alt = grid[alt].get(iso, "")
+    grid[who][iso] = ""
+    hours[who] -= 24
+    n24[who] -= 1
+    if prev_alt == "8":
+        grid[alt][iso] = "24"
+        hours[alt] += 16
+        n8[alt] -= 1
+    else:
+        grid[alt][iso] = "24"
+        hours[alt] += 24
+    n24[alt] += 1
+    return True
+
+
+def _enforce_pair24_near_streak_cap(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n16: dict[str, int],
+    n24: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+    max_passes: int = 48,
+) -> bool:
+    """Aynı ikili ≤GAP gün aralıklı birlikte 24'ü en fazla PAIR24_NEAR_STREAK_MAX kez."""
+    changed = False
+    for _ in range(max_passes):
+        if _max_pair24_near_streak_in_grid(days, grid) <= PAIR24_NEAR_STREAK_MAX:
+            break
+        fixed = False
+        for i, a in enumerate(STAFF_NURSES):
+            for b in STAFF_NURSES[i + 1 :]:
+                for seg in _pair24_near_streak_segments(a, b, days, grid):
+                    if len(seg) <= PAIR24_NEAR_STREAK_MAX:
+                        continue
+                    break_order = list(reversed(seg[PAIR24_NEAR_STREAK_MAX :])) + list(
+                        reversed(seg[1:PAIR24_NEAR_STREAK_MAX])
+                    )
+                    for relax in (False, True):
+                        for j in break_order:
+                            for who, other in ((a, b), (b, a)):
+                                if _try_break_pair24_on_day(
+                                    who,
+                                    other,
+                                    j,
+                                    days,
+                                    grid,
+                                    hours,
+                                    n8,
+                                    n24,
+                                    prefer_48h_after_24=prefer_48h_after_24,
+                                    force_avoid=force_avoid,
+                                    day_only_set=day_only_set,
+                                    relax=relax,
+                                ):
+                                    fixed = True
+                                    changed = True
+                                    break
+                            if fixed:
+                                break
+                            if _try_swap_pair24_across_days(
+                                a,
+                                b,
+                                j,
+                                days,
+                                grid,
+                                hours,
+                                n8,
+                                n24,
+                                prefer_48h_after_24=prefer_48h_after_24,
+                                force_avoid=force_avoid,
+                                day_only_set=day_only_set,
+                            ) or _try_swap_pair24_across_days(
+                                b,
+                                a,
+                                j,
+                                days,
+                                grid,
+                                hours,
+                                n8,
+                                n24,
+                                prefer_48h_after_24=prefer_48h_after_24,
+                                force_avoid=force_avoid,
+                                day_only_set=day_only_set,
+                            ):
+                                fixed = True
+                                changed = True
+                                break
+                        if fixed:
+                            break
+                    if fixed:
+                        break
+                    # Son çare: birini kaldır, geceyi yeniden doldur (16 mümkün)
+                    for j in break_order:
+                        for who, other in ((a, b), (b, a)):
+                            iso = days[j].iso
+                            if grid[who].get(iso, "") != "24":
+                                continue
+                            grid[who][iso] = ""
+                            hours[who] -= 24
+                            n24[who] -= 1
+                            _ensure_two_nights_per_day(
+                                days,
+                                grid,
+                                hours,
+                                n8,
+                                n16,
+                                n24,
+                                force_avoid=force_avoid,
+                                day_only_set=day_only_set,
+                                prefer_48h_after_24=prefer_48h_after_24,
+                            )
+                            # hâlâ a+b ise geri al
+                            if (
+                                grid[a].get(iso, "") == "24"
+                                and grid[b].get(iso, "") == "24"
+                            ):
+                                # geri yükle who
+                                if grid[who].get(iso, "") == "":
+                                    grid[who][iso] = "24"
+                                    hours[who] += 24
+                                    n24[who] += 1
+                                continue
+                            fixed = True
+                            changed = True
+                            break
+                        if fixed:
+                            break
+                    if fixed:
+                        break
+                if fixed:
+                    break
+            if fixed:
+                break
+        if not fixed:
+            break
+    return changed
 
 
 def _week_leave_cell_count(
@@ -2533,7 +2870,7 @@ def generate_ayilma_schedule(
     Özel koşul: çalışmasın (sert) / çalışsın (yumuşak tercih).
     Çalışmasın + haftalık tekrar: bloklu günler dışında ortalama mesai bandına yetişir.
     İST: ertesi gün 24 nöbet; istek günleri kotadan düşülmez, kalan günlerle denge.
-    Aynı ikili 24 nöbette mümkün olduğunca az ve üst üste tekrar etmesin (yumuşak).
+    Aynı ikili 24 nöbette üst üste (≤4 gün aralıklı) en fazla 2 kez; aylık çeşitlilik yumuşak.
     24 arası boş hücre KATİ en fazla 3 (4+ yasak); hedef 2+24+2 (zorunlu tercih, kapatılamaz).
     Aylık mesai üst sınırı 400s.
     variant>0 → eşitlikte farklı aday seç (yeniden oluştur).
@@ -2701,6 +3038,7 @@ def generate_ayilma_schedule(
                 balance_rank(n),
                 gap24_prio,
                 gap_ideal,
+                1 if pair_pen >= PAIR24_THIRD_NEAR else 0,
                 pair_pen,
                 special_work_rank(n),
                 over,
@@ -2794,6 +3132,18 @@ def generate_ayilma_schedule(
             pick_from = [n for n in pick_from if _rest_allows_24(n, idx, days, grid)]
             if not pick_from:
                 break
+            partners_now = _partners_on_24_today(idx, days, grid)
+            if partners_now:
+                pair_ok = [
+                    n
+                    for n in pick_from
+                    if all(
+                        _pair24_near_streak(n, p, idx, days, grid) < PAIR24_NEAR_STREAK_MAX
+                        for p in partners_now
+                    )
+                ]
+                if pair_ok:
+                    pick_from = pair_ok
             pick = sorted(pick_from, key=rank_for_24)[0]
             prev = grid[pick].get(dm.iso, "")
             if prev == "8":
@@ -2903,6 +3253,19 @@ def generate_ayilma_schedule(
                 break
         if not swapped:
             break
+
+    # ── Post: aynı ikili üst üste (yakın) 24 en fazla 2 ──
+    _enforce_pair24_near_streak_cap(
+        days,
+        grid,
+        hours,
+        n8,
+        n16,
+        n24,
+        prefer_48h_after_24=prefer_48h_after_24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+    )
 
     # ── Post: streak > GUN_ASIRI_STREAK_MAX olan 24'leri mümkünse 8 ile takas ──
     for _pass in range(4):
@@ -4187,6 +4550,47 @@ def generate_ayilma_schedule(
             prefer_48h_after_24=prefer_48h_after_24,
         )
 
+    # Son: aynı ikili yakın 24 zinciri ≤2
+    for _ in range(4):
+        if not _enforce_pair24_near_streak_cap(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            max_passes=24,
+        ):
+            break
+        _ensure_two_nights_per_day(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            prefer_48h_after_24=prefer_48h_after_24,
+        )
+        _enforce_hours_balance(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            max_passes=80,
+        )
+
     last = days[-1]
     next_month_rest = [
         n for n in STAFF_NURSES if grid[n].get(last.iso, "") in ("16", "24")
@@ -4198,6 +4602,12 @@ def generate_ayilma_schedule(
         warnings.append(
             f"Aktif personel (Yİ/RP hariç, n={len(peers)}) saat bandı {peer_spread:.0f}s "
             f"(hedef ≤{HOURS_BALANCE_TOLERANCE}s aralık)."
+        )
+
+    pair_near = _max_pair24_near_streak_in_grid(days, grid)
+    if pair_near > PAIR24_NEAR_STREAK_MAX:
+        warnings.append(
+            f"Aynı ikili yakın 24 zinciri {pair_near} (hedef ≤{PAIR24_NEAR_STREAK_MAX})."
         )
 
     gun_asiri = 0
