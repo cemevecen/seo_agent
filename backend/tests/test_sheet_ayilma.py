@@ -379,3 +379,19 @@ def test_two_night_shifts_every_day_with_mixed_leaves():
             if r["role"] == "staff" and r["cells"].get(dm["iso"], "") in ("16", "24")
         )
         assert n >= 2, f"{dm['iso']}: {n} night shifts"
+
+
+def test_variant_reroll_changes_schedule():
+    """Yeniden oluştur (variant) deterministik ama farklı çizelge üretir."""
+    leaves = {"Sema Evecen": {"2026-09-01": "İST"}}
+    a = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=0)
+    b = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=1)
+
+    def cells(out):
+        return {
+            r["name"]: dict(r["cells"])
+            for r in out["rows"]
+            if r["role"] == "staff"
+        }
+
+    assert cells(a) != cells(b)

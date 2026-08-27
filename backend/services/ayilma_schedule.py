@@ -13,6 +13,7 @@ Hücre kodları (örnek SSE ile uyumlu):
 from __future__ import annotations
 
 import calendar
+import random
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -378,7 +379,8 @@ def generate_ayilma_schedule(
     """6 personel + sorumlu.
 
     Hesap motoru: aa3ee655 (2026-08-26 21:40) tabanı.
-    special_rules / variant API uyumu için kabul edilir (bu sürümde hesapta kullanılmaz).
+    variant>0 → eşitlikte farklı aday (Yeniden oluştur).
+    special_rules API uyumu için kabul edilir (bu sürümde hesapta kullanılmaz).
 
     Gülten panelde boş satır; hesaba karışmaz.
     Hafta içi: mümkünse 1×«8» + 2×«24». Hafta sonu: yalnız 2×«24» (kat-1 / 8 yok).
@@ -388,7 +390,7 @@ def generate_ayilma_schedule(
     Gün aşırı zinciri en fazla 3×24; izin yoğun haftada gevşer.
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
     """
-    del special_rules, variant  # UI alanları; bu hesap tabanında yok
+    del special_rules  # UI alanı; bu hesap tabanında yok
     if not (1 <= month <= 12):
         raise ValueError("month 1–12 olmalı")
     if year < 2000 or year > 2100:
@@ -398,6 +400,11 @@ def generate_ayilma_schedule(
     grid = _empty_grid(year, month)
     _apply_leaves(grid, leaves)
     day_only_set = {str(x).strip() for x in (day_only or []) if str(x).strip()}
+    rng = random.Random((year * 100 + month) * 10007 + int(variant or 0))
+    person_tie = {n: (rng.random() if variant else 0.0) for n in STAFF_NURSES}
+
+    def _tie(n: str) -> float:
+        return person_tie[n]
 
     # Görsel: Gülten boş (hesaba dahil değil)
     for dm in days:
@@ -456,6 +463,7 @@ def generate_ayilma_schedule(
                 after24,
                 n8[n],
                 break24,
+                _tie(n),
                 n,
             )
 
@@ -468,7 +476,18 @@ def generate_ayilma_schedule(
             behind = 0 if hours[n] < min_shift[n] else 1
             # İzinden dönüş → önce nöbet
             after_leave = 0 if _first_day_after_leave(n, idx, days, grid) else 1
-            return (pen, after_leave, over, accounted(n), streak_if_24(n), gun, behind, n24[n], n)
+            return (
+                pen,
+                after_leave,
+                over,
+                accounted(n),
+                streak_if_24(n),
+                gun,
+                behind,
+                n24[n],
+                _tie(n),
+                n,
+            )
 
         morning: str | None = None
         night_needed = 2

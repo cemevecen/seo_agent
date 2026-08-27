@@ -29,5 +29,6 @@ Geri dönüş (önceki uzun motor): tag `ayilma-calc-before-rollback-20260827`.
 
 ## Not
 
-UI özellikleri (özel koşul formu, variant, export csv/docx, yükleme animasyonu vb.) korunur;  
-`special_rules` / `variant` API’den gelir ama bu hesap tabanında kullanılmaz.
+UI özellikleri (özel koşul formu, variant, export csv/docx, yükleme animasyonu vb.) korunur.  
+`variant` → eşitlikte farklı aday («Yeniden oluştur»).  
+`special_rules` API’den gelir ama bu hesap tabanında kullanılmaz.
