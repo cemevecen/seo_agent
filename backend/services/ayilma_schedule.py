@@ -55,13 +55,14 @@ CONSECUTIVE_8_STREAK_SOFT = 1
 CONSECUTIVE_8_STREAK_MAX = 2
 # Haftada bu kadar Yİ/RP/İST hücresi varsa streak limiti gevşer
 LEAVE_HEAVY_WEEK_THRESHOLD = 6
-# Aynı ikili aynı gün 24 — çeşitlilik
+# Aynı ikili aynı gün 24 — çapraz çeşitlilik (tüm C(6,2) ikilileri)
 PAIR24_RECENT_GAP = 4  # son eşleşmeden bu kadar gün içinde tekrar → «üst üste»
 PAIR24_NEAR_STREAK_MAX = 2  # üst üste (yakın) birlikte 24 tavanı
-PAIR24_PRIOR_WEIGHT = 7  # ay içi önceki birlikte 24 (her biri)
-PAIR24_NEAR_REPEAT = 18  # yakın aralıkta tekrar eşleşme
-PAIR24_THIRD_NEAR = 80  # 3. yakın eşleşme — neredeyse yasak (seçimde)
-PAIR24_MONTHLY_SOFT = 4  # post-pass: hedef üstü aylık birlikte 24
+PAIR24_PRIOR_WEIGHT = 10  # ay içi önceki birlikte 24 — çapraz çeşitlilik
+PAIR24_UNUSED_BONUS = -18  # hiç eşleşmemiş ikiliye tercih (a-c, a-d, …)
+PAIR24_NEAR_REPEAT = 20  # yakın aralıkta tekrar eşleşme
+PAIR24_THIRD_NEAR = 90  # 3. yakın eşleşme — neredeyse yasak (seçimde)
+PAIR24_MONTHLY_SOFT = 4  # post-pass: ≥SOFT ikiliyi az kullanılmış çapraza dağıt
 # 24 arası boş hücre: KATİ tavan 3 (4+ yasak); hedef 2+24+2
 IDLE_24_GAP_MAX = 3
 IDLE_24_GAP_SOFT = 2  # tercih: 2 gün boş + 24 + 2 gün boş; ayrıntı docs/ayilma-schedule-rules.md
@@ -2228,15 +2229,23 @@ def _pair24_soft_penalty(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
 ) -> int:
-    """Aynı gün 24'te partner ile eşleşme — düşük öncelikli yumuşak ceza."""
+    """Aynı gün 24 partner cezası — az kullanılmış / hiç kullanılmamış ikiliye öncelik."""
     if candidate == partner:
         return 999
     prior = _pair24_prior_count(candidate, partner, day_index, days, grid)
     if prior == 0:
-        return 0
-    pen = prior * PAIR24_PRIOR_WEIGHT
+        pen = PAIR24_UNUSED_BONUS
+    else:
+        pen = prior * PAIR24_PRIOR_WEIGHT
+    # Bu adayın diğer olası partnerlerine göre ne kadar «aşırı» kullanıldığı
+    other_priors = [
+        _pair24_prior_count(candidate, o, day_index, days, grid)
+        for o in STAFF_NURSES
+        if o != candidate
+    ]
+    if other_priors:
+        pen += max(0, prior - min(other_priors)) * 3
     near_streak = _pair24_near_streak(candidate, partner, day_index, days, grid)
-    # near_streak = bugünden önceki yakın zincir; bugün 3. olur ≥ MAX
     if near_streak >= PAIR24_NEAR_STREAK_MAX:
         pen += PAIR24_THIRD_NEAR
     else:
@@ -2256,6 +2265,39 @@ def _pair24_month_count(
         1
         for dm in days
         if grid[a].get(dm.iso, "") == "24" and grid[b].get(dm.iso, "") == "24"
+    )
+
+
+def _pair24_all_month_counts(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> dict[tuple[str, str], int]:
+    """Tüm çapraz ikililerin (a<b) aylık birlikte-24 sayıları."""
+    out: dict[tuple[str, str], int] = {}
+    for i, a in enumerate(STAFF_NURSES):
+        for b in STAFF_NURSES[i + 1 :]:
+            out[_pair_key(a, b)] = _pair24_month_count(a, b, days, grid)
+    return out
+
+
+def _pair24_combo_score(
+    a: str,
+    b: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> tuple:
+    """İki adayın bugün birlikte 24 olması — düşük skor = daha iyi (çapraz çeşitlilik)."""
+    prior = _pair24_prior_count(a, b, day_index, days, grid)
+    near = _pair24_near_streak(a, b, day_index, days, grid)
+    hard = 1 if near >= PAIR24_NEAR_STREAK_MAX else 0
+    return (
+        hard,
+        prior,
+        _pair24_soft_penalty(a, b, day_index, days, grid)
+        + _pair24_soft_penalty(b, a, day_index, days, grid),
+        a,
+        b,
     )
 
 
@@ -3020,7 +3062,7 @@ def generate_ayilma_schedule(
     Özel koşul: çalışmasın (sert) / çalışsın (yumuşak tercih).
     Çalışmasın + haftalık tekrar: bloklu günler dışında ortalama mesai bandına yetişir.
     İST: ertesi gün 24 nöbet; istek günleri kotadan düşülmez, kalan günlerle denge.
-    Aynı ikili 24 nöbette üst üste (≤4 gün aralıklı) en fazla 2 kez; aylık çeşitlilik yumuşak.
+    Aynı ikili 24’te çapraz çeşitlilik (a-b, a-c, … tüm ikililer); yakın zincir ≤2.
     24 arası boş hücre KATİ en fazla 3 (4+ yasak); hedef 2+24+2 (zorunlu tercih, kapatılamaz).
     Aylık mesai üst sınırı 400s.
     variant>0 → eşitlikte farklı aday seç (yeniden oluştur).
@@ -3285,7 +3327,23 @@ def generate_ayilma_schedule(
                 ]
                 if pair_ok:
                     pick_from = pair_ok
-            pick = sorted(pick_from, key=rank_for_24)[0]
+            # İki gece boşken: rank korunur; eşitlikte az kullanılmış çapraz partneri olanı seç
+            if night_needed >= 2 and not partners_now and len(pick_from) >= 2:
+
+                def rank_for_24_cross(n: str) -> tuple:
+                    others = [o for o in pick_from if o != n]
+                    best = min(
+                        (
+                            _pair24_combo_score(n, o, idx, days, grid)
+                            for o in others
+                        ),
+                        default=(1, 99, 0, n, n),
+                    )
+                    return (*rank_for_24(n)[:-2], best[0], best[1], best[2], _tie(n), n)
+
+                pick = sorted(pick_from, key=rank_for_24_cross)[0]
+            else:
+                pick = sorted(pick_from, key=rank_for_24)[0]
             prev = grid[pick].get(dm.iso, "")
             if prev == "8":
                 if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
@@ -3369,18 +3427,22 @@ def generate_ayilma_schedule(
                             if o not in (a, b)
                             and grid[o].get(iso) in ("", "8")
                             and iso not in force_avoid[o]
+                            and o not in day_only_set
                             and not _blocked_by_rest(
                                 o, j, days, grid, prefer_48h_after_24=prefer_48h_after_24
                             )
                             and (
                                 _gun_asiri_streak_if_24(o, j, days, grid) <= GUN_ASIRI_STREAK_MAX
                             )
+                            and _pair24_near_streak(o, other, j, days, grid)
+                            < PAIR24_NEAR_STREAK_MAX
                         ]
                         if not alts:
                             continue
 
                         def alt_score(o: str, *, _other=other, _who=who) -> tuple:
                             return (
+                                _pair24_month_count(o, _other, days, grid),
                                 _pair24_prior_count(o, _other, j, days, grid)
                                 + _pair24_prior_count(o, _who, j, days, grid),
                                 _pair24_soft_penalty(o, _other, j, days, grid)

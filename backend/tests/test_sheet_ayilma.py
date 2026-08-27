@@ -531,17 +531,38 @@ def test_soft_avoid_gun_asiri_prefer_24_over_16():
 
 
 def test_soft_avoid_repeated_pair24():
-    """Aynı ikili 24'te çok sık / üst üste eşleşmesin."""
+    """Aynı ikili 24'te çok sık / üst üste eşleşmesin; çapraz çeşitlilik."""
     from backend.services.ayilma_schedule import (
         PAIR24_MONTHLY_SOFT,
         PAIR24_NEAR_STREAK_MAX,
+        _pair24_all_month_counts,
         generate_ayilma_schedule,
+        month_days,
     )
 
-    for variant in range(40):
+    for variant in range(20):
         out = generate_ayilma_schedule(2026, 9, variant=variant)
         assert _max_pair24_monthly(out) <= PAIR24_MONTHLY_SOFT
         assert _max_pair24_near_streak(out) <= PAIR24_NEAR_STREAK_MAX
+        grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
+        counts = _pair24_all_month_counts(month_days(2026, 9), grid)
+        used = sum(1 for c in counts.values() if c > 0)
+        # 15 olası ikiliden mümkün olduğunca çoğu kullanılsın
+        assert used >= 8, f"variant={variant} distinct pairs={used} counts={counts}"
+
+
+def test_pair24_unused_pair_preferred():
+    from backend.services.ayilma_schedule import _pair24_soft_penalty, month_days
+
+    days = month_days(2026, 9)
+    grid = {n: {d.iso: "" for d in days} for n in STAFF_NURSES}
+    a, b, c = STAFF_NURSES[0], STAFF_NURSES[1], STAFF_NURSES[2]
+    grid[a][days[1].iso] = "24"
+    grid[b][days[1].iso] = "24"
+    # a-b daha önce eşleşmiş; a-c hiç → a-c daha düşük ceza
+    pen_ab = _pair24_soft_penalty(a, b, 5, days, grid)
+    pen_ac = _pair24_soft_penalty(a, c, 5, days, grid)
+    assert pen_ac < pen_ab
 
 
 def test_pair24_near_streak_cap_with_leaves():

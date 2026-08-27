@@ -14,7 +14,7 @@ Geri dönüş: tag `ayilma-restore-*` (kurallar tazelendikten sonra) · öncesi 
 6. **24 arası boş hücre ≤3 (KATİ; 4+ yasak)** · hedef 2+24+2  
 7. Mesai: kalan günlerle aylık ideal doldur · **aktif kadro (Yİ/RP hariç) ≤16s bant** · üst sınır 400s  
 8. Gün aşırı zincir ≤4 (çok sıkışıkta 5, asla 5 üstü)  
-9. Kişi başı 8 / üst üste 8 / **aynı ikili yakın 24 ≤2**  
+9. Kişi başı 8 / üst üste 8 / **ikili 24 çapraz çeşitlilik** (seçimde a-b…e-f) · yakın ≤2  
 
 ## Sabitler
 
@@ -31,7 +31,9 @@ Geri dönüş: tag `ayilma-restore-*` (kurallar tazelendikten sonra) · öncesi 
 | `EIGHT_PER_PERSON_*` | 2 / 4 / 5 | Kişi başı düz 8 min / hedef / max (hafta içi her güne 1×8) |
 | `PAIR24_NEAR_STREAK_MAX` | 2 | Aynı ikili ≤4 gün aralıklı birlikte 24 tavanı |
 | `PAIR24_RECENT_GAP` | 4 | «Üst üste / yakın» eşleşme penceresi (gün) |
-| `PAIR24_MONTHLY_SOFT` | 4 | Aylık birlikte 24 yumuşak üst |
+| `PAIR24_MONTHLY_SOFT` | 4 | Aylık birlikte 24 yumuşak üst — ≥SOFT çapraza dağıt |
+| `PAIR24_PRIOR_WEIGHT` | 10 | Tekrarlayan ikiliye seçim cezası |
+| `PAIR24_UNUSED_BONUS` | −18 | Hiç eşleşmemiş ikiliye tercih |
 
 ## Boşluk (ruh hali + kati)
 
