@@ -501,6 +501,24 @@ def test_max_days_without_24_at_most_three():
         assert best <= 3, f"variant {variant} max gap without 24 = {best}"
 
 
+def test_triple_gap_sandwich_minimized():
+    """3+24+3 yerine 2+24+2 tercih — mümkün olduğunca az triple sandwich."""
+    from backend.services.ayilma_schedule import (
+        _count_triple_gap_sandwiches_in_grid,
+        month_days,
+    )
+
+    for month in (8, 9):
+        for variant in range(25):
+            out = generate_ayilma_schedule(2026, month, variant=variant)
+            grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
+            days_meta = month_days(2026, month)
+            triple = _count_triple_gap_sandwiches_in_grid(days_meta, grid)
+            assert triple <= 2, (
+                f"{month}/{variant}: {triple} adet 3+24+3 (hedef ≤2, ideal 0)"
+            )
+
+
 def test_gun_asiri_streak_cap_with_heavy_leave():
     """İzin yoğun ayda bile gün aşırı 24 zinciri ABSOLUTE (5) aşılmaz."""
     leaves = {

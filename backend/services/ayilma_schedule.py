@@ -61,9 +61,9 @@ PAIR24_PRIOR_WEIGHT = 7  # ay içi önceki birlikte 24 (her biri)
 PAIR24_NEAR_REPEAT = 18  # yakın aralıkta tekrar eşleşme
 PAIR24_THIRD_NEAR = 28  # ay içi 2+ kez eşleşmiş ikilinin yakın 3. kez
 PAIR24_MONTHLY_SOFT = 4  # post-pass: hedef üstü aylık birlikte 24
-# 24 nöbet arası boş gün: en fazla 3; kota elveriyorsa 3 tam boş bırakma (hedef ≤2)
+# 24 nöbet arası boş gün: sert tavan 3; hedef 2+24+2 (3+24+3 çalışan ruh hali için kötü)
 IDLE_24_GAP_MAX = 3
-IDLE_24_GAP_SOFT = 2  # aylık mesai elveriyorsa bu kadar gün sonra 24 tercih
+IDLE_24_GAP_SOFT = 2  # tercih: 2 gün boş + 24 + 2 gün boş; ayrıntı docs/ayilma-schedule-rules.md
 
 
 def _yi_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
@@ -291,6 +291,145 @@ def _idle_empty_streak_before(
     return streak
 
 
+def _empty_days_after_24_until_next(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    """24'ten sonraki 24'e kadar kaç mesai-dışı gün (izin atlanır, sıfırlamaz)."""
+    n = 0
+    for j in range(day_index + 1, len(days)):
+        code = grid[name].get(days[j].iso, "")
+        if code in LEAVE_CODES:
+            continue
+        if code == "24":
+            return n
+        n += 1
+    return n
+
+
+def _is_triple_gap_sandwich_24(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> bool:
+    """3 boş + 24 + 3 boş kalıbı (her iki yanda da tavan kadar boşluk)."""
+    if grid[name].get(days[day_index].iso, "") != "24":
+        return False
+    gap_b = _days_without_24_before(name, day_index, days, grid)
+    gap_a = _empty_days_after_24_until_next(name, day_index, days, grid)
+    return gap_b >= IDLE_24_GAP_MAX and gap_a >= IDLE_24_GAP_MAX
+
+
+def _count_triple_gap_sandwiches_in_grid(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    n = 0
+    for name in STAFF_NURSES:
+        for i in range(len(days)):
+            if _is_triple_gap_sandwich_24(name, i, days, grid):
+                n += 1
+    return n
+
+
+def _try_pull_24_earlier(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+) -> bool:
+    """3+24+3 kır: 24'ü bir gün öne çek (2+24+…). Saat değişmez."""
+    iso = days[day_index].iso
+    if grid[name].get(iso, "") != "24":
+        return False
+    if _days_without_24_before(name, day_index, days, grid) < IDLE_24_GAP_MAX:
+        return False
+    j = day_index - 1
+    while j >= max(0, day_index - IDLE_24_GAP_MAX):
+        code = grid[name].get(days[j].iso, "")
+        if code in LEAVE_CODES:
+            j -= 1
+            continue
+        if code != "":
+            return False
+        break
+    else:
+        return False
+    tgt_iso = days[j].iso
+    if tgt_iso in force_avoid[name] or name in day_only_set:
+        return False
+    if _staff_night_count(grid, tgt_iso) >= NIGHT_SHIFTS_PER_DAY:
+        return False
+    grid[name][iso] = ""
+    if _blocked_by_rest(
+        name, j, days, grid, prefer_48h_after_24=prefer_48h_after_24
+    ) or _gun_asiri_streak_over(
+        name, j, days, grid, cap=GUN_ASIRI_STREAK_ABSOLUTE
+    ):
+        grid[name][iso] = "24"
+        return False
+    grid[name][tgt_iso] = "24"
+    return True
+
+
+def _shorten_triple_gap_sandwiches(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+) -> bool:
+    """3+24+3 yerine 2+24+2: mevcut 24'leri öne çek (yeni saat eklemez)."""
+    changed = False
+    for _ in range(24):
+        fixed = False
+        for name in STAFF_NURSES:
+            for i in range(len(days)):
+                if not _is_triple_gap_sandwich_24(name, i, days, grid):
+                    continue
+                pull_targets = [i]
+                for k in range(i + 1, len(days)):
+                    code = grid[name].get(days[k].iso, "")
+                    if code in LEAVE_CODES:
+                        continue
+                    if code == "24":
+                        pull_targets.append(k)
+                        break
+                    if code in WORK_CODES:
+                        break
+                for pull_i in pull_targets:
+                    if _try_pull_24_earlier(
+                        name,
+                        pull_i,
+                        days,
+                        grid,
+                        prefer_48h_after_24=prefer_48h_after_24,
+                        force_avoid=force_avoid,
+                        day_only_set=day_only_set,
+                    ):
+                        fixed = True
+                        changed = True
+                        break
+                if fixed:
+                    break
+            if fixed:
+                break
+        if not fixed:
+            break
+    return changed
+
+
 def _max_days_without_24_in_grid(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
@@ -395,7 +534,7 @@ def _enforce_idle_24_gaps(
     day_only_set: set[str],
     yi_hours: dict[str, int] | None = None,
 ) -> None:
-    """24 arası en fazla 3 gün; kota elveriyorsa 3 tam boş gün hedeflenmez."""
+    """24 arası en fazla 3 gün; hedef 2+24+2 (3+24+3'ten kaçın)."""
 
     def _acc(n: str) -> int:
         return hours[n] + (yi_hours or {}).get(n, 0)
@@ -1540,11 +1679,13 @@ def generate_ayilma_schedule(
             after_leave = 0 if _first_day_after_leave(n, idx, days, grid) else 1
             gap24 = _days_without_24_before(n, idx, days, grid)
             gap24_prio = -min(gap24, IDLE_24_GAP_MAX)
+            gap_ideal = abs(gap24 - IDLE_24_GAP_SOFT)
             return (
                 pen,
                 after_leave,
                 ist_behind,
                 gap24_prio,
+                gap_ideal,
                 pair_pen,
                 special_work_rank(n),
                 over,
@@ -2092,6 +2233,7 @@ def generate_ayilma_schedule(
                     hard_over,
                     soft_over,
                     -min(gap24, IDLE_24_GAP_MAX),
+                    abs(gap24 - IDLE_24_GAP_SOFT),
                     accounted(n),
                     n24[n],
                     n,
@@ -2233,6 +2375,16 @@ def generate_ayilma_schedule(
             day_only_set=day_only_set,
             yi_hours=yi_hours,
         )
+        _shorten_triple_gap_sandwiches(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        )
         spread = max(accounted(n) for n in STAFF_NURSES) - min(
             accounted(n) for n in STAFF_NURSES
         )
@@ -2293,6 +2445,16 @@ def generate_ayilma_schedule(
             day_only_set=day_only_set,
             yi_hours=yi_hours,
         )
+        _shorten_triple_gap_sandwiches(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        )
         spread = max(accounted(n) for n in STAFF_NURSES) - min(
             accounted(n) for n in STAFF_NURSES
         )
@@ -2301,6 +2463,17 @@ def generate_ayilma_schedule(
             and _max_days_without_24_in_grid(days, grid) <= IDLE_24_GAP_MAX
         ):
             break
+
+    _shorten_triple_gap_sandwiches(
+        days,
+        grid,
+        hours,
+        n8,
+        n24,
+        prefer_48h_after_24=prefer_48h_after_24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+    )
 
     for name in STAFF_NURSES:
         while n8[name] < EIGHT_PER_PERSON_MIN:
@@ -2357,6 +2530,13 @@ def generate_ayilma_schedule(
         warnings.append(
             f"Gün aşırı 24 kalıbı {gun_asiri} kez (zincir hedefi ≤{GUN_ASIRI_STREAK_SOFT}, "
             f"tavan ≤{GUN_ASIRI_STREAK_MAX}, uç durum ≤{GUN_ASIRI_STREAK_ABSOLUTE}; 16 tercih edilmedi)."
+        )
+
+    triple_gap = _count_triple_gap_sandwiches_in_grid(days, grid)
+    if triple_gap:
+        warnings.append(
+            f"3+24+3 boşluk kalıbı {triple_gap} kez kaldı "
+            f"(hedef 2+24+2; bkz. docs/ayilma-schedule-rules.md)."
         )
 
     rows: list[dict[str, Any]] = []
