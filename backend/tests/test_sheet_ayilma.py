@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """/sheet erisim + ayılma çizelge motoru."""
 
+from datetime import date
+
 from backend.services.ayilma_schedule import (
     LEAD_NURSE,
     STAFF_NURSES,
@@ -687,6 +689,36 @@ def test_special_work_prefers_selected_days():
         for iso in ("2026-09-02", "2026-09-03", "2026-09-04")
     ]
     assert any(c in ("8", "16", "24") for c in codes), codes
+
+
+def test_special_work_weekly_enforces_all_days():
+    """çalışsın + her hafta: seçilen weekday'lerde mesai zorunlu."""
+    out = generate_ayilma_schedule(
+        2026,
+        9,
+        special_rules=[
+            {
+                "name": "Sema Evecen",
+                "mode": "work",
+                "dates": ["2026-09-01", "2026-09-02"],
+                "weekly": True,
+            }
+        ],
+    )
+    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
+    tues_weds = [
+        iso
+        for iso in sorted(sema["cells"])
+        if iso.startswith("2026-09-")
+        and date.fromisoformat(iso).weekday() in (1, 2)
+    ]
+    assert tues_weds, "expected Tue/Wed dates in September"
+    missing = [
+        iso
+        for iso in tues_weds
+        if sema["cells"].get(iso, "") not in ("8", "16", "24")
+    ]
+    assert not missing, f"Sema missing work on: {missing}"
 
 
 def test_variant_can_differ():

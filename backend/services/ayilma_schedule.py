@@ -624,6 +624,163 @@ def _can_remove_24_without_gap_violation(
     return ok
 
 
+def _assign_special_work_day(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    prefer_work: dict[str, set[str]],
+) -> bool:
+    """Özel «çalışsın» günü: dinlenme yumuşatılır; gece doluysa partner değiştirilir."""
+    iso = days[day_index].iso
+    code = grid[name].get(iso, "")
+    if code in WORK_CODES or code in LEAVE_CODES:
+        return False
+
+    dm = days[day_index]
+    prev_night = (
+        day_index > 0
+        and grid[name].get(days[day_index - 1].iso, "") in ("16", "24")
+    )
+    next_night = (
+        day_index + 1 < len(days)
+        and grid[name].get(days[day_index + 1].iso, "") in ("16", "24")
+    )
+
+    def _try_8() -> bool:
+        if not dm.is_weekday or n8[name] >= EIGHT_PER_PERSON_MAX:
+            return False
+        if (
+            _consecutive_8_streak_if_8(name, day_index, days, grid)
+            > CONSECUTIVE_8_STREAK_MAX
+        ):
+            return False
+        prev = grid[name].get(iso, "")
+        grid[name][iso] = "8"
+        if prev == "24":
+            hours[name] -= 16
+            n24[name] -= 1
+        elif prev != "8":
+            hours[name] += 8
+        n8[name] += 1
+        return True
+
+    def _try_24(*, force_swap: bool) -> bool:
+        if _gun_asiri_streak_over(
+            name, day_index, days, grid, cap=GUN_ASIRI_STREAK_ABSOLUTE
+        ):
+            return False
+        if day_index + 1 < len(days):
+            nxt = days[day_index + 1]
+            if grid[name].get(nxt.iso) == "8":
+                grid[name][nxt.iso] = ""
+                hours[name] -= 8
+                n8[name] -= 1
+
+        def _apply_24() -> None:
+            prev = grid[name].get(iso, "")
+            grid[name][iso] = "24"
+            if prev == "8":
+                hours[name] += 16
+                n8[name] -= 1
+            elif prev != "24":
+                hours[name] += 24
+            n24[name] += 1
+
+        if _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY:
+            _apply_24()
+            return True
+        if not force_swap:
+            return False
+        partners = [
+            n for n in STAFF_NURSES if n != name and grid[n].get(iso) == "24"
+        ]
+
+        def _swap_rank(p: str) -> tuple:
+            return (0 if iso in prefer_work[p] else 1, n24[p], p)
+
+        for p in sorted(partners, key=_swap_rank):
+            if iso in prefer_work[p]:
+                continue
+            grid[p][iso] = ""
+            hours[p] -= 24
+            n24[p] -= 1
+            _apply_24()
+            return True
+        for p in sorted(partners, key=_swap_rank):
+            grid[p][iso] = ""
+            hours[p] -= 24
+            n24[p] -= 1
+            _apply_24()
+            return True
+        return False
+
+    if prev_night or next_night:
+        if _try_8():
+            return True
+        return _try_24(force_swap=True)
+    if _try_24(force_swap=True):
+        return True
+    return _try_8()
+
+
+def _enforce_special_work_days(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    prefer_work: dict[str, set[str]],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+) -> bool:
+    """Özel koşul «çalışsın»: boş kalan zorunlu günlerde mesai ata (24 veya 8)."""
+    if not any(prefer_work[n] for n in STAFF_NURSES):
+        return False
+    changed = False
+    for _ in range(64):
+        placed_any = False
+        targets: list[tuple[int, int, str]] = []
+        for name in STAFF_NURSES:
+            pw = prefer_work[name]
+            if not pw:
+                continue
+            missing = sum(
+                1
+                for iso in pw
+                if grid[name].get(iso, "") not in WORK_CODES
+                and grid[name].get(iso, "") not in LEAVE_CODES
+            )
+            if not missing:
+                continue
+            for i, dm in enumerate(days):
+                iso = dm.iso
+                if iso not in pw:
+                    continue
+                code = grid[name].get(iso, "")
+                if code in WORK_CODES or code in LEAVE_CODES:
+                    continue
+                if iso in force_avoid[name] or name in day_only_set:
+                    continue
+                targets.append((missing, i, name))
+        targets.sort()
+        for _, i, name in targets:
+            if _assign_special_work_day(
+                name, i, days, grid, hours, n8, n24, prefer_work
+            ):
+                placed_any = True
+                changed = True
+                break
+        if not placed_any:
+            break
+    return changed
+
+
 def _boost_ist_shift_hours(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
@@ -2224,11 +2381,13 @@ def generate_ayilma_schedule(
             def _rank_night_fill(n: str) -> tuple:
                 code = grid[n].get(iso, "")
                 empty = 0 if code == "" else 1
+                sw = 0 if iso in prefer_work[n] else (2 if prefer_work[n] else 1)
                 streak = _gun_asiri_streak_if_24(n, idx, days, grid)
                 soft_over = max(0, streak - GUN_ASIRI_STREAK_SOFT)
                 hard_over = max(0, streak - GUN_ASIRI_STREAK_MAX)
                 gap24 = _days_without_24_before(n, idx, days, grid)
                 return (
+                    sw,
                     empty,
                     hard_over,
                     soft_over,
@@ -2499,6 +2658,20 @@ def generate_ayilma_schedule(
             grid[name][dm.iso] = "8"
             hours[name] += 8
             n8[name] += 1
+
+    for _ in range(8):
+        if not _enforce_special_work_days(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            prefer_work,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        ):
+            break
 
     last = days[-1]
     next_month_rest = [
