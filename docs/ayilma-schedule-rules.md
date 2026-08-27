@@ -7,7 +7,7 @@ Geri dönüş: tag `ayilma-restore-*` (kurallar tazelendikten sonra) · öncesi 
 
 0. **Gülten Çelik** panelde **gizli**; indirmede (xlsx/csv/docx) **boş satır** olarak gelir. Hesap yok.  
 1. İzin / çalışmasın / day_only  
-2. Dinlenme (16/24 ertesi ≥1 gün boş; ardışık gece yok) · 24 sonrası mümkünse 2 gün boşluk (zorunlu tercih)  
+2. Dinlenme (**16/24 ertesi gün kesinkes boş** — 8/16/24 yasak) · ardışık gece yok · 24 sonrası mümkünse 2 gün boş  
 3. Günde 2 gece nöbeti  
 4. İST / Yİ / RP dönüşü → sonraki ilk takvim günü 24 (hafta sonu dahil)  
 5. Hafta içi **tam 1×8 (kat-1) + 2×24** · aynı günde 2+ «8» yasak · hafta sonu yalnız 2×24  

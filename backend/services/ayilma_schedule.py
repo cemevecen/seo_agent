@@ -257,7 +257,8 @@ def _blocked_by_rest(
     *,
     prefer_48h_after_24: bool,
 ) -> bool:
-    """Önceki gece 16/24 bitişi bugün başlatamaz; ertesi gün 16/24 varsa bugün 24 yazma."""
+    """16/24 sonrası ertesi gün gece yok; ardışık 16/24 yok. (8 ayrı: can_assign_8 / enforce.)"""
+    del prefer_48h_after_24  # 2. gün boşluğu seçim skorunda; burada sert değil
     if day_index > 0:
         prev_code = grid[name].get(days[day_index - 1].iso, "")
         if prev_code in ("16", "24"):
@@ -285,12 +286,116 @@ def _rest_allows_24(
             return False
         if nxt_code == "8" and nxt.is_weekday:
             other = any(
-                o != name and grid[o].get(nxt.iso, "") in ("8", "24")
-                for o in STAFF_NURSES
+                o != name and grid[o].get(nxt.iso, "") == "8" for o in STAFF_NURSES
             )
             if not other:
                 return False
     return True
+
+
+def _can_assign_16(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> bool:
+    """16: önceki/sonraki gün 8/16/24 olamaz (24/16 ertesi kesinkes boş)."""
+    if day_index > 0 and grid[name].get(days[day_index - 1].iso, "") in (
+        "8",
+        "16",
+        "24",
+    ):
+        return False
+    if day_index + 1 < len(days) and grid[name].get(days[day_index + 1].iso, "") in (
+        "8",
+        "16",
+        "24",
+    ):
+        return False
+    return True
+
+
+def _grid_rest_violations(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> list[tuple[str, int, str, int, str]]:
+    """(name, night_i, night_code, next_i, next_code) — 16/24 ertesi mesai."""
+    out: list[tuple[str, int, str, int, str]] = []
+    for name in STAFF_NURSES:
+        for i in range(len(days) - 1):
+            a = grid[name].get(days[i].iso, "")
+            if a not in ("16", "24"):
+                continue
+            b = grid[name].get(days[i + 1].iso, "")
+            if b in ("8", "16", "24"):
+                out.append((name, i, a, i + 1, b))
+    return out
+
+
+def _enforce_hard_rest_after_nights(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n16: dict[str, int],
+    n24: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+    max_passes: int = 80,
+) -> bool:
+    """16/24 ertesi gün kesinkes boş: ihlalde ertesi mesaiyi (veya gereksiz 16'yı) kaldır."""
+    changed = False
+    for _ in range(max_passes):
+        viols = _grid_rest_violations(days, grid)
+        if not viols:
+            break
+        name, ni, nc, xi, xc = viols[0]
+        niso = days[ni].iso
+        xiso = days[xi].iso
+        # 16 sıkışık dolgu çoğu ihlalin kaynağı — önce 16'yı sil
+        if nc == "16":
+            grid[name][niso] = ""
+            hours[name] -= 16
+            n16[name] -= 1
+            changed = True
+            continue
+        if xc == "16":
+            grid[name][xiso] = ""
+            hours[name] -= 16
+            n16[name] -= 1
+            changed = True
+            continue
+        if xc == "8":
+            grid[name][xiso] = ""
+            hours[name] -= 8
+            n8[name] -= 1
+            if days[xi].is_weekday:
+                force_avoid[name].add(xiso)
+                _try_assign_kat1_8(
+                    xi,
+                    days,
+                    grid,
+                    hours,
+                    n8,
+                    prefer_48h_after_24=prefer_48h_after_24,
+                    force_avoid=force_avoid,
+                    day_only_set=day_only_set,
+                    allow_over_max=True,
+                )
+                force_avoid[name].discard(xiso)
+            changed = True
+            continue
+        if xc == "24":
+            # Peş peşe 24: sonrakini kaldır (gece başka kişiye kalır)
+            grid[name][xiso] = ""
+            hours[name] -= 24
+            n24[name] -= 1
+            changed = True
+            continue
+        break
+    return changed
 
 
 def _enforce_rest_before_24(
@@ -574,12 +679,14 @@ def _empty_between_24_urgency(
             empty_count += 1
         elif code not in LEAVE_CODES:
             return 0
-    if empty_count <= IDLE_24_GAP_MAX:
+    if empty_count <= IDLE_24_GAP_SOFT:
         return 0
     end = next_i if next_i is not None else len(days)
     if day_index <= prev_i or day_index >= end:
         return 0
-    return empty_count * 20 + (day_index - prev_i)
+    # Trailing (ay sonu) boşlukta daha agresif doldur
+    trail_boost = 15 if next_i is None else 0
+    return empty_count * 20 + (day_index - prev_i) + trail_boost
 
 
 def _grid_gap_ok(days: list[DayMeta], grid: dict[str, dict[str, str]]) -> bool:
@@ -1317,6 +1424,7 @@ def _ensure_two_nights_per_day(
                 and not _blocked_by_rest(
                     n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
                 )
+                and _can_assign_16(n, idx, days, grid)
             ]
             if pool16:
                 pick = sorted(pool16, key=lambda n: (n16[n], n))[0]
@@ -1324,21 +1432,8 @@ def _ensure_two_nights_per_day(
                 hours[pick] += 16
                 n16[pick] += 1
             else:
-                # Son çare: dinlenme yumuşat — günde 2 gece zorunlu
-                hard16 = [
-                    n
-                    for n in STAFF_NURSES
-                    if n not in day_only_set
-                    and iso not in force_avoid[n]
-                    and grid[n].get(iso, "") == ""
-                ]
-                if hard16:
-                    pick = sorted(hard16, key=lambda n: (n16[n], n))[0]
-                    grid[pick][iso] = "16"
-                    hours[pick] += 16
-                    n16[pick] += 1
-                else:
-                    break
+                # Son çare bile dinlenme bozulmaz — 16 yazma
+                break
 
 
 def _try_assign_24_catchup(
@@ -2899,6 +2994,7 @@ def _enforce_weekday_kat1_eights(
                 and o not in day_only_set
                 and iso not in force_avoid[o]
                 and grid[o].get(iso, "") == ""
+                and _can_assign_16(o, i, days, grid)
             ]
             if pool16:
                 pick = sorted(pool16, key=lambda o: (n16[o], o))[0]
@@ -3906,35 +4002,47 @@ def generate_ayilma_schedule(
                 fixed = True
                 continue
             # 8 ↔ başka kişinin 24 takası (kat-1 aynı gün kalır, zincir kırılır)
-            partners_24 = [
-                o
-                for o in STAFF_NURSES
-                if o != name
-                and grid[o].get(iso, "") == "24"
-                and iso not in force_avoid[o]
-                and _can_assign_8(o, target_i, days, grid)
-                and _consecutive_8_streak_if_8(o, target_i, days, grid)
-                <= CONSECUTIVE_8_STREAK_MAX
-            ]
-            if partners_24:
-                other = sorted(
-                    partners_24,
-                    key=lambda o: (
-                        _consecutive_8_streak_if_8(o, target_i, days, grid),
-                        n8[o],
-                        o,
-                    ),
-                )[0]
-                grid[name][iso] = "24"
-                grid[other][iso] = "8"
-                hours[name] += 16
-                hours[other] -= 16
-                n8[name] -= 1
-                n24[name] += 1
-                n8[other] += 1
-                n24[other] -= 1
-                fixed = True
-                continue
+                partners_24 = [
+                    o
+                    for o in STAFF_NURSES
+                    if o != name
+                    and grid[o].get(iso, "") == "24"
+                    and iso not in force_avoid[o]
+                    and _can_assign_8(o, target_i, days, grid)
+                    and _consecutive_8_streak_if_8(o, target_i, days, grid)
+                    <= CONSECUTIVE_8_STREAK_MAX
+                ]
+                # name 8→24: dinlenme uygun mu?
+                if partners_24:
+                    grid[name][iso] = ""
+                    rest_ok = _rest_allows_24(name, target_i, days, grid)
+                    grid[name][iso] = "8"
+                    if not rest_ok:
+                        partners_24 = []
+                if partners_24:
+                    other = sorted(
+                        partners_24,
+                        key=lambda o: (
+                            _consecutive_8_streak_if_8(o, target_i, days, grid),
+                            n8[o],
+                            o,
+                        ),
+                    )[0]
+                    if not _enforce_rest_before_24(
+                        name, target_i, days, grid, hours, n8
+                    ):
+                        pass
+                    else:
+                        grid[name][iso] = "24"
+                        grid[other][iso] = "8"
+                        hours[name] += 16
+                        hours[other] -= 16
+                        n8[name] -= 1
+                        n24[name] += 1
+                        n8[other] += 1
+                        n24[other] -= 1
+                        fixed = True
+                        continue
             # Sil + kat-1'i BAŞKA kişiye ver (aynı kişiye geri yazma)
             grid[name][iso] = ""
             hours[name] -= 8
@@ -4111,7 +4219,7 @@ def generate_ayilma_schedule(
             if filled:
                 continue
 
-            # 16 yalnızca gerçekten kimse 24 alamıyorsa (streak kırmak için değil)
+            # 16 yalnızca gerçekten kimse 24 alamıyorsa ve dinlenme bozulmuyorsa
             pool16 = [
                 n
                 for n in STAFF_NURSES
@@ -4121,6 +4229,7 @@ def generate_ayilma_schedule(
                 and not _blocked_by_rest(
                     n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
                 )
+                and _can_assign_16(n, idx, days, grid)
             ]
             if pool16:
                 pick = sorted(pool16, key=lambda n: (accounted(n), n24[n], n))[0]
@@ -4133,6 +4242,42 @@ def generate_ayilma_schedule(
                 f"{iso}: Gece nöbeti eksik ({_staff_night_count(grid, iso)}/{NIGHT_SHIFTS_PER_DAY})."
             )
             break
+
+    # ── Sert: 16/24 ertesi gün boş (8/16/24 yasak) ──
+    _enforce_hard_rest_after_nights(
+        days,
+        grid,
+        hours,
+        n8,
+        n16,
+        n24,
+        prefer_48h_after_24=prefer_48h_after_24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+    )
+    _ensure_two_nights_per_day(
+        days,
+        grid,
+        hours,
+        n8,
+        n16,
+        n24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+        prefer_48h_after_24=prefer_48h_after_24,
+    )
+    _enforce_single_eight_per_day(days, grid, hours, n8)
+    _enforce_weekday_kat1_eights(
+        days,
+        grid,
+        hours,
+        n8,
+        n16,
+        n24,
+        prefer_48h_after_24=prefer_48h_after_24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+    )
 
     # ── Yİ/RP/İST dönüşü: sonraki ilk takvim gününde mutlaka 24 (hafta sonu dahil) ──
     for name in STAFF_NURSES:
@@ -5105,6 +5250,41 @@ def generate_ayilma_schedule(
                 day_only_set=day_only_set,
             ):
                 break
+        _enforce_hard_rest_after_nights(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        )
+        _ensure_two_nights_per_day(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            prefer_48h_after_24=prefer_48h_after_24,
+        )
+        _enforce_idle_24_gaps(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            min_shift,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            yi_hours=yi_hours,
+        )
+        _enforce_single_eight_per_day(days, grid, hours, n8)
         # Sert: 3+ art arda 8
         for name in STAFF_NURSES:
             while _max_consecutive_8_streak(name, days, grid) > CONSECUTIVE_8_STREAK_MAX:
@@ -5139,26 +5319,26 @@ def generate_ayilma_schedule(
                     if o != name
                     and grid[o].get(iso, "") == "24"
                     and iso not in force_avoid[o]
-                    and (
-                        target_i == 0
-                        or grid[o].get(days[target_i - 1].iso, "") != "8"
-                    )
-                    and (
-                        target_i + 1 >= len(days)
-                        or grid[o].get(days[target_i + 1].iso, "") != "8"
-                    )
+                    and _can_assign_8(o, target_i, days, grid)
                 ]
                 if partners_24:
+                    grid[name][iso] = ""
+                    rest_ok = _rest_allows_24(name, target_i, days, grid)
+                    grid[name][iso] = "8"
+                    if not rest_ok:
+                        partners_24 = []
+                if partners_24:
                     other = sorted(partners_24, key=lambda o: (n8[o], o))[0]
-                    grid[name][iso] = "24"
-                    grid[other][iso] = "8"
-                    hours[name] += 16
-                    hours[other] -= 16
-                    n8[name] -= 1
-                    n24[name] += 1
-                    n8[other] += 1
-                    n24[other] -= 1
-                    continue
+                    if _enforce_rest_before_24(name, target_i, days, grid, hours, n8):
+                        grid[name][iso] = "24"
+                        grid[other][iso] = "8"
+                        hours[name] += 16
+                        hours[other] -= 16
+                        n8[name] -= 1
+                        n24[name] += 1
+                        n8[other] += 1
+                        n24[other] -= 1
+                        continue
                 grid[name][iso] = ""
                 hours[name] -= 8
                 n8[name] -= 1
@@ -5218,12 +5398,14 @@ def generate_ayilma_schedule(
             _max_consecutive_8_streak(n, days, grid) <= CONSECUTIVE_8_STREAK_MAX
             for n in STAFF_NURSES
         )
+        rest_ok = not _grid_rest_violations(days, grid)
         pair_ok = _max_pair24_near_streak_in_grid(days, grid) <= PAIR24_NEAR_STREAK_MAX
         bal_ok = _peer_hours_spread(hours, yi_hours, rp_hours, ist_count) <= HOURS_BALANCE_TOLERANCE
         if (
             kat_ok
             and eight_ok
             and streak8_ok
+            and rest_ok
             and pair_ok
             and bal_ok
             and _grid_gap_ok(days, grid)
@@ -5306,6 +5488,13 @@ def generate_ayilma_schedule(
     if consec8:
         warnings.append(
             f"Art arda «8» çifti {consec8} kez (hedef 0; soft ≤{CONSECUTIVE_8_STREAK_SOFT})."
+        )
+
+    rest_viol = _grid_rest_violations(days, grid)
+    if rest_viol:
+        warnings.append(
+            f"Dinlenme ihlali {len(rest_viol)} kez "
+            f"(16/24 ertesi gün boş olmalı; 16↔24 bitişik yasak)."
         )
 
     # Gülten yalnızca görünür satır — hesap/mesai yazımı yok.
