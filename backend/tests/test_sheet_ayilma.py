@@ -409,6 +409,35 @@ def test_variant_reroll_changes_schedule():
         }
 
     assert cells(a) != cells(b)
+    assert a.get("variant") == 0
+    assert b.get("variant") == 1
+
+
+def test_variant_reroll_under_heavy_leaves():
+    """Yoğun İST/Yİ altında da variant en az birkaç farklı öneri üretir."""
+    leaves = {
+        "Nuray Durna": {
+            "2026-09-03": "İST",
+            "2026-09-04": "İST",
+            "2026-09-10": "İST",
+            "2026-09-17": "İST",
+            "2026-09-24": "İST",
+        },
+        "Sema Evecen": {"2026-09-12": "İST", "2026-09-13": "İST"},
+        "Şengül Zamur": {"2026-09-20": "İST"},
+        "Emine Türker": {f"2026-09-{d:02d}": "Yİ" for d in range(8, 13)},
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(14, 25)},
+    }
+
+    def cells(out):
+        return tuple(
+            (r["name"], tuple(sorted(r["cells"].items())))
+            for r in out["rows"]
+            if r["role"] == "staff"
+        )
+
+    fps = {cells(generate_ayilma_schedule(2026, 9, leaves=leaves, variant=v)) for v in range(8)}
+    assert len(fps) >= 3, f"unique variants={len(fps)}"
 
 
 def test_special_avoid_blocks_day():

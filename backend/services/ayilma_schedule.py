@@ -542,11 +542,22 @@ def generate_ayilma_schedule(
     day_only_set = {str(x).strip() for x in (day_only or []) if str(x).strip()}
     prefer_work, force_avoid = resolve_special_day_sets(year, month, special_rules)
     pins = resolve_special_pins(year, month, special_rules)
-    rng = random.Random((year * 100 + month) * 10007 + int(variant or 0))
-    person_tie = {n: (rng.random() if variant else 0.0) for n in STAFF_NURSES}
+    variant_i = max(0, int(variant or 0))
+    rng = random.Random((year * 100 + month) * 10007 + variant_i * 7919 + 17)
+    # variant=0: klasik isim sırası (değişmez); variant>0: kadro/gün sırası + eşitlik karışır
+    staff_order = list(STAFF_NURSES)
+    day_order = list(range(len(days)))
+    if variant_i:
+        rng.shuffle(staff_order)
+        rng.shuffle(day_order)
+    order_idx = {n: i for i, n in enumerate(staff_order)}
+    person_tie = {n: (rng.random() if variant_i else 0.0) for n in STAFF_NURSES}
 
     def _tie(n: str) -> float:
         return person_tie[n]
+
+    def _order(n: str) -> int:
+        return order_idx[n] if variant_i else 0
 
     # Görsel: Gülten boş (hesaba dahil değil)
     for dm in days:
@@ -620,6 +631,7 @@ def generate_ayilma_schedule(
                 after24,
                 n8[n],
                 break24,
+                _order(n),
                 _tie(n),
                 n,
             )
@@ -643,6 +655,7 @@ def generate_ayilma_schedule(
                 gun,
                 behind,
                 n24[n],
+                _order(n),
                 _tie(n),
                 n,
             )
@@ -945,14 +958,15 @@ def generate_ayilma_schedule(
 
     for _bal in range(80):
         vals = {n: accounted(n) for n in STAFF_NURSES}
-        hi = max(STAFF_NURSES, key=lambda n: (vals[n], n))
-        lo = min(STAFF_NURSES, key=lambda n: (vals[n], n))
+        hi = max(STAFF_NURSES, key=lambda n: (vals[n], _tie(n), n))
+        lo = min(STAFF_NURSES, key=lambda n: (vals[n], _tie(n), n))
         if vals[hi] - vals[lo] <= HOURS_BALANCE_TOLERANCE:
             break
         moved = False
 
         # Aynı gün hi=24 lo=8 → takas
-        for i, dm in enumerate(days):
+        for i in day_order:
+            dm = days[i]
             if grid[hi].get(dm.iso, "") != "24":
                 continue
             if grid[lo].get(dm.iso, "") != "8":
@@ -984,7 +998,8 @@ def generate_ayilma_schedule(
             continue
 
         # hi 24 → lo boş
-        for i, dm in enumerate(days):
+        for i in day_order:
+            dm = days[i]
             if grid[hi].get(dm.iso, "") != "24":
                 continue
             if not _can_take_24(lo, i):
@@ -1001,7 +1016,8 @@ def generate_ayilma_schedule(
             continue
 
         # hi 8 → lo boş (hafta içi)
-        for i, dm in enumerate(days):
+        for i in day_order:
+            dm = days[i]
             if dm.is_weekend:
                 continue
             if grid[hi].get(dm.iso, "") != "8":
@@ -1026,9 +1042,14 @@ def generate_ayilma_schedule(
             continue
 
         # hi=24 mid=8
-        mids = [n for n in sorted(STAFF_NURSES, key=lambda n: vals[n]) if n not in (hi, lo)]
+        mids = [
+            n
+            for n in sorted(STAFF_NURSES, key=lambda n: (vals[n], _tie(n), n))
+            if n not in (hi, lo)
+        ]
         for mid in mids:
-            for i, dm in enumerate(days):
+            for i in day_order:
+                dm = days[i]
                 if grid[hi].get(dm.iso, "") != "24":
                     continue
                 if grid[mid].get(dm.iso, "") != "8":
@@ -1299,7 +1320,7 @@ def generate_ayilma_schedule(
                     0,
                     _gun_asiri_streak_if_24(n, idx, days, grid) - GUN_ASIRI_STREAK_MAX,
                 )
-                return (empty, over, accounted(n), n24[n], _tie(n), n)
+                return (empty, over, accounted(n), n24[n], _order(n), _tie(n), n)
 
             # Kati: streak ≤3; aşacak aday yoksa 16'ya düş
             pool = [
@@ -1338,7 +1359,9 @@ def generate_ayilma_schedule(
                 )
             ]
             if pool16:
-                pick = sorted(pool16, key=lambda n: (accounted(n), n24[n], _tie(n), n))[0]
+                pick = sorted(
+                    pool16, key=lambda n: (accounted(n), n24[n], _order(n), _tie(n), n)
+                )[0]
                 grid[pick][iso] = "16"
                 hours[pick] += 16
                 n16[pick] += 1
@@ -1384,7 +1407,9 @@ def generate_ayilma_schedule(
                 and _gun_asiri_streak_if_24(n, i, days, grid) <= GUN_ASIRI_STREAK_MAX
             ]
             if pool:
-                pick = sorted(pool, key=lambda n: (accounted(n), n24[n], _tie(n), n))[0]
+                pick = sorted(
+                    pool, key=lambda n: (accounted(n), n24[n], _order(n), _tie(n), n)
+                )[0]
                 prev = grid[pick].get(iso, "")
                 grid[pick][iso] = "24"
                 if prev == "8":
@@ -1404,7 +1429,9 @@ def generate_ayilma_schedule(
                 )
             ]
             if pool16:
-                pick = sorted(pool16, key=lambda n: (accounted(n), n24[n], n))[0]
+                pick = sorted(
+                    pool16, key=lambda n: (accounted(n), n24[n], _order(n), _tie(n), n)
+                )[0]
                 grid[pick][iso] = "16"
                 hours[pick] += 16
                 n16[pick] += 1
@@ -1489,6 +1516,7 @@ def generate_ayilma_schedule(
         "ok": True,
         "year": year,
         "month": month,
+        "variant": variant_i,
         "month_label": f"{calendar.month_name[month]} {year}",
         "days": [
             {

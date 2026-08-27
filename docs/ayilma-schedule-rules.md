@@ -16,6 +16,11 @@ Geri dönüş (önceki uzun motor): tag `ayilma-calc-before-rollback-20260827`.
 7. Gün aşırı zincir **≤3 kati** (4. yasak; izin yoğun haftada da)  
 8. Kişi başı 8 · hedef 3 (2–4) · art arda 8 en fazla 2  
 
+## Yeniden oluştur (`variant`)
+
+- `variant=0` sabit öneri; `variant>0` eşit adaylarda kadro/gün sırası ve denge takasları karışır.  
+- Panel «Yeniden oluştur» her tıklamada `variant++`; aynı çizelge gelirse birkaç kez daha dener.  
+
 ## Sabitler
 
 | Sabit | Değer |
