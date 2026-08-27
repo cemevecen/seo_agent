@@ -33,8 +33,8 @@ ALL_NURSES: tuple[str, ...] = (LEAD_NURSE, *STAFF_NURSES)
 
 LEAVE_CODES = frozenset({"Yİ", "RP", "İST"})
 WORK_CODES = frozenset({"8", "16", "24"})
-MAX_MONTHLY_HOURS = 300
-# Yıllık izin / rapor günü = 8 saat mesai kullanılmış sayılır (toplamdan düşük olabilir)
+MAX_MONTHLY_HOURS = 400
+# Yıllık izin / rapor günü = 8 saat kredi (toplam hesabına eklenir)
 YI_DAY_HOURS = 8
 RP_DAY_HOURS = 8
 # Personel arası toplam (mesai+Yİ) / fazla mesai bandı hedefi (~16s)
@@ -46,10 +46,10 @@ ABSENCE_CREDIT_CODES = frozenset({"Yİ", "RP"})
 EIGHT_PER_PERSON_MIN = 2
 EIGHT_PER_PERSON_TARGET = 3
 EIGHT_PER_PERSON_MAX = 4
-# Gün aşırı zinciri: 24+boş+24+… — yumuşak hedef 3, normal tavan 4, uç durum 5
+# Gün aşırı zinciri: 24+boş+24+… — yumuşak ≤3, normal tavan 4; çok sıkışıkta 5, asla 5 üstü yok
 GUN_ASIRI_STREAK_SOFT = 3
 GUN_ASIRI_STREAK_MAX = 4
-GUN_ASIRI_STREAK_ABSOLUTE = 5  # yalnızca gece doldurma son çare; asla aşılmaz
+GUN_ASIRI_STREAK_ABSOLUTE = 5  # yalnız gece doldurma son çare; 5 aşılmaz
 # Üst üste «8»: olabildiğince yok (yumuşak 1); mecbur kalınırsa en fazla 2 gün
 CONSECUTIVE_8_STREAK_SOFT = 1
 CONSECUTIVE_8_STREAK_MAX = 2
@@ -61,7 +61,7 @@ PAIR24_PRIOR_WEIGHT = 7  # ay içi önceki birlikte 24 (her biri)
 PAIR24_NEAR_REPEAT = 18  # yakın aralıkta tekrar eşleşme
 PAIR24_THIRD_NEAR = 28  # ay içi 2+ kez eşleşmiş ikilinin yakın 3. kez
 PAIR24_MONTHLY_SOFT = 4  # post-pass: hedef üstü aylık birlikte 24
-# 24 nöbet arası boş gün: sert tavan 3; hedef 2+24+2 (3+24+3 çalışan ruh hali için kötü)
+# 24 arası boş hücre: KATİ tavan 3 (4+ yasak); hedef 2+24+2
 IDLE_24_GAP_MAX = 3
 IDLE_24_GAP_SOFT = 2  # tercih: 2 gün boş + 24 + 2 gün boş; ayrıntı docs/ayilma-schedule-rules.md
 
@@ -1202,7 +1202,21 @@ def _ensure_two_nights_per_day(
                 hours[pick] += 16
                 n16[pick] += 1
             else:
-                break
+                # Son çare: dinlenme yumuşat — günde 2 gece zorunlu
+                hard16 = [
+                    n
+                    for n in STAFF_NURSES
+                    if n not in day_only_set
+                    and iso not in force_avoid[n]
+                    and grid[n].get(iso, "") == ""
+                ]
+                if hard16:
+                    pick = sorted(hard16, key=lambda n: (n16[n], n))[0]
+                    grid[pick][iso] = "16"
+                    hours[pick] += 16
+                    n16[pick] += 1
+                else:
+                    break
 
 
 def _try_assign_24_catchup(
@@ -2045,22 +2059,14 @@ def _first_day_after_leave(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
 ) -> bool:
-    """Yİ/RP/İST bloğundan sonraki ilk mesai (hafta içi) günü."""
-    if not days[day_index].is_weekday:
+    """Yİ/RP/İST bloğundan sonraki ilk takvim günü (hafta sonu dahil → 24)."""
+    if day_index <= 0:
         return False
     today = grid[name].get(days[day_index].iso, "")
     if today in LEAVE_CODES:
         return False
-    j = day_index - 1
-    while j >= 0:
-        if days[j].is_weekend:
-            j -= 1
-            continue
-        prev = grid[name].get(days[j].iso, "")
-        if prev in ("Yİ", "RP", "İST"):
-            return True
-        return False
-    return False
+    prev = grid[name].get(days[day_index - 1].iso, "")
+    return prev in ("Yİ", "RP", "İST")
 
 
 def _count_consecutive_8_runs(
@@ -2233,16 +2239,18 @@ def generate_ayilma_schedule(
     Gülten yalnız hafta içi 8 (hafta sonu boş); kadroya karışmaz.
 
     Hafta içi: mümkünse 1×«8» + 2×«24». Hafta sonu: yalnız 2×«24» (kat-1 / 8 yok).
-    Yİ/RP bitişinin ertesi günü o kişiye nöbet (24) tercih.
+    Yİ/RP/İST bitişinin ertesi takvim günü nöbet (24) — hafta sonu kuralı yok.
+    Yİ/RP: zorunlu nöbet = ideal−izin; kalan günlerle taban doldurulur, üstüne ek mesai olabilir.
     Düz «8» kişi başı aylık ~2–4 (hedef 3). Fazla mesai personelde aynı ~16s bantta.
     Üst üste «8» kaçınılır; mecbur kalınırsa en fazla 2 gün.
-    Gün aşırı 24 zinciri: yumuşak hedef 3, normal tavan 4; yalnızca uç zorunlu gece doldurmada 5.
+    Gün aşırı 24 zinciri: yumuşak ≤3, normal tavan 4; çok sıkışıkta 5, asla 5 üstü yok.
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
     Özel koşul: çalışmasın (sert) / çalışsın (yumuşak tercih).
     Çalışmasın + haftalık tekrar: bloklu günler dışında ortalama mesai bandına yetişir.
     İST: ertesi gün 24 nöbet; istek günleri kotadan düşülmez, kalan günlerle denge.
     Aynı ikili 24 nöbette mümkün olduğunca az ve üst üste tekrar etmesin (yumuşak).
-    24 nöbet arası en fazla 3 gün boşluk; kota elveriyorsa 3 tam boş gün hedeflenmez.
+    24 arası boş hücre KATİ en fazla 3 (4+ yasak); hedef 2+24+2.
+    Aylık mesai üst sınırı 400s.
     variant>0 → eşitlikte farklı aday seç (yeniden oluştur).
     """
     if not (1 <= month <= 12):
@@ -2269,7 +2277,9 @@ def generate_ayilma_schedule(
         if dm.is_weekday:
             grid[LEAD_NURSE][dm.iso] = "8"
 
-    # Yİ/RP peşin kredi; İST kotadan düşülmez — zorunlu mesai = aylık − Yİ − RP
+    # Yİ/RP peşin kredi; İST kotadan düşülmez.
+    # Zorunlu nöbet tabanı = ideal − Yİ − RP; kalan günlerle bu taban doldurulur,
+    # üzerine mevcut denge kurallarıyla ek mesai gelebilir.
     ideal = ideal_hours(year, month)
     yi_hours = {n: _yi_hours_from_grid(grid, n, days) for n in STAFF_NURSES}
     rp_hours = {n: _rp_hours_from_grid(grid, n, days) for n in STAFF_NURSES}
@@ -3045,7 +3055,7 @@ def generate_ayilma_schedule(
             )
             break
 
-    # ── Yİ/RP/İST dönüşü: ilk mesai gününde mutlaka çalışma ──
+    # ── Yİ/RP/İST dönüşü: sonraki ilk takvim gününde mutlaka 24 (hafta sonu dahil) ──
     for name in STAFF_NURSES:
         for i, dm in enumerate(days):
             if not _first_day_after_leave(name, i, days, grid):
@@ -3061,17 +3071,6 @@ def generate_ayilma_schedule(
             )
             placed = False
             if (
-                grid[name].get(days[i - 1].iso, "") == "İST"
-                and not rest_block
-                and _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY
-                and _gun_asiri_streak_if_24(name, i, days, grid) <= GUN_ASIRI_STREAK_ABSOLUTE
-                and _enforce_rest_before_24(name, i, days, grid, hours, n8)
-            ):
-                grid[name][iso] = "24"
-                hours[name] += 24
-                n24[name] += 1
-                placed = True
-            elif (
                 not rest_block
                 and _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY
                 and _gun_asiri_streak_if_24(name, i, days, grid) <= GUN_ASIRI_STREAK_ABSOLUTE
@@ -3081,7 +3080,30 @@ def generate_ayilma_schedule(
                 hours[name] += 24
                 n24[name] += 1
                 placed = True
-            elif not rest_block and dm.is_weekday and _can_assign_8(name, i, days, grid):
+            else:
+                partners = [
+                    n
+                    for n in STAFF_NURSES
+                    if n != name and grid[n].get(iso) == "24"
+                ]
+                for p in sorted(partners, key=lambda n: (n24[n], n)):
+                    if rest_block:
+                        break
+                    if _gun_asiri_streak_if_24(name, i, days, grid) > GUN_ASIRI_STREAK_ABSOLUTE:
+                        break
+                    if not _can_remove_24_without_gap_violation(p, i, days, grid):
+                        continue
+                    if not _enforce_rest_before_24(name, i, days, grid, hours, n8):
+                        continue
+                    grid[p][iso] = ""
+                    hours[p] -= 24
+                    n24[p] -= 1
+                    grid[name][iso] = "24"
+                    hours[name] += 24
+                    n24[name] += 1
+                    placed = True
+                    break
+            if not placed and not rest_block and dm.is_weekday and _can_assign_8(name, i, days, grid):
                 if n8[name] < EIGHT_PER_PERSON_MAX:
                     grid[name][iso] = "8"
                     hours[name] += 8
@@ -3676,7 +3698,7 @@ def generate_ayilma_schedule(
                 cred_txt = " − ".join(cred) if cred else "0"
                 warnings.append(
                     f"{name}: zorunlu mesai eksiği — en az {min_s}s nöbet "
-                    f"(kota {ideal} − {cred_txt}), şu an {shift_h}s."
+                    f"(kota {ideal} − {cred_txt}; kalan günlerle doldurulur), şu an {shift_h}s."
                 )
         rows.append(
             {
@@ -3787,6 +3809,8 @@ def generate_ayilma_schedule(
         if needs_retry and staff_h:
             gap_fallback: dict[str, Any] | None = None
             gap_fallback_spread = 10**9
+            best_spread_alt: dict[str, Any] | None = None
+            best_spread_val = max(staff_h) - min(staff_h)
             for retry_v in range(1, 24):
                 alt = generate_ayilma_schedule(
                     year,
@@ -3812,7 +3836,14 @@ def generate_ayilma_schedule(
                 if ist_ok and gap_ok and spread < gap_fallback_spread:
                     gap_fallback = alt
                     gap_fallback_spread = spread
-            if gap_fallback is not None:
+                if ist_ok and spread < best_spread_val:
+                    best_spread_alt = alt
+                    best_spread_val = spread
+            if gap_fallback is not None and gap_fallback_spread <= HOURS_BALANCE_TOLERANCE:
+                return gap_fallback
+            if best_spread_alt is not None and best_spread_val <= HOURS_BALANCE_TOLERANCE * 2:
+                return best_spread_alt
+            if gap_fallback is not None and gap_fallback_spread < max(staff_h) - min(staff_h):
                 return gap_fallback
 
     return result
