@@ -46,7 +46,6 @@ class GenerateBody(BaseModel):
     month: int = Field(..., ge=1, le=12)
     leaves: dict[str, dict[str, str]] = Field(default_factory=dict)
     day_only: list[str] = Field(default_factory=list)
-    prefer_48h_after_24: bool = True
     special_rules: list[SpecialRuleBody] = Field(default_factory=list)
     variant: int = Field(0, ge=0, le=9999)
 
@@ -153,7 +152,7 @@ def sheet_ayilma_generate(request: Request, body: GenerateBody) -> dict[str, Any
             body.month,
             leaves=body.leaves,
             day_only=body.day_only,
-            prefer_48h_after_24=body.prefer_48h_after_24,
+            prefer_48h_after_24=True,
             special_rules=rules,
             variant=body.variant,
         )

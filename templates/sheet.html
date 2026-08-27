@@ -46,10 +46,6 @@
         <span class="sh-gen-loading-text">Çizelge hesaplanıyor… Bu birkaç saniye sürebilir.</span>
       </div>
       <div class="sh-gen-options flex flex-col text-slate-500 dark:text-zinc-400 sm:flex-row sm:flex-wrap sm:items-center">
-        <label class="inline-flex items-start gap-2">
-          <input id="sh-prefer-48" type="checkbox" class="sh-fluid-check mt-0.5 shrink-0 rounded border-slate-300" checked>
-          <span class="sh-fluid-small">24 saat sonrası mümkünse 2 gün boşluk tercih et</span>
-        </label>
         <span id="sh-constraint-count" class="sh-fluid-small tabular-nums"></span>
         <span id="sh-special-count" class="sh-fluid-small tabular-nums text-violet-700 dark:text-violet-300"></span>
       </div>
@@ -1303,7 +1299,6 @@
         month: state.month,
         leaves: leaves,
         day_only: dayOnly,
-        prefer_48h_after_24: !!( $('sh-prefer-48') && $('sh-prefer-48').checked ),
         special_rules: special_rules,
         variant: state.variant || 0,
       }),

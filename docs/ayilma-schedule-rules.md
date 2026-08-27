@@ -6,7 +6,7 @@ Geri dönüş: tag `ayilma-restore-*` (kurallar tazelendikten sonra) · öncesi 
 ## Hiyerarşi (yukarı baskın)
 
 1. İzin / çalışmasın / day_only  
-2. Dinlenme (16/24 ertesi ≥1 gün boş; ardışık gece yok)  
+2. Dinlenme (16/24 ertesi ≥1 gün boş; ardışık gece yok) · 24 sonrası mümkünse 2 gün boşluk (zorunlu tercih)  
 3. Günde 2 gece nöbeti  
 4. İST / Yİ / RP dönüşü → sonraki ilk takvim günü 24 (hafta sonu dahil)  
 5. Hafta içi 1×8 + 2×24 · hafta sonu yalnız 2×24  

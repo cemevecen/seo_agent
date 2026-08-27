@@ -2423,10 +2423,12 @@ def generate_ayilma_schedule(
     Çalışmasın + haftalık tekrar: bloklu günler dışında ortalama mesai bandına yetişir.
     İST: ertesi gün 24 nöbet; istek günleri kotadan düşülmez, kalan günlerle denge.
     Aynı ikili 24 nöbette mümkün olduğunca az ve üst üste tekrar etmesin (yumuşak).
-    24 arası boş hücre KATİ en fazla 3 (4+ yasak); hedef 2+24+2.
+    24 arası boş hücre KATİ en fazla 3 (4+ yasak); hedef 2+24+2 (zorunlu tercih, kapatılamaz).
     Aylık mesai üst sınırı 400s.
     variant>0 → eşitlikte farklı aday seç (yeniden oluştur).
     """
+    # 24 sonrası 2 gün boşluk tercihi her zaman açık (UI seçeneği yok).
+    prefer_48h_after_24 = True
     if not (1 <= month <= 12):
         raise ValueError("month 1–12 olmalı")
     if year < 2000 or year > 2100:
