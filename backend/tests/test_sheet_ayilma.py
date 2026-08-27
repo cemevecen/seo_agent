@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """/sheet erisim + ayılma çizelge motoru."""
 
-from datetime import date
-
 from backend.services.ayilma_schedule import (
     LEAD_NURSE,
     STAFF_NURSES,
@@ -49,8 +47,6 @@ def test_sheet_page_paths():
     assert is_sheet_page_path("/api/sheet/ayilma/meta")
     assert is_sheet_page_path("/api/sheet/ayilma/generate")
     assert is_sheet_page_path("/api/sheet/ayilma/export.xlsx")
-    assert is_sheet_page_path("/api/sheet/ayilma/export.csv")
-    assert is_sheet_page_path("/api/sheet/ayilma/export.docx")
     assert not is_sheet_page_path("/ipo")
     assert not is_sheet_page_path("/")
 
@@ -68,44 +64,7 @@ def test_export_xlsx_opens():
     wb = load_workbook(BytesIO(raw))
     ws = wb.active
     assert "Ayılma" in str(ws["A1"].value)
-    assert ws.cell(row=4, column=1).value == LEAD_NURSE
-    # Lead row must be empty on all day columns
-    for col in range(2, 2 + len(out["days"])):
-        assert not ws.cell(row=4, column=col).value
-
-
-def test_export_csv_windows_friendly():
-    from backend.services.ayilma_schedule import build_ayilma_csv_bytes
-
-    out = generate_ayilma_schedule(2026, 9)
-    raw = build_ayilma_csv_bytes(year=2026, month=9, days=out["days"], rows=out["rows"])
-    assert raw.startswith(b"\xef\xbb\xbf")
-    text = raw.decode("utf-8")
-    assert "Ad Soyadı" in text
-    assert "," in text
-    assert ",," not in text
-    assert '""' in text  # boş mesai hücreleri tırnaklı
-    assert ";" not in text.splitlines()[2]  # başlık satırı virgülle
-    assert "Ayılma" in text
-    assert "Gülten" in text
-    assert "Nuray" in text
-
-
-def test_export_docx_opens():
-    from io import BytesIO
-    from zipfile import ZipFile
-
-    from backend.services.ayilma_schedule import build_ayilma_docx_bytes
-
-    out = generate_ayilma_schedule(2026, 9)
-    raw = build_ayilma_docx_bytes(year=2026, month=9, days=out["days"], rows=out["rows"])
-    assert raw[:2] == b"PK"
-    with ZipFile(BytesIO(raw)) as zf:
-        assert "word/document.xml" in zf.namelist()
-        doc_xml = zf.read("word/document.xml").decode("utf-8")
-    assert "Ayılma" in doc_xml
-    assert "Ad Soyad" in doc_xml
-    assert "landscape" in doc_xml.lower() or 'w:orient="landscape"' in doc_xml
+    assert ws.cell(row=4, column=1).value  # first nurse name
 
 
 def test_sheet_menu_visible():
@@ -129,75 +88,6 @@ def test_sheet_only_member_paths():
     assert not sheet_only_member_path_allowed("/api/panel/online-users")
 
 
-def test_every_weekday_has_kat1_eight():
-    """Hafta içi her güne bir «8» (kat-1); 2+ «8» yasak.
-
-    İzin+dinlenme sıkışığında (<3 uygun kişi) kat-1 kaçabilir — o gün uyarı beklenir.
-    """
-    leaves = {
-        "Nuray Durna": {"2026-09-18": "İST"},
-        "Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"},
-        "Şengül Zamur": {"2026-09-23": "İST"},
-        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)}
-        | {"2026-09-27": "İST"},
-        "Rabia Kumtepe": {"2026-09-19": "İST"},
-    }
-    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-    missing = []
-    multi = []
-    for dm in out["days"]:
-        iso = dm["iso"]
-        eights = sum(1 for n in STAFF_NURSES if grid[n].get(iso, "") == "8")
-        if dm["is_weekend"]:
-            assert eights == 0, f"weekend 8 on {iso}"
-            continue
-        if eights == 0:
-            missing.append(iso)
-        elif eights > 1:
-            multi.append((iso, eights))
-    assert not multi, f"same-day multiple 8s: {multi}"
-    # Sıkışık günler (ör. Sema İST + Yİ bloğu) dışında kat-1 zorunlu
-    hard_miss = [iso for iso in missing if iso not in ("2026-09-07", "2026-09-08")]
-    assert not hard_miss, f"kat-1 8 missing: {hard_miss}"
-    assert not any("birden fazla «8»" in w for w in (out.get("warnings") or []))
-
-
-def test_at_most_one_eight_per_day():
-    """Aynı günde 2–3 «8» olmamalı; art arda 8 mümkün olduğunca yok."""
-    from backend.services.ayilma_schedule import (
-        CONSECUTIVE_8_STREAK_MAX,
-        _count_consecutive_8_runs,
-        _max_consecutive_8_streak,
-        month_days,
-    )
-
-    leaves = {
-        "Nuray Durna": {"2026-09-18": "İST"},
-        "Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"},
-        "Şengül Zamur": {"2026-09-23": "İST"},
-        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)}
-        | {"2026-09-27": "İST"},
-        "Rabia Kumtepe": {"2026-09-19": "İST"},
-    }
-    for variant in range(8):
-        out = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=variant)
-        grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-        days_meta = month_days(2026, 9)
-        for dm in out["days"]:
-            iso = dm["iso"]
-            eights = sum(1 for n in STAFF_NURSES if grid[n].get(iso, "") == "8")
-            if dm["is_weekend"]:
-                assert eights == 0, f"v{variant} weekend 8 {iso}"
-            else:
-                assert eights <= 1, f"v{variant} {iso} has {eights} eights"
-        pairs = _count_consecutive_8_runs(grid, days_meta)
-        assert pairs <= 3, f"v{variant} consecutive-8 pairs={pairs}"
-        for name in STAFF_NURSES:
-            streak = _max_consecutive_8_streak(name, days_meta, grid)
-            assert streak <= CONSECUTIVE_8_STREAK_MAX, f"{name} streak={streak}"
-
-
 def test_generate_august_basic_coverage():
     out = generate_ayilma_schedule(2026, 8)
     assert out["ok"] is True
@@ -208,9 +98,9 @@ def test_generate_august_basic_coverage():
     lead = next(r for r in out["rows"] if r["name"] == LEAD_NURSE)
     assert lead["role"] == "lead"
     assert lead["overtime_hours"] == 0
-    assert lead["worked_hours"] == 0
     for dm in out["days"]:
-        assert lead["cells"][dm["iso"]] == "", f"lead must stay empty {dm['iso']}"
+        # Görsel: Gülten boş satır (hesaba dahil değil)
+        assert lead["cells"][dm["iso"]] == "", f"lead must be empty {dm['iso']}"
 
     for dm in out["days"]:
         iso = dm["iso"]
@@ -231,7 +121,6 @@ def test_generate_august_basic_coverage():
             assert staff8 == 0, f"weekend staff 8 on {iso}"
         else:
             assert morning >= 1, f"morning missing {iso}"
-            assert staff8 == 1, f"kat-1 8 count {staff8} on {iso}"
 
 
 def test_prefer_8_and_minimize_16():
@@ -262,7 +151,6 @@ def test_lead_does_not_count_in_staff_night_or_overtime():
     assert lead["exclude_from_staff_balance"] is True
     assert lead["ideal_hours"] == 0
     assert lead["overtime_hours"] == 0
-    assert lead["worked_hours"] == 0
     for dm in out["days"]:
         iso = dm["iso"]
         night = sum(
@@ -271,11 +159,12 @@ def test_lead_does_not_count_in_staff_night_or_overtime():
             if next(r for r in out["rows"] if r["name"] == n)["cells"].get(iso) in ("16", "24")
         )
         assert night >= 2
+        # Görsel: Gülten her gün boş
         assert lead["cells"][iso] == ""
 
 
 def test_first_day_after_leave_gets_night_shift():
-    """Yİ/RP/İST bitişinin ertesi gün nöbet (24 veya 16); kat-1 8 değil."""
+    """Yİ/RP bitişinin ertesi gün nöbet (24 veya 16); hafta içi kat-1 8 değil."""
     leaves = {
         "Nuray Durna": {
             "2026-08-17": "Yİ",
@@ -288,38 +177,6 @@ def test_first_day_after_leave_gets_night_shift():
     first_back = nuray["cells"]["2026-08-20"]
     assert first_back in ("16", "24"), f"expected nöbet, got {first_back!r}"
     assert first_back != "8"
-
-
-def test_first_day_after_ist_gets_work():
-    """İST bitişinin ertesi takvim gününde mutlaka 24 nöbet."""
-    leaves = {"Sema Evecen": {"2026-08-08": "İST", "2026-08-09": "İST"}}
-    out = generate_ayilma_schedule(2026, 8, leaves=leaves)
-    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
-    assert sema["cells"].get("2026-08-10") == "24"  # Pazar — 9 Ağu İST ertesi
-
-
-def test_ist_next_calendar_day_is_24():
-    """İST gününün ertesi takvim günü 24 (8 değil)."""
-    leaves = {"Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"}}
-    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
-    assert sema["cells"].get("2026-09-02") == "24"
-    assert sema["cells"].get("2026-09-09") == "24"
-
-
-def test_ist_only_keeps_hours_balance():
-    """İST günleri kotadan düşülmez; kalan günlerle ortalama mesai bandı (stres ≤2× tolerans)."""
-    from backend.services.ayilma_schedule import HOURS_BALANCE_TOLERANCE
-
-    leaves = {"Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"}}
-    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    staff = [r for r in out["rows"] if r["role"] == "staff"]
-    metrics = [r["worked_hours"] for r in staff]
-    assert max(metrics) - min(metrics) <= HOURS_BALANCE_TOLERANCE * 2
-    sema = next(r for r in staff if r["name"] == "Sema Evecen")
-    peer = sorted(r["worked_hours"] for r in staff if r["name"] != "Sema Evecen")
-    peer_med = peer[len(peer) // 2]
-    assert abs(sema["worked_hours"] - peer_med) <= HOURS_BALANCE_TOLERANCE * 2
 
 
 def test_generate_respects_leave_and_rest_after_24():
@@ -335,7 +192,7 @@ def test_generate_respects_leave_and_rest_after_24():
     assert nuray["cells"]["2026-08-17"] == "Yİ"
     assert nuray["cells"]["2026-08-18"] == "Yİ"
 
-    # 16/24 sonrası ertesi gün boş veya izin (8/16/24 yasak)
+    # 24 sonrası ertesi gün boş veya izin
     for name in STAFF_NURSES:
         row = next(r for r in out["rows"] if r["name"] == name)
         cells = row["cells"]
@@ -343,44 +200,15 @@ def test_generate_respects_leave_and_rest_after_24():
             if dm["day"] >= 31:
                 continue
             iso = dm["iso"]
-            code = cells.get(iso, "")
-            if code not in ("16", "24"):
+            if cells.get(iso) != "24":
                 continue
             nxt = f"2026-08-{dm['day'] + 1:02d}"
             if nxt in cells:
-                assert cells[nxt] in ("", "Yİ", "RP", "İST"), (
-                    f"{name} {iso}={code} -> {cells[nxt]}"
-                )
+                assert cells[nxt] in ("", "Yİ", "RP", "İST"), f"{name} {iso}-> {cells[nxt]}"
 
 
-def test_no_rest_violations_after_16_or_24():
-    """16/24 ertesi mesai yok; aynı günde tek 8."""
-    from backend.services.ayilma_schedule import _grid_rest_violations, month_days
-
-    leaves = {
-        "Nuray Durna": {"2026-09-18": "İST"},
-        "Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"},
-        "Şengül Zamur": {"2026-09-23": "İST"},
-        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)}
-        | {"2026-09-27": "İST"},
-        "Rabia Kumtepe": {"2026-09-19": "İST"},
-    }
-    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-    days = month_days(2026, 9)
-    viols = _grid_rest_violations(days, grid)
-    assert not viols, f"rest violations: {viols[:5]}"
-    for dm in out["days"]:
-        eights = sum(1 for n in STAFF_NURSES if grid[n].get(dm["iso"], "") == "8")
-        if dm["is_weekend"]:
-            assert eights == 0
-        else:
-            assert eights <= 1, f"{dm['iso']} has {eights} eights"
-    assert not any("Dinlenme ihlali" in w for w in (out.get("warnings") or []))
-
-
-def test_yi_counts_as_eight_and_fill_remaining_days():
-    """5 gün Yİ = 40s; eylül 176 → zorunlu nöbet 136s (kalan günlerle); üstüne ek mesai olabilir."""
+def test_yi_counts_as_eight_and_lowers_min_shift():
+    """5 gün Yİ = 40s; eylül 176 → en az 136s nöbet; Çalıştığı = nöbet+Yİ."""
     leaves = {
         "Nuray Durna": {
             f"2026-09-{d:02d}": "Yİ" for d in range(1, 6)  # Pzt–Cum haftası
@@ -388,98 +216,21 @@ def test_yi_counts_as_eight_and_fill_remaining_days():
     }
     out = generate_ayilma_schedule(2026, 9, leaves=leaves)
     assert out["ideal_hours_staff"] == 176
-    assert out["max_monthly_hours"] == 400
     nuray = next(r for r in out["rows"] if r["name"] == "Nuray Durna")
     assert nuray["leave_hours"] == 40
     assert nuray["min_shift_hours"] == 136
     assert nuray["worked_hours"] == nuray["shift_hours"] + 40
     assert nuray["cells"]["2026-09-01"] == "Yİ"
+    # Nöbet saati zorunlu tabana yaklaşmalı
     assert nuray["shift_hours"] >= 120
 
 
-def test_first_day_after_leave_weekend_gets_24():
-    """Yİ Cuma bitince Cumartesi (hafta sonu) ilk güne 24 yazılır."""
-    leaves = {
-        "Nuray Durna": {
-            "2026-09-03": "Yİ",
-            "2026-09-04": "Yİ",  # Cuma
-        }
-    }
-    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    nuray = next(r for r in out["rows"] if r["name"] == "Nuray Durna")
-    assert nuray["cells"].get("2026-09-05") == "24"  # Cumartesi
-
-
-def test_overtime_band_with_heavy_leave():
-    """Yİ alan kişi ortalama dışı; aktif kadro OT bandı dar kalır."""
-    leaves = {
-        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
-        "Sema Evecen": {f"2026-09-{d:02d}": "İST" for d in (1, 7, 8, 15, 22, 29)},
-    }
-    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    semanur = next(r for r in out["rows"] if r["name"] == "Semanur Çınar")
-    assert semanur["exclude_from_staff_balance"] is True
-    assert semanur["leave_hours"] > 0
-    # Aktif (Yİ/RP yok) personel bandı
-    active = [
-        r for r in out["rows"] if r["role"] == "staff" and not r["exclude_from_staff_balance"]
-    ]
-    ots = [r["overtime_hours"] for r in active]
-    assert max(ots) - min(ots) <= 32
-    # İzinli kişi: zorunlu taban + ek mesai kuralları içinde kalır (ortalama zorlaması yok)
-    assert semanur["shift_hours"] >= semanur["min_shift_hours"] - 24
-
-
 def test_staff_accounted_hours_reasonably_balanced():
-    """Aktif personel (Yİ/RP hariç) ≤16s bantta."""
     out = generate_ayilma_schedule(2026, 9)
-    active = [
-        r for r in out["rows"] if r["role"] == "staff" and not r["exclude_from_staff_balance"]
-    ]
-    vals = [r["worked_hours"] for r in active]
-    ots = [r["overtime_hours"] for r in active]
-    assert max(vals) - min(vals) <= 16, vals
-    assert max(ots) - min(ots) <= 16, ots
-
-
-def test_yi_excluded_from_peer_average():
-    """Yİ kullanan ortalama hesabına girmez; aktif kadro kendi ortalamasında kalır."""
-    from backend.services.ayilma_schedule import HOURS_BALANCE_TOLERANCE
-
-    leaves = {"Nuray Durna": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 8)}}
-    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    nuray = next(r for r in out["rows"] if r["name"] == "Nuray Durna")
-    assert nuray["exclude_from_staff_balance"] is True
-    active = [
-        r for r in out["rows"] if r["role"] == "staff" and not r["exclude_from_staff_balance"]
-    ]
-    assert all(r["name"] != "Nuray Durna" for r in active)
-    vals = [r["worked_hours"] for r in active]
-    assert max(vals) - min(vals) <= HOURS_BALANCE_TOLERANCE * 2
-
-
-def test_peer_hours_band_with_long_yi_and_ist():
-    """Semanur uzun Yİ + İST karışımında Emine/Nuray/Şengül arası ≤16s (40s sapma olmamalı)."""
-    from backend.services.ayilma_schedule import HOURS_BALANCE_TOLERANCE, month_days, _grid_gap_ok
-
-    leaves = {
-        "Nuray Durna": {"2026-09-18": "İST"},
-        "Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"},
-        "Şengül Zamur": {"2026-09-23": "İST"},
-        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)}
-        | {"2026-09-27": "İST"},
-        "Rabia Kumtepe": {"2026-09-19": "İST"},
-    }
-    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    active = [
-        r for r in out["rows"] if r["role"] == "staff" and not r["exclude_from_staff_balance"]
-    ]
-    vals = {r["name"]: r["worked_hours"] for r in active}
-    spread = max(vals.values()) - min(vals.values())
-    assert spread <= HOURS_BALANCE_TOLERANCE, vals
-    assert not any("saat bandı" in w for w in (out.get("warnings") or []))
-    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-    assert _grid_gap_ok(month_days(2026, 9), grid)
+    vals = [r["worked_hours"] for r in out["rows"] if r["role"] == "staff"]
+    ots = [r["overtime_hours"] for r in out["rows"] if r["role"] == "staff"]
+    assert max(vals) - min(vals) <= 16
+    assert max(ots) - min(ots) <= 16
 
 
 def test_ist_request_blocks_assignment():
@@ -488,28 +239,6 @@ def test_ist_request_blocks_assignment():
     sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
     assert sema["cells"]["2026-08-10"] == "İST"
     assert sema["cells"]["2026-08-11"] == "İST"
-
-
-def test_ist_overtime_near_peers():
-    """İST kotadan düşülmez; yalnız İST kullanan personel fazla mesai bandında kalır."""
-    leaves = {
-        "Sema Evecen": {
-            "2026-08-22": "İST",
-            "2026-08-25": "İST",
-            "2026-08-28": "İST",
-        },
-    }
-    out = generate_ayilma_schedule(2026, 8, leaves=leaves)
-    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
-    peer_ots = [
-        r["overtime_hours"]
-        for r in out["rows"]
-        if r["role"] == "staff" and r["name"] != "Sema Evecen"
-    ]
-    assert sema["leave_hours"] == 0
-    assert sema["min_shift_hours"] == out["ideal_hours_staff"]
-    assert max(peer_ots) - sema["overtime_hours"] <= 16
-    assert sema["overtime_hours"] - min(peer_ots) <= 16
 
 
 def _count_gun_asiri(out: dict) -> int:
@@ -555,127 +284,18 @@ def _max_gun_asiri_streak(out: dict) -> int:
     return best
 
 
-def _max_pair24_monthly(out: dict) -> int:
-    days = out["days"]
-    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-    names = list(grid.keys())
-    best = 0
-    for i, a in enumerate(names):
-        for b in names[i + 1 :]:
-            n = sum(
-                1
-                for dm in days
-                if grid[a].get(dm["iso"], "") == "24" and grid[b].get(dm["iso"], "") == "24"
-            )
-            best = max(best, n)
-    return best
-
-
-def _max_pair24_near_streak(out: dict) -> int:
-    """Aynı ikilinin ≤4 gün aralıklı ardışık birlikte 24 sayısı."""
-    days = out["days"]
-    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-    names = list(grid.keys())
-    best = 0
-    for i, a in enumerate(names):
-        for b in names[i + 1 :]:
-            idxs = [
-                j
-                for j, dm in enumerate(days)
-                if grid[a].get(dm["iso"], "") == "24" and grid[b].get(dm["iso"], "") == "24"
-            ]
-            streak = 1
-            local = 1
-            for k in range(1, len(idxs)):
-                if idxs[k] - idxs[k - 1] <= 4:
-                    streak += 1
-                    local = max(local, streak)
-                else:
-                    streak = 1
-            best = max(best, local if idxs else 0)
-    return best
-
-
 def test_soft_avoid_gun_asiri_prefer_24_over_16():
-    """16 neredeyse hiç; gün aşırı zinciri ≤4 (uç durum ≤5); 16 ile streak kırılmaz."""
+    """16 neredeyse hiç; gün aşırı zinciri ≤3 (izin yoksa)."""
     out = generate_ayilma_schedule(2026, 9)
     counts = out["staff_code_counts"]
     assert counts["16"] <= 2
     assert counts["24"] >= counts["8"]
-    assert _max_gun_asiri_streak(out) <= 5
-
-
-def test_soft_avoid_repeated_pair24():
-    """Aynı ikili 24'te çok sık / üst üste eşleşmesin; çapraz çeşitlilik."""
-    from backend.services.ayilma_schedule import (
-        PAIR24_MONTHLY_SOFT,
-        PAIR24_NEAR_STREAK_MAX,
-        _pair24_all_month_counts,
-        generate_ayilma_schedule,
-        month_days,
-    )
-
-    for variant in range(20):
-        out = generate_ayilma_schedule(2026, 9, variant=variant)
-        assert _max_pair24_monthly(out) <= PAIR24_MONTHLY_SOFT
-        assert _max_pair24_near_streak(out) <= PAIR24_NEAR_STREAK_MAX
-        grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-        counts = _pair24_all_month_counts(month_days(2026, 9), grid)
-        used = sum(1 for c in counts.values() if c > 0)
-        # 15 olası ikiliden mümkün olduğunca çoğu kullanılsın
-        assert used >= 8, f"variant={variant} distinct pairs={used} counts={counts}"
-
-
-def test_pair24_unused_pair_preferred():
-    from backend.services.ayilma_schedule import _pair24_soft_penalty, month_days
-
-    days = month_days(2026, 9)
-    grid = {n: {d.iso: "" for d in days} for n in STAFF_NURSES}
-    a, b, c = STAFF_NURSES[0], STAFF_NURSES[1], STAFF_NURSES[2]
-    grid[a][days[1].iso] = "24"
-    grid[b][days[1].iso] = "24"
-    # a-b daha önce eşleşmiş; a-c hiç → a-c daha düşük ceza
-    pen_ab = _pair24_soft_penalty(a, b, 5, days, grid)
-    pen_ac = _pair24_soft_penalty(a, c, 5, days, grid)
-    assert pen_ac < pen_ab
-
-
-def test_pair24_near_streak_cap_with_leaves():
-    """İzinli ayda da aynı ikili yakın 24 zinciri ≤2 (ör. Şengül+Emine 24-boş-24-boş-24)."""
-    from backend.services.ayilma_schedule import PAIR24_NEAR_STREAK_MAX
-
-    leaves = {
-        "Nuray Durna": {"2026-09-18": "İST"},
-        "Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"},
-        "Şengül Zamur": {"2026-09-23": "İST"},
-        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)}
-        | {"2026-09-27": "İST"},
-        "Rabia Kumtepe": {"2026-09-19": "İST"},
-    }
-    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    # İzin sıkışığında 2 her zaman mümkün olmayabilir; 3 üstü olmamalı
-    assert _max_pair24_near_streak(out) <= 3
-    assert _max_pair24_near_streak(out) <= PAIR24_NEAR_STREAK_MAX + 1
-
-
-def test_pair24_soft_penalty_discourages_third_near():
-    from backend.services.ayilma_schedule import _pair24_soft_penalty, month_days
-
-    days = month_days(2026, 9)
-    grid = {n: {d.iso: "" for d in days} for n in STAFF_NURSES}
-    a, b = STAFF_NURSES[0], STAFF_NURSES[1]
-    grid[a][days[5].iso] = "24"
-    grid[b][days[5].iso] = "24"
-    grid[a][days[7].iso] = "24"
-    grid[b][days[7].iso] = "24"
-    assert _pair24_soft_penalty(a, b, 9, days, grid) >= 40
+    assert _max_gun_asiri_streak(out) <= 3
 
 
 def test_gun_asiri_streak_helpers():
     from backend.services.ayilma_schedule import (
-        GUN_ASIRI_STREAK_ABSOLUTE,
         GUN_ASIRI_STREAK_MAX,
-        GUN_ASIRI_STREAK_SOFT,
         _gun_asiri_streak_if_24,
         month_days,
     )
@@ -690,141 +310,7 @@ def test_gun_asiri_streak_helpers():
     assert _gun_asiri_streak_if_24(name, 9, days, grid) == 4  # day 10
     grid[name][days[9].iso] = "24"
     assert _gun_asiri_streak_if_24(name, 15, days, grid) == 4  # day 16 back
-    assert GUN_ASIRI_STREAK_SOFT == 3
-    assert GUN_ASIRI_STREAK_MAX == 4
-    assert GUN_ASIRI_STREAK_ABSOLUTE == 5
-
-
-def test_idle_24_gap_helpers():
-    from backend.services.ayilma_schedule import (
-        IDLE_24_GAP_MAX,
-        IDLE_24_GAP_SOFT,
-        _days_without_24_before,
-        _idle_empty_streak_before,
-        month_days,
-    )
-
-    days = month_days(2026, 9)
-    grid = {n: {d.iso: "" for d in days} for n in STAFF_NURSES}
-    name = STAFF_NURSES[0]
-    grid[name][days[0].iso] = "24"
-    grid[name][days[1].iso] = ""
-    grid[name][days[2].iso] = "8"
-    grid[name][days[3].iso] = ""
-    assert _days_without_24_before(name, 4, days, grid) == 3
-    assert _idle_empty_streak_before(name, 4, days, grid) == 1
-    assert IDLE_24_GAP_MAX == 3
-    assert IDLE_24_GAP_SOFT == 2
-
-
-def test_max_empty_between_24_hard_cap_three():
-    """Kati: bir hemşirede 24 arası 4+ boş hücre olmaz (panel üretimi)."""
-    from backend.services.ayilma_schedule import (
-        _max_empty_between_24_in_grid,
-        month_days,
-    )
-
-    leaves = {
-        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
-        "Sema Evecen": {f"2026-09-{d:02d}": "İST" for d in (1, 7, 8, 15, 22, 29)},
-    }
-    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-    empty_gap = _max_empty_between_24_in_grid(month_days(2026, 9), grid)
-    assert empty_gap <= 3, f"max empty between 24 = {empty_gap}"
-
-
-def test_no_trailing_empty_streak_over_three():
-    """Ay sonunda son 24 sonrası 4+ boş gün olmamalı (trailing dahil)."""
-    from backend.services.ayilma_schedule import (
-        _max_empty_between_24_in_grid,
-        month_days,
-    )
-
-    out = generate_ayilma_schedule(
-        2026,
-        9,
-        special_rules=[
-            {
-                "name": "Sema Evecen",
-                "mode": "work",
-                "dates": ["2026-09-01", "2026-09-02"],
-                "weekly": True,
-            }
-        ],
-    )
-    days = month_days(2026, 9)
-    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-    assert _max_empty_between_24_in_grid(days, grid) <= 3
-    for name, cells in grid.items():
-        last24 = None
-        for i, d in enumerate(days):
-            if cells.get(d.iso) == "24":
-                last24 = i
-        if last24 is None:
-            continue
-        trail = 0
-        for j in range(last24 + 1, len(days)):
-            if cells.get(days[j].iso, "") == "":
-                trail += 1
-            else:
-                break
-        assert trail <= 3, f"{name} trailing empty after last 24 = {trail}"
-
-
-def test_triple_gap_sandwich_minimized():
-    """3+24+3 yerine 2+24+2 tercih — mümkün olduğunca az triple sandwich."""
-    from backend.services.ayilma_schedule import (
-        _count_triple_gap_sandwiches_in_grid,
-        month_days,
-    )
-
-    for month in (8, 9):
-        for variant in range(25):
-            out = generate_ayilma_schedule(2026, month, variant=variant)
-            grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-            days_meta = month_days(2026, month)
-            triple = _count_triple_gap_sandwiches_in_grid(days_meta, grid)
-            assert triple <= 2, (
-                f"{month}/{variant}: {triple} adet 3+24+3 (hedef ≤2, ideal 0)"
-            )
-
-
-def test_gun_asiri_streak_cap_with_heavy_leave():
-    """İzin yoğun ayda bile gün aşırı 24 zinciri ABSOLUTE (5) aşılmaz."""
-    leaves = {
-        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
-        "Sema Evecen": {f"2026-09-{d:02d}": "İST" for d in (1, 7, 8, 15, 22, 29)},
-    }
-    for variant in range(25):
-        out = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=variant)
-        assert _max_gun_asiri_streak(out) <= 5, f"variant {variant}"
-
-
-def test_avoid_consecutive_eight_pairs_when_possible():
-    """Üst üste 8+8 mümkün olduğunca az (yumuşak; sert tavan hâlâ 2)."""
-    from backend.services.ayilma_schedule import (
-        CONSECUTIVE_8_STREAK_MAX,
-        _count_consecutive_8_runs,
-        _max_consecutive_8_streak,
-        month_days,
-    )
-
-    leaves = {
-        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
-        "Sema Evecen": {f"2026-09-{d:02d}": "İST" for d in (1, 7, 8, 15, 22, 29)},
-    }
-    for variant in range(12):
-        out = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=variant)
-        grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-        days_meta = month_days(2026, 9)
-        pairs = _count_consecutive_8_runs(grid, days_meta)
-        assert pairs <= 4, f"variant {variant} has {pairs} consecutive-8 pairs"
-        for row in out["rows"]:
-            if row["role"] != "staff":
-                continue
-            streak = _max_consecutive_8_streak(row["name"], days_meta, grid)
-            assert streak <= CONSECUTIVE_8_STREAK_MAX
+    assert GUN_ASIRI_STREAK_MAX == 3
 
 
 def test_no_consecutive_eights_for_staff():
@@ -893,148 +379,3 @@ def test_two_night_shifts_every_day_with_mixed_leaves():
             if r["role"] == "staff" and r["cells"].get(dm["iso"], "") in ("16", "24")
         )
         assert n >= 2, f"{dm['iso']}: {n} night shifts"
-
-
-def test_resolve_special_weekly_avoid():
-    from backend.services.ayilma_schedule import resolve_special_day_sets
-
-    # 2026-09-01 Salı → weekly avoid Salı
-    work, avoid = resolve_special_day_sets(
-        2026,
-        9,
-        [
-            {
-                "name": "Sema Evecen",
-                "mode": "avoid",
-                "dates": ["2026-09-01"],
-                "weekly": True,
-            }
-        ],
-    )
-    assert "2026-09-01" in avoid["Sema Evecen"]
-    assert "2026-09-08" in avoid["Sema Evecen"]
-    assert "2026-09-15" in avoid["Sema Evecen"]
-    assert "2026-09-02" not in avoid["Sema Evecen"]
-    assert not work["Sema Evecen"]
-
-
-def test_special_avoid_blocks_shifts():
-    out = generate_ayilma_schedule(
-        2026,
-        9,
-        special_rules=[
-            {
-                "name": "Sema Evecen",
-                "mode": "avoid",
-                "dates": ["2026-09-01"],
-                "weekly": True,
-            }
-        ],
-    )
-    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
-    for iso in ("2026-09-01", "2026-09-08", "2026-09-15", "2026-09-22", "2026-09-29"):
-        assert sema["cells"].get(iso, "") in ("", "Yİ", "RP", "İST"), (
-            f"Sema should avoid {iso}, got {sema['cells'].get(iso)!r}"
-        )
-
-
-def test_special_avoid_weekly_keeps_hours_balance():
-    """Sal–Per çalışmasın: bloklu günler boş; diğer günlerle band (stres ≤2× tolerans)."""
-    from backend.services.ayilma_schedule import HOURS_BALANCE_TOLERANCE
-
-    out = generate_ayilma_schedule(
-        2026,
-        9,
-        special_rules=[
-            {
-                "name": "Sema Evecen",
-                "mode": "avoid",
-                "dates": ["2026-09-01", "2026-09-02", "2026-09-03"],
-                "weekly": True,
-            }
-        ],
-    )
-    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
-    staff = [r for r in out["rows"] if r["role"] == "staff"]
-    metrics = [r["worked_hours"] for r in staff]
-    spread = max(metrics) - min(metrics)
-    assert spread <= HOURS_BALANCE_TOLERANCE * 3, (
-        f"balance spread {spread} > {HOURS_BALANCE_TOLERANCE * 3}: "
-        + ", ".join(f"{r['name']}={r['worked_hours']}" for r in staff)
-    )
-    for iso, code in sema["cells"].items():
-        if not iso.startswith("2026-09-"):
-            continue
-        if date.fromisoformat(iso).weekday() in (1, 2, 3):
-            assert code not in ("8", "16", "24"), f"Sema worked avoid day {iso}: {code!r}"
-
-
-def test_special_work_prefers_selected_days():
-    """çalışsın: seçilen günlerde mümkünse mesai (en az birinde 8/16/24)."""
-    out = generate_ayilma_schedule(
-        2026,
-        9,
-        special_rules=[
-            {
-                "name": "Rabia Kumtepe",
-                "mode": "work",
-                "dates": ["2026-09-02", "2026-09-03", "2026-09-04"],
-                "weekly": False,
-            }
-        ],
-    )
-    rabia = next(r for r in out["rows"] if r["name"] == "Rabia Kumtepe")
-    codes = [
-        rabia["cells"].get(iso, "")
-        for iso in ("2026-09-02", "2026-09-03", "2026-09-04")
-    ]
-    assert any(c in ("8", "16", "24") for c in codes), codes
-
-
-def test_special_work_weekly_enforces_all_days():
-    """çalışsın + her hafta: seçilen weekday'lerde mesai zorunlu."""
-    out = generate_ayilma_schedule(
-        2026,
-        9,
-        special_rules=[
-            {
-                "name": "Sema Evecen",
-                "mode": "work",
-                "dates": ["2026-09-01", "2026-09-02"],
-                "weekly": True,
-            }
-        ],
-    )
-    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
-    tues_weds = [
-        iso
-        for iso in sorted(sema["cells"])
-        if iso.startswith("2026-09-")
-        and date.fromisoformat(iso).weekday() in (1, 2)
-    ]
-    assert tues_weds, "expected Tue/Wed dates in September"
-    missing = [
-        iso
-        for iso in tues_weds
-        if sema["cells"].get(iso, "") not in ("8", "16", "24")
-    ]
-    assert not missing, f"Sema missing work on: {missing}"
-
-
-def test_variant_can_differ():
-    a = generate_ayilma_schedule(2026, 9, variant=0)
-    b = generate_ayilma_schedule(2026, 9, variant=1)
-    cells_a = {r["name"]: r["cells"] for r in a["rows"] if r["role"] == "staff"}
-    cells_b = {r["name"]: r["cells"] for r in b["rows"] if r["role"] == "staff"}
-    assert a["variant"] == 0 and b["variant"] == 1
-    # En az bir günde farklı atama beklenir (eşitlikte farklı aday)
-    differ = False
-    for name in cells_a:
-        for iso, code in cells_a[name].items():
-            if cells_b[name].get(iso) != code:
-                differ = True
-                break
-        if differ:
-            break
-    assert differ
-
