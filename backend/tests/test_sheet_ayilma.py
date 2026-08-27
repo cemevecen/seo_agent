@@ -47,6 +47,8 @@ def test_sheet_page_paths():
     assert is_sheet_page_path("/api/sheet/ayilma/meta")
     assert is_sheet_page_path("/api/sheet/ayilma/generate")
     assert is_sheet_page_path("/api/sheet/ayilma/export.xlsx")
+    assert is_sheet_page_path("/api/sheet/ayilma/export.csv")
+    assert is_sheet_page_path("/api/sheet/ayilma/export.docx")
     assert not is_sheet_page_path("/ipo")
     assert not is_sheet_page_path("/")
 
@@ -65,6 +67,35 @@ def test_export_xlsx_opens():
     ws = wb.active
     assert "Ayılma" in str(ws["A1"].value)
     assert ws.cell(row=4, column=1).value  # first nurse name
+
+
+def test_export_csv_windows_friendly():
+    from backend.services.ayilma_schedule import build_ayilma_csv_bytes
+
+    out = generate_ayilma_schedule(2026, 9)
+    raw = build_ayilma_csv_bytes(year=2026, month=9, days=out["days"], rows=out["rows"])
+    assert raw.startswith(b"\xef\xbb\xbf")
+    text = raw.decode("utf-8")
+    assert "Ad Soyadı" in text
+    assert ";" in text
+    assert "Ayılma" in text
+    assert "Gülten" in text or "Nuray" in text
+
+
+def test_export_docx_opens():
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    from backend.services.ayilma_schedule import build_ayilma_docx_bytes
+
+    out = generate_ayilma_schedule(2026, 9)
+    raw = build_ayilma_docx_bytes(year=2026, month=9, days=out["days"], rows=out["rows"])
+    assert raw[:2] == b"PK"
+    with ZipFile(BytesIO(raw)) as zf:
+        assert "word/document.xml" in zf.namelist()
+        doc_xml = zf.read("word/document.xml").decode("utf-8")
+    assert "Ayılma" in doc_xml
+    assert "Ad Soyadı" in doc_xml
 
 
 def test_sheet_menu_visible():
@@ -169,7 +200,7 @@ def test_lead_does_not_count_in_staff_night_or_overtime():
 
 
 def test_first_day_after_leave_gets_night_shift():
-    """Yİ/RP bitişinin ertesi gün nöbet (24 veya 16); hafta içi kat-1 8 değil."""
+    """Yİ/RP/İST bitişinin ertesi gün nöbet (24 veya 16); hafta içi kat-1 8 değil."""
     leaves = {
         "Nuray Durna": {
             "2026-08-17": "Yİ",
@@ -182,6 +213,15 @@ def test_first_day_after_leave_gets_night_shift():
     first_back = nuray["cells"]["2026-08-20"]
     assert first_back in ("16", "24"), f"expected nöbet, got {first_back!r}"
     assert first_back != "8"
+
+
+def test_first_day_after_ist_gets_work():
+    """İST bitişinin ertesi mesai gününde mutlaka çalışma."""
+    leaves = {"Sema Evecen": {"2026-08-08": "İST", "2026-08-09": "İST"}}
+    out = generate_ayilma_schedule(2026, 8, leaves=leaves)
+    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
+    first_back = sema["cells"].get("2026-08-11", "")  # Pzt — 10 Ağu Pazar
+    assert first_back in ("8", "16", "24"), f"expected çalışma, got {first_back!r}"
 
 
 def test_generate_respects_leave_and_rest_after_24():
@@ -290,17 +330,18 @@ def _max_gun_asiri_streak(out: dict) -> int:
 
 
 def test_soft_avoid_gun_asiri_prefer_24_over_16():
-    """16 neredeyse hiç; gün aşırı zinciri ≤3 (izin yoksa)."""
+    """16 neredeyse hiç; gün aşırı zinciri ≤5 (izin yoksa); 16 ile streak kırılmaz."""
     out = generate_ayilma_schedule(2026, 9)
     counts = out["staff_code_counts"]
     assert counts["16"] <= 2
     assert counts["24"] >= counts["8"]
-    assert _max_gun_asiri_streak(out) <= 3
+    assert _max_gun_asiri_streak(out) <= 5
 
 
 def test_gun_asiri_streak_helpers():
     from backend.services.ayilma_schedule import (
         GUN_ASIRI_STREAK_MAX,
+        GUN_ASIRI_STREAK_SOFT,
         _gun_asiri_streak_if_24,
         month_days,
     )
@@ -315,7 +356,8 @@ def test_gun_asiri_streak_helpers():
     assert _gun_asiri_streak_if_24(name, 9, days, grid) == 4  # day 10
     grid[name][days[9].iso] = "24"
     assert _gun_asiri_streak_if_24(name, 15, days, grid) == 4  # day 16 back
-    assert GUN_ASIRI_STREAK_MAX == 3
+    assert GUN_ASIRI_STREAK_SOFT == 4
+    assert GUN_ASIRI_STREAK_MAX == 5
 
 
 def test_no_consecutive_eights_for_staff():

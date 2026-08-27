@@ -15937,13 +15937,14 @@ def ipo_page(request: Request):
 
 @app.get("/sheet")
 def sheet_page(request: Request):
-    """Ayılma hemşireleri aylık çizelge (yalnız cemevecen)."""
+    """Ayılma hemşireleri aylık çizelge (cemevecen + sheet-only üyeler)."""
     from backend.services.sheet_page_access import is_sheet_page_allowed_email
     from backend.services.app_member_auth import member_from_request
 
     member = member_from_request(request)
     if not is_sheet_page_allowed_email(member.email if member else None):
-        return RedirectResponse(url="/?sheet_denied=1", status_code=303)
+        if not _local_panel_open(request):
+            return RedirectResponse(url="/?sheet_denied=1", status_code=303)
     return templates.TemplateResponse(
         request,
         "sheet.html",

@@ -42,8 +42,9 @@ HOURS_BALANCE_TOLERANCE = 16
 EIGHT_PER_PERSON_MIN = 2
 EIGHT_PER_PERSON_TARGET = 3
 EIGHT_PER_PERSON_MAX = 4
-# Gün aşırı zinciri: 24+boş+24+boş+24 (en fazla 3×24); 4. uzatma kaçınılır
-GUN_ASIRI_STREAK_MAX = 3
+# Gün aşırı zinciri: 24+boş+24+… — yumuşak hedef 4, sert tavan 5 (16 ile kırmak yerine)
+GUN_ASIRI_STREAK_SOFT = 4
+GUN_ASIRI_STREAK_MAX = 5
 # Üst üste «8»: tercih yok; mecbur kalınırsa en fazla 2 gün
 CONSECUTIVE_8_STREAK_MAX = 2
 # Haftada bu kadar Yİ/RP/İST hücresi varsa streak limiti gevşer
@@ -331,14 +332,22 @@ def _first_day_after_leave(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
 ) -> bool:
-    """Dün Yİ/RP (izin/rapor); bugün mesai günü — dönüşte nöbet tercih."""
-    if day_index <= 0:
-        return False
-    prev = grid[name].get(days[day_index - 1].iso, "")
-    if prev not in ("Yİ", "RP"):
+    """Yİ/RP/İST bloğundan sonraki ilk mesai (hafta içi) günü."""
+    if not days[day_index].is_weekday:
         return False
     today = grid[name].get(days[day_index].iso, "")
-    return today not in LEAVE_CODES
+    if today in LEAVE_CODES:
+        return False
+    j = day_index - 1
+    while j >= 0:
+        if days[j].is_weekend:
+            j -= 1
+            continue
+        prev = grid[name].get(days[j].iso, "")
+        if prev in ("Yİ", "RP", "İST"):
+            return True
+        return False
+    return False
 
 
 def _count_consecutive_8_runs(
@@ -515,7 +524,6 @@ def generate_ayilma_schedule(
 
         def rank_for_8(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
-            break_streak = 0 if over_streak(n) else 1
             break24 = 0 if is_gun_asiri_candidate(n) else 1
             streak8 = _consecutive_8_streak_if_8(n, idx, days, grid)
             prev8 = 1 if streak8 >= 2 else 0
@@ -527,7 +535,6 @@ def generate_ayilma_schedule(
                 after_leave,
                 special_work_rank(n),
                 streak8,
-                break_streak,
                 accounted(n),
                 prev8,
                 after24,
@@ -543,14 +550,16 @@ def generate_ayilma_schedule(
                 pen += 500
             over = 1 if over_streak(n) else 0
             gun = _gun_asiri_24_penalty(n, idx, days, grid)
+            soft_streak = max(0, streak_if_24(n) - GUN_ASIRI_STREAK_SOFT)
             behind = 0 if hours[n] < min_shift[n] else 1
-            # İzinden dönüş → önce nöbet
+            # İzin/istek/rapor dönüşü → önce nöbet
             after_leave = 0 if _first_day_after_leave(n, idx, days, grid) else 1
             return (
                 pen,
                 after_leave,
                 special_work_rank(n),
                 over,
+                soft_streak,
                 accounted(n),
                 streak_if_24(n),
                 gun,
@@ -573,8 +582,6 @@ def generate_ayilma_schedule(
             total8 = sum(n8.values())
             remaining = sum(1 for d in days[idx:] if d.is_weekday)
             need_min = sum(max(0, EIGHT_PER_PERSON_MIN - n8[n]) for n in STAFF_NURSES)
-            if any(over_streak(n) for n in under_max):
-                return True
             if any(is_gun_asiri_candidate(n) and n8[n] < EIGHT_PER_PERSON_TARGET for n in under_max):
                 return True
             if need_min > 0 and remaining <= need_min + 1:
@@ -615,14 +622,6 @@ def generate_ayilma_schedule(
             night_needed -= 1
             available = [x for x in available if x != n]
 
-        def _assign16(n: str) -> None:
-            nonlocal night_needed, available
-            grid[n][dm.iso] = "16"
-            hours[n] += 16
-            n16[n] += 1
-            night_needed -= 1
-            available = [x for x in available if x != n]
-
         while night_needed > 0:
             pool = [n for n in available if n not in day_only_set]
             if not leave_heavy:
@@ -630,12 +629,32 @@ def generate_ayilma_schedule(
                 if capped:
                     pool = capped
             if not pool:
-                pool = [n for n in available if n not in day_only_set]
+                pool = [
+                    n
+                    for n in STAFF_NURSES
+                    if n not in day_only_set
+                    and dm.iso not in force_avoid[n]
+                    and grid[n].get(dm.iso, "") in ("", "8")
+                    and grid[n].get(dm.iso, "") not in LEAVE_CODES
+                    and not _blocked_by_rest(
+                        n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    )
+                ]
             if not pool:
                 break
             return_pool = [n for n in pool if _first_day_after_leave(n, idx, days, grid)]
             pick_from = return_pool if return_pool else pool
-            _assign24(sorted(pick_from, key=rank_for_24)[0])
+            pick = sorted(pick_from, key=rank_for_24)[0]
+            prev = grid[pick].get(dm.iso, "")
+            if prev == "8":
+                grid[pick][dm.iso] = "24"
+                hours[pick] += 16
+                n8[pick] -= 1
+                n24[pick] += 1
+                night_needed -= 1
+                available = [x for x in available if x != pick]
+            else:
+                _assign24(pick)
 
         if (
             night_needed > 0
@@ -651,15 +670,6 @@ def generate_ayilma_schedule(
             night_needed -= 1
             morning = None
 
-        while night_needed > 0:
-            c16 = sorted(
-                [n for n in available if n not in day_only_set],
-                key=rank_for_24,
-            )
-            if not c16:
-                break
-            _assign16(c16[0])
-
         if dm.is_weekday:
             has_morning = any(grid[n][dm.iso] in ("8", "24") for n in STAFF_NURSES)
             if not has_morning:
@@ -667,7 +677,7 @@ def generate_ayilma_schedule(
         if night_needed > 0:
             warnings.append(f"{dm.iso}: Gece nöbeti eksik ({2 - night_needed}/2).")
 
-    # ── Post: streak > 3 olan 24'leri mümkünse 8 ile takas ──
+    # ── Post: streak > GUN_ASIRI_STREAK_MAX olan 24'leri mümkünse 8 ile takas ──
     for _pass in range(4):
         swapped = False
         for name in STAFF_NURSES:
@@ -683,7 +693,7 @@ def generate_ayilma_schedule(
                     if n8[name] >= EIGHT_PER_PERSON_TARGET:
                         continue
                 else:
-                    # Streak > 3: 8 max'a kadar zorla kır
+                    # Streak > tavan: 8 max'a kadar zorla kır (16 ile değil)
                     if n8[name] >= EIGHT_PER_PERSON_MAX:
                         continue
                 iso = days[i].iso
@@ -1243,6 +1253,7 @@ def generate_ayilma_schedule(
             if filled:
                 continue
 
+            # 16 yalnızca gerçekten kimse 24 alamıyorsa (streak kırmak için değil)
             pool16 = [
                 n
                 for n in STAFF_NURSES
@@ -1264,6 +1275,35 @@ def generate_ayilma_schedule(
                 f"{iso}: Gece nöbeti eksik ({_staff_night_count(grid, iso)}/{NIGHT_SHIFTS_PER_DAY})."
             )
             break
+
+    # ── Yİ/RP/İST dönüşü: ilk mesai gününde mutlaka çalışma ──
+    for name in STAFF_NURSES:
+        for i, dm in enumerate(days):
+            if not _first_day_after_leave(name, i, days, grid):
+                continue
+            iso = dm.iso
+            code = grid[name].get(iso, "")
+            if code in WORK_CODES:
+                continue
+            if code in LEAVE_CODES or iso in force_avoid[name] or name in day_only_set:
+                continue
+            rest_block = _blocked_by_rest(
+                name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+            )
+            placed = False
+            if not rest_block and _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY:
+                grid[name][iso] = "24"
+                hours[name] += 24
+                n24[name] += 1
+                placed = True
+            elif not rest_block and dm.is_weekday and _can_assign_8(name, i, days, grid):
+                if n8[name] < EIGHT_PER_PERSON_MAX:
+                    grid[name][iso] = "8"
+                    hours[name] += 8
+                    n8[name] += 1
+                    placed = True
+            if not placed:
+                warnings.append(f"{iso}: {name} izin/istek dönüşünde çalışma atanamadı.")
 
     last = days[-1]
     next_month_rest = [
@@ -1419,30 +1459,17 @@ def build_ayilma_xlsx_bytes(
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
 
+    title = _month_title(month, year)
+    headers, body = _export_matrix(days, rows)
+
     wb = Workbook()
     ws = wb.active
     ws.title = f"{month:02d}-{year}"[:31]
 
-    month_tr = (
-        "",
-        "Ocak",
-        "Şubat",
-        "Mart",
-        "Nisan",
-        "Mayıs",
-        "Haziran",
-        "Temmuz",
-        "Ağustos",
-        "Eylül",
-        "Ekim",
-        "Kasım",
-        "Aralık",
-    )
-    ws["A1"] = f"Ayılma hemşireleri — {month_tr[month]} {year}"
+    ws["A1"] = title
     ws["A1"].font = Font(bold=True, size=14)
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max(4, 1 + len(days) + 3))
 
-    headers = ["Ad Soyadı"] + [str(d.get("day", "")) for d in days] + ["Çalıştığı", "Aylık", "Fazla"]
     for col, h in enumerate(headers, start=1):
         cell = ws.cell(row=3, column=col, value=h)
         cell.font = Font(bold=True)
@@ -1463,39 +1490,20 @@ def build_ayilma_xlsx_bytes(
         "24": PatternFill("solid", fgColor="DDD6FE"),
     }
 
-    for r_i, row in enumerate(rows, start=4):
-        name = row.get("name") or ""
-        cells_map = row.get("cells") or {}
-        ws.cell(row=r_i, column=1, value=name).font = Font(bold=True)
-        worked = 0
+    for r_i, line in enumerate(body, start=4):
+        row_meta = rows[r_i - 4] if r_i - 4 < len(rows) else {}
+        ws.cell(row=r_i, column=1, value=line[0]).font = Font(bold=True)
         for c_i, d in enumerate(days):
-            code = cells_map.get(d.get("iso") or "", "") or ""
+            code = str(line[1 + c_i] or "")
             cell = ws.cell(row=r_i, column=2 + c_i, value=code)
             cell.alignment = Alignment(horizontal="center")
             if code in fills:
                 cell.fill = fills[code]
-            if code == "8":
-                worked += 8
-            elif code == "16":
-                worked += 16
-            elif code == "24":
-                worked += 24
-            elif code == "Yİ":
-                worked += 8
-        ideal = int(row.get("ideal_hours") or 0)
-        if row.get("role") == "lead":
-            ideal = 0
-        ot = max(0, worked - ideal) if row.get("role") != "lead" else 0
-        # İstemci ideal göndermediyse satırdaki değerleri kullan
-        if "worked_hours" in row:
-            worked = int(row.get("worked_hours") or worked)
-        if "overtime_hours" in row and row.get("role") != "lead":
-            ot = int(row.get("overtime_hours") or ot)
-        if "ideal_hours" in row and row.get("role") != "lead":
-            ideal = int(row.get("ideal_hours") or ideal)
-        ws.cell(row=r_i, column=2 + len(days), value=worked)
-        ws.cell(row=r_i, column=3 + len(days), value=ideal)
-        ws.cell(row=r_i, column=4 + len(days), value=ot)
+        ws.cell(row=r_i, column=2 + len(days), value=line[-3])
+        ws.cell(row=r_i, column=3 + len(days), value=line[-2])
+        ws.cell(row=r_i, column=4 + len(days), value=line[-1])
+        if row_meta.get("role") == "lead":
+            ws.cell(row=r_i, column=1).font = Font(bold=True, color="4338CA")
 
     ws.column_dimensions["A"].width = 18
     for i in range(len(days)):
@@ -1505,4 +1513,145 @@ def build_ayilma_xlsx_bytes(
 
     buf = BytesIO()
     wb.save(buf)
+    return buf.getvalue()
+
+
+_MONTH_TR_NAMES = (
+    "",
+    "Ocak",
+    "Şubat",
+    "Mart",
+    "Nisan",
+    "Mayıs",
+    "Haziran",
+    "Temmuz",
+    "Ağustos",
+    "Eylül",
+    "Ekim",
+    "Kasım",
+    "Aralık",
+)
+
+
+def _month_title(month: int, year: int) -> str:
+    label = _MONTH_TR_NAMES[month] if 1 <= month <= 12 else str(month)
+    return f"Ayılma hemşireleri — {label} {year}"
+
+
+def _export_headers(days: list[dict[str, Any]]) -> list[str]:
+    return ["Ad Soyadı"] + [str(d.get("day", "")) for d in days] + ["Çalıştığı", "Aylık", "Fazla"]
+
+
+def _row_totals(
+    row: dict[str, Any],
+    days: list[dict[str, Any]],
+    cells_map: dict[str, str],
+) -> tuple[int, int, int]:
+    worked = 0
+    for d in days:
+        code = cells_map.get(d.get("iso") or "", "") or ""
+        if code == "8":
+            worked += 8
+        elif code == "16":
+            worked += 16
+        elif code == "24":
+            worked += 24
+        elif code == "Yİ":
+            worked += 8
+    ideal = int(row.get("ideal_hours") or 0)
+    if row.get("role") == "lead":
+        ideal = 0
+    ot = max(0, worked - ideal) if row.get("role") != "lead" else 0
+    if "worked_hours" in row:
+        worked = int(row.get("worked_hours") or worked)
+    if "overtime_hours" in row and row.get("role") != "lead":
+        ot = int(row.get("overtime_hours") or ot)
+    if "ideal_hours" in row and row.get("role") != "lead":
+        ideal = int(row.get("ideal_hours") or ideal)
+    return worked, ideal, ot
+
+
+def _export_matrix(
+    days: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+) -> tuple[list[str], list[list[Any]]]:
+    headers = _export_headers(days)
+    body: list[list[Any]] = []
+    for row in rows:
+        cells_map = row.get("cells") or {}
+        worked, ideal, ot = _row_totals(row, days, cells_map)
+        line: list[Any] = [row.get("name") or ""]
+        for d in days:
+            line.append(cells_map.get(d.get("iso") or "", "") or "")
+        line.extend([worked, ideal, ot])
+        body.append(line)
+    return headers, body
+
+
+def build_ayilma_csv_bytes(
+    *,
+    year: int,
+    month: int,
+    days: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+) -> bytes:
+    """UTF-8 BOM + ; ayırıcı — Windows Excel TR ve Android Sheets uyumlu."""
+    import csv
+    from io import StringIO
+
+    headers, body = _export_matrix(days, rows)
+    sio = StringIO()
+    sio.write("\ufeff")
+    writer = csv.writer(sio, delimiter=";", lineterminator="\r\n", quoting=csv.QUOTE_MINIMAL)
+    writer.writerow([_month_title(month, year)])
+    writer.writerow([])
+    writer.writerow(headers)
+    for line in body:
+        writer.writerow(line)
+    return sio.getvalue().encode("utf-8")
+
+
+def build_ayilma_docx_bytes(
+    *,
+    year: int,
+    month: int,
+    days: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+) -> bytes:
+    """Word .docx — Windows Word / Android Google Docs & Office uyumlu."""
+    from io import BytesIO
+
+    from docx import Document
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Pt
+
+    headers, body = _export_matrix(days, rows)
+    doc = Document()
+    doc.add_heading(_month_title(month, year), level=1)
+    table = doc.add_table(rows=1 + len(body), cols=len(headers))
+    table.style = "Table Grid"
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    hdr = table.rows[0].cells
+    for i, h in enumerate(headers):
+        hdr[i].text = str(h)
+        for p in hdr[i].paragraphs:
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in p.runs:
+                run.bold = True
+                run.font.size = Pt(9)
+
+    for r_i, line in enumerate(body):
+        cells = table.rows[r_i + 1].cells
+        for c_i, val in enumerate(line):
+            cells[c_i].text = "" if val == "" else str(val)
+            align = WD_ALIGN_PARAGRAPH.LEFT if c_i == 0 else WD_ALIGN_PARAGRAPH.CENTER
+            for p in cells[c_i].paragraphs:
+                p.alignment = align
+                for run in p.runs:
+                    run.font.size = Pt(9)
+
+    buf = BytesIO()
+    doc.save(buf)
     return buf.getvalue()
