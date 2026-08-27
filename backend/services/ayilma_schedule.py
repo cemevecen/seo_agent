@@ -514,7 +514,7 @@ def _max_empty_between_24_in_grid(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
 ) -> int:
-    """İki 24 arasında ardışık boş gün (görünür boşluk)."""
+    """İki 24 arasında veya son 24 sonrası ay sonuna kadar ardışık boş gün."""
     best = 0
     for name in STAFF_NURSES:
         for i, dm in enumerate(days):
@@ -524,12 +524,16 @@ def _max_empty_between_24_in_grid(
             for j in range(i + 1, len(days)):
                 code = grid[name].get(days[j].iso, "")
                 if code == "24":
+                    best = max(best, run)
                     break
                 if code == "":
                     run += 1
                     best = max(best, run)
                 elif code not in LEAVE_CODES:
                     break
+            else:
+                # Ay sonuna kadar sonraki 24 yok — trailing boşluk da sayılır
+                best = max(best, run)
     return best
 
 
@@ -539,7 +543,7 @@ def _empty_between_24_urgency(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
 ) -> int:
-    """İki 24 arası boş seri uzunsa, araya 24 koyma aciliyeti."""
+    """İki 24 arası veya son 24 sonrası boş seri uzunsa, araya 24 koyma aciliyeti."""
     prev_i: int | None = None
     for j in range(day_index - 1, -1, -1):
         if grid[name].get(days[j].iso, "") == "24":
@@ -558,9 +562,10 @@ def _empty_between_24_urgency(
             empty_count += 1
         elif code not in LEAVE_CODES:
             return 0
-    if next_i is None or empty_count <= IDLE_24_GAP_MAX:
+    if empty_count <= IDLE_24_GAP_MAX:
         return 0
-    if day_index <= prev_i or day_index > next_i:
+    end = next_i if next_i is not None else len(days)
+    if day_index <= prev_i or day_index >= end:
         return 0
     return empty_count * 20 + (day_index - prev_i)
 
@@ -620,11 +625,13 @@ def _try_assign_24_for_gap(
     cand_gap = _days_without_24_before(name, day_index, days, grid)
     cand_idle = _idle_empty_streak_before(name, day_index, days, grid)
     cand_between = _empty_between_24_urgency(name, day_index, days, grid)
+    cand_empty = _max_empty_between_24_for(name, days, grid)
     cand_score = cand_gap * 10 + cand_idle + cand_between
     partners = [n for n in STAFF_NURSES if n != name and grid[n].get(iso) == "24"]
     for p in sorted(
         partners,
         key=lambda n: (
+            0 if _can_remove_24_without_gap_violation(n, day_index, days, grid) else 1,
             _days_without_24_before(n, day_index, days, grid) * 10
             + _idle_empty_streak_before(n, day_index, days, grid),
             n24[n],
@@ -635,7 +642,18 @@ def _try_assign_24_for_gap(
             _days_without_24_before(p, day_index, days, grid) * 10
             + _idle_empty_streak_before(p, day_index, days, grid)
         )
-        if p_score >= cand_score and cand_between < 80:
+        safe = _can_remove_24_without_gap_violation(p, day_index, days, grid)
+        if not safe:
+            grid[p][iso] = ""
+            p_empty_after = _max_empty_between_24_for(p, days, grid)
+            grid[p][iso] = "24"
+            if cand_empty <= IDLE_24_GAP_MAX:
+                continue
+            if p_empty_after > cand_empty:
+                continue
+            if p_empty_after == cand_empty and cand_between < 80:
+                continue
+        elif p_score >= cand_score and cand_between < 80 and cand_empty <= IDLE_24_GAP_MAX:
             continue
         grid[p][iso] = ""
         hours[p] -= 24
@@ -707,14 +725,33 @@ def _enforce_idle_24_gaps(
                         break
                 if empty_after < IDLE_24_GAP_MAX or target_j is None:
                     continue
-                if (name, target_j) in failed:
-                    continue
-                if days[target_j].iso in force_avoid[name] or name in day_only_set:
-                    continue
-                urgency = 200 + empty_after * 10
-                score = (urgency, -_acc(name))
-                if worst is None or score > worst[0]:
-                    worst = (score, name, target_j)
+                # Trailing / uzun boşlukta soft+1 … max de dene
+                cand_targets = [target_j]
+                seen_empty = 0
+                for j in range(i + 1, len(days)):
+                    nxt = grid[name].get(days[j].iso, "")
+                    if nxt == "24":
+                        break
+                    if nxt == "":
+                        seen_empty += 1
+                        if (
+                            seen_empty > IDLE_24_GAP_SOFT
+                            and seen_empty <= IDLE_24_GAP_MAX
+                            and j not in cand_targets
+                        ):
+                            cand_targets.append(j)
+                    elif nxt not in LEAVE_CODES:
+                        break
+                for tj in cand_targets:
+                    if (name, tj) in failed:
+                        continue
+                    if days[tj].iso in force_avoid[name] or name in day_only_set:
+                        continue
+                    urgency = 200 + empty_after * 10
+                    score = (urgency, -_acc(name))
+                    if worst is None or score > worst[0]:
+                        worst = (score, name, tj)
+                        break
         if worst is None:
             break
         _, name, i = worst
@@ -789,6 +826,31 @@ def _max_days_without_24_for(
     return best
 
 
+def _max_empty_between_24_for(
+    name: str,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    best = 0
+    for i, dm in enumerate(days):
+        if grid[name].get(dm.iso, "") != "24":
+            continue
+        run = 0
+        for j in range(i + 1, len(days)):
+            code = grid[name].get(days[j].iso, "")
+            if code == "24":
+                best = max(best, run)
+                break
+            if code == "":
+                run += 1
+                best = max(best, run)
+            elif code not in LEAVE_CODES:
+                break
+        else:
+            best = max(best, run)
+    return best
+
+
 def _can_remove_24_without_gap_violation(
     name: str,
     day_index: int,
@@ -799,7 +861,10 @@ def _can_remove_24_without_gap_violation(
     if grid[name].get(iso, "") != "24":
         return False
     grid[name][iso] = ""
-    ok = _max_days_without_24_for(name, days, grid) <= IDLE_24_GAP_MAX
+    ok = (
+        _max_days_without_24_for(name, days, grid) <= IDLE_24_GAP_MAX
+        and _max_empty_between_24_for(name, days, grid) <= IDLE_24_GAP_MAX
+    )
     grid[name][iso] = "24"
     return ok
 
@@ -3870,6 +3935,92 @@ def generate_ayilma_schedule(
         prefer_48h_after_24=prefer_48h_after_24,
     )
 
+    # Kati: son denge/özel koşul sonrası 4+ boşluk kalmasın (trailing dahil)
+    for _ in range(12):
+        if _grid_gap_ok(days, grid):
+            break
+        _enforce_idle_24_gaps(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            min_shift,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            yi_hours=yi_hours,
+        )
+        _shorten_triple_gap_sandwiches(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        )
+
+    for _ in range(4):
+        if not _enforce_special_work_days(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            prefer_work,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        ):
+            break
+
+    for _ in range(3):
+        if not _enforce_24_after_ist(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            prefer_48h_after_24=prefer_48h_after_24,
+        ):
+            break
+
+    _ensure_two_nights_per_day(
+        days,
+        grid,
+        hours,
+        n8,
+        n16,
+        n24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+        prefer_48h_after_24=prefer_48h_after_24,
+    )
+
+    for _ in range(6):
+        if _grid_gap_ok(days, grid):
+            break
+        _enforce_idle_24_gaps(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            min_shift,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            yi_hours=yi_hours,
+        )
+
     last = days[-1]
     next_month_rest = [
         n for n in STAFF_NURSES if grid[n].get(last.iso, "") in ("16", "24")
@@ -4072,14 +4223,14 @@ def generate_ayilma_schedule(
                 if ist_ok and gap_ok and spread < gap_fallback_spread:
                     gap_fallback = alt
                     gap_fallback_spread = spread
-                if ist_ok and spread < best_spread_val:
+                if ist_ok and gap_ok and spread < best_spread_val:
                     best_spread_alt = alt
                     best_spread_val = spread
             if gap_fallback is not None and gap_fallback_spread <= HOURS_BALANCE_TOLERANCE:
                 return gap_fallback
-            if best_spread_alt is not None and best_spread_val <= HOURS_BALANCE_TOLERANCE * 2:
+            if best_spread_alt is not None:
                 return best_spread_alt
-            if gap_fallback is not None and gap_fallback_spread < max(staff_h) - min(staff_h):
+            if gap_fallback is not None:
                 return gap_fallback
 
     return result
