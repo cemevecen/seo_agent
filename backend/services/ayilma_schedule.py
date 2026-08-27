@@ -56,6 +56,9 @@ PAIR24_PRIOR_WEIGHT = 7  # ay içi önceki birlikte 24 (her biri)
 PAIR24_NEAR_REPEAT = 18  # yakın aralıkta tekrar eşleşme
 PAIR24_THIRD_NEAR = 28  # ay içi 2+ kez eşleşmiş ikilinin yakın 3. kez
 PAIR24_MONTHLY_SOFT = 4  # post-pass: hedef üstü aylık birlikte 24
+# 24 nöbet arası boş gün: en fazla 3; kota elveriyorsa 3 tam boş bırakma (hedef ≤2)
+IDLE_24_GAP_MAX = 3
+IDLE_24_GAP_SOFT = 2  # aylık mesai elveriyorsa bu kadar gün sonra 24 tercih
 
 
 def _yi_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
@@ -215,6 +218,362 @@ def _enforce_rest_before_24(
             hours[name] -= 8
             n8[name] -= 1
     return True
+
+
+def _days_without_24_before(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    """Bugünden geriye son 24'ten bu yana kaç gün geçti (izin günleri atlanır, sıfırlamaz)."""
+    n = 0
+    for j in range(day_index - 1, -1, -1):
+        code = grid[name].get(days[j].iso, "")
+        if code in LEAVE_CODES:
+            continue
+        if code == "24":
+            return n
+        n += 1
+    return n
+
+
+def _idle_empty_streak_before(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    """Bugünden önce ardışık tam boş (mesai/izin yok) gün sayısı."""
+    streak = 0
+    for j in range(day_index - 1, -1, -1):
+        code = grid[name].get(days[j].iso, "")
+        if code in LEAVE_CODES or code in WORK_CODES:
+            break
+        streak += 1
+    return streak
+
+
+def _max_days_without_24_in_grid(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    best = 0
+    for name in STAFF_NURSES:
+        run = 0
+        for dm in days:
+            code = grid[name].get(dm.iso, "")
+            if code in LEAVE_CODES:
+                run = 0
+            elif code == "24":
+                run = 0
+            else:
+                run += 1
+                best = max(best, run)
+    return best
+
+
+def _try_assign_24_for_gap(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+) -> bool:
+    """24 arası boşluk kapat: boş slot varsa yaz; gece doluysa daha az acil 24'lü çıkar."""
+    iso = days[day_index].iso
+    code = grid[name].get(iso, "")
+    if code in LEAVE_CODES or code == "24":
+        return False
+    if iso in force_avoid[name] or name in day_only_set:
+        return False
+    if _blocked_by_rest(
+        name, day_index, days, grid, prefer_48h_after_24=prefer_48h_after_24
+    ):
+        return False
+    if _gun_asiri_streak_over(
+        name, day_index, days, grid, cap=GUN_ASIRI_STREAK_ABSOLUTE
+    ):
+        return False
+    if not _enforce_rest_before_24(name, day_index, days, grid, hours, n8):
+        return False
+
+    def _apply_24() -> None:
+        prev = grid[name].get(iso, "")
+        grid[name][iso] = "24"
+        if prev == "8":
+            hours[name] += 16
+            n8[name] -= 1
+        else:
+            hours[name] += 24
+        n24[name] += 1
+
+    if _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY:
+        _apply_24()
+        return True
+
+    cand_gap = _days_without_24_before(name, day_index, days, grid)
+    cand_idle = _idle_empty_streak_before(name, day_index, days, grid)
+    cand_score = cand_gap * 10 + cand_idle
+    partners = [n for n in STAFF_NURSES if n != name and grid[n].get(iso) == "24"]
+    for p in sorted(
+        partners,
+        key=lambda n: (
+            _days_without_24_before(n, day_index, days, grid) * 10
+            + _idle_empty_streak_before(n, day_index, days, grid),
+            n24[n],
+            n,
+        ),
+    ):
+        p_score = (
+            _days_without_24_before(p, day_index, days, grid) * 10
+            + _idle_empty_streak_before(p, day_index, days, grid)
+        )
+        if p_score >= cand_score:
+            continue
+        grid[p][iso] = ""
+        hours[p] -= 24
+        n24[p] -= 1
+        _apply_24()
+        return True
+    return False
+
+
+def _enforce_idle_24_gaps(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    min_shift: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+) -> None:
+    """24 arası en fazla 3 gün; kota elveriyorsa 3 tam boş gün hedeflenmez."""
+    failed: set[tuple[str, int]] = set()
+    for _ in range(48):
+        worst: tuple[int, str, int] | None = None
+        for name in STAFF_NURSES:
+            for i, dm in enumerate(days):
+                if (name, i) in failed:
+                    continue
+                code = grid[name].get(dm.iso, "")
+                if code in LEAVE_CODES or code == "24":
+                    continue
+                if dm.iso in force_avoid[name] or name in day_only_set:
+                    continue
+                gap24 = _days_without_24_before(name, i, days, grid)
+                idle_before = _idle_empty_streak_before(name, i, days, grid)
+                must = gap24 >= IDLE_24_GAP_MAX or idle_before >= IDLE_24_GAP_MAX
+                soft = (
+                    not must
+                    and gap24 >= IDLE_24_GAP_SOFT
+                    and hours[name] < min_shift[name]
+                )
+                if not must and not soft:
+                    continue
+                urgency = gap24 * 10 + idle_before + (100 if must else 0)
+                if worst is None or urgency > worst[0]:
+                    worst = (urgency, name, i)
+        if worst is None:
+            break
+        _, name, i = worst
+        placed = False
+        for j in range(i, max(-1, i - IDLE_24_GAP_MAX), -1):
+            if _try_assign_24_for_gap(
+                name,
+                j,
+                days,
+                grid,
+                hours,
+                n8,
+                n24,
+                prefer_48h_after_24=prefer_48h_after_24,
+                force_avoid=force_avoid,
+                day_only_set=day_only_set,
+            ):
+                placed = True
+                break
+        if placed:
+            failed.clear()
+            continue
+        failed.add((name, i))
+        if len(failed) > len(STAFF_NURSES) * len(days):
+            break
+
+
+def _enforce_gun_asiri_streak_caps(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n16: dict[str, int],
+    n24: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+    accounted_fn,
+) -> bool:
+    """Gün aşırı 24 zinciri ABSOLUTE (5) aşmasın; mümkünse MAX (4) hedefi."""
+    changed = False
+    for _enf in range(32):
+        step = False
+        for name in STAFF_NURSES:
+            for i in range(len(days)):
+                iso = days[i].iso
+                if grid[name].get(iso) != "24":
+                    continue
+                streak = _gun_asiri_streak_if_24(name, i, days, grid)
+                if streak > GUN_ASIRI_STREAK_ABSOLUTE:
+                    grid[name][iso] = ""
+                    hours[name] -= 24
+                    n24[name] -= 1
+                    step = True
+                    changed = True
+                    idx = i
+                    dm = days[idx]
+                    while _staff_night_count(grid, dm.iso) < NIGHT_SHIFTS_PER_DAY:
+                        pool = [
+                            n
+                            for n in STAFF_NURSES
+                            if n != name
+                            and n not in day_only_set
+                            and dm.iso not in force_avoid[n]
+                            and grid[n].get(dm.iso, "") not in LEAVE_CODES
+                            and grid[n].get(dm.iso, "") in ("", "8")
+                            and not _blocked_by_rest(
+                                n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                            )
+                            and _gun_asiri_streak_if_24(n, idx, days, grid)
+                            <= GUN_ASIRI_STREAK_ABSOLUTE
+                            and _rest_allows_24(n, idx, days, grid)
+                        ]
+                        if not pool:
+                            break
+                        pick = sorted(pool, key=lambda n: (accounted_fn(n), n24[n], n))[0]
+                        if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
+                            break
+                        prev = grid[pick].get(dm.iso, "")
+                        grid[pick][dm.iso] = "24"
+                        if prev == "8":
+                            hours[pick] += 16
+                            n8[pick] -= 1
+                        else:
+                            hours[pick] += 24
+                        n24[pick] += 1
+                    break
+                if streak <= GUN_ASIRI_STREAK_MAX:
+                    continue
+                for taker_cap in (
+                    GUN_ASIRI_STREAK_MAX,
+                    GUN_ASIRI_STREAK_ABSOLUTE,
+                ):
+                    takers = [
+                        o
+                        for o in STAFF_NURSES
+                        if o != name
+                        and o not in day_only_set
+                        and iso not in force_avoid[o]
+                        and grid[o].get(iso, "") in ("", "8")
+                        and not _blocked_by_rest(
+                            o, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                        )
+                        and _gun_asiri_streak_if_24(o, i, days, grid) <= taker_cap
+                    ]
+                    if not takers:
+                        if streak > GUN_ASIRI_STREAK_ABSOLUTE:
+                            grid[name][iso] = ""
+                            hours[name] -= 24
+                            n24[name] -= 1
+                            step = True
+                            changed = True
+                        break
+                    other = sorted(takers, key=lambda o: (accounted_fn(o), n24[o], o))[0]
+                    prev_o = grid[other].get(iso, "")
+                    grid[name][iso] = ""
+                    grid[other][iso] = "24"
+                    hours[name] -= 24
+                    if prev_o == "8":
+                        hours[other] += 16
+                        n8[other] -= 1
+                    else:
+                        hours[other] += 24
+                    n24[name] -= 1
+                    n24[other] += 1
+                    step = True
+                    changed = True
+                    break
+                if step:
+                    break
+            if step:
+                break
+        if not step:
+            break
+
+    for _force in range(16):
+        offender: tuple[str, int] | None = None
+        worst = 0
+        for name in STAFF_NURSES:
+            for i in range(len(days)):
+                if grid[name].get(days[i].iso, "") != "24":
+                    continue
+                streak = _gun_asiri_streak_if_24(name, i, days, grid)
+                if streak > GUN_ASIRI_STREAK_ABSOLUTE and streak > worst:
+                    worst = streak
+                    offender = (name, i)
+        if not offender:
+            break
+        changed = True
+        name, i = offender
+        iso = days[i].iso
+        grid[name][iso] = ""
+        hours[name] -= 24
+        n24[name] -= 1
+        idx = i
+        dm = days[idx]
+        while _staff_night_count(grid, dm.iso) < NIGHT_SHIFTS_PER_DAY:
+            pool = [
+                n
+                for n in STAFF_NURSES
+                if n != name
+                and n not in day_only_set
+                and dm.iso not in force_avoid[n]
+                and grid[n].get(dm.iso, "") not in LEAVE_CODES
+                and grid[n].get(dm.iso, "") in ("", "8")
+                and not _blocked_by_rest(
+                    n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                )
+                and _gun_asiri_streak_if_24(n, idx, days, grid) <= GUN_ASIRI_STREAK_ABSOLUTE
+                and _rest_allows_24(n, idx, days, grid)
+            ]
+            if not pool:
+                break
+            pick = sorted(pool, key=lambda n: (accounted_fn(n), n24[n], n))[0]
+            if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
+                pool = [x for x in pool if x != pick]
+                if not pool:
+                    break
+                pick = sorted(pool, key=lambda n: (accounted_fn(n), n24[n], n))[0]
+                if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
+                    break
+            prev = grid[pick].get(dm.iso, "")
+            grid[pick][dm.iso] = "24"
+            if prev == "8":
+                hours[pick] += 16
+                n8[pick] -= 1
+            else:
+                hours[pick] += 24
+            n24[pick] += 1
+    return changed
 
 
 def _rest_penalty(
@@ -625,6 +984,7 @@ def generate_ayilma_schedule(
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
     Özel koşul: çalışmasın (sert) / çalışsın (yumuşak tercih).
     Aynı ikili 24 nöbette mümkün olduğunca az ve üst üste tekrar etmesin (yumuşak).
+    24 nöbet arası en fazla 3 gün boşluk; kota elveriyorsa 3 tam boş gün hedeflenmez.
     variant>0 → eşitlikte farklı aday seç (yeniden oluştur).
     """
     if not (1 <= month <= 12):
@@ -729,9 +1089,12 @@ def generate_ayilma_schedule(
             behind = 0 if hours[n] < min_shift[n] else 1
             # İzin/istek/rapor dönüşü → önce nöbet
             after_leave = 0 if _first_day_after_leave(n, idx, days, grid) else 1
+            gap24 = _days_without_24_before(n, idx, days, grid)
+            gap24_prio = -min(gap24, IDLE_24_GAP_MAX)
             return (
                 pen,
                 after_leave,
+                gap24_prio,
                 pair_pen,
                 special_work_rank(n),
                 over,
@@ -1457,7 +1820,16 @@ def generate_ayilma_schedule(
                 streak = _gun_asiri_streak_if_24(n, idx, days, grid)
                 soft_over = max(0, streak - GUN_ASIRI_STREAK_SOFT)
                 hard_over = max(0, streak - GUN_ASIRI_STREAK_MAX)
-                return (empty, hard_over, soft_over, accounted(n), n24[n], n)
+                gap24 = _days_without_24_before(n, idx, days, grid)
+                return (
+                    empty,
+                    hard_over,
+                    soft_over,
+                    -min(gap24, IDLE_24_GAP_MAX),
+                    accounted(n),
+                    n24[n],
+                    n,
+                )
 
             for cap in (GUN_ASIRI_STREAK_MAX, GUN_ASIRI_STREAK_ABSOLUTE):
                 pool = [
@@ -1569,152 +1941,40 @@ def generate_ayilma_schedule(
                 elif nxt_code == "16":
                     n16[name] -= 1
 
-    # ── Son: gün aşırı 24 zinciri asla ABSOLUTE (5) aşmasın ──
-    for _enf in range(32):
-        changed = False
-        for name in STAFF_NURSES:
-            for i in range(len(days)):
-                iso = days[i].iso
-                if grid[name].get(iso) != "24":
-                    continue
-                streak = _gun_asiri_streak_if_24(name, i, days, grid)
-                if streak > GUN_ASIRI_STREAK_ABSOLUTE:
-                    grid[name][iso] = ""
-                    hours[name] -= 24
-                    n24[name] -= 1
-                    changed = True
-                    idx = i
-                    dm = days[idx]
-                    while _staff_night_count(grid, dm.iso) < NIGHT_SHIFTS_PER_DAY:
-                        pool = [
-                            n
-                            for n in STAFF_NURSES
-                            if n != name
-                            and n not in day_only_set
-                            and dm.iso not in force_avoid[n]
-                            and grid[n].get(dm.iso, "") not in LEAVE_CODES
-                            and grid[n].get(dm.iso, "") in ("", "8")
-                            and not _blocked_by_rest(
-                                n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
-                            )
-                            and _gun_asiri_streak_if_24(n, idx, days, grid)
-                            <= GUN_ASIRI_STREAK_ABSOLUTE
-                            and _rest_allows_24(n, idx, days, grid)
-                        ]
-                        if not pool:
-                            break
-                        pick = sorted(pool, key=lambda n: (accounted(n), n24[n], n))[0]
-                        if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
-                            break
-                        prev = grid[pick].get(dm.iso, "")
-                        grid[pick][dm.iso] = "24"
-                        if prev == "8":
-                            hours[pick] += 16
-                            n8[pick] -= 1
-                        else:
-                            hours[pick] += 24
-                        n24[pick] += 1
-                    break
-                if streak <= GUN_ASIRI_STREAK_MAX:
-                    continue
-                for taker_cap in (
-                    GUN_ASIRI_STREAK_MAX,
-                    GUN_ASIRI_STREAK_ABSOLUTE,
-                ):
-                    takers = [
-                        o
-                        for o in STAFF_NURSES
-                        if o != name
-                        and o not in day_only_set
-                        and iso not in force_avoid[o]
-                        and grid[o].get(iso, "") in ("", "8")
-                        and not _blocked_by_rest(
-                            o, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
-                        )
-                        and _gun_asiri_streak_if_24(o, i, days, grid) <= taker_cap
-                    ]
-                    if not takers:
-                        if streak > GUN_ASIRI_STREAK_ABSOLUTE:
-                            grid[name][iso] = ""
-                            hours[name] -= 24
-                            n24[name] -= 1
-                            changed = True
-                        break
-                    other = sorted(takers, key=lambda o: (accounted(o), n24[o], o))[0]
-                    prev_o = grid[other].get(iso, "")
-                    grid[name][iso] = ""
-                    grid[other][iso] = "24"
-                    hours[name] -= 24
-                    if prev_o == "8":
-                        hours[other] += 16
-                        n8[other] -= 1
-                    else:
-                        hours[other] += 24
-                    n24[name] -= 1
-                    n24[other] += 1
-                    changed = True
-                    break
-                if changed:
-                    break
-            if changed:
+    # ── Son: gün aşırı 24 + 24 arası boşluk (birbirini bozmasın diye birlikte) ──
+    for _finalize in range(5):
+        _enforce_gun_asiri_streak_caps(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            accounted_fn=accounted,
+        )
+        _enforce_idle_24_gaps(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            min_shift,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        )
+        if _finalize > 0 and _max_days_without_24_in_grid(days, grid) <= IDLE_24_GAP_MAX:
+            worst = 0
+            for name in STAFF_NURSES:
+                for i in range(len(days)):
+                    if grid[name].get(days[i].iso, "") != "24":
+                        continue
+                    worst = max(worst, _gun_asiri_streak_if_24(name, i, days, grid))
+            if worst <= GUN_ASIRI_STREAK_ABSOLUTE:
                 break
-        if not changed:
-            break
-
-    # ── Hâlâ ABSOLUTE aşan zincir: 24'ü sil ve gece slotunu yeniden doldur ──
-    for _force in range(16):
-        offender: tuple[str, int] | None = None
-        worst = 0
-        for name in STAFF_NURSES:
-            for i in range(len(days)):
-                if grid[name].get(days[i].iso, "") != "24":
-                    continue
-                streak = _gun_asiri_streak_if_24(name, i, days, grid)
-                if streak > GUN_ASIRI_STREAK_ABSOLUTE and streak > worst:
-                    worst = streak
-                    offender = (name, i)
-        if not offender:
-            break
-        name, i = offender
-        iso = days[i].iso
-        grid[name][iso] = ""
-        hours[name] -= 24
-        n24[name] -= 1
-        idx = i
-        dm = days[idx]
-        while _staff_night_count(grid, dm.iso) < NIGHT_SHIFTS_PER_DAY:
-            pool = [
-                n
-                for n in STAFF_NURSES
-                if n != name
-                and n not in day_only_set
-                and dm.iso not in force_avoid[n]
-                and grid[n].get(dm.iso, "") not in LEAVE_CODES
-                and grid[n].get(dm.iso, "") in ("", "8")
-                and not _blocked_by_rest(
-                    n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
-                )
-                and _gun_asiri_streak_if_24(n, idx, days, grid) <= GUN_ASIRI_STREAK_ABSOLUTE
-                and _rest_allows_24(n, idx, days, grid)
-            ]
-            if not pool:
-                break
-            pick = sorted(pool, key=lambda n: (accounted(n), n24[n], n))[0]
-            if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
-                pool = [x for x in pool if x != pick]
-                if not pool:
-                    break
-                pick = sorted(pool, key=lambda n: (accounted(n), n24[n], n))[0]
-                if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
-                    break
-            prev = grid[pick].get(dm.iso, "")
-            grid[pick][dm.iso] = "24"
-            if prev == "8":
-                hours[pick] += 16
-                n8[pick] -= 1
-            else:
-                hours[pick] += 24
-            n24[pick] += 1
 
     last = days[-1]
     next_month_rest = [

@@ -430,6 +430,44 @@ def test_gun_asiri_streak_helpers():
     assert GUN_ASIRI_STREAK_ABSOLUTE == 5
 
 
+def test_idle_24_gap_helpers():
+    from backend.services.ayilma_schedule import (
+        IDLE_24_GAP_MAX,
+        IDLE_24_GAP_SOFT,
+        _days_without_24_before,
+        _idle_empty_streak_before,
+        month_days,
+    )
+
+    days = month_days(2026, 9)
+    grid = {n: {d.iso: "" for d in days} for n in STAFF_NURSES}
+    name = STAFF_NURSES[0]
+    grid[name][days[0].iso] = "24"
+    grid[name][days[1].iso] = ""
+    grid[name][days[2].iso] = "8"
+    grid[name][days[3].iso] = ""
+    assert _days_without_24_before(name, 4, days, grid) == 3
+    assert _idle_empty_streak_before(name, 4, days, grid) == 1
+    assert IDLE_24_GAP_MAX == 3
+    assert IDLE_24_GAP_SOFT == 2
+
+
+def test_max_days_without_24_at_most_three():
+    """24 nöbet arası en fazla 3 gün; 4+ yasak."""
+    from backend.services.ayilma_schedule import _max_days_without_24_in_grid, month_days
+
+    leaves = {
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
+        "Sema Evecen": {f"2026-09-{d:02d}": "İST" for d in (1, 7, 8, 15, 22, 29)},
+    }
+    for variant in range(25):
+        out = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=variant)
+        grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
+        days_meta = month_days(2026, 9)
+        best = _max_days_without_24_in_grid(days_meta, grid)
+        assert best <= 3, f"variant {variant} max gap without 24 = {best}"
+
+
 def test_gun_asiri_streak_cap_with_heavy_leave():
     """İzin yoğun ayda bile gün aşırı 24 zinciri ABSOLUTE (5) aşılmaz."""
     leaves = {
