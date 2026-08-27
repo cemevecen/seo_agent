@@ -357,11 +357,16 @@ def _enforce_idle_24_gaps(
     prefer_48h_after_24: bool,
     force_avoid: dict[str, set[str]],
     day_only_set: set[str],
+    yi_hours: dict[str, int] | None = None,
 ) -> None:
     """24 arası en fazla 3 gün; kota elveriyorsa 3 tam boş gün hedeflenmez."""
+
+    def _acc(n: str) -> int:
+        return hours[n] + (yi_hours or {}).get(n, 0)
+
     failed: set[tuple[str, int]] = set()
     for _ in range(48):
-        worst: tuple[int, str, int] | None = None
+        worst: tuple[tuple[int, int], str, int] | None = None
         for name in STAFF_NURSES:
             for i, dm in enumerate(days):
                 if (name, i) in failed:
@@ -382,8 +387,9 @@ def _enforce_idle_24_gaps(
                 if not must and not soft:
                     continue
                 urgency = gap24 * 10 + idle_before + (100 if must else 0)
-                if worst is None or urgency > worst[0]:
-                    worst = (urgency, name, i)
+                score = (urgency, -_acc(name))
+                if worst is None or score > worst[0]:
+                    worst = (score, name, i)
         if worst is None:
             break
         _, name, i = worst
@@ -409,6 +415,261 @@ def _enforce_idle_24_gaps(
         failed.add((name, i))
         if len(failed) > len(STAFF_NURSES) * len(days):
             break
+
+
+def _max_days_without_24_for(
+    name: str,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    best = 0
+    run = 0
+    for dm in days:
+        code = grid[name].get(dm.iso, "")
+        if code in LEAVE_CODES or code == "24":
+            run = 0
+        else:
+            run += 1
+            best = max(best, run)
+    return best
+
+
+def _can_remove_24_without_gap_violation(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> bool:
+    iso = days[day_index].iso
+    if grid[name].get(iso, "") != "24":
+        return False
+    grid[name][iso] = ""
+    ok = _max_days_without_24_for(name, days, grid) <= IDLE_24_GAP_MAX
+    grid[name][iso] = "24"
+    return ok
+
+
+def _enforce_hours_balance(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    yi_hours: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+    max_passes: int = 120,
+) -> bool:
+    """Personel arası mesai+Yİ toplamını HOURS_BALANCE_TOLERANCE bandına çek."""
+
+    def accounted(n: str) -> int:
+        return hours[n] + yi_hours[n]
+
+    def _strip_next_8_if_safe(recv: str, i: int) -> bool:
+        if i + 1 >= len(days):
+            return True
+        nxt = days[i + 1]
+        code = grid[recv].get(nxt.iso, "")
+        if code in ("16", "24"):
+            return False
+        if code != "8":
+            return True
+        other_morn = any(
+            o != recv and grid[o].get(nxt.iso, "") in ("8", "24") for o in STAFF_NURSES
+        )
+        if not other_morn and not nxt.is_weekend:
+            return False
+        grid[recv][nxt.iso] = ""
+        hours[recv] -= 8
+        n8[recv] -= 1
+        return True
+
+    def _can_take_24(recv: str, i: int) -> bool:
+        if grid[recv].get(days[i].iso, ""):
+            return False
+        if days[i].iso in force_avoid[recv]:
+            return False
+        if recv in day_only_set:
+            return False
+        if _blocked_by_rest(recv, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
+            return False
+        if i + 1 < len(days) and grid[recv].get(days[i + 1].iso, "") in ("16", "24"):
+            return False
+        if _gun_asiri_streak_over(recv, i, days, grid):
+            return False
+        return _strip_next_8_if_safe(recv, i)
+
+    changed = False
+    for _ in range(max_passes):
+        vals = {n: accounted(n) for n in STAFF_NURSES}
+        if max(vals.values()) - min(vals.values()) <= HOURS_BALANCE_TOLERANCE:
+            break
+        moved = False
+        hi = max(STAFF_NURSES, key=lambda n: (vals[n], n))
+        lo = min(STAFF_NURSES, key=lambda n: (vals[n], n))
+        if vals[hi] - vals[lo] <= HOURS_BALANCE_TOLERANCE:
+            break
+
+        for i, dm in enumerate(days):
+            if grid[hi].get(dm.iso, "") != "24" or grid[lo].get(dm.iso, "") != "8":
+                continue
+            if i >= 1 and grid[lo].get(days[i - 1].iso, "") in ("16", "24"):
+                continue
+            if n8[hi] >= EIGHT_PER_PERSON_MAX or dm.iso in force_avoid[hi]:
+                continue
+            if not _can_assign_8(hi, i, days, grid):
+                continue
+            if _gun_asiri_streak_over(lo, i, days, grid):
+                continue
+            if not _strip_next_8_if_safe(lo, i):
+                continue
+            grid[hi][dm.iso] = "8"
+            grid[lo][dm.iso] = "24"
+            hours[hi] -= 16
+            hours[lo] += 16
+            n24[hi] -= 1
+            n24[lo] += 1
+            n8[hi] += 1
+            n8[lo] -= 1
+            moved = True
+            break
+        if moved:
+            changed = True
+            continue
+
+        for i, dm in enumerate(days):
+            if grid[hi].get(dm.iso, "") != "24":
+                continue
+            if not _can_remove_24_without_gap_violation(hi, i, days, grid):
+                continue
+            if not _can_take_24(lo, i):
+                continue
+            grid[hi][dm.iso] = ""
+            grid[lo][dm.iso] = "24"
+            hours[hi] -= 24
+            hours[lo] += 24
+            n24[hi] -= 1
+            n24[lo] += 1
+            moved = True
+            break
+        if moved:
+            changed = True
+            continue
+
+        for i, dm in enumerate(days):
+            if dm.is_weekend:
+                continue
+            if grid[hi].get(dm.iso, "") != "8" or grid[lo].get(dm.iso, ""):
+                continue
+            if dm.iso in force_avoid[lo]:
+                continue
+            if _blocked_by_rest(lo, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
+                continue
+            if n8[lo] >= EIGHT_PER_PERSON_MAX or n8[hi] <= EIGHT_PER_PERSON_MIN:
+                continue
+            if sum(n8.values()) <= EIGHT_PER_PERSON_MIN * len(STAFF_NURSES):
+                continue
+            if not _can_assign_8(lo, i, days, grid):
+                continue
+            grid[hi][dm.iso] = ""
+            grid[lo][dm.iso] = "8"
+            hours[hi] -= 8
+            hours[lo] += 8
+            n8[hi] -= 1
+            n8[lo] += 1
+            moved = True
+            break
+        if moved:
+            changed = True
+            continue
+
+        mids = [n for n in sorted(STAFF_NURSES, key=lambda n: vals[n]) if n not in (hi, lo)]
+        for mid in mids:
+            for i, dm in enumerate(days):
+                if grid[hi].get(dm.iso, "") != "24" or grid[mid].get(dm.iso, "") != "8":
+                    continue
+                if i >= 1 and grid[mid].get(days[i - 1].iso, "") in ("16", "24"):
+                    continue
+                if n8[hi] >= EIGHT_PER_PERSON_MAX or dm.iso in force_avoid[hi]:
+                    continue
+                if not _can_assign_8(hi, i, days, grid):
+                    continue
+                if _gun_asiri_streak_over(mid, i, days, grid):
+                    continue
+                if not _strip_next_8_if_safe(mid, i):
+                    continue
+                grid[hi][dm.iso] = "8"
+                grid[mid][dm.iso] = "24"
+                hours[hi] -= 16
+                hours[mid] += 16
+                n24[hi] -= 1
+                n24[mid] += 1
+                n8[hi] += 1
+                n8[mid] -= 1
+                moved = True
+                break
+            if moved:
+                break
+        if moved:
+            changed = True
+            continue
+
+        his = sorted(STAFF_NURSES, key=lambda n: (-vals[n], -n24[n], n))
+        los = sorted(STAFF_NURSES, key=lambda n: (vals[n], n24[n], n))
+        for hi2 in his:
+            for lo2 in los:
+                if hi2 == lo2 or vals[hi2] - vals[lo2] <= HOURS_BALANCE_TOLERANCE:
+                    continue
+                for i, dm in enumerate(days):
+                    if grid[hi2].get(dm.iso, "") != "24":
+                        continue
+                    if not _can_remove_24_without_gap_violation(hi2, i, days, grid):
+                        continue
+                    if not _can_take_24(lo2, i):
+                        continue
+                    grid[hi2][dm.iso] = ""
+                    grid[lo2][dm.iso] = "24"
+                    hours[hi2] -= 24
+                    hours[lo2] += 24
+                    n24[hi2] -= 1
+                    n24[lo2] += 1
+                    moved = True
+                    break
+                if moved:
+                    break
+                for i, dm in enumerate(days):
+                    if grid[hi2].get(dm.iso, "") != "24" or grid[lo2].get(dm.iso, "") != "8":
+                        continue
+                    if i >= 1 and grid[lo2].get(days[i - 1].iso, "") in ("16", "24"):
+                        continue
+                    if n8[hi2] >= EIGHT_PER_PERSON_MAX or dm.iso in force_avoid[hi2]:
+                        continue
+                    if _gun_asiri_streak_over(lo2, i, days, grid):
+                        continue
+                    if not _strip_next_8_if_safe(lo2, i):
+                        continue
+                    if not _can_assign_8(hi2, i, days, grid):
+                        continue
+                    grid[hi2][dm.iso] = "8"
+                    grid[lo2][dm.iso] = "24"
+                    hours[hi2] -= 16
+                    hours[lo2] += 16
+                    n24[hi2] -= 1
+                    n24[lo2] += 1
+                    n8[hi2] += 1
+                    n8[lo2] -= 1
+                    moved = True
+                    break
+                if moved:
+                    break
+            if moved:
+                break
+        if not moved:
+            break
+        changed = True
+    return changed
 
 
 def _enforce_gun_asiri_streak_caps(
@@ -1498,161 +1759,17 @@ def generate_ayilma_schedule(
             n8[name] += 1
 
     # ── Fazla mesai bandı: yüksek ↔ düşük (hedef ≤16s) ──
-    def _strip_next_8_if_safe(recv: str, i: int) -> bool:
-        """recv yarın 8 ise ve gündüz başka örtü varsa 8'i kaldır → 24 alabilsin."""
-        if i + 1 >= len(days):
-            return True
-        nxt = days[i + 1]
-        code = grid[recv].get(nxt.iso, "")
-        if code in ("16", "24"):
-            return False
-        if code != "8":
-            return True
-        other_morn = any(
-            o != recv and grid[o].get(nxt.iso, "") in ("8", "24") for o in STAFF_NURSES
-        )
-        if not other_morn and not nxt.is_weekend:
-            return False
-        grid[recv][nxt.iso] = ""
-        hours[recv] -= 8
-        n8[recv] -= 1
-        return True
-
-    def _can_take_24(recv: str, i: int) -> bool:
-        if grid[recv].get(days[i].iso, ""):
-            return False
-        if days[i].iso in force_avoid[recv]:
-            return False
-        if recv in day_only_set:
-            return False
-        if _blocked_by_rest(recv, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
-            return False
-        if i + 1 < len(days) and grid[recv].get(days[i + 1].iso, "") in ("16", "24"):
-            return False
-        if _gun_asiri_streak_over(recv, i, days, grid):
-            return False
-        if not _strip_next_8_if_safe(recv, i):
-            return False
-        return True
-
-    for _bal in range(80):
-        vals = {n: accounted(n) for n in STAFF_NURSES}
-        hi = max(STAFF_NURSES, key=lambda n: (vals[n], n))
-        lo = min(STAFF_NURSES, key=lambda n: (vals[n], n))
-        if vals[hi] - vals[lo] <= HOURS_BALANCE_TOLERANCE:
-            break
-        moved = False
-
-        # Aynı gün hi=24 lo=8 → takas
-        for i, dm in enumerate(days):
-            if grid[hi].get(dm.iso, "") != "24":
-                continue
-            if grid[lo].get(dm.iso, "") != "8":
-                continue
-            if i >= 1 and grid[lo].get(days[i - 1].iso, "") in ("16", "24"):
-                continue
-            if n8[hi] >= EIGHT_PER_PERSON_MAX:
-                continue
-            if dm.iso in force_avoid[hi]:
-                continue
-            if not _can_assign_8(hi, i, days, grid):
-                continue
-            # Takas sonrası lo'nun streak'i (bugün 24 olacak)
-            if _gun_asiri_streak_over(lo, i, days, grid):
-                continue
-            if not _strip_next_8_if_safe(lo, i):
-                continue
-            grid[hi][dm.iso] = "8"
-            grid[lo][dm.iso] = "24"
-            hours[hi] -= 16
-            hours[lo] += 16
-            n24[hi] -= 1
-            n24[lo] += 1
-            n8[hi] += 1
-            n8[lo] -= 1
-            moved = True
-            break
-        if moved:
-            continue
-
-        # hi 24 → lo boş
-        for i, dm in enumerate(days):
-            if grid[hi].get(dm.iso, "") != "24":
-                continue
-            if not _can_take_24(lo, i):
-                continue
-            grid[hi][dm.iso] = ""
-            grid[lo][dm.iso] = "24"
-            hours[hi] -= 24
-            hours[lo] += 24
-            n24[hi] -= 1
-            n24[lo] += 1
-            moved = True
-            break
-        if moved:
-            continue
-
-        # hi 8 → lo boş (hafta içi)
-        for i, dm in enumerate(days):
-            if dm.is_weekend:
-                continue
-            if grid[hi].get(dm.iso, "") != "8":
-                continue
-            if grid[lo].get(dm.iso, ""):
-                continue
-            if dm.iso in force_avoid[lo]:
-                continue
-            if _blocked_by_rest(lo, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
-                continue
-            if n8[lo] >= EIGHT_PER_PERSON_MAX or n8[hi] <= EIGHT_PER_PERSON_MIN:
-                continue
-            if not _can_assign_8(lo, i, days, grid):
-                continue
-            grid[hi][dm.iso] = ""
-            grid[lo][dm.iso] = "8"
-            hours[hi] -= 8
-            hours[lo] += 8
-            n8[hi] -= 1
-            n8[lo] += 1
-            moved = True
-            break
-        if moved:
-            continue
-
-        # hi=24 mid=8
-        mids = [n for n in sorted(STAFF_NURSES, key=lambda n: vals[n]) if n not in (hi, lo)]
-        for mid in mids:
-            for i, dm in enumerate(days):
-                if grid[hi].get(dm.iso, "") != "24":
-                    continue
-                if grid[mid].get(dm.iso, "") != "8":
-                    continue
-                if i >= 1 and grid[mid].get(days[i - 1].iso, "") in ("16", "24"):
-                    continue
-                if n8[hi] >= EIGHT_PER_PERSON_MAX:
-                    continue
-                if dm.iso in force_avoid[hi]:
-                    continue
-                if not _can_assign_8(hi, i, days, grid):
-                    continue
-                if _gun_asiri_streak_over(mid, i, days, grid):
-                    continue
-                if not _strip_next_8_if_safe(mid, i):
-                    continue
-                grid[hi][dm.iso] = "8"
-                grid[mid][dm.iso] = "24"
-                hours[hi] -= 16
-                hours[mid] += 16
-                n24[hi] -= 1
-                n24[mid] += 1
-                n8[hi] += 1
-                n8[mid] -= 1
-                moved = True
-                break
-            if moved:
-                break
-        if not moved:
-            break
+    _enforce_hours_balance(
+        days,
+        grid,
+        hours,
+        n8,
+        n24,
+        yi_hours,
+        prefer_48h_after_24=prefer_48h_after_24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+    )
 
     # Denge sonrası: min 8 ve hafta sonu 8 temizliği
     for name in STAFF_NURSES:
@@ -1737,64 +1854,19 @@ def generate_ayilma_schedule(
         if not broke:
             break
 
-    # Streak kırımı sonrası tekrar kısa denge
-    for _bal2 in range(40):
-        vals = {n: accounted(n) for n in STAFF_NURSES}
-        if max(vals.values()) - min(vals.values()) <= HOURS_BALANCE_TOLERANCE:
-            break
-        moved = False
-        his = sorted(STAFF_NURSES, key=lambda n: (-vals[n], -n24[n], n))
-        los = sorted(STAFF_NURSES, key=lambda n: (vals[n], n24[n], n))
-        for hi in his:
-            for lo in los:
-                if hi == lo or vals[hi] - vals[lo] <= HOURS_BALANCE_TOLERANCE:
-                    continue
-                for i, dm in enumerate(days):
-                    if grid[hi].get(dm.iso, "") != "24":
-                        continue
-                    if not _can_take_24(lo, i):
-                        continue
-                    grid[hi][dm.iso] = ""
-                    grid[lo][dm.iso] = "24"
-                    hours[hi] -= 24
-                    hours[lo] += 24
-                    n24[hi] -= 1
-                    n24[lo] += 1
-                    moved = True
-                    break
-                if moved:
-                    break
-                for i, dm in enumerate(days):
-                    if grid[hi].get(dm.iso, "") != "24" or grid[lo].get(dm.iso, "") != "8":
-                        continue
-                    if i >= 1 and grid[lo].get(days[i - 1].iso, "") in ("16", "24"):
-                        continue
-                    if n8[hi] >= EIGHT_PER_PERSON_MAX:
-                        continue
-                    if dm.iso in force_avoid[hi]:
-                        continue
-                    if _gun_asiri_streak_over(lo, i, days, grid):
-                        continue
-                    if not _strip_next_8_if_safe(lo, i):
-                        continue
-                    if not _can_assign_8(hi, i, days, grid):
-                        continue
-                    grid[hi][dm.iso] = "8"
-                    grid[lo][dm.iso] = "24"
-                    hours[hi] -= 16
-                    hours[lo] += 16
-                    n24[hi] -= 1
-                    n24[lo] += 1
-                    n8[hi] += 1
-                    n8[lo] -= 1
-                    moved = True
-                    break
-                if moved:
-                    break
-            if moved:
-                break
-        if not moved:
-            break
+    # Streak kırımı sonrası tekrar denge
+    _enforce_hours_balance(
+        days,
+        grid,
+        hours,
+        n8,
+        n24,
+        yi_hours,
+        prefer_48h_after_24=prefer_48h_after_24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+        max_passes=80,
+    )
 
     # Üst üste 3+ «8» kır (mecburen en fazla 2)
     for _fix8long in range(20):
@@ -2016,8 +2088,8 @@ def generate_ayilma_schedule(
                 elif nxt_code == "16":
                     n16[name] -= 1
 
-    # ── Son: gün aşırı 24 + 24 arası boşluk (birbirini bozmasın diye birlikte) ──
-    for _finalize in range(5):
+    # ── Son: gün aşırı 24 + boşluk + fazla mesai bandı ──
+    for _finalize in range(8):
         _enforce_gun_asiri_streak_caps(
             days,
             grid,
@@ -2040,16 +2112,85 @@ def generate_ayilma_schedule(
             prefer_48h_after_24=prefer_48h_after_24,
             force_avoid=force_avoid,
             day_only_set=day_only_set,
+            yi_hours=yi_hours,
         )
-        if _finalize > 0 and _max_days_without_24_in_grid(days, grid) <= IDLE_24_GAP_MAX:
-            worst = 0
+        spread = max(accounted(n) for n in STAFF_NURSES) - min(
+            accounted(n) for n in STAFF_NURSES
+        )
+        if (
+            _finalize > 0
+            and spread <= HOURS_BALANCE_TOLERANCE
+            and _max_days_without_24_in_grid(days, grid) <= IDLE_24_GAP_MAX
+        ):
+            worst_st = 0
             for name in STAFF_NURSES:
                 for i in range(len(days)):
                     if grid[name].get(days[i].iso, "") != "24":
                         continue
-                    worst = max(worst, _gun_asiri_streak_if_24(name, i, days, grid))
-            if worst <= GUN_ASIRI_STREAK_ABSOLUTE:
+                    worst_st = max(
+                        worst_st, _gun_asiri_streak_if_24(name, i, days, grid)
+                    )
+            if worst_st <= GUN_ASIRI_STREAK_ABSOLUTE:
                 break
+
+    for _tail in range(8):
+        _enforce_hours_balance(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            max_passes=80,
+        )
+        _enforce_idle_24_gaps(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            min_shift,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            yi_hours=yi_hours,
+        )
+        spread = max(accounted(n) for n in STAFF_NURSES) - min(
+            accounted(n) for n in STAFF_NURSES
+        )
+        if (
+            spread <= HOURS_BALANCE_TOLERANCE
+            and _max_days_without_24_in_grid(days, grid) <= IDLE_24_GAP_MAX
+        ):
+            break
+
+    for name in STAFF_NURSES:
+        while n8[name] < EIGHT_PER_PERSON_MIN:
+            slots: list[tuple[int, int, int]] = []
+            for i, dm in enumerate(days):
+                if dm.is_weekend or grid[name].get(dm.iso, ""):
+                    continue
+                if dm.iso in force_avoid[name]:
+                    continue
+                if _blocked_by_rest(
+                    name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                ):
+                    continue
+                if not _can_assign_8(name, i, days, grid):
+                    continue
+                streak8 = _consecutive_8_streak_if_8(name, i, days, grid)
+                pair8 = 0 if streak8 <= CONSECUTIVE_8_STREAK_SOFT else 1
+                slots.append((pair8, streak8, i))
+            if not slots:
+                break
+            _, _, pick_i = sorted(slots)[0]
+            dm = days[pick_i]
+            grid[name][dm.iso] = "8"
+            hours[name] += 8
+            n8[name] += 1
 
     last = days[-1]
     next_month_rest = [

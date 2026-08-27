@@ -274,6 +274,17 @@ def test_yi_counts_as_eight_and_lowers_min_shift():
     assert nuray["shift_hours"] >= 120
 
 
+def test_overtime_band_with_heavy_leave():
+    """İzin yoğun ayda fazla mesai bandı mümkün olduğunca dar (≤32; hedef ≤16)."""
+    leaves = {
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
+        "Sema Evecen": {f"2026-09-{d:02d}": "İST" for d in (1, 7, 8, 15, 22, 29)},
+    }
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
+    ots = [r["overtime_hours"] for r in out["rows"] if r["role"] == "staff"]
+    assert max(ots) - min(ots) <= 32
+
+
 def test_staff_accounted_hours_reasonably_balanced():
     out = generate_ayilma_schedule(2026, 9)
     vals = [r["worked_hours"] for r in out["rows"] if r["role"] == "staff"]
