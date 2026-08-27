@@ -669,6 +669,37 @@ def test_special_avoid_blocks_shifts():
         )
 
 
+def test_special_avoid_weekly_keeps_hours_balance():
+    """Sal–Per çalışmasın: bloklu günler boş; diğer günlerle ortalama mesai bandında."""
+    from backend.services.ayilma_schedule import HOURS_BALANCE_TOLERANCE
+
+    out = generate_ayilma_schedule(
+        2026,
+        9,
+        special_rules=[
+            {
+                "name": "Sema Evecen",
+                "mode": "avoid",
+                "dates": ["2026-09-01", "2026-09-02", "2026-09-03"],
+                "weekly": True,
+            }
+        ],
+    )
+    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
+    staff = [r for r in out["rows"] if r["role"] == "staff"]
+    metrics = [r["worked_hours"] for r in staff]
+    spread = max(metrics) - min(metrics)
+    assert spread <= HOURS_BALANCE_TOLERANCE, (
+        f"balance spread {spread} > {HOURS_BALANCE_TOLERANCE}: "
+        + ", ".join(f"{r['name']}={r['worked_hours']}" for r in staff)
+    )
+    for iso, code in sema["cells"].items():
+        if not iso.startswith("2026-09-"):
+            continue
+        if date.fromisoformat(iso).weekday() in (1, 2, 3):
+            assert code not in ("8", "16", "24"), f"Sema worked avoid day {iso}: {code!r}"
+
+
 def test_special_work_prefers_selected_days():
     """çalışsın: seçilen günlerde mümkünse mesai (en az birinde 8/16/24)."""
     out = generate_ayilma_schedule(

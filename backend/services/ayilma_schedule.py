@@ -102,6 +102,18 @@ def _balance_metric(
     return hours[name] + yi_hours[name] + rp_hours[name]
 
 
+def _peer_balance_goal(
+    hours: dict[str, int],
+    yi_hours: dict[str, int],
+    rp_hours: dict[str, int],
+    ist_count: dict[str, int],
+) -> int:
+    vals = sorted(
+        _balance_metric(n, hours, yi_hours, rp_hours, ist_count) for n in STAFF_NURSES
+    )
+    return vals[len(vals) // 2]
+
+
 def _shift_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
     return sum(_hours_for(grid[name].get(dm.iso, "")) for dm in days)
 
@@ -838,6 +850,169 @@ def _boost_ist_shift_hours(
                 fixed = True
                 changed = True
                 break
+            if fixed:
+                break
+        if not fixed:
+            break
+    return changed
+
+
+def _try_assign_24_catchup(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    *,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+    prefer_48h_after_24: bool,
+    accounted_fn,
+    goal: int,
+    relax_rest: bool = False,
+) -> bool:
+    """Çalışmasın koşulu olan personele, izin verilen günde mesai ekle (denge için)."""
+    iso = days[day_index].iso
+    code = grid[name].get(iso, "")
+    if code in LEAVE_CODES or code == "24":
+        return False
+    if iso in force_avoid[name] or name in day_only_set:
+        return False
+    if (
+        not relax_rest
+        and _blocked_by_rest(
+            name, day_index, days, grid, prefer_48h_after_24=prefer_48h_after_24
+        )
+    ):
+        return False
+    if _gun_asiri_streak_over(
+        name, day_index, days, grid, cap=GUN_ASIRI_STREAK_ABSOLUTE
+    ):
+        return False
+    if relax_rest:
+        if day_index + 1 < len(days):
+            nxt = days[day_index + 1]
+            nxt_code = grid[name].get(nxt.iso, "")
+            if nxt_code == "8":
+                grid[name][nxt.iso] = ""
+                hours[name] -= 8
+                n8[name] -= 1
+            elif nxt_code == "24" and nxt.iso not in force_avoid[name]:
+                grid[name][nxt.iso] = ""
+                hours[name] -= 24
+                n24[name] -= 1
+    elif not _enforce_rest_before_24(name, day_index, days, grid, hours, n8):
+        return False
+
+    def _apply_24() -> None:
+        prev = grid[name].get(iso, "")
+        grid[name][iso] = "24"
+        if prev == "8":
+            hours[name] += 16
+            n8[name] -= 1
+        else:
+            hours[name] += 24
+        n24[name] += 1
+
+    if _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY:
+        _apply_24()
+        return True
+
+    partners = [
+        n for n in STAFF_NURSES if n != name and grid[n].get(iso) == "24"
+    ]
+    recv_acc = accounted_fn(name)
+    for p in sorted(partners, key=lambda n: (-accounted_fn(n), n24[n], n)):
+        if accounted_fn(p) <= recv_acc + 8:
+            continue
+        grid[p][iso] = ""
+        hours[p] -= 24
+        n24[p] -= 1
+        _apply_24()
+        return True
+    return False
+
+
+def _boost_special_avoid_hours(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    yi_hours: dict[str, int],
+    rp_hours: dict[str, int],
+    ist_count: dict[str, int],
+    force_avoid: dict[str, set[str]],
+    *,
+    prefer_48h_after_24: bool,
+    day_only_set: set[str],
+) -> bool:
+    """Çalışmasın günleri olan personel: diğer günlerde ortalama mesai bandına çek."""
+    targets = [n for n in STAFF_NURSES if force_avoid[n]]
+    if not targets:
+        return False
+
+    def accounted(n: str) -> int:
+        return _balance_metric(n, hours, yi_hours, rp_hours, ist_count)
+
+    changed = False
+    for _ in range(96):
+        goal = _peer_balance_goal(hours, yi_hours, rp_hours, ist_count)
+        vals = [accounted(n) for n in STAFF_NURSES]
+        if max(vals) - min(vals) <= HOURS_BALANCE_TOLERANCE:
+            break
+        fixed = False
+        behind = sorted(
+            [n for n in targets if accounted(n) < goal - 4],
+            key=lambda n: (accounted(n), n),
+        )
+        for name in behind:
+            slots: list[tuple[int, int, int]] = []
+            for i, dm in enumerate(days):
+                iso = dm.iso
+                if iso in force_avoid[name] or name in day_only_set:
+                    continue
+                code = grid[name].get(iso, "")
+                if code in LEAVE_CODES or code in WORK_CODES:
+                    continue
+                empty_run = _idle_empty_streak_before(name, i, days, grid)
+                slots.append((empty_run, i, accounted(name)))
+            slots.sort(reverse=True)
+            for _, i, _ in slots:
+                if _try_assign_24_catchup(
+                    name,
+                    i,
+                    days,
+                    grid,
+                    hours,
+                    n8,
+                    n24,
+                    force_avoid=force_avoid,
+                    day_only_set=day_only_set,
+                    prefer_48h_after_24=prefer_48h_after_24,
+                    accounted_fn=accounted,
+                    goal=goal,
+                    relax_rest=True,
+                ):
+                    fixed = True
+                    changed = True
+                    break
+                dm = days[i]
+                if (
+                    dm.is_weekday
+                    and n8[name] < EIGHT_PER_PERSON_MAX
+                    and _consecutive_8_streak_if_8(name, i, days, grid)
+                    <= CONSECUTIVE_8_STREAK_MAX
+                ):
+                    iso = dm.iso
+                    grid[name][iso] = "8"
+                    hours[name] += 8
+                    n8[name] += 1
+                    fixed = True
+                    changed = True
+                    break
             if fixed:
                 break
         if not fixed:
@@ -1716,6 +1891,7 @@ def generate_ayilma_schedule(
     Gün aşırı 24 zinciri: yumuşak hedef 3, normal tavan 4; yalnızca uç zorunlu gece doldurmada 5.
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
     Özel koşul: çalışmasın (sert) / çalışsın (yumuşak tercih).
+    Çalışmasın + haftalık tekrar: bloklu günler dışında ortalama mesai bandına yetişir.
     Aynı ikili 24 nöbette mümkün olduğunca az ve üst üste tekrar etmesin (yumuşak).
     24 nöbet arası en fazla 3 gün boşluk; kota elveriyorsa 3 tam boş gün hedeflenmez.
     variant>0 → eşitlikte farklı aday seç (yeniden oluştur).
@@ -1797,6 +1973,29 @@ def generate_ayilma_schedule(
                 return 2
             return 1
 
+        def avoid_catchup_rank(n: str) -> int:
+            """Çalışmasın koşulu: izin verilen günlerde ortalama mesai bandına yetiş."""
+            if not force_avoid[n] or dm.iso in force_avoid[n]:
+                return 1
+            goal = _peer_balance_goal(hours, yi_hours, rp_hours, ist_count)
+            acc = accounted(n)
+            if acc < goal - 4:
+                return 0
+            if acc > goal + 4:
+                return 2
+            return 1
+
+        def balance_rank(n: str) -> int:
+            if not any(force_avoid[x] for x in STAFF_NURSES):
+                return 1
+            goal = _peer_balance_goal(hours, yi_hours, rp_hours, ist_count)
+            acc = accounted(n)
+            if acc < goal - 4:
+                return 0
+            if acc > goal + 4:
+                return 2
+            return 1
+
         def rank_for_8(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
             break24 = 0 if is_gun_asiri_candidate(n) else 1
@@ -1808,6 +2007,8 @@ def generate_ayilma_schedule(
             return (
                 pen,
                 after_leave,
+                avoid_catchup_rank(n),
+                balance_rank(n),
                 pair8,
                 special_work_rank(n),
                 streak8,
@@ -1841,6 +2042,8 @@ def generate_ayilma_schedule(
                 pen,
                 after_leave,
                 ist_behind,
+                avoid_catchup_rank(n),
+                balance_rank(n),
                 gap24_prio,
                 gap_ideal,
                 pair_pen,
@@ -2375,6 +2578,7 @@ def generate_ayilma_schedule(
     # ── Zorunlu: her gün tam 2× gece nöbeti (post-pass sonrası boşluk kalmasın) ──
     for idx, dm in enumerate(days):
         iso = dm.iso
+        bal_goal = _peer_balance_goal(hours, yi_hours, rp_hours, ist_count)
         while _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY:
             filled = False
 
@@ -2382,18 +2586,41 @@ def generate_ayilma_schedule(
                 code = grid[n].get(iso, "")
                 empty = 0 if code == "" else 1
                 sw = 0 if iso in prefer_work[n] else (2 if prefer_work[n] else 1)
+                if force_avoid[n]:
+                    if iso in force_avoid[n]:
+                        av = 9
+                    elif accounted(n) < bal_goal - 4:
+                        av = 0
+                    elif accounted(n) > bal_goal + 4:
+                        av = 3
+                    else:
+                        av = 1
+                else:
+                    av = 1
+                acc = accounted(n)
+                if any(force_avoid[x] for x in STAFF_NURSES):
+                    if acc < bal_goal - 4:
+                        bal = 0
+                    elif acc > bal_goal + 4:
+                        bal = 2
+                    else:
+                        bal = 1
+                else:
+                    bal = 1
                 streak = _gun_asiri_streak_if_24(n, idx, days, grid)
                 soft_over = max(0, streak - GUN_ASIRI_STREAK_SOFT)
                 hard_over = max(0, streak - GUN_ASIRI_STREAK_MAX)
                 gap24 = _days_without_24_before(n, idx, days, grid)
                 return (
+                    av,
+                    bal,
                     sw,
                     empty,
                     hard_over,
                     soft_over,
                     -min(gap24, IDLE_24_GAP_MAX),
                     abs(gap24 - IDLE_24_GAP_SOFT),
-                    accounted(n),
+                    acc,
                     n24[n],
                     n,
                 )
@@ -2576,6 +2803,33 @@ def generate_ayilma_schedule(
         force_avoid=force_avoid,
         day_only_set=day_only_set,
     )
+    _boost_special_avoid_hours(
+        days,
+        grid,
+        hours,
+        n8,
+        n24,
+        yi_hours,
+        rp_hours,
+        ist_count,
+        force_avoid,
+        prefer_48h_after_24=prefer_48h_after_24,
+        day_only_set=day_only_set,
+    )
+    _enforce_hours_balance(
+        days,
+        grid,
+        hours,
+        n8,
+        n24,
+        yi_hours,
+        rp_hours,
+        ist_count,
+        prefer_48h_after_24=prefer_48h_after_24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+        max_passes=120,
+    )
 
     for _tail in range(8):
         _enforce_hours_balance(
@@ -2613,6 +2867,33 @@ def generate_ayilma_schedule(
             prefer_48h_after_24=prefer_48h_after_24,
             force_avoid=force_avoid,
             day_only_set=day_only_set,
+        )
+        _boost_special_avoid_hours(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            force_avoid,
+            prefer_48h_after_24=prefer_48h_after_24,
+            day_only_set=day_only_set,
+        )
+        _enforce_hours_balance(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            max_passes=80,
         )
         spread = max(accounted(n) for n in STAFF_NURSES) - min(
             accounted(n) for n in STAFF_NURSES
@@ -2672,6 +2953,36 @@ def generate_ayilma_schedule(
             day_only_set=day_only_set,
         ):
             break
+
+    for _ in range(8):
+        if not _boost_special_avoid_hours(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            force_avoid,
+            prefer_48h_after_24=prefer_48h_after_24,
+            day_only_set=day_only_set,
+        ):
+            break
+        _enforce_hours_balance(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            max_passes=120,
+        )
 
     last = days[-1]
     next_month_rest = [
@@ -2762,7 +3073,7 @@ def generate_ayilma_schedule(
 
     code_counts = {"8": sum(n8.values()), "16": sum(n16.values()), "24": sum(n24.values())}
 
-    return {
+    result: dict[str, Any] = {
         "ok": True,
         "year": year,
         "month": month,
@@ -2803,6 +3114,25 @@ def generate_ayilma_schedule(
             "İST": "Özel gün isteği / rezervasyon",
         },
     }
+
+    if int(variant or 0) == 0 and any(force_avoid[n] for n in STAFF_NURSES):
+        staff_h = [r["worked_hours"] for r in rows if r["role"] == "staff"]
+        if staff_h and max(staff_h) - min(staff_h) > HOURS_BALANCE_TOLERANCE:
+            for retry_v in range(1, 24):
+                alt = generate_ayilma_schedule(
+                    year,
+                    month,
+                    leaves=leaves,
+                    day_only=day_only,
+                    prefer_48h_after_24=prefer_48h_after_24,
+                    special_rules=special_rules,
+                    variant=retry_v,
+                )
+                am = [r["worked_hours"] for r in alt["rows"] if r["role"] == "staff"]
+                if am and max(am) - min(am) <= HOURS_BALANCE_TOLERANCE:
+                    return alt
+
+    return result
 
 
 def roster_defaults() -> dict[str, Any]:
