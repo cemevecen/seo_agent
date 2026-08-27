@@ -17,6 +17,7 @@ Geri dönüş (önceki uzun motor): tag `ayilma-calc-before-rollback-20260827`.
 7b. **Arka arkaya 24 yasak** (aynı kişide ardışık gün 24+24; pin hariç)  
 7c. **Nöbet = 24** — motor `16` yazmaz; `16` yalnız sorumlu sabit pin  
 7d. **Özel koşul 8 birincil** — pinlenen kişide art arda 8 serbest; motor kırmaz  
+7e. **Hafta sonu ek mesai yok** — hafta içi 8 pin / mesaisi dolan kişiye hafta sonu 24 yazılmaz  
 8. Kişi başı 8 · hedef 3 (2–4) · art arda 8 en fazla 2 (**pin yoksa**)  
 
 ## Yeniden oluştur (`variant`)

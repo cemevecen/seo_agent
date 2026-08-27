@@ -625,6 +625,28 @@ def generate_ayilma_schedule(
         """Mesai + Yİ (8s/gün) — dengelenecek toplam."""
         return hours[n] + yi_hours[n]
 
+    def _weekday_eight_hours(n: str) -> int:
+        return sum(
+            8
+            for dm in days
+            if (not dm.is_weekend) and grid[n].get(dm.iso, "") == "8"
+        )
+
+    def _skip_weekend_night(n: str, iso: str, *, as_if_empty: bool = False) -> bool:
+        """Hafta içi 8 ile mesaisi dolan / 8-pin → hafta sonu nöbet yok (pin 24 hariç).
+
+        as_if_empty: mevcut hücre saati çıkarılır (strip için).
+        """
+        if (n, iso) in pinned_cells:
+            return False
+        # Özel koşul 8 pin: hafta sonu ek nöbet yok
+        if n in relax_consec_8:
+            return True
+        # Yalnız hafta içi 8 (+Yİ) ideal'i dolduruyorsa ek mesai yazma
+        if _weekday_eight_hours(n) + yi_hours[n] >= ideal:
+            return True
+        return False
+
     for idx, dm in enumerate(days):
         available = [
             n
@@ -686,12 +708,15 @@ def generate_ayilma_schedule(
             pen = _rest_penalty(n, idx, days, grid)
             if n in day_only_set:
                 pen += 500
+            # Hafta sonu: mesaisi dolan / hafta içi-8 pin → nöbet son çare
+            weekend_skip = 1 if (dm.is_weekend and _skip_weekend_night(n, dm.iso)) else 0
             over = 1 if over_streak(n) else 0
             gun = _gun_asiri_24_penalty(n, idx, days, grid)
             behind = 0 if hours[n] < min_shift[n] else 1
             # İzinden dönüş → önce nöbet
             after_leave = 0 if _first_day_after_leave(n, idx, days, grid) else 1
             return (
+                weekend_skip,
                 pen,
                 after_leave,
                 special_work_rank(n),
@@ -724,6 +749,7 @@ def generate_ayilma_schedule(
                 for n in available
                 if n not in day_only_set
                 and not _next_day_blocks_24(n, idx, days, grid)
+                and not (dm.is_weekend and _skip_weekend_night(n, dm.iso))
             ]
             if not leave_heavy:
                 capped = [n for n in pool if not over_streak(n)]
@@ -735,6 +761,7 @@ def generate_ayilma_schedule(
                     for n in available
                     if n not in day_only_set
                     and not _next_day_blocks_24(n, idx, days, grid)
+                    and not (dm.is_weekend and _skip_weekend_night(n, dm.iso))
                 ]
             if not pool:
                 break
@@ -956,6 +983,8 @@ def generate_ayilma_schedule(
         if grid[recv].get(days[i].iso, ""):
             return False
         if recv in day_only_set:
+            return False
+        if days[i].is_weekend and _skip_weekend_night(recv, days[i].iso):
             return False
         if _cannot_assign_24(
             recv, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
@@ -1389,6 +1418,7 @@ def generate_ayilma_schedule(
                 if n not in day_only_set
                 and grid[n].get(iso, "") not in LEAVE_CODES
                 and grid[n].get(iso, "") == ""
+                and not (dm.is_weekend and _skip_weekend_night(n, iso))
                 and not _cannot_assign_24(
                     n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
                 )
@@ -1401,6 +1431,7 @@ def generate_ayilma_schedule(
                     if n not in day_only_set
                     and grid[n].get(iso, "") not in LEAVE_CODES
                     and grid[n].get(iso, "") == ""
+                    and not (dm.is_weekend and _skip_weekend_night(n, iso))
                     and not _cannot_assign_24(
                         n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     )
@@ -1412,6 +1443,7 @@ def generate_ayilma_schedule(
                     for n in STAFF_NURSES
                     if n not in day_only_set
                     and _can_steal_8_for_24(n, idx, iso)
+                    and not (dm.is_weekend and _skip_weekend_night(n, iso))
                     and not _cannot_assign_24(
                         n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     )
@@ -1465,6 +1497,7 @@ def generate_ayilma_schedule(
                 if n != name
                 and n not in day_only_set
                 and grid[n].get(iso, "") == ""
+                and not (days[i].is_weekend and _skip_weekend_night(n, iso))
                 and not _cannot_assign_24(
                     n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                 )
@@ -1477,6 +1510,7 @@ def generate_ayilma_schedule(
                     if n != name
                     and n not in day_only_set
                     and grid[n].get(iso, "") == ""
+                    and not (days[i].is_weekend and _skip_weekend_night(n, iso))
                     and not _cannot_assign_24(
                         n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     )
@@ -1488,6 +1522,7 @@ def generate_ayilma_schedule(
                     if n != name
                     and n not in day_only_set
                     and _can_steal_8_for_24(n, i, iso)
+                    and not (days[i].is_weekend and _skip_weekend_night(n, iso))
                     and not _cannot_assign_24(
                         n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     )
@@ -1540,6 +1575,7 @@ def generate_ayilma_schedule(
                 if n != name
                 and n not in day_only_set
                 and grid[n].get(iso, "") == ""
+                and not (days[i].is_weekend and _skip_weekend_night(n, iso))
                 and not _cannot_assign_24(
                     n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                 )
@@ -1552,6 +1588,7 @@ def generate_ayilma_schedule(
                     if n != name
                     and n not in day_only_set
                     and grid[n].get(iso, "") == ""
+                    and not (days[i].is_weekend and _skip_weekend_night(n, iso))
                     and not _cannot_assign_24(
                         n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     )
@@ -1563,6 +1600,7 @@ def generate_ayilma_schedule(
                     if n != name
                     and n not in day_only_set
                     and _can_steal_8_for_24(n, i, iso)
+                    and not (days[i].is_weekend and _skip_weekend_night(n, iso))
                     and not _cannot_assign_24(
                         n, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     )
@@ -1582,6 +1620,25 @@ def generate_ayilma_schedule(
                 continue
             break
 
+    # Hafta sonu: mesaisi dolan / hafta içi-8 pin kişiden nöbet kaldır (ek mesai yok)
+    for idx, dm in enumerate(days):
+        if not dm.is_weekend:
+            continue
+        for name in STAFF_NURSES:
+            code = grid[name].get(dm.iso, "")
+            if code not in ("16", "24"):
+                continue
+            if (name, dm.iso) in pinned_cells:
+                continue
+            if not _skip_weekend_night(name, dm.iso, as_if_empty=True):
+                continue
+            hours[name] -= _hours_for(code)
+            if code == "24":
+                n24[name] -= 1
+            else:
+                n16[name] -= 1
+            grid[name][dm.iso] = ""
+
     # Motor 16 yazmaz: pin olmayan 16 → mümkünse 24, değilse boş
     for name in STAFF_NURSES:
         for i, dm in enumerate(days):
@@ -1592,6 +1649,8 @@ def generate_ayilma_schedule(
             grid[name][dm.iso] = ""
             hours[name] -= 16
             n16[name] -= 1
+            if dm.is_weekend and _skip_weekend_night(name, dm.iso):
+                continue
             if (
                 name not in day_only_set
                 and not _cannot_assign_24(
@@ -1645,6 +1704,8 @@ def generate_ayilma_schedule(
 
             def _try_place_24(n: str) -> bool:
                 if n in day_only_set or (n, iso) in pinned_cells:
+                    return False
+                if dm.is_weekend and _skip_weekend_night(n, iso):
                     return False
                 code = grid[n].get(iso, "")
                 if code in LEAVE_CODES or code in ("16", "24"):

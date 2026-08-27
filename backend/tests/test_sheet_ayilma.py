@@ -525,3 +525,38 @@ def test_special_pin_all_weekday_eights_honored():
     from backend.services.ayilma_schedule import _max_consecutive_8_streak, month_days
     streak = _max_consecutive_8_streak("Sema Evecen", month_days(2026, 9), {"Sema Evecen": sema["cells"]})
     assert streak >= 3
+    # Hafta sonu nöbet yok (mesai hafta içi 8 ile dolu)
+    for dm in out["days"]:
+        if not dm["is_weekend"]:
+            continue
+        assert sema["cells"].get(dm["iso"], "") not in ("16", "24"), dm["iso"]
+
+
+def test_weekend_night_skipped_when_hours_full():
+    """Ideal saati dolmuş kişiye hafta sonu ek nöbet yazılmaz."""
+    from datetime import date
+
+    weekdays = [
+        f"2026-09-{d:02d}"
+        for d in range(1, 31)
+        if date(2026, 9, d).weekday() < 5
+    ]
+    rules = [{
+        "name": "Nuray Durna",
+        "mode": "pin",
+        "shifts": {iso: "8" for iso in weekdays},
+        "weekly": False,
+    }]
+    out = generate_ayilma_schedule(2026, 9, special_rules=rules)
+    nuray = next(r for r in out["rows"] if r["name"] == "Nuray Durna")
+    for dm in out["days"]:
+        if dm["is_weekend"]:
+            assert nuray["cells"].get(dm["iso"], "") not in ("16", "24")
+        # hafta sonu gece hâlâ 2 kişi
+        night = sum(
+            1
+            for r in out["rows"]
+            if r["role"] == "staff" and r["cells"].get(dm["iso"], "") in ("16", "24")
+        )
+        if dm["is_weekend"]:
+            assert night >= 2, f"{dm['iso']} night={night}"
