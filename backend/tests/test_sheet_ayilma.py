@@ -359,6 +359,30 @@ def test_yi_excluded_from_peer_average():
     assert max(vals) - min(vals) <= HOURS_BALANCE_TOLERANCE * 2
 
 
+def test_peer_hours_band_with_long_yi_and_ist():
+    """Semanur uzun Yİ + İST karışımında Emine/Nuray/Şengül arası ≤16s (40s sapma olmamalı)."""
+    from backend.services.ayilma_schedule import HOURS_BALANCE_TOLERANCE, month_days, _grid_gap_ok
+
+    leaves = {
+        "Nuray Durna": {"2026-09-18": "İST"},
+        "Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"},
+        "Şengül Zamur": {"2026-09-23": "İST"},
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)}
+        | {"2026-09-27": "İST"},
+        "Rabia Kumtepe": {"2026-09-19": "İST"},
+    }
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
+    active = [
+        r for r in out["rows"] if r["role"] == "staff" and not r["exclude_from_staff_balance"]
+    ]
+    vals = {r["name"]: r["worked_hours"] for r in active}
+    spread = max(vals.values()) - min(vals.values())
+    assert spread <= HOURS_BALANCE_TOLERANCE, vals
+    assert not any("saat bandı" in w for w in (out.get("warnings") or []))
+    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
+    assert _grid_gap_ok(month_days(2026, 9), grid)
+
+
 def test_ist_request_blocks_assignment():
     leaves = {"Sema Evecen": {"2026-08-10": "İST", "2026-08-11": "İST"}}
     out = generate_ayilma_schedule(2026, 8, leaves=leaves)

@@ -1556,6 +1556,102 @@ def _enforce_hours_balance(
         if vals[hi] - vals[lo] <= HOURS_BALANCE_TOLERANCE:
             break
 
+        # A) hi:24 + lo:boş → hi:8 (hafta içi) + lo:24
+        # 8 boşluk sayılmaz; hi fazla mesaisini -16 düşürür, lo +24 alır (yaygın 40s farkı kapatır).
+        # Yalnızca global yayılmayı azaltan hamleler (aksi halde başka senaryoda bozar).
+        before_spread = max(vals.values()) - min(vals.values())
+        his = sorted(peers, key=lambda n: (-vals[n], -n24[n], n))
+        los = sorted(peers, key=lambda n: (vals[n], n24[n], n))
+        for hi2 in his:
+            for lo2 in los:
+                if hi2 == lo2 or vals[hi2] - vals[lo2] <= HOURS_BALANCE_TOLERANCE:
+                    continue
+                for i, dm in enumerate(days):
+                    if grid[hi2].get(dm.iso, "") != "24":
+                        continue
+                    if grid[lo2].get(dm.iso, ""):
+                        continue
+                    if dm.iso in force_avoid[lo2] or lo2 in day_only_set:
+                        continue
+                    partners = [
+                        n
+                        for n in STAFF_NURSES
+                        if n != hi2 and grid[n].get(dm.iso, "") in ("16", "24")
+                    ]
+                    if len(partners) + 1 < NIGHT_SHIFTS_PER_DAY:
+                        continue
+                    if _gun_asiri_streak_over(lo2, i, days, grid):
+                        continue
+                    if _blocked_by_rest(
+                        lo2, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                    ):
+                        continue
+                    if i + 1 < len(days) and grid[lo2].get(days[i + 1].iso, "") in (
+                        "16",
+                        "24",
+                    ):
+                        continue
+                    demote_to_8 = False
+                    if dm.is_weekday:
+                        if (
+                            n8[hi2] < EIGHT_PER_PERSON_MAX
+                            and dm.iso not in force_avoid[hi2]
+                            and _can_assign_8(hi2, i, days, grid)
+                        ):
+                            # 24→8: boş hücre kuralı bozulmaz ama «24'süz gün» zinciri artabilir
+                            prev = grid[hi2][dm.iso]
+                            grid[hi2][dm.iso] = "8"
+                            demote_ok = (
+                                _max_days_without_24_for(hi2, days, grid)
+                                <= IDLE_24_GAP_MAX
+                                and _max_empty_between_24_for(hi2, days, grid)
+                                <= IDLE_24_GAP_MAX
+                            )
+                            grid[hi2][dm.iso] = prev
+                            if demote_ok:
+                                demote_to_8 = True
+                            elif not _can_remove_24_without_gap_violation(
+                                hi2, i, days, grid
+                            ):
+                                continue
+                            else:
+                                demote_to_8 = False  # clear yerine
+                        elif not _can_remove_24_without_gap_violation(hi2, i, days, grid):
+                            continue
+                    else:
+                        if not _can_remove_24_without_gap_violation(hi2, i, days, grid):
+                            continue
+                    hi_delta = -16 if demote_to_8 else -24
+                    sim = dict(vals)
+                    sim[hi2] = sim[hi2] + hi_delta
+                    sim[lo2] = sim[lo2] + 24
+                    after_spread = max(sim.values()) - min(sim.values())
+                    if after_spread >= before_spread:
+                        continue
+                    if not _strip_next_8_if_safe(lo2, i):
+                        continue
+                    if demote_to_8:
+                        grid[hi2][dm.iso] = "8"
+                        hours[hi2] -= 16
+                        n24[hi2] -= 1
+                        n8[hi2] += 1
+                    else:
+                        grid[hi2][dm.iso] = ""
+                        hours[hi2] -= 24
+                        n24[hi2] -= 1
+                    grid[lo2][dm.iso] = "24"
+                    hours[lo2] += 24
+                    n24[lo2] += 1
+                    moved = True
+                    break
+                if moved:
+                    break
+            if moved:
+                break
+        if moved:
+            changed = True
+            continue
+
         for i, dm in enumerate(days):
             if grid[hi].get(dm.iso, "") != "24" or grid[lo].get(dm.iso, "") != "8":
                 continue
@@ -1749,9 +1845,12 @@ def _boost_peer_hours(
         )
         if not behind:
             break
+        peer_max = max(accounted(n) for n in peers)
         fixed = False
         for name in behind:
             if hours[name] >= MAX_MONTHLY_HOURS - 8:
+                continue
+            if accounted(name) >= peer_max - 4:
                 continue
             slots: list[tuple[int, int]] = []
             for i, dm in enumerate(days):
@@ -1766,6 +1865,8 @@ def _boost_peer_hours(
                 slots.append((empty_run + gap24, i))
             slots.sort(reverse=True)
             for _, i in slots:
+                if accounted(name) + 24 > peer_max + HOURS_BALANCE_TOLERANCE:
+                    break
                 if _try_assign_24_catchup(
                     name,
                     i,
@@ -4025,6 +4126,65 @@ def generate_ayilma_schedule(
             force_avoid=force_avoid,
             day_only_set=day_only_set,
             yi_hours=yi_hours,
+        )
+
+    # Son söz: boşluk/özel/İST sonrası mesai bandı (boost yok — şişirmesin; yalnız transfer/demote)
+    for _ in range(8):
+        _enforce_hours_balance(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            max_passes=200,
+        )
+        spread_now = _peer_hours_spread(hours, yi_hours, rp_hours, ist_count)
+        gap_ok = _grid_gap_ok(days, grid)
+        if spread_now <= HOURS_BALANCE_TOLERANCE and gap_ok:
+            break
+        if not gap_ok:
+            _enforce_idle_24_gaps(
+                days,
+                grid,
+                hours,
+                n8,
+                n24,
+                min_shift,
+                prefer_48h_after_24=prefer_48h_after_24,
+                force_avoid=force_avoid,
+                day_only_set=day_only_set,
+                yi_hours=yi_hours,
+            )
+        if spread_now > HOURS_BALANCE_TOLERANCE:
+            _boost_peer_hours(
+                days,
+                grid,
+                hours,
+                n8,
+                n24,
+                yi_hours,
+                rp_hours,
+                ist_count,
+                prefer_48h_after_24=prefer_48h_after_24,
+                force_avoid=force_avoid,
+                day_only_set=day_only_set,
+            )
+        _ensure_two_nights_per_day(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            prefer_48h_after_24=prefer_48h_after_24,
         )
 
     last = days[-1]
