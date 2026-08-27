@@ -507,16 +507,14 @@ def _apply_special_pins(
     n16: dict[str, int],
     n24: dict[str, int],
 ) -> None:
-    """İzin hücresini ezmeden sabit 8/16/24 yaz."""
+    """Sabit 8/16/24 yaz — izin dahil üzerine yazar (sorumlu pin öncelikli)."""
     for name, by_day in pins.items():
         for iso, code in by_day.items():
             cur = grid[name].get(iso, "")
-            if cur in LEAVE_CODES:
+            if cur == code:
                 continue
             if cur in WORK_CODES:
-                # Önceki pin / iş — üzerine yaz
-                h = _hours_for(cur)
-                hours[name] -= h
+                hours[name] -= _hours_for(cur)
                 if cur == "8":
                     n8[name] -= 1
                 elif cur == "16":
@@ -589,21 +587,19 @@ def generate_ayilma_schedule(
     for dm in days:
         grid[LEAD_NURSE][dm.iso] = ""
 
-    # Yİ peşin: her gün 8s sayılır; zorunlu nöbet saati = aylık kota − Yİ
-    ideal = ideal_hours(year, month)
-    yi_hours = {n: _yi_hours_from_grid(grid, n, days) for n in STAFF_NURSES}
-    min_shift = {n: max(0, ideal - yi_hours[n]) for n in STAFF_NURSES}
-
     hours = {n: 0 for n in STAFF_NURSES}
     n8 = {n: 0 for n in STAFF_NURSES}
     n24 = {n: 0 for n in STAFF_NURSES}
     n16 = {n: 0 for n in STAFF_NURSES}
     warnings: list[str] = []
+    # Pin izin/İST üzerine yazar; Yİ saatleri pin sonrası hesaplanır
     _apply_special_pins(grid, pins, hours, n8, n16, n24)
     pinned_cells = {
         (name, iso) for name, by_day in pins.items() for iso in by_day
-        if grid[name].get(iso, "") in WORK_CODES
     }
+    ideal = ideal_hours(year, month)
+    yi_hours = {n: _yi_hours_from_grid(grid, n, days) for n in STAFF_NURSES}
+    min_shift = {n: max(0, ideal - yi_hours[n]) for n in STAFF_NURSES}
 
     def accounted(n: str) -> int:
         """Mesai + Yİ (8s/gün) — dengelenecek toplam."""
@@ -921,6 +917,8 @@ def generate_ayilma_schedule(
             return False
         if code != "8":
             return True
+        if (recv, nxt.iso) in pinned_cells:
+            return False
         other_morn = any(
             o != recv and grid[o].get(nxt.iso, "") in ("8", "24") for o in STAFF_NURSES
         )
@@ -961,6 +959,8 @@ def generate_ayilma_schedule(
             dm = days[i]
             if grid[hi].get(dm.iso, "") != "24":
                 continue
+            if (hi, dm.iso) in pinned_cells:
+                continue
             if grid[lo].get(dm.iso, "") != "8":
                 continue
             if (lo, dm.iso) in pinned_cells:
@@ -998,6 +998,8 @@ def generate_ayilma_schedule(
             dm = days[i]
             if grid[hi].get(dm.iso, "") != "24":
                 continue
+            if (hi, dm.iso) in pinned_cells:
+                continue
             if not _can_take_24(lo, i):
                 continue
             grid[hi][dm.iso] = ""
@@ -1017,6 +1019,8 @@ def generate_ayilma_schedule(
             if dm.is_weekend:
                 continue
             if grid[hi].get(dm.iso, "") != "8":
+                continue
+            if (hi, dm.iso) in pinned_cells:
                 continue
             if grid[lo].get(dm.iso, ""):
                 continue
@@ -1047,6 +1051,8 @@ def generate_ayilma_schedule(
             for i in day_order:
                 dm = days[i]
                 if grid[hi].get(dm.iso, "") != "24":
+                    continue
+                if (hi, dm.iso) in pinned_cells:
                     continue
                 if grid[mid].get(dm.iso, "") != "8":
                     continue
@@ -1115,6 +1121,8 @@ def generate_ayilma_schedule(
                     continue
                 # Bu gün zinciri uzatıyor — taşı veya 8'e düş
                 iso = days[i].iso
+                if (name, iso) in pinned_cells:
+                    continue
                 takers = [
                     o
                     for o in STAFF_NURSES
@@ -1157,6 +1165,8 @@ def generate_ayilma_schedule(
                 for i, dm in enumerate(days):
                     if grid[hi].get(dm.iso, "") != "24":
                         continue
+                    if (hi, dm.iso) in pinned_cells:
+                        continue
                     if not _can_take_24(lo, i):
                         continue
                     grid[hi][dm.iso] = ""
@@ -1171,6 +1181,8 @@ def generate_ayilma_schedule(
                     break
                 for i, dm in enumerate(days):
                     if grid[hi].get(dm.iso, "") != "24" or grid[lo].get(dm.iso, "") != "8":
+                        continue
+                    if (hi, dm.iso) in pinned_cells:
                         continue
                     if (lo, dm.iso) in pinned_cells:
                         continue
@@ -1224,6 +1236,8 @@ def generate_ayilma_schedule(
             if target_i is None:
                 continue
             iso = days[target_i].iso
+            if (name, iso) in pinned_cells:
+                continue
             covered = any(
                 o != name and grid[o].get(iso, "") in ("8", "24") for o in STAFF_NURSES
             )
@@ -1236,6 +1250,8 @@ def generate_ayilma_schedule(
             moved = False
             for j, dm in enumerate(days):
                 if dm.is_weekend or grid[name].get(dm.iso, ""):
+                    continue
+                if (name, dm.iso) in pinned_cells:
                     continue
                 if not _can_assign_8(name, j, days, grid):
                     continue
@@ -1279,6 +1295,8 @@ def generate_ayilma_schedule(
             for i in range(1, len(days)):
                 iso = days[i].iso
                 if grid[name].get(iso, "") != "8":
+                    continue
+                if (name, iso) in pinned_cells:
                     continue
                 if grid[name].get(days[i - 1].iso, "") != "8":
                     continue
@@ -1706,6 +1724,10 @@ def generate_ayilma_schedule(
             grid[pick][dm.iso] = "8"
             hours[pick] += 8
             n8[pick] += 1
+
+    # Sabit pin son kilit — hiçbir post-pass ezemesin
+    _apply_special_pins(grid, pins, hours, n8, n16, n24)
+    yi_hours = {n: _yi_hours_from_grid(grid, n, days) for n in STAFF_NURSES}
 
     last = days[-1]
     next_month_rest = [

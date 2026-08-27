@@ -499,3 +499,25 @@ def test_special_pin_fixed_shifts():
     rab = next(r for r in out["rows"] if r["name"] == "Rabia Kumtepe")
     assert rab["cells"]["2026-09-03"] == "8"
     assert rab["cells"]["2026-09-05"] == "24"
+
+
+def test_special_pin_all_weekday_eights_honored():
+    """Sorumlu tüm hafta içi 8 pinlediyse motor ezemez (üst üste 8 / max tavanı dahil)."""
+    from datetime import date
+
+    weekdays = [
+        f"2026-09-{d:02d}"
+        for d in range(1, 31)
+        if date(2026, 9, d).weekday() < 5
+    ]
+    rules = [{
+        "name": "Sema Evecen",
+        "mode": "pin",
+        "shifts": {iso: "8" for iso in weekdays},
+        "weekly": False,
+    }]
+    leaves = {"Sema Evecen": {"2026-09-07": "İST", "2026-09-08": "İST"}}
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves, special_rules=rules)
+    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
+    for iso in weekdays:
+        assert sema["cells"].get(iso) == "8", f"{iso}={sema['cells'].get(iso)!r}"

@@ -38,5 +38,5 @@ Geri dönüş (önceki uzun motor): tag `ayilma-calc-before-rollback-20260827`.
 
 - **Çalışsın** — seçilen günlerde o kişiye nöbet/8 tercihi  
 - **Çalışmasın** — seçilen günlerde atanmaz (sert)  
-- **Sabit vardiya** — önce `8` / `16` / `24` seçilir, sonra takvimde günlere basılarak pinlenir; çizelge buna uymak zorunda  
+- **Sabit vardiya** — önce `8` / `16` / `24` seçilir, sonra takvimde günlere basılarak pinlenir; çizelge buna uymak zorunda (izin/İST ve post-pass üzerine yazar)  
 - Haftalık tekrar: seçilen tarihin hafta günü ay boyunca tekrarlanır  
