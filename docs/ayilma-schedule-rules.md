@@ -11,7 +11,7 @@ Geri dönüş: tag `ayilma-restore-*` (kurallar tazelendikten sonra) · öncesi 
 4. İST / Yİ / RP dönüşü → sonraki ilk takvim günü 24 (hafta sonu dahil)  
 5. Hafta içi 1×8 + 2×24 · hafta sonu yalnız 2×24  
 6. **24 arası boş hücre ≤3 (KATİ; 4+ yasak)** · hedef 2+24+2  
-7. Mesai: kalan günlerle aylık ideal doldur · bant ≤16s · üst sınır 400s  
+7. Mesai: kalan günlerle aylık ideal doldur · **aktif kadro (Yİ/RP hariç) ≤16s bant** · üst sınır 400s  
 8. Gün aşırı zincir ≤4 (çok sıkışıkta 5, asla 5 üstü)  
 9. Kişi başı 8 / üst üste 8 / ikili çeşitlilik  
 
@@ -39,8 +39,9 @@ Geri dönüş: tag `ayilma-restore-*` (kurallar tazelendikten sonra) · öncesi 
 ## Mesai / izin
 
 - Aylık ideal = hafta içi gün × 8.  
-- Zorunlu nöbet = ideal − Yİ − RP; **kalan günlerle bu taban doldurulur**; üstüne denge kurallarıyla ek mesai gelebilir.  
-- İST kotadan düşülmez; fiili mesai ile denge.  
+- Zorunlu nöbet = ideal − Yİ − RP; **kalan günlerle bu taban doldurulur**; üstüne denge kurallarıyla ek mesai gelebilir (üst sınır 400s).  
+- **Ortalama / bant hesabı:** Yİ veya RP alan personel **dahil edilmez**. Aktif kadro kendi ortalamasında ≤16s bantta kalır.  
+- İST kotadan düşülmez; fiili mesai ile aktif ortalama bandına yetişir.  
 - Yİ/RP/İST bitişinin **ertesi takvim günü** (Cmt/Paz dahil) → **24**.  
 
 ## Gün aşırı

@@ -89,6 +89,24 @@ def _uses_ist_only_leave(
     return ist_count[name] > 0 and yi_hours[name] == 0 and rp_hours[name] == 0
 
 
+def _has_yi_or_rp(
+    name: str,
+    yi_hours: dict[str, int],
+    rp_hours: dict[str, int],
+) -> bool:
+    """Yıllık izin veya rapor — ortalama mesai havuzuna dahil edilmez."""
+    return yi_hours.get(name, 0) > 0 or rp_hours.get(name, 0) > 0
+
+
+def _balance_peer_names(
+    yi_hours: dict[str, int],
+    rp_hours: dict[str, int],
+) -> list[str]:
+    """Ortalama / bant hesabı: Yİ/RP alanlar hariç (hepsi izinse tüm kadro)."""
+    peers = [n for n in STAFF_NURSES if not _has_yi_or_rp(n, yi_hours, rp_hours)]
+    return peers if peers else list(STAFF_NURSES)
+
+
 def _balance_metric(
     name: str,
     hours: dict[str, int],
@@ -108,10 +126,24 @@ def _peer_balance_goal(
     rp_hours: dict[str, int],
     ist_count: dict[str, int],
 ) -> int:
+    peers = _balance_peer_names(yi_hours, rp_hours)
     vals = sorted(
-        _balance_metric(n, hours, yi_hours, rp_hours, ist_count) for n in STAFF_NURSES
+        _balance_metric(n, hours, yi_hours, rp_hours, ist_count) for n in peers
     )
     return vals[len(vals) // 2]
+
+
+def _peer_hours_spread(
+    hours: dict[str, int],
+    yi_hours: dict[str, int],
+    rp_hours: dict[str, int],
+    ist_count: dict[str, int],
+) -> int:
+    peers = _balance_peer_names(yi_hours, rp_hours)
+    vals = [_balance_metric(n, hours, yi_hours, rp_hours, ist_count) for n in peers]
+    if not vals:
+        return 0
+    return max(vals) - min(vals)
 
 
 def _shift_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
@@ -1397,7 +1429,9 @@ def _enforce_hours_balance(
     day_only_set: set[str],
     max_passes: int = 120,
 ) -> bool:
-    """Personel arası mesai bandı (İST kotadan düşülmez; Yİ/RP kredili)."""
+    """Aktif personel (Yİ/RP hariç) arası mesai bandı; İST kotadan düşülmez."""
+
+    peers = _balance_peer_names(yi_hours, rp_hours)
 
     def accounted(n: str) -> int:
         return _balance_metric(n, hours, yi_hours, rp_hours, ist_count)
@@ -1438,12 +1472,12 @@ def _enforce_hours_balance(
 
     changed = False
     for _ in range(max_passes):
-        vals = {n: accounted(n) for n in STAFF_NURSES}
+        vals = {n: accounted(n) for n in peers}
         if max(vals.values()) - min(vals.values()) <= HOURS_BALANCE_TOLERANCE:
             break
         moved = False
-        hi = max(STAFF_NURSES, key=lambda n: (vals[n], n))
-        lo = min(STAFF_NURSES, key=lambda n: (vals[n], n))
+        hi = max(peers, key=lambda n: (vals[n], n))
+        lo = min(peers, key=lambda n: (vals[n], n))
         if vals[hi] - vals[lo] <= HOURS_BALANCE_TOLERANCE:
             break
 
@@ -1520,7 +1554,7 @@ def _enforce_hours_balance(
             changed = True
             continue
 
-        mids = [n for n in sorted(STAFF_NURSES, key=lambda n: vals[n]) if n not in (hi, lo)]
+        mids = [n for n in sorted(peers, key=lambda n: vals[n]) if n not in (hi, lo)]
         for mid in mids:
             for i, dm in enumerate(days):
                 if grid[hi].get(dm.iso, "") != "24" or grid[mid].get(dm.iso, "") != "8":
@@ -1551,8 +1585,8 @@ def _enforce_hours_balance(
             changed = True
             continue
 
-        his = sorted(STAFF_NURSES, key=lambda n: (-vals[n], -n24[n], n))
-        los = sorted(STAFF_NURSES, key=lambda n: (vals[n], n24[n], n))
+        his = sorted(peers, key=lambda n: (-vals[n], -n24[n], n))
+        los = sorted(peers, key=lambda n: (vals[n], n24[n], n))
         for hi2 in his:
             for lo2 in los:
                 if hi2 == lo2 or vals[hi2] - vals[lo2] <= HOURS_BALANCE_TOLERANCE:
@@ -1604,6 +1638,81 @@ def _enforce_hours_balance(
         if not moved:
             break
         changed = True
+    return changed
+
+
+def _boost_peer_hours(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    yi_hours: dict[str, int],
+    rp_hours: dict[str, int],
+    ist_count: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+) -> bool:
+    """Aktif personeli (Yİ/RP hariç) ortalama bant altına düşmüşse catch-up 24 ekle."""
+    peers = _balance_peer_names(yi_hours, rp_hours)
+    if len(peers) < 2:
+        return False
+
+    def accounted(n: str) -> int:
+        return _balance_metric(n, hours, yi_hours, rp_hours, ist_count)
+
+    changed = False
+    for _ in range(96):
+        goal = _peer_balance_goal(hours, yi_hours, rp_hours, ist_count)
+        if _peer_hours_spread(hours, yi_hours, rp_hours, ist_count) <= HOURS_BALANCE_TOLERANCE:
+            break
+        behind = sorted(
+            [n for n in peers if accounted(n) < goal - 4],
+            key=lambda n: (accounted(n), n),
+        )
+        if not behind:
+            break
+        fixed = False
+        for name in behind:
+            if hours[name] >= MAX_MONTHLY_HOURS - 8:
+                continue
+            slots: list[tuple[int, int]] = []
+            for i, dm in enumerate(days):
+                iso = dm.iso
+                if iso in force_avoid[name] or name in day_only_set:
+                    continue
+                code = grid[name].get(iso, "")
+                if code in LEAVE_CODES or code == "24":
+                    continue
+                empty_run = _idle_empty_streak_before(name, i, days, grid)
+                gap24 = _days_without_24_before(name, i, days, grid)
+                slots.append((empty_run + gap24, i))
+            slots.sort(reverse=True)
+            for _, i in slots:
+                if _try_assign_24_catchup(
+                    name,
+                    i,
+                    days,
+                    grid,
+                    hours,
+                    n8,
+                    n24,
+                    force_avoid=force_avoid,
+                    day_only_set=day_only_set,
+                    prefer_48h_after_24=prefer_48h_after_24,
+                    accounted_fn=accounted,
+                    goal=goal,
+                    relax_rest=True,
+                ):
+                    fixed = True
+                    changed = True
+                    break
+            if fixed:
+                break
+        if not fixed:
+            break
     return changed
 
 
@@ -3627,21 +3736,152 @@ def generate_ayilma_schedule(
         prefer_48h_after_24=prefer_48h_after_24,
     )
 
+    # Son denge: Yİ/RP hariç aktif kadro ortalamasına çek
+    for _ in range(6):
+        _boost_peer_hours(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        )
+        _enforce_hours_balance(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            max_passes=160,
+        )
+        if _peer_hours_spread(hours, yi_hours, rp_hours, ist_count) <= HOURS_BALANCE_TOLERANCE:
+            break
+
+    _ensure_two_nights_per_day(
+        days,
+        grid,
+        hours,
+        n8,
+        n16,
+        n24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+        prefer_48h_after_24=prefer_48h_after_24,
+    )
+
+    for _ in range(4):
+        if _grid_gap_ok(days, grid):
+            break
+        _enforce_idle_24_gaps(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            min_shift,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            yi_hours=yi_hours,
+        )
+
+    for _ in range(4):
+        _boost_peer_hours(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        )
+        _enforce_hours_balance(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            max_passes=80,
+        )
+        if _peer_hours_spread(hours, yi_hours, rp_hours, ist_count) <= HOURS_BALANCE_TOLERANCE:
+            break
+
+    for _ in range(4):
+        if not _enforce_special_work_days(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            prefer_work,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        ):
+            break
+
+    for _ in range(3):
+        if not _enforce_24_after_ist(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            prefer_48h_after_24=prefer_48h_after_24,
+        ):
+            break
+
+    _ensure_two_nights_per_day(
+        days,
+        grid,
+        hours,
+        n8,
+        n16,
+        n24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+        prefer_48h_after_24=prefer_48h_after_24,
+    )
+
     last = days[-1]
     next_month_rest = [
         n for n in STAFF_NURSES if grid[n].get(last.iso, "") in ("16", "24")
     ]
 
-    accounted_list = [
-        _balance_metric(n, hours, yi_hours, rp_hours, ist_count) for n in STAFF_NURSES
-    ]
-    if accounted_list:
-        spread = max(accounted_list) - min(accounted_list)
-        if spread > HOURS_BALANCE_TOLERANCE:
-            warnings.append(
-                f"Personel fazla/toplam saat bandı {spread:.0f}s "
-                f"(hedef ≤{HOURS_BALANCE_TOLERANCE}s aralık)."
-            )
+    peer_spread = _peer_hours_spread(hours, yi_hours, rp_hours, ist_count)
+    if peer_spread > HOURS_BALANCE_TOLERANCE:
+        peers = _balance_peer_names(yi_hours, rp_hours)
+        warnings.append(
+            f"Aktif personel (Yİ/RP hariç, n={len(peers)}) saat bandı {peer_spread:.0f}s "
+            f"(hedef ≤{HOURS_BALANCE_TOLERANCE}s aralık)."
+        )
 
     gun_asiri = 0
     for name in STAFF_NURSES:
@@ -3713,7 +3953,8 @@ def generate_ayilma_schedule(
                 "min_shift_hours": min_s,
                 "overtime_hours": overtime,
                 "over_cap": (not is_lead) and shift_h > MAX_MONTHLY_HOURS,
-                "exclude_from_staff_balance": is_lead,
+                "exclude_from_staff_balance": is_lead
+                or (not is_lead and _has_yi_or_rp(name, yi_hours, rp_hours)),
                 "count_8": 0 if is_lead else n8[name],
                 "count_24": 0 if is_lead else n24[name],
                 "count_16": 0 if is_lead else n16[name],
@@ -3765,7 +4006,14 @@ def generate_ayilma_schedule(
     }
 
     if int(variant or 0) == 0:
-        staff_h = [r["worked_hours"] for r in rows if r["role"] == "staff"]
+        def _active_hours(rs: list[dict[str, Any]]) -> list[int]:
+            return [
+                int(r["worked_hours"])
+                for r in rs
+                if r.get("role") == "staff" and not r.get("exclude_from_staff_balance")
+            ]
+
+        staff_h = _active_hours(rows)
         needs_retry = False
         if staff_h and max(staff_h) - min(staff_h) > HOURS_BALANCE_TOLERANCE:
             needs_retry = True
@@ -3788,24 +4036,12 @@ def generate_ayilma_schedule(
                     rp_hours=rp_hours,
                 )
             ]
-            if ist_targets:
-                peer_h = [
-                    r["worked_hours"]
-                    for r in rows
-                    if r["role"] == "staff"
-                    and not _uses_ist_only_leave(
-                        r["name"],
-                        ist_count=ist_count,
-                        yi_hours=yi_hours,
-                        rp_hours=rp_hours,
-                    )
-                ]
-                if peer_h:
-                    peer_med = sorted(peer_h)[len(peer_h) // 2]
-                    for r in ist_targets:
-                        if abs(r["worked_hours"] - peer_med) > HOURS_BALANCE_TOLERANCE:
-                            needs_retry = True
-                            break
+            if ist_targets and staff_h:
+                peer_med = sorted(staff_h)[len(staff_h) // 2]
+                for r in ist_targets:
+                    if abs(r["worked_hours"] - peer_med) > HOURS_BALANCE_TOLERANCE:
+                        needs_retry = True
+                        break
         if needs_retry and staff_h:
             gap_fallback: dict[str, Any] | None = None
             gap_fallback_spread = 10**9
@@ -3821,7 +4057,7 @@ def generate_ayilma_schedule(
                     special_rules=special_rules,
                     variant=retry_v,
                 )
-                am = [r["worked_hours"] for r in alt["rows"] if r["role"] == "staff"]
+                am = _active_hours(alt["rows"])
                 if not am:
                     continue
                 spread = max(am) - min(am)

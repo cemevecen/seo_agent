@@ -313,22 +313,51 @@ def test_first_day_after_leave_weekend_gets_24():
 
 
 def test_overtime_band_with_heavy_leave():
-    """İzin yoğun ayda fazla mesai bandı mümkün olduğunca dar (≤32; hedef ≤16)."""
+    """Yİ alan kişi ortalama dışı; aktif kadro OT bandı dar kalır."""
     leaves = {
         "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
         "Sema Evecen": {f"2026-09-{d:02d}": "İST" for d in (1, 7, 8, 15, 22, 29)},
     }
     out = generate_ayilma_schedule(2026, 9, leaves=leaves)
-    ots = [r["overtime_hours"] for r in out["rows"] if r["role"] == "staff"]
+    semanur = next(r for r in out["rows"] if r["name"] == "Semanur Çınar")
+    assert semanur["exclude_from_staff_balance"] is True
+    assert semanur["leave_hours"] > 0
+    # Aktif (Yİ/RP yok) personel bandı
+    active = [
+        r for r in out["rows"] if r["role"] == "staff" and not r["exclude_from_staff_balance"]
+    ]
+    ots = [r["overtime_hours"] for r in active]
     assert max(ots) - min(ots) <= 32
+    # İzinli kişi: zorunlu taban + ek mesai kuralları içinde kalır (ortalama zorlaması yok)
+    assert semanur["shift_hours"] >= semanur["min_shift_hours"] - 24
 
 
 def test_staff_accounted_hours_reasonably_balanced():
+    """Aktif personel (Yİ/RP hariç) ≤16s bantta."""
     out = generate_ayilma_schedule(2026, 9)
-    vals = [r["worked_hours"] for r in out["rows"] if r["role"] == "staff"]
-    ots = [r["overtime_hours"] for r in out["rows"] if r["role"] == "staff"]
-    assert max(vals) - min(vals) <= 16
-    assert max(ots) - min(ots) <= 16
+    active = [
+        r for r in out["rows"] if r["role"] == "staff" and not r["exclude_from_staff_balance"]
+    ]
+    vals = [r["worked_hours"] for r in active]
+    ots = [r["overtime_hours"] for r in active]
+    assert max(vals) - min(vals) <= 16, vals
+    assert max(ots) - min(ots) <= 16, ots
+
+
+def test_yi_excluded_from_peer_average():
+    """Yİ kullanan ortalama hesabına girmez; aktif kadro kendi ortalamasında kalır."""
+    from backend.services.ayilma_schedule import HOURS_BALANCE_TOLERANCE
+
+    leaves = {"Nuray Durna": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 8)}}
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
+    nuray = next(r for r in out["rows"] if r["name"] == "Nuray Durna")
+    assert nuray["exclude_from_staff_balance"] is True
+    active = [
+        r for r in out["rows"] if r["role"] == "staff" and not r["exclude_from_staff_balance"]
+    ]
+    assert all(r["name"] != "Nuray Durna" for r in active)
+    vals = [r["worked_hours"] for r in active]
+    assert max(vals) - min(vals) <= HOURS_BALANCE_TOLERANCE * 2
 
 
 def test_ist_request_blocks_assignment():
