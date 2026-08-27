@@ -34,10 +34,14 @@ ALL_NURSES: tuple[str, ...] = (LEAD_NURSE, *STAFF_NURSES)
 LEAVE_CODES = frozenset({"Yİ", "RP", "İST"})
 WORK_CODES = frozenset({"8", "16", "24"})
 MAX_MONTHLY_HOURS = 300
-# Yıllık izin günü = 8 saat mesai kullanılmış sayılır
+# Yıllık izin / rapor günü = 8 saat mesai kullanılmış sayılır (toplamdan düşük olabilir)
 YI_DAY_HOURS = 8
+RP_DAY_HOURS = 8
 # Personel arası toplam (mesai+Yİ) / fazla mesai bandı hedefi (~16s)
 HOURS_BALANCE_TOLERANCE = 16
+# İST (istek) günü kotadan düşülmez; mesai bandı fiili mesai ile takip edilir
+REQUEST_CODES = frozenset({"İST"})
+ABSENCE_CREDIT_CODES = frozenset({"Yİ", "RP"})
 # Kişi başı düz 8 sayısı (3×8≈24s + boş gün üretir; az tut)
 EIGHT_PER_PERSON_MIN = 2
 EIGHT_PER_PERSON_TARGET = 3
@@ -64,6 +68,38 @@ IDLE_24_GAP_SOFT = 2  # aylık mesai elveriyorsa bu kadar gün sonra 24 tercih
 
 def _yi_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
     return sum(YI_DAY_HOURS for dm in days if grid[name].get(dm.iso, "") == "Yİ")
+
+
+def _rp_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
+    return sum(RP_DAY_HOURS for dm in days if grid[name].get(dm.iso, "") == "RP")
+
+
+def _ist_day_count(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
+    return sum(1 for dm in days if grid[name].get(dm.iso, "") == "İST")
+
+
+def _uses_ist_only_leave(
+    name: str,
+    *,
+    ist_count: dict[str, int],
+    yi_hours: dict[str, int],
+    rp_hours: dict[str, int],
+) -> bool:
+    """Yalnızca İST var; Yİ/RP yok — mesai kotası istekten düşülmez."""
+    return ist_count[name] > 0 and yi_hours[name] == 0 and rp_hours[name] == 0
+
+
+def _balance_metric(
+    name: str,
+    hours: dict[str, int],
+    yi_hours: dict[str, int],
+    rp_hours: dict[str, int],
+    ist_count: dict[str, int],
+) -> int:
+    """Fazla mesai dengesi: İST → fiili mesai; Yİ/RP → mesai + izin kredisi."""
+    if _uses_ist_only_leave(name, ist_count=ist_count, yi_hours=yi_hours, rp_hours=rp_hours):
+        return hours[name]
+    return hours[name] + yi_hours[name] + rp_hours[name]
 
 
 def _shift_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
@@ -449,6 +485,70 @@ def _can_remove_24_without_gap_violation(
     return ok
 
 
+def _boost_ist_shift_hours(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n24: dict[str, int],
+    yi_hours: dict[str, int],
+    rp_hours: dict[str, int],
+    ist_count: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+) -> bool:
+    """İST kullanan personel: istek günleri kotadan düşülmez; fiili mesai banda çekilir."""
+    targets = [
+        n
+        for n in STAFF_NURSES
+        if _uses_ist_only_leave(n, ist_count=ist_count, yi_hours=yi_hours, rp_hours=rp_hours)
+    ]
+    if not targets:
+        return False
+    peer = sorted(_balance_metric(o, hours, yi_hours, rp_hours, ist_count) for o in STAFF_NURSES)
+    goal = peer[len(peer) // 2]
+    changed = False
+    for _ in range(40):
+        fixed = False
+        for name in sorted(
+            targets,
+            key=lambda n: (_balance_metric(n, hours, yi_hours, rp_hours, ist_count), n),
+        ):
+            if _balance_metric(name, hours, yi_hours, rp_hours, ist_count) >= goal - 8:
+                continue
+            for i, dm in enumerate(days):
+                iso = dm.iso
+                if grid[name].get(iso, "") not in ("",):
+                    continue
+                if iso in force_avoid[name] or name in day_only_set:
+                    continue
+                if _blocked_by_rest(
+                    name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                ):
+                    continue
+                if _gun_asiri_streak_over(
+                    name, i, days, grid, cap=GUN_ASIRI_STREAK_ABSOLUTE
+                ):
+                    continue
+                if not _enforce_rest_before_24(name, i, days, grid, hours, n8):
+                    continue
+                if _staff_night_count(grid, iso) >= NIGHT_SHIFTS_PER_DAY:
+                    continue
+                grid[name][iso] = "24"
+                hours[name] += 24
+                n24[name] += 1
+                fixed = True
+                changed = True
+                break
+            if fixed:
+                break
+        if not fixed:
+            break
+    return changed
+
+
 def _enforce_hours_balance(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
@@ -456,16 +556,18 @@ def _enforce_hours_balance(
     n8: dict[str, int],
     n24: dict[str, int],
     yi_hours: dict[str, int],
+    rp_hours: dict[str, int],
+    ist_count: dict[str, int],
     *,
     prefer_48h_after_24: bool,
     force_avoid: dict[str, set[str]],
     day_only_set: set[str],
     max_passes: int = 120,
 ) -> bool:
-    """Personel arası mesai+Yİ toplamını HOURS_BALANCE_TOLERANCE bandına çek."""
+    """Personel arası mesai bandı (İST kotadan düşülmez; Yİ/RP kredili)."""
 
     def accounted(n: str) -> int:
-        return hours[n] + yi_hours[n]
+        return _balance_metric(n, hours, yi_hours, rp_hours, ist_count)
 
     def _strip_next_8_if_safe(recv: str, i: int) -> bool:
         if i + 1 >= len(days):
@@ -1346,10 +1448,14 @@ def generate_ayilma_schedule(
         if dm.is_weekday:
             grid[LEAD_NURSE][dm.iso] = "8"
 
-    # Yİ peşin: her gün 8s sayılır; zorunlu nöbet saati = aylık kota − Yİ
+    # Yİ/RP peşin kredi; İST kotadan düşülmez — zorunlu mesai = aylık − Yİ − RP
     ideal = ideal_hours(year, month)
     yi_hours = {n: _yi_hours_from_grid(grid, n, days) for n in STAFF_NURSES}
-    min_shift = {n: max(0, ideal - yi_hours[n]) for n in STAFF_NURSES}
+    rp_hours = {n: _rp_hours_from_grid(grid, n, days) for n in STAFF_NURSES}
+    ist_count = {n: _ist_day_count(grid, n, days) for n in STAFF_NURSES}
+    min_shift = {
+        n: max(0, ideal - yi_hours[n] - rp_hours[n]) for n in STAFF_NURSES
+    }
 
     hours = {n: 0 for n in STAFF_NURSES}
     n8 = {n: 0 for n in STAFF_NURSES}
@@ -1359,8 +1465,15 @@ def generate_ayilma_schedule(
     eight_budget = EIGHT_PER_PERSON_TARGET * len(STAFF_NURSES)
 
     def accounted(n: str) -> int:
-        """Mesai + Yİ (8s/gün) — dengelenecek toplam."""
-        return hours[n] + yi_hours[n]
+        return _balance_metric(n, hours, yi_hours, rp_hours, ist_count)
+
+    def _ist_behind(n: str) -> int:
+        if not _uses_ist_only_leave(
+            n, ist_count=ist_count, yi_hours=yi_hours, rp_hours=rp_hours
+        ):
+            return 1
+        peer = sum(hours[o] for o in STAFF_NURSES) / len(STAFF_NURSES)
+        return 0 if hours[n] < peer - 4 else 1
 
     for idx, dm in enumerate(days):
         available = [
@@ -1422,6 +1535,7 @@ def generate_ayilma_schedule(
             gun = _gun_asiri_24_penalty(n, idx, days, grid)
             soft_streak = max(0, streak_if_24(n) - GUN_ASIRI_STREAK_SOFT)
             behind = 0 if hours[n] < min_shift[n] else 1
+            ist_behind = _ist_behind(n)
             # İzin/istek/rapor dönüşü → önce nöbet
             after_leave = 0 if _first_day_after_leave(n, idx, days, grid) else 1
             gap24 = _days_without_24_before(n, idx, days, grid)
@@ -1429,6 +1543,7 @@ def generate_ayilma_schedule(
             return (
                 pen,
                 after_leave,
+                ist_behind,
                 gap24_prio,
                 pair_pen,
                 special_work_rank(n),
@@ -1766,6 +1881,8 @@ def generate_ayilma_schedule(
         n8,
         n24,
         yi_hours,
+        rp_hours,
+        ist_count,
         prefer_48h_after_24=prefer_48h_after_24,
         force_avoid=force_avoid,
         day_only_set=day_only_set,
@@ -1862,6 +1979,8 @@ def generate_ayilma_schedule(
         n8,
         n24,
         yi_hours,
+        rp_hours,
+        ist_count,
         prefer_48h_after_24=prefer_48h_after_24,
         force_avoid=force_avoid,
         day_only_set=day_only_set,
@@ -2133,6 +2252,20 @@ def generate_ayilma_schedule(
             if worst_st <= GUN_ASIRI_STREAK_ABSOLUTE:
                 break
 
+    _boost_ist_shift_hours(
+        days,
+        grid,
+        hours,
+        n8,
+        n24,
+        yi_hours,
+        rp_hours,
+        ist_count,
+        prefer_48h_after_24=prefer_48h_after_24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+    )
+
     for _tail in range(8):
         _enforce_hours_balance(
             days,
@@ -2141,6 +2274,8 @@ def generate_ayilma_schedule(
             n8,
             n24,
             yi_hours,
+            rp_hours,
+            ist_count,
             prefer_48h_after_24=prefer_48h_after_24,
             force_avoid=force_avoid,
             day_only_set=day_only_set,
@@ -2197,7 +2332,9 @@ def generate_ayilma_schedule(
         n for n in STAFF_NURSES if grid[n].get(last.iso, "") in ("16", "24")
     ]
 
-    accounted_list = [hours[n] + yi_hours[n] for n in STAFF_NURSES]
+    accounted_list = [
+        _balance_metric(n, hours, yi_hours, rp_hours, ist_count) for n in STAFF_NURSES
+    ]
     if accounted_list:
         spread = max(accounted_list) - min(accounted_list)
         if spread > HOURS_BALANCE_TOLERANCE:
@@ -2234,15 +2371,21 @@ def generate_ayilma_schedule(
             overtime = 0
         else:
             shift_h = hours[name]
-            leave_h = yi_hours[name]
-            acc = shift_h + leave_h  # Yİ günleri 8s gibi yazılır
+            leave_h = yi_hours[name] + rp_hours[name]
+            acc = shift_h + leave_h  # Yİ/RP kredili; İST kotadan düşülmez
             target = ideal
             min_s = min_shift[name]
             overtime = acc - target  # eksi = eksik, artı = fazla
             if shift_h < min_s:
+                cred = []
+                if yi_hours[name]:
+                    cred.append(f"Yİ {yi_hours[name]}s")
+                if rp_hours[name]:
+                    cred.append(f"RP {rp_hours[name]}s")
+                cred_txt = " − ".join(cred) if cred else "0"
                 warnings.append(
                     f"{name}: zorunlu mesai eksiği — en az {min_s}s nöbet "
-                    f"(kota {ideal} − Yİ {leave_h}), şu an {shift_h}s."
+                    f"(kota {ideal} − {cred_txt}), şu an {shift_h}s."
                 )
         rows.append(
             {

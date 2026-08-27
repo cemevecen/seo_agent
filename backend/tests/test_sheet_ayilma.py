@@ -301,6 +301,28 @@ def test_ist_request_blocks_assignment():
     assert sema["cells"]["2026-08-11"] == "İST"
 
 
+def test_ist_overtime_near_peers():
+    """İST kotadan düşülmez; yalnız İST kullanan personel fazla mesai bandında kalır."""
+    leaves = {
+        "Sema Evecen": {
+            "2026-08-22": "İST",
+            "2026-08-25": "İST",
+            "2026-08-28": "İST",
+        },
+    }
+    out = generate_ayilma_schedule(2026, 8, leaves=leaves)
+    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
+    peer_ots = [
+        r["overtime_hours"]
+        for r in out["rows"]
+        if r["role"] == "staff" and r["name"] != "Sema Evecen"
+    ]
+    assert sema["leave_hours"] == 0
+    assert sema["min_shift_hours"] == out["ideal_hours_staff"]
+    assert max(peer_ots) - sema["overtime_hours"] <= 16
+    assert sema["overtime_hours"] - min(peer_ots) <= 16
+
+
 def _count_gun_asiri(out: dict) -> int:
     days = out["days"]
     n = 0
