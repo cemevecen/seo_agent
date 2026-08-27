@@ -135,12 +135,9 @@ def test_generate_august_basic_coverage():
     lead = next(r for r in out["rows"] if r["name"] == LEAD_NURSE)
     assert lead["role"] == "lead"
     assert lead["overtime_hours"] == 0
+    assert lead["worked_hours"] == 0
     for dm in out["days"]:
-        code = lead["cells"][dm["iso"]]
-        if dm["is_weekend"]:
-            assert code == "", f"lead weekend {dm['iso']}"
-        else:
-            assert code == "8", f"lead weekday {dm['iso']}"
+        assert lead["cells"][dm["iso"]] == "", f"lead must stay empty {dm['iso']}"
 
     for dm in out["days"]:
         iso = dm["iso"]
@@ -191,6 +188,7 @@ def test_lead_does_not_count_in_staff_night_or_overtime():
     assert lead["exclude_from_staff_balance"] is True
     assert lead["ideal_hours"] == 0
     assert lead["overtime_hours"] == 0
+    assert lead["worked_hours"] == 0
     for dm in out["days"]:
         iso = dm["iso"]
         night = sum(
@@ -199,10 +197,7 @@ def test_lead_does_not_count_in_staff_night_or_overtime():
             if next(r for r in out["rows"] if r["name"] == n)["cells"].get(iso) in ("16", "24")
         )
         assert night >= 2
-        if dm["is_weekend"]:
-            assert lead["cells"][iso] == ""
-        else:
-            assert lead["cells"][iso] == "8"
+        assert lead["cells"][iso] == ""
 
 
 def test_first_day_after_leave_gets_night_shift():

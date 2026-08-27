@@ -229,12 +229,22 @@ def _apply_leaves(
     if not leaves:
         return
     for name, by_day in leaves.items():
-        if name not in grid or not isinstance(by_day, dict):
+        # Gülten satırı yalnızca görünür; izin/mesai yazılmaz.
+        if name == LEAD_NURSE or name not in grid or not isinstance(by_day, dict):
             continue
         for iso, code in by_day.items():
             nc = _norm_code(code)
             if nc in LEAVE_CODES and iso in grid[name]:
                 grid[name][iso] = nc
+
+
+def _clear_lead_row(grid: dict[str, dict[str, str]]) -> None:
+    """Gülten Çelik çizelgede kalır ama tüm hücreler boş; hesaba dahil edilmez."""
+    cells = grid.get(LEAD_NURSE)
+    if not cells:
+        return
+    for iso in cells:
+        cells[iso] = ""
 
 
 def _blocked_by_rest(
@@ -2410,7 +2420,7 @@ def generate_ayilma_schedule(
 ) -> dict[str, Any]:
     """6 personel + sorumlu.
 
-    Gülten yalnız hafta içi 8 (hafta sonu boş); kadroya karışmaz.
+    Gülten satırı çizelgede kalır ama tamamen boş; tüm hesaplar 6 personel kadrosuyla yapılır.
 
     Hafta içi: mümkünse 1×«8» + 2×«24». Hafta sonu: yalnız 2×«24» (kat-1 / 8 yok).
     Yİ/RP/İST bitişinin ertesi takvim günü nöbet (24) — hafta sonu kuralı yok.
@@ -2437,6 +2447,7 @@ def generate_ayilma_schedule(
     days = month_days(year, month)
     grid = _empty_grid(year, month)
     _apply_leaves(grid, leaves)
+    _clear_lead_row(grid)
     day_only_set = {str(x).strip() for x in (day_only or []) if str(x).strip()}
     prefer_work, force_avoid = resolve_special_day_sets(year, month, special_rules)
     rng = random.Random((year * 100 + month) * 10007 + int(variant or 0))
@@ -2445,13 +2456,6 @@ def generate_ayilma_schedule(
 
     def _tie(n: str) -> float:
         return person_tie[n]
-
-    # Gülten: yalnız hafta içi 8; hafta sonu yazma
-    for dm in days:
-        if grid[LEAD_NURSE][dm.iso]:
-            continue
-        if dm.is_weekday:
-            grid[LEAD_NURSE][dm.iso] = "8"
 
     # Yİ/RP peşin kredi; İST kotadan düşülmez.
     # Zorunlu nöbet tabanı = ideal − Yİ − RP; kalan günlerle bu taban doldurulur,
@@ -4064,6 +4068,9 @@ def generate_ayilma_schedule(
         warnings.append(
             f"24 arası boş gün {empty_between} (tavan {IDLE_24_GAP_MAX}; hedef {IDLE_24_GAP_SOFT}+24+{IDLE_24_GAP_SOFT})."
         )
+
+    # Gülten yalnızca görünür satır — hesap/mesai yazımı yok.
+    _clear_lead_row(grid)
 
     rows: list[dict[str, Any]] = []
     for name in ALL_NURSES:
