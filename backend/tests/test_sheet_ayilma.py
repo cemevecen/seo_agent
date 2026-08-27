@@ -222,12 +222,35 @@ def test_first_day_after_leave_gets_night_shift():
 
 
 def test_first_day_after_ist_gets_work():
-    """İST bitişinin ertesi mesai gününde mutlaka çalışma."""
+    """İST bitişinin ertesi takvim gününde mutlaka 24 nöbet."""
     leaves = {"Sema Evecen": {"2026-08-08": "İST", "2026-08-09": "İST"}}
     out = generate_ayilma_schedule(2026, 8, leaves=leaves)
     sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
-    first_back = sema["cells"].get("2026-08-11", "")  # Pzt — 10 Ağu Pazar
-    assert first_back in ("8", "16", "24"), f"expected çalışma, got {first_back!r}"
+    assert sema["cells"].get("2026-08-10") == "24"  # Pazar — 9 Ağu İST ertesi
+
+
+def test_ist_next_calendar_day_is_24():
+    """İST gününün ertesi takvim günü 24 (8 değil)."""
+    leaves = {"Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"}}
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
+    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
+    assert sema["cells"].get("2026-09-02") == "24"
+    assert sema["cells"].get("2026-09-09") == "24"
+
+
+def test_ist_only_keeps_hours_balance():
+    """İST günleri kotadan düşülmez; kalan günlerle ortalama mesai bandı."""
+    from backend.services.ayilma_schedule import HOURS_BALANCE_TOLERANCE
+
+    leaves = {"Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"}}
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
+    staff = [r for r in out["rows"] if r["role"] == "staff"]
+    metrics = [r["worked_hours"] for r in staff]
+    assert max(metrics) - min(metrics) <= HOURS_BALANCE_TOLERANCE
+    sema = next(r for r in staff if r["name"] == "Sema Evecen")
+    peer = sorted(r["worked_hours"] for r in staff if r["name"] != "Sema Evecen")
+    peer_med = peer[len(peer) // 2]
+    assert abs(sema["worked_hours"] - peer_med) <= HOURS_BALANCE_TOLERANCE
 
 
 def test_generate_respects_leave_and_rest_after_24():
