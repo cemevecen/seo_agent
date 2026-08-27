@@ -38,6 +38,9 @@
         <button type="button" id="sh-generate" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500">
           Çizelgeyi oluştur
         </button>
+        <button type="button" id="sh-regenerate" class="hidden rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:bg-zinc-900 dark:text-indigo-300 dark:hover:bg-zinc-800">
+          Yeniden oluştur
+        </button>
         <button type="button" id="sh-special-open" class="rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-900 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200">
           Özel koşul gir
         </button>
@@ -54,47 +57,50 @@
 
   </div>
 
-  <div id="sh-special-modal" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
-    <div class="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-zinc-900">
-      <div class="flex items-start justify-between gap-3">
-        <h3 class="text-base font-bold text-slate-900 dark:text-zinc-100">Özel koşul</h3>
-        <button type="button" id="sh-special-close" class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800">Kapat</button>
+  <div id="sh-special-modal" class="sh-sp-overlay" hidden>
+    <div class="sh-sp-panel" role="dialog" aria-modal="true" aria-labelledby="sh-sp-title">
+      <div class="sh-sp-panel-head">
+        <h3 id="sh-sp-title">Özel koşul</h3>
+        <button type="button" id="sh-special-close" class="sh-sp-x">Kapat</button>
       </div>
-      <div class="mt-4 space-y-3">
-        <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          Kişi
-          <select id="sh-sp-name" class="mt-1 block w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-sm font-semibold dark:border-transparent dark:bg-zinc-800 dark:text-zinc-200"></select>
-        </label>
-        <div class="flex flex-wrap gap-3 text-sm font-semibold text-slate-800 dark:text-zinc-100">
-          <label class="inline-flex items-center gap-2">
-            <input type="radio" name="sh-sp-mode" value="work" class="rounded border-slate-300" checked>
-            Çalışsın
+      <ol class="sh-sp-steps">
+        <li>
+          <span class="sh-sp-step-n">1</span>
+          <label class="sh-sp-field">
+            Kişi seç
+            <select id="sh-sp-name"></select>
           </label>
-          <label class="inline-flex items-center gap-2">
-            <input type="radio" name="sh-sp-mode" value="avoid" class="rounded border-slate-300">
-            Çalışmasın
-          </label>
-        </div>
-        <div>
-          <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Gün seç (takvim)</div>
-          <div id="sh-sp-cal" class="mt-2 grid grid-cols-7 gap-1 text-center text-[11px]"></div>
-          <p id="sh-sp-picked" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400"></p>
-        </div>
-        <div class="flex flex-wrap gap-3 text-sm font-semibold text-slate-800 dark:text-zinc-100">
-          <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400 self-center">Her hafta tekrarlasın mı?</span>
-          <label class="inline-flex items-center gap-2">
-            <input type="radio" name="sh-sp-weekly" value="1" class="rounded border-slate-300">
-            Evet
-          </label>
-          <label class="inline-flex items-center gap-2">
-            <input type="radio" name="sh-sp-weekly" value="0" class="rounded border-slate-300" checked>
-            Hayır
-          </label>
-        </div>
-        <button type="button" id="sh-sp-save" class="w-full rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-500">
-          Kaydet
-        </button>
-      </div>
+        </li>
+        <li>
+          <span class="sh-sp-step-n">2</span>
+          <div class="sh-sp-field">
+            <span>Tarih seç</span>
+            <div id="sh-sp-cal" class="sh-sp-cal"></div>
+            <p id="sh-sp-picked" class="sh-sp-hint"></p>
+          </div>
+        </li>
+        <li>
+          <span class="sh-sp-step-n">3</span>
+          <div class="sh-sp-field">
+            <span>Bu günlerde</span>
+            <div class="sh-sp-radios">
+              <label><input type="radio" name="sh-sp-mode" value="work" checked> Çalışsın</label>
+              <label><input type="radio" name="sh-sp-mode" value="avoid"> Çalışmasın</label>
+            </div>
+          </div>
+        </li>
+        <li>
+          <span class="sh-sp-step-n">4</span>
+          <div class="sh-sp-field">
+            <span>Her hafta tekrarlasın mı?</span>
+            <div class="sh-sp-radios">
+              <label><input type="radio" name="sh-sp-weekly" value="1"> Evet</label>
+              <label><input type="radio" name="sh-sp-weekly" value="0" checked> Hayır</label>
+            </div>
+          </div>
+        </li>
+      </ol>
+      <button type="button" id="sh-sp-save" class="sh-sp-save">Kaydet</button>
     </div>
   </div>
 
@@ -147,20 +153,175 @@
   .sh-cell { cursor: pointer; min-width: 28px; }
   .sh-cell:hover { outline: 2px solid rgb(99 102 241); outline-offset: -2px; }
   .sh-tot { font-weight: 800; font-variant-numeric: tabular-nums; }
-  .sh-sp-day {
-    border-radius: 0.5rem;
-    border: 1px solid rgb(226 232 240);
-    padding: 0.35rem 0;
-    cursor: pointer;
-    font-weight: 700;
+  .sh-sp-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.45);
   }
-  html.dark .sh-sp-day { border-color: rgb(63 63 70); }
+  .sh-sp-overlay.is-open { display: flex; }
+  .sh-sp-panel {
+    width: min(420px, 100%);
+    max-height: min(85vh, 640px);
+    overflow: auto;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 20px 50px rgba(0,0,0,.25);
+    padding: 1rem 1.1rem 1.15rem;
+  }
+  html.dark .sh-sp-panel, html.charcoal .sh-sp-panel { background: #18181b; color: #e4e4e7; }
+  .sh-sp-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .sh-sp-panel-head h3 { margin: 0; font-size: 1rem; font-weight: 800; }
+  .sh-sp-x {
+    border: 0;
+    background: transparent;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.5rem;
+  }
+  .sh-sp-x:hover { background: #f1f5f9; }
+  html.dark .sh-sp-x:hover { background: #27272a; }
+  .sh-sp-steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+  .sh-sp-steps > li {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr;
+    gap: 0.55rem;
+    align-items: start;
+  }
+  .sh-sp-step-n {
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 999px;
+    background: #7c3aed;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.15rem;
+  }
+  .sh-sp-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+  }
+  .sh-sp-field select {
+    width: 100%;
+    border-radius: 0.55rem;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #0f172a;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+  html.dark .sh-sp-field select {
+    border-color: transparent;
+    background: #27272a;
+    color: #e4e4e7;
+  }
+  .sh-sp-radios {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    color: #0f172a;
+  }
+  html.dark .sh-sp-radios { color: #e4e4e7; }
+  .sh-sp-radios label { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+  .sh-sp-cal {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.25rem;
+    text-align: center;
+  }
+  .sh-sp-cal-hd {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #94a3b8;
+    padding: 0.2rem 0;
+  }
+  .sh-sp-day {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 1.85rem;
+    border-radius: 0.45rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    padding: 0.2rem 0;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  html.dark .sh-sp-day {
+    border-color: #3f3f46;
+    background: #27272a;
+    color: #e4e4e7;
+  }
   .sh-sp-day.is-picked {
-    background: rgb(139 92 246);
-    color: white;
+    background: #7c3aed;
+    color: #fff;
     border-color: transparent;
   }
-  .sh-sp-day.is-muted { opacity: 0.35; pointer-events: none; }
+  .sh-sp-day.is-muted {
+    opacity: 0.3;
+    pointer-events: none;
+    border-color: transparent;
+    background: transparent;
+  }
+  .sh-sp-hint {
+    margin: 0;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+    color: #64748b;
+  }
+  .sh-sp-save {
+    margin-top: 1rem;
+    width: 100%;
+    border: 0;
+    border-radius: 0.65rem;
+    background: #7c3aed;
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 800;
+    padding: 0.55rem 0.75rem;
+    cursor: pointer;
+  }
+  .sh-sp-save:hover { background: #6d28d9; }
 </style>
 
 <script>
@@ -174,6 +335,7 @@
     special: {},
     grid: {},
     last: null,
+    variant: 0,
   };
   var LS_LEAVES = 'sheet_ayilma_leaves_v2';
   var LS_SPECIAL = 'sheet_ayilma_special_v1';
@@ -293,11 +455,11 @@
     var days = buildDays(state.year, state.month);
     var labels = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
     var html = labels.map(function (l) {
-      return '<div class="text-[10px] font-semibold text-slate-400 py-1">' + l + '</div>';
+      return '<div class="sh-sp-cal-hd">' + l + '</div>';
     }).join('');
     var firstWd = days[0].weekday;
     for (var i = 0; i < firstWd; i++) {
-      html += '<div class="sh-sp-day is-muted"> </div>';
+      html += '<div class="sh-sp-day is-muted">&nbsp;</div>';
     }
     days.forEach(function (dm) {
       var picked = !!spDraft.dates[dm.iso];
@@ -327,7 +489,7 @@
     if (!meta || !syncMonthFromInputs()) return;
     var sel = $('sh-sp-name');
     if (sel) {
-      sel.innerHTML = (meta.staff || []).map(function (n) {
+      sel.innerHTML = '<option value="">— kişi seç —</option>' + (meta.staff || []).map(function (n) {
         return '<option value="' + n + '">' + n + '</option>';
       }).join('');
     }
@@ -339,28 +501,32 @@
     renderSpecialCalendar();
     var modal = $('sh-special-modal');
     if (modal) {
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
+      modal.hidden = false;
+      modal.classList.add('is-open');
     }
   }
 
   function closeSpecialModal() {
     var modal = $('sh-special-modal');
     if (modal) {
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
+      modal.classList.remove('is-open');
+      modal.hidden = true;
     }
   }
 
   function saveSpecialRule() {
     var nameEl = $('sh-sp-name');
-    var name = nameEl ? nameEl.value : '';
+    var name = nameEl ? String(nameEl.value || '').trim() : '';
     var modeEl = document.querySelector('input[name="sh-sp-mode"]:checked');
     var weeklyEl = document.querySelector('input[name="sh-sp-weekly"]:checked');
     var mode = modeEl ? modeEl.value : 'work';
     var weekly = weeklyEl ? weeklyEl.value === '1' : false;
     var dates = Object.keys(spDraft.dates).sort();
-    if (!name || !dates.length) return;
+    if (!name) {
+      if (nameEl) nameEl.focus();
+      return;
+    }
+    if (!dates.length) return;
     specialForMonth().push({
       id: String(Date.now()) + '-' + Math.random().toString(16).slice(2, 8),
       name: name,
@@ -417,6 +583,9 @@
     });
     var sum = $('sh-summary');
     if (sum) { sum.classList.add('hidden'); sum.innerHTML = ''; }
+    var regen = $('sh-regenerate');
+    if (regen) regen.classList.add('hidden');
+    state.variant = 0;
     updateConstraintCount();
     renderTable();
   }
@@ -551,13 +720,17 @@
     return state.leaves[monthKey()] || {};
   }
 
-  function generate() {
+  function generate(opts) {
+    opts = opts || {};
     if (!syncMonthFromInputs()) {
       setActionMsg('Ay seçilemedi.', false);
       return;
     }
-    var btn = $('sh-generate');
-    if (btn) { btn.disabled = true; btn.textContent = 'Oluşturuluyor…'; }
+    if (opts.fresh) state.variant = 0;
+    else if (opts.reroll) state.variant = (state.variant || 0) + 1;
+    var btn = opts.reroll ? $('sh-regenerate') : $('sh-generate');
+    var regen = $('sh-regenerate');
+    if (btn) { btn.disabled = true; btn.textContent = opts.reroll ? 'Yeniden…' : 'Oluşturuluyor…'; }
     var dayOnly = [];
     var leaves = collectLeavesPayload();
     var special_rules = specialForMonth().map(function (r) {
@@ -574,17 +747,21 @@
         day_only: dayOnly,
         prefer_48h_after_24: !!( $('sh-prefer-48') && $('sh-prefer-48').checked ),
         special_rules: special_rules,
+        variant: state.variant || 0,
       }),
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (x) {
         if (!x.ok) throw new Error((x.d && x.d.detail) || 'Hata');
         renderFromServer(x.d);
+        if (regen) regen.classList.remove('hidden');
       })
       .catch(function (_err) {
       })
       .finally(function () {
-        if (btn) { btn.disabled = false; btn.textContent = 'Çizelgeyi oluştur'; }
+        var gBtn = $('sh-generate');
+        if (gBtn) { gBtn.disabled = false; gBtn.textContent = 'Çizelgeyi oluştur'; }
+        if (regen) { regen.disabled = false; regen.textContent = 'Yeniden oluştur'; }
       });
   }
 
@@ -739,7 +916,9 @@
     .catch(function () {});
 
   var g = $('sh-generate');
-  if (g) g.addEventListener('click', generate);
+  if (g) g.addEventListener('click', function () { generate({ fresh: true }); });
+  var rg = $('sh-regenerate');
+  if (rg) rg.addEventListener('click', function () { generate({ reroll: true }); });
   var c = $('sh-clear-work');
   if (c) c.addEventListener('click', clearWorkKeepLeaves);
   var dl = $('sh-download');

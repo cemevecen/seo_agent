@@ -450,3 +450,21 @@ def test_special_work_prefers_selected_days():
     ]
     assert any(c in ("8", "16", "24") for c in codes), codes
 
+
+def test_variant_can_differ():
+    a = generate_ayilma_schedule(2026, 9, variant=0)
+    b = generate_ayilma_schedule(2026, 9, variant=1)
+    cells_a = {r["name"]: r["cells"] for r in a["rows"] if r["role"] == "staff"}
+    cells_b = {r["name"]: r["cells"] for r in b["rows"] if r["role"] == "staff"}
+    assert a["variant"] == 0 and b["variant"] == 1
+    # En az bir günde farklı atama beklenir (eşitlikte farklı aday)
+    differ = False
+    for name in cells_a:
+        for iso, code in cells_a[name].items():
+            if cells_b[name].get(iso) != code:
+                differ = True
+                break
+        if differ:
+            break
+    assert differ
+

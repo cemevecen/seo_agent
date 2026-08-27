@@ -41,6 +41,7 @@ class GenerateBody(BaseModel):
     day_only: list[str] = Field(default_factory=list)
     prefer_48h_after_24: bool = True
     special_rules: list[SpecialRuleBody] = Field(default_factory=list)
+    variant: int = Field(0, ge=0, le=9999)
 
 
 class ExportBody(BaseModel):
@@ -68,6 +69,7 @@ def sheet_ayilma_generate(request: Request, body: GenerateBody) -> dict[str, Any
             day_only=body.day_only,
             prefer_48h_after_24=body.prefer_48h_after_24,
             special_rules=rules,
+            variant=body.variant,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

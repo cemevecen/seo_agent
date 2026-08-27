@@ -13,6 +13,7 @@ Hücre kodları (örnek SSE ile uyumlu):
 from __future__ import annotations
 
 import calendar
+import random
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -430,6 +431,7 @@ def generate_ayilma_schedule(
     day_only: list[str] | None = None,
     prefer_48h_after_24: bool = True,
     special_rules: list[dict[str, Any]] | None = None,
+    variant: int = 0,
 ) -> dict[str, Any]:
     """6 personel + sorumlu.
 
@@ -442,6 +444,7 @@ def generate_ayilma_schedule(
     Gün aşırı zinciri en fazla 3×24; izin yoğun haftada gevşer.
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
     Özel koşul: çalışmasın (sert) / çalışsın (yumuşak tercih).
+    variant>0 → eşitlikte farklı aday seç (yeniden oluştur).
     """
     if not (1 <= month <= 12):
         raise ValueError("month 1–12 olmalı")
@@ -453,6 +456,12 @@ def generate_ayilma_schedule(
     _apply_leaves(grid, leaves)
     day_only_set = {str(x).strip() for x in (day_only or []) if str(x).strip()}
     prefer_work, force_avoid = resolve_special_day_sets(year, month, special_rules)
+    rng = random.Random((year * 100 + month) * 10007 + int(variant or 0))
+    # variant>0 iken kişi başına sabit tie-break (sıralamada her karşılaştırmada yeni random üretme)
+    person_tie = {n: (rng.random() if variant else 0.0) for n in STAFF_NURSES}
+
+    def _tie(n: str) -> float:
+        return person_tie[n]
 
     # Gülten: yalnız hafta içi 8; hafta sonu yazma
     for dm in days:
@@ -524,6 +533,7 @@ def generate_ayilma_schedule(
                 after24,
                 n8[n],
                 break24,
+                _tie(n),
                 n,
             )
 
@@ -546,6 +556,7 @@ def generate_ayilma_schedule(
                 gun,
                 behind,
                 n24[n],
+                _tie(n),
                 n,
             )
 
@@ -1359,6 +1370,7 @@ def generate_ayilma_schedule(
             "work": {n: sorted(prefer_work[n]) for n in STAFF_NURSES if prefer_work[n]},
             "avoid": {n: sorted(force_avoid[n]) for n in STAFF_NURSES if force_avoid[n]},
         },
+        "variant": int(variant or 0),
         "legend": {
             "8": "08:00–16:00 (6 kişiye dağıtılır)",
             "16": "16:00–08:00 (son çare)",
