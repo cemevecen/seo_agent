@@ -25,19 +25,6 @@
             Mesaiyi temizle
           </button>
         </div>
-        <div class="sh-export-row">
-          <label class="sh-fluid-label font-semibold uppercase tracking-wide text-slate-400">
-            İndirme formatı
-            <select id="sh-export-format" class="sh-fluid-select mt-0.5 block w-full rounded-lg border border-slate-200 bg-white font-bold text-slate-900 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-100">
-              <option value="xlsx">Excel (.xlsx) — Windows / Android</option>
-              <option value="csv">CSV (.csv) — virgülle ayrılmış, Excel / Sheets</option>
-              <option value="docx">Word (.docx) — Windows / Android</option>
-            </select>
-          </label>
-          <button type="button" id="sh-download" class="sh-btn rounded-lg border border-emerald-300 bg-emerald-50 font-semibold text-emerald-800 hover:bg-emerald-100 active:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/70">
-            İndir
-          </button>
-        </div>
       </div>
     </div>
 
@@ -117,12 +104,6 @@
 
   <div id="sh-summary" class="hidden grid gap-2 sm:grid-cols-2 lg:grid-cols-3"></div>
 
-  <div id="sh-regenerate-bar" class="sh-regenerate-bar hidden" aria-hidden="true">
-    <button type="button" id="sh-regenerate" class="sh-btn sh-regenerate-btn rounded-xl border-2 border-indigo-400 bg-indigo-600 font-bold text-white shadow-sm hover:bg-indigo-500 active:bg-indigo-700 dark:border-indigo-500 dark:bg-indigo-700 dark:hover:bg-indigo-600">
-      Yeniden oluştur
-    </button>
-  </div>
-
   <div class="sh-table-shell overflow-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
     <div class="sh-legend flex flex-wrap border-b border-slate-100 font-semibold dark:border-zinc-800">
       <span class="rounded bg-sky-100 px-1.5 py-0.5 text-sky-800 dark:bg-sky-950 dark:text-sky-200">İST istek</span>
@@ -133,6 +114,27 @@
       <thead id="sh-head"></thead>
       <tbody id="sh-body"></tbody>
     </table>
+  </div>
+
+  <div class="sh-table-footer sh-card rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
+    <div id="sh-regenerate-bar" class="sh-regenerate-bar hidden" aria-hidden="true">
+      <button type="button" id="sh-regenerate" class="sh-btn sh-regenerate-btn rounded-xl border-2 border-indigo-400 bg-indigo-600 font-bold text-white shadow-sm hover:bg-indigo-500 active:bg-indigo-700 dark:border-indigo-500 dark:bg-indigo-700 dark:hover:bg-indigo-600">
+        Yeniden oluştur
+      </button>
+    </div>
+    <div class="sh-export-row">
+      <label class="sh-fluid-label font-semibold uppercase tracking-wide text-slate-400">
+        İndirme formatı
+        <select id="sh-export-format" class="sh-fluid-select mt-0.5 block w-full rounded-lg border border-slate-200 bg-white font-bold text-slate-900 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-100">
+          <option value="xlsx">Excel (.xlsx) — Windows / Android</option>
+          <option value="csv">CSV (.csv) — virgülle ayrılmış, Excel / Sheets</option>
+          <option value="docx">Word (.docx) — Windows / Android</option>
+        </select>
+      </label>
+      <button type="button" id="sh-download" class="sh-btn rounded-lg border border-emerald-300 bg-emerald-50 font-semibold text-emerald-800 hover:bg-emerald-100 active:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/70">
+        İndir
+      </button>
+    </div>
   </div>
 </div>
 
@@ -282,7 +284,13 @@
     font-weight: 600;
     opacity: 0.72;
   }
-  #sheet-page .sh-regenerate-bar { margin-bottom: 0.15rem; }
+  #sheet-page .sh-table-footer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sh-gap-sm);
+    margin-top: var(--sh-gap-sm);
+  }
+  #sheet-page .sh-regenerate-bar { margin: 0; }
   #sheet-page .sh-regenerate-bar:not(.hidden) { display: block; }
   #sheet-page .sh-regenerate-btn {
     width: 100%;
