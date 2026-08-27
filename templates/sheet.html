@@ -561,7 +561,16 @@
   .sh-sp-day.is-picked {
     background: #7c3aed;
     color: #fff;
-    border-color: transparent;
+    border-color: #6d28d9;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.35);
+  }
+  .sh-sp-cal.is-locked .sh-sp-day[data-iso] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .sh-sp-cal:not(.is-locked) .sh-sp-day[data-iso]:active {
+    transform: scale(0.96);
   }
   .sh-sp-day.is-muted {
     opacity: 0.3;
@@ -629,7 +638,12 @@
   .sh-sp-save:hover { background: #6d28d9; }
   body.sh-modal-open {
     overflow: hidden;
-    touch-action: none;
+  }
+  .sh-sp-panel,
+  .sh-sp-panel .sh-sp-day,
+  .sh-sp-panel select,
+  .sh-sp-panel .sh-sp-save {
+    touch-action: manipulation;
   }
   #sheet-page .sh-btn-inline {
     touch-action: manipulation;
@@ -659,6 +673,40 @@
   var LS_SPECIAL = 'sheet_ayilma_special_v1';
   var CONSTRAINT_CYCLE = ['', 'İST', 'Yİ', 'RP'];
   var spDraft = { dates: {} };
+  var spCalBound = false;
+
+  function specialPersonSelected() {
+    var sel = $('sh-sp-name');
+    return !!(sel && String(sel.value || '').trim());
+  }
+
+  function updateSpCalendarLock() {
+    var cal = $('sh-sp-cal');
+    if (cal) cal.classList.toggle('is-locked', !specialPersonSelected());
+    updateSpPickedLabel();
+  }
+
+  function bindSpecialCalendar() {
+    if (spCalBound) return;
+    var cal = $('sh-sp-cal');
+    if (!cal) return;
+    spCalBound = true;
+    cal.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.sh-sp-day[data-iso]');
+      if (!btn || btn.classList.contains('is-muted')) return;
+      if (!specialPersonSelected()) {
+        ev.preventDefault();
+        return;
+      }
+      ev.preventDefault();
+      ev.stopPropagation();
+      var iso = btn.getAttribute('data-iso');
+      if (!iso) return;
+      if (spDraft.dates[iso]) delete spDraft.dates[iso];
+      else spDraft.dates[iso] = true;
+      renderSpecialCalendar();
+    });
+  }
 
   function $(id) { return document.getElementById(id); }
 
@@ -790,6 +838,7 @@
   function renderSpecialCalendar() {
     var cal = $('sh-sp-cal');
     if (!cal || !state.year || !state.month) return;
+    bindSpecialCalendar();
     var days = buildDays(state.year, state.month);
     var labels = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
     var html = labels.map(function (l) {
@@ -801,24 +850,19 @@
     }
     days.forEach(function (dm) {
       var picked = !!spDraft.dates[dm.iso];
-      html += '<button type="button" class="sh-sp-day' + (picked ? ' is-picked' : '') + '" data-iso="' + dm.iso + '">' + dm.day + '</button>';
+      html += '<button type="button" class="sh-sp-day' + (picked ? ' is-picked' : '') + '" data-iso="' + dm.iso + '" aria-pressed="' + (picked ? 'true' : 'false') + '">' + dm.day + '</button>';
     });
     cal.innerHTML = html;
-    cal.querySelectorAll('.sh-sp-day[data-iso]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var iso = btn.getAttribute('data-iso');
-        if (spDraft.dates[iso]) delete spDraft.dates[iso];
-        else spDraft.dates[iso] = true;
-        renderSpecialCalendar();
-        updateSpPickedLabel();
-      });
-    });
-    updateSpPickedLabel();
+    updateSpCalendarLock();
   }
 
   function updateSpPickedLabel() {
     var el = $('sh-sp-picked');
     if (!el) return;
+    if (!specialPersonSelected()) {
+      el.textContent = 'Önce kişi seçin';
+      return;
+    }
     var n = Object.keys(spDraft.dates).length;
     el.textContent = n ? (n + ' gün seçildi') : 'Gün seçilmedi';
   }
@@ -836,6 +880,7 @@
     var noWk = document.querySelector('input[name="sh-sp-weekly"][value="0"]');
     if (work) work.checked = true;
     if (noWk) noWk.checked = true;
+    bindSpecialCalendar();
     renderSpecialCalendar();
     var modal = $('sh-special-modal');
     if (modal) {
@@ -1305,6 +1350,8 @@
   if (om) om.addEventListener('click', applyMonthFromInput);
   var spo = $('sh-special-open');
   if (spo) spo.addEventListener('click', openSpecialModal);
+  var spName = $('sh-sp-name');
+  if (spName) spName.addEventListener('change', updateSpCalendarLock);
   var spc = $('sh-special-close');
   if (spc) spc.addEventListener('click', closeSpecialModal);
   var sps = $('sh-sp-save');
