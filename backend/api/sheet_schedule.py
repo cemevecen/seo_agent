@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -18,6 +19,7 @@ from backend.services.ayilma_schedule import (
 from backend.services.sheet_page_access import is_sheet_page_allowed_email
 
 router = APIRouter(tags=["sheet"])
+LOGGER = logging.getLogger(__name__)
 
 
 def _require_sheet(request: Request) -> None:
@@ -62,7 +64,69 @@ def _export_attachment(body: ExportBody) -> tuple[int, int, list, list]:
     return body.year, body.month, body.days, body.rows
 
 
-def _export_response(data: bytes, fname: str, media_type: str) -> Response:
+def _archive_export(
+    request: Request,
+    *,
+    export_format: str,
+    filename: str,
+    content: bytes,
+    media_type: str,
+    year: int,
+    month: int,
+) -> None:
+    try:
+        from backend.database import SessionLocal
+        from backend.main import _extract_client_ip, _local_panel_open
+        from backend.services import report_export_archive as rea
+        from backend.services.app_member_auth import member_from_request
+
+        member = member_from_request(request)
+        if member is not None:
+            actor_email = member.email or ""
+            actor_name = member.display_name or ""
+        elif _local_panel_open(request):
+            actor_email = "local@panel"
+            actor_name = "Yerel panel"
+        else:
+            actor_email = ""
+            actor_name = ""
+
+        with SessionLocal() as db:
+            rea.save_export(
+                db,
+                report_kind="sheet_ayilma",
+                export_format=export_format,
+                filename=filename,
+                content=content,
+                media_type=media_type,
+                actor_email=actor_email,
+                actor_display_name=actor_name,
+                client_ip=_extract_client_ip(request),
+                meta={"year": year, "month": month},
+            )
+    except Exception:
+        LOGGER.exception("sheet export archive failed")
+
+
+def _export_response(
+    request: Request,
+    data: bytes,
+    fname: str,
+    media_type: str,
+    *,
+    export_format: str,
+    year: int,
+    month: int,
+) -> Response:
+    _archive_export(
+        request,
+        export_format=export_format,
+        filename=fname,
+        content=data,
+        media_type=media_type,
+        year=year,
+        month=month,
+    )
     return Response(
         content=data,
         media_type=media_type,
@@ -105,9 +169,13 @@ def sheet_ayilma_export_xlsx(request: Request, body: ExportBody) -> Response:
     data = build_ayilma_xlsx_bytes(year=year, month=month, days=days, rows=rows)
     fname = f"ayilma_cizelge_{year}-{month:02d}.xlsx"
     return _export_response(
+        request,
         data,
         fname,
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        export_format="xlsx",
+        year=year,
+        month=month,
     )
 
 
@@ -118,7 +186,15 @@ def sheet_ayilma_export_csv(request: Request, body: ExportBody) -> Response:
     year, month, days, rows = _export_attachment(body)
     data = build_ayilma_csv_bytes(year=year, month=month, days=days, rows=rows)
     fname = f"ayilma_cizelge_{year}-{month:02d}.csv"
-    return _export_response(data, fname, "text/csv; charset=utf-8")
+    return _export_response(
+        request,
+        data,
+        fname,
+        "text/csv; charset=utf-8",
+        export_format="csv",
+        year=year,
+        month=month,
+    )
 
 
 @router.post("/sheet/ayilma/export.docx")
@@ -129,7 +205,11 @@ def sheet_ayilma_export_docx(request: Request, body: ExportBody) -> Response:
     data = build_ayilma_docx_bytes(year=year, month=month, days=days, rows=rows)
     fname = f"ayilma_cizelge_{year}-{month:02d}.docx"
     return _export_response(
+        request,
         data,
         fname,
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        export_format="docx",
+        year=year,
+        month=month,
     )

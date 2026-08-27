@@ -1064,6 +1064,30 @@ class PolicyCSVUpload(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class ReportExportArchive(Base):
+    """Kullanıcı indirdiği rapor — 7 gün Settings'te (yalnızca cemevecen allowlist)."""
+
+    __tablename__ = "report_export_archives"
+    __table_args__ = (
+        Index("ix_report_export_downloaded_at", "downloaded_at"),
+        Index("ix_report_export_expires_at", "expires_at"),
+        Index("ix_report_export_actor_email", "actor_email"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    report_kind: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    export_format: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    filename: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    media_type: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    actor_email: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    actor_display_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    client_ip: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    meta_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    downloaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
 # ── AI Talk ───────────────────────────────────────────────────────────────────
 
 class AiTalkHistory(Base):

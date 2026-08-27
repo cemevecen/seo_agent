@@ -102,6 +102,38 @@
         {% endif %}
       </div>
       <p id="settings-visit-logs-empty" class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"{% if visit_logs is defined and visit_logs %} hidden{% endif %}>No sessions yet. Rows appear only after a real Google sign-in.</p>
+
+      <div class="mt-6 border-t border-slate-200 pt-4 dark:border-slate-700">
+        <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">İndirilen raporlar</h4>
+          <span class="text-[11px] text-slate-400 dark:text-slate-500">Son 7 gün · kim indirdi · yalnızca bu ayarlar ekranı</span>
+        </div>
+        <div id="settings-report-exports" class="space-y-2"{% if not (report_exports is defined and report_exports) %} hidden{% endif %}>
+          {% for ex in report_exports or [] %}
+          <div class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900/40" data-export-id="{{ ex.id }}">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-semibold text-slate-800 dark:text-slate-200">{{ ex.report_label }}</span>
+              <span class="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{{ ex.export_format }}</span>
+              {% if ex.meta and ex.meta.month %}
+              <span class="text-slate-500 dark:text-slate-400">{{ ex.meta.year }}-{{ '%02d'|format(ex.meta.month) }}</span>
+              {% endif %}
+              <a href="/api/settings/report-exports/{{ ex.id }}/download" class="ml-auto rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">İndir</a>
+            </div>
+            <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-slate-600 dark:text-slate-300">
+              <span>{{ ex.who }}</span>
+              {% if ex.actor_email and ex.actor_email != ex.who %}
+              <span class="text-slate-500 dark:text-slate-400">{{ ex.actor_email }}</span>
+              {% endif %}
+              <span class="text-slate-400 dark:text-slate-500">{{ ex.client_ip }}</span>
+            </div>
+            <div class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              İndirildi {{ ex.downloaded_at_tr }} · silinir {{ ex.expires_at_tr }}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <p id="settings-report-exports-empty" class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"{% if report_exports is defined and report_exports %} hidden{% endif %}>Henüz arşivlenmiş rapor yok. Sheet’ten xlsx/csv/docx indirildiğinde burada görünür.</p>
+      </div>
     </div>
   </details>
   {% endif %}
@@ -1000,11 +1032,84 @@
         })
         .catch(function () {});
     }
+    function renderReportExports(items) {
+      var box = document.getElementById("settings-report-exports");
+      var empty = document.getElementById("settings-report-exports-empty");
+      if (!items || !items.length) {
+        if (box) {
+          box.innerHTML = "";
+          box.hidden = true;
+        }
+        if (empty) empty.hidden = false;
+        return;
+      }
+      if (empty) empty.hidden = true;
+      if (!box) return;
+      box.hidden = false;
+      var hideId = meetingModeOn();
+      box.innerHTML = items
+        .map(function (ex) {
+          var who = hideId ? "Team member" : ex.who || "—";
+          var emailHtml =
+            !hideId && ex.actor_email && ex.actor_email !== who
+              ? '<span class="text-slate-500 dark:text-slate-400">' + esc(ex.actor_email) + "</span>"
+              : "";
+          var period =
+            ex.meta && ex.meta.year && ex.meta.month
+              ? '<span class="text-slate-500 dark:text-slate-400">' +
+                esc(ex.meta.year) +
+                "-" +
+                esc(String(ex.meta.month).padStart(2, "0")) +
+                "</span>"
+              : "";
+          return (
+            '<div class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900/40" data-export-id="' +
+            esc(ex.id) +
+            '"><div class="flex flex-wrap items-center gap-2"><span class="font-semibold text-slate-800 dark:text-slate-200">' +
+            esc(ex.report_label || "Rapor") +
+            '</span><span class="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">' +
+            esc(ex.export_format || "") +
+            "</span>" +
+            period +
+            '<a href="/api/settings/report-exports/' +
+            esc(ex.id) +
+            '/download" class="ml-auto rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">İndir</a></div><div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-slate-600 dark:text-slate-300"><span>' +
+            esc(who) +
+            "</span>" +
+            emailHtml +
+            '<span class="text-slate-400 dark:text-slate-500">' +
+            esc(ex.client_ip || "") +
+            '</span></div><div class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">İndirildi ' +
+            esc(ex.downloaded_at_tr || "") +
+            " · silinir " +
+            esc(ex.expires_at_tr || "") +
+            "</div></div>"
+          );
+        })
+        .join("");
+    }
+    function refreshReportExports() {
+      fetch("/api/settings/report-exports", { credentials: "same-origin" })
+        .then(function (r) {
+          if (!r.ok) return null;
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          renderReportExports(data.exports || []);
+        })
+        .catch(function () {});
+    }
     document.addEventListener("DOMContentLoaded", function () {
       refreshActivityLogs();
+      refreshReportExports();
       window.setInterval(refreshActivityLogs, 20000);
+      window.setInterval(refreshReportExports, 20000);
       window.addEventListener("storage", function (ev) {
-        if (ev.key === "seo-meeting-mode") refreshActivityLogs();
+        if (ev.key === "seo-meeting-mode") {
+          refreshActivityLogs();
+          refreshReportExports();
+        }
       });
     });
   })();

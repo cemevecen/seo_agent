@@ -184,12 +184,16 @@ def get_db():
 
 def ensure_auth_log_tables_ready() -> None:
     """Settings ziyaret / giriş log tabloları — deploy sonrası ilk OAuth'tan önce hazır olsun."""
-    from backend.models import AdminLoginEvent, PanelVisitLog
+    from backend.models import AdminLoginEvent, PanelVisitLog, ReportExportArchive
 
     try:
         Base.metadata.create_all(
             bind=engine,
-            tables=[AdminLoginEvent.__table__, PanelVisitLog.__table__],
+            tables=[
+                AdminLoginEvent.__table__,
+                PanelVisitLog.__table__,
+                ReportExportArchive.__table__,
+            ],
         )
         with engine.connect() as conn:
             _ensure_auth_log_columns(conn)

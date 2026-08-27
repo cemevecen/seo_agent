@@ -13898,6 +13898,44 @@ def api_settings_activity_logs(request: Request):
     )
 
 
+@app.get("/api/settings/report-exports")
+def api_settings_report_exports(request: Request):
+    """Settings — son 7 gün indirilen raporlar (yalnızca allowlist)."""
+    if not _is_settings_authenticated(request):
+        return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+    from backend.services import report_export_archive as rea
+    from fastapi.encoders import jsonable_encoder
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "exports": jsonable_encoder(rea.list_recent(limit=80)),
+            "retention_days": rea.RETENTION_DAYS,
+        }
+    )
+
+
+@app.get("/api/settings/report-exports/{export_id}/download")
+def api_settings_report_export_download(request: Request, export_id: int):
+    """Settings — arşivlenmiş raporu yeniden indir (yalnızca allowlist)."""
+    if not _is_settings_authenticated(request):
+        return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+    from backend.services import report_export_archive as rea
+
+    got = rea.get_export_bytes(export_id)
+    if got is None:
+        raise HTTPException(status_code=404, detail="Rapor bulunamadı veya süresi doldu.")
+    data, fname, media_type = got
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{fname}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @app.get("/settings")
 def settings_page(request: Request):
     # Settings ekranı site yönetimi arayüzünü gösterir.
@@ -13908,11 +13946,18 @@ def settings_page(request: Request):
         admin_password_configured = _admin_password_configured(db)
         membership_admin = _is_membership_admin(request)
         visit_logs: list = []
+        report_exports: list = []
         if admin_password_configured:
             try:
                 visit_logs = pvl.recent_visits(limit=80, auth_only=True)
             except Exception:
                 LOGGER.exception("settings visit_logs")
+            try:
+                from backend.services import report_export_archive as rea
+
+                report_exports = rea.list_recent(limit=80)
+            except Exception:
+                LOGGER.exception("settings report_exports")
         payload = {
             "site_name": "Settings",
             "sites": get_sidebar_sites(),
@@ -13922,6 +13967,7 @@ def settings_page(request: Request):
             "oauth_redirect_uri": settings.google_oauth_redirect_uri,
             "admin_password_configured": admin_password_configured,
             "visit_logs": visit_logs,
+            "report_exports": report_exports,
             "membership_admin": membership_admin,
             "app_members": ama.member_list_payload(db) if membership_admin else [],
             "current_app_member": _app_member_from_request(request),
