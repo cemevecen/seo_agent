@@ -27,8 +27,9 @@ Geri dönüş (önceki uzun motor): tag `ayilma-calc-before-rollback-20260827`.
 | `GUN_ASIRI_STREAK_MAX` | 3 | Kati tavan; 4+ yok |
 | `CONSECUTIVE_8_STREAK_MAX` | 2 |
 
-## Not
+## Özel koşul
 
-UI özellikleri (özel koşul formu, variant, export csv/docx, yükleme animasyonu vb.) korunur.  
-`variant` → eşitlikte farklı aday («Yeniden oluştur»).  
-`special_rules` API’den gelir ama bu hesap tabanında kullanılmaz.
+- **Çalışsın** — seçilen günlerde o kişiye nöbet/8 tercihi  
+- **Çalışmasın** — seçilen günlerde atanmaz (sert)  
+- **Sabit vardiya** — takvimde güne basarak `8` / `16` / `24` pinlenir; çizelge buna uymak zorunda  
+- Haftalık tekrar: seçilen tarihin hafta günü ay boyunca tekrarlanır  

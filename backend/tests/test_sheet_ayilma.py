@@ -409,3 +409,23 @@ def test_variant_reroll_changes_schedule():
         }
 
     assert cells(a) != cells(b)
+
+
+def test_special_avoid_blocks_day():
+    rules = [{"name": "Emine Türker", "mode": "avoid", "dates": ["2026-09-10"], "weekly": False}]
+    out = generate_ayilma_schedule(2026, 9, special_rules=rules)
+    em = next(r for r in out["rows"] if r["name"] == "Emine Türker")
+    assert em["cells"]["2026-09-10"] == ""
+
+
+def test_special_pin_fixed_shifts():
+    rules = [{
+        "name": "Rabia Kumtepe",
+        "mode": "pin",
+        "shifts": {"2026-09-03": "8", "2026-09-05": "24"},
+        "weekly": False,
+    }]
+    out = generate_ayilma_schedule(2026, 9, special_rules=rules)
+    rab = next(r for r in out["rows"] if r["name"] == "Rabia Kumtepe")
+    assert rab["cells"]["2026-09-03"] == "8"
+    assert rab["cells"]["2026-09-05"] == "24"

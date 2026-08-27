@@ -366,6 +366,147 @@ def _staff_night_count(grid: dict[str, dict[str, str]], iso: str) -> int:
     return sum(1 for n in STAFF_NURSES if grid[n].get(iso, "") in ("16", "24"))
 
 
+def resolve_special_day_sets(
+    year: int,
+    month: int,
+    special_rules: list[dict[str, Any]] | None,
+) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    """Özel koşul → çalışsın / çalışmasın ISO kümeleri."""
+    work: dict[str, set[str]] = {n: set() for n in STAFF_NURSES}
+    avoid: dict[str, set[str]] = {n: set() for n in STAFF_NURSES}
+    if not special_rules:
+        return work, avoid
+    days = month_days(year, month)
+    by_weekday: dict[int, list[str]] = {}
+    for dm in days:
+        by_weekday.setdefault(dm.weekday, []).append(dm.iso)
+    iso_to_wd = {dm.iso: dm.weekday for dm in days}
+    month_isos = set(iso_to_wd)
+
+    for raw in special_rules:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if name not in STAFF_NURSES:
+            continue
+        mode = str(raw.get("mode") or "").strip().lower()
+        if mode in ("calissin", "çalışsın", "work"):
+            mode = "work"
+        elif mode in ("calismasin", "çalışmasın", "avoid"):
+            mode = "avoid"
+        else:
+            continue
+        dates_raw = raw.get("dates") or []
+        if not isinstance(dates_raw, list):
+            continue
+        picked = [str(x).strip() for x in dates_raw if str(x).strip()]
+        weekly = bool(raw.get("weekly"))
+        expanded: set[str] = set()
+        for iso in picked:
+            if weekly and iso in iso_to_wd:
+                expanded.update(by_weekday.get(iso_to_wd[iso], []))
+            elif iso in month_isos:
+                expanded.add(iso)
+        if mode == "work":
+            work[name] |= expanded
+        else:
+            avoid[name] |= expanded
+    for n in STAFF_NURSES:
+        clash = work[n] & avoid[n]
+        if clash:
+            work[n] -= clash
+    return work, avoid
+
+
+def resolve_special_pins(
+    year: int,
+    month: int,
+    special_rules: list[dict[str, Any]] | None,
+) -> dict[str, dict[str, str]]:
+    """Özel koşul → kişi/gün sabit vardiya (8/16/24)."""
+    pins: dict[str, dict[str, str]] = {n: {} for n in STAFF_NURSES}
+    if not special_rules:
+        return pins
+    days = month_days(year, month)
+    by_weekday: dict[int, list[str]] = {}
+    for dm in days:
+        by_weekday.setdefault(dm.weekday, []).append(dm.iso)
+    iso_to_wd = {dm.iso: dm.weekday for dm in days}
+    month_isos = set(iso_to_wd)
+
+    for raw in special_rules:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if name not in STAFF_NURSES:
+            continue
+        mode = str(raw.get("mode") or "").strip().lower()
+        if mode not in ("pin", "shift", "sabit", "vardiya", "fixed"):
+            continue
+        weekly = bool(raw.get("weekly"))
+        shifts_raw = raw.get("shifts")
+        pairs: list[tuple[str, str]] = []
+        if isinstance(shifts_raw, dict):
+            for iso, code in shifts_raw.items():
+                nc = _norm_code(code)
+                if nc in WORK_CODES and str(iso).strip() in month_isos:
+                    pairs.append((str(iso).strip(), nc))
+        else:
+            code = _norm_code(raw.get("code"))
+            if code not in WORK_CODES:
+                continue
+            dates_raw = raw.get("dates") or []
+            if not isinstance(dates_raw, list):
+                continue
+            for iso in dates_raw:
+                s = str(iso).strip()
+                if s in month_isos:
+                    pairs.append((s, code))
+        for iso, code in pairs:
+            targets = (
+                by_weekday.get(iso_to_wd[iso], [])
+                if weekly and iso in iso_to_wd
+                else [iso]
+            )
+            for t in targets:
+                pins[name][t] = code
+    return pins
+
+
+def _apply_special_pins(
+    grid: dict[str, dict[str, str]],
+    pins: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n16: dict[str, int],
+    n24: dict[str, int],
+) -> None:
+    """İzin hücresini ezmeden sabit 8/16/24 yaz."""
+    for name, by_day in pins.items():
+        for iso, code in by_day.items():
+            cur = grid[name].get(iso, "")
+            if cur in LEAVE_CODES:
+                continue
+            if cur in WORK_CODES:
+                # Önceki pin / iş — üzerine yaz
+                h = _hours_for(cur)
+                hours[name] -= h
+                if cur == "8":
+                    n8[name] -= 1
+                elif cur == "16":
+                    n16[name] -= 1
+                elif cur == "24":
+                    n24[name] -= 1
+            grid[name][iso] = code
+            hours[name] += _hours_for(code)
+            if code == "8":
+                n8[name] += 1
+            elif code == "16":
+                n16[name] += 1
+            elif code == "24":
+                n24[name] += 1
+
+
 def generate_ayilma_schedule(
     year: int,
     month: int,
@@ -378,19 +519,18 @@ def generate_ayilma_schedule(
 ) -> dict[str, Any]:
     """6 personel + sorumlu.
 
-    Hesap motoru: aa3ee655 (2026-08-26 21:40) tabanı.
+    Hesap motoru: aa3ee655 (2026-08-26 21:40) tabanı + özel koşul.
     variant>0 → eşitlikte farklı aday (Yeniden oluştur).
-    special_rules API uyumu için kabul edilir (bu sürümde hesapta kullanılmaz).
+    special_rules: çalışsın / çalışmasın / sabit vardiya (8/16/24).
 
     Gülten panelde boş satır; hesaba karışmaz.
     Hafta içi: mümkünse 1×«8» + 2×«24». Hafta sonu: yalnız 2×«24» (kat-1 / 8 yok).
     Yİ/RP bitişinin ertesi günü o kişiye nöbet (24) tercih.
     Düz «8» kişi başı aylık ~2–4 (hedef 3). Fazla mesai personelde aynı ~16s bantta.
     Üst üste «8» kaçınılır; mecbur kalınırsa en fazla 2 gün.
-    Gün aşırı zinciri en fazla 3×24; izin yoğun haftada gevşer.
+    Gün aşırı zinciri en fazla 3×24 (kati).
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
     """
-    del special_rules  # UI alanı; bu hesap tabanında yok
     if not (1 <= month <= 12):
         raise ValueError("month 1–12 olmalı")
     if year < 2000 or year > 2100:
@@ -400,6 +540,8 @@ def generate_ayilma_schedule(
     grid = _empty_grid(year, month)
     _apply_leaves(grid, leaves)
     day_only_set = {str(x).strip() for x in (day_only or []) if str(x).strip()}
+    prefer_work, force_avoid = resolve_special_day_sets(year, month, special_rules)
+    pins = resolve_special_pins(year, month, special_rules)
     rng = random.Random((year * 100 + month) * 10007 + int(variant or 0))
     person_tie = {n: (rng.random() if variant else 0.0) for n in STAFF_NURSES}
 
@@ -420,6 +562,11 @@ def generate_ayilma_schedule(
     n24 = {n: 0 for n in STAFF_NURSES}
     n16 = {n: 0 for n in STAFF_NURSES}
     warnings: list[str] = []
+    _apply_special_pins(grid, pins, hours, n8, n16, n24)
+    pinned_cells = {
+        (name, iso) for name, by_day in pins.items() for iso in by_day
+        if grid[name].get(iso, "") in WORK_CODES
+    }
     eight_budget = EIGHT_PER_PERSON_TARGET * len(STAFF_NURSES)
 
     def accounted(n: str) -> int:
@@ -431,6 +578,7 @@ def generate_ayilma_schedule(
             n
             for n in STAFF_NURSES
             if not grid[n][dm.iso]
+            and dm.iso not in force_avoid[n]
             and not _blocked_by_rest(n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24)
         ]
         leave_heavy = _week_is_leave_heavy(idx, days, grid)
@@ -445,6 +593,13 @@ def generate_ayilma_schedule(
             # Kati: 4. gün aşırı 24 yok (izin yoğun haftada da)
             return streak_if_24(n) > GUN_ASIRI_STREAK_MAX
 
+        def special_work_rank(n: str) -> int:
+            if dm.iso in prefer_work[n]:
+                return 0
+            if prefer_work[n]:
+                return 2
+            return 1
+
         def rank_for_8(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
             break_streak = 0 if over_streak(n) else 1
@@ -457,6 +612,7 @@ def generate_ayilma_schedule(
             return (
                 pen,
                 after_leave,
+                special_work_rank(n),
                 streak8,
                 break_streak,
                 accounted(n),
@@ -480,6 +636,7 @@ def generate_ayilma_schedule(
             return (
                 pen,
                 after_leave,
+                special_work_rank(n),
                 over,
                 accounted(n),
                 streak_if_24(n),
@@ -491,7 +648,7 @@ def generate_ayilma_schedule(
             )
 
         morning: str | None = None
-        night_needed = 2
+        night_needed = max(0, NIGHT_SHIFTS_PER_DAY - _staff_night_count(grid, dm.iso))
 
         def _want_morning_8() -> bool:
             # Hafta sonu kat-1 / 8 yok — yalnız 2×24
@@ -571,6 +728,7 @@ def generate_ayilma_schedule(
             night_needed > 0
             and morning
             and grid[morning][dm.iso] == "8"
+            and (morning, dm.iso) not in pinned_cells
             and morning not in day_only_set
             and (leave_heavy or not over_streak(morning))
         ):
@@ -603,6 +761,8 @@ def generate_ayilma_schedule(
         for name in STAFF_NURSES:
             for i in range(len(days)):
                 if grid[name].get(days[i].iso, "") != "24":
+                    continue
+                if (name, days[i].iso) in pinned_cells:
                     continue
                 streak = _gun_asiri_streak_if_24(name, i, days, grid)
                 soft_only = (
@@ -682,6 +842,8 @@ def generate_ayilma_schedule(
             for dm in days:
                 if grid[name].get(dm.iso, "") != "8":
                     continue
+                if (name, dm.iso) in pinned_cells:
+                    continue
                 day_24 = sum(1 for o in STAFF_NURSES if grid[o].get(dm.iso, "") == "24")
                 if day_24 < 1:
                     continue
@@ -700,6 +862,8 @@ def generate_ayilma_schedule(
             for dm in days:
                 if grid[name].get(dm.iso, "") != "8":
                     continue
+                if (name, dm.iso) in pinned_cells:
+                    continue
                 day_24 = sum(1 for o in STAFF_NURSES if grid[o].get(dm.iso, "") == "24")
                 if day_24 < 1:
                     continue
@@ -711,12 +875,14 @@ def generate_ayilma_schedule(
             if not trimmed:
                 break
 
-    # ── Hafta sonu personel 8 temizle (kat-1 yok) ──
+    # ── Hafta sonu personel 8 temizle (kat-1 yok) — pin hariç ──
     for name in STAFF_NURSES:
         for dm in days:
             if not dm.is_weekend:
                 continue
             if grid[name].get(dm.iso, "") != "8":
+                continue
+            if (name, dm.iso) in pinned_cells:
                 continue
             grid[name][dm.iso] = ""
             hours[name] -= 8
@@ -1190,6 +1356,8 @@ def generate_ayilma_schedule(
         for name in STAFF_NURSES:
             for i in range(len(days)):
                 if grid[name].get(days[i].iso, "") != "24":
+                    continue
+                if (name, days[i].iso) in pinned_cells:
                     continue
                 streak = _gun_asiri_streak_if_24(name, i, days, grid)
                 if streak > GUN_ASIRI_STREAK_MAX and streak > worst:

@@ -84,7 +84,9 @@
             <div class="sh-sp-radios">
               <label><input type="radio" name="sh-sp-mode" value="work" checked> Çalışsın</label>
               <label><input type="radio" name="sh-sp-mode" value="avoid"> Çalışmasın</label>
+              <label><input type="radio" name="sh-sp-mode" value="pin"> Sabit vardiya (8 / 16 / 24)</label>
             </div>
+            <p id="sh-sp-pin-hint" class="sh-sp-hint hidden">Takvimde güne bas: boş → 8 → 16 → 24 → boş</p>
           </div>
         </li>
         <li>
@@ -666,6 +668,34 @@
     border-color: #6d28d9;
     box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.35);
   }
+  .sh-sp-day.is-code-8 {
+    background: #e0e7ff;
+    color: #3730a3;
+    border-color: #a5b4fc;
+    box-shadow: none;
+  }
+  .sh-sp-day.is-code-16 {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fcd34d;
+    box-shadow: none;
+  }
+  .sh-sp-day.is-code-24 {
+    background: #ddd6fe;
+    color: #5b21b6;
+    border-color: #c4b5fd;
+    box-shadow: none;
+  }
+  html.dark .sh-sp-day.is-code-8 { background: #312e81; color: #c7d2fe; border-color: #4338ca; }
+  html.dark .sh-sp-day.is-code-16 { background: #78350f; color: #fde68a; border-color: #b45309; }
+  html.dark .sh-sp-day.is-code-24 { background: #4c1d95; color: #ddd6fe; border-color: #6d28d9; }
+  .sh-sp-day .sh-sp-day-code {
+    display: block;
+    font-size: 0.65em;
+    font-weight: 800;
+    line-height: 1.1;
+    opacity: 0.95;
+  }
   .sh-sp-cal.is-locked .sh-sp-day[data-iso] {
     opacity: 0.45;
     cursor: not-allowed;
@@ -774,8 +804,23 @@
   var LS_LEAVES = 'sheet_ayilma_leaves_v2';
   var LS_SPECIAL = 'sheet_ayilma_special_v1';
   var CONSTRAINT_CYCLE = ['', 'İST', 'Yİ', 'RP'];
+  var PIN_CYCLE = ['', '8', '16', '24'];
   var spDraft = { dates: {} };
   var spCalBound = false;
+
+  function specialMode() {
+    var el = document.querySelector('input[name="sh-sp-mode"]:checked');
+    return el ? el.value : 'work';
+  }
+
+  function updateSpModeUi() {
+    var pin = specialMode() === 'pin';
+    var hint = $('sh-sp-pin-hint');
+    var weeklyBlock = document.querySelector('input[name="sh-sp-weekly"]');
+    if (hint) hint.classList.toggle('hidden', !pin);
+    renderSpecialCalendar();
+    updateSpPickedLabel();
+  }
 
   function specialPersonSelected() {
     var sel = $('sh-sp-name');
@@ -804,8 +849,17 @@
       ev.stopPropagation();
       var iso = btn.getAttribute('data-iso');
       if (!iso) return;
-      if (spDraft.dates[iso]) delete spDraft.dates[iso];
-      else spDraft.dates[iso] = true;
+      if (specialMode() === 'pin') {
+        var cur = spDraft.dates[iso] || '';
+        var ix = PIN_CYCLE.indexOf(String(cur));
+        if (ix < 0) ix = 0;
+        var next = PIN_CYCLE[(ix + 1) % PIN_CYCLE.length];
+        if (next) spDraft.dates[iso] = next;
+        else delete spDraft.dates[iso];
+      } else {
+        if (spDraft.dates[iso]) delete spDraft.dates[iso];
+        else spDraft.dates[iso] = true;
+      }
       renderSpecialCalendar();
     });
   }
@@ -861,14 +915,27 @@
     list.classList.remove('hidden');
     var WD = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
     list.innerHTML = rules.map(function (r, idx) {
-      var modeLabel = r.mode === 'work' ? 'çalışsın' : 'çalışmasın';
-      var days = (r.dates || []).map(function (iso) {
-        var p = iso.split('-');
-        var d = parseInt(p[2], 10);
-        var dt = new Date(parseInt(p[0],10), parseInt(p[1],10)-1, d);
-        var wd = (dt.getDay() + 6) % 7;
-        return d + ' ' + WD[wd];
-      }).join(', ');
+      var modeLabel = r.mode === 'work' ? 'çalışsın'
+        : (r.mode === 'avoid' ? 'çalışmasın' : 'sabit vardiya');
+      var days;
+      if (r.mode === 'pin' && r.shifts && typeof r.shifts === 'object') {
+        days = Object.keys(r.shifts).sort().map(function (iso) {
+          var p = iso.split('-');
+          var d = parseInt(p[2], 10);
+          var dt = new Date(parseInt(p[0],10), parseInt(p[1],10)-1, d);
+          var wd = (dt.getDay() + 6) % 7;
+          return d + ' ' + WD[wd] + '=' + r.shifts[iso];
+        }).join(', ');
+      } else {
+        days = (r.dates || []).map(function (iso) {
+          var p = iso.split('-');
+          var d = parseInt(p[2], 10);
+          var dt = new Date(parseInt(p[0],10), parseInt(p[1],10)-1, d);
+          var wd = (dt.getDay() + 6) % 7;
+          return d + ' ' + WD[wd];
+        }).join(', ');
+        if (r.mode === 'pin' && r.code) days = (r.code + ': ') + days;
+      }
       var wk = r.weekly ? ' · her hafta' : '';
       return '<div class="sh-special-list-item rounded-lg bg-violet-50 dark:bg-violet-950/30">' +
         '<span class="min-w-0 flex-1"><strong>' + r.name + '</strong> — ' + modeLabel + ': ' + days + wk + '</span>' +
@@ -941,6 +1008,7 @@
     var cal = $('sh-sp-cal');
     if (!cal || !state.year || !state.month) return;
     bindSpecialCalendar();
+    var pin = specialMode() === 'pin';
     var days = buildDays(state.year, state.month);
     var labels = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
     var html = labels.map(function (l) {
@@ -951,8 +1019,18 @@
       html += '<div class="sh-sp-day is-muted">&nbsp;</div>';
     }
     days.forEach(function (dm) {
-      var picked = !!spDraft.dates[dm.iso];
-      html += '<button type="button" class="sh-sp-day' + (picked ? ' is-picked' : '') + '" data-iso="' + dm.iso + '" aria-pressed="' + (picked ? 'true' : 'false') + '">' + dm.day + '</button>';
+      var val = spDraft.dates[dm.iso];
+      var cls = 'sh-sp-day';
+      var inner = String(dm.day);
+      if (pin) {
+        if (val === '8' || val === '16' || val === '24') {
+          cls += ' is-code-' + val;
+          inner += '<span class="sh-sp-day-code">' + val + '</span>';
+        }
+      } else if (val) {
+        cls += ' is-picked';
+      }
+      html += '<button type="button" class="' + cls + '" data-iso="' + dm.iso + '" aria-pressed="' + (val ? 'true' : 'false') + '">' + inner + '</button>';
     });
     cal.innerHTML = html;
     updateSpCalendarLock();
@@ -965,8 +1043,19 @@
       el.textContent = 'Önce kişi seçin';
       return;
     }
-    var n = Object.keys(spDraft.dates).length;
-    el.textContent = n ? (n + ' gün seçildi') : 'Gün seçilmedi';
+    var keys = Object.keys(spDraft.dates);
+    if (!keys.length) {
+      el.textContent = specialMode() === 'pin' ? 'Vardiya seçilmedi (güne bas)' : 'Gün seçilmedi';
+      return;
+    }
+    if (specialMode() === 'pin') {
+      var parts = keys.sort().map(function (iso) {
+        return iso.slice(-2) + '=' + spDraft.dates[iso];
+      });
+      el.textContent = keys.length + ' vardiya: ' + parts.join(', ');
+      return;
+    }
+    el.textContent = keys.length + ' gün seçildi';
   }
 
   function openSpecialModal() {
@@ -983,7 +1072,7 @@
     if (work) work.checked = true;
     if (noWk) noWk.checked = true;
     bindSpecialCalendar();
-    renderSpecialCalendar();
+    updateSpModeUi();
     var modal = $('sh-special-modal');
     if (modal) {
       modal.hidden = false;
@@ -1014,13 +1103,24 @@
       return;
     }
     if (!dates.length) return;
-    specialForMonth().push({
+    var rule = {
       id: String(Date.now()) + '-' + Math.random().toString(16).slice(2, 8),
       name: name,
       mode: mode,
       dates: dates,
       weekly: weekly,
-    });
+    };
+    if (mode === 'pin') {
+      var shifts = {};
+      dates.forEach(function (iso) {
+        var c = String(spDraft.dates[iso] || '');
+        if (c === '8' || c === '16' || c === '24') shifts[iso] = c;
+      });
+      if (!Object.keys(shifts).length) return;
+      rule.shifts = shifts;
+      rule.dates = Object.keys(shifts).sort();
+    }
+    specialForMonth().push(rule);
     saveSpecial();
     updateSpecialCount();
     closeSpecialModal();
@@ -1286,7 +1386,17 @@
     var dayOnly = [];
     var leaves = collectLeavesPayload();
     var special_rules = specialForMonth().map(function (r) {
-      return { name: r.name, mode: r.mode, dates: r.dates, weekly: !!r.weekly };
+      var out = {
+        name: r.name,
+        mode: r.mode,
+        dates: r.dates || [],
+        weekly: !!r.weekly,
+      };
+      if (r.mode === 'pin') {
+        if (r.shifts) out.shifts = r.shifts;
+        if (r.code) out.code = r.code;
+      }
+      return out;
     });
     fetch('/api/sheet/ayilma/generate', {
       method: 'POST',
@@ -1499,6 +1609,12 @@
   if (spo) spo.addEventListener('click', openSpecialModal);
   var spName = $('sh-sp-name');
   if (spName) spName.addEventListener('change', updateSpCalendarLock);
+  document.querySelectorAll('input[name="sh-sp-mode"]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      spDraft.dates = {};
+      updateSpModeUi();
+    });
+  });
   var spc = $('sh-special-close');
   if (spc) spc.addEventListener('click', closeSpecialModal);
   var sps = $('sh-sp-save');
