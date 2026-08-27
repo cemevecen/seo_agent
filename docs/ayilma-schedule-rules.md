@@ -10,7 +10,7 @@ Geri dönüş: tag `ayilma-restore-*` (kurallar tazelendikten sonra) · öncesi 
 2. Dinlenme (16/24 ertesi ≥1 gün boş; ardışık gece yok) · 24 sonrası mümkünse 2 gün boşluk (zorunlu tercih)  
 3. Günde 2 gece nöbeti  
 4. İST / Yİ / RP dönüşü → sonraki ilk takvim günü 24 (hafta sonu dahil)  
-5. Hafta içi 1×8 + 2×24 · hafta sonu yalnız 2×24  
+5. Hafta içi **1×8 (kat-1) + 2×24** · hafta sonu yalnız 2×24  
 6. **24 arası boş hücre ≤3 (KATİ; 4+ yasak)** · hedef 2+24+2  
 7. Mesai: kalan günlerle aylık ideal doldur · **aktif kadro (Yİ/RP hariç) ≤16s bant** · üst sınır 400s  
 8. Gün aşırı zincir ≤4 (çok sıkışıkta 5, asla 5 üstü)  
@@ -28,7 +28,7 @@ Geri dönüş: tag `ayilma-restore-*` (kurallar tazelendikten sonra) · öncesi 
 | `HOURS_BALANCE_TOLERANCE` | 16 | Personel arası saat bandı |
 | `MAX_MONTHLY_HOURS` | 400 | Aylık mesai üst sınırı |
 | `YI_DAY_HOURS` / `RP_DAY_HOURS` | 8 | İzin/rapor gün kredisi |
-| `EIGHT_PER_PERSON_*` | 2 / 3 / 4 | Kişi başı düz 8 min / hedef / max |
+| `EIGHT_PER_PERSON_*` | 2 / 4 / 5 | Kişi başı düz 8 min / hedef / max (hafta içi her güne 1×8) |
 | `PAIR24_NEAR_STREAK_MAX` | 2 | Aynı ikili ≤4 gün aralıklı birlikte 24 tavanı |
 | `PAIR24_RECENT_GAP` | 4 | «Üst üste / yakın» eşleşme penceresi (gün) |
 | `PAIR24_MONTHLY_SOFT` | 4 | Aylık birlikte 24 yumuşak üst |

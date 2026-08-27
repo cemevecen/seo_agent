@@ -44,8 +44,8 @@ REQUEST_CODES = frozenset({"İST"})
 ABSENCE_CREDIT_CODES = frozenset({"Yİ", "RP"})
 # Kişi başı düz 8 sayısı (3×8≈24s + boş gün üretir; az tut)
 EIGHT_PER_PERSON_MIN = 2
-EIGHT_PER_PERSON_TARGET = 3
-EIGHT_PER_PERSON_MAX = 4
+EIGHT_PER_PERSON_TARGET = 4  # hafta içi her güne 1×8 → kişi başı ~3–4
+EIGHT_PER_PERSON_MAX = 5  # sıkışık ayda kat-1 için esnek tavan
 # Gün aşırı zinciri: 24+boş+24+… — yumuşak ≤3, normal tavan 4; çok sıkışıkta 5, asla 5 üstü yok
 GUN_ASIRI_STREAK_SOFT = 3
 GUN_ASIRI_STREAK_MAX = 4
@@ -2659,6 +2659,156 @@ def _can_assign_8(
     )
 
 
+def _weekday_has_kat1_8(
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> bool:
+    """Hafta içi 1. kat için açık «8» var mı (24 gündüzü kapsamaz)."""
+    iso = days[day_index].iso
+    return any(grid[n].get(iso, "") == "8" for n in STAFF_NURSES)
+
+
+def _try_assign_kat1_8(
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+    allow_over_max: bool = False,
+) -> bool:
+    """Hafta içi güne bir «8» yaz (kat-1)."""
+    del prefer_48h_after_24  # 8 atamasında ertesi-gün 24 engeli yok
+    dm = days[day_index]
+    if not dm.is_weekday or _weekday_has_kat1_8(day_index, days, grid):
+        return False
+    iso = dm.iso
+    cands: list[tuple] = []
+    for n in STAFF_NURSES:
+        if n in day_only_set or iso in force_avoid[n]:
+            continue
+        if grid[n].get(iso, ""):
+            continue
+        if _first_day_after_leave(n, day_index, days, grid):
+            continue
+        if not allow_over_max and n8[n] >= EIGHT_PER_PERSON_MAX:
+            continue
+        # 8 için yalnız önceki gece 16/24 engeli (_can_assign_8); ertesi gün 24 OK
+        if not _can_assign_8(n, day_index, days, grid):
+            continue
+        streak8 = _consecutive_8_streak_if_8(n, day_index, days, grid)
+        cands.append((n8[n], streak8, hours[n], n))
+    if not cands:
+        return False
+    pick = sorted(cands)[0][-1]
+    grid[pick][iso] = "8"
+    hours[pick] += 8
+    n8[pick] += 1
+    return True
+
+
+def _enforce_weekday_kat1_eights(
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+    n16: dict[str, int],
+    n24: dict[str, int],
+    *,
+    prefer_48h_after_24: bool,
+    force_avoid: dict[str, set[str]],
+    day_only_set: set[str],
+) -> int:
+    """Her hafta içi güne en az bir «8» (1. kat). Dönüş değeri: doldurulan gün sayısı."""
+    filled = 0
+    for i, dm in enumerate(days):
+        if not dm.is_weekday:
+            continue
+        if _weekday_has_kat1_8(i, days, grid):
+            continue
+        if _try_assign_kat1_8(
+            i,
+            days,
+            grid,
+            hours,
+            n8,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            allow_over_max=False,
+        ) or _try_assign_kat1_8(
+            i,
+            days,
+            grid,
+            hours,
+            n8,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            allow_over_max=True,
+        ):
+            filled += 1
+            continue
+        # Sıkışık gün: bir 24'ü 8 yap; geceyi 8'e dokunmadan tamamla
+        iso = dm.iso
+        nights = [n for n in STAFF_NURSES if grid[n].get(iso, "") == "24"]
+        demoted = False
+        for n in sorted(nights, key=lambda x: (n24[x], hours[x], x)):
+            grid[n][iso] = "8"
+            hours[n] -= 16
+            n24[n] -= 1
+            n8[n] += 1
+            demoted = True
+            kat1 = n
+            break
+        if not demoted:
+            continue
+        # 8'i tekrar 24'e yükseltmeden ikinci geceyi doldur
+        while _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY:
+            pool = [
+                o
+                for o in STAFF_NURSES
+                if o != kat1
+                and o not in day_only_set
+                and iso not in force_avoid[o]
+                and grid[o].get(iso, "") == ""
+                and not _blocked_by_rest(
+                    o, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                )
+                and _gun_asiri_streak_if_24(o, i, days, grid) <= GUN_ASIRI_STREAK_ABSOLUTE
+                and _rest_allows_24(o, i, days, grid)
+            ]
+            if pool:
+                pick = sorted(pool, key=lambda o: (n24[o], hours[o], o))[0]
+                if _enforce_rest_before_24(pick, i, days, grid, hours, n8):
+                    grid[pick][iso] = "24"
+                    hours[pick] += 24
+                    n24[pick] += 1
+                    continue
+            pool16 = [
+                o
+                for o in STAFF_NURSES
+                if o != kat1
+                and o not in day_only_set
+                and iso not in force_avoid[o]
+                and grid[o].get(iso, "") == ""
+            ]
+            if pool16:
+                pick = sorted(pool16, key=lambda o: (n16[o], o))[0]
+                grid[pick][iso] = "16"
+                hours[pick] += 16
+                n16[pick] += 1
+                continue
+            break
+        if _weekday_has_kat1_8(i, days, grid):
+            filled += 1
+    return filled
+
+
 def _max_consecutive_8_streak(
     name: str,
     days: list[DayMeta],
@@ -2860,10 +3010,10 @@ def generate_ayilma_schedule(
 
     Gülten panelde gizlenir; indirmede boş satır olarak gelir. Tüm hesaplar 6 personel kadrosuyla yapılır.
 
-    Hafta içi: mümkünse 1×«8» + 2×«24». Hafta sonu: yalnız 2×«24» (kat-1 / 8 yok).
+    Hafta içi: her gün 1×«8» (kat-1) + 2×«24». Hafta sonu: yalnız 2×«24» (kat-1 / 8 yok).
     Yİ/RP/İST bitişinin ertesi takvim günü nöbet (24) — hafta sonu kuralı yok.
     Yİ/RP: zorunlu nöbet = ideal−izin; kalan günlerle taban doldurulur, üstüne ek mesai olabilir.
-    Düz «8» kişi başı aylık ~2–4 (hedef 3). Fazla mesai personelde aynı ~16s bantta.
+    Düz «8» kişi başı aylık ~2–5 (hedef 4); hafta içi her güne bir kat-1 «8» zorunlu.
     Üst üste «8» kaçınılır; mecbur kalınırsa en fazla 2 gün.
     Gün aşırı 24 zinciri: yumuşak ≤3, normal tavan 4; çok sıkışıkta 5, asla 5 üstü yok.
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
@@ -2911,7 +3061,6 @@ def generate_ayilma_schedule(
     n24 = {n: 0 for n in STAFF_NURSES}
     n16 = {n: 0 for n in STAFF_NURSES}
     warnings: list[str] = []
-    eight_budget = EIGHT_PER_PERSON_TARGET * len(STAFF_NURSES)
 
     def accounted(n: str) -> int:
         return _balance_metric(n, hours, yi_hours, rp_hours, ist_count)
@@ -3057,26 +3206,10 @@ def generate_ayilma_schedule(
 
         def _want_morning_8() -> bool:
             # Hafta sonu kat-1 / 8 yok — yalnız 2×24
+            # Hafta içi: her güne bir «8» zorunlu (pace/bütçe ile atlama yok)
             if dm.is_weekend:
                 return False
-            under_max = [n for n in available if n8[n] < EIGHT_PER_PERSON_MAX]
-            if not under_max:
-                return False
-            total8 = sum(n8.values())
-            remaining = sum(1 for d in days[idx:] if d.is_weekday)
-            need_min = sum(max(0, EIGHT_PER_PERSON_MIN - n8[n]) for n in STAFF_NURSES)
-            if any(is_gun_asiri_candidate(n) and n8[n] < EIGHT_PER_PERSON_TARGET for n in under_max):
-                return True
-            if need_min > 0 and remaining <= need_min + 1:
-                return True
-            if total8 >= eight_budget:
-                return False
-            weekday_i = sum(1 for d in days[: idx + 1] if d.is_weekday)
-            weekday_n = sum(1 for d in days if d.is_weekday) or 1
-            paced = (weekday_i / weekday_n) * eight_budget
-            if total8 >= paced + 0.75:
-                return False
-            return any(n8[n] < EIGHT_PER_PERSON_TARGET for n in under_max)
+            return True
 
         morning_cands = [
             n
@@ -3090,6 +3223,14 @@ def generate_ayilma_schedule(
             ]
             if no_return:
                 morning_cands = no_return
+        if not morning_cands and not dm.is_weekend:
+            # Tavan doluysa bile kat-1 için bir aday dene
+            morning_cands = [
+                n
+                for n in sorted(available, key=rank_for_8)
+                if _can_assign_8(n, idx, days, grid)
+                and not _first_day_after_leave(n, idx, days, grid)
+            ]
         if morning_cands and _want_morning_8():
             morning = morning_cands[0]
             grid[morning][dm.iso] = "8"
@@ -3168,17 +3309,42 @@ def generate_ayilma_schedule(
             and morning not in day_only_set
             and not over_streak(morning)
         ):
+            # Kat-1 8'i geceye çevirme — önce başka aday; son çare ve sonra yeni 8 dene
             grid[morning][dm.iso] = "24"
             hours[morning] += 16
             n8[morning] -= 1
             n24[morning] += 1
             night_needed -= 1
             morning = None
+            if dm.is_weekday and not _weekday_has_kat1_8(idx, days, grid):
+                _try_assign_kat1_8(
+                    idx,
+                    days,
+                    grid,
+                    hours,
+                    n8,
+                    prefer_48h_after_24=prefer_48h_after_24,
+                    force_avoid=force_avoid,
+                    day_only_set=day_only_set,
+                    allow_over_max=True,
+                )
+
+        # Gece birinin 8'ini 24'e çevirdiyse kat-1'i yenile
+        if dm.is_weekday and not _weekday_has_kat1_8(idx, days, grid):
+            _try_assign_kat1_8(
+                idx,
+                days,
+                grid,
+                hours,
+                n8,
+                prefer_48h_after_24=prefer_48h_after_24,
+                force_avoid=force_avoid,
+                day_only_set=day_only_set,
+                allow_over_max=True,
+            )
 
         if dm.is_weekday:
-            has_morning = any(grid[n][dm.iso] in ("8", "24") for n in STAFF_NURSES)
-            if not has_morning:
-                warnings.append(f"{dm.iso}: Kat-1 gündüz hemşiresi atanamadı (izin/dinlenme).")
+            pass  # kat-1 uyarısı final pass'te
         if night_needed > 0:
             warnings.append(f"{dm.iso}: Gece nöbeti eksik ({2 - night_needed}/2).")
 
@@ -3317,15 +3483,18 @@ def generate_ayilma_schedule(
         if not swapped:
             break
 
-    # ── Fazla 8 budama (hedef üstü / max): gündüz 24 ile örtülüyse 8'i kaldır ──
+    # ── Fazla 8 budama: kat-1'in tek 8'ini asla silme; yalnız fazla kopya / kişi tavanı ──
     for name in STAFF_NURSES:
         while n8[name] > EIGHT_PER_PERSON_TARGET:
             trimmed = False
             for dm in days:
                 if grid[name].get(dm.iso, "") != "8":
                     continue
-                day_24 = sum(1 for o in STAFF_NURSES if grid[o].get(dm.iso, "") == "24")
-                if day_24 < 1:
+                other_8 = any(
+                    o != name and grid[o].get(dm.iso, "") == "8" for o in STAFF_NURSES
+                )
+                # Hafta içi tek 8 = kat-1 — dokunma
+                if dm.is_weekday and not other_8:
                     continue
                 grid[name][dm.iso] = ""
                 hours[name] -= 8
@@ -3335,15 +3504,17 @@ def generate_ayilma_schedule(
             if not trimmed:
                 break
 
-    # Sert tavan 4 (örtü yoksa bile bırakmamak için son çare budama yok)
+    # Sert tavan: yine kat-1 tek 8 korunur
     for name in STAFF_NURSES:
         while n8[name] > EIGHT_PER_PERSON_MAX:
             trimmed = False
             for dm in days:
                 if grid[name].get(dm.iso, "") != "8":
                     continue
-                day_24 = sum(1 for o in STAFF_NURSES if grid[o].get(dm.iso, "") == "24")
-                if day_24 < 1:
+                other_8 = any(
+                    o != name and grid[o].get(dm.iso, "") == "8" for o in STAFF_NURSES
+                )
+                if dm.is_weekday and not other_8:
                     continue
                 grid[name][dm.iso] = ""
                 hours[name] -= 8
@@ -3363,6 +3534,19 @@ def generate_ayilma_schedule(
             grid[name][dm.iso] = ""
             hours[name] -= 8
             n8[name] -= 1
+
+    # ── Her hafta içi en az bir kat-1 «8» ──
+    _enforce_weekday_kat1_eights(
+        days,
+        grid,
+        hours,
+        n8,
+        n16,
+        n24,
+        prefer_48h_after_24=prefer_48h_after_24,
+        force_avoid=force_avoid,
+        day_only_set=day_only_set,
+    )
 
     # ── Eksik 8 (min 2): hafta içi; üst üste 8 yazmamaya çalış ──
     for name in STAFF_NURSES:
@@ -4591,6 +4775,71 @@ def generate_ayilma_schedule(
             max_passes=80,
         )
 
+    # En son: kat-1 8'leri denge/ikili sonrası yeniden kilitle
+    for _ in range(3):
+        _enforce_weekday_kat1_eights(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+        )
+        for name in STAFF_NURSES:
+            for dm in days:
+                if dm.is_weekend and grid[name].get(dm.iso, "") == "8":
+                    grid[name][dm.iso] = ""
+                    hours[name] -= 8
+                    n8[name] -= 1
+        _enforce_pair24_near_streak_cap(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            max_passes=24,
+        )
+        _ensure_two_nights_per_day(
+            days,
+            grid,
+            hours,
+            n8,
+            n16,
+            n24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            prefer_48h_after_24=prefer_48h_after_24,
+        )
+        _enforce_hours_balance(
+            days,
+            grid,
+            hours,
+            n8,
+            n24,
+            yi_hours,
+            rp_hours,
+            ist_count,
+            prefer_48h_after_24=prefer_48h_after_24,
+            force_avoid=force_avoid,
+            day_only_set=day_only_set,
+            max_passes=80,
+        )
+        kat_ok = all(
+            (not dm.is_weekday) or _weekday_has_kat1_8(i, days, grid)
+            for i, dm in enumerate(days)
+        )
+        pair_ok = _max_pair24_near_streak_in_grid(days, grid) <= PAIR24_NEAR_STREAK_MAX
+        bal_ok = _peer_hours_spread(hours, yi_hours, rp_hours, ist_count) <= HOURS_BALANCE_TOLERANCE
+        if kat_ok and pair_ok and bal_ok and _grid_gap_ok(days, grid):
+            break
+
     last = days[-1]
     next_month_rest = [
         n for n in STAFF_NURSES if grid[n].get(last.iso, "") in ("16", "24")
@@ -4637,6 +4886,18 @@ def generate_ayilma_schedule(
     if empty_between > IDLE_24_GAP_MAX:
         warnings.append(
             f"24 arası boş gün {empty_between} (tavan {IDLE_24_GAP_MAX}; hedef {IDLE_24_GAP_SOFT}+24+{IDLE_24_GAP_SOFT})."
+        )
+
+    missing_kat1 = [
+        dm.iso
+        for i, dm in enumerate(days)
+        if dm.is_weekday and not _weekday_has_kat1_8(i, days, grid)
+    ]
+    if missing_kat1:
+        warnings.append(
+            f"Kat-1 «8» eksik {len(missing_kat1)} hafta içi gün: "
+            + ", ".join(missing_kat1[:8])
+            + ("…" if len(missing_kat1) > 8 else "")
         )
 
     # Gülten yalnızca görünür satır — hesap/mesai yazımı yok.
