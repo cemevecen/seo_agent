@@ -42,9 +42,10 @@ HOURS_BALANCE_TOLERANCE = 16
 EIGHT_PER_PERSON_MIN = 2
 EIGHT_PER_PERSON_TARGET = 3
 EIGHT_PER_PERSON_MAX = 4
-# Gün aşırı zinciri: 24+boş+24+… — yumuşak hedef 4, sert tavan 5 (16 ile kırmak yerine)
-GUN_ASIRI_STREAK_SOFT = 4
-GUN_ASIRI_STREAK_MAX = 5
+# Gün aşırı zinciri: 24+boş+24+… — yumuşak hedef 3, normal tavan 4, uç durum 5
+GUN_ASIRI_STREAK_SOFT = 3
+GUN_ASIRI_STREAK_MAX = 4
+GUN_ASIRI_STREAK_ABSOLUTE = 5  # yalnızca gece doldurma son çare; asla aşılmaz
 # Üst üste «8»: tercih yok; mecbur kalınırsa en fazla 2 gün
 CONSECUTIVE_8_STREAK_MAX = 2
 # Haftada bu kadar Yİ/RP/İST hücresi varsa streak limiti gevşer
@@ -160,16 +161,60 @@ def _blocked_by_rest(
     *,
     prefer_48h_after_24: bool,
 ) -> bool:
-    """Önceki gece 16/24 bitişi bugünün sabahına denk gelir → bugün başlama."""
-    if day_index <= 0:
-        return False
-    prev = days[day_index - 1]
-    prev_code = grid[name].get(prev.iso, "")
-    if prev_code == "24":
-        return True
-    if prev_code == "16":
-        return True
+    """Önceki gece 16/24 bitişi bugün başlatamaz; ertesi gün 16/24 varsa bugün 24 yazma."""
+    if day_index > 0:
+        prev_code = grid[name].get(days[day_index - 1].iso, "")
+        if prev_code in ("16", "24"):
+            return True
+    if day_index + 1 < len(days):
+        next_code = grid[name].get(days[day_index + 1].iso, "")
+        if next_code in ("16", "24"):
+            return True
     return False
+
+
+def _rest_allows_24(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> bool:
+    """24 yazılabilir mi (dry-run; grid değiştirmez)."""
+    if day_index > 0 and grid[name].get(days[day_index - 1].iso, "") in ("16", "24"):
+        return False
+    if day_index + 1 < len(days):
+        nxt = days[day_index + 1]
+        nxt_code = grid[name].get(nxt.iso, "")
+        if nxt_code in ("16", "24"):
+            return False
+        if nxt_code == "8" and nxt.is_weekday:
+            other = any(
+                o != name and grid[o].get(nxt.iso, "") in ("8", "24")
+                for o in STAFF_NURSES
+            )
+            if not other:
+                return False
+    return True
+
+
+def _enforce_rest_before_24(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    hours: dict[str, int],
+    n8: dict[str, int],
+) -> bool:
+    """24 yazmadan önce dinlenme kuralı; ertesi gün 8 varsa kaldır."""
+    if not _rest_allows_24(name, day_index, days, grid):
+        return False
+    if day_index + 1 < len(days):
+        nxt = days[day_index + 1]
+        if grid[name].get(nxt.iso) == "8":
+            grid[name][nxt.iso] = ""
+            hours[name] -= 8
+            n8[name] -= 1
+    return True
 
 
 def _rest_penalty(
@@ -235,6 +280,19 @@ def _gun_asiri_streak_if_24(
         j += 2
 
     return back + forward
+
+
+def _gun_asiri_streak_over(
+    name: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+    *,
+    cap: int | None = None,
+) -> bool:
+    """Bugün 24 yazılırsa cap aşılır mı."""
+    limit = cap if cap is not None else GUN_ASIRI_STREAK_MAX
+    return _gun_asiri_streak_if_24(name, day_index, days, grid) > limit
 
 
 def _pair_key(a: str, b: str) -> tuple[str, str]:
@@ -416,6 +474,8 @@ def _can_assign_8(
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
 ) -> bool:
+    if day_index > 0 and grid[name].get(days[day_index - 1].iso, "") in ("16", "24"):
+        return False
     return (
         _consecutive_8_streak_if_8(name, day_index, days, grid) <= CONSECUTIVE_8_STREAK_MAX
     )
@@ -561,7 +621,7 @@ def generate_ayilma_schedule(
     Yİ/RP bitişinin ertesi günü o kişiye nöbet (24) tercih.
     Düz «8» kişi başı aylık ~2–4 (hedef 3). Fazla mesai personelde aynı ~16s bantta.
     Üst üste «8» kaçınılır; mecbur kalınırsa en fazla 2 gün.
-    Gün aşırı zinciri en fazla 3×24; izin yoğun haftada gevşer.
+    Gün aşırı 24 zinciri: yumuşak hedef 3, normal tavan 4; yalnızca uç zorunlu gece doldurmada 5.
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
     Özel koşul: çalışmasın (sert) / çalışsın (yumuşak tercih).
     Aynı ikili 24 nöbette mümkün olduğunca az ve üst üste tekrar etmesin (yumuşak).
@@ -615,7 +675,6 @@ def generate_ayilma_schedule(
             and dm.iso not in force_avoid[n]
             and not _blocked_by_rest(n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24)
         ]
-        leave_heavy = _week_is_leave_heavy(idx, days, grid)
 
         def is_gun_asiri_candidate(n: str) -> bool:
             return _gun_asiri_24_penalty(n, idx, days, grid) > 0
@@ -624,7 +683,7 @@ def generate_ayilma_schedule(
             return _gun_asiri_streak_if_24(n, idx, days, grid)
 
         def over_streak(n: str) -> bool:
-            return (not leave_heavy) and streak_if_24(n) > GUN_ASIRI_STREAK_MAX
+            return _gun_asiri_streak_over(n, idx, days, grid)
 
         def special_work_rank(n: str) -> int:
             # 0 = çalışsın günü (tercih); 1 = nötr; 2 = başka güne kaydır (çalışsın günü varsa)
@@ -731,20 +790,22 @@ def generate_ayilma_schedule(
             n8[morning] += 1
             available = [n for n in available if n != morning]
 
-        def _assign24(n: str) -> None:
+        def _assign24(n: str) -> bool:
             nonlocal night_needed, available
+            if not _enforce_rest_before_24(n, idx, days, grid, hours, n8):
+                return False
             grid[n][dm.iso] = "24"
             hours[n] += 24
             n24[n] += 1
             night_needed -= 1
             available = [x for x in available if x != n]
+            return True
 
         while night_needed > 0:
             pool = [n for n in available if n not in day_only_set]
-            if not leave_heavy:
-                capped = [n for n in pool if not over_streak(n)]
-                if capped:
-                    pool = capped
+            capped = [n for n in pool if not over_streak(n)]
+            if capped:
+                pool = capped
             if not pool:
                 pool = [
                     n
@@ -761,9 +822,15 @@ def generate_ayilma_schedule(
                 break
             return_pool = [n for n in pool if _first_day_after_leave(n, idx, days, grid)]
             pick_from = return_pool if return_pool else pool
+            pick_from = [n for n in pick_from if _rest_allows_24(n, idx, days, grid)]
+            if not pick_from:
+                break
             pick = sorted(pick_from, key=rank_for_24)[0]
             prev = grid[pick].get(dm.iso, "")
             if prev == "8":
+                if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
+                    available = [x for x in available if x != pick]
+                    continue
                 grid[pick][dm.iso] = "24"
                 hours[pick] += 16
                 n8[pick] -= 1
@@ -771,14 +838,16 @@ def generate_ayilma_schedule(
                 night_needed -= 1
                 available = [x for x in available if x != pick]
             else:
-                _assign24(pick)
+                if not _assign24(pick):
+                    available = [x for x in available if x != pick]
+                    continue
 
         if (
             night_needed > 0
             and morning
             and grid[morning][dm.iso] == "8"
             and morning not in day_only_set
-            and (leave_heavy or not over_streak(morning))
+            and not over_streak(morning)
         ):
             grid[morning][dm.iso] = "24"
             hours[morning] += 16
@@ -808,7 +877,6 @@ def generate_ayilma_schedule(
                 ]
                 for j in reversed(pair_days):
                     iso = days[j].iso
-                    leave_heavy_j = _week_is_leave_heavy(j, days, grid)
                     for who, other in ((a, b), (b, a)):
                         alts = [
                             o
@@ -820,8 +888,7 @@ def generate_ayilma_schedule(
                                 o, j, days, grid, prefer_48h_after_24=prefer_48h_after_24
                             )
                             and (
-                                leave_heavy_j
-                                or _gun_asiri_streak_if_24(o, j, days, grid) <= GUN_ASIRI_STREAK_MAX
+                                _gun_asiri_streak_if_24(o, j, days, grid) <= GUN_ASIRI_STREAK_MAX
                             )
                         ]
                         if not alts:
@@ -874,8 +941,6 @@ def generate_ayilma_schedule(
         for name in STAFF_NURSES:
             for i in range(2, len(days)):
                 if grid[name].get(days[i].iso, "") != "24":
-                    continue
-                if _week_is_leave_heavy(i, days, grid):
                     continue
                 if _gun_asiri_streak_if_24(name, i, days, grid) <= GUN_ASIRI_STREAK_MAX:
                     # Klasik gün aşırı yumuşak takas (8 bütçesi içinde)
@@ -1018,9 +1083,7 @@ def generate_ayilma_schedule(
             return False
         if i + 1 < len(days) and grid[recv].get(days[i + 1].iso, "") in ("16", "24"):
             return False
-        if (not _week_is_leave_heavy(i, days, grid)) and (
-            _gun_asiri_streak_if_24(recv, i, days, grid) > GUN_ASIRI_STREAK_MAX
-        ):
+        if _gun_asiri_streak_over(recv, i, days, grid):
             return False
         if not _strip_next_8_if_safe(recv, i):
             return False
@@ -1049,9 +1112,7 @@ def generate_ayilma_schedule(
             if not _can_assign_8(hi, i, days, grid):
                 continue
             # Takas sonrası lo'nun streak'i (bugün 24 olacak)
-            if (not _week_is_leave_heavy(i, days, grid)) and (
-                _gun_asiri_streak_if_24(lo, i, days, grid) > GUN_ASIRI_STREAK_MAX
-            ):
+            if _gun_asiri_streak_over(lo, i, days, grid):
                 continue
             if not _strip_next_8_if_safe(lo, i):
                 continue
@@ -1128,9 +1189,7 @@ def generate_ayilma_schedule(
                     continue
                 if not _can_assign_8(hi, i, days, grid):
                     continue
-                if (not _week_is_leave_heavy(i, days, grid)) and (
-                    _gun_asiri_streak_if_24(mid, i, days, grid) > GUN_ASIRI_STREAK_MAX
-                ):
+                if _gun_asiri_streak_over(mid, i, days, grid):
                     continue
                 if not _strip_next_8_if_safe(mid, i):
                     continue
@@ -1172,14 +1231,12 @@ def generate_ayilma_schedule(
             hours[name] += 8
             n8[name] += 1
 
-    # Streak > 3 kır: zincirdeki son 24'ü başka kişiye ver veya 8 yap
+    # Gün aşırı zincir > MAX kır: 24'ü başka kişiye taşı
     for _sk in range(20):
         broke = False
         for name in STAFF_NURSES:
             for i in range(len(days)):
                 if grid[name].get(days[i].iso, "") != "24":
-                    continue
-                if _week_is_leave_heavy(i, days, grid):
                     continue
                 if _gun_asiri_streak_if_24(name, i, days, grid) <= GUN_ASIRI_STREAK_MAX:
                     continue
@@ -1250,9 +1307,7 @@ def generate_ayilma_schedule(
                         continue
                     if dm.iso in force_avoid[hi]:
                         continue
-                    if (not _week_is_leave_heavy(i, days, grid)) and (
-                        _gun_asiri_streak_if_24(lo, i, days, grid) > GUN_ASIRI_STREAK_MAX
-                    ):
+                    if _gun_asiri_streak_over(lo, i, days, grid):
                         continue
                     if not _strip_next_8_if_safe(lo, i):
                         continue
@@ -1321,17 +1376,12 @@ def generate_ayilma_schedule(
                 moved = True
                 break
             if not moved and not covered:
-                leave_heavy_day = _week_is_leave_heavy(target_i, days, grid)
                 if (
                     name not in day_only_set
                     and not _blocked_by_rest(
                         name, target_i, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     )
-                    and (
-                        leave_heavy_day
-                        or _gun_asiri_streak_if_24(name, target_i, days, grid)
-                        <= GUN_ASIRI_STREAK_MAX
-                    )
+                    and _gun_asiri_streak_if_24(name, target_i, days, grid) <= GUN_ASIRI_STREAK_MAX
                 ):
                     grid[name][iso] = "24"
                     hours[name] += 16
@@ -1399,18 +1449,17 @@ def generate_ayilma_schedule(
     for idx, dm in enumerate(days):
         iso = dm.iso
         while _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY:
-            leave_heavy = _week_is_leave_heavy(idx, days, grid)
             filled = False
 
             def _rank_night_fill(n: str) -> tuple:
                 code = grid[n].get(iso, "")
                 empty = 0 if code == "" else 1
-                over = 0
-                if not leave_heavy:
-                    over = max(0, _gun_asiri_streak_if_24(n, idx, days, grid) - GUN_ASIRI_STREAK_MAX)
-                return (empty, over, accounted(n), n24[n], n)
+                streak = _gun_asiri_streak_if_24(n, idx, days, grid)
+                soft_over = max(0, streak - GUN_ASIRI_STREAK_SOFT)
+                hard_over = max(0, streak - GUN_ASIRI_STREAK_MAX)
+                return (empty, hard_over, soft_over, accounted(n), n24[n], n)
 
-            for relax_streak in (False, True):
+            for cap in (GUN_ASIRI_STREAK_MAX, GUN_ASIRI_STREAK_ABSOLUTE):
                 pool = [
                     n
                     for n in STAFF_NURSES
@@ -1421,15 +1470,14 @@ def generate_ayilma_schedule(
                     and not _blocked_by_rest(
                         n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
                     )
-                    and (
-                        relax_streak
-                        or leave_heavy
-                        or _gun_asiri_streak_if_24(n, idx, days, grid) <= GUN_ASIRI_STREAK_MAX
-                    )
+                    and _gun_asiri_streak_if_24(n, idx, days, grid) <= cap
+                    and _rest_allows_24(n, idx, days, grid)
                 ]
                 if not pool:
                     continue
                 pick = sorted(pool, key=_rank_night_fill)[0]
+                if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
+                    continue
                 prev = grid[pick].get(iso, "")
                 grid[pick][iso] = "24"
                 if prev == "8":
@@ -1482,7 +1530,12 @@ def generate_ayilma_schedule(
                 name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
             )
             placed = False
-            if not rest_block and _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY:
+            if (
+                not rest_block
+                and _staff_night_count(grid, iso) < NIGHT_SHIFTS_PER_DAY
+                and _gun_asiri_streak_if_24(name, i, days, grid) <= GUN_ASIRI_STREAK_ABSOLUTE
+                and _enforce_rest_before_24(name, i, days, grid, hours, n8)
+            ):
                 grid[name][iso] = "24"
                 hours[name] += 24
                 n24[name] += 1
@@ -1495,6 +1548,173 @@ def generate_ayilma_schedule(
                     placed = True
             if not placed:
                 warnings.append(f"{iso}: {name} izin/istek dönüşünde çalışma atanamadı.")
+
+    # ── 24 sonrası ertesi gün mesai temizle (gece doldurma geriye dönük çakışma) ──
+    for name in STAFF_NURSES:
+        for i in range(len(days) - 1):
+            iso = days[i].iso
+            if grid[name].get(iso) != "24":
+                continue
+            nxt_iso = days[i + 1].iso
+            nxt_code = grid[name].get(nxt_iso, "")
+            if nxt_code == "8":
+                grid[name][nxt_iso] = ""
+                hours[name] -= 8
+                n8[name] -= 1
+            elif nxt_code in ("16", "24"):
+                grid[name][nxt_iso] = ""
+                hours[name] -= _hours_for(nxt_code)
+                if nxt_code == "24":
+                    n24[name] -= 1
+                elif nxt_code == "16":
+                    n16[name] -= 1
+
+    # ── Son: gün aşırı 24 zinciri asla ABSOLUTE (5) aşmasın ──
+    for _enf in range(32):
+        changed = False
+        for name in STAFF_NURSES:
+            for i in range(len(days)):
+                iso = days[i].iso
+                if grid[name].get(iso) != "24":
+                    continue
+                streak = _gun_asiri_streak_if_24(name, i, days, grid)
+                if streak > GUN_ASIRI_STREAK_ABSOLUTE:
+                    grid[name][iso] = ""
+                    hours[name] -= 24
+                    n24[name] -= 1
+                    changed = True
+                    idx = i
+                    dm = days[idx]
+                    while _staff_night_count(grid, dm.iso) < NIGHT_SHIFTS_PER_DAY:
+                        pool = [
+                            n
+                            for n in STAFF_NURSES
+                            if n != name
+                            and n not in day_only_set
+                            and dm.iso not in force_avoid[n]
+                            and grid[n].get(dm.iso, "") not in LEAVE_CODES
+                            and grid[n].get(dm.iso, "") in ("", "8")
+                            and not _blocked_by_rest(
+                                n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                            )
+                            and _gun_asiri_streak_if_24(n, idx, days, grid)
+                            <= GUN_ASIRI_STREAK_ABSOLUTE
+                            and _rest_allows_24(n, idx, days, grid)
+                        ]
+                        if not pool:
+                            break
+                        pick = sorted(pool, key=lambda n: (accounted(n), n24[n], n))[0]
+                        if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
+                            break
+                        prev = grid[pick].get(dm.iso, "")
+                        grid[pick][dm.iso] = "24"
+                        if prev == "8":
+                            hours[pick] += 16
+                            n8[pick] -= 1
+                        else:
+                            hours[pick] += 24
+                        n24[pick] += 1
+                    break
+                if streak <= GUN_ASIRI_STREAK_MAX:
+                    continue
+                for taker_cap in (
+                    GUN_ASIRI_STREAK_MAX,
+                    GUN_ASIRI_STREAK_ABSOLUTE,
+                ):
+                    takers = [
+                        o
+                        for o in STAFF_NURSES
+                        if o != name
+                        and o not in day_only_set
+                        and iso not in force_avoid[o]
+                        and grid[o].get(iso, "") in ("", "8")
+                        and not _blocked_by_rest(
+                            o, i, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                        )
+                        and _gun_asiri_streak_if_24(o, i, days, grid) <= taker_cap
+                    ]
+                    if not takers:
+                        if streak > GUN_ASIRI_STREAK_ABSOLUTE:
+                            grid[name][iso] = ""
+                            hours[name] -= 24
+                            n24[name] -= 1
+                            changed = True
+                        break
+                    other = sorted(takers, key=lambda o: (accounted(o), n24[o], o))[0]
+                    prev_o = grid[other].get(iso, "")
+                    grid[name][iso] = ""
+                    grid[other][iso] = "24"
+                    hours[name] -= 24
+                    if prev_o == "8":
+                        hours[other] += 16
+                        n8[other] -= 1
+                    else:
+                        hours[other] += 24
+                    n24[name] -= 1
+                    n24[other] += 1
+                    changed = True
+                    break
+                if changed:
+                    break
+            if changed:
+                break
+        if not changed:
+            break
+
+    # ── Hâlâ ABSOLUTE aşan zincir: 24'ü sil ve gece slotunu yeniden doldur ──
+    for _force in range(16):
+        offender: tuple[str, int] | None = None
+        worst = 0
+        for name in STAFF_NURSES:
+            for i in range(len(days)):
+                if grid[name].get(days[i].iso, "") != "24":
+                    continue
+                streak = _gun_asiri_streak_if_24(name, i, days, grid)
+                if streak > GUN_ASIRI_STREAK_ABSOLUTE and streak > worst:
+                    worst = streak
+                    offender = (name, i)
+        if not offender:
+            break
+        name, i = offender
+        iso = days[i].iso
+        grid[name][iso] = ""
+        hours[name] -= 24
+        n24[name] -= 1
+        idx = i
+        dm = days[idx]
+        while _staff_night_count(grid, dm.iso) < NIGHT_SHIFTS_PER_DAY:
+            pool = [
+                n
+                for n in STAFF_NURSES
+                if n != name
+                and n not in day_only_set
+                and dm.iso not in force_avoid[n]
+                and grid[n].get(dm.iso, "") not in LEAVE_CODES
+                and grid[n].get(dm.iso, "") in ("", "8")
+                and not _blocked_by_rest(
+                    n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                )
+                and _gun_asiri_streak_if_24(n, idx, days, grid) <= GUN_ASIRI_STREAK_ABSOLUTE
+                and _rest_allows_24(n, idx, days, grid)
+            ]
+            if not pool:
+                break
+            pick = sorted(pool, key=lambda n: (accounted(n), n24[n], n))[0]
+            if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
+                pool = [x for x in pool if x != pick]
+                if not pool:
+                    break
+                pick = sorted(pool, key=lambda n: (accounted(n), n24[n], n))[0]
+                if not _enforce_rest_before_24(pick, idx, days, grid, hours, n8):
+                    break
+            prev = grid[pick].get(dm.iso, "")
+            grid[pick][dm.iso] = "24"
+            if prev == "8":
+                hours[pick] += 16
+                n8[pick] -= 1
+            else:
+                hours[pick] += 24
+            n24[pick] += 1
 
     last = days[-1]
     next_month_rest = [
@@ -1522,8 +1742,8 @@ def generate_ayilma_schedule(
                 gun_asiri += 1
     if gun_asiri:
         warnings.append(
-            f"Gün aşırı 24 kalıbı {gun_asiri} kez (zincir hedefi ≤{GUN_ASIRI_STREAK_MAX}; "
-            "izin yoğun haftada esnek; 16 tercih edilmedi)."
+            f"Gün aşırı 24 kalıbı {gun_asiri} kez (zincir hedefi ≤{GUN_ASIRI_STREAK_SOFT}, "
+            f"tavan ≤{GUN_ASIRI_STREAK_MAX}, uç durum ≤{GUN_ASIRI_STREAK_ABSOLUTE}; 16 tercih edilmedi)."
         )
 
     rows: list[dict[str, Any]] = []

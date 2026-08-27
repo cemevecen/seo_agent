@@ -375,7 +375,7 @@ def _max_pair24_near_streak(out: dict) -> int:
 
 
 def test_soft_avoid_gun_asiri_prefer_24_over_16():
-    """16 neredeyse hiç; gün aşırı zinciri ≤5 (izin yoksa); 16 ile streak kırılmaz."""
+    """16 neredeyse hiç; gün aşırı zinciri ≤4 (uç durum ≤5); 16 ile streak kırılmaz."""
     out = generate_ayilma_schedule(2026, 9)
     counts = out["staff_code_counts"]
     assert counts["16"] <= 2
@@ -408,6 +408,7 @@ def test_pair24_soft_penalty_discourages_third_near():
 
 def test_gun_asiri_streak_helpers():
     from backend.services.ayilma_schedule import (
+        GUN_ASIRI_STREAK_ABSOLUTE,
         GUN_ASIRI_STREAK_MAX,
         GUN_ASIRI_STREAK_SOFT,
         _gun_asiri_streak_if_24,
@@ -424,8 +425,20 @@ def test_gun_asiri_streak_helpers():
     assert _gun_asiri_streak_if_24(name, 9, days, grid) == 4  # day 10
     grid[name][days[9].iso] = "24"
     assert _gun_asiri_streak_if_24(name, 15, days, grid) == 4  # day 16 back
-    assert GUN_ASIRI_STREAK_SOFT == 4
-    assert GUN_ASIRI_STREAK_MAX == 5
+    assert GUN_ASIRI_STREAK_SOFT == 3
+    assert GUN_ASIRI_STREAK_MAX == 4
+    assert GUN_ASIRI_STREAK_ABSOLUTE == 5
+
+
+def test_gun_asiri_streak_cap_with_heavy_leave():
+    """İzin yoğun ayda bile gün aşırı 24 zinciri ABSOLUTE (5) aşılmaz."""
+    leaves = {
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
+        "Sema Evecen": {f"2026-09-{d:02d}": "İST" for d in (1, 7, 8, 15, 22, 29)},
+    }
+    for variant in range(25):
+        out = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=variant)
+        assert _max_gun_asiri_streak(out) <= 5, f"variant {variant}"
 
 
 def test_no_consecutive_eights_for_staff():
