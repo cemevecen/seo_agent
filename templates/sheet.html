@@ -561,11 +561,31 @@
     return n;
   }
 
+  function hasConstraintMarkers() {
+    if (countConstraints() > 0) return true;
+    if (!state.grid || !state.days.length) return false;
+    for (var ni = 0; ni < (meta && meta.all ? meta.all.length : 0); ni++) {
+      var name = meta.all[ni];
+      var row = state.grid[name] || {};
+      for (var di = 0; di < state.days.length; di++) {
+        if (isConstraint(row[state.days[di].iso] || '')) return true;
+      }
+    }
+    return false;
+  }
+
+  function syncConstraintsCheckbox() {
+    var cb = $('sh-use-constraints');
+    if (!cb) return;
+    if (hasConstraintMarkers()) cb.checked = true;
+  }
+
   function updateConstraintCount() {
     var el = $('sh-constraint-count');
     if (!el) return;
     var n = countConstraints();
     el.textContent = n ? (n + ' işaretli gün (bu ay)') : 'Bu ay işaretli gün yok';
+    syncConstraintsCheckbox();
     updateSpecialCount();
   }
 
@@ -837,6 +857,7 @@
   }
 
   function collectLeavesPayload() {
+    syncConstraintsCheckbox();
     var use = $('sh-use-constraints');
     if (use && !use.checked) return {};
     return state.leaves[monthKey()] || {};
