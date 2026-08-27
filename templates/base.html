@@ -3863,7 +3863,7 @@
     })();
   </script>
 
-  {% if not is_tmdb_guest_view(request) and not is_sheet_only_member(request) %}
+  {% if not is_tmdb_guest_view(request) and not is_sheet_only_member(request) and not is_sheet_view(request) %}
   <style id="seo-pc-agent-float">
     #pc-agent-btn {
       position: fixed;

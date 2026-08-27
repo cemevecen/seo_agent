@@ -2004,6 +2004,16 @@ def _template_is_sheet_only_member(request: Request | None) -> bool:
 jinja_env.globals["is_sheet_only_member"] = _template_is_sheet_only_member
 
 
+def _template_is_sheet_view(request: Request | None) -> bool:
+    if request is None:
+        return False
+    p = (request.url.path or "").split("?", 1)[0].rstrip("/") or "/"
+    return p == "/sheet"
+
+
+jinja_env.globals["is_sheet_view"] = _template_is_sheet_view
+
+
 def _template_online_presence_visible(request: Request | None) -> bool:
     from backend.services import app_member_auth as ama
 
