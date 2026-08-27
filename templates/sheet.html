@@ -41,6 +41,10 @@
           Özel koşul gir
         </button>
       </div>
+      <div id="sh-gen-loading" class="sh-gen-loading hidden" aria-live="polite" aria-busy="false" hidden>
+        <span class="sh-gen-spinner" aria-hidden="true"></span>
+        <span class="sh-gen-loading-text">Çizelge hesaplanıyor… Bu birkaç saniye sürebilir.</span>
+      </div>
       <div class="sh-gen-options flex flex-col text-slate-500 dark:text-zinc-400 sm:flex-row sm:flex-wrap sm:items-center">
         <label class="inline-flex items-start gap-2">
           <input id="sh-prefer-48" type="checkbox" class="sh-fluid-check mt-0.5 shrink-0 rounded border-slate-300" checked>
@@ -105,6 +109,11 @@
   <div id="sh-summary" class="hidden grid gap-2 sm:grid-cols-2 lg:grid-cols-3"></div>
 
   <div class="sh-table-shell overflow-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
+    <div id="sh-table-loading" class="sh-table-loading hidden" hidden aria-hidden="true">
+      <span class="sh-gen-spinner sh-gen-spinner-lg" aria-hidden="true"></span>
+      <p class="sh-table-loading-title">Çizelge oluşturuluyor</p>
+      <p class="sh-table-loading-sub">Kurallar uygulanıyor, lütfen bekleyin…</p>
+    </div>
     <div class="sh-legend flex flex-wrap border-b border-slate-100 font-semibold dark:border-zinc-800">
       <span class="rounded bg-sky-100 px-1.5 py-0.5 text-sky-800 dark:bg-sky-950 dark:text-sky-200">İST istek</span>
       <span class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-900 dark:bg-amber-950 dark:text-amber-200">Yİ izin</span>
@@ -174,7 +183,96 @@
     min-height: var(--sh-check-size);
   }
   #sheet-page .sh-card { padding: var(--sh-pad-card); }
+  #sheet-page .sh-gen-loading {
+    display: none;
+    align-items: center;
+    gap: 0.65rem;
+    margin-top: 0.35rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.65rem;
+    background: rgba(99, 102, 241, 0.12);
+    color: #312e81;
+    font-size: var(--sh-fs-small);
+    font-weight: 600;
+  }
+  #sheet-page .sh-gen-loading:not(.hidden) {
+    display: flex;
+  }
+  html.dark #sheet-page .sh-gen-loading,
+  html.charcoal #sheet-page .sh-gen-loading {
+    background: rgba(99, 102, 241, 0.22);
+    color: #c7d2fe;
+  }
+  #sheet-page .sh-gen-spinner {
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 2.5px solid rgba(99, 102, 241, 0.25);
+    border-top-color: #4f46e5;
+    border-radius: 50%;
+    animation: sh-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  #sheet-page .sh-gen-spinner-lg {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-width: 3px;
+  }
+  @keyframes sh-spin {
+    to { transform: rotate(360deg); }
+  }
+  #sheet-page .sh-table-shell {
+    position: relative;
+  }
+  #sheet-page .sh-table-loading {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(2px);
+    text-align: center;
+  }
+  #sheet-page .sh-table-loading:not(.hidden) {
+    display: flex;
+  }
+  html.dark #sheet-page .sh-table-loading,
+  html.charcoal #sheet-page .sh-table-loading {
+    background: rgba(24, 24, 27, 0.88);
+  }
+  #sheet-page .sh-table-loading-title {
+    margin: 0;
+    font-size: var(--sh-fs-body);
+    font-weight: 700;
+    color: #1e1b4b;
+  }
+  #sheet-page .sh-table-loading-sub {
+    margin: 0;
+    font-size: var(--sh-fs-small);
+    color: #64748b;
+  }
+  html.dark #sheet-page .sh-table-loading-title,
+  html.charcoal #sheet-page .sh-table-loading-title {
+    color: #e0e7ff;
+  }
+  html.dark #sheet-page .sh-table-loading-sub,
+  html.charcoal #sheet-page .sh-table-loading-sub {
+    color: #a1a1aa;
+  }
+  #sheet-page.is-generating {
+    pointer-events: none;
+    user-select: none;
+  }
+  #sheet-page.is-generating #sh-generate,
+  #sheet-page.is-generating #sh-regenerate {
+    opacity: 0.85;
+  }
   #sheet-page .sh-gen-panel {
+    position: relative;
     gap: var(--sh-gap);
     margin-top: var(--sh-gap);
     padding: var(--sh-pad-card);
@@ -1140,6 +1238,48 @@
     return state.leaves[monthKey()] || {};
   }
 
+  function setGenerating(on, opts) {
+    opts = opts || {};
+    var page = $('sheet-page');
+    var banner = $('sh-gen-loading');
+    var tableLoad = $('sh-table-loading');
+    var gBtn = $('sh-generate');
+    var regen = $('sh-regenerate');
+    var special = $('sh-special-open');
+    if (page) page.classList.toggle('is-generating', !!on);
+    if (banner) {
+      banner.classList.toggle('hidden', !on);
+      banner.hidden = !on;
+      banner.setAttribute('aria-busy', on ? 'true' : 'false');
+      var txt = banner.querySelector('.sh-gen-loading-text');
+      if (txt) {
+        txt.textContent = opts.reroll
+          ? 'Yeniden oluşturuluyor…'
+          : 'Çizelge hesaplanıyor… Bu birkaç saniye sürebilir.';
+      }
+    }
+    if (tableLoad) {
+      tableLoad.classList.toggle('hidden', !on);
+      tableLoad.hidden = !on;
+      tableLoad.setAttribute('aria-hidden', on ? 'false' : 'true');
+      var title = tableLoad.querySelector('.sh-table-loading-title');
+      var sub = tableLoad.querySelector('.sh-table-loading-sub');
+      if (title) title.textContent = opts.reroll ? 'Yeniden oluşturuluyor' : 'Çizelge oluşturuluyor';
+      if (sub) sub.textContent = 'Kurallar uygulanıyor, lütfen bekleyin…';
+    }
+    if (gBtn) {
+      gBtn.disabled = !!on;
+      if (!on) gBtn.textContent = 'Çizelgeyi oluştur';
+      else gBtn.textContent = opts.reroll ? 'Bekleyin…' : 'Oluşturuluyor…';
+    }
+    if (regen) {
+      regen.disabled = !!on;
+      if (!on) regen.textContent = 'Yeniden oluştur';
+      else regen.textContent = 'Yeniden…';
+    }
+    if (special) special.disabled = !!on;
+  }
+
   function generate(opts) {
     opts = opts || {};
     if (!syncMonthFromInputs()) {
@@ -1148,9 +1288,7 @@
     }
     if (opts.fresh) state.variant = 0;
     else if (opts.reroll) state.variant = (state.variant || 0) + 1;
-    var btn = opts.reroll ? $('sh-regenerate') : $('sh-generate');
-    var regen = $('sh-regenerate');
-    if (btn) { btn.disabled = true; btn.textContent = opts.reroll ? 'Yeniden…' : 'Oluşturuluyor…'; }
+    setGenerating(true, { reroll: !!opts.reroll });
     var dayOnly = [];
     var leaves = collectLeavesPayload();
     var special_rules = specialForMonth().map(function (r) {
@@ -1180,9 +1318,7 @@
       .catch(function (_err) {
       })
       .finally(function () {
-        var gBtn = $('sh-generate');
-        if (gBtn) { gBtn.disabled = false; gBtn.textContent = 'Çizelgeyi oluştur'; }
-        if (regen) { regen.disabled = false; regen.textContent = 'Yeniden oluştur'; }
+        setGenerating(false);
       });
   }
 
