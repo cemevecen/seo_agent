@@ -13,7 +13,7 @@ Geri dönüş (önceki uzun motor): tag `ayilma-calc-before-rollback-20260827`.
 4. Yİ/RP dönüşü → ertesi gün 24 tercih  
 5. Hafta içi mümkünse 1×8 + 2×24 · hafta sonu yalnız 2×24  
 6. Mesai: Yİ 8s kredi · personel arası ~16s bant · üst 300s  
-7. Gün aşırı zincir ≤3 (izin yoğun haftada gevşer)  
+7. Gün aşırı zincir **≤3 kati** (4. yasak; izin yoğun haftada da)  
 8. Kişi başı 8 · hedef 3 (2–4) · art arda 8 en fazla 2  
 
 ## Sabitler
@@ -24,7 +24,7 @@ Geri dönüş (önceki uzun motor): tag `ayilma-calc-before-rollback-20260827`.
 | `HOURS_BALANCE_TOLERANCE` | 16 |
 | `YI_DAY_HOURS` | 8 |
 | `EIGHT_PER_PERSON_*` | 2 / 3 / 4 |
-| `GUN_ASIRI_STREAK_MAX` | 3 |
+| `GUN_ASIRI_STREAK_MAX` | 3 | Kati tavan; 4+ yok |
 | `CONSECUTIVE_8_STREAK_MAX` | 2 |
 
 ## Not

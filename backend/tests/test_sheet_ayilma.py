@@ -285,12 +285,26 @@ def _max_gun_asiri_streak(out: dict) -> int:
 
 
 def test_soft_avoid_gun_asiri_prefer_24_over_16():
-    """16 neredeyse hiç; gün aşırı zinciri ≤3 (izin yoksa)."""
+    """16 neredeyse hiç; gün aşırı zinciri kati ≤3."""
     out = generate_ayilma_schedule(2026, 9)
     counts = out["staff_code_counts"]
     assert counts["16"] <= 2
     assert counts["24"] >= counts["8"]
     assert _max_gun_asiri_streak(out) <= 3
+
+
+def test_gun_asiri_streak_never_four():
+    """İzinli ayda da art arda gün aşırı 24 en fazla 3."""
+    leaves = {
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
+        "Şengül Zamur": {f"2026-09-{d:02d}": "Yİ" for d in range(14, 21)},
+        "Sema Evecen": {"2026-09-01": "İST", "2026-09-07": "İST", "2026-09-08": "İST"},
+    }
+    for v in (0, 1, 2):
+        out = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=v)
+        assert _max_gun_asiri_streak(out) <= 3, (
+            f"variant={v} streak={_max_gun_asiri_streak(out)}"
+        )
 
 
 def test_gun_asiri_streak_helpers():
