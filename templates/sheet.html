@@ -816,7 +816,6 @@
   function updateSpModeUi() {
     var pin = specialMode() === 'pin';
     var hint = $('sh-sp-pin-hint');
-    var weeklyBlock = document.querySelector('input[name="sh-sp-weekly"]');
     if (hint) hint.classList.toggle('hidden', !pin);
     renderSpecialCalendar();
     updateSpPickedLabel();
