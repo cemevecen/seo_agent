@@ -49,6 +49,12 @@ GUN_ASIRI_STREAK_MAX = 5
 CONSECUTIVE_8_STREAK_MAX = 2
 # Haftada bu kadar Yİ/RP/İST hücresi varsa streak limiti gevşer
 LEAVE_HEAVY_WEEK_THRESHOLD = 6
+# Aynı ikili aynı gün 24 — yumuşak çeşitlilik (sert kural değil)
+PAIR24_RECENT_GAP = 4  # son eşleşmeden bu kadar gün içinde tekrar → ek ceza
+PAIR24_PRIOR_WEIGHT = 7  # ay içi önceki birlikte 24 (her biri)
+PAIR24_NEAR_REPEAT = 18  # yakın aralıkta tekrar eşleşme
+PAIR24_THIRD_NEAR = 28  # ay içi 2+ kez eşleşmiş ikilinin yakın 3. kez
+PAIR24_MONTHLY_SOFT = 4  # post-pass: hedef üstü aylık birlikte 24
 
 
 def _yi_hours_from_grid(grid: dict[str, dict[str, str]], name: str, days: list[DayMeta]) -> int:
@@ -229,6 +235,111 @@ def _gun_asiri_streak_if_24(
         j += 2
 
     return back + forward
+
+
+def _pair_key(a: str, b: str) -> tuple[str, str]:
+    return (a, b) if a < b else (b, a)
+
+
+def _partners_on_24_today(
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> list[str]:
+    iso = days[day_index].iso
+    return [n for n in STAFF_NURSES if grid[n].get(iso) == "24"]
+
+
+def _pair24_prior_count(
+    a: str,
+    b: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    """Bugünden önce bu ay a+b kaç kez aynı gün 24 tutmuş."""
+    n = 0
+    for j in range(day_index - 1, -1, -1):
+        iso = days[j].iso
+        if grid[a].get(iso) == "24" and grid[b].get(iso) == "24":
+            n += 1
+    return n
+
+
+def _pair24_last_day(
+    a: str,
+    b: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int | None:
+    for j in range(day_index - 1, -1, -1):
+        iso = days[j].iso
+        if grid[a].get(iso) == "24" and grid[b].get(iso) == "24":
+            return j
+    return None
+
+
+def _pair24_near_streak(
+    a: str,
+    b: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    """Bugün eşleşirlerse son ardışık «yakın» (≤GAP gün) birlikte 24 kaçı olur."""
+    idxs = [
+        j
+        for j in range(day_index)
+        if grid[a].get(days[j].iso, "") == "24" and grid[b].get(days[j].iso, "") == "24"
+    ]
+    if not idxs:
+        return 0
+    streak = 1
+    for k in range(len(idxs) - 1, 0, -1):
+        if idxs[k] - idxs[k - 1] <= PAIR24_RECENT_GAP:
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def _pair24_soft_penalty(
+    candidate: str,
+    partner: str,
+    day_index: int,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    """Aynı gün 24'te partner ile eşleşme — düşük öncelikli yumuşak ceza."""
+    if candidate == partner:
+        return 999
+    prior = _pair24_prior_count(candidate, partner, day_index, days, grid)
+    if prior == 0:
+        return 0
+    pen = prior * PAIR24_PRIOR_WEIGHT
+    near_streak = _pair24_near_streak(candidate, partner, day_index, days, grid)
+    if near_streak >= 2:
+        # Üst üste 3. kez aynı ikili (ör. gün 6-8-10) — güçlü ama yumuşak ceza
+        pen += PAIR24_THIRD_NEAR + 16
+    else:
+        last_j = _pair24_last_day(candidate, partner, day_index, days, grid)
+        if last_j is not None and day_index - last_j <= PAIR24_RECENT_GAP:
+            pen += PAIR24_NEAR_REPEAT
+    return pen
+
+
+def _pair24_month_count(
+    a: str,
+    b: str,
+    days: list[DayMeta],
+    grid: dict[str, dict[str, str]],
+) -> int:
+    return sum(
+        1
+        for dm in days
+        if grid[a].get(dm.iso, "") == "24" and grid[b].get(dm.iso, "") == "24"
+    )
 
 
 def _week_leave_cell_count(
@@ -453,6 +564,7 @@ def generate_ayilma_schedule(
     Gün aşırı zinciri en fazla 3×24; izin yoğun haftada gevşer.
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
     Özel koşul: çalışmasın (sert) / çalışsın (yumuşak tercih).
+    Aynı ikili 24 nöbette mümkün olduğunca az ve üst üste tekrar etmesin (yumuşak).
     variant>0 → eşitlikte farklı aday seç (yeniden oluştur).
     """
     if not (1 <= month <= 12):
@@ -548,6 +660,10 @@ def generate_ayilma_schedule(
             pen = _rest_penalty(n, idx, days, grid)
             if n in day_only_set:
                 pen += 500
+            partners_today = _partners_on_24_today(idx, days, grid)
+            pair_pen = sum(
+                _pair24_soft_penalty(n, p, idx, days, grid) for p in partners_today
+            )
             over = 1 if over_streak(n) else 0
             gun = _gun_asiri_24_penalty(n, idx, days, grid)
             soft_streak = max(0, streak_if_24(n) - GUN_ASIRI_STREAK_SOFT)
@@ -557,6 +673,7 @@ def generate_ayilma_schedule(
             return (
                 pen,
                 after_leave,
+                pair_pen,
                 special_work_rank(n),
                 over,
                 soft_streak,
@@ -676,6 +793,80 @@ def generate_ayilma_schedule(
                 warnings.append(f"{dm.iso}: Kat-1 gündüz hemşiresi atanamadı (izin/dinlenme).")
         if night_needed > 0:
             warnings.append(f"{dm.iso}: Gece nöbeti eksik ({2 - night_needed}/2).")
+
+    # ── Post: aynı ikili çok sık 24 — mümkünse bir günü başka hemşireye kaydır ──
+    for _pass in range(3):
+        swapped = False
+        for i, a in enumerate(STAFF_NURSES):
+            for b in STAFF_NURSES[i + 1 :]:
+                if _pair24_month_count(a, b, days, grid) < PAIR24_MONTHLY_SOFT:
+                    continue
+                pair_days = [
+                    j
+                    for j, dm in enumerate(days)
+                    if grid[a].get(dm.iso, "") == "24" and grid[b].get(dm.iso, "") == "24"
+                ]
+                for j in reversed(pair_days):
+                    iso = days[j].iso
+                    leave_heavy_j = _week_is_leave_heavy(j, days, grid)
+                    for who, other in ((a, b), (b, a)):
+                        alts = [
+                            o
+                            for o in STAFF_NURSES
+                            if o not in (a, b)
+                            and grid[o].get(iso) in ("", "8")
+                            and iso not in force_avoid[o]
+                            and not _blocked_by_rest(
+                                o, j, days, grid, prefer_48h_after_24=prefer_48h_after_24
+                            )
+                            and (
+                                leave_heavy_j
+                                or _gun_asiri_streak_if_24(o, j, days, grid) <= GUN_ASIRI_STREAK_MAX
+                            )
+                        ]
+                        if not alts:
+                            continue
+
+                        def alt_score(o: str, *, _other=other, _who=who) -> tuple:
+                            return (
+                                _pair24_prior_count(o, _other, j, days, grid)
+                                + _pair24_prior_count(o, _who, j, days, grid),
+                                _pair24_soft_penalty(o, _other, j, days, grid)
+                                + _pair24_soft_penalty(o, _who, j, days, grid),
+                                n24[o],
+                                hours[o],
+                                o,
+                            )
+
+                        alt = sorted(alts, key=alt_score)[0]
+                        prev = grid[who].get(iso, "")
+                        if prev == "8":
+                            grid[who][iso] = ""
+                            hours[who] -= 8
+                            n8[who] -= 1
+                        else:
+                            grid[who][iso] = ""
+                            hours[who] -= 24
+                            n24[who] -= 1
+                        prev_alt = grid[alt].get(iso, "")
+                        if prev_alt == "8":
+                            grid[alt][iso] = "24"
+                            hours[alt] += 16
+                            n8[alt] -= 1
+                        else:
+                            grid[alt][iso] = "24"
+                            hours[alt] += 24
+                        n24[alt] += 1
+                        swapped = True
+                        break
+                    if swapped:
+                        break
+                if swapped:
+                    break
+            if swapped:
+                break
+        if not swapped:
+            break
 
     # ── Post: streak > GUN_ASIRI_STREAK_MAX olan 24'leri mümkünse 8 ile takas ──
     for _pass in range(4):
@@ -1595,14 +1786,20 @@ def build_ayilma_csv_bytes(
     days: list[dict[str, Any]],
     rows: list[dict[str, Any]],
 ) -> bytes:
-    """UTF-8 BOM + ; ayırıcı — Windows Excel TR ve Android Sheets uyumlu."""
+    """UTF-8 BOM + virgül ayırıcı; boş hücreler \"\" — bitişik virgül (,,) yok."""
     import csv
     from io import StringIO
 
     headers, body = _export_matrix(days, rows)
     sio = StringIO()
     sio.write("\ufeff")
-    writer = csv.writer(sio, delimiter=";", lineterminator="\r\n", quoting=csv.QUOTE_MINIMAL)
+    writer = csv.writer(
+        sio,
+        delimiter=",",
+        lineterminator="\r\n",
+        quoting=csv.QUOTE_ALL,
+        quotechar='"',
+    )
     writer.writerow([_month_title(month, year)])
     writer.writerow([])
     writer.writerow(headers)

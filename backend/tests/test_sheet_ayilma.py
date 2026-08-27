@@ -77,7 +77,10 @@ def test_export_csv_windows_friendly():
     assert raw.startswith(b"\xef\xbb\xbf")
     text = raw.decode("utf-8")
     assert "Ad Soyadı" in text
-    assert ";" in text
+    assert "," in text
+    assert ",," not in text
+    assert '""' in text  # boş mesai hücreleri tırnaklı
+    assert ";" not in text.splitlines()[2]  # başlık satırı virgülle
     assert "Ayılma" in text
     assert "Gülten" in text or "Nuray" in text
 
@@ -330,6 +333,47 @@ def _max_gun_asiri_streak(out: dict) -> int:
     return best
 
 
+def _max_pair24_monthly(out: dict) -> int:
+    days = out["days"]
+    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
+    names = list(grid.keys())
+    best = 0
+    for i, a in enumerate(names):
+        for b in names[i + 1 :]:
+            n = sum(
+                1
+                for dm in days
+                if grid[a].get(dm["iso"], "") == "24" and grid[b].get(dm["iso"], "") == "24"
+            )
+            best = max(best, n)
+    return best
+
+
+def _max_pair24_near_streak(out: dict) -> int:
+    """Aynı ikilinin ≤4 gün aralıklı ardışık birlikte 24 sayısı."""
+    days = out["days"]
+    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
+    names = list(grid.keys())
+    best = 0
+    for i, a in enumerate(names):
+        for b in names[i + 1 :]:
+            idxs = [
+                j
+                for j, dm in enumerate(days)
+                if grid[a].get(dm["iso"], "") == "24" and grid[b].get(dm["iso"], "") == "24"
+            ]
+            streak = 1
+            local = 1
+            for k in range(1, len(idxs)):
+                if idxs[k] - idxs[k - 1] <= 4:
+                    streak += 1
+                    local = max(local, streak)
+                else:
+                    streak = 1
+            best = max(best, local if idxs else 0)
+    return best
+
+
 def test_soft_avoid_gun_asiri_prefer_24_over_16():
     """16 neredeyse hiç; gün aşırı zinciri ≤5 (izin yoksa); 16 ile streak kırılmaz."""
     out = generate_ayilma_schedule(2026, 9)
@@ -337,6 +381,29 @@ def test_soft_avoid_gun_asiri_prefer_24_over_16():
     assert counts["16"] <= 2
     assert counts["24"] >= counts["8"]
     assert _max_gun_asiri_streak(out) <= 5
+
+
+def test_soft_avoid_repeated_pair24():
+    """Aynı ikili 24'te çok sık / üst üste eşleşmesin (yumuşak çeşitlilik)."""
+    from backend.services.ayilma_schedule import PAIR24_MONTHLY_SOFT, generate_ayilma_schedule
+
+    for variant in range(40):
+        out = generate_ayilma_schedule(2026, 9, variant=variant)
+        assert _max_pair24_monthly(out) <= PAIR24_MONTHLY_SOFT
+        assert _max_pair24_near_streak(out) <= 2
+
+
+def test_pair24_soft_penalty_discourages_third_near():
+    from backend.services.ayilma_schedule import _pair24_soft_penalty, month_days
+
+    days = month_days(2026, 9)
+    grid = {n: {d.iso: "" for d in days} for n in STAFF_NURSES}
+    a, b = STAFF_NURSES[0], STAFF_NURSES[1]
+    grid[a][days[5].iso] = "24"
+    grid[b][days[5].iso] = "24"
+    grid[a][days[7].iso] = "24"
+    grid[b][days[7].iso] = "24"
+    assert _pair24_soft_penalty(a, b, 9, days, grid) >= 40
 
 
 def test_gun_asiri_streak_helpers():

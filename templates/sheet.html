@@ -1,73 +1,70 @@
 {% extends "base.html" %}
 {% block content %}
 <div id="sheet-page" class="mx-auto w-full min-w-0 max-w-[1600px] space-y-3 sm:space-y-4" data-header-title="Sheet">
-  <div class="sh-card rounded-2xl bg-white px-3 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none sm:px-5 sm:py-4">
+  <div class="sh-card rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div class="min-w-0">
-        <h2 class="text-base font-bold leading-snug text-slate-900 dark:text-zinc-200 sm:text-lg">Ayılma hemşireleri · aylık çizelge</h2>
+        <h2 class="sh-fluid-title font-bold leading-snug text-slate-900 dark:text-zinc-200">Ayılma hemşireleri · aylık çizelge</h2>
       </div>
       <div class="sh-toolbar flex w-full min-w-0 flex-col gap-2 lg:max-w-xl lg:items-end">
-        <div class="sh-toolbar-picks grid grid-cols-2 gap-2">
-          <label class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div class="sh-toolbar-picks grid">
+          <label class="sh-fluid-label font-semibold uppercase tracking-wide text-slate-400">
             Yıl
-            <select id="sh-year" class="mt-0.5 block w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-bold text-slate-900 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-100"></select>
+            <select id="sh-year" class="sh-fluid-select mt-0.5 block w-full rounded-lg border border-slate-200 bg-white font-bold text-slate-900 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-100"></select>
           </label>
-          <label class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          <label class="sh-fluid-label font-semibold uppercase tracking-wide text-slate-400">
             Ay
-            <select id="sh-month" class="mt-0.5 block w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-bold text-slate-900 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-100"></select>
+            <select id="sh-month" class="sh-fluid-select mt-0.5 block w-full min-w-0 rounded-lg border border-slate-200 bg-white font-bold text-slate-900 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-100"></select>
           </label>
         </div>
-        <div class="sh-toolbar-actions grid grid-cols-2 gap-2">
-          <button type="button" id="sh-open-month" class="sh-btn rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+        <div class="sh-toolbar-actions">
+          <button type="button" id="sh-open-month" class="sh-btn rounded-lg border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
             Takvimi getir
           </button>
-          <button type="button" id="sh-clear-work" class="sh-btn rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 active:bg-slate-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800" title="Görüntülenen ayı tamamen boşalt (mesai + İST/Yİ/RP)">
+          <button type="button" id="sh-clear-work" class="sh-btn rounded-lg border border-slate-200 font-semibold text-slate-600 hover:bg-slate-50 active:bg-slate-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800" title="Görüntülenen ayı tamamen boşalt (mesai + İST/Yİ/RP)">
             Mesaiyi temizle
           </button>
         </div>
-        <div class="sh-export-row grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-          <label class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div class="sh-export-row">
+          <label class="sh-fluid-label font-semibold uppercase tracking-wide text-slate-400">
             İndirme formatı
-            <select id="sh-export-format" class="mt-0.5 block w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-bold text-slate-900 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-100">
+            <select id="sh-export-format" class="sh-fluid-select mt-0.5 block w-full rounded-lg border border-slate-200 bg-white font-bold text-slate-900 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-100">
               <option value="xlsx">Excel (.xlsx) — Windows / Android</option>
-              <option value="csv">CSV (.csv) — Excel, Sheets, evrensel</option>
+              <option value="csv">CSV (.csv) — virgülle ayrılmış, Excel / Sheets</option>
               <option value="docx">Word (.docx) — Windows / Android</option>
             </select>
           </label>
-          <button type="button" id="sh-download" class="sh-btn rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 active:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/70">
+          <button type="button" id="sh-download" class="sh-btn rounded-lg border border-emerald-300 bg-emerald-50 font-semibold text-emerald-800 hover:bg-emerald-100 active:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/70">
             İndir
           </button>
         </div>
       </div>
     </div>
 
-    <div class="mt-4 flex flex-col gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-3 dark:border-indigo-900/50 dark:bg-indigo-950/30 sm:px-4">
-      <label class="inline-flex items-start gap-2 text-sm font-semibold text-slate-800 dark:text-zinc-100">
-        <input id="sh-use-constraints" type="checkbox" class="mt-0.5 shrink-0 rounded border-slate-300">
-        <span>Bu bilgilere göre çizelgeyi oluştur</span>
+    <div class="sh-gen-panel flex flex-col rounded-xl border border-indigo-200 bg-indigo-50/70 dark:border-indigo-900/50 dark:bg-indigo-950/30">
+      <label class="inline-flex items-start gap-2 font-semibold text-slate-800 dark:text-zinc-100">
+        <input id="sh-use-constraints" type="checkbox" class="sh-fluid-check mt-0.5 shrink-0 rounded border-slate-300">
+        <span class="sh-fluid-text">Bu bilgilere göre çizelgeyi oluştur</span>
       </label>
-      <div class="sh-gen-actions flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <button type="button" id="sh-generate" class="sh-btn sh-btn-primary rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 active:bg-indigo-700">
+      <div class="sh-gen-actions">
+        <button type="button" id="sh-generate" class="sh-btn sh-btn-primary rounded-lg bg-indigo-600 font-bold text-white hover:bg-indigo-500 active:bg-indigo-700">
           Çizelgeyi oluştur
         </button>
-        <button type="button" id="sh-regenerate" class="sh-btn hidden rounded-lg border border-indigo-300 bg-white px-3 py-2.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 active:bg-indigo-100 dark:border-indigo-800 dark:bg-zinc-900 dark:text-indigo-300 dark:hover:bg-zinc-800">
-          Yeniden oluştur
-        </button>
-        <button type="button" id="sh-special-open" class="sh-btn rounded-lg border border-violet-300 bg-violet-50 px-3 py-2.5 text-xs font-semibold text-violet-900 hover:bg-violet-100 active:bg-violet-200 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200">
+        <button type="button" id="sh-special-open" class="sh-btn rounded-lg border border-violet-300 bg-violet-50 font-semibold text-violet-900 hover:bg-violet-100 active:bg-violet-200 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200">
           Özel koşul gir
         </button>
       </div>
-      <div class="sh-gen-options flex flex-col gap-2 text-[11px] text-slate-500 dark:text-zinc-400 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+      <div class="sh-gen-options flex flex-col text-slate-500 dark:text-zinc-400 sm:flex-row sm:flex-wrap sm:items-center">
         <label class="inline-flex items-start gap-2">
-          <input id="sh-prefer-48" type="checkbox" class="mt-0.5 shrink-0 rounded border-slate-300" checked>
-          <span>24 saat sonrası mümkünse 2 gün boşluk tercih et</span>
+          <input id="sh-prefer-48" type="checkbox" class="sh-fluid-check mt-0.5 shrink-0 rounded border-slate-300" checked>
+          <span class="sh-fluid-small">24 saat sonrası mümkünse 2 gün boşluk tercih et</span>
         </label>
-        <span id="sh-constraint-count" class="tabular-nums"></span>
-        <span id="sh-special-count" class="tabular-nums text-violet-700 dark:text-violet-300"></span>
+        <span id="sh-constraint-count" class="sh-fluid-small tabular-nums"></span>
+        <span id="sh-special-count" class="sh-fluid-small tabular-nums text-violet-700 dark:text-violet-300"></span>
       </div>
     </div>
 
-    <div id="sh-special-list" class="mt-3 hidden space-y-1 text-[11px] text-slate-600 dark:text-zinc-300"></div>
+    <div id="sh-special-list" class="sh-fluid-small mt-3 hidden space-y-1 text-slate-600 dark:text-zinc-300"></div>
 
   </div>
 
@@ -120,13 +117,19 @@
 
   <div id="sh-summary" class="hidden grid gap-2 sm:grid-cols-2 lg:grid-cols-3"></div>
 
+  <div id="sh-regenerate-bar" class="sh-regenerate-bar hidden" aria-hidden="true">
+    <button type="button" id="sh-regenerate" class="sh-btn sh-regenerate-btn rounded-xl border-2 border-indigo-400 bg-indigo-600 font-bold text-white shadow-sm hover:bg-indigo-500 active:bg-indigo-700 dark:border-indigo-500 dark:bg-indigo-700 dark:hover:bg-indigo-600">
+      Yeniden oluştur
+    </button>
+  </div>
+
   <div class="sh-table-shell overflow-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
-    <div class="flex flex-wrap gap-2 border-b border-slate-100 px-3 py-2 text-[10px] font-semibold dark:border-zinc-800">
+    <div class="sh-legend flex flex-wrap border-b border-slate-100 font-semibold dark:border-zinc-800">
       <span class="rounded bg-sky-100 px-1.5 py-0.5 text-sky-800 dark:bg-sky-950 dark:text-sky-200">İST istek</span>
       <span class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-900 dark:bg-amber-950 dark:text-amber-200">Yİ izin</span>
       <span class="rounded bg-rose-100 px-1.5 py-0.5 text-rose-900 dark:bg-rose-950 dark:text-rose-200">RP rapor</span>
     </div>
-    <table class="sh-table min-w-full border-collapse text-[11px]">
+    <table class="sh-table min-w-full border-collapse">
       <thead id="sh-head"></thead>
       <tbody id="sh-body"></tbody>
     </table>
@@ -134,9 +137,84 @@
 </div>
 
 <style>
-  /* Label text-slate-400 mirasını kır — seçili değer her zaman okunaklı */
+  /* ── Akıcı (clamp) tipografi ve boşluk — viewport ile ölçeklenir ── */
+  #sheet-page {
+    --sh-fs-title: clamp(0.95rem, 0.82rem + 0.65vw, 1.25rem);
+    --sh-fs-label: clamp(0.625rem, 0.58rem + 0.22vw, 0.75rem);
+    --sh-fs-body: clamp(0.8125rem, 0.76rem + 0.28vw, 0.9375rem);
+    --sh-fs-btn: clamp(0.75rem, 0.68rem + 0.38vw, 0.9375rem);
+    --sh-fs-small: clamp(0.6875rem, 0.64rem + 0.22vw, 0.8125rem);
+    --sh-fs-micro: clamp(0.5625rem, 0.52rem + 0.18vw, 0.6875rem);
+    --sh-fs-table: clamp(0.625rem, 0.58rem + 0.25vw, 0.75rem);
+    --sh-fs-table-wd: clamp(0.5rem, 0.46rem + 0.18vw, 0.625rem);
+    --sh-fs-summary-val: clamp(1rem, 0.88rem + 0.55vw, 1.25rem);
+    --sh-gap: clamp(0.5rem, 0.35rem + 0.75vw, 1rem);
+    --sh-gap-sm: clamp(0.35rem, 0.28rem + 0.35vw, 0.65rem);
+    --sh-pad-card: clamp(0.75rem, 0.55rem + 1vw, 1.25rem);
+    --sh-radius: clamp(0.65rem, 0.55rem + 0.35vw, 1rem);
+    --sh-radius-btn: clamp(0.5rem, 0.45rem + 0.25vw, 0.65rem);
+    --sh-btn-min-h: clamp(2.65rem, 2.35rem + 1.1vw, 3.1rem);
+    --sh-btn-px: clamp(0.65rem, 0.45rem + 1vw, 1.15rem);
+    --sh-btn-py: clamp(0.5rem, 0.4rem + 0.45vw, 0.7rem);
+    --sh-select-fs: clamp(0.8125rem, 0.76rem + 0.28vw, 0.9375rem);
+    --sh-select-py: clamp(0.45rem, 0.38rem + 0.35vw, 0.65rem);
+    --sh-check-size: clamp(0.95rem, 0.88rem + 0.35vw, 1.125rem);
+    font-size: var(--sh-fs-body);
+  }
+  #sheet-page .sh-fluid-title { font-size: var(--sh-fs-title); line-height: 1.3; }
+  #sheet-page .sh-fluid-label { font-size: var(--sh-fs-label); letter-spacing: 0.04em; }
+  #sheet-page .sh-fluid-text { font-size: var(--sh-fs-body); line-height: 1.45; }
+  #sheet-page .sh-fluid-small { font-size: var(--sh-fs-small); line-height: 1.4; }
+  #sheet-page .sh-fluid-check {
+    width: var(--sh-check-size);
+    height: var(--sh-check-size);
+    min-width: var(--sh-check-size);
+    min-height: var(--sh-check-size);
+  }
+  #sheet-page .sh-card { padding: var(--sh-pad-card); }
+  #sheet-page .sh-gen-panel {
+    gap: var(--sh-gap);
+    margin-top: var(--sh-gap);
+    padding: var(--sh-pad-card);
+    border-radius: var(--sh-radius);
+  }
+  #sheet-page .sh-gen-options { gap: var(--sh-gap-sm); }
+  #sheet-page .sh-toolbar { gap: var(--sh-gap-sm); }
+  #sheet-page .sh-toolbar-picks {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sh-gap-sm);
+    width: 100%;
+  }
+  #sheet-page .sh-toolbar-actions,
+  #sheet-page .sh-gen-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+    gap: var(--sh-gap-sm);
+    width: 100%;
+  }
+  #sheet-page .sh-export-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--sh-gap-sm);
+    width: 100%;
+  }
+  @media (min-width: 540px) {
+    #sheet-page .sh-export-row {
+      grid-template-columns: 1fr auto;
+      align-items: end;
+    }
+    #sheet-page .sh-export-row .sh-btn {
+      width: auto;
+      min-width: clamp(5.5rem, 4rem + 8vw, 8rem);
+    }
+  }
+  #sheet-page .sh-fluid-select,
   #sheet-page .sh-toolbar select,
   #sheet-page .sh-export-row select {
+    font-size: var(--sh-select-fs);
+    padding: var(--sh-select-py) clamp(0.45rem, 0.35rem + 0.4vw, 0.65rem);
+    min-height: var(--sh-btn-min-h);
     color: rgb(15 23 42);
     font-weight: 700;
     -webkit-text-fill-color: rgb(15 23 42);
@@ -145,9 +223,12 @@
   #sheet-page .sh-export-row select option {
     color: rgb(15 23 42);
     font-weight: 600;
+    font-size: var(--sh-select-fs);
   }
+  html.dark #sheet-page .sh-fluid-select,
   html.dark #sheet-page .sh-toolbar select,
   html.dark #sheet-page .sh-export-row select,
+  html.charcoal #sheet-page .sh-fluid-select,
   html.charcoal #sheet-page .sh-toolbar select,
   html.charcoal #sheet-page .sh-export-row select {
     color: rgb(244 244 245);
@@ -162,17 +243,27 @@
   #sheet-page .sh-btn {
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    min-height: 2.75rem;
+    font-size: var(--sh-fs-btn);
+    line-height: 1.25;
+    min-height: var(--sh-btn-min-h);
+    padding: var(--sh-btn-py) var(--sh-btn-px);
+    border-radius: var(--sh-radius-btn);
     width: 100%;
+    max-width: 100%;
+    white-space: normal;
+    text-wrap: balance;
+    word-break: break-word;
+    hyphens: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0.35em;
   }
-  @media (min-width: 640px) {
-    #sheet-page .sh-toolbar-actions .sh-btn,
-    #sheet-page .sh-gen-actions .sh-btn {
-      width: auto;
-      min-height: 2.25rem;
-    }
-    #sheet-page .sh-gen-actions .sh-btn-primary {
-      min-width: 10rem;
+  @media (min-width: 480px) {
+    #sheet-page .sh-btn {
+      white-space: nowrap;
+      text-wrap: pretty;
     }
   }
   #sheet-page .sh-table-shell {
@@ -180,9 +271,61 @@
     overscroll-behavior-x: contain;
     max-width: 100%;
   }
+  #sheet-page .sh-legend {
+    font-size: var(--sh-fs-micro);
+    gap: var(--sh-gap-sm);
+    padding: clamp(0.35rem, 0.28rem + 0.35vw, 0.65rem) var(--sh-pad-card);
+  }
+  #sheet-page .sh-table { font-size: var(--sh-fs-table); }
+  #sheet-page .sh-table-wd {
+    font-size: var(--sh-fs-table-wd);
+    font-weight: 600;
+    opacity: 0.72;
+  }
+  #sheet-page .sh-regenerate-bar { margin-bottom: 0.15rem; }
+  #sheet-page .sh-regenerate-bar:not(.hidden) { display: block; }
+  #sheet-page .sh-regenerate-btn {
+    width: 100%;
+    font-size: clamp(0.8125rem, 0.74rem + 0.38vw, 1rem);
+    min-height: clamp(2.75rem, 2.45rem + 1.2vw, 3.25rem);
+  }
+  @media (min-width: 640px) {
+    #sheet-page .sh-regenerate-btn {
+      width: auto;
+      min-width: clamp(10rem, 6rem + 14vw, 14rem);
+    }
+    #sheet-page .sh-regenerate-bar:not(.hidden) {
+      display: flex;
+      justify-content: flex-end;
+    }
+  }
+  #sheet-page .sh-summary-card {
+    font-size: var(--sh-fs-small);
+    padding: var(--sh-gap-sm) var(--sh-pad-card);
+    border-radius: var(--sh-radius);
+  }
+  #sheet-page .sh-summary-val {
+    font-size: var(--sh-fs-summary-val);
+    font-weight: 800;
+    line-height: 1.2;
+  }
+  #sheet-page .sh-summary-sub {
+    font-size: var(--sh-fs-label);
+    color: rgb(148 163 184);
+  }
+  #sheet-page .sh-special-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--sh-gap-sm);
+    font-size: var(--sh-fs-small);
+    padding: clamp(0.35rem, 0.3rem + 0.3vw, 0.55rem) clamp(0.45rem, 0.35rem + 0.4vw, 0.65rem);
+    border-radius: var(--sh-radius-btn);
+  }
   .sh-table th, .sh-table td {
     border: 1px solid rgb(226 232 240);
-    padding: 4px 3px;
+    padding: clamp(3px, 0.15rem + 0.25vw, 5px) clamp(2px, 0.1rem + 0.2vw, 4px);
     text-align: center;
     white-space: nowrap;
   }
@@ -192,8 +335,15 @@
   }
   .sh-table th.sh-name, .sh-table td.sh-name {
     position: sticky; left: 0; z-index: 2;
-    text-align: left; padding-left: 8px; min-width: 118px;
+    text-align: left;
+    padding-left: clamp(6px, 0.35rem + 0.4vw, 10px);
+    min-width: clamp(5.75rem, 4.5rem + 6vw, 7.5rem);
+    max-width: clamp(6.5rem, 5rem + 8vw, 9rem);
     background: rgb(248 250 252); font-weight: 700;
+    font-size: clamp(0.625rem, 0.58rem + 0.28vw, 0.75rem);
+    white-space: normal;
+    text-wrap: balance;
+    line-height: 1.25;
   }
   html.dark .sh-table th.sh-name, html.dark .sh-table td.sh-name,
   html.charcoal .sh-table th.sh-name, html.charcoal .sh-table td.sh-name {
@@ -210,7 +360,12 @@
   html.dark .sh-leave-rp, html.charcoal .sh-leave-rp { background: rgb(127 29 29 / 0.45) !important; color: rgb(254 202 202); }
   html.dark .sh-leave-ist, html.charcoal .sh-leave-ist { background: rgb(12 74 110 / 0.45) !important; color: rgb(186 230 253); }
   .sh-lead td.sh-name { color: rgb(67 56 202); }
-  .sh-cell { cursor: pointer; min-width: 28px; touch-action: manipulation; -webkit-tap-highlight-color: rgba(99, 102, 241, 0.15); }
+  .sh-cell {
+    cursor: pointer;
+    min-width: clamp(1.5rem, 1.2rem + 1.2vw, 1.85rem);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(99, 102, 241, 0.15);
+  }
   .sh-cell:active { outline: 2px solid rgb(99 102 241); outline-offset: -2px; }
   .sh-cell:hover { outline: 2px solid rgb(99 102 241); outline-offset: -2px; }
   .sh-tot { font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -242,17 +397,21 @@
     gap: 0.75rem;
     margin-bottom: 0.75rem;
   }
-  .sh-sp-panel-head h3 { margin: 0; font-size: 1rem; font-weight: 800; }
+  .sh-sp-panel-head h3 {
+    margin: 0;
+    font-size: clamp(0.9375rem, 0.85rem + 0.45vw, 1.125rem);
+    font-weight: 800;
+  }
   .sh-sp-x {
     border: 0;
     background: transparent;
-    font-size: 0.75rem;
+    font-size: clamp(0.75rem, 0.68rem + 0.35vw, 0.875rem);
     font-weight: 700;
     color: #64748b;
     cursor: pointer;
-    padding: 0.5rem 0.65rem;
-    min-height: 2.75rem;
-    min-width: 2.75rem;
+    padding: clamp(0.35rem, 0.28rem + 0.35vw, 0.5rem) clamp(0.45rem, 0.35rem + 0.4vw, 0.65rem);
+    min-height: clamp(2.35rem, 2.1rem + 0.9vw, 2.75rem);
+    min-width: clamp(2.35rem, 2.1rem + 0.9vw, 2.75rem);
     border-radius: 0.5rem;
     touch-action: manipulation;
   }
@@ -273,12 +432,12 @@
     align-items: start;
   }
   .sh-sp-step-n {
-    width: 1.4rem;
-    height: 1.4rem;
+    width: clamp(1.25rem, 1.1rem + 0.6vw, 1.45rem);
+    height: clamp(1.25rem, 1.1rem + 0.6vw, 1.45rem);
     border-radius: 999px;
     background: #7c3aed;
     color: #fff;
-    font-size: 0.7rem;
+    font-size: clamp(0.625rem, 0.58rem + 0.22vw, 0.75rem);
     font-weight: 800;
     display: inline-flex;
     align-items: center;
@@ -289,7 +448,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
-    font-size: 0.7rem;
+    font-size: clamp(0.625rem, 0.58rem + 0.22vw, 0.75rem);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -300,12 +459,13 @@
     border-radius: 0.55rem;
     border: 1px solid #e2e8f0;
     background: #f8fafc;
-    padding: 0.45rem 0.55rem;
-    font-size: 0.875rem;
+    padding: clamp(0.4rem, 0.35rem + 0.3vw, 0.55rem) clamp(0.45rem, 0.38rem + 0.35vw, 0.65rem);
+    font-size: clamp(0.8125rem, 0.76rem + 0.28vw, 0.9375rem);
     font-weight: 700;
     color: #0f172a;
     text-transform: none;
     letter-spacing: normal;
+    min-height: clamp(2.5rem, 2.25rem + 1vw, 2.85rem);
   }
   html.dark .sh-sp-field select {
     border-color: transparent;
@@ -315,8 +475,8 @@
   .sh-sp-radios {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem 1rem;
-    font-size: 0.875rem;
+    gap: clamp(0.5rem, 0.35rem + 0.75vw, 0.85rem) clamp(0.75rem, 0.5rem + 1vw, 1rem);
+    font-size: clamp(0.8125rem, 0.76rem + 0.28vw, 0.9375rem);
     font-weight: 700;
     text-transform: none;
     letter-spacing: normal;
@@ -331,7 +491,7 @@
     text-align: center;
   }
   .sh-sp-cal-hd {
-    font-size: 0.65rem;
+    font-size: clamp(0.5625rem, 0.52rem + 0.18vw, 0.6875rem);
     font-weight: 700;
     color: #94a3b8;
     padding: 0.2rem 0;
@@ -339,13 +499,13 @@
   .sh-sp-day {
     box-sizing: border-box;
     width: 100%;
-    min-height: 2.35rem;
+    min-height: clamp(2.1rem, 1.9rem + 0.9vw, 2.5rem);
     border-radius: 0.45rem;
     border: 1px solid #e2e8f0;
     background: #fff;
-    padding: 0.35rem 0;
+    padding: clamp(0.25rem, 0.2rem + 0.25vw, 0.4rem) 0;
     cursor: pointer;
-    font-size: 0.75rem;
+    font-size: clamp(0.6875rem, 0.64rem + 0.22vw, 0.8125rem);
     font-weight: 700;
     color: #0f172a;
     touch-action: manipulation;
@@ -368,7 +528,7 @@
   }
   .sh-sp-hint {
     margin: 0;
-    font-size: 0.7rem;
+    font-size: clamp(0.6875rem, 0.64rem + 0.22vw, 0.8125rem);
     font-weight: 600;
     text-transform: none;
     letter-spacing: normal;
@@ -381,12 +541,13 @@
     border-radius: 0.65rem;
     background: #7c3aed;
     color: #fff;
-    font-size: 0.875rem;
+    font-size: clamp(0.8125rem, 0.76rem + 0.28vw, 0.9375rem);
     font-weight: 800;
-    padding: 0.65rem 0.75rem;
-    min-height: 2.75rem;
+    padding: clamp(0.55rem, 0.45rem + 0.45vw, 0.75rem) clamp(0.65rem, 0.5rem + 0.6vw, 0.85rem);
+    min-height: clamp(2.65rem, 2.35rem + 1.1vw, 3.1rem);
     cursor: pointer;
     touch-action: manipulation;
+    text-wrap: balance;
   }
   @media (max-width: 767px) {
     #content:has(#sheet-page) {
@@ -404,23 +565,12 @@
     }
     #sheet-page .sh-table th.sh-name,
     #sheet-page .sh-table td.sh-name {
-      min-width: 92px;
-      max-width: 108px;
-      font-size: 10px;
-      padding-left: 6px;
+      min-width: clamp(4.75rem, 3.5rem + 8vw, 6.75rem);
+      max-width: clamp(5.5rem, 4rem + 10vw, 7.5rem);
     }
     #sheet-page .sh-table th,
     #sheet-page .sh-table td {
-      padding: 5px 2px;
-    }
-    #sheet-page .sh-export-row .sh-btn {
-      width: 100%;
-    }
-    @media (min-width: 640px) {
-      #sheet-page .sh-export-row .sh-btn {
-        width: auto;
-        min-width: 7rem;
-      }
+      padding: clamp(4px, 0.2rem + 0.3vw, 6px) clamp(2px, 0.1rem + 0.2vw, 3px);
     }
     .sh-sp-overlay {
       align-items: flex-end;
@@ -441,6 +591,11 @@
   #sheet-page .sh-btn-inline {
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+    font-size: var(--sh-fs-btn);
+    min-height: clamp(2.35rem, 2.1rem + 0.9vw, 2.75rem);
+    min-width: clamp(2.35rem, 2.1rem + 0.9vw, 2.75rem);
+    padding: var(--sh-btn-py) var(--sh-btn-px);
+    text-wrap: balance;
   }
 </style>
 
@@ -522,9 +677,9 @@
         return d + ' ' + WD[wd];
       }).join(', ');
       var wk = r.weekly ? ' · her hafta' : '';
-      return '<div class="flex items-center justify-between gap-2 rounded-lg bg-violet-50 px-2 py-1.5 dark:bg-violet-950/30">' +
-        '<span><strong>' + r.name + '</strong> — ' + modeLabel + ': ' + days + wk + '</span>' +
-        '<button type="button" class="sh-sp-del sh-btn-inline min-h-[2.75rem] min-w-[2.75rem] px-2 text-rose-600 font-bold" data-idx="' + idx + '">Sil</button></div>';
+      return '<div class="sh-special-list-item rounded-lg bg-violet-50 dark:bg-violet-950/30">' +
+        '<span class="min-w-0 flex-1"><strong>' + r.name + '</strong> — ' + modeLabel + ': ' + days + wk + '</span>' +
+        '<button type="button" class="sh-sp-del sh-btn-inline shrink-0 font-bold text-rose-600" data-idx="' + idx + '">Sil</button></div>';
     }).join('');
     list.querySelectorAll('.sh-sp-del').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -712,6 +867,16 @@
     return true;
   }
 
+  function setRegenerateVisible(show) {
+    var bar = $('sh-regenerate-bar');
+    if (!bar) return;
+    bar.classList.toggle('hidden', !show);
+    bar.setAttribute('aria-hidden', show ? 'false' : 'true');
+    if (show) {
+      try { bar.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+    }
+  }
+
   function openMonthCalendar() {
     if (!syncMonthFromInputs() && !(state.year && state.month)) return;
     state.grid = {};
@@ -725,8 +890,7 @@
     });
     var sum = $('sh-summary');
     if (sum) { sum.classList.add('hidden'); sum.innerHTML = ''; }
-    var regen = $('sh-regenerate');
-    if (regen) regen.classList.add('hidden');
+    setRegenerateVisible(false);
     state.variant = 0;
     updateConstraintCount();
     renderTable();
@@ -788,7 +952,7 @@
 
     var hr = '<tr><th class="sh-name">Ad Soyadı</th>';
     state.days.forEach(function (dm) {
-      hr += '<th class="' + (dm.is_weekend ? 'sh-wknd' : '') + '" title="' + dm.iso + '">' + dm.day + '<div class="text-[9px] font-semibold opacity-70">' + dm.weekday_tr + '</div></th>';
+      hr += '<th class="' + (dm.is_weekend ? 'sh-wknd' : '') + '" title="' + dm.iso + '">' + dm.day + '<div class="sh-table-wd">' + dm.weekday_tr + '</div></th>';
     });
     hr += '<th>Çalıştığı</th><th>Aylık</th><th>Fazla</th></tr>';
     head.innerHTML = hr;
@@ -850,9 +1014,9 @@
     if (sum) {
       sum.classList.remove('hidden');
       sum.innerHTML =
-        '<div class="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200 text-xs dark:bg-zinc-900 dark:ring-0"><div class="text-slate-400">Hafta içi</div><div class="text-lg font-black">' + payload.weekday_count + ' × 8 = ' + payload.ideal_hours_staff + 's</div></div>' +
-        '<div class="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200 text-xs dark:bg-zinc-900 dark:ring-0"><div class="text-slate-400">Max / kişi</div><div class="text-lg font-black">' + payload.max_monthly_hours + 's</div></div>' +
-        '<div class="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200 text-xs dark:bg-zinc-900 dark:ring-0"><div class="text-slate-400">Sonraki ay 1. gün boş</div><div class="text-sm font-bold">' + ((payload.next_month_must_rest || []).join(', ') || '—') + '</div></div>';
+        '<div class="sh-summary-card bg-white ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0"><div class="sh-summary-sub">Hafta içi</div><div class="sh-summary-val">' + payload.weekday_count + ' × 8 = ' + payload.ideal_hours_staff + 's</div></div>' +
+        '<div class="sh-summary-card bg-white ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0"><div class="sh-summary-sub">Max / kişi</div><div class="sh-summary-val">' + payload.max_monthly_hours + 's</div></div>' +
+        '<div class="sh-summary-card bg-white ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0"><div class="sh-summary-sub">Sonraki ay 1. gün boş</div><div class="sh-fluid-text font-bold">' + ((payload.next_month_must_rest || []).join(', ') || '—') + '</div></div>';
     }
   }
 
@@ -897,7 +1061,7 @@
       .then(function (x) {
         if (!x.ok) throw new Error((x.d && x.d.detail) || 'Hata');
         renderFromServer(x.d);
-        if (regen) regen.classList.remove('hidden');
+        setRegenerateVisible(true);
       })
       .catch(function (_err) {
       })
@@ -931,6 +1095,7 @@
     });
     var sum = $('sh-summary');
     if (sum) { sum.classList.add('hidden'); sum.innerHTML = ''; }
+    setRegenerateVisible(false);
     updateConstraintCount();
     renderTable();
   }
