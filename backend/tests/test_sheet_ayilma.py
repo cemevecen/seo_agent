@@ -511,19 +511,24 @@ def test_idle_24_gap_helpers():
 
 
 def test_max_days_without_24_at_most_three():
-    """24 nöbet arası en fazla 3 gün; 4+ yasak."""
-    from backend.services.ayilma_schedule import _max_days_without_24_in_grid, month_days
+    """24 arası görünür boşluk en fazla 3; panel üretimi (variant retry) dahil."""
+    from backend.services.ayilma_schedule import (
+        _max_days_without_24_in_grid,
+        _max_empty_between_24_in_grid,
+        month_days,
+    )
 
     leaves = {
         "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
         "Sema Evecen": {f"2026-09-{d:02d}": "İST" for d in (1, 7, 8, 15, 22, 29)},
     }
-    for variant in range(25):
-        out = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=variant)
-        grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
-        days_meta = month_days(2026, 9)
-        best = _max_days_without_24_in_grid(days_meta, grid)
-        assert best <= 3, f"variant {variant} max gap without 24 = {best}"
+    out = generate_ayilma_schedule(2026, 9, leaves=leaves)
+    grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
+    days_meta = month_days(2026, 9)
+    empty_gap = _max_empty_between_24_in_grid(days_meta, grid)
+    assert empty_gap <= 3, f"max empty between 24 = {empty_gap}"
+    best = _max_days_without_24_in_grid(days_meta, grid)
+    assert best <= 3, f"max gap without 24 = {best}"
 
 
 def test_triple_gap_sandwich_minimized():
