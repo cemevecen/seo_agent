@@ -95,7 +95,8 @@ def test_export_docx_opens():
         assert "word/document.xml" in zf.namelist()
         doc_xml = zf.read("word/document.xml").decode("utf-8")
     assert "Ayılma" in doc_xml
-    assert "Ad Soyadı" in doc_xml
+    assert "Ad Soyad" in doc_xml
+    assert "landscape" in doc_xml.lower() or 'w:orient="landscape"' in doc_xml
 
 
 def test_sheet_menu_visible():

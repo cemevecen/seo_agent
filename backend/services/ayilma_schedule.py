@@ -1618,39 +1618,97 @@ def build_ayilma_docx_bytes(
     days: list[dict[str, Any]],
     rows: list[dict[str, Any]],
 ) -> bytes:
-    """Word .docx — Windows Word / Android Google Docs & Office uyumlu."""
+    """Word .docx — yatay A4, sabit sütun; Windows Word / Android uyumlu."""
     from io import BytesIO
 
     from docx import Document
-    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.enum.section import WD_ORIENT
+    from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.shared import Pt
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Cm, Mm, Pt
+
+    def _set_nowrap(cell) -> None:
+        tc_pr = cell._tc.get_or_add_tcPr()
+        for old in tc_pr.findall(qn("w:noWrap")):
+            tc_pr.remove(old)
+        tc_pr.append(OxmlElement("w:noWrap"))
+
+    def _write_cell(cell, text: str, *, bold: bool = False, size: float = 8, align=WD_ALIGN_PARAGRAPH.CENTER) -> None:
+        cell.text = ""
+        p = cell.paragraphs[0]
+        p.alignment = align
+        run = p.add_run(text)
+        run.bold = bold
+        run.font.size = Pt(size)
+        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        _set_nowrap(cell)
+
+    def _fixed_layout(table) -> None:
+        tbl = table._tbl
+        tbl_pr = tbl.tblPr
+        if tbl_pr is None:
+            tbl_pr = OxmlElement("w:tblPr")
+            tbl.insert(0, tbl_pr)
+        layout = tbl_pr.find(qn("w:tblLayout"))
+        if layout is None:
+            layout = OxmlElement("w:tblLayout")
+            tbl_pr.append(layout)
+        layout.set(qn("w:type"), "fixed")
 
     headers, body = _export_matrix(days, rows)
     doc = Document()
-    doc.add_heading(_month_title(month, year), level=1)
+
+    section = doc.sections[0]
+    section.orientation = WD_ORIENT.LANDSCAPE
+    section.page_width, section.page_height = section.page_height, section.page_width
+    section.top_margin = Cm(1.0)
+    section.bottom_margin = Cm(1.0)
+    section.left_margin = Cm(0.7)
+    section.right_margin = Cm(0.7)
+
+    title = doc.add_heading(_month_title(month, year), level=1)
+    for run in title.runs:
+        run.font.size = Pt(14)
+
     table = doc.add_table(rows=1 + len(body), cols=len(headers))
     table.style = "Table Grid"
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    _fixed_layout(table)
 
+    name_w = Mm(26)
+    total_w = Mm(13)
+    n_days = len(days)
+    usable = section.page_width - section.left_margin - section.right_margin
+    day_budget = usable - name_w - (total_w * 3)
+    day_w = day_budget // max(n_days, 1)
+    day_w = max(day_w, Mm(4.8))
+
+    col_widths = [name_w] + [day_w] * n_days + [total_w, total_w, total_w]
+    for col_idx, width in enumerate(col_widths):
+        for row in table.rows:
+            row.cells[col_idx].width = width
+
+    wd_tr = ("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")
     hdr = table.rows[0].cells
-    for i, h in enumerate(headers):
-        hdr[i].text = str(h)
-        for p in hdr[i].paragraphs:
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            for run in p.runs:
-                run.bold = True
-                run.font.size = Pt(9)
+    _write_cell(hdr[0], "Ad Soyadı", bold=True, size=8, align=WD_ALIGN_PARAGRAPH.LEFT)
+    for i, d in enumerate(days):
+        wd = wd_tr[d.get("weekday", 0) % 7] if isinstance(d.get("weekday"), int) else ""
+        label = f"{d.get('day', '')}\n{wd}" if wd else str(d.get("day", ""))
+        _write_cell(hdr[1 + i], label, bold=True, size=7)
+    for j, label in enumerate(("Çalıştığı", "Aylık", "Fazla")):
+        _write_cell(hdr[1 + n_days + j], label, bold=True, size=7)
 
     for r_i, line in enumerate(body):
         cells = table.rows[r_i + 1].cells
-        for c_i, val in enumerate(line):
-            cells[c_i].text = "" if val == "" else str(val)
-            align = WD_ALIGN_PARAGRAPH.LEFT if c_i == 0 else WD_ALIGN_PARAGRAPH.CENTER
-            for p in cells[c_i].paragraphs:
-                p.alignment = align
-                for run in p.runs:
-                    run.font.size = Pt(9)
+        _write_cell(cells[0], str(line[0]), size=8, align=WD_ALIGN_PARAGRAPH.LEFT)
+        for c_i, d in enumerate(days):
+            val = line[1 + c_i]
+            _write_cell(cells[1 + c_i], "" if val == "" else str(val), size=8)
+        for j in range(3):
+            _write_cell(cells[1 + n_days + j], str(line[-3 + j]), size=8)
 
     buf = BytesIO()
     doc.save(buf)
