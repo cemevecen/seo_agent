@@ -85,9 +85,17 @@
             <div class="sh-sp-radios">
               <label><input type="radio" name="sh-sp-mode" value="work" checked> Çalışsın</label>
               <label><input type="radio" name="sh-sp-mode" value="avoid"> Çalışmasın</label>
-              <label><input type="radio" name="sh-sp-mode" value="pin"> Sabit vardiya (8 / 16 / 24)</label>
+              <label><input type="radio" name="sh-sp-mode" value="pin"> Sabit vardiya</label>
             </div>
-            <p id="sh-sp-pin-hint" class="sh-sp-hint hidden">Takvimde güne bas: boş → 8 → 16 → 24 → boş</p>
+            <div id="sh-sp-pin-codes" class="sh-sp-pin-codes hidden" role="group" aria-label="Vardiya kodu">
+              <span class="sh-sp-pin-codes-label">Vardiya</span>
+              <div class="sh-sp-pin-code-btns">
+                <label class="sh-sp-pin-code"><input type="radio" name="sh-sp-pin-code" value="8" checked> 8</label>
+                <label class="sh-sp-pin-code"><input type="radio" name="sh-sp-pin-code" value="16"> 16</label>
+                <label class="sh-sp-pin-code"><input type="radio" name="sh-sp-pin-code" value="24"> 24</label>
+              </div>
+            </div>
+            <p id="sh-sp-pin-hint" class="sh-sp-hint hidden">Önce 8 / 16 / 24 seç, sonra takvimde günlere bas (aynı güne tekrar → sil)</p>
           </div>
         </li>
         <li>
@@ -632,6 +640,65 @@
   }
   html.dark .sh-sp-radios { color: #e4e4e7; }
   .sh-sp-radios label { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+  .sh-sp-pin-codes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.75rem;
+    margin-top: 0.55rem;
+  }
+  .sh-sp-pin-codes.hidden { display: none; }
+  .sh-sp-pin-codes-label {
+    font-size: clamp(0.6875rem, 0.64rem + 0.22vw, 0.8125rem);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+  }
+  .sh-sp-pin-code-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .sh-sp-pin-code {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: clamp(2.75rem, 2.4rem + 1.2vw, 3.25rem);
+    min-height: clamp(2.35rem, 2.1rem + 0.9vw, 2.75rem);
+    padding: 0 0.65rem;
+    border-radius: 0.55rem;
+    border: 2px solid #c4b5fd;
+    background: #f5f3ff;
+    color: #5b21b6;
+    font-size: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+    font-weight: 800;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .sh-sp-pin-code input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .sh-sp-pin-code:has(input:checked),
+  .sh-sp-pin-code.is-on {
+    border-color: #6d28d9;
+    background: #7c3aed;
+    color: #fff;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.28);
+  }
+  html.dark .sh-sp-pin-code {
+    border-color: #6d28d9;
+    background: #2e1065;
+    color: #ddd6fe;
+  }
+  html.dark .sh-sp-pin-code:has(input:checked),
+  html.dark .sh-sp-pin-code.is-on {
+    background: #7c3aed;
+    color: #fff;
+    border-color: #a78bfa;
+  }
   .sh-sp-cal {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -805,7 +872,6 @@
   var LS_LEAVES = 'sheet_ayilma_leaves_v2';
   var LS_SPECIAL = 'sheet_ayilma_special_v1';
   var CONSTRAINT_CYCLE = ['', 'İST', 'Yİ', 'RP'];
-  var PIN_CYCLE = ['', '8', '16', '24'];
   var spDraft = { dates: {} };
   var spCalBound = false;
 
@@ -814,10 +880,26 @@
     return el ? el.value : 'work';
   }
 
+  function selectedPinCode() {
+    var el = document.querySelector('input[name="sh-sp-pin-code"]:checked');
+    var v = el ? String(el.value || '') : '8';
+    return (v === '8' || v === '16' || v === '24') ? v : '8';
+  }
+
+  function syncPinCodeUi() {
+    document.querySelectorAll('.sh-sp-pin-code').forEach(function (lab) {
+      var inp = lab.querySelector('input');
+      lab.classList.toggle('is-on', !!(inp && inp.checked));
+    });
+  }
+
   function updateSpModeUi() {
     var pin = specialMode() === 'pin';
     var hint = $('sh-sp-pin-hint');
+    var codes = $('sh-sp-pin-codes');
     if (hint) hint.classList.toggle('hidden', !pin);
+    if (codes) codes.classList.toggle('hidden', !pin);
+    syncPinCodeUi();
     renderSpecialCalendar();
     updateSpPickedLabel();
   }
@@ -850,12 +932,10 @@
       var iso = btn.getAttribute('data-iso');
       if (!iso) return;
       if (specialMode() === 'pin') {
-        var cur = spDraft.dates[iso] || '';
-        var ix = PIN_CYCLE.indexOf(String(cur));
-        if (ix < 0) ix = 0;
-        var next = PIN_CYCLE[(ix + 1) % PIN_CYCLE.length];
-        if (next) spDraft.dates[iso] = next;
-        else delete spDraft.dates[iso];
+        var code = selectedPinCode();
+        var cur = String(spDraft.dates[iso] || '');
+        if (cur === code) delete spDraft.dates[iso];
+        else spDraft.dates[iso] = code;
       } else {
         if (spDraft.dates[iso]) delete spDraft.dates[iso];
         else spDraft.dates[iso] = true;
@@ -1045,7 +1125,9 @@
     }
     var keys = Object.keys(spDraft.dates);
     if (!keys.length) {
-      el.textContent = specialMode() === 'pin' ? 'Vardiya seçilmedi (güne bas)' : 'Gün seçilmedi';
+      el.textContent = specialMode() === 'pin'
+        ? ('Seçili vardiya ' + selectedPinCode() + ' — güne bas')
+        : 'Gün seçilmedi';
       return;
     }
     if (specialMode() === 'pin') {
@@ -1069,8 +1151,10 @@
     spDraft.dates = {};
     var work = document.querySelector('input[name="sh-sp-mode"][value="work"]');
     var noWk = document.querySelector('input[name="sh-sp-weekly"][value="0"]');
+    var pin8 = document.querySelector('input[name="sh-sp-pin-code"][value="8"]');
     if (work) work.checked = true;
     if (noWk) noWk.checked = true;
+    if (pin8) pin8.checked = true;
     bindSpecialCalendar();
     updateSpModeUi();
     var modal = $('sh-special-modal');
@@ -1671,6 +1755,12 @@
     el.addEventListener('change', function () {
       spDraft.dates = {};
       updateSpModeUi();
+    });
+  });
+  document.querySelectorAll('input[name="sh-sp-pin-code"]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      syncPinCodeUi();
+      updateSpPickedLabel();
     });
   });
   var spc = $('sh-special-close');
