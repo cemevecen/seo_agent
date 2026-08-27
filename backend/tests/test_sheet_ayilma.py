@@ -479,6 +479,32 @@ def test_gun_asiri_streak_cap_with_heavy_leave():
         assert _max_gun_asiri_streak(out) <= 5, f"variant {variant}"
 
 
+def test_avoid_consecutive_eight_pairs_when_possible():
+    """Üst üste 8+8 mümkün olduğunca az (yumuşak; sert tavan hâlâ 2)."""
+    from backend.services.ayilma_schedule import (
+        CONSECUTIVE_8_STREAK_MAX,
+        _count_consecutive_8_runs,
+        _max_consecutive_8_streak,
+        month_days,
+    )
+
+    leaves = {
+        "Semanur Çınar": {f"2026-09-{d:02d}": "Yİ" for d in range(1, 14)},
+        "Sema Evecen": {f"2026-09-{d:02d}": "İST" for d in (1, 7, 8, 15, 22, 29)},
+    }
+    for variant in range(12):
+        out = generate_ayilma_schedule(2026, 9, leaves=leaves, variant=variant)
+        grid = {r["name"]: r["cells"] for r in out["rows"] if r["role"] == "staff"}
+        days_meta = month_days(2026, 9)
+        pairs = _count_consecutive_8_runs(grid, days_meta)
+        assert pairs <= 4, f"variant {variant} has {pairs} consecutive-8 pairs"
+        for row in out["rows"]:
+            if row["role"] != "staff":
+                continue
+            streak = _max_consecutive_8_streak(row["name"], days_meta, grid)
+            assert streak <= CONSECUTIVE_8_STREAK_MAX
+
+
 def test_no_consecutive_eights_for_staff():
     from backend.services.ayilma_schedule import (
         CONSECUTIVE_8_STREAK_MAX,
