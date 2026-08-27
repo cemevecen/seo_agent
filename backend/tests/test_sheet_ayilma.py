@@ -384,3 +384,69 @@ def test_two_night_shifts_every_day_with_mixed_leaves():
             if r["role"] == "staff" and r["cells"].get(dm["iso"], "") in ("16", "24")
         )
         assert n >= 2, f"{dm['iso']}: {n} night shifts"
+
+
+def test_resolve_special_weekly_avoid():
+    from backend.services.ayilma_schedule import resolve_special_day_sets
+
+    # 2026-09-01 Salı → weekly avoid Salı
+    work, avoid = resolve_special_day_sets(
+        2026,
+        9,
+        [
+            {
+                "name": "Sema Evecen",
+                "mode": "avoid",
+                "dates": ["2026-09-01"],
+                "weekly": True,
+            }
+        ],
+    )
+    assert "2026-09-01" in avoid["Sema Evecen"]
+    assert "2026-09-08" in avoid["Sema Evecen"]
+    assert "2026-09-15" in avoid["Sema Evecen"]
+    assert "2026-09-02" not in avoid["Sema Evecen"]
+    assert not work["Sema Evecen"]
+
+
+def test_special_avoid_blocks_shifts():
+    out = generate_ayilma_schedule(
+        2026,
+        9,
+        special_rules=[
+            {
+                "name": "Sema Evecen",
+                "mode": "avoid",
+                "dates": ["2026-09-01"],
+                "weekly": True,
+            }
+        ],
+    )
+    sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
+    for iso in ("2026-09-01", "2026-09-08", "2026-09-15", "2026-09-22", "2026-09-29"):
+        assert sema["cells"].get(iso, "") in ("", "Yİ", "RP", "İST"), (
+            f"Sema should avoid {iso}, got {sema['cells'].get(iso)!r}"
+        )
+
+
+def test_special_work_prefers_selected_days():
+    """çalışsın: seçilen günlerde mümkünse mesai (en az birinde 8/16/24)."""
+    out = generate_ayilma_schedule(
+        2026,
+        9,
+        special_rules=[
+            {
+                "name": "Rabia Kumtepe",
+                "mode": "work",
+                "dates": ["2026-09-02", "2026-09-03", "2026-09-04"],
+                "weekly": False,
+            }
+        ],
+    )
+    rabia = next(r for r in out["rows"] if r["name"] == "Rabia Kumtepe")
+    codes = [
+        rabia["cells"].get(iso, "")
+        for iso in ("2026-09-02", "2026-09-03", "2026-09-04")
+    ]
+    assert any(c in ("8", "16", "24") for c in codes), codes
+

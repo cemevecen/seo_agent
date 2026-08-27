@@ -365,6 +365,63 @@ def _staff_night_count(grid: dict[str, dict[str, str]], iso: str) -> int:
     return sum(1 for n in STAFF_NURSES if grid[n].get(iso, "") in ("16", "24"))
 
 
+def resolve_special_day_sets(
+    year: int,
+    month: int,
+    special_rules: list[dict[str, Any]] | None,
+) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    """Özel koşul → kişi başına çalışsın / çalışmasın ISO gün kümeleri.
+
+    Kural: {name, mode: work|avoid, dates: [iso…], weekly: bool}
+    weekly=True → seçilen her tarihin hafta günü ay boyunca tekrarlanır.
+    """
+    work: dict[str, set[str]] = {n: set() for n in STAFF_NURSES}
+    avoid: dict[str, set[str]] = {n: set() for n in STAFF_NURSES}
+    if not special_rules:
+        return work, avoid
+    days = month_days(year, month)
+    by_weekday: dict[int, list[str]] = {}
+    for dm in days:
+        by_weekday.setdefault(dm.weekday, []).append(dm.iso)
+    iso_to_wd = {dm.iso: dm.weekday for dm in days}
+    month_isos = set(iso_to_wd)
+
+    for raw in special_rules:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if name not in STAFF_NURSES:
+            continue
+        mode = str(raw.get("mode") or "").strip().lower()
+        if mode in ("calissin", "çalışsın", "work"):
+            mode = "work"
+        elif mode in ("calismasin", "çalışmasın", "avoid"):
+            mode = "avoid"
+        else:
+            continue
+        dates_raw = raw.get("dates") or []
+        if not isinstance(dates_raw, list):
+            continue
+        picked = [str(x).strip() for x in dates_raw if str(x).strip()]
+        weekly = bool(raw.get("weekly"))
+        expanded: set[str] = set()
+        for iso in picked:
+            if weekly and iso in iso_to_wd:
+                expanded.update(by_weekday.get(iso_to_wd[iso], []))
+            elif iso in month_isos:
+                expanded.add(iso)
+        if mode == "work":
+            work[name] |= expanded
+        else:
+            avoid[name] |= expanded
+    # Aynı gün hem work hem avoid → avoid kazanır
+    for n in STAFF_NURSES:
+        clash = work[n] & avoid[n]
+        if clash:
+            work[n] -= clash
+    return work, avoid
+
+
 def generate_ayilma_schedule(
     year: int,
     month: int,
@@ -372,6 +429,7 @@ def generate_ayilma_schedule(
     leaves: dict[str, dict[str, str]] | None = None,
     day_only: list[str] | None = None,
     prefer_48h_after_24: bool = True,
+    special_rules: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """6 personel + sorumlu.
 
@@ -383,6 +441,7 @@ def generate_ayilma_schedule(
     Üst üste «8» kaçınılır; mecbur kalınırsa en fazla 2 gün.
     Gün aşırı zinciri en fazla 3×24; izin yoğun haftada gevşer.
     «16» yalnızca 24 yazacak kimse yoksa — çok uç çare.
+    Özel koşul: çalışmasın (sert) / çalışsın (yumuşak tercih).
     """
     if not (1 <= month <= 12):
         raise ValueError("month 1–12 olmalı")
@@ -393,6 +452,7 @@ def generate_ayilma_schedule(
     grid = _empty_grid(year, month)
     _apply_leaves(grid, leaves)
     day_only_set = {str(x).strip() for x in (day_only or []) if str(x).strip()}
+    prefer_work, force_avoid = resolve_special_day_sets(year, month, special_rules)
 
     # Gülten: yalnız hafta içi 8; hafta sonu yazma
     for dm in days:
@@ -422,6 +482,7 @@ def generate_ayilma_schedule(
             n
             for n in STAFF_NURSES
             if not grid[n][dm.iso]
+            and dm.iso not in force_avoid[n]
             and not _blocked_by_rest(n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24)
         ]
         leave_heavy = _week_is_leave_heavy(idx, days, grid)
@@ -435,6 +496,14 @@ def generate_ayilma_schedule(
         def over_streak(n: str) -> bool:
             return (not leave_heavy) and streak_if_24(n) > GUN_ASIRI_STREAK_MAX
 
+        def special_work_rank(n: str) -> int:
+            # 0 = çalışsın günü (tercih); 1 = nötr; 2 = başka güne kaydır (çalışsın günü varsa)
+            if dm.iso in prefer_work[n]:
+                return 0
+            if prefer_work[n]:
+                return 2
+            return 1
+
         def rank_for_8(n: str) -> tuple:
             pen = _rest_penalty(n, idx, days, grid)
             break_streak = 0 if over_streak(n) else 1
@@ -447,6 +516,7 @@ def generate_ayilma_schedule(
             return (
                 pen,
                 after_leave,
+                special_work_rank(n),
                 streak8,
                 break_streak,
                 accounted(n),
@@ -466,7 +536,18 @@ def generate_ayilma_schedule(
             behind = 0 if hours[n] < min_shift[n] else 1
             # İzinden dönüş → önce nöbet
             after_leave = 0 if _first_day_after_leave(n, idx, days, grid) else 1
-            return (pen, after_leave, over, accounted(n), streak_if_24(n), gun, behind, n24[n], n)
+            return (
+                pen,
+                after_leave,
+                special_work_rank(n),
+                over,
+                accounted(n),
+                streak_if_24(n),
+                gun,
+                behind,
+                n24[n],
+                n,
+            )
 
         morning: str | None = None
         night_needed = 2
@@ -611,6 +692,8 @@ def generate_ayilma_schedule(
                 if not partners:
                     continue
                 other = sorted(partners, key=lambda o: (n24[o], hours[o], o))[0]
+                if iso in force_avoid[name]:
+                    continue
                 if not _can_assign_8(name, i, days, grid):
                     continue
                 grid[name][iso] = "8"
@@ -679,6 +762,8 @@ def generate_ayilma_schedule(
                 break
             if dm.is_weekend or grid[name].get(dm.iso, ""):
                 continue
+            if dm.iso in force_avoid[name]:
+                continue
             if _blocked_by_rest(name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
                 continue
             if not _can_assign_8(name, i, days, grid):
@@ -713,6 +798,8 @@ def generate_ayilma_schedule(
     def _can_take_24(recv: str, i: int) -> bool:
         if grid[recv].get(days[i].iso, ""):
             return False
+        if days[i].iso in force_avoid[recv]:
+            return False
         if recv in day_only_set:
             return False
         if _blocked_by_rest(recv, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
@@ -744,6 +831,8 @@ def generate_ayilma_schedule(
             if i >= 1 and grid[lo].get(days[i - 1].iso, "") in ("16", "24"):
                 continue
             if n8[hi] >= EIGHT_PER_PERSON_MAX:
+                continue
+            if dm.iso in force_avoid[hi]:
                 continue
             if not _can_assign_8(hi, i, days, grid):
                 continue
@@ -792,6 +881,8 @@ def generate_ayilma_schedule(
                 continue
             if grid[lo].get(dm.iso, ""):
                 continue
+            if dm.iso in force_avoid[lo]:
+                continue
             if _blocked_by_rest(lo, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
                 continue
             if n8[lo] >= EIGHT_PER_PERSON_MAX or n8[hi] <= EIGHT_PER_PERSON_MIN:
@@ -820,6 +911,8 @@ def generate_ayilma_schedule(
                 if i >= 1 and grid[mid].get(days[i - 1].iso, "") in ("16", "24"):
                     continue
                 if n8[hi] >= EIGHT_PER_PERSON_MAX:
+                    continue
+                if dm.iso in force_avoid[hi]:
                     continue
                 if not _can_assign_8(hi, i, days, grid):
                     continue
@@ -856,6 +949,8 @@ def generate_ayilma_schedule(
             if n8[name] >= EIGHT_PER_PERSON_MIN:
                 break
             if dm.is_weekend or grid[name].get(dm.iso, ""):
+                continue
+            if dm.iso in force_avoid[name]:
                 continue
             if _blocked_by_rest(name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
                 continue
@@ -940,6 +1035,8 @@ def generate_ayilma_schedule(
                     if i >= 1 and grid[lo].get(days[i - 1].iso, "") in ("16", "24"):
                         continue
                     if n8[hi] >= EIGHT_PER_PERSON_MAX:
+                        continue
+                    if dm.iso in force_avoid[hi]:
                         continue
                     if (not _week_is_leave_heavy(i, days, grid)) and (
                         _gun_asiri_streak_if_24(lo, i, days, grid) > GUN_ASIRI_STREAK_MAX
@@ -1070,6 +1167,22 @@ def generate_ayilma_schedule(
         if not fixed:
             break
 
+    # Çalışmasın: post-pass sızıntısını gece doldurmadan önce temizle
+    for name in STAFF_NURSES:
+        for iso in force_avoid[name]:
+            code = grid[name].get(iso, "")
+            if code not in WORK_CODES:
+                continue
+            h = _hours_for(code)
+            grid[name][iso] = ""
+            hours[name] -= h
+            if code == "8":
+                n8[name] -= 1
+            elif code == "24":
+                n24[name] -= 1
+            elif code == "16":
+                n16[name] -= 1
+
     # ── Zorunlu: her gün tam 2× gece nöbeti (post-pass sonrası boşluk kalmasın) ──
     for idx, dm in enumerate(days):
         iso = dm.iso
@@ -1090,6 +1203,7 @@ def generate_ayilma_schedule(
                     n
                     for n in STAFF_NURSES
                     if n not in day_only_set
+                    and iso not in force_avoid[n]
                     and grid[n].get(iso, "") not in LEAVE_CODES
                     and grid[n].get(iso, "") in ("", "8")
                     and not _blocked_by_rest(
@@ -1122,6 +1236,7 @@ def generate_ayilma_schedule(
                 n
                 for n in STAFF_NURSES
                 if n not in day_only_set
+                and iso not in force_avoid[n]
                 and not grid[n].get(iso)
                 and not _blocked_by_rest(
                     n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
@@ -1240,6 +1355,10 @@ def generate_ayilma_schedule(
         "warnings": warnings,
         "next_month_must_rest": next_month_rest,
         "staff_code_counts": code_counts,
+        "special_rules_applied": {
+            "work": {n: sorted(prefer_work[n]) for n in STAFF_NURSES if prefer_work[n]},
+            "avoid": {n: sorted(force_avoid[n]) for n in STAFF_NURSES if force_avoid[n]},
+        },
         "legend": {
             "8": "08:00–16:00 (6 kişiye dağıtılır)",
             "16": "16:00–08:00 (son çare)",

@@ -38,14 +38,64 @@
         <button type="button" id="sh-generate" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500">
           Çizelgeyi oluştur
         </button>
+        <button type="button" id="sh-special-open" class="rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-900 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200">
+          Özel koşul gir
+        </button>
         <label class="inline-flex items-center gap-2 text-[11px] text-slate-500 dark:text-zinc-400">
           <input id="sh-prefer-48" type="checkbox" class="rounded border-slate-300" checked>
           24 saat sonrası mümkünse 2 gün boşluk tercih et
         </label>
         <span id="sh-constraint-count" class="text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></span>
+        <span id="sh-special-count" class="text-[11px] tabular-nums text-violet-700 dark:text-violet-300"></span>
       </div>
     </div>
 
+    <div id="sh-special-list" class="mt-3 hidden space-y-1 text-[11px] text-slate-600 dark:text-zinc-300"></div>
+
+  </div>
+
+  <div id="sh-special-modal" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+    <div class="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-zinc-900">
+      <div class="flex items-start justify-between gap-3">
+        <h3 class="text-base font-bold text-slate-900 dark:text-zinc-100">Özel koşul</h3>
+        <button type="button" id="sh-special-close" class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800">Kapat</button>
+      </div>
+      <div class="mt-4 space-y-3">
+        <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          Kişi
+          <select id="sh-sp-name" class="mt-1 block w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-sm font-semibold dark:border-transparent dark:bg-zinc-800 dark:text-zinc-200"></select>
+        </label>
+        <div class="flex flex-wrap gap-3 text-sm font-semibold text-slate-800 dark:text-zinc-100">
+          <label class="inline-flex items-center gap-2">
+            <input type="radio" name="sh-sp-mode" value="work" class="rounded border-slate-300" checked>
+            Çalışsın
+          </label>
+          <label class="inline-flex items-center gap-2">
+            <input type="radio" name="sh-sp-mode" value="avoid" class="rounded border-slate-300">
+            Çalışmasın
+          </label>
+        </div>
+        <div>
+          <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Gün seç (takvim)</div>
+          <div id="sh-sp-cal" class="mt-2 grid grid-cols-7 gap-1 text-center text-[11px]"></div>
+          <p id="sh-sp-picked" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400"></p>
+        </div>
+        <div class="flex flex-wrap gap-3 text-sm font-semibold text-slate-800 dark:text-zinc-100">
+          <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400 self-center">Her hafta tekrarlasın mı?</span>
+          <label class="inline-flex items-center gap-2">
+            <input type="radio" name="sh-sp-weekly" value="1" class="rounded border-slate-300">
+            Evet
+          </label>
+          <label class="inline-flex items-center gap-2">
+            <input type="radio" name="sh-sp-weekly" value="0" class="rounded border-slate-300" checked>
+            Hayır
+          </label>
+        </div>
+        <button type="button" id="sh-sp-save" class="w-full rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-500">
+          Kaydet
+        </button>
+      </div>
+    </div>
   </div>
 
   <div id="sh-summary" class="hidden grid gap-2 sm:grid-cols-2 lg:grid-cols-3"></div>
@@ -97,6 +147,20 @@
   .sh-cell { cursor: pointer; min-width: 28px; }
   .sh-cell:hover { outline: 2px solid rgb(99 102 241); outline-offset: -2px; }
   .sh-tot { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .sh-sp-day {
+    border-radius: 0.5rem;
+    border: 1px solid rgb(226 232 240);
+    padding: 0.35rem 0;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  html.dark .sh-sp-day { border-color: rgb(63 63 70); }
+  .sh-sp-day.is-picked {
+    background: rgb(139 92 246);
+    color: white;
+    border-color: transparent;
+  }
+  .sh-sp-day.is-muted { opacity: 0.35; pointer-events: none; }
 </style>
 
 <script>
@@ -107,11 +171,14 @@
     month: null,
     days: [],
     leaves: {},
+    special: {},
     grid: {},
     last: null,
   };
   var LS_LEAVES = 'sheet_ayilma_leaves_v2';
+  var LS_SPECIAL = 'sheet_ayilma_special_v1';
   var CONSTRAINT_CYCLE = ['', 'İST', 'Yİ', 'RP'];
+  var spDraft = { dates: {} };
 
   function $(id) { return document.getElementById(id); }
 
@@ -129,13 +196,63 @@
         if (!state.leaves[mk]) state.leaves[mk] = legacy[mk];
       });
     } catch (e2) {}
+    try {
+      state.special = JSON.parse(localStorage.getItem(LS_SPECIAL) || '{}') || {};
+    } catch (e3) { state.special = {}; }
   }
 
   function saveLeaves() {
     try { localStorage.setItem(LS_LEAVES, JSON.stringify(state.leaves)); } catch (e) {}
   }
 
+  function saveSpecial() {
+    try { localStorage.setItem(LS_SPECIAL, JSON.stringify(state.special)); } catch (e) {}
+  }
+
   function monthKey() { return ymValue(); }
+
+  function specialForMonth() {
+    var mk = monthKey();
+    if (!state.special[mk]) state.special[mk] = [];
+    return state.special[mk];
+  }
+
+  function updateSpecialCount() {
+    var el = $('sh-special-count');
+    var list = $('sh-special-list');
+    var rules = specialForMonth();
+    if (el) el.textContent = rules.length ? (rules.length + ' özel koşul') : '';
+    if (!list) return;
+    if (!rules.length) {
+      list.classList.add('hidden');
+      list.innerHTML = '';
+      return;
+    }
+    list.classList.remove('hidden');
+    var WD = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+    list.innerHTML = rules.map(function (r, idx) {
+      var modeLabel = r.mode === 'work' ? 'çalışsın' : 'çalışmasın';
+      var days = (r.dates || []).map(function (iso) {
+        var p = iso.split('-');
+        var d = parseInt(p[2], 10);
+        var dt = new Date(parseInt(p[0],10), parseInt(p[1],10)-1, d);
+        var wd = (dt.getDay() + 6) % 7;
+        return d + ' ' + WD[wd];
+      }).join(', ');
+      var wk = r.weekly ? ' · her hafta' : '';
+      return '<div class="flex items-center justify-between gap-2 rounded-lg bg-violet-50 px-2 py-1.5 dark:bg-violet-950/30">' +
+        '<span><strong>' + r.name + '</strong> — ' + modeLabel + ': ' + days + wk + '</span>' +
+        '<button type="button" class="sh-sp-del text-rose-600 font-bold" data-idx="' + idx + '">Sil</button></div>';
+    }).join('');
+    list.querySelectorAll('.sh-sp-del').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var i = parseInt(btn.getAttribute('data-idx'), 10);
+        specialForMonth().splice(i, 1);
+        saveSpecial();
+        updateSpecialCount();
+      });
+    });
+  }
 
   function leaveFor(name, iso) {
     return (((state.leaves[monthKey()] || {})[name] || {})[iso]) || '';
@@ -167,6 +284,93 @@
     if (!el) return;
     var n = countConstraints();
     el.textContent = n ? (n + ' işaretli gün (bu ay)') : 'Bu ay işaretli gün yok';
+    updateSpecialCount();
+  }
+
+  function renderSpecialCalendar() {
+    var cal = $('sh-sp-cal');
+    if (!cal || !state.year || !state.month) return;
+    var days = buildDays(state.year, state.month);
+    var labels = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+    var html = labels.map(function (l) {
+      return '<div class="text-[10px] font-semibold text-slate-400 py-1">' + l + '</div>';
+    }).join('');
+    var firstWd = days[0].weekday;
+    for (var i = 0; i < firstWd; i++) {
+      html += '<div class="sh-sp-day is-muted"> </div>';
+    }
+    days.forEach(function (dm) {
+      var picked = !!spDraft.dates[dm.iso];
+      html += '<button type="button" class="sh-sp-day' + (picked ? ' is-picked' : '') + '" data-iso="' + dm.iso + '">' + dm.day + '</button>';
+    });
+    cal.innerHTML = html;
+    cal.querySelectorAll('.sh-sp-day[data-iso]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var iso = btn.getAttribute('data-iso');
+        if (spDraft.dates[iso]) delete spDraft.dates[iso];
+        else spDraft.dates[iso] = true;
+        renderSpecialCalendar();
+        updateSpPickedLabel();
+      });
+    });
+    updateSpPickedLabel();
+  }
+
+  function updateSpPickedLabel() {
+    var el = $('sh-sp-picked');
+    if (!el) return;
+    var n = Object.keys(spDraft.dates).length;
+    el.textContent = n ? (n + ' gün seçildi') : 'Gün seçilmedi';
+  }
+
+  function openSpecialModal() {
+    if (!meta || !syncMonthFromInputs()) return;
+    var sel = $('sh-sp-name');
+    if (sel) {
+      sel.innerHTML = (meta.staff || []).map(function (n) {
+        return '<option value="' + n + '">' + n + '</option>';
+      }).join('');
+    }
+    spDraft.dates = {};
+    var work = document.querySelector('input[name="sh-sp-mode"][value="work"]');
+    var noWk = document.querySelector('input[name="sh-sp-weekly"][value="0"]');
+    if (work) work.checked = true;
+    if (noWk) noWk.checked = true;
+    renderSpecialCalendar();
+    var modal = $('sh-special-modal');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+  }
+
+  function closeSpecialModal() {
+    var modal = $('sh-special-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  function saveSpecialRule() {
+    var nameEl = $('sh-sp-name');
+    var name = nameEl ? nameEl.value : '';
+    var modeEl = document.querySelector('input[name="sh-sp-mode"]:checked');
+    var weeklyEl = document.querySelector('input[name="sh-sp-weekly"]:checked');
+    var mode = modeEl ? modeEl.value : 'work';
+    var weekly = weeklyEl ? weeklyEl.value === '1' : false;
+    var dates = Object.keys(spDraft.dates).sort();
+    if (!name || !dates.length) return;
+    specialForMonth().push({
+      id: String(Date.now()) + '-' + Math.random().toString(16).slice(2, 8),
+      name: name,
+      mode: mode,
+      dates: dates,
+      weekly: weekly,
+    });
+    saveSpecial();
+    updateSpecialCount();
+    closeSpecialModal();
   }
 
   function buildDays(year, month) {
@@ -356,6 +560,9 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Oluşturuluyor…'; }
     var dayOnly = [];
     var leaves = collectLeavesPayload();
+    var special_rules = specialForMonth().map(function (r) {
+      return { name: r.name, mode: r.mode, dates: r.dates, weekly: !!r.weekly };
+    });
     fetch('/api/sheet/ayilma/generate', {
       method: 'POST',
       credentials: 'same-origin',
@@ -366,6 +573,7 @@
         leaves: leaves,
         day_only: dayOnly,
         prefer_48h_after_24: !!( $('sh-prefer-48') && $('sh-prefer-48').checked ),
+        special_rules: special_rules,
       }),
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
@@ -538,6 +746,16 @@
   if (dl) dl.addEventListener('click', downloadXlsx);
   var om = $('sh-open-month');
   if (om) om.addEventListener('click', applyMonthFromInput);
+  var spo = $('sh-special-open');
+  if (spo) spo.addEventListener('click', openSpecialModal);
+  var spc = $('sh-special-close');
+  if (spc) spc.addEventListener('click', closeSpecialModal);
+  var sps = $('sh-sp-save');
+  if (sps) sps.addEventListener('click', saveSpecialRule);
+  var spm = $('sh-special-modal');
+  if (spm) spm.addEventListener('click', function (ev) {
+    if (ev.target === spm) closeSpecialModal();
+  });
 })();
 </script>
 {% endblock %}
