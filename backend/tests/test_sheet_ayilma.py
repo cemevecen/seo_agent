@@ -68,7 +68,10 @@ def test_export_xlsx_opens():
     wb = load_workbook(BytesIO(raw))
     ws = wb.active
     assert "Ayılma" in str(ws["A1"].value)
-    assert ws.cell(row=4, column=1).value  # first nurse name
+    assert ws.cell(row=4, column=1).value == LEAD_NURSE
+    # Lead row must be empty on all day columns
+    for col in range(2, 2 + len(out["days"])):
+        assert not ws.cell(row=4, column=col).value
 
 
 def test_export_csv_windows_friendly():
@@ -84,7 +87,8 @@ def test_export_csv_windows_friendly():
     assert '""' in text  # boş mesai hücreleri tırnaklı
     assert ";" not in text.splitlines()[2]  # başlık satırı virgülle
     assert "Ayılma" in text
-    assert "Gülten" in text or "Nuray" in text
+    assert "Gülten" in text
+    assert "Nuray" in text
 
 
 def test_export_docx_opens():

@@ -5,7 +5,7 @@ Geri dönüş: tag `ayilma-restore-*` (kurallar tazelendikten sonra) · öncesi 
 
 ## Hiyerarşi (yukarı baskın)
 
-0. **Gülten Çelik** satırı çizelgede kalır ama **tamamen boş**; izin/mesai/hesap yok (6 personel kadrosu).
+0. **Gülten Çelik** panelde **gizli**; indirmede (xlsx/csv/docx) **boş satır** olarak gelir. Hesap yok.  
 1. İzin / çalışmasın / day_only  
 2. Dinlenme (16/24 ertesi ≥1 gün boş; ardışık gece yok) · 24 sonrası mümkünse 2 gün boşluk (zorunlu tercih)  
 3. Günde 2 gece nöbeti  

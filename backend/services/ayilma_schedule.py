@@ -2420,7 +2420,7 @@ def generate_ayilma_schedule(
 ) -> dict[str, Any]:
     """6 personel + sorumlu.
 
-    Gülten satırı çizelgede kalır ama tamamen boş; tüm hesaplar 6 personel kadrosuyla yapılır.
+    Gülten panelde gizlenir; indirmede boş satır olarak gelir. Tüm hesaplar 6 personel kadrosuyla yapılır.
 
     Hafta içi: mümkünse 1×«8» + 2×«24». Hafta sonu: yalnız 2×«24» (kat-1 / 8 yok).
     Yİ/RP/İST bitişinin ertesi takvim günü nöbet (24) — hafta sonu kuralı yok.
@@ -4304,7 +4304,8 @@ def build_ayilma_xlsx_bytes(
     from openpyxl.styles import Alignment, Font, PatternFill
 
     title = _month_title(month, year)
-    headers, body = _export_matrix(days, rows)
+    export_rows = _ensure_empty_lead_export_rows(days, rows)
+    headers, body = _export_matrix(days, export_rows)
 
     wb = Workbook()
     ws = wb.active
@@ -4335,7 +4336,7 @@ def build_ayilma_xlsx_bytes(
     }
 
     for r_i, line in enumerate(body, start=4):
-        row_meta = rows[r_i - 4] if r_i - 4 < len(rows) else {}
+        row_meta = export_rows[r_i - 4] if r_i - 4 < len(export_rows) else {}
         ws.cell(row=r_i, column=1, value=line[0]).font = Font(bold=True)
         for c_i, d in enumerate(days):
             code = str(line[1 + c_i] or "")
@@ -4415,13 +4416,35 @@ def _row_totals(
     return worked, ideal, ot
 
 
+def _ensure_empty_lead_export_rows(
+    days: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """İndirmede Gülten satırı her zaman en üstte ve tamamen boş."""
+    empty_cells = {str(d.get("iso") or ""): "" for d in days if d.get("iso")}
+    lead_row = {
+        "name": LEAD_NURSE,
+        "role": "lead",
+        "cells": empty_cells,
+        "worked_hours": 0,
+        "ideal_hours": 0,
+        "overtime_hours": 0,
+    }
+    others = [
+        r
+        for r in (rows or [])
+        if (r.get("name") or "") != LEAD_NURSE and r.get("role") != "lead"
+    ]
+    return [lead_row, *others]
+
+
 def _export_matrix(
     days: list[dict[str, Any]],
     rows: list[dict[str, Any]],
 ) -> tuple[list[str], list[list[Any]]]:
     headers = _export_headers(days)
     body: list[list[Any]] = []
-    for row in rows:
+    for row in _ensure_empty_lead_export_rows(days, rows):
         cells_map = row.get("cells") or {}
         worked, ideal, ot = _row_totals(row, days, cells_map)
         line: list[Any] = [row.get("name") or ""]

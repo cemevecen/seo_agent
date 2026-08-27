@@ -1168,20 +1168,18 @@
     state.days.forEach(function (dm) { if (!dm.is_weekend) ideal += 8; });
 
     var html = '';
-    (meta.all || []).forEach(function (name) {
-      var isLead = name === meta.lead;
+    (meta.staff || []).forEach(function (name) {
       var worked = 0;
-      html += '<tr class="' + (isLead ? 'sh-lead' : '') + '">';
+      html += '<tr>';
       html += '<td class="sh-name">' + name + '</td>';
       state.days.forEach(function (dm) {
         var code = (state.grid[name] && state.grid[name][dm.iso]) || '';
         worked += hoursOf(code);
         html += '<td class="' + cellClass(code, dm.is_weekend) + '" data-name="' + name.replace(/"/g, '&quot;') + '" data-iso="' + dm.iso + '">' + (code || '') + '</td>';
       });
-      var target = isLead ? 0 : ideal;
-      var ot = isLead ? 0 : Math.max(0, worked - target);
+      var ot = Math.max(0, worked - ideal);
       html += '<td class="sh-tot">' + worked + '</td>';
-      html += '<td class="sh-tot">' + target + '</td>';
+      html += '<td class="sh-tot">' + ideal + '</td>';
       html += '<td class="sh-tot">' + ot + '</td></tr>';
     });
     body.innerHTML = html;
@@ -1349,8 +1347,10 @@
     ensureGridSkeleton();
     var ideal = 0;
     state.days.forEach(function (dm) { if (!dm.is_weekend) ideal += 8; });
-    return (meta.all || []).map(function (name) {
-      var isLead = name === meta.lead;
+    var leadName = (meta && meta.lead) || 'Gülten Çelik';
+    var emptyCells = {};
+    state.days.forEach(function (dm) { emptyCells[dm.iso] = ''; });
+    var staffRows = (meta.staff || []).map(function (name) {
       var cells = {};
       var worked = 0;
       state.days.forEach(function (dm) {
@@ -1358,16 +1358,24 @@
         cells[dm.iso] = code;
         worked += hoursOf(code);
       });
-      var target = isLead ? 0 : ideal;
       return {
         name: name,
-        role: isLead ? 'lead' : 'staff',
+        role: 'staff',
         cells: cells,
         worked_hours: worked,
-        ideal_hours: target,
-        overtime_hours: isLead ? 0 : Math.max(0, worked - target),
+        ideal_hours: ideal,
+        overtime_hours: Math.max(0, worked - ideal),
       };
     });
+    /* Panelde gizli; indirmede boş satır olarak en üstte. */
+    return [{
+      name: leadName,
+      role: 'lead',
+      cells: emptyCells,
+      worked_hours: 0,
+      ideal_hours: 0,
+      overtime_hours: 0,
+    }].concat(staffRows);
   }
 
   var EXPORT_FORMATS = {
