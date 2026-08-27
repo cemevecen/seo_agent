@@ -329,7 +329,12 @@ def _can_assign_8(
     day_index: int,
     days: list[DayMeta],
     grid: dict[str, dict[str, str]],
+    *,
+    relax_consecutive: bool = False,
 ) -> bool:
+    """Üst üste 8 sınırı. Özel koşul (pin) 8'i olan kişide art arda serbest."""
+    if relax_consecutive:
+        return True
     return (
         _consecutive_8_streak_if_8(name, day_index, days, grid) <= CONSECUTIVE_8_STREAK_MAX
     )
@@ -552,6 +557,7 @@ def generate_ayilma_schedule(
     Yİ/RP bitişinin ertesi günü o kişiye nöbet (24) tercih.
     Düz «8» kişi başı aylık ~2–4 (hedef 3). Fazla mesai personelde aynı ~16s bantta.
     Üst üste «8» kaçınılır; mecbur kalınırsa en fazla 2 gün.
+    Özel koşul ile pinlenen «8» birincil: o kişide art arda 8 serbest; motor ezmez.
     Gün aşırı zinciri en fazla 3×24 (kati).
     Arka arkaya 24 yasak. «16» motor yazmaz — yalnız sorumlu pin ile.
     """
@@ -597,6 +603,20 @@ def generate_ayilma_schedule(
     pinned_cells = {
         (name, iso) for name, by_day in pins.items() for iso in by_day
     }
+    # Özel koşuldan 8 pinlenen kişi: art arda 8 birincil olarak serbest
+    relax_consec_8 = {
+        n for n, by_day in pins.items() if any(code == "8" for code in by_day.values())
+    }
+
+    def _ok8(n: str, day_index: int) -> bool:
+        return _can_assign_8(
+            n,
+            day_index,
+            days,
+            grid,
+            relax_consecutive=(n in relax_consec_8),
+        )
+
     ideal = ideal_hours(year, month)
     yi_hours = {n: _yi_hours_from_grid(grid, n, days) for n in STAFF_NURSES}
     min_shift = {n: max(0, ideal - yi_hours[n]) for n in STAFF_NURSES}
@@ -636,8 +656,13 @@ def generate_ayilma_schedule(
             pen = _rest_penalty(n, idx, days, grid)
             break_streak = 0 if over_streak(n) else 1
             break24 = 0 if is_gun_asiri_candidate(n) else 1
-            streak8 = _consecutive_8_streak_if_8(n, idx, days, grid)
-            prev8 = 1 if streak8 >= 2 else 0
+            # Özel koşul 8 pinli kişide art arda 8 cezası yok (birincil)
+            if n in relax_consec_8:
+                streak8 = 0
+                prev8 = 0
+            else:
+                streak8 = _consecutive_8_streak_if_8(n, idx, days, grid)
+                prev8 = 1 if streak8 >= 2 else 0
             after24 = _prefer_8_after_24_gap(n, idx, days, grid)
             # İzinden dönüş günü 8 değil nöbet (24)
             after_leave = 1 if _first_day_after_leave(n, idx, days, grid) else 0
@@ -722,7 +747,7 @@ def generate_ayilma_schedule(
             morning_cands = [
                 n
                 for n in sorted(available, key=rank_for_8)
-                if n8[n] < EIGHT_PER_PERSON_MAX and _can_assign_8(n, idx, days, grid)
+                if n8[n] < EIGHT_PER_PERSON_MAX and _ok8(n, idx)
             ]
             no_return = [
                 n for n in morning_cands if not _first_day_after_leave(n, idx, days, grid)
@@ -734,7 +759,7 @@ def generate_ayilma_schedule(
                 morning_cands = [
                     n
                     for n in sorted(available, key=rank_for_8)
-                    if _can_assign_8(n, idx, days, grid)
+                    if _ok8(n, idx)
                 ]
                 no_return = [
                     n
@@ -776,9 +801,7 @@ def generate_ayilma_schedule(
                 hard = streak > GUN_ASIRI_STREAK_MAX
                 if not hard and not soft_only:
                     continue
-                if hard and n8[name] >= EIGHT_PER_PERSON_MAX and not _can_assign_8(
-                    name, i, days, grid
-                ):
+                if hard and n8[name] >= EIGHT_PER_PERSON_MAX and not _ok8(name, i):
                     # 8 yazılamazsa boşalt; gece doldurma sonra tamamlar
                     iso = days[i].iso
                     grid[name][iso] = ""
@@ -803,7 +826,7 @@ def generate_ayilma_schedule(
                     and _gun_asiri_streak_if_24(o, i, days, grid) <= GUN_ASIRI_STREAK_MAX
                 ]
                 if not partners:
-                    if hard and _can_assign_8(name, i, days, grid):
+                    if hard and _ok8(name, i):
                         # Partner yok: 24→8 (gece eksiği sonraki pass doldurur)
                         grid[name][iso] = "8"
                         hours[name] -= 16
@@ -817,7 +840,7 @@ def generate_ayilma_schedule(
                         swapped = True
                     continue
                 other = sorted(partners, key=lambda o: (n24[o], hours[o], o))[0]
-                if not _can_assign_8(name, i, days, grid):
+                if not _ok8(name, i):
                     if hard:
                         grid[name][iso] = ""
                         hours[name] -= 24
@@ -898,7 +921,7 @@ def generate_ayilma_schedule(
                 continue
             if _blocked_by_rest(name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
                 continue
-            if not _can_assign_8(name, i, days, grid):
+            if not _ok8(name, i):
                 continue
             if n8[name] >= EIGHT_PER_PERSON_MAX:
                 break
@@ -971,7 +994,7 @@ def generate_ayilma_schedule(
                 continue
             if n8[hi] >= EIGHT_PER_PERSON_MAX:
                 continue
-            if not _can_assign_8(hi, i, days, grid):
+            if not _ok8(hi, i):
                 continue
             # Takas sonrası lo'nun streak'i (bugün 24 olacak)
             if (not _week_is_leave_heavy(i, days, grid)) and (
@@ -1028,7 +1051,7 @@ def generate_ayilma_schedule(
                 continue
             if n8[lo] >= EIGHT_PER_PERSON_MAX or n8[hi] <= EIGHT_PER_PERSON_MIN:
                 continue
-            if not _can_assign_8(lo, i, days, grid):
+            if not _ok8(lo, i):
                 continue
             grid[hi][dm.iso] = ""
             grid[lo][dm.iso] = "8"
@@ -1064,7 +1087,7 @@ def generate_ayilma_schedule(
                     continue
                 if n8[hi] >= EIGHT_PER_PERSON_MAX:
                     continue
-                if not _can_assign_8(hi, i, days, grid):
+                if not _ok8(hi, i):
                     continue
                 if (not _week_is_leave_heavy(i, days, grid)) and (
                     _gun_asiri_streak_if_24(mid, i, days, grid) > GUN_ASIRI_STREAK_MAX
@@ -1102,7 +1125,7 @@ def generate_ayilma_schedule(
                 continue
             if _blocked_by_rest(name, i, days, grid, prefer_48h_after_24=prefer_48h_after_24):
                 continue
-            if not _can_assign_8(name, i, days, grid):
+            if not _ok8(name, i):
                 continue
             grid[name][dm.iso] = "8"
             hours[name] += 8
@@ -1198,7 +1221,7 @@ def generate_ayilma_schedule(
                         continue
                     if not _strip_next_8_if_safe(lo, i):
                         continue
-                    if not _can_assign_8(hi, i, days, grid):
+                    if not _ok8(hi, i):
                         continue
                     grid[hi][dm.iso] = "8"
                     grid[lo][dm.iso] = "24"
@@ -1217,10 +1240,12 @@ def generate_ayilma_schedule(
         if not moved:
             break
 
-    # Üst üste 3+ «8» kır (mecburen en fazla 2)
+    # Üst üste 3+ «8» kır (mecburen en fazla 2) — özel koşul 8 pinli kişi muaf
     for _fix8long in range(20):
         fixed = False
         for name in STAFF_NURSES:
+            if name in relax_consec_8:
+                continue
             if _max_consecutive_8_streak(name, days, grid) <= CONSECUTIVE_8_STREAK_MAX:
                 continue
             target_i: int | None = None
@@ -1253,7 +1278,7 @@ def generate_ayilma_schedule(
                     continue
                 if (name, dm.iso) in pinned_cells:
                     continue
-                if not _can_assign_8(name, j, days, grid):
+                if not _ok8(name, j):
                     continue
                 if _blocked_by_rest(
                     name, j, days, grid, prefer_48h_after_24=prefer_48h_after_24
@@ -1292,6 +1317,8 @@ def generate_ayilma_schedule(
     for _e8f in range(8):
         fixed = False
         for name in STAFF_NURSES:
+            if name in relax_consec_8:
+                continue
             for i in range(1, len(days)):
                 iso = days[i].iso
                 if grid[name].get(iso, "") != "8":
@@ -1309,7 +1336,7 @@ def generate_ayilma_schedule(
                         continue
                     if _prev_day_is_8(name, j, days, grid):
                         continue
-                    if not _can_assign_8(name, j, days, grid):
+                    if not _ok8(name, j):
                         continue
                     if _prefer_8_after_24_gap(name, j, days, grid) > 0:
                         continue
@@ -1589,7 +1616,7 @@ def generate_ayilma_schedule(
             and not _blocked_by_rest(
                 n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
             )
-            and _can_assign_8(n, idx, days, grid)
+            and _ok8(n, idx)
             and not _first_day_after_leave(n, idx, days, grid)
         ]
         if not cands:
@@ -1601,7 +1628,7 @@ def generate_ayilma_schedule(
                 and not _blocked_by_rest(
                     n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
                 )
-                and _can_assign_8(n, idx, days, grid)
+                and _ok8(n, idx)
             ]
         if cands:
             pick = cands[0]
@@ -1717,7 +1744,7 @@ def generate_ayilma_schedule(
             and not _blocked_by_rest(
                 n, idx, days, grid, prefer_48h_after_24=prefer_48h_after_24
             )
-            and _can_assign_8(n, idx, days, grid)
+            and _ok8(n, idx)
         ]
         if cands:
             pick = cands[0]

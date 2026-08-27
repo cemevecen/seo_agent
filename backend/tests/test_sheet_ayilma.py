@@ -521,3 +521,7 @@ def test_special_pin_all_weekday_eights_honored():
     sema = next(r for r in out["rows"] if r["name"] == "Sema Evecen")
     for iso in weekdays:
         assert sema["cells"].get(iso) == "8", f"{iso}={sema['cells'].get(iso)!r}"
+    # Art arda 8 (hafta içi zinciri) pin birincil → serbest
+    from backend.services.ayilma_schedule import _max_consecutive_8_streak, month_days
+    streak = _max_consecutive_8_streak("Sema Evecen", month_days(2026, 9), {"Sema Evecen": sema["cells"]})
+    assert streak >= 3
