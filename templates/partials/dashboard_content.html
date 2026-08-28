@@ -3069,9 +3069,7 @@
 
   var HOME_GA4_SC_POLL_MS = 5 * 60 * 1000;
   setInterval(refreshHomeGa4Sc, HOME_GA4_SC_POLL_MS);
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') refreshHomeGa4Sc();
-  });
+  /* Sekme odağına dönünce otomatik yenileme yok — yalnızca aralık + manuel düğme. */
 
   document.body.addEventListener('click', function (ev) {
     var btn = ev.target && ev.target.closest && ev.target.closest('[data-home-container-refresh]');
