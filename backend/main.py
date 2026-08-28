@@ -187,6 +187,8 @@ _SC_JSON_NO_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
 }
+# Ana sayfa HTMX parçaları — tarayıcı önbelleği eski spark/KPI göstermesin.
+_HOME_HTML_NO_CACHE_HEADERS = dict(_SC_HTML_NO_CACHE_HEADERS)
 
 _SC_REFRESH_ALL_LOCK = threading.Lock()
 # Toplu GSC yenileme: uzun HTTP isteği tarayıcı/proxy tarafından kesilmesin diye arka planda çalışır.
@@ -9819,6 +9821,7 @@ def api_home_realtime(request: Request, site: str | None = None):
             "now_label": now_label,
             "poll_seconds": settings.ga4_realtime_ui_poll_seconds,
         },
+        headers=_HOME_HTML_NO_CACHE_HEADERS,
     )
 
 
@@ -10661,6 +10664,7 @@ def api_home_ga4_sessions(
             "cur_period_label": f"Son {period_days} gün",
             "prev_period_label": f"Önceki {period_days} gün",
         },
+        headers=_HOME_HTML_NO_CACHE_HEADERS,
     )
 
 
@@ -10873,7 +10877,7 @@ def _home_sc_device_aggregate(
     summary = summary_payload
     if summary is None:
         summary = _latest_successful_provider_summary(
-            db, site_id=site_id, provider="search_console"
+            db, site_id=site_id, provider="search_console", strategy="all"
         )
     cur_sum = (summary.get(f"current_{period_days}d_summary_by_device") or {}).get(device) or {}
     prev_sum = (summary.get(f"previous_{period_days}d_summary_by_device") or {}).get(device) or {}
@@ -11026,7 +11030,7 @@ def api_home_sc_summary(
                 continue
             devices = []
             sc_summary = _latest_successful_provider_summary(
-                db, site_id=site_id, provider="search_console"
+                db, site_id=site_id, provider="search_console", strategy="all"
             )
             for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
                 agg = _home_sc_device_aggregate(
@@ -11062,6 +11066,7 @@ def api_home_sc_summary(
             "cur_period_label": f"Son {period_days} gün",
             "prev_period_label": f"Önceki {period_days} gün",
         },
+        headers=_HOME_HTML_NO_CACHE_HEADERS,
     )
 
 
@@ -11146,7 +11151,7 @@ def home_summary_payload(db) -> dict:
         ga4_profs = _HOME_DOVIZ_PROFILES if site_id == 1 else _HOME_SINEMA_PROFILES
         sc_devices = []
         sc_summary = _latest_successful_provider_summary(
-            db, site_id=site_id, provider="search_console"
+            db, site_id=site_id, provider="search_console", strategy="all"
         )
         for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
             agg = _home_sc_device_aggregate(
@@ -11240,7 +11245,7 @@ def home_summary_payload(db) -> dict:
 def api_home_summary():
     """Ana sayfa metrikleri — JSON (AI Talk + frontend context)."""
     with SessionLocal() as db:
-        return JSONResponse(home_summary_payload(db))
+        return JSONResponse(home_summary_payload(db), headers=_SC_JSON_NO_CACHE_HEADERS)
 
 
 @app.get("/api/home/position-drops", response_class=HTMLResponse)
@@ -11274,6 +11279,7 @@ def api_home_position_drops(request: Request, site: str | None = None):
     return templates.TemplateResponse(
         request, "partials/home/position_drops.html",
         context={"request": request, "sites": sites_out},
+        headers=_HOME_HTML_NO_CACHE_HEADERS,
     )
 
 
@@ -11333,6 +11339,7 @@ def api_home_web_vitals(request: Request, site: str | None = None):
     return templates.TemplateResponse(
         request, "partials/home/web_vitals.html",
         context={"request": request, "sites": sites_out},
+        headers=_HOME_HTML_NO_CACHE_HEADERS,
     )
 
 
@@ -12398,6 +12405,7 @@ def api_home_crashlytics(
             "android_url": android_url,
             "ios_url": ios_url,
         },
+        headers=_HOME_HTML_NO_CACHE_HEADERS,
     )
 
 
@@ -12608,6 +12616,7 @@ def api_home_app_release(request: Request):
     return templates.TemplateResponse(
         request, "partials/home/app_release.html",
         context={"request": request, "platforms": platforms},
+        headers=_HOME_HTML_NO_CACHE_HEADERS,
     )
 
 
@@ -12752,6 +12761,7 @@ def api_home_seo_errors(request: Request, site: str | None = None):
     return templates.TemplateResponse(
         request, "partials/home/seo_errors.html",
         context={"request": request, "sites": sites_out},
+        headers=_HOME_HTML_NO_CACHE_HEADERS,
     )
 
 

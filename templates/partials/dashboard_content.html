@@ -2670,7 +2670,7 @@
 
   window.__pcHomeMetrics = null;
   function loadHomeMetrics() {
-    fetch('/api/home/summary', { credentials: 'same-origin' })
+    fetch('/api/home/summary', { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) { if (j) window.__pcHomeMetrics = j; })
       .catch(function () {});
@@ -2740,80 +2740,338 @@
     }
   }
 
-  function ensureHomeContainerRefreshButtons() {
-    /* Sayfa tarama «Sayfayı güncelle» tek yenileme; kart içi buton yok. */
+  var HOME_BRIDGE = 'http://127.0.0.1:18765';
+
+  /** Manuel yenile — detay sayfasıyla aynı veri kaynağı (GA4/SC/alerts/bridge). */
+  var HOME_CONTAINER_SYNC = {
+    'ga4-doviz': { kind: 'ga4', siteId: 1, label: 'GA4 · doviz.com' },
+    'ga4-sinemalar': { kind: 'ga4', siteId: 2, label: 'GA4 · sinemalar.com' },
+    'sc-doviz': { kind: 'sc', siteId: 1, label: 'Search Console · doviz.com' },
+    'sc-sinemalar': { kind: 'sc', siteId: 2, label: 'Search Console · sinemalar.com' },
+    'position-doviz': { kind: 'alerts', label: 'Position alerts' },
+    'position-sinemalar': { kind: 'alerts', label: 'Position alerts' },
+    'wv-doviz': { kind: 'cwv', siteId: 1, siteKey: 'doviz', domain: 'www.doviz.com', label: 'Web Vitals · doviz.com' },
+    'wv-sinemalar': { kind: 'cwv', siteId: 2, siteKey: 'sinemalar', domain: 'www.sinemalar.com', label: 'Web Vitals · sinemalar.com' },
+    'realtime': { kind: 'realtime', label: 'Active users' },
+    'notification-week': { kind: 'bridge', path: '/sync', progressPath: '/nt-progress', label: 'Notification' },
+    'crashlytics': { kind: 'crashlytics', label: 'Store & Firebase' },
+    'virgul-revenue': { kind: 'bridge', path: '/sync-virgul', label: 'Virgül revenue' },
+    'priority-board': { kind: 'reload', label: 'git.nokta' },
+    'drive-uploads': { kind: 'reload', label: 'Drive uploads' },
+  };
+
+  function homeContainerSyncConfig(key) {
+    return HOME_CONTAINER_SYNC[key] || null;
   }
 
-  function refreshHomeContainer(sec) {
+  function homeContainerRefreshTitle(key) {
+    var cfg = homeContainerSyncConfig(key);
+    var base = (cfg && cfg.label) ? cfg.label : (key || 'section');
+    return 'Update data · ' + base;
+  }
+
+  function ensureHomeContainerRefreshButtons() {
+    if (!board) return;
+    board.querySelectorAll('[data-home-container]').forEach(function (sec) {
+      if (sec.querySelector('[data-home-container-refresh]')) return;
+      var key = sec.getAttribute('data-home-container') || '';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'home-container-refresh';
+      btn.setAttribute('data-home-container-refresh', '');
+      btn.setAttribute('aria-label', homeContainerRefreshTitle(key));
+      btn.setAttribute('title', homeContainerRefreshTitle(key));
+      btn.innerHTML = HOME_REFRESH_ICON;
+      sec.appendChild(btn);
+    });
+  }
+
+  function homeSyncOverlayLabel(cfg, phase) {
+    if (!cfg) return phase === 'panel' ? 'Refreshing panel…' : 'Fetching data…';
+    var name = cfg.label || 'Data';
+    if (phase === 'panel') return name + ' · refreshing panel…';
+    return name + ' · fetching from source…';
+  }
+
+  function homePollAlertsRefresh() {
+    var started = Date.now();
+    var maxMs = 20 * 60 * 1000;
+    function poll() {
+      if (Date.now() - started > maxMs) {
+        return Promise.reject(new Error('Position scan timed out'));
+      }
+      return fetch('/alerts/refresh/status', { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.error) throw new Error(String(d.error));
+          if (d && (d.finished === true || d.running === false)) return d;
+          return new Promise(function (resolve) { window.setTimeout(resolve, 1500); }).then(poll);
+        });
+    }
+    return poll();
+  }
+
+  function homeBridgeHealthJson() {
+    return fetch(HOME_BRIDGE + '/health', { mode: 'cors', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+  }
+
+  function homePollBridgeProgress(progressPath, maxMs) {
+    var started = Date.now();
+    maxMs = maxMs || 25 * 60 * 1000;
+    function poll() {
+      if (Date.now() - started > maxMs) {
+        return Promise.reject(new Error('Scan timed out'));
+      }
+      return fetch(HOME_BRIDGE + progressPath, { mode: 'cors', cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.running) {
+            return new Promise(function (resolve) { window.setTimeout(resolve, 2000); }).then(poll);
+          }
+          if (j && j.phase === 'error') throw new Error(j.message || 'Scan failed');
+          return j;
+        })
+        .catch(function (err) {
+          if (err && err.message) throw err;
+          return new Promise(function (resolve) { window.setTimeout(resolve, 2000); }).then(poll);
+        });
+    }
+    return poll();
+  }
+
+  function homePollCwvBridge(maxMs) {
+    var started = Date.now();
+    maxMs = maxMs || 35 * 60 * 1000;
+    function poll() {
+      if (Date.now() - started > maxMs) {
+        return Promise.reject(new Error('Web Vitals scan timed out'));
+      }
+      return homeBridgeHealthJson().then(function (j) {
+        if (!j) throw new Error('Bridge unavailable');
+        var p = j.gsc_cwv_progress || {};
+        var last = j.last_gsc_cwv || {};
+        if (p.running) {
+          return new Promise(function (resolve) { window.setTimeout(resolve, 4000); }).then(poll);
+        }
+        if (p.phase === 'error') throw new Error(p.message || 'Web Vitals scan failed');
+        if (p.phase === 'done' || last.ok) return j;
+        return new Promise(function (resolve) { window.setTimeout(resolve, 4000); }).then(poll);
+      });
+    }
+    return poll();
+  }
+
+  function homeRunContainerSync(sec, cfg) {
+    if (!cfg || cfg.kind === 'reload') {
+      return Promise.resolve({ skipped: true });
+    }
+    if (cfg.kind === 'realtime') {
+      return Promise.resolve({ skipped: true });
+    }
+    if (cfg.kind === 'ga4') {
+      return fetch('/ga4/refresh/' + encodeURIComponent(String(cfg.siteId)), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'HX-Request': 'true', Accept: 'application/json' },
+      }).then(function (r) {
+        if (!r.ok) throw new Error('GA4 refresh failed (HTTP ' + r.status + ')');
+      });
+    }
+    if (cfg.kind === 'sc') {
+      return fetch('/search-console/refresh/' + encodeURIComponent(String(cfg.siteId)), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'HX-Request': 'true' },
+      }).then(function (r) {
+        if (!r.ok) throw new Error('Search Console refresh failed (HTTP ' + r.status + ')');
+      });
+    }
+    if (cfg.kind === 'alerts') {
+      return fetch('/alerts/refresh', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      }).then(function (r) {
+        if (!r.ok && r.status !== 409) throw new Error('Position refresh failed (HTTP ' + r.status + ')');
+        return homePollAlertsRefresh();
+      });
+    }
+    if (cfg.kind === 'crashlytics') {
+      var product = (sec && sec.getAttribute('data-home-app-product')) || 'doviz';
+      return fetch('/api/app/crashlytics/refresh?product=' + encodeURIComponent(product), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      }).then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok || !j || j.ok === false) {
+            throw new Error((j && j.error) || 'Store/Firebase refresh failed');
+          }
+          return j;
+        });
+      });
+    }
+    if (cfg.kind === 'cwv') {
+      return homeBridgeHealthJson().then(function (health) {
+        if (!health) return { skipped: true, reason: 'bridge' };
+        return fetch(HOME_BRIDGE + '/sync-gsc-cwv', {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            site_id: cfg.siteId,
+            site: cfg.siteKey,
+            domain: cfg.domain,
+            site_domain: cfg.domain,
+            mode: 'shots',
+          }),
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (j) {
+            if (r.status === 409 || (j && j.running)) return homePollCwvBridge();
+            if (!r.ok || (j && j.ok === false)) {
+              throw new Error((j && j.message) || 'Web Vitals scan failed');
+            }
+            if (j && j.started) return homePollCwvBridge();
+            return j;
+          });
+        });
+      });
+    }
+    if (cfg.kind === 'bridge') {
+      return homeBridgeHealthJson().then(function (health) {
+        if (!health) return { skipped: true, reason: 'bridge' };
+        return fetch(HOME_BRIDGE + cfg.path, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(cfg.body || {}),
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (j) {
+            if (!r.ok && r.status !== 409) {
+              throw new Error((j && j.message) || 'Bridge scan failed');
+            }
+            if (cfg.progressPath) return homePollBridgeProgress(cfg.progressPath);
+            return j;
+          });
+        });
+      });
+    }
+    return Promise.resolve({ skipped: true });
+  }
+
+  function refreshHomeContainer(sec, opts) {
+    opts = opts || {};
     if (!sec || sec.classList.contains('is-home-refreshing')) return;
     var btn = sec.querySelector('[data-home-container-refresh]');
     var key = sec.getAttribute('data-home-container') || '';
+    var syncCfg = homeContainerSyncConfig(key);
     sec.classList.add('is-home-refreshing');
     if (btn) btn.classList.add('is-busy');
-    showHomeLoadOverlay(sec);
 
     function done() {
       sec.classList.remove('is-home-refreshing');
       clearHomeLoadOverlay(sec);
       if (btn) btn.classList.remove('is-busy');
+      ensureHomeContainerRefreshButtons();
     }
 
-    // Realtime: mevcut poll fetch yolunu kullan
+    function reloadHomePartial() {
+      if (key === 'realtime') {
+        var rtFn = window.__pcHomeRealtimeRefresh || window.__pcHomeRealtimeReload;
+        if (typeof rtFn === 'function') {
+          showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'panel'));
+          return Promise.resolve(rtFn(true)).finally(done);
+        }
+        done();
+        return Promise.resolve();
+      }
+
+      var base = sec.getAttribute('hx-get') || '';
+      if (!base) {
+        done();
+        return Promise.resolve();
+      }
+      showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'panel'));
+      var url = homeRefreshUrl(base);
+      var clean = base;
+      try {
+        var u0 = new URL(base, window.location.origin);
+        u0.searchParams.delete('refresh');
+        u0.searchParams.delete('_t');
+        clean = u0.pathname + u0.search;
+      } catch (e2) {}
+      sec.setAttribute('hx-get', clean);
+
+      if (!window.htmx) {
+        done();
+        return Promise.resolve();
+      }
+      return new Promise(function (resolve) {
+        var onAfter = function (ev) {
+          if (ev && ev.detail && ev.detail.target === sec) {
+            document.body.removeEventListener('htmx:afterSwap', onAfter);
+            document.body.removeEventListener('htmx:responseError', onErr);
+            document.body.removeEventListener('htmx:sendError', onErr);
+            done();
+            resolve();
+          }
+        };
+        var onErr = function (ev) {
+          if (ev && ev.detail && ev.detail.target === sec) {
+            document.body.removeEventListener('htmx:afterSwap', onAfter);
+            document.body.removeEventListener('htmx:responseError', onErr);
+            document.body.removeEventListener('htmx:sendError', onErr);
+            done();
+            resolve();
+          }
+        };
+        document.body.addEventListener('htmx:afterSwap', onAfter);
+        document.body.addEventListener('htmx:responseError', onErr);
+        document.body.addEventListener('htmx:sendError', onErr);
+        window.htmx.ajax('GET', url, {
+          target: sec,
+          swap: 'innerHTML',
+          headers: { 'Cache-Control': 'no-cache' },
+        });
+      });
+    }
+
+    if (opts.sync && syncCfg && syncCfg.kind !== 'reload' && syncCfg.kind !== 'realtime') {
+      showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'source'));
+      homeRunContainerSync(sec, syncCfg)
+        .catch(function (err) {
+          console.warn('home container sync', key, err);
+        })
+        .then(function () { return reloadHomePartial(); });
+      return;
+    }
+
     if (key === 'realtime') {
-      var rtFn = window.__pcHomeRealtimeRefresh || window.__pcHomeRealtimeReload;
-      if (typeof rtFn === 'function') {
-        Promise.resolve(rtFn(true)).finally(done);
-        return;
-      }
-    }
-
-    var base = sec.getAttribute('hx-get') || '';
-    if (!base) {
-      done();
+      reloadHomePartial();
       return;
     }
-    var url = homeRefreshUrl(base);
-    sec.setAttribute('hx-get', url.replace(/[?&]refresh=1/, '').replace(/[?&]_t=\d+/, '') || base);
-    // Kalıcı hx-get'te refresh=1 bırakma; sadece bu istekte force
-    var clean = base;
-    try {
-      var u0 = new URL(base, window.location.origin);
-      u0.searchParams.delete('refresh');
-      u0.searchParams.delete('_t');
-      clean = u0.pathname + u0.search;
-    } catch (e2) {}
-    sec.setAttribute('hx-get', clean);
 
-    if (!window.htmx) {
-      done();
-      return;
-    }
-    var onAfter = function (ev) {
-      if (ev && ev.detail && ev.detail.target === sec) {
-        document.body.removeEventListener('htmx:afterSwap', onAfter);
-        document.body.removeEventListener('htmx:responseError', onErr);
-        document.body.removeEventListener('htmx:sendError', onErr);
-        ensureHomeContainerRefreshButtons();
-        done();
-      }
-    };
-    var onErr = function (ev) {
-      if (ev && ev.detail && ev.detail.target === sec) {
-        document.body.removeEventListener('htmx:afterSwap', onAfter);
-        document.body.removeEventListener('htmx:responseError', onErr);
-        document.body.removeEventListener('htmx:sendError', onErr);
-        done();
-      }
-    };
-    document.body.addEventListener('htmx:afterSwap', onAfter);
-    document.body.addEventListener('htmx:responseError', onErr);
-    document.body.addEventListener('htmx:sendError', onErr);
-    window.htmx.ajax('GET', url, {
-      target: sec,
-      swap: 'innerHTML',
-      headers: { 'Cache-Control': 'no-cache' },
+    showHomeLoadOverlay(sec);
+    reloadHomePartial();
+  }
+  window.__pcHomeRefreshContainer = refreshHomeContainer;
+
+  /** GA4 + Search Console — DB'den panel yenile (kaynak taraması yok). */
+  function refreshHomeGa4Sc() {
+    if (!board) return;
+    board.querySelectorAll('[data-home-container^="ga4-"], [data-home-container^="sc-"]').forEach(function (sec) {
+      refreshHomeContainer(sec, { sync: false });
     });
   }
+  window.__pcHomeGa4ScRefresh = refreshHomeGa4Sc;
+
+  var HOME_GA4_SC_POLL_MS = 5 * 60 * 1000;
+  setInterval(refreshHomeGa4Sc, HOME_GA4_SC_POLL_MS);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') refreshHomeGa4Sc();
+  });
 
   document.body.addEventListener('click', function (ev) {
     var btn = ev.target && ev.target.closest && ev.target.closest('[data-home-container-refresh]');
@@ -2821,7 +3079,7 @@
     ev.preventDefault();
     ev.stopPropagation();
     var sec = btn.closest('[data-home-container]');
-    refreshHomeContainer(sec);
+    refreshHomeContainer(sec, { sync: true });
   });
 
   ensureHomeContainerRefreshButtons();
