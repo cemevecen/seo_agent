@@ -9682,7 +9682,6 @@ def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, b
         "delta_fmt": None,
         "delta_tone": "flat",
         "delta_pct": 0.0,
-        "spark": {"has_points": False},
     }
     trend = bundle.get("trend") or []
     if bundle.get("error") and not trend:
@@ -9690,7 +9689,6 @@ def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, b
 
     cur, delta_fmt, tone, delta_pct = active_users_kpi_from_realtime_result(bundle)
     pv_raw = _home_realtime_main_metric(bundle, "screenPageViews")
-    spark = _home_spark_paths([float(t.get("active_users") or 0) for t in trend])
     if not trend and cur <= 0 and bundle.get("error"):
         return empty
 
@@ -9704,7 +9702,6 @@ def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, b
         "delta_fmt": delta_fmt,
         "delta_tone": tone,
         "delta_pct": delta_pct,
-        "spark": spark,
     }
 
 

@@ -62,20 +62,7 @@
                 {{ brand_icon(_proj, 'sm') }}
                 <p class="home-kpi home-rt-kpi text-slate-900 dark:text-slate-100" data-rt-slot-value>{{ prof.value_fmt }}</p>
               </div>
-              <div class="home-rt-spark relative z-[1]" aria-label="{{ prof.label }} realtime sparkline">
-                {% if prof.spark and prof.spark.has_points and prof.spark.bar_slots %}
-                  <div class="home-rt-spark-bars" role="img" aria-label="{{ prof.label }} realtime spark bar chart">
-                    {% for bar in prof.spark.bar_slots %}
-                      <div class="home-rt-spark-bar {% if bar.empty %}is-empty{% elif bar.above %}is-above{% else %}is-below{% endif %}" style="height: {{ bar.height_px }}px" aria-hidden="true"></div>
-                    {% endfor %}
-                  </div>
-                {% else %}
-                  <div class="home-rt-spark-empty flex h-full w-full">
-                    <span aria-hidden="true"></span>
-                  </div>
-                {% endif %}
-                <span class="home-rt-plat {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}" aria-hidden="true">{{ prof.label }}</span>
-              </div>
+              <span class="home-rt-plat {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ prof.label }}</span>
             </div>
           {% endfor %}
         </div>
