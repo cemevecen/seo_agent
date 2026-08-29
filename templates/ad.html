@@ -148,6 +148,12 @@
   .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-main-view-chips.mz-main-view-chips--header {
     margin-bottom: 0;
   }
+  .mz-targets-header-actions {
+    display: none;
+  }
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] .mz-targets-header-actions {
+    display: flex;
+  }
   .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-header-revenue-bar,
   .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-stream-tabs,
   .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-sidebar,
@@ -1225,6 +1231,18 @@
       <button type="button" id="mz-main-view-revenue" data-mz-main-view="revenue" class="mz-main-view-chip is-active" role="tab" aria-selected="true" aria-controls="mz-view-revenue">Revenue</button>
       <button type="button" id="mz-main-view-targets" data-mz-main-view="targets" class="mz-main-view-chip" role="tab" aria-selected="false" aria-controls="mz-view-targets">Targets</button>
     </nav>
+    <div id="mz-targets-header-actions" class="mz-targets-header-actions mt-2 flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        id="mz-targets-refresh-header"
+        class="inline-flex items-center gap-1.5 rounded-lg border border-teal-300 bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-700 dark:bg-teal-800"
+        title="Scrape the targets sheet (Mac bridge) and reload this tab"
+      >
+        <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M15.312 5.312a7 7 0 00-11.373 1.21 1 1 0 01-1.78-.91A9 9 0 0117.5 8a1 1 0 01-2 0 7.002 7.002 0 00-.188-2.688zM4.688 14.688a7 7 0 0011.373-1.21 1 1 0 011.78.91A9 9 0 012.5 12a1 1 0 012 0c.05.93.29 1.84.688 2.688z" clip-rule="evenodd"/></svg>
+        Update targets
+      </button>
+      <span id="mz-targets-refresh-status-header" class="text-[11px] font-medium text-slate-500 dark:text-zinc-400" role="status" aria-live="polite"></span>
+    </div>
     {% endif %}
     <div id="mz-header-revenue-bar" class="flex flex-wrap items-center justify-between gap-2">
       <div class="min-w-0">
@@ -2069,13 +2087,18 @@
             </div>
           </div>
           <div id="mz-targets-controls-actions" class="min-w-0">
-            <p class="mb-1 text-[10px] font-bold uppercase text-slate-500 sm:invisible sm:select-none" aria-hidden="true">&nbsp;</p>
+            <p class="mb-1 text-[10px] font-bold uppercase text-slate-500">Update</p>
             <div class="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 id="mz-targets-refresh"
-                class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200 dark:hover:bg-teal-950/40"
-              >Refresh</button>
+                class="inline-flex items-center gap-1.5 rounded-lg border border-teal-300 bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-700 dark:bg-teal-800 dark:hover:bg-teal-700"
+                title="Scrape the targets sheet (Mac bridge) and reload this tab"
+              >
+                <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M15.312 5.312a7 7 0 00-11.373 1.21 1 1 0 01-1.78-.91A9 9 0 0117.5 8a1 1 0 01-2 0 7.002 7.002 0 00-.188-2.688zM4.688 14.688a7 7 0 0011.373-1.21 1 1 0 011.78.91A9 9 0 012.5 12a1 1 0 012 0c.05.93.29 1.84.688 2.688z" clip-rule="evenodd"/></svg>
+                Update targets
+              </button>
+              <span id="mz-targets-refresh-status" class="text-[11px] font-medium text-slate-500 dark:text-zinc-400" role="status" aria-live="polite"></span>
               <a id="mz-targets-source-link" href="https://docs.google.com/spreadsheets/d/1ITl0rUlLylTspsztMtaaFGEdvT_gINoUHDPodspEa5Y/edit?gid=244461752#gid=244461752" target="_blank" rel="noopener" class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200">Source table ↗</a>
             </div>
           </div>
@@ -14824,16 +14847,22 @@
     var pieSection = document.getElementById("mz-targets-pie-section");
     var err = document.getElementById("mz-targets-error");
     var warn = document.getElementById("mz-targets-warning");
-    var refreshBtn = document.getElementById("mz-targets-refresh");
+    var refreshBtns = [
+      document.getElementById("mz-targets-refresh"),
+      document.getElementById("mz-targets-refresh-header"),
+    ].filter(Boolean);
     if (loading) loading.classList.remove("hidden");
     if (err) err.classList.add("hidden");
     if (warn) warn.classList.add("hidden");
-    if (refreshBtn) refreshBtn.disabled = true;
+    refreshBtns.forEach(function (btn) { btn.disabled = true; });
     try {
       if (!mzTargetsCache || force) {
-        var url = "/api/mz-analytics/revenue-targets";
+        var url =
+          window.MZ_AD_MODE === "virgul"
+            ? "/api/virgul-analytics/revenue-targets"
+            : "/api/mz-analytics/revenue-targets";
         if (force) url += (url.indexOf("?") >= 0 ? "&" : "?") + "force=1";
-        var r = await fetch(url, { credentials: "same-origin" });
+        var r = await fetch(url, { credentials: "same-origin", cache: "no-store" });
         if (!r.ok) {
           var detail = "";
           try {
@@ -14883,8 +14912,70 @@
         err.classList.remove("hidden");
       }
     } finally {
-      if (refreshBtn) refreshBtn.disabled = false;
+      refreshBtns.forEach(function (btn) { btn.disabled = false; });
     }
+  }
+
+  function mzTargetsSetRefreshStatus(msg) {
+    ["mz-targets-refresh-status", "mz-targets-refresh-status-header"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = msg || "";
+    });
+  }
+
+  async function syncMzRevenueTargetsViaBridge() {
+    var refreshBtns = [
+      document.getElementById("mz-targets-refresh"),
+      document.getElementById("mz-targets-refresh-header"),
+    ].filter(Boolean);
+    refreshBtns.forEach(function (btn) { btn.disabled = true; });
+    mzTargetsSetRefreshStatus("Scanning targets sheet…");
+    var bridgeOk = false;
+    try {
+      var br = await fetch("http://127.0.0.1:18765/sync-revenue-targets", {
+        method: "POST",
+        mode: "cors",
+        headers: { Accept: "application/json" },
+      });
+      var body = null;
+      try { body = await br.json(); } catch (_) {}
+      if (br.status === 409) {
+        mzTargetsSetRefreshStatus((body && body.message) || "Already running…");
+        throw new Error((body && body.message) || "Already running");
+      }
+      if (!br.ok || (body && body.ok === false)) {
+        throw new Error((body && (body.message || body.detail)) || ("Scan HTTP " + br.status));
+      }
+      bridgeOk = true;
+      mzTargetsSetRefreshStatus((body && body.message) || "Scan done · reloading…");
+    } catch (err) {
+      if (!bridgeOk) {
+        mzTargetsSetRefreshStatus(
+          "Bridge unavailable — reloading cached targets…"
+        );
+      }
+    }
+    try {
+      await mzTargetsLoad(true);
+      mzTargetsSetRefreshStatus(bridgeOk ? "Updated" : "Panel refreshed (cache)");
+      window.setTimeout(function () { mzTargetsSetRefreshStatus(""); }, 4000);
+    } catch (loadErr) {
+      mzTargetsSetRefreshStatus((loadErr && loadErr.message) || "Reload failed");
+    } finally {
+      refreshBtns.forEach(function (btn) { btn.disabled = false; });
+    }
+  }
+
+  function mzTargetsManualRefresh() {
+    if (window.MZ_AD_MODE === "virgul") {
+      syncMzRevenueTargetsViaBridge();
+      return;
+    }
+    mzTargetsSetRefreshStatus("Reloading…");
+    mzTargetsLoad(true).then(function () {
+      mzTargetsSetRefreshStatus("Updated");
+      window.setTimeout(function () { mzTargetsSetRefreshStatus(""); }, 3000);
+    });
   }
 
   function setMzMainView(view, opts) {
@@ -15049,7 +15140,10 @@
   });
 
   on("mz-targets-refresh", "click", function () {
-    mzTargetsLoad(true);
+    mzTargetsManualRefresh();
+  });
+  on("mz-targets-refresh-header", "click", function () {
+    mzTargetsManualRefresh();
   });
 
   on("mz-targets-pie-group", "change", function (ev) {
