@@ -9861,6 +9861,44 @@ def _home_period_label(days: int) -> str:
     return f"{int(days)}g"
 
 
+def _home_ga4_period_range_label(db, site_id: int, period_days: int) -> str:
+    """GA4 snapshot last_start–last_end → «21.08–27.08.2026»."""
+    period_days = _home_clamp_period_days(period_days)
+    profiles = _HOME_DOVIZ_PROFILES if site_id == 1 else _HOME_SINEMA_PROFILES
+    for prof_key, _ in profiles:
+        prefer = [period_days]
+        if period_days == 7:
+            prefer.append(30)
+        for pd in prefer:
+            snap = get_latest_ga4_report_snapshot(
+                db, site_id=site_id, profile=prof_key, period_days=pd
+            )
+            if not snap:
+                continue
+            ls = str(snap.get("last_start") or "")[:10]
+            le = str(snap.get("last_end") or "")[:10]
+            if ls and le:
+                return _home_fmt_day_range(ls, le)
+    # Snapshot yoksa GA4 collector ile aynı: dün dahil N gün
+    yesterday = date.today() - timedelta(days=1)
+    last_start = yesterday - timedelta(days=period_days - 1)
+    return _home_fmt_day_range(last_start.isoformat(), yesterday.isoformat())
+
+
+def _home_sc_period_range_label(summary: dict | None, period_days: int) -> str:
+    """SC summary current_{N}d_start/end → «21.08–27.08.2026»."""
+    period_days = _home_clamp_period_days(period_days)
+    summary = summary or {}
+    start = str(summary.get(f"current_{period_days}d_start") or "")[:10]
+    end = str(summary.get(f"current_{period_days}d_end") or "")[:10]
+    if start and end:
+        return _home_fmt_day_range(start, end)
+    # GSC tipik 2–3 gün gecikme; son başarılı bitişe yakın tahmin
+    end_d = date.today() - timedelta(days=2)
+    start_d = end_d - timedelta(days=period_days - 1)
+    return _home_fmt_day_range(start_d.isoformat(), end_d.isoformat())
+
+
 def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int = 7) -> list[float]:
     """GA4 günlük session serisi — KPI ile aynı dönem penceresine hizalı spark."""
     values: list[float] = []
@@ -10628,6 +10666,7 @@ def api_home_ga4_sessions(
     period_days = _home_clamp_period_days(period_days)
     sites_out = []
     _site_filter = _home_site_filter_ids(site)
+    period_range_label = ""
     with SessionLocal() as db:
         for site_id, profs in [(1, _HOME_DOVIZ_PROFILES), (2, _HOME_SINEMA_PROFILES)]:
             if _site_filter is not None and site_id not in _site_filter:
@@ -10635,6 +10674,10 @@ def api_home_ga4_sessions(
             site_obj = _home_get_site(db, site_id)
             if site_obj is None:
                 continue
+            if not period_range_label:
+                period_range_label = _home_ga4_period_range_label(
+                    db, site_id, period_days
+                )
             sites_out.append({
                 "site_id": site_id,
                 "domain": site_obj.domain,
@@ -10650,6 +10693,12 @@ def api_home_ga4_sessions(
         site_key = "doviz"
     elif site_key == "2":
         site_key = "sinemalar"
+    if not period_range_label:
+        yesterday = date.today() - timedelta(days=1)
+        period_range_label = _home_fmt_day_range(
+            (yesterday - timedelta(days=period_days - 1)).isoformat(),
+            yesterday.isoformat(),
+        )
     return templates.TemplateResponse(
         request, "partials/home/ga4_sessions.html",
         context={
@@ -10657,8 +10706,10 @@ def api_home_ga4_sessions(
             "sites": sites_out,
             "period_days": period_days,
             "period_label": _home_period_label(period_days),
+            "period_range_label": period_range_label,
+            "period_current_label": period_range_label,
             "site_key": site_key,
-            "cur_period_label": f"Son {period_days} gün",
+            "cur_period_label": period_range_label or f"Son {period_days} gün",
             "prev_period_label": f"Önceki {period_days} gün",
         },
         headers=_HOME_HTML_NO_CACHE_HEADERS,
@@ -11017,6 +11068,7 @@ def api_home_sc_summary(
 ):
     period_days = _home_clamp_period_days(period_days)
     sites_out = []
+    period_range_label = ""
     _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
         for site_id in (1, 2):
@@ -11029,6 +11081,8 @@ def api_home_sc_summary(
             sc_summary = _latest_successful_provider_summary(
                 db, site_id=site_id, provider="search_console", strategy="all"
             )
+            if not period_range_label:
+                period_range_label = _home_sc_period_range_label(sc_summary, period_days)
             for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
                 agg = _home_sc_device_aggregate(
                     db,
@@ -11052,6 +11106,8 @@ def api_home_sc_summary(
         site_key = "doviz"
     elif site_key == "2":
         site_key = "sinemalar"
+    if not period_range_label:
+        period_range_label = _home_sc_period_range_label(None, period_days)
     return templates.TemplateResponse(
         request, "partials/home/sc_summary.html",
         context={
@@ -11059,8 +11115,10 @@ def api_home_sc_summary(
             "sites": sites_out,
             "period_days": period_days,
             "period_label": _home_period_label(period_days),
+            "period_range_label": period_range_label,
+            "period_current_label": period_range_label,
             "site_key": site_key,
-            "cur_period_label": f"Son {period_days} gün",
+            "cur_period_label": period_range_label or f"Son {period_days} gün",
             "prev_period_label": f"Önceki {period_days} gün",
         },
         headers=_HOME_HTML_NO_CACHE_HEADERS,

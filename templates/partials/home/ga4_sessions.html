@@ -88,8 +88,8 @@
       <div class="flex min-w-0 flex-wrap items-center gap-2">
         {{ brand_icon(site_key | default('doviz')) }}
         {{ container_chip('ga4') }}
-        {% set _ga_end = period_current_label if period_current_label else (period_label if period_label else none) %}
-        {% if _ga_end %}<span class="home-meta tabular-nums text-[10px] text-slate-500 dark:text-slate-400">· {{ _ga_end }}</span>{% endif %}
+        {% set _ga_range = period_range_label if period_range_label else (period_current_label if period_current_label else none) %}
+        {% if _ga_range %}<span class="home-meta tabular-nums text-[10px] leading-none text-slate-500 dark:text-slate-400" title="Veri dönemi">{{ _ga_range }}</span>{% endif %}
       </div>
     </button>
     <div class="home-shell-head-tools">
