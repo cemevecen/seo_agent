@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v62-shell-chevron-end">
+<style id="home-site-borders" data-home-css="v63-home-rt-responsive">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -1206,62 +1206,56 @@
     }
   }
 
+  .home-rt-grid-wrap {
+    max-width: 100%;
+    container-type: inline-size;
+    container-name: home-rt-wrap;
+    overflow: visible;
+  }
   .home-rt-grid {
-    display: flex;
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: 1fr;
     align-items: stretch;
-    gap: 0.5rem;
+    gap: 0.55rem;
     width: 100%;
     min-width: 0;
   }
-  .home-rt-project-band {
-    display: grid;
-    grid-template-columns: repeat(var(--rt-cols, 2), minmax(0, 1fr));
-    gap: 0.5rem;
-    flex: var(--rt-cols, 2) 1 0;
-    min-width: 0;
-  }
-  .home-rt-grid-wrap {
-    max-width: 100%;
+  @container home-rt-wrap (min-width: 34rem) {
+    #home-board[data-home-focus="split"] .home-rt-grid {
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+      gap: 0.65rem;
+    }
   }
   @media (min-width: 1280px) {
-    .home-rt-grid,
-    .home-rt-project-band {
+    .home-rt-grid {
       gap: 0.75rem;
     }
   }
-  @media (max-width: 767px) {
-    .home-rt-grid-wrap {
-      margin-left: 0;
-      margin-right: 0;
-      overflow-x: auto;
-      overflow-y: hidden;
-      overscroll-behavior-x: contain;
-      -webkit-overflow-scrolling: touch;
-      padding: 0 0 0.4rem;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+  .home-rt-project-band {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+    min-width: 0;
+    width: 100%;
+    container-type: inline-size;
+    container-name: home-rt-band;
+  }
+  .home-rt-project-band[data-home-rt-project="sinemalar"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 30rem) {
+    .home-rt-project-band[data-home-rt-project="doviz"] {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
-    .home-rt-grid-wrap::-webkit-scrollbar {
-      height: 0.35rem;
+  }
+  @container home-rt-band (max-width: 22rem) {
+    .home-rt-project-band[data-home-rt-project="doviz"] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .home-rt-grid-wrap::-webkit-scrollbar-thumb {
-      border-radius: 9999px;
-      background: rgba(100, 116, 139, 0.45);
-    }
-    .home-rt-grid {
-      width: max-content;
-      min-width: 100%;
-    }
+  }
+  @container home-rt-wrap (min-width: 28rem) {
     .home-rt-project-band {
-      grid-template-columns: repeat(var(--rt-cols, 2), minmax(8.25rem, 8.25rem));
-      flex: 0 0 auto;
-      width: max-content;
       gap: 0.55rem;
-    }
-    .home-rt-metric {
-      min-height: 0;
-      padding: clamp(0.32rem, 5cqi, 0.7rem) clamp(0.22rem, 4cqi, 0.65rem) clamp(0.28rem, 4.5cqi, 0.5rem) !important;
     }
   }
   .home-rt-metric {
@@ -1270,15 +1264,23 @@
     container-type: inline-size;
     container-name: home-rt;
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.25rem;
     min-width: 0;
     min-height: 0;
     border: 1px solid rgba(148, 163, 184, 0.14);
     background: linear-gradient(180deg, rgba(248, 250, 252, 0.72), rgba(248, 250, 252, 0.18));
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+  }
+  @container home-rt (min-width: 6.5rem) {
+    .home-rt-metric {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.35rem;
+    }
   }
   .home-rt-metric::before {
     content: none;
@@ -1287,23 +1289,30 @@
     margin: 0;
     min-width: 0;
     flex: 0 0 auto;
-    text-align: right;
+    text-align: left;
     white-space: nowrap;
-    overflow: visible;
+    overflow: hidden;
+    text-overflow: ellipsis;
     overflow-wrap: normal;
     word-break: normal;
     font-size: clamp(0.72rem, 20cqi, 1rem) !important;
     line-height: 1.1 !important;
+    max-width: 100%;
+  }
+  @container home-rt (min-width: 6.5rem) {
+    #home-board .home-readable .home-rt-kpi {
+      text-align: right;
+    }
   }
   .home-rt-plat {
     display: block;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
+    max-width: 100%;
     margin: 0;
     padding: 0;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
     overflow-wrap: normal;
     word-break: keep-all;
     text-transform: uppercase;
@@ -1311,6 +1320,24 @@
     letter-spacing: clamp(0.01em, 0.4cqi, 0.04em);
     line-height: 1;
     font-size: min(0.7rem, calc(100cqi / 5.2)) !important;
+  }
+  @container home-rt (max-width: 6.4rem) {
+    .home-rt-plat[data-plat="mweb"] {
+      font-size: 0 !important;
+    }
+    .home-rt-plat[data-plat="mweb"]::after {
+      content: "M.WEB";
+      font-size: min(0.62rem, calc(100cqi / 4.8)) !important;
+      letter-spacing: 0.02em;
+    }
+    .home-rt-plat[data-plat="android"] {
+      font-size: 0 !important;
+    }
+    .home-rt-plat[data-plat="android"]::after {
+      content: "AND";
+      font-size: min(0.62rem, calc(100cqi / 4.8)) !important;
+      letter-spacing: 0.02em;
+    }
   }
   #home-board .home-readable .home-rt-plat {
     font-size: min(0.7rem, calc(100cqi / 5.2)) !important;
@@ -1328,56 +1355,73 @@
     border-color: rgba(255,255,255,0.06);
     background: linear-gradient(180deg, rgba(54, 54, 60, 0.82), rgba(42, 42, 46, 0.52));
   }
-  .home-rt-head {
-    display: flex;
+  /* Realtime shell — responsive header (wrap on narrow, inline on wide) */
+  .home-rt-shell .home-shell-head {
     flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem 0.75rem;
+    align-items: flex-start;
+    row-gap: 0.45rem;
+  }
+  .home-rt-shell .home-shell-toggle {
+    flex: 1 1 auto;
     min-width: 0;
+  }
+  .home-rt-shell .home-shell-chevron-btn {
+    order: 2;
+    margin-left: auto;
   }
   .home-rt-head-title {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     flex: 0 0 auto;
+    min-width: 0;
+    flex-wrap: wrap;
   }
   .home-rt-head-chips {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: flex-end;
-    gap: 0.4rem;
+    justify-content: flex-start;
+    gap: 0.35rem 0.45rem;
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 1 1 100%;
+    order: 3;
+  }
+  @media (min-width: 768px) {
+    .home-rt-shell .home-shell-head {
+      flex-wrap: nowrap;
+      align-items: center;
+    }
+    .home-rt-shell .home-shell-chevron-btn {
+      order: unset;
+      margin-left: 0;
+    }
+    .home-rt-head-chips {
+      flex: 1 1 auto;
+      order: unset;
+      justify-content: flex-end;
+    }
   }
   .home-rt-pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.4rem;
     border-radius: 9999px;
     border: 1px solid rgba(148, 163, 184, 0.24);
-    padding: 0.45rem 0.75rem;
+    padding: 0.4rem 0.65rem;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
-    flex: 0 0 auto;
-    white-space: nowrap;
+    flex: 0 1 auto;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .home-rt-pill-body {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.1rem 0.35rem;
+    min-width: 0;
   }
   @media (max-width: 767px) {
-    .home-rt-head {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0.55rem;
-    }
-    .home-rt-head-chips {
-      width: 100%;
-      justify-content: flex-start;
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior-x: contain;
-      padding-bottom: 0.15rem;
-      scrollbar-width: thin;
-    }
     .home-rt-pill {
       gap: 0.3rem;
       padding: 0.35rem 0.55rem;
@@ -1433,12 +1477,14 @@
   .home-rt-countdown {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.35rem;
     border-radius: 9999px;
     border: 1px solid rgba(34, 197, 94, 0.45);
     background: linear-gradient(180deg, rgba(236, 253, 245, 0.98), rgba(240, 253, 244, 0.94));
     padding: 0.35rem 0.65rem 0.35rem 0.45rem;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+    flex-shrink: 0;
+    white-space: nowrap;
   }
   html.dark .home-rt-countdown {
     background: linear-gradient(180deg, rgba(6, 95, 70, 0.42), rgba(42, 42, 46, 0.55));
@@ -2009,18 +2055,21 @@
     overflow: visible;
   }
   #home-board:not([data-home-focus="split"]) .home-rt-grid {
-    display: flex !important;
+    grid-template-columns: 1fr !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
     gap: 0.65rem !important;
   }
   #home-board:not([data-home-focus="split"]) .home-rt-project-band {
-    flex: 1 1 100% !important;
     width: 100% !important;
     min-width: 0 !important;
-    grid-template-columns: repeat(var(--rt-cols, 2), minmax(0, 1fr)) !important;
     gap: 0.65rem !important;
+  }
+  @media (min-width: 30rem) {
+    #home-board:not([data-home-focus="split"]) .home-rt-project-band[data-home-rt-project="doviz"] {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
   }
   #home-board:not([data-home-focus="split"]) .home-rt-metric {
     width: 100%;
@@ -2030,23 +2079,6 @@
     #home-board:not([data-home-focus="split"]) .home-rt-grid,
     #home-board:not([data-home-focus="split"]) .home-rt-project-band {
       gap: 0.85rem !important;
-    }
-  }
-  @media (max-width: 767px) {
-    #home-board:not([data-home-focus="split"]) .home-rt-grid-wrap {
-      margin-left: 0;
-      margin-right: 0;
-      overflow-x: auto;
-      overflow-y: hidden;
-      padding: 0 0 0.35rem;
-    }
-    #home-board:not([data-home-focus="split"]) .home-rt-grid {
-      width: 100% !important;
-      min-width: 0 !important;
-    }
-    #home-board:not([data-home-focus="split"]) .home-rt-project-band {
-      width: 100% !important;
-      grid-template-columns: repeat(var(--rt-cols, 2), minmax(0, 1fr)) !important;
     }
   }
 
@@ -2151,22 +2183,17 @@
       margin-right: 0;
       width: 100%;
       max-width: 100%;
-    }
-    #home-board .home-rt-grid-wrap {
+      overflow: visible;
       padding-left: 0;
       padding-right: 0;
-      overflow-x: visible;
     }
     #home-board .home-rt-grid {
-      display: flex !important;
       width: 100% !important;
       min-width: 0 !important;
     }
     #home-board .home-rt-project-band {
-      flex: var(--rt-cols, 2) 1 0 !important;
-      width: auto !important;
+      width: 100% !important;
       min-width: 0 !important;
-      grid-template-columns: repeat(var(--rt-cols, 2), minmax(0, 1fr)) !important;
     }
     #home-board .home-rt-metric,
     #home-board .home-ga4-spark-cell,
@@ -2285,8 +2312,14 @@
 
     loadHomeRealtime();
     pollTimer = window.setInterval(loadHomeRealtime, pollSec * 1000);
+    var lastRtVisFetch = 0;
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') loadHomeRealtime();
+      if (document.visibilityState !== 'visible') return;
+      /* Sekme dönüşünde mevcut sayıları silmeden soft yenile; çok sık tekrarlama */
+      var now = Date.now();
+      if (now - lastRtVisFetch < 8000) return;
+      lastRtVisFetch = now;
+      loadHomeRealtime();
     });
     window.__pcHomeRealtimeReload = loadHomeRealtime;
     window.__pcHomeRealtimeRefresh = loadHomeRealtime;
@@ -2849,14 +2882,25 @@
     return Promise.resolve({ skipped: true });
   }
 
+  function homeContainerHasLoadedContent(sec) {
+    if (!sec) return false;
+    if (sec.querySelector('[data-home-shell-root], [data-home-period-root], [data-home-sc-root], [data-home-crash-root]')) {
+      return true;
+    }
+    /* İlk boyama placeholder’ı — henüz gerçek içerik yok */
+    if (sec.querySelector('.home-load-placeholder')) return false;
+    return !!(sec.querySelector('.home-readable, .home-kpi, .home-ga4-spark-grid, .home-sc-spark-grid'));
+  }
+
   function refreshHomeContainer(sec, opts) {
     opts = opts || {};
     if (!sec || sec.classList.contains('is-home-refreshing')) return;
     var btn = sec.querySelector('[data-home-container-refresh]');
     var key = sec.getAttribute('data-home-container') || '';
     var syncCfg = homeContainerSyncConfig(key);
+    var silent = !!opts.silent && homeContainerHasLoadedContent(sec);
     sec.classList.add('is-home-refreshing');
-    if (btn) btn.classList.add('is-busy');
+    if (btn && !silent) btn.classList.add('is-busy');
 
     function done() {
       sec.classList.remove('is-home-refreshing');
@@ -2869,7 +2913,7 @@
       if (key === 'realtime') {
         var rtFn = window.__pcHomeRealtimeRefresh || window.__pcHomeRealtimeReload;
         if (typeof rtFn === 'function') {
-          showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'panel'));
+          if (!silent) showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'panel'));
           return Promise.resolve(rtFn(true)).finally(done);
         }
         done();
@@ -2881,7 +2925,7 @@
         done();
         return Promise.resolve();
       }
-      showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'panel'));
+      if (!silent) showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'panel'));
       var url = homeRefreshUrl(base);
       var clean = base;
       try {
@@ -2927,7 +2971,7 @@
     }
 
     if (opts.sync && syncCfg && syncCfg.kind !== 'reload' && syncCfg.kind !== 'realtime') {
-      showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'source'));
+      if (!silent) showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'source'));
       homeRunContainerSync(sec, syncCfg)
         .catch(function (err) {
           console.warn('home container sync', key, err);
@@ -2941,7 +2985,7 @@
       return;
     }
 
-    showHomeLoadOverlay(sec);
+    if (!silent) showHomeLoadOverlay(sec);
     reloadHomePartial();
   }
   window.__pcHomeRefreshContainer = refreshHomeContainer;
@@ -2967,6 +3011,7 @@
       board.querySelectorAll('[data-home-container^="sc-"]')
     );
     if (!sections.length) return Promise.resolve();
+    var silent = !!opts.silent;
     return fetchHomeScFreshness().then(function (meta) {
       var sites = (meta && meta.sites) || {};
       sections.forEach(function (sec) {
@@ -2982,38 +3027,38 @@
           || siteMeta.needs_reload
           || (collectedAt && collectedAt !== renderedAsOf)
           || (dataEnd && dataEnd !== renderedEnd);
-        var needsSync = !!siteMeta.needs_sync;
+        var needsSync = !!siteMeta.needs_sync && !silent;
         if (needsReload || needsSync) {
-          refreshHomeContainer(sec, { sync: needsSync });
+          refreshHomeContainer(sec, { sync: needsSync, silent: silent });
         }
       });
     }).catch(function () {
+      /* Soft/background: API hatasında mevcut içeriği silme / spinner gösterme */
+      if (!opts.force) return;
       sections.forEach(function (sec) {
-        refreshHomeContainer(sec, { sync: false });
+        refreshHomeContainer(sec, { sync: false, silent: silent });
       });
     });
   }
   window.__pcHomeRefreshScContainers = refreshHomeScContainers;
 
-  function refreshHomeGa4Sc() {
+  function refreshHomeGa4Sc(opts) {
+    opts = opts || {};
     if (!board) return;
+    var silent = opts.silent !== false;
     board.querySelectorAll('[data-home-container^="ga4-"]').forEach(function (sec) {
-      refreshHomeContainer(sec, { sync: false });
+      refreshHomeContainer(sec, { sync: false, silent: silent });
     });
-    refreshHomeScContainers();
+    refreshHomeScContainers({ silent: silent });
   }
   window.__pcHomeGa4ScRefresh = refreshHomeGa4Sc;
 
   var HOME_GA4_SC_POLL_MS = 5 * 60 * 1000;
-  setInterval(refreshHomeGa4Sc, HOME_GA4_SC_POLL_MS);
+  setInterval(function () { refreshHomeGa4Sc({ silent: true }); }, HOME_GA4_SC_POLL_MS);
+  /* Sekme geri gelince mevcut kartları spinner ile silme — soft freshness (sessiz) */
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible') return;
-    refreshHomeScContainers({ force: true });
-    if (board) {
-      board.querySelectorAll('[data-home-container^="ga4-"]').forEach(function (sec) {
-        refreshHomeContainer(sec, { sync: false });
-      });
-    }
+    refreshHomeScContainers({ force: false, silent: true });
   });
 
   document.body.addEventListener('click', function (ev) {
