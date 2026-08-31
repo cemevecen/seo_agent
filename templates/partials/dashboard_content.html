@@ -2784,7 +2784,8 @@
     return poll();
   }
 
-  function homeRunContainerSync(sec, cfg) {
+  function homeRunContainerSync(sec, cfg, syncOpts) {
+    syncOpts = syncOpts || {};
     if (!cfg || cfg.kind === 'reload') {
       return Promise.resolve({ skipped: true });
     }
@@ -2801,7 +2802,9 @@
       });
     }
     if (cfg.kind === 'sc') {
-      return fetch('/search-console/refresh/' + encodeURIComponent(String(cfg.siteId)), {
+      /* soft=1: cooldown + kota koruması; otomatik sync kota maili göndermez */
+      var soft = syncOpts.soft === false ? '0' : '1';
+      return fetch('/search-console/refresh/' + encodeURIComponent(String(cfg.siteId)) + '?soft=' + soft, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { Accept: 'application/json', 'HX-Request': 'true' },
@@ -2972,7 +2975,7 @@
 
     if (opts.sync && syncCfg && syncCfg.kind !== 'reload' && syncCfg.kind !== 'realtime') {
       if (!silent) showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'source'));
-      homeRunContainerSync(sec, syncCfg)
+      homeRunContainerSync(sec, syncCfg, { soft: true })
         .catch(function (err) {
           console.warn('home container sync', key, err);
         })

@@ -106,7 +106,7 @@ from backend.models import (
 from backend.rate_limiter import limiter
 from backend.services.alert_engine import ensure_site_alerts, get_alert_rules, get_recent_alerts, get_site_alerts
 from backend.services.metric_store import get_latest_metrics, get_metric_history, get_metric_day_over_day_score
-from backend.services.quota_guard import get_quota_status
+from backend.services.quota_guard import get_quota_status, is_provider_daily_quota_exhausted
 from backend.services.search_console_auth import (
     SEARCH_CONSOLE_SCOPES,
     build_oauth_flow,
@@ -9938,6 +9938,18 @@ def _home_sc_freshness_for_site(db, site_id: int, *, period_days: int = 7) -> di
         age_h = (datetime.utcnow() - run.requested_at).total_seconds() / 3600.0
         if age_h > 25.0:
             needs_sync = True
+    # Soft kota doluysa yeni API sync isteme (retry döngüsü + mail spam'i).
+    quota_exhausted = is_provider_daily_quota_exhausted(db, site_id, "search_console")
+    if quota_exhausted:
+        needs_sync = False
+    # Cooldown içindeyse de otomatik sync isteme — force=True ile yakmayı önler.
+    if needs_sync and _latest_collector_run_recent(
+        db,
+        site_id=site_id,
+        provider="search_console",
+        cooldown_seconds=settings.search_console_refresh_cooldown_seconds,
+    ):
+        needs_sync = False
     return {
         "site_id": site_id,
         "collected_at": collected.isoformat() if isinstance(collected, datetime) else "",
@@ -9946,6 +9958,7 @@ def _home_sc_freshness_for_site(db, site_id: int, *, period_days: int = 7) -> di
         "run_at": run.requested_at.isoformat() if run and run.requested_at else "",
         "needs_reload": needs_reload,
         "needs_sync": needs_sync,
+        "quota_exhausted": quota_exhausted,
     }
 
 
@@ -20612,6 +20625,11 @@ def search_console_refresh_all_status(job_id: str):
 @app.post("/search-console/refresh/{site_id}")
 def search_console_manual_refresh(request: Request, site_id: int):
     wjson = _search_console_request_wants_json(request)
+    # soft=1: ana sayfa otomatik sync — cooldown'a uy, kota maili gönderme.
+    soft_raw = str(request.query_params.get("soft") or "").strip().lower()
+    soft = soft_raw in ("1", "true", "yes", "on")
+    force = not soft
+    send_notifications = not soft
     try:
         with SessionLocal() as db:
             site = db.query(Site).filter(Site.id == site_id).first()
@@ -20634,14 +20652,26 @@ def search_console_manual_refresh(request: Request, site_id: int):
                         headers=_SC_JSON_NO_CACHE_HEADERS,
                     )
                 return HTMLResponse("Bu site için Search Console raporu gönderilmez (external).", status_code=404)
+            if soft and is_provider_daily_quota_exhausted(db, site.id, "search_console"):
+                if wjson:
+                    return JSONResponse(
+                        {
+                            "ok": True,
+                            "skipped": True,
+                            "state": "skipped",
+                            "reason": "Search Console günlük soft kota dolu; API çağrısı atlandı.",
+                        },
+                        headers=_SC_JSON_NO_CACHE_HEADERS,
+                    )
+                return HTMLResponse("Search Console soft kota dolu; atlandı.", status_code=200)
             results = _refresh_site_detail_measurements(
                 db,
                 site,
                 include_pagespeed=False,
                 include_crawler=False,
                 include_search_console=True,
-                force=True,
-                send_notifications=True,
+                force=force,
+                send_notifications=send_notifications,
             )
             try:
                 _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
@@ -20656,17 +20686,32 @@ def search_console_manual_refresh(request: Request, site_id: int):
                         )
                     return HTMLResponse("The database is busy. Please try again.", status_code=503)
                 raise
-            try:
-                notify_result_map(
-                    trigger_source="manual",
-                    site=site,
-                    results=results,
-                    action_label="Search Console verisini yenile",
-                )
-            except Exception:
-                logging.exception(
-                    "Search Console manual refresh: notify_result_map failed site_id=%s",
-                    site_id,
+            if not soft:
+                try:
+                    notify_result_map(
+                        trigger_source="manual",
+                        site=site,
+                        results=results,
+                        action_label="Search Console verisini yenile",
+                    )
+                except Exception:
+                    logging.exception(
+                        "Search Console manual refresh: notify_result_map failed site_id=%s",
+                        site_id,
+                    )
+            if wjson and soft:
+                sc = results.get("search_console") if isinstance(results, dict) else None
+                payload = sc if isinstance(sc, dict) else {}
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "soft": True,
+                        "state": payload.get("state") or ("blocked" if payload.get("blocked") else "ok"),
+                        "skipped": str(payload.get("state") or "").lower() == "skipped",
+                        "blocked": bool(payload.get("blocked")),
+                        "reason": payload.get("reason") or "",
+                    },
+                    headers=_SC_JSON_NO_CACHE_HEADERS,
                 )
             schedule_label = (
                 f"{int(settings.search_console_scheduled_refresh_hour):02d}:"

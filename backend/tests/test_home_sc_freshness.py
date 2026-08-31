@@ -28,11 +28,15 @@ def test_home_sc_period_range_prefers_snapshot_rows(mock_rows):
     assert label == "24.08–30.08.2026"
 
 
+@patch("backend.main._latest_collector_run_recent", return_value=False)
+@patch("backend.main.is_provider_daily_quota_exhausted", return_value=False)
 @patch("backend.main._home_sc_period_range_from_rows", return_value=("2026-08-24", "2026-08-30"))
 @patch("backend.main._latest_successful_provider_summary")
 @patch("backend.main._latest_provider_run")
 @patch("backend.main._search_console_latest_snapshot_collected_at")
-def test_home_sc_freshness_flags_newer_snapshot(mock_collected, mock_run, mock_summary, _rows):
+def test_home_sc_freshness_flags_newer_snapshot(
+    mock_collected, mock_run, mock_summary, _rows, _quota, _cooldown
+):
     from datetime import datetime, timezone
 
     mock_collected.return_value = datetime(2026, 8, 31, 8, 0, tzinfo=timezone.utc)
@@ -45,3 +49,26 @@ def test_home_sc_freshness_flags_newer_snapshot(mock_collected, mock_run, mock_s
     assert fresh["data_end"] == "2026-08-30"
     assert fresh["needs_reload"] is True
     assert fresh["needs_sync"] is False
+    assert fresh["quota_exhausted"] is False
+
+
+@patch("backend.main._latest_collector_run_recent", return_value=False)
+@patch("backend.main.is_provider_daily_quota_exhausted", return_value=True)
+@patch("backend.main._home_sc_period_range_from_rows", return_value=("2026-08-24", "2026-08-30"))
+@patch("backend.main._latest_successful_provider_summary")
+@patch("backend.main._latest_provider_run")
+@patch("backend.main._search_console_latest_snapshot_collected_at")
+def test_home_sc_freshness_blocks_sync_when_quota_exhausted(
+    mock_collected, mock_run, mock_summary, _rows, _quota, _cooldown
+):
+    from datetime import datetime
+
+    mock_collected.return_value = datetime(2026, 8, 20, 4, 0)
+    run = MagicMock()
+    run.status = "success"
+    run.requested_at = datetime(2026, 8, 20, 4, 0)
+    mock_run.return_value = run
+    mock_summary.return_value = {"current_7d_end": "2026-08-30"}
+    fresh = _home_sc_freshness_for_site(MagicMock(), 1, period_days=7)
+    assert fresh["needs_sync"] is False
+    assert fresh["quota_exhausted"] is True

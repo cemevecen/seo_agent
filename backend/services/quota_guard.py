@@ -131,12 +131,13 @@ def _consume_api_quota_impl(
             f"Gunluk: {day_row.call_count}/{day_limit}, Aylik: {month_row.call_count}/{month_limit}. "
             f"Yeni API cagrisı bloke edildi."
         )
+        # Hard limit maili en fazla günde bir (otomatik retry spam'ini kes).
         emit_custom_alert(
             db,
             site,
             f"quota_{provider}_hard_limit",
             message,
-            dedupe_hours=2,
+            dedupe_hours=24,
             send_mail=send_alert_emails,
         )
         db.commit()
@@ -173,6 +174,27 @@ def _consume_api_quota_impl(
             f"monthly {month_row.call_count}/{month_limit}"
         ),
     )
+
+
+def is_provider_daily_quota_exhausted(db: Session, site_id: int, provider: str) -> bool:
+    """Bugünkü soft kota dolu mu? (Ana sayfa otomatik sync'i durdurmak için.)"""
+    if not settings.quota_guard_enabled:
+        return False
+    day_limit = _limit_for(provider, "day")
+    if day_limit <= 0:
+        return False
+    now = datetime.utcnow()
+    row = (
+        db.query(ApiUsage)
+        .filter(
+            ApiUsage.site_id == site_id,
+            ApiUsage.provider == provider,
+            ApiUsage.period_type == "day",
+            ApiUsage.period_start == _period_start(now, "day"),
+        )
+        .first()
+    )
+    return bool(row and int(row.call_count or 0) >= day_limit)
 
 
 def get_quota_status(db: Session) -> list[dict]:
