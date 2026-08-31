@@ -9885,18 +9885,68 @@ def _home_ga4_period_range_label(db, site_id: int, period_days: int) -> str:
     return _home_fmt_day_range(last_start.isoformat(), yesterday.isoformat())
 
 
-def _home_sc_period_range_label(summary: dict | None, period_days: int) -> str:
-    """SC summary current_{N}d_start/end → «21.08–27.08.2026»."""
+def _home_sc_scope_for_period(period_days: int) -> tuple[str, str]:
     period_days = _home_clamp_period_days(period_days)
+    return f"current_{period_days}d", f"previous_{period_days}d"
+
+
+def _home_sc_period_range_from_rows(db, site_id: int, period_days: int) -> tuple[str, str]:
+    """Search Console detay sayfası ile aynı — snapshot satır start/end."""
+    cur_scope, _ = _home_sc_scope_for_period(period_days)
+    rows = get_latest_search_console_rows(db, site_id=site_id, data_scope=cur_scope)
+    return _scope_range_from_rows(rows)
+
+
+def _home_sc_period_range_label(
+    db,
+    site_id: int,
+    summary: dict | None,
+    period_days: int,
+) -> str:
+    """SC dönem etiketi — önce snapshot satırları, yoksa collector özeti."""
+    period_days = _home_clamp_period_days(period_days)
+    start, end = _home_sc_period_range_from_rows(db, site_id, period_days)
+    if start and end:
+        return _home_fmt_day_range(start, end)
     summary = summary or {}
     start = str(summary.get(f"current_{period_days}d_start") or "")[:10]
     end = str(summary.get(f"current_{period_days}d_end") or "")[:10]
     if start and end:
         return _home_fmt_day_range(start, end)
-    # GSC tipik 2–3 gün gecikme; son başarılı bitişe yakın tahmin
     end_d = date.today() - timedelta(days=2)
     start_d = end_d - timedelta(days=period_days - 1)
     return _home_fmt_day_range(start_d.isoformat(), end_d.isoformat())
+
+
+def _home_sc_freshness_for_site(db, site_id: int, *, period_days: int = 7) -> dict[str, Any]:
+    """Ana sayfa SC kartı — DB’deki son snapshot vs son collector koşusu."""
+    period_days = _home_clamp_period_days(period_days)
+    collected = _search_console_latest_snapshot_collected_at(db, site_id)
+    run = _latest_provider_run(db, site_id=site_id, provider="search_console", strategy="all")
+    summary = _latest_successful_provider_summary(
+        db, site_id=site_id, provider="search_console", strategy="all"
+    )
+    row_start, row_end = _home_sc_period_range_from_rows(db, site_id, period_days)
+    summary_end = str(summary.get(f"current_{period_days}d_end") or "")[:10]
+    needs_reload = bool(row_end and summary_end and row_end > summary_end)
+    needs_sync = False
+    if run is None or str(run.status or "").lower() != "success":
+        needs_sync = True
+    elif collected and run.requested_at and collected > run.requested_at:
+        needs_reload = True
+    elif run.requested_at:
+        age_h = (datetime.utcnow() - run.requested_at).total_seconds() / 3600.0
+        if age_h > 25.0:
+            needs_sync = True
+    return {
+        "site_id": site_id,
+        "collected_at": collected.isoformat() if isinstance(collected, datetime) else "",
+        "data_start": row_start or str(summary.get(f"current_{period_days}d_start") or "")[:10],
+        "data_end": row_end or summary_end or "",
+        "run_at": run.requested_at.isoformat() if run and run.requested_at else "",
+        "needs_reload": needs_reload,
+        "needs_sync": needs_sync,
+    }
 
 
 def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int = 7) -> list[float]:
@@ -9957,13 +10007,18 @@ def _home_sc_trend_series(
     metric: str,
     *,
     days: int = 7,
+    window_start: str | None = None,
+    window_end: str | None = None,
 ) -> list[float]:
     """Search Console günlük serisi — mümkünse current_{N}d penceresine hizalı."""
     if not summary_payload:
         return []
     days_i = max(2, int(days or 7))
-    want_start = str(summary_payload.get(f"current_{days_i}d_start") or "")[:10]
-    want_end = str(summary_payload.get(f"current_{days_i}d_end") or "")[:10]
+    want_start = str(window_start or "")[:10] if window_start else ""
+    want_end = str(window_end or "")[:10] if window_end else ""
+    if not want_start or not want_end:
+        want_start = str(summary_payload.get(f"current_{days_i}d_start") or "")[:10]
+        want_end = str(summary_payload.get(f"current_{days_i}d_end") or "")[:10]
     if not want_start or not want_end:
         want_start = str(summary_payload.get("current_7d_start") or "")[:10]
         want_end = str(summary_payload.get("current_7d_end") or "")[:10]
@@ -10915,9 +10970,8 @@ def _home_sc_device_aggregate(
 ) -> dict:
     """Tek site & device için current_{N}d ve previous_{N}d toplamları.
 
-    Pozisyon/click: CollectorRun summary'deki date×device site-geneli özet
-    (GSC Performance ile aynı popülasyon). Query snapshot (top ~2500) yalnızca
-    özet yoksa yedek — uzun kuyruk eksik kaldığı için pozisyonu iyimser gösterir.
+    /search-console ile aynı kaynak: snapshot satırları + collector özeti.
+    Snapshot satır aralığı collector özetinden yeniyse satır toplamları tercih edilir.
     """
     from sqlalchemy import func as sa_func
 
@@ -10927,8 +10981,19 @@ def _home_sc_device_aggregate(
         summary = _latest_successful_provider_summary(
             db, site_id=site_id, provider="search_console", strategy="all"
         )
+    cur_scope, prev_scope = _home_sc_scope_for_period(period_days)
+    sc_batch = get_latest_search_console_rows_batch(
+        db, site_id=site_id, scopes=[cur_scope, prev_scope]
+    )
+    fc = _filter_search_console_rows_by_device(sc_batch.get(cur_scope) or [], device)
+    fp = _filter_search_console_rows_by_device(sc_batch.get(prev_scope) or [], device)
+    row_start, row_end = _scope_range_from_rows(fc)
+    summary_end = str((summary or {}).get(f"current_{period_days}d_end") or "")[:10]
     cur_sum = (summary.get(f"current_{period_days}d_summary_by_device") or {}).get(device) or {}
     prev_sum = (summary.get(f"previous_{period_days}d_summary_by_device") or {}).get(device) or {}
+    use_row_totals = bool(fc) and (
+        not cur_sum or (row_end and summary_end and row_end > summary_end)
+    )
 
     def _from_snapshot(scope: str) -> tuple[float, float, float]:
         latest_ts = db.query(sa_func.max(SearchConsoleQuerySnapshot.collected_at)).filter(
@@ -10963,7 +11028,16 @@ def _home_sc_device_aggregate(
         pos = (weighted / impr) if impr > 0 else 0.0
         return (clicks, impr, pos)
 
-    if cur_sum or prev_sum:
+    if use_row_totals:
+        snap_cur = _summarize_search_console_rows(fc)
+        snap_prev = _summarize_search_console_rows(fp) if fp else {}
+        c_clicks = float(snap_cur.get("clicks") or 0.0)
+        p_clicks = float(snap_prev.get("clicks") or 0.0)
+        c_impr = float(snap_cur.get("impressions") or 0.0)
+        p_impr = float(snap_prev.get("impressions") or 0.0)
+        c_pos = float(snap_cur.get("position") or 0.0)
+        p_pos = float(snap_prev.get("position") or 0.0)
+    elif cur_sum or prev_sum:
         c_clicks = float(cur_sum.get("clicks") or 0.0)
         p_clicks = float(prev_sum.get("clicks") or 0.0)
         c_impr = float(cur_sum.get("impressions") or 0.0)
@@ -10999,14 +11073,29 @@ def _home_sc_device_aggregate(
     clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
     pos_diff = _sc_position_delta(c_pos, p_pos)
     pos_tone = _home_pos_tone(pos_diff)
+    trend_window = (row_start, row_end) if row_start and row_end else (None, None)
     clicks_spark = _home_spark_paths(
-        _home_sc_trend_series(summary, device, "clicks", days=period_days),
+        _home_sc_trend_series(
+            summary,
+            device,
+            "clicks",
+            days=period_days,
+            window_start=trend_window[0],
+            window_end=trend_window[1],
+        ),
         width=96,
         height=28,
         pad=2,
     )
     pos_spark = _home_spark_paths(
-        _home_sc_trend_series(summary, device, "position", days=period_days),
+        _home_sc_trend_series(
+            summary,
+            device,
+            "position",
+            days=period_days,
+            window_start=trend_window[0],
+            window_end=trend_window[1],
+        ),
         width=96,
         height=28,
         pad=2,
@@ -11060,6 +11149,24 @@ def _home_sc_device_aggregate(
     }
 
 
+@app.get("/api/home/sc-freshness")
+def api_home_sc_freshness(site: str | None = None, period_days: int = 7):
+    """Ana sayfa SC kartları — son snapshot / collector tazeliği."""
+    period_days = _home_clamp_period_days(period_days)
+    _site_filter = _home_site_filter_ids(site)
+    sites_out: dict[str, dict[str, Any]] = {}
+    with SessionLocal() as db:
+        for site_id in (1, 2):
+            if _site_filter is not None and site_id not in _site_filter:
+                continue
+            key = "doviz" if site_id == 1 else "sinemalar"
+            sites_out[key] = _home_sc_freshness_for_site(db, site_id, period_days=period_days)
+    return JSONResponse(
+        {"ok": True, "period_days": period_days, "sites": sites_out},
+        headers=_SC_JSON_NO_CACHE_HEADERS,
+    )
+
+
 @app.get("/api/home/sc-summary", response_class=HTMLResponse)
 def api_home_sc_summary(
     request: Request,
@@ -11069,6 +11176,8 @@ def api_home_sc_summary(
     period_days = _home_clamp_period_days(period_days)
     sites_out = []
     period_range_label = ""
+    sc_collected_at_iso = ""
+    sc_data_end_iso = ""
     _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
         for site_id in (1, 2):
@@ -11081,8 +11190,13 @@ def api_home_sc_summary(
             sc_summary = _latest_successful_provider_summary(
                 db, site_id=site_id, provider="search_console", strategy="all"
             )
+            fresh = _home_sc_freshness_for_site(db, site_id, period_days=period_days)
             if not period_range_label:
-                period_range_label = _home_sc_period_range_label(sc_summary, period_days)
+                period_range_label = _home_sc_period_range_label(
+                    db, site_id, sc_summary, period_days
+                )
+                sc_collected_at_iso = fresh.get("collected_at") or ""
+                sc_data_end_iso = fresh.get("data_end") or ""
             for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
                 agg = _home_sc_device_aggregate(
                     db,
@@ -11107,7 +11221,17 @@ def api_home_sc_summary(
     elif site_key == "2":
         site_key = "sinemalar"
     if not period_range_label:
-        period_range_label = _home_sc_period_range_label(None, period_days)
+        with SessionLocal() as db:
+            sid = 1 if site_key == "doviz" else 2
+            sc_summary = _latest_successful_provider_summary(
+                db, site_id=sid, provider="search_console", strategy="all"
+            )
+            period_range_label = _home_sc_period_range_label(
+                db, sid, sc_summary, period_days
+            )
+            fresh = _home_sc_freshness_for_site(db, sid, period_days=period_days)
+            sc_collected_at_iso = fresh.get("collected_at") or ""
+            sc_data_end_iso = fresh.get("data_end") or ""
     return templates.TemplateResponse(
         request, "partials/home/sc_summary.html",
         context={
@@ -11118,6 +11242,8 @@ def api_home_sc_summary(
             "period_range_label": period_range_label,
             "period_current_label": period_range_label,
             "site_key": site_key,
+            "sc_collected_at_iso": sc_collected_at_iso,
+            "sc_data_end_iso": sc_data_end_iso,
             "cur_period_label": period_range_label or f"Son {period_days} gün",
             "prev_period_label": f"Önceki {period_days} gün",
         },

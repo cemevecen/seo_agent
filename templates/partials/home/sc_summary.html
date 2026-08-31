@@ -244,6 +244,9 @@
 
 <div class="home-readable is-open"
      data-home-shell-root
+     data-home-sc-root
+     data-home-sc-as-of="{{ sc_collected_at_iso | default('') }}"
+     data-home-sc-data-end="{{ sc_data_end_iso | default('') }}"
      data-home-period-root
      data-home-period-endpoint="sc-summary"
      data-home-period-site="{{ site_key | default('doviz') }}">

@@ -2946,18 +2946,84 @@
   }
   window.__pcHomeRefreshContainer = refreshHomeContainer;
 
-  /** GA4 + Search Console — DB'den panel yenile (kaynak taraması yok). */
+  /** GA4 + Search Console — DB yenile; SC bayat ise önce sync dene. */
+  function fetchHomeScFreshness() {
+    return fetch('/api/home/sc-freshness', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .catch(function () { return {}; });
+  }
+
+  function homeScSiteKeyFromContainer(sec) {
+    var key = (sec && sec.getAttribute('data-home-container')) || '';
+    if (key.indexOf('sc-') === 0) return key.slice(3);
+    var root = sec && sec.querySelector('[data-home-period-site]');
+    return (root && root.getAttribute('data-home-period-site')) || 'doviz';
+  }
+
+  function refreshHomeScContainers(opts) {
+    opts = opts || {};
+    if (!board) return Promise.resolve();
+    var sections = Array.prototype.slice.call(
+      board.querySelectorAll('[data-home-container^="sc-"]')
+    );
+    if (!sections.length) return Promise.resolve();
+    return fetchHomeScFreshness().then(function (meta) {
+      var sites = (meta && meta.sites) || {};
+      sections.forEach(function (sec) {
+        if (sec.classList.contains('is-home-refreshing')) return;
+        var siteKey = homeScSiteKeyFromContainer(sec);
+        var siteMeta = sites[siteKey] || {};
+        var scRoot = sec.querySelector('[data-home-sc-root]');
+        var renderedAsOf = scRoot ? (scRoot.getAttribute('data-home-sc-as-of') || '') : '';
+        var renderedEnd = scRoot ? (scRoot.getAttribute('data-home-sc-data-end') || '') : '';
+        var collectedAt = siteMeta.collected_at || '';
+        var dataEnd = siteMeta.data_end || '';
+        var needsReload = opts.force
+          || siteMeta.needs_reload
+          || (collectedAt && collectedAt !== renderedAsOf)
+          || (dataEnd && dataEnd !== renderedEnd);
+        var needsSync = !!siteMeta.needs_sync;
+        if (needsReload || needsSync) {
+          refreshHomeContainer(sec, { sync: needsSync });
+        }
+      });
+    }).catch(function () {
+      sections.forEach(function (sec) {
+        refreshHomeContainer(sec, { sync: false });
+      });
+    });
+  }
+  window.__pcHomeRefreshScContainers = refreshHomeScContainers;
+
   function refreshHomeGa4Sc() {
     if (!board) return;
-    board.querySelectorAll('[data-home-container^="ga4-"], [data-home-container^="sc-"]').forEach(function (sec) {
+    board.querySelectorAll('[data-home-container^="ga4-"]').forEach(function (sec) {
       refreshHomeContainer(sec, { sync: false });
     });
+    refreshHomeScContainers();
   }
   window.__pcHomeGa4ScRefresh = refreshHomeGa4Sc;
 
   var HOME_GA4_SC_POLL_MS = 5 * 60 * 1000;
   setInterval(refreshHomeGa4Sc, HOME_GA4_SC_POLL_MS);
-  /* Sekme odağına dönünce otomatik yenileme yok — yalnızca aralık + manuel düğme. */
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    refreshHomeScContainers({ force: true });
+    if (board) {
+      board.querySelectorAll('[data-home-container^="ga4-"]').forEach(function (sec) {
+        refreshHomeContainer(sec, { sync: false });
+      });
+    }
+  });
+
+  document.body.addEventListener('click', function (ev) {
+    var btn = ev.target && ev.target.closest && ev.target.closest('[data-home-shell-toggle]');
+    if (!btn) return;
+    var root = btn.closest('[data-home-period-endpoint="sc-summary"]');
+    if (!root || root.classList.contains('is-open')) return;
+    var sec = root.closest('[data-home-container^="sc-"]');
+    if (sec) refreshHomeScContainers({ force: true });
+  }, true);
 
   document.body.addEventListener('click', function (ev) {
     var btn = ev.target && ev.target.closest && ev.target.closest('[data-home-container-refresh]');
@@ -3055,6 +3121,17 @@
     if (section) {
       section.setAttribute('hx-get', url);
       showHomePeriodWait(section, days + 'd');
+    }
+    if (endpoint === 'sc-summary' && section) {
+      fetchHomeScFreshness().then(function (meta) {
+        var siteMeta = ((meta && meta.sites) || {})[site] || {};
+        refreshHomeContainer(section, { sync: !!siteMeta.needs_sync });
+      }).catch(function () {
+        if (window.htmx && section) {
+          window.htmx.ajax('GET', url, { target: section, swap: 'innerHTML' });
+        }
+      });
+      return;
     }
     if (window.htmx && section) {
       window.htmx.ajax('GET', url, { target: section, swap: 'innerHTML' });
