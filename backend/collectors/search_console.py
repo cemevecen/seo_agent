@@ -24,7 +24,7 @@ from backend.services.search_console_auth import (
     record_search_console_oauth_revoked,
 )
 from backend.services.metric_store import save_metrics
-from backend.services.quota_guard import consume_api_quota
+from backend.services.quota_guard import consume_api_quota, is_provider_daily_quota_exhausted
 from backend.services.timezone_utils import report_calendar_yesterday
 from backend.services.warehouse import (
     delete_search_console_snapshots_for_site,
@@ -1652,6 +1652,18 @@ def collect_search_console_metrics(
     send_notifications: bool = False,
 ) -> dict:
     """Son 28 gün query/ranking özetini çıkarır ve veritabanına kaydeder."""
+    if is_provider_daily_quota_exhausted(db, site.id, "search_console"):
+        return {
+            "site_id": site.id,
+            "rows": [],
+            "blocked": True,
+            "state": "skipped",
+            "reason": (
+                f"{site.domain} icin search_console gunluk soft kota dolu; "
+                "API cagrisi atlandi."
+            ),
+            "summary": {},
+        }
     decision = consume_api_quota(
         db,
         site,
@@ -2306,6 +2318,17 @@ def collect_search_console_alert_metrics(
     send_notifications: bool = False,
 ) -> dict:
     """Alert taramasi icin hafif Search Console yenilemesi yapar."""
+    if is_provider_daily_quota_exhausted(db, site.id, "search_console"):
+        return {
+            "site_id": site.id,
+            "blocked": True,
+            "state": "skipped",
+            "reason": (
+                f"{site.domain} icin search_console gunluk soft kota dolu; "
+                "alert API cagrisi atlandi."
+            ),
+            "summary": {},
+        }
     decision = consume_api_quota(
         db,
         site,

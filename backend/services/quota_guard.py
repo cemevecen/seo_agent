@@ -131,15 +131,17 @@ def _consume_api_quota_impl(
             f"Gunluk: {day_row.call_count}/{day_limit}, Aylik: {month_row.call_count}/{month_limit}. "
             f"Yeni API cagrisı bloke edildi."
         )
-        # Hard limit maili en fazla günde bir (otomatik retry spam'ini kes).
-        emit_custom_alert(
-            db,
-            site,
-            f"quota_{provider}_hard_limit",
-            message,
-            dedupe_hours=24,
-            send_mail=send_alert_emails,
-        )
+        # Zaten limitteyken her retry'da alert/mail dusmesin — yalnizca ilk asimda.
+        already_at_limit = day_row.call_count >= day_limit or month_row.call_count >= month_limit
+        if not already_at_limit:
+            emit_custom_alert(
+                db,
+                site,
+                f"quota_{provider}_hard_limit",
+                message,
+                dedupe_hours=24,
+                send_mail=send_alert_emails,
+            )
         db.commit()
         return QuotaDecision(allowed=False, reason=message)
 
@@ -156,7 +158,7 @@ def _consume_api_quota_impl(
             site,
             f"quota_{provider}_warning",
             message,
-            dedupe_hours=12,
+            dedupe_hours=24,
             send_mail=send_alert_emails,
         )
 

@@ -70,8 +70,8 @@ def test_hard_limit_alert_dedupe_hours_is_24():
         day_start = datetime(now.year, now.month, now.day)
         month_start = datetime(now.year, now.month, 1)
         for period_type, period_start, count in (
-            ("day", day_start, 80),
-            ("month", month_start, 80),
+            ("day", day_start, 71),
+            ("month", month_start, 71),
         ):
             db.add(
                 ApiUsage(
@@ -98,5 +98,43 @@ def test_hard_limit_alert_dedupe_hours_is_24():
             kwargs = emit.call_args.kwargs
             assert kwargs.get("dedupe_hours") == 24
             assert kwargs.get("send_mail") is True
+    finally:
+        db.close()
+
+
+def test_hard_limit_repeat_blocked_does_not_emit_again():
+    db = _fresh_db()
+    try:
+        site = _add_site(db, "doviz-quota-repeat")
+        now = datetime.utcnow()
+        day_start = datetime(now.year, now.month, now.day)
+        month_start = datetime(now.year, now.month, 1)
+        for period_type, period_start, count in (
+            ("day", day_start, 80),
+            ("month", month_start, 334),
+        ):
+            db.add(
+                ApiUsage(
+                    site_id=site.id,
+                    provider="search_console",
+                    period_type=period_type,
+                    period_start=period_start,
+                    call_count=count,
+                    updated_at=now,
+                )
+            )
+        db.commit()
+
+        with patch("backend.services.quota_guard.emit_custom_alert") as emit:
+            for _ in range(5):
+                decision = consume_api_quota(
+                    db,
+                    site,
+                    provider="search_console",
+                    units=10,
+                    send_alert_emails=True,
+                )
+                assert decision.allowed is False
+            assert emit.call_count == 0
     finally:
         db.close()

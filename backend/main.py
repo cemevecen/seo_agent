@@ -20376,7 +20376,7 @@ def _refresh_one_site_for_sc_batch(site_id: int) -> tuple[int, dict]:
                 include_crawler=False,
                 include_search_console=True,
                 force=True,
-                send_notifications=True,
+                send_notifications=False,
             )
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
             sc = results.get("search_console")

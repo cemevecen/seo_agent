@@ -1359,8 +1359,26 @@ def emit_custom_alert(
         .order_by(AlertLog.triggered_at.desc(), AlertLog.id.desc())
         .first()
     )
-    if last_log and last_log.message == message and last_log.triggered_at >= now - timedelta(hours=dedupe_hours):
-        return None
+    is_quota_alert = str(alert_type or "").startswith("quota_")
+    if last_log and last_log.triggered_at >= now - timedelta(hours=dedupe_hours):
+        if last_log.message == message:
+            return None
+        if is_quota_alert:
+            # Kota: sayim mesaji degisse bile ayni pencerede tekrar log/mail yok.
+            return None
+
+    if send_mail and is_quota_alert:
+        recent_mail = (
+            db.query(AlertLog)
+            .filter(
+                AlertLog.alert_id == alert.id,
+                AlertLog.sent_mail.is_(True),
+                AlertLog.triggered_at >= now - timedelta(hours=dedupe_hours),
+            )
+            .first()
+        )
+        if recent_mail:
+            send_mail = False
 
     log = AlertLog(
         alert_id=alert.id,
