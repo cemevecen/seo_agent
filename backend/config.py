@@ -192,6 +192,8 @@ class Settings(BaseSettings):
 
     quota_guard_enabled: bool = True
     quota_warning_ratio: float = 0.8
+    # Soft kota (80/gün vb.) — SMTP mail kapalı; yalnızca panel AlertLog. Google faturalı kota değil.
+    quota_alert_email_enabled: bool = False
     pagespeed_daily_limit: int = 80
     pagespeed_monthly_limit: int = 1500
     pagespeed_request_timeout: int = 75

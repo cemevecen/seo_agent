@@ -16,6 +16,7 @@ from sqlalchemy.exc import OperationalError
 LOGGER = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.models import Alert, AlertLog, CollectorRun, Metric, SearchConsoleQuerySnapshot, Site
 
 # Search Console alert taraması (collector strategy=alerts) ile üretilen log tipleri.
@@ -1366,6 +1367,9 @@ def emit_custom_alert(
         if is_quota_alert:
             # Kota: sayim mesaji degisse bile ayni pencerede tekrar log/mail yok.
             return None
+
+    if send_mail and is_quota_alert and not settings.quota_alert_email_enabled:
+        send_mail = False
 
     if send_mail and is_quota_alert:
         recent_mail = (

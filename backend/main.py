@@ -20629,7 +20629,7 @@ def search_console_manual_refresh(request: Request, site_id: int):
     soft_raw = str(request.query_params.get("soft") or "").strip().lower()
     soft = soft_raw in ("1", "true", "yes", "on")
     force = not soft
-    send_notifications = not soft
+    send_notifications = False
     try:
         with SessionLocal() as db:
             site = db.query(Site).filter(Site.id == site_id).first()

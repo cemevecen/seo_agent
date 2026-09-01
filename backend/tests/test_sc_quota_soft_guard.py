@@ -97,7 +97,7 @@ def test_hard_limit_alert_dedupe_hours_is_24():
             assert emit.called
             kwargs = emit.call_args.kwargs
             assert kwargs.get("dedupe_hours") == 24
-            assert kwargs.get("send_mail") is True
+            assert kwargs.get("send_mail") is False
     finally:
         db.close()
 

@@ -140,7 +140,7 @@ def _consume_api_quota_impl(
                 f"quota_{provider}_hard_limit",
                 message,
                 dedupe_hours=24,
-                send_mail=send_alert_emails,
+                send_mail=bool(send_alert_emails and settings.quota_alert_email_enabled),
             )
         db.commit()
         return QuotaDecision(allowed=False, reason=message)
@@ -159,7 +159,7 @@ def _consume_api_quota_impl(
             f"quota_{provider}_warning",
             message,
             dedupe_hours=24,
-            send_mail=send_alert_emails,
+            send_mail=bool(send_alert_emails and settings.quota_alert_email_enabled),
         )
 
     day_row.call_count = next_day

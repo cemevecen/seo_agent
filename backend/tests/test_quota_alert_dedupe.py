@@ -28,6 +28,26 @@ def _site(db) -> Site:
     return site
 
 
+def test_quota_alert_never_emails_when_disabled():
+    db = _fresh_db()
+    try:
+        site = _site(db)
+        with patch("backend.services.alert_engine.send_email") as send_mail:
+            out = emit_custom_alert(
+                db,
+                site,
+                "quota_search_console_hard_limit",
+                "test mesaj",
+                dedupe_hours=24,
+                send_mail=True,
+            )
+            assert out is not None
+            send_mail.assert_not_called()
+            assert out.sent_mail is False
+    finally:
+        db.close()
+
+
 def test_quota_alert_dedupes_within_window_even_if_message_differs():
     db = _fresh_db()
     try:
