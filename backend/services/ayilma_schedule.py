@@ -34,6 +34,7 @@ ALL_NURSES: tuple[str, ...] = (LEAD_NURSE, *STAFF_NURSES)
 
 LEAVE_CODES = frozenset({"Yİ", "RP", "İST"})
 WORK_CODES = frozenset({"8", "16", "24"})
+JIN_WORK_CODES = frozenset({"16", "24"})
 MAX_MONTHLY_HOURS = 300
 # Yıllık izin günü = 8 saat mesai kullanılmış sayılır
 YI_DAY_HOURS = 8
@@ -399,11 +400,7 @@ def _staff_night_count(grid: dict[str, dict[str, str]], iso: str) -> int:
 
 
 def _jin_night_slots(slots: list[str]) -> int:
-    return sum(1 for c in slots if c in ("16", "24"))
-
-
-def _jin_eight_slots(slots: list[str]) -> int:
-    return sum(1 for c in slots if c == "8")
+    return sum(1 for c in slots if c in JIN_WORK_CODES)
 
 
 def _format_jin_cell(slots: list[str]) -> str:
@@ -411,9 +408,11 @@ def _format_jin_cell(slots: list[str]) -> str:
         return ""
     counts: dict[str, int] = {}
     for code in slots:
+        if code not in JIN_WORK_CODES:
+            continue
         counts[code] = counts.get(code, 0) + 1
     parts: list[str] = []
-    for code in ("8", "16", "24"):
+    for code in ("16", "24"):
         n = counts.get(code, 0)
         if n == 1:
             parts.append(code)
@@ -534,7 +533,7 @@ def resolve_jin_coverage(
     month: int,
     special_rules: list[dict[str, Any]] | None,
 ) -> dict[str, list[str]]:
-    """JIN (jinekoloji destek) → ISO → [8|16|24, …] slot listesi."""
+    """JIN (jinekoloji destek) → ISO → [16|24, …] slot listesi (8 yok)."""
     coverage: dict[str, list[str]] = {}
     if not special_rules:
         return coverage
@@ -568,7 +567,7 @@ def resolve_jin_coverage(
                     codes = [_norm_code(c) for c in val]
                 else:
                     codes = [_norm_code(val)]
-                codes = [c for c in codes if c in WORK_CODES]
+                codes = [c for c in codes if c in JIN_WORK_CODES]
                 if codes:
                     pairs.append((s_iso, codes))
         shifts_raw = raw.get("shifts")
@@ -576,12 +575,12 @@ def resolve_jin_coverage(
             for iso, code in shifts_raw.items():
                 s_iso = str(iso).strip()
                 nc = _norm_code(code)
-                if nc in WORK_CODES and s_iso in month_isos:
+                if nc in JIN_WORK_CODES and s_iso in month_isos:
                     pairs.append((s_iso, [nc]))
         if not pairs:
             code = _norm_code(raw.get("code"))
             dates_raw = raw.get("dates") or []
-            if code in WORK_CODES and isinstance(dates_raw, list):
+            if code in JIN_WORK_CODES and isinstance(dates_raw, list):
                 for iso in dates_raw:
                     s_iso = str(iso).strip()
                     if s_iso in month_isos:
@@ -643,7 +642,7 @@ def generate_ayilma_schedule(
 
     Hesap motoru: aa3ee655 (2026-08-26 21:40) tabanı + özel koşul.
     variant>0 → eşitlikte farklı aday (Yeniden oluştur).
-    special_rules: çalışsın / çalışmasın / sabit vardiya (8/16/24) / JIN destek.
+    special_rules: çalışsın / çalışmasın / sabit vardiya (8/16/24) / JIN (16/24).
 
     Gülten panelde boş satır; hesaba karışmaz.
     Hafta içi: 1×«8» + 2×«24». Hafta sonu: yalnız 2×«24» (kat-1 / 8 yok).
@@ -670,9 +669,6 @@ def generate_ayilma_schedule(
 
     def _night_target(iso: str) -> int:
         return max(0, NIGHT_SHIFTS_PER_DAY - _jin_night_slots(jin_coverage.get(iso, [])))
-
-    def _jin_has_eight(iso: str) -> bool:
-        return _jin_eight_slots(jin_coverage.get(iso, [])) > 0
 
     variant_i = max(0, int(variant or 0))
     rng = random.Random((year * 100 + month) * 10007 + variant_i * 7919 + 17)
@@ -905,9 +901,7 @@ def generate_ayilma_schedule(
                 available = [n for n in available if n != morning]
 
         if dm.is_weekday:
-            has_kat1 = any(grid[n][dm.iso] == "8" for n in STAFF_NURSES) or _jin_has_eight(
-                dm.iso
-            )
+            has_kat1 = any(grid[n][dm.iso] == "8" for n in STAFF_NURSES)
             if not has_kat1:
                 warnings.append(f"{dm.iso}: Kat-1 gündüz 8 atanamadı (izin/dinlenme).")
         if night_needed > 0:
@@ -1500,7 +1494,7 @@ def generate_ayilma_schedule(
             return True
         return any(
             o != n and grid[o].get(iso, "") == "8" for o in STAFF_NURSES
-        ) or _jin_has_eight(iso)
+        )
 
     # ── Zorunlu: her gün tam 2× gece nöbeti (post-pass sonrası boşluk kalmasın) ──
     for idx, dm in enumerate(days):
@@ -1771,7 +1765,7 @@ def generate_ayilma_schedule(
     for idx, dm in enumerate(days):
         if dm.is_weekend:
             continue
-        if any(grid[n].get(dm.iso, "") == "8" for n in STAFF_NURSES) or _jin_has_eight(dm.iso):
+        if any(grid[n].get(dm.iso, "") == "8" for n in STAFF_NURSES):
             continue
         cands = [
             n
@@ -1901,7 +1895,7 @@ def generate_ayilma_schedule(
     for idx, dm in enumerate(days):
         if dm.is_weekend:
             continue
-        if any(grid[n].get(dm.iso, "") == "8" for n in STAFF_NURSES) or _jin_has_eight(dm.iso):
+        if any(grid[n].get(dm.iso, "") == "8" for n in STAFF_NURSES):
             continue
         cands = [
             n
@@ -2031,7 +2025,7 @@ def generate_ayilma_schedule(
                 "overtime_hours": 0,
                 "over_cap": False,
                 "exclude_from_staff_balance": True,
-                "count_8": sum(_jin_eight_slots(slots) for slots in jin_coverage.values()),
+                "count_8": 0,
                 "count_24": sum(
                     1
                     for slots in jin_coverage.values()

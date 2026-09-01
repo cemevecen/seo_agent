@@ -91,13 +91,13 @@
             <div id="sh-sp-pin-codes" class="sh-sp-pin-codes hidden" role="group" aria-label="Vardiya kodu">
               <span class="sh-sp-pin-codes-label">Vardiya</span>
               <div class="sh-sp-pin-code-btns">
-                <label class="sh-sp-pin-code"><input type="radio" name="sh-sp-pin-code" value="8" checked> 8</label>
+                <label class="sh-sp-pin-code sh-sp-code-8" id="sh-sp-pin-code-8"><input type="radio" name="sh-sp-pin-code" value="8" checked> 8</label>
                 <label class="sh-sp-pin-code"><input type="radio" name="sh-sp-pin-code" value="16"> 16</label>
                 <label class="sh-sp-pin-code"><input type="radio" name="sh-sp-pin-code" value="24"> 24</label>
               </div>
             </div>
             <p id="sh-sp-pin-hint" class="sh-sp-hint hidden">Önce 8 / 16 / 24 seç, sonra takvimde günlere bas (aynı güne tekrar → sil)</p>
-            <p id="sh-sp-jin-hint" class="sh-sp-hint hidden">Jinekoloji destek: 8 / 16 / 24 seç, güne bas → ekle; Alt+gün → son slotu sil (ör. cuma 3×8)</p>
+            <p id="sh-sp-jin-hint" class="sh-sp-hint hidden">JIN: 16 / 24 seç, güne bas → ekle; Alt+gün → son slotu sil</p>
           </div>
         </li>
         <li>
@@ -907,7 +907,7 @@
     if (!slots || !slots.length) return '';
     var counts = {};
     slots.forEach(function (c) { counts[c] = (counts[c] || 0) + 1; });
-    return ['8', '16', '24'].filter(function (c) { return counts[c]; }).map(function (c) {
+    return ['16', '24'].filter(function (c) { return counts[c]; }).map(function (c) {
       return counts[c] > 1 ? (c + '×' + counts[c]) : c;
     }).join('+');
   }
@@ -916,6 +916,15 @@
     var el = document.querySelector('input[name="sh-sp-pin-code"]:checked');
     var v = el ? String(el.value || '') : '8';
     return (v === '8' || v === '16' || v === '24') ? v : '8';
+  }
+
+  function selectedShiftCode() {
+    if (specialMode() === 'jin') {
+      var el = document.querySelector('input[name="sh-sp-pin-code"]:checked');
+      var v = el ? String(el.value || '') : '24';
+      return (v === '16' || v === '24') ? v : '24';
+    }
+    return selectedPinCode();
   }
 
   function syncPinCodeUi() {
@@ -937,6 +946,12 @@
     if (jinHint) jinHint.classList.toggle('hidden', !jin);
     if (codes) codes.classList.toggle('hidden', !shiftPick);
     if (personStep) personStep.classList.toggle('hidden', jin);
+    var pin8 = $('sh-sp-pin-code-8');
+    if (pin8) pin8.classList.toggle('hidden', jin);
+    if (jin) {
+      var pin24 = document.querySelector('input[name="sh-sp-pin-code"][value="24"]');
+      if (pin24) pin24.checked = true;
+    }
     syncPinCodeUi();
     renderSpecialCalendar();
     updateSpPickedLabel();
@@ -976,7 +991,7 @@
         if (cur === code) delete spDraft.dates[iso];
         else spDraft.dates[iso] = code;
       } else if (specialMode() === 'jin') {
-        var jcode = selectedPinCode();
+        var jcode = selectedShiftCode();
         if (ev.altKey) {
           var arr = Array.isArray(spDraft.dates[iso]) ? spDraft.dates[iso].slice() : [];
           if (arr.length) {
@@ -1192,7 +1207,7 @@
     var keys = Object.keys(spDraft.dates);
     if (!keys.length) {
       el.textContent = isShiftPickMode()
-        ? ('Seçili vardiya ' + selectedPinCode() + (specialMode() === 'jin' ? ' — güne bas (Alt+gün sil)' : ' — güne bas'))
+        ? ('Seçili vardiya ' + selectedShiftCode() + (specialMode() === 'jin' ? ' — güne bas (Alt+gün sil)' : ' — güne bas'))
         : 'Gün seçilmedi';
       return;
     }
@@ -1259,8 +1274,10 @@
       var slots = {};
       dates.forEach(function (iso) {
         var v = spDraft.dates[iso];
-        if (Array.isArray(v) && v.length) slots[iso] = v.slice();
-        else if (v === '8' || v === '16' || v === '24') slots[iso] = [v];
+        if (Array.isArray(v) && v.length) {
+          slots[iso] = v.filter(function (c) { return c === '16' || c === '24'; });
+        } else if (v === '16' || v === '24') slots[iso] = [v];
+        if (slots[iso] && !slots[iso].length) delete slots[iso];
       });
       dates = Object.keys(slots).sort();
       if (!dates.length) return;

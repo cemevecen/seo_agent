@@ -41,7 +41,7 @@ class SpecialRuleBody(BaseModel):
     weekly: bool = False
     code: str | None = None  # pin/jin: tüm tarihler için tek kod
     shifts: dict[str, str] = Field(default_factory=dict)  # pin/jin: iso → 8|16|24
-    slots: dict[str, list[str]] = Field(default_factory=dict)  # jin: iso → [8,16,24,…]
+    slots: dict[str, list[str]] = Field(default_factory=dict)  # jin: iso → [16|24,…]
 
 
 class GenerateBody(BaseModel):
