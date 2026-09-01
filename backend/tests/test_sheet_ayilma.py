@@ -560,3 +560,53 @@ def test_weekend_night_skipped_when_hours_full():
         )
         if dm["is_weekend"]:
             assert night >= 2, f"{dm['iso']} night={night}"
+
+
+def _staff_nights(out, iso: str) -> int:
+    return sum(
+        1
+        for r in out["rows"]
+        if r["role"] == "staff" and r["cells"].get(iso, "") in ("16", "24")
+    )
+
+
+def test_jin_single_24_reduces_staff_night_on_saturday():
+    """Cumartesi JIN 24 → ayılma tarafında 1 gece yeter."""
+    rules = [{
+        "mode": "jin",
+        "slots": {"2026-09-06": ["24"]},
+        "weekly": False,
+    }]
+    out = generate_ayilma_schedule(2026, 9, special_rules=rules)
+    assert _staff_nights(out, "2026-09-06") == 1
+    jin = next(r for r in out["rows"] if r["role"] == "jin")
+    assert jin["cells"]["2026-09-06"] == "24"
+
+
+def test_jin_three_eights_covers_weekday_kat1():
+    """Cuma JIN 3×8 → ayılma kat-1 8 zorunluluğu düşer."""
+    rules = [{
+        "mode": "jin",
+        "slots": {"2026-09-05": ["8", "8", "8"]},
+        "weekly": False,
+    }]
+    out = generate_ayilma_schedule(2026, 9, special_rules=rules)
+    jin = next(r for r in out["rows"] if r["role"] == "jin")
+    assert jin["cells"]["2026-09-05"] == "8×3"
+    kat1_warn = [w for w in out["warnings"] if "2026-09-05" in w and "Kat-1" in w]
+    assert not kat1_warn
+
+
+def test_jin_weekly_friday_saturday():
+    """Her hafta cuma/cumartesi JIN destek tekrarı."""
+    rules = [{
+        "mode": "jin",
+        "slots": {"2026-09-05": ["8"], "2026-09-06": ["24"]},
+        "weekly": True,
+    }]
+    out = generate_ayilma_schedule(2026, 9, special_rules=rules)
+    cov = out.get("jin_coverage") or {}
+    assert cov.get("2026-09-05") == ["8"]
+    assert cov.get("2026-09-12") == ["8"]
+    assert cov.get("2026-09-06") == ["24"]
+    assert cov.get("2026-09-13") == ["24"]

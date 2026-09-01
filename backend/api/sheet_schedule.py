@@ -35,12 +35,13 @@ def _require_sheet(request: Request) -> None:
 
 
 class SpecialRuleBody(BaseModel):
-    name: str
-    mode: str  # work | avoid | pin
+    name: str = ""
+    mode: str  # work | avoid | pin | jin
     dates: list[str] = Field(default_factory=list)
     weekly: bool = False
-    code: str | None = None  # pin: tüm tarihler için tek kod
-    shifts: dict[str, str] = Field(default_factory=dict)  # pin: iso → 8|16|24
+    code: str | None = None  # pin/jin: tüm tarihler için tek kod
+    shifts: dict[str, str] = Field(default_factory=dict)  # pin/jin: iso → 8|16|24
+    slots: dict[str, list[str]] = Field(default_factory=dict)  # jin: iso → [8,16,24,…]
 
 
 class GenerateBody(BaseModel):

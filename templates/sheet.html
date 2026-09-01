@@ -63,7 +63,7 @@
         <button type="button" id="sh-special-close" class="sh-sp-x">Kapat</button>
       </div>
       <ol class="sh-sp-steps">
-        <li>
+        <li id="sh-sp-person-step">
           <span class="sh-sp-step-n">1</span>
           <label class="sh-sp-field">
             Kişi seç
@@ -86,6 +86,7 @@
               <label><input type="radio" name="sh-sp-mode" value="work" checked> Çalışsın</label>
               <label><input type="radio" name="sh-sp-mode" value="avoid"> Çalışmasın</label>
               <label><input type="radio" name="sh-sp-mode" value="pin"> Sabit vardiya</label>
+              <label><input type="radio" name="sh-sp-mode" value="jin"> JIN destek</label>
             </div>
             <div id="sh-sp-pin-codes" class="sh-sp-pin-codes hidden" role="group" aria-label="Vardiya kodu">
               <span class="sh-sp-pin-codes-label">Vardiya</span>
@@ -96,6 +97,7 @@
               </div>
             </div>
             <p id="sh-sp-pin-hint" class="sh-sp-hint hidden">Önce 8 / 16 / 24 seç, sonra takvimde günlere bas (aynı güne tekrar → sil)</p>
+            <p id="sh-sp-jin-hint" class="sh-sp-hint hidden">Jinekoloji destek: 8 / 16 / 24 seç, güne bas → ekle; Alt+gün → son slotu sil (ör. cuma 3×8)</p>
           </div>
         </li>
         <li>
@@ -125,6 +127,7 @@
       <span class="rounded bg-sky-100 px-1.5 py-0.5 text-sky-800 dark:bg-sky-950 dark:text-sky-200">İST istek</span>
       <span class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-900 dark:bg-amber-950 dark:text-amber-200">Yİ izin</span>
       <span class="rounded bg-rose-100 px-1.5 py-0.5 text-rose-900 dark:bg-rose-950 dark:text-rose-200">RP rapor</span>
+      <span class="rounded bg-teal-100 px-1.5 py-0.5 text-teal-900 dark:bg-teal-950 dark:text-teal-200">JIN jinekoloji destek</span>
     </div>
     <table class="sh-table min-w-full border-collapse">
       <thead id="sh-head"></thead>
@@ -699,6 +702,20 @@
     color: #fff;
     border-color: #a78bfa;
   }
+  #sh-sp-person-step.hidden { display: none; }
+  #sheet-page .sh-jin-row td {
+    background: rgba(20, 184, 166, 0.08);
+  }
+  html.dark #sheet-page .sh-jin-row td {
+    background: rgba(45, 212, 191, 0.08);
+  }
+  #sheet-page .sh-cell-jin {
+    font-weight: 800;
+    color: #0f766e;
+  }
+  html.dark #sheet-page .sh-cell-jin {
+    color: #5eead4;
+  }
   .sh-sp-cal {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -866,6 +883,7 @@
     leaves: {},
     special: {},
     grid: {},
+    jinRow: null,
     last: null,
     variant: 0,
   };
@@ -878,6 +896,20 @@
   function specialMode() {
     var el = document.querySelector('input[name="sh-sp-mode"]:checked');
     return el ? el.value : 'work';
+  }
+
+  function isShiftPickMode() {
+    var m = specialMode();
+    return m === 'pin' || m === 'jin';
+  }
+
+  function formatJinSlots(slots) {
+    if (!slots || !slots.length) return '';
+    var counts = {};
+    slots.forEach(function (c) { counts[c] = (counts[c] || 0) + 1; });
+    return ['8', '16', '24'].filter(function (c) { return counts[c]; }).map(function (c) {
+      return counts[c] > 1 ? (c + '×' + counts[c]) : c;
+    }).join('+');
   }
 
   function selectedPinCode() {
@@ -895,16 +927,23 @@
 
   function updateSpModeUi() {
     var pin = specialMode() === 'pin';
+    var jin = specialMode() === 'jin';
+    var shiftPick = isShiftPickMode();
     var hint = $('sh-sp-pin-hint');
+    var jinHint = $('sh-sp-jin-hint');
     var codes = $('sh-sp-pin-codes');
+    var personStep = $('sh-sp-person-step');
     if (hint) hint.classList.toggle('hidden', !pin);
-    if (codes) codes.classList.toggle('hidden', !pin);
+    if (jinHint) jinHint.classList.toggle('hidden', !jin);
+    if (codes) codes.classList.toggle('hidden', !shiftPick);
+    if (personStep) personStep.classList.toggle('hidden', jin);
     syncPinCodeUi();
     renderSpecialCalendar();
     updateSpPickedLabel();
   }
 
   function specialPersonSelected() {
+    if (specialMode() === 'jin') return true;
     var sel = $('sh-sp-name');
     return !!(sel && String(sel.value || '').trim());
   }
@@ -936,6 +975,19 @@
         var cur = String(spDraft.dates[iso] || '');
         if (cur === code) delete spDraft.dates[iso];
         else spDraft.dates[iso] = code;
+      } else if (specialMode() === 'jin') {
+        var jcode = selectedPinCode();
+        if (ev.altKey) {
+          var arr = Array.isArray(spDraft.dates[iso]) ? spDraft.dates[iso].slice() : [];
+          if (arr.length) {
+            arr.pop();
+            if (!arr.length) delete spDraft.dates[iso];
+            else spDraft.dates[iso] = arr;
+          }
+        } else {
+          if (!Array.isArray(spDraft.dates[iso])) spDraft.dates[iso] = [];
+          spDraft.dates[iso].push(jcode);
+        }
       } else {
         if (spDraft.dates[iso]) delete spDraft.dates[iso];
         else spDraft.dates[iso] = true;
@@ -996,9 +1048,18 @@
     var WD = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
     list.innerHTML = rules.map(function (r, idx) {
       var modeLabel = r.mode === 'work' ? 'çalışsın'
-        : (r.mode === 'avoid' ? 'çalışmasın' : 'sabit vardiya');
+        : (r.mode === 'avoid' ? 'çalışmasın'
+          : (r.mode === 'jin' ? 'jinekoloji destek' : 'sabit vardiya'));
       var days;
-      if (r.mode === 'pin' && r.shifts && typeof r.shifts === 'object') {
+      if ((r.mode === 'pin' || r.mode === 'jin') && r.slots && typeof r.slots === 'object') {
+        days = Object.keys(r.slots).sort().map(function (iso) {
+          var p = iso.split('-');
+          var d = parseInt(p[2], 10);
+          var dt = new Date(parseInt(p[0],10), parseInt(p[1],10)-1, d);
+          var wd = (dt.getDay() + 6) % 7;
+          return d + ' ' + WD[wd] + '=' + formatJinSlots(r.slots[iso] || []);
+        }).join(', ');
+      } else if (r.mode === 'pin' && r.shifts && typeof r.shifts === 'object') {
         days = Object.keys(r.shifts).sort().map(function (iso) {
           var p = iso.split('-');
           var d = parseInt(p[2], 10);
@@ -1017,8 +1078,9 @@
         if (r.mode === 'pin' && r.code) days = (r.code + ': ') + days;
       }
       var wk = r.weekly ? ' · her hafta' : '';
+      var who = r.mode === 'jin' ? 'JIN' : r.name;
       return '<div class="sh-special-list-item rounded-lg bg-violet-50 dark:bg-violet-950/30">' +
-        '<span class="min-w-0 flex-1"><strong>' + r.name + '</strong> — ' + modeLabel + ': ' + days + wk + '</span>' +
+        '<span class="min-w-0 flex-1"><strong>' + who + '</strong> — ' + modeLabel + ': ' + days + wk + '</span>' +
         '<button type="button" class="sh-sp-del sh-btn-inline shrink-0 font-bold text-rose-600" data-idx="' + idx + '">Sil</button></div>';
     }).join('');
     list.querySelectorAll('.sh-sp-del').forEach(function (btn) {
@@ -1088,7 +1150,7 @@
     var cal = $('sh-sp-cal');
     if (!cal || !state.year || !state.month) return;
     bindSpecialCalendar();
-    var pin = specialMode() === 'pin';
+    var shiftPick = isShiftPickMode();
     var days = buildDays(state.year, state.month);
     var labels = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
     var html = labels.map(function (l) {
@@ -1102,8 +1164,12 @@
       var val = spDraft.dates[dm.iso];
       var cls = 'sh-sp-day';
       var inner = String(dm.day);
-      if (pin) {
-        if (val === '8' || val === '16' || val === '24') {
+      if (shiftPick) {
+        if (Array.isArray(val) && val.length) {
+          var label = formatJinSlots(val);
+          cls += ' is-code-' + val[val.length - 1];
+          inner += '<span class="sh-sp-day-code">' + label + '</span>';
+        } else if (val === '8' || val === '16' || val === '24') {
           cls += ' is-code-' + val;
           inner += '<span class="sh-sp-day-code">' + val + '</span>';
         }
@@ -1120,14 +1186,22 @@
     var el = $('sh-sp-picked');
     if (!el) return;
     if (!specialPersonSelected()) {
-      el.textContent = 'Önce kişi seçin';
+      el.textContent = specialMode() === 'jin' ? 'JIN destek — gün seçin' : 'Önce kişi seçin';
       return;
     }
     var keys = Object.keys(spDraft.dates);
     if (!keys.length) {
-      el.textContent = specialMode() === 'pin'
-        ? ('Seçili vardiya ' + selectedPinCode() + ' — güne bas')
+      el.textContent = isShiftPickMode()
+        ? ('Seçili vardiya ' + selectedPinCode() + (specialMode() === 'jin' ? ' — güne bas (Alt+gün sil)' : ' — güne bas'))
         : 'Gün seçilmedi';
+      return;
+    }
+    if (specialMode() === 'jin') {
+      var jparts = keys.sort().map(function (iso) {
+        var slots = spDraft.dates[iso];
+        return iso.slice(-2) + '=' + formatJinSlots(Array.isArray(slots) ? slots : [slots]);
+      });
+      el.textContent = keys.length + ' gün JIN: ' + jparts.join(', ');
       return;
     }
     if (specialMode() === 'pin') {
@@ -1176,12 +1250,34 @@
 
   function saveSpecialRule() {
     var nameEl = $('sh-sp-name');
-    var name = nameEl ? String(nameEl.value || '').trim() : '';
     var modeEl = document.querySelector('input[name="sh-sp-mode"]:checked');
     var weeklyEl = document.querySelector('input[name="sh-sp-weekly"]:checked');
     var mode = modeEl ? modeEl.value : 'work';
     var weekly = weeklyEl ? weeklyEl.value === '1' : false;
     var dates = Object.keys(spDraft.dates).sort();
+    if (mode === 'jin') {
+      var slots = {};
+      dates.forEach(function (iso) {
+        var v = spDraft.dates[iso];
+        if (Array.isArray(v) && v.length) slots[iso] = v.slice();
+        else if (v === '8' || v === '16' || v === '24') slots[iso] = [v];
+      });
+      dates = Object.keys(slots).sort();
+      if (!dates.length) return;
+      specialForMonth().push({
+        id: String(Date.now()) + '-' + Math.random().toString(16).slice(2, 8),
+        name: 'JIN destek',
+        mode: 'jin',
+        dates: dates,
+        weekly: weekly,
+        slots: slots,
+      });
+      saveSpecial();
+      updateSpecialCount();
+      closeSpecialModal();
+      return;
+    }
+    var name = nameEl ? String(nameEl.value || '').trim() : '';
     if (!name) {
       if (nameEl) nameEl.focus();
       return;
@@ -1342,8 +1438,10 @@
     return 0;
   }
 
-  function cellClass(code, isWeekend) {
+  function cellClass(code, isWeekend, opts) {
+    opts = opts || {};
     var cls = 'sh-cell' + (isWeekend ? ' sh-wknd' : '');
+    if (opts.jin) cls += ' sh-cell-jin';
     if (code === 'Yİ') cls += ' sh-leave-yi';
     else if (code === 'RP') cls += ' sh-leave-rp';
     else if (code === 'İST') cls += ' sh-leave-ist';
@@ -1381,6 +1479,15 @@
       html += '<td class="sh-tot">' + ideal + '</td>';
       html += '<td class="sh-tot">' + ot + '</td></tr>';
     });
+    if (state.jinRow) {
+      html += '<tr class="sh-jin-row">';
+      html += '<td class="sh-name">' + (state.jinRow.name || 'JIN destek') + '</td>';
+      state.days.forEach(function (dm) {
+        var code = (state.jinRow.cells && state.jinRow.cells[dm.iso]) || '';
+        html += '<td class="' + cellClass(code, dm.is_weekend, { jin: true }) + '">' + (code || '') + '</td>';
+      });
+      html += '<td class="sh-tot">—</td><td class="sh-tot">—</td><td class="sh-tot">—</td></tr>';
+    }
     body.innerHTML = html;
 
     body.querySelectorAll('.sh-cell').forEach(function (td) {
@@ -1395,7 +1502,12 @@
     state.last = payload;
     state.days = payload.days || [];
     state.grid = {};
+    state.jinRow = null;
     (payload.rows || []).forEach(function (row) {
+      if (row.role === 'jin') {
+        state.jinRow = row;
+        return;
+      }
       state.grid[row.name] = Object.assign({}, row.cells || {});
     });
     /* Sunucudan gelen izinleri localStorage ile senkron tut */
@@ -1510,6 +1622,10 @@
       if (r.mode === 'pin') {
         if (r.shifts) out.shifts = r.shifts;
         if (r.code) out.code = r.code;
+      }
+      if (r.mode === 'jin') {
+        out.name = 'JIN destek';
+        if (r.slots) out.slots = r.slots;
       }
       return out;
     });
@@ -1627,7 +1743,7 @@
       worked_hours: 0,
       ideal_hours: 0,
       overtime_hours: 0,
-    }].concat(staffRows);
+    }].concat(staffRows).concat(state.jinRow ? [state.jinRow] : []);
   }
 
   var EXPORT_FORMATS = {
