@@ -19,7 +19,7 @@ from datetime import date
 from typing import Any
 
 LEAD_NURSE = "Gülten Çelik"
-JIN_NURSE_LABEL = "JIN destek"
+JIN_NURSE_LABEL = "JIN"
 
 STAFF_NURSES: tuple[str, ...] = (
     "Nuray Durna",

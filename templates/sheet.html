@@ -86,7 +86,7 @@
               <label><input type="radio" name="sh-sp-mode" value="work" checked> Çalışsın</label>
               <label><input type="radio" name="sh-sp-mode" value="avoid"> Çalışmasın</label>
               <label><input type="radio" name="sh-sp-mode" value="pin"> Sabit vardiya</label>
-              <label><input type="radio" name="sh-sp-mode" value="jin"> JIN destek</label>
+              <label><input type="radio" name="sh-sp-mode" value="jin"> JIN</label>
             </div>
             <div id="sh-sp-pin-codes" class="sh-sp-pin-codes hidden" role="group" aria-label="Vardiya kodu">
               <span class="sh-sp-pin-codes-label">Vardiya</span>
@@ -127,7 +127,7 @@
       <span class="rounded bg-sky-100 px-1.5 py-0.5 text-sky-800 dark:bg-sky-950 dark:text-sky-200">İST istek</span>
       <span class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-900 dark:bg-amber-950 dark:text-amber-200">Yİ izin</span>
       <span class="rounded bg-rose-100 px-1.5 py-0.5 text-rose-900 dark:bg-rose-950 dark:text-rose-200">RP rapor</span>
-      <span class="rounded bg-teal-100 px-1.5 py-0.5 text-teal-900 dark:bg-teal-950 dark:text-teal-200">JIN jinekoloji destek</span>
+      <span class="rounded bg-teal-100 px-1.5 py-0.5 text-teal-900 dark:bg-teal-950 dark:text-teal-200">JIN</span>
     </div>
     <table class="sh-table min-w-full border-collapse">
       <thead id="sh-head"></thead>
@@ -1049,7 +1049,7 @@
     list.innerHTML = rules.map(function (r, idx) {
       var modeLabel = r.mode === 'work' ? 'çalışsın'
         : (r.mode === 'avoid' ? 'çalışmasın'
-          : (r.mode === 'jin' ? 'jinekoloji destek' : 'sabit vardiya'));
+          : (r.mode === 'jin' ? 'JIN' : 'sabit vardiya'));
       var days;
       if ((r.mode === 'pin' || r.mode === 'jin') && r.slots && typeof r.slots === 'object') {
         days = Object.keys(r.slots).sort().map(function (iso) {
@@ -1186,7 +1186,7 @@
     var el = $('sh-sp-picked');
     if (!el) return;
     if (!specialPersonSelected()) {
-      el.textContent = specialMode() === 'jin' ? 'JIN destek — gün seçin' : 'Önce kişi seçin';
+      el.textContent = specialMode() === 'jin' ? 'JIN — gün seçin' : 'Önce kişi seçin';
       return;
     }
     var keys = Object.keys(spDraft.dates);
@@ -1266,7 +1266,7 @@
       if (!dates.length) return;
       specialForMonth().push({
         id: String(Date.now()) + '-' + Math.random().toString(16).slice(2, 8),
-        name: 'JIN destek',
+        name: 'JIN',
         mode: 'jin',
         dates: dates,
         weekly: weekly,
@@ -1481,7 +1481,7 @@
     });
     if (state.jinRow) {
       html += '<tr class="sh-jin-row">';
-      html += '<td class="sh-name">' + (state.jinRow.name || 'JIN destek') + '</td>';
+      html += '<td class="sh-name">' + (state.jinRow.name || 'JIN') + '</td>';
       state.days.forEach(function (dm) {
         var code = (state.jinRow.cells && state.jinRow.cells[dm.iso]) || '';
         html += '<td class="' + cellClass(code, dm.is_weekend, { jin: true }) + '">' + (code || '') + '</td>';
@@ -1624,7 +1624,7 @@
         if (r.code) out.code = r.code;
       }
       if (r.mode === 'jin') {
-        out.name = 'JIN destek';
+        out.name = 'JIN';
         if (r.slots) out.slots = r.slots;
       }
       return out;
