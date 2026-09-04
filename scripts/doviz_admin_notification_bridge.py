@@ -128,7 +128,7 @@ if _VIRGUL_HOURS_RAW:
         int(h.strip()) for h in _VIRGUL_HOURS_RAW.split(",") if h.strip().isdigit()
     ) or VIRGUL_SLOT_HOURS
 PLAY_SLOT_HOURS = (0, 6, 12, 18)  # 6 saatte bir — login baskısını düşür
-PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "2")
+PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "34")
 # App kategori sırası (Playwright) — Railway'de yasak; Mac 8 saatte bir + ingest
 APP_RANKS_SLOT_HOURS = (2, 10, 18)
 APP_RANKS_SLOT_MINUTE = int(os.environ.get("APP_RANKS_BRIDGE_MINUTE") or "25")
@@ -150,14 +150,16 @@ def _parse_slot_pairs(raw: str) -> tuple[tuple[int, int], ...]:
     return tuple(out)
 
 
-# ASC + Firebase günde 4 tur; Firebase her turda ASC'den 3 dk sonra. Köprü zaten
-# tarayıcı scrape'leri arasında BRIDGE_SCRAPE_MIN_GAP_SEC (180 sn) bırakıyor,
-# yani ikisi çakışmaz, sırayla koşar. Warm-up her turdan 10 dk önce oturumu
-# doğrular — düşmüşse tur boşa gitmeden Keychain'den giriş denenir.
+# ASC günde 4 tur. Play + Firebase gecelik tek tur (04:34 / 04:37) — ikisi de
+# aynı fx-google profilini kullanır, o yüzden tek pencerede sırayla koşarlar.
+# Köprü tarayıcı scrape'leri arasında BRIDGE_SCRAPE_MIN_GAP_SEC (180 sn)
+# bırakıyor ve gap dolmadıysa işi _defer_browser_scrape ile kuyruğa alıyor,
+# yani 3 dk aralık çakışmayı kesin engeller. Warm-up (04:24) turdan 10 dk önce
+# oturumu doğrular — düşmüşse tur boşa gitmeden haber verilir.
 # Saatler farklı dakikalarda olduğu için (saat, dakika) çifti tutulur.
 ASC_SLOTS: tuple[tuple[int, int], ...] = ((6, 30), (11, 15), (14, 0), (20, 0))
-FIREBASE_SLOTS: tuple[tuple[int, int], ...] = ((6, 33), (11, 18), (14, 3), (20, 3))
-LOGIN_WARMUP_SLOTS: tuple[tuple[int, int], ...] = ((6, 20), (11, 5), (13, 50), (19, 50))
+FIREBASE_SLOTS: tuple[tuple[int, int], ...] = ((4, 37),)
+LOGIN_WARMUP_SLOTS: tuple[tuple[int, int], ...] = ((4, 24),)
 # Otomatik warm-up Playwright/Firefox açıp 2FA'da takılıyordu (maliyet + spam).
 # Varsayılan kapalı — asıl scrape needs_login ile düşer; elle /sync-login-warmup.
 LOGIN_WARMUP_AUTO = (os.environ.get("LOGIN_WARMUP_AUTO") or "0").strip().lower() in (
@@ -174,7 +176,7 @@ try:
     from backend.services.history_seal import is_pipeline_sealed, mark_all_expensive_pipelines_sealed
 
     if is_pipeline_sealed("play") and not (os.environ.get("PLAY_CONSOLE_BRIDGE_HOURS") or "").strip():
-        PLAY_SLOT_HOURS = (6,)
+        PLAY_SLOT_HOURS = (4,)
     # NOT: ASC/Firebase artık mühürle günde 1'e düşürülmüyor. Mühürün amacı
     # geçmişi yeniden çekmemek; tur sıklığı ayrı bir karar ve 4 tur açıkça
     # istendi. Geri almak için ASC_CONSOLE_BRIDGE_SLOTS="6:30" yeterli.
