@@ -1386,9 +1386,9 @@ _TR_MONTHS = {
 
 
 def _parse_tr_day_label(line: str) -> str | None:
-    """'3 Ağu 2026' → 2026-08-03"""
+    """'3 Ağu 2026' → 2026-08-03 ('3 Ağu. 2026' gibi noktalı kısaltma dahil)"""
     m = re.match(
-        r"^(\d{1,2})\s+([A-Za-zÇĞİÖŞÜçğıöşü]{3,})\s+(20\d{2})$",
+        r"^(\d{1,2})\.?\s+([A-Za-zÇĞİÖŞÜçğıöşü]{3,})\.?\s+(20\d{2})$",
         (line or "").strip(),
     )
     if not m:
@@ -1683,7 +1683,7 @@ def _collect_paginated_table_text(page, *, max_pages: int = 8) -> str:
             """async () => {
               const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
               const labels = [...document.querySelectorAll('div,span,button,mat-select')];
-              const hit = labels.find((el) => /Satırları göster|Rows per page/i.test((el.innerText || '').trim()) && (el.innerText || '').length < 48);
+              const hit = labels.find((el) => /Satırları göster|Sayfa başına satır|Satır sayısı|Rows per page/i.test((el.innerText || '').trim()) && (el.innerText || '').length < 48);
               if (hit) { hit.click(); await sleep(350); }
               const opt = [...document.querySelectorAll('mat-option,button,li,span')]
                 .find((el) => /^(100|50)$/.test((el.innerText || '').trim()));
@@ -1693,6 +1693,7 @@ def _collect_paginated_table_text(page, *, max_pages: int = 8) -> str:
     except Exception:
         pass
     seen_ends: set[int] = set()
+    last_text = ""
     for _ in range(max_pages):
         try:
             text = page.evaluate("() => (document.body && document.body.innerText) || ''") or ""
@@ -1700,12 +1701,17 @@ def _collect_paginated_table_text(page, *, max_pages: int = 8) -> str:
             text = ""
         if text:
             chunks.append(text)
+        # Sayfa ilerlemediyse (aynı metin) döngüyü bitir
+        if text and text == last_text:
+            break
+        last_text = text
         try:
             info = page.evaluate(
                 """() => {
                   const t = document.body ? document.body.innerText : '';
-                  const m = t.match(/(\\d+)\\s*-\\s*(\\d+)\\s*\\/\\s*(\\d+)/);
-                  if (!m) return {done: true, end: 0, total: 0};
+                  // "1-10 / 17", "1–10 / 17" (en dash), "1 — 10 of 17"
+                  const m = t.match(/(\\d+)\\s*[-\\u2010-\\u2015]\\s*(\\d+)\\s*(?:\\/|of)\\s*(\\d+)/i);
+                  if (!m) return {done: false, end: -1, total: 0};
                   const end = parseInt(m[2], 10), total = parseInt(m[3], 10);
                   return {done: end >= total, end, total};
                 }"""
@@ -1714,16 +1720,21 @@ def _collect_paginated_table_text(page, *, max_pages: int = 8) -> str:
             info = {"done": True, "end": 0}
         if not isinstance(info, dict) or info.get("done"):
             break
-        end_n = int(info.get("end") or 0)
-        if end_n in seen_ends:
-            break
-        seen_ends.add(end_n)
+        end_n = int(info.get("end") or -1)
+        # Gösterge okunamadıysa (end=-1) ileri düğmesinin durumuna güven
+        if end_n >= 0:
+            if end_n in seen_ends:
+                break
+            seen_ends.add(end_n)
         try:
             clicked = page.evaluate(
                 """() => {
-                  const icons = [...document.querySelectorAll('button')].filter((el) => /chevron_right/i.test(el.innerText || ''));
-                  const target = icons.length ? icons[icons.length - 1] : null;
-                  if (!target || target.disabled) return false;
+                  const cand = [...document.querySelectorAll('button,[role="button"]')];
+                  const byLabel = cand.filter((el) => /sonraki sayfa|next page/i.test(el.getAttribute('aria-label') || ''));
+                  const byIcon = cand.filter((el) => /chevron_right/i.test(el.innerText || ''));
+                  const pool = byLabel.length ? byLabel : byIcon;
+                  const target = pool.length ? pool[pool.length - 1] : null;
+                  if (!target || target.disabled || target.getAttribute('aria-disabled') === 'true') return false;
                   target.click();
                   return true;
                 }"""
