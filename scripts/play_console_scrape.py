@@ -1675,23 +1675,106 @@ def _refetch_stats_protobuf_from_page(page) -> Any | None:
     return None
 
 
+def _dump_view_debug(view_id: str, proto: Any, page_text: str) -> None:
+    """PLAY_DEBUG_DUMP_DIR ayarlıysa ham protobuf + tablo metnini diske yaz (tanı)."""
+    out_dir = (os.getenv("PLAY_DEBUG_DUMP_DIR") or "").strip()
+    if not out_dir:
+        return
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+        if proto is not None:
+            with open(os.path.join(out_dir, f"{view_id}.proto.json"), "w", encoding="utf-8") as fh:
+                json.dump(proto, fh, ensure_ascii=False)
+        if page_text:
+            with open(os.path.join(out_dir, f"{view_id}.table.txt"), "w", encoding="utf-8") as fh:
+                fh.write(page_text)
+    except Exception:
+        pass
+
+
+def _dump_json_debug(name: str, payload: Any) -> None:
+    """PLAY_DEBUG_DUMP_DIR ayarlıysa küçük bir tanı nesnesini diske yaz."""
+    out_dir = (os.getenv("PLAY_DEBUG_DUMP_DIR") or "").strip()
+    if not out_dir:
+        return
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, f"{name}.json"), "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False, indent=1)
+    except Exception:
+        pass
+
+
+def _dump_pagination_debug(page) -> None:
+    """PLAY_DEBUG_DUMP_DIR ayarlıysa sayfalama kontrollerinin DOM yapısını yaz (tanı)."""
+    out_dir = (os.getenv("PLAY_DEBUG_DUMP_DIR") or "").strip()
+    if not out_dir:
+        return
+    try:
+        info = page.evaluate(
+            """() => {
+              const all = [...document.querySelectorAll('*')];
+              const leaf = all.filter((el) => (el.textContent || '').trim() === 'chevron_right');
+              const chains = leaf.slice(0, 4).map((el) => {
+                const chain = [];
+                let n = el;
+                for (let i = 0; i < 6 && n; i++) {
+                  chain.push({
+                    tag: n.tagName,
+                    cls: String(n.className || '').slice(0, 90),
+                    aria: n.getAttribute('aria-label'),
+                    role: n.getAttribute('role'),
+                    dis: (n.disabled === true) || n.getAttribute('aria-disabled') || n.getAttribute('disabled'),
+                    tabindex: n.getAttribute('tabindex'),
+                  });
+                  n = n.parentElement;
+                }
+                return chain;
+              });
+              const rowsSel = all
+                .filter((el) => /Satırları göster/.test(el.textContent || '') && (el.textContent || '').length < 70)
+                .slice(-2)
+                .map((el) => ({ tag: el.tagName, html: (el.outerHTML || '').slice(0, 900) }));
+              return { chevron_chains: chains, rows_selector: rowsSel };
+            }"""
+        )
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, "pagination.json"), "w", encoding="utf-8") as fh:
+            json.dump(info, fh, ensure_ascii=False, indent=1)
+    except Exception:
+        pass
+
+
 def _collect_paginated_table_text(page, *, max_pages: int = 8) -> str:
     """Veri tablosu sayfalarını dolaş — protobuf yoksa sınırlı fallback."""
     chunks: list[str] = []
+    # Sayfa boyutunu büyüt: "Satırları göster: 10" → 100 (17 günlük seri tek sayfaya sığsın)
+    rows_result: Any = None
     try:
-        page.evaluate(
+        rows_result = page.evaluate(
             """async () => {
               const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-              const labels = [...document.querySelectorAll('div,span,button,mat-select')];
-              const hit = labels.find((el) => /Satırları göster|Sayfa başına satır|Satır sayısı|Rows per page/i.test((el.innerText || '').trim()) && (el.innerText || '').length < 48);
-              if (hit) { hit.click(); await sleep(350); }
-              const opt = [...document.querySelectorAll('mat-option,button,li,span')]
-                .find((el) => /^(100|50)$/.test((el.innerText || '').trim()));
-              if (opt) { opt.click(); await sleep(900); }
+              const btn = [...document.querySelectorAll('[role="button"][aria-label]')].find(
+                (el) => /Satırları göster|Sayfa başına satır|Rows per page/i.test(el.getAttribute('aria-label') || '')
+              );
+              if (!btn) return {ok: false, why: 'dropdown yok'};
+              btn.click();
+              await sleep(700);
+              const opts = [...document.querySelectorAll('[role="option"],material-select-item,dropdown-item,li')];
+              const byText = (re) => opts.find((el) => re.test((el.textContent || '').trim()));
+              const pick = byText(/^100$/) || byText(/^50$/) || byText(/^25$/);
+              if (!pick) {
+                return {ok: false, why: 'secenek yok', n: opts.length};
+              }
+              pick.click();
+              await sleep(1500);
+              return {ok: true, chosen: (pick.textContent || '').trim()};
             }"""
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        rows_result = {"ok": False, "why": f"evaluate hata: {exc}"}
+    _dump_json_debug("rows_per_page", rows_result)
+    _dump_pagination_debug(page)
     seen_ends: set[int] = set()
     last_text = ""
     for _ in range(max_pages):
@@ -1729,12 +1812,20 @@ def _collect_paginated_table_text(page, *, max_pages: int = 8) -> str:
         try:
             clicked = page.evaluate(
                 """() => {
-                  const cand = [...document.querySelectorAll('button,[role="button"]')];
-                  const byLabel = cand.filter((el) => /sonraki sayfa|next page/i.test(el.getAttribute('aria-label') || ''));
-                  const byIcon = cand.filter((el) => /chevron_right/i.test(el.innerText || ''));
+                  // Sekme çubuğu kaydırma düğmeleri de 'chevron_right' içerir — görünür
+                  // olmayanları ve scroll-button sınıfını dışla.
+                  const visible = (el) => !!(el.offsetParent || el.getClientRects().length);
+                  const usable = (el) =>
+                    visible(el)
+                    && !/scroll-button/i.test(String(el.className || ''))
+                    && el.getAttribute('aria-disabled') !== 'true'
+                    && el.disabled !== true;
+                  const cand = [...document.querySelectorAll('button,[role="button"]')].filter(usable);
+                  const byLabel = cand.filter((el) => /sonraki sayfa|next page|sonraki/i.test(el.getAttribute('aria-label') || ''));
+                  const byIcon = cand.filter((el) => /chevron_right/i.test(el.textContent || ''));
                   const pool = byLabel.length ? byLabel : byIcon;
-                  const target = pool.length ? pool[pool.length - 1] : null;
-                  if (!target || target.disabled || target.getAttribute('aria-disabled') === 'true') return false;
+                  const target = pool.length ? pool[0] : null;
+                  if (!target) return false;
                   target.click();
                   return true;
                 }"""
@@ -1785,6 +1876,9 @@ def _explorer_facts_from_view(
         if key in have and tf.get("date"):
             continue
         facts.append(tf)
+        if tf.get("date"):
+            # Kaydırmalı toplama aynı satırı birkaç kez getirebilir — tekilleştir
+            have.add(key)
 
     # Puan: tarihsiz kart/kırılım (tek OVERALL≈5) günlük seri sanılmasın
     if metric_key != "rating":
@@ -5608,6 +5702,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 page_text = ""
             scraped["_page_text_len"] = len(page_text)
             scraped["_protobuf_rows"] = len((proto or {}).get("1") or []) if isinstance(proto, dict) else 0
+            _dump_view_debug(view_id, proto, page_text)
             facts_i = _explorer_facts_from_view(
                 view, scraped, view_series, page_text=page_text, protobuf_body=proto
             )
