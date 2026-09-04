@@ -2082,6 +2082,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/gsc-cwv/ingest",
         "/api/gsc-cwv/shots-ingest",
         "/api/market-quotes/ingest",
+        "/api/app/category-ranks/ingest",
         "/api/page-tarama/claim",
         "/api/page-tarama/result",
         "/api/page-tarama/bridge-ping",

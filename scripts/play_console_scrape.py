@@ -23,7 +23,8 @@ Env:
   PLAY_CONSOLE_VITALS_DETAIL_LIMIT=8  # issue detay/stack üst sınır (5–10)
   PLAY_CONSOLE_VITALS_DETAILS=     # boş=mühürlüde kapalı; 0=hiç; 1=zorla bu sync’te
   PLAY_CONSOLE_KEEP_OPEN=0         # varsayılan açık bırak; 0=scrape bitince kapat
-  HISTORY_SEAL / PLAY_CONSOLE_FORCE_FULL  # mühürlü gövde; varsayılan yalnız dün+bugün
+  HISTORY_SEAL / PLAY_FORCE_FULL   # mühürlü gövde; varsayılan yalnız dün+bugün
+                                   # (force_full_history("play") → PLAY_FORCE_FULL okur)
   PLAY_BRIDGE_TIMEOUT_SEC=0        # bridge: 0=süre sınırı yok (kill etme)
 """
 
