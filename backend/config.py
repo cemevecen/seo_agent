@@ -540,15 +540,16 @@ class Settings(BaseSettings):
             "notification_ingest_token",
         ),
     )
-    # Eski ofis Mac (Cems-MacBook-Pro / e87f): otomatik kira yok. Lokal SMTP maili
-    # için o makinede bridge durdur veya git pull + LaunchAgent restart şart.
+    # Boş = kimse men edilmez. Mail spam'i artık bridge tarafında kalıcı kapalı
+    # (BRIDGE_EMAIL_ALERTS_ENABLED=False), bu yüzden worker men etmeye gerek yok.
+    # Men edilen worker Play/ASC/Firebase dahil hiçbir zamanlı taramayı koşamaz.
     bridge_auto_lease_deny_workers: str = Field(
-        default="cems-macbook-pro-e87f",
+        default="",
         validation_alias=AliasChoices(
             "BRIDGE_AUTO_LEASE_DENY_WORKERS",
             "bridge_auto_lease_deny_workers",
         ),
-        description="Bu worker adları zamanlı tarama kirası alamaz (eski Mac mail spam'ini keser).",
+        description="Bu worker adları zamanlı tarama kirası alamaz (virgülle ayrılmış; boş = sınırsız).",
     )
     doviz_asset_monitor_interval_minutes: int = Field(
         default=180,
