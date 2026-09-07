@@ -158,17 +158,18 @@ def test_button_press_prefers_the_mac_you_pressed_it_on():
     assert got is not None and got["worker"] == OFFICE
 
 
-def test_preference_expires_so_the_other_mac_can_take_over():
-    """Tercih edilen Mac meşgulse iş sonsuza kadar beklemesin."""
+def test_preference_holds_even_after_timeout_while_mac_online():
+    """Tarayıcı sırası uzasa bile tercih Mac online iken diğer Mac çalmaz."""
     store.reset_for_tests()
     store.heartbeat_worker(OFFICE, ready=_ready())
     store.heartbeat_worker(HOME, ready=_ready())
-    out = store.begin_manual("moderation", prefer=OFFICE)
+    out = store.begin_manual("home", prefer=OFFICE)
     with store._lock:
         for job in store._runs[out["run"]["id"]]["jobs"]:
             job["prefer_until"] = time.time() - 1
-    got = store.claim_next(worker=HOME, ready=_ready())
-    assert got is not None and got["worker"] == HOME
+    assert store.claim_next(worker=HOME, ready=_ready()) is None
+    got = store.claim_next(worker=OFFICE, ready=_ready())
+    assert got is not None and got["worker"] == OFFICE
 
 
 def test_preference_ignored_when_that_mac_is_offline():
@@ -204,15 +205,26 @@ def test_login_window_opens_on_the_mac_you_pressed_from():
     assert "waiting for login" in (job["detail"] or "")
 
 
-def test_capable_mac_still_wins_over_login_prompt():
-    """Diğer Mac'in oturumu varsa kullanıcıyı giriş yapmaya zorlama — iş oraya gitsin."""
+def test_prefer_mac_keeps_job_even_if_other_mac_already_logged_in():
+    """Update page basılan Mac'te oturum yoksa giriş orada açılsın — diğer Mac çalmaz."""
     store.reset_for_tests()
     store.heartbeat_worker(HOME, ready=_ready())
     store.heartbeat_worker(OFFICE, ready=_ready(moderation="login_required"))
     store.begin_manual("moderation", prefer=OFFICE)
-    assert store.claim_next(worker=OFFICE, ready=_ready(moderation="login_required")) is None
+    assert store.claim_next(worker=HOME, ready=_ready()) is None
+    got = store.claim_next(worker=OFFICE, ready=_ready(moderation="login_required"))
+    assert got is not None and got["worker"] == OFFICE and got["login_ok"] is True
+
+
+def test_prefer_falls_through_when_this_mac_has_no_browser():
+    """Tercih Mac'te Playwright yoksa iş diğer Mac'e gidebilir."""
+    store.reset_for_tests()
+    store.heartbeat_worker(HOME, ready=_ready())
+    store.heartbeat_worker(OFFICE, ready=_ready(firebase="no_browser", play="no_browser", asc="no_browser"))
+    store.begin_manual("firebase", prefer=OFFICE)
+    assert store.claim_next(worker=OFFICE, ready=_ready(firebase="no_browser")) is None
     got = store.claim_next(worker=HOME, ready=_ready())
-    assert got is not None and got["worker"] == HOME and got["login_ok"] is False
+    assert got is not None and got["worker"] == HOME
 
 
 def test_missing_credentials_never_trigger_a_login_prompt():

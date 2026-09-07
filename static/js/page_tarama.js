@@ -816,6 +816,17 @@
           worker: localWorker,
           snap: lastProgressSnap,
         });
+      } else if (bridgeJobs.length) {
+        setProgressUI({
+          done: 0,
+          total: jobs.length,
+          waiting: jobs.length,
+          waitingLabels: jobs.map(function (j) { return j.label; }),
+          pct: 0,
+          status: "Local bridge not found — job may run on another Mac",
+          detail: "Open Update page from the Mac where the bridge runs (127.0.0.1:18765).",
+          snap: lastProgressSnap,
+        });
       }
       return claimManual(key, localWorker);
     }).then(function (out) {

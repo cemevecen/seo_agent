@@ -113,9 +113,11 @@ WORKER_FORGET_SEC = 24 * 3600.0
 WORKER_FORGET_UNKNOWN_SEC = 30 * 60.0
 # "Kimse yapamıyor" açıklamasında yalnızca yakın zamanda görülmüş makineler anılsın.
 WORKER_NOTE_WINDOW_SEC = 60 * 60.0
-# Update page'e hangi Mac'ten basıldıysa iş önce ona teklif edilir (tarayıcı penceresi
-# kullanıcının önünde açılsın). Bu süre dolunca iş diğer makineye de açılır.
-PREFER_WORKER_SEC = 90.0
+# Update page'e hangi Mac'ten basıldıysa iş o makineye bağlanır (tarayıcı penceresi
+# kullanıcının önünde açılsın). Tercih edilen Mac online ve işi yapabiliyorsa
+# (ready / login_required) diğer Mac'ler çalmaz — süre dolsa bile.
+# Tercih Mac offline veya no_browser/no_creds ise iş diğerlerine açılır.
+PREFER_WORKER_SEC = 30 * 60.0
 # SEO + Virgül gibi farklı işler birbirini bloklamasın (Mac kilitleri ayrıca korur)
 MAX_INFLIGHT_JOBS = 3
 # Play/Firebase/ASC/GSC/Policy aynı Firefox profili — biri bitmeden diğeri claim edilmesin
@@ -751,34 +753,31 @@ def claim_next(
                     excluded = {_worker_key(x) for x in (job.get("exclude_workers") or [])}
                     if wkey and wkey in excluded:
                         continue
-                    # Update page'e basılan Mac'e öncelik — süresi dolunca ya da o makine
-                    # çevrimdışıysa iş diğer worker'lara açılır.
-                    # Tercih edilen Mac o işi yapamıyorsa (oturum/credential yok) ve
-                    # yapabilen başka makine varsa bekletmeye gerek yok.
+                    # Update page'e basılan Mac'e sıkı bağ: o Mac online ve işi
+                    # yapabiliyorsa (ready veya login_required) başka worker alma —
+                    # "diğer Mac'te oturum var" diye çalma. Kullanıcı hangi cihazda
+                    # bastıysa tarayıcı orada açılsın.
                     prefer = _worker_key(str(job.get("prefer_worker") or ""))
                     prefer_rec = online.get(prefer) if prefer else None
-                    prefer_usable = bool(prefer_rec) and (
-                        _worker_ready_state(prefer_rec or {}, jid) == READY_OK
-                        or not _capable_workers_locked(jid, now, exclude=list(excluded))
+                    prefer_state = (
+                        _worker_ready_state(prefer_rec, jid) if prefer_rec else ""
                     )
-                    if (
-                        prefer
-                        and prefer != wkey
-                        and now < float(job.get("prefer_until") or 0)
-                        and prefer_usable
-                    ):
+                    prefer_holds = bool(prefer_rec) and prefer_state in (
+                        READY_OK,
+                        READY_LOGIN_REQUIRED,
+                    )
+                    if prefer and prefer != wkey and prefer_holds:
                         continue
                     state = str(ready.get(jid) or READY_OK) if ready is not None else READY_OK
                     login_needed = False
                     if state != READY_OK:
-                        # Tek eksiği giriş olan makineye, kullanıcı orada oturuyorsa ve
-                        # başka yapabilen Mac yoksa iş verilir: pencere önünde açılsın.
+                        # Tercih edilen Mac'te tek eksiği giriş: pencereyi orada aç.
+                        # Başka Mac ready olsa bile çalmaz (prefer_holds yukarıda).
                         if (
                             not login_pass
                             or state != READY_LOGIN_REQUIRED
                             or not wkey
                             or prefer != wkey
-                            or _capable_workers_locked(jid, now, exclude=list(excluded))
                         ):
                             continue
                         login_needed = True
