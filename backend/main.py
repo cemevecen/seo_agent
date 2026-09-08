@@ -2905,6 +2905,16 @@ def _default_internal_site_id(rows: list[dict]) -> int:
     return int(rows[0]["id"]) if rows else 1
 
 
+def _sc_project_key(domain: str | None, display_name: str | None = None) -> str:
+    """Search Console / home odak anahtarı: doviz | sinemalar | ''."""
+    blob = f"{domain or ''} {display_name or ''}".lower()
+    if "sinemalar" in blob:
+        return "sinemalar"
+    if "doviz" in blob:
+        return "doviz"
+    return ""
+
+
 def _default_active_site_id(db: Session) -> int | None:
     external_ids = _external_site_ids(db)
     sites = [
@@ -3866,6 +3876,7 @@ def _search_console_single_site_data(
         "id": site.id,
         "domain": site.domain,
         "display_name": site.display_name,
+        "project": _sc_project_key(site.domain, site.display_name),
         "is_active": site.is_active,
         "connection": connection,
         "status": status,
@@ -19833,7 +19844,9 @@ def search_console_site_list(request: Request):
         sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
         sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
         if view_spec.get("kind") != "performance":
-            lazy_site_ids = [(s.id, s.display_name) for s in sites]
+            lazy_site_ids = [
+                (s.id, s.display_name, _sc_project_key(s.domain, s.display_name)) for s in sites
+            ]
             return templates.TemplateResponse(
                 request,
                 "partials/sc_extras_site_list.html",
@@ -19865,7 +19878,9 @@ def search_console_site_list(request: Request):
                 },
                 headers=_SC_HTML_NO_CACHE_HEADERS,
             )
-        lazy_site_ids = [(s.id, s.display_name) for s in sites]
+        lazy_site_ids = [
+            (s.id, s.display_name, _sc_project_key(s.domain, s.display_name)) for s in sites
+        ]
     return templates.TemplateResponse(
         request,
         "partials/search_console_site_cards.html",
@@ -19944,6 +19959,7 @@ def search_console_extras_site_card(request: Request, view_slug: str, site_id: i
                 "site_id": site_id_val,
                 "display_name": display_name,
                 "domain": domain,
+                "sc_project": _sc_project_key(domain, display_name),
                 "connection": connection,
                 "oauth_ready": oauth_is_configured(),
                 "sc_view": view_slug,

@@ -426,21 +426,60 @@
     }
   }
 </style>
-<div id="search-console-page" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-sc-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}">
+<div id="search-console-page" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-sc-global-focus="" data-sc-project-focus="split">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
     <div class="sc-analytics-toolbar mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="min-w-0">
         <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Search Console summary</p>
         <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">Last fetch: {% if last_fetch_label %}{{ last_fetch_label }}{% else %}—{% endif %}</p>
       </div>
-      <button
-        id="refresh-search-console-sites-button"
-        type="button"
-        class="w-full shrink-0 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 dark:border-slate-600 dark:text-slate-200 dark:hover:text-slate-100 sm:w-auto"
-        onclick="refreshSearchConsoleSites(this)"
-      >
-        Refresh All Sites
-      </button>
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+        <div
+          class="inline-flex max-w-full min-w-0 flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 bg-slate-100 p-1 dark:border-slate-600 dark:bg-slate-800/80"
+          data-sc-project-switch
+          role="tablist"
+          aria-label="Site view"
+        >
+          <button
+            type="button"
+            role="tab"
+            data-sc-project-set="split"
+            aria-pressed="true"
+            class="shrink-0 whitespace-nowrap rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition dark:bg-slate-100 dark:text-slate-900 sm:px-3.5 sm:text-sm"
+            title="Show doviz.com and sinemalar.com side by side"
+          >
+            Both
+          </button>
+          <button
+            type="button"
+            role="tab"
+            data-sc-project-set="doviz"
+            aria-pressed="false"
+            class="shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700 sm:px-3.5 sm:text-sm"
+            title="Show only doviz.com"
+          >
+            doviz.com
+          </button>
+          <button
+            type="button"
+            role="tab"
+            data-sc-project-set="sinemalar"
+            aria-pressed="false"
+            class="shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700 sm:px-3.5 sm:text-sm"
+            title="Show only sinemalar.com"
+          >
+            sinemalar.com
+          </button>
+        </div>
+        <button
+          id="refresh-search-console-sites-button"
+          type="button"
+          class="w-full shrink-0 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 dark:border-slate-600 dark:text-slate-200 dark:hover:text-slate-100 sm:w-auto"
+          onclick="refreshSearchConsoleSites(this)"
+        >
+          Refresh All Sites
+        </button>
+      </div>
     </div>
 
     <div
@@ -1826,9 +1865,103 @@
     });
   }
 
+  var SC_PROJECT_FOCUS_KEY = 'pc-sc-focus';
+
+  function scNormalizeProjectFocus(v) {
+    return (v === 'doviz' || v === 'sinemalar' || v === 'split') ? v : 'split';
+  }
+
   function scGetGlobalFocus() {
     var page = document.getElementById('search-console-page');
     return (page && page.dataset.scGlobalFocus) || '';
+  }
+
+  function scInferProjectFromCard(card) {
+    if (!card) return '';
+    var p = (card.getAttribute('data-sc-project') || '').toLowerCase();
+    if (p === 'doviz' || p === 'sinemalar') return p;
+    var blob = (
+      (card.getAttribute('data-site-domain') || '') +
+      ' ' +
+      (card.getAttribute('aria-label') || '') +
+      ' ' +
+      (card.textContent || '').slice(0, 120)
+    ).toLowerCase();
+    if (blob.indexOf('sinemalar') >= 0) return 'sinemalar';
+    if (blob.indexOf('doviz') >= 0) return 'doviz';
+    return '';
+  }
+
+  function scSiteIdForProject(project) {
+    var key = scNormalizeProjectFocus(project);
+    if (key === 'split') return '';
+    var cards = document.querySelectorAll('[data-sc-split-root] [data-site-id]');
+    for (var i = 0; i < cards.length; i++) {
+      if (scInferProjectFromCard(cards[i]) === key) {
+        return String(cards[i].getAttribute('data-site-id') || '');
+      }
+    }
+    return '';
+  }
+
+  function scProjectForSiteId(siteId) {
+    if (!siteId) return 'split';
+    var sid = String(siteId);
+    var cards = document.querySelectorAll('[data-sc-split-root] [data-site-id="' + sid + '"]');
+    for (var i = 0; i < cards.length; i++) {
+      var p = scInferProjectFromCard(cards[i]);
+      if (p) return p;
+    }
+    return 'split';
+  }
+
+  function scSyncProjectSwitch(mode) {
+    mode = scNormalizeProjectFocus(mode);
+    var page = document.getElementById('search-console-page');
+    if (page) page.dataset.scProjectFocus = mode;
+    document.querySelectorAll('[data-sc-project-set]').forEach(function (btn) {
+      var m = btn.getAttribute('data-sc-project-set') || '';
+      var on = m === mode;
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.classList.toggle('bg-slate-900', on);
+      btn.classList.toggle('text-white', on);
+      btn.classList.toggle('dark:bg-slate-100', on);
+      btn.classList.toggle('dark:text-slate-900', on);
+      btn.classList.toggle('text-slate-600', !on);
+      btn.classList.toggle('dark:text-slate-300', !on);
+    });
+  }
+
+  function scApplyProjectFocus(mode, persist) {
+    mode = scNormalizeProjectFocus(mode);
+    if (persist !== false) {
+      try { localStorage.setItem(SC_PROJECT_FOCUS_KEY, mode); } catch (e) {}
+    }
+    scSyncProjectSwitch(mode);
+    var siteId = mode === 'split' ? '' : scSiteIdForProject(mode);
+    scApplyGlobalFocus(siteId);
+  }
+
+  function scInitProjectFocus() {
+    var saved = 'split';
+    try { saved = scNormalizeProjectFocus(localStorage.getItem(SC_PROJECT_FOCUS_KEY) || 'split'); } catch (e) {}
+    var page = document.getElementById('search-console-page');
+    if (page) page.dataset.scGlobalFocus = '';
+    scApplyProjectFocus(saved, false);
+    if (document.body.dataset.scProjectSwitchBound === '1') return;
+    document.body.dataset.scProjectSwitchBound = '1';
+    document.body.addEventListener('click', function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest('[data-sc-project-set]');
+      if (!btn) return;
+      var pageEl = document.getElementById('search-console-page');
+      if (!pageEl || !pageEl.contains(btn)) return;
+      ev.preventDefault();
+      var mode = btn.getAttribute('data-sc-project-set') || 'split';
+      if (mode === 'split' && scNormalizeProjectFocus(pageEl.dataset.scProjectFocus || 'split') === 'split') {
+        return;
+      }
+      scApplyProjectFocus(mode, true);
+    });
   }
 
   function scPreferMobileGlobalSlot() {
@@ -1996,14 +2129,31 @@
 
   function scApplyGlobalFocus(focusId) {
     var fid;
+    var page = document.getElementById('search-console-page');
     if (focusId !== undefined) {
       fid = focusId ? String(focusId) : '';
-      var page = document.getElementById('search-console-page');
       if (page) {
         page.dataset.scGlobalFocus = fid;
       }
+      scSyncProjectSwitch(fid ? scProjectForSiteId(fid) : 'split');
     } else {
-      fid = scGetGlobalFocus();
+      // Kartlar lazy yüklendikten sonra proje odagini site id'ye yeniden coz
+      var projectMode = scNormalizeProjectFocus(
+        (page && page.dataset.scProjectFocus) || 'split'
+      );
+      if (projectMode !== 'split') {
+        var resolved = scSiteIdForProject(projectMode);
+        if (resolved) {
+          fid = resolved;
+          if (page) page.dataset.scGlobalFocus = fid;
+        } else {
+          fid = scGetGlobalFocus();
+        }
+      } else {
+        fid = '';
+        if (page) page.dataset.scGlobalFocus = '';
+      }
+      scSyncProjectSwitch(projectMode);
     }
     document.querySelectorAll('[data-sc-split-root]').forEach(function (grid) {
       scSplitApplyFocus(grid, fid);
@@ -2091,19 +2241,22 @@
           if (ft && grid.contains(ft)) {
             e.preventDefault();
             e.stopPropagation();
-            scApplyGlobalFocus(ft.getAttribute('data-sc-focus-toggle'));
+            var sid = ft.getAttribute('data-sc-focus-toggle') || '';
+            try { localStorage.setItem(SC_PROJECT_FOCUS_KEY, scProjectForSiteId(sid)); } catch (err) {}
+            scApplyGlobalFocus(sid);
             return;
           }
           var rs = e.target.closest('[data-sc-split-reset]');
           if (rs && grid.contains(rs)) {
             e.preventDefault();
             e.stopPropagation();
+            try { localStorage.setItem(SC_PROJECT_FOCUS_KEY, 'split'); } catch (err) {}
             scApplyGlobalFocus('');
           }
         });
       }
     });
-    scApplyGlobalFocus();
+    scInitProjectFocus();
   }
 
   function initScCwvLightbox() {
