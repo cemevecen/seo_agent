@@ -2,10 +2,12 @@
   {# İlk yükleme: iskelet kartlar + HTMX lazy load tetikleyicileri #}
   {% if lazy_site_ids %}
     <div class="grid min-w-0 grid-cols-1 gap-4 md:gap-5 xl:grid-cols-2" data-ga4-split-root>
-      {% for site_id, display_name, domain in lazy_site_ids %}
+      {% for site_id, display_name, domain, project in lazy_site_ids %}
         <div
           id="ga4-card-{{ site_id }}"
           data-site-id="{{ site_id }}"
+          data-site-domain="{{ domain }}"
+          data-ga4-project="{{ project }}"
           hx-get="/ga4/site/{{ site_id }}"
           hx-trigger="load, revealed"
           hx-swap="outerHTML"

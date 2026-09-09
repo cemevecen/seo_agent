@@ -15644,6 +15644,7 @@ def _ga4_sites_payload(db) -> list[dict]:
                 "id": site.id,
                 "domain": site.domain,
                 "display_name": site.display_name,
+                "project": _sc_project_key(site.domain, site.display_name),
                 "ga4": ga4_status,
                 "profiles": profiles,
                 "default_profile": next((k for k in ("web", "mweb", "android", "ios") if k in profiles), "web"),
@@ -17681,7 +17682,9 @@ def ga4_site_list(request: Request):
         external_site_ids = _external_site_ids(db)
         sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_site_ids]
         sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
-        lazy_site_ids = [(s.id, s.display_name, s.domain) for s in sites]
+        lazy_site_ids = [
+            (s.id, s.display_name, s.domain, _sc_project_key(s.domain, s.display_name)) for s in sites
+        ]
     return templates.TemplateResponse(
         request,
         "partials/ga4_site_cards.html",
@@ -17763,6 +17766,7 @@ def ga4_single_site_card(request: Request, site_id: int):
                 "id": site.id,
                 "domain": site.domain,
                 "display_name": site.display_name,
+                "project": _sc_project_key(site.domain, site.display_name),
                 "ga4": ga4_status,
                 "profiles": profiles,
                 "default_profile": next((k for k in ("web", "mweb", "android", "ios") if k in profiles), "web"),

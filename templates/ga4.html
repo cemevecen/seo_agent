@@ -543,7 +543,7 @@
     }
   }
 </style>
-<div id="ga4-page" data-ga4-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}" data-header-title="GA4" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
+<div id="ga4-page" data-ga4-global-focus="" data-ga4-project-focus="split" data-header-title="GA4" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
     <div class="ga4-analytics-toolbar mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex items-center gap-3">
@@ -554,14 +554,53 @@
           <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">Last fetch: {% if last_fetch_label %}{{ last_fetch_label }}{% else %}—{% endif %}</p>
         </div>
       </div>
-      <button
-        id="refresh-ga4-sites-button"
-        type="button"
-        class="w-full shrink-0 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-        onclick="refreshGa4Sites(this)"
-      >
-        Refresh All Sites
-      </button>
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+        <div
+          class="inline-flex max-w-full min-w-0 flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 bg-slate-100 p-1 dark:border-slate-600 dark:bg-slate-800/80"
+          data-ga4-project-switch
+          role="tablist"
+          aria-label="Site view"
+        >
+          <button
+            type="button"
+            role="tab"
+            data-ga4-project-set="split"
+            aria-pressed="true"
+            class="shrink-0 whitespace-nowrap rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition dark:bg-slate-100 dark:text-slate-900 sm:px-3.5 sm:text-sm"
+            title="Show doviz.com and sinemalar.com side by side"
+          >
+            Both
+          </button>
+          <button
+            type="button"
+            role="tab"
+            data-ga4-project-set="doviz"
+            aria-pressed="false"
+            class="shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700 sm:px-3.5 sm:text-sm"
+            title="Show only doviz.com"
+          >
+            doviz.com
+          </button>
+          <button
+            type="button"
+            role="tab"
+            data-ga4-project-set="sinemalar"
+            aria-pressed="false"
+            class="shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700 sm:px-3.5 sm:text-sm"
+            title="Show only sinemalar.com"
+          >
+            sinemalar.com
+          </button>
+        </div>
+        <button
+          id="refresh-ga4-sites-button"
+          type="button"
+          class="w-full shrink-0 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          onclick="refreshGa4Sites(this)"
+        >
+          Refresh All Sites
+        </button>
+      </div>
     </div>
 
     <!-- API kota ölçümü: sıklığı artırmadan önce «ne kadar payımız var» sorusunun
@@ -2550,9 +2589,101 @@
     });
   }
 
+  var GA4_PROJECT_FOCUS_KEY = 'pc-ga4-focus';
+
+  function ga4NormalizeProjectFocus(v) {
+    return (v === 'doviz' || v === 'sinemalar' || v === 'split') ? v : 'split';
+  }
+
   function ga4GetGlobalFocus() {
     var page = document.getElementById('ga4-page');
     return (page && page.dataset.ga4GlobalFocus) || '';
+  }
+
+  function ga4InferProjectFromCard(card) {
+    if (!card) return '';
+    var p = (card.getAttribute('data-ga4-project') || '').toLowerCase();
+    if (p === 'doviz' || p === 'sinemalar') return p;
+    var blob = (
+      (card.getAttribute('data-site-domain') || '') +
+      ' ' +
+      (card.getAttribute('aria-label') || '')
+    ).toLowerCase();
+    if (blob.indexOf('sinemalar') >= 0) return 'sinemalar';
+    if (blob.indexOf('doviz') >= 0) return 'doviz';
+    return '';
+  }
+
+  function ga4SiteIdForProject(project) {
+    var key = ga4NormalizeProjectFocus(project);
+    if (key === 'split') return '';
+    var cards = document.querySelectorAll('[data-ga4-split-root] [data-site-id]');
+    for (var i = 0; i < cards.length; i++) {
+      if (ga4InferProjectFromCard(cards[i]) === key) {
+        return String(cards[i].getAttribute('data-site-id') || '');
+      }
+    }
+    return '';
+  }
+
+  function ga4ProjectForSiteId(siteId) {
+    if (!siteId) return 'split';
+    var sid = String(siteId);
+    var cards = document.querySelectorAll('[data-ga4-split-root] [data-site-id="' + sid + '"]');
+    for (var i = 0; i < cards.length; i++) {
+      var p = ga4InferProjectFromCard(cards[i]);
+      if (p) return p;
+    }
+    return 'split';
+  }
+
+  function ga4SyncProjectSwitch(mode) {
+    mode = ga4NormalizeProjectFocus(mode);
+    var page = document.getElementById('ga4-page');
+    if (page) page.dataset.ga4ProjectFocus = mode;
+    document.querySelectorAll('[data-ga4-project-set]').forEach(function (btn) {
+      var m = btn.getAttribute('data-ga4-project-set') || '';
+      var on = m === mode;
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.classList.toggle('bg-slate-900', on);
+      btn.classList.toggle('text-white', on);
+      btn.classList.toggle('dark:bg-slate-100', on);
+      btn.classList.toggle('dark:text-slate-900', on);
+      btn.classList.toggle('text-slate-600', !on);
+      btn.classList.toggle('dark:text-slate-300', !on);
+    });
+  }
+
+  function ga4ApplyProjectFocus(mode, persist) {
+    mode = ga4NormalizeProjectFocus(mode);
+    if (persist !== false) {
+      try { localStorage.setItem(GA4_PROJECT_FOCUS_KEY, mode); } catch (e) {}
+    }
+    ga4SyncProjectSwitch(mode);
+    var siteId = mode === 'split' ? '' : ga4SiteIdForProject(mode);
+    ga4ApplyGlobalFocus(siteId);
+  }
+
+  function ga4InitProjectFocus() {
+    var saved = 'split';
+    try { saved = ga4NormalizeProjectFocus(localStorage.getItem(GA4_PROJECT_FOCUS_KEY) || 'split'); } catch (e) {}
+    var page = document.getElementById('ga4-page');
+    if (page) page.dataset.ga4GlobalFocus = '';
+    ga4ApplyProjectFocus(saved, false);
+    if (document.body.dataset.ga4ProjectSwitchBound === '1') return;
+    document.body.dataset.ga4ProjectSwitchBound = '1';
+    document.body.addEventListener('click', function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest('[data-ga4-project-set]');
+      if (!btn) return;
+      var pageEl = document.getElementById('ga4-page');
+      if (!pageEl || !pageEl.contains(btn)) return;
+      ev.preventDefault();
+      var mode = btn.getAttribute('data-ga4-project-set') || 'split';
+      if (mode === 'split' && ga4NormalizeProjectFocus(pageEl.dataset.ga4ProjectFocus || 'split') === 'split') {
+        return;
+      }
+      ga4ApplyProjectFocus(mode, true);
+    });
   }
 
   function ga4SplitCardsInGrid(grid) {
@@ -3204,14 +3335,30 @@
 
   function ga4ApplyGlobalFocus(focusId) {
     var fid;
+    var page = document.getElementById('ga4-page');
     if (focusId !== undefined) {
       fid = focusId ? String(focusId) : '';
-      var page = document.getElementById('ga4-page');
       if (page) {
         page.dataset.ga4GlobalFocus = fid;
       }
+      ga4SyncProjectSwitch(fid ? ga4ProjectForSiteId(fid) : 'split');
     } else {
-      fid = ga4GetGlobalFocus();
+      var projectMode = ga4NormalizeProjectFocus(
+        (page && page.dataset.ga4ProjectFocus) || 'split'
+      );
+      if (projectMode !== 'split') {
+        var resolved = ga4SiteIdForProject(projectMode);
+        if (resolved) {
+          fid = resolved;
+          if (page) page.dataset.ga4GlobalFocus = fid;
+        } else {
+          fid = ga4GetGlobalFocus();
+        }
+      } else {
+        fid = '';
+        if (page) page.dataset.ga4GlobalFocus = '';
+      }
+      ga4SyncProjectSwitch(projectMode);
     }
     document.querySelectorAll('[data-ga4-split-root]').forEach(function (grid) {
       ga4ApplyFocusToGrid(grid, fid);
@@ -3238,19 +3385,22 @@
           if (ft && grid.contains(ft)) {
             e.preventDefault();
             e.stopPropagation();
-            ga4ApplyGlobalFocus(ft.getAttribute('data-ga4-focus-toggle'));
+            var sid = ft.getAttribute('data-ga4-focus-toggle') || '';
+            try { localStorage.setItem(GA4_PROJECT_FOCUS_KEY, ga4ProjectForSiteId(sid)); } catch (err) {}
+            ga4ApplyGlobalFocus(sid);
             return;
           }
           var rs = e.target.closest('[data-ga4-split-reset]');
           if (rs && grid.contains(rs)) {
             e.preventDefault();
             e.stopPropagation();
+            try { localStorage.setItem(GA4_PROJECT_FOCUS_KEY, 'split'); } catch (err) {}
             ga4ApplyGlobalFocus('');
           }
         });
       }
     });
-    ga4ApplyGlobalFocus();
+    ga4InitProjectFocus();
   }
 
   function initGa4Panels(root) {
