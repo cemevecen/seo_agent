@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v64-home-rt-inline">
+<style id="home-site-borders" data-home-css="v65-home-sc-top50-row">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -645,7 +645,6 @@
     .home-sub,
     .home-card-link,
     .home-top-pages-trigger,
-    .home-sc-top50-label,
     .home-sc-metric-kicker,
     .home-sc-device-title,
     .home-detail-kpi-label,
@@ -662,7 +661,7 @@
     line-height: 1.35 !important;
   }
   #home-board .home-readable :where(
-    h4, .home-label, .home-sub, .home-top-pages-trigger, .home-sc-top50-label
+    h4, .home-label, .home-sub, .home-top-pages-trigger
   ) :where(*) {
     font-size: var(--home-sub) !important;
   }
@@ -1000,9 +999,18 @@
     word-break: normal !important;
     overflow-wrap: normal !important;
   }
-  #home-board .home-readable .home-sc-top50-vals,
-  #home-board .home-readable .home-sc-top50-vals :where(*) {
-    font-size: clamp(0.4rem, 8.5cqi, calc(var(--home-text) / 2)) !important;
+  /* Top 50: tek satır — label / değerler / % aynı punto */
+  #home-board .home-readable .home-sc-top50,
+  #home-board .home-readable .home-sc-top50 :where(.home-sc-top50-label, .home-sc-top50-vals, .home-sc-top50-pct) {
+    font-size: clamp(0.5rem, 9.5cqi, calc(var(--home-text) * 0.78)) !important;
+    line-height: 1.25 !important;
+  }
+  #home-board .home-readable .home-sc-top50-label {
+    font-weight: 600 !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  #home-board .home-readable .home-sc-top50-vals {
     white-space: nowrap !important;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2364,7 +2372,7 @@
       {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=47" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=48" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2375,7 +2383,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=47" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=48" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2390,7 +2398,7 @@
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=47" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=48" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2401,7 +2409,7 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=47" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=48" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
