@@ -154,9 +154,23 @@
     border-radius: 1px 1px 0 0;
     background: #0f172a;
   }
+  .home-sc-spark-bar-slot.is-above .home-sc-spark-bar {
+    background: #16a34a;
+  }
+  .home-sc-spark-bar-slot.is-below .home-sc-spark-bar {
+    background: #e11d48;
+  }
   html.dark .home-sc-spark-bar,
   html.charcoal .home-sc-spark-bar {
     background: #a1a1aa;
+  }
+  html.dark .home-sc-spark-bar-slot.is-above .home-sc-spark-bar,
+  html.charcoal .home-sc-spark-bar-slot.is-above .home-sc-spark-bar {
+    background: #34d399;
+  }
+  html.dark .home-sc-spark-bar-slot.is-below .home-sc-spark-bar,
+  html.charcoal .home-sc-spark-bar-slot.is-below .home-sc-spark-bar {
+    background: #fb7185;
   }
   .home-sc-spark-bar-slot.is-empty .home-sc-spark-bar {
     opacity: 0.22;
@@ -328,7 +342,7 @@
               {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.bar_slots %}
                 <div class="home-sc-spark-bars" role="img" aria-hidden="true">
                   {% for slot in dev.clicks_spark.bar_slots %}
-                    <span class="home-sc-spark-bar-slot{% if slot.empty %} is-empty{% endif %}">
+                    <span class="home-sc-spark-bar-slot{% if slot.empty %} is-empty{% elif slot.above %} is-above{% else %} is-below{% endif %}">
                       <span class="home-sc-spark-bar" style="height: {{ slot.height_pct }}%"></span>
                     </span>
                   {% endfor %}
@@ -358,7 +372,8 @@
               {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.bar_slots %}
                 <div class="home-sc-spark-bars" role="img" aria-hidden="true">
                   {% for slot in dev.pos_spark.bar_slots %}
-                    <span class="home-sc-spark-bar-slot{% if slot.empty %} is-empty{% endif %}">
+                    {# Position: düşük daha iyi — medyanın altı yeşil, üstü kırmızı #}
+                    <span class="home-sc-spark-bar-slot{% if slot.empty %} is-empty{% elif slot.above %} is-below{% else %} is-above{% endif %}">
                       <span class="home-sc-spark-bar" style="height: {{ slot.height_pct }}%"></span>
                     </span>
                   {% endfor %}

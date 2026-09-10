@@ -9621,17 +9621,26 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
 
     path_d = _polyline_path_d(points)
     mean_v = sum(clean) / len(clean)
+    # Spark tonu: medyanın üstü yeşil / altı kırmızı (position için şablon tersler).
+    sorted_clean = sorted(clean)
+    n_clean = len(sorted_clean)
+    mid = n_clean // 2
+    if n_clean % 2:
+        median_v = sorted_clean[mid]
+    else:
+        median_v = (sorted_clean[mid - 1] + sorted_clean[mid]) / 2.0
+    center_v = median_v
 
     line_segments: list[dict] = []
     seg_pts: list[tuple[float, float]] = [points[0]]
-    seg_above = clean[0] >= mean_v
+    seg_above = clean[0] >= center_v
     for idx in range(1, len(clean)):
         v0, v1 = clean[idx - 1], clean[idx]
         p0, p1 = points[idx - 1], points[idx]
-        above0 = v0 >= mean_v
-        above1 = v1 >= mean_v
+        above0 = v0 >= center_v
+        above1 = v1 >= center_v
         if above0 != above1 and v1 != v0:
-            t = (mean_v - v0) / (v1 - v0)
+            t = (center_v - v0) / (v1 - v0)
             t = max(0.0, min(1.0, t))
             cx = p0[0] + t * (p1[0] - p0[0])
             cy = p0[1] + t * (p1[1] - p0[1])
@@ -9650,7 +9659,7 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
     baseline = height - pad
     area_path = f"{path_d} L {last_x:.2f} {baseline:.2f} L {first_x:.2f} {baseline:.2f} Z"
     last_value = clean[-1]
-    last_below = last_value < mean_v
+    last_below = last_value < center_v
     bar_px = 52
     bar_slots: list[dict[str, float | bool | int]] = []
     for value in clean:
@@ -9661,7 +9670,7 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
             {
                 "height_pct": round(max(0.06, min(1.0, ratio)) * 100.0, 2),
                 "height_px": h_px,
-                "above": value >= mean_v,
+                "above": value >= center_v,
                 "empty": value <= 0,
             }
         )
@@ -9673,6 +9682,7 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
         "line_segments": line_segments,
         "bar_slots": bar_slots,
         "mean_value": mean_v,
+        "median_value": median_v,
         "end_x": points[-1][0],
         "end_y": points[-1][1],
         "last_below": last_below,

@@ -64,9 +64,23 @@
     border-radius: 1px 1px 0 0;
     background: #0f172a;
   }
+  .home-ga4-spark-bar-slot.is-above .home-ga4-spark-bar {
+    background: #16a34a;
+  }
+  .home-ga4-spark-bar-slot.is-below .home-ga4-spark-bar {
+    background: #e11d48;
+  }
   html.dark .home-ga4-spark-bar,
   html.charcoal .home-ga4-spark-bar {
     background: #a1a1aa;
+  }
+  html.dark .home-ga4-spark-bar-slot.is-above .home-ga4-spark-bar,
+  html.charcoal .home-ga4-spark-bar-slot.is-above .home-ga4-spark-bar {
+    background: #34d399;
+  }
+  html.dark .home-ga4-spark-bar-slot.is-below .home-ga4-spark-bar,
+  html.charcoal .home-ga4-spark-bar-slot.is-below .home-ga4-spark-bar {
+    background: #fb7185;
   }
   .home-ga4-spark-bar-slot.is-empty .home-ga4-spark-bar {
     opacity: 0.22;
@@ -141,7 +155,7 @@
             {% if prof.spark and prof.spark.has_points and prof.spark.bar_slots %}
               <div class="home-ga4-spark-bars" role="img" aria-hidden="true">
                 {% for slot in prof.spark.bar_slots %}
-                  <span class="home-ga4-spark-bar-slot{% if slot.empty %} is-empty{% endif %}">
+                  <span class="home-ga4-spark-bar-slot{% if slot.empty %} is-empty{% elif slot.above %} is-above{% else %} is-below{% endif %}">
                     <span class="home-ga4-spark-bar" style="height: {{ slot.height_pct }}%"></span>
                   </span>
                 {% endfor %}
