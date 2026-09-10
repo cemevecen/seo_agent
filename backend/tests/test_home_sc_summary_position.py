@@ -113,7 +113,7 @@ def test_home_sc_aggregate_includes_spark_paths(_mock_top50, _mock_pages):
 
 
 def test_home_sc_trend_series_spark_ignores_period_window():
-    """Ana sayfa spark: 30 gün, KPI 7g penceresine kırpılmaz."""
+    """Ana sayfa spark: 60 gün, KPI 7g penceresine kırpılmaz."""
     dates = [f"2026-07-{d:02d}" for d in range(1, 29)]
     clicks = [float(i) for i in range(1, 29)]
     summary = {
@@ -124,7 +124,7 @@ def test_home_sc_trend_series_spark_ignores_period_window():
         },
     }
     series = _home_sc_trend_series(
-        summary, "MOBILE", "clicks", days=30, align_to_window=False
+        summary, "MOBILE", "clicks", days=60, align_to_window=False
     )
     assert len(series) == 28
     assert series[0] == 1.0

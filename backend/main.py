@@ -9574,7 +9574,7 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
         clean = [clean[0], clean[0]]
 
     # Compact home cards can't render ~120 trend points; downsample for visible bars.
-    max_bars = 36
+    max_bars = 60
     if len(clean) > max_bars:
         step = len(clean) / float(max_bars)
         sampled: list[float] = []
@@ -9869,8 +9869,8 @@ def _home_ga4_sessions_from_snap(db, site_id: int, prof_key: str, period_days: i
 
 
 _HOME_PERIOD_DAYS = frozenset({7, 60, 90})
-# Ana sayfa GA4/SC kart spark'ı — KPI döneminden bağımsız son 30 gün.
-_HOME_SPARK_TREND_DAYS = 30
+# Ana sayfa GA4/SC kart spark'ı — KPI döneminden bağımsız son 60 gün.
+_HOME_SPARK_TREND_DAYS = 60
 
 
 def _home_clamp_period_days(raw: object | None) -> int:
@@ -11121,7 +11121,7 @@ def _home_sc_device_aggregate(
     clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
     pos_diff = _sc_position_delta(c_pos, p_pos)
     pos_tone = _home_pos_tone(pos_diff)
-    # Spark: KPI döneminden bağımsız son 30 gün (yüzde / karşılaştırma etkilenmez).
+    # Spark: KPI döneminden bağımsız son 60 gün (yüzde / karşılaştırma etkilenmez).
     clicks_spark = _home_spark_paths(
         _home_sc_trend_series(
             summary,
