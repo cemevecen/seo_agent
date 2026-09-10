@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v66-home-spark-pastel">
+<style id="home-site-borders" data-home-css="v67-home-kpi-row">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -980,18 +980,19 @@
     letter-spacing: normal;
     text-transform: none;
   }
-  /* KPI kartları: kutuya göre fluid, tek satır (taşma yok) */
-  #home-board .home-readable .home-ga4-spark-cell .home-kpi,
-  #home-board .home-readable .home-sc-spark-cell .home-kpi {
-    font-size: clamp(0.7rem, 13cqi, calc(var(--home-text) * 1.1)) !important;
+  /* KPI kartları: % + rakam tek satır, eşit punto, sola/sağa */
+  #home-board .home-readable .home-kpi-row,
+  #home-board .home-readable .home-kpi-row :where(.home-kpi, .home-kpi-compare) {
+    font-size: clamp(0.55rem, 10.5cqi, calc(var(--home-text) * 0.92)) !important;
+    line-height: 1.25 !important;
+  }
+  #home-board .home-readable .home-kpi-row .home-kpi {
     white-space: nowrap !important;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100%;
+    max-width: 45%;
   }
-  #home-board .home-readable .home-kpi-compare {
-    font-size: clamp(0.5rem, 10.5cqi, var(--home-text)) !important;
-    line-height: 1.3 !important;
+  #home-board .home-readable .home-kpi-row .home-kpi-compare {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis;
@@ -2393,7 +2394,7 @@
       {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=51" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=52" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2404,7 +2405,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=51" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=52" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2419,7 +2420,7 @@
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=51" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=52" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2430,7 +2431,7 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=51" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=52" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">

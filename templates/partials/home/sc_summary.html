@@ -175,6 +175,40 @@
   .home-sc-spark-bar-slot.is-empty .home-sc-spark-bar {
     opacity: 0.35;
   }
+  .home-kpi-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.35rem 0.5rem;
+    margin-top: 0.35rem;
+    min-width: 0;
+    width: 100%;
+  }
+  .home-kpi-row .home-kpi,
+  .home-kpi-row .home-kpi-compare {
+    margin: 0;
+    font-size: inherit;
+    line-height: 1.25;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .home-kpi-row .home-kpi {
+    flex: 0 0 auto;
+  }
+  .home-kpi-row .home-kpi-compare {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgb(100 116 139);
+  }
+  html.dark .home-kpi-row .home-kpi-compare,
+  html.charcoal .home-kpi-row .home-kpi-compare {
+    color: rgb(148 163 184);
+  }
   .home-sc-spark-empty {
     margin-top: 0.35rem;
     height: 1.75rem;
@@ -350,8 +384,10 @@
               {% else %}
                 <div class="home-sc-spark-empty" aria-hidden="true"></div>
               {% endif %}
-              <p class="home-kpi home-delta mt-1 is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</p>
-              <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
+              <div class="home-kpi-row">
+                <span class="home-kpi home-delta is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</span>
+                <span class="home-kpi-compare">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</span>
+              </div>
               {% if dev.top50_has_data %}
               <div class="home-sc-top50" title="Top 50 traffic queries — total clicks (same set, previous {{ period_days | default(7) }}d)">
                 <span class="home-sc-top50-label">top 50</span>
@@ -381,8 +417,10 @@
               {% else %}
                 <div class="home-sc-spark-empty" aria-hidden="true"></div>
               {% endif %}
-              <p class="home-kpi home-delta mt-1 is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</p>
-              <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
+              <div class="home-kpi-row">
+                <span class="home-kpi home-delta is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</span>
+                <span class="home-kpi-compare">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</span>
+              </div>
               {% if dev.top50_has_data %}
               <div class="home-sc-top50" title="Top 50 traffic queries — impression-weighted avg. position">
                 <span class="home-sc-top50-label">top 50</span>
