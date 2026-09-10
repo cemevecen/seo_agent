@@ -56,7 +56,7 @@
              data-home-rt-project="{{ _proj }}"
              style="--rt-cols: {{ _cols }};">
           {% for prof in site.profiles %}
-            <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2.5 py-2.5 xl:px-3"
+            <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl"
                  data-home-rt-key="{{ site.site_id }}-{{ prof.key }}"
                  data-home-rt-project="{{ _proj }}">
               <span class="home-rt-plat {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}"

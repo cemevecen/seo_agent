@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v63-home-rt-responsive">
+<style id="home-site-borders" data-home-css="v64-home-rt-inline">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -1233,7 +1233,7 @@
   }
   .home-rt-project-band {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--rt-cols, 2), minmax(0, 1fr));
     gap: 0.45rem;
     min-width: 0;
     width: 100%;
@@ -1241,12 +1241,7 @@
     container-name: home-rt-band;
   }
   .home-rt-project-band[data-home-rt-project="sinemalar"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  @media (min-width: 30rem) {
-    .home-rt-project-band[data-home-rt-project="doviz"] {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
+    grid-template-columns: repeat(var(--rt-cols, 2), minmax(0, 1fr));
   }
   @container home-rt-band (max-width: 22rem) {
     .home-rt-project-band[data-home-rt-project="doviz"] {
@@ -1264,23 +1259,17 @@
     container-type: inline-size;
     container-name: home-rt;
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 0.25rem;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: clamp(0.25rem, 2.5cqi, 0.55rem);
     min-width: 0;
     min-height: 0;
+    padding-block: clamp(0.4rem, 3.2cqi, 0.65rem) !important;
+    padding-inline: clamp(0.45rem, 3.5cqi, 0.8rem) !important;
     border: 1px solid rgba(148, 163, 184, 0.14);
     background: linear-gradient(180deg, rgba(248, 250, 252, 0.72), rgba(248, 250, 252, 0.18));
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
-  }
-  @container home-rt (min-width: 6.5rem) {
-    .home-rt-metric {
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.35rem;
-    }
   }
   .home-rt-metric::before {
     content: none;
@@ -1288,40 +1277,36 @@
   #home-board .home-readable .home-rt-kpi {
     margin: 0;
     min-width: 0;
-    flex: 0 0 auto;
-    text-align: left;
+    flex: 1 1 auto;
+    text-align: right;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     overflow-wrap: normal;
     word-break: normal;
-    font-size: clamp(0.72rem, 20cqi, 1rem) !important;
+    font-size: clamp(0.72rem, 18cqi, 1.05rem) !important;
     line-height: 1.1 !important;
     max-width: 100%;
-  }
-  @container home-rt (min-width: 6.5rem) {
-    #home-board .home-readable .home-rt-kpi {
-      text-align: right;
-    }
   }
   .home-rt-plat {
     display: block;
     flex: 0 1 auto;
     min-width: 0;
-    max-width: 100%;
+    max-width: 55%;
     margin: 0;
     padding: 0;
     white-space: nowrap;
-    overflow: visible;
+    overflow: hidden;
+    text-overflow: ellipsis;
     overflow-wrap: normal;
     word-break: keep-all;
     text-transform: uppercase;
     font-weight: 800;
     letter-spacing: clamp(0.01em, 0.4cqi, 0.04em);
     line-height: 1;
-    font-size: min(0.7rem, calc(100cqi / 5.2)) !important;
+    font-size: min(0.7rem, calc(100cqi / 5.8)) !important;
   }
-  @container home-rt (max-width: 6.4rem) {
+  @container home-rt (max-width: 5.75rem) {
     .home-rt-plat[data-plat="mweb"] {
       font-size: 0 !important;
     }
@@ -1340,7 +1325,7 @@
     }
   }
   #home-board .home-readable .home-rt-plat {
-    font-size: min(0.7rem, calc(100cqi / 5.2)) !important;
+    font-size: min(0.7rem, calc(100cqi / 5.8)) !important;
     letter-spacing: clamp(0.01em, 0.4cqi, 0.04em);
     text-transform: uppercase;
     line-height: 1 !important;
@@ -2068,7 +2053,7 @@
   }
   @media (min-width: 30rem) {
     #home-board:not([data-home-focus="split"]) .home-rt-project-band[data-home-rt-project="doviz"] {
-      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      grid-template-columns: repeat(var(--rt-cols, 4), minmax(0, 1fr)) !important;
     }
   }
   #home-board:not([data-home-focus="split"]) .home-rt-metric {
