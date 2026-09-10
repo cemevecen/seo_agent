@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v65-home-sc-top50-row">
+<style id="home-site-borders" data-home-css="v66-home-spark-pastel">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -2097,6 +2097,27 @@
     width: 100%;
     min-width: 0;
   }
+  /* GA4 + SC spark: aynı pastel / transparan çubuk tonu */
+  #home-board .home-ga4-spark-bar-slot.is-above .home-ga4-spark-bar,
+  #home-board .home-sc-spark-bar-slot.is-above .home-sc-spark-bar {
+    background: rgb(167 243 208 / 0.7) !important;
+  }
+  #home-board .home-ga4-spark-bar-slot.is-below .home-ga4-spark-bar,
+  #home-board .home-sc-spark-bar-slot.is-below .home-sc-spark-bar {
+    background: rgb(254 202 202 / 0.7) !important;
+  }
+  html.dark #home-board .home-ga4-spark-bar-slot.is-above .home-ga4-spark-bar,
+  html.charcoal #home-board .home-ga4-spark-bar-slot.is-above .home-ga4-spark-bar,
+  html.dark #home-board .home-sc-spark-bar-slot.is-above .home-sc-spark-bar,
+  html.charcoal #home-board .home-sc-spark-bar-slot.is-above .home-sc-spark-bar {
+    background: rgb(110 231 183 / 0.55) !important;
+  }
+  html.dark #home-board .home-ga4-spark-bar-slot.is-below .home-ga4-spark-bar,
+  html.charcoal #home-board .home-ga4-spark-bar-slot.is-below .home-ga4-spark-bar,
+  html.dark #home-board .home-sc-spark-bar-slot.is-below .home-sc-spark-bar,
+  html.charcoal #home-board .home-sc-spark-bar-slot.is-below .home-sc-spark-bar {
+    background: rgb(253 164 175 / 0.55) !important;
+  }
   /* GA4: 2 kart → 2 kolon; 4 kart (döviz) → hep 4 yan yana. SC quad: 2+2 / 4 */
   #home-board .home-readable .home-ga4-spark-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -2372,7 +2393,7 @@
       {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=50" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=51" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2383,7 +2404,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=50" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=51" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2398,7 +2419,7 @@
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=50" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=51" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2409,7 +2430,7 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=50" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=51" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
