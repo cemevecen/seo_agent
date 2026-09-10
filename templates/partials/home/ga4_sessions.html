@@ -42,23 +42,34 @@
   .home-ga4-spark-cell.home-kpi-rails .home-label {
     margin: 0;
   }
-  .home-ga4-spark-svg {
-    display: block;
+  .home-ga4-spark-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
     width: 100%;
     height: 1.75rem;
     margin-top: 0.35rem;
   }
-  .home-ga4-spark-line {
-    fill: none;
-    stroke: #0f172a;
-    stroke-width: 1.75;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    vector-effect: non-scaling-stroke;
+  .home-ga4-spark-bar-slot {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
   }
-  html.dark .home-ga4-spark-line,
-  html.charcoal .home-ga4-spark-line {
-    stroke: #a1a1aa;
+  .home-ga4-spark-bar {
+    display: block;
+    width: 100%;
+    min-height: 2px;
+    border-radius: 1px 1px 0 0;
+    background: #0f172a;
+  }
+  html.dark .home-ga4-spark-bar,
+  html.charcoal .home-ga4-spark-bar {
+    background: #a1a1aa;
+  }
+  .home-ga4-spark-bar-slot.is-empty .home-ga4-spark-bar {
+    opacity: 0.22;
   }
   .home-ga4-spark-empty {
     margin-top: 0.35rem;
@@ -127,10 +138,14 @@
           <span class="home-kpi-rails__rail" aria-hidden="true"></span>
           <div class="home-kpi-rails__body">
             <p class="home-label text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
-            {% if prof.spark and prof.spark.has_points and prof.spark.path_d %}
-              <svg class="home-ga4-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                <path class="home-ga4-spark-line" d="{{ prof.spark.path_d }}"></path>
-              </svg>
+            {% if prof.spark and prof.spark.has_points and prof.spark.bar_slots %}
+              <div class="home-ga4-spark-bars" role="img" aria-hidden="true">
+                {% for slot in prof.spark.bar_slots %}
+                  <span class="home-ga4-spark-bar-slot{% if slot.empty %} is-empty{% endif %}">
+                    <span class="home-ga4-spark-bar" style="height: {{ slot.height_pct }}%"></span>
+                  </span>
+                {% endfor %}
+              </div>
             {% else %}
               <div class="home-ga4-spark-empty" aria-hidden="true"></div>
             {% endif %}

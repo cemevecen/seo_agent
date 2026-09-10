@@ -103,12 +103,32 @@ def test_home_sc_aggregate_includes_spark_paths(_mock_top50, _mock_pages):
     }
     agg = _home_sc_device_aggregate(db, 1, "DESKTOP", summary_payload=summary)
     assert agg["clicks_spark"]["has_points"] is True
+    assert agg["clicks_spark"]["bar_slots"]
     assert agg["clicks_spark"]["path_d"]
     assert agg["pos_spark"]["has_points"] is True
     assert agg["clicks_tone"] == "up-strong"
     assert agg["pos_tone"] == "up"  # 5.5 → 5.0 = +0.5 sıra
     assert agg["top_pages"] == []
     _mock_pages.assert_called_once()
+
+
+def test_home_sc_trend_series_spark_ignores_period_window():
+    """Ana sayfa spark: 30 gün, KPI 7g penceresine kırpılmaz."""
+    dates = [f"2026-07-{d:02d}" for d in range(1, 29)]
+    clicks = [float(i) for i in range(1, 29)]
+    summary = {
+        "current_7d_start": "2026-07-22",
+        "current_7d_end": "2026-07-28",
+        "trend_28d_summary_by_device": {
+            "MOBILE": {"dates": dates, "clicks": clicks, "position": [5.0] * 28},
+        },
+    }
+    series = _home_sc_trend_series(
+        summary, "MOBILE", "clicks", days=30, align_to_window=False
+    )
+    assert len(series) == 28
+    assert series[0] == 1.0
+    assert series[-1] == 28.0
 
 
 @patch("backend.services.warehouse.get_latest_search_console_rows")

@@ -9859,6 +9859,8 @@ def _home_ga4_sessions_from_snap(db, site_id: int, prof_key: str, period_days: i
 
 
 _HOME_PERIOD_DAYS = frozenset({7, 60, 90})
+# Ana sayfa GA4/SC kart spark'ı — KPI döneminden bağımsız son 30 gün.
+_HOME_SPARK_TREND_DAYS = 30
 
 
 def _home_clamp_period_days(raw: object | None) -> int:
@@ -9975,8 +9977,9 @@ def _home_sc_freshness_for_site(db, site_id: int, *, period_days: int = 7) -> di
 
 
 def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int = 7) -> list[float]:
-    """GA4 günlük session serisi — KPI ile aynı dönem penceresine hizalı spark."""
+    """GA4 günlük session serisi — spark penceresi (KPI döneminden bağımsız olabilir)."""
     values: list[float] = []
+    want = max(2, int(days or 7))
     try:
         period_daily: dict | None = None
         last_start = ""
@@ -10011,15 +10014,16 @@ def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int
         )
         dates = [str(d)[:10] for d in ((spark_daily or {}).get("dates") or [])]
         sessions = [float(v or 0) for v in ((spark_daily or {}).get("sessions") or [])]
+        # Snap penceresi istenen günden kısaysa (ör. 7g snap + 30g spark) kırpma.
         if last_start and last_end and dates and len(dates) == len(sessions):
             paired = [
                 sessions[i]
                 for i, d in enumerate(dates)
                 if last_start <= d <= last_end
             ]
-            if len(paired) >= 2:
-                return paired[-max(2, int(days)) :]
-        values = sessions[-max(2, int(days)) :]
+            if len(paired) >= want:
+                return paired[-want:]
+        values = sessions[-want:]
     except Exception:  # noqa: BLE001
         LOGGER.debug("home ga4 spark failed site=%s profile=%s", site_id, prof_key, exc_info=True)
         values = []
@@ -10034,19 +10038,26 @@ def _home_sc_trend_series(
     days: int = 7,
     window_start: str | None = None,
     window_end: str | None = None,
+    align_to_window: bool = True,
 ) -> list[float]:
-    """Search Console günlük serisi — mümkünse current_{N}d penceresine hizalı."""
+    """Search Console günlük serisi — mümkünse current_{N}d penceresine hizalı.
+
+    align_to_window=False: KPI döneminden bağımsız son N gün (ana sayfa spark).
+    """
     if not summary_payload:
         return []
     days_i = max(2, int(days or 7))
-    want_start = str(window_start or "")[:10] if window_start else ""
-    want_end = str(window_end or "")[:10] if window_end else ""
-    if not want_start or not want_end:
-        want_start = str(summary_payload.get(f"current_{days_i}d_start") or "")[:10]
-        want_end = str(summary_payload.get(f"current_{days_i}d_end") or "")[:10]
-    if not want_start or not want_end:
-        want_start = str(summary_payload.get("current_7d_start") or "")[:10]
-        want_end = str(summary_payload.get("current_7d_end") or "")[:10]
+    want_start = ""
+    want_end = ""
+    if align_to_window:
+        want_start = str(window_start or "")[:10] if window_start else ""
+        want_end = str(window_end or "")[:10] if window_end else ""
+        if not want_start or not want_end:
+            want_start = str(summary_payload.get(f"current_{days_i}d_start") or "")[:10]
+            want_end = str(summary_payload.get(f"current_{days_i}d_end") or "")[:10]
+        if not want_start or not want_end:
+            want_start = str(summary_payload.get("current_7d_start") or "")[:10]
+            want_end = str(summary_payload.get("current_7d_end") or "")[:10]
     by_dev = {}
     if days_i > 28:
         by_dev = summary_payload.get("trend_12m_summary_by_device") or {}
@@ -10227,7 +10238,9 @@ def _home_load_ga4_sessions_for_site(
                     prev_v = float(latest_metrics.get(f"ga4_{prof_key}_sessions_prev{pd}d_total") or 0.0)
                     break
         delta_fmt, tone, delta_pct = _home_pct_delta(last_v, prev_v)
-        spark_vals = _home_ga4_session_spark_values(db, site_id, prof_key, days=period_days)
+        spark_vals = _home_ga4_session_spark_values(
+            db, site_id, prof_key, days=_HOME_SPARK_TREND_DAYS
+        )
         spark = _home_spark_paths(spark_vals, width=96, height=28, pad=2)
         top_pages: list[dict] = []
         if prof_key in ("web", "mweb"):
@@ -11098,15 +11111,14 @@ def _home_sc_device_aggregate(
     clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
     pos_diff = _sc_position_delta(c_pos, p_pos)
     pos_tone = _home_pos_tone(pos_diff)
-    trend_window = (row_start, row_end) if row_start and row_end else (None, None)
+    # Spark: KPI döneminden bağımsız son 30 gün (yüzde / karşılaştırma etkilenmez).
     clicks_spark = _home_spark_paths(
         _home_sc_trend_series(
             summary,
             device,
             "clicks",
-            days=period_days,
-            window_start=trend_window[0],
-            window_end=trend_window[1],
+            days=_HOME_SPARK_TREND_DAYS,
+            align_to_window=False,
         ),
         width=96,
         height=28,
@@ -11117,9 +11129,8 @@ def _home_sc_device_aggregate(
             summary,
             device,
             "position",
-            days=period_days,
-            window_start=trend_window[0],
-            window_end=trend_window[1],
+            days=_HOME_SPARK_TREND_DAYS,
+            align_to_window=False,
         ),
         width=96,
         height=28,

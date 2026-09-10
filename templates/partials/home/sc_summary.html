@@ -132,23 +132,34 @@
     background: rgb(42 42 46);
     box-shadow: none;
   }
-  .home-sc-spark-svg {
-    display: block;
+  .home-sc-spark-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
     width: 100%;
     height: 1.75rem;
     margin-top: 0.35rem;
   }
-  .home-sc-spark-line {
-    fill: none;
-    stroke: #0f172a;
-    stroke-width: 1.75;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    vector-effect: non-scaling-stroke;
+  .home-sc-spark-bar-slot {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
   }
-  html.dark .home-sc-spark-line,
-  html.charcoal .home-sc-spark-line {
-    stroke: #a1a1aa;
+  .home-sc-spark-bar {
+    display: block;
+    width: 100%;
+    min-height: 2px;
+    border-radius: 1px 1px 0 0;
+    background: #0f172a;
+  }
+  html.dark .home-sc-spark-bar,
+  html.charcoal .home-sc-spark-bar {
+    background: #a1a1aa;
+  }
+  .home-sc-spark-bar-slot.is-empty .home-sc-spark-bar {
+    opacity: 0.22;
   }
   .home-sc-spark-empty {
     margin-top: 0.35rem;
@@ -302,10 +313,14 @@
             <span class="home-kpi-rails__rail" aria-hidden="true"></span>
             <div class="home-kpi-rails__body">
               <p class="home-label home-sc-metric-kicker">{{ want_label }} · Clicks</p>
-              {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
-                <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                  <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
-                </svg>
+              {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.bar_slots %}
+                <div class="home-sc-spark-bars" role="img" aria-hidden="true">
+                  {% for slot in dev.clicks_spark.bar_slots %}
+                    <span class="home-sc-spark-bar-slot{% if slot.empty %} is-empty{% endif %}">
+                      <span class="home-sc-spark-bar" style="height: {{ slot.height_pct }}%"></span>
+                    </span>
+                  {% endfor %}
+                </div>
               {% else %}
                 <div class="home-sc-spark-empty" aria-hidden="true"></div>
               {% endif %}
@@ -330,10 +345,14 @@
             <span class="home-kpi-rails__rail" aria-hidden="true"></span>
             <div class="home-kpi-rails__body">
               <p class="home-label home-sc-metric-kicker">{{ want_label }} · Position</p>
-              {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
-                <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                  <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>
-                </svg>
+              {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.bar_slots %}
+                <div class="home-sc-spark-bars" role="img" aria-hidden="true">
+                  {% for slot in dev.pos_spark.bar_slots %}
+                    <span class="home-sc-spark-bar-slot{% if slot.empty %} is-empty{% endif %}">
+                      <span class="home-sc-spark-bar" style="height: {{ slot.height_pct }}%"></span>
+                    </span>
+                  {% endfor %}
+                </div>
               {% else %}
                 <div class="home-sc-spark-empty" aria-hidden="true"></div>
               {% endif %}
