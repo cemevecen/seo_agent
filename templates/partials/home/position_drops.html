@@ -55,9 +55,55 @@
   }
   .home-pos-drops .home-pos-head {
     display: flex;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem 0.5rem;
     min-width: 0;
+  }
+  .home-pos-drops .home-pos-asof {
+    margin: 0;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.625rem;
+    line-height: 1.2;
+  }
+  .home-pos-drops > .home-shell-head {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem 0.55rem;
+  }
+  .home-pos-drops > .home-shell-head .home-shell-toggle {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .home-pos-drops > .home-shell-head .home-pos-mode-chips {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+  .home-pos-drops > .home-shell-head .home-shell-head-tools {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+  @container home-pos (max-width: 520px) {
+    .home-pos-drops > .home-shell-head {
+      flex-wrap: wrap;
+      row-gap: 0.35rem;
+    }
+    .home-pos-drops > .home-shell-head .home-shell-toggle {
+      flex: 1 1 12rem;
+    }
+  }
+  @container home-pos (max-width: 360px) {
+    .home-pos-drops .home-pos-asof {
+      max-width: 6.5rem;
+    }
+    .home-pos-drops .home-pos-mode-chip {
+      padding: 0.1rem 0.35rem;
+      font-size: 0.4375rem;
+    }
   }
   .home-pos-drops .home-pos-cols {
     display: grid;
@@ -173,7 +219,7 @@
   }
   .home-pos-drops .home-pos-mode-chips {
     display: inline-flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 0.35rem;
   }
@@ -284,16 +330,18 @@
             data-home-shell-toggle
             aria-expanded="true"
             aria-controls="home-pos-shell-body">
-      <div class="min-w-0">
-        <div class="home-pos-head">
-          {{ brand_icon(block.site_key if block and block.site_key else ('doviz' if block and block.site_id == 1 else 'sinemalar')) }}
-          {{ container_chip('position') }}
-        </div>
+      <div class="home-pos-head">
+        {{ brand_icon(block.site_key if block and block.site_key else ('doviz' if block and block.site_id == 1 else 'sinemalar')) }}
+        {{ container_chip('position') }}
         {% if block and block.as_of_label %}
-          <p class="mt-1 home-pos-asof home-meta tabular-nums text-slate-600 dark:text-slate-300">{{ block.as_of_label }}</p>
+          <span class="home-pos-asof home-meta tabular-nums text-slate-600 dark:text-slate-300" title="{{ block.as_of_label }}">{{ block.as_of_label }}</span>
         {% endif %}
       </div>
     </button>
+    <div class="home-pos-mode-chips" role="tablist" aria-label="Position view">
+      <button type="button" class="home-pos-mode-chip is-active" data-pos-mode-set="impact" role="tab" aria-selected="true">change</button>
+      <button type="button" class="home-pos-mode-chip" data-pos-mode-set="top20" role="tab" aria-selected="false" title="{{ block.top20_scope_label if block and block.top20_scope_label else 'Search Console Top queries · Mobile · Last 7 days' }}">top 20</button>
+    </div>
     <div class="home-shell-head-tools">
       {% if not hide_nav_link %}
       <a href="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
@@ -310,15 +358,9 @@
             aria-label="Expand or collapse">
       <span class="home-shell-chevron" aria-hidden="true"></span>
     </button>
-
   </div>
 
   <div id="home-pos-shell-body" class="home-shell-body" data-home-shell-body>
-  <div class="home-pos-mode-chips" role="tablist" aria-label="Position view">
-    <button type="button" class="home-pos-mode-chip is-active" data-pos-mode-set="impact" role="tab" aria-selected="true">change</button>
-    <button type="button" class="home-pos-mode-chip" data-pos-mode-set="top20" role="tab" aria-selected="false" title="{{ block.top20_scope_label if block and block.top20_scope_label else 'Search Console Top queries · Mobile · Last 7 days' }}">top 20</button>
-  </div>
-
   <div data-pos-panel="impact">
     {{ pos_panels(_real_drops, _real_rises, 'No significant position change in Top 50') }}
   </div>
