@@ -10,7 +10,10 @@ import logging
 import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -428,6 +431,80 @@ def list_play_ga4_overlay_metrics() -> dict[str, Any]:
             {"value": f"ga4:{key}", "label": label, "array_key": arr}
             for key, (arr, label) in _GA4_OVERLAY_METRICS.items()
         ],
+    }
+
+
+class Ga4TrendIngestBody(BaseModel):
+    project: str = "doviz"
+    profile: str = "android"
+    period_days: int = 365
+    last_start: str = ""
+    last_end: str = ""
+    daily_trend: dict[str, Any] = Field(default_factory=dict)
+
+
+def _check_ga4_trend_token(
+    authorization: str | None,
+    x_notification_ingest_token: str | None,
+) -> None:
+    from backend.config import settings
+
+    expected = (settings.notification_ingest_token or "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="NOTIFICATION_INGEST_TOKEN yok")
+    got = (x_notification_ingest_token or "").strip()
+    if not got and authorization:
+        raw = authorization.strip()
+        got = raw[7:].strip() if raw.lower().startswith("bearer ") else raw
+    if not got or got != expected:
+        raise HTTPException(status_code=401, detail="Geçersiz ingest token.")
+
+
+@router.post("/play-analytics/ga4-trend-ingest")
+def post_ga4_trend_ingest(
+    body: Ga4TrendIngestBody,
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Mac bridge → Railway GA4 daily_trend snapshot (Android overlay boşluğunu kapatır)."""
+    from backend.services.warehouse import save_ga4_report_snapshot
+
+    _check_ga4_trend_token(authorization, x_notification_ingest_token)
+    prof = (body.profile or "android").strip().lower()
+    if prof not in ("android", "ios", "web", "mweb"):
+        raise HTTPException(status_code=400, detail="profile android|ios|web|mweb")
+    trend = body.daily_trend if isinstance(body.daily_trend, dict) else {}
+    dates = trend.get("dates") if isinstance(trend.get("dates"), list) else []
+    if not dates:
+        raise HTTPException(status_code=400, detail="daily_trend.dates boş")
+    site = _resolve_doviz_site(db, body.project or "doviz")
+    if site is None:
+        raise HTTPException(status_code=404, detail="GA4 sitesi bulunamadı")
+    last_start = (body.last_start or str(dates[0]))[:10]
+    last_end = (body.last_end or str(dates[-1]))[:10]
+    period = int(body.period_days or 365)
+    save_ga4_report_snapshot(
+        db,
+        site_id=int(site.id),
+        profile=prof,
+        period_days=period,
+        last_start=last_start,
+        last_end=last_end,
+        prev_start=last_start,
+        prev_end=last_end,
+        payload={"trend_only": True, "daily_trend": trend, "source": "ga4_trend_ingest"},
+        collected_at=datetime.utcnow(),
+    )
+    db.commit()
+    return {
+        "ok": True,
+        "site_id": site.id,
+        "profile": prof,
+        "period_days": period,
+        "days": len(dates),
+        "last_start": last_start,
+        "last_end": last_end,
     }
 
 

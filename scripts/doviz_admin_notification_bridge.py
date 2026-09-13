@@ -956,6 +956,7 @@ def run_virgul_bridge_once(on_progress=None) -> dict[str, Any]:
         return err
 
     import base64
+    from datetime import timedelta
 
     from backend.services.virgul_ad_client import (
         date_range_yesterday_today,
@@ -973,10 +974,13 @@ def run_virgul_bridge_once(on_progress=None) -> dict[str, Any]:
 
     n_sites = len(VIRGUL_AD_SOURCES)
     total_steps = max(1, n_sites * 2)  # export + ingest
-    v_start, v_end = date_range_yesterday_today()
+    # Dün+bugün bir tur kaçırınca tablo boş kalıyordu. Son 90 günü her turda
+    # yeniden yaz (upsert); Android impression/match boşluğu kapanır.
+    v_end = date_range_yesterday_today()[1]
+    v_start = v_end - timedelta(days=89)
     print(
         f"Virgül reklam export çekiliyor (6 sid) · {v_start.isoformat()} → {v_end.isoformat()} "
-        "(dün+bugün; mühürlü geçmiş yok)…",
+        "(son 90 gün; kaçan gün bir sonraki turda dolar)…",
         flush=True,
     )
     _cb(
@@ -1141,6 +1145,26 @@ def run_play_bridge_once() -> dict[str, Any]:
         run_play_reports_fill(months_back=3)
     except Exception as exc:  # noqa: BLE001
         print(f"Play CSV fill atlandı: {exc}", flush=True)
+    try:
+        from datetime import date, timedelta
+
+        from backend.collectors.ga4 import push_profile_daily_trend
+
+        end = (date.today() - timedelta(days=1)).isoformat()
+        start = (date.today() - timedelta(days=400)).isoformat()
+        ga4 = push_profile_daily_trend(
+            profile="android",
+            property_id="152168629",
+            start=start,
+            end=end,
+        )
+        print(
+            f"GA4 android trend {'ok' if ga4.get('ok') else 'fail'} "
+            f"HTTP {ga4.get('http_status')} · {ga4.get('days') or ga4.get('message')}",
+            flush=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"GA4 android trend atlandı: {exc}", flush=True)
     return _run_play_scrape_inprocess(
         kind="play",
         vitals_only=False,
@@ -2203,7 +2227,15 @@ def _load_empower_module() -> Any:
 
 def _empower_window(mode: str, pipeline: str) -> tuple[Any, Any, bool]:
     """(start, end, yesterday) — mühür kurallarıyla."""
-    if (mode or "").strip().lower() != "backfill":
+    mode_l = (mode or "").strip().lower()
+    if mode_l == "recent":
+        from datetime import timedelta
+
+        from backend.services.history_seal import calendar_yesterday
+
+        end = calendar_yesterday()
+        return end - timedelta(days=89), end, False
+    if mode_l != "backfill":
         return None, None, True
     try:
         from backend.services.history_seal import scheduled_fetch_window
@@ -4882,7 +4914,7 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
         "empower_intel": {
             "name": "EmpowerIntel",
             "lock": _empower_intel_lock,
-            "runner": run_empower_intel_bridge_once,
+            "runner": lambda: run_empower_intel_bridge_once(mode="recent"),
         },
         "empower_intel_sinemalar": {
             "name": "EmpowerIntelSinemalar",
@@ -5708,7 +5740,7 @@ def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
         "empower_intel": {
             "name": "EmpowerIntel",
             "lock": _empower_intel_lock,
-            "runner": run_empower_intel_bridge_once,
+            "runner": lambda: run_empower_intel_bridge_once(mode="recent"),
         },
         "empower_intel_sinemalar": {
             "name": "EmpowerIntelSinemalar",

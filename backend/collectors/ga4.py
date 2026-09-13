@@ -486,6 +486,54 @@ def collect_ga4_scheduled_site_metrics(db: Session, site: Site) -> None:
     collect_ga4_12m_daily_trend(db, site)
 
 
+def push_profile_daily_trend(
+    *,
+    profile: str = "android",
+    property_id: str,
+    start: str,
+    end: str,
+    period_days: int = 365,
+) -> dict[str, Any]:
+    """GA4 günlük trend → Railway overlay snapshot. Oturum gerekmez."""
+    import os
+
+    import requests
+
+    token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
+    url = (
+        os.environ.get("GA4_TREND_INGEST_URL")
+        or "https://projectcontrol.up.railway.app/api/play-analytics/ga4-trend-ingest"
+    ).strip()
+    if not token:
+        return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN yok"}
+    daily = _run_daily_kpi_trend(_client(), property_id, start=start, end=end)
+    dates = daily.get("dates") or []
+    if not dates:
+        return {"ok": False, "message": "GA4 gün yok", "profile": profile}
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={
+            "project": "doviz",
+            "profile": profile,
+            "period_days": period_days,
+            "last_start": str(dates[0])[:10],
+            "last_end": str(dates[-1])[:10],
+            "daily_trend": daily,
+        },
+        timeout=120,
+    )
+    try:
+        payload = resp.json()
+    except Exception:
+        payload = {"message": (resp.text or "")[:300]}
+    if not isinstance(payload, dict):
+        payload = {"message": str(payload)[:300]}
+    payload["http_status"] = resp.status_code
+    payload["ok"] = resp.status_code < 400 and payload.get("ok") is not False
+    return payload
+
+
 def collect_ga4_12m_daily_trend(db: Session, site: Site, *, profile: str | None = None) -> dict:
     """Son 12 ay günlük KPI trendi (karşılaştırma / kanal / sayfa yok)."""
     from backend.config import settings
