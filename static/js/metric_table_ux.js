@@ -584,7 +584,7 @@
     table.style.minWidth = "100%";
     table.style.maxWidth = "none";
     table.style.tableLayout = "fixed";
-    table.style.height = "100%";
+    table.style.height = "auto";
 
     var ths = Array.prototype.slice.call(table.querySelectorAll("thead th")).filter(function (th) {
       return !th.classList.contains("mtux-avg-gap");
@@ -625,27 +625,43 @@
       th.style.maxWidth = w + "px";
     });
 
-    if (!shell) return;
-    var top = shell.getBoundingClientRect().top;
-    var avail = Math.max(280, Math.round(window.innerHeight - top - 12));
-    shell.style.minHeight = avail + "px";
-    shell.style.height = avail + "px";
-    var legend = shell.querySelector(".mtux-legend");
-    var handle = shell.querySelector(".rdl-handle");
-    var used = (legend ? legend.offsetHeight : 0) + (handle ? handle.offsetHeight : 0);
-    var wrapH = Math.max(160, avail - used);
-    wrap.style.height = wrapH + "px";
-    wrap.style.maxHeight = wrapH + "px";
-    wrap.style.flex = "1 1 auto";
-    var headH = 0;
-    var thead = table.querySelector("thead");
-    if (thead) headH = thead.offsetHeight || 34;
     var bodyRows = Array.prototype.slice.call(table.querySelectorAll("tbody tr")).filter(function (tr) {
       return !tr.classList.contains("mtux-avg-gap-row");
     });
+    bodyRows.forEach(function (tr) { tr.style.height = ""; });
+    if (!shell) return;
+    // Uzun aralık (yüzlerce gün) satır boyunu şişirmez — kart kayar, beyaz levha olmaz.
+    // Kısa listede satırlar kart yüksekliğini paylaşır.
+    var STRETCH_MAX_ROWS = 16;
+    var top = shell.getBoundingClientRect().top;
+    var avail = Math.max(220, Math.min(520, Math.round(window.innerHeight - top - 28)));
+    if (bodyRows.length > STRETCH_MAX_ROWS) {
+      shell.style.minHeight = "";
+      shell.style.height = "";
+      wrap.style.height = "";
+      wrap.style.maxHeight = "";
+      wrap.style.flex = "";
+      if (window.SeoResizableDataList && typeof window.SeoResizableDataList.fit === "function") {
+        window.SeoResizableDataList.fit(shell, bodyRows.length);
+      }
+      return;
+    }
+    shell.style.minHeight = "";
+    shell.style.height = "";
+    var legend = shell.querySelector(".mtux-legend");
+    var handle = shell.querySelector(".rdl-handle");
+    var chrome = (legend ? legend.offsetHeight : 0) + (handle ? handle.offsetHeight : 0);
+    var wrapH = Math.max(160, avail - chrome);
+    wrap.style.height = wrapH + "px";
+    wrap.style.maxHeight = wrapH + "px";
+    wrap.style.flex = "1 1 auto";
     if (!bodyRows.length) return;
+    var headH = 0;
+    var thead = table.querySelector("thead");
+    if (thead) headH = thead.offsetHeight || 34;
     var rowH = Math.floor((wrapH - headH - 4) / bodyRows.length);
     if (rowH < 28) rowH = 28;
+    if (rowH * bodyRows.length + headH > wrapH + 8) return;
     bodyRows.forEach(function (tr) {
       tr.style.height = rowH + "px";
     });
