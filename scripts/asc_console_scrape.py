@@ -1252,7 +1252,47 @@ def _capture_measures_via_ui(
     return bodies
 
 
-def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
+def _date_chunks(start: date, end: date, size: int = 90) -> list[tuple[date, date]]:
+    out: list[tuple[date, date]] = []
+    cur = start
+    span = max(1, int(size))
+    while cur <= end:
+        chunk_end = min(end, cur + timedelta(days=span - 1))
+        out.append((cur, chunk_end))
+        cur = chunk_end + timedelta(days=1)
+    return out
+
+
+def _post_measures_range(page, measures: list[str], *, start: date, end: date) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Uzun aralığı 90 günlük dilimlerde çek — ASC tek istekte geçmişi keser."""
+    facts: list[dict[str, Any]] = []
+    last: dict[str, Any] = {"ok": False, "status": 0, "message": "aralık boş"}
+    for chunk_start, chunk_end in _date_chunks(start, end, 90):
+        resp = _post_measures(page, measures, start=chunk_start, end=chunk_end)
+        last = resp
+        if resp.get("ok"):
+            got = _facts_from_measures_response(resp.get("body") or {})
+            facts.extend(got)
+            print(
+                f"  · {chunk_start} → {chunk_end} · {len(got)} fact",
+                flush=True,
+            )
+        else:
+            print(
+                f"  · {chunk_start} → {chunk_end} fail HTTP {resp.get('status')} · "
+                f"{str(resp.get('message') or '')[:140]}",
+                flush=True,
+            )
+        time.sleep(0.35)
+    return last, facts
+
+
+def scrape_asc_console(
+    *,
+    headed: bool | None = None,
+    start: date | None = None,
+    end: date | None = None,
+) -> dict[str, Any]:
     env_hl = (os.environ.get("ASC_CONSOLE_HEADLESS") or "").strip().lower()
     if headed is None:
         headed = env_hl not in ("1", "true", "yes")
@@ -1352,9 +1392,13 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                     "raw_network": [],
                 }
 
-        win = _scrape_window()
-        end_d = win["end"]
-        start_d = win["start"]
+        if start is not None and end is not None:
+            start_d, end_d = start, end
+            win = {"mode": "explicit_range", "start": start_d, "end": end_d, "days": (end_d - start_d).days + 1}
+        else:
+            win = _scrape_window()
+            end_d = win["end"]
+            start_d = win["start"]
         scrape_days = int(win.get("days") or ((end_d - start_d).days + 1))
         print(
             f"ASC scrape aralık · {win.get('mode')} · {start_d} → {end_d} ({scrape_days} gün)",
@@ -1370,7 +1414,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 flush=True,
             )
         for batch in measure_batches:
-            resp = _post_measures(page, batch, start=start_d, end=end_d)
+            resp, facts_batch = _post_measures_range(page, batch, start=start_d, end=end_d)
             raw_network.append(
                 {
                     "url": ANALYTICS_MEASURES_URL,
@@ -1394,7 +1438,6 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                         "message": str(resp.get("message") or "")[:160],
                     }
                 continue
-            facts_batch = _facts_from_measures_response(resp.get("body") or {})
             counts: dict[str, int] = {}
             for f in facts_batch:
                 mk = str(f.get("view_id") or "")
@@ -1424,7 +1467,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 keys = prefer.get(metric) or [metric]
                 got_any = False
                 for mk in keys:
-                    resp = _post_measures(page, [mk], start=start_d, end=end_d)
+                    resp, facts_batch = _post_measures_range(page, [mk], start=start_d, end=end_d)
                     raw_network.append(
                         {
                             "url": ANALYTICS_MEASURES_URL,
@@ -1448,7 +1491,6 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                             "message": str(resp.get("message") or "")[:160],
                         }
                         continue
-                    facts_batch = _facts_from_measures_response(resp.get("body") or {})
                     # yalnızca hedef metriği al
                     facts_batch = [
                         f for f in facts_batch if str(f.get("metric") or "") == metric
@@ -1665,7 +1707,12 @@ def main() -> int:
     headed = "--headless" not in args
     if "--headed" in args:
         headed = True
-    result = scrape_asc_console(headed=headed)
+    start = end = None
+    if "--start" in args:
+        start = date.fromisoformat(args[args.index("--start") + 1])
+    if "--end" in args:
+        end = date.fromisoformat(args[args.index("--end") + 1])
+    result = scrape_asc_console(headed=headed, start=start, end=end)
     print(result.get("message") or result, flush=True)
     if result.get("needs_login"):
         return 2

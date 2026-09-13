@@ -1162,6 +1162,17 @@ def run_play_bridge_once() -> dict[str, Any]:
             f"HTTP {ga4.get('http_status')} · {ga4.get('days') or ga4.get('message')}",
             flush=True,
         )
+        ga4_ios = push_profile_daily_trend(
+            profile="ios",
+            property_id="163175967",
+            start=start,
+            end=end,
+        )
+        print(
+            f"GA4 ios trend {'ok' if ga4_ios.get('ok') else 'fail'} "
+            f"HTTP {ga4_ios.get('http_status')} · {ga4_ios.get('days') or ga4_ios.get('message')}",
+            flush=True,
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"GA4 android trend atlandı: {exc}", flush=True)
     return _run_play_scrape_inprocess(
