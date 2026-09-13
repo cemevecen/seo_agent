@@ -46,13 +46,13 @@
       "border-right:1px solid rgba(148,163,184,0.14);border-bottom:1px solid rgba(148,163,184,0.14);}" +
       "html.dark table.mtux-grid-table th,html.dark table.mtux-grid-table td{border-color:rgba(63,63,70,0.75);}" +
       "table.mtux-grid-table thead th{background:#eef2f7;color:#64748b;font-size:0.62rem;" +
-      "font-weight:700;letter-spacing:0.05em;text-transform:uppercase;}" +
+      "font-weight:700;letter-spacing:0.05em;text-transform:uppercase;text-align:center;}" +
       "html.dark table.mtux-grid-table thead th{background:#2a2a2e;color:#a1a1aa;}" +
       "table.mtux-grid-table tbody tr:nth-child(even) td.mtux-dim-cell{background:rgba(248,250,252,0.72);}" +
       "html.dark table.mtux-grid-table tbody tr:nth-child(even) td.mtux-dim-cell{background:rgba(24,24,27,0.55);}" +
       "table.mtux-grid-table tbody tr:hover td{filter:brightness(0.98);}" +
       "html.dark table.mtux-grid-table tbody tr:hover td{filter:brightness(1.06);}" +
-      ".mtux-heat-cell{border-radius:0!important;padding:0.38rem 0.62rem;font-weight:600;}" +
+      ".mtux-heat-cell{border-radius:0!important;padding:0.38rem 0.62rem;font-weight:600;text-align:center;}" +
       ".mtux-dim-cell{padding:0.38rem 0.62rem;font-weight:500;color:#334155;}" +
       "html.dark .mtux-dim-cell{color:#e4e4e7;}" +
       ".mtux-avg-row td{font-weight:700;background:rgba(241,245,249,0.95)!important;}" +
@@ -96,8 +96,8 @@
       "table.mtux-interactive th.mtux-th:not([data-mtux-fixed='1']){min-width:5.25rem;}" +
       "table.mtux-interactive th[data-mtux-fixed='1']{min-width:5.5rem;}" +
       "table.mtux-interactive td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
-      ".mtux-th-label{display:inline-flex;align-items:center;justify-content:flex-end;gap:0.25rem;" +
-      "max-width:100%;min-width:0;vertical-align:middle;}" +
+      ".mtux-th-label{display:inline-flex;align-items:center;justify-content:center;gap:0.25rem;" +
+      "width:100%;max-width:100%;min-width:0;vertical-align:middle;}" +
       ".mtux-th-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:11rem;}";
   }
 
@@ -505,19 +505,19 @@
           '" data-mtux-key="metric" data-mtux-fixed="1">Metric</th>';
       keys.forEach(function (key, ki) {
         head +=
-          '<th class="mtux-th px-1 py-2 text-right sm:px-1.5 ' + stickyClasses(pin, false, true, false) +
+          '<th class="mtux-th px-1 py-2 text-center sm:px-1.5 ' + stickyClasses(pin, false, true, false) +
           '" data-mtux-key="d:' + esc(key) + '" title="' + esc(fmtKey(key)) + '">' +
             esc(fmtKey(key)) +
           "</th>";
       });
       head +=
         '<th class="mtux-avg-gap" aria-hidden="true"></th>' +
-        '<th class="mtux-th mtux-avg-col-header px-1 py-2 text-right sm:px-1.5 ' +
+        '<th class="mtux-th mtux-avg-col-header px-1 py-2 text-center sm:px-1.5 ' +
           stickyClasses(pin, false, true, false) +
         '" data-mtux-key="avg" data-mtux-fixed="1">' + esc(averageLabel) + "</th>";
       if (showTotal) {
         head +=
-          '<th class="mtux-th mtux-avg-col-header mtux-total-col-header px-1 py-2 text-right sm:px-1.5 ' +
+          '<th class="mtux-th mtux-avg-col-header mtux-total-col-header px-1 py-2 text-center sm:px-1.5 ' +
             stickyClasses(pin, false, true, false) +
           '" data-mtux-key="total" data-mtux-fixed="1">' + esc(totalLabel) + "</th>";
       }
