@@ -829,7 +829,10 @@ def fetch_error_counts_by_dimension(
         return [], "Reporting service yok (GP_SERVICE_ACCOUNT_JSON?)"
     dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel") else "versionCode"
     ui_dim = _reporting_ui_dim(dim)
-    metric_key = "anrs" if report_type == "APPLICATION_NOT_RESPONDING" else "crashes"
+    # Play API reportType is "ANR", not APPLICATION_NOT_RESPONDING (that string 400s).
+    anr_aliases = {"ANR", "APPLICATION_NOT_RESPONDING"}
+    metric_key = "anrs" if report_type in anr_aliases else "crashes"
+    api_report_type = "ANR" if report_type in anr_aliases else report_type
     fresh = _get_metric_freshness(svc, kind="errors", package_name=package_name)
     start_d, _, end_excl = _clip_reporting_range(start, end, freshness_exclusive=fresh)
     name = f"apps/{package_name}/errorCountMetricSet"
@@ -843,7 +846,7 @@ def fetch_error_counts_by_dimension(
             },
             "dimensions": ["reportType", dim],
             "metrics": ["errorReportCount", "distinctUsers"],
-            "filter": f'reportType = "{report_type}"',
+            "filter": f'reportType = "{api_report_type}"',
             "pageSize": 100000,
         }
         out: list[dict[str, Any]] = []
@@ -862,7 +865,7 @@ def fetch_error_counts_by_dimension(
                 if not ds:
                     continue
                 seg = _dim_segment(row, dim)
-                if not seg or seg in ("UNKNOWN", report_type):
+                if not seg or seg in ("UNKNOWN", report_type, api_report_type):
                     continue
                 metrics = {
                     (m.get("metric") or ""): m
