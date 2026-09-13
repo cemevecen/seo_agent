@@ -103,11 +103,16 @@ def get_asc_metrics_overview(
         description="Virgülle ayrılmış metrik listesi",
     ),
     bundle_id: str | None = Query(default=None),
+    compare: str | None = Query(default=None),
 ) -> dict[str, Any]:
     metric_list = [m.strip() for m in (metrics or "").split(",") if m.strip()]
     try:
         return query_asc_overview(
-            start=start, end=end, metrics=metric_list, bundle_id=bundle_id
+            start=start,
+            end=end,
+            metrics=metric_list,
+            bundle_id=bundle_id,
+            compare=compare,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("asc-metrics overview failed")

@@ -185,6 +185,7 @@ def get_play_analytics_overview(
         ),
         description="Virgülle ayrılmış metrik listesi (özet ekranı)",
     ),
+    compare: str | None = Query(default=None),
 ) -> dict[str, Any]:
     """İlk açılış özeti: explorer_facts bir kez yüklenir, tüm metrikler aynı bellekten kesilir."""
     metric_list = [m.strip() for m in (metrics or "").split(",") if m.strip()]
@@ -251,7 +252,7 @@ def get_play_analytics_overview(
                 breakdown="date",
                 dim="overview",
                 segment=None,
-                compare="",
+                compare=compare or "",
                 source="auto",
                 facts=facts,
                 meta=meta,
@@ -279,6 +280,7 @@ def get_play_analytics_overview(
                 "series": data.get("series") or [],
                 "total": data.get("total"),
                 "total_mode": data.get("total_mode") or "sum",
+                "compare": data.get("compare"),
                 "ok": bool(data.get("ok")),
                 "message": data.get("message"),
                 "source": data.get("source"),

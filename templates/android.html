@@ -1426,6 +1426,13 @@
           <option value="all">All</option>
         </select>
       </label>
+      <label class="pa-f pa-f--sm">Compare
+        <select id="pa-compare-mode" aria-label="Compare mode">
+          <option value="">Off</option>
+          <option value="previous_period">Previous period</option>
+          <option value="previous_year">Previous year</option>
+        </select>
+      </label>
       <div class="pa-f pa-f--cross-metric">
         {% with play_metric_overlay_control_id='pa-cross-metric-overlay-root', play_metric_overlay_storage_key='pa-cross-metric', play_metric_overlay_platform='ios', play_metric_overlay_label_prefix='iOS metrics', play_metric_overlay_on_change='paOnCrossMetricOverlayChange', play_metric_overlay_compact=true, play_metric_overlay_persist=false %}
         {% include 'partials/play_metric_overlay_select.html' %}
@@ -1774,6 +1781,7 @@
 <script src="/static/js/resizable_data_list.js?v=6"></script>
 <script src="/static/js/pa_chart_height.js?v=11"></script>
 <script src="/static/js/metric_table_ux.js?v=13"></script>
+<script src="/static/js/metric_period_compare.js?v=1"></script>
 <script>
   window.SEO_XDATA_AVG_KEYS = {{ (xdata_avg_keys or []) | tojson }};
 </script>
@@ -2944,8 +2952,21 @@
     ps.setDate(ps.getDate() - (span - 1));
     return { start: isoDate(ps), end: isoDate(pe) };
   }
+  function paCompareMode() {
+    var el = document.getElementById("pa-compare-mode");
+    var mode = el && el.value;
+    if (mode === "previous_period" || mode === "previous_year") return mode;
+    return (paCompare && paCompare.checked) ? "previous_period" : "";
+  }
   function paCompareEnabled() {
-    return !!(paCompare && paCompare.checked);
+    return !!paCompareMode();
+  }
+  function paCompareBounds() {
+    if (!paCompareMode() || !paStart.value || !paEnd.value || !window.SeoPeriodCompare) return null;
+    return SeoPeriodCompare.bounds(paStart.value, paEnd.value, paCompareMode());
+  }
+  function paCompareActive(meta) {
+    return !!(meta && (meta.mode === "previous_period" || meta.mode === "previous_year"));
   }
   async function fetchOneOverlaySeries(ov, signal, fetchOpts) {
     fetchOpts = fetchOpts || {};
@@ -2969,12 +2990,34 @@
       var gLabel = (window.SeoMarketOverlay.seriesLabel
         ? SeoMarketOverlay.seriesLabel(payload, sk, paMarketIndexScale)
         : (ov.label || metricOptionLabel(metricKey) || sk));
+      var mCmp = null;
+      var mPrev = [];
+      if (wantCompare && window.SeoPeriodCompare) {
+        var mBounds = paCompareBounds();
+        if (mBounds) {
+          try {
+            var mPayload = await SeoMarketOverlay.ensureOverlay(mBounds.start, mBounds.end);
+            mPrev = SeoMarketOverlay.pointsForSeries(mPayload, sk) || [];
+            mCmp = SeoPeriodCompare.fromSeries(
+              { series: SeoMarketOverlay.pointsForSeries(payload, sk) || [], total_mode: "last" },
+              { series: mPrev, total_mode: "last" },
+              paCompareMode(),
+              mBounds
+            );
+            mPrev = (mCmp && mCmp.available) ? (mCmp.series || []) : [];
+          } catch (_) {
+            mCmp = SeoPeriodCompare.unavailable(paCompareMode(), mBounds);
+            mPrev = [];
+          }
+        }
+      }
       return {
         metric: metricKey,
         label: gLabel,
         series: gSeries,
-        prevSeries: [],
-        compareMeta: null,
+        prevSeries: mPrev,
+        compareMeta: mCmp,
+        compare: mCmp,
         breakdown: brMain,
         dim: "overview",
         segment: "all",
@@ -3011,7 +3054,7 @@
       var xdPrev = [];
       var xdCmp = null;
       if (wantCompare && paStart.value && paEnd.value) {
-        var xdBounds = previousPeriodBounds(paStart.value, paEnd.value);
+        var xdBounds = paCompareBounds();
         if (xdBounds) {
           var xdPrevQs = new URLSearchParams({
             start: xdBounds.start,
@@ -3036,20 +3079,29 @@
           } catch (_) {
             xdPrev = [];
           }
-          xdCmp = {
-            mode: "previous_period",
-            start: xdBounds.start,
-            end: xdBounds.end,
-            available: xdPrev.length > 0
-          };
+          xdCmp = window.SeoPeriodCompare
+            ? SeoPeriodCompare.fromSeries(
+                { series: xdSeries, total_mode: xdAvg ? "avg" : "sum" },
+                { series: xdPrev },
+                paCompareMode(),
+                xdBounds
+              )
+            : {
+                mode: paCompareMode(),
+                start: xdBounds.start,
+                end: xdBounds.end,
+                available: xdPrev.length > 0,
+                series: xdPrev
+              };
         }
       }
       return {
         metric: metricKey,
         label: ov.label || xdData.label || metricOptionLabel(metricKey),
         series: xdSeries,
-        prevSeries: xdPrev,
+        prevSeries: (xdCmp && xdCmp.available) ? (xdCmp.series || xdPrev) : [],
         compareMeta: xdCmp,
+        compare: xdCmp,
         breakdown: brMain,
         dim: "overview",
         segment: "all",
@@ -3091,7 +3143,7 @@
       var gPrevSeries = [];
       var gCompareMeta = null;
       if (wantCompare && paStart.value && paEnd.value) {
-        var gBounds = previousPeriodBounds(paStart.value, paEnd.value);
+        var gBounds = paCompareBounds();
         if (gBounds) {
           var prevQs = new URLSearchParams({
             start: gBounds.start,
@@ -3117,20 +3169,29 @@
           } catch (_) {
             gPrevSeries = [];
           }
-          gCompareMeta = {
-            mode: "previous_period",
-            start: gBounds.start,
-            end: gBounds.end,
-            available: gPrevSeries.length > 0
-          };
+          gCompareMeta = window.SeoPeriodCompare
+            ? SeoPeriodCompare.fromSeries(
+                { series: gSeries, total_mode: asAvg ? "avg" : "sum" },
+                { series: gPrevSeries },
+                paCompareMode(),
+                gBounds
+              )
+            : {
+                mode: paCompareMode(),
+                start: gBounds.start,
+                end: gBounds.end,
+                available: gPrevSeries.length > 0,
+                series: gPrevSeries
+              };
         }
       }
       return {
         metric: metricKey,
         label: ov.label || gdata.label || metricOptionLabel(metricKey),
         series: gSeries,
-        prevSeries: gPrevSeries,
+        prevSeries: (gCompareMeta && gCompareMeta.available) ? (gCompareMeta.series || gPrevSeries) : [],
         compareMeta: gCompareMeta,
+        compare: gCompareMeta,
         breakdown: brMain,
         dim: "overview",
         segment: "all",
@@ -3146,7 +3207,7 @@
       metric: metricKey,
       breakdown: brMain,
       dim: dimMain,
-      compare: wantCompare ? "previous_period" : ""
+      compare: wantCompare ? paCompareMode() : ""
     });
     if (segMain && segMain !== "all") qs.set("segment", segMain);
     var r = await fetch("/api/play-analytics/query?" + qs.toString(), {
@@ -3164,6 +3225,7 @@
       series: data.series || [],
       prevSeries: hasPrev ? cmp.series : [],
       compareMeta: cmp,
+      compare: cmp,
       breakdown: brMain,
       dim: dimMain,
       segment: segMain,
@@ -3279,6 +3341,7 @@
       end: paEnd.value,
       metrics: playKeys.join(",")
     });
+    if (paCompareEnabled()) qs.set("compare", paCompareMode());
     var r = await fetch("/api/play-analytics/overview?" + qs.toString(), {
       credentials: "same-origin",
       cache: "no-store",
@@ -3335,6 +3398,7 @@
                 series: pack.series || [],
                 total: tm.total,
                 total_mode: tm.mode,
+                compare: pack.compare || pack.compareMeta || null,
                 source: pack.source || src
               };
             }).catch(function (err) {
@@ -3367,6 +3431,7 @@
         total: b.total,
         total_mode: b.total_mode || "sum",
         onChart: true,
+        compare: b.compare || null,
         source: b.source || src,
         err: b.err
       };
@@ -3423,13 +3488,14 @@
           source: src,
           color: null,
           series: []
-        }, signal, { skipCompare: true }).then(function (pack) {
+        }, signal, { skipCompare: !paCompareEnabled() }).then(function (pack) {
           var tm = externalSeriesTotal(m.value, pack.series);
           return {
             metric: m.value,
             series: pack.series || [],
             total: tm.total,
             total_mode: tm.mode,
+            compare: pack.compare || pack.compareMeta || null,
             ok: !!(pack.series || []).length,
             source: pack.source || src
           };
@@ -3861,6 +3927,19 @@
       });
     });
     var keys = Object.keys(keySet).sort();
+    var brCmp = paActiveTimeBreakdown();
+    if (brCmp === "week" || brCmp === "month") {
+      list.concat(ovs).forEach(function (b) {
+        var cmp = b && (b.compare || b.compareMeta);
+        if (!cmp || !(cmp.series || []).length) return;
+        var asAvg = b.total_mode === "avg" || metricSeriesAsAvg(b.metric);
+        var next = Object.assign({}, cmp, {
+          series: aggregateOverlaySeries(cmp.series, brCmp, asAvg)
+        });
+        b.compare = next;
+        b.compareMeta = next;
+      });
+    }
     var colItems = list.map(function (b) {
       return { kind: "metric", key: "m:" + b.metric, bundle: b, color: overviewMetricColor(b.metric) };
     }).concat(ovs.map(function (ov, oi) {
@@ -3894,10 +3973,15 @@
         color: col.color,
         metric: b.metric,
         map: maps[i],
+        series: b.series || [],
+        compare: b.compare || b.compareMeta || null,
         kind: col.kind,
         oi: col.oi,
       };
     });
+    if (paCompareEnabled() && window.SeoPeriodCompare) {
+      gridCols = SeoPeriodCompare.appendDeltaColumns(gridCols);
+    }
     var shell = document.getElementById("pa-table-shell");
     var tableEl = paTable.closest("table");
     function refreshOverviewTable() {
@@ -3921,6 +4005,9 @@
           esc: esc,
           fmtKey: fmtTableKey,
           fmtVal: function (v, col) {
+            if (col && col.isDelta) {
+              return v == null ? "—" : ((v >= 0 ? "+" : "") + Number(v).toFixed(1) + "%");
+            }
             var countLike = col && col.metric ? metricIsCountLike(col.metric) : false;
             return v == null ? "—" : fmtNum(v, countLike);
           },
@@ -4313,6 +4400,10 @@
           : oneSt.sum;
         if (paTotal) paTotal.textContent = fmtNum(oneTotal, oneLike && oneMode !== "avg");
         if (paTotalLabel) paTotalLabel.textContent = one.label || one.metric || "Total / selected";
+        var prevLabel = document.getElementById("pa-prev-label");
+        if (prevLabel && paCompareMode() && window.SeoPeriodCompare) {
+          prevLabel.textContent = SeoPeriodCompare.label(paCompareMode());
+        }
         if (paPrev) {
           paPrev.textContent = (cmp && cmp.hasPrev)
             ? fmtNum(cmp.prevTotal, oneLike && oneMode !== "avg")
@@ -4353,6 +4444,13 @@
       var dlt = seriesDeltaPct(pack.series);
       var dltCls = dlt == null ? "is-flat" : (dlt >= 0 ? "is-up" : "is-down");
       var dltTxt = dlt == null ? "—" : ((dlt >= 0 ? "↑ " : "↓ ") + Math.abs(dlt).toFixed(1) + "%");
+      var dltTitle = "";
+      if (paCompareEnabled() && window.SeoPeriodCompare) {
+        var kpiCmp = SeoPeriodCompare.kpiText(pack.compare || pack.compareMeta);
+        dltTxt = kpiCmp.text;
+        dltCls = kpiCmp.cls;
+        dltTitle = kpiCmp.title || "";
+      }
       return (
         '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
           '<div class="metric-kpi-ss2-head">' +
@@ -4362,7 +4460,7 @@
           '<div class="metric-kpi-ss2-main">' +
             '<div class="metric-kpi-ss2-metrics">' +
               '<p class="metric-kpi-ss2-value" title="' + esc(fmtNum(avg, false)) + '">' + esc(fmtNum(avg, false)) + "</p>" +
-              '<p class="metric-kpi-ss2-delta ' + dltCls + '">' + esc(dltTxt) + "</p>" +
+              '<p class="metric-kpi-ss2-delta ' + dltCls + '" title="' + esc(dltTitle) + '">' + esc(dltTxt) + "</p>" +
             "</div>" +
             '<div class="metric-kpi-ss2-spark">' + spark + "</div>" +
           "</div>" +
@@ -4465,7 +4563,7 @@
     var prev = prevSeries || [];
     var prevMap = {};
     prev.forEach(function (r) { prevMap[String(r.key)] = r; });
-    var compareOn = !!(compareMeta && compareMeta.mode === "previous_period");
+    var compareOn = paCompareActive(compareMeta);
     var available = compareOn
       ? (compareMeta.available !== false && prev.length > 0)
       : false;
@@ -5228,7 +5326,7 @@
   /** Overlay önceki dönem: zaman kırılımında indeks, diğerinde anahtar. */
   function alignOverlayPrevValues(primaryRows, overlayPrevSeries, breakdown, compareMeta) {
     var prev = overlayPrevSeries || [];
-    var compareOn = !!(compareMeta && compareMeta.mode === "previous_period");
+    var compareOn = paCompareActive(compareMeta);
     var available = compareOn ? (compareMeta.available !== false && prev.length > 0) : false;
     var prevMap = {};
     prev.forEach(function (r) {
@@ -5960,7 +6058,7 @@
     var primaryLabel = metricOptionLabel(paPrimaryMetric() || "");
     var showCompare = !!(
       compareMeta
-      && compareMeta.mode === "previous_period"
+      && paCompareActive(compareMeta)
       && compareMeta.available !== false
       && rows.some(function (r) { return r.prevValue != null && !r.prevMissing; })
     );
@@ -5971,7 +6069,7 @@
       });
       if (showCompare && !compareMeta) {
         compareMeta = paOverlays.map(function (ov) { return ov.compareMeta; }).find(Boolean) || {
-          mode: "previous_period",
+          mode: paCompareMode() || "previous_period",
           available: true
         };
       }
@@ -6198,7 +6296,7 @@
         var packs = await fetchPaSelectedMetricBundles(
           selected,
           paAbort ? paAbort.signal : undefined,
-          { skipCompare: true }
+          { skipCompare: !paCompareEnabled() }
         );
         packs.forEach(function (pack) {
           if (!(pack.series || []).length) {
@@ -6215,9 +6313,17 @@
         var multiChart = multiVisible.filter(function (b) { return b.onChart; });
         renderPaMetricKpis(paWithOverlayKpis(multiVisible));
         if (paCompareRange) {
+          var cmpNote = "";
+          if (paCompareEnabled() && window.SeoPeriodCompare) {
+            var win = paCompareBounds();
+            var ready = multiVisible.filter(function (p) { return p && p.compare && p.compare.available; }).length;
+            cmpNote = SeoPeriodCompare.label(paCompareMode()) + (win ? (": " + win.start + " → " + win.end) : "");
+            if (!ready) cmpNote += " · aralık depoda yok";
+            else if (ready < multiVisible.length) cmpNote += " · " + (multiVisible.length - ready) + " metrikte aralık yok";
+          }
           paCompareRange.textContent = softNotes.length
             ? (softNotes.slice(0, 2).join(" · ") + (softNotes.length > 2 ? (" · +" + (softNotes.length - 2)) : ""))
-            : "";
+            : cmpNote;
         }
         paLastChart = {
           series: (multiChart[0] && multiChart[0].series) || [],
@@ -6264,7 +6370,7 @@
           total_mode: tm.mode,
           facets: { segments: [] },
           compare: hasPrevExt ? {
-            mode: "previous_period",
+            mode: (cmpExt && cmpExt.mode) || paCompareMode() || "previous_period",
             start: cmpExt && cmpExt.start,
             end: cmpExt && cmpExt.end,
             total: prevTm.total,
@@ -6273,11 +6379,11 @@
             total_mode: tm.mode,
             available: true
           } : (cmpExt ? {
-            mode: "previous_period",
+            mode: (cmpExt && cmpExt.mode) || paCompareMode() || "previous_period",
             start: cmpExt.start,
             end: cmpExt.end,
             available: false,
-            missing_reason: PREV_MISSING_LONG,
+            missing_reason: (cmpExt && cmpExt.missing_reason) || PREV_MISSING_LONG,
             series: []
           } : null),
           message: metricOptionLabel(primaryMetric)
@@ -6289,7 +6395,7 @@
           metric: primaryMetric,
           breakdown: paBreakdown.value,
           dim: paDim.value,
-          compare: (paCompare && paCompare.checked) ? "previous_period" : ""
+          compare: paCompareEnabled() ? paCompareMode() : ""
         });
         if (paSegment.value && paSegment.value !== "all") qs.set("segment", paSegment.value);
         var r = await fetch("/api/play-analytics/query?" + qs.toString(), {
@@ -6342,8 +6448,10 @@
         primaryPack: singlePack
       };
       if (paCompareRange) {
-        if (hasPrev && cmp.start && cmp.end) {
-          paCompareRange.textContent = "Compare: " + cmp.start + " → " + cmp.end;
+        if (cmp && cmp.start && cmp.end && paCompareEnabled()) {
+          paCompareRange.textContent = (window.SeoPeriodCompare ? SeoPeriodCompare.label(cmp.mode) : "Compare")
+            + ": " + cmp.start + " → " + cmp.end
+            + (hasPrev ? "" : " · aralık depoda yok");
         } else {
           paCompareRange.textContent = "";
         }
@@ -6408,6 +6516,14 @@
   }
   if (paStart) paStart.addEventListener("change", onPaDateRangeChange);
   if (paEnd) paEnd.addEventListener("change", onPaDateRangeChange);
+  var paCompareModeEl = document.getElementById("pa-compare-mode");
+  if (paCompareModeEl) paCompareModeEl.addEventListener("change", function () {
+    var prevLabel = document.getElementById("pa-prev-label");
+    if (prevLabel && window.SeoPeriodCompare) {
+      prevLabel.textContent = paCompareMode() ? SeoPeriodCompare.label(paCompareMode()) : "Previous period";
+    }
+    if (typeof runPlayAnalytics === "function") runPlayAnalytics();
+  });
   if (paRun) paRun.addEventListener("click", function () {
     paMetricDirty = false;
     setPaMetricDropdownOpen(false);

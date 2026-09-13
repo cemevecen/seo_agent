@@ -402,14 +402,20 @@ def query_asc_metric(
             "empty": True,
         }
 
-    # Compare için önceki dönemi de kapsayan aralık yükle
+    # Compare için kıyas penceresini de kapsayan aralık yükle
+    from backend.services.period_compare import (
+        MISSING_NOT_IN_WAREHOUSE,
+        compare_bounds,
+        dates_cover_window,
+        delta_pct,
+        unavailable_payload,
+    )
+
     load_start, load_end = start_d, end_d
-    want_compare = (compare or "").strip() == "previous_period"
-    if want_compare:
-        span = (end_d - start_d).days + 1
-        pe = start_d - timedelta(days=1)
-        ps = pe - timedelta(days=span - 1)
-        load_start = ps
+    compare_mode = (compare or "").strip()
+    cmp_bounds = compare_bounds(start_d, end_d, compare_mode)
+    if cmp_bounds:
+        load_start = min(load_start, cmp_bounds[0])
 
     bundle = bundle_cache if bundle_cache is not None else _load_bundle(
         bundle_id=bid,
@@ -428,33 +434,34 @@ def query_asc_metric(
     source = "asc_scrape"
 
     compare_payload = None
-    if want_compare:
-        span = (end_d - start_d).days + 1
-        pe = start_d - timedelta(days=1)
-        ps = pe - timedelta(days=span - 1)
-        prev_series = _pick_series(bundle, metric_key, start=ps, end=pe)
-        if br in ("week", "month"):
-            prev_series = _aggregate_series_client(prev_series, br, metric_key)
-        prev_total, _ = _series_total(prev_series, metric_key)
-        prev_available = bool(prev_series)
-        delta_pct = None
-        if prev_available and prev_total:
-            delta_pct = round((total - prev_total) / abs(prev_total) * 100.0, 2)
-        compare_payload = {
-            "mode": "previous_period",
-            "start": ps.isoformat(),
-            "end": pe.isoformat(),
-            "total": prev_total if prev_available else None,
-            "delta_pct": delta_pct,
-            "series": prev_series if prev_available else [],
-            "total_mode": mode,
-            "available": prev_available,
-            "missing_reason": (
-                None
-                if prev_available
-                else "İlgili dönem için önceki dönem verisi bulunamadı"
-            ),
-        }
+    if cmp_bounds:
+        ps, pe = cmp_bounds
+        span_series = _pick_series(
+            bundle, metric_key, start=date(2020, 1, 1), end=date(2100, 1, 1)
+        )
+        span_dates = [str(r.get("key") or "")[:10] for r in span_series]
+        if not dates_cover_window(span_dates, ps, pe):
+            compare_payload = unavailable_payload(
+                compare_mode, ps, pe, reason=MISSING_NOT_IN_WAREHOUSE
+            )
+            compare_payload["total_mode"] = mode
+        else:
+            prev_series = _pick_series(bundle, metric_key, start=ps, end=pe)
+            if br in ("week", "month"):
+                prev_series = _aggregate_series_client(prev_series, br, metric_key)
+            prev_total, _ = _series_total(prev_series, metric_key)
+            prev_available = bool(prev_series)
+            compare_payload = {
+                "mode": compare_mode,
+                "start": ps.isoformat(),
+                "end": pe.isoformat(),
+                "total": prev_total if prev_available else None,
+                "delta_pct": delta_pct(total, prev_total) if prev_available else None,
+                "series": prev_series if prev_available else [],
+                "total_mode": mode,
+                "available": prev_available,
+                "missing_reason": None if prev_available else MISSING_NOT_IN_WAREHOUSE,
+            }
 
     label = _METRIC_META[metric_key][2]
     return {
@@ -540,6 +547,7 @@ def query_asc_overview(
     end: str | None = None,
     metrics: list[str] | None = None,
     bundle_id: str | None = None,
+    compare: str | None = None,
 ) -> dict[str, Any]:
     end_d = date.fromisoformat(end) if end else date.today()
     start_d = date.fromisoformat(start) if start else end_d - timedelta(days=29)
@@ -585,7 +593,7 @@ def query_asc_overview(
             metric=m,
             bundle_id=bid,
             bundle_cache=bundle,
-            compare=None,
+            compare=compare,
         )
         out_bundles.append(
             {
@@ -594,6 +602,7 @@ def query_asc_overview(
                 "series": data.get("series") or [],
                 "total": data.get("total"),
                 "total_mode": data.get("total_mode") or "sum",
+                "compare": data.get("compare"),
                 "ok": bool(data.get("ok")),
                 "message": data.get("message"),
             }

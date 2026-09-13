@@ -1250,6 +1250,13 @@
           <option value="all">All</option>
         </select>
       </label>
+      <label class="pa-f pa-f--sm">Compare
+        <select id="ia-compare-mode" aria-label="Compare mode">
+          <option value="">Off</option>
+          <option value="previous_period">Previous period</option>
+          <option value="previous_year">Previous year</option>
+        </select>
+      </label>
       <div class="pa-f pa-f--cross-metric">
         {% with play_metric_overlay_control_id='ia-cross-metric-overlay-root', play_metric_overlay_storage_key='ia-cross-metric', play_metric_overlay_platform='android', play_metric_overlay_label_prefix='Android metrics', play_metric_overlay_on_change='iaOnCrossMetricOverlayChange', play_metric_overlay_compact=true, play_metric_overlay_persist=false %}
         {% include 'partials/play_metric_overlay_select.html' %}
@@ -1339,6 +1346,7 @@
 <script src="/static/js/resizable_data_list.js?v=6"></script>
 <script src="/static/js/pa_chart_height.js?v=11"></script>
 <script src="/static/js/metric_table_ux.js?v=13"></script>
+<script src="/static/js/metric_period_compare.js?v=1"></script>
 <script>
   window.SEO_XDATA_AVG_KEYS = {{ (xdata_avg_keys or []) | tojson }};
 </script>
@@ -1358,6 +1366,7 @@
   var iaBreakdownWrap = document.getElementById("ia-breakdown-wrap");
   var iaDimWrap = document.getElementById("ia-dim-wrap");
   var iaSegmentWrap = document.getElementById("ia-segment-wrap");
+  var iaCompareModeEl = document.getElementById("ia-compare-mode");
   var iaRun = document.getElementById("ia-run");
   var iaRunLabel = document.getElementById("ia-run-label");
   var iaRefresh = document.getElementById("ia-refresh");
@@ -2304,6 +2313,13 @@
       var dlt = seriesDeltaPct(pack.series);
       var dltCls = dlt == null ? "is-flat" : (dlt >= 0 ? "is-up" : "is-down");
       var dltTxt = dlt == null ? "—" : ((dlt >= 0 ? "↑ " : "↓ ") + Math.abs(dlt).toFixed(1) + "%");
+      var dltTitle = "";
+      if (iaCompareMode() && window.SeoPeriodCompare) {
+        var kpiCmp = SeoPeriodCompare.kpiText(pack.compare);
+        dltTxt = kpiCmp.text;
+        dltCls = kpiCmp.cls;
+        dltTitle = kpiCmp.title || "";
+      }
       return (
         '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
           '<div class="metric-kpi-ss2-head">' +
@@ -2313,7 +2329,7 @@
           '<div class="metric-kpi-ss2-main">' +
             '<div class="metric-kpi-ss2-metrics">' +
               '<p class="metric-kpi-ss2-value" title="' + esc(fmtNum(avg, false)) + '">' + esc(fmtNum(avg, false)) + "</p>" +
-              '<p class="metric-kpi-ss2-delta ' + dltCls + '">' + esc(dltTxt) + "</p>" +
+              '<p class="metric-kpi-ss2-delta ' + dltCls + '" title="' + esc(dltTitle) + '">' + esc(dltTxt) + "</p>" +
             "</div>" +
             '<div class="metric-kpi-ss2-spark">' + spark + "</div>" +
           "</div>" +
@@ -2343,26 +2359,33 @@
     if (iaRun) iaRun.disabled = !!on;
     if (iaRunLabel) iaRunLabel.textContent = on ? "Loading" : "Apply";
   }
-  async function fetchExternalSeries(metricKey, signal) {
+  function iaCompareMode() {
+    var mode = iaCompareModeEl && iaCompareModeEl.value;
+    return mode === "previous_period" || mode === "previous_year" ? mode : "";
+  }
+  function iaCompareWindow() {
+    if (!window.SeoPeriodCompare || !iaCompareMode() || !iaStart.value || !iaEnd.value) return null;
+    return SeoPeriodCompare.bounds(iaStart.value, iaEnd.value, iaCompareMode());
+  }
+  async function fetchExternalSeries(metricKey, signal, range) {
+    var rangeStart = (range && range.start) || iaStart.value;
+    var rangeEnd = (range && range.end) || iaEnd.value;
     if (isMarketMetric(metricKey)) {
       var sk = String(metricKey).slice("market:".length);
       if (!window.SeoMarketOverlay || !SeoMarketOverlay.ensureOverlay) {
         throw new Error("No market series");
       }
-      var payload = await SeoMarketOverlay.ensureOverlay(iaStart.value, iaEnd.value);
+      var payload = await SeoMarketOverlay.ensureOverlay(rangeStart, rangeEnd);
       var series = SeoMarketOverlay.pointsForSeries(payload, sk);
-      if (iaMarketIndexScale && SeoMarketOverlay.indexPointSeries) {
-        series = SeoMarketOverlay.indexPointSeries(series);
-      }
       var label = SeoMarketOverlay.seriesLabel
-        ? SeoMarketOverlay.seriesLabel(payload, sk, iaMarketIndexScale)
+        ? SeoMarketOverlay.seriesLabel(payload, sk, !range && iaMarketIndexScale)
         : (metricLabel(metricKey) || sk);
       var last = null;
       (series || []).forEach(function (r) {
         var nv = Number(r && r.value);
         if (Number.isFinite(nv)) last = nv;
       });
-      return {
+      var marketPack = await attachIaCompare({
         metric: metricKey,
         label: label,
         series: series || [],
@@ -2370,12 +2393,16 @@
         total_mode: "last",
         message: "",
         source: "market"
-      };
+      }, metricKey, signal, range);
+      if (!range && iaMarketIndexScale && SeoMarketOverlay.indexPointSeries) {
+        marketPack.series = SeoMarketOverlay.indexPointSeries(marketPack.series || []);
+      }
+      return marketPack;
     }
     if (isXdataMetric(metricKey)) {
       var xdQs = new URLSearchParams({
-        start: iaStart.value,
-        end: iaEnd.value,
+        start: rangeStart,
+        end: rangeEnd,
         metric: metricKey,
         project: "doviz",
         platform: "ios"
@@ -2392,7 +2419,7 @@
       if (xdData.configured === false || (xdData.ok === false && !Array.isArray(xdData.series))) {
         throw new Error(xdData.message || "No X-Data series");
       }
-      return {
+      return attachIaCompare({
         metric: metricKey,
         label: xdData.label || metricLabel(metricKey),
         series: Array.isArray(xdData.series) ? xdData.series : [],
@@ -2400,12 +2427,12 @@
         total_mode: xdData.total_mode || (isXdataAvgMetric(metricKey) ? "avg" : "sum"),
         message: xdData.message || "",
         source: "xdata"
-      };
+      }, metricKey, signal, range);
     }
     var isVirgul = isVirgulMetric(metricKey);
     var qs = new URLSearchParams({
-      start: iaStart.value,
-      end: iaEnd.value,
+      start: rangeStart,
+      end: rangeEnd,
       metric: metricKey,
       project: "doviz"
     });
@@ -2426,7 +2453,7 @@
     if (data.configured === false || (data.ok === false && !Array.isArray(data.series))) {
       throw new Error(data.message || (isVirgul ? "No Virgül series" : "No GA4 series"));
     }
-    return {
+    return attachIaCompare({
       metric: metricKey,
       label: data.label || metricLabel(metricKey),
       series: Array.isArray(data.series) ? data.series : [],
@@ -2434,7 +2461,19 @@
       total_mode: data.total_mode || (metricKey === "ga4:avg_session" || IA_VIRGUL_AVG[metricKey] ? "avg" : "sum"),
       message: data.message || "",
       source: isVirgul ? "virgul" : "ga4"
-    };
+    }, metricKey, signal, range);
+  }
+  async function attachIaCompare(pack, metricKey, signal, range) {
+    if (range || !iaCompareMode() || !window.SeoPeriodCompare) return pack;
+    var win = iaCompareWindow();
+    if (!win) return pack;
+    try {
+      var prev = await fetchExternalSeries(metricKey, signal, win);
+      pack.compare = SeoPeriodCompare.fromSeries(pack, prev, iaCompareMode(), win);
+    } catch (_) {
+      pack.compare = SeoPeriodCompare.unavailable(iaCompareMode(), win);
+    }
+    return pack;
   }
   var IA_SALES_DIM_METRICS = {
     units: 1,
@@ -2507,7 +2546,8 @@
   }
   async function fetchAscSeries(metricKey, signal) {
     var dim = (iaDim && iaDim.value) || "overview";
-    var useCache = dim === "overview" && (!iaBreakdown || iaBreakdown.value === "date");
+    var cmpMode = iaCompareMode();
+    var useCache = !cmpMode && dim === "overview" && (!iaBreakdown || iaBreakdown.value === "date");
     if (useCache) {
       var cached = packFromOverviewCache(metricKey);
       if (cached) return cached;
@@ -2520,6 +2560,7 @@
       dim: dim,
       segment: (iaSegment && iaSegment.value) || "all"
     });
+    if (cmpMode) qs.set("compare", cmpMode);
     var r = await fetch("/api/asc-metrics/query?" + qs.toString(), {
       credentials: "same-origin",
       cache: "no-store",
@@ -2545,7 +2586,8 @@
       source: data.source || "asc",
       dim: data.dim || dim,
       segment: data.segment || "all",
-      breakdown: data.breakdown || "date"
+      breakdown: data.breakdown || "date",
+      compare: data.compare || null
     };
   }
   function packFromOverviewCache(metricKey) {
@@ -2574,6 +2616,7 @@
         series: b.series || [],
         total: b.total,
         total_mode: b.total_mode || "sum",
+        compare: b.compare || null,
         onChart: CHART_METRICS.indexOf(b.metric) >= 0
       };
     });
@@ -2596,6 +2639,7 @@
       end: iaEnd.value,
       metrics: metrics.join(",")
     });
+    if (iaCompareMode()) qs.set("compare", iaCompareMode());
     var r = await fetch("/api/asc-metrics/overview?" + qs.toString(), {
       credentials: "same-origin",
       cache: "default",
@@ -3455,6 +3499,18 @@
       (b.series || []).forEach(function (r) { if (r && r.key != null) keySet[String(r.key)] = true; });
     });
     var keys = Object.keys(keySet).sort();
+    var brCmp = iaActiveTimeBreakdown();
+    if (brCmp === "week" || brCmp === "month") {
+      list.forEach(function (b) {
+        if (!b || !b.compare || !(b.compare.series || []).length) return;
+        var mk = iaBareMetric(b.metric);
+        var asAvg = b.total_mode === "avg" || mk === "ga4:avg_session" || !!IA_VIRGUL_AVG[mk]
+          || mk === "conversion_rate" || isXdataAvgMetric(mk);
+        b.compare = Object.assign({}, b.compare, {
+          series: aggregateIaSeries(b.compare.series, brCmp, asAvg)
+        });
+      });
+    }
 
     var colItems = list.map(function (b, i) {
       return { key: "m:" + b.metric, bundle: b, color: colorAt(i), i: i };
@@ -3483,8 +3539,13 @@
         color: col.color,
         metric: col.bundle.metric,
         map: maps[i],
+        series: col.bundle.series || [],
+        compare: col.bundle.compare || null,
       };
     });
+    if (iaCompareMode() && window.SeoPeriodCompare) {
+      gridCols = SeoPeriodCompare.appendDeltaColumns(gridCols);
+    }
     var shell = document.getElementById("ia-table-shell");
     var tableEl = iaTable.closest("table");
     function refreshIaOverviewTable() {
@@ -3504,6 +3565,9 @@
           esc: esc,
           fmtKey: fmtTableKey,
           fmtVal: function (v, col) {
+            if (col && col.isDelta) {
+              return v == null ? "—" : ((v >= 0 ? "+" : "") + Number(v).toFixed(1) + "%");
+            }
             return v == null ? "—" : fmtNum(v, isCountLike(col && col.metric));
           },
           breakdownLabel: "Breakdown",
@@ -3588,6 +3652,7 @@
                 series: pack.series || [],
                 total: pack.total,
                 total_mode: pack.total_mode || "sum",
+                compare: pack.compare || null,
                 onChart: CHART_METRICS.indexOf(metricKey) >= 0,
                 source: pack.source || overlaySourceForMetric(metricKey)
               };
@@ -3630,7 +3695,7 @@
         showIaSimpleKpi();
         iaTotal.textContent = head ? fmtNum(head.total, isCountLike(head.metric)) : "—";
         iaTotalLabel.textContent = "Overview";
-        iaCompareRange.textContent = "";
+        iaCompareRange.textContent = iaCompareNote(bundles);
         iaLastTableBundles = bundles;
         iaLastNativeBundles = chartBundles.filter(function (b) { return b && !b.crossPeer; });
         paintIaWithCross(iaLastNativeBundles);
@@ -3653,6 +3718,7 @@
             series: pack.series || [],
             total: pack.total,
             total_mode: pack.total_mode || "sum",
+            compare: pack.compare || null,
             message: pack.message || "",
             source: pack.source || overlaySourceForMetric(metricKey)
           };
@@ -3685,7 +3751,8 @@
       });
       renderIaMetricKpis(kpiPacks.length ? kpiPacks : packs);
       if (iaCompareRange) {
-        iaCompareRange.textContent = packs.length === 1 ? (primary && primary.message || "") : "";
+        iaCompareRange.textContent = iaCompareNote(kpiPacks.length ? kpiPacks : packs)
+          || (packs.length === 1 ? (primary && primary.message || "") : "");
       }
       if (softNotes.length && iaStatus) {
         iaStatus.textContent = softNotes.slice(0, 3).join(" · ") +
@@ -3791,6 +3858,21 @@
   });
 
   if (iaPreset) iaPreset.addEventListener("change", function () { applyPreset(); runAnalytics(); });
+  function iaCompareNote(packs) {
+    var mode = iaCompareMode();
+    var win = iaCompareWindow();
+    if (!mode || !win) return "";
+    var label = window.SeoPeriodCompare ? SeoPeriodCompare.label(mode) : mode;
+    var list = packs || [];
+    var ready = list.filter(function (p) { return p && p.compare && p.compare.available; }).length;
+    var note = label + ": " + win.start + " → " + win.end;
+    if (!list.length || !ready) note += " · aralık depoda yok";
+    else if (ready < list.length) note += " · " + (list.length - ready) + " metrikte aralık yok";
+    return note;
+  }
+  if (iaCompareModeEl) iaCompareModeEl.addEventListener("change", function () {
+    if (typeof runAnalytics === "function") runAnalytics();
+  });
   if (iaRun) iaRun.addEventListener("click", function () {
     iaMetricDirty = false;
     setIaMetricDropdownOpen(false);

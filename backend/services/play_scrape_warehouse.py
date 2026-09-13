@@ -547,11 +547,13 @@ def query_scrape_analytics(
         facts = _normalize_revenue_facts(facts)
     pkg = str(meta.get("package_name") or "com.Doviz")
     enrich_msg = None
-    # Kıyas açıksa Reporting API’yi önceki dönemi de kapsayacak şekilde çek
+    # Kıyas açıksa Reporting API’yi kıyas penceresini de kapsayacak şekilde çek
+    from backend.services.period_compare import compare_bounds
+
     enrich_start = start_d
-    if compare == "previous_period":
-        span_est = max((end_d - start_d).days + 1, 1)
-        enrich_start = start_d - timedelta(days=span_est)
+    _cmp_bounds = compare_bounds(start_d, end_d, compare)
+    if _cmp_bounds:
+        enrich_start = min(enrich_start, _cmp_bounds[0])
     facts, enrich_msg = _enrich_reporting(
         facts,
         metric_key=metric_key,
@@ -843,6 +845,15 @@ def query_scrape_analytics(
     total, total_mode = _series_total(series, metric_key, breakdown)
 
     compare_payload = None
+    from backend.services.period_compare import (
+        MISSING_NOT_IN_WAREHOUSE,
+        compare_bounds as _compare_bounds,
+        dates_cover_window,
+        delta_pct as _delta_pct,
+        unavailable_payload,
+    )
+
+    ps = pe = None
     if compare == "previous_period" and dated:
         # Kıyası etkili (verisi olan) aralık uzunluğuna göre yap — sahte 0 günleri şişirmesin
         span = (effective_end - start_d).days + 1
@@ -850,64 +861,69 @@ def query_scrape_analytics(
             span = (end_d - start_d).days + 1
         pe = start_d - timedelta(days=1)
         ps = pe - timedelta(days=span - 1)
-        prev = [
-            f
-            for f in dim_facts
-            if f.get("date")
-            and isinstance(f.get("date"), str)
-            and not str(f["date"]).startswith("i")
-            and ps.isoformat() <= str(f["date"])[:10] <= pe.isoformat()
-        ]
-        prev_available = bool(prev)
-        prev_series: list[dict[str, Any]] = []
-        prev_total = 0.0
-        delta_pct = None
-        if prev_available:
-            prev_series = _aggregate(prev, breakdown=breakdown)
-            if breakdown == "date":
-                prev_series = _densify_date_series(prev_series, start=ps, end=pe, clip_to_data=True)
-            if metric_key in _CUMULATIVE and breakdown == "date" and prev_series:
-                seed = None
-                try:
-                    first_d = date.fromisoformat(str(prev_series[0]["key"])[:10])
-                    seed_day = (first_d - timedelta(days=1)).isoformat()
-                    for f in dim_facts:
-                        if str(f.get("date") or "")[:10] == seed_day:
-                            seed = float(f.get("value") or 0)
-                            break
-                    # also search all metric facts before range
-                    if seed is None:
-                        for f in cur:
-                            if (
-                                str(f.get("metric")) == metric_key
-                                and str(f.get("date") or "")[:10] == seed_day
-                                and str(f.get("segment") or "OVERALL") in ("OVERALL", "", "all")
-                            ):
+    elif compare == "previous_year":
+        year_bounds = _compare_bounds(start_d, end_d, "previous_year")
+        if year_bounds:
+            ps, pe = year_bounds
+    if ps and pe and compare in ("previous_period", "previous_year"):
+        if not dates_cover_window(metric_dates, ps, pe):
+            compare_payload = unavailable_payload(
+                compare, ps, pe, reason=MISSING_NOT_IN_WAREHOUSE
+            )
+            compare_payload["total_mode"] = total_mode
+        else:
+            prev = [
+                f
+                for f in dim_facts
+                if f.get("date")
+                and isinstance(f.get("date"), str)
+                and not str(f["date"]).startswith("i")
+                and ps.isoformat() <= str(f["date"])[:10] <= pe.isoformat()
+            ]
+            prev_available = bool(prev)
+            prev_series: list[dict[str, Any]] = []
+            prev_total = 0.0
+            change_pct = None
+            if prev_available:
+                prev_series = _aggregate(prev, breakdown=breakdown)
+                if breakdown == "date":
+                    prev_series = _densify_date_series(prev_series, start=ps, end=pe, clip_to_data=True)
+                if metric_key in _CUMULATIVE and breakdown == "date" and prev_series:
+                    seed = None
+                    try:
+                        first_d = date.fromisoformat(str(prev_series[0]["key"])[:10])
+                        seed_day = (first_d - timedelta(days=1)).isoformat()
+                        for f in dim_facts:
+                            if str(f.get("date") or "")[:10] == seed_day:
                                 seed = float(f.get("value") or 0)
                                 break
-                except (TypeError, ValueError, KeyError, IndexError):
-                    seed = None
-                prev_series = _decumulate_series(prev_series, seed_value=seed)
-            prev_total, _ = _series_total(prev_series, metric_key, breakdown)
-            if prev_total:
-                delta_pct = round((total - prev_total) / abs(prev_total) * 100.0, 2)
-            if not prev_series:
-                prev_available = False
-        compare_payload = {
-            "mode": "previous_period",
-            "start": ps.isoformat(),
-            "end": pe.isoformat(),
-            "total": prev_total if prev_available else None,
-            "delta_pct": delta_pct,
-            "series": prev_series if prev_available else [],
-            "total_mode": total_mode,
-            "available": prev_available,
-            "missing_reason": (
-                None
-                if prev_available
-                else "İlgili dönem için önceki dönem verisi bulunamadı"
-            ),
-        }
+                        if seed is None:
+                            for f in cur:
+                                if (
+                                    str(f.get("metric")) == metric_key
+                                    and str(f.get("date") or "")[:10] == seed_day
+                                    and str(f.get("segment") or "OVERALL") in ("OVERALL", "", "all")
+                                ):
+                                    seed = float(f.get("value") or 0)
+                                    break
+                    except (TypeError, ValueError, KeyError, IndexError):
+                        seed = None
+                    prev_series = _decumulate_series(prev_series, seed_value=seed)
+                prev_total, _ = _series_total(prev_series, metric_key, breakdown)
+                change_pct = _delta_pct(total, prev_total)
+                if not prev_series:
+                    prev_available = False
+            compare_payload = {
+                "mode": compare,
+                "start": ps.isoformat(),
+                "end": pe.isoformat(),
+                "total": prev_total if prev_available else None,
+                "delta_pct": change_pct,
+                "series": prev_series if prev_available else [],
+                "total_mode": total_mode,
+                "available": prev_available,
+                "missing_reason": None if prev_available else MISSING_NOT_IN_WAREHOUSE,
+            }
 
     segs = sorted(
         {
