@@ -369,7 +369,9 @@ def ingest_play_console_payload(
         panels = _preserve_existing_vitals_if_incoming_empty(panels, existing_panels)
         # Tarih upsert: dünün dilimi mühürlü gövdeyi silmesin; bugünü kaydetme
         try:
-            from backend.services.history_seal import never_store_today
+            from datetime import date as _date
+
+            from backend.services.history_seal import calendar_today, never_store_today
 
             by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
             for f in existing_facts or []:
@@ -409,8 +411,17 @@ def ingest_play_console_payload(
                 if not isinstance(f, dict) or not f.get("metric"):
                     continue
                 ds = str(f.get("date") or "")[:10]
-                if never_store_today(ds or None):
+                # CSV doldurma bugünü de yazar (kullanıcı aralığı bugüne kadar).
+                # Konsol taraması bugünü yine atlar — yarım gün mühürlenmesin.
+                allow_today = str(sync_mode or "") == "csv_overview_fill"
+                if not allow_today and never_store_today(ds or None):
                     continue
+                if ds and len(ds) == 10:
+                    try:
+                        if _date.fromisoformat(ds) > calendar_today():
+                            continue
+                    except ValueError:
+                        pass
                 key = (
                     str(f.get("metric")),
                     ds,

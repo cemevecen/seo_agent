@@ -1146,12 +1146,11 @@ def run_play_bridge_once() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         print(f"Play CSV fill atlandı: {exc}", flush=True)
     try:
-        from datetime import date, timedelta
-
         from backend.collectors.ga4 import push_profile_daily_trend
+        from backend.services.history_seal import calendar_today, history_start
 
-        end = (date.today() - timedelta(days=1)).isoformat()
-        start = (date.today() - timedelta(days=400)).isoformat()
+        end = calendar_today().isoformat()
+        start = history_start().isoformat()
         ga4 = push_profile_daily_trend(
             profile="android",
             property_id="152168629",
@@ -2231,9 +2230,9 @@ def _empower_window(mode: str, pipeline: str) -> tuple[Any, Any, bool]:
     if mode_l == "recent":
         from datetime import timedelta
 
-        from backend.services.history_seal import calendar_yesterday
+        from backend.services.history_seal import calendar_today
 
-        end = calendar_yesterday()
+        end = calendar_today()
         return end - timedelta(days=89), end, False
     if mode_l != "backfill":
         return None, None, True

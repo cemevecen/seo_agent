@@ -1316,11 +1316,12 @@
           <option value="3">Last 3 days</option>
           <option value="7">Last 1 week</option>
           <option value="14">Last 2 weeks</option>
-          <option value="30" selected>Last 1 month</option>
+          <option value="30">Last 1 month</option>
           <option value="90">Last 3 months</option>
           <option value="180">Last 6 months</option>
           <option value="270">Last 9 months</option>
           <option value="365">Last 1 year</option>
+          <option value="since2025" selected>2025 → today</option>
         </select>
       </label>
       <label class="pa-f pa-f--metric">Metric
@@ -3304,43 +3305,45 @@
       );
     }
     if (extKeys.length) {
-      tasks.push(
-        Promise.all(extKeys.map(function (metricKey) {
-          var src = overlaySourceForMetric(metricKey);
-          return fetchOneOverlaySeries({
-            metric: metricKey,
-            label: metricOptionLabel(metricKey) || metricKey,
-            source: src,
-            color: null,
-            series: []
-          }, signal, fetchOpts).then(function (pack) {
-            var tm = externalSeriesTotal(metricKey, pack.series);
-            return {
-              metric: metricKey,
-              label: pack.label || metricOptionLabel(metricKey) || metricKey,
-              series: pack.series || [],
-              total: tm.total,
-              total_mode: tm.mode,
-              source: pack.source || src
-            };
-          }).catch(function (err) {
-            if (signal && signal.aborted) throw err;
-            return {
+      tasks.push((async function () {
+        for (var i = 0; i < extKeys.length; i += 4) {
+          var slice = extKeys.slice(i, i + 4);
+          var packs = await Promise.all(slice.map(function (metricKey) {
+            var src = overlaySourceForMetric(metricKey);
+            return fetchOneOverlaySeries({
               metric: metricKey,
               label: metricOptionLabel(metricKey) || metricKey,
-              series: [],
-              total: null,
-              total_mode: "sum",
               source: src,
-              err: err
-            };
-          });
-        })).then(function (packs) {
+              color: null,
+              series: []
+            }, signal, fetchOpts).then(function (pack) {
+              var tm = externalSeriesTotal(metricKey, pack.series);
+              return {
+                metric: metricKey,
+                label: pack.label || metricOptionLabel(metricKey) || metricKey,
+                series: pack.series || [],
+                total: tm.total,
+                total_mode: tm.mode,
+                source: pack.source || src
+              };
+            }).catch(function (err) {
+              if (signal && signal.aborted) throw err;
+              return {
+                metric: metricKey,
+                label: metricOptionLabel(metricKey) || metricKey,
+                series: [],
+                total: null,
+                total_mode: "sum",
+                source: src,
+                err: err
+              };
+            });
+          }));
           (packs || []).forEach(function (b) {
             if (b && b.metric) byMetric[b.metric] = b;
           });
-        })
-      );
+        }
+      })());
     }
     if (tasks.length) await Promise.all(tasks);
     return keys.map(function (metricKey) {
@@ -4379,7 +4382,9 @@
     var end = new Date();
     var start = new Date();
     var raw = (paPreset && paPreset.value) || "30";
-    if (raw === "yesterday") {
+    if (raw === "since2025") {
+      start = new Date(2025, 0, 1);
+    } else if (raw === "yesterday") {
       end.setDate(end.getDate() - 1);
       start = new Date(end.getTime());
     } else {

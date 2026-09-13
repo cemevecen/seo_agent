@@ -12,6 +12,7 @@ import csv
 import io
 import logging
 import os
+import zipfile
 from datetime import date, timedelta
 from typing import Any
 
@@ -76,6 +77,7 @@ def facts_from_installs_csv(text: str, *, start: date, end: date) -> list[dict[s
             ("device_acquisition", "Daily Device Installs"),
             ("user_acquisition", "Daily User Installs"),
             ("user_lost", "Daily User Uninstalls"),
+            ("active_devices", "Active Device Installs"),
         )
         for metric, col in mapping:
             val = _num(row.get(col))
@@ -112,6 +114,24 @@ def facts_from_ratings_csv(text: str, *, start: date, end: date) -> list[dict[st
     return out
 
 
+def facts_from_sales_csv(text: str, *, start: date, end: date) -> list[dict[str, Any]]:
+    """Play sales zip: günlük gelir = Order Charged Date toplamı (Charged Amount)."""
+    by_day: dict[str, float] = {}
+    for row in csv.DictReader(io.StringIO(text)):
+        norm = {str(k or "").strip().lower(): v for k, v in row.items()}
+        day = str(norm.get("order charged date") or "")[:10]
+        if not _in_window(day, start, end):
+            continue
+        amt = _num(str(norm.get("charged amount") or ""))
+        if amt is None:
+            continue
+        by_day[day] = by_day.get(day, 0.0) + amt
+    return [
+        _fact("revenue", day, round(value, 4))
+        for day, value in sorted(by_day.items())
+    ]
+
+
 def facts_from_store_country_csv(text: str, *, start: date, end: date) -> list[dict[str, Any]]:
     """Ülke satırlarını güne topla — overview ziyaretçi / edinme."""
     visitors: dict[str, float] = {}
@@ -143,10 +163,10 @@ def build_overview_facts_from_bucket(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Play reports bucket'tan overview fact'leri. months_back set ise yalnız son N ay."""
     from backend.services import gp_client
-    from backend.services.history_seal import calendar_yesterday, history_start
+    from backend.services.history_seal import calendar_today, history_start
 
     start_d = start or history_start()
-    end_d = end or calendar_yesterday()
+    end_d = end or calendar_today()
     if months_back is not None and months_back > 0:
         start_d = max(start_d, end_d.replace(day=1) - timedelta(days=32 * int(months_back)))
     meta: dict[str, Any] = {
@@ -179,6 +199,38 @@ def build_overview_facts_from_bucket(
         "stats/store_performance/": facts_from_store_country_csv,
     }
     facts: list[dict[str, Any]] = []
+    try:
+        sales_names = [
+            blob.name
+            for blob in bucket.list_blobs(prefix="sales/salesreport_")
+            if blob.name.endswith(".zip")
+        ]
+    except Exception as exc:  # noqa: BLE001
+        meta["errors"].append(f"sales/: {exc}"[:180])
+        sales_names = []
+    for name in sales_names:
+        ym = name.rsplit("_", 1)[-1][:6]
+        if len(ym) == 6 and ym.isdigit():
+            month_start = date(int(ym[:4]), int(ym[4:6]), 1)
+            if month_start > end_d or (month_start + timedelta(days=40)) < start_d:
+                continue
+        try:
+            raw = bucket.blob(name).download_as_bytes()
+            with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+                for member in zf.namelist():
+                    if not member.lower().endswith(".csv"):
+                        continue
+                    facts.extend(
+                        facts_from_sales_csv(
+                            _decode_csv(zf.read(member)),
+                            start=start_d,
+                            end=end_d,
+                        )
+                    )
+            meta["files"] = int(meta["files"]) + 1
+        except Exception as exc:  # noqa: BLE001
+            meta["errors"].append(f"{name}: {exc}"[:160])
+            LOGGER.warning("play sales skip %s: %s", name, exc)
     for prefix, suffix in wanted_suffix.items():
         parser = next(fn for key, fn in parsers.items() if prefix.startswith(key))
         try:

@@ -194,3 +194,36 @@ def post_play_console_ingest(
     except Exception:
         pass
     return result
+
+
+@router.get("/play-console/coverage")
+def get_play_console_coverage(
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+):
+    """Overview fact aralığı — token ile; panel oturumu gerekmez."""
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    payload = play_console_payload(db)
+    panels = payload.get("panels") if isinstance(payload.get("panels"), dict) else {}
+    facts = panels.get("explorer_facts") if isinstance(panels, dict) else []
+    by_metric: dict[str, dict[str, Any]] = {}
+    for fact in facts or []:
+        if not isinstance(fact, dict):
+            continue
+        metric = str(fact.get("metric") or "")
+        day = str(fact.get("date") or "")[:10]
+        dim = str(fact.get("dim") or fact.get("dimension") or "overview")
+        if not metric or len(day) != 10 or dim not in ("overview", ""):
+            continue
+        slot = by_metric.setdefault(metric, {"count": 0, "min": day, "max": day})
+        slot["count"] = int(slot["count"]) + 1
+        if day < slot["min"]:
+            slot["min"] = day
+        if day > slot["max"]:
+            slot["max"] = day
+    return {
+        "ok": True,
+        "overview_metrics": by_metric,
+        "explorer_fact_count": panels.get("explorer_fact_count") if isinstance(panels, dict) else None,
+    }

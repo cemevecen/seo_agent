@@ -45,6 +45,7 @@ class EmpowerIntelIngestBody(BaseModel):
     platforms: list[dict[str, Any]] = Field(default_factory=list)
     rows: list[dict[str, Any]] = Field(default_factory=list)
     snapshots: list[dict[str, Any]] = Field(default_factory=list)
+    allow_today: bool = False
 
 
 @router.post("/empower-intel/ingest")

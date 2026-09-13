@@ -73,6 +73,7 @@ def upsert_rows(
     source: str = "scrape",
     scraped_at: datetime | None = None,
     commit: bool = True,
+    allow_today: bool = False,
 ) -> dict[str, Any]:
     """Satırları (project, platform, report_date) ile upsert — duplicate yok."""
     proj = (project or "doviz").strip().lower() or "doviz"
@@ -93,7 +94,7 @@ def upsert_rows(
         try:
             from backend.services.history_seal import never_store_today
 
-            if never_store_today(rd):
+            if not allow_today and never_store_today(rd):
                 skipped += 1
                 continue
         except Exception:
@@ -197,6 +198,7 @@ def ingest_payload(db: Session, body: dict[str, Any]) -> dict[str, Any]:
                 source=source,
                 scraped_at=scraped_at,
                 commit=False,
+                allow_today=bool(body.get("allow_today")),
             )
         except ValueError as exc:
             details.append({"platform": plat, "ok": False, "message": str(exc)})

@@ -1217,6 +1217,7 @@ def post_ingest(payload: dict[str, Any]) -> dict[str, Any]:
                 continue
             chunk = dict(base)
             chunk["platforms"] = [block]
+            chunk["allow_today"] = True
             res = _post_one(chunk)
             details.append({"platform": block.get("platform"), **res})
             if not res.get("ok"):
@@ -1245,6 +1246,8 @@ def post_ingest(payload: dict[str, Any]) -> dict[str, Any]:
             ),
         }
 
+    payload = dict(payload)
+    payload["allow_today"] = True
     return _post_one(payload)
 
 
