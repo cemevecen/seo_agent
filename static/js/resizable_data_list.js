@@ -28,7 +28,7 @@
       "height:auto;border-radius:0.75rem;overflow:hidden;}" +
       ".rdl-scroll{min-width:0;width:100%;overflow:auto;-webkit-overflow-scrolling:touch;" +
       "overscroll-behavior:contain;flex:0 0 auto;height:auto;max-height:none;}" +
-      ".rdl-scroll>table{width:max-content;max-width:none;min-width:100%;border-collapse:collapse;}" +
+      ".rdl-scroll>table{width:100%;max-width:none;min-width:100%;height:100%;table-layout:fixed;border-collapse:collapse;}" +
       ".rdl-handle{flex:0 0 auto;height:14px;cursor:ns-resize;touch-action:none;" +
       "display:flex;align-items:center;justify-content:center;" +
       "background:linear-gradient(to bottom,transparent,rgba(148,163,184,.18));" +

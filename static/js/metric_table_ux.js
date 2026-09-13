@@ -39,7 +39,8 @@
       "html.dark .mtux-opt-toggle,html.dark .mtux-heat-toggle{color:#a1a1aa;border-color:rgba(113,113,122,0.55);background:rgba(39,39,42,0.55);}" +
       "html.dark .mtux-opt-toggle[aria-pressed='true']{background:rgba(14,165,233,0.18);color:#7dd3fc;border-color:#0284c7;}" +
       "html.dark .mtux-heat-toggle[aria-pressed='true']{background:rgba(63,63,70,0.55);color:#e4e4e7;}" +
-      "table.mtux-grid-table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;" +
+      "table.mtux-grid-table{border-collapse:separate;border-spacing:0;width:100%;min-width:100%;height:100%;" +
+      "table-layout:fixed;"
       "font-variant-numeric:tabular-nums;}" +
       "table.mtux-grid-table th,table.mtux-grid-table td{" +
       "border-right:1px solid rgba(148,163,184,0.14);border-bottom:1px solid rgba(148,163,184,0.14);}" +
@@ -90,7 +91,7 @@
       ".mtux-col-resizer:hover,.mtux-col-resizer.is-active{background:rgba(14,165,233,0.35);}" +
       ".mtux-drag-hint{opacity:0.45;font-size:0.65rem;margin-right:0.2rem;cursor:grab;flex:0 0 auto;}" +
       "th.mtux-th:active .mtux-drag-hint{cursor:grabbing;}" +
-      "table.mtux-interactive{table-layout:fixed;width:max-content;min-width:100%;}" +
+      "table.mtux-interactive{table-layout:fixed;width:100%;min-width:100%;height:100%;}" +
       "table.mtux-interactive th.mtux-th{overflow:visible;text-overflow:clip;white-space:nowrap;vertical-align:middle;}" +
       "table.mtux-interactive th.mtux-th:not([data-mtux-fixed='1']){min-width:5.25rem;}" +
       "table.mtux-interactive th[data-mtux-fixed='1']{min-width:5.5rem;}" +
@@ -562,7 +563,111 @@
         : {});
     }
 
+    equalizeTableBox(tableEl);
+    watchTableBox(tableEl);
+    requestAnimationFrame(function () { equalizeTableBox(tableEl); });
+
     return { rowCount: keys.length + (transposed ? 0 : 1 + (showTotal ? 1 : 0)) };
+  }
+
+  var LABEL_COL_MIN = 88;
+  var LABEL_COL_MAX = 128;
+  var METRIC_COL_MIN = 64;
+
+  /** Seçili sütunlar kartın enini ve boyunu eşit paylaşır — sağda beyaz şerit kalmaz. */
+  function equalizeTableBox(table) {
+    if (!table) return;
+    var wrap = table.parentElement;
+    var shell = wrap && wrap.closest ? wrap.closest(".rdl-shell, .mtux-shell") : null;
+    if (!wrap) return;
+    table.style.width = "100%";
+    table.style.minWidth = "100%";
+    table.style.maxWidth = "none";
+    table.style.tableLayout = "fixed";
+    table.style.height = "100%";
+
+    var ths = Array.prototype.slice.call(table.querySelectorAll("thead th")).filter(function (th) {
+      return !th.classList.contains("mtux-avg-gap");
+    });
+    if (!ths.length) return;
+    var label = ths[0];
+    var rest = ths.slice(1);
+    ths.forEach(function (th) {
+      th.style.width = "";
+      th.style.minWidth = "";
+      th.style.maxWidth = "";
+    });
+    var wrapW = wrap.clientWidth || table.clientWidth || 0;
+    if (wrapW < 40) return;
+    var labelW = Math.min(LABEL_COL_MAX, Math.max(LABEL_COL_MIN, Math.round(wrapW * 0.11)));
+    if (!rest.length) {
+      label.style.width = "100%";
+      return;
+    }
+    var share = Math.floor((wrapW - labelW) / rest.length);
+    if (share < METRIC_COL_MIN) {
+      share = METRIC_COL_MIN;
+      var need = labelW + share * rest.length;
+      table.style.width = need + "px";
+      table.style.minWidth = need + "px";
+    }
+    label.style.width = labelW + "px";
+    label.style.minWidth = labelW + "px";
+    label.style.maxWidth = labelW + "px";
+    var used = labelW;
+    rest.forEach(function (th, i) {
+      var w = i === rest.length - 1 && share >= METRIC_COL_MIN
+        ? Math.max(share, wrapW - used)
+        : share;
+      used += w;
+      th.style.width = w + "px";
+      th.style.minWidth = w + "px";
+      th.style.maxWidth = w + "px";
+    });
+
+    if (!shell) return;
+    var top = shell.getBoundingClientRect().top;
+    var avail = Math.max(280, Math.round(window.innerHeight - top - 12));
+    shell.style.minHeight = avail + "px";
+    shell.style.height = avail + "px";
+    var legend = shell.querySelector(".mtux-legend");
+    var handle = shell.querySelector(".rdl-handle");
+    var used = (legend ? legend.offsetHeight : 0) + (handle ? handle.offsetHeight : 0);
+    var wrapH = Math.max(160, avail - used);
+    wrap.style.height = wrapH + "px";
+    wrap.style.maxHeight = wrapH + "px";
+    wrap.style.flex = "1 1 auto";
+    var headH = 0;
+    var thead = table.querySelector("thead");
+    if (thead) headH = thead.offsetHeight || 34;
+    var bodyRows = Array.prototype.slice.call(table.querySelectorAll("tbody tr")).filter(function (tr) {
+      return !tr.classList.contains("mtux-avg-gap-row");
+    });
+    if (!bodyRows.length) return;
+    var rowH = Math.floor((wrapH - headH - 4) / bodyRows.length);
+    if (rowH < 28) rowH = 28;
+    bodyRows.forEach(function (tr) {
+      tr.style.height = rowH + "px";
+    });
+  }
+
+  function watchTableBox(table) {
+    if (!table || table._mtuxBoxWatch) return;
+    table._mtuxBoxWatch = true;
+    var wrap = table.parentElement;
+    if (typeof ResizeObserver !== "undefined" && wrap) {
+      var lastW = 0;
+      var ro = new ResizeObserver(function () {
+        var w = wrap.clientWidth || 0;
+        if (Math.abs(w - lastW) < 2) return;
+        lastW = w;
+        equalizeTableBox(table);
+      });
+      ro.observe(wrap);
+    }
+    window.addEventListener("resize", function () {
+      equalizeTableBox(table);
+    });
   }
 
   function applyWidths(table, widths) {
@@ -647,6 +752,7 @@
             resizer.classList.remove("is-active");
             document.removeEventListener("pointermove", onMove);
             document.removeEventListener("pointerup", onUp);
+            equalizeTableBox(table);
           }
           document.addEventListener("pointermove", onMove);
           document.addEventListener("pointerup", onUp);
@@ -824,6 +930,7 @@
     writeJson: writeJson,
     ensureLegend: ensureLegend,
     renderHeatGrid: renderHeatGrid,
+    equalizeTableBox: equalizeTableBox,
     bindInteractive: bindInteractive,
     applyWidths: applyWidths,
     fitTextToWidth: fitTextToWidth,
