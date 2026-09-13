@@ -1796,6 +1796,8 @@
       max-width: 100%;
       width: 100%;
       overflow: visible;
+      container-type: inline-size;
+      container-name: header-nav;
     }
     .header-nav-track-wrap {
       display: flex;
@@ -1812,22 +1814,15 @@
       flex-direction: row;
       flex-wrap: nowrap;
       align-items: center;
-      justify-content: flex-start;
-      gap: 0.25rem;
+      justify-content: space-between;
+      gap: var(--header-nav-gap, 0.2rem);
       flex: 1 1 auto;
-      width: auto;
+      width: 100%;
       max-width: 100%;
       min-width: 0;
-      /* No horizontal scroll: priority items stay left; overflow goes into ⋯ */
       overflow-x: hidden;
       overflow-y: visible;
       padding-bottom: 0.125rem;
-    }
-    /* When everything fits on wide screens, push the group to the right. */
-    .header-nav-track:not(.is-overflowing)::before {
-      content: '';
-      flex: 1 1 auto;
-      min-width: 0;
     }
     .header-nav-track-wrap.is-overflowing .header-nav-more {
       flex: 0 0 auto;
@@ -1840,7 +1835,7 @@
       }
       .header-nav-track,
       .header-nav-track-wrap {
-        gap: 0.125rem;
+        gap: var(--header-nav-gap, 0.2rem);
       }
     }
     #header-site-title {
@@ -2289,11 +2284,11 @@
       }
     }
     .header-nav-link {
-      flex: none;
+      flex: 0 1 auto;
       width: auto;
       max-width: none;
       min-width: max-content;
-      padding: 0.35rem 0.45rem;
+      padding: 0.35rem var(--header-nav-px, 0.4rem);
       position: relative;
       z-index: 0;
       border: none;
@@ -2303,10 +2298,10 @@
       text-align: center;
       white-space: nowrap;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      font-size: clamp(0.625rem, 2.8vw, 0.75rem);
+      font-size: var(--header-nav-fs, clamp(0.58rem, 1.15cqi, 0.84rem));
       font-weight: 500;
       line-height: 1.3;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.01em;
       color: #475569;
       text-decoration: none;
       transition: color 0.15s ease;
@@ -2422,22 +2417,9 @@
     @media (max-width: 1023px) {
       .header-nav-link {
         min-height: 32px;
-        padding-left: 0.45rem;
-        padding-right: 0.45rem;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.6875rem;
-      }
-      .header-nav-track {
-        gap: 0.35rem;
-      }
-    }
-    @media (min-width: 1024px) {
-      .header-nav-link {
-        font-size: 0.6875rem;
-        padding-left: 0.35rem;
-        padding-right: 0.35rem;
       }
     }
     .header-nav-more {
@@ -2954,21 +2936,32 @@
         }
       }
 
-      /* Priority nav: always keep leftmost (most important) tabs visible.
-         Items that do not fit are moved into the trailing ⋯ menu — never clipped
-         off the left by flex-end / scroll. ⋯ lives outside the clipping track. */
+      /* Nav fills the header from start to end. Font and padding scale with the
+         window; ⋯ only appears when even the smallest type cannot fit. */
+      var HEADER_NAV_FS_MIN = 9;
+      var HEADER_NAV_FS_MAX = 17;
+      function applyHeaderNavScale(track, fs) {
+        if (!track) return;
+        var size = Math.max(HEADER_NAV_FS_MIN, Math.min(HEADER_NAV_FS_MAX, fs));
+        var pad = Math.max(2, Math.round(size * 0.28));
+        var gap = Math.max(2, Math.round(size * 0.18));
+        track.style.setProperty('--header-nav-fs', size.toFixed(2) + 'px');
+        track.style.setProperty('--header-nav-px', pad + 'px');
+        track.style.setProperty('--header-nav-gap', gap + 'px');
+      }
       function fitHeaderNavPriority() {
         var wrap = document.getElementById('header-nav-track-wrap');
         var track = document.getElementById('header-nav-track');
         var more = document.getElementById('header-nav-more');
         var moreMenu = document.getElementById('header-nav-more-menu');
         var moreBtn = document.getElementById('header-nav-more-trigger');
-        if (!track || !more || !moreMenu) return;
-
-        more.classList.remove('is-open');
-        if (moreBtn) moreBtn.setAttribute('aria-expanded', 'false');
-        moreMenu.innerHTML = '';
-        more.hidden = true;
+        if (!track) return;
+        if (more && moreMenu) {
+          more.classList.remove('is-open');
+          if (moreBtn) moreBtn.setAttribute('aria-expanded', 'false');
+          moreMenu.innerHTML = '';
+          more.hidden = true;
+        }
         if (wrap) wrap.classList.remove('is-overflowing');
 
         var items = Array.prototype.slice.call(track.querySelectorAll(':scope > [data-nav-priority]'));
@@ -2979,10 +2972,12 @@
         track.classList.remove('is-overflowing');
         track.scrollLeft = 0;
 
-        var gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 0;
+        function trackGap() {
+          return parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 0;
+        }
         var wrapGap = wrap
           ? (parseFloat(getComputedStyle(wrap).columnGap || getComputedStyle(wrap).gap) || 0)
-          : gap;
+          : 0;
 
         function visiblePrimary() {
           return items.filter(function (el) {
@@ -2996,7 +2991,7 @@
           vis.forEach(function (el) {
             w += el.getBoundingClientRect().width;
           });
-          if (vis.length > 1) w += gap * (vis.length - 1);
+          if (vis.length > 1) w += trackGap() * (vis.length - 1);
           return w;
         }
 
@@ -3012,15 +3007,40 @@
           return;
         }
 
+        function fitsAt(fs) {
+          applyHeaderNavScale(track, fs);
+          return primaryWidth() <= available + 1;
+        }
+
+        var fitted = HEADER_NAV_FS_MIN;
+        if (fitsAt(HEADER_NAV_FS_MAX)) {
+          fitted = HEADER_NAV_FS_MAX;
+        } else if (fitsAt(HEADER_NAV_FS_MIN)) {
+          var lo = HEADER_NAV_FS_MIN;
+          var hi = HEADER_NAV_FS_MAX;
+          for (var step = 0; step < 8; step += 1) {
+            var mid = (lo + hi) / 2;
+            if (fitsAt(mid)) {
+              fitted = mid;
+              lo = mid;
+            } else {
+              hi = mid;
+            }
+          }
+          applyHeaderNavScale(track, fitted);
+        } else {
+          applyHeaderNavScale(track, HEADER_NAV_FS_MIN);
+        }
+
+        if (!more || !moreMenu || primaryWidth() <= available + 1) {
+          syncTopNavActive();
+          return;
+        }
+
         /* Measure ⋯ while briefly visible (outside the clipping track). */
         more.hidden = false;
         var moreW = Math.ceil(more.getBoundingClientRect().width) || 36;
         more.hidden = true;
-
-        if (primaryWidth() <= available + 1) {
-          syncTopNavActive();
-          return;
-        }
 
         track.classList.add('is-overflowing');
         if (wrap) wrap.classList.add('is-overflowing');
