@@ -11,7 +11,7 @@ import os
 import re
 import threading
 import time
-from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, as_completed, wait
+from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -903,6 +903,20 @@ def _fetch_ios_rss_reviews(
     return reviews
 
 
+def _ios_review_error_is_noise(err: str | None) -> bool:
+    """Apple HTML yorum sayfası geçici kısıtı — panelde ham URL göstermeyiz."""
+    if not err:
+        return False
+    low = err.lower()
+    return (
+        "429" in low
+        or "too many requests" in low
+        or "see-all=reviews" in low
+        or "rate_limited" in low
+        or "rate limit" in low
+    )
+
+
 def _fetch_ios_one_storefront(
     app_id: str, ios_slug: str, loc: str,
 ) -> tuple[str, list[dict[str, Any]], dict[str, Any], bool, str | None]:
@@ -912,11 +926,22 @@ def _fetch_ios_one_storefront(
     try:
         with httpx.Client(timeout=16.0, follow_redirects=True, headers=headers) as client:
             r = client.get(url, params=params)
+            if r.status_code == 429:
+                logger.info("app_intel: App Store yorum sayfası kısıtladı (%s)", loc)
+                return loc, [], {}, False, "rate_limited"
             r.raise_for_status()
         revs, page_snap = _parse_ios_review_page(r.text)
         return loc, revs, page_snap, True, None
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code if e.response is not None else 0
+        if status == 429:
+            logger.info("app_intel: App Store yorum sayfası kısıtladı (%s)", loc)
+            return loc, [], {}, False, "rate_limited"
+        logger.info("app_intel: App Store yorum sayfası alınamadı (%s): HTTP %s", loc, status)
+        return loc, [], {}, False, None
     except Exception as e:
-        return loc, [], {}, False, str(e)
+        logger.info("app_intel: App Store yorum sayfası alınamadı (%s): %s", loc, type(e).__name__)
+        return loc, [], {}, False, None
 
 
 def _fetch_ios_reviews_multistore(
@@ -929,29 +954,26 @@ def _fetch_ios_reviews_multistore(
     storefronts_ok = 0
     last_err: str | None = None
     storefronts = _ios_review_storefronts()
-    n_sf = len(storefronts)
-    # Apple rate limit'i aşmamak için eşzamanlı istek sayısı sınırlı tutulur.
-    max_workers = min(4, n_sf)
-    by_loc: dict[str, tuple[list[dict[str, Any]], dict[str, Any], bool, str | None]] = {}
+    rate_limited = False
 
-    try:
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            future_to_loc = {
-                pool.submit(_fetch_ios_one_storefront, app_id, ios_slug, loc): loc
-                for loc in storefronts
-            }
-            for fut in as_completed(future_to_loc):
-                loc = future_to_loc[fut]
-                _loc, revs, page_snap, ok, one_err = fut.result()
-                by_loc[loc] = (revs, page_snap, ok, one_err)
-    except Exception as e:
-        last_err = str(e)
-        logger.warning("App Store çoklu vitrin hatası (%s): %s", app_id, e)
-
-    for loc in storefronts:
-        if loc not in by_loc:
+    # see-all=reviews paralel gidince Apple 429 döner. Birkaç vitrin, sırayla; kısıt gelince dur.
+    # Yorumların asıl kaynağı iTunes RSS; HTML sayfa yalnızca ek örnek.
+    html_storefronts = storefronts[:2]
+    n_sf = len(html_storefronts)
+    for i, loc in enumerate(html_storefronts):
+        if rate_limited:
+            break
+        if i:
+            time.sleep(0.8)
+        try:
+            _loc, revs, page_snap, ok, one_err = _fetch_ios_one_storefront(app_id, ios_slug, loc)
+        except Exception as e:
+            logger.info("App Store vitrin atlandı (%s %s): %s", loc, app_id, type(e).__name__)
             continue
-        revs, page_snap, ok, one_err = by_loc[loc]
+        if one_err == "rate_limited":
+            rate_limited = True
+            last_err = one_err
+            break
         if ok:
             storefronts_ok += 1
             if page_snap and not snap:
@@ -964,9 +986,8 @@ def _fetch_ios_reviews_multistore(
                 merged.append(rv)
         elif one_err:
             last_err = one_err
-            logger.debug("App Store vitrin atlandı (%s %s): %s", loc, app_id, one_err)
 
-    err: str | None = None if merged else last_err
+    err: str | None = None if merged or _ios_review_error_is_noise(last_err) else last_err
     return merged, snap, err, storefronts_ok, n_sf
 
 
@@ -2501,6 +2522,14 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False, cache_
             if k not in existing_keys:
                 existing_keys.add(k)
                 i_rows.append(rv)
+    # HTML see-all=reviews 429 olduysa RSS veya önceki depo yorumu yeter; ham URL panele yazılmaz.
+    if _ios_review_error_is_noise(i_err):
+        i_err = None
+        if not i_rows:
+            prev_kept = _load_disk_raw(product_id)
+            prev_reviews = ((prev_kept or {}).get("ios") or {}).get("reviews") if isinstance(prev_kept, dict) else None
+            if isinstance(prev_reviews, list) and prev_reviews:
+                i_rows = prev_reviews
     if i_lookup:
         i_snap = {**(i_snap or {}), **{k: v for k, v in i_lookup.items() if v is not None}}
     # SSR JSON ile çekilen ülkeye özgü gerçek dağılım — öncelikli kaynak
@@ -2746,7 +2775,10 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
         "urls": raw["urls"],
         "fetched_at": raw["fetched_at"],
         "display_fetched_at": get_last_forced_refresh_at(product_id) or raw["fetched_at"],
-        "errors": {"android": raw["android"].get("error"), "ios": raw["ios"].get("error")},
+        "errors": {
+            "android": raw["android"].get("error"),
+            "ios": None if _ios_review_error_is_noise(raw["ios"].get("error")) else raw["ios"].get("error"),
+        },
         "meta": {
             "android": raw["android"]["meta"],
             "ios": raw["ios"]["meta"],
