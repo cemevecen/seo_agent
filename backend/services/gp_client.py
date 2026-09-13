@@ -56,14 +56,21 @@ def is_configured() -> bool:
 def _load_credentials():
     """google.oauth2.service_account.Credentials döndür."""
     raw = _env("GP_SERVICE_ACCOUNT_JSON") or ""
-    # Railway'de tek satır JSON ya da \\n ile escape edilmiş olabilir
-    if "\\n" in raw and "\n" not in raw:
-        raw = raw.replace("\\n", "\n")
+    # Önce düz JSON. Sadece parse düşerse Railway'in \\\n kaçışını dene.
+    info = None
     try:
         info = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        logger.error("GP service account JSON parse hatası: %s", exc)
-        return None
+    except json.JSONDecodeError:
+        alt = raw.replace("\\n", "\n") if "\\n" in raw and "\n" not in raw else ""
+        if alt:
+            try:
+                info = json.loads(alt)
+            except json.JSONDecodeError as exc:
+                logger.error("GP service account JSON parse hatası: %s", exc)
+                return None
+        else:
+            logger.error("GP service account JSON parse hatası")
+            return None
     try:
         from google.oauth2 import service_account
         return service_account.Credentials.from_service_account_info(info, scopes=_GP_SCOPES)

@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -206,10 +207,19 @@ def _page_asset_meta(page: Any) -> dict[str, str]:
         return {}
     if not isinstance(meta, dict):
         return {}
-    return {
-        "prefix": str(meta.get("prefix") or "").rstrip("/"),
-        "key": str(meta.get("key") or "").strip(),
-    }
+    prefix = str(meta.get("prefix") or "").rstrip("/")
+    key = str(meta.get("key") or "").strip()
+    if not key:
+        try:
+            html = page.content() or ""
+        except Exception:
+            html = ""
+        found = re.search(r'"assetKey"\s*:\s*"([^"]+)"', html)
+        if found:
+            key = found.group(1).strip()
+        if not prefix:
+            prefix = "https://api.doviz.com/api/v12"
+    return {"prefix": prefix, "key": key}
 
 
 def _fetch_archive_api(page: Any, start_iso: str, end_iso: str) -> dict[str, Any] | None:
@@ -289,8 +299,29 @@ def _rows_to_ingest(parsed: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def _historical_url(source_url: str) -> str:
+    url = (source_url or "").rstrip("/")
+    if url.endswith("/tarihsel-veri"):
+        return url
+    return url + "/tarihsel-veri"
+
+
 def tarama_series(page: Any, spec: Any, *, start_iso: str, end_iso: str) -> dict[str, Any]:
     archive_hits: list[dict[str, Any]] = []
+    auth_box = {"value": ""}
+
+    def _on_request(req: Any) -> None:
+        if auth_box["value"]:
+            return
+        url = (getattr(req, "url", "") or "").lower()
+        if "/archive" not in url or "/assets/" not in url:
+            return
+        headers = getattr(req, "headers", None) or {}
+        auth = ""
+        if isinstance(headers, dict):
+            auth = str(headers.get("authorization") or headers.get("Authorization") or "")
+        if auth:
+            auth_box["value"] = auth
 
     def _on_response(resp: Any) -> None:
         try:
@@ -305,9 +336,10 @@ def tarama_series(page: Any, spec: Any, *, start_iso: str, end_iso: str) -> dict
         except Exception:
             return
 
+    page.on("request", _on_request)
     page.on("response", _on_response)
     try:
-        page.goto(spec.source_url, wait_until="domcontentloaded", timeout=60000)
+        page.goto(_historical_url(spec.source_url), wait_until="domcontentloaded", timeout=60000)
         page.wait_for_timeout(1800)
         _dismiss_overlays(page)
         page.wait_for_timeout(600)
@@ -326,7 +358,33 @@ def tarama_series(page: Any, spec: Any, *, start_iso: str, end_iso: str) -> dict
 
         parsed: list[dict[str, Any]] = []
         source = ""
-        api_hit = _fetch_archive_api(page, start_iso, end_iso)
+        api_hit = None
+        if auth_box["value"]:
+            meta = _page_asset_meta(page)
+            key = meta.get("key") or ""
+            prefix = meta.get("prefix") or "https://api.doviz.com/api/v12"
+            if key:
+                start_ts, end_ts = _archive_unix_range(start_iso, end_iso)
+                archive_url = f"{prefix}/assets/{key}/archive?start={start_ts}&end={end_ts}"
+                try:
+                    resp = page.request.get(
+                        archive_url,
+                        timeout=45000,
+                        headers={
+                            "Accept": "application/json",
+                            "X-Requested-With": "XMLHttpRequest",
+                            "Authorization": auth_box["value"],
+                            "Referer": page.url or "",
+                        },
+                    )
+                    if resp.status == 200:
+                        body = resp.json()
+                        if isinstance(body, dict):
+                            api_hit = body
+                except Exception:
+                    api_hit = None
+        if not api_hit:
+            api_hit = _fetch_archive_api(page, start_iso, end_iso)
         if api_hit:
             parsed = parse_archive_payload(api_hit)
             if parsed:
