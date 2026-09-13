@@ -391,14 +391,20 @@ def ingest_play_console_payload(
                 or (os.environ.get("PLAY_CONSOLE_REPLACE_FACTS") or "").strip().lower()
                 in ("1", "true", "yes", "on")
             )
-            if replace_all:
-                touched = {
-                    str(f.get("metric"))
-                    for f in (incoming_facts or [])
-                    if isinstance(f, dict) and f.get("metric")
+            touched = {
+                str(f.get("metric"))
+                for f in (incoming_facts or [])
+                if isinstance(f, dict) and f.get("metric")
+            }
+            # CSV günlük overview: yalnız overview günlerini değiştir, OS/sürüm/cihaz kalsın
+            if str(sync_mode or "") == "csv_overview_fill" and touched:
+                by_key = {
+                    k: v
+                    for k, v in by_key.items()
+                    if not (k[0] in touched and k[2] in ("overview", ""))
                 }
-                if touched:
-                    by_key = {k: v for k, v in by_key.items() if k[0] not in touched}
+            elif replace_all and touched:
+                by_key = {k: v for k, v in by_key.items() if k[0] not in touched}
             for f in incoming_facts or []:
                 if not isinstance(f, dict) or not f.get("metric"):
                     continue

@@ -56,6 +56,7 @@ def test_play_bridge_default_timeout_unlimited():
 
 def test_statistics_views_anr_crash_first():
     mod = _load_play_scrape()
+    mod._play_sealed_lean = lambda: False
     ordered = mod._ordered_statistics_views()
     ids = [str(v.get("id")) for v in ordered[:4]]
     assert ids[0] == "anrs_date"

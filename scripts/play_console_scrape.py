@@ -459,14 +459,14 @@ def _ordered_statistics_views() -> list[dict[str, Any]]:
     )
     if not _play_sealed_lean():
         return views
-    # Mühürlü lean: yalnız ANR/Crash (ters tablo + günlük dilim). Diğer metrikler bellekte.
-    core = {"anrs", "crashes"}
-    lean = [v for v in views if str(v.get("metric_key") or "") in core]
+    # Mühürlü lean: installs/crashes/ratings/store CSV'den gelir (play_reports_backfill).
+    # Konsol taraması onları ezmesin; günlük konsol yalnızca CSV'si olmayan revenue.
+    lean = [v for v in views if str(v.get("metric_key") or "") == "revenue"]
     print(
-        f"  · stats lean · {len(lean)}/{len(views)} view (yalnız anrs/crashes · dün+bugün)",
+        f"  · stats lean · {len(lean)}/{len(views)} view (revenue · CSV kolonları ayrı job)",
         flush=True,
     )
-    return lean or views
+    return lean
 
 
 def _play_sealed_lean() -> bool:

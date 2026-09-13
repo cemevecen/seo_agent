@@ -1100,6 +1100,34 @@ def run_virgul_bridge_once(on_progress=None) -> dict[str, Any]:
     return out
 
 
+def run_play_reports_fill(*, months_back: int = 3) -> dict[str, Any]:
+    """Play CSV → overview fact ingest. Oturum gerekmez; günlük boşlukları kapatır."""
+    from backend.services.play_reports_backfill import (
+        build_overview_facts_from_bucket,
+        ingest_overview_facts,
+    )
+
+    facts, meta = build_overview_facts_from_bucket(months_back=months_back)
+    print(
+        f"Play CSV fill · files={meta.get('files')} facts={len(facts)} "
+        f"{meta.get('start')}→{meta.get('end')}",
+        flush=True,
+    )
+    if meta.get("errors"):
+        print(f"  · csv uyarı: {meta['errors'][:3]}", flush=True)
+    if not facts:
+        return {"ok": False, "kind": "play_csv", "message": "CSV fact yok", "meta": meta}
+    ing = ingest_overview_facts(facts)
+    print(
+        f"  · csv ingest {'ok' if ing.get('ok') else 'fail'} "
+        f"HTTP {ing.get('http_status')} · {str(ing.get('message') or '')[:160]}",
+        flush=True,
+    )
+    ing["kind"] = "play_csv"
+    ing["meta"] = meta
+    return ing
+
+
 def run_play_bridge_once() -> dict[str, Any]:
     """Play Console dashboard + reviews scrape → Railway ingest.
 
@@ -1107,8 +1135,12 @@ def run_play_bridge_once() -> dict[str, Any]:
     aynı fx-google penceresini paylaşır. Subprocess yetim Firefox üretmez.
 
     Varsayılan: süre sınırı yok (PLAY_BRIDGE_TIMEOUT_SEC=0). Mühürlü gövde yalnız
-    dün+bugün; ANR/Crash önce checkpoint ingest edilir.
+    dün+bugün. ANR/edinme/ziyaretçi/puan CSV job'undan gelir (oturumdan bağımsız).
     """
+    try:
+        run_play_reports_fill(months_back=3)
+    except Exception as exc:  # noqa: BLE001
+        print(f"Play CSV fill atlandı: {exc}", flush=True)
     return _run_play_scrape_inprocess(
         kind="play",
         vitals_only=False,

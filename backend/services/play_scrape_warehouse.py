@@ -813,7 +813,10 @@ def query_scrape_analytics(
 
     if breakdown == "date" and dated:
         series = _densify_date_series(series, start=start_d, end=effective_end, clip_to_data=True)
-    if metric_key in _CUMULATIVE and breakdown == "date" and series:
+    daily_csv = bool(use) and all(
+        str(f.get("value_kind") or "") == "daily" for f in use if f.get("date")
+    )
+    if metric_key in _CUMULATIVE and breakdown == "date" and series and not daily_csv:
         # Yalnızca ISO tarih anahtarlarında decumulate (OVERALL kartını 0 yapma)
         date_keys = [
             str(r.get("key") or "")
