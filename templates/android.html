@@ -465,7 +465,8 @@
   html.charcoal .metric-kpi-ss2-value { color: #fff; }
   .metric-kpi-ss2-delta {
     margin: 0;
-    font-size: clamp(0.26rem, 4.25cqi, 0.36rem);
+    font-size: clamp(0.875rem, 8.5cqi, 1.125rem);
+    line-height: 1.05;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -4329,7 +4330,7 @@
       var metrics = card.querySelector(".metric-kpi-ss2-metrics");
       var availVal = (metrics && metrics.clientWidth) || Math.max(8, w * 0.3);
       fitOneKpiText(val, Math.max(8, w * 0.045), Math.min(11.5, Math.max(9, availVal * 0.17)));
-      fitOneKpiText(dlt, Math.max(7, w * 0.028), Math.min(9, Math.max(7, availVal * 0.08)));
+      fitOneKpiText(dlt, Math.max(14, w * 0.056), 18);
     });
   }
   function unbindMetricKpiFit() {
