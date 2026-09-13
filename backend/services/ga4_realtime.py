@@ -3132,21 +3132,7 @@ def check_site_realtime(
                 alarms[0]["drivers"] = driver_list
                 
         logger.info("GA4 Realtime: %d alarm bulundu (site=%s, profile=%s).", len(alarms), site.domain, profile)
-        if not skip_emails:
-            rule_ids = [a["rule_id"] for a in alarms]
-            if _alarm_email_suppressed(db, site.id, rule_ids, profile=profile):
-                logger.info("GA4 Realtime: E-posta cooldown aktif, gönderim atlandı (site=%s, profile=%s).", site.domain, profile)
-            else:
-                mail_alarms = filter_alarms_for_email(alarms)
-                if mail_alarms:
-                    st = _send_site_alarm_emails(site.domain, profile, mail_alarms)
-                    _commit_realtime_email_mark(
-                        db,
-                        site.id,
-                        [a["rule_id"] for a in mail_alarms],
-                        profile=profile,
-                        status=st,
-                    )
+        # Eski site/KPI realtime postası yok. Yalnızca alan bazlı %70 trafik maili gider.
         logger.warning(
             "GA4 Realtime ALARM [%s]: %d kural tetiklendi — %s",
             site.domain,

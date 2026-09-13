@@ -781,7 +781,7 @@ def admin_run_inbox_summary_now():
             ok = run_inbox_summary_email(db)
         return {
             "status": "ok" if ok else "skipped",
-            "message": "Inbox özet maili gönderildi." if ok else "Mail gönderilmedi (kapalı veya Gmail yok).",
+            "message": "Inbox bildirim postası kapalı.",
         }
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
@@ -5126,23 +5126,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         job_count += 1
         LOGGER.info("Inbox Firebase sync aktif: her %d dk.", fb_iv)
 
-    # Inbox özet maili — 4 saatte bir, 06:30–22:30 (06:30, 10:30, 14:30, 18:30, 22:30).
-    scheduler.add_job(
-        _run_inbox_summary_email_job,
-        trigger=CronTrigger(
-            minute=30,
-            hour="6,10,14,18,22",
-            timezone=timezone,
-        ),
-        id="inbox-summary-email-4h",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=1800,
-    )
-    job_count += 1
-
-    # Eski inbox job id'lerini kaldır
+    # Inbox özet postası yok. Eski job id'lerini kaldır.
     for _legacy_inbox_job in (
         "inbox-summary-30min",
         "inbox-scheduled-sync-10min",
@@ -5150,6 +5134,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         "inbox-summary-on-hour",
         "inbox-summary-on-half",
         "inbox-summary-email-2h",
+        "inbox-summary-email-4h",
     ):
         try:
             scheduler.remove_job(_legacy_inbox_job)
@@ -21166,20 +21151,9 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             run_404_spike_check_all_sites,
             run_app_event_spike_check_all_sites,
         )
-        from backend.services.mailer import (
-            realtime_email_batch_begin,
-            realtime_email_batch_flush,
-            realtime_email_batch_take_pending_marks,
-        )
-        from backend.services.ga4_realtime import apply_realtime_batch_email_marks
-
         total_site_alarms = 0
         total_page_alarms = 0
         total_news_alarms = 0
-
-        # Tüm alarm tiplerinden gelen e-postalar tek bir mailde toplanır.
-        # Alarm tespiti / DB mantığına dokunulmaz; sadece gönderim batche alınır.
-        realtime_email_batch_begin()
 
         # 1. Site-level KPI — alarm değerlendirme/log kapalı (yalnızca snapshot)
         with SessionLocal() as db:
@@ -21189,18 +21163,20 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
                 skip_alarms=True,
                 skip_emails=True,
             )
+            from backend.services.realtime_traffic_swing import notify_traffic_swings
+
+            try:
+                swings = notify_traffic_swings(db, results)
+                if swings:
+                    LOGGER.info("Realtime trafik farkı postası: %d alan", len(swings))
+            except Exception:
+                LOGGER.exception("Realtime trafik farkı postası başarısız")
 
         for res in results:
             if isinstance(res, dict) and res.get("alarms"):
                 total_site_alarms += len(res["alarms"])
 
         if is_night and not force_run:
-            flushed = realtime_email_batch_flush()
-            if flushed:
-                marks = realtime_email_batch_take_pending_marks()
-                if marks:
-                    with SessionLocal() as db:
-                        apply_realtime_batch_email_marks(db, marks)
             LOGGER.info(
                 "GA4 Realtime: Gece modu — %d KPI snapshot güncellendi (alarm/sayfa/haber atlandı).",
                 len(results),
@@ -21235,14 +21211,14 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             with SessionLocal() as db:
                 page_alarms = run_page_alarm_check_all_sites(
                     db, window_minutes=settings.ga4_realtime_window_minutes,
-                    skip_emails=False,
+                    skip_emails=True,
                 )
             total_page_alarms = len(page_alarms) if page_alarms else 0
 
         # 3. Haber alarmları
         if settings.ga4_realtime_news_alerts_enabled:
             with SessionLocal() as db:
-                news_alarms = run_news_alarm_check_all_sites(db, skip_emails=False)
+                news_alarms = run_news_alarm_check_all_sites(db, skip_emails=True)
             total_news_alarms = len(news_alarms) if news_alarms else 0
 
         # 4. Realtime 404 spike kontrolü
@@ -21256,18 +21232,10 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
         total_app_event_alarms = 0
         try:
             with SessionLocal() as db:
-                app_event_results = run_app_event_spike_check_all_sites(db, skip_emails=False)
+                app_event_results = run_app_event_spike_check_all_sites(db, skip_emails=True)
             total_app_event_alarms = sum(len(r.get("alarms") or []) for r in app_event_results if isinstance(r, dict))
         except Exception as exc:
             LOGGER.warning("App event check hatası: %s", exc)
-
-        # Tüm alarmlar toplandı — tek mail olarak gönder
-        flushed = realtime_email_batch_flush()
-        if flushed:
-            marks = realtime_email_batch_take_pending_marks()
-            if marks:
-                with SessionLocal() as db:
-                    apply_realtime_batch_email_marks(db, marks)
 
         total = total_site_alarms + total_page_alarms + total_news_alarms + total_404_alarms + total_app_event_alarms
         LOGGER.info(
@@ -21772,7 +21740,11 @@ def admin_truncate_sc_snapshots():
 
 @app.get("/api/admin/force-test-alarm-emails")
 def admin_force_test_alarm_emails():
-    """Gerçek verilerle %50 sahte drop yaratarak web, mweb, ios, android mailleri atar."""
+    """Eski SEO realtime test postası kapalı."""
+    return {
+        "status": "skipped",
+        "logs": ["Eski SEO realtime test postası kapalı. Mail gitmedi."],
+    }
     from backend.services.ga4_realtime import (
         fetch_realtime_top_pages_with_app_fallback,
         _send_news_alarm_email,
@@ -21841,9 +21813,8 @@ def admin_force_test_alarm_emails():
                 except Exception as e:
                     logs.append(f"Hata {profile}: {str(e)}")
 
-        realtime_email_batch_flush()
-        logs.append("Posta kuyruğu boşaltıldı (Mailler gönderildi).")
-        return {"status": "ok", "logs": logs}
+        logs.append("Eski SEO realtime test postası kapalı. Mail gitmedi.")
+        return {"status": "skipped", "logs": logs}
 
 
 @app.get("/admin/db-size")

@@ -201,94 +201,21 @@ def realtime_email_batch_is_collecting() -> bool:
 
 
 def realtime_email_batch_flush() -> bool:
-    """Biriktirilen alarm işaretleri + periyodik SEO Realtime özet maili gönder."""
-    global _last_realtime_batch_sent_at, _pending_realtime_batch_items
+    """Eski SEO Realtime özet postası kapalı. Kuyruk düşer, mail gitmez."""
+    global _pending_realtime_batch_items
 
     if not getattr(_batch_ctx, "collecting", False):
         return False
     items: list[tuple[str, str]] = list(getattr(_batch_ctx, "items", []))
-
-    from backend.config import settings
-
-    min_gap_min = int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 180))
-
-    if _realtime_digest_in_quiet_hours():
-        if items:
-            logging.info(
-                "SEO Realtime özet maili gece penceresinde — %d bölüm ertelendi.",
-                len(items),
-            )
-        return False
-
-    from backend.database import SessionLocal
-    from backend.services.ga4_realtime import (
-        build_realtime_periodic_digest_html,
-        realtime_periodic_digest_skip_no_site_match,
-        realtime_periodic_digest_subject,
-    )
-
-    with SessionLocal() as db:
-        if not _realtime_digest_interval_due(min_gap_min, db=db):
-            if items:
-                logging.info(
-                    "SEO Realtime özet maili ertelendi (%d dk minimum aralık, %d alarm kuyrukta).",
-                    min_gap_min,
-                    len(items),
-                )
-            return False
-
-        if not items and realtime_periodic_digest_skip_no_site_match(db):
-            logging.info(
-                "SEO Realtime özet maili atlandı: aktif site yok veya döviz/sinemalar için site eşleşmedi."
-            )
-            _batch_ctx.collecting = False
-            _batch_ctx.items = []
-            return False
-
-        try:
-            combined_subject = realtime_periodic_digest_subject(db)
-            combined_body = build_realtime_periodic_digest_html(
-                db,
-                queued_alarm_sections=len(items),
-                lock_preview_title=combined_subject,
-            )
-        except Exception:
-            logging.exception("SEO Realtime özet maili HTML üretilemedi")
-            _batch_ctx.collecting = True
-            _batch_ctx.items = items
-            return False
-
     _batch_ctx.collecting = False
     _batch_ctx.items = []
-
-    ok = send_realtime_email(
-        combined_subject,
-        combined_body,
-        thread_kind="combined",
-        thread_key="all_sites_batch",
-        is_summary=True,
-    )
-    if ok:
-        _last_realtime_batch_sent_at = time.time()
-        try:
-            with SessionLocal() as db:
-                from backend.config import settings as _settings
-
-                recips = normalize_outbound_recipients(None, raw_setting=_settings.mail_to)
-                _log_realtime_periodic_digest_sent(
-                    db, combined_subject, recips[0] if recips else ""
-                )
-        except Exception:
-            logging.exception("SEO Realtime özet maili gönderim kaydı yazılamadı")
-    else:
-        _batch_ctx.collecting = True
-        _batch_ctx.items = items
-        _pending_realtime_batch_items.extend(items)
-        logging.warning(
-            "SEO Realtime özet maili gönderilemedi; %d bölüm sonraki döngüye bırakıldı.",
+    _pending_realtime_batch_items = []
+    if items:
+        logging.info(
+            "SEO Realtime özet postası kapalı — %d bölüm gönderilmedi.",
             len(items),
         )
-    return ok
+    return False
 
 
 from typing import TYPE_CHECKING
@@ -751,6 +678,39 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
     return ok
 
 
+def send_area_realtime_email(
+    subject: str,
+    html_body: str,
+    recipients: list[str] | None = None,
+) -> bool:
+    """Tek alan (site+profil) trafik farkı postası. Eski özet digest'e girmez."""
+    subj = (subject or "").strip()
+    if not subj or not html_body:
+        return False
+    recipient_list = normalize_outbound_recipients(recipients, raw_setting=settings.mail_to)
+    if not _realtime_outbound_transport_ready():
+        logging.warning("Alan realtime postası gönderilemedi: SMTP veya Gmail OAuth gerekli")
+        return False
+    if not recipient_list:
+        logging.warning("Alan realtime postası gönderilemedi: MAIL_TO boş")
+        return False
+    if not smtp_recipients_allowed(len(recipient_list)):
+        return False
+
+    message = EmailMessage()
+    message["Subject"] = subj[:120]
+    message["From"] = effective_mail_from(recipient_list)
+    _set_message_to_header(message, recipient_list)
+    from backend.services.inbox_email_render import plain_text_for_mailer
+
+    message.set_content(plain_text_for_mailer(html_body, subject=subj))
+    message.add_alternative(html_body, subtype="html")
+    ok = _dispatch_outbound_message(message)
+    if ok:
+        logging.info("Alan realtime postası gönderildi: %s", subj[:100])
+    return ok
+
+
 def send_realtime_email(
     subject: str,
     html_body: str,
@@ -760,58 +720,10 @@ def send_realtime_email(
     thread_key: str | None = None,
     is_summary: bool = False,
 ) -> bool:
-    """
-    GA4 Realtime alarm e-postası (site metrikleri ve sayfa listesi alarmları).
-
-    - ``outbound_email_enabled`` ile koşullanmaz (günlük özet / genel dış posta kapalı olsa da çalışır).
-    - ``ga4_realtime_email_enabled`` açık olmalı.
-    - ``ga4_realtime_page_alert_email`` ise sadece bireysel (is_summary=False) maillerde zorunludur.
-    - Haber başlığı alarmları: ``send_realtime_news_email`` ve ``ga4_realtime_news_alert_email``.
-    - Geçici SMTP hatalarında ``send_email`` ile aynı yeniden deneme mantığı kullanılır.
-    """
-    # ── Batch modu: biriktir, şimdi gönderme ─────────────────────────────────
-    if getattr(_batch_ctx, "collecting", False) and not is_summary:
-        _batch_ctx.items.append((subject.strip(), html_body))
-        return True
-
-    subj = subject.strip()
-
-    if not settings.ga4_realtime_email_enabled:
-        logging.warning("GA4 Realtime e-postası gönderilemedi: ga4_realtime_email_enabled=False")
-        return False
-
-    recipient_list = normalize_outbound_recipients(recipients, raw_setting=settings.mail_to)
-    if not _realtime_outbound_transport_ready():
-        logging.warning(
-            "GA4 Realtime e-postası gönderilemedi: SMTP yapılandırması veya Gmail OAuth (inbox) gerekli"
-        )
-        return False
-    if not recipient_list:
-        logging.warning("GA4 Realtime e-postası gönderilemedi: Alıcı listesi (MAIL_TO) boş")
-        return False
-    if not smtp_recipients_allowed(len(recipient_list)):
-        logging.warning("GA4 Realtime e-postası gönderilemedi: Alıcı sayısı sınırı aşıldı")
-        return False
-
-    message = EmailMessage()
-    message["Subject"] = subj
-    message["From"] = effective_mail_from(recipient_list)
-    _set_message_to_header(message, recipient_list)
-    from backend.services.inbox_email_render import plain_text_for_mailer
-
-    message.set_content(plain_text_for_mailer(html_body, subject=subj))
-    message.add_alternative(html_body, subtype="html")
-    if thread_kind and thread_key:
-        _apply_realtime_thread_headers(message, thread_kind, thread_key)
-
-    ok = _dispatch_outbound_message(message)
-    if ok:
-        logging.info(
-            "GA4 Realtime e-postası gönderildi: %s → %s",
-            subj[:100],
-            ", ".join(recipient_list),
-        )
-    return ok
+    """Eski site/sayfa realtime alarm postası kapalı."""
+    del html_body, recipients, thread_kind, thread_key, is_summary
+    logging.info("Eski realtime alarm postası kapalı: %s", (subject or "")[:80])
+    return False
 
 
 def send_realtime_news_email(
@@ -822,47 +734,7 @@ def send_realtime_news_email(
     thread_kind: str | None = None,
     thread_key: str | None = None,
 ) -> bool:
-    """GA4 Realtime «Haberler» alarm e-postası (sayfa postasından bağımsız bayrak)."""
-    # ── Batch modu: haber alarmlarını da aynı batch'e ekle ───────────────────
-    if getattr(_batch_ctx, "collecting", False):
-        _batch_ctx.items.append((subject.strip(), html_body))
-        return True
-
-    subj = subject.strip()
-
-    if not settings.ga4_realtime_email_enabled:
-        logging.warning("GA4 Realtime haber e-postası gönderilemedi: ga4_realtime_email_enabled=False")
-        return False
-    if not settings.ga4_realtime_news_alert_email:
-        logging.warning("GA4 Realtime haber e-postası gönderilemedi: ga4_realtime_news_alert_email=False")
-        return False
-
-    recipient_list = normalize_outbound_recipients(recipients, raw_setting=settings.mail_to)
-    if not _realtime_outbound_transport_ready():
-        logging.warning("GA4 Realtime haber e-postası gönderilemedi: SMTP veya Gmail OAuth gerekli")
-        return False
-    if not recipient_list:
-        logging.warning("GA4 Realtime haber e-postası gönderilemedi: Alıcı listesi boş")
-        return False
-    if not smtp_recipients_allowed(len(recipient_list)):
-        return False
-
-    message = EmailMessage()
-    message["Subject"] = subj
-    message["From"] = effective_mail_from(recipient_list)
-    _set_message_to_header(message, recipient_list)
-    from backend.services.inbox_email_render import plain_text_for_mailer
-
-    message.set_content(plain_text_for_mailer(html_body, subject=subj))
-    message.add_alternative(html_body, subtype="html")
-    if thread_kind and thread_key:
-        _apply_realtime_thread_headers(message, thread_kind, thread_key)
-
-    ok = _dispatch_outbound_message(message)
-    if ok:
-        logging.info(
-            "GA4 Realtime haber e-postası gönderildi: %s → %s",
-            subj[:100],
-            ", ".join(recipient_list),
-        )
-    return ok
+    """Eski haber realtime alarm postası kapalı."""
+    del html_body, recipients, thread_kind, thread_key
+    logging.info("Eski haber realtime postası kapalı: %s", (subject or "")[:80])
+    return False

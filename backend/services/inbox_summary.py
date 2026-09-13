@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import html
 import logging
-import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -56,9 +55,8 @@ def _summary_detail_window_label() -> str:
 
 
 def _inbox_summary_email_disabled() -> bool:
-    """Varsayılan açık; INBOX_SUMMARY_EMAIL_ENABLED=false ile kapatılır."""
-    raw = (os.getenv("INBOX_SUMMARY_EMAIL_ENABLED") or "true").strip().lower()
-    return raw in ("0", "false", "no", "off")
+    """Inbox bildirim postası yok. Senkron paneli beslemeye devam eder."""
+    return True
 
 
 def _normalize_summary_route(route_tag: str | None) -> str:
@@ -356,7 +354,7 @@ def _group_unread_threads(
 def run_inbox_summary_email(db: Session) -> bool:
     """Senkron sonrası 4 sekmeli gelen kutusu özet e-postası gönderir."""
     if _inbox_summary_email_disabled():
-        logger.info("Inbox summary email disabled (INBOX_SUMMARY_EMAIL_ENABLED=false).")
+        logger.info("Inbox summary email kapalı.")
         return False
 
     if inbox_gmail_auth.get_inbox_credential_row(db) is None:

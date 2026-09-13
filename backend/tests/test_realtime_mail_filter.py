@@ -70,17 +70,14 @@ def _ready_mailer(monkeypatch, sent_subjects: list[str]) -> None:
     )
 
 
-def test_realtime_batch_flush_sends_periodic_digest(monkeypatch):
+def test_realtime_batch_flush_does_not_send_old_digest(monkeypatch):
     sent: list[str] = []
     _ready_mailer(monkeypatch, sent)
 
     mailer.realtime_email_batch_begin()
-    assert mailer.send_realtime_email("doviz.com — +120 kul [web]", "<p>alarm</p>") is True
-    assert mailer.realtime_email_batch_flush() is True
-
-    assert len(sent) == 1
-    assert "Dolar kuru" in sent[0]
-    assert not sent[0].startswith("SEO 90 - ")
+    assert mailer.send_realtime_email("doviz.com — +120 kul [web]", "<p>alarm</p>") is False
+    assert mailer.realtime_email_batch_flush() is False
+    assert sent == []
 
 
 def test_realtime_batch_deferred_items_queued_not_dropped(monkeypatch):
@@ -103,13 +100,6 @@ def test_realtime_batch_deferred_items_queued_not_dropped(monkeypatch):
     mailer.send_realtime_email("doviz.com — +120 kul [web]", "<p>alarm</p>")
     assert mailer.realtime_email_batch_flush() is False
     assert sent == []
-    assert mailer.realtime_email_batch_is_collecting()
-    assert len(getattr(mailer._batch_ctx, "items", [])) == 1
-
-    monkeypatch.setattr(mailer.settings, "ga4_realtime_email_batch_interval_minutes", 0)
-    mailer._last_realtime_batch_sent_at = None
-    assert mailer.realtime_email_batch_flush() is True
-    assert len(sent) == 1
     assert mailer._pending_realtime_batch_items == []
 
 

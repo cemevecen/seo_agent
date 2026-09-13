@@ -11,7 +11,8 @@ Toplantıda ekran yansıtılırken gelen kutusu ve panel toast’ları görünü
 
 - Panel giriş / kayıt / başarısız giriş / gezinti uyarı **mailleri kapalı** (`_deliver_unknown_login_alert` no-op).
 - Bridge / konsol giriş mailleri de kapalı.
-- SEO Realtime özet: konu + preheader = web/mweb en çok trafikli **haber başlıkları**, her biri **ilk 20 karakter** (`altında sert ivmelen… · …`). `SEO 180 - HH:MM` yok.
+- Inbox bildirim postası yok. Eski SEO Realtime özet / haber / sayfa postası yok.
+- Realtime posta yalnızca doviz (web, mweb, android, ios) ve sinemalar (web, mweb) için, önceki 15 dk ile sonraki 15 dk arasında **%70** trafik farkı olursa ve **o alana özel** (`doviz web +72%`). Haber başlığı konusu yok.
 - Bridge / konsol giriş **ve** «oturumu düzeldi» mailleri kapalı.
 - Konuda e-posta veya isim **yok**; gövdede olabilir.
 - Kod: `backend/services/admin_access_log.py`, `backend/services/ga4_realtime.py`.

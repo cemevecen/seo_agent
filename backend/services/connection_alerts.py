@@ -8,10 +8,9 @@ from html import escape
 from sqlalchemy.orm import Session
 
 from backend.config import settings
-from backend.models import NotificationDeliveryLog, Site, SupportInboxThread
+from backend.models import NotificationDeliveryLog, Site
 from backend.services.email_templates import note_box, render_email_shell, section
 from backend.services.ga4_auth import get_ga4_connection_status
-from backend.services.inbox_gmail_auth import get_inbox_credential_row, inbox_oauth_is_configured
 from backend.services.mailer import normalize_outbound_recipients, send_admin_security_email
 from backend.services.search_console_auth import get_search_console_connection_status
 from backend.services.timezone_utils import format_local_datetime, now_local
@@ -91,19 +90,6 @@ def collect_broken_connections(db: Session) -> list[dict[str, str]]:
                     "title": site.domain or f"Site #{site.id}",
                     "detail": diag,
                     "action": f"{PANEL_URL} — GA4 service account",
-                }
-            )
-
-    if inbox_oauth_is_configured() and get_inbox_credential_row(db) is None:
-        has_threads = db.query(SupportInboxThread.id).limit(1).first() is not None
-        if has_threads:
-            broken.append(
-                {
-                    "notification_key": "inbox:gmail",
-                    "integration": "Gmail Inbox",
-                    "title": "Gelen kutusu",
-                    "detail": "Gmail OAuth bağlantısı yok; daha önce senkronize edilmiş konuşmalar DB'de.",
-                    "action": "https://projectcontrol.up.railway.app/inbox — Gmail bağla",
                 }
             )
 
