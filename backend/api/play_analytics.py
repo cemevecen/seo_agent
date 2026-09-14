@@ -331,6 +331,94 @@ def _resolve_doviz_site(db: Session, project: str = "doviz"):
     )
 
 
+def _trend_by_date(daily: dict[str, Any] | None) -> dict[str, dict[str, float]]:
+    src = daily if isinstance(daily, dict) else {}
+    dates = [str(d)[:10] for d in (src.get("dates") or []) if d]
+    keys = [
+        k
+        for k in (
+            "sessions",
+            "activeUsers",
+            "totalUsers",
+            "engagedSessions",
+            "engagementRate",
+            "newUsers",
+            "screenPageViews",
+            "averageSessionDuration",
+        )
+        if k in src
+    ]
+    out: dict[str, dict[str, float]] = {}
+    for idx, day in enumerate(dates):
+        if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", day):
+            continue
+        row: dict[str, float] = {}
+        for key in keys:
+            arr = src.get(key) or []
+            try:
+                row[key] = float(arr[idx] if idx < len(arr) else 0.0)
+            except (TypeError, ValueError):
+                row[key] = 0.0
+        out[day] = row
+    return out
+
+
+def merge_ga4_daily_trends(*trends: dict[str, Any] | None) -> dict[str, Any]:
+    """Birleştir. Aynı gün birden fazla serideyse son argüman kazanır."""
+    by_date: dict[str, dict[str, float]] = {}
+    for trend in trends:
+        for day, row in _trend_by_date(trend).items():
+            merged = dict(by_date.get(day) or {})
+            merged.update(row)
+            by_date[day] = merged
+    if not by_date:
+        return {"dates": []}
+    days = sorted(by_date)
+    keys: list[str] = []
+    for row in by_date.values():
+        for key in row:
+            if key not in keys:
+                keys.append(key)
+    out: dict[str, Any] = {"dates": days}
+    for key in keys:
+        out[key] = [float((by_date[day] or {}).get(key) or 0.0) for day in days]
+    return out
+
+
+def _earlier_ga4_trends(db: Session, *, site_id: int, profile: str, before: str) -> list[dict[str, Any]]:
+    """Seçili seriden eski günleri taşıyan önceki snapshot'lar (yeniden eskiye)."""
+    from backend.models import Ga4ReportSnapshot
+
+    floor = (before or "")[:10]
+    if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", floor):
+        return []
+    rows = (
+        db.query(Ga4ReportSnapshot)
+        .filter(
+            Ga4ReportSnapshot.site_id == site_id,
+            Ga4ReportSnapshot.profile == str(profile).strip().lower(),
+            Ga4ReportSnapshot.last_start < floor,
+        )
+        .order_by(Ga4ReportSnapshot.collected_at.desc(), Ga4ReportSnapshot.id.desc())
+        .limit(8)
+        .all()
+    )
+    trends: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            import json as _json
+
+            payload = _json.loads(row.payload_json or "{}")
+        except Exception:  # noqa: BLE001
+            continue
+        if not isinstance(payload, dict):
+            continue
+        dt = payload.get("daily_trend") if isinstance(payload.get("daily_trend"), dict) else {}
+        if dt.get("dates"):
+            trends.append(dt)
+    return trends
+
+
 def _ga4_daily_trend_payload(db: Session, *, site_id: int, profile: str) -> dict[str, Any] | None:
     from backend.config import settings
     from backend.models import Ga4ReportSnapshot
@@ -374,12 +462,18 @@ def _ga4_daily_trend_payload(db: Session, *, site_id: int, profile: str) -> dict
         dates = dt.get("dates") or []
         if not dates:
             continue
+        first = str(dates[0])[:10]
+        older = _earlier_ga4_trends(db, site_id=site_id, profile=profile, before=first)
+        if older:
+            # Eski günler solda; seçili (daha taze) seri aynı günde kazanır.
+            dt = merge_ga4_daily_trends(*reversed(older), dt)
+            dates = dt.get("dates") or dates
         return {
             "profile": profile,
             "period_days": period_days,
             "collected_at": row.collected_at.isoformat() if row.collected_at else None,
-            "last_start": row.last_start,
-            "last_end": row.last_end,
+            "last_start": str(dates[0])[:10] if dates else row.last_start,
+            "last_end": str(dates[-1])[:10] if dates else row.last_end,
             "daily_trend": dt,
         }
     return None

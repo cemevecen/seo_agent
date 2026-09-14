@@ -590,6 +590,23 @@ def collect_ga4_12m_daily_trend(db: Session, site: Site, *, profile: str | None 
                 LOGGER.warning("GA4 12m trend başarısız (%s / %s): %s", site.domain, profile_key, exc)
                 daily = _empty_daily_trend()
             filled = _fill_daily_trend_calendar(daily, start=last_start, end=last_end)
+            try:
+                from backend.api.play_analytics import _earlier_ga4_trends, merge_ga4_daily_trends
+
+                older = _earlier_ga4_trends(
+                    db,
+                    site_id=site.id,
+                    profile=profile_key,
+                    before=last_start_s,
+                )
+                if older:
+                    filled = merge_ga4_daily_trends(*reversed(older), filled)
+                    dates = filled.get("dates") or []
+                    if dates:
+                        last_start_s = str(dates[0])[:10]
+                        last_end_s = str(dates[-1])[:10]
+            except Exception:  # noqa: BLE001
+                LOGGER.debug("GA4 12m earlier-day merge skipped", exc_info=True)
             payload = {
                 "trend_only": True,
                 "daily_trend": filled,

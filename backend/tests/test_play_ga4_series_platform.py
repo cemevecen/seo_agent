@@ -6,6 +6,23 @@ from backend.api.play_analytics import _virgul_overlay_branch
 from backend.api import play_analytics as pa
 
 
+def test_merge_keeps_newer_overlap_and_prepends_older_days():
+    older = {
+        "dates": ["2025-01-01", "2025-09-14"],
+        "sessions": [100.0, 1.0],
+        "activeUsers": [80.0, 1.0],
+    }
+    newer = {
+        "dates": ["2025-09-14", "2025-09-15"],
+        "sessions": [200.0, 210.0],
+        "activeUsers": [150.0, 160.0],
+    }
+    merged = pa.merge_ga4_daily_trends(older, newer)
+    assert merged["dates"] == ["2025-01-01", "2025-09-14", "2025-09-15"]
+    assert merged["sessions"] == [100.0, 200.0, 210.0]
+    assert merged["activeUsers"][0] == 80.0
+
+
 def test_ga4_series_android_does_not_fall_back_to_ios(monkeypatch):
     calls = []
 
