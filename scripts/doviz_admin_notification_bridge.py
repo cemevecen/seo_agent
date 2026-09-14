@@ -6133,6 +6133,9 @@ def _page_tarama_claim_loop() -> None:
                     )
                 if job_id == "virgul":
                     return run_virgul_bridge_once(on_progress=_progress_post)
+                # Ana sayfa «güncelle»: screenshot değil, GSC grafik serisini de yaz.
+                if job_id == "cwv" and page_key == "home":
+                    return run_gsc_cwv_bridge_once(mode="charts")
                 return meta["runner"]()
 
             result: dict[str, Any] | None = None
