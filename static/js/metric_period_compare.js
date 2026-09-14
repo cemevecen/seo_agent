@@ -137,16 +137,65 @@
     };
   }
 
-  function alignedDeltaMap(currentSeries, prevSeries) {
+  function shiftYearKey(key, years) {
+    var m = String(key || "").match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    var month = Number(m[2]) - 1;
+    var d = new Date(Number(m[1]) + years, month, Number(m[3]), 12, 0, 0);
+    if (d.getMonth() !== month) d.setDate(0);
+    var mm = String(d.getMonth() + 1);
+    var dd = String(d.getDate());
+    if (mm.length < 2) mm = "0" + mm;
+    if (dd.length < 2) dd = "0" + dd;
+    return d.getFullYear() + "-" + mm + "-" + dd;
+  }
+
+  function alignedDeltaMap(currentSeries, prevSeries, mode) {
     var cur = (currentSeries || []).filter(function (r) { return r && r.key != null; });
     var prev = (prevSeries || []).filter(function (r) { return r && r.key != null; });
-    var n = Math.min(cur.length, prev.length);
     var map = {};
-    for (var i = 0; i < n; i++) {
-      var cv = Number(cur[i].value);
-      var pv = Number(prev[i].value);
-      var pct = deltaPct(cv, pv);
-      map[String(cur[i].key)] = pct;
+    if (mode === "previous_year") {
+      var prevMap = {};
+      var prevKeys = [];
+      prev.forEach(function (r) {
+        var n = Number(r.value);
+        if (!Number.isFinite(n)) return;
+        var k = String(r.key).slice(0, 10);
+        prevMap[k] = n;
+        prevKeys.push(k);
+      });
+      prevKeys.sort();
+      cur.forEach(function (r) {
+        var cv = Number(r.value);
+        if (!Number.isFinite(cv)) return;
+        var target = shiftYearKey(r.key, -1);
+        if (!target) return;
+        var pv = prevMap[target];
+        if (pv == null) {
+          var best = null;
+          for (var i = prevKeys.length - 1; i >= 0; i--) {
+            if (prevKeys[i] <= target) {
+              best = prevKeys[i];
+              break;
+            }
+          }
+          if (best) {
+            var gap = Math.round((new Date(target + "T12:00:00") - new Date(best + "T12:00:00")) / 86400000);
+            if (gap >= 0 && gap <= 4) pv = prevMap[best];
+          }
+        }
+        if (pv == null) return;
+        var pct = deltaPct(cv, pv);
+        if (pct != null) map[String(r.key)] = pct;
+      });
+      return map;
+    }
+    var n = Math.min(cur.length, prev.length);
+    for (var j = 0; j < n; j++) {
+      var cv2 = Number(cur[j].value);
+      var pv2 = Number(prev[j].value);
+      var pct2 = deltaPct(cv2, pv2);
+      if (pct2 != null) map[String(cur[j].key)] = pct2;
     }
     return map;
   }
@@ -164,7 +213,7 @@
         shortLabel: "Δ",
         color: "#64748b",
         metric: col.metric,
-        map: alignedDeltaMap(col.series || [], cmp.series),
+        map: alignedDeltaMap(col.series || [], cmp.series, cmp.mode),
         isDelta: true,
         compare: null,
       });

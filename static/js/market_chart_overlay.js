@@ -46,6 +46,7 @@
     rangeKey: "",
     pending: null,
     pendingKey: "",
+    byRange: {},
   };
   var forcedModes = null;
 
@@ -244,6 +245,7 @@
     cache.rangeKey = "";
     cache.pending = null;
     cache.pendingKey = "";
+    cache.byRange = {};
   }
 
   function pointsForSeries(payload, seriesKey) {
@@ -289,32 +291,34 @@
 
   function ensureOverlay(startIso, endIso) {
     var key = (startIso || "") + "|" + (endIso || "");
-    if (cache.payload && cache.rangeKey === key) {
-      return Promise.resolve(cache.payload);
-    }
-    if (cache.pending && cache.pendingKey === key) return cache.pending;
+    if (!cache.byRange) cache.byRange = {};
+    var slot = cache.byRange[key];
+    if (slot && slot.payload) return Promise.resolve(slot.payload);
+    if (slot && slot.pending) return slot.pending;
     var p = new URLSearchParams();
     if (startIso) p.set("start", startIso);
     if (endIso) p.set("end", endIso);
-    cache.pendingKey = key;
-    cache.pending = fetch("/api/market-quotes/overlay?" + p.toString(), { credentials: "same-origin" })
+    var pending = fetch("/api/market-quotes/overlay?" + p.toString(), { credentials: "same-origin" })
       .then(function (r) {
         if (!r.ok) throw new Error("Could not load market data");
         return r.json();
       })
       .then(function (data) {
+        cache.byRange[key] = { payload: data, pending: null };
         cache.rangeKey = key;
         cache.payload = data;
-        cache.pending = null;
-        cache.pendingKey = "";
         return data;
       })
       .catch(function (err) {
-        cache.pending = null;
-        cache.pendingKey = "";
+        if (cache.byRange[key] && cache.byRange[key].pending === pending) {
+          delete cache.byRange[key];
+        }
         throw err;
       });
-    return cache.pending;
+    cache.byRange[key] = { payload: null, pending: pending };
+    cache.pending = pending;
+    cache.pendingKey = key;
+    return pending;
   }
 
   function layoutKeyForYaxis(yaxisId) {
