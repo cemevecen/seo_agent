@@ -40,6 +40,35 @@ html.dark .xg-err, html.charcoal .xg-err { color: #fca5a5; }
          padding-bottom: .25rem; border-bottom: 1px solid rgba(148,163,184,.28); }
 
 .xg-toolbar { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+
+/* Site sekmeleri — Döviz / Sinemalar başlık ayrımı */
+.xg-site-tabs {
+  display: flex; flex-wrap: wrap; gap: .4rem;
+  margin-top: .85rem; padding-top: .75rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.28);
+}
+html.dark .xg-site-tabs, html.charcoal .xg-site-tabs {
+  border-top-color: rgba(63, 63, 70, 0.9);
+}
+.xg-site-tab {
+  border: 1px solid #e2e8f0; background: #f8fafc; color: #475569;
+  border-radius: 999px; padding: .35rem .85rem;
+  font-size: .72rem; font-weight: 700; letter-spacing: .02em;
+  cursor: pointer;
+}
+html.dark .xg-site-tab, html.charcoal .xg-site-tab {
+  border-color: #3f3f46; background: #2a2a2e; color: #a1a1aa;
+}
+.xg-site-tab.is-active {
+  border-color: #4f46e5; background: #eef2ff; color: #3730a3;
+}
+html.dark .xg-site-tab.is-active, html.charcoal .xg-site-tab.is-active {
+  border-color: #6366f1; background: rgba(99, 102, 241, 0.18); color: #c7d2fe;
+}
+.xg-site-heading {
+  margin: 0 0 .55rem; font-size: .78rem; font-weight: 700; opacity: .8;
+}
+.xg-site-panel[hidden] { display: none !important; }
 .xg-btn { padding: .3rem .7rem; font-size: .75rem; font-weight: 600; border-radius: .5rem;
           border: 1px solid rgba(148,163,184,.45); background: transparent; color: inherit; }
 .xg-btn.is-active { background: rgba(79,70,229,.14); color: #4338ca; }

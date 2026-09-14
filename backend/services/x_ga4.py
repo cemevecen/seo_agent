@@ -799,6 +799,7 @@ def build_x_ga4_report(
         "ok": True,
         "error": None,
         "cached": False,
+        "site_id": int(site_id),
         "window": {"start": start, "end": end, "days": safe_days},
         "profile": profile_key,
         "profiles": profiles,

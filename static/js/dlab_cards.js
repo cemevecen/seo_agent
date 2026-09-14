@@ -68,6 +68,8 @@
     if (!host) return null;
     var metaEl = opts.meta || null;
     var fixedProfile = (opts.profile || "").trim() || null;
+    var siteId = Math.max(1, Number(opts.siteId) || 1);
+    var bindControls = opts.bindControls !== false;
     var state = { days: Number(opts.days) || 7, loading: false, loaded: false };
     var CARDS = {};
     var seq = 0;
@@ -492,6 +494,7 @@
       barShow();
       note("");
       var url = "/api/x-ga4/report?days=" + state.days +
+        "&site_id=" + encodeURIComponent(String(siteId)) +
         (fixedProfile ? "&profile=" + encodeURIComponent(fixedProfile) : "") +
         (force ? "&force=true" : "") +
         "&progress=" + encodeURIComponent(token);
@@ -521,21 +524,24 @@
         .then(function () { state.loading = false; });
     }
 
-    // Gün seçici + yenile
-    var scope = opts.toolbar || document;
-    scope.querySelectorAll("[data-xg-days]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var d = Number(btn.getAttribute("data-xg-days")) || 7;
-        if (d === state.days) return;
-        state.days = d;
-        scope.querySelectorAll("[data-xg-days]").forEach(function (x) {
-          x.classList.toggle("is-active", x === btn);
+    // Gün seçici + yenile — android/ios gömülü bölüm kendi toolbar'ını bağlar.
+    // /d-lab site sekmelerinde ortak toolbar üst sayfada yönetilir (bindControls:false).
+    if (bindControls) {
+      var scope = opts.toolbar || document;
+      scope.querySelectorAll("[data-xg-days]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var d = Number(btn.getAttribute("data-xg-days")) || 7;
+          if (d === state.days) return;
+          state.days = d;
+          scope.querySelectorAll("[data-xg-days]").forEach(function (x) {
+            x.classList.toggle("is-active", x === btn);
+          });
+          load(false);
         });
-        load(false);
       });
-    });
-    var rb = opts.refresh || null;
-    if (rb) rb.addEventListener("click", function () { load(true); });
+      var rb = opts.refresh || null;
+      if (rb) rb.addEventListener("click", function () { load(true); });
+    }
 
     if (opts.autoload !== false) load(false);
 
@@ -543,7 +549,14 @@
       load: load,
       /** Bölüm ilk açıldığında çek — kapalı dropdown boşuna kota harcamasın. */
       loadOnce: function () { if (!state.loaded && !state.loading) load(false); },
-      isLoaded: function () { return state.loaded; }
+      isLoaded: function () { return state.loaded; },
+      setDays: function (d, reload) {
+        var next = Number(d) || 7;
+        if (next === state.days && !reload) return;
+        state.days = next;
+        if (reload) load(false);
+      },
+      siteId: siteId
     };
   }
 

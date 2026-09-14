@@ -16105,12 +16105,39 @@ def x_ga4_page_legacy() -> RedirectResponse:
 @app.get("/d-lab")
 def d_lab_page(request: Request):
     """GA4'ün panelde kullanılmayan boyut/metrikleri — yalnızca GA4 Data API."""
+    dlab_sites: list[dict[str, Any]] = []
+    with SessionLocal() as db:
+        external_ids = _external_site_ids(db)
+        for site in (
+            db.query(Site)
+            .filter(Site.is_active.is_(True))
+            .order_by(Site.id.asc())
+            .all()
+        ):
+            if site.id in external_ids:
+                continue
+            domain = str(site.domain or "").strip().lower()
+            if "doviz" not in domain and "sinemalar" not in domain:
+                continue
+            dlab_sites.append(
+                {
+                    "id": int(site.id),
+                    "domain": site.domain,
+                    "label": site.display_name or site.domain,
+                }
+            )
+    if not dlab_sites:
+        dlab_sites = [
+            {"id": 1, "domain": "www.doviz.com", "label": "Döviz"},
+            {"id": 2, "domain": "www.sinemalar.com", "label": "Sinemalar"},
+        ]
     return templates.TemplateResponse(
         request,
         "x_ga4.html",
         context={
             "request": request,
             "sites": get_sidebar_sites(),
+            "dlab_sites": dlab_sites,
             "admin_authenticated": _is_admin_authenticated(request),
         },
         headers=_SC_HTML_NO_CACHE_HEADERS,

@@ -225,11 +225,28 @@ def test_page_and_tab_are_registered():
     main = (ROOT / "backend/main.py").read_text(encoding="utf-8")
     assert '@app.get("/d-lab")' in main
     assert "x_ga4_router" in main
+    assert "dlab_sites" in main
     page = _dlab_ui()
     # Kart çizimi android/ios sekmeleriyle paylaşıldığı için ortak dosyaya taşındı
     assert "/static/js/dlab_cards.js" in page
+    assert 'id="xg-site-tabs"' in page
+    assert "data-xg-site-id" in page
     cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
     assert "/api/x-ga4/report" in cards
+    assert "site_id=" in cards
+    assert "bindControls" in cards
+
+
+def test_dlab_covers_doviz_and_sinemalar_sites():
+    """Aynı kart seti site_id ile Döviz ve Sinemalar için çekilir."""
+    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    assert "dlab_sites" in page
+    assert "xg-site-tab" in page
+    assert "siteId:" in page
+    cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
+    assert '&site_id=" + encodeURIComponent(String(siteId))' in cards
+    api = (ROOT / "backend/api/x_ga4.py").read_text(encoding="utf-8")
+    assert "site_id: int = Query(1" in api
 
 
 def test_android_and_ios_tabs_embed_their_own_lab_section():

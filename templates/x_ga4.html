@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/dlab.css?v=7">
+<link rel="stylesheet" href="/static/css/dlab.css?v=8">
 
 <div class="xg-page mx-auto w-full space-y-4" data-header-title="d-lab">
   <div class="xg-card">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3>d-lab</h3>
-        <p class="xg-sub" id="xg-meta" hidden></p>
+        <p class="xg-sub">GA4'ün panelde kullanılmayan boyut/metrikleri — site başına aynı kart seti</p>
       </div>
       <div class="xg-toolbar" id="xg-toolbar">
         <button type="button" class="xg-btn" data-xg-days="1">1 gün</button>
@@ -16,22 +16,117 @@
         <button type="button" class="xg-btn" id="xg-refresh">Yenile</button>
       </div>
     </div>
+    <div class="xg-site-tabs" id="xg-site-tabs" role="tablist" aria-label="Site">
+      {% for s in dlab_sites %}
+      <button
+        type="button"
+        class="xg-site-tab{% if loop.first %} is-active{% endif %}"
+        role="tab"
+        aria-selected="{{ 'true' if loop.first else 'false' }}"
+        data-xg-site-id="{{ s.id }}"
+        data-xg-site-label="{{ s.label }}"
+        data-xg-site-domain="{{ s.domain }}"
+      >{{ s.label }}</button>
+      {% endfor %}
+    </div>
   </div>
 
-  <div id="xg-body" class="xg-grid"></div>
+  {% for s in dlab_sites %}
+  <div
+    class="xg-site-panel"
+    id="xg-panel-{{ s.id }}"
+    role="tabpanel"
+    data-xg-site-id="{{ s.id }}"
+    {% if not loop.first %}hidden{% endif %}
+  >
+    <p class="xg-sub xg-site-heading">{{ s.label }} · {{ s.domain }}</p>
+    <p class="xg-sub" id="xg-meta-{{ s.id }}" hidden></p>
+    <div id="xg-body-{{ s.id }}" class="xg-grid"></div>
+  </div>
+  {% endfor %}
 </div>
 
-<script src="/static/js/dlab_cards.js?v=7"></script>
+<script src="/static/js/dlab_cards.js?v=8"></script>
 <script>
 (function () {
   if (!window.DLab) return;
-  DLab.mount({
-    host: document.getElementById("xg-body"),
-    meta: document.getElementById("xg-meta"),
-    toolbar: document.getElementById("xg-toolbar"),
-    refresh: document.getElementById("xg-refresh"),
-    days: 7
+  var tabs = Array.prototype.slice.call(document.querySelectorAll("#xg-site-tabs .xg-site-tab"));
+  var toolbar = document.getElementById("xg-toolbar");
+  var refreshBtn = document.getElementById("xg-refresh");
+  var labs = {};
+  var activeId = null;
+  var days = 7;
+
+  function siteIdOf(btn) {
+    return Number(btn.getAttribute("data-xg-site-id")) || 0;
+  }
+
+  function ensureLab(siteId) {
+    if (labs[siteId]) return labs[siteId];
+    var host = document.getElementById("xg-body-" + siteId);
+    if (!host) return null;
+    labs[siteId] = DLab.mount({
+      host: host,
+      meta: document.getElementById("xg-meta-" + siteId),
+      siteId: siteId,
+      days: days,
+      autoload: false,
+      bindControls: false
+    });
+    return labs[siteId];
+  }
+
+  function showSite(siteId, force) {
+    if (!siteId) return;
+    activeId = siteId;
+    tabs.forEach(function (btn) {
+      var on = siteIdOf(btn) === siteId;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.querySelectorAll(".xg-site-panel").forEach(function (panel) {
+      var id = Number(panel.getAttribute("data-xg-site-id")) || 0;
+      panel.hidden = id !== siteId;
+    });
+    var lab = ensureLab(siteId);
+    if (!lab) return;
+    lab.setDays(days, false);
+    if (force) lab.load(true);
+    else lab.loadOnce();
+  }
+
+  tabs.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      showSite(siteIdOf(btn), false);
+    });
   });
+
+  if (toolbar) {
+    toolbar.querySelectorAll("[data-xg-days]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var d = Number(btn.getAttribute("data-xg-days")) || 7;
+        if (d === days) return;
+        days = d;
+        toolbar.querySelectorAll("[data-xg-days]").forEach(function (x) {
+          x.classList.toggle("is-active", x === btn);
+        });
+        Object.keys(labs).forEach(function (id) {
+          var lab = labs[id];
+          if (!lab) return;
+          lab.setDays(days, Number(id) === activeId);
+        });
+      });
+    });
+  }
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", function () {
+      var lab = labs[activeId];
+      if (lab) lab.load(true);
+    });
+  }
+
+  var first = tabs[0];
+  if (first) showSite(siteIdOf(first), false);
 })();
 </script>
 {% endblock %}
