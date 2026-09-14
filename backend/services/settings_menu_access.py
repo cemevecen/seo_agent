@@ -39,6 +39,21 @@ def resolve_settings_menu_visible(
     return False
 
 
+def is_ai_page_path(path: str) -> bool:
+    """AI günlük özet sayfası — settings klasöründe, cemevecen allowlist."""
+    p = (path or "").split("?", 1)[0].rstrip("/") or "/"
+    return p == "/ai" or p.startswith("/ai/")
+
+
+def is_ai_page_allowed_email(email: str | None) -> bool:
+    return is_settings_menu_allowed_email(email or "")
+
+
+def member_denied_ai_access(member_email: str | None) -> bool:
+    em = _normalize_email(member_email or "")
+    return bool(em) and not is_ai_page_allowed_email(em)
+
+
 def member_denied_settings_access(member_email: str) -> bool:
     """Panele girmiş üye var ama ayarlar allowlist'te değil."""
     em = _normalize_email(member_email)

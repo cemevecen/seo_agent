@@ -2216,6 +2216,20 @@ async def ip_allowlist_middleware(request: Request, call_next):
                         content={"detail": "Sheet bu hesap için kapalı."},
                     )
                 return RedirectResponse(url="/?sheet_denied=1", status_code=303)
+        from backend.services.settings_menu_access import (
+            is_ai_page_allowed_email,
+            is_ai_page_path,
+        )
+
+        if is_ai_page_path(path):
+            em = member.email if member else None
+            if not is_ai_page_allowed_email(em or ""):
+                if path.startswith("/api/"):
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "AI bu hesap için kapalı."},
+                    )
+                return RedirectResponse(url="/?ai_denied=1", status_code=303)
         if path.startswith("/settings") and not _is_settings_authenticated(request):
             if _member_denied_settings_menu(request):
                 return RedirectResponse(url="/admin/settings-denied", status_code=303)

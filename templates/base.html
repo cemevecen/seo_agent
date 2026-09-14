@@ -2735,7 +2735,6 @@
               <a href="/backlinks" data-nav-match="/backlinks" data-nav-priority class="header-nav-link">backlinks</a>
               <a href="/inbox" data-nav-match="/inbox" data-nav-priority class="header-nav-link">inbox</a>
               <a href="/boards" data-nav-match="/boards" data-nav-priority class="header-nav-link">gitlab</a>
-              <a href="/ai" data-nav-match="/ai" data-nav-priority class="header-nav-link">ai</a>
               <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" data-nav-priority class="header-nav-link">speed</a>
               <a href="/d-lab" data-nav-match="/d-lab,/x-ga4" data-nav-priority class="header-nav-link">d-lab</a>
               {% if xdata_menu_visible(request) %}
@@ -2751,7 +2750,26 @@
               <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" data-nav-priority class="header-nav-link">movie</a>
               {% endif %}
               {% if settings_menu_visible(request) %}
-              <a href="/settings" data-nav-match="/settings" data-nav-priority class="header-nav-link">settings</a>
+              <div
+                class="header-nav-dropdown"
+                id="header-settings-dropdown"
+                data-nav-match="/settings,/ai"
+                data-nav-label="settings"
+                data-nav-href="/settings"
+              >
+                <button
+                  type="button"
+                  class="header-nav-link header-nav-dropdown-trigger"
+                  aria-expanded="false"
+                  aria-haspopup="true"
+                  title="Settings"
+                >settings ▾</button>
+                <div class="header-nav-dropdown-backdrop" aria-hidden="true"></div>
+                <div class="header-nav-dropdown-menu" role="menu">
+                  <a href="/settings" role="menuitem" data-nav-match="/settings">Settings</a>
+                  <a href="/ai" role="menuitem" data-nav-match="/ai">AI</a>
+                </div>
+              </div>
               {% endif %}
               <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden">external</a>
               {% endif %}
@@ -3174,6 +3192,106 @@
         });
         window.addEventListener('scroll', function () {
           if (more.classList.contains('is-open')) positionMoreMenu();
+        }, true);
+      })();
+
+      (function initHeaderNavDropdowns() {
+        var wraps = document.querySelectorAll('.header-nav-dropdown');
+        if (!wraps.length) return;
+
+        function closeAll(except) {
+          wraps.forEach(function (wrap) {
+            if (except && wrap === except) return;
+            wrap.classList.remove('is-open');
+            var trigger = wrap.querySelector('.header-nav-dropdown-trigger');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            var menu = wrap.querySelector('.header-nav-dropdown-menu');
+            if (menu) {
+              menu.classList.remove('is-fixed');
+              menu.style.top = '';
+              menu.style.left = '';
+              menu.style.right = '';
+              menu.style.maxHeight = '';
+            }
+          });
+        }
+
+        function positionMenu(wrap) {
+          var trigger = wrap.querySelector('.header-nav-dropdown-trigger');
+          var menu = wrap.querySelector('.header-nav-dropdown-menu');
+          if (!trigger || !menu || !wrap.classList.contains('is-open')) return;
+          menu.classList.add('is-fixed');
+          var rect = trigger.getBoundingClientRect();
+          var menuW = menu.offsetWidth || 224;
+          var left = Math.min(Math.max(8, rect.right - menuW), window.innerWidth - menuW - 8);
+          var top = rect.bottom + 6;
+          var maxH = Math.max(120, window.innerHeight - top - 12);
+          menu.style.left = left + 'px';
+          menu.style.top = top + 'px';
+          menu.style.right = 'auto';
+          menu.style.maxHeight = maxH + 'px';
+        }
+
+        wraps.forEach(function (wrap) {
+          var trigger = wrap.querySelector('.header-nav-dropdown-trigger');
+          var menu = wrap.querySelector('.header-nav-dropdown-menu');
+          var backdrop = wrap.querySelector('.header-nav-dropdown-backdrop');
+          if (!trigger || !menu) return;
+
+          function open() {
+            closeAll(wrap);
+            wrap.classList.add('is-open');
+            trigger.setAttribute('aria-expanded', 'true');
+            positionMenu(wrap);
+          }
+
+          function close() {
+            wrap.classList.remove('is-open');
+            trigger.setAttribute('aria-expanded', 'false');
+            menu.classList.remove('is-fixed');
+            menu.style.top = '';
+            menu.style.left = '';
+            menu.style.right = '';
+            menu.style.maxHeight = '';
+          }
+
+          trigger.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (wrap.classList.contains('is-open')) close();
+            else open();
+          });
+
+          if (backdrop) {
+            backdrop.addEventListener('click', function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              close();
+            });
+          }
+
+          menu.addEventListener('click', function (e) {
+            var t = e.target;
+            if (t && t.closest && t.closest('a')) close();
+          });
+        });
+
+        document.addEventListener('click', function (e) {
+          var t = e.target;
+          if (t && t.closest && t.closest('.header-nav-dropdown')) return;
+          closeAll();
+        });
+
+        window.addEventListener('resize', function () {
+          wraps.forEach(function (wrap) {
+            if (wrap.classList.contains('is-open')) positionMenu(wrap);
+            else closeAll();
+          });
+        });
+        window.addEventListener('scroll', function () {
+          wraps.forEach(function (wrap) {
+            if (wrap.classList.contains('is-open')) positionMenu(wrap);
+          });
         }, true);
       })();
 
