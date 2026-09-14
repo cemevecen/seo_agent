@@ -20358,7 +20358,7 @@ def search_console_cwv_image(site_id: int, variant: str):
             return Response(
                 content=bytes(row.image_data),
                 media_type=row.content_type or "image/png",
-                headers={"Cache-Control": "public, max-age=86400"},
+                headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
             )
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
@@ -20368,7 +20368,7 @@ def search_console_cwv_image(site_id: int, variant: str):
     if not path.exists():
         return HTMLResponse("Görsel yok.", status_code=404)
     data = path.read_bytes()
-    return Response(content=data, media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
+    return Response(content=data, media_type="image/png", headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
 
 
 @app.post("/search-console/cwv-screenshot/delete/{site_id}", response_class=HTMLResponse)

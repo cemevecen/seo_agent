@@ -85,18 +85,7 @@
 
   function jobsFor(key) {
     var ids = PAGES[key] || [];
-    return ids.map(function (id) {
-      var job = JOBS[id];
-      if (!job) return null;
-      // Ana sayfa: screenshot değil, GSC grafik serisi güncellensin.
-      if (id === "cwv" && key === "home") {
-        return Object.assign({}, job, {
-          label: "Web Vitals charts",
-          body: { mode: "charts" },
-        });
-      }
-      return job;
-    }).filter(Boolean);
+    return ids.map(function (id) { return JOBS[id]; }).filter(Boolean);
   }
 
   function $(id) {
