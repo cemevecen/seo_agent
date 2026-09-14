@@ -84,23 +84,28 @@
       "html.dark .mtux-pin-mode table.mtux-grid-table tbody .mtux-sticky-left{background:#2a2a2e;}" +
       ".mtux-pin-mode table.mtux-grid-table tbody tr:nth-child(even) .mtux-sticky-left{background:#f8fafc;}" +
       "html.dark .mtux-pin-mode table.mtux-grid-table tbody tr:nth-child(even) .mtux-sticky-left{background:#2a2a2e;}" +
-      "th.mtux-th{position:relative;user-select:none;}" +
+      "th.mtux-th{position:relative;user-select:none;overflow:hidden;vertical-align:bottom;}" +
       "th.mtux-th.is-dragging{opacity:0.55;}" +
       "th.mtux-th.is-drag-over{box-shadow:inset 2px 0 0 #0ea5e9;}" +
-      ".mtux-col-resizer{position:absolute;top:0;right:0;width:6px;height:100%;cursor:col-resize;z-index:3;}" +
+      ".mtux-col-resizer{position:absolute;top:0;right:0;width:6px;height:100%;cursor:col-resize;z-index:4;}" +
       ".mtux-col-resizer:hover,.mtux-col-resizer.is-active{background:rgba(14,165,233,0.35);}" +
-      ".mtux-drag-hint{opacity:0.45;font-size:0.65rem;margin-right:0.2rem;cursor:grab;flex:0 0 auto;}" +
+      ".mtux-drag-hint{position:absolute;left:1px;top:2px;z-index:2;opacity:0.45;font-size:0.55rem;" +
+      "line-height:1;cursor:grab;}" +
       "th.mtux-th:active .mtux-drag-hint{cursor:grabbing;}" +
       "table.mtux-interactive{table-layout:fixed;width:100%;min-width:100%;height:100%;}" +
-      "table.mtux-interactive th.mtux-th{overflow:hidden;text-overflow:clip;white-space:normal;vertical-align:bottom;line-height:1.15;}" +
-      "table.mtux-interactive th.mtux-th:not([data-mtux-fixed='1']){min-width:5.25rem;}" +
-      "table.mtux-interactive th[data-mtux-fixed='1']{min-width:5.5rem;}" +
+      "table.mtux-interactive th.mtux-th{overflow:hidden;text-overflow:clip;white-space:normal!important;" +
+      "word-break:break-word;overflow-wrap:anywhere;vertical-align:bottom;line-height:1.15;}" +
+      "table.mtux-interactive th.mtux-th:not([data-mtux-fixed='1']){min-width:4.5rem;}" +
+      "table.mtux-interactive th[data-mtux-fixed='1']{min-width:5.5rem;white-space:nowrap!important;}" +
       "table.mtux-interactive td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
-      ".mtux-th-label{display:flex;align-items:flex-end;justify-content:center;gap:0.15rem;" +
-      "width:100%;max-width:100%;min-width:0;vertical-align:middle;}" +
+      ".mtux-th-label{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;" +
+      "padding:0 0.85rem 0 0.55rem;overflow:hidden;}" +
+      ".mtux-th-label > button{position:absolute;top:1px;right:2px;z-index:3;}" +
       ".mtux-th-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;" +
-      "overflow:hidden;white-space:normal;overflow-wrap:anywhere;word-break:break-word;" +
-      "line-height:1.15;max-width:100%;max-height:2.35em;text-align:center;}";
+      "overflow:hidden;white-space:normal!important;overflow-wrap:anywhere;word-break:break-word;" +
+      "line-height:1.15;max-width:100%;max-height:2.45em;text-align:center;}" +
+      "td.mtux-carried,span.mtux-carried{color:#94a3b8!important;font-weight:500;background:transparent!important;}" +
+      "html.dark td.mtux-carried,html.dark span.mtux-carried{color:#71717a!important;}";
   }
 
   var MIN_COL_WIDTH = 72;
@@ -346,14 +351,128 @@
     return legend;
   }
 
-  function heatCellHtml(v, color, st, esc, fmtVal, title, col, extraClass) {
-    var heatOn = isHeatEnabled();
-    var t = heatOn ? heatT(v, st.min, st.max) : null;
+  var WEEKEND_CLOSED_MARKET = {
+    gram_altin: 1,
+    usd_try: 1,
+    eur_try: 1,
+    bist100: 1,
+    gram_gumus: 1,
+    brent: 1,
+    ceyrek_altin: 1,
+  };
+
+  function marketSeriesKey(metric) {
+    var s = String(metric || "");
+    var i = s.indexOf("market:");
+    if (i < 0) return "";
+    return s.slice(i + "market:".length);
+  }
+
+  function isWeekendDateKey(key) {
+    var m = String(key || "").match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+    if (!m) return false;
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (isNaN(d.getTime())) return false;
+    var wd = d.getDay();
+    return wd === 0 || wd === 6;
+  }
+
+  function isoDayDiff(a, b) {
+    var da = new Date(String(a).slice(0, 10) + "T12:00:00");
+    var db = new Date(String(b).slice(0, 10) + "T12:00:00");
+    if (isNaN(da.getTime()) || isNaN(db.getTime())) return null;
+    return Math.round((db.getTime() - da.getTime()) / 86400000);
+  }
+
+  function nextRealKey(key, seriesKeys) {
+    for (var i = 0; i < seriesKeys.length; i++) {
+      if (seriesKeys[i] > key) return seriesKeys[i];
+    }
+    return null;
+  }
+
+  function gapTouchesWeekend(fromKey, toKey) {
+    if (!fromKey || !toKey) return false;
+    var d = new Date(String(fromKey).slice(0, 10) + "T12:00:00");
+    var end = new Date(String(toKey).slice(0, 10) + "T12:00:00");
+    if (isNaN(d.getTime()) || isNaN(end.getTime())) return false;
+    d.setDate(d.getDate() + 1);
+    while (d < end) {
+      var wd = d.getDay();
+      if (wd === 0 || wd === 6) return true;
+      d.setDate(d.getDate() + 1);
+    }
+    return false;
+  }
+
+  /** Hafta sonuna bitişik kısa tatil boşluğu. Ortadaki rastgele eksik iş günü değil. */
+  function isHolidayCarry(key, seriesKeys, prevKey) {
+    var next = nextRealKey(key, seriesKeys);
+    if (!next || !prevKey) return false;
+    var days = isoDayDiff(key, next);
+    if (days == null || days <= 0 || days > 4) return false;
+    return gapTouchesWeekend(prevKey, next);
+  }
+
+  /** Hafta sonu / kısa tatil kapanışı: boş gün → önceki seans (listede silik). Bitcoin hariç. */
+  function weekendCarryMap(metric, series, keys) {
+    var sk = marketSeriesKey(metric);
+    if (!sk || !WEEKEND_CLOSED_MARKET[sk]) return null;
+    var real = {};
+    (series || []).forEach(function (r) {
+      if (!r || r.key == null) return;
+      var nv = Number(r.value);
+      if (Number.isFinite(nv)) real[String(r.key)] = nv;
+    });
+    var seriesKeys = Object.keys(real).sort();
+    if (!seriesKeys.length) return null;
+    var ordered = (keys || []).slice().map(String).sort();
+    var carried = {};
+    var last = null;
+    var lastKey = null;
+    var si = 0;
+    ordered.forEach(function (k) {
+      while (si < seriesKeys.length && seriesKeys[si] < k) {
+        lastKey = seriesKeys[si];
+        last = real[lastKey];
+        si += 1;
+      }
+      if (Object.prototype.hasOwnProperty.call(real, k)) {
+        lastKey = k;
+        last = real[k];
+        return;
+      }
+      if (last == null) return;
+      if (isWeekendDateKey(k) || isHolidayCarry(k, seriesKeys, lastKey)) carried[k] = last;
+    });
+    return Object.keys(carried).length ? carried : null;
+  }
+
+  function attachWeekendCarry(cols, keys) {
+    (cols || []).forEach(function (col) {
+      if (!col || col.isDelta || col.carried) return;
+      var carried = weekendCarryMap(col.metric, col.series, keys);
+      if (carried) col.carried = carried;
+    });
+    return cols;
+  }
+
+  function heatCellHtml(v, color, st, esc, fmtVal, title, col, extraClass, rowKey) {
+    var carriedVal = null;
+    if ((v == null || !Number.isFinite(Number(v))) && col && col.carried && rowKey != null) {
+      var cv = col.carried[String(rowKey)];
+      if (cv != null && Number.isFinite(Number(cv))) carriedVal = Number(cv);
+    }
+    var shown = carriedVal != null ? carriedVal : v;
+    var heatOn = isHeatEnabled() && carriedVal == null;
+    var t = heatOn ? heatT(shown, st.min, st.max) : null;
     var bg = t == null ? "" : "background:" + heatBackground(color, t) + ";";
-    var txt = fmtVal(v, col);
+    var txt = fmtVal(shown, col);
     var tip = title != null ? title : txt;
+    if (carriedVal != null) tip = txt + " · son kapanış, piyasa kapalı";
     var cls =
       "mtux-heat-cell tabular-nums text-slate-900 dark:text-zinc-100" +
+      (carriedVal != null ? " mtux-carried" : "") +
       (extraClass ? " " + extraClass : "");
     return (
       '<td class="' + cls + '" style="' + bg + '" title="' +
@@ -470,7 +589,7 @@
             esc(fmtKey(key)) +
           "</td>";
         colItems.forEach(function (col, i) {
-          cells += heatCellHtml(col.map[key], col.color, stats[i], esc, fmtVal, null, col);
+          cells += heatCellHtml(col.map[key], col.color, stats[i], esc, fmtVal, null, col, "", key);
         });
         return "<tr>" + cells + "</tr>";
       }).join("");
@@ -540,7 +659,7 @@
             labelInner +
           "</td>";
         keys.forEach(function (key, ki) {
-          cells += heatCellHtml(col.map[key], col.color, st, esc, fmtVal, null, col);
+          cells += heatCellHtml(col.map[key], col.color, st, esc, fmtVal, null, col, "", key);
         });
         var avg = rowAverage(col.map, keys);
         cells += '<td class="mtux-avg-gap" aria-hidden="true"></td>';
@@ -955,5 +1074,7 @@
     fitSideChips: fitSideChips,
     fitCardTexts: fitCardTexts,
     formatTableDateKey: formatTableDateKey,
+    weekendCarryMap: weekendCarryMap,
+    attachWeekendCarry: attachWeekendCarry,
   };
 })(typeof window !== "undefined" ? window : this);
