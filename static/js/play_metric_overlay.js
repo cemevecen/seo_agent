@@ -526,10 +526,14 @@
   }
 
   async function fetchMarketSeries(metricKey, startIso, endIso) {
+    var sk = String(metricKey).slice("market:".length);
+    if (global.SeoMarketQuotes && SeoMarketQuotes.load) {
+      var quote = await SeoMarketQuotes.load(startIso, endIso, sk);
+      return { label: quote.label || metricLabel(metricKey), series: quote.series || [] };
+    }
     if (!global.SeoMarketOverlay || !SeoMarketOverlay.ensureOverlay) {
       throw new Error("Market overlay unavailable");
     }
-    var sk = String(metricKey).slice("market:".length);
     var payload = await SeoMarketOverlay.ensureOverlay(startIso, endIso);
     var pts = SeoMarketOverlay.pointsForSeries(payload, sk);
     var label = SeoMarketOverlay.seriesLabel

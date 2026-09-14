@@ -252,7 +252,7 @@
     var block = payload && payload.series && payload.series[seriesKey];
     var out = [];
     ((block && block.by_date) || []).forEach(function (pt) {
-      if (!pt || !pt.date) return;
+      if (!pt || !pt.date || pt.close == null || pt.close === "") return;
       var v = Number(pt.close);
       if (!Number.isFinite(v)) return;
       out.push({ key: String(pt.date).slice(0, 10), value: v });
@@ -1154,7 +1154,11 @@
     }
   }
 
-  installMarketOverlayAutoBind();
+  try {
+    installMarketOverlayAutoBind();
+  } catch (e) {
+    /* Autobind tablo verisini düşürmesin. */
+  }
 
   global.SeoMarketOverlay = {
     LINE_COLOR: LINE_COLOR,

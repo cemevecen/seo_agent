@@ -52,7 +52,7 @@
       "html.dark table.mtux-grid-table tbody tr:nth-child(even) td.mtux-dim-cell{background:rgba(24,24,27,0.55);}" +
       "table.mtux-grid-table tbody tr:hover td{filter:brightness(0.98);}" +
       "html.dark table.mtux-grid-table tbody tr:hover td{filter:brightness(1.06);}" +
-      ".mtux-heat-cell{border-radius:0!important;padding:0.38rem 0.62rem;font-weight:600;text-align:center;}" +
+      ".mtux-heat-cell{border-radius:0!important;padding:0.38rem 0.22rem;font-weight:600;text-align:center;font-variant-numeric:tabular-nums;}" +
       ".mtux-dim-cell{padding:0.38rem 0.62rem;font-weight:500;color:#334155;}" +
       "html.dark .mtux-dim-cell{color:#e4e4e7;}" +
       ".mtux-avg-row td{font-weight:700;background:rgba(241,245,249,0.95)!important;}" +
