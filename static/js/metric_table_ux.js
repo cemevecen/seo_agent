@@ -8,6 +8,7 @@
   var STYLE_ID = "seo-mtux-style";
   var HEAT_PREF_KEY = "mtux-heat-enabled";
   var PIN_PREF_KEY = "mtux-pin-enabled";
+  var COMPARE_COLS_PREF_KEY = "mtux-compare-cols";
   var LAYOUT_PREF_KEY = "mtux-layout"; // standard | transposed
 
   function injectStyles() {
@@ -221,6 +222,14 @@
     writeJson(PIN_PREF_KEY, !!on);
   }
 
+  function isCompareColsEnabled() {
+    return readJson(COMPARE_COLS_PREF_KEY, true) !== false;
+  }
+
+  function setCompareColsEnabled(on) {
+    writeJson(COMPARE_COLS_PREF_KEY, !!on);
+  }
+
   function isTransposed() {
     return readJson(LAYOUT_PREF_KEY, "standard") === "transposed";
   }
@@ -267,6 +276,25 @@
       layoutBtn.setAttribute("aria-pressed", isTransposed() ? "true" : "false");
       layoutBtn.textContent = "Reverse list table";
     }
+    var cmpBtn = legend.querySelector('[data-mtux-opt="compare"]');
+    if (cmpBtn) {
+      var cmpOn = isCompareColsEnabled();
+      cmpBtn.setAttribute("aria-pressed", cmpOn ? "true" : "false");
+      cmpBtn.textContent = cmpOn ? "Compare on" : "Compare off";
+    }
+  }
+
+  function legendActionsHtml(opts) {
+    var compare = opts && opts.compareCols
+      ? '<button type="button" class="mtux-opt-toggle" data-mtux-opt="compare" aria-pressed="true">Compare on</button>'
+      : "";
+    return (
+      '<div class="mtux-legend-actions">' +
+        compare +
+        '<button type="button" class="mtux-opt-toggle" data-mtux-opt="pin" aria-pressed="true">Pin on</button>' +
+        '<button type="button" class="mtux-heat-toggle">Remove colors</button>' +
+      "</div>"
+    );
   }
 
   function placeLegendAtTop(shell, legend) {
@@ -312,6 +340,7 @@
         var opt = optBtn.getAttribute("data-mtux-opt");
         if (opt === "pin") setPinEnabled(!isPinEnabled());
         else if (opt === "transpose") setTransposed(!isTransposed());
+        else if (opt === "compare") setCompareColsEnabled(!isCompareColsEnabled());
         syncLegendState(legend);
         syncShell(shell);
         if (typeof legend._mtuxOnRefresh === "function") legend._mtuxOnRefresh();
@@ -321,15 +350,14 @@
 
     var existing = shell.querySelector(".mtux-legend");
     if (existing) {
-      if (existing.querySelector(".mtux-legend-scale") || !existing.querySelector(".mtux-legend-leading")) {
+      var wantCompare = !!(opts && opts.compareCols);
+      var hasCompare = !!existing.querySelector('[data-mtux-opt="compare"]');
+      if (existing.querySelector(".mtux-legend-scale") || !existing.querySelector(".mtux-legend-leading") || wantCompare !== hasCompare) {
         existing.innerHTML =
           '<div class="mtux-legend-leading">' +
             '<button type="button" class="mtux-opt-toggle" data-mtux-opt="transpose" aria-pressed="false">Reverse list table</button>' +
           "</div>" +
-          '<div class="mtux-legend-actions">' +
-            '<button type="button" class="mtux-opt-toggle" data-mtux-opt="pin" aria-pressed="true">Pin on</button>' +
-            '<button type="button" class="mtux-heat-toggle">Remove colors</button>' +
-          "</div>";
+          legendActionsHtml(opts);
       }
       placeLegendAtTop(shell, existing);
       bindLegend(existing);
@@ -342,10 +370,7 @@
       '<div class="mtux-legend-leading">' +
         '<button type="button" class="mtux-opt-toggle" data-mtux-opt="transpose" aria-pressed="false">Reverse list table</button>' +
       "</div>" +
-      '<div class="mtux-legend-actions">' +
-        '<button type="button" class="mtux-opt-toggle" data-mtux-opt="pin" aria-pressed="true">Pin on</button>' +
-        '<button type="button" class="mtux-heat-toggle">Remove colors</button>' +
-      "</div>";
+      legendActionsHtml(opts);
     placeLegendAtTop(shell, legend);
     bindLegend(legend);
     return legend;
@@ -553,13 +578,13 @@
       tbody.innerHTML =
         '<tr><td colspan="' + Math.max(2, colCount) +
         '" class="px-3 py-4 text-center text-slate-400">All columns removed — refresh via Metrics → Select</td></tr>';
-      if (shell) ensureLegend(shell, { onRefresh: opts.onRefresh });
+      if (shell) ensureLegend(shell, { onRefresh: opts.onRefresh, compareCols: !!opts.compareCols });
       return { rowCount: 0 };
     }
     if (!keys.length) {
       tbody.innerHTML =
         '<tr><td colspan="' + colCount + '" class="px-3 py-4 text-center text-slate-400">No rows</td></tr>';
-      if (shell) ensureLegend(shell, { onRefresh: opts.onRefresh });
+      if (shell) ensureLegend(shell, { onRefresh: opts.onRefresh, compareCols: !!opts.compareCols });
       return { rowCount: 0 };
     }
 
@@ -673,7 +698,7 @@
     }
 
     if (shell) {
-      ensureLegend(shell, { onRefresh: opts.onRefresh });
+      ensureLegend(shell, { onRefresh: opts.onRefresh, compareCols: !!opts.compareCols });
     }
     if (tableEl && opts.bindInteractive && !transposed) {
       bindInteractive(tableEl, opts.bindInteractive);
@@ -1059,6 +1084,8 @@
     setHeatEnabled: setHeatEnabled,
     isPinEnabled: isPinEnabled,
     setPinEnabled: setPinEnabled,
+    isCompareColsEnabled: isCompareColsEnabled,
+    setCompareColsEnabled: setCompareColsEnabled,
     isTransposed: isTransposed,
     setTransposed: setTransposed,
     syncShell: syncShell,
