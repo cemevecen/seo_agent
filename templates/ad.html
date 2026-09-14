@@ -10627,6 +10627,38 @@
     return mzEvenSampleRows(rows, mzKpiSparkPointBudget(rows.length));
   }
 
+  function mzKpiFriendlyBlue(dark) {
+    return dark
+      ? { bar: "#7eb6f5", compare: "rgba(126,182,245,0.34)" }
+      : { bar: "#5b9ee8", compare: "rgba(91,158,232,0.30)" };
+  }
+
+  function mzKpiColumnTrace(xs, ys, color) {
+    return {
+      x: xs,
+      y: ys,
+      type: "bar",
+      marker: { color: color, line: { width: 0 } },
+      hoverinfo: "skip",
+    };
+  }
+
+  function mzKpiSparkLayout(el, width) {
+    return {
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      autosize: false,
+      width: width,
+      height: Math.max(24, Math.round(el.clientHeight || 40)),
+      margin: { l: 1, r: 1, t: 2, b: 0 },
+      barmode: "overlay",
+      bargap: 0.28,
+      xaxis: { visible: false, fixedrange: true, automargin: false },
+      yaxis: { visible: false, fixedrange: true, automargin: false, rangemode: "tozero" },
+      showlegend: false,
+    };
+  }
+
   /** Karşı dönem / peer: yalnızca ince dolgu — çizgi yok (KPI spark kuralı). */
   function mzSparkOverlayFillTrace(xs, ys, colorHex, dark, fillAlpha) {
     var a = fillAlpha != null ? fillAlpha : dark ? 0.26 : 0.2;
@@ -10647,38 +10679,8 @@
     if (!window.Plotly) return;
     var el = typeof elId === "string" ? document.getElementById(elId) : elId;
     if (!el || !el.isConnected) return;
-    var colors = compareColors();
     var dark = isDarkTheme();
-    /* KPI spark: önceki mean-split yeşil/kırmızı — ana grafik siyah stilinden ayrı. */
-    var sparkMs = window.seoMatteMeanSplit
-      ? window.seoMatteMeanSplit()
-      : {
-          green: dark ? "#4a8f73" : "#047857",
-          red: dark ? "#a85a66" : "#b91c3c",
-          greenFill: dark ? "rgba(74,143,115,0.14)" : "rgba(4,120,87,0.16)",
-          redFill: dark ? "rgba(168,90,102,0.14)" : "rgba(185,28,60,0.14)",
-        };
-    var sparkMeanOpts = {
-      lineWidth: dark ? 2 : 1.5,
-      fill: true,
-      hoverinfo: "skip",
-      mode: "lines",
-      green: sparkMs.green,
-      red: sparkMs.red,
-      greenFill: dark
-        ? (sparkMs.greenFill || "rgba(74,143,115,0.28)")
-        : sparkMs.greenFill,
-      redFill: dark
-        ? (sparkMs.redFill || "rgba(168,90,102,0.28)")
-        : sparkMs.redFill,
-      fallbackColor: sparkMs.green,
-    };
-    if (dark) {
-      /* Mat fill opacity dark’ta çok silik kalmasın */
-      sparkMeanOpts.greenFill = "rgba(74,143,115,0.32)";
-      sparkMeanOpts.redFill = "rgba(168,90,102,0.32)";
-    }
-    var sparkPeerColor = dark ? "#A8D88A" : "#93C572";
+    var sparkBlue = mzKpiFriendlyBlue(dark);
     var aligned = cmp ? alignedDateSeries(cmp, key) : null;
     var traces = [];
     var xs;
@@ -10693,17 +10695,18 @@
         return;
       }
       if (compareYs.some(function (v) { return v != null && v !== 0; })) {
-        traces.push(mzSparkOverlayFillTrace(xs, compareYs, colors.sparkCompare, dark));
+        traces.push(mzKpiColumnTrace(xs, compareYs, sparkBlue.compare));
       }
-      mzPushMeanSplitTraces(traces, xs, primaryYs, sparkMeanOpts);
+      traces.push(mzKpiColumnTrace(xs, primaryYs, sparkBlue.bar));
     } else {
       if (!byDate || byDate.length < 2) return;
       var plainSlice = mzKpiSparkSlice(byDate);
-      xs = plainSlice.map(function (d) { return d.date; });
+      xs = plainSlice.map(function (_, i) { return i; });
+      var dateXs = plainSlice.map(function (d) { return d.date; });
       var ys = plainSlice.map(function (d) { return d[key] != null ? d[key] : 0; });
       if (!ys.some(function (v) { return v !== 0; })) return;
       if (state.peerOverlay.kpi && peerSum && !cmp) {
-        var peerYs = peerMetricYForPlotX(peerSum, xs, key);
+        var peerYs = peerMetricYForPlotX(peerSum, dateXs, key);
         if (!peerSeriesHasSignal(peerYs)) {
           var own = peerDailySeriesXY(peerSum, key);
           if (peerSeriesHasSignal(own.y)) {
@@ -10714,7 +10717,7 @@
                 row[key] = own.y[i];
                 return row;
               }) },
-              xs,
+              dateXs,
               key
             );
           }
@@ -10725,19 +10728,11 @@
             return v == null || isNaN(Number(v)) ? 0 : Number(v);
           });
           if (sparkPeerYs.some(function (v) { return v !== 0; })) {
-            traces.push(
-              mzSparkOverlayFillTrace(
-                xs,
-                sparkPeerYs,
-                sparkPeerColor,
-                dark,
-                0.28
-              )
-            );
+            traces.push(mzKpiColumnTrace(xs, sparkPeerYs, sparkBlue.compare));
           }
         }
       }
-      mzPushMeanSplitTraces(traces, xs, ys, sparkMeanOpts);
+      traces.push(mzKpiColumnTrace(xs, ys, sparkBlue.bar));
     }
 
     try { Plotly.purge(el); } catch (e) { /* ignore */ }
@@ -10750,34 +10745,14 @@
       requestAnimationFrame(function () {
         var w2 = mzPlotHostWidth(el);
         if (w2 < 16) return;
-        var sparkLay2 = {
-          paper_bgcolor: "rgba(0,0,0,0)",
-          plot_bgcolor: "rgba(0,0,0,0)",
-          autosize: false,
-          width: w2,
-          height: Math.max(24, Math.round(el.clientHeight || 40)),
-          margin: { l: 1, r: 1, t: 1, b: 1 },
-          xaxis: { visible: false, fixedrange: true, automargin: false },
-          yaxis: { visible: false, fixedrange: true, automargin: false },
-          showlegend: false,
-        };
+        var sparkLay2 = mzKpiSparkLayout(el, w2);
         Plotly.newPlot(el, traces, sparkLay2, { responsive: true, displayModeBar: false, staticPlot: true })
           .then(function () { return mzEnsurePlotlyFillsContainer(el); })
           .catch(function () { /* ignore */ });
       });
       return;
     }
-    var sparkLay = {
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(0,0,0,0)",
-      autosize: false,
-      width: hostW,
-      height: Math.max(24, Math.round(el.clientHeight || 40)),
-      margin: { l: 1, r: 1, t: 1, b: 1 },
-      xaxis: { visible: false, fixedrange: true, automargin: false },
-      yaxis: { visible: false, fixedrange: true, automargin: false },
-      showlegend: false,
-    };
+    var sparkLay = mzKpiSparkLayout(el, hostW);
     /* Spark'ta sıkı tarih ekseni ilk yüklemede yarım genişlik ölçümünü bozuyor; eksen gizli. */
     Plotly.newPlot(el, traces, sparkLay, { responsive: true, displayModeBar: false, staticPlot: true })
       .then(function () {
