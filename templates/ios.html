@@ -1177,11 +1177,11 @@
           <option value="7">Last 1 week</option>
           <option value="14">Last 2 weeks</option>
           <option value="30">Last 1 month</option>
-          <option value="90">Last 3 months</option>
+          <option value="90" selected>Last 3 months</option>
           <option value="180">Last 6 months</option>
           <option value="270">Last 9 months</option>
           <option value="365">Last 1 year</option>
-          <option value="since2025" selected>2025 → today</option>
+          <option value="since2025">2025 → today</option>
         </select>
       </label>
       <label class="pa-f pa-f--metric">Metric
@@ -1279,7 +1279,7 @@
         <select id="ia-compare-mode" aria-label="Compare mode">
           <option value="">Off</option>
           <option value="previous_period">Previous period</option>
-          <option value="previous_year">Previous year</option>
+          <option value="previous_year" selected>Previous year</option>
         </select>
       </label>
       <div class="pa-f pa-f--cross-metric">
@@ -1537,7 +1537,14 @@
   var CHART_METRICS = [
     "crashes",
     "ga4:sessions",
-    "active_devices"
+    "market:gram_altin",
+    "market:usd_try",
+    "total_downloads",
+    "virgul:impression",
+    "virgul:net_revenue",
+    "page_views",
+    "xdata:active7DayUsers",
+    "xdata:usdEcpm"
   ];
   var TABLE_EXTRA = [];
   var IA_GA4_METRICS = [
@@ -1625,7 +1632,14 @@
   var iaSelectedMetrics = [
     "crashes",
     "ga4:sessions",
-    "active_devices"
+    "market:gram_altin",
+    "market:usd_try",
+    "total_downloads",
+    "virgul:impression",
+    "virgul:net_revenue",
+    "page_views",
+    "xdata:active7DayUsers",
+    "xdata:usdEcpm"
   ];
   var iaMetricDirty = false;
   var iaLastPrimaryMetric = "";

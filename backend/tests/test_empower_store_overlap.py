@@ -148,8 +148,9 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert "pa-cross-metric-overlay-root" in android_html
     assert "iOS metrics" in android_html
     assert 'play_metric_overlay_persist=false' in android_html
-    assert 'paSelectedMetrics = [\n    "anrs",\n    "crashes",\n    "ga4:sessions"\n  ]' in android_html
-    assert 'PA_OVERVIEW_CHART_METRICS = [\n    "anrs",\n    "crashes",\n    "ga4:sessions"\n  ]' in android_html
+    assert 'paSelectedMetrics = [\n    "crashes",\n    "ga4:sessions",\n    "market:gram_altin"' in android_html
+    assert '"xdata:usdEcpm"\n  ]' in android_html
+    assert 'PA_OVERVIEW_CHART_METRICS = [\n    "crashes",\n    "ga4:sessions",\n    "market:gram_altin"' in android_html
     assert "var paCrossSeq" in android_html
     assert "seq !== paCrossSeq" in android_html
     assert "function dedupePaCrossOverlays" in android_html
@@ -157,8 +158,9 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert "ia-cross-metric-overlay-root" in ios_html
     assert "Android metrics" in ios_html
     assert 'play_metric_overlay_persist=false' in ios_html
-    assert 'iaSelectedMetrics = [\n    "crashes",\n    "ga4:sessions",\n    "active_devices"\n  ]' in ios_html
-    assert 'CHART_METRICS = [\n    "crashes",\n    "ga4:sessions",\n    "active_devices"\n  ]' in ios_html
+    assert 'iaSelectedMetrics = [\n    "crashes",\n    "ga4:sessions",\n    "market:gram_altin"' in ios_html
+    assert '"page_views",\n    "xdata:active7DayUsers"' in ios_html
+    assert 'CHART_METRICS = [\n    "crashes",\n    "ga4:sessions",\n    "market:gram_altin"' in ios_html
     assert "var iaCrossSeq" in ios_html
     assert "seq !== iaCrossSeq" in ios_html
     assert "onChange !== named" in text

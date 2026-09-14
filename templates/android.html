@@ -1354,11 +1354,11 @@
           <option value="7">Last 1 week</option>
           <option value="14">Last 2 weeks</option>
           <option value="30">Last 1 month</option>
-          <option value="90">Last 3 months</option>
+          <option value="90" selected>Last 3 months</option>
           <option value="180">Last 6 months</option>
           <option value="270">Last 9 months</option>
           <option value="365">Last 1 year</option>
-          <option value="since2025" selected>2025 → today</option>
+          <option value="since2025">2025 → today</option>
         </select>
       </label>
       <label class="pa-f pa-f--metric">Metric
@@ -1456,7 +1456,7 @@
         <select id="pa-compare-mode" aria-label="Compare mode">
           <option value="">Off</option>
           <option value="previous_period">Previous period</option>
-          <option value="previous_year">Previous year</option>
+          <option value="previous_year" selected>Previous year</option>
         </select>
       </label>
       <div class="pa-f pa-f--cross-metric">
@@ -2356,9 +2356,16 @@
   var paOverlaysChips = null;
   var paOvPending = {};
   var paSelectedMetrics = [
-    "anrs",
     "crashes",
-    "ga4:sessions"
+    "ga4:sessions",
+    "market:gram_altin",
+    "market:usd_try",
+    "device_acquisition",
+    "virgul:impression",
+    "virgul:net_revenue",
+    "ar2_visitors",
+    "xdata:active7DayUsers",
+    "xdata:usdEcpm"
   ];
   var paMetricDirty = false;
   var PA_GA4_OVERLAY_METRICS = [
@@ -2774,9 +2781,16 @@
   var paChartState = null;
   /** Açılış / Seçiniz: liste tabloda (ve yığınlı grafikte) */
   var PA_OVERVIEW_CHART_METRICS = [
-    "anrs",
     "crashes",
-    "ga4:sessions"
+    "ga4:sessions",
+    "market:gram_altin",
+    "market:usd_try",
+    "device_acquisition",
+    "virgul:impression",
+    "virgul:net_revenue",
+    "ar2_visitors",
+    "xdata:active7DayUsers",
+    "xdata:usdEcpm"
   ];
   /** Grafikte yok; yalnızca liste tabloda */
   var PA_OVERVIEW_TABLE_EXTRA = [];
@@ -6722,7 +6736,6 @@
     });
   }
   applyPreset();
-  // First açılış: crash · session · user · pageview · net revenue · matched request
   runPlayAnalytics();
 
   var KPI_TITLES = {
