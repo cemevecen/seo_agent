@@ -3068,6 +3068,7 @@ def query_summary(
             project=project,
             branch=branch,
             compare_mode=None,
+            warehouse=warehouse,
         )
         payload["compare"] = _attach_compare_block(
             payload,
@@ -3278,6 +3279,7 @@ def query_table(
             limit=limit,
             offset=offset,
             compare_mode=None,
+            warehouse=warehouse,
         )
         result["compare_range"] = {"start": cmp_start, "end": cmp_end}
         result["rows"] = _merge_table_rows(out_rows, cmp_table.get("rows") or [], dim_fields)

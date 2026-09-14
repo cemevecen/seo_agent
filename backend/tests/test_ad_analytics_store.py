@@ -214,6 +214,34 @@ def test_merge_breakdown_str_keys_and_delta_abs():
     assert merged[0]["net_revenue_delta_abs"] == 50.0
 
 
+def test_query_summary_compare_keeps_virgul_warehouse():
+    """Virgül karşı dönemi sheets deposuna düşmesin; aksi halde Cmp hep 0 kalır."""
+    init_db()
+    text = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    primary = date(2026, 8, 10)
+    previous = date(2026, 8, 9)
+    text += f"unit_a,8,{_excel_serial(primary)},Open Auction,10,10,10,1,0,0,0,0,0,80\n"
+    text += f"unit_a,8,{_excel_serial(previous)},Open Auction,10,10,10,1,0,0,0,0,0,40\n"
+    rows = store.parse_csv_text(text, filename="virgul_doviz_desktop.csv")
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows)
+        summ = store.query_summary(
+            db,
+            start=primary.isoformat(),
+            end=primary.isoformat(),
+            compare_mode="previous_period",
+            warehouse="virgul",
+        )
+        assert summ["compare"]["deltas"]["net_revenue"]["compare"] == 40.0
+        assert summ["compare"]["deltas"]["net_revenue"]["current"] == 80.0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
 def test_query_summary_with_compare():
     init_db()
     text = (
