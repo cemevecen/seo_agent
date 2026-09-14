@@ -9417,14 +9417,14 @@
     return (vals[mid - 1] + vals[mid]) / 2;
   }
 
-  /** Ana grafik: 0→medyan kırmızı, medyan→değer siyah yığın; çizgi de aynı kırılımda. */
+  /** Ana grafik: 0→medyan kırmızı, medyan→değer yeşil yığın; çizgi de aynı kırılımda. */
   function mzMedianStackedLineTraces(xs, ys, name) {
     var dark = isDarkTheme();
     var med = mzSeriesMedian(ys);
-    var ink = mzInkColor();
+    var green = dark ? "#4ade80" : "#16a34a";
     var red = dark ? "#fb7185" : "#e11d48";
     var redFill = dark ? "rgba(251,113,133,0.5)" : "rgba(225,29,72,0.48)";
-    var inkFill = dark ? "rgba(161,161,170,0.42)" : "rgba(10,10,10,0.36)";
+    var greenFill = dark ? "rgba(74,222,128,0.42)" : "rgba(22,163,74,0.40)";
     var seriesName = name || "Series";
     var below = [];
     var above = [];
@@ -9465,14 +9465,14 @@
     }
     var traces = [
       band(below, red, redFill, "Below median"),
-      band(above, ink, inkFill, "Above median"),
+      band(above, green, greenFill, "Above median"),
     ];
     if (typeof window.mzMeanSplitLineTraces === "function" && xs && xs.length >= 2) {
       var stroke = window.mzMeanSplitLineTraces(xs, ys, {
         mean: med,
         fill: false,
         dark: dark,
-        green: ink,
+        green: green,
         red: red,
         lineWidth: 2,
         mode: "lines",
@@ -10716,33 +10716,10 @@
     return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
   }
 
-  /** KPI spark nokta bütçesi: ≤1 ay tüm günler; daha uzun aralıkta eski 14’ün %50 fazlası (+ eşit örnekleme). */
-  function mzKpiSparkPointBudget(dayCount) {
-    var n = Math.max(0, Number(dayCount) || 0);
-    if (n <= 31) return n;
-    return Math.min(n, Math.round(14 * 1.5)); // 21
-  }
-
-  function mzEvenSampleRows(rows, maxPts) {
-    if (!rows || !rows.length) return [];
-    var n = rows.length;
-    var cap = Math.max(2, Math.min(n, Number(maxPts) || n));
-    if (n <= cap) return rows.slice();
-    var out = [];
-    var seen = {};
-    for (var i = 0; i < cap; i++) {
-      var idx = Math.round((i * (n - 1)) / (cap - 1));
-      if (seen[idx]) continue;
-      seen[idx] = true;
-      out.push(rows[idx]);
-    }
-    if (out.length && out[out.length - 1] !== rows[n - 1]) out.push(rows[n - 1]);
-    return out;
-  }
-
+  /** KPI spark: seçili aralıktaki her gün ayrı sütun — örnekleme yok. */
   function mzKpiSparkSlice(rows) {
     if (!rows || !rows.length) return [];
-    return mzEvenSampleRows(rows, mzKpiSparkPointBudget(rows.length));
+    return rows.slice();
   }
 
   function mzKpiFriendlyBlue(dark) {
@@ -10761,7 +10738,9 @@
     };
   }
 
-  function mzKpiSparkLayout(el, width) {
+  function mzKpiSparkLayout(el, width, pointCount) {
+    var n = Math.max(1, Number(pointCount) || 1);
+    var gap = n > 120 ? 0.04 : n > 45 ? 0.1 : 0.22;
     return {
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
@@ -10770,8 +10749,9 @@
       height: Math.max(24, Math.round(el.clientHeight || 40)),
       margin: { l: 1, r: 1, t: 2, b: 0 },
       barmode: "overlay",
-      bargap: 0.28,
-      xaxis: { visible: false, fixedrange: true, automargin: false },
+      bargap: gap,
+      bargroupgap: 0,
+      xaxis: { visible: false, fixedrange: true, automargin: false, type: "category" },
       yaxis: { visible: false, fixedrange: true, automargin: false, rangemode: "tozero" },
       showlegend: false,
     };
@@ -10863,14 +10843,14 @@
       requestAnimationFrame(function () {
         var w2 = mzPlotHostWidth(el);
         if (w2 < 16) return;
-        var sparkLay2 = mzKpiSparkLayout(el, w2);
+        var sparkLay2 = mzKpiSparkLayout(el, w2, xs.length);
         Plotly.newPlot(el, traces, sparkLay2, { responsive: true, displayModeBar: false, staticPlot: true })
           .then(function () { return mzEnsurePlotlyFillsContainer(el); })
           .catch(function () { /* ignore */ });
       });
       return;
     }
-    var sparkLay = mzKpiSparkLayout(el, hostW);
+    var sparkLay = mzKpiSparkLayout(el, hostW, xs.length);
     /* Spark'ta sıkı tarih ekseni ilk yüklemede yarım genişlik ölçümünü bozuyor; eksen gizli. */
     Plotly.newPlot(el, traces, sparkLay, { responsive: true, displayModeBar: false, staticPlot: true })
       .then(function () {
