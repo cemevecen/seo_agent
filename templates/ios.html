@@ -1577,11 +1577,11 @@
   function iaSeriesColors() {
     if (window.seoAppMetricChartColors) return window.seoAppMetricChartColors().cycle.slice();
     return iaIsDark()
-      ? ["#60A5FA", "#FB7185", "#FBBF24", "#34D399", "#C4B5FD", "#22D3EE", "#F472B6", "#A3E635", "#FB923C", "#FAFAFA"]
-      : ["#1D4ED8", "#E11D48", "#D97706", "#059669", "#6D28D9", "#0891B2", "#DB2777", "#65A30D", "#EA580C", "#111827"];
+      ? ["#60A5FA", "#F472B6", "#FACC15", "#4ADE80", "#C084FC", "#22D3EE", "#FB7185", "#A3E635", "#FB923C", "#E879F9"]
+      : ["#3B82F6", "#EC4899", "#EAB308", "#22C55E", "#A855F7", "#06B6D4", "#F43F5E", "#84CC16", "#F97316", "#D946EF"];
   }
   var COLORS = iaSeriesColors();
-  var STROKE = 2.15;
+  var STROKE = 0.68;
   /* Açılış her zaman alan dolgulu; users oturumda değiştirebilir. */
   var iaChartStyle = "area";
   try {
@@ -3272,11 +3272,6 @@
     }
     var lineD = buildIaLinePath(list);
     if (lineD) {
-      if (opts.halo) {
-        html +=
-          '<path d="' + lineD + '" fill="none" stroke="' + opts.halo +
-          '" stroke-width="' + (Number(strokeW) + 1.6) + '" stroke-linecap="round" stroke-linejoin="round" />';
-      }
       html +=
         '<path d="' + lineD + '" fill="none" stroke="' + color +
         '" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round" />';
@@ -3381,9 +3376,8 @@
     var baseY = top + plotH;
     var pal = iaChartPalette();
     var fillOp = list.length > 1
-      ? 0
+      ? (pal.areaFillMulti != null ? pal.areaFillMulti : 0.12)
       : (pal.areaFill != null ? pal.areaFill : 0.22);
-    var strokeW = list.length > 1 ? 2.35 : STROKE;
     var barSlot = n > 1 ? plotW / (n - 1) : plotW;
     var paths = "";
     if (style === "heatmap" || style === "bar") {
@@ -3406,8 +3400,7 @@
     } else {
       paths = seriesList.map(function (s, si) {
         return wrapIaChartSeriesG(s.metric, buildIaSeriesStyleHtml(style, s.pts, s.color, baseY, {
-          strokeW: strokeW,
-          halo: seriesList.length > 1 ? pal.dotStroke : "",
+          strokeW: STROKE,
           fillOpacity: fillOp,
           seriesIndex: si,
           seriesCount: seriesList.length,

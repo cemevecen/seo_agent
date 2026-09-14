@@ -392,35 +392,35 @@
       byMetric: dark
         ? {
             crashes: "#60A5FA",
-            "ga4:sessions": "#FB7185",
-            "market:gram_altin": "#FBBF24",
-            "market:usd_try": "#34D399",
-            device_acquisition: "#C4B5FD",
-            total_downloads: "#C4B5FD",
+            "ga4:sessions": "#F472B6",
+            "market:gram_altin": "#FACC15",
+            "market:usd_try": "#4ADE80",
+            device_acquisition: "#C084FC",
+            total_downloads: "#C084FC",
             "virgul:impression": "#22D3EE",
-            "virgul:net_revenue": "#F472B6",
+            "virgul:net_revenue": "#FB7185",
             ar2_visitors: "#A3E635",
             page_views: "#A3E635",
             "xdata:active7DayUsers": "#FB923C",
-            "xdata:usdEcpm": "#FAFAFA",
+            "xdata:usdEcpm": "#E879F9",
           }
         : {
-            crashes: "#1D4ED8",
-            "ga4:sessions": "#E11D48",
-            "market:gram_altin": "#D97706",
-            "market:usd_try": "#059669",
-            device_acquisition: "#6D28D9",
-            total_downloads: "#6D28D9",
-            "virgul:impression": "#0891B2",
-            "virgul:net_revenue": "#DB2777",
-            ar2_visitors: "#65A30D",
-            page_views: "#65A30D",
-            "xdata:active7DayUsers": "#EA580C",
-            "xdata:usdEcpm": "#111827",
+            crashes: "#3B82F6",
+            "ga4:sessions": "#EC4899",
+            "market:gram_altin": "#EAB308",
+            "market:usd_try": "#22C55E",
+            device_acquisition: "#A855F7",
+            total_downloads: "#A855F7",
+            "virgul:impression": "#06B6D4",
+            "virgul:net_revenue": "#F43F5E",
+            ar2_visitors: "#84CC16",
+            page_views: "#84CC16",
+            "xdata:active7DayUsers": "#F97316",
+            "xdata:usdEcpm": "#D946EF",
           },
       cycle: dark
-        ? ["#60A5FA", "#FB7185", "#FBBF24", "#34D399", "#C4B5FD", "#22D3EE", "#F472B6", "#A3E635", "#FB923C", "#FAFAFA", "#818CF8", "#FACC15"]
-        : ["#1D4ED8", "#E11D48", "#D97706", "#059669", "#6D28D9", "#0891B2", "#DB2777", "#65A30D", "#EA580C", "#111827", "#4338CA", "#0F766E"],
+        ? ["#60A5FA", "#F472B6", "#FACC15", "#4ADE80", "#C084FC", "#22D3EE", "#FB7185", "#A3E635", "#FB923C", "#E879F9"]
+        : ["#3B82F6", "#EC4899", "#EAB308", "#22C55E", "#A855F7", "#06B6D4", "#F43F5E", "#84CC16", "#F97316", "#D946EF"],
     };
   }
 
