@@ -7079,6 +7079,7 @@
     var dark = isDarkTheme();
     (traces || []).forEach(function (t) {
       if (!t) return;
+      if (t.mzMedianSplit) return;
       if (t.hoverinfo === "skip" && (!t.name || t.showlegend === false) && t.line && Number(t.line.width) === 0) {
         return;
       }
@@ -9342,6 +9343,7 @@
   function mzStylizeLineTraces(traces, opts) {
     opts = opts || {};
     (traces || []).forEach(function (t, i) {
+      if (t && t.mzMedianSplit) return;
       var rel = i === 0 ? opts.releaseTextPerPoint : null;
       var sfx = opts.valueSuffix;
       if (opts.valueSuffixByTrace && opts.valueSuffixByTrace[i] != null) {
@@ -9400,6 +9402,109 @@
 
   function plotlyCfg() {
     return { responsive: true, displayModeBar: false, autosizable: true, scrollZoom: false };
+  }
+
+  function mzSeriesMedian(ys) {
+    var vals = [];
+    for (var i = 0; i < (ys || []).length; i++) {
+      var n = Number(ys[i]);
+      if (isFinite(n)) vals.push(n);
+    }
+    if (!vals.length) return 0;
+    vals.sort(function (a, b) { return a - b; });
+    var mid = Math.floor(vals.length / 2);
+    if (vals.length % 2) return vals[mid];
+    return (vals[mid - 1] + vals[mid]) / 2;
+  }
+
+  /** Ana grafik: 0→medyan kırmızı, medyan→değer siyah yığın; çizgi de aynı kırılımda. */
+  function mzMedianStackedLineTraces(xs, ys, name) {
+    var dark = isDarkTheme();
+    var med = mzSeriesMedian(ys);
+    var ink = mzInkColor();
+    var red = dark ? "#fb7185" : "#e11d48";
+    var redFill = dark ? "rgba(251,113,133,0.42)" : "rgba(225,29,72,0.38)";
+    var inkFill = dark ? "rgba(161,161,170,0.34)" : "rgba(10,10,10,0.22)";
+    var seriesName = name || "Series";
+    var below = [];
+    var above = [];
+    var totals = [];
+    var mid = Math.max(med, 0);
+    for (var i = 0; i < (ys || []).length; i++) {
+      var y = Number(ys[i]);
+      if (!isFinite(y)) y = 0;
+      totals.push(y);
+      var lo = y < 0 ? 0 : y;
+      if (lo >= mid) {
+        below.push(mid);
+        above.push(lo - mid);
+      } else {
+        below.push(lo);
+        above.push(0);
+      }
+    }
+    var hover =
+      "%{x}<br><b>" + seriesName + "</b>: %{customdata:,.2f}<extra></extra>";
+    function band(yArr, color, fill, legend) {
+      return {
+        x: xs,
+        y: yArr,
+        customdata: totals,
+        type: "scatter",
+        mode: "lines",
+        stackgroup: "mz-median",
+        line: { width: 0, color: color },
+        fillcolor: fill,
+        name: legend,
+        hovertemplate: hover,
+        hoverinfo: "skip",
+        showlegend: true,
+        connectgaps: true,
+        mzMedianSplit: true,
+      };
+    }
+    var traces = [
+      band(below, red, redFill, "Below median"),
+      band(above, ink, inkFill, "Above median"),
+    ];
+    if (typeof window.mzMeanSplitLineTraces === "function" && xs && xs.length >= 2) {
+      var stroke = window.mzMeanSplitLineTraces(xs, ys, {
+        mean: med,
+        fill: false,
+        dark: dark,
+        green: ink,
+        red: red,
+        lineWidth: 2,
+        mode: "lines",
+        showlegend: false,
+        connectgaps: true,
+      });
+      stroke.forEach(function (t) {
+        t.mzMedianSplit = true;
+        t.showlegend = false;
+        if (!t.line || Number(t.line.width) === 0) {
+          t.hoverinfo = "skip";
+          return;
+        }
+        t.hovertemplate =
+          "%{x}<br><b>" + seriesName + "</b>: %{y:,.2f}<extra></extra>";
+      });
+      traces = traces.concat(stroke);
+    } else {
+      traces[0].hoverinfo = "x+y";
+    }
+    return traces;
+  }
+
+  function mzReplacePrimaryWithMedianStack(traces) {
+    if (!traces || !traces.length || !traces[0] || !traces[0].x || !traces[0].y) return traces;
+    if (traces[0].mzMedianSplit) return traces;
+    var primary = traces[0];
+    var stacked = mzMedianStackedLineTraces(primary.x, primary.y, primary.name || "Series");
+    if (!stacked.length) return traces;
+    traces.splice(0, 1, stacked[0]);
+    for (var i = 1; i < stacked.length; i++) traces.splice(i, 0, stacked[i]);
+    return traces;
   }
 
   function mzPushMeanSplitTraces(traces, xs, ys, opts) {
@@ -10078,10 +10183,23 @@
       });
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
     }
+    var primaryYForPeerScale = traces.length && traces[0] && traces[0].y ? traces[0].y.slice() : null;
+    mzReplacePrimaryWithMedianStack(traces);
     mzStylizeLineTraces(traces, { def: def, releaseTextPerPoint: releaseTextPerPoint });
     var lineLay = plotTheme(
       timeKey === "date" ? mzMergeTimeSeriesHoverLayout(layoutExtra) : layoutExtra
     );
+    lineLay.showlegend = true;
+    lineLay.legend = Object.assign({}, lineLay.legend || {}, {
+      orientation: "h",
+      x: 0,
+      xanchor: "left",
+      y: -0.22,
+      yanchor: "top",
+    });
+    lineLay.margin = Object.assign({}, lineLay.margin || {}, {
+      b: Math.max(Number(lineLay.margin && lineLay.margin.b) || 38, 56),
+    });
     if (timeKey === "date" && !aligned && !periodPair) {
       lineLay.xaxis = Object.assign({}, lineLay.xaxis, {
         type: "date",
@@ -10155,7 +10273,7 @@
         return;
       } else if (state.peerOverlay.line) {
         hidePeerSplitChart("line");
-        var primaryYsForPeer = traces.length && traces[0] ? traces[0].y : null;
+        var primaryYsForPeer = primaryYForPeerScale;
         // appendPeerScatterTrace kendi X/Y'sini seçebilir; ölçek için nihai peer Y'yi al.
         var peerYsForAxis = peerPlotY;
         if (!peerSeriesHasSignal(peerYsForAxis) || (timeKey === "date" && peerOwn && peerSeriesHasSignal(peerOwn.y))) {
