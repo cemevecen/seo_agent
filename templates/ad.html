@@ -9417,83 +9417,40 @@
     return (vals[mid - 1] + vals[mid]) / 2;
   }
 
-  /** Ana grafik: 0→medyan kırmızı, medyan→değer yeşil yığın; çizgi de aynı kırılımda. */
+  /** Ana grafik: tek renk çizgi; medyan yalnızca baştan sona kesik çizgi. */
   function mzMedianStackedLineTraces(xs, ys, name) {
-    var dark = isDarkTheme();
+    var ink = mzInkColor();
     var med = mzSeriesMedian(ys);
-    var green = dark ? "#4ade80" : "#16a34a";
-    var red = dark ? "#fb7185" : "#e11d48";
-    var redFill = dark ? "rgba(251,113,133,0.5)" : "rgba(225,29,72,0.48)";
-    var greenFill = dark ? "rgba(74,222,128,0.42)" : "rgba(22,163,74,0.40)";
     var seriesName = name || "Series";
-    var below = [];
-    var above = [];
-    var totals = [];
-    var mid = Math.max(med, 0);
-    for (var i = 0; i < (ys || []).length; i++) {
-      var y = Number(ys[i]);
-      if (!isFinite(y)) y = 0;
-      totals.push(y);
-      var lo = y < 0 ? 0 : y;
-      if (lo >= mid) {
-        below.push(mid);
-        above.push(lo - mid);
-      } else {
-        below.push(lo);
-        above.push(0);
-      }
-    }
-    var hover =
-      "%{x}<br><b>" + seriesName + "</b>: %{customdata:,.2f}<extra></extra>";
-    function band(yArr, color, fill, legend) {
-      return {
-        x: xs,
-        y: yArr,
-        customdata: totals,
+    var x0 = xs && xs.length ? xs[0] : null;
+    var x1 = xs && xs.length ? xs[xs.length - 1] : null;
+    var line = {
+      x: xs,
+      y: ys,
+      type: "scatter",
+      mode: "lines",
+      name: seriesName,
+      line: { color: ink, width: 2 },
+      connectgaps: true,
+      hovertemplate: "%{x}<br><b>" + seriesName + "</b>: %{y:,.2f}<extra></extra>",
+      showlegend: true,
+      mzMedianSplit: true,
+    };
+    if (x0 == null || x1 == null || !isFinite(med)) return [line];
+    return [
+      line,
+      {
+        x: [x0, x1],
+        y: [med, med],
         type: "scatter",
         mode: "lines",
-        stackgroup: "mz-median",
-        line: { width: 0, color: color },
-        fillcolor: fill,
-        name: legend,
-        hovertemplate: hover,
-        hoverinfo: "skip",
+        name: "Median",
+        line: { color: ink, width: 1.25, dash: "dash" },
+        hovertemplate: "Median: " + med.toLocaleString("tr-TR", { maximumFractionDigits: 2 }) + "<extra></extra>",
         showlegend: true,
-        connectgaps: true,
         mzMedianSplit: true,
-      };
-    }
-    var traces = [
-      band(below, red, redFill, "Below median"),
-      band(above, green, greenFill, "Above median"),
+      },
     ];
-    if (typeof window.mzMeanSplitLineTraces === "function" && xs && xs.length >= 2) {
-      var stroke = window.mzMeanSplitLineTraces(xs, ys, {
-        mean: med,
-        fill: false,
-        dark: dark,
-        green: green,
-        red: red,
-        lineWidth: 2,
-        mode: "lines",
-        showlegend: false,
-        connectgaps: true,
-      });
-      stroke.forEach(function (t) {
-        t.mzMedianSplit = true;
-        t.showlegend = false;
-        if (!t.line || Number(t.line.width) === 0) {
-          t.hoverinfo = "skip";
-          return;
-        }
-        t.hovertemplate =
-          "%{x}<br><b>" + seriesName + "</b>: %{y:,.2f}<extra></extra>";
-      });
-      traces = traces.concat(stroke);
-    } else {
-      traces[0].hoverinfo = "x+y";
-    }
-    return traces;
   }
 
   function mzReplacePrimaryWithMedianStack(traces) {
