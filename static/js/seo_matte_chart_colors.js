@@ -382,6 +382,54 @@
     ];
   }
 
+  /**
+   * Android / iOS çoklu grafik — doygun, birbirinden uzak renkler.
+   * Aynı metrik her iki sayfada da aynı rengi alır.
+   */
+  function seoAppMetricChartColors() {
+    var dark = isDark();
+    return {
+      byMetric: dark
+        ? {
+            crashes: "#60A5FA",
+            "ga4:sessions": "#FB7185",
+            "market:gram_altin": "#FBBF24",
+            "market:usd_try": "#34D399",
+            device_acquisition: "#C4B5FD",
+            total_downloads: "#C4B5FD",
+            "virgul:impression": "#22D3EE",
+            "virgul:net_revenue": "#F472B6",
+            ar2_visitors: "#A3E635",
+            page_views: "#A3E635",
+            "xdata:active7DayUsers": "#FB923C",
+            "xdata:usdEcpm": "#FAFAFA",
+          }
+        : {
+            crashes: "#1D4ED8",
+            "ga4:sessions": "#E11D48",
+            "market:gram_altin": "#D97706",
+            "market:usd_try": "#059669",
+            device_acquisition: "#6D28D9",
+            total_downloads: "#6D28D9",
+            "virgul:impression": "#0891B2",
+            "virgul:net_revenue": "#DB2777",
+            ar2_visitors: "#65A30D",
+            page_views: "#65A30D",
+            "xdata:active7DayUsers": "#EA580C",
+            "xdata:usdEcpm": "#111827",
+          },
+      cycle: dark
+        ? ["#60A5FA", "#FB7185", "#FBBF24", "#34D399", "#C4B5FD", "#22D3EE", "#F472B6", "#A3E635", "#FB923C", "#FAFAFA", "#818CF8", "#FACC15"]
+        : ["#1D4ED8", "#E11D48", "#D97706", "#059669", "#6D28D9", "#0891B2", "#DB2777", "#65A30D", "#EA580C", "#111827", "#4338CA", "#0F766E"],
+    };
+  }
+
+  function seoAppMetricChartColor(metric) {
+    var key = String(metric || "");
+    var pack = seoAppMetricChartColors();
+    return pack.byMetric[key] || null;
+  }
+
   function seoMatteSeriesPalette() {
     if (isCharcoal()) {
       return ["#7a99b8", "#4d9b7e", "#9a8ab6", "#c4844a", "#b87b8f", "#6b8ca8", "#b86a74"];
@@ -432,6 +480,8 @@
   global.seoMatteMarketOverlayPalette = seoMatteMarketOverlayPalette;
   global.seoMatteEmpowerOverlayPalette = seoMatteEmpowerOverlayPalette;
   global.seoMatteSeriesPalette = seoMatteSeriesPalette;
+  global.seoAppMetricChartColors = seoAppMetricChartColors;
+  global.seoAppMetricChartColor = seoAppMetricChartColor;
   global.seoMatteCwvColors = seoMatteCwvColors;
   global.seoMatteQualityGauge = seoMatteQualityGauge;
   global.seoMatteIsDark = isDark;

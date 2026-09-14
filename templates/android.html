@@ -2267,8 +2267,8 @@
   var PA_HOVER_R = 2.2;
   var PA_HOVER_R_OV = 1.8;
   var PA_DOT_STROKE_W = 0.9;
-  var PA_STROKE_W = 0.68;
-  var PA_STROKE_W_OV = 0.75;
+  var PA_STROKE_W = 2.15;
+  var PA_STROKE_W_OV = 2;
   var PA_STROKE_W_PREV = 1;
   /* Açılış her zaman alan dolgulu; users oturumda değiştirebilir. */
   var paChartStyle = "area";
@@ -2795,12 +2795,12 @@
   /** Grafikte yok; yalnızca liste tabloda */
   var PA_OVERVIEW_TABLE_EXTRA = [];
   var PA_METRIC_COLORS = [
-    "#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6",
-    "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"
+    "#1D4ED8", "#E11D48", "#D97706", "#059669", "#6D28D9",
+    "#0891B2", "#DB2777", "#65A30D", "#EA580C", "#111827"
   ];
   var PA_METRIC_COLORS_DARK = [
-    "#6b8aad", "#b87333", "#4a8f73", "#a85a66", "#8b7aa8",
-    "#5b9aa8", "#b87333", "#7a9a4a", "#a86b8a", "#71717a"
+    "#60A5FA", "#FB7185", "#FBBF24", "#34D399", "#C4B5FD",
+    "#22D3EE", "#F472B6", "#A3E635", "#FB923C", "#FAFAFA"
   ];
 
   function rebindPaTheadRefs() {
@@ -3310,6 +3310,10 @@
     return pal[i % pal.length];
   }
   function overviewMetricColor(metric) {
+    if (window.seoAppMetricChartColor) {
+      var mapped = window.seoAppMetricChartColor(metric);
+      if (mapped) return mapped;
+    }
     var order = PA_OVERVIEW_CHART_METRICS.concat(PA_OVERVIEW_TABLE_EXTRA);
     var idx = order.indexOf(metric);
     if (idx >= 0) return paMetricColor(idx);
@@ -3863,8 +3867,9 @@
     } else {
       pathsHtml = linePaths.map(function (lp, li) {
         return wrapChartSeriesG(lp.sp && lp.sp.metric, buildSeriesStyleHtml(style, lp.pts, lp.color, baseY, {
-          strokeW: PA_STROKE_W,
-          fillOpacity: pal.areaFill != null ? pal.areaFill : 0.16,
+          strokeW: linePaths.length > 1 ? 2.35 : PA_STROKE_W,
+          halo: linePaths.length > 1 ? pal.dotStroke : "",
+          fillOpacity: linePaths.length > 1 ? 0 : (pal.areaFill != null ? pal.areaFill : 0.16),
           showDots: false,
           seriesIndex: li,
           seriesCount: linePaths.length,
@@ -4915,6 +4920,11 @@
     }
     var lineD = buildLinePath(list);
     if (lineD) {
+      if (opts.halo) {
+        html +=
+          '<path d="' + lineD + '" fill="none" stroke="' + opts.halo +
+          '" stroke-width="' + (Number(strokeW) + 1.6) + '" stroke-linecap="round" stroke-linejoin="round" />';
+      }
       html +=
         '<path d="' + lineD + '" fill="none" stroke="' + color +
         '" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round" />';

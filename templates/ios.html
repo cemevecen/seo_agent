@@ -1575,18 +1575,13 @@
     "virgul:coverage_pct": 1
   };
   function iaSeriesColors() {
-    if (window.seoMatteSeriesPalette) {
-      var p = window.seoMatteSeriesPalette().slice();
-      return iaIsDark()
-        ? p.concat(["#71717a", "#78716c", "#a89a4a"])
-        : p.concat(["#64748b", "#78716c", "#a16207"]);
-    }
+    if (window.seoAppMetricChartColors) return window.seoAppMetricChartColors().cycle.slice();
     return iaIsDark()
-      ? ["#6b8aad", "#3d8b6e", "#8b7aa8", "#b87333", "#a86b7f", "#5b7c99", "#a85a66", "#71717a", "#78716c", "#a89a4a"]
-      : ["#4b6a9b", "#0f766e", "#6d5b9e", "#b45309", "#9d4d6a", "#4a6f8c", "#b91c3c", "#64748b", "#78716c", "#a16207"];
+      ? ["#60A5FA", "#FB7185", "#FBBF24", "#34D399", "#C4B5FD", "#22D3EE", "#F472B6", "#A3E635", "#FB923C", "#FAFAFA"]
+      : ["#1D4ED8", "#E11D48", "#D97706", "#059669", "#6D28D9", "#0891B2", "#DB2777", "#65A30D", "#EA580C", "#111827"];
   }
   var COLORS = iaSeriesColors();
-  var STROKE = 0.68;
+  var STROKE = 2.15;
   /* Açılış her zaman alan dolgulu; users oturumda değiştirebilir. */
   var iaChartStyle = "area";
   try {
@@ -1751,11 +1746,29 @@
     });
   }
   function colorForIaBundle(bundles, metric) {
-    var list = bundles || [];
-    for (var i = 0; i < list.length; i++) {
-      if (list[i] && list[i].metric === metric) return colorAt(i);
+    if (window.seoAppMetricChartColor) {
+      var mapped = window.seoAppMetricChartColor(metric);
+      if (mapped) return mapped;
     }
-    return colorAt(0);
+    var list = bundles || [];
+    var used = {};
+    list.forEach(function (b) {
+      if (!b || !b.metric || b.metric === metric) return;
+      if (window.seoAppMetricChartColor) {
+        var taken = window.seoAppMetricChartColor(b.metric);
+        if (taken) used[taken] = true;
+      }
+    });
+    var pal = iaSeriesColors();
+    for (var i = 0; i < list.length; i++) {
+      if (!list[i] || list[i].metric !== metric) continue;
+      for (var k = 0; k < pal.length; k++) {
+        var cand = pal[(i + k) % pal.length];
+        if (!used[cand]) return cand;
+      }
+      return pal[i % pal.length];
+    }
+    return pal[0];
   }
   function renderIaLegend(allBundles) {
     if (!iaLegend) return;
@@ -3259,6 +3272,11 @@
     }
     var lineD = buildIaLinePath(list);
     if (lineD) {
+      if (opts.halo) {
+        html +=
+          '<path d="' + lineD + '" fill="none" stroke="' + opts.halo +
+          '" stroke-width="' + (Number(strokeW) + 1.6) + '" stroke-linecap="round" stroke-linejoin="round" />';
+      }
       html +=
         '<path d="' + lineD + '" fill="none" stroke="' + color +
         '" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round" />';
@@ -3363,8 +3381,9 @@
     var baseY = top + plotH;
     var pal = iaChartPalette();
     var fillOp = list.length > 1
-      ? (pal.areaFillMulti != null ? pal.areaFillMulti : 0.12)
+      ? 0
       : (pal.areaFill != null ? pal.areaFill : 0.22);
+    var strokeW = list.length > 1 ? 2.35 : STROKE;
     var barSlot = n > 1 ? plotW / (n - 1) : plotW;
     var paths = "";
     if (style === "heatmap" || style === "bar") {
@@ -3387,7 +3406,8 @@
     } else {
       paths = seriesList.map(function (s, si) {
         return wrapIaChartSeriesG(s.metric, buildIaSeriesStyleHtml(style, s.pts, s.color, baseY, {
-          strokeW: STROKE,
+          strokeW: strokeW,
+          halo: seriesList.length > 1 ? pal.dotStroke : "",
           fillOpacity: fillOp,
           seriesIndex: si,
           seriesCount: seriesList.length,
