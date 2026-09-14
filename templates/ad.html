@@ -9422,8 +9422,8 @@
     var dark = isDarkTheme();
     var med = mzSeriesMedian(ys);
     var green = dark ? "#4ade80" : "#16a34a";
-    var red = dark ? "rgba(251,113,133,0.38)" : "rgba(225,29,72,0.32)";
-    var redFill = dark ? "rgba(251,113,133,0.10)" : "rgba(225,29,72,0.08)";
+    var red = dark ? "#fb7185" : "#e11d48";
+    var redFill = dark ? "rgba(251,113,133,0.5)" : "rgba(225,29,72,0.48)";
     var greenFill = dark ? "rgba(74,222,128,0.42)" : "rgba(22,163,74,0.40)";
     var seriesName = name || "Series";
     var below = [];
@@ -9486,7 +9486,6 @@
           t.hoverinfo = "skip";
           return;
         }
-        if (String(t.line.color || "") === red) t.line.width = 1.25;
         t.hovertemplate =
           "%{x}<br><b>" + seriesName + "</b>: %{y:,.2f}<extra></extra>";
       });
