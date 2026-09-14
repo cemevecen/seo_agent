@@ -192,6 +192,8 @@ def test_cache_prevents_a_second_round_trip(monkeypatch):
     second = X.build_x_ga4_report(None, days=7)
     assert first["cached"] is False
     assert second["cached"] is True
+    assert first.get("fetched_at")
+    assert second.get("fetched_at") == first["fetched_at"]
     assert calls["n"] == 1
 
 
@@ -553,12 +555,33 @@ def test_ui_shows_a_real_progress_bar():
     assert "xg-progress" in page
     # Sunucudan sayı gelmeden sahte yüzde yazılmamalı
     assert "xg-progress--indeterminate" in page
+    assert "xg-progress__shell" in page
+    assert "xg-skeleton" in page
+    assert "Son çekim:" in page
+    assert "prefetchOthers" in page
     assert "/api/x-ga4/progress?token=" in page
     assert '"&progress=" + encodeURIComponent(token)' in page
     # Yoklama her durumda durmalı, aksi halde sekme sonsuza kadar istek atar
     cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
     assert cards.count("stopPoll()") >= 3
     assert 'role", "progressbar"' in cards
+
+
+def test_stale_cache_serves_immediately_and_marks_stale(monkeypatch):
+    monkeypatch.setattr(
+        "backend.services.ga4_auth.get_ga4_connection_status",
+        lambda db, site_id: {"connected": True, "properties": _props()},
+    )
+    monkeypatch.setattr("backend.collectors.ga4._client", lambda: _Client())
+    first = X.build_x_ga4_report(None, days=7)
+    key = next(iter(X._CACHE))
+    ts, payload = X._CACHE[key]
+    X._CACHE[key] = (ts - (X._CACHE_TTL_SEC + 30), payload)
+    second = X.build_x_ga4_report(None, days=7)
+    assert first["cached"] is False
+    assert second["cached"] is True
+    assert second["stale"] is True
+    assert second.get("fetched_at") == first.get("fetched_at")
 
 
 # ── Android «habere nereden gelindi» eşlemesi ───────────────────────────────

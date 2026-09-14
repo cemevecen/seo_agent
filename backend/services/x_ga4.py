@@ -27,8 +27,11 @@ LOGGER = logging.getLogger(__name__)
 
 _DEFAULT_SITE_ID = 1
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_CACHE_TTL_SEC = 300.0
-_MAX_WORKERS = 8  # property başına eşzamanlı istek sınırı 10
+_CACHE_TTL_SEC = 1800.0  # 30 dk taze
+_CACHE_STALE_SEC = 7200.0  # 2 sa eskiyi anında ver, arka planda yenile
+_MAX_WORKERS = 10  # property başına GA4 eşzamanlı istek üst sınırı
+_REFRESH_LOCKS: set[str] = set()
+_REFRESH_LOCK = threading.Lock()
 
 # ── İlerleme ────────────────────────────────────────────────────────────────
 # Rapor tek bir HTTP isteği ama içeride onlarca GA4 çağrısı var; istemci
@@ -685,6 +688,58 @@ def _plan_breakdowns(
 
 # ── Toplayıcı ───────────────────────────────────────────────────────────────
 
+def _utc_now_iso() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _cache_put(cache_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+    stamped = dict(payload)
+    stamped["fetched_at"] = _utc_now_iso()
+    stamped["cached"] = False
+    stamped["stale"] = False
+    _CACHE[cache_key] = (time.time(), stamped)
+    return stamped
+
+
+def _schedule_background_refresh(
+    *,
+    cache_key: str,
+    site_id: int,
+    days: int,
+    limit: int,
+    profile: str,
+) -> None:
+    """Eski önbelleği sunduktan sonra sessizce yenile — bir anahtar için tek iş."""
+    with _REFRESH_LOCK:
+        if cache_key in _REFRESH_LOCKS:
+            return
+        _REFRESH_LOCKS.add(cache_key)
+
+    def _run() -> None:
+        try:
+            from backend.database import SessionLocal
+
+            with SessionLocal() as db:
+                build_x_ga4_report(
+                    db,
+                    site_id=site_id,
+                    days=days,
+                    limit=limit,
+                    profile=profile,
+                    force=True,
+                    progress_token=None,
+                )
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("d-lab arka plan yenileme başarısız (%s)", cache_key)
+        finally:
+            with _REFRESH_LOCK:
+                _REFRESH_LOCKS.discard(cache_key)
+
+    threading.Thread(target=_run, name=f"dlab-refresh-{cache_key[:24]}", daemon=True).start()
+
+
 def build_x_ga4_report(
     db: Any,
     *,
@@ -718,8 +773,21 @@ def build_x_ga4_report(
 
     if not force:
         hit = _CACHE.get(cache_key)
-        if hit and (time.time() - hit[0]) < _CACHE_TTL_SEC:
-            return _bail({**hit[1], "cached": True})
+        if hit:
+            age = time.time() - float(hit[0])
+            cached_payload = dict(hit[1])
+            cached_payload["cache_age_sec"] = int(age)
+            if age < _CACHE_TTL_SEC:
+                return _bail({**cached_payload, "cached": True, "stale": False})
+            if age < _CACHE_STALE_SEC:
+                _schedule_background_refresh(
+                    cache_key=cache_key,
+                    site_id=int(site_id),
+                    days=safe_days,
+                    limit=safe_limit,
+                    profile=profile_key,
+                )
+                return _bail({**cached_payload, "cached": True, "stale": True})
 
     status = get_ga4_connection_status(db, site_id)
     if not status.get("connected"):
@@ -799,6 +867,7 @@ def build_x_ga4_report(
         "ok": True,
         "error": None,
         "cached": False,
+        "stale": False,
         "site_id": int(site_id),
         "window": {"start": start, "end": end, "days": safe_days},
         "profile": profile_key,
@@ -810,6 +879,6 @@ def build_x_ga4_report(
         "requests": len(tasks),
         "note": "Tüm veriler GA4 Data API'den gelir; başka kaynak kullanılmaz.",
     }
-    _CACHE[cache_key] = (time.time(), out)
+    stamped = _cache_put(cache_key, out)
     progress_finish(token, ok=True, phase="done")
-    return out
+    return stamped

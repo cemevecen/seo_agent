@@ -80,11 +80,40 @@
       metaEl.hidden = !msg;
     }
 
-    // ── İlerleme çubuğu ─────────────────────────────────────────────────────
-    // Genişlik sunucudan gelen «tamamlanan / toplam GA4 isteği» sayısına bağlı.
-    // Sunucu henüz sayı vermediyse belirsiz (kayan) kip kullanılır; sahte bir
-    // yüzde uydurmak, uzun bekleyişte yanlış bilgi vermek olurdu.
+    function formatFetchedAt(iso) {
+      if (!iso) return "";
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
+      try {
+        return d.toLocaleString("tr-TR", {
+          timeZone: "Europe/Istanbul",
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      } catch (_) {
+        return d.toLocaleString("tr-TR");
+      }
+    }
+
+    function statusLine(data) {
+      if (!data || !data.ok) return data && data.error ? String(data.error) : "";
+      var parts = [];
+      var when = formatFetchedAt(data.fetched_at);
+      if (when) parts.push("Son çekim: " + when);
+      if (data.stale) parts.push("arka planda yenileniyor");
+      else if (data.cached) parts.push("önbellek");
+      if (data.requests) parts.push(data.requests + " GA4 isteği");
+      return parts.join(" · ");
+    }
+
+    // ── İlerleme kabuğu ─────────────────────────────────────────────────────
+    // Gerçek tamamlanan/toplam sayısına bağlı. Önbellek yanıtı hızlıysa çubuk
+    // hiç açılmaz (180ms gecikme). Skeleton + halka + şerit birlikte çalışır.
     var bar = null;
+    var barShowTimer = null;
     (function buildBar() {
       if (!host.parentNode) return;
       bar = document.createElement("div");
@@ -94,44 +123,106 @@
       bar.setAttribute("aria-valuemin", "0");
       bar.setAttribute("aria-valuemax", "100");
       bar.innerHTML =
-        '<div class="xg-progress__track"><div class="xg-progress__bar"></div></div>' +
-        '<div class="xg-progress__label">' +
-        '<span class="xg-progress__what"></span>' +
-        '<span class="xg-progress__count"></span></div>';
+        '<div class="xg-progress__shell">' +
+          '<div class="xg-progress__ring" aria-hidden="true">' +
+            '<svg viewBox="0 0 48 48">' +
+              '<circle class="xg-progress__ring-bg" cx="24" cy="24" r="18"></circle>' +
+              '<circle class="xg-progress__ring-fg" cx="24" cy="24" r="18"></circle>' +
+            "</svg>" +
+            '<span class="xg-progress__pct">0</span>' +
+          "</div>" +
+          '<div class="xg-progress__copy">' +
+            '<div class="xg-progress__title">GA4 verileri hazırlanıyor</div>' +
+            '<div class="xg-progress__what">Bağlanılıyor…</div>' +
+            '<div class="xg-progress__track"><div class="xg-progress__bar"></div></div>' +
+            '<div class="xg-progress__count"></div>' +
+          "</div>" +
+        "</div>" +
+        '<div class="xg-skeleton" aria-hidden="true">' +
+          '<div class="xg-skeleton__card"></div>' +
+          '<div class="xg-skeleton__card"></div>' +
+          '<div class="xg-skeleton__card"></div>' +
+        "</div>";
       host.parentNode.insertBefore(bar, host);
     })();
 
+    var RING_LEN = 2 * Math.PI * 18;
+
+    function barSetPct(pct) {
+      if (!bar) return;
+      var p = Math.max(0, Math.min(100, Number(pct) || 0));
+      var fg = bar.querySelector(".xg-progress__ring-fg");
+      var pctEl = bar.querySelector(".xg-progress__pct");
+      var fill = bar.querySelector(".xg-progress__bar");
+      if (fg) {
+        fg.style.strokeDasharray = String(RING_LEN);
+        fg.style.strokeDashoffset = String(RING_LEN * (1 - p / 100));
+      }
+      if (pctEl) pctEl.textContent = String(Math.round(p));
+      if (fill) fill.style.width = p + "%";
+      bar.setAttribute("aria-valuenow", String(Math.round(p)));
+    }
+
     function barShow(what) {
       if (!bar) return;
-      bar.hidden = false;
-      bar.classList.add("xg-progress--indeterminate");
-      bar.removeAttribute("aria-valuenow");
-      bar.querySelector(".xg-progress__bar").style.width = "";
-      bar.querySelector(".xg-progress__what").textContent = what || "GA4'e bağlanılıyor…";
-      bar.querySelector(".xg-progress__count").textContent = "";
+      if (barShowTimer) window.clearTimeout(barShowTimer);
+      barShowTimer = window.setTimeout(function () {
+        barShowTimer = null;
+        if (!state.loading) return;
+        bar.hidden = false;
+        host.classList.add("is-loading");
+        bar.classList.add("xg-progress--indeterminate", "is-visible");
+        bar.removeAttribute("aria-valuenow");
+        barSetPct(8);
+        var title = bar.querySelector(".xg-progress__title");
+        var whatEl = bar.querySelector(".xg-progress__what");
+        var countEl = bar.querySelector(".xg-progress__count");
+        if (title) title.textContent = "GA4 verileri hazırlanıyor";
+        if (whatEl) whatEl.textContent = what || "Bağlanılıyor…";
+        if (countEl) countEl.textContent = "";
+      }, 180);
     }
 
     function barPaint(p) {
-      if (!bar || bar.hidden) return;
-      if (!p || !p.known || !p.total) return;      // sayı yoksa kayan kipte kal
+      if (!bar) return;
+      if (!p || !p.known || !p.total) return;
+      if (bar.hidden && state.loading) {
+        if (barShowTimer) {
+          window.clearTimeout(barShowTimer);
+          barShowTimer = null;
+        }
+        bar.hidden = false;
+        host.classList.add("is-loading");
+        bar.classList.add("is-visible");
+      }
+      if (bar.hidden) return;
       bar.classList.remove("xg-progress--indeterminate");
       var pct = Math.max(0, Math.min(100, Number(p.percent) || 0));
-      bar.setAttribute("aria-valuenow", String(pct));
-      bar.querySelector(".xg-progress__bar").style.width = pct + "%";
-      bar.querySelector(".xg-progress__what").textContent =
-        p.label ? "Alınıyor: " + p.label : "GA4 istekleri…";
-      bar.querySelector(".xg-progress__count").textContent =
-        p.done + " / " + p.total + " · %" + pct;
+      barSetPct(pct);
+      var whatEl = bar.querySelector(".xg-progress__what");
+      var countEl = bar.querySelector(".xg-progress__count");
+      if (whatEl) whatEl.textContent = p.label ? ("Alınıyor: " + p.label) : "GA4 istekleri…";
+      if (countEl) countEl.textContent = p.done + " / " + p.total;
     }
 
-    function barDone(okText) {
+    function barDone(okText, instant) {
+      if (barShowTimer) {
+        window.clearTimeout(barShowTimer);
+        barShowTimer = null;
+      }
       if (!bar) return;
+      host.classList.remove("is-loading");
+      if (bar.hidden) return;
       bar.classList.remove("xg-progress--indeterminate");
-      bar.querySelector(".xg-progress__bar").style.width = "100%";
-      bar.setAttribute("aria-valuenow", "100");
-      if (okText) bar.querySelector(".xg-progress__what").textContent = okText;
-      // Dolu çubuk bir an görünsün, sonra kaybolsun
-      window.setTimeout(function () { if (bar) bar.hidden = true; }, 420);
+      barSetPct(100);
+      var whatEl = bar.querySelector(".xg-progress__what");
+      if (okText && whatEl) whatEl.textContent = okText;
+      var delay = instant ? 0 : 380;
+      window.setTimeout(function () {
+        if (!bar) return;
+        bar.classList.remove("is-visible");
+        bar.hidden = true;
+      }, delay);
     }
 
     function newToken() {
@@ -479,7 +570,11 @@
         return groupSection(g, bucket[g.key].join(""), counts[g.key], i);
       }).join("");
       host.innerHTML = html || empty("Bu yüzey için veri dönmedi.");
+      host.classList.add("xg-grid--reveal");
       paintAll();
+      window.setTimeout(function () {
+        host.classList.remove("xg-grid--reveal");
+      }, 600);
     }
 
     var pollTimer = null;
@@ -506,14 +601,16 @@
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (p) { barPaint(p); })
           .catch(function () { /* yoklama hatası yüklemeyi bozmasın */ });
-      }, 700);
+      }, 450);
 
       fetch(url, { headers: { Accept: "application/json" } })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (d) {
           state.loaded = true;
           stopPoll();
-          barDone(d && d.cached ? "Önbellekten" : "Tamam");
+          var fromCache = !!(d && (d.cached || d.stale));
+          barDone(fromCache ? "Önbellekten açıldı" : "Hazır", fromCache);
+          note(statusLine(d));
           render(d);
         })
         .catch(function () {

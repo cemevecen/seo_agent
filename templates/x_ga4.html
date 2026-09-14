@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/dlab.css?v=8">
+<link rel="stylesheet" href="/static/css/dlab.css?v=9">
 
 <div class="xg-page mx-auto w-full space-y-4" data-header-title="d-lab">
   <div class="xg-card">
@@ -46,7 +46,7 @@
   {% endfor %}
 </div>
 
-<script src="/static/js/dlab_cards.js?v=8"></script>
+<script src="/static/js/dlab_cards.js?v=9"></script>
 <script>
 (function () {
   if (!window.DLab) return;
@@ -56,6 +56,7 @@
   var labs = {};
   var activeId = null;
   var days = 7;
+  var prefetched = {};
 
   function siteIdOf(btn) {
     return Number(btn.getAttribute("data-xg-site-id")) || 0;
@@ -76,6 +77,21 @@
     return labs[siteId];
   }
 
+  function prefetchOthers(exceptId) {
+    tabs.forEach(function (btn, i) {
+      var id = siteIdOf(btn);
+      if (!id || id === exceptId || prefetched[id]) return;
+      prefetched[id] = true;
+      window.setTimeout(function () {
+        var lab = ensureLab(id);
+        if (lab) {
+          lab.setDays(days, false);
+          lab.loadOnce();
+        }
+      }, 500 + i * 350);
+    });
+  }
+
   function showSite(siteId, force) {
     if (!siteId) return;
     activeId = siteId;
@@ -93,6 +109,7 @@
     lab.setDays(days, false);
     if (force) lab.load(true);
     else lab.loadOnce();
+    prefetchOthers(siteId);
   }
 
   tabs.forEach(function (btn) {
@@ -115,6 +132,8 @@
           if (!lab) return;
           lab.setDays(days, Number(id) === activeId);
         });
+        prefetched = {};
+        prefetchOthers(activeId);
       });
     });
   }
