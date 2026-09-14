@@ -18,12 +18,25 @@ görünür. Sessiz boş container bırakılmaz.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, timedelta
 from typing import Any
 
+from backend.services.period_compare import compare_bounds, delta_pct
+from backend.services.timezone_utils import report_calendar_yesterday
+
 LOGGER = logging.getLogger(__name__)
+_DATE_RANGE_RE = re.compile(r"^date_range_(\d+)$", re.I)
+# 7+ gün seçiminde önceki dönem + önceki yıl; 1 günde kıyas yok (gürültülü).
+_COMPARE_MIN_DAYS = 7
+_COMPARE_MODE_ORDER = ("previous_period", "previous_year")
+_COMPARE_MODE_LABELS = {
+    "previous_period": "Önceki dönem",
+    "previous_year": "Önceki yıl",
+}
 
 _DEFAULT_SITE_ID = 1
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -326,6 +339,80 @@ def _only_values(dimension: str, values: list[str]) -> Any:
     )
 
 
+def _primary_window(days: int) -> tuple[date, date]:
+    end = report_calendar_yesterday()
+    start = end if days <= 1 else end - timedelta(days=days - 1)
+    return start, end
+
+
+def _compare_plan(days: int) -> dict[str, Any] | None:
+    """Seçili pencere için önceki dönem + önceki yıl sınırları.
+
+    Yalnızca 7/28 gibi çok günlük aralıklarda kurulur; tek günde DoD/YoY
+    gürültüsü d-lab kartlarını şişirir.
+    """
+    safe = max(1, int(days or 1))
+    if safe < _COMPARE_MIN_DAYS:
+        return None
+    cur_start, cur_end = _primary_window(safe)
+    modes: dict[str, Any] = {}
+    for mode in _COMPARE_MODE_ORDER:
+        bounds = compare_bounds(cur_start, cur_end, mode)
+        if not bounds:
+            continue
+        modes[mode] = {
+            "mode": mode,
+            "label": _COMPARE_MODE_LABELS[mode],
+            "start": bounds[0].isoformat(),
+            "end": bounds[1].isoformat(),
+        }
+    if not modes:
+        return None
+    return {
+        "current": {
+            "start": cur_start.isoformat(),
+            "end": cur_end.isoformat(),
+            "label": f"Son {safe} gün",
+            "days": safe,
+        },
+        "modes": modes,
+    }
+
+
+def _range_list(
+    start: str, end: str, compare_plan: dict[str, Any] | None,
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """(GA4 date_ranges, mode sırası). mode_order[i] → date_range_{i+1}."""
+    ranges: list[tuple[str, str]] = [(start, end)]
+    mode_order: list[str] = []
+    modes = (compare_plan or {}).get("modes") or {}
+    for mode in _COMPARE_MODE_ORDER:
+        meta = modes.get(mode)
+        if not meta:
+            continue
+        ranges.append((str(meta["start"]), str(meta["end"])))
+        mode_order.append(mode)
+    return ranges, mode_order
+
+
+def _compare_payload(
+    current: float | None,
+    previous: float | None,
+    *,
+    mode: str,
+    meta: dict[str, Any] | None,
+) -> dict[str, Any]:
+    info = meta or {}
+    return {
+        "mode": mode,
+        "label": info.get("label") or _COMPARE_MODE_LABELS.get(mode) or mode,
+        "start": info.get("start"),
+        "end": info.get("end"),
+        "value": None if previous is None else float(previous),
+        "delta_pct": delta_pct(current, previous),
+    }
+
+
 def _run(
     client: Any,
     property_id: str,
@@ -337,14 +424,19 @@ def _run(
     limit: int = 25,
     dimension_filter: Any = None,
     order_metric: str | None = None,
+    ranges: list[tuple[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Tek RunReport → sözlük listesi. Boyut adları anahtar olur."""
+    """RunReport → sözlük listesi. Çoklu aralıkta satırlara `_range` eklenir."""
     t = _types()
+    date_ranges = [
+        t.DateRange(start_date=s, end_date=e)
+        for s, e in (ranges or [(start, end)])
+    ]
     kwargs: dict[str, Any] = {
         "property": f"properties/{property_id}",
         "dimensions": [t.Dimension(name=d) for d in dimensions],
         "metrics": [t.Metric(name=m) for m in metrics],
-        "date_ranges": [t.DateRange(start_date=start, end_date=end)],
+        "date_ranges": date_ranges,
         "limit": max(1, min(int(limit), 250)),
     }
     if dimension_filter is not None:
@@ -356,9 +448,18 @@ def _run(
     resp = client.run_report(t.RunReportRequest(**kwargs))
     out: list[dict[str, Any]] = []
     for row in resp.rows or []:
-        item: dict[str, Any] = {}
+        range_idx = 0
+        dim_vals: list[str] = []
+        for dv in row.dimension_values or []:
+            raw_dim = str(getattr(dv, "value", "") or "")
+            match = _DATE_RANGE_RE.match(raw_dim)
+            if match:
+                range_idx = int(match.group(1))
+                continue
+            dim_vals.append(raw_dim)
+        item: dict[str, Any] = {"_range": range_idx}
         for i, dim in enumerate(dimensions):
-            item[dim] = row.dimension_values[i].value if i < len(row.dimension_values) else ""
+            item[dim] = dim_vals[i] if i < len(dim_vals) else ""
         for i, met in enumerate(metrics):
             raw = row.metric_values[i].value if i < len(row.metric_values) else "0"
             try:
@@ -502,40 +603,80 @@ def _hourly(
 
 def _engagement(
     client: Any, properties: dict[str, str], profiles: list[str], start: str, end: str,
+    compare_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Etkileşim kalitesi — yüzeyler yan yana.
 
     Kırılım değil, tek satırlık oran/ortalama metrikleri. Bunlar boyut
     listesiyle gelmiyor; ayrı bir blok olarak toplanır ki yüzeyler doğrudan
     kıyaslanabilsin (ör. iOS oturum başına 16 ekran, mWeb 1.8).
+
+    7+ günde aynı istekte önceki dönem + önceki yıl çekilir (çoklu DateRange).
     """
     mets = [
         "sessions", "engagementRate", "bounceRate",
         "averageSessionDuration", "screenPageViewsPerSession", "eventsPerSession",
     ]
+    field_map = (
+        ("sessions", "sessions"),
+        ("engagement_rate", "engagementRate"),
+        ("bounce_rate", "bounceRate"),
+        ("avg_session_sec", "averageSessionDuration"),
+        ("views_per_session", "screenPageViewsPerSession"),
+        ("events_per_session", "eventsPerSession"),
+    )
+    ranges, mode_order = _range_list(start, end, compare_plan)
+    modes_meta = (compare_plan or {}).get("modes") or {}
     rows: list[dict[str, Any]] = []
     for pf in profiles:
         pid = str(properties.get(pf) or "").strip()
         if not pid:
             continue
         try:
-            got = _run(client, pid, dimensions=[], metrics=mets, start=start, end=end, limit=1)
+            got = _run(
+                client, pid,
+                dimensions=[], metrics=mets,
+                start=start, end=end,
+                ranges=ranges,
+                limit=max(1, len(ranges)),
+            )
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("x-ga4 etkileşim [%s]: %s", pf, exc)
             continue
-        if not got:
+        by_range = {int(r.get("_range") or 0): r for r in got}
+        cur = by_range.get(0) or (got[0] if got else {})
+        if not cur:
             continue
-        r = got[0]
-        rows.append({
-            "profile": pf,
-            "sessions": r.get("sessions"),
-            "engagement_rate": r.get("engagementRate"),
-            "bounce_rate": r.get("bounceRate"),
-            "avg_session_sec": r.get("averageSessionDuration"),
-            "views_per_session": r.get("screenPageViewsPerSession"),
-            "events_per_session": r.get("eventsPerSession"),
-        })
-    return {"rows": rows}
+        entry: dict[str, Any] = {"profile": pf}
+        compare_out: dict[str, Any] = {}
+        for field, ga_key in field_map:
+            cur_val = cur.get(ga_key)
+            entry[field] = cur_val
+            if not mode_order:
+                continue
+            field_cmp: dict[str, Any] = {}
+            for idx, mode in enumerate(mode_order):
+                prev_row = by_range.get(idx + 1) or {}
+                prev_val = prev_row.get(ga_key)
+                field_cmp[mode] = _compare_payload(
+                    None if cur_val is None else float(cur_val),
+                    None if prev_val is None else float(prev_val),
+                    mode=mode,
+                    meta=modes_meta.get(mode),
+                )
+            compare_out[field] = field_cmp
+        if compare_out:
+            entry["compare"] = compare_out
+        rows.append(entry)
+    out: dict[str, Any] = {"rows": rows}
+    if compare_plan:
+        out["compare"] = {
+            "current": compare_plan.get("current"),
+            "modes": [
+                modes_meta[m] for m in mode_order if m in modes_meta
+            ],
+        }
+    return out
 
 
 def _app_stickiness(
@@ -625,6 +766,7 @@ def _label_value(dimension: str, raw: str) -> str:
 def _breakdown_task(
     client: Any, spec: dict[str, Any], profile: str, property_id: str,
     start: str, end: str, limit: int,
+    compare_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     # Bir yüzeyde boyut yoksa aynı bilgiyi taşıyan başka bir boyut kullanılabilir
     # (ör. Android'de `customEvent:from` tanımlı değil ama giriş yüzeyi ayrı ayrı
@@ -634,11 +776,17 @@ def _breakdown_task(
     value_map: dict[str, str] = override.get("values") or {}
     metric = spec["metric"]
     out: dict[str, Any] = {"key": spec["key"], "profile": profile}
+    ranges, mode_order = _range_list(start, end, compare_plan)
+    modes_meta = (compare_plan or {}).get("modes") or {}
+    # Çoklu aralıkta sıralama karışabilir; güncel dönemin top-N'sini yakalamak
+    # için limiti aralık sayısıyla büyütürüz (istek sayısı aynı kalır).
+    fetch_limit = min(250, int(limit) * max(1, len(ranges) * 2))
     try:
         rows = _run(
             client, property_id,
             dimensions=[dim], metrics=[metric],
-            start=start, end=end, limit=limit,
+            start=start, end=end, limit=fetch_limit,
+            ranges=ranges,
             dimension_filter=(
                 _only_values(dim, list(value_map)) if value_map else _exclude_empty(dim)
             ),
@@ -655,10 +803,38 @@ def _breakdown_task(
             def _label(value: Any) -> str:
                 return value_map.get(value) or _label_value(dim, value)
 
-        out["rows"] = [
-            {"value": _label(r[dim]), "raw": r[dim], "metric": r[metric]}
-            for r in rows
-        ]
+        buckets: dict[int, list[dict[str, Any]]] = {}
+        for r in rows:
+            buckets.setdefault(int(r.get("_range") or 0), []).append(r)
+        current_rows = buckets.get(0, [])[: int(limit)]
+        prev_maps: dict[str, dict[str, float]] = {}
+        for idx, mode in enumerate(mode_order):
+            prev_maps[mode] = {
+                str(r.get(dim) or ""): float(r.get(metric) or 0)
+                for r in buckets.get(idx + 1, [])
+            }
+
+        built: list[dict[str, Any]] = []
+        for r in current_rows:
+            raw = r[dim]
+            cur_metric = float(r[metric] or 0)
+            item: dict[str, Any] = {
+                "value": _label(raw),
+                "raw": raw,
+                "metric": cur_metric,
+            }
+            if mode_order:
+                item["compare"] = {
+                    mode: _compare_payload(
+                        cur_metric,
+                        prev_maps[mode].get(str(raw or "")),
+                        mode=mode,
+                        meta=modes_meta.get(mode),
+                    )
+                    for mode in mode_order
+                }
+            built.append(item)
+        out["rows"] = built
         if value_map:
             out["mapped_from"] = dim
     except Exception as exc:  # noqa: BLE001
@@ -803,8 +979,9 @@ def build_x_ga4_report(
     from backend.collectors.ga4 import _client
 
     client = _client()
-    start = f"{safe_days}daysAgo" if safe_days > 1 else "yesterday"
-    end = "yesterday"
+    cur_start, cur_end = _primary_window(safe_days)
+    start, end = cur_start.isoformat(), cur_end.isoformat()
+    compare_plan = _compare_plan(safe_days)
     profiles = resolve_profiles(properties, profile_key)
     if not profiles:
         return _bail(
@@ -816,7 +993,10 @@ def build_x_ga4_report(
         "content_depth": lambda: _block("content_depth", lambda: _content_depth(client, properties, profiles, start, end, safe_limit)),
         "hourly": lambda: _block("hourly", lambda: _hourly(client, properties, profiles, start, end)),
         "audience": lambda: _block("audience", lambda: _audience(client, properties, profiles, start, end, safe_limit)),
-        "engagement": lambda: _block("engagement", lambda: _engagement(client, properties, profiles, start, end)),
+        "engagement": lambda: _block(
+            "engagement",
+            lambda: _engagement(client, properties, profiles, start, end, compare_plan=compare_plan),
+        ),
         "app_stickiness": lambda: _block("app_stickiness", lambda: _app_stickiness(client, properties, profiles)),
     }
     names = list(jobs.keys())
@@ -826,7 +1006,7 @@ def build_x_ga4_report(
     tasks: list[Any] = [jobs[n] for n in names]
     tasks += [
         (lambda spec=spec, pf=pf, pid=pid: _breakdown_task(
-            client, spec, pf, pid, start, end, safe_limit))
+            client, spec, pf, pid, start, end, safe_limit, compare_plan=compare_plan))
         for spec, pf, pid in plan
     ]
     # İlerleme etiketleri görev sırasıyla birebir aynı — pool.map sırayı korur
@@ -870,6 +1050,7 @@ def build_x_ga4_report(
         "stale": False,
         "site_id": int(site_id),
         "window": {"start": start, "end": end, "days": safe_days},
+        "compare": compare_plan,
         "profile": profile_key,
         "profiles": profiles,
         "available_profiles": [p for p in PROFILES if str(properties.get(p) or "").strip()],

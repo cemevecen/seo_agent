@@ -23,6 +23,38 @@ html.dark .xg-card, html.charcoal .xg-card { background: #232327; border-color: 
 .xg-muted { font-size: .75rem; opacity: .6; }
 .xg-err { font-size: .72rem; color: #b91c1c; }
 html.dark .xg-err, html.charcoal .xg-err { color: #fca5a5; }
+.xg-compare-legend {
+  font-size: .68rem; opacity: .62; margin: 0 0 .65rem;
+  padding: .45rem .65rem; border-radius: .55rem;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.12);
+}
+html.dark .xg-compare-legend, html.charcoal .xg-compare-legend {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(129, 140, 248, 0.18);
+}
+.xg-metric-cell {
+  display: inline-flex; flex-direction: column; align-items: flex-end; gap: .18rem;
+}
+.xg-metric-val { font-variant-numeric: tabular-nums; }
+.xg-deltas { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: .2rem; }
+.xg-delta {
+  display: inline-block; font-size: .62rem; font-weight: 700;
+  letter-spacing: -.01em; padding: .08rem .32rem; border-radius: .35rem;
+  font-variant-numeric: tabular-nums; line-height: 1.2;
+}
+.xg-delta.is-up { color: #047857; background: rgba(16, 185, 129, 0.14); }
+.xg-delta.is-down { color: #be123c; background: rgba(244, 63, 94, 0.14); }
+.xg-delta.is-flat { color: #64748b; background: rgba(148, 163, 184, 0.16); }
+html.dark .xg-delta.is-up, html.charcoal .xg-delta.is-up {
+  color: #6ee7b7; background: rgba(16, 185, 129, 0.18);
+}
+html.dark .xg-delta.is-down, html.charcoal .xg-delta.is-down {
+  color: #fda4af; background: rgba(244, 63, 94, 0.18);
+}
+html.dark .xg-delta.is-flat, html.charcoal .xg-delta.is-flat {
+  color: #a1a1aa; background: rgba(82, 82, 91, 0.45);
+}
 
 /* Container yerleşimi: her kart içeriği bittiği yerde biter, bir sonraki
    hemen altından başlar. Grid satırları en uzun karta göre hizalayıp

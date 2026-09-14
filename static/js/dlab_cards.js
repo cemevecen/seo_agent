@@ -55,11 +55,62 @@
       var v = Number(r[valueKey]) || 0;
       return [
         '<span class="xg-key" title="' + esc(r[labelKey]) + '">' + esc(r[labelKey]) + "</span>",
-        num(v),
+        '<div class="xg-metric-cell">' +
+          '<span class="xg-metric-val">' + num(v) + "</span>" +
+          deltaStack(r.compare) +
+        "</div>",
         '<div class="xg-bartrack"><div class="xg-bar" style="width:' +
           (v / max * 100).toFixed(1) + '%"></div></div>'
       ];
     });
+  }
+
+  function deltaPill(entry) {
+    if (!entry) {
+      return '<span class="xg-delta is-flat" title="Karşılaştırma yok">—</span>';
+    }
+    var label = entry.label || entry.mode || "";
+    var range = (entry.start && entry.end) ? (entry.start + " → " + entry.end) : "";
+    var tip = label + (range ? " · " + range : "");
+    if (entry.delta_pct == null || !isFinite(Number(entry.delta_pct))) {
+      return '<span class="xg-delta is-flat" title="' + esc(tip || "Veri yok") + '">—</span>';
+    }
+    var d = Number(entry.delta_pct);
+    var cls = d > 0.05 ? "is-up" : (d < -0.05 ? "is-down" : "is-flat");
+    var short = (entry.mode === "previous_year") ? "yıl" : "önc.";
+    var sign = d > 0 ? "+" : "";
+    return '<span class="xg-delta ' + cls + '" title="' + esc(tip) + '">' +
+      short + " " + sign + d.toFixed(1) + "%</span>";
+  }
+
+  function deltaStack(compare) {
+    if (!compare) return "";
+    var modes = ["previous_period", "previous_year"];
+    var parts = [];
+    modes.forEach(function (mode) {
+      if (compare[mode]) parts.push(deltaPill(compare[mode]));
+    });
+    if (!parts.length) return "";
+    return '<span class="xg-deltas">' + parts.join("") + "</span>";
+  }
+
+  function withDelta(text, compareField) {
+    return '<div class="xg-metric-cell"><span class="xg-metric-val">' + text + "</span>" +
+      deltaStack(compareField) + "</div>";
+  }
+
+  function compareLegend(cmp) {
+    if (!cmp || !cmp.modes || !cmp.modes.length) return "";
+    var cur = cmp.current || {};
+    var bits = [];
+    if (cur.start && cur.end) {
+      bits.push("Seçili: " + cur.start + " → " + cur.end);
+    }
+    (cmp.modes || []).forEach(function (m) {
+      if (!m) return;
+      bits.push((m.label || m.mode) + ": " + m.start + " → " + m.end);
+    });
+    return '<p class="xg-compare-legend">' + esc(bits.join(" · ")) + "</p>";
   }
 
   function mount(opts) {
@@ -106,6 +157,10 @@
       if (data.stale) parts.push("arka planda yenileniyor");
       else if (data.cached) parts.push("önbellek");
       if (data.requests) parts.push(data.requests + " GA4 isteği");
+      var cmp = data.compare;
+      if (cmp && cmp.modes && cmp.modes.length) {
+        parts.push("kıyas: önceki dönem + önceki yıl");
+      }
       return parts.join(" · ");
     }
 
@@ -281,9 +336,12 @@
         return p + (pp[p].undefined ? ": tanımlı değil" : ": " + String(pp[p].error).slice(0, 60));
       });
       if (!withData.length && !gaps.length) return "";
+      var hasCompare = withData.some(function (p) {
+        return (pp[p].rows || []).some(function (r) { return r.compare; });
+      });
       return card({
         title: bd.label,
-        sub: bd.hint || bd.dimension,
+        sub: (bd.hint || bd.dimension) + (hasCompare ? " · Δ önceki / yıl" : ""),
         profiles: withData,
         body: function () {
           var main = withData.length
@@ -421,24 +479,31 @@
       }
       var rows = b.rows || [];
       if (!rows.length) return "";
+      var hasCompare = rows.some(function (r) { return r.compare; });
       return card({
         title: "Etkileşim kalitesi",
-        sub: "Oturum başına derinlik ve kalma — yüzeyler yan yana",
+        sub: hasCompare
+          ? "Oturum başına derinlik — Δ önceki dönem ve önceki yıl"
+          : "Oturum başına derinlik ve kalma — yüzeyler yan yana",
         profiles: rows.map(function (r) { return r.profile; }),
         body: function () {
           var use = rows;
           if (!use.length) return empty();
-          return table(
+          return compareLegend(b.compare) + table(
             [{ label: "Profil" }, { label: "Oturum", num: true },
              { label: "Etkileşim", num: true }, { label: "Hemen çıkma", num: true },
              { label: "Ort. süre", num: true }, { label: "Görünt./oturum", num: true },
              { label: "Olay/oturum", num: true }],
             use.map(function (r) {
+              var c = r.compare || {};
               return [
-                esc(r.profile), num(r.sessions),
-                pct(r.engagement_rate), pct(r.bounce_rate),
-                dur(r.avg_session_sec),
-                ratio(r.views_per_session), ratio(r.events_per_session)
+                esc(r.profile),
+                withDelta(num(r.sessions), c.sessions),
+                withDelta(pct(r.engagement_rate), c.engagement_rate),
+                withDelta(pct(r.bounce_rate), c.bounce_rate),
+                withDelta(dur(r.avg_session_sec), c.avg_session_sec),
+                withDelta(ratio(r.views_per_session), c.views_per_session),
+                withDelta(ratio(r.events_per_session), c.events_per_session)
               ];
             }));
         }
@@ -569,7 +634,8 @@
       var html = groups.map(function (g, i) {
         return groupSection(g, bucket[g.key].join(""), counts[g.key], i);
       }).join("");
-      host.innerHTML = html || empty("Bu yüzey için veri dönmedi.");
+      var lead = compareLegend(data.compare);
+      host.innerHTML = (lead || "") + (html || empty("Bu yüzey için veri dönmedi."));
       host.classList.add("xg-grid--reveal");
       paintAll();
       window.setTimeout(function () {

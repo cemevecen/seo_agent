@@ -723,6 +723,89 @@ def test_engagement_block_collects_comparable_rates():
     for field in ("sessions", "engagement_rate", "bounce_rate",
                   "avg_session_sec", "views_per_session", "events_per_session"):
         assert field in first, field
+    assert "compare" not in first
+
+
+def test_compare_plan_only_for_multi_day_windows():
+    assert X._compare_plan(1) is None
+    plan = X._compare_plan(7)
+    assert plan is not None
+    assert set(plan["modes"]) == {"previous_period", "previous_year"}
+    from datetime import date
+
+    cur_s = date.fromisoformat(plan["current"]["start"])
+    cur_e = date.fromisoformat(plan["current"]["end"])
+    assert (cur_e - cur_s).days == 6
+    pp = plan["modes"]["previous_period"]
+    assert (date.fromisoformat(pp["end"]) - date.fromisoformat(pp["start"])).days == 6
+    assert date.fromisoformat(pp["end"]) < cur_s
+
+
+def test_engagement_attaches_previous_period_and_yoy_deltas():
+    def handler(req):
+        assert len(req.date_ranges) == 3
+        return _Resp([
+            _Row(["date_range_0"], [100, 0.5, 0.4, 60.0, 2.0, 9.0]),
+            _Row(["date_range_1"], [80, 0.4, 0.5, 50.0, 1.5, 8.0]),
+            _Row(["date_range_2"], [50, 0.3, 0.6, 40.0, 1.0, 7.0]),
+        ])
+
+    plan = X._compare_plan(7)
+    assert plan is not None
+    out = X._engagement(
+        _Client(handler), {"web": "1"}, ["web"],
+        plan["current"]["start"], plan["current"]["end"],
+        compare_plan=plan,
+    )
+    row = out["rows"][0]
+    assert row["sessions"] == 100
+    assert row["compare"]["sessions"]["previous_period"]["delta_pct"] == 25.0
+    assert row["compare"]["sessions"]["previous_year"]["delta_pct"] == 100.0
+    assert out["compare"]["modes"]
+
+
+def test_breakdown_compare_uses_one_request_with_three_ranges():
+    def handler(req):
+        assert len(req.date_ranges) == 3
+        return _Resp([
+            _Row(["date_range_0", "organic"], [100]),
+            _Row(["date_range_1", "organic"], [50]),
+            _Row(["date_range_2", "organic"], [25]),
+        ])
+
+    plan = X._compare_plan(28)
+    assert plan is not None
+    spec = next(s for s in X.BREAKDOWNS if s["key"] == "channel")
+    out = X._breakdown_task(
+        _Client(handler), spec, "web", "1",
+        plan["current"]["start"], plan["current"]["end"], 10,
+        compare_plan=plan,
+    )
+    assert len(out["rows"]) == 1
+    row = out["rows"][0]
+    assert row["metric"] == 100
+    assert row["compare"]["previous_period"]["delta_pct"] == 100.0
+    assert row["compare"]["previous_year"]["delta_pct"] == 300.0
+
+
+def test_report_includes_compare_for_seven_days(monkeypatch):
+    monkeypatch.setattr(
+        "backend.services.ga4_auth.get_ga4_connection_status",
+        lambda db, site_id: {"connected": True, "properties": _props()},
+    )
+    monkeypatch.setattr("backend.collectors.ga4._client", lambda: _Client())
+    out = X.build_x_ga4_report(None, days=7)
+    assert out["compare"] and out["compare"]["modes"]
+    one = X.build_x_ga4_report(None, days=1)
+    assert one["compare"] is None
+
+
+def test_ui_renders_compare_delta_pills():
+    page = _dlab_ui()
+    assert "xg-delta" in page
+    assert "deltaStack" in page
+    assert "önceki dönem + önceki yıl" in page
+    assert "compareLegend" in page
 
 
 def test_engagement_skips_profiles_without_a_property():
@@ -743,7 +826,7 @@ def test_engagement_failure_does_not_take_down_the_block():
 
 def test_engagement_is_registered_and_rendered():
     src = (ROOT / "backend/services/x_ga4.py").read_text(encoding="utf-8")
-    assert '"engagement": lambda: _block("engagement"' in src
+    assert '"engagement"' in src and "_engagement(" in src
     cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
     assert "engagementCard(b.engagement || {})" in cards
     assert "Etkileşim kalitesi" in cards
