@@ -588,11 +588,25 @@ def query_scrape_analytics(
 
     cur = [f for f in facts if str(f.get("metric") or "") == metric_key]
     derived_note = ""
-    if metric_key == "store_listing_conversion" and not cur:
+    if metric_key == "store_listing_conversion":
         derived = _synthesize_store_listing_conversion(facts)
-        if derived:
-            facts = list(facts) + derived
-            cur = derived
+        have_days = {
+            str(f.get("date") or "")[:10]
+            for f in cur
+            if isinstance(f, dict)
+            and str(f.get("dim") or "overview") in ("overview", "")
+            and str(f.get("date") or "")[:10]
+        }
+        extra = [
+            f
+            for f in derived
+            if str(f.get("dim") or "") in ("overview", "")
+            and str(f.get("date") or "")[:10]
+            and str(f.get("date") or "")[:10] not in have_days
+        ]
+        if extra:
+            facts = list(facts) + extra
+            cur = list(cur) + extra
             derived_note = "derived:ar2_acq/ar2_visitors"
     # Play bazen oranı 0–1 kesir döner → % göster
     if metric_key == "store_listing_conversion" and cur:

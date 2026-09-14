@@ -398,14 +398,9 @@ def ingest_play_console_payload(
                 for f in (incoming_facts or [])
                 if isinstance(f, dict) and f.get("metric")
             }
-            # CSV günlük overview: yalnız overview günlerini değiştir, OS/sürüm/cihaz kalsın
-            if str(sync_mode or "") == "csv_overview_fill" and touched:
-                by_key = {
-                    k: v
-                    for k, v in by_key.items()
-                    if not (k[0] in touched and k[2] in ("overview", ""))
-                }
-            elif replace_all and touched:
+            # CSV overview: gün gün yaz. CSV'de olmayan günü silme — kısa dosya
+            # taramadaki dolu günleri tireye çeviriyordu.
+            if replace_all and touched and str(sync_mode or "") != "csv_overview_fill":
                 by_key = {k: v for k, v in by_key.items() if k[0] not in touched}
             for f in incoming_facts or []:
                 if not isinstance(f, dict) or not f.get("metric"):

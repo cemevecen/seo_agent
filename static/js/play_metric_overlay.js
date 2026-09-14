@@ -22,7 +22,6 @@
     {
       label: "Growth",
       items: [
-        { key: "device_acquisition", label: "Device acquisition" },
         { key: "user_acquisition", label: "User acquisition" },
         { key: "user_lost", label: "User lost" },
         { key: "active_devices", label: "Active devices" },
@@ -171,6 +170,12 @@
   ];
   var METRIC_GROUPS = METRIC_GROUPS_ANDROID;
   var XDATA_SKIP = { appVersion: 1 };
+  var APP_PAGE_HIDDEN_XDATA = { rpmTry: 1, is_holiday: 1 };
+  function hideOnAppPages(col) {
+    if (!APP_PAGE_HIDDEN_XDATA[col]) return false;
+    var path = (global.location && global.location.pathname) || "";
+    return path === "/android" || path === "/ios" || path.indexOf("/android/") === 0 || path.indexOf("/ios/") === 0;
+  }
   var XDATA_PLATFORMS = ["android", "ios", "web", "mweb"];
   var XDATA_ITEMS = { android: [], ios: [], web: [], mweb: [] };
   var xdataLoadPromise = null;
@@ -190,7 +195,7 @@
           if (!key) return null;
           if (String(key).indexOf("xdata:") !== 0) key = "xdata:" + key;
           var col = String(key).slice("xdata:".length);
-          if (XDATA_SKIP[col]) return null;
+          if (XDATA_SKIP[col] || hideOnAppPages(col)) return null;
           return { key: String(key), label: o.label || key };
         })
         .filter(Boolean);
@@ -225,7 +230,7 @@
     var labels = (meta && meta.labels) || {};
     return cols
       .filter(function (k) {
-        return k && !XDATA_SKIP[k];
+        return k && !XDATA_SKIP[k] && !hideOnAppPages(k);
       })
       .map(function (k) {
         return { key: "xdata:" + k, label: labels[k] || k };

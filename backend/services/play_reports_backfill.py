@@ -154,6 +154,35 @@ def facts_from_store_country_csv(text: str, *, start: date, end: date) -> list[d
     return out
 
 
+def _conversion_facts(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Ziyaretçi ve edinme olan günlerde mağaza dönüşümünü üret. Eksik gün tire kalmasın."""
+    visitors: dict[str, float] = {}
+    acquired: dict[str, float] = {}
+    for fact in facts:
+        day = str(fact.get("date") or "")[:10]
+        if len(day) != 10:
+            continue
+        metric = str(fact.get("metric") or "")
+        try:
+            val = float(fact.get("value"))
+        except (TypeError, ValueError):
+            continue
+        if metric == "ar2_visitors" and val > 0:
+            visitors[day] = val
+        elif metric == "ar2_acquisitions" and val >= 0:
+            acquired[day] = val
+    out: list[dict[str, Any]] = []
+    for day, visitors_n in visitors.items():
+        acq_n = acquired.get(day)
+        if acq_n is None or visitors_n <= 0:
+            continue
+        rate = (acq_n / visitors_n) * 100.0
+        if rate < 0 or rate > 100:
+            continue
+        out.append(_fact("store_listing_conversion", day, round(rate, 4)))
+    return out
+
+
 def build_overview_facts_from_bucket(
     *,
     package_name: str = "com.Doviz",
@@ -257,6 +286,7 @@ def build_overview_facts_from_bucket(
             except Exception as exc:  # noqa: BLE001
                 meta["errors"].append(f"{name}: {exc}"[:160])
                 LOGGER.warning("play csv skip %s: %s", name, exc)
+    facts.extend(_conversion_facts(facts))
     # Same day can appear once per file; last write wins if duplicate keys
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     for fact in facts:

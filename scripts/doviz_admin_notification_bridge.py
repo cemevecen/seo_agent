@@ -1104,7 +1104,7 @@ def run_virgul_bridge_once(on_progress=None) -> dict[str, Any]:
     return out
 
 
-def run_play_reports_fill(*, months_back: int = 3) -> dict[str, Any]:
+def run_play_reports_fill(*, months_back: int = 15) -> dict[str, Any]:
     """Play CSV → overview fact ingest. Oturum gerekmez; günlük boşlukları kapatır."""
     from backend.services.play_reports_backfill import (
         build_overview_facts_from_bucket,
@@ -1142,7 +1142,7 @@ def run_play_bridge_once() -> dict[str, Any]:
     dün+bugün. ANR/edinme/ziyaretçi/puan CSV job'undan gelir (oturumdan bağımsız).
     """
     try:
-        run_play_reports_fill(months_back=3)
+        run_play_reports_fill(months_back=15)
     except Exception as exc:  # noqa: BLE001
         print(f"Play CSV fill atlandı: {exc}", flush=True)
     try:

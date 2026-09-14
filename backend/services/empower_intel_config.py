@@ -169,10 +169,15 @@ def xdata_metric_id(column: str) -> str:
     return f"{XDATA_PREFIX}{column}"
 
 
-def xdata_dropdown_options(platform: str) -> list[dict[str, str]]:
+# Android / iOS metrik listesinde gösterme (X-Data sayfasında kalır)
+APP_PAGE_HIDDEN_XDATA: frozenset[str] = frozenset({"rpmTry", "is_holiday"})
+
+
+def xdata_dropdown_options(platform: str, *, hide: frozenset[str] | None = None) -> list[dict[str, str]]:
+    skip = hide or frozenset()
     out: list[dict[str, str]] = []
     for key in columns_for_platform(platform):
-        if key in XDATA_SKIP_CHART_KEYS:
+        if key in XDATA_SKIP_CHART_KEYS or key in skip:
             continue
         label = METRIC_LABELS.get(key, key)
         out.append(
@@ -195,8 +200,12 @@ def xdata_avg_metric_ids(platform: str) -> list[str]:
 
 def xdata_page_context(platform: str) -> dict:
     return {
-        "xdata_metric_options": xdata_dropdown_options(platform),
-        "xdata_avg_keys": xdata_avg_metric_ids(platform),
+        "xdata_metric_options": xdata_dropdown_options(platform, hide=APP_PAGE_HIDDEN_XDATA),
+        "xdata_avg_keys": [
+            k
+            for k in xdata_avg_metric_ids(platform)
+            if xdata_column_key(k) not in APP_PAGE_HIDDEN_XDATA
+        ],
     }
 
 

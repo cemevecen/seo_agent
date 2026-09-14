@@ -11,6 +11,7 @@ from backend.services.empower_intel_config import (
     play_console_skip_metric_keys,
     xdata_column_key,
     xdata_dropdown_options,
+    xdata_page_context,
 )
 from backend.services.empower_intel_store import _metric_number, query_series
 
@@ -92,6 +93,10 @@ def test_xdata_dropdown_covers_app_columns_minus_version():
     assert "xdata:appVersion" not in values
     ios_opts = {o["value"] for o in xdata_dropdown_options("ios")}
     assert ios_opts == values
+    page = {o["value"] for o in xdata_page_context("android")["xdata_metric_options"]}
+    assert "xdata:rpmTry" not in page
+    assert "xdata:is_holiday" not in page
+    assert "xdata:rpmTry" in values
 
 
 def test_xdata_column_key_and_metric_number():
