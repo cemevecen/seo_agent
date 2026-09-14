@@ -9417,9 +9417,11 @@
     return (vals[mid - 1] + vals[mid]) / 2;
   }
 
-  /** Ana grafik: tek renk çizgi; medyan yalnızca baştan sona kesik çizgi. */
+  /** Ana grafik: mavi yığın (0’a dolu); medyan yalnızca baştan sona kesik çizgi. */
   function mzMedianStackedLineTraces(xs, ys, name) {
-    var ink = mzInkColor();
+    var dark = isDarkTheme();
+    var blue = dark ? "#7eb6f5" : "#5b9ee8";
+    var blueFill = dark ? "rgba(126,182,245,0.38)" : "rgba(91,158,232,0.36)";
     var med = mzSeriesMedian(ys);
     var seriesName = name || "Series";
     var x0 = xs && xs.length ? xs[0] : null;
@@ -9430,7 +9432,9 @@
       type: "scatter",
       mode: "lines",
       name: seriesName,
-      line: { color: ink, width: 2 },
+      stackgroup: "mz-median",
+      line: { color: blue, width: 2 },
+      fillcolor: blueFill,
       connectgaps: true,
       hovertemplate: "%{x}<br><b>" + seriesName + "</b>: %{y:,.2f}<extra></extra>",
       showlegend: true,
@@ -9445,7 +9449,7 @@
         type: "scatter",
         mode: "lines",
         name: "Median",
-        line: { color: ink, width: 1.25, dash: "dash" },
+        line: { color: dark ? "#dbeafe" : "#1d4ed8", width: 1.25, dash: "dash" },
         hovertemplate: "Median: " + med.toLocaleString("tr-TR", { maximumFractionDigits: 2 }) + "<extra></extra>",
         showlegend: true,
         mzMedianSplit: true,
