@@ -223,7 +223,7 @@
   }
 
   function isCompareColsEnabled() {
-    return readJson(COMPARE_COLS_PREF_KEY, true) !== false;
+    return readJson(COMPARE_COLS_PREF_KEY, false) === true;
   }
 
   function setCompareColsEnabled(on) {
@@ -286,7 +286,7 @@
 
   function legendActionsHtml(opts) {
     var compare = opts && opts.compareCols
-      ? '<button type="button" class="mtux-opt-toggle" data-mtux-opt="compare" aria-pressed="true">Compare on</button>'
+      ? '<button type="button" class="mtux-opt-toggle" data-mtux-opt="compare" aria-pressed="false">Compare off</button>'
       : "";
     return (
       '<div class="mtux-legend-actions">' +
