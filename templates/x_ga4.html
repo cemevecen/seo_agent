@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/dlab.css?v=10">
+<link rel="stylesheet" href="/static/css/dlab.css?v=11">
 
 <div class="xg-page mx-auto w-full space-y-4" data-header-title="d-lab">
   <div class="xg-card">
@@ -46,7 +46,7 @@
   {% endfor %}
 </div>
 
-<script src="/static/js/dlab_cards.js?v=10"></script>
+<script src="/static/js/dlab_cards.js?v=11"></script>
 <script>
 (function () {
   if (!window.DLab) return;
@@ -62,6 +62,20 @@
     return Number(btn.getAttribute("data-xg-site-id")) || 0;
   }
 
+  function isSinemalarTab(btn) {
+    if (!btn) return false;
+    var blob = [
+      btn.getAttribute("data-xg-site-label") || "",
+      btn.getAttribute("data-xg-site-domain") || "",
+      btn.textContent || ""
+    ].join(" ").toLowerCase();
+    return blob.indexOf("sinemalar") !== -1;
+  }
+
+  function tabForSite(siteId) {
+    return tabs.filter(function (btn) { return siteIdOf(btn) === siteId; })[0] || null;
+  }
+
   function ensureLab(siteId) {
     if (labs[siteId]) return labs[siteId];
     var host = document.getElementById("xg-body-" + siteId);
@@ -71,6 +85,7 @@
       meta: document.getElementById("xg-meta-" + siteId),
       siteId: siteId,
       days: days,
+      hideEmpty: isSinemalarTab(tabForSite(siteId)),
       autoload: false,
       bindControls: false
     });

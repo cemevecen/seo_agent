@@ -121,6 +121,9 @@
     var fixedProfile = (opts.profile || "").trim() || null;
     var siteId = Math.max(1, Number(opts.siteId) || 1);
     var bindControls = opts.bindControls !== false;
+    // Sinemalar gibi sitelerde tanımsız/boş boyut kartlarını hiç çizme;
+    // Döviz'de kurulum boşlukları «Kapsam dışı» olarak kalır.
+    var hideEmpty = opts.hideEmpty === true;
     var state = { days: Number(opts.days) || 7, loading: false, loaded: false };
     var CARDS = {};
     var seq = 0;
@@ -335,7 +338,11 @@
       }).map(function (p) {
         return p + (pp[p].undefined ? ": tanımlı değil" : ": " + String(pp[p].error).slice(0, 60));
       });
-      if (!withData.length && !gaps.length) return "";
+      // Veri yoksa kartı gizle — Sinemalar'da tanımsız boyut yağmurunu kes.
+      // Döviz'te (hideEmpty kapalı) yalnız gap varsa hâlâ gösterilir.
+      if (!withData.length) {
+        if (hideEmpty || !gaps.length) return "";
+      }
       var hasCompare = withData.some(function (p) {
         return (pp[p].rows || []).some(function (r) { return r.compare; });
       });
@@ -353,11 +360,10 @@
                   barRows(pp[p].rows, "value", "metric"));
               })
             : empty("Bu boyut hiçbir yüzeyde veri döndürmedi.");
-          // Eksik yüzeyler filtreye girmez ama sessizce de yutulmaz
-          return main + (gaps.length
-            ? '<p class="xg-muted" style="margin-top:.5rem">Kapsam dışı — ' +
-              esc(gaps.join(" · ")) + "</p>"
-            : "");
+          if (hideEmpty || !gaps.length) return main;
+          return main +
+            '<p class="xg-muted" style="margin-top:.5rem">Kapsam dışı — ' +
+            esc(gaps.join(" · ")) + "</p>";
         }
       });
     }
@@ -365,6 +371,7 @@
     // ── Kullanıcı ───────────────────────────────────────────────────────────
     function usersCard(b) {
       if (b.ok === false) {
+        if (hideEmpty) return "";
         return card({ title: "Kullanıcı", profiles: [], body: function () {
           return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } });
       }
@@ -390,6 +397,7 @@
     var PAGE_MAX = 50;
     function depthCard(b) {
       if (b.ok === false) {
+        if (hideEmpty) return "";
         return card({ title: "İçerik derinliği", profiles: [], body: function () {
           return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } });
       }
@@ -431,6 +439,7 @@
     // ── Saatlik ritim ───────────────────────────────────────────────────────
     function hourlyCard(b) {
       if (b.ok === false) {
+        if (hideEmpty) return "";
         return card({ title: "Saatlik ritim", profiles: [], body: function () {
           return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } });
       }
@@ -474,6 +483,7 @@
     }
     function engagementCard(b) {
       if (b.ok === false) {
+        if (hideEmpty) return "";
         return card({ title: "Etkileşim kalitesi", profiles: [], body: function () {
           return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } });
       }
@@ -513,6 +523,7 @@
     // ── Uygulama yapışkanlığı ───────────────────────────────────────────────
     function stickinessCard(b) {
       if (b.ok === false) {
+        if (hideEmpty) return "";
         return card({ title: "Uygulama yapışkanlığı", profiles: [], body: function () {
           return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } });
       }
@@ -539,8 +550,10 @@
     // ── Kitle: her liste kendi container'ında ───────────────────────────────
     function audienceCards(b, emit) {
       if (b.ok === false) {
-        emit(card({ title: "Kitle", profiles: [], body: function () {
-          return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } }));
+        if (!hideEmpty) {
+          emit(card({ title: "Kitle", profiles: [], body: function () {
+            return '<p class="xg-err">Alınamadı: ' + esc(b.error) + "</p>"; } }));
+        }
         return;
       }
       var defs = [

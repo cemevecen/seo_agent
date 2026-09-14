@@ -342,6 +342,16 @@ def test_ui_reports_gaps_outside_the_filter():
     assert "tanimli degil" in page or "tanml" in page or "tanımlı değil" in page
 
 
+def test_sinemalar_hides_empty_and_undefined_cards():
+    """Sinemalar'da boş / tanımsız boyut kartları çizilmez; Döviz gap notunu korur."""
+    page = (ROOT / "templates/x_ga4.html").read_text(encoding="utf-8")
+    assert "hideEmpty: isSinemalarTab" in page or "hideEmpty: isSinemalarTab(" in page
+    assert "isSinemalarTab" in page
+    cards = (ROOT / "static/js/dlab_cards.js").read_text(encoding="utf-8")
+    assert "var hideEmpty = opts.hideEmpty === true;" in cards
+    assert "if (hideEmpty || !gaps.length) return \"\";" in cards or "if (hideEmpty || !gaps.length) return \"\"" in cards
+
+
 # ── Platform filtresi ───────────────────────────────────────────────────────
 
 def test_resolve_profiles_filters_and_defaults_to_all():
