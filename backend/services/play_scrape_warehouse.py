@@ -41,6 +41,23 @@ _STOCK_LAST = frozenset({"active_devices", "active_users", "dau", "active"})
 _STOCK_AVG = frozenset({"rating", "store_listing_conversion", "dau_mau"})
 # Play “CUMULATIVE” seriler — grafik/toplam için güne çevrilir
 _CUMULATIVE = frozenset({"device_acquisition"})
+# Günlük sayı: aradaki boş günü 0 sanma (Play CSV gecikmesi / eksik dosya).
+_DAILY_GAP_AS_NULL = frozenset(
+    {
+        "device_acquisition",
+        "user_acquisition",
+        "user_lost",
+        "ar2_visitors",
+        "ar2_acquisitions",
+        "crashes",
+        "anrs",
+        "revenue",
+        "store_listing_conversion",
+        "active_devices",
+        "dau",
+        "active_users",
+    }
+)
 
 
 def _synthesize_store_listing_conversion(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -465,8 +482,9 @@ def _densify_date_series(
     start: date,
     end: date,
     clip_to_data: bool = True,
+    missing: float | None = 0.0,
 ) -> list[dict[str, Any]]:
-    """Eksik günleri 0 ile doldur.
+    """Takvim günlerini doldur. missing=0 eski davranış; daily metriklerde None kullan.
 
     clip_to_data=True: serideki son gerçek tarihten sonrasını ekleme
     (Play gecikmeli metriklerde son 1–3 günü sahte 0 yapmamak için).
@@ -474,7 +492,15 @@ def _densify_date_series(
     """
     if not series:
         return []
-    by_key = {str(r["key"]): float(r.get("value") or 0) for r in series}
+    by_key: dict[str, float] = {}
+    for r in series:
+        k = str(r.get("key") or "")
+        if not k:
+            continue
+        try:
+            by_key[k] = float(r.get("value"))
+        except (TypeError, ValueError):
+            continue
     data_dates = []
     for k in by_key:
         try:
@@ -499,7 +525,10 @@ def _densify_date_series(
     cur = eff_start
     while cur <= eff_end:
         k = cur.isoformat()
-        out.append({"key": k, "value": round(by_key.get(k, 0.0), 4)})
+        if k in by_key:
+            out.append({"key": k, "value": round(by_key[k], 4)})
+        else:
+            out.append({"key": k, "value": missing if missing is None else round(float(missing), 4)})
         cur += timedelta(days=1)
     return out
 
@@ -828,11 +857,18 @@ def query_scrape_analytics(
             f"(seçili bitiş {end_s} — son {(end_d - metric_date_max).days} gün henüz yok)"
         )
 
-    if breakdown == "date" and dated:
-        series = _densify_date_series(series, start=start_d, end=effective_end, clip_to_data=True)
     daily_csv = bool(use) and all(
         str(f.get("value_kind") or "") == "daily" for f in use if f.get("date")
     )
+    if breakdown == "date" and dated:
+        gap_missing = None if (daily_csv or metric_key in _DAILY_GAP_AS_NULL) else 0.0
+        series = _densify_date_series(
+            series,
+            start=start_d,
+            end=effective_end,
+            clip_to_data=True,
+            missing=gap_missing,
+        )
     if metric_key in _CUMULATIVE and breakdown == "date" and series and not daily_csv:
         # Yalnızca ISO tarih anahtarlarında decumulate (OVERALL kartını 0 yapma)
         date_keys = [

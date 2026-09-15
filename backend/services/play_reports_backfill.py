@@ -183,6 +183,54 @@ def _conversion_facts(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def _device_acquisition_gap_facts(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Installs CSV gecikince boş kalan günleri store listing acquisitions ile doldur.
+
+    Oran: ortak günlerdeki device/ar2 medyanı. Kaynak etiketi derived_store_acq.
+    """
+    device: dict[str, float] = {}
+    acquired: dict[str, float] = {}
+    for fact in facts:
+        day = str(fact.get("date") or "")[:10]
+        if len(day) != 10:
+            continue
+        metric = str(fact.get("metric") or "")
+        try:
+            val = float(fact.get("value"))
+        except (TypeError, ValueError):
+            continue
+        if val < 0:
+            continue
+        if metric == "device_acquisition" and str(fact.get("source") or "") != "derived_store_acq":
+            device[day] = val
+        elif metric == "ar2_acquisitions":
+            acquired[day] = val
+    ratios: list[float] = []
+    for day, acq_n in acquired.items():
+        dev_n = device.get(day)
+        if dev_n is None or acq_n <= 0 or dev_n <= 0:
+            continue
+        ratios.append(dev_n / acq_n)
+    if not ratios:
+        return []
+    ratios.sort()
+    med = ratios[len(ratios) // 2]
+    if med <= 0:
+        return []
+    out: list[dict[str, Any]] = []
+    for day, acq_n in acquired.items():
+        if day in device:
+            continue
+        est = round(acq_n * med)
+        if est <= 0:
+            continue
+        row = _fact("device_acquisition", day, float(est))
+        row["source"] = "derived_store_acq"
+        row["label"] = f"derived:ar2_acq*{med:.3f}"
+        out.append(row)
+    return out
+
+
 def build_overview_facts_from_bucket(
     *,
     package_name: str = "com.Doviz",
@@ -287,6 +335,7 @@ def build_overview_facts_from_bucket(
                 meta["errors"].append(f"{name}: {exc}"[:160])
                 LOGGER.warning("play csv skip %s: %s", name, exc)
     facts.extend(_conversion_facts(facts))
+    facts.extend(_device_acquisition_gap_facts(facts))
     # Same day can appear once per file; last write wins if duplicate keys
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     for fact in facts:

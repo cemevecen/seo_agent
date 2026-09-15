@@ -3,12 +3,14 @@
 from datetime import date
 
 from backend.services.play_reports_backfill import (
+    _device_acquisition_gap_facts,
     facts_from_crashes_csv,
     facts_from_installs_csv,
     facts_from_ratings_csv,
     facts_from_sales_csv,
     facts_from_store_country_csv,
 )
+from backend.services.play_scrape_warehouse import _densify_date_series
 
 START = date(2026, 7, 1)
 END = date(2026, 7, 31)
@@ -77,3 +79,31 @@ def test_sales_csv_sums_charged_amount_by_day():
     assert by["2026-08-10"] == 279.68
     assert by["2026-08-11"] == -1.0
     assert all(f["metric"] == "revenue" and f["value_kind"] == "daily" for f in facts)
+
+
+def test_device_acquisition_gap_uses_store_acq_ratio():
+    base = [
+        {"metric": "device_acquisition", "date": "2026-08-20", "value": 300.0, "source": "play_reports_csv"},
+        {"metric": "ar2_acquisitions", "date": "2026-08-20", "value": 200.0, "source": "play_reports_csv"},
+        {"metric": "ar2_acquisitions", "date": "2026-08-22", "value": 100.0, "source": "play_reports_csv"},
+    ]
+    filled = _device_acquisition_gap_facts(base)
+    assert len(filled) == 1
+    assert filled[0]["date"] == "2026-08-22"
+    assert filled[0]["value"] == 150.0  # 100 * (300/200)
+    assert filled[0]["source"] == "derived_store_acq"
+
+
+def test_densify_can_keep_gaps_as_null():
+    series = [{"key": "2026-08-20", "value": 10}, {"key": "2026-08-22", "value": 12}]
+    out = _densify_date_series(
+        series,
+        start=date(2026, 8, 20),
+        end=date(2026, 8, 22),
+        clip_to_data=True,
+        missing=None,
+    )
+    by = {r["key"]: r["value"] for r in out}
+    assert by["2026-08-20"] == 10
+    assert by["2026-08-21"] is None
+    assert by["2026-08-22"] == 12
