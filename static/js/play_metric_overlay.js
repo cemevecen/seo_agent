@@ -22,6 +22,7 @@
     {
       label: "Growth",
       items: [
+        { key: "device_acquisition", label: "Total downloads" },
         { key: "user_acquisition", label: "User acquisition" },
         { key: "user_lost", label: "User lost" },
         { key: "active_devices", label: "Active devices" },

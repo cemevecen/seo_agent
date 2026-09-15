@@ -1380,6 +1380,7 @@
             <option value="crashes">Crash</option>
           </optgroup>
           <optgroup label="Growth">
+            <option value="device_acquisition">Total downloads</option>
             <option value="user_acquisition">User acquisition</option>
             <option value="user_lost">User lost</option>
             <option value="active_devices">Active devices</option>
@@ -2359,6 +2360,7 @@
     "ga4:sessions",
     "market:gram_altin",
     "market:usd_try",
+    "device_acquisition",
     "virgul:impression",
     "virgul:net_revenue",
     "xdata:active7DayUsers",
@@ -2611,7 +2613,7 @@
   var PA_METRIC_HELP = {
     anrs: "ANR (Application Not Responding): freeze events reported to Play when the app main thread does not respond for ~5 seconds. Lower is better.",
     crashes: "Crash: unexpected app close count. Should be kept low for stability.",
-    device_acquisition: "Device acquisition: number of devices that acquired the app for the first time (Play Console growth metric).",
+    device_acquisition: "Total downloads: daily device installs from Play Console (first-time acquisitions on devices).",
     user_acquisition: "User acquisition: number of users who acquired the app for the first time.",
     user_lost: "User lost: number of users who uninstalled or were lost; a churn signal.",
     active_devices: "Active devices: number of active devices that opened the app in the selected range.",
@@ -2782,6 +2784,7 @@
     "ga4:sessions",
     "market:gram_altin",
     "market:usd_try",
+    "device_acquisition",
     "virgul:impression",
     "virgul:net_revenue",
     "xdata:active7DayUsers",

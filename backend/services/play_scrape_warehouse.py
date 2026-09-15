@@ -32,6 +32,7 @@ _SCRAPE_METRICS = (
 _METRIC_ALIASES = {
     "active": "active_devices",
     "installs": "device_acquisition",
+    "total_downloads": "device_acquisition",
     "uninstalls": "user_lost",
 }
 
