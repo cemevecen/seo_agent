@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% from 'partials/pa_chart_style_buttons.html' import chart_style_buttons %}
 {% block content %}
+{% set ad_page = ad_page|default('virgul' if ad_mode == 'virgul' else 'sheets') %}
+{% set targets_only = ad_page == 'targets' %}
 <!-- mz-layout-v5 -->
 <link rel="stylesheet" href="/static/css/pa_chart_height.css?v=12">
 <link rel="stylesheet" href="/static/css/pa_chart_style.css?v=3">
@@ -161,8 +163,27 @@
   .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-import-audit,
   .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-range-empty,
   .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-compare-period-banner,
-  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-view-revenue {
+  .mz-page.mz-virgul-mode[data-mz-main-view="targets"] #mz-view-revenue,
+  .mz-page.mz-targets-only #mz-header-revenue-bar,
+  .mz-page.mz-targets-only #mz-stream-tabs,
+  .mz-page.mz-targets-only #mz-sidebar,
+  .mz-page.mz-targets-only #mz-imports-wrap,
+  .mz-page.mz-targets-only #mz-boot-hint,
+  .mz-page.mz-targets-only #mz-import-audit,
+  .mz-page.mz-targets-only #mz-range-empty,
+  .mz-page.mz-targets-only #mz-compare-period-banner,
+  .mz-page.mz-targets-only #mz-view-revenue,
+  .mz-page.mz-targets-only #mz-main-view-chips {
     display: none !important;
+  }
+  .mz-page.mz-targets-only .mz-targets-header-actions {
+    display: flex !important;
+  }
+  .mz-page.mz-targets-only #mz-targets-page-title {
+    display: block;
+  }
+  #mz-targets-page-title {
+    display: none;
   }
   .mz-main-view-chip {
     border-radius: 0.65rem;
@@ -1224,14 +1245,14 @@
   <div class="mz-skel-bone mz-skel-cap"></div>
 </div>
 {%- endmacro %}
-<div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page{% if ad_mode == 'virgul' %} mz-virgul-mode max-w-[1920px]{% endif %}" data-header-title="{% if ad_mode == 'virgul' %}Virgül{% else %}Ad{% endif %}" data-page-tarama="virgul"{% if ad_mode == 'virgul' %} data-mz-main-view="revenue"{% endif %}>
+<div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page{% if ad_mode == 'virgul' or targets_only %} mz-virgul-mode max-w-[1920px]{% endif %}{% if targets_only %} mz-targets-only{% endif %}" data-header-title="{% if targets_only %}Targets{% elif ad_mode == 'virgul' %}Virgül{% else %}Ad{% endif %}" data-page-tarama="{% if targets_only %}targets{% else %}virgul{% endif %}"{% if targets_only %} data-mz-main-view="targets"{% elif ad_mode == 'virgul' %} data-mz-main-view="revenue"{% endif %}>
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 ">
-    {% if ad_mode == 'virgul' %}
-    <nav id="mz-main-view-chips" class="mz-main-view-chips mz-main-view-chips--header" role="tablist" aria-label="Main view">
-      <button type="button" id="mz-main-view-revenue" data-mz-main-view="revenue" class="mz-main-view-chip is-active" role="tab" aria-selected="true" aria-controls="mz-view-revenue">Revenue</button>
-      <button type="button" id="mz-main-view-targets" data-mz-main-view="targets" class="mz-main-view-chip" role="tab" aria-selected="false" aria-controls="mz-view-targets">Targets</button>
-    </nav>
-    <div id="mz-targets-header-actions" class="mz-targets-header-actions mt-2 flex flex-wrap items-center gap-2">
+    {% if targets_only %}
+    <div id="mz-targets-page-title" class="mb-3 min-w-0">
+      <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">Targets</h1>
+      <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">Revenue targets · Doviz.com / Sinemalar.com</p>
+    </div>
+    <div id="mz-targets-header-actions" class="mz-targets-header-actions flex flex-wrap items-center gap-2">
       <button
         type="button"
         id="mz-targets-refresh-header"
@@ -1243,7 +1264,10 @@
       </button>
       <span id="mz-targets-refresh-status-header" class="text-[11px] font-medium text-slate-500 dark:text-zinc-400" role="status" aria-live="polite"></span>
     </div>
+    {% elif ad_mode == 'virgul' %}
+    {# Revenue-only Virgül page: Targets moved to /targets #}
     {% endif %}
+    {% if not targets_only %}
     <div id="mz-header-revenue-bar" class="flex flex-wrap items-center justify-between gap-2">
       <div class="min-w-0">
         <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">{% if ad_mode == 'virgul' %}Monetization · Virgül{% else %}Monetization Analytics{% endif %}</h1>
@@ -1303,9 +1327,11 @@
         <span id="mz-imports-bulk-count" class="text-[10px] text-slate-500 dark:text-zinc-400">0 selected</span>
       </div>
     </details>
+    {% endif %}
   </div>
 
   <div id="mz-body-grid" class="mz-body-grid grid grid-cols-1 gap-4 xl:grid-cols-12">
+    {% if not targets_only %}
     <aside id="mz-sidebar" class="mz-sidebar space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 xl:col-span-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto" aria-label="Filters">
       {% if ad_mode != 'virgul' %}
       <div class="mz-tb-nav">
@@ -1464,8 +1490,9 @@
 
       </div>
     </aside>
+    {% endif %}
 
-    <div id="mz-main" class="relative min-h-[24rem] w-full min-w-0 space-y-4 xl:col-span-9">
+    <div id="mz-main" class="relative min-h-[24rem] w-full min-w-0 space-y-4 {% if targets_only %}xl:col-span-12{% else %}xl:col-span-9{% endif %}">
       <div id="mz-loading" class="pointer-events-none absolute inset-0 z-10 hidden rounded-2xl bg-white/60 dark:bg-black/50" aria-hidden="true">
         <div class="flex h-32 items-center justify-center text-sm font-semibold text-slate-600 dark:text-zinc-300">Loading…</div>
       </div>
@@ -1480,12 +1507,13 @@
         <p id="mz-compare-period-lines" class="mt-1.5 text-sm leading-snug text-slate-800 dark:text-zinc-100"></p>
         <p id="mz-compare-period-mode" class="mt-1 text-[10px] text-indigo-700 dark:text-indigo-400"></p>
       </div>
-      {% if ad_mode != 'virgul' %}
+      {% if ad_mode != 'virgul' and not targets_only %}
       <nav id="mz-main-view-chips" class="mz-main-view-chips" role="tablist" aria-label="Main view">
         <button type="button" id="mz-main-view-revenue" data-mz-main-view="revenue" class="mz-main-view-chip is-active" role="tab" aria-selected="true" aria-controls="mz-view-revenue">Revenue</button>
         <button type="button" id="mz-main-view-targets" data-mz-main-view="targets" class="mz-main-view-chip" role="tab" aria-selected="false" aria-controls="mz-view-targets">Targets</button>
       </nav>
       {% endif %}
+      {% if not targets_only %}
       <div id="mz-view-revenue" class="mz-main-view-pane space-y-4" data-mz-main-pane="revenue" role="tabpanel" aria-labelledby="mz-main-view-revenue">
       <div id="mz-project-totals" class="is-single" aria-label="Project total revenue">
         <div data-mz-project="doviz" class="mz-project-total-card rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black sm:p-4">
@@ -2010,8 +2038,10 @@
       </section>
       </div>
       </div><!-- /mz-view-revenue -->
+      {% endif %}
 
-      <div id="mz-view-targets" class="mz-main-view-pane space-y-4 is-mz-hidden" hidden data-mz-main-pane="targets" role="tabpanel" aria-labelledby="mz-main-view-targets" aria-hidden="true">
+      {% if targets_only or ad_mode != 'virgul' %}
+      <div id="mz-view-targets" class="mz-main-view-pane space-y-4{% if not targets_only %} is-mz-hidden{% endif %}"{% if not targets_only %} hidden{% endif %} data-mz-main-pane="targets" role="tabpanel" aria-labelledby="mz-main-view-targets" aria-hidden="{{ 'false' if targets_only else 'true' }}">
       <div id="mz-ad-target-kpis-strip" class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black sm:p-4">
         <div id="mz-ad-target-kpis-doviz" class="mz-ad-target-kpis is-empty" aria-label="Doviz ad target KPIs"></div>
         <div id="mz-ad-target-kpis-sinemalar" class="mz-ad-target-kpis is-empty is-mz-hidden" hidden aria-hidden="true" aria-label="Sinemalar ad target KPIs"></div>
@@ -2152,6 +2182,7 @@
         </div>
       </section>
       </div><!-- /mz-view-targets -->
+      {% endif %}
     </div>
   </div>
 
@@ -2199,6 +2230,7 @@
 <script src="/static/js/resizable_data_list.js?v=6"></script>
 <script>
   window.MZ_AD_MODE = {{ (ad_mode or 'sheets')|tojson }};
+  window.MZ_TARGETS_ONLY = {{ targets_only|tojson }};
   window.MZ_VIRGUL_SOURCES = {{ (virgul_sources or [])|tojson }};
   window.SEO_XDATA_METRIC_OPTIONS = {
     android: {{ (xdata_metric_options_android or []) | tojson }},
@@ -2209,6 +2241,7 @@
   (function () {
     if (window.MZ_AD_MODE !== "virgul") return;
     document.documentElement.classList.add("mz-virgul-mode");
+    if (window.MZ_TARGETS_ONLY) document.documentElement.classList.add("mz-targets-only");
     var orig = window.fetch.bind(window);
     window.fetch = function (input, init) {
       var url = typeof input === "string" ? input : (input && input.url) || "";
@@ -2244,6 +2277,17 @@
       || !!(document.querySelector('.mz-page.mz-virgul-mode'));
     function apply() {
       var P = 'important';
+      if (window.MZ_TARGETS_ONLY) {
+        g.style.setProperty('display', 'block', P);
+        g.style.setProperty('width', '100%', P);
+        if (s) s.style.setProperty('display', 'none', P);
+        if (m) {
+          m.style.setProperty('width', '100%', P);
+          m.style.setProperty('max-width', '100%', P);
+          m.style.setProperty('min-width', '0', P);
+        }
+        return;
+      }
       if (virgul) {
         g.style.setProperty('display', 'flex', P);
         g.style.setProperty('flex-direction', 'column', P);
@@ -14874,6 +14918,7 @@
   }
 
   async function mzTargetsLoad(force) {
+    if (!document.getElementById("mz-targets-panel")) return null;
     var loading = document.getElementById("mz-targets-loading");
     var controls = document.getElementById("mz-targets-controls");
     var tableWrap = document.getElementById("mz-targets-table-wrap");
@@ -15015,6 +15060,7 @@
   function setMzMainView(view, opts) {
     opts = opts || {};
     view = view === "targets" ? "targets" : "revenue";
+    if (window.MZ_TARGETS_ONLY) view = "targets";
     var stack = document.getElementById("mz-analytics-stack");
     if (stack) stack.setAttribute("data-mz-main-view", view);
     var page = document.querySelector(".mz-page");
@@ -15039,17 +15085,19 @@
       btn.setAttribute("aria-selected", active ? "true" : "false");
       btn.setAttribute("tabindex", active ? "0" : "-1");
     });
-    try {
-      var u = new URL(window.location.href);
-      if (view === "targets") {
-        u.searchParams.set("view", "targets");
-        u.hash = "mz-targets-panel";
-      } else {
-        u.searchParams.delete("view");
-        if (u.hash === "#mz-targets-panel") u.hash = "";
-      }
-      window.history.replaceState({}, "", u.pathname + u.search + (u.hash || ""));
-    } catch (_) { /* ignore */ }
+    if (!window.MZ_TARGETS_ONLY) {
+      try {
+        var u = new URL(window.location.href);
+        if (view === "targets") {
+          u.searchParams.set("view", "targets");
+          u.hash = "mz-targets-panel";
+        } else {
+          u.searchParams.delete("view");
+          if (u.hash === "#mz-targets-panel") u.hash = "";
+        }
+        window.history.replaceState({}, "", u.pathname + u.search + (u.hash || ""));
+      } catch (_) { /* ignore */ }
+    }
     if (view === "targets") {
       try {
         if (typeof mzTargetsRenderAll === "function" && mzTargetsCache) mzTargetsRenderAll();
@@ -15058,7 +15106,7 @@
         renderAdTargetKpisForActiveProject();
       } catch (_) { /* ignore */ }
       scheduleMzChartsResizeBurst();
-      if (!opts.skipScroll) {
+      if (!opts.skipScroll && !window.MZ_TARGETS_ONLY) {
         setTimeout(function () {
           var chips = document.getElementById("mz-main-view-chips");
           if (chips) {
@@ -15079,7 +15127,8 @@
   }
 
   function mzScrollToTargets() {
-    setMzMainView("targets");
+    if (window.MZ_TARGETS_ONLY) return;
+    window.location.href = "/targets";
   }
 
   on("mz-main-view-revenue", "click", function () {
@@ -15201,9 +15250,13 @@
 
   mzTargetsLoad(false).then(function () {
     try {
+      if (window.MZ_TARGETS_ONLY) {
+        setMzMainView("targets", { skipScroll: true });
+        return;
+      }
       var u = new URL(window.location.href);
       if (u.searchParams.get("view") === "targets" || u.hash === "#mz-targets-panel") {
-        setMzMainView("targets", { skipScroll: false });
+        window.location.replace("/targets");
       }
     } catch (_) { /* ignore */ }
   });
@@ -15211,6 +15264,9 @@
   window.addEventListener("resize", scheduleMzChartsResizeBurst);
 
   try { mzShowDashboardChartSkeletons(); } catch (_) { /* ignore */ }
+  if (window.MZ_TARGETS_ONLY) {
+    /* Targets standalone: skip Virgül revenue boot */
+  } else {
   loadFacets().then(function () {
     refreshMzEmpowerImports().catch(function () {});
     syncEmpowerOverlayBarVisibility();
@@ -15222,6 +15278,7 @@
   }).catch(function (err) {
     showPageError((err && err.message) || "Could not start the page");
   });
+  }
 
   window.__pcPageContext = function () {
     try {
@@ -15239,7 +15296,7 @@
       var summ = state.lastSummary || {};
       var incomeList = state.income.size ? Array.from(state.income) : null;
       return {
-        page: "ad",
+        page: window.MZ_TARGETS_ONLY ? "targets" : "ad",
         filters: {
           project: state.activeStream && state.activeStream.project,
           branch: state.activeStream && state.activeStream.branch,

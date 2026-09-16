@@ -30,7 +30,7 @@ def is_ad_page_allowed_email(email: str | None) -> bool:
 
 
 def resolve_ad_menu_visible(*, member_email: str | None) -> bool:
-    """Üst menüde virgül linki: izinli monetizasyon hesapları."""
+    """Üst menüde virgül + targets linkleri: izinli monetizasyon hesapları."""
     if member_email:
         return is_ad_page_allowed_email(member_email)
     return False
@@ -42,6 +42,8 @@ def is_ad_page_path(path: str) -> bool:
     if p == "/ad" or p.startswith("/ad/"):
         return True
     if p == "/ad-virgul" or p.startswith("/ad-virgul/"):
+        return True
+    if p == "/targets" or p.startswith("/targets/"):
         return True
     if p.startswith("/api/mz-analytics"):
         return True

@@ -26,6 +26,7 @@ def test_ad_page_paths():
     assert is_ad_page_path("/ad/app-banner")
     assert is_ad_page_path("/ad-virgul")
     assert is_ad_page_path("/ad-virgul/app-banner")
+    assert is_ad_page_path("/targets")
     assert is_ad_page_path("/api/mz-analytics/summary")
     assert is_ad_page_path("/api/mz-analytics/ga4-app-banner")
     assert is_ad_page_path("/api/mz-analytics/app-empower/overlay")

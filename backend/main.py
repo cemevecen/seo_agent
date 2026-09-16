@@ -18816,28 +18816,48 @@ def ad_analytics_page(request: Request):
     )
 
 
-@app.get("/ad-virgul")
-def ad_virgul_analytics_page(request: Request):
-    """Reklam raporları — yalnızca Virgül panel (6 sid); sheet/manuel yok."""
+def _ad_virgul_template_context(request: Request, *, ad_page: str = "virgul") -> dict:
+    """Virgül revenue veya bağımsız /targets sayfası için ortak template context."""
     from backend.services.empower_intel_config import xdata_dropdown_options
     from backend.services.virgul_ad_config import virgul_sources_payload
 
     sources = virgul_sources_payload()
+    page = "targets" if ad_page == "targets" else "virgul"
+    return {
+        "request": request,
+        "ad_sheet_sources": [
+            {"key": s["key"], "label": s["label"], "url": s["url"]} for s in sources
+        ],
+        "ad_mode": "virgul",
+        "ad_page": page,
+        "virgul_sources": sources,
+        "xdata_metric_options_android": xdata_dropdown_options("android"),
+        "xdata_metric_options_ios": xdata_dropdown_options("ios"),
+        "xdata_metric_options_web": xdata_dropdown_options("web"),
+        "xdata_metric_options_mweb": xdata_dropdown_options("mweb"),
+    }
+
+
+@app.get("/ad-virgul")
+def ad_virgul_analytics_page(request: Request):
+    """Reklam raporları — yalnızca Virgül panel (6 sid); sheet/manuel yok."""
+    if (request.query_params.get("view") or "").strip().lower() == "targets":
+        return RedirectResponse(url="/targets", status_code=303)
     return templates.TemplateResponse(
         request,
         "ad.html",
-        context={
-            "request": request,
-            "ad_sheet_sources": [
-                {"key": s["key"], "label": s["label"], "url": s["url"]} for s in sources
-            ],
-            "ad_mode": "virgul",
-            "virgul_sources": sources,
-            "xdata_metric_options_android": xdata_dropdown_options("android"),
-            "xdata_metric_options_ios": xdata_dropdown_options("ios"),
-            "xdata_metric_options_web": xdata_dropdown_options("web"),
-            "xdata_metric_options_mweb": xdata_dropdown_options("mweb"),
-        },
+        context=_ad_virgul_template_context(request, ad_page="virgul"),
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/targets")
+def revenue_targets_page(request: Request):
+    """Gelir hedefleri — Virgül altındaki Targets sekmesinin bağımsız sayfası."""
+    return templates.TemplateResponse(
+        request,
+        "ad.html",
+        context=_ad_virgul_template_context(request, ad_page="targets"),
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
