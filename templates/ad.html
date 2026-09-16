@@ -3729,9 +3729,11 @@
   }
 
   function selectedDateRange() {
+    var startEl = document.getElementById("mz-start");
+    var endEl = document.getElementById("mz-end");
     return {
-      start: (document.getElementById("mz-start").value || "").slice(0, 10),
-      end: (document.getElementById("mz-end").value || "").slice(0, 10),
+      start: ((startEl && startEl.value) || "").slice(0, 10),
+      end: ((endEl && endEl.value) || "").slice(0, 10),
     };
   }
 
@@ -4770,11 +4772,11 @@
     var custom = document.getElementById("mz-compare-custom");
     var cs = document.getElementById("mz-compare-start");
     var ce = document.getElementById("mz-compare-end");
-    modeEl.disabled = !on;
-    cs.disabled = !on;
-    ce.disabled = !on;
-    var isCustom = on && modeEl.value === "custom";
-    custom.classList.toggle("hidden", !isCustom);
+    if (modeEl) modeEl.disabled = !on;
+    if (cs) cs.disabled = !on;
+    if (ce) ce.disabled = !on;
+    var isCustom = on && modeEl && modeEl.value === "custom";
+    if (custom) custom.classList.toggle("hidden", !isCustom);
     var page = document.querySelector(".mz-page");
     if (page) page.classList.toggle("compare-active", on);
     updateComparePeriodBanner(state.lastSummary);
@@ -13804,15 +13806,18 @@
     }
   }
 
-  document.getElementById("mz-imports").addEventListener("change", function (ev) {
-    if (
-      ev.target &&
-      ev.target.classList &&
-      (ev.target.classList.contains("mz-import-select") || ev.target.classList.contains("mz-import-select-empower"))
-    ) {
-      mzUpdateImportBulkUi();
-    }
-  });
+  var mzImportsRoot = document.getElementById("mz-imports");
+  if (mzImportsRoot) {
+    mzImportsRoot.addEventListener("change", function (ev) {
+      if (
+        ev.target &&
+        ev.target.classList &&
+        (ev.target.classList.contains("mz-import-select") || ev.target.classList.contains("mz-import-select-empower"))
+      ) {
+        mzUpdateImportBulkUi();
+      }
+    });
+  }
 
   on("mz-imports-select-all", "click", function () {
     document.querySelectorAll("#mz-imports .mz-import-select, #mz-imports .mz-import-select-empower").forEach(function (cb) {
@@ -14001,7 +14006,9 @@
     }
   });
 
-  document.getElementById("mz-empower-imports").addEventListener("click", async function (ev) {
+  var mzEmpowerImportsRoot = document.getElementById("mz-empower-imports");
+  if (mzEmpowerImportsRoot) {
+    mzEmpowerImportsRoot.addEventListener("click", async function (ev) {
     var t = ev.target;
     if (!t || !t.getAttribute) return;
     var file = t.getAttribute("data-file");
@@ -14046,6 +14053,7 @@
       }
     }
   });
+  }
 
   on("mz-empower-bulk-delete", "click", async function () {
     var files = mzEmpowerSelectedFiles();
@@ -14980,7 +14988,15 @@
       // Skeleton sonra çizim — layout ölçüsü gelsin diye bir frame bekle
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          mzTargetsSetProject(mzTargetsUi.project);
+          try {
+            mzTargetsSetProject(mzTargetsUi.project);
+          } catch (renderErr) {
+            console.error("mzTargetsSetProject", renderErr);
+            if (err) {
+              err.textContent = (renderErr && renderErr.message) || "Could not render targets";
+              err.classList.remove("hidden");
+            }
+          }
           scheduleMzChartsResizeBurst();
         });
       });
@@ -15259,6 +15275,15 @@
         window.location.replace("/targets");
       }
     } catch (_) { /* ignore */ }
+  }).catch(function (bootErr) {
+    console.error("mzTargetsLoad boot", bootErr);
+    var loading = document.getElementById("mz-targets-loading");
+    var err = document.getElementById("mz-targets-error");
+    if (loading) loading.classList.add("hidden");
+    if (err) {
+      err.textContent = (bootErr && bootErr.message) || "Could not load targets";
+      err.classList.remove("hidden");
+    }
   });
 
   window.addEventListener("resize", scheduleMzChartsResizeBurst);
