@@ -28,9 +28,8 @@ _TOP50_EMPTY = {
 def test_home_sc_keeps_sitewide_position_when_snapshot_newer(
     mock_batch, _mock_top50, _mock_pages
 ):
-    """Snapshot end > summary end olsa bile kapalı query listesine düşme (GSC ~6.9)."""
+    """Snapshot end > summary end olsa bile kapalı query listesine / kısmi trende düşme."""
     db = MagicMock()
-    # Tıklama-ağırlıklı / brand-ağır query satırları → ~3.5 civarı sahte ortalama
     mock_batch.return_value = {
         "current_7d": [
             {
@@ -39,39 +38,56 @@ def test_home_sc_keeps_sitewide_position_when_snapshot_newer(
                 "clicks": 50000,
                 "impressions": 80000,
                 "position": 2.0,
-                "date": "2026-09-19",
-                "start_date": "2026-09-13",
-                "end_date": "2026-09-19",
-            },
-            {
-                "query": "altın",
-                "device": "DESKTOP",
-                "clicks": 40000,
-                "impressions": 70000,
-                "position": 5.0,
-                "date": "2026-09-19",
                 "start_date": "2026-09-13",
                 "end_date": "2026-09-19",
             },
         ],
         "previous_7d": [],
     }
+    # Kısmi trend (yalnızca 1 gün) — özeti ezmemeli
+    dates = [f"2026-09-{d:02d}" for d in range(1, 13)]
     summary = {
-        "current_7d_start": "2026-09-12",
-        "current_7d_end": "2026-09-18",
-        "previous_7d_start": "2026-09-05",
-        "previous_7d_end": "2026-09-11",
+        "current_7d_start": "2026-09-06",
+        "current_7d_end": "2026-09-12",
+        "previous_7d_start": "2026-08-30",
+        "previous_7d_end": "2026-09-05",
         "current_7d_summary_by_device": {
             "DESKTOP": {"clicks": 210000, "impressions": 2060000, "position": 6.8, "ctr": 10.2},
         },
         "previous_7d_summary_by_device": {
             "DESKTOP": {"clicks": 194000, "impressions": 1850000, "position": 7.1, "ctr": 10.5},
         },
+        "trend_12m_summary_by_device": {
+            "DESKTOP": {
+                "dates": dates,
+                "clicks": [1000.0] * 11 + [6800.0],
+                "impressions": [10000.0] * 11 + [138000.0],
+                "position": [7.0] * 11 + [9.12],
+            },
+        },
     }
     desktop = _home_sc_device_aggregate(db, 1, "DESKTOP", summary_payload=summary)
     assert desktop["pos_last_fmt"] == "6.8"
     assert desktop["pos_prev_fmt"] == "7.1"
     assert desktop["clicks_last_fmt"] == "210K"
+
+
+def test_home_sc_trend_window_rejects_sparse_coverage():
+    from backend.main import _home_sc_trend_window_totals
+
+    summary = {
+        "trend_12m_summary_by_device": {
+            "DESKTOP": {
+                "dates": ["2026-09-12"],
+                "clicks": [6800.0],
+                "impressions": [138000.0],
+                "position": [9.12],
+            },
+        },
+    }
+    assert _home_sc_trend_window_totals(
+        summary, "DESKTOP", start="2026-09-12", end="2026-09-18"
+    ) is None
 
 
 @patch("backend.main._home_sc_top_pages", return_value=[])

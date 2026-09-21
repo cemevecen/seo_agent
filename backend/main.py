@@ -9928,14 +9928,14 @@ def _home_sc_period_range_label(
     summary: dict | None,
     period_days: int,
 ) -> str:
-    """SC dönem etiketi — önce snapshot satırları, yoksa collector özeti."""
+    """SC dönem etiketi — KPI ile aynı kaynak: önce collector özeti, yoksa snapshot."""
     period_days = _home_clamp_period_days(period_days)
-    start, end = _home_sc_period_range_from_rows(db, site_id, period_days)
-    if start and end:
-        return _home_fmt_day_range(start, end)
     summary = summary or {}
     start = str(summary.get(f"current_{period_days}d_start") or "")[:10]
     end = str(summary.get(f"current_{period_days}d_end") or "")[:10]
+    if start and end:
+        return _home_fmt_day_range(start, end)
+    start, end = _home_sc_period_range_from_rows(db, site_id, period_days)
     if start and end:
         return _home_fmt_day_range(start, end)
     end_d = date.today() - timedelta(days=2)
@@ -11006,6 +11006,15 @@ def _home_sc_trend_window_totals(
             wpos += pos * im
     if matched < 2 and clicks <= 0 and impr <= 0:
         return None
+    # Eksik pencere (ör. snapshot 12–18, trend son günü 12) GSC’den sapmasın.
+    try:
+        from datetime import date as _date
+
+        span = (_date.fromisoformat(end[:10]) - _date.fromisoformat(start[:10])).days + 1
+    except ValueError:
+        span = 0
+    if span > 0 and matched < max(2, span - 1):
+        return None
     return (clicks, impr, (wpos / impr) if impr > 0 else 0.0)
 
 
@@ -11095,41 +11104,13 @@ def _home_sc_device_aggregate(
             return "", ""
 
     if cur_sum or prev_sum:
-        # Snapshot bir gün öndeyse: mümkünse trend_12m ile aynı pencereyi tazele
-        # (yine date×device; query listesi değil). Aksi halde collector özeti.
-        cur_start = str((summary or {}).get(f"current_{period_days}d_start") or "")[:10]
-        cur_end = str((summary or {}).get(f"current_{period_days}d_end") or "")[:10]
-        fresher_snap = bool(row_end and summary_end and row_end > summary_end and row_start)
-        if fresher_snap:
-            cur_start, cur_end = str(row_start)[:10], str(row_end)[:10]
-        prev_start = str((summary or {}).get(f"previous_{period_days}d_start") or "")[:10]
-        prev_end = str((summary or {}).get(f"previous_{period_days}d_end") or "")[:10]
-        if fresher_snap or not prev_start:
-            ps, pe = _prev_bounds_from_current(cur_start, cur_end)
-            if ps:
-                prev_start, prev_end = ps, pe
-        cur_t = (
-            _home_sc_trend_window_totals(summary, device, start=cur_start, end=cur_end)
-            if fresher_snap and cur_start and cur_end
-            else None
-        )
-        prev_t = (
-            _home_sc_trend_window_totals(summary, device, start=prev_start, end=prev_end)
-            if fresher_snap and prev_start and prev_end
-            else None
-        )
-        if cur_t:
-            c_clicks, c_impr, c_pos = cur_t
-        else:
-            c_clicks = float(cur_sum.get("clicks") or 0.0)
-            c_impr = float(cur_sum.get("impressions") or 0.0)
-            c_pos = float(cur_sum.get("position") or 0.0)
-        if prev_t:
-            p_clicks, p_impr, p_pos = prev_t
-        else:
-            p_clicks = float(prev_sum.get("clicks") or 0.0)
-            p_impr = float(prev_sum.get("impressions") or 0.0)
-            p_pos = float(prev_sum.get("position") or 0.0)
+        # Collector date×device özeti = GSC UI. Snapshot / kısmi trend asla üzerine yazmasın.
+        c_clicks = float(cur_sum.get("clicks") or 0.0)
+        p_clicks = float(prev_sum.get("clicks") or 0.0)
+        c_impr = float(cur_sum.get("impressions") or 0.0)
+        p_impr = float(prev_sum.get("impressions") or 0.0)
+        c_pos = float(cur_sum.get("position") or 0.0)
+        p_pos = float(prev_sum.get("position") or 0.0)
     elif use_row_totals:
         # Özet yok — son çare: query snapshot (GSC UI ile sapabilir)
         snap_cur = _summarize_search_console_rows(fc)
