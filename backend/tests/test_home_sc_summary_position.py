@@ -24,6 +24,58 @@ _TOP50_EMPTY = {
 
 @patch("backend.main._home_sc_top_pages", return_value=[])
 @patch("backend.main._home_sc_top50_device_position", return_value=_TOP50_EMPTY)
+@patch("backend.main.get_latest_search_console_rows_batch")
+def test_home_sc_keeps_sitewide_position_when_snapshot_newer(
+    mock_batch, _mock_top50, _mock_pages
+):
+    """Snapshot end > summary end olsa bile kapalı query listesine düşme (GSC ~6.9)."""
+    db = MagicMock()
+    # Tıklama-ağırlıklı / brand-ağır query satırları → ~3.5 civarı sahte ortalama
+    mock_batch.return_value = {
+        "current_7d": [
+            {
+                "query": "dolar",
+                "device": "DESKTOP",
+                "clicks": 50000,
+                "impressions": 80000,
+                "position": 2.0,
+                "date": "2026-09-19",
+                "start_date": "2026-09-13",
+                "end_date": "2026-09-19",
+            },
+            {
+                "query": "altın",
+                "device": "DESKTOP",
+                "clicks": 40000,
+                "impressions": 70000,
+                "position": 5.0,
+                "date": "2026-09-19",
+                "start_date": "2026-09-13",
+                "end_date": "2026-09-19",
+            },
+        ],
+        "previous_7d": [],
+    }
+    summary = {
+        "current_7d_start": "2026-09-12",
+        "current_7d_end": "2026-09-18",
+        "previous_7d_start": "2026-09-05",
+        "previous_7d_end": "2026-09-11",
+        "current_7d_summary_by_device": {
+            "DESKTOP": {"clicks": 210000, "impressions": 2060000, "position": 6.8, "ctr": 10.2},
+        },
+        "previous_7d_summary_by_device": {
+            "DESKTOP": {"clicks": 194000, "impressions": 1850000, "position": 7.1, "ctr": 10.5},
+        },
+    }
+    desktop = _home_sc_device_aggregate(db, 1, "DESKTOP", summary_payload=summary)
+    assert desktop["pos_last_fmt"] == "6.8"
+    assert desktop["pos_prev_fmt"] == "7.1"
+    assert desktop["clicks_last_fmt"] == "210K"
+
+
+@patch("backend.main._home_sc_top_pages", return_value=[])
+@patch("backend.main._home_sc_top50_device_position", return_value=_TOP50_EMPTY)
 def test_home_sc_uses_sitewide_7d_summary_position(_mock_top50, _mock_pages):
     """Top-query snapshot yerine CollectorRun date×device özeti kullanılır."""
     db = MagicMock()

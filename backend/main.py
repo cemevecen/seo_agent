@@ -11019,8 +11019,10 @@ def _home_sc_device_aggregate(
 ) -> dict:
     """Tek site & device için current_{N}d ve previous_{N}d toplamları.
 
-    /search-console ile aynı kaynak: snapshot satırları + collector özeti.
-    Snapshot satır aralığı collector özetinden yeniyse satır toplamları tercih edilir.
+    Ana KPI (clicks / position) GSC UI ile aynı kaynaktan gelir: collector
+    date×device özeti (impression-weighted). Tıklama sıralı / kapalı query
+    snapshot'ları yalnızca TOP 50 vb. için kullanılır — site-geneli pozisyona
+    asla yedek düşülmez (aksi halde ~3.x gibi iyimser sapma oluşur).
     """
     from sqlalchemy import func as sa_func
 
@@ -11040,9 +11042,9 @@ def _home_sc_device_aggregate(
     summary_end = str((summary or {}).get(f"current_{period_days}d_end") or "")[:10]
     cur_sum = (summary.get(f"current_{period_days}d_summary_by_device") or {}).get(device) or {}
     prev_sum = (summary.get(f"previous_{period_days}d_summary_by_device") or {}).get(device) or {}
-    use_row_totals = bool(fc) and (
-        not cur_sum or (row_end and summary_end and row_end > summary_end)
-    )
+    # Eski davranış: snapshot end > summary end → query satır toplamı.
+    # Bu GSC sitewide ortalamasından sapıyor; özet varken asla tercih etme.
+    use_row_totals = bool(fc) and not cur_sum
 
     def _from_snapshot(scope: str) -> tuple[float, float, float]:
         latest_ts = db.query(sa_func.max(SearchConsoleQuerySnapshot.collected_at)).filter(
@@ -11077,7 +11079,59 @@ def _home_sc_device_aggregate(
         pos = (weighted / impr) if impr > 0 else 0.0
         return (clicks, impr, pos)
 
-    if use_row_totals:
+    def _prev_bounds_from_current(start: str, end: str) -> tuple[str, str]:
+        if not start or not end:
+            return "", ""
+        try:
+            from datetime import date as _date, timedelta as _td
+
+            cs = _date.fromisoformat(start[:10])
+            ce = _date.fromisoformat(end[:10])
+            span = (ce - cs).days + 1
+            pe = cs - _td(days=1)
+            ps = pe - _td(days=span - 1)
+            return ps.isoformat(), pe.isoformat()
+        except ValueError:
+            return "", ""
+
+    if cur_sum or prev_sum:
+        # Snapshot bir gün öndeyse: mümkünse trend_12m ile aynı pencereyi tazele
+        # (yine date×device; query listesi değil). Aksi halde collector özeti.
+        cur_start = str((summary or {}).get(f"current_{period_days}d_start") or "")[:10]
+        cur_end = str((summary or {}).get(f"current_{period_days}d_end") or "")[:10]
+        fresher_snap = bool(row_end and summary_end and row_end > summary_end and row_start)
+        if fresher_snap:
+            cur_start, cur_end = str(row_start)[:10], str(row_end)[:10]
+        prev_start = str((summary or {}).get(f"previous_{period_days}d_start") or "")[:10]
+        prev_end = str((summary or {}).get(f"previous_{period_days}d_end") or "")[:10]
+        if fresher_snap or not prev_start:
+            ps, pe = _prev_bounds_from_current(cur_start, cur_end)
+            if ps:
+                prev_start, prev_end = ps, pe
+        cur_t = (
+            _home_sc_trend_window_totals(summary, device, start=cur_start, end=cur_end)
+            if fresher_snap and cur_start and cur_end
+            else None
+        )
+        prev_t = (
+            _home_sc_trend_window_totals(summary, device, start=prev_start, end=prev_end)
+            if fresher_snap and prev_start and prev_end
+            else None
+        )
+        if cur_t:
+            c_clicks, c_impr, c_pos = cur_t
+        else:
+            c_clicks = float(cur_sum.get("clicks") or 0.0)
+            c_impr = float(cur_sum.get("impressions") or 0.0)
+            c_pos = float(cur_sum.get("position") or 0.0)
+        if prev_t:
+            p_clicks, p_impr, p_pos = prev_t
+        else:
+            p_clicks = float(prev_sum.get("clicks") or 0.0)
+            p_impr = float(prev_sum.get("impressions") or 0.0)
+            p_pos = float(prev_sum.get("position") or 0.0)
+    elif use_row_totals:
+        # Özet yok — son çare: query snapshot (GSC UI ile sapabilir)
         snap_cur = _summarize_search_console_rows(fc)
         snap_prev = _summarize_search_console_rows(fp) if fp else {}
         c_clicks = float(snap_cur.get("clicks") or 0.0)
@@ -11086,28 +11140,18 @@ def _home_sc_device_aggregate(
         p_impr = float(snap_prev.get("impressions") or 0.0)
         c_pos = float(snap_cur.get("position") or 0.0)
         p_pos = float(snap_prev.get("position") or 0.0)
-    elif cur_sum or prev_sum:
-        c_clicks = float(cur_sum.get("clicks") or 0.0)
-        p_clicks = float(prev_sum.get("clicks") or 0.0)
-        c_impr = float(cur_sum.get("impressions") or 0.0)
-        p_impr = float(prev_sum.get("impressions") or 0.0)
-        c_pos = float(cur_sum.get("position") or 0.0)
-        p_pos = float(prev_sum.get("position") or 0.0)
     else:
         # 90g gibi özet anahtarı yoksa: trend_12m penceresi → snapshot yedek
-        cur_start = str((summary or {}).get(f"current_{period_days}d_start") or "")[:10]
-        cur_end = str((summary or {}).get(f"current_{period_days}d_end") or "")[:10]
+        cur_start = str((summary or {}).get(f"current_{period_days}d_start") or "")[:10] or (
+            str(row_start or "")[:10]
+        )
+        cur_end = str((summary or {}).get(f"current_{period_days}d_end") or "")[:10] or (
+            str(row_end or "")[:10]
+        )
         prev_start = str((summary or {}).get(f"previous_{period_days}d_start") or "")[:10]
         prev_end = str((summary or {}).get(f"previous_{period_days}d_end") or "")[:10]
-        if not prev_start and cur_start:
-            try:
-                from datetime import date as _date, timedelta as _td
-                _cs = _date.fromisoformat(cur_start)
-                _pe = _cs - _td(days=1)
-                _ps = _pe - _td(days=period_days - 1)
-                prev_start, prev_end = _ps.isoformat(), _pe.isoformat()
-            except ValueError:
-                prev_start, prev_end = "", ""
+        if not prev_start and cur_start and cur_end:
+            prev_start, prev_end = _prev_bounds_from_current(cur_start, cur_end)
         cur_t = _home_sc_trend_window_totals(summary, device, start=cur_start, end=cur_end) if cur_start and cur_end else None
         prev_t = _home_sc_trend_window_totals(summary, device, start=prev_start, end=prev_end) if prev_start and prev_end else None
         if cur_t:
