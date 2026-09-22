@@ -34,15 +34,20 @@ from backend.services.system_firefox_driver import (  # noqa: E402
     default_firefox_profile_dir,
 )
 from backend.services.revenue_targets_sheet import (  # noqa: E402
+    REVENUE_TARGETS_GID_CURRENT,
     REVENUE_TARGETS_HISTORY_FROM,
+    REVENUE_TARGETS_SHEET_ID,
     REVENUE_TARGETS_SHEET_URL,
     parse_revenue_targets_csv,
     parse_sheet_tab_period,
+    revenue_targets_sheet_url_for_gid,
     save_ingested_revenue_targets,
 )
 
-SHEET_ID = "1ITl0rUlLylTspsztMtaaFGEdvT_gINoUHDPodspEa5Y"
-GID_CURRENT = "244461752"
+SHEET_ID = REVENUE_TARGETS_SHEET_ID
+# Fallback — discovery bulamazsa. Ay değişince Eylül gid güncellenmeli;
+# asıl kaynak discover_month_tabs (Eylül'26 = 1705858193).
+GID_CURRENT = os.environ.get("REVENUE_TARGETS_GID_CURRENT") or REVENUE_TARGETS_GID_CURRENT
 OUT_CSV = Path.home() / ".seo-agent" / "cache" / "revenue-targets.csv"
 OUT_ROWS = Path.home() / ".seo-agent" / "cache" / "revenue-targets-rows.json"
 _SESSION_NAMES = {
@@ -183,13 +188,15 @@ def scrape_history_rows(
     current_only: bool = False,
     closed_month: bool = False,
     missing_only: bool = False,
-) -> tuple[list[dict], str | None, list[str]]:
+) -> tuple[list[dict], str | None, list[str], str]:
     """MCM aylık sekmelerinden Doviz/Sinemalar.
 
     - full (default): Şubat 2023+ tüm sekmeler
     - current_only: yalnız içinde bulunulan ay (KPI)
     - closed_month: yalnız bir önceki (biten) ay — ayın 1–2'si için
     - missing_only: cache'te olmayan sekmeler (tek seferlik tamamla)
+
+    Döner: (rows, current_csv, errors, source_gid)
     """
     from backend.services.revenue_targets_sheet import (
         current_month_period_key,
@@ -199,6 +206,7 @@ def scrape_history_rows(
     opener = _opener(profile)
     current_csv: str | None = None
     errors: list[str] = []
+    fresh_current = False
     merged: dict[tuple[str, str], dict] = {}
     for r in _load_existing_rows():
         pk = str(r.get("period_key") or "")
@@ -213,9 +221,18 @@ def scrape_history_rows(
 
     if current_only:
         tabs = discover_month_tabs(opener)
-        tabs = [t for t in tabs if t[2] == cur_key] or [
-            (cur_key, GID_CURRENT, cur_key)
-        ]
+        tabs = [t for t in tabs if t[2] == cur_key]
+        if not tabs:
+            tabs = [(cur_key, GID_CURRENT, cur_key)]
+            errors.append(
+                f"tab discovery missed {cur_key} — fallback gid={GID_CURRENT}"
+            )
+        else:
+            # Discovery kazandı: sabit GID_CURRENT eski aya (ör. Ağustos) kilitli kalmasın
+            print(
+                f"current-only · {tabs[0][0]} gid={tabs[0][1]} period={tabs[0][2]}",
+                flush=True,
+            )
     elif closed_month:
         closed_key = previous_month_period_key()
         tabs = discover_month_tabs(opener)
@@ -225,6 +242,7 @@ def scrape_history_rows(
                 sorted(merged.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or "")),
                 None,
                 [f"closed month tab not found: {closed_key}"],
+                GID_CURRENT,
             )
         print(f"closed-month sync · period={closed_key}", flush=True)
     else:
@@ -248,10 +266,12 @@ def scrape_history_rows(
                     ),
                     None,
                     [],
+                    GID_CURRENT,
                 )
         else:
             print(f"month tabs={len(tabs)} from={REVENUE_TARGETS_HISTORY_FROM}", flush=True)
 
+    active_gid = GID_CURRENT
     for i, (name, gid, period_key) in enumerate(tabs, 1):
         t0 = time.time()
         text = export_gid_csv(opener, gid)
@@ -260,9 +280,25 @@ def scrape_history_rows(
             print(f"[{i}/{len(tabs)}] FAIL {name} gid={gid}", flush=True)
             time.sleep(1.0)
             continue
-        if period_key == cur_key or gid == GID_CURRENT:
+        if period_key == cur_key or (current_only and i == 1):
             current_csv = text
+            active_gid = gid
         rows = parse_revenue_targets_csv(text, period_hint=name)
+        # current_only: yanlış aya (ör. Ağustos gid) düşülmesin
+        if current_only:
+            got_keys = {str(r.get("period_key") or "") for r in rows if r.get("period_key")}
+            if cur_key not in got_keys:
+                errors.append(
+                    f"{name}/{gid}: expected period {cur_key}, got {sorted(got_keys) or ['?']}"
+                )
+                print(
+                    f"[{i}/{len(tabs)}] REJECT {name} gid={gid} "
+                    f"want={cur_key} got={sorted(got_keys)}",
+                    flush=True,
+                )
+                time.sleep(0.85)
+                continue
+            fresh_current = True
         for r in rows:
             pk = str(r.get("period_key") or "")
             proj = str(r.get("project") or "")
@@ -276,7 +312,10 @@ def scrape_history_rows(
         time.sleep(0.85)
 
     rows_out = sorted(merged.values(), key=lambda r: (r.get("period_key") or "", r.get("project") or ""))
-    return rows_out, current_csv, errors
+    if current_only and not fresh_current:
+        errors.append(f"current-only: no fresh scrape for {cur_key}")
+        return rows_out, None, errors, active_gid
+    return rows_out, current_csv, errors, active_gid
 
 
 def _decode_js_string(raw: str) -> str:
@@ -344,14 +383,20 @@ def _ingest_token() -> str:
     return (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
 
 
-def post_ingest(rows: list[dict], csv_text: str | None) -> dict:
+def post_ingest(
+    rows: list[dict],
+    csv_text: str | None,
+    *,
+    source_gid: str | None = None,
+) -> dict:
     token = _ingest_token()
+    source_url = revenue_targets_sheet_url_for_gid(source_gid)
     try:
         local = save_ingested_revenue_targets(
             csv_text,
             rows=rows,
             source="mac_firefox_cookies",
-            source_url=REVENUE_TARGETS_SHEET_URL,
+            source_url=source_url,
         )
     except Exception as exc:
         local = {"ok": False, "message": str(exc)[:200]}
@@ -374,7 +419,7 @@ def post_ingest(rows: list[dict], csv_text: str | None) -> dict:
             "rows": rows,
             "csv": csv_text,
             "source": "mac_firefox_cookies",
-            "source_url": REVENUE_TARGETS_SHEET_URL,
+            "source_url": source_url,
         },
         ensure_ascii=False,
     ).encode("utf-8")
@@ -439,19 +484,20 @@ def run_sync(
             "profile": str(profile),
         }
 
-    rows, current_csv, errors = scrape_history_rows(
+    rows, current_csv, errors, source_gid = scrape_history_rows(
         profile,
         current_only=current_only,
         closed_month=closed_month,
         missing_only=missing_only,
     )
+    source_url = revenue_targets_sheet_url_for_gid(source_gid)
     if not rows:
         return {
             "ok": False,
             "message": "Hiç satır parse edilemedi",
             "errors": errors,
             "profile": str(profile),
-            "sheet": REVENUE_TARGETS_SHEET_URL,
+            "sheet": source_url,
         }
 
     if current_csv:
@@ -466,12 +512,24 @@ def run_sync(
     if errors:
         print(f"warnings={len(errors)} sample={errors[:5]}", flush=True)
 
+    if current_only and (current_csv is None or any("no fresh scrape" in e for e in errors)):
+        return {
+            "ok": False,
+            "message": f"current-only: {errors[-1] if errors else 'scrape failed'}",
+            "errors": errors,
+            "period_keys": period_keys,
+            "sheet": source_url,
+            "profile": str(profile),
+        }
+
     out: dict = {
         "ok": True,
         "csv": str(OUT_CSV) if current_csv else None,
         "parsed": len(rows),
         "period_keys": period_keys,
         "errors": errors,
+        "source_gid": source_gid,
+        "sheet": source_url,
         "mode": (
             "closed_month"
             if closed_month
@@ -485,7 +543,7 @@ def run_sync(
         "profile": str(profile),
     }
     if ingest:
-        ing = post_ingest(rows, current_csv)
+        ing = post_ingest(rows, current_csv, source_gid=source_gid)
         out["ingest"] = ing
         print(f"ingest={ing}", flush=True)
     return out

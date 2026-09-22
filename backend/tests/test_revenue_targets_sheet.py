@@ -12,6 +12,8 @@ Mart 2023,Doviz.com,  1.200.000   ,  960.000   ,  1.153.360   ,"96,11%",  37.205
 ,Sinemalar.com,  80.000   ,  64.000   ,  73.726   ,"92,16%",  2.378   ,  6.274
 Ağustos 2026,Doviz.com,  2.000.000   ,  1.600.000   ,  800.000   ,"40,00%",  66.667   ,  1.200.000
 ,Sinemalar.com,  150.000   ,  120.000   ,  60.000   ,"40,00%",  5.000   ,  90.000
+Eylül 2026,Doviz.com,  8.200.000   ,  6.560.000   ,  4.141.497   ,"50,51%",  197.214   ,  4.058.503
+,Sinemalar.com,  3.900.000   ,  3.120.000   ,  3.630.218   ,"93,08%",  172.868   ,  269.782
 """
 
 
@@ -19,7 +21,7 @@ def test_parse_revenue_targets_csv():
     from backend.services.revenue_targets_sheet import parse_revenue_targets_csv
 
     rows = parse_revenue_targets_csv(SAMPLE_CSV)
-    assert len(rows) == 6
+    assert len(rows) == 8
     feb_doviz = rows[0]
     assert feb_doviz["period_key"] == "2023-02"
     assert feb_doviz["project"] == "doviz"
@@ -48,9 +50,9 @@ def test_revenue_targets_payload_filter(monkeypatch):
         _fetch,
     )
     all_rows = revenue_targets_payload()["rows"]
-    assert len(all_rows) == 6
+    assert len(all_rows) == 8
     doviz = revenue_targets_payload(project="doviz")["rows"]
-    assert len(doviz) == 3
+    assert len(doviz) == 4
     assert all(r["project"] == "doviz" for r in doviz)
     y2023 = revenue_targets_payload(year=2023)["rows"]
     assert len(y2023) == 4
@@ -59,9 +61,9 @@ def test_revenue_targets_payload_filter(monkeypatch):
     cur = revenue_targets_payload()["current_month"]
     assert cur["doviz"] is not None
     assert cur["sinemalar"] is not None
-    assert cur["doviz"]["period_key"] == "2026-08"
-    assert cur["doviz"]["target_100"] == 2_000_000.0
-    assert cur["doviz"]["remaining"] == 1_200_000.0
+    assert cur["doviz"]["period_key"] == "2026-09"
+    assert cur["doviz"]["target_100"] == 8_200_000.0
+    assert cur["doviz"]["achieved"] == 4_141_497.0
 
 
 def test_fetch_uses_ingest_when_primary_sheet_private(monkeypatch):
@@ -87,9 +89,11 @@ def test_fetch_uses_ingest_when_primary_sheet_private(monkeypatch):
     )
     monkeypatch.setattr(mod, "_CACHE", None)
     rows = mod.fetch_revenue_targets_rows(force=True)
-    assert len(rows) == 6
+    assert len(rows) == 8
     assert mod._CACHE and mod._CACHE.get("warning") is None
-    assert mod._CACHE.get("pending_error")
+    # Ingest birincil — private public sheet hiç çağrılmaz
+    assert mod._CACHE.get("pending_error") is None
+    assert mod._CACHE.get("ingest_source") == "mac_firefox_cookies"
     assert mod._CACHE.get("source_url") == mod.REVENUE_TARGETS_SHEET_URL
 
 

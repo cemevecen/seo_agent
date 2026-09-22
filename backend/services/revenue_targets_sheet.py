@@ -20,11 +20,23 @@ from backend.services.market_sheets_sync import _norm_header, _parse_tr_number
 logger = logging.getLogger(__name__)
 _TR = ZoneInfo("Europe/Istanbul")
 
-# Ad target KPI kaynağı (gid=244461752 — satır 26/27 Doviz & Sinemalar).
+# Ad target KPI kaynağı — güncel ay MCM sekmesi (Eylül'26 = gid=1705858193).
+# Aylık sekme değişince scrape discovery günceller; bu URL kaynak link / fallback.
+REVENUE_TARGETS_SHEET_ID = "1ITl0rUlLylTspsztMtaaFGEdvT_gINoUHDPodspEa5Y"
+REVENUE_TARGETS_GID_CURRENT = "1705858193"
 REVENUE_TARGETS_SHEET_URL = (
-    "https://docs.google.com/spreadsheets/d/1ITl0rUlLylTspsztMtaaFGEdvT_gINoUHDPodspEa5Y/edit?gid=244461752#gid=244461752"
+    f"https://docs.google.com/spreadsheets/d/{REVENUE_TARGETS_SHEET_ID}"
+    f"/edit?gid={REVENUE_TARGETS_GID_CURRENT}#gid={REVENUE_TARGETS_GID_CURRENT}"
 )
 REVENUE_TARGETS_SHEET_URL_PENDING = REVENUE_TARGETS_SHEET_URL
+
+
+def revenue_targets_sheet_url_for_gid(gid: str | None) -> str:
+    g = (gid or REVENUE_TARGETS_GID_CURRENT).strip() or REVENUE_TARGETS_GID_CURRENT
+    return (
+        f"https://docs.google.com/spreadsheets/d/{REVENUE_TARGETS_SHEET_ID}"
+        f"/edit?gid={g}#gid={g}"
+    )
 
 _CACHE: dict[str, Any] | None = None
 _CACHE_TTL_SEC = 900.0
@@ -498,11 +510,29 @@ def save_ingested_revenue_targets(
 
 
 def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
+    """Önce Mac scrape ingest (sheet özel), sonra public CSV denemesi."""
     global _CACHE
     if not force:
         cached = _cache_rows()
         if cached is not None:
             return cached
+
+    # Sheet «Bağlantısı olan herkes» değil — birincil kaynak Mac Firefox ingest.
+    ingested = load_ingested_revenue_targets(
+        max_age_sec=(365 * 24 * 3600.0 if force else _INGEST_MAX_AGE_SEC)
+    )
+    if ingested and isinstance(ingested.get("rows"), list) and ingested["rows"]:
+        rows = ingested["rows"]
+        _CACHE = {
+            "ts": time.monotonic(),
+            "rows": rows,
+            "source_url": ingested.get("source_url") or REVENUE_TARGETS_SHEET_URL,
+            "warning": None,
+            "pending_error": None,
+            "fetched_at": ingested.get("fetched_at"),
+            "ingest_source": ingested.get("source"),
+        }
+        return rows
 
     primary_error: str | None = None
     try:
@@ -525,21 +555,7 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
             exc,
         )
 
-    ingested = load_ingested_revenue_targets()
-    if ingested and isinstance(ingested.get("rows"), list):
-        rows = ingested["rows"]
-        _CACHE = {
-            "ts": time.monotonic(),
-            "rows": rows,
-            "source_url": ingested.get("source_url") or REVENUE_TARGETS_SHEET_URL,
-            "warning": None,
-            "pending_error": primary_error,
-            "fetched_at": ingested.get("fetched_at"),
-            "ingest_source": ingested.get("source"),
-        }
-        return rows
-
-    raise ValueError(primary_error or "Sheet okunamadı")
+    raise ValueError(primary_error or "Sheet okunamadı (ingest yok)")
 
 
 def _completion_pct(row: dict[str, Any]) -> float | None:

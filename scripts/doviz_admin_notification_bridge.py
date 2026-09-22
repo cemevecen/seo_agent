@@ -219,9 +219,13 @@ if _GSC_HOURS_RAW:
     GSC_LINKS_SLOT_HOURS = tuple(
         int(h.strip()) for h in _GSC_HOURS_RAW.split(",") if h.strip().isdigit()
     ) or GSC_LINKS_SLOT_HOURS
-REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:34 + 13:34 TR
+REVENUE_TARGETS_SLOT_HOURS = (5, 13)  # 05:40 + 13:40 TR
 GSC_SLOT_MINUTE = int(os.environ.get("GSC_LINKS_BRIDGE_MINUTE") or "14")
 REVENUE_TARGETS_SLOT_MINUTE = int(os.environ.get("REVENUE_TARGETS_BRIDGE_MINUTE") or "40")
+# Scrape ~20s; 3h kira pencereyi aşıyor — başarısız Mac slotu öldürüyordu
+REVENUE_TARGETS_LEASE_TTL_SEC = float(
+    os.environ.get("REVENUE_TARGETS_LEASE_TTL_SEC") or "600"
+)
 POLICY_SLOT_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "24")
 SPEED_SLOT_MINUTE = int(os.environ.get("PAGESPEED_BRIDGE_MINUTE") or "28")
 NOADS_SLOT_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "32")
@@ -3822,6 +3826,7 @@ def _health_payload() -> dict[str, Any]:
         "last_market": _last_market_result,
         "gsc_cwv_progress": dict(_gsc_cwv_progress),
         "last_gsc_links": _last_gsc_links_result,
+        "last_revenue_targets": _last_revenue_targets_result,
         "last_policy": _last_policy_result,
         "last_noads": _last_noads_result,
         "last_moderation": _last_moderation_result,
@@ -3839,6 +3844,10 @@ def _health_payload() -> dict[str, Any]:
             "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
             "pagespeed_slots_tr": [f"{h:02d}:{SPEED_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
             "noads_slots_tr": [f"{h:02d}:{NOADS_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+            "revenue_targets_slots_tr": [
+                f"{h:02d}:{REVENUE_TARGETS_SLOT_MINUTE:02d}"
+                for h in REVENUE_TARGETS_SLOT_HOURS
+            ],
             "moderation_slots_tr": [f"{h:02d}:{m:02d}" for h, m, _ in MODERATION_SLOTS],
             "seo_audit_slots_tr": [
                 f"{h:02d}:{SEO_AUDIT_SLOT_MINUTE:02d}" for h in SEO_AUDIT_SLOT_HOURS
@@ -5165,9 +5174,23 @@ def _auto_loop() -> None:
             if not due:
                 return
             if shared:
-                lease = _auto_lease_state(kind, slot)
+                lease = _auto_lease_state(
+                    kind,
+                    slot,
+                    ttl_sec=(
+                        REVENUE_TARGETS_LEASE_TTL_SEC
+                        if kind == "revenue_targets"
+                        else None
+                    ),
+                )
                 if lease == LEASE_HELD:
-                    globals()[last_attr] = slot  # slot başka makinede koşuyor
+                    # Slotu "bitti" işaretleme: diğer Mac kira alıp çökerse
+                    # (TTL dolunca + pencere içinde) bu makine yeniden denesin.
+                    # Eskiden last_attr=slot → sabah kaçınca öğlene kadar donuk KPI.
+                    print(
+                        f"Auto {kind} bekleniyor — {slot} başka makinede (yeniden denenecek)",
+                        flush=True,
+                    )
                     return
                 if lease == LEASE_UNAVAILABLE:
                     return  # slotu işaretleme; bir sonraki poll'da yeniden sorulur
@@ -5574,7 +5597,12 @@ LEASE_HELD = "held"  # diğer Mac aldı → slot burada tekrarlanmasın
 LEASE_UNAVAILABLE = "unavailable"  # sorulamadı → slotu işaretleme, sonraki poll'da yeniden dene
 
 
-def _auto_lease_state(kind: str, slot: str) -> str:
+def _auto_lease_state(
+    kind: str,
+    slot: str,
+    *,
+    ttl_sec: float | None = None,
+) -> str:
     """Zamanlı taramayı bu makine mi koşsun (granted / held / unavailable).
 
     İki Mac de açıkken aynı slot iki kez koşmasın diye Railway'den kira alınır.
@@ -5584,11 +5612,14 @@ def _auto_lease_state(kind: str, slot: str) -> str:
     if not _ingest_token():
         return LEASE_GRANTED
     url = _page_tarama_api_base() + "/api/page-tarama/auto-lease"
+    body: dict[str, Any] = {"job": kind, "slot": str(slot), "worker": _worker_name()}
+    if ttl_sec is not None and ttl_sec > 0:
+        body["ttl_sec"] = float(ttl_sec)
     try:
         resp = requests.post(
             url,
             headers=_page_tarama_auth_headers(),
-            json={"job": kind, "slot": str(slot), "worker": _worker_name()},
+            json=body,
             timeout=20,
         )
     except Exception as exc:  # noqa: BLE001

@@ -121,14 +121,20 @@ def test_auto_lease_unavailable_when_railway_unreachable(monkeypatch):
     assert b._auto_lease_state("play", "slot") == b.LEASE_UNAVAILABLE
 
 
-def test_slot_job_marks_done_only_when_another_mac_holds_the_lease():
-    """held → slot işaretlenir; unavailable → işaretlenmez (kaynak koda dair sözleşme)."""
+def test_slot_job_does_not_mark_done_when_lease_held():
+    """held → slot işaretlenmez (TTL dolunca / pencere içinde yeniden denensin).
+
+    Eskiden held'de last_attr=slot yazılıyordu; diğer Mac kira alıp ingest
+    yazmadan düşünce sabah KPI öğlene kadar donuk kalıyordu.
+    """
     src = (
         Path(__file__).resolve().parents[2] / "scripts" / "doviz_admin_notification_bridge.py"
     ).read_text(encoding="utf-8")
-    chunk = src.split("lease = _auto_lease_state(kind, slot)", 1)[1][:400]
+    chunk = src.split("lease = _auto_lease_state(", 1)[1][:1200]
     assert "if lease == LEASE_HELD:" in chunk
-    assert "globals()[last_attr] = slot" in chunk
+    held = chunk.split("if lease == LEASE_HELD:", 1)[1].split("if lease == LEASE_UNAVAILABLE:", 1)[0]
+    assert "globals()[last_attr] = slot" not in held
+    assert "return" in held
     unavailable = chunk.split("if lease == LEASE_UNAVAILABLE:", 1)[1][:120]
     assert "globals()[last_attr]" not in unavailable
 
