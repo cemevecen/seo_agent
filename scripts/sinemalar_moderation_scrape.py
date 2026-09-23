@@ -386,6 +386,7 @@ def _ingest_detail_chunk(
     backfill_complete: bool,
     mode: str,
     purge_first: bool = False,
+    recompute_daily: bool = False,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "source": "sinemalar_moderation",
@@ -393,7 +394,10 @@ def _ingest_detail_chunk(
         "scraped_at": scraped_at,
         "range_start": start_d.isoformat(),
         "range_end": end_d.isoformat(),
-        "detail_batches": [{**batch, "items": chunk, "_recompute_daily": False}],
+        # Append-only merge: son dilimde daily'yi DB'deki tüm detail'den yeniden say
+        "detail_batches": [
+            {**batch, "items": chunk, "_recompute_daily": bool(recompute_daily)}
+        ],
         "backfill_complete": backfill_complete,
     }
     if purge_first:
@@ -441,6 +445,8 @@ def _ingest_detail_batch(
             backfill_complete=complete,
             mode=mode,
             purge_first=pf,
+            # Yalnızca son dilimde: tüm detail satırlarından daily rebuild
+            recompute_daily=bool(complete),
         )
         if res.get("ok"):
             return res
@@ -563,19 +569,33 @@ def scrape_detail_range(
     delay_sec: float = SCRAPE_DELAY_SEC,
     ingest_per_batch: bool = False,
     purge_first: bool = False,
+    user_ids: list[int] | None = None,
 ) -> dict[str, Any]:
     from backend.services.sinemalar_moderation import METRIC_TYPE_KEYS, TRACKED_MODERATORS
 
     if purge_first and ingest_per_batch:
         print("İlk batch ingest ile purge (purge_first)…", flush=True)
 
+    wanted = set(int(x) for x in user_ids) if user_ids else None
+    mods = [
+        (uid, uname)
+        for uid, uname in TRACKED_MODERATORS
+        if wanted is None or int(uid) in wanted
+    ]
+    if not mods:
+        return {
+            "ok": False,
+            "message": f"user_ids eşleşmedi: {sorted(wanted or [])}",
+            "detail_batches": [],
+        }
+
     batches: list[dict[str, Any]] = []
     total_items = 0
-    total_batches = len(TRACKED_MODERATORS) * len(METRIC_TYPE_KEYS)
+    total_batches = len(mods) * len(METRIC_TYPE_KEYS)
     n = 0
     scraped_at = datetime.now(timezone.utc).isoformat()
 
-    for user_id, username in TRACKED_MODERATORS:
+    for user_id, username in mods:
         for metric_type in METRIC_TYPE_KEYS:
             if n > 0 and delay_sec > 0:
                 time.sleep(delay_sec)
@@ -1332,7 +1352,7 @@ def main() -> int:
         type=int,
         action="append",
         dest="user_ids",
-        help="fill-gaps: yalnız bu moderatör(ler) (tekrarlanabilir)",
+        help="fill-gaps / detail-range: yalnız bu moderatör(ler) (tekrarlanabilir)",
     )
     parser.add_argument("--ingest", action="store_true", help="Railway ingest")
     parser.add_argument("--headless", action="store_true")
@@ -1458,10 +1478,17 @@ def main() -> int:
             TRACKED_MODERATORS,
         )
 
+        user_ids = args.user_ids or None
+        mods = [
+            (uid, uname)
+            for uid, uname in TRACKED_MODERATORS
+            if user_ids is None or int(uid) in set(user_ids)
+        ]
         print(
             f"Detail range: {start_d.isoformat()} → {end_d.isoformat()} "
-            f"({len(TRACKED_MODERATORS)} moderatör × {len(METRIC_TYPE_KEYS)} tip = "
-            f"{len(TRACKED_MODERATORS) * len(METRIC_TYPE_KEYS)} istek)",
+            f"({len(mods)} moderatör × {len(METRIC_TYPE_KEYS)} tip = "
+            f"{len(mods) * len(METRIC_TYPE_KEYS)} istek)"
+            + (f" · user_ids={user_ids}" if user_ids else ""),
             flush=True,
         )
         out = scrape_detail_range(
@@ -1470,6 +1497,7 @@ def main() -> int:
             headed=headed,
             ingest_per_batch=bool(args.detail_ingest_each and args.ingest),
             purge_first=bool(args.purge),
+            user_ids=user_ids,
         )
         if args.ingest and out.get("ok") and not args.detail_ingest_each:
             ing = ingest_result(out, mode="detail_range")
