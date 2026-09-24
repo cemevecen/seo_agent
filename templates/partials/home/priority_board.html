@@ -242,8 +242,8 @@
       padding: 0.2rem 0.4rem;
       font-size: clamp(0.6rem, 0.48rem + 1cqi, 0.7rem);
       font-weight: 600;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
+      letter-spacing: 0.01em;
+      text-transform: none;
       color: #64748b;
       cursor: pointer;
       text-align: left;
@@ -565,7 +565,7 @@
                                 class="home-gl-drop-toggle"
                                 @click.stop="descOpen = !descOpen"
                                 :aria-expanded="descOpen ? 'true' : 'false'">
-                          <span>Description</span>
+                          <span>description</span>
                           <svg class="home-gl-drop-chevron" :class="descOpen ? 'is-open' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
                         </button>
                         <div class="home-gl-drop-body" x-show="descOpen" x-cloak x-text="issue.description"></div>
@@ -574,24 +574,22 @@
                       <div x-show="hasComments(issue)" class="home-gl-drop">
                         <button type="button"
                                 class="home-gl-drop-toggle"
-                                @click.stop="toggleComments(issue, $data)"
+                                @click.stop="notesOpen = !notesOpen; if (notesOpen) $root.loadIssueNotes(issue, $data)"
                                 :aria-expanded="notesOpen ? 'true' : 'false'">
-                          <span x-text="'Comment' + (notesCount(issue) ? ' · ' + notesCount(issue) : '')"></span>
+                          <span x-text="'comment' + (notesCount(issue) ? ' · ' + notesCount(issue) : '')"></span>
                           <svg class="home-gl-drop-chevron" :class="notesOpen ? 'is-open' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
                         </button>
                         <div class="home-gl-drop-body" x-show="notesOpen" x-cloak>
                           <p x-show="notesLoading" class="home-gl-drop-muted">Loading…</p>
                           <p x-show="!notesLoading && notesError" class="home-gl-drop-muted" x-text="notesError"></p>
-                          <template x-if="!notesLoading && !notesError && notes && notes.length">
-                            <div class="space-y-2">
-                              <template x-for="note in notes" :key="note.id">
-                                <div class="home-gl-note">
-                                  <p class="home-gl-note-meta" x-text="(note.author && note.author.name) || '—'"></p>
-                                  <p class="home-gl-note-body" x-text="note.body"></p>
-                                </div>
-                              </template>
-                            </div>
-                          </template>
+                          <div class="space-y-2" x-show="!notesLoading && !notesError && notes && notes.length">
+                            <template x-for="note in (notes || [])" :key="note.id">
+                              <div class="home-gl-note">
+                                <p class="home-gl-note-meta" x-text="note.author"></p>
+                                <p class="home-gl-note-body" x-text="note.body"></p>
+                              </div>
+                            </template>
+                          </div>
                           <p x-show="!notesLoading && !notesError && notes && !notes.length" class="home-gl-drop-muted">No comments</p>
                         </div>
                       </div>

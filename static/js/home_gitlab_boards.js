@@ -227,26 +227,75 @@
         return this.notesCount(issue) > 0;
       },
 
+      _normalizeNotes(raw) {
+        var list = Array.isArray(raw) ? raw : [];
+        return list
+          .filter(function (n) {
+            return n && String(n.body || '').trim();
+          })
+          .map(function (n) {
+            return {
+              id: n.id,
+              body: String(n.body || '').trim(),
+              system: !!n.system,
+              author: (n.author && (n.author.name || n.author.username)) || '—',
+            };
+          });
+      },
+
       async loadIssueNotes(issue, card) {
-        if (!issue || !card || card.notes != null || card.notesLoading) return;
-        if (!this.token || !this.activeProject) return;
+        if (!issue || !card) return;
+        if (card.notesLoading) return;
+        if (card.notes != null) return;
         card.notesLoading = true;
         card.notesError = '';
         try {
+          if (!this.token || !this.activeProject) {
+            card.notes = [];
+            card.notesError = 'Not connected to GitLab';
+            return;
+          }
           var enc = encodeURIComponent(this.activeProject);
+          var iid = parseInt(issue.iid, 10);
+          var headers = { 'PRIVATE-TOKEN': this.token };
           var url =
             this.baseUrl +
             '/projects/' +
             enc +
             '/issues/' +
-            parseInt(issue.iid, 10) +
-            '/notes?per_page=50&sort=asc';
-          var res = await fetch(url, { headers: { 'PRIVATE-TOKEN': this.token } });
+            iid +
+            '/notes?per_page=100&sort=asc';
+          var res = await fetch(url, { headers: headers });
           if (!res.ok) throw new Error('Notes ' + res.status);
           var data = await res.json();
-          card.notes = (Array.isArray(data) ? data : []).filter(function (n) {
-            return n && !n.system && String(n.body || '').trim();
-          });
+          var notes = this._normalizeNotes(data);
+          // user_notes_count > 0 ama notes boşsa (sistem/filtre) discussions dene
+          if (!notes.length && this.notesCount(issue) > 0) {
+            var dres = await fetch(
+              this.baseUrl +
+                '/projects/' +
+                enc +
+                '/issues/' +
+                iid +
+                '/discussions?per_page=50',
+              { headers: headers }
+            );
+            if (dres.ok) {
+              var discs = await dres.json();
+              var flat = [];
+              (Array.isArray(discs) ? discs : []).forEach(function (d) {
+                (d.notes || []).forEach(function (n) {
+                  flat.push(n);
+                });
+              });
+              notes = this._normalizeNotes(flat);
+            }
+          }
+          // Hâlâ boşsa sistem notlarını da göster (en azından bir şey görünsün)
+          if (!notes.length && Array.isArray(data) && data.length) {
+            notes = this._normalizeNotes(data.filter(Boolean));
+          }
+          card.notes = notes;
         } catch (e) {
           console.warn('issue notes', e);
           card.notes = [];
@@ -257,8 +306,11 @@
       },
 
       async toggleComments(issue, card) {
+        if (!card) return;
         card.notesOpen = !card.notesOpen;
-        if (card.notesOpen) await this.loadIssueNotes(issue, card);
+        if (card.notesOpen) {
+          await this.loadIssueNotes(issue, card);
+        }
       },
 
       getRawIssuesForList(path, lst) {
