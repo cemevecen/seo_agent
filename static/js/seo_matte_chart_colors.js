@@ -78,12 +78,11 @@
     };
   }
 
-  /** /ad ana seriler: mürekkep siyah; karşı dönem de aynı ink (kesikli stil şablonda). */
+  /** /ad ana seriler: mürekkep siyah; bar’lar mavi (Monthly revenue vb.). */
   function seoMatteAdCompareColors() {
     var c = seoMatteChartColors();
     /* Dark: asla #f4f4f5 / beyaz — mat zinc */
     var ink = pick("#0a0a0a", "#a1a1aa");
-    var inkSoft = pick("#525252", "#71717a");
     return {
       primary: ink,
       sparkCompare: c.sky,
@@ -92,8 +91,8 @@
       revCmp: ink,
       imp: ink,
       impCmp: ink,
-      barPrimary: ink,
-      barCompare: inkSoft,
+      barPrimary: c.skyBright,
+      barCompare: c.sky,
     };
   }
 
