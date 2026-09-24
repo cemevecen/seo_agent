@@ -2176,7 +2176,6 @@ def _wait_table(page, timeout_ms: int = 20000) -> None:
 
 
 def _scrape_url_table(page) -> list[dict[str, Any]]:
-    """URL grupları tablosu — yalnızca http örnek URL satırları (issue listesi değil)."""
     _scroll_table_fully(page)
     raw = _extract_table(page)
     headers = [h.lower() for h in (raw.get("headers") or [])]
@@ -2188,9 +2187,8 @@ def _scrape_url_table(page) -> list[dict[str, Any]]:
         # URL
         url = ""
         for cell in row:
-            cell_s = str(cell or "").strip()
-            if cell_s.startswith("http://") or cell_s.startswith("https://"):
-                url = cell_s
+            if cell.startswith("http://") or cell.startswith("https://"):
+                url = cell
                 break
         if url:
             item["url"] = url
@@ -2198,7 +2196,7 @@ def _scrape_url_table(page) -> list[dict[str, Any]]:
         for i, h in enumerate(headers):
             if i >= len(row):
                 break
-            if "grup" in h or "url sayısı" in h or "urls" in h or "url count" in h:
+            if "grup" in h or "url sayısı" in h or "urls" in h:
                 item["group_url_count"] = _parse_count(row[i])
             if h.startswith("lcp") or "lcp" in h:
                 item["metric_value"] = row[i]
@@ -2211,17 +2209,10 @@ def _scrape_url_table(page) -> list[dict[str, Any]]:
                 item["metric"] = "CLS"
             if "tarama" in h or "crawl" in h:
                 item["last_crawl"] = row[i]
-        if not item.get("url") and str(row[0] or "").startswith("http"):
-            item["url"] = str(row[0]).strip()
-        # Issue summary satırlarını (LCP issue: …) alma — yalnızca örnek URL grupları
-        if not item.get("url"):
-            continue
-        if item.get("group_url_count") is None and len(row) >= 2:
-            # good URLs tablosu: [url, count]
-            maybe = _parse_count(row[1])
-            if maybe:
-                item["group_url_count"] = maybe
-        rows_out.append(item)
+        if not item.get("url") and row[0].startswith("http"):
+            item["url"] = row[0]
+        if item.get("url") or item.get("cells"):
+            rows_out.append(item)
     return rows_out
 
 
