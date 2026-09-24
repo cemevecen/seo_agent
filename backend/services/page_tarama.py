@@ -114,9 +114,9 @@ WORKER_FORGET_UNKNOWN_SEC = 30 * 60.0
 # "Kimse yapamıyor" açıklamasında yalnızca yakın zamanda görülmüş makineler anılsın.
 WORKER_NOTE_WINDOW_SEC = 60 * 60.0
 # Update page'e hangi Mac'ten basıldıysa iş o makineye bağlanır (tarayıcı penceresi
-# kullanıcının önünde açılsın). Tercih edilen Mac online ve işi yapabiliyorsa
-# (ready / login_required) diğer Mac'ler çalmaz — süre dolsa bile.
-# Tercih Mac offline veya no_browser/no_creds ise iş diğerlerine açılır.
+# kullanıcının önünde açılsın). prefer_until dolana kadar YALNIZCA o Mac claim eder —
+# offline / no_browser olsa bile diğer Mac'ler (ev) çalmaz. Süre dolunca eski soft
+# davranış: tercih Mac online+ready/login_required ise hâlâ tutar; değilse açılır.
 PREFER_WORKER_SEC = 30 * 60.0
 # SEO + Virgül gibi farklı işler birbirini bloklamasın (Mac kilitleri ayrıca korur)
 MAX_INFLIGHT_JOBS = 3
@@ -529,6 +529,17 @@ def _capability_note_locked(job_id: str, now: float, *, exclude: list[str] | Non
     return " · ".join(bits[:4])
 
 
+def _prefer_hard_bound(job: dict[str, Any], now: float) -> str:
+    """prefer_until içindeyse tercih worker adı; yoksa ''."""
+    prefer = _worker_key(str(job.get("prefer_worker") or ""))
+    if not prefer:
+        return ""
+    until = float(job.get("prefer_until") or 0)
+    if until > 0 and now >= until:
+        return ""
+    return prefer
+
+
 def _fail_uncapable_queued_locked(now: float) -> None:
     """Hiçbir online worker yapamıyorsa kuyrukta asılı bırakma — net mesajla düşür."""
     if not _workers:
@@ -540,6 +551,16 @@ def _fail_uncapable_queued_locked(now: float) -> None:
             queued_at = float(job.get("queued_at") or run.get("started_at") or now)
             if now - queued_at < NO_CAPABLE_WORKER_SEC:
                 continue
+            # Update page bu Mac'e bağlandı — süre dolana kadar beklet (ev çalmasın).
+            # no_creds kalıcı: credential yok, beklemek çözüm değil → fail yoluna düş.
+            hard = _prefer_hard_bound(job, now)
+            if hard:
+                rec = _online_workers_locked(now).get(hard)
+                if not rec:
+                    continue
+                st = _worker_ready_state(rec, str(job.get("id") or ""))
+                if st != "no_creds":
+                    continue
             jid = str(job.get("id") or "")
             exclude = list(job.get("exclude_workers") or [])
             if _capable_workers_locked(jid, now, exclude=exclude):
@@ -753,11 +774,12 @@ def claim_next(
                     excluded = {_worker_key(x) for x in (job.get("exclude_workers") or [])}
                     if wkey and wkey in excluded:
                         continue
-                    # Update page'e basılan Mac'e sıkı bağ: o Mac online ve işi
-                    # yapabiliyorsa (ready veya login_required) başka worker alma —
-                    # "diğer Mac'te oturum var" diye çalma. Kullanıcı hangi cihazda
-                    # bastıysa tarayıcı orada açılsın.
+                    # Update page'e basılan Mac: prefer_until dolana kadar YALNIZCA o Mac.
+                    # Ev Mac (veya başka) offline/no_browser gerekçesiyle çalamaz.
                     prefer = _worker_key(str(job.get("prefer_worker") or ""))
+                    hard = _prefer_hard_bound(job, now)
+                    if hard and hard != wkey:
+                        continue
                     prefer_rec = online.get(prefer) if prefer else None
                     prefer_state = (
                         _worker_ready_state(prefer_rec, jid) if prefer_rec else ""
@@ -766,13 +788,14 @@ def claim_next(
                         READY_OK,
                         READY_LOGIN_REQUIRED,
                     )
-                    if prefer and prefer != wkey and prefer_holds:
+                    # Süre doldu ama tercih Mac hâlâ online+yapabilir → tutmaya devam
+                    if prefer and prefer != wkey and not hard and prefer_holds:
                         continue
                     state = str(ready.get(jid) or READY_OK) if ready is not None else READY_OK
                     login_needed = False
                     if state != READY_OK:
                         # Tercih edilen Mac'te tek eksiği giriş: pencereyi orada aç.
-                        # Başka Mac ready olsa bile çalmaz (prefer_holds yukarıda).
+                        # Başka Mac ready olsa bile çalmaz (prefer_holds / hard yukarıda).
                         if (
                             not login_pass
                             or state != READY_LOGIN_REQUIRED
@@ -811,7 +834,13 @@ def claim_next(
         return _scan(False) or _scan(True)
 
 
-def requeue_claim(run_id: str, job_id: str, *, detail: str = "") -> bool:
+def requeue_claim(
+    run_id: str,
+    job_id: str,
+    *,
+    detail: str = "",
+    exclude_worker: str = "",
+) -> bool:
     """Mac kilit meşgulse claim'i geri al — UI 'waiting' kalsın, fail olmasın."""
     now = time.time()
     with _state():
@@ -829,6 +858,12 @@ def requeue_claim(run_id: str, job_id: str, *, detail: str = "") -> bool:
             job["progress_at"] = now
             job["worker"] = ""
             job["detail"] = (detail or "Waiting for previous scan · back in queue")[:180]
+            ex = _worker_key(exclude_worker)
+            if ex:
+                skipped = list(job.get("exclude_workers") or [])
+                if ex not in skipped:
+                    skipped.append(ex)
+                job["exclude_workers"] = skipped[-12:]
             for key in ("phase", "step", "total_steps", "platform", "sub_label"):
                 job.pop(key, None)
             return True

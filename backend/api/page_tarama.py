@@ -83,6 +83,7 @@ class RequeueBody(BaseModel):
     run_id: str = ""
     job_id: str = ""
     message: str = ""
+    exclude_worker: str = ""
 
 
 class PingBody(BaseModel):
@@ -267,6 +268,7 @@ def requeue(
         body.run_id,
         body.job_id,
         detail=body.message or "Waiting for previous scan · back in queue",
+        exclude_worker=body.exclude_worker or "",
     )
     if not ok:
         raise HTTPException(status_code=404, detail="İş kuyruğa alınamadı")

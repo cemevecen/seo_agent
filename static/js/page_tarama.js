@@ -647,10 +647,10 @@
   // Bu cihazda bridge çalışıyor mu? Çalışıyorsa iş önce bu Mac'e teklif edilir —
   // tarayıcı penceresi (giriş vb.) düğmeye bastığın makinede açılsın.
   function probeLocalWorker() {
-    return fetchJson(BRIDGE + "/whoami", { mode: "cors" }, 2000).then(
+    return fetchJson(BRIDGE + "/whoami", { mode: "cors" }, 5000).then(
       function (out) {
         var name = out && out.data && out.data.worker;
-        return typeof name === "string" ? name : "";
+        return typeof name === "string" ? name.trim() : "";
       },
       function () {
         return "";
@@ -816,6 +816,13 @@
           worker: localWorker,
           snap: lastProgressSnap,
         });
+      } else if (bridgeJobs.length && !isLocalHost()) {
+        // Railway panelinden bastın ama bu Mac'te bridge yok → ev/ofis rastgele kapmasın
+        finish(
+          false,
+          "Local bridge not found (127.0.0.1:18765). Start the Mac bridge on THIS computer, then press Update page again — jobs must not run on another Mac."
+        );
+        return null;
       } else if (bridgeJobs.length) {
         setProgressUI({
           done: 0,
@@ -830,6 +837,7 @@
       }
       return claimManual(key, localWorker);
     }).then(function (out) {
+      if (!out) return;
       applyQuota(out.data);
       if (!out.resp.ok) {
         finish(false, errDetail(out.data, "At most 3 scans per hour"));

@@ -6035,6 +6035,41 @@ def _page_tarama_claim_loop() -> None:
             # kayboluyordu. Pencere açık kalsın, kullanıcı doğrulamayı bitirsin.
             if warm and not warm.get("ok"):
                 msg = "; ".join(warm.get("messages") or []) or "Giriş doğrulaması bekleniyor"
+                busy = bool(
+                    re.search(
+                        r"Profil me[sş]gul|kill_existing|profile busy|browser lock",
+                        msg,
+                        re.I,
+                    )
+                )
+                if busy:
+                    # Yanlış Mac / meşgul profil — fail etme, kuyruğa iade + bu worker'ı kısa süre hariç tut
+                    print(
+                        f"Uzaktan {meta['name']}: profil meşgul → kuyruğa iade ({msg[:120]})",
+                        flush=True,
+                    )
+                    try:
+                        requests.post(
+                            _page_tarama_api_base() + "/api/page-tarama/requeue",
+                            headers=_page_tarama_auth_headers(),
+                            json={
+                                "run_id": job.get("run_id"),
+                                "job_id": job_id,
+                                "message": f"Waiting · browser profile busy on {_worker_name()}",
+                                "exclude_worker": _worker_name(),
+                            },
+                            timeout=30,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"page-tarama requeue: {exc}", flush=True)
+                    _finish_job_progress(
+                        job_id,
+                        {"ok": False, "message": "Requeued · profile busy"},
+                        trigger="page-tarama",
+                        name=str(meta.get("name") or job_id),
+                    )
+                    final_posted = True
+                    return
                 print(f"Uzaktan {meta['name']}: {msg} — iş başlatılmadı", flush=True)
                 _post_page_tarama_result({
                     "run_id": job.get("run_id"),

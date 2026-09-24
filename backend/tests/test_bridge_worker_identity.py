@@ -214,6 +214,8 @@ def test_panel_sends_local_worker_as_preference():
     assert 'BRIDGE + "/whoami"' in js
     assert "claimManual(key, localWorker)" in js
     assert "prefer: prefer" in js
+    assert "Local bridge not found" in js
+    assert "jobs must not run on another Mac" in js
 
 
 def test_login_endpoint_targets_cover_every_session():

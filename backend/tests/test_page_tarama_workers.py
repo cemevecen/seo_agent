@@ -172,10 +172,17 @@ def test_preference_holds_even_after_timeout_while_mac_online():
     assert got is not None and got["worker"] == OFFICE
 
 
-def test_preference_ignored_when_that_mac_is_offline():
+def test_preference_holds_offline_mac_during_prefer_window():
+    """prefer_until dolana kadar ev Mac işi kapmasın — ofis henüz ping atmamış olsa bile."""
     store.reset_for_tests()
     store.heartbeat_worker(HOME, ready=_ready())
-    store.begin_manual("moderation", prefer=OFFICE)  # ofis hiç kayıtlı değil → offline
+    store.begin_manual("moderation", prefer=OFFICE)  # ofis hiç kayıtlı değil
+    assert store.claim_next(worker=HOME, ready=_ready()) is None
+    # Süre dolunca soft fall-through
+    with store._lock:
+        for job in store._runs.values():
+            for j in job["jobs"]:
+                j["prefer_until"] = time.time() - 1
     got = store.claim_next(worker=HOME, ready=_ready())
     assert got is not None and got["worker"] == HOME
 
@@ -216,13 +223,18 @@ def test_prefer_mac_keeps_job_even_if_other_mac_already_logged_in():
     assert got is not None and got["worker"] == OFFICE and got["login_ok"] is True
 
 
-def test_prefer_falls_through_when_this_mac_has_no_browser():
-    """Tercih Mac'te Playwright yoksa iş diğer Mac'e gidebilir."""
+def test_prefer_no_browser_waits_during_window_then_falls_through():
+    """Tercih Mac'te Playwright yoksa süre dolana kadar bekle; sonra diğer Mac alabilir."""
     store.reset_for_tests()
     store.heartbeat_worker(HOME, ready=_ready())
     store.heartbeat_worker(OFFICE, ready=_ready(firebase="no_browser", play="no_browser", asc="no_browser"))
     store.begin_manual("firebase", prefer=OFFICE)
     assert store.claim_next(worker=OFFICE, ready=_ready(firebase="no_browser")) is None
+    assert store.claim_next(worker=HOME, ready=_ready()) is None
+    with store._lock:
+        for job in store._runs.values():
+            for j in job["jobs"]:
+                j["prefer_until"] = time.time() - 1
     got = store.claim_next(worker=HOME, ready=_ready())
     assert got is not None and got["worker"] == HOME
 
