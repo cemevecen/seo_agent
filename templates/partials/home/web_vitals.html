@@ -9,6 +9,7 @@
 {% set shot_m = shots.mobile_url if shots else '' %}
 {% set shot_d = shots.desktop_url if shots else '' %}
 {% set has_data = block and block.has_data %}
+{% set url_groups = block.url_groups if block else [] %}
 {% set poor_tot = (mk.poor or 0)|int %}
 {% set ni_tot = (mk.needs_improvement or 0)|int %}
 {% set good_tot = (mk.good or 0)|int %}
@@ -75,7 +76,7 @@
           <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400">
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> poor</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> needs work</span>
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> good</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-cyan-500"></span><span class="tabular-nums text-cyan-600 dark:text-cyan-400">{{ fmt_int(mk.good) }}</span> good</span>
           </div>
           {% if shot_m %}
           <a href="{{ shot_m }}" target="_blank" rel="noopener" class="seo-matte-shot-wrap block overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -87,6 +88,53 @@
           <p id="home-wv-m-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
           {% endif %}
         </section>
+
+        {% if url_groups %}
+        <section class="min-w-0 rounded-xl border border-slate-100 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">URL grupları</h4>
+            <a href="/web-vitals?site_id={{ sid }}"
+               hx-get="/web-vitals?site_id={{ sid }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+               class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400">detail ›</a>
+          </div>
+          <div class="grid min-w-0 gap-2.5">
+            {% for grp in url_groups %}
+            <div class="min-w-0">
+              {% if url_groups|length > 1 or grp.metric in ('LCP', 'INP') %}
+              <p class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">{{ grp.label or grp.metric }}</p>
+              {% endif %}
+              <div class="overflow-x-auto overscroll-contain">
+                <table class="w-full min-w-[280px] text-[11px] leading-snug">
+                  <thead>
+                    <tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
+                      <th class="py-1 pr-2 font-medium">Örnek URL</th>
+                      <th class="py-1 pr-2 font-medium whitespace-nowrap">Grup</th>
+                      {% if grp.rows and grp.rows[0].metric_value %}
+                      <th class="py-1 font-medium whitespace-nowrap">{{ grp.metric if grp.metric in ('LCP','INP','CLS') else 'Değer' }}</th>
+                      {% endif %}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for r in grp.rows %}
+                    <tr class="border-b border-slate-50 dark:border-zinc-800/50">
+                      <td class="max-w-[14rem] truncate py-1 pr-2 font-mono text-slate-700 dark:text-zinc-200 sm:max-w-[18rem]" title="{{ r.url }}">
+                        <a class="text-sky-700 hover:underline dark:text-sky-400" href="{{ r.url }}" target="_blank" rel="noopener">{{ r.url | replace('https://', '') | replace('http://', '') }}</a>
+                      </td>
+                      <td class="py-1 pr-2 tabular-nums text-slate-700 dark:text-zinc-200">{{ fmt_int(r.group_url_count) }}</td>
+                      {% if grp.rows and grp.rows[0].metric_value %}
+                      <td class="py-1 whitespace-nowrap tabular-nums text-slate-600 dark:text-zinc-300">{{ r.metric_value or '—' }}</td>
+                      {% endif %}
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+        {% endif %}
+
         <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
           <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
             <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Desktop</h4>
@@ -97,7 +145,7 @@
           <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400">
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> poor</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> needs work</span>
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> good</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-cyan-500"></span><span class="tabular-nums text-cyan-600 dark:text-cyan-400">{{ fmt_int(dk.good) }}</span> good</span>
           </div>
           {% if shot_d %}
           <a href="{{ shot_d }}" target="_blank" rel="noopener" class="seo-matte-shot-wrap block overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -205,7 +253,7 @@
               datasets: [
                 { label: 'Poor', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false },
                 { label: 'Needs improvement', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false },
-                { label: 'Good', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false }
+                { label: 'Good', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#06b6d4', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false }
               ]
             },
             options: {

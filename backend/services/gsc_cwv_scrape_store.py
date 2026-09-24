@@ -527,6 +527,133 @@ def recover_chart_series(
     return sanitize_chart_series(picked, year_now=y_now, kpis_by_device=kpis_by_device)
 
 
+def _parse_count_cell(raw: Any) -> int | None:
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)):
+        return int(raw)
+    s = str(raw).strip()
+    if not s:
+        return None
+    digits = re.sub(r"[^\d]", "", s)
+    if not digits:
+        return None
+    try:
+        return int(digits)
+    except ValueError:
+        return None
+
+
+def _normalize_url_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    """HTTP örnek URL + grup sayısı; issue-list satırlarını at."""
+    if not isinstance(row, dict):
+        return None
+    url = str(row.get("url") or "").strip()
+    if not url.startswith("http"):
+        for cell in row.get("cells") or []:
+            c = str(cell or "").strip()
+            if c.startswith("http://") or c.startswith("https://"):
+                url = c
+                break
+    if not url.startswith("http"):
+        return None
+    count = row.get("group_url_count")
+    if count is None:
+        cells = list(row.get("cells") or [])
+        for cell in cells[1:]:
+            n = _parse_count_cell(cell)
+            if n is not None:
+                count = n
+                break
+    else:
+        count = _parse_count_cell(count)
+    metric_value = str(row.get("metric_value") or "").strip() or None
+    if metric_value and (
+        "issue:" in metric_value.lower()
+        or metric_value.lower().startswith(("lcp issue", "inp issue", "cls issue"))
+    ):
+        metric_value = None
+    return {
+        "url": url,
+        "group_url_count": int(count or 0),
+        "metric_value": metric_value,
+        "metric": str(row.get("metric") or "").strip().upper() or None,
+    }
+
+
+def home_url_groups(payload: dict[str, Any], *, limit: int = 3) -> list[dict[str, Any]]:
+    """Ana sayfa: Mobile drilldown URL gruplarından (LCP/INP) ilk N satır.
+
+    Drilldown'da gerçek URL yoksa good_urls yedek.
+    """
+    if not isinstance(payload, dict) or limit <= 0:
+        return []
+    mob = payload.get("mobile") if isinstance(payload.get("mobile"), dict) else {}
+    out: list[dict[str, Any]] = []
+
+    def _rows_from_drilldowns(metrics: tuple[str, ...]) -> list[dict[str, Any]]:
+        collected: list[dict[str, Any]] = []
+        for d in mob.get("issue_drilldowns") or []:
+            if not isinstance(d, dict):
+                continue
+            metric = str(d.get("metric") or "").strip().upper()
+            if metric not in metrics:
+                continue
+            for raw in d.get("url_rows") or []:
+                norm = _normalize_url_row(raw if isinstance(raw, dict) else {})
+                if not norm:
+                    continue
+                if not norm.get("metric"):
+                    norm["metric"] = metric
+                if not norm.get("metric_value"):
+                    # başlıktan / satırdan gelen değer yoksa metrik etiketi
+                    pass
+                collected.append(norm)
+        # aynı URL bir kez; büyük grup önce
+        by_url: dict[str, dict[str, Any]] = {}
+        for r in collected:
+            prev = by_url.get(r["url"])
+            if prev is None or int(r.get("group_url_count") or 0) > int(prev.get("group_url_count") or 0):
+                by_url[r["url"]] = r
+        return sorted(by_url.values(), key=lambda x: int(x.get("group_url_count") or 0), reverse=True)
+
+    for metric in ("LCP", "INP"):
+        rows = _rows_from_drilldowns((metric,))[:limit]
+        if rows:
+            out.append(
+                {
+                    "metric": metric,
+                    "label": f"{metric} URL grupları",
+                    "device": "mobile",
+                    "rows": rows,
+                    "source": "issue_drilldown",
+                }
+            )
+
+    if out:
+        return out
+
+    # Yedek: good URL örnekleri (grup sayısına göre)
+    good_rows: list[dict[str, Any]] = []
+    for raw in mob.get("good_urls") or []:
+        norm = _normalize_url_row(raw if isinstance(raw, dict) else {})
+        if norm:
+            good_rows.append(norm)
+    good_rows.sort(key=lambda x: int(x.get("group_url_count") or 0), reverse=True)
+    top = good_rows[:limit]
+    if top:
+        out.append(
+            {
+                "metric": "GOOD",
+                "label": "URL grupları",
+                "device": "mobile",
+                "rows": top,
+                "source": "good_urls",
+            }
+        )
+    return out
+
+
 def sanitize_cwv_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Panel/ingest öncesi AMP+drilldown başlık ve nedenlerini temizle."""
     if not isinstance(payload, dict):
@@ -544,6 +671,27 @@ def sanitize_cwv_payload(payload: dict[str, Any]) -> dict[str, Any]:
                     continue
                 d["title"] = clean_issue_title(str(d.get("title") or ""), fallback=str(d.get("metric") or "CWV sorunu"))
                 d["causes"] = clean_issue_causes(d.get("causes"), title=str(d.get("title") or ""))
+                if bucket == "issue_drilldowns":
+                    cleaned_urls: list[dict[str, Any]] = []
+                    for raw in d.get("url_rows") or []:
+                        norm = _normalize_url_row(raw if isinstance(raw, dict) else {})
+                        if norm:
+                            cleaned_urls.append({**raw, **norm} if isinstance(raw, dict) else norm)
+                    if cleaned_urls or d.get("url_rows"):
+                        # yalnızca gerçek URL satırlarını tut (issue listesi kirini at)
+                        d["url_rows"] = cleaned_urls
+                        d["url_row_count"] = len(cleaned_urls)
+        good_clean: list[dict[str, Any]] = []
+        for raw in dev.get("good_urls") or []:
+            if not isinstance(raw, dict):
+                continue
+            norm = _normalize_url_row(raw)
+            if not norm:
+                continue
+            merged = {**raw, **norm}
+            good_clean.append(merged)
+        if good_clean or dev.get("good_urls"):
+            dev["good_urls"] = good_clean
     amp = payload.get("amp")
     if isinstance(amp, dict):
         clean_issues: list[dict[str, Any]] = []

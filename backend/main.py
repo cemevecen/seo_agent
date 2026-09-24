@@ -11567,6 +11567,7 @@ def api_home_web_vitals(request: Request, site: str | None = None):
                 for k in ("mobile", "desktop")
             )
             has_kpi = any(int((mk or {}).get(x) or 0) or int((dk or {}).get(x) or 0) for x in ("poor", "needs_improvement", "good"))
+            url_groups = cwv_store.home_url_groups(payload, limit=3)
             sites_out.append({
                 "site_id": site_id,
                 "site_key": site_key_by_id.get(site_id, ""),
@@ -11585,6 +11586,7 @@ def api_home_web_vitals(request: Request, site: str | None = None):
                     "needs_improvement": int((dk or {}).get("needs_improvement") or 0),
                     "good": int((dk or {}).get("good") or 0),
                 },
+                "url_groups": url_groups,
                 "chart_series": chart,
                 "history": hist,
                 "has_data": bool(has_chart or has_kpi or hist or has_shots),
