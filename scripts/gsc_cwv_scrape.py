@@ -541,16 +541,47 @@ def _scroll_table_fully(page, *, max_rounds: int = 800) -> int:
 
 
 def _extract_table(page) -> dict[str, Any]:
+    """Sayfadaki tablolardan URL grupları tablosunu tercih et (issue listesi değil)."""
     return page.evaluate(
         """() => {
       const clean = (s) => (s || '').replace(/[\\ue000-\\uf8ff]/g, '').replace(/\\s+/g, ' ').trim();
-      const table = document.querySelector('table');
-      if (!table) return { headers: [], rows: [], row_count: 0 };
-      const headers = [...table.querySelectorAll('thead th, thead td')].map((el) => clean(el.innerText));
-      const rows = [...table.querySelectorAll('tbody tr')].map((tr) =>
-        [...tr.querySelectorAll('td')].map((td) => clean(td.innerText))
-      );
-      return { headers, rows, row_count: rows.length };
+      const tables = [...document.querySelectorAll('table')];
+      if (!tables.length) return { headers: [], rows: [], row_count: 0 };
+
+      const parseOne = (table) => {
+        const headers = [...table.querySelectorAll('thead th, thead td')].map((el) => clean(el.innerText));
+        const rows = [...table.querySelectorAll('tbody tr')].map((tr) =>
+          [...tr.querySelectorAll('td')].map((td) => clean(td.innerText))
+        );
+        let httpRows = 0;
+        for (const row of rows) {
+          if (row.some((c) => /^https?:\\/\\//i.test(String(c || '')))) httpRows += 1;
+        }
+        const headerBlob = headers.join(' ').toLowerCase();
+        const looksUrlGroups =
+          headerBlob.includes('örnek') ||
+          headerBlob.includes('ornek') ||
+          headerBlob.includes('example') ||
+          headerBlob.includes('grup') ||
+          headerBlob.includes('url');
+        return { headers, rows, row_count: rows.length, httpRows, looksUrlGroups };
+      };
+
+      const parsed = tables.map(parseOne);
+      // 1) http satırı olan + URL grupları başlıklı
+      let best = parsed
+        .filter((p) => p.httpRows > 0)
+        .sort((a, b) => {
+          const score = (p) => (p.looksUrlGroups ? 1000 : 0) + p.httpRows * 10 + p.row_count;
+          return score(b) - score(a);
+        })[0];
+      // 2) yoksa http satırı olan herhangi biri
+      if (!best) {
+        best = parsed.filter((p) => p.httpRows > 0).sort((a, b) => b.httpRows - a.httpRows)[0];
+      }
+      // 3) yedek: ilk tablo
+      if (!best) best = parsed[0];
+      return { headers: best.headers, rows: best.rows, row_count: best.row_count };
     }"""
     )
 
