@@ -7164,20 +7164,20 @@
     return traces;
   }
 
-  /** Karşı dal overlay — kesik fıstık yeşili (iOS↔Android, Web↔Mobil web). */
-  var PEER_PISTACHIO = "#93C572";
+  /** Karşı dal overlay — cyan (iOS↔Android, Web↔Mobil web). Ana seri mavi kalır. */
+  var PEER_CYAN = "#06b6d4";
   var PEER_BRANCH_COLORS = {
-    android: PEER_PISTACHIO,
-    ios: PEER_PISTACHIO,
-    desktop: PEER_PISTACHIO,
-    mweb: PEER_PISTACHIO,
+    android: PEER_CYAN,
+    ios: PEER_CYAN,
+    desktop: PEER_CYAN,
+    mweb: PEER_CYAN,
   };
   var PEER_LINE_WIDTH = 1.75;
-  /** Aynı grafik üzerinde +Android / +iOS vb. overlay — kesik fıstık yeşili */
-  var PEER_ON_CHART_COLOR = { light: "#93C572", dark: "#A8D88A" };
+  /** Aynı grafik üzerinde +Android / +iOS vb. overlay — cyan */
+  var PEER_ON_CHART_COLOR = { light: "#06b6d4", dark: "#22d3ee" };
   var PEER_ON_CHART_LINE_OPACITY = 0.95;
   var PEER_ON_CHART_FILL_OPACITY = 0.18;
-  var PEER_LINE_ALT_COLORS = ["#93C572", "#7CB342", "#A8D88A", "#6B9E4A", "#B8E0A0"];
+  var PEER_LINE_ALT_COLORS = ["#06b6d4", "#0891b2", "#22d3ee", "#0e7490", "#67e8f9"];
   var PEER_LINE_DASH = "dash";
 
   /** Aynı proje içi karşı dal — yalnızca bu çiftler (app↔app, web↔mweb). */
@@ -7247,19 +7247,19 @@
   function peerOverlayOnChartLineColor(opacity) {
     var a = opacity != null ? opacity : PEER_ON_CHART_LINE_OPACITY;
     if (isDarkTheme()) {
-      return "rgba(168, 216, 138, " + a + ")";
+      return "rgba(34, 211, 238, " + a + ")";
     }
-    return "rgba(147, 197, 114, " + a + ")";
+    return "rgba(6, 182, 212, " + a + ")";
   }
 
-  /** Karşı dal, ana grafikte (overlay) — kesik fıstık yeşili */
+  /** Karşı dal, ana grafikte (overlay) — kesik cyan */
   function peerOverlayOnChartLineStyle() {
     return { color: peerOverlayOnChartLineColor(), width: 2, dash: PEER_LINE_DASH };
   }
 
   function peerOverlayLineColor(variant) {
-    if (!variant) return PEER_PISTACHIO;
-    return PEER_LINE_ALT_COLORS[variant % PEER_LINE_ALT_COLORS.length] || PEER_PISTACHIO;
+    if (!variant) return PEER_CYAN;
+    return PEER_LINE_ALT_COLORS[variant % PEER_LINE_ALT_COLORS.length] || PEER_CYAN;
   }
 
   function peerOverlayLineStyle(variant) {
@@ -7855,8 +7855,8 @@
       "rounded-md border px-2 py-1 text-[10px] font-semibold dark:border-zinc-600";
     host.innerHTML =
       "<label class=\"flex cursor-pointer items-center gap-1.5 " + chip +
-      " border-rose-200 bg-rose-50/90 text-rose-900 dark:bg-rose-950/40 dark:text-rose-200\">" +
-      "<input type=\"checkbox\" data-peer-overlay class=\"rounded border-sky-400 dark:border-sky-600\" />" +
+      " border-cyan-200 bg-cyan-50/90 text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-200\">" +
+      "<input type=\"checkbox\" data-peer-overlay class=\"rounded border-cyan-400 dark:border-cyan-600\" />" +
       "<span>+" + label + "</span></label>" +
       (showSeparate
         ? "<label class=\"flex cursor-pointer items-center gap-1.5 " + chip +
@@ -10730,9 +10730,10 @@
   }
 
   function mzKpiFriendlyBlue(dark) {
+    /* Ana KPI spark: mavi · karşı dal (+iOS / +Android): cyan */
     return dark
-      ? { bar: "#7eb6f5", compare: "rgba(126,182,245,0.34)" }
-      : { bar: "#5b9ee8", compare: "rgba(91,158,232,0.30)" };
+      ? { bar: "#7eb6f5", compare: "rgba(34,211,238,0.72)" }
+      : { bar: "#5b9ee8", compare: "rgba(6,182,212,0.68)" };
   }
 
   function mzKpiColumnTrace(xs, ys, color) {
