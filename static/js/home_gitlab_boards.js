@@ -16,7 +16,6 @@
       activeProject: '',
       projectData: {},
       boardOrders: {},
-      cardUi: {},
       statusMsg: '',
       panelOpen: true,
       vpnProbing: false,
@@ -228,42 +227,53 @@
         return this.notesCount(issue) > 0;
       },
 
-      cardKey(issue) {
-        return String((issue && (issue.id || issue.iid)) || '');
-      },
-
-      _emptyCardUi() {
-        return {
-          descOpen: false,
-          notesOpen: false,
-          notes: null,
-          notesLoading: false,
-          notesError: '',
-        };
-      },
-
-      cardUiFor(issue) {
-        var key = this.cardKey(issue);
-        if (!key) return this._emptyCardUi();
-        if (!this.cardUi) this.cardUi = {};
-        if (!this.cardUi[key]) {
-          this.cardUi = Object.assign({}, this.cardUi, { [key]: this._emptyCardUi() });
+      /** Kart açılır/kapanır UI — issue üzerinde (Alpine nested map reaktif değil). */
+      ensureUi(issue) {
+        if (!issue) {
+          return {
+            descOpen: false,
+            notesOpen: false,
+            notes: null,
+            notesLoading: false,
+            notesError: '',
+          };
         }
-        return this.cardUi[key];
-      },
-
-      _patchCardUi(issue, patch) {
-        var key = this.cardKey(issue);
-        if (!key) return this._emptyCardUi();
-        var cur = this.cardUiFor(issue);
-        var next = Object.assign({}, cur, patch);
-        this.cardUi = Object.assign({}, this.cardUi, { [key]: next });
-        return next;
+        if (!issue._ui) {
+          issue._ui = {
+            descOpen: false,
+            notesOpen: false,
+            notes: null,
+            notesLoading: false,
+            notesError: '',
+          };
+        }
+        return issue._ui;
       },
 
       toggleDescription(issue) {
-        var ui = this.cardUiFor(issue);
-        this._patchCardUi(issue, { descOpen: !ui.descOpen });
+        var ui = this.ensureUi(issue);
+        ui.descOpen = !ui.descOpen;
+        if (ui.descOpen && !String(issue.description || '').trim()) {
+          this.loadIssueDescription(issue);
+        }
+      },
+
+      async loadIssueDescription(issue) {
+        if (!issue || !this.token || !this.activeProject) return;
+        try {
+          var enc = encodeURIComponent(this.activeProject);
+          var iid = parseInt(issue.iid, 10);
+          var res = await fetch(this.baseUrl + '/projects/' + enc + '/issues/' + iid, {
+            headers: { 'PRIVATE-TOKEN': this.token },
+          });
+          if (!res.ok) return;
+          var data = await res.json();
+          if (data && data.description != null) {
+            issue.description = String(data.description || '');
+          }
+        } catch (e) {
+          console.warn('issue description', e);
+        }
       },
 
       _normalizeNotes(raw) {
@@ -274,7 +284,7 @@
           })
           .map(function (n) {
             return {
-              id: n.id,
+              id: n.id != null ? n.id : String(n.body || '').slice(0, 40),
               body: String(n.body || '').trim(),
               system: !!n.system,
               author: (n.author && (n.author.name || n.author.username)) || '—',
@@ -283,17 +293,15 @@
       },
 
       async loadIssueNotes(issue) {
-        var ui = this.cardUiFor(issue);
+        var ui = this.ensureUi(issue);
         if (!issue || ui.notesLoading) return;
         if (ui.notes != null) return;
-        this._patchCardUi(issue, { notesLoading: true, notesError: '' });
+        ui.notesLoading = true;
+        ui.notesError = '';
         try {
           if (!this.token || !this.activeProject) {
-            this._patchCardUi(issue, {
-              notes: [],
-              notesError: 'Not connected to GitLab',
-              notesLoading: false,
-            });
+            ui.notes = [];
+            ui.notesError = 'Not connected to GitLab';
             return;
           }
           var enc = encodeURIComponent(this.activeProject);
@@ -337,22 +345,21 @@
               if (!notes.length) notes = this._normalizeNotes(flat);
             }
           }
-          this._patchCardUi(issue, { notes: notes, notesLoading: false, notesError: '' });
+          ui.notes = notes;
+          ui.notesError = '';
         } catch (e) {
           console.warn('issue notes', e);
-          this._patchCardUi(issue, {
-            notes: [],
-            notesError: 'Could not load comments',
-            notesLoading: false,
-          });
+          ui.notes = [];
+          ui.notesError = 'Could not load comments';
+        } finally {
+          ui.notesLoading = false;
         }
       },
 
       async toggleComments(issue) {
-        var ui = this.cardUiFor(issue);
-        var open = !ui.notesOpen;
-        this._patchCardUi(issue, { notesOpen: open });
-        if (open) await this.loadIssueNotes(issue);
+        var ui = this.ensureUi(issue);
+        ui.notesOpen = !ui.notesOpen;
+        if (ui.notesOpen) await this.loadIssueNotes(issue);
       },
 
       getRawIssuesForList(path, lst) {
