@@ -6474,14 +6474,23 @@
 
   async function refreshChartIncomeBar() {
     if (!window.Plotly || !state.lastSummary) return;
-    if (mzIsMobileAppStream()) return;
+    // Android/iOS: sütun grafiği gizli; gelir tipi pastası görünür kalır — erken return
+    // skeleton'da bırakıyordu.
+    var mobileApp = mzIsMobileAppStream();
     var cfg = state.breakdowns.chartIncome;
     var cmp = compareBlock(state.lastSummary);
     var dim = Array.from(cfg.bdDims)[0] || "income_type";
     if (dim === "income_type" && !cfg.bdArea) {
       var inc = (cmp && cmp.by_income_type && cmp.by_income_type.length) ? cmp.by_income_type : (state.lastSummary.by_income_type || []);
-      groupedBarPlot("mz-chart-bar-income", inc, "income_type", cmp);
+      if (!mobileApp) groupedBarPlot("mz-chart-bar-income", inc, "income_type", cmp);
       renderBreakdownPiePair("mz-chart-pie-income", inc, "income_type", cmp, state.lastSummary);
+      return;
+    }
+    if (mobileApp) {
+      var incMobile = (cmp && cmp.by_income_type && cmp.by_income_type.length)
+        ? cmp.by_income_type
+        : (state.lastSummary.by_income_type || []);
+      renderBreakdownPiePair("mz-chart-pie-income", incMobile, "income_type", cmp, state.lastSummary);
       return;
     }
     try {
