@@ -90,40 +90,39 @@
         </section>
 
         {% if url_groups %}
-        <section class="home-wv-url-groups min-w-0 rounded-xl border border-slate-100 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <section class="min-w-0 rounded-xl border border-slate-100 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
             <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">URL grupları</h4>
             <a href="/web-vitals?site_id={{ sid }}"
                hx-get="/web-vitals?site_id={{ sid }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
                class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400">detail ›</a>
           </div>
-          <div class="grid min-w-0 gap-3">
+          <div class="grid min-w-0 gap-2.5">
             {% for grp in url_groups %}
-            {% set show_val = grp.rows and grp.rows[0].metric_value %}
             <div class="min-w-0">
-              {% if grp.label and (url_groups|length > 1 or grp.metric in ('LCP','INP','CLS')) %}
-              <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">{{ grp.label }}</p>
+              {% if url_groups|length > 1 or grp.metric in ('LCP', 'INP') %}
+              <p class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">{{ grp.label or grp.metric }}</p>
               {% endif %}
               <div class="overflow-x-auto overscroll-contain">
-                <table class="w-full min-w-[300px] border-collapse text-[11px] leading-snug">
+                <table class="w-full min-w-[280px] text-[11px] leading-snug">
                   <thead>
-                    <tr class="border-b border-slate-200 text-left text-slate-500 dark:border-zinc-700 dark:text-zinc-400">
-                      <th class="py-1.5 pr-3 font-medium">Örnek URL</th>
-                      <th class="py-1.5 pr-3 text-right font-medium whitespace-nowrap">Gruptaki URL sayısı</th>
-                      {% if show_val %}
-                      <th class="py-1.5 text-right font-medium whitespace-nowrap">{{ grp.value_label or (grp.metric ~ ' Grubu') }}</th>
+                    <tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
+                      <th class="py-1 pr-2 font-medium">Örnek URL</th>
+                      <th class="py-1 pr-2 font-medium whitespace-nowrap">Grup</th>
+                      {% if grp.rows and grp.rows[0].metric_value %}
+                      <th class="py-1 font-medium whitespace-nowrap">{{ grp.metric if grp.metric in ('LCP','INP','CLS') else 'Değer' }}</th>
                       {% endif %}
                     </tr>
                   </thead>
                   <tbody>
                     {% for r in grp.rows %}
-                    <tr class="border-b border-slate-100 last:border-0 dark:border-zinc-800/60">
-                      <td class="max-w-[12rem] truncate py-2 pr-3 font-mono text-[11px] text-slate-800 dark:text-zinc-100 sm:max-w-[16rem]" title="{{ r.url }}">
-                        <a class="text-[#1a73e8] hover:underline dark:text-sky-400" href="{{ r.url }}" target="_blank" rel="noopener">{{ r.url }}</a>
+                    <tr class="border-b border-slate-50 dark:border-zinc-800/50">
+                      <td class="max-w-[14rem] truncate py-1 pr-2 font-mono text-slate-700 dark:text-zinc-200 sm:max-w-[18rem]" title="{{ r.url }}">
+                        <a class="text-sky-700 hover:underline dark:text-sky-400" href="{{ r.url }}" target="_blank" rel="noopener">{{ r.url | replace('https://', '') | replace('http://', '') }}</a>
                       </td>
-                      <td class="py-2 pr-3 text-right tabular-nums text-slate-800 dark:text-zinc-100">{{ fmt_int(r.group_url_count) }}</td>
-                      {% if show_val %}
-                      <td class="py-2 text-right whitespace-nowrap tabular-nums text-slate-700 dark:text-zinc-200">{{ r.metric_value or '—' }}</td>
+                      <td class="py-1 pr-2 tabular-nums text-slate-700 dark:text-zinc-200">{{ fmt_int(r.group_url_count) }}</td>
+                      {% if grp.rows and grp.rows[0].metric_value %}
+                      <td class="py-1 whitespace-nowrap tabular-nums text-slate-600 dark:text-zinc-300">{{ r.metric_value or '—' }}</td>
                       {% endif %}
                     </tr>
                     {% endfor %}

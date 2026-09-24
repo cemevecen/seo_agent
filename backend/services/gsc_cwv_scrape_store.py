@@ -582,40 +582,34 @@ def _normalize_url_row(row: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def home_url_groups(payload: dict[str, Any], *, limit: int = 3) -> list[dict[str, Any]]:
-    """Ana sayfa URL grupları — GSC görseline yakın.
+    """Ana sayfa: Mobile drilldown URL gruplarından (LCP/INP) ilk N satır.
 
-    Öncelik (senin ekranlarınla aynı):
-      1) Mobile INP needs_improvement — ilk N
-      2) Desktop CLS needs_improvement — ilk N
-    Yoksa mobile LCP; en sonda good_urls yedek.
+    Drilldown'da gerçek URL yoksa good_urls yedek.
     """
     if not isinstance(payload, dict) or limit <= 0:
         return []
+    mob = payload.get("mobile") if isinstance(payload.get("mobile"), dict) else {}
+    out: list[dict[str, Any]] = []
 
-    def _device(key: str) -> dict[str, Any]:
-        d = payload.get(key)
-        return d if isinstance(d, dict) else {}
-
-    def _rows_from(dev: dict[str, Any], metric: str) -> list[dict[str, Any]]:
-        metric_u = metric.upper()
+    def _rows_from_drilldowns(metrics: tuple[str, ...]) -> list[dict[str, Any]]:
         collected: list[dict[str, Any]] = []
-        # NI drilldown'ları önce; yoksa aynı metrikteki herhangi biri
-        drills = [d for d in (dev.get("issue_drilldowns") or []) if isinstance(d, dict)]
-        preferred = [
-            d
-            for d in drills
-            if str(d.get("metric") or "").strip().upper() == metric_u
-            and str(d.get("status") or "").lower() in ("needs_improvement", "ni", "warning")
-        ]
-        fallback = [d for d in drills if str(d.get("metric") or "").strip().upper() == metric_u]
-        for d in preferred or fallback:
+        for d in mob.get("issue_drilldowns") or []:
+            if not isinstance(d, dict):
+                continue
+            metric = str(d.get("metric") or "").strip().upper()
+            if metric not in metrics:
+                continue
             for raw in d.get("url_rows") or []:
                 norm = _normalize_url_row(raw if isinstance(raw, dict) else {})
                 if not norm:
                     continue
                 if not norm.get("metric"):
-                    norm["metric"] = metric_u
+                    norm["metric"] = metric
+                if not norm.get("metric_value"):
+                    # başlıktan / satırdan gelen değer yoksa metrik etiketi
+                    pass
                 collected.append(norm)
+        # aynı URL bir kez; büyük grup önce
         by_url: dict[str, dict[str, Any]] = {}
         for r in collected:
             prev = by_url.get(r["url"])
@@ -623,37 +617,25 @@ def home_url_groups(payload: dict[str, Any], *, limit: int = 3) -> list[dict[str
                 by_url[r["url"]] = r
         return sorted(by_url.values(), key=lambda x: int(x.get("group_url_count") or 0), reverse=True)
 
-    out: list[dict[str, Any]] = []
-    # GSC sırası: mobil INP, masaüstü CLS (ekran görsellerin)
-    plan = (
-        ("mobile", "INP", "INP Grubu", "Mobile · INP"),
-        ("desktop", "CLS", "CLS Grubu", "Desktop · CLS"),
-        ("mobile", "LCP", "LCP Grubu", "Mobile · LCP"),
-    )
-    for device, metric, value_label, label in plan:
-        rows = _rows_from(_device(device), metric)[:limit]
-        if not rows:
-            continue
-        # LCP yalnızca INP yoksa ekle (yer kaplamasın)
-        if metric == "LCP" and any(g.get("metric") == "INP" for g in out):
-            continue
-        out.append(
-            {
-                "metric": metric,
-                "value_label": value_label,
-                "label": label,
-                "device": device,
-                "rows": rows,
-                "source": "issue_drilldown",
-            }
-        )
+    for metric in ("LCP", "INP"):
+        rows = _rows_from_drilldowns((metric,))[:limit]
+        if rows:
+            out.append(
+                {
+                    "metric": metric,
+                    "label": f"{metric} URL grupları",
+                    "device": "mobile",
+                    "rows": rows,
+                    "source": "issue_drilldown",
+                }
+            )
 
     if out:
         return out
 
-    # Yedek: good URL örnekleri
+    # Yedek: good URL örnekleri (grup sayısına göre)
     good_rows: list[dict[str, Any]] = []
-    for raw in _device("mobile").get("good_urls") or []:
+    for raw in mob.get("good_urls") or []:
         norm = _normalize_url_row(raw if isinstance(raw, dict) else {})
         if norm:
             good_rows.append(norm)
@@ -663,7 +645,6 @@ def home_url_groups(payload: dict[str, Any], *, limit: int = 3) -> list[dict[str
         out.append(
             {
                 "metric": "GOOD",
-                "value_label": "",
                 "label": "URL grupları",
                 "device": "mobile",
                 "rows": top,
