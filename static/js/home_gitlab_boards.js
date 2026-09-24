@@ -213,6 +213,54 @@
           .filter(Boolean);
       },
 
+      hasDescription(issue) {
+        return !!(issue && String(issue.description || '').trim());
+      },
+
+      notesCount(issue) {
+        if (!issue) return 0;
+        var n = issue.user_notes_count;
+        return n != null ? parseInt(n, 10) || 0 : 0;
+      },
+
+      hasComments(issue) {
+        return this.notesCount(issue) > 0;
+      },
+
+      async loadIssueNotes(issue, card) {
+        if (!issue || !card || card.notes != null || card.notesLoading) return;
+        if (!this.token || !this.activeProject) return;
+        card.notesLoading = true;
+        card.notesError = '';
+        try {
+          var enc = encodeURIComponent(this.activeProject);
+          var url =
+            this.baseUrl +
+            '/projects/' +
+            enc +
+            '/issues/' +
+            parseInt(issue.iid, 10) +
+            '/notes?per_page=50&sort=asc';
+          var res = await fetch(url, { headers: { 'PRIVATE-TOKEN': this.token } });
+          if (!res.ok) throw new Error('Notes ' + res.status);
+          var data = await res.json();
+          card.notes = (Array.isArray(data) ? data : []).filter(function (n) {
+            return n && !n.system && String(n.body || '').trim();
+          });
+        } catch (e) {
+          console.warn('issue notes', e);
+          card.notes = [];
+          card.notesError = 'Could not load comments';
+        } finally {
+          card.notesLoading = false;
+        }
+      },
+
+      async toggleComments(issue, card) {
+        card.notesOpen = !card.notesOpen;
+        if (card.notesOpen) await this.loadIssueNotes(issue, card);
+      },
+
       getRawIssuesForList(path, lst) {
         var pd = this.projectData[path];
         if (!pd || !pd.issues) return [];

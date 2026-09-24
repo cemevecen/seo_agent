@@ -230,6 +230,90 @@
       background: #52525b;
       color: #d4d4d8;
     }
+    .home-gl-board .home-gl-drop-toggle {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.35rem;
+      border-radius: 0.35rem;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      padding: 0.2rem 0.4rem;
+      font-size: clamp(0.6rem, 0.48rem + 1cqi, 0.7rem);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #64748b;
+      cursor: pointer;
+      text-align: left;
+    }
+    .home-gl-board .home-gl-drop-toggle:hover {
+      border-color: #cbd5e1;
+      color: #475569;
+    }
+    html.dark .home-gl-board .home-gl-drop-toggle,
+    html.charcoal .home-gl-board .home-gl-drop-toggle {
+      border-color: #52525b;
+      background: #3f3f46;
+      color: #a1a1aa;
+    }
+    .home-gl-board .home-gl-drop-chevron {
+      width: 0.85rem;
+      height: 0.85rem;
+      flex-shrink: 0;
+      transition: transform 0.15s ease;
+    }
+    .home-gl-board .home-gl-drop-chevron.is-open {
+      transform: rotate(180deg);
+    }
+    .home-gl-board .home-gl-drop-body {
+      margin-top: 0.35rem;
+      max-height: 9rem;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border-radius: 0.35rem;
+      background: #f8fafc;
+      padding: 0.4rem 0.45rem;
+      font-size: clamp(0.625rem, 0.5rem + 1.05cqi, 0.75rem);
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #334155;
+    }
+    html.dark .home-gl-board .home-gl-drop-body,
+    html.charcoal .home-gl-board .home-gl-drop-body {
+      background: #27272a;
+      color: #d4d4d8;
+    }
+    .home-gl-board .home-gl-drop-muted {
+      margin: 0;
+      color: #94a3b8;
+      font-style: italic;
+    }
+    .home-gl-board .home-gl-note + .home-gl-note {
+      margin-top: 0.45rem;
+      padding-top: 0.45rem;
+      border-top: 1px solid #e2e8f0;
+    }
+    html.dark .home-gl-board .home-gl-note + .home-gl-note,
+    html.charcoal .home-gl-board .home-gl-note + .home-gl-note {
+      border-top-color: #3f3f46;
+    }
+    .home-gl-board .home-gl-note-meta {
+      margin: 0 0 0.15rem;
+      font-size: 0.65em;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #64748b;
+    }
+    .home-gl-board .home-gl-note-body {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
     /* 3 kart görünür; fazlası dikey scroll — altta nefes payı */
     .home-gl-board .home-gl-sortable {
       max-height: calc(3 * 5.75rem + 2 * 0.5rem);
@@ -459,6 +543,7 @@
                    x-init="initSortable($el)">
                 <template x-for="issue in issuesFor(lst)" :key="issue.id || issue.iid">
                   <div class="home-gl-card cursor-grab"
+                       x-data="{ descOpen: false, notesOpen: false, notes: null, notesLoading: false, notesError: '' }"
                        :class="collapsed ? 'hidden' : 'block'"
                        :data-id="issue.iid"
                        :data-global-id="issue.id">
@@ -470,6 +555,46 @@
                     <div class="home-gl-card-meta mt-1.5 flex items-center justify-between gap-1 font-medium">
                       <span class="tabular-nums" x-text="'#' + issue.iid"></span>
                       <span class="home-gl-plat" x-text="platformLabel()"></span>
+                    </div>
+
+                    <div class="home-gl-card-extras mt-1.5 space-y-1"
+                         x-show="hasDescription(issue) || hasComments(issue)"
+                         x-cloak>
+                      <div x-show="hasDescription(issue)" class="home-gl-drop">
+                        <button type="button"
+                                class="home-gl-drop-toggle"
+                                @click.stop="descOpen = !descOpen"
+                                :aria-expanded="descOpen ? 'true' : 'false'">
+                          <span>Description</span>
+                          <svg class="home-gl-drop-chevron" :class="descOpen ? 'is-open' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+                        </button>
+                        <div class="home-gl-drop-body" x-show="descOpen" x-cloak x-text="issue.description"></div>
+                      </div>
+
+                      <div x-show="hasComments(issue)" class="home-gl-drop">
+                        <button type="button"
+                                class="home-gl-drop-toggle"
+                                @click.stop="toggleComments(issue, $data)"
+                                :aria-expanded="notesOpen ? 'true' : 'false'">
+                          <span x-text="'Comment' + (notesCount(issue) ? ' · ' + notesCount(issue) : '')"></span>
+                          <svg class="home-gl-drop-chevron" :class="notesOpen ? 'is-open' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+                        </button>
+                        <div class="home-gl-drop-body" x-show="notesOpen" x-cloak>
+                          <p x-show="notesLoading" class="home-gl-drop-muted">Loading…</p>
+                          <p x-show="!notesLoading && notesError" class="home-gl-drop-muted" x-text="notesError"></p>
+                          <template x-if="!notesLoading && !notesError && notes && notes.length">
+                            <div class="space-y-2">
+                              <template x-for="note in notes" :key="note.id">
+                                <div class="home-gl-note">
+                                  <p class="home-gl-note-meta" x-text="(note.author && note.author.name) || '—'"></p>
+                                  <p class="home-gl-note-body" x-text="note.body"></p>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                          <p x-show="!notesLoading && !notesError && notes && !notes.length" class="home-gl-drop-muted">No comments</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </template>
