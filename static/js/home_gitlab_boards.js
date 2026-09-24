@@ -16,6 +16,7 @@
       activeProject: '',
       projectData: {},
       boardOrders: {},
+      cardUi: {},
       statusMsg: '',
       panelOpen: true,
       vpnProbing: false,
@@ -227,6 +228,44 @@
         return this.notesCount(issue) > 0;
       },
 
+      cardKey(issue) {
+        return String((issue && (issue.id || issue.iid)) || '');
+      },
+
+      _emptyCardUi() {
+        return {
+          descOpen: false,
+          notesOpen: false,
+          notes: null,
+          notesLoading: false,
+          notesError: '',
+        };
+      },
+
+      cardUiFor(issue) {
+        var key = this.cardKey(issue);
+        if (!key) return this._emptyCardUi();
+        if (!this.cardUi) this.cardUi = {};
+        if (!this.cardUi[key]) {
+          this.cardUi = Object.assign({}, this.cardUi, { [key]: this._emptyCardUi() });
+        }
+        return this.cardUi[key];
+      },
+
+      _patchCardUi(issue, patch) {
+        var key = this.cardKey(issue);
+        if (!key) return this._emptyCardUi();
+        var cur = this.cardUiFor(issue);
+        var next = Object.assign({}, cur, patch);
+        this.cardUi = Object.assign({}, this.cardUi, { [key]: next });
+        return next;
+      },
+
+      toggleDescription(issue) {
+        var ui = this.cardUiFor(issue);
+        this._patchCardUi(issue, { descOpen: !ui.descOpen });
+      },
+
       _normalizeNotes(raw) {
         var list = Array.isArray(raw) ? raw : [];
         return list
@@ -243,16 +282,18 @@
           });
       },
 
-      async loadIssueNotes(issue, card) {
-        if (!issue || !card) return;
-        if (card.notesLoading) return;
-        if (card.notes != null) return;
-        card.notesLoading = true;
-        card.notesError = '';
+      async loadIssueNotes(issue) {
+        var ui = this.cardUiFor(issue);
+        if (!issue || ui.notesLoading) return;
+        if (ui.notes != null) return;
+        this._patchCardUi(issue, { notesLoading: true, notesError: '' });
         try {
           if (!this.token || !this.activeProject) {
-            card.notes = [];
-            card.notesError = 'Not connected to GitLab';
+            this._patchCardUi(issue, {
+              notes: [],
+              notesError: 'Not connected to GitLab',
+              notesLoading: false,
+            });
             return;
           }
           var enc = encodeURIComponent(this.activeProject);
@@ -268,8 +309,10 @@
           var res = await fetch(url, { headers: headers });
           if (!res.ok) throw new Error('Notes ' + res.status);
           var data = await res.json();
-          var notes = this._normalizeNotes(data);
-          // user_notes_count > 0 ama notes boşsa (sistem/filtre) discussions dene
+          var notes = this._normalizeNotes(data).filter(function (n) {
+            return !n.system;
+          });
+          if (!notes.length) notes = this._normalizeNotes(data);
           if (!notes.length && this.notesCount(issue) > 0) {
             var dres = await fetch(
               this.baseUrl +
@@ -288,29 +331,28 @@
                   flat.push(n);
                 });
               });
-              notes = this._normalizeNotes(flat);
+              notes = this._normalizeNotes(flat).filter(function (n) {
+                return !n.system;
+              });
+              if (!notes.length) notes = this._normalizeNotes(flat);
             }
           }
-          // Hâlâ boşsa sistem notlarını da göster (en azından bir şey görünsün)
-          if (!notes.length && Array.isArray(data) && data.length) {
-            notes = this._normalizeNotes(data.filter(Boolean));
-          }
-          card.notes = notes;
+          this._patchCardUi(issue, { notes: notes, notesLoading: false, notesError: '' });
         } catch (e) {
           console.warn('issue notes', e);
-          card.notes = [];
-          card.notesError = 'Could not load comments';
-        } finally {
-          card.notesLoading = false;
+          this._patchCardUi(issue, {
+            notes: [],
+            notesError: 'Could not load comments',
+            notesLoading: false,
+          });
         }
       },
 
-      async toggleComments(issue, card) {
-        if (!card) return;
-        card.notesOpen = !card.notesOpen;
-        if (card.notesOpen) {
-          await this.loadIssueNotes(issue, card);
-        }
+      async toggleComments(issue) {
+        var ui = this.cardUiFor(issue);
+        var open = !ui.notesOpen;
+        this._patchCardUi(issue, { notesOpen: open });
+        if (open) await this.loadIssueNotes(issue);
       },
 
       getRawIssuesForList(path, lst) {

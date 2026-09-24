@@ -2636,7 +2636,7 @@
   function ensureHomeGitlabStack() {
     if (homeGitlabStackPromise) return homeGitlabStackPromise;
     homeGitlabStackPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js')
-      .then(function () { return loadScriptOnce('/static/js/home_gitlab_boards.js?v=10'); })
+      .then(function () { return loadScriptOnce('/static/js/home_gitlab_boards.js?v=11'); })
       .then(function () {
         if (window.Alpine) return;
         return loadScriptOnce('https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js');
