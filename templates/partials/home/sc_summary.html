@@ -422,10 +422,10 @@
                 <span class="home-kpi-compare">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</span>
               </div>
               {% if dev.top50_has_data %}
-              <div class="home-sc-top50" title="Top 50 traffic queries — impression-weighted avg. position">
+              <div class="home-sc-top50" title="Top 50 traffic queries — impression-weighted avg. position (prev − current)">
                 <span class="home-sc-top50-label">top 50</span>
                 <span class="home-sc-top50-vals">{{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}</span>
-                <span class="home-sc-top50-pct home-delta is-{{ dev.top50_pos_tone | default('flat') }}">{{ dev.top50_pos_pct_fmt | default('—') }}</span>
+                <span class="home-sc-top50-pct home-delta is-{{ dev.top50_pos_tone | default('flat') }}">{{ dev.top50_pos_delta_fmt | default('—') }}</span>
               </div>
               {% endif %}
               <div class="home-kpi-rails__actions">
