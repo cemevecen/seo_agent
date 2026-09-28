@@ -16,6 +16,15 @@
       activeProject: '',
       projectData: {},
       boardOrders: {},
+      /**
+       * Açılır description/comment — skaler key + cache.
+       * Nested issue._ui / cardUi[key] mutasyonları Alpine'da paneli açıp
+       * içeriği boş bırakıyordu (özellikle kolon x-data içinde).
+       */
+      openDescKey: '',
+      openNotesKey: '',
+      descCache: {},
+      notesCache: {},
       statusMsg: '',
       panelOpen: true,
       vpnProbing: false,
@@ -227,52 +236,89 @@
         return this.notesCount(issue) > 0;
       },
 
-      /** Kart açılır/kapanır UI — issue üzerinde (Alpine nested map reaktif değil). */
-      ensureUi(issue) {
-        if (!issue) {
-          return {
-            descOpen: false,
-            notesOpen: false,
-            notes: null,
-            notesLoading: false,
-            notesError: '',
-          };
-        }
-        if (!issue._ui) {
-          issue._ui = {
-            descOpen: false,
-            notesOpen: false,
-            notes: null,
-            notesLoading: false,
-            notesError: '',
-          };
-        }
-        return issue._ui;
+      _uiKey(issue) {
+        return String(this.activeProject || '') + '::' + String(issue && issue.iid != null ? issue.iid : '');
+      },
+
+      isDescOpen(issue) {
+        return !!issue && this.openDescKey === this._uiKey(issue);
+      },
+
+      isNotesOpen(issue) {
+        return !!issue && this.openNotesKey === this._uiKey(issue);
+      },
+
+      descState(issue) {
+        var key = this._uiKey(issue);
+        return this.descCache[key] || { loading: false, text: null, error: '' };
+      },
+
+      notesState(issue) {
+        var key = this._uiKey(issue);
+        return this.notesCache[key] || { loading: false, notes: null, error: '' };
+      },
+
+      _setDescCache(issue, patch) {
+        var key = this._uiKey(issue);
+        if (!key) return;
+        var prev = this.descCache[key] || { loading: false, text: null, error: '' };
+        this.descCache = Object.assign({}, this.descCache, {
+          [key]: Object.assign({}, prev, patch || {}),
+        });
+      },
+
+      _setNotesCache(issue, patch) {
+        var key = this._uiKey(issue);
+        if (!key) return;
+        var prev = this.notesCache[key] || { loading: false, notes: null, error: '' };
+        this.notesCache = Object.assign({}, this.notesCache, {
+          [key]: Object.assign({}, prev, patch || {}),
+        });
+      },
+
+      descText(issue) {
+        var st = this.descState(issue);
+        if (st.text != null) return String(st.text);
+        return issue && issue.description != null ? String(issue.description) : '';
       },
 
       toggleDescription(issue) {
-        var ui = this.ensureUi(issue);
-        ui.descOpen = !ui.descOpen;
-        if (ui.descOpen && !String(issue.description || '').trim()) {
-          this.loadIssueDescription(issue);
-        }
+        if (!issue) return;
+        var key = this._uiKey(issue);
+        var open = this.openDescKey !== key;
+        this.openDescKey = open ? key : '';
+        if (open) this.loadIssueDescription(issue);
       },
 
       async loadIssueDescription(issue) {
         if (!issue || !this.token || !this.activeProject) return;
+        var existing = this.descText(issue);
+        if (String(existing || '').trim()) {
+          this._setDescCache(issue, { loading: false, text: String(existing).trim(), error: '' });
+          return;
+        }
+        this._setDescCache(issue, { loading: true, error: '' });
         try {
           var enc = encodeURIComponent(this.activeProject);
           var iid = parseInt(issue.iid, 10);
           var res = await fetch(this.baseUrl + '/projects/' + enc + '/issues/' + iid, {
             headers: { 'PRIVATE-TOKEN': this.token },
           });
-          if (!res.ok) return;
+          if (!res.ok) throw new Error('Issue ' + res.status);
           var data = await res.json();
-          if (data && data.description != null) {
-            issue.description = String(data.description || '');
+          var text = data && data.description != null ? String(data.description || '') : '';
+          if (data && data.user_notes_count != null) {
+            issue.user_notes_count = data.user_notes_count;
           }
+          issue.description = text;
+          this._setDescCache(issue, { loading: false, text: text, error: '' });
         } catch (e) {
           console.warn('issue description', e);
+          this._setDescCache(issue, {
+            loading: false,
+            text: this.descText(issue) || '',
+            error: 'Could not load description',
+          });
         }
       },
 
@@ -293,15 +339,18 @@
       },
 
       async loadIssueNotes(issue) {
-        var ui = this.ensureUi(issue);
-        if (!issue || ui.notesLoading) return;
-        if (ui.notes != null) return;
-        ui.notesLoading = true;
-        ui.notesError = '';
+        if (!issue) return;
+        var st = this.notesState(issue);
+        if (st.loading) return;
+        if (st.notes != null) return;
+        this._setNotesCache(issue, { loading: true, error: '' });
         try {
           if (!this.token || !this.activeProject) {
-            ui.notes = [];
-            ui.notesError = 'Not connected to GitLab';
+            this._setNotesCache(issue, {
+              notes: [],
+              error: 'Not connected to GitLab',
+              loading: false,
+            });
             return;
           }
           var enc = encodeURIComponent(this.activeProject);
@@ -345,21 +394,23 @@
               if (!notes.length) notes = this._normalizeNotes(flat);
             }
           }
-          ui.notes = notes;
-          ui.notesError = '';
+          this._setNotesCache(issue, { notes: notes, error: '', loading: false });
         } catch (e) {
           console.warn('issue notes', e);
-          ui.notes = [];
-          ui.notesError = 'Could not load comments';
-        } finally {
-          ui.notesLoading = false;
+          this._setNotesCache(issue, {
+            notes: [],
+            error: 'Could not load comments',
+            loading: false,
+          });
         }
       },
 
       async toggleComments(issue) {
-        var ui = this.ensureUi(issue);
-        ui.notesOpen = !ui.notesOpen;
-        if (ui.notesOpen) await this.loadIssueNotes(issue);
+        if (!issue) return;
+        var key = this._uiKey(issue);
+        var open = this.openNotesKey !== key;
+        this.openNotesKey = open ? key : '';
+        if (open) await this.loadIssueNotes(issue);
       },
 
       getRawIssuesForList(path, lst) {

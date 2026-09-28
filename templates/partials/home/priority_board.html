@@ -556,44 +556,49 @@
                       <span class="home-gl-plat" x-text="platformLabel()"></span>
                     </div>
 
-                    <div class="home-gl-card-extras mt-1.5 space-y-1"
-                         x-show="hasDescription(issue) || hasComments(issue)"
-                         x-cloak>
-                      <div x-show="hasDescription(issue)" class="home-gl-drop">
+                    <div class="home-gl-card-extras mt-1.5 space-y-1" x-cloak>
+                      <div class="home-gl-drop">
                         <button type="button"
                                 class="home-gl-drop-toggle"
                                 @click.stop="toggleDescription(issue)"
-                                :aria-expanded="ensureUi(issue).descOpen ? 'true' : 'false'">
+                                :aria-expanded="isDescOpen(issue) ? 'true' : 'false'">
                           <span>description</span>
-                          <svg class="home-gl-drop-chevron" :class="ensureUi(issue).descOpen ? 'is-open' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+                          <svg class="home-gl-drop-chevron" :class="isDescOpen(issue) ? 'is-open' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
                         </button>
-                        <div class="home-gl-drop-body" x-show="ensureUi(issue).descOpen" x-cloak x-text="issue.description || '—'"></div>
+                        <div class="home-gl-drop-body" x-show="isDescOpen(issue)" x-cloak>
+                          <p x-show="descState(issue).loading" class="home-gl-drop-muted">Loading…</p>
+                          <p x-show="!descState(issue).loading && descState(issue).error"
+                             class="home-gl-drop-muted"
+                             x-text="descState(issue).error"></p>
+                          <p x-show="!descState(issue).loading && !descState(issue).error"
+                             x-text="(descText(issue) && String(descText(issue)).trim()) ? descText(issue) : 'No description'"></p>
+                        </div>
                       </div>
 
                       <div x-show="hasComments(issue)" class="home-gl-drop">
                         <button type="button"
                                 class="home-gl-drop-toggle"
                                 @click.stop="toggleComments(issue)"
-                                :aria-expanded="ensureUi(issue).notesOpen ? 'true' : 'false'">
+                                :aria-expanded="isNotesOpen(issue) ? 'true' : 'false'">
                           <span x-text="'comment' + (notesCount(issue) ? ' · ' + notesCount(issue) : '')"></span>
-                          <svg class="home-gl-drop-chevron" :class="ensureUi(issue).notesOpen ? 'is-open' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+                          <svg class="home-gl-drop-chevron" :class="isNotesOpen(issue) ? 'is-open' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
                         </button>
-                        <div class="home-gl-drop-body" x-show="ensureUi(issue).notesOpen" x-cloak>
-                          <p x-show="ensureUi(issue).notesLoading || ensureUi(issue).notes == null"
+                        <div class="home-gl-drop-body" x-show="isNotesOpen(issue)" x-cloak>
+                          <p x-show="notesState(issue).loading || notesState(issue).notes == null"
                              class="home-gl-drop-muted">Loading…</p>
-                          <p x-show="!ensureUi(issue).notesLoading && ensureUi(issue).notesError"
+                          <p x-show="!notesState(issue).loading && notesState(issue).error"
                              class="home-gl-drop-muted"
-                             x-text="ensureUi(issue).notesError"></p>
+                             x-text="notesState(issue).error"></p>
                           <div class="space-y-2"
-                               x-show="!ensureUi(issue).notesLoading && !ensureUi(issue).notesError && ensureUi(issue).notes && ensureUi(issue).notes.length">
-                            <template x-for="note in (ensureUi(issue).notes || [])" :key="note.id">
+                               x-show="!notesState(issue).loading && !notesState(issue).error && notesState(issue).notes && notesState(issue).notes.length">
+                            <template x-for="note in (notesState(issue).notes || [])" :key="note.id">
                               <div class="home-gl-note">
                                 <p class="home-gl-note-meta" x-text="note.author"></p>
                                 <p class="home-gl-note-body" x-text="note.body"></p>
                               </div>
                             </template>
                           </div>
-                          <p x-show="!ensureUi(issue).notesLoading && !ensureUi(issue).notesError && ensureUi(issue).notes && !ensureUi(issue).notes.length"
+                          <p x-show="!notesState(issue).loading && !notesState(issue).error && notesState(issue).notes && !notesState(issue).notes.length"
                              class="home-gl-drop-muted">No comments</p>
                         </div>
                       </div>
