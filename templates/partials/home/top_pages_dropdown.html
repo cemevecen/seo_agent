@@ -337,12 +337,24 @@
     align-self: stretch;
     background: rgb(148 163 184);
   }
-  .home-kpi-rails.is-up .home-kpi-rails__rail { background: rgb(5 150 105); }
-  .home-kpi-rails.is-down .home-kpi-rails__rail { background: rgb(225 29 72); }
+  .home-kpi-rails.is-up .home-kpi-rails__rail,
+  .home-kpi-rails.is-up-mild .home-kpi-rails__rail,
+  .home-kpi-rails.is-up-strong .home-kpi-rails__rail { background: rgb(5 150 105); }
+  .home-kpi-rails.is-down-mild .home-kpi-rails__rail { background: rgb(217 119 6); }
+  .home-kpi-rails.is-down .home-kpi-rails__rail { background: rgb(234 88 12); }
+  .home-kpi-rails.is-down-strong .home-kpi-rails__rail { background: rgb(225 29 72); }
   html.dark .home-kpi-rails.is-up .home-kpi-rails__rail,
-  html.charcoal .home-kpi-rails.is-up .home-kpi-rails__rail { background: rgb(74 143 115); }
+  html.charcoal .home-kpi-rails.is-up .home-kpi-rails__rail,
+  html.dark .home-kpi-rails.is-up-mild .home-kpi-rails__rail,
+  html.charcoal .home-kpi-rails.is-up-mild .home-kpi-rails__rail,
+  html.dark .home-kpi-rails.is-up-strong .home-kpi-rails__rail,
+  html.charcoal .home-kpi-rails.is-up-strong .home-kpi-rails__rail { background: rgb(74 143 115); }
+  html.dark .home-kpi-rails.is-down-mild .home-kpi-rails__rail,
+  html.charcoal .home-kpi-rails.is-down-mild .home-kpi-rails__rail { background: rgb(245 158 11); }
   html.dark .home-kpi-rails.is-down .home-kpi-rails__rail,
-  html.charcoal .home-kpi-rails.is-down .home-kpi-rails__rail { background: rgb(244 63 94); }
+  html.charcoal .home-kpi-rails.is-down .home-kpi-rails__rail { background: rgb(251 146 60); }
+  html.dark .home-kpi-rails.is-down-strong .home-kpi-rails__rail,
+  html.charcoal .home-kpi-rails.is-down-strong .home-kpi-rails__rail { background: rgb(244 63 94); }
   .home-kpi-rails__body {
     flex: 1 1 auto;
     min-width: 0;

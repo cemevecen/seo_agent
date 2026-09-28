@@ -108,7 +108,9 @@ def test_home_sc_uses_sitewide_7d_summary_position(_mock_top50, _mock_pages):
     desktop = _home_sc_device_aggregate(db, 1, "DESKTOP", summary_payload=summary)
     assert desktop["pos_last_fmt"] == "6.9"
     assert desktop["pos_prev_fmt"] == "7.1"
-    assert round(desktop["pos_delta"], 2) == 0.2
+    assert round(desktop["pos_delta"], 2) == -0.2
+    assert desktop["pos_delta_fmt"].startswith("-")
+    assert desktop["pos_tone"].startswith("up")  # 7.1 → 6.9 iyileşme
     assert desktop["clicks_last_fmt"] == "197K"
     assert desktop["top50_has_data"] is False
 
@@ -175,7 +177,9 @@ def test_home_sc_aggregate_includes_spark_paths(_mock_top50, _mock_pages):
     assert agg["clicks_spark"]["path_d"]
     assert agg["pos_spark"]["has_points"] is True
     assert agg["clicks_tone"] == "up-strong"
-    assert agg["pos_tone"] == "up"  # 5.5 → 5.0 = +0.5 sıra
+    assert agg["pos_tone"] == "up"  # 5.5 → 5.0 iyileşme; gösterim −0.5
+    assert round(agg["pos_delta"], 2) == -0.5
+    assert agg["pos_delta_fmt"].startswith("-")
     assert agg["top_pages"] == []
     _mock_pages.assert_called_once()
 
@@ -220,7 +224,7 @@ def test_home_sc_top50_weighted_position(mock_rows):
     assert out["top50_pos_last_fmt"] == "4.66"
     assert out["top50_pos_prev_fmt"] == "5.66"
     assert out["top50_pos_tone"] == "up-strong"
-    assert out["top50_pos_delta_fmt"] == "+1"
+    assert out["top50_pos_delta_fmt"] == "-1"
     assert "%" not in out["top50_pos_delta_fmt"]
     assert out["top50_clicks_last_fmt"] == "150"
     assert out["top50_clicks_prev_fmt"] == "120"

@@ -9529,25 +9529,50 @@ def _home_pct_tone(pct: float) -> str:
 
 
 def _home_pos_tone(pos_delta: float) -> str:
-    """SC pozisyon farkı (sıra birimi, pozitif = iyileşme) için aynı skala."""
+    """SC pozisyon iyileşme skoru (önceki − güncel; pozitif = iyileşme) için renk.
+
+    Küçük sıra kaymaları da (ör. −0.02) flat kalmasın — kötüleşme turuncu/kırmızı.
+    """
     try:
         d = float(pos_delta)
     except (TypeError, ValueError):
         return "flat"
-    # Tipik 7g site-geneli kayma ~0.1–0.6 sıra.
+    if round(d, 2) == 0.0:
+        return "flat"
+    # Tipik 7g site-geneli kayma ~0.05–0.6 sıra.
     if d <= -0.55:
         return "down-strong"
-    if d <= -0.25:
+    if d <= -0.2:
         return "down"
-    if d <= -0.08:
+    if d < 0:
         return "down-mild"
     if d >= 0.55:
         return "up-strong"
-    if d >= 0.25:
+    if d >= 0.2:
         return "up"
-    if d >= 0.08:
-        return "up-mild"
-    return "flat"
+    return "up-mild"
+
+
+def _home_sc_position_ui(current: float, previous: float) -> tuple[str, str, float]:
+    """Ana sayfa SC pozisyon farkı: gösterim = güncel − önceki; renk = SEO (düşük iyi).
+
+    Ör. 6.9 → 6.72 → fmt «−0.18» + yeşil (iyileşme).
+        5.41 → 5.43 → fmt «+0.02» + turuncu/kırmızı (kötüleşme).
+    """
+    try:
+        c = float(current or 0.0)
+        p = float(previous or 0.0)
+    except (TypeError, ValueError):
+        return ("—", "flat", 0.0)
+    raw = c - p
+    if round(raw, 2) == 0.0:
+        raw = 0.0
+    improve = -raw
+    return (
+        _format_signed_max_two_decimals(raw),
+        _home_pos_tone(improve),
+        raw,
+    )
 
 
 def _home_pct_delta(cur: float, prev: float) -> tuple[str, str, float]:
@@ -10441,8 +10466,7 @@ def _home_sc_detail_kpis(
     clicks_delta, clicks_tone, _ = _home_pct_delta(c_clicks, p_clicks)
     impr_delta, impr_tone, _ = _home_pct_delta(c_impr, p_impr)
     ctr_delta, ctr_tone, _ = _home_pct_delta(c_ctr, p_ctr)
-    pos_diff = _sc_position_delta(c_pos, p_pos)
-    pos_tone = _home_pos_tone(pos_diff)
+    pos_fmt, pos_tone, _pos_raw = _home_sc_position_ui(c_pos, p_pos)
     max_bars = 28 if period_days <= 30 else (36 if period_days <= 60 else 45)
 
     def _bars(metric: str) -> tuple[list[int], bool]:
@@ -10494,7 +10518,7 @@ def _home_sc_detail_kpis(
         {
             "key": "position",
             "label": "POSITION",
-            "delta_fmt": _format_signed_max_two_decimals(pos_diff),
+            "delta_fmt": pos_fmt,
             "tone": pos_tone,
             "spark_tone": _home_spark_tone_from_home(pos_tone),
             "cur_fmt": _format_max_two_decimals(c_pos) if c_pos else "—",
@@ -10711,9 +10735,14 @@ def _home_ga4_top_pages(
         # Önceki dönem yoksa sadece güncel pozisyon; sahte delta gösterme
         if pos_diff is not None and not pos_missing and has_prev_pos:
             try:
-                pd = float(pos_diff)
-                pos_diff_fmt = _format_signed_max_two_decimals(pd)
-                pos_tone = _home_pos_tone(pd)
+                pos_cur_f = float(pos_cur)
+                # sc_position_diff = önceki − güncel; gösterim = güncel − önceki
+                improve = float(pos_diff)
+                raw = -improve
+                if round(raw, 2) == 0.0:
+                    raw = 0.0
+                pos_diff_fmt = _format_signed_max_two_decimals(raw)
+                pos_tone = _home_pos_tone(improve)
             except (TypeError, ValueError):
                 pos_diff_fmt = ""
         out.append({
@@ -10767,13 +10796,17 @@ def _home_sc_top_pages(
         delta_fmt, delta_tone, _ = _home_pct_delta(c_cur, c_prev)
         p_cur = float(ent.get("position_current") or 0)
         p_prev = float(ent.get("position_previous") or 0)
-        p_diff = float(ent.get("position_diff") or 0)
         has_prev_pos = bool(ent.get("position_has_previous")) if "position_has_previous" in ent else p_prev > 0
         # Güncel yoksa önceki dönemin pozisyonunu göster (boş bırakma)
         if p_cur <= 0 and p_prev > 0:
             p_cur = p_prev
             has_prev_pos = False
         pos_missing = p_cur <= 0
+        if pos_missing or not has_prev_pos:
+            pos_diff_fmt = ""
+            pos_tone = "flat"
+        else:
+            pos_diff_fmt, pos_tone, _ = _home_sc_position_ui(p_cur, p_prev)
         out.append({
             "href": href,
             "label": disp,
@@ -10782,12 +10815,8 @@ def _home_sc_top_pages(
             "delta_fmt": delta_fmt,
             "delta_tone": delta_tone,
             "pos_cur_fmt": "—" if pos_missing else _format_max_two_decimals(p_cur),
-            "pos_diff_fmt": (
-                ""
-                if pos_missing or not has_prev_pos
-                else _format_signed_max_two_decimals(p_diff)
-            ),
-            "pos_tone": "flat" if pos_missing or not has_prev_pos else _home_pos_tone(p_diff),
+            "pos_diff_fmt": pos_diff_fmt,
+            "pos_tone": pos_tone,
             "pos_missing": pos_missing,
             "kind": "sc",
         })
@@ -10943,15 +10972,15 @@ def _home_sc_top50_device_position(db, site_id: int, device: str, *, period_days
         c_clicks = sum(float(r.get("clicks") or 0.0) for r in cur_top)
         p_clicks = sum(float(r.get("clicks") or 0.0) for r in prev_top)
 
-        pos_diff = _sc_position_delta(c_pos, p_pos)
         clicks_pct_fmt, clicks_tone, _clicks_pct = _home_pct_delta(c_clicks, p_clicks)
-        # Pozisyon: yüzde değil sıra farkı (önceki − güncel; + = iyileşme).
+        pos_fmt, pos_tone, pos_raw = _home_sc_position_ui(c_pos, p_pos)
+        # Pozisyon: yüzde değil sıra farkı (güncel − önceki; + = sayı yükseldi = kötüleşme).
         return {
             "top50_pos_last_fmt": _format_max_two_decimals(c_pos),
             "top50_pos_prev_fmt": _format_max_two_decimals(p_pos),
-            "top50_pos_delta": pos_diff,
-            "top50_pos_tone": _home_pos_tone(pos_diff),
-            "top50_pos_delta_fmt": _format_signed_max_two_decimals(pos_diff),
+            "top50_pos_delta": pos_raw,
+            "top50_pos_tone": pos_tone,
+            "top50_pos_delta_fmt": pos_fmt,
             "top50_clicks_last_fmt": _home_format_int(c_clicks),
             "top50_clicks_prev_fmt": _home_format_int(p_clicks),
             "top50_clicks_pct_fmt": clicks_pct_fmt,
@@ -11172,8 +11201,7 @@ def _home_sc_device_aggregate(
             p_clicks, p_impr, p_pos = _from_snapshot(f"previous_{period_days}d")
 
     clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
-    pos_diff = _sc_position_delta(c_pos, p_pos)
-    pos_tone = _home_pos_tone(pos_diff)
+    pos_fmt, pos_tone, pos_raw = _home_sc_position_ui(c_pos, p_pos)
     # Spark: KPI döneminden bağımsız son 60 gün (yüzde / karşılaştırma etkilenmez).
     clicks_spark = _home_spark_paths(
         _home_sc_trend_series(
@@ -11238,8 +11266,8 @@ def _home_sc_device_aggregate(
         "clicks_spark": clicks_spark,
         "pos_last_fmt": _format_max_two_decimals(c_pos) if c_pos else "—",
         "pos_prev_fmt": _format_max_two_decimals(p_pos) if p_pos else "—",
-        "pos_delta_fmt": _format_signed_max_two_decimals(pos_diff),
-        "pos_delta": pos_diff,
+        "pos_delta_fmt": pos_fmt,
+        "pos_delta": pos_raw,
         "pos_tone": pos_tone,
         "pos_spark": pos_spark,
         "top_pages": top_pages,
