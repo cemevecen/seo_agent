@@ -224,7 +224,8 @@ class Settings(BaseSettings):
     search_console_refresh_cooldown_seconds: int = 21600
     search_console_live_fetch_on_read: bool = False
     search_console_scheduled_refresh_enabled: bool = True
-    search_console_scheduled_refresh_hour: int = 4
+    # Alerts varsayılanı 04:00 — tam SC özeti (ana sayfa KPI) biraz sonra bitsin
+    search_console_scheduled_refresh_hour: int = 5
     search_console_scheduled_refresh_minute: int = 0
     search_console_scheduled_refresh_site_spacing_seconds: int = 20
     # Tam SC yenilemesinde (collect_search_console_metrics): çekimden önce bu siteye ait snapshot satırlarını sil.

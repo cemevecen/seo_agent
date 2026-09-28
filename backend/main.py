@@ -258,6 +258,8 @@ def _admin_auth_cookie_secure(request: Request) -> bool:
 
 
 DAILY_REFRESH_LOCK = threading.Lock()
+# Tam SC (strategy=all) — alerts / pagespeed ile aynı kilitte çakışmasın
+SEARCH_CONSOLE_DAILY_LOCK = threading.Lock()
 SEO_AUDIT_JOB_LOCK = threading.Lock()
 APP_INTEL_REFRESH_LOCK = threading.Lock()
 INBOX_SYNC_LOCK = threading.Lock()
@@ -3853,6 +3855,7 @@ def _search_console_single_site_data(
         db,
         site_id=site.id,
         provider="search_console",
+        strategy="all",
         cooldown_seconds=settings.search_console_refresh_cooldown_seconds,
     )
     # GSC CWV: Postgres (Railway) + isteğe bağlı disk yedek
@@ -4521,14 +4524,14 @@ def _collect_sc_for_site_in_own_session(site_id: int) -> tuple[int, dict]:
 
 
 def _run_daily_search_console_refresh_job() -> None:
-    if not DAILY_REFRESH_LOCK.acquire(blocking=False):
-        LOGGER.info("Daily Search Console refresh skipped because another scheduled job is still in progress.")
+    if not SEARCH_CONSOLE_DAILY_LOCK.acquire(blocking=False):
+        LOGGER.info("Daily Search Console refresh skipped because another SC job is still in progress.")
         return
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     try:
-        LOGGER.info("Daily Search Console refresh started.")
+        LOGGER.info("Daily Search Console refresh started (strategy=all).")
         with SessionLocal() as db:
             external = _external_site_ids(db)
             connected_site_ids = [
@@ -4573,7 +4576,7 @@ def _run_daily_search_console_refresh_job() -> None:
 
         LOGGER.info("Daily Search Console refresh completed.")
     finally:
-        DAILY_REFRESH_LOCK.release()
+        SEARCH_CONSOLE_DAILY_LOCK.release()
 
 
 def _run_daily_alert_refresh_job() -> None:
@@ -5656,6 +5659,7 @@ def _refresh_site_detail_measurements(
             db,
             site_id=site.id,
             provider="search_console",
+            strategy="all",
             cooldown_seconds=settings.search_console_refresh_cooldown_seconds,
         )
         search_console_cached = _metrics_fresh_within(
@@ -9928,62 +9932,91 @@ def _home_sc_period_range_label(
     summary: dict | None,
     period_days: int,
 ) -> str:
-    """SC dönem etiketi — KPI ile aynı kaynak: önce collector özeti, yoksa snapshot."""
+    """SC dönem etiketi — satır aralığı özetten yeniyse satırı tercih et (alerts vs full)."""
     period_days = _home_clamp_period_days(period_days)
     summary = summary or {}
-    start = str(summary.get(f"current_{period_days}d_start") or "")[:10]
-    end = str(summary.get(f"current_{period_days}d_end") or "")[:10]
-    if start and end:
-        return _home_fmt_day_range(start, end)
-    start, end = _home_sc_period_range_from_rows(db, site_id, period_days)
-    if start and end:
-        return _home_fmt_day_range(start, end)
+    start_s = str(summary.get(f"current_{period_days}d_start") or "")[:10]
+    end_s = str(summary.get(f"current_{period_days}d_end") or "")[:10]
+    start_r, end_r = _home_sc_period_range_from_rows(db, site_id, period_days)
+    if end_r and (not end_s or end_r > end_s):
+        if start_r and end_r:
+            return _home_fmt_day_range(start_r, end_r)
+    if start_s and end_s:
+        return _home_fmt_day_range(start_s, end_s)
+    if start_r and end_r:
+        return _home_fmt_day_range(start_r, end_r)
     end_d = date.today() - timedelta(days=2)
     start_d = end_d - timedelta(days=period_days - 1)
     return _home_fmt_day_range(start_d.isoformat(), end_d.isoformat())
 
 
 def _home_sc_freshness_for_site(db, site_id: int, *, period_days: int = 7) -> dict[str, Any]:
-    """Ana sayfa SC kartı — DB’deki son snapshot vs son collector koşusu."""
+    """Ana sayfa SC kartı — tam özet (strategy=all) vs satır aralığı.
+
+    Gece alerts koşusu current_7d satırlarını günceller ama strategy=all özetini
+    yazmaz. Ana sayfa KPI’ları strategy=all özetinden geldiği için burada
+    bayat özet → needs_sync ile tam yenileme tetiklenir.
+    """
     period_days = _home_clamp_period_days(period_days)
-    collected = _search_console_latest_snapshot_collected_at(db, site_id)
-    run = _latest_provider_run(db, site_id=site_id, provider="search_console", strategy="all")
+    full_run = _latest_provider_run(
+        db, site_id=site_id, provider="search_console", strategy="all"
+    )
     summary = _latest_successful_provider_summary(
         db, site_id=site_id, provider="search_console", strategy="all"
     )
     row_start, row_end = _home_sc_period_range_from_rows(db, site_id, period_days)
     summary_end = str(summary.get(f"current_{period_days}d_end") or "")[:10]
-    needs_reload = bool(row_end and summary_end and row_end > summary_end)
+    summary_has_kpi = bool(summary.get(f"current_{period_days}d_summary_by_device") or {})
+    collected = full_run.requested_at if full_run and full_run.requested_at else None
+    if collected is None:
+        collected = _search_console_latest_snapshot_collected_at(db, site_id)
+
+    needs_reload = False
     needs_sync = False
-    if run is None or str(run.status or "").lower() != "success":
+    if not summary_has_kpi or not summary_end:
         needs_sync = True
-    elif collected and run.requested_at and collected > run.requested_at:
+    elif row_end and summary_end and row_end > summary_end:
+        # Alerts / kısmi çekim satırları özetten ileri — tam SC (ana sayfa) gerekli
+        needs_sync = True
         needs_reload = True
-    elif run.requested_at:
-        age_h = (datetime.utcnow() - run.requested_at).total_seconds() / 3600.0
+    elif full_run is None or str(full_run.status or "").lower() != "success":
+        needs_sync = True
+    elif full_run.requested_at:
+        age_h = (datetime.utcnow() - full_run.requested_at).total_seconds() / 3600.0
         if age_h > 25.0:
             needs_sync = True
-    # Soft kota doluysa yeni API sync isteme (retry döngüsü + mail spam'i).
+
     quota_exhausted = is_provider_daily_quota_exhausted(db, site_id, "search_console")
     if quota_exhausted:
         needs_sync = False
-    # Cooldown içindeyse de otomatik sync isteme — force=True ile yakmayı önler.
+    # Yalnızca tam (strategy=all) cooldown — alerts koşusu soft sync'i engellemesin
     if needs_sync and _latest_collector_run_recent(
         db,
         site_id=site_id,
         provider="search_console",
+        strategy="all",
         cooldown_seconds=settings.search_console_refresh_cooldown_seconds,
     ):
         needs_sync = False
+
+    data_end = row_end or summary_end or ""
+    if summary_end and row_end and row_end < summary_end:
+        data_end = summary_end
+
     return {
         "site_id": site_id,
         "collected_at": collected.isoformat() if isinstance(collected, datetime) else "",
-        "data_start": row_start or str(summary.get(f"current_{period_days}d_start") or "")[:10],
-        "data_end": row_end or summary_end or "",
-        "run_at": run.requested_at.isoformat() if run and run.requested_at else "",
+        "data_start": row_start
+        or str(summary.get(f"current_{period_days}d_start") or "")[:10],
+        "data_end": data_end,
+        "run_at": full_run.requested_at.isoformat()
+        if full_run and full_run.requested_at
+        else "",
         "needs_reload": needs_reload,
         "needs_sync": needs_sync,
         "quota_exhausted": quota_exhausted,
+        "summary_end": summary_end,
+        "summary_has_kpi": summary_has_kpi,
     }
 
 

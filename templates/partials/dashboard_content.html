@@ -2420,7 +2420,7 @@
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=52" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=53" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2431,7 +2431,7 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=52" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=53" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2990,7 +2990,7 @@
 
     if (opts.sync && syncCfg && syncCfg.kind !== 'reload' && syncCfg.kind !== 'realtime') {
       if (!silent) showHomeLoadOverlay(sec, homeSyncOverlayLabel(syncCfg, 'source'));
-      homeRunContainerSync(sec, syncCfg, { soft: true })
+      homeRunContainerSync(sec, syncCfg, { soft: opts.soft !== false })
         .catch(function (err) {
           console.warn('home container sync', key, err);
         })
@@ -3045,9 +3045,16 @@
           || siteMeta.needs_reload
           || (collectedAt && collectedAt !== renderedAsOf)
           || (dataEnd && dataEnd !== renderedEnd);
-        var needsSync = !!siteMeta.needs_sync && !silent;
+        /* Sessiz poll da bayat strategy=all özetinde tam sync tetiklesin
+           (önceden !silent yüzünden gece alerts sonrası home hiç güncellenmiyordu). */
+        var needsSync = !!siteMeta.needs_sync;
         if (needsReload || needsSync) {
-          refreshHomeContainer(sec, { sync: needsSync, silent: silent });
+          /* needs_sync → soft=0 (force): alerts cooldown tam SC'yi engellemesin */
+          refreshHomeContainer(sec, {
+            sync: needsSync,
+            silent: silent,
+            soft: !needsSync,
+          });
         }
       });
     }).catch(function () {
