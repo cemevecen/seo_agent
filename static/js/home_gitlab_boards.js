@@ -276,10 +276,25 @@
         });
       },
 
+      /**
+       * Kart metni: markdown görselleri at, fazla boş satırları sıkıştır.
+       * Örn. ![x](/uploads/…){width=…} ve baştaki/aradaki boş satırlar.
+       */
+      _sanitizeBody(text) {
+        var s = String(text == null ? '' : text);
+        s = s.replace(/!\[[^\]]*\]\([^)]*\)(\s*\{[^}]*\})?/g, '');
+        s = s.replace(/<img\b[^>]*>/gi, '');
+        s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        s = s.replace(/[ \t]+\n/g, '\n');
+        s = s.replace(/\n{2,}/g, '\n');
+        s = s.replace(/[ \t]{2,}/g, ' ');
+        return s.replace(/^\s+|\s+$/g, '');
+      },
+
       descText(issue) {
         var st = this.descState(issue);
-        if (st.text != null) return String(st.text);
-        return issue && issue.description != null ? String(issue.description) : '';
+        if (st.text != null) return this._sanitizeBody(st.text);
+        return this._sanitizeBody(issue && issue.description != null ? issue.description : '');
       },
 
       toggleDescription(issue) {
@@ -293,8 +308,8 @@
       async loadIssueDescription(issue) {
         if (!issue || !this.token || !this.activeProject) return;
         var existing = this.descText(issue);
-        if (String(existing || '').trim()) {
-          this._setDescCache(issue, { loading: false, text: String(existing).trim(), error: '' });
+        if (existing) {
+          this._setDescCache(issue, { loading: false, text: existing, error: '' });
           return;
         }
         this._setDescCache(issue, { loading: true, error: '' });
@@ -306,7 +321,9 @@
           });
           if (!res.ok) throw new Error('Issue ' + res.status);
           var data = await res.json();
-          var text = data && data.description != null ? String(data.description || '') : '';
+          var text = this._sanitizeBody(
+            data && data.description != null ? data.description : ''
+          );
           if (data && data.user_notes_count != null) {
             issue.user_notes_count = data.user_notes_count;
           }
@@ -323,19 +340,21 @@
       },
 
       _normalizeNotes(raw) {
+        var self = this;
         var list = Array.isArray(raw) ? raw : [];
         return list
-          .filter(function (n) {
-            return n && String(n.body || '').trim();
-          })
           .map(function (n) {
+            if (!n) return null;
+            var body = self._sanitizeBody(n.body || '');
+            if (!body) return null;
             return {
-              id: n.id != null ? n.id : String(n.body || '').slice(0, 40),
-              body: String(n.body || '').trim(),
+              id: n.id != null ? n.id : body.slice(0, 40),
+              body: body,
               system: !!n.system,
               author: (n.author && (n.author.name || n.author.username)) || '—',
             };
-          });
+          })
+          .filter(Boolean);
       },
 
       async loadIssueNotes(issue) {

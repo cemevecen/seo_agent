@@ -248,6 +248,12 @@
       cursor: pointer;
       text-align: left;
     }
+    .home-gl-board .home-gl-drop-toggle--icon {
+      justify-content: center;
+      width: 1.55rem;
+      min-width: 1.55rem;
+      padding: 0.15rem;
+    }
     .home-gl-board .home-gl-drop-toggle:hover {
       border-color: #cbd5e1;
       color: #475569;
@@ -559,10 +565,11 @@
                     <div class="home-gl-card-extras mt-1.5 space-y-1" x-cloak>
                       <div class="home-gl-drop">
                         <button type="button"
-                                class="home-gl-drop-toggle"
+                                class="home-gl-drop-toggle home-gl-drop-toggle--icon"
                                 @click.stop="toggleDescription(issue)"
-                                :aria-expanded="isDescOpen(issue) ? 'true' : 'false'">
-                          <span>description</span>
+                                :aria-expanded="isDescOpen(issue) ? 'true' : 'false'"
+                                aria-label="Description"
+                                title="Description">
                           <svg class="home-gl-drop-chevron" :class="isDescOpen(issue) ? 'is-open' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
                         </button>
                         <div class="home-gl-drop-body" x-show="isDescOpen(issue)" x-cloak>
@@ -571,7 +578,7 @@
                              class="home-gl-drop-muted"
                              x-text="descState(issue).error"></p>
                           <p x-show="!descState(issue).loading && !descState(issue).error"
-                             x-text="(descText(issue) && String(descText(issue)).trim()) ? descText(issue) : 'No description'"></p>
+                             x-text="descText(issue) || 'No description'"></p>
                         </div>
                       </div>
 
