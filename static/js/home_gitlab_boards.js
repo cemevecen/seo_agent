@@ -223,7 +223,7 @@
       },
 
       hasDescription(issue) {
-        return !!(issue && String(issue.description || '').trim());
+        return !!this.descText(issue);
       },
 
       notesCount(issue) {

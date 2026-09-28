@@ -563,7 +563,7 @@
                     </div>
 
                     <div class="home-gl-card-extras mt-1.5 space-y-1" x-cloak>
-                      <div class="home-gl-drop">
+                      <div x-show="hasDescription(issue)" class="home-gl-drop">
                         <button type="button"
                                 class="home-gl-drop-toggle home-gl-drop-toggle--icon"
                                 @click.stop="toggleDescription(issue)"
@@ -578,7 +578,7 @@
                              class="home-gl-drop-muted"
                              x-text="descState(issue).error"></p>
                           <p x-show="!descState(issue).loading && !descState(issue).error"
-                             x-text="descText(issue) || 'No description'"></p>
+                             x-text="descText(issue)"></p>
                         </div>
                       </div>
 
