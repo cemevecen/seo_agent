@@ -19,10 +19,12 @@ def test_html_has_gold_price_rows_empty_table():
     assert html_has_gold_price_rows(html) is False
 
 
-def test_catalog_excludes_merkez_bankasi():
+def test_catalog_excludes_merkez_bankasi_and_sekerbank():
     from backend.services.doviz_asset_monitor import _excluded_slugs
 
-    assert "merkez-bankasi" in _excluded_slugs()
+    ex = _excluded_slugs()
+    assert "merkez-bankasi" in ex
+    assert "sekerbank" in ex
 
 
 def test_build_issue_state_preserves_first_seen():

@@ -27,12 +27,14 @@ _BANK_SLUG_RE = re.compile(
 _TR_ROW_RE = re.compile(r"<tr[^>]*>.*?</tr>", re.I | re.S)
 _NUMERIC_CELL_RE = re.compile(r"\d[\d.,]{2,}")
 
-# altin.doviz.com menüsünde banka altını değil (TCMB / haber köprüsü).
-_CATALOG_SLUG_EXCLUDE = frozenset({"merkez-bankasi"})
+# altin.doviz.com menüsünde banka altını değil / bilinen ölü sayfalar.
+_CATALOG_SLUG_EXCLUDE = frozenset({"merkez-bankasi", "sekerbank"})
 
 
 def _excluded_slugs() -> set[str]:
-    raw = (getattr(settings, "doviz_asset_monitor_exclude_slugs", None) or "merkez-bankasi").strip()
+    raw = (
+        getattr(settings, "doviz_asset_monitor_exclude_slugs", None) or "merkez-bankasi,sekerbank"
+    ).strip()
     out = set(_CATALOG_SLUG_EXCLUDE)
     for part in raw.split(","):
         s = part.strip().lower()

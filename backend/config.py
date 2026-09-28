@@ -576,7 +576,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_EXTRA_SLUGS", "doviz_asset_monitor_extra_slugs"),
     )
     doviz_asset_monitor_exclude_slugs: str = Field(
-        default="merkez-bankasi",
+        default="merkez-bankasi,sekerbank",
         validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_EXCLUDE_SLUGS", "doviz_asset_monitor_exclude_slugs"),
     )
     policy_noads_email_enabled: bool = Field(
