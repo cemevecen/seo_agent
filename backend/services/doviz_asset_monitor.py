@@ -43,6 +43,19 @@ def _excluded_slugs() -> set[str]:
     return out
 
 
+def _slug_excluded(slug: str | None) -> bool:
+    s = (slug or "").strip().lower()
+    return bool(s) and s in _excluded_slugs()
+
+
+def _drop_excluded_slugs(slugs: list[str] | None) -> list[str]:
+    return [s for s in (slugs or []) if not _slug_excluded(s)]
+
+
+def _drop_excluded_alert_rows(rows: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    return [r for r in (rows or []) if not _slug_excluded(r.get("slug"))]
+
+
 @dataclass(frozen=True)
 class ProbeResult:
     slug: str
@@ -161,6 +174,8 @@ def _build_issue_state(
     """Açık sorunlar: first_seen / email sayacı korunur, last_seen güncellenir."""
     out: dict[str, dict[str, Any]] = {}
     for p in prices_missing:
+        if _slug_excluded(p.get("slug")):
+            continue
         key = _probe_key(p["slug"], p["host"])
         prev = prev_issue_state.get(key) or {}
         first = prev.get("first_seen_at") or scan_iso
@@ -180,6 +195,8 @@ def _build_issue_state(
             "open": True,
         }
     for slug in catalog_removed:
+        if _slug_excluded(slug):
+            continue
         key = f"catalog:{slug}"
         prev = prev_issue_state.get(key) or {}
         first = prev.get("first_seen_at") or scan_iso
@@ -218,6 +235,8 @@ def _mailable_open_issues(issue_state: dict[str, dict[str, Any]]) -> list[dict[s
     out: list[dict[str, Any]] = []
     for row in issue_state.values():
         if not row.get("open"):
+            continue
+        if _slug_excluded(row.get("slug")):
             continue
         if not _issue_email_eligible(row):
             continue
@@ -362,12 +381,20 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
         prev_prices[key] = bool(p.get("has_price_rows"))
 
     curr_catalog = set(catalog)
-    catalog_removed = sorted(prev_catalog - curr_catalog) if prev_catalog else []
-    catalog_added = sorted(curr_catalog - prev_catalog) if prev_catalog else []
+    # Ham katalogda hâlâ duran ama bilerek izlenmeyen slug'lar (ör. sekerbank)
+    # «katalogdan kalktı» sanılmasın.
+    catalog_removed = _drop_excluded_slugs(
+        sorted(prev_catalog - curr_catalog) if prev_catalog else []
+    )
+    catalog_added = _drop_excluded_slugs(
+        sorted(curr_catalog - prev_catalog) if prev_catalog else []
+    )
 
     prices_lost: list[dict[str, Any]] = []
     prices_missing: list[dict[str, Any]] = []
     for p in probes:
+        if _slug_excluded(p.get("slug")):
+            continue
         key = f"{p['slug']}|{p['host']}"
         if p["http_status"] == 200 and not p["has_price_rows"]:
             prices_missing.append(p)
@@ -424,6 +451,8 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
             }
         )
 
+    alerts = _drop_excluded_alert_rows(alerts)
+
     scan_iso = _iso_utc()
     prev_issue_state = prev_payload.get("issue_state") or {}
     issue_state = _build_issue_state(
@@ -464,11 +493,13 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
     db.refresh(run)
 
     open_issues = sorted(issue_state.values(), key=lambda x: str(x.get("first_seen_at") or ""))
-    mail_items = _mailable_open_issues(issue_state)
+    mail_items = _drop_excluded_alert_rows(_mailable_open_issues(issue_state))
     # prices_lost gibi geçiş uyarılarını da (henüz issue_state'te yoksa) ekle
     mailed_keys = {m.get("issue_key") for m in mail_items}
     for a in alerts:
         if a.get("kind") == "prices_lost":
+            if _slug_excluded(a.get("slug")):
+                continue
             key = _probe_key(str(a.get("slug") or ""), str(a.get("host") or ""))
             if key in mailed_keys:
                 continue

@@ -27,6 +27,50 @@ def test_catalog_excludes_merkez_bankasi_and_sekerbank():
     assert "sekerbank" in ex
 
 
+def test_excluded_slug_dropped_from_catalog_removed_and_mail():
+    """Hariç slug keşifte yokken prev katalogda varsa «kalktı» maili üretilmesin."""
+    from backend.services.doviz_asset_monitor import (
+        _drop_excluded_alert_rows,
+        _drop_excluded_slugs,
+        _mailable_open_issues,
+        _slug_excluded,
+    )
+
+    assert _slug_excluded("sekerbank") is True
+    assert _slug_excluded("akbank") is False
+    assert _drop_excluded_slugs(["sekerbank", "akbank", "SEKERBANK"]) == ["akbank"]
+    assert _drop_excluded_alert_rows(
+        [
+            {"slug": "sekerbank", "kind": "catalog_removed"},
+            {"slug": "akbank", "kind": "prices_empty"},
+        ]
+    ) == [{"slug": "akbank", "kind": "prices_empty"}]
+
+    mailed = _mailable_open_issues(
+        {
+            "catalog:sekerbank": {
+                "key": "catalog:sekerbank",
+                "kind": "catalog_removed",
+                "slug": "sekerbank",
+                "host": "",
+                "url": "",
+                "open": True,
+                "email_notify_count": 0,
+            },
+            "akbank|m.doviz.com": {
+                "key": "akbank|m.doviz.com",
+                "kind": "prices_empty",
+                "slug": "akbank",
+                "host": "m.doviz.com",
+                "url": "https://m.doviz.com/altin/akbank",
+                "open": True,
+                "email_notify_count": 0,
+            },
+        }
+    )
+    assert [m["slug"] for m in mailed] == ["akbank"]
+
+
 def test_build_issue_state_preserves_first_seen():
     from backend.services.doviz_asset_monitor import _build_issue_state
 
