@@ -123,7 +123,7 @@
     var stop = stage || svg;
     var total = 0;
     var kids = wrap.children;
-    var tipSkip = { "pa-tooltip": 1, "ia-tooltip": 1, "sd-tooltip": 1 };
+    var tipSkip = { "pa-tooltip": 1, "ia-tooltip": 1, "sd-tooltip": 1, "as-tooltip": 1 };
     for (var i = 0; i < kids.length; i++) {
       var child = kids[i];
       if (child === stop) break;
@@ -139,7 +139,7 @@
       (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
     var w = wrap.clientWidth - pad;
     if (w > 1) return w;
-    var card = wrap.closest("#pa-chart-card, #ia-chart-card, #sd-chart-card");
+    var card = wrap.closest("#pa-chart-card, #ia-chart-card, #sd-chart-card, #as-chart-card");
     if (card) {
       var csCard = window.getComputedStyle(card);
       var padCard =

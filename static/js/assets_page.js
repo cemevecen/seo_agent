@@ -666,7 +666,7 @@
   }
 
   function showTip(ev, dateKey, seriesMap) {
-    if (!el.tip) return;
+    if (!el.tip || !el.chartWrap) return;
     el.tip.classList.remove("hidden");
     if (el.tipTitle) el.tipTitle.textContent = dateKey;
     var lines = selected.map(function (key, idx) {
@@ -682,11 +682,27 @@
         '<span class="tabular-nums font-bold">' + (found ? fmtNum(found.value) : "—") + "</span></div>";
     });
     if (el.tipBody) el.tipBody.innerHTML = lines.join("");
-    var wrap = el.chartWrap.getBoundingClientRect();
-    var left = ev.clientX - wrap.left + 12;
-    var top = ev.clientY - wrap.top + 12;
-    if (left + 200 > wrap.width) left = Math.max(8, wrap.width - 220);
-    if (top + 120 > wrap.height) top = Math.max(8, wrap.height - 140);
+
+    // Android ile aynı: ölçüldükten sonra imlecin üstüne / kenarlara yasla;
+    // sabit 120px varsayımı uzun listelerde popup'ı grafik altına taşıyordu.
+    var wrapRect = el.chartWrap.getBoundingClientRect();
+    var pad = 8;
+    var maxTipW = Math.max(160, Math.min(360, wrapRect.width - pad * 2));
+    var maxTipH = Math.max(64, wrapRect.height - pad * 2);
+    el.tip.style.width = "max-content";
+    el.tip.style.maxWidth = maxTipW + "px";
+    el.tip.style.maxHeight = maxTipH + "px";
+    el.tip.style.overflowY = "auto";
+    el.tip.style.transform = "none";
+    var tipW = Math.min(maxTipW, Math.max(el.tip.offsetWidth || 0, 140));
+    var tipH = Math.min(maxTipH, Math.max(el.tip.offsetHeight || 0, 48));
+    var x = ev.clientX - wrapRect.left;
+    var y = ev.clientY - wrapRect.top;
+    var left = x - tipW / 2;
+    var top = y - tipH - 14;
+    if (top < pad) top = Math.min(wrapRect.height - tipH - pad, y + 18);
+    left = Math.max(pad, Math.min(wrapRect.width - tipW - pad, left));
+    top = Math.max(pad, Math.min(Math.max(pad, wrapRect.height - tipH - pad), top));
     el.tip.style.left = left + "px";
     el.tip.style.top = top + "px";
   }
