@@ -6,11 +6,25 @@
 <link rel="stylesheet" href="/static/css/android_chart_viz_20.css?v=21">
 <style>
   .pa-filters {
-    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.65rem 0.75rem; width: 100%;
+    container-type: inline-size;
+    container-name: pa-filters;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.65rem 0.75rem;
+    width: 100%;
+    min-width: 0;
+    overflow-x: visible;
   }
   .pa-filters > label.pa-f {
-    display: flex; flex-direction: column; min-width: 0; flex: 1 1 calc(50% - 0.5rem);
-    font-size: 0.6875rem; font-weight: 600; color: inherit; white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1 1 calc(50% - 0.5rem);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: inherit;
+    white-space: nowrap;
   }
   .pa-filters > label.pa-f--metric { flex: 1 1 100%; }
   .pa-filters > label.pa-f--date { flex: 1 1 calc(50% - 0.5rem); min-width: 8.75rem; }
@@ -22,14 +36,25 @@
     justify-content: flex-end;
     min-width: 9.25rem;
     max-width: 14.5rem;
+    padding-bottom: 0.15rem;
   }
   .pa-filters > .pa-f--cross-metric [data-play-metric-overlay-trigger] {
     margin-top: 0.25rem;
     width: 100%;
   }
   .pa-filters input[type="date"], .pa-filters select {
-    margin-top: 0.25rem; width: 100%; border-radius: 0.5rem; border: 1px solid #cbd5e1;
-    background: #f4f4f5; padding: 0.4rem 0.55rem; font-size: 0.8125rem; box-sizing: border-box;
+    margin-top: 0.25rem;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
   }
   html.dark .pa-filters input[type="date"], html.dark .pa-filters select {
     border-color: #3f3f46; background: #2a2a2e; color: #c4c4cc;
@@ -37,8 +62,8 @@
   .pa-filters .ia-metric-dd { margin-top: 0.25rem; width: 100%; position: relative; }
   .pa-filters .ia-metric-trigger {
     display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 0.5rem;
-    border-radius: 0.5rem; border: 1px solid #cbd5e1; background: #f4f4f5;
-    padding: 0.4rem 0.55rem; font-size: 0.8125rem; line-height: 1.25; text-align: left;
+    border-radius: 9999px; border: 1px solid #cbd5e1; background: #fff;
+    padding: 0.4rem 0.75rem; font-size: 0.8125rem; line-height: 1.25; text-align: left;
     color: inherit; box-sizing: border-box; cursor: pointer;
   }
   html.dark .pa-filters .ia-metric-trigger {
@@ -153,18 +178,18 @@
     color: #e4e4e7;
   }
 
-  /* Metric KPI · always ss2 neon cards in one row (independent heights) */
+  /* Metric KPI · ss2 cards — open/closed bağımsız yükseklik (komşu açılınca hepsi uzamasın) */
   #ia-metric-kpis.metric-kpi-grid--ss2 {
     display: grid;
     width: 100%;
     min-width: 0;
     gap: clamp(0.28rem, 1.15vw, 0.65rem);
-    align-items: stretch;
+    align-items: start;
     grid-template-columns: repeat(var(--kpi-n, 1), minmax(0, 1fr));
   }
   #ia-metric-kpis.metric-kpi-grid--ss2 > .metric-kpi-ss2 {
-    align-self: stretch;
-    height: 100%;
+    align-self: start;
+    height: auto;
     min-height: 0;
     min-width: 0;
   }
@@ -301,8 +326,8 @@
   .metric-kpi-ss2 {
     position: relative;
     min-width: 0;
-    height: 100%;
-    align-self: stretch;
+    height: auto;
+    align-self: start;
     container-type: inline-size;
     container-name: kpi-ss2;
     display: flex;
@@ -362,7 +387,7 @@
     gap: clamp(0.22rem, 3.2cqi, 0.55rem);
     margin-top: clamp(0.22rem, 3.2cqi, 0.45rem);
     min-height: clamp(2.2rem, 38cqi, 3.25rem);
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-width: 0;
   }
   .metric-kpi-ss2-metrics {
@@ -572,12 +597,33 @@
     opacity: 1;
     visibility: visible;
   }
-  .pa-filters .pa-f-actions { display: flex; align-items: flex-end; gap: 0.5rem; margin-left: auto; }
+  .pa-filters .pa-f-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
   .pa-filters .pa-f-btn {
-    border-radius: 0.5rem; border: 1px solid #047857; background: #047857; color: #e4e4e7;
-    padding: 0.45rem 0.9rem; font-size: 0.75rem; font-weight: 700; cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    border-radius: 0.5rem;
+    border: 1px solid #047857;
+    background: #047857;
+    color: #e4e4e7;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.2;
+    flex: 1 1 auto;
+    min-width: 5.5rem;
+    cursor: pointer;
   }
   .pa-filters .pa-f-btn:disabled { opacity: 0.6; cursor: wait; }
+  .pa-filters .pa-f-btn.hidden { display: none !important; }
   #ia-table-shell {
     width: 100%;
     min-width: 0;
@@ -782,11 +828,45 @@
   html.dark .ia-orbit__ring { border-top-color: #6b8aad; border-right-color: rgba(107, 138, 173, 0.28); }
   html.dark .ia-orbit__ring--mid { border-top-color: #7a90a8; }
   html.dark .ia-orbit__ring--inner { border-top-color: #8aa0b5; }
-  @media (min-width: 900px) {
-    .pa-filters { flex-wrap: nowrap; overflow-x: auto; }
-    .pa-filters > label.pa-f--metric { flex: 1.4 1 0; }
-    .pa-filters > label.pa-f--date, .pa-filters > label.pa-f--sm { flex: 0.9 1 0; min-width: 0; }
-    .pa-filters > .pa-f--cross-metric { flex: 0 1 auto; min-width: 9rem; max-width: 13.5rem; }
+  /* Masaüstü: Android ile aynı — 1024px+ tek satır; altında wrap + full Apply */
+  @media (min-width: 1024px) {
+    .pa-filters {
+      flex-wrap: nowrap;
+      gap: clamp(0.25rem, 0.7cqi, 0.75rem);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .pa-filters > label.pa-f {
+      flex: 1 1 0;
+      min-width: 0;
+      font-size: clamp(0.5625rem, 1.05cqi, 0.6875rem);
+    }
+    .pa-filters > label.pa-f--metric { flex: 1.45 1 0; }
+    .pa-filters > label.pa-f--date { flex: 0.95 1 0; min-width: 6.5rem; }
+    .pa-filters > label.pa-f--sm { flex: 0.85 1 0; min-width: 0; }
+    .pa-filters > .pa-f--cross-metric {
+      flex: 0 1 auto;
+      min-width: 9rem;
+      max-width: 13.5rem;
+      padding-bottom: 0.35rem;
+    }
+    .pa-filters input[type="date"],
+    .pa-filters select {
+      margin-top: 0.2rem;
+      padding: clamp(0.2rem, 0.45cqi, 0.35rem) clamp(0.3rem, 0.55cqi, 0.5rem);
+      font-size: clamp(0.625rem, 1.15cqi, 0.75rem);
+    }
+    .pa-filters .pa-f-actions {
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+      gap: clamp(0.25rem, 0.5cqi, 0.5rem);
+    }
+    .pa-filters .pa-f-btn {
+      flex: 0 0 auto;
+      min-width: 0;
+      padding: clamp(0.28rem, 0.55cqi, 0.45rem) clamp(0.45rem, 0.9cqi, 0.75rem);
+      font-size: clamp(0.625rem, 1.15cqi, 0.75rem);
+    }
   }
   /* Grafik çizim animasyonu */
   #ia-chart {
@@ -2377,7 +2457,7 @@
         dltTitle = kpiCmp.title || "";
       }
       return (
-        '<article class="metric-kpi-ss2 is-open" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
+        '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
           '<div class="metric-kpi-ss2-head">' +
             '<span class="metric-kpi-chip" title="' + esc(label) + '">' + esc(label) + "</span>" +
             infoBtn +
@@ -2397,7 +2477,7 @@
             '<div><p class="metric-kpi-kicker">Last</p><strong>' + esc(fmtNum(st.last, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Nokta</p><strong>' + esc(String(st.n || 0)) + "</strong></div>" +
           "</div>" +
-          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="true" aria-label="Close details">' +
+          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Open details">' +
             '<svg class="metric-kpi-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
           "</button>" +
         "</article>"
