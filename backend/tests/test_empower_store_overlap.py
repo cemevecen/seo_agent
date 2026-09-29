@@ -157,6 +157,7 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert 'play_metric_overlay_persist=false' in android_html
     assert 'paSelectedMetrics = [\n    "crashes",\n    "ga4:sessions",\n    "market:gram_altin"' in android_html
     assert '"xdata:active1DayUsers"' in android_html
+    assert '"xdata:active7DayUsers"' in android_html
     assert '"xdata:active28DayUsers"' in android_html
     assert '"market:usd_try"' not in android_html.split("var paSelectedMetrics")[1].split("];")[0]
     assert '"xdata:usdEcpm"\n  ]' in android_html
@@ -170,6 +171,7 @@ def test_play_metric_overlay_js_has_xdata_and_drops_overlap():
     assert 'play_metric_overlay_persist=false' in ios_html
     assert 'iaSelectedMetrics = [\n    "crashes",\n    "ga4:sessions",\n    "market:gram_altin"' in ios_html
     assert '"virgul:net_revenue",\n    "xdata:active1DayUsers"' in ios_html
+    assert '"xdata:active7DayUsers"' in ios_html
     assert '"xdata:active28DayUsers"' in ios_html
     assert '"market:usd_try"' not in ios_html.split("var iaSelectedMetrics")[1].split("];")[0]
     assert 'CHART_METRICS = [\n    "crashes",\n    "ga4:sessions",\n    "market:gram_altin"' in ios_html
