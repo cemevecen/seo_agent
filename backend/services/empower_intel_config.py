@@ -20,6 +20,7 @@ APP_COLUMNS: tuple[str, ...] = (
     "request",
     "active1DayUsers",
     "active7DayUsers",
+    "active28DayUsers",
     "dauPerMau",
     "appVersion",
     "arpdauTry",
@@ -53,6 +54,7 @@ WEB_COLUMNS: tuple[str, ...] = (
     "request",
     "active1DayUsers",
     "active7DayUsers",
+    "active28DayUsers",
     "dauPerMau",
     "avgEngagementTimePerUser",
     "avgEngagementTimePerSession",
@@ -92,6 +94,7 @@ METRIC_LABELS: dict[str, str] = {
     "request": "Requests",
     "active1DayUsers": "DAU (1 Day)",
     "active7DayUsers": "DAU (7 Days)",
+    "active28DayUsers": "MAU",
     "dauPerMau": "DAU per MAU",
     "appVersion": "App Version",
     "arpdauTry": "ARPDAU (₺)",
@@ -225,6 +228,7 @@ def meta_payload() -> dict:
 PLAY_CONSOLE_SKIP_METRIC_KEYS: frozenset[str] = frozenset(
     {
         "dau",
+        "mau",
         "dau_mau",
         "active_users",
     }
@@ -253,6 +257,13 @@ STORE_EMPOWER_OVERLAP: tuple[dict[str, str], ...] = (
         "empower_key": "active1DayUsers",
         "play": "Günlük etkin kullanıcı",
         "play_key": "dau",
+        "asc": "",
+    },
+    {
+        "empower": "MAU",
+        "empower_key": "active28DayUsers",
+        "play": "MAU",
+        "play_key": "mau",
         "asc": "",
     },
     {

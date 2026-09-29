@@ -90,6 +90,8 @@ def test_xdata_dropdown_covers_app_columns_minus_version():
     assert "xdata:sessions" in values
     assert "xdata:totalUsers" in values
     assert "DAU (1 Day)" in labels
+    assert "MAU" in labels
+    assert "xdata:active28DayUsers" in values
     assert "xdata:appVersion" not in values
     ios_opts = {o["value"] for o in xdata_dropdown_options("ios")}
     assert ios_opts == values

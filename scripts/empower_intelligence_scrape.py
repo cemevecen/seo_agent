@@ -109,6 +109,7 @@ APP_VISIBLE_COLUMNS: tuple[str, ...] = (
     "request",  # Requests
     "active1DayUsers",  # DAU (1 Day)
     "active7DayUsers",  # DAU (7 Days)
+    "active28DayUsers",  # MAU (28 Days)
     "dauPerMau",
     "appVersion",
     "arpdauTry",  # ARPDAU (₺)
@@ -143,6 +144,7 @@ WEB_VISIBLE_COLUMNS: tuple[str, ...] = (
     "request",
     "active1DayUsers",
     "active7DayUsers",
+    "active28DayUsers",
     "dauPerMau",
     "avgEngagementTimePerUser",
     "avgEngagementTimePerSession",

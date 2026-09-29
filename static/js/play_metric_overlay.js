@@ -180,7 +180,7 @@
   var XDATA_PLATFORMS = ["android", "ios", "web", "mweb"];
   var XDATA_ITEMS = { android: [], ios: [], web: [], mweb: [] };
   var xdataLoadPromise = null;
-  var DROPPED_OVERLAY_KEYS = { dau: 1, dau_mau: 1, active_users: 1 };
+  var DROPPED_OVERLAY_KEYS = { dau: 1, mau: 1, dau_mau: 1, active_users: 1 };
 
   function seedXdataFromWindow() {
     var pack = global.SEO_XDATA_METRIC_OPTIONS;
