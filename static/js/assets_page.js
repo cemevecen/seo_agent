@@ -183,6 +183,11 @@
   function openMetricList(on) {
     if (!el.metricList || !el.metricTrigger) return;
     if (on) {
+      // container-type / stacking context filtreyi KPI altında bırakıyordu;
+      // listeyi body'ye taşıyıp viewport üstüne sabitle.
+      if (el.metricList.parentElement !== document.body) {
+        document.body.appendChild(el.metricList);
+      }
       buildMetricList();
       positionMetricDropdown();
       el.metricList.classList.remove("hidden");
@@ -342,7 +347,6 @@
         '<p class="as-kpi-card__delta ' + cls + '"><span>' + arrow + "</span><span>" + fmtPct(d) + "</span></p></div>" +
         sparklineSvg(pts, color) +
         "</div>" +
-        '<div class="as-kpi-card__chev" aria-hidden="true"><svg viewBox="0 0 20 20" width="12" height="12" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg></div>' +
         "</article>";
     });
     el.kpiGrid.innerHTML = html || '<p class="text-xs text-slate-400">Varlık seçin.</p>';

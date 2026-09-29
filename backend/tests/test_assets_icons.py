@@ -39,3 +39,9 @@ def test_assets_ui_renders_icons_and_clips_chart():
     assert "clip-path" in js or "clipPath" in js
     assert "as-plot-clip" in js
     assert "icon_url" in js or "iconHtml(spec" in js
+    # Pasif UI temizliği
+    assert "as-kpi-card__chev" not in js
+    assert 'id="as-dim"' not in page
+    assert 'id="as-segment"' not in page
+    assert "document.body.appendChild(el.metricList)" in js
+    assert "z-[10200]" in page

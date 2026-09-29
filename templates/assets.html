@@ -53,6 +53,8 @@
     flex-wrap: wrap;
     gap: 0.65rem 0.75rem;
     align-items: flex-end;
+    position: relative;
+    z-index: 40;
   }
   .as-filters > label.as-f {
     display: flex;
@@ -222,12 +224,6 @@
     height: 3.1rem;
     align-self: end;
   }
-  .as-kpi-card__chev {
-    display: flex;
-    justify-content: center;
-    margin-top: 0.15rem;
-    color: #94a3b8;
-  }
 
   .as-chart-card {
     background: #f8fafc;
@@ -328,7 +324,7 @@
           <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
         </button>
         <div id="as-metric-list" role="listbox" aria-multiselectable="true"
-             class="fixed z-[220] hidden max-h-80 overflow-auto rounded-2xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950">
+             class="fixed z-[10200] hidden max-h-80 overflow-auto rounded-2xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950">
           <div id="as-metric-list-scroll" class="py-1"></div>
         </div>
       </div>
@@ -338,16 +334,6 @@
         <option value="day" selected>Day</option>
         <option value="week">Week</option>
         <option value="month">Month</option>
-      </select>
-    </label>
-    <label class="as-f as-f--sm">Dimension
-      <select id="as-dim" disabled>
-        <option value="overview" selected>Overview (date)</option>
-      </select>
-    </label>
-    <label class="as-f as-f--sm">Segment
-      <select id="as-segment" disabled>
-        <option value="all" selected>All</option>
       </select>
     </label>
     <label class="as-f as-f--sm">Compare
@@ -365,7 +351,7 @@
     </div>
   </div>
 
-  <div id="as-results" class="relative mt-4 w-full min-w-0">
+  <div id="as-results" class="relative z-0 mt-4 w-full min-w-0">
     <div id="as-loading" class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-xl bg-white/55 backdrop-blur-[2px] dark:bg-zinc-950/50" aria-live="polite" aria-busy="false">
       <div class="flex flex-col items-center gap-3">
         <div class="as-orbit" aria-hidden="true">
@@ -424,5 +410,5 @@
     categories: {{ asset_categories_json | safe }}
   };
 </script>
-<script src="/static/js/assets_page.js?v=2"></script>
+<script src="/static/js/assets_page.js?v=3"></script>
 {% endblock %}
