@@ -18840,18 +18840,10 @@ def assets_market_page(request: Request):
     from backend.services.market_sheets_config import (
         DEFAULT_ASSET_KEYS,
         MARKET_SHEET_SERIES,
+        series_public_dict,
     )
 
-    series = [
-        {
-            "key": s.key,
-            "label": s.label,
-            "unit": s.unit,
-            "source_url": s.source_url,
-            "category": s.category or "other",
-        }
-        for s in MARKET_SHEET_SERIES
-    ]
+    series = [series_public_dict(s) for s in MARKET_SHEET_SERIES]
     categories = {
         "gold": "Altın",
         "silver": "Gümüş",

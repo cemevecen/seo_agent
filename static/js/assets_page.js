@@ -130,6 +130,12 @@
     } else el.metricLabel.textContent = n + " assets selected";
   }
 
+  function iconHtml(spec, cls) {
+    var url = (spec && spec.icon_url) || "";
+    if (!url) return "";
+    return '<img class="' + (cls || "as-icon") + '" src="' + url + '" alt="" width="20" height="20" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.classList.add(\'is-missing\')" />';
+  }
+
   function buildMetricList() {
     if (!el.metricScroll) return;
     var byCat = {};
@@ -149,6 +155,7 @@
         var on = selected.indexOf(s.key) >= 0;
         html += '<button type="button" role="option" aria-selected="' + on + '" data-as-key="' + s.key + '" class="as-metric-opt' + (on ? " is-on" : "") + '">' +
           '<span class="w-4 text-center">' + (on ? "✓" : "") + "</span>" +
+          iconHtml(s, "as-icon as-icon--sm") +
           '<span class="min-w-0 flex-1 truncate">' + (s.label || s.key) + "</span>" +
           '<span class="text-[10px] font-medium text-slate-400">' + (s.unit || "") + "</span></button>";
       });
@@ -323,7 +330,10 @@
       var color = colorFor(key, idx);
       html += '<article class="as-kpi-card" data-as-kpi="' + key + '">' +
         '<div class="as-kpi-card__head">' +
+        '<div class="as-kpi-card__title-row">' +
+        iconHtml(spec, "as-icon") +
         '<p class="as-kpi-card__title">' + (spec.label || key) + "</p>" +
+        "</div>" +
         '<a class="text-slate-400 hover:text-emerald-600" href="' + (spec.source_url || "#") + '" target="_blank" rel="noopener" title="Kaynak">' +
         '<svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg></a>' +
         "</div>" +
@@ -352,6 +362,7 @@
       var spec = seriesByKey[key] || { label: key };
       var c = colorFor(key, idx);
       return '<span class="inline-flex items-center gap-1.5">' +
+        iconHtml(spec, "as-icon as-icon--xs") +
         '<span class="h-2 w-2 rounded-full" style="background:' + c + '"></span>' +
         (spec.label || key) + "</span>";
     }).join("");
@@ -374,16 +385,19 @@
     });
     var dates = unionDates(seriesMap);
     var W = 900, H = 300;
-    var padL = 48, padR = 16, padT = 16, padB = 36;
+    // Alt/üst padding: çizgi kalınlığı + x etiketleri için nefes; clipPath plot dışını keser.
+    var padL = 48, padR = 20, padT = 18, padB = 40;
     var plotW = W - padL - padR;
     var plotH = H - padT - padB;
+    var clipId = "as-plot-clip";
 
     function xOf(i) {
       if (dates.length <= 1) return padL + plotW / 2;
       return padL + (i / (dates.length - 1)) * plotW;
     }
     function yOf(norm) {
-      return padT + (1 - norm / 100) * plotH;
+      var n = Math.max(0, Math.min(100, Number(norm) || 0));
+      return padT + (1 - n / 100) * plotH;
     }
 
     var grid = "";
@@ -396,7 +410,7 @@
     var labelCount = Math.min(6, dates.length);
     for (var li = 0; li < labelCount; li++) {
       var di = labelCount === 1 ? 0 : Math.round((li / (labelCount - 1)) * (dates.length - 1));
-      xLabels += '<text x="' + xOf(di) + '" y="' + (H - 10) + '" text-anchor="middle" font-size="10" fill="#94a3b8">' + dates[di] + "</text>";
+      xLabels += '<text x="' + xOf(di) + '" y="' + (H - 12) + '" text-anchor="middle" font-size="10" fill="#94a3b8">' + dates[di] + "</text>";
     }
 
     var paths = "";
@@ -429,8 +443,16 @@
       }
     });
 
+    var defs = '<defs><clipPath id="' + clipId + '">' +
+      '<rect x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH + '"/>' +
+      "</clipPath></defs>";
+    var plotFrame = '<rect x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH +
+      '" fill="none" stroke="#e2e8f0" stroke-width="1" rx="2"/>';
+
     el.chart.setAttribute("viewBox", "0 0 " + W + " " + H);
-    el.chart.innerHTML = grid + paths + xLabels +
+    el.chart.innerHTML = defs + grid + plotFrame +
+      '<g clip-path="url(#' + clipId + ')">' + paths + "</g>" +
+      xLabels +
       '<rect id="as-hit" x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH + '" fill="transparent"/>';
 
     var hit = document.getElementById("as-hit");
@@ -458,7 +480,9 @@
       for (var i = 0; i < pts.length; i++) if (pts[i].date === dateKey) { found = pts[i]; break; }
       var spec = seriesByKey[key] || { label: key };
       var c = colorFor(key, idx);
-      return '<div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full" style="background:' + c + '"></span>' +
+      return '<div class="flex items-center gap-2">' +
+        iconHtml(spec, "as-icon as-icon--xs") +
+        '<span class="h-2 w-2 rounded-full" style="background:' + c + '"></span>' +
         '<span class="flex-1 truncate">' + (spec.label || key) + '</span>' +
         '<span class="tabular-nums font-bold">' + (found ? fmtNum(found.value) : "—") + "</span></div>";
     });

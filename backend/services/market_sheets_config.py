@@ -359,3 +359,79 @@ DEFAULT_ASSET_KEYS: tuple[str, ...] = (
 
 TARAMA_SOURCE_ID = "doviz.com"
 TARAMA_START_DATE = "2025-01-01"
+
+# doviz.com CDN — bayrak / coin / emtia / hisse ikonları (hotlink, public).
+_CDN_IMG = "https://cdn.doviz.com/images"
+_ASSET_ICON_PATHS: dict[str, str] = {
+    # Altın / gümüş
+    "gram_altin": "/other-assets/altin.png",
+    "harem_gram_altin": "/bank-logos/harem.png",
+    "altinkaynak_gram_altin": "/bank-logos/altinkaynak.png",
+    "ons_altin": "/other-assets/ons.png",
+    "ceyrek_altin": "/other-assets/altin.png",
+    "ata_altin": "/other-assets/altin.png",
+    "cumhuriyet_altini": "/other-assets/altin.png",
+    "tam_altin": "/other-assets/altin.png",
+    "resat_altin": "/other-assets/altin.png",
+    "gram_gumus": "/other-assets/gumus.png",
+    "harem_gram_gumus": "/bank-logos/harem.png",
+    # Emtia
+    "brent": "/other-assets/brent.png",
+    "gumus_ons": "/other-assets/xag-usd.png",
+    "altin_gumus": "/other-assets/altin.png",
+    "aluminyum": "/other-assets/aluminum.png",
+    # Döviz
+    "usd_try": "/flags/usd.png",
+    "eur_try": "/flags/eur.png",
+    "gbp_try": "/flags/gbp.png",
+    "chf_try": "/flags/chf.png",
+    "sar_try": "/flags/sar.png",
+    # Endeks
+    "bist100": "/other-assets/bist.png",
+    # Kripto
+    "bitcoin": "/coin/bitcoin.png",
+    "ethereum": "/coin/ethereum.png",
+    "solana": "/coin/solana.png",
+    "luna_classic": "/coin/terra-luna.png",
+    "dogecoin": "/coin/dogecoin.png",
+    "avalanche": "/coin/avalanche-2.png",
+    "xrp": "/coin/ripple.png",
+    "pepe": "/coin/pepe.png",
+    "shiba_inu": "/coin/shiba-inu.png",
+    "arbitrum": "/coin/arbitrum.png",
+    # BIST hisseleri
+    "asels": "/stock/ASELS.png",
+    "thyao": "/stock/THYAO.png",
+    "sasa": "/stock/SASA.png",
+    "akbnk": "/stock/AKBNK.png",
+    "tuprs": "/stock/TUPRS.png",
+    "tralt": "/other-assets/altin.png",  # CDN'de TRALT yok
+    "ykbnk": "/stock/YKBNK.png",
+    "kchol": "/stock/KCHOL.png",
+    "isctr": "/stock/ISCTR.png",
+    "bimas": "/stock/BIMAS.png",
+    "eregl": "/stock/EREGL.png",
+    "garan": "/stock/GARAN.png",
+    "sahol": "/stock/SAHOL.png",
+    "krdmd": "/stock/KRDMD.png",
+}
+_PLACEHOLDER_ICON = f"{_CDN_IMG}/other-assets/placeholder.png"
+
+
+def icon_url_for(key: str) -> str:
+    """doviz.com CDN ikon URL'si — bilinmeyen anahtar için placeholder."""
+    path = _ASSET_ICON_PATHS.get(str(key or "").strip())
+    if not path:
+        return _PLACEHOLDER_ICON
+    return f"{_CDN_IMG}{path}"
+
+
+def series_public_dict(series: MarketSheetSeries) -> dict[str, str]:
+    return {
+        "key": series.key,
+        "label": series.label,
+        "unit": series.unit,
+        "source_url": series.source_url,
+        "category": series.category or "other",
+        "icon_url": icon_url_for(series.key),
+    }
