@@ -14,6 +14,7 @@ from backend.models import EmpowerIntelDailyRow
 from backend.services.empower_intel_config import (
     METRIC_LABELS,
     XDATA_AVG_KEYS,
+    XDATA_LAST_KEYS,
     XDATA_SKIP_CHART_KEYS,
     columns_for_platform,
     xdata_column_key,
@@ -415,9 +416,13 @@ def query_series(
         series.append({"key": ds, "value": round(num, 6)})
     vals = [float(r["value"]) for r in series]
     as_avg = col in XDATA_AVG_KEYS
+    as_last = col in XDATA_LAST_KEYS
     if as_avg:
         total = round(sum(vals) / len(vals), 4) if vals else 0.0
         total_mode = "avg"
+    elif as_last:
+        total = round(vals[-1], 4) if vals else 0.0
+        total_mode = "last"
     else:
         total = round(sum(vals), 4) if vals else 0.0
         total_mode = "sum"

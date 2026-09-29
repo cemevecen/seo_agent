@@ -1810,6 +1810,7 @@
 <script src="/static/js/metric_period_compare.js?v=2"></script>
 <script>
   window.SEO_XDATA_AVG_KEYS = {{ (xdata_avg_keys or []) | tojson }};
+  window.SEO_XDATA_LAST_KEYS = {{ (xdata_last_keys or []) | tojson }};
 </script>
 <script>
 (function () {
@@ -2416,8 +2417,13 @@
   }
   var PA_XDATA_AVG = {};
   (window.SEO_XDATA_AVG_KEYS || []).forEach(function (k) { PA_XDATA_AVG[k] = 1; });
+  var PA_XDATA_LAST = {};
+  (window.SEO_XDATA_LAST_KEYS || []).forEach(function (k) { PA_XDATA_LAST[k] = 1; });
   function isXdataAvgMetric(key) {
     return !!PA_XDATA_AVG[paBareMetric(key)];
+  }
+  function isXdataLastMetric(key) {
+    return !!PA_XDATA_LAST[paBareMetric(key)];
   }
   function overlaySourceForMetric(key) {
     if (isVirgulOverlayMetric(key)) return "virgul";
@@ -2736,7 +2742,7 @@
       var nv = Number(r && r.value);
       if (Number.isFinite(nv)) vals.push(nv);
     });
-    if (isMarketOverlayMetric(metricKey)) {
+    if (isMarketOverlayMetric(metricKey) || isXdataLastMetric(metricKey)) {
       return { total: vals.length ? vals[vals.length - 1] : 0, mode: "last" };
     }
     var asAvg = metricKey === "ga4:avg_session" || !!PA_VIRGUL_AVG_METRICS[metricKey] || isXdataAvgMetric(metricKey);
@@ -2923,7 +2929,7 @@
     var yy = d.getUTCFullYear();
     return yy + "-W" + (week < 10 ? "0" : "") + week;
   }
-  function aggregateOverlaySeries(series, breakdown, asAvg) {
+  function aggregateOverlaySeries(series, breakdown, asAvg, asLast) {
     if (!series || !series.length) return [];
     if (breakdown !== "week" && breakdown !== "month") return series.slice();
     var buckets = {};
@@ -2935,16 +2941,23 @@
         ? src.slice(0, 7)
         : isoWeekBucketKey(src.slice(0, 10));
       if (!buckets[key]) {
-        buckets[key] = { key: key, sum: 0, n: 0 };
+        buckets[key] = { key: key, sum: 0, n: 0, last: null };
         order.push(key);
       }
       if (r.value == null || isNaN(Number(r.value))) return;
-      buckets[key].sum += Number(r.value);
+      var nv = Number(r.value);
+      buckets[key].sum += nv;
       buckets[key].n += 1;
+      buckets[key].last = nv;
     });
     return order.map(function (k) {
       var b = buckets[k];
-      var v = b.n ? (asAvg ? b.sum / b.n : b.sum) : null;
+      var v = null;
+      if (b.n) {
+        if (asLast) v = b.last;
+        else if (asAvg) v = b.sum / b.n;
+        else v = b.sum;
+      }
       return { key: k, value: v == null ? null : Math.round(v * 10000) / 10000 };
     });
   }
@@ -2973,8 +2986,9 @@
       if (!b) return b;
       if (!seriesLooksDaily(b.series)) return b;
       var asAvg = b.total_mode === "avg" || metricSeriesAsAvg(b.metric);
+      var asLast = b.total_mode === "last" || isXdataLastMetric(b.metric);
       return Object.assign({}, b, {
-        series: aggregateOverlaySeries(b.series || [], br, asAvg)
+        series: aggregateOverlaySeries(b.series || [], br, asAvg, asLast)
       });
     });
   }
@@ -3085,8 +3099,14 @@
       }
       var xdSeries = Array.isArray(xdData.series) ? xdData.series : [];
       var xdAvg = isXdataAvgMetric(metricKey);
+      var xdLast = isXdataLastMetric(metricKey);
+      var xdMode = xdData.total_mode || (xdAvg ? "avg" : (xdLast ? "last" : "sum"));
       if (brMain === "week" || brMain === "month") {
-        xdSeries = aggregateOverlaySeries(xdSeries, brMain, xdAvg);
+        xdSeries = aggregateOverlaySeries(xdSeries, brMain, xdAvg, xdLast);
+      }
+      var xdTm = externalSeriesTotal(metricKey, xdSeries);
+      if (xdData.total != null && Number.isFinite(Number(xdData.total)) && brMain === "date") {
+        xdTm = { total: Number(xdData.total), mode: xdMode };
       }
       var xdPrev = [];
       var xdCmp = null;
@@ -3110,7 +3130,7 @@
             if (xdPrevRes.ok && Array.isArray(xdPrevData.series)) {
               xdPrev = xdPrevData.series;
               if (brMain === "week" || brMain === "month") {
-                xdPrev = aggregateOverlaySeries(xdPrev, brMain, xdAvg);
+                xdPrev = aggregateOverlaySeries(xdPrev, brMain, xdAvg, xdLast);
               }
             }
           } catch (_) {
@@ -3118,8 +3138,8 @@
           }
           xdCmp = window.SeoPeriodCompare
             ? SeoPeriodCompare.fromSeries(
-                { series: xdSeries, total_mode: xdAvg ? "avg" : "sum" },
-                { series: xdPrev },
+                { series: xdSeries, total_mode: xdTm.mode, total: xdTm.total },
+                { series: xdPrev, total_mode: xdTm.mode },
                 paCompareMode(),
                 xdBounds
               )
@@ -3143,7 +3163,9 @@
         dim: "overview",
         segment: "all",
         source: "xdata",
-        color: ov.color || null
+        color: ov.color || null,
+        total: xdTm.total,
+        total_mode: xdTm.mode
       };
     }
     if (isGa4OverlayMetric(metricKey) || isVirgulOverlayMetric(metricKey)) {
@@ -4479,9 +4501,10 @@
       var avg = packAverage(pack);
       var countLike = metricIsCountLike(pack.overlayMetric || pack.metric);
       var modeTotal = pack.total_mode || "sum";
+      var fallbackTotal = modeTotal === "last" ? st.last : (modeTotal === "avg" ? st.avg : st.sum);
       var totalVal = pack.total != null && Number.isFinite(Number(pack.total))
         ? fmtNum(pack.total, countLike && modeTotal !== "avg")
-        : fmtNum(st.sum, countLike);
+        : fmtNum(fallbackTotal, countLike && modeTotal !== "avg");
       var label = pack.label || pack.metric || "";
       var tip = typeof paMetricHelp === "function" ? paMetricHelp(pack.overlayMetric || pack.metric) : "";
       var spark = seriesSparkSvg(pack.series, color, 220, 56);
@@ -4499,27 +4522,27 @@
         dltTitle = kpiCmp.title || "";
       }
       return (
-        '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
+        '<article class="metric-kpi-ss2 is-open" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
           '<div class="metric-kpi-ss2-head">' +
             '<span class="metric-kpi-chip" title="' + esc(label) + '">' + esc(label) + "</span>" +
             infoBtn +
           "</div>" +
           '<div class="metric-kpi-ss2-main">' +
             '<div class="metric-kpi-ss2-metrics">' +
-              '<p class="metric-kpi-ss2-value" title="' + esc(fmtNum(avg, false)) + '">' + esc(fmtNum(avg, false)) + "</p>" +
+              '<p class="metric-kpi-ss2-value" title="' + esc(fmtNum(avg, countLike)) + '">' + esc(fmtNum(avg, countLike)) + "</p>" +
               '<p class="metric-kpi-ss2-delta ' + dltCls + '" title="' + esc(dltTitle) + '">' + esc(dltTxt) + "</p>" +
             "</div>" +
             '<div class="metric-kpi-ss2-spark">' + spark + "</div>" +
           "</div>" +
           '<div class="metric-kpi-ss2-panel">' +
             '<div><p class="metric-kpi-kicker">Total</p><strong>' + esc(totalVal) + "</strong></div>" +
-            '<div><p class="metric-kpi-kicker">Ortalama</p><strong>' + esc(fmtNum(avg, false)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Ortalama</p><strong>' + esc(fmtNum(avg, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Min</p><strong>' + esc(fmtNum(st.min, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Max</p><strong>' + esc(fmtNum(st.max, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Last</p><strong>' + esc(fmtNum(st.last, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Nokta</p><strong>' + esc(String(st.n || 0)) + "</strong></div>" +
           "</div>" +
-          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Open details">' +
+          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="true" aria-label="Close details">' +
             '<svg class="metric-kpi-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
           "</button>" +
         "</article>"

@@ -1374,6 +1374,7 @@
 <script src="/static/js/metric_period_compare.js?v=2"></script>
 <script>
   window.SEO_XDATA_AVG_KEYS = {{ (xdata_avg_keys or []) | tojson }};
+  window.SEO_XDATA_LAST_KEYS = {{ (xdata_last_keys or []) | tojson }};
 </script>
 <script>
 (function () {
@@ -1818,7 +1819,10 @@
   function isXdataMetric(key) { return iaBareMetric(key).indexOf("xdata:") === 0; }
   var IA_XDATA_AVG = {};
   (window.SEO_XDATA_AVG_KEYS || []).forEach(function (k) { IA_XDATA_AVG[k] = 1; });
+  var IA_XDATA_LAST = {};
+  (window.SEO_XDATA_LAST_KEYS || []).forEach(function (k) { IA_XDATA_LAST[k] = 1; });
   function isXdataAvgMetric(key) { return !!IA_XDATA_AVG[iaBareMetric(key)]; }
+  function isXdataLastMetric(key) { return !!IA_XDATA_LAST[iaBareMetric(key)]; }
   function overlaySourceForMetric(key) {
     if (isVirgulMetric(key)) return "virgul";
     if (isGa4Metric(key)) return "ga4";
@@ -2352,9 +2356,10 @@
       var avg = packAverage(pack);
       var countLike = isCountLike(pack.metric);
       var modeTotal = pack.total_mode || "sum";
+      var fallbackTotal = modeTotal === "last" ? st.last : (modeTotal === "avg" ? st.avg : st.sum);
       var totalVal = pack.total != null && Number.isFinite(Number(pack.total))
         ? fmtNum(pack.total, countLike && modeTotal !== "avg")
-        : fmtNum(st.sum, countLike);
+        : fmtNum(fallbackTotal, countLike && modeTotal !== "avg");
       var label = pack.label || pack.metric || "";
       var tip = typeof iaMetricHelp === "function" ? iaMetricHelp(pack.metric) : "";
       var spark = seriesSparkSvg(pack.series, color, 220, 56);
@@ -2372,27 +2377,27 @@
         dltTitle = kpiCmp.title || "";
       }
       return (
-        '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
+        '<article class="metric-kpi-ss2 is-open" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(pack.metric) + '">' +
           '<div class="metric-kpi-ss2-head">' +
             '<span class="metric-kpi-chip" title="' + esc(label) + '">' + esc(label) + "</span>" +
             infoBtn +
           "</div>" +
           '<div class="metric-kpi-ss2-main">' +
             '<div class="metric-kpi-ss2-metrics">' +
-              '<p class="metric-kpi-ss2-value" title="' + esc(fmtNum(avg, false)) + '">' + esc(fmtNum(avg, false)) + "</p>" +
+              '<p class="metric-kpi-ss2-value" title="' + esc(fmtNum(avg, countLike)) + '">' + esc(fmtNum(avg, countLike)) + "</p>" +
               '<p class="metric-kpi-ss2-delta ' + dltCls + '" title="' + esc(dltTitle) + '">' + esc(dltTxt) + "</p>" +
             "</div>" +
             '<div class="metric-kpi-ss2-spark">' + spark + "</div>" +
           "</div>" +
           '<div class="metric-kpi-ss2-panel">' +
             '<div><p class="metric-kpi-kicker">Total</p><strong>' + esc(totalVal) + "</strong></div>" +
-            '<div><p class="metric-kpi-kicker">Ortalama</p><strong>' + esc(fmtNum(avg, false)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Ortalama</p><strong>' + esc(fmtNum(avg, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Min</p><strong>' + esc(fmtNum(st.min, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Max</p><strong>' + esc(fmtNum(st.max, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Last</p><strong>' + esc(fmtNum(st.last, countLike)) + "</strong></div>" +
             '<div><p class="metric-kpi-kicker">Nokta</p><strong>' + esc(String(st.n || 0)) + "</strong></div>" +
           "</div>" +
-          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Open details">' +
+          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="true" aria-label="Close details">' +
             '<svg class="metric-kpi-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
           "</button>" +
         "</article>"
@@ -2474,7 +2479,7 @@
         label: xdData.label || metricLabel(metricKey),
         series: Array.isArray(xdData.series) ? xdData.series : [],
         total: xdData.total,
-        total_mode: xdData.total_mode || (isXdataAvgMetric(metricKey) ? "avg" : "sum"),
+        total_mode: xdData.total_mode || (isXdataAvgMetric(metricKey) ? "avg" : (isXdataLastMetric(metricKey) ? "last" : "sum")),
         message: xdData.message || "",
         source: "xdata"
       }, metricKey, signal, range);
@@ -2721,7 +2726,7 @@
     var br = (iaBreakdown && iaBreakdown.value) || "date";
     return (br === "week" || br === "month") ? br : "date";
   }
-  function aggregateIaSeries(series, breakdown, asAvg) {
+  function aggregateIaSeries(series, breakdown, asAvg, asLast) {
     if (!series || !series.length) return [];
     if (breakdown !== "week" && breakdown !== "month") return series.slice();
     var buckets = {};
@@ -2732,28 +2737,37 @@
       if (!/^(20\d{2})-\d{2}-\d{2}/.test(src)) {
         // Zaten hafta/ay anahtarı
         if (!buckets[src]) {
-          buckets[src] = { key: src, sum: 0, n: 0 };
+          buckets[src] = { key: src, sum: 0, n: 0, last: null };
           order.push(src);
         }
         if (r.value == null || isNaN(Number(r.value))) return;
-        buckets[src].sum += Number(r.value);
+        var n0 = Number(r.value);
+        buckets[src].sum += n0;
         buckets[src].n += 1;
+        buckets[src].last = n0;
         return;
       }
       var key = breakdown === "month"
         ? src.slice(0, 7)
         : isoWeekBucketKey(src.slice(0, 10));
       if (!buckets[key]) {
-        buckets[key] = { key: key, sum: 0, n: 0 };
+        buckets[key] = { key: key, sum: 0, n: 0, last: null };
         order.push(key);
       }
       if (r.value == null || isNaN(Number(r.value))) return;
-      buckets[key].sum += Number(r.value);
+      var nv = Number(r.value);
+      buckets[key].sum += nv;
       buckets[key].n += 1;
+      buckets[key].last = nv;
     });
     return order.map(function (k) {
       var b = buckets[k];
-      var v = b.n ? (asAvg ? b.sum / b.n : b.sum) : null;
+      var v = null;
+      if (b.n) {
+        if (asLast) v = b.last;
+        else if (asAvg) v = b.sum / b.n;
+        else v = b.sum;
+      }
       return { key: k, value: v == null ? null : Math.round(v * 10000) / 10000 };
     });
   }
@@ -2765,8 +2779,9 @@
       var mk = iaBareMetric(b.metric);
       var asAvg = b.total_mode === "avg" || mk === "ga4:avg_session" || !!IA_VIRGUL_AVG[mk]
         || mk === "conversion_rate" || isXdataAvgMetric(mk);
+      var asLast = b.total_mode === "last" || isXdataLastMetric(mk);
       return Object.assign({}, b, {
-        series: aggregateIaSeries(b.series || [], br, asAvg)
+        series: aggregateIaSeries(b.series || [], br, asAvg, asLast)
       });
     });
   }
@@ -3439,7 +3454,8 @@
     var rows = Array.isArray(series) ? series : [];
     if (br === "week" || br === "month") {
       var asAvg = metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[metric] || metric === "conversion_rate" || isXdataAvgMetric(metric);
-      rows = aggregateIaSeries(rows, br, asAvg);
+      var asLast = isXdataLastMetric(metric);
+      rows = aggregateIaSeries(rows, br, asAvg, asLast);
     }
     if (!rows.length) {
       iaChartState = { mode: "empty", keys: [], xs: [], left: 0, plotW: 0, seriesList: [] };
@@ -3556,8 +3572,9 @@
         var mk = iaBareMetric(b.metric);
         var asAvg = b.total_mode === "avg" || mk === "ga4:avg_session" || !!IA_VIRGUL_AVG[mk]
           || mk === "conversion_rate" || isXdataAvgMetric(mk);
+        var asLast = b.total_mode === "last" || isXdataLastMetric(mk);
         b.compare = Object.assign({}, b.compare, {
-          series: aggregateIaSeries(b.compare.series, brCmp, asAvg)
+          series: aggregateIaSeries(b.compare.series, brCmp, asAvg, asLast)
         });
       });
     }
@@ -3664,7 +3681,8 @@
     var rows = series || [];
     if (br === "week" || br === "month") {
       var asAvg = metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[metric] || metric === "conversion_rate" || isXdataAvgMetric(metric);
-      rows = aggregateIaSeries(rows, br, asAvg);
+      var asLast = isXdataLastMetric(metric);
+      rows = aggregateIaSeries(rows, br, asAvg, asLast);
     }
     if (!rows.length) {
       iaTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">No rows</td></tr>';

@@ -159,6 +159,14 @@ XDATA_AVG_KEYS: frozenset[str] = frozenset(
         "is_holiday",
     }
 )
+# Dönem toplamı = son gün (rolling stok: DAU / WAU / MAU)
+XDATA_LAST_KEYS: frozenset[str] = frozenset(
+    {
+        "active1DayUsers",
+        "active7DayUsers",
+        "active28DayUsers",
+    }
+)
 
 
 def xdata_column_key(raw: str) -> str:
@@ -201,12 +209,25 @@ def xdata_avg_metric_ids(platform: str) -> list[str]:
     ]
 
 
+def xdata_last_metric_ids(platform: str) -> list[str]:
+    return [
+        xdata_metric_id(k)
+        for k in columns_for_platform(platform)
+        if k in XDATA_LAST_KEYS and k not in XDATA_SKIP_CHART_KEYS
+    ]
+
+
 def xdata_page_context(platform: str) -> dict:
     return {
         "xdata_metric_options": xdata_dropdown_options(platform, hide=APP_PAGE_HIDDEN_XDATA),
         "xdata_avg_keys": [
             k
             for k in xdata_avg_metric_ids(platform)
+            if xdata_column_key(k) not in APP_PAGE_HIDDEN_XDATA
+        ],
+        "xdata_last_keys": [
+            k
+            for k in xdata_last_metric_ids(platform)
             if xdata_column_key(k) not in APP_PAGE_HIDDEN_XDATA
         ],
     }
