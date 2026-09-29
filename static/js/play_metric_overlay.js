@@ -161,12 +161,16 @@
   var MARKET_OVERLAY_ITEMS = [
     { key: "market:usd_try", label: "USD/TRY close" },
     { key: "market:eur_try", label: "EUR/TRY close" },
+    { key: "market:gbp_try", label: "GBP/TRY close" },
     { key: "market:gram_altin", label: "Gold gram close" },
+    { key: "market:ons_altin", label: "Gold ounce close" },
     { key: "market:ceyrek_altin", label: "Quarter gold close" },
     { key: "market:gram_gumus", label: "Silver gram close" },
     { key: "market:bist100", label: "BIST 100 close" },
     { key: "market:brent", label: "Brent close" },
     { key: "market:bitcoin", label: "Bitcoin close" },
+    { key: "market:ethereum", label: "Ethereum close" },
+    { key: "market:asels", label: "ASELS close" },
     { key: "market:all_indexed", label: "All (range start=100)" },
   ];
   var METRIC_GROUPS = METRIC_GROUPS_ANDROID;
@@ -274,8 +278,8 @@
   }
 
   var MARKET_KEYS = [
-    "usd_try", "eur_try", "gram_altin", "ceyrek_altin",
-    "gram_gumus", "bist100", "brent", "bitcoin",
+    "usd_try", "eur_try", "gbp_try", "gram_altin", "ons_altin", "ceyrek_altin",
+    "gram_gumus", "bist100", "brent", "bitcoin", "ethereum", "asels",
   ];
 
   var cache = {};

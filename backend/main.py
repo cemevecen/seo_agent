@@ -18832,6 +18832,49 @@ def notification_page(request: Request):
     )
 
 
+@app.get("/assets")
+def assets_market_page(request: Request):
+    """doviz.com piyasa varlıkları — Metrics-benzeri KPI + grafik."""
+    import json
+
+    from backend.services.market_sheets_config import (
+        DEFAULT_ASSET_KEYS,
+        MARKET_SHEET_SERIES,
+    )
+
+    series = [
+        {
+            "key": s.key,
+            "label": s.label,
+            "unit": s.unit,
+            "source_url": s.source_url,
+            "category": s.category or "other",
+        }
+        for s in MARKET_SHEET_SERIES
+    ]
+    categories = {
+        "gold": "Altın",
+        "silver": "Gümüş",
+        "commodity": "Emtia",
+        "fx": "Döviz",
+        "index": "Endeks",
+        "crypto": "Kripto",
+        "equity": "Hisse",
+        "other": "Diğer",
+    }
+    return templates.TemplateResponse(
+        request,
+        "assets.html",
+        context={
+            "request": request,
+            "asset_series_json": json.dumps(series, ensure_ascii=False),
+            "asset_defaults_json": json.dumps(list(DEFAULT_ASSET_KEYS), ensure_ascii=False),
+            "asset_categories_json": json.dumps(categories, ensure_ascii=False),
+        },
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
 @app.get("/android")
 def android_play_console_page(request: Request):
     """Google Play Console scrape — Döviz Android (Mac bridge)."""

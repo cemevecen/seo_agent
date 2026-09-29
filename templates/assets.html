@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=13">
+<link rel="stylesheet" href="/static/css/pa_chart_style.css?v=3">
+<style>
+  .as-orbit {
+    position: relative;
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+  .as-orbit__ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 2.5px solid transparent;
+    border-top-color: #059669;
+    border-right-color: rgba(5, 150, 105, 0.35);
+    animation: as-orbit-spin 0.9s linear infinite;
+  }
+  .as-orbit__ring--mid {
+    inset: 0.45rem;
+    border-top-color: #34d399;
+    border-right-color: rgba(52, 211, 153, 0.3);
+    animation-duration: 1.25s;
+    animation-direction: reverse;
+  }
+  .as-orbit__ring--inner {
+    inset: 0.9rem;
+    border-width: 2px;
+    border-top-color: #6ee7b7;
+    border-left-color: rgba(110, 231, 183, 0.4);
+    border-right-color: transparent;
+    animation-duration: 0.7s;
+  }
+  .as-orbit__core {
+    position: absolute;
+    inset: 1.25rem;
+    border-radius: 9999px;
+    background: radial-gradient(circle at 35% 30%, #a7f3d0, #059669 70%);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.45);
+    animation: as-orbit-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes as-orbit-spin { to { transform: rotate(360deg); } }
+  @keyframes as-orbit-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(0.88); opacity: 0.75; }
+  }
+
+  .as-filters {
+    container-type: inline-size;
+    container-name: as-filters;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem 0.75rem;
+    align-items: flex-end;
+  }
+  .as-filters > label.as-f {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: inherit;
+    min-width: 0;
+  }
+  .as-filters > label.as-f--metric { flex: 1 1 100%; }
+  .as-filters > label.as-f--date { flex: 1 1 calc(50% - 0.5rem); min-width: 8.75rem; }
+  .as-filters > label.as-f--sm { flex: 1 1 calc(50% - 0.5rem); min-width: 7.5rem; }
+  .as-filters input[type="date"],
+  .as-filters select {
+    margin-top: 0.15rem;
+    width: 100%;
+    border-radius: 0.65rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0.4rem 0.55rem;
+    font-size: 12px;
+    font-weight: 600;
+    color: #0f172a;
+  }
+  html.dark .as-filters input[type="date"],
+  html.dark .as-filters select,
+  html.charcoal .as-filters input[type="date"],
+  html.charcoal .as-filters select {
+    border-color: #3f3f46;
+    background: #18181b;
+    color: #f4f4f5;
+  }
+  .as-metric-dd { margin-top: 0.25rem; width: 100%; position: relative; }
+  .as-metric-trigger {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 0.65rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0.4rem 0.55rem;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: #0f172a;
+  }
+  html.dark .as-metric-trigger,
+  html.charcoal .as-metric-trigger {
+    border-color: #3f3f46;
+    background: #18181b;
+    color: #f4f4f5;
+  }
+  .as-metric-trigger:focus {
+    outline: 2px solid rgba(5, 150, 105, 0.45);
+    outline-offset: 1px;
+  }
+  .as-f-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-end;
+    gap: 0.4rem;
+    margin-left: auto;
+  }
+  .as-f-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.65rem;
+    padding: 0.45rem 1rem;
+    font-size: 12px;
+    font-weight: 700;
+    transition: background 0.15s ease;
+  }
+  @container as-filters (min-width: 720px) {
+    .as-filters { flex-wrap: nowrap; }
+    .as-filters > label.as-f--metric { flex: 1.4 1 0; }
+    .as-filters > label.as-f--date { flex: 0.95 1 0; min-width: 6.5rem; }
+    .as-filters > label.as-f--sm { flex: 0.85 1 0; min-width: 0; }
+  }
+
+  .as-kpi-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 7.5rem;
+    border-radius: 0.9rem;
+    border: 1px solid #e2e8f0;
+    background: linear-gradient(165deg, #fff 0%, #f8fafc 100%);
+    padding: 0.75rem 0.85rem 0.55rem;
+    overflow: hidden;
+  }
+  html.dark .as-kpi-card,
+  html.charcoal .as-kpi-card {
+    border-color: #3f3f46;
+    background: linear-gradient(165deg, #18181b 0%, #09090b 100%);
+  }
+  .as-kpi-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.35rem;
+  }
+  .as-kpi-card__title {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+  html.dark .as-kpi-card__title { color: #a1a1aa; }
+  .as-kpi-card__body {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 0.35rem;
+    align-items: end;
+    margin-top: 0.35rem;
+    flex: 1;
+  }
+  .as-kpi-card__value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+  }
+  html.dark .as-kpi-card__value { color: #fafafa; }
+  .as-kpi-card__delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-top: 0.25rem;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .as-kpi-card__delta.is-up { color: #059669; }
+  .as-kpi-card__delta.is-down { color: #dc2626; }
+  .as-kpi-card__delta.is-flat { color: #94a3b8; }
+  .as-kpi-spark {
+    width: 100%;
+    height: 3.1rem;
+    align-self: end;
+  }
+  .as-kpi-card__chev {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.15rem;
+    color: #94a3b8;
+  }
+
+  .as-chart-card {
+    background: #f8fafc;
+  }
+  html.dark .as-chart-card,
+  html.charcoal .as-chart-card {
+    background: #09090b;
+  }
+  .as-view-toggle {
+    display: inline-flex;
+    border-radius: 0.55rem;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+  }
+  html.dark .as-view-toggle { border-color: #3f3f46; }
+  .as-view-toggle button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    color: #64748b;
+    background: transparent;
+  }
+  .as-view-toggle button.is-active {
+    background: #fff;
+    color: #059669;
+  }
+  html.dark .as-view-toggle button.is-active {
+    background: #27272a;
+    color: #34d399;
+  }
+
+  .as-metric-opt {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.45rem 0.75rem;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+  }
+  html.dark .as-metric-opt { color: #d4d4d8; }
+  .as-metric-opt:hover { background: #f1f5f9; }
+  html.dark .as-metric-opt:hover { background: #27272a; }
+  .as-metric-opt.is-on { background: #ecfdf5; color: #047857; }
+  html.dark .as-metric-opt.is-on { background: rgba(6, 78, 59, 0.35); color: #6ee7b7; }
+  .as-metric-group {
+    padding: 0.45rem 0.75rem 0.15rem;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+
+  #as-chart-wrap { height: 320px; }
+  #as-chart-wrap[data-chart-height="1"] { height: 420px; }
+  #as-chart-wrap[data-chart-height="2"] { height: 320px; }
+  #as-chart-wrap[data-chart-height="3"] { height: 240px; }
+</style>
+
+<section class="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-900/50 dark:bg-slate-900">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Assets</h2>
+      <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">doviz.com tarihsel kapanış · 2025 → bugün</p>
+    </div>
+    <p id="as-sync" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
+  </div>
+
+  <div class="as-filters mt-4 text-slate-600 dark:text-zinc-300">
+    <label class="as-f as-f--date">Start
+      <input id="as-start" type="date" />
+    </label>
+    <label class="as-f as-f--date">End
+      <input id="as-end" type="date" />
+    </label>
+    <label class="as-f as-f--sm">Preset
+      <select id="as-preset">
+        <option value="7">Last 1 week</option>
+        <option value="14">Last 2 weeks</option>
+        <option value="30">Last 1 month</option>
+        <option value="90" selected>Last 3 months</option>
+        <option value="180">Last 6 months</option>
+        <option value="365">Last 1 year</option>
+        <option value="since2025">2025 → today</option>
+      </select>
+    </label>
+    <label class="as-f as-f--metric">Assets
+      <div class="as-metric-dd">
+        <button type="button" id="as-metric-trigger" class="as-metric-trigger"
+                aria-haspopup="listbox" aria-expanded="false" aria-controls="as-metric-list">
+          <span id="as-metric-label" class="min-w-0 flex-1 truncate">Select</span>
+          <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
+        </button>
+        <div id="as-metric-list" role="listbox" aria-multiselectable="true"
+             class="fixed z-[220] hidden max-h-80 overflow-auto rounded-2xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950">
+          <div id="as-metric-list-scroll" class="py-1"></div>
+        </div>
+      </div>
+    </label>
+    <label class="as-f as-f--sm">Time breakdown
+      <select id="as-breakdown">
+        <option value="day" selected>Day</option>
+        <option value="week">Week</option>
+        <option value="month">Month</option>
+      </select>
+    </label>
+    <label class="as-f as-f--sm">Dimension
+      <select id="as-dim" disabled>
+        <option value="overview" selected>Overview (date)</option>
+      </select>
+    </label>
+    <label class="as-f as-f--sm">Segment
+      <select id="as-segment" disabled>
+        <option value="all" selected>All</option>
+      </select>
+    </label>
+    <label class="as-f as-f--sm">Compare
+      <select id="as-compare-mode" aria-label="Compare mode">
+        <option value="">Off</option>
+        <option value="previous_period">Previous period</option>
+        <option value="previous_year" selected>Previous year</option>
+      </select>
+    </label>
+    <div class="as-f-actions">
+      <button id="as-run" type="button"
+              class="as-f-btn border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80">
+        <span id="as-run-label">Apply</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="as-results" class="relative mt-4 w-full min-w-0">
+    <div id="as-loading" class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-xl bg-white/55 backdrop-blur-[2px] dark:bg-zinc-950/50" aria-live="polite" aria-busy="false">
+      <div class="flex flex-col items-center gap-3">
+        <div class="as-orbit" aria-hidden="true">
+          <span class="as-orbit__ring"></span>
+          <span class="as-orbit__ring as-orbit__ring--mid"></span>
+          <span class="as-orbit__ring as-orbit__ring--inner"></span>
+          <span class="as-orbit__core"></span>
+        </div>
+        <p class="text-[11px] font-semibold tracking-wide text-emerald-800 dark:text-emerald-300">Loading data…</p>
+      </div>
+    </div>
+
+    <div id="as-kpi-grid" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-label="Asset KPI cards"></div>
+
+    <div id="as-chart-card" class="as-chart-card mt-4 overflow-visible rounded-xl border border-slate-200 dark:border-zinc-800">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
+        <div id="as-legend" class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400"></div>
+        <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div id="as-view-toggle" class="as-view-toggle" role="group" aria-label="Chart view">
+            <button type="button" data-as-view="line" class="is-active" title="Line chart" aria-label="Line chart">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true"><path d="M2 12 L6 7 L9 9.5 L14 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" data-as-view="bar" title="Bar chart" aria-label="Bar chart">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true"><rect x="2" y="8" width="3" height="6" rx="0.5" fill="currentColor"/><rect x="6.5" y="4" width="3" height="10" rx="0.5" fill="currentColor"/><rect x="11" y="6" width="3" height="8" rx="0.5" fill="currentColor"/></svg>
+            </button>
+            <button type="button" data-as-view="table" title="Table" aria-label="Table">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 6.5 H14 M2 10 H14 M6 3 V13 M10 3 V13" stroke="currentColor" stroke-width="1"/></svg>
+            </button>
+          </div>
+          <p id="as-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
+        </div>
+      </div>
+      <div id="as-chart-wrap" class="relative overflow-visible px-1 pt-2" data-chart-height="2">
+        <svg id="as-chart" viewBox="0 0 900 300" class="block w-full max-w-none select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Assets chart"></svg>
+        <div id="as-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0">
+          <p id="as-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
+          <div id="as-tip-body" class="mt-1.5 space-y-0.5 text-[11px]"></div>
+        </div>
+      </div>
+      <div id="as-table-wrap" class="hidden overflow-auto px-3 pb-3">
+        <table class="w-full text-left text-xs">
+          <thead class="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
+            <tr id="as-thead-row"><th class="px-2 py-2">Date</th></tr>
+          </thead>
+          <tbody id="as-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  window.SEO_ASSETS_PAGE = {
+    series: {{ asset_series_json | safe }},
+    defaults: {{ asset_defaults_json | safe }},
+    categories: {{ asset_categories_json | safe }}
+  };
+</script>
+<script src="/static/js/assets_page.js?v=1"></script>
+{% endblock %}

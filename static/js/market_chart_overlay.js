@@ -21,23 +21,31 @@
   var LINE_COLOR = SERIES_COLORS[0];
   var INDEXED_KEYS = [
     "gram_altin",
+    "ons_altin",
     "ceyrek_altin",
     "usd_try",
     "eur_try",
+    "gbp_try",
     "bist100",
     "gram_gumus",
     "brent",
     "bitcoin",
+    "ethereum",
+    "asels",
   ];
   var OPTION_LABELS = {
     usd_try: "USD/TRY",
     eur_try: "EUR/TRY",
+    gbp_try: "GBP/TRY",
     gram_altin: "Gold gram",
+    ons_altin: "Gold ounce",
     ceyrek_altin: "Quarter gold",
     gram_gumus: "Silver gram",
     bist100: "BIST 100",
     brent: "Brent",
     bitcoin: "Bitcoin",
+    ethereum: "Ethereum",
+    asels: "ASELS",
     all_indexed: "All (%)",
   };
 
