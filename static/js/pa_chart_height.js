@@ -67,6 +67,14 @@
         cardSel: "#sd-chart-card",
         tipIds: ["sd-tooltip"],
       },
+      {
+        wrap: document.getElementById("as-chart-wrap"),
+        heightRoot: document.getElementById("as-chart-height"),
+        compressRoot: document.getElementById("as-chart-compress"),
+        svgId: "as-chart",
+        cardSel: "#as-chart-card",
+        tipIds: ["as-tooltip"],
+      },
     ].filter(function (t) {
       return t.wrap && t.heightRoot;
     });

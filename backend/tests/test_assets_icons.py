@@ -45,3 +45,17 @@ def test_assets_ui_renders_icons_and_clips_chart():
     assert 'id="as-segment"' not in page
     assert "document.body.appendChild(el.metricList)" in js
     assert "z-[10200]" in page
+    # Android-like chart + table (always visible; no table-only view toggle)
+    assert 'id="as-table-shell"' in page
+    assert "metric_table_ux.js" in page
+    assert "metric_period_compare.js" in page
+    assert "pa_chart_height.js" in page
+    assert "resizable_data_list.js" in page
+    assert 'id="as-view-toggle"' not in page
+    assert 'data-as-view="table"' not in page
+    assert "SeoMetricTableUx" in js
+    assert "renderHeatGrid" in js
+    assert "seriesSparkSvg" in js
+    assert "asChartStyle" in js
+    assert 'id="as-chart-height"' in page
+    assert "chart_style_buttons" in page or "as-chart-style" in page

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=13">
+{% from 'partials/pa_chart_style_buttons.html' import chart_style_buttons %}
+<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=14">
 <link rel="stylesheet" href="/static/css/pa_chart_style.css?v=3">
 <style>
   .as-orbit {
@@ -139,45 +140,6 @@
     .as-filters > label.as-f--sm { flex: 0.85 1 0; min-width: 0; }
   }
 
-  .as-kpi-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    min-height: 7.5rem;
-    border-radius: 0.9rem;
-    border: 1px solid #e2e8f0;
-    background: linear-gradient(165deg, #fff 0%, #f8fafc 100%);
-    padding: 0.75rem 0.85rem 0.55rem;
-    overflow: hidden;
-  }
-  html.dark .as-kpi-card,
-  html.charcoal .as-kpi-card {
-    border-color: #3f3f46;
-    background: linear-gradient(165deg, #18181b 0%, #09090b 100%);
-  }
-  .as-kpi-card__head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.35rem;
-  }
-  .as-kpi-card__title-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    min-width: 0;
-  }
-  .as-kpi-card__title {
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #64748b;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  html.dark .as-kpi-card__title { color: #a1a1aa; }
   .as-icon {
     flex: 0 0 auto;
     width: 1.25rem;
@@ -192,69 +154,11 @@
   .as-icon--sm { width: 1.05rem; height: 1.05rem; }
   .as-icon--xs { width: 0.9rem; height: 0.9rem; }
   .as-icon.is-missing { display: none; }
-  .as-kpi-card__body {
-    display: grid;
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    gap: 0.35rem;
-    align-items: end;
-    margin-top: 0.35rem;
-    flex: 1;
-  }
-  .as-kpi-card__value {
-    font-size: 1.35rem;
-    font-weight: 800;
-    line-height: 1.1;
-    letter-spacing: -0.02em;
-    color: #0f172a;
-  }
-  html.dark .as-kpi-card__value { color: #fafafa; }
-  .as-kpi-card__delta {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.2rem;
-    margin-top: 0.25rem;
-    font-size: 11px;
-    font-weight: 700;
-  }
-  .as-kpi-card__delta.is-up { color: #059669; }
-  .as-kpi-card__delta.is-down { color: #dc2626; }
-  .as-kpi-card__delta.is-flat { color: #94a3b8; }
-  .as-kpi-spark {
-    width: 100%;
-    height: 3.1rem;
-    align-self: end;
-  }
-
-  .as-chart-card {
-    background: #f8fafc;
-  }
-  html.dark .as-chart-card,
-  html.charcoal .as-chart-card {
-    background: #09090b;
-  }
-  .as-view-toggle {
-    display: inline-flex;
-    border-radius: 0.55rem;
-    border: 1px solid #e2e8f0;
-    overflow: hidden;
-  }
-  html.dark .as-view-toggle { border-color: #3f3f46; }
-  .as-view-toggle button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.85rem;
-    height: 1.85rem;
-    color: #64748b;
-    background: transparent;
-  }
-  .as-view-toggle button.is-active {
-    background: #fff;
-    color: #059669;
-  }
-  html.dark .as-view-toggle button.is-active {
-    background: #27272a;
-    color: #34d399;
+  .metric-kpi-chip .as-icon {
+    width: 0.85rem;
+    height: 0.85rem;
+    margin-right: 0.28rem;
+    vertical-align: -0.12rem;
   }
 
   .as-metric-opt {
@@ -282,11 +186,249 @@
     color: #94a3b8;
   }
 
-  #as-chart-wrap { height: 320px; }
-  #as-chart-wrap[data-chart-height="1"] { height: 420px; }
-  #as-chart-wrap[data-chart-height="2"] { height: 320px; }
-  #as-chart-wrap[data-chart-height="3"] { height: 240px; }
-  #as-chart { overflow: hidden; }
+  /* Metric KPI · ss2 (ported from android, scoped to #as-kpi-grid) */
+  #as-kpi-grid.metric-kpi-grid--ss2 {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: clamp(0.28rem, 1.15vw, 0.65rem);
+    align-items: start;
+    grid-template-columns: repeat(var(--kpi-n, 1), minmax(0, 1fr));
+  }
+  #as-kpi-grid.metric-kpi-grid--ss2 > .metric-kpi-ss2 {
+    align-self: start;
+    height: auto;
+    min-height: 0;
+    min-width: 0;
+  }
+  .metric-kpi-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--kpi-color, #2563eb);
+    background: color-mix(in srgb, var(--kpi-color, #2563eb) 12%, white);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #2563eb) 28%, transparent);
+  }
+  html.dark .metric-kpi-chip {
+    background: color-mix(in srgb, var(--kpi-color, #2563eb) 18%, #2a2a2e);
+  }
+  .metric-kpi-spark {
+    display: block;
+    width: 100%;
+    height: 3.1rem;
+  }
+  .metric-kpi-spark polyline {
+    vector-effect: non-scaling-stroke;
+    stroke-width: 1.35px;
+  }
+  .metric-kpi-ss2 {
+    position: relative;
+    min-width: 0;
+    height: auto;
+    align-self: start;
+    container-type: inline-size;
+    container-name: kpi-ss2;
+    display: flex;
+    flex-direction: column;
+    border-radius: 1rem;
+    border: 1px solid color-mix(in srgb, var(--kpi-color, #2563eb) 26%, #e2e8f0);
+    background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--kpi-color, #2563eb) 5%, transparent),
+      0 8px 20px color-mix(in srgb, var(--kpi-color, #2563eb) 6%, rgb(42 42 46 / 0.03));
+    padding: clamp(0.38rem, 4.8cqi, 0.7rem) clamp(0.32rem, 4.2cqi, 0.65rem) clamp(0.28rem, 3.4cqi, 0.45rem);
+    color: #334155;
+    cursor: pointer;
+  }
+  html.dark .metric-kpi-ss2,
+  html.charcoal .metric-kpi-ss2 {
+    border-color: color-mix(in srgb, var(--kpi-color, #6b8aad) 22%, #3f3f46);
+    background: linear-gradient(160deg, #323238 0%, #2a2a2e 100%);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--kpi-color, #38bdf8) 9%, transparent),
+      0 0 22px color-mix(in srgb, var(--kpi-color, #38bdf8) 8%, transparent);
+    color: #e2e8f0;
+  }
+  .metric-kpi-ss2-head {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.18rem, 2.4cqi, 0.35rem);
+    min-width: 0;
+    flex: 0 0 auto;
+    min-height: 1.35rem;
+  }
+  .metric-kpi-ss2-head .metric-kpi-chip {
+    display: inline-flex;
+    flex: 0 1 auto;
+    width: max-content;
+    max-width: calc(100% - 1.4rem);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.2;
+    font-size: clamp(0.48rem, 7.8cqi, 0.65rem);
+    letter-spacing: clamp(0.01em, 0.35cqi, 0.05em);
+    padding: calc(0.12rem + 1px) clamp(0.28rem, 3.2cqi, 0.55rem);
+    background: color-mix(in srgb, var(--kpi-color, #2563eb) 12%, white);
+    color: var(--kpi-color, #2563eb);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #2563eb) 30%, transparent);
+  }
+  html.dark .metric-kpi-ss2-head .metric-kpi-chip,
+  html.charcoal .metric-kpi-ss2-head .metric-kpi-chip {
+    background: color-mix(in srgb, var(--kpi-color, #6b8aad) 16%, #2a2a2e);
+    color: #f8fafc;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #38bdf8) 35%, transparent);
+  }
+  .metric-kpi-ss2-main {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.22rem, 3.2cqi, 0.55rem);
+    margin-top: clamp(0.22rem, 3.2cqi, 0.45rem);
+    min-height: clamp(2.2rem, 38cqi, 3.25rem);
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  .metric-kpi-ss2-metrics {
+    flex: 0 0 30%;
+    width: 30%;
+    max-width: 30%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.08rem;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+  }
+  .metric-kpi-ss2-value {
+    margin: 0;
+    font-size: clamp(0.36rem, 8cqi, 0.725rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  html.dark .metric-kpi-ss2-value,
+  html.charcoal .metric-kpi-ss2-value { color: #fff; }
+  .metric-kpi-ss2-delta {
+    margin: 0;
+    font-size: clamp(0.875rem, 8.5cqi, 1.125rem);
+    line-height: 1.05;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .metric-kpi-ss2-delta.is-up { color: #059669; }
+  .metric-kpi-ss2-delta.is-down { color: #e11d48; }
+  .metric-kpi-ss2-delta.is-flat { color: #64748b; }
+  html.dark .metric-kpi-ss2-delta.is-up,
+  html.charcoal .metric-kpi-ss2-delta.is-up { color: #6f9b86; }
+  html.dark .metric-kpi-ss2-delta.is-down,
+  html.charcoal .metric-kpi-ss2-delta.is-down { color: #fb7185; }
+  html.dark .metric-kpi-ss2-delta.is-flat,
+  html.charcoal .metric-kpi-ss2-delta.is-flat { color: #94a3b8; }
+  .metric-kpi-ss2-spark {
+    flex: 0 0 70%;
+    width: 70%;
+    max-width: 70%;
+    min-width: 0;
+    height: clamp(1.85rem, 36cqi, 3.15rem);
+    display: flex;
+    align-items: stretch;
+    align-self: stretch;
+    position: relative;
+    z-index: 0;
+    overflow: hidden;
+  }
+  .metric-kpi-ss2.is-chart-focus {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--kpi-color) 42%, transparent);
+  }
+  #as-chart .chart-series-g {
+    transition: opacity 0.16s ease;
+  }
+  #as-chart.is-series-focus .chart-series-g {
+    opacity: 0.28;
+  }
+  #as-chart.is-series-focus .chart-series-g.is-focus {
+    opacity: 1;
+  }
+  .metric-kpi-ss2 .metric-kpi-spark {
+    width: 100%;
+    height: 100%;
+    display: block;
+    min-width: 0;
+    min-height: 0;
+  }
+  @container kpi-ss2 (max-width: 12.75rem) {
+    .metric-kpi-ss2-main {
+      flex-direction: column;
+      align-items: stretch;
+      min-height: 0;
+      gap: clamp(0.18rem, 3cqi, 0.35rem);
+    }
+    .metric-kpi-ss2-metrics {
+      max-width: none;
+      width: 100%;
+      flex: 0 0 auto;
+    }
+    .metric-kpi-ss2-spark {
+      width: 100%;
+      max-width: none;
+      min-width: 0;
+      flex: 1 1 auto;
+      height: clamp(1.65rem, 42cqi, 2.7rem);
+    }
+  }
+  @container kpi-ss2 (max-width: 7.5rem) {
+    .metric-kpi-ss2-head .metric-kpi-chip {
+      font-size: clamp(0.42rem, 9.2cqi, 0.55rem);
+      padding: calc(0.08rem + 1px) 0.28rem;
+    }
+    .metric-kpi-info {
+      width: 0.95rem;
+      height: 0.95rem;
+      font-size: 0.5rem;
+    }
+  }
+  .metric-kpi-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-left: auto;
+    border-radius: 9999px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    color: #94a3b8;
+    font-size: 0.58rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    text-decoration: none;
+  }
+  .metric-kpi-info:hover { color: #059669; border-color: #059669; }
+
+  #as-table-shell {
+    background: #fff;
+  }
+  html.dark #as-table-shell,
+  html.charcoal #as-table-shell {
+    background: #18181b;
+  }
 </style>
 
 <section class="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-900/50 dark:bg-slate-900">
@@ -364,41 +506,59 @@
       </div>
     </div>
 
-    <div id="as-kpi-grid" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-label="Asset KPI cards"></div>
+    <div id="as-kpi-grid" class="grid grid-cols-1 gap-3" aria-label="Asset KPI cards"></div>
 
-    <div id="as-chart-card" class="as-chart-card mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-zinc-800">
+    <div id="as-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950">
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
         <div id="as-legend" class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400"></div>
         <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <div id="as-view-toggle" class="as-view-toggle" role="group" aria-label="Chart view">
-            <button type="button" data-as-view="line" class="is-active" title="Line chart" aria-label="Line chart">
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true"><path d="M2 12 L6 7 L9 9.5 L14 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div id="as-chart-height" class="pa-chart-height" role="group" aria-label="Chart height">
+            <button type="button" data-chart-height="1" title="Yüksek grafik" aria-label="Yüksek grafik yüksekliği">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="2" width="10" height="12" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 11 L7 7.5 L9.5 9 L12 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button type="button" data-as-view="bar" title="Bar chart" aria-label="Bar chart">
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true"><rect x="2" y="8" width="3" height="6" rx="0.5" fill="currentColor"/><rect x="6.5" y="4" width="3" height="10" rx="0.5" fill="currentColor"/><rect x="11" y="6" width="3" height="8" rx="0.5" fill="currentColor"/></svg>
+            <button type="button" data-chart-height="2" title="Orta grafik" aria-label="Orta grafik yüksekliği" class="is-active">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="4.5" width="10" height="9.5" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 11.5 L7 8.5 L9.5 10 L12 6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button type="button" data-as-view="table" title="Table" aria-label="Table">
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 6.5 H14 M2 10 H14 M6 3 V13 M10 3 V13" stroke="currentColor" stroke-width="1"/></svg>
+            <button type="button" data-chart-height="3" title="Alçak grafik" aria-label="Alçak grafik yüksekliği">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 12 L7 9.5 L9.5 10.5 L12 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
+          <div id="as-chart-compress" class="pa-chart-compress" role="group" aria-label="Chart vertical compress">
+            <button type="button" data-chart-compress="1" title="Normal sıkıştırma" aria-label="Normal dikey sıkıştırma" class="is-active">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 3.5 L8 1.5 L10.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 12.5 L8 14.5 L10.5 12.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="5.5" width="9" height="5" rx="1" fill="currentColor" fill-opacity="0.28"/></svg>
+            </button>
+            <button type="button" data-chart-compress="2" title="Orta sıkıştırma" aria-label="Orta dikey sıkıştırma">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4 L8 2.5 L10.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 12 L8 13.5 L10.5 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="6.5" width="9" height="3" rx="1" fill="currentColor" fill-opacity="0.28"/></svg>
+            </button>
+            <button type="button" data-chart-compress="3" title="Yoğun sıkıştırma" aria-label="Yoğun dikey sıkıştırma">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4.5 L8 3.5 L10.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 11.5 L8 12.5 L10.5 11.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="7.5" width="9" height="1.5" rx="0.6" fill="currentColor" fill-opacity="0.35"/></svg>
+            </button>
+          </div>
+          {{ chart_style_buttons('as-chart-style', 'data-as-chart-style', '', 'bar') }}
           <p id="as-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
         </div>
       </div>
-      <div id="as-chart-wrap" class="relative overflow-visible px-1 pt-2" data-chart-height="2">
-        <svg id="as-chart" viewBox="0 0 900 300" class="block w-full max-w-none select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Assets chart"></svg>
+      <div id="as-chart-wrap" class="relative overflow-visible" data-chart-height="2" data-chart-compress="1">
+        <svg id="as-chart" viewBox="0 0 720 260" class="block w-full max-w-none select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Assets chart"></svg>
         <div id="as-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0">
           <p id="as-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
           <div id="as-tip-body" class="mt-1.5 space-y-0.5 text-[11px]"></div>
         </div>
       </div>
-      <div id="as-table-wrap" class="hidden overflow-auto px-3 pb-3">
-        <table class="w-full text-left text-xs">
-          <thead class="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
-            <tr id="as-thead-row"><th class="px-2 py-2">Date</th></tr>
+    </div>
+
+    <div id="as-table-shell" class="rdl-shell mt-4 w-full min-w-0 rounded-xl border border-slate-200 dark:border-zinc-700" data-rdl-max-rows="20" data-rdl-max-h="4000" data-rdl-storage-key="as-table-h-v2">
+      <div id="as-table-wrap" class="rdl-scroll w-full min-w-0">
+        <table id="as-table" class="pa-data-table text-left text-xs">
+          <thead class="sticky top-0 z-[1] bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
+            <tr id="as-thead-row">
+              <th class="px-2 py-2 font-bold sm:px-3">Breakdown</th>
+            </tr>
           </thead>
           <tbody id="as-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
         </table>
       </div>
+      <div class="rdl-handle" data-rdl-handle role="separator" aria-orientation="horizontal" title="Drag to adjust height"></div>
     </div>
   </div>
 </section>
@@ -410,5 +570,9 @@
     categories: {{ asset_categories_json | safe }}
   };
 </script>
-<script src="/static/js/assets_page.js?v=3"></script>
+<script src="/static/js/metric_period_compare.js?v=2"></script>
+<script src="/static/js/metric_table_ux.js?v=21"></script>
+<script src="/static/js/resizable_data_list.js?v=7"></script>
+<script src="/static/js/pa_chart_height.js?v=12"></script>
+<script src="/static/js/assets_page.js?v=4"></script>
 {% endblock %}
