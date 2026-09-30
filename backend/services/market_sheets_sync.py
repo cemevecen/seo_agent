@@ -10,6 +10,7 @@ import unicodedata
 from datetime import date, datetime, timezone
 from typing import Any, Iterable
 
+from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -485,6 +486,13 @@ def query_overlay(
     for r in rows:
         by_key.setdefault(r.series_key, []).append(r)
     latest_sync = db.query(MarketDailyQuote.synced_at).order_by(MarketDailyQuote.synced_at.desc()).limit(1).scalar()
+    bounds_q = db.query(
+        func.min(MarketDailyQuote.report_date),
+        func.max(MarketDailyQuote.report_date),
+    )
+    if keys:
+        bounds_q = bounds_q.filter(MarketDailyQuote.series_key.in_(keys))
+    data_min, data_max = bounds_q.one()
     series_out: dict[str, Any] = {}
     for k in keys:
         spec = SERIES_BY_KEY[k]
@@ -505,5 +513,9 @@ def query_overlay(
     return {
         "synced_at": latest_sync.isoformat() if latest_sync else None,
         "range": {"start": start, "end": end},
+        "data_range": {
+            "min": data_min.isoformat() if data_min else None,
+            "max": data_max.isoformat() if data_max else None,
+        },
         "series": series_out,
     }

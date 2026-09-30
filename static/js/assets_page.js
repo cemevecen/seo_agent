@@ -7,6 +7,8 @@
   var cfg = window.SEO_ASSETS_PAGE || {};
   var ALL_SERIES = Array.isArray(cfg.series) ? cfg.series : [];
   var DEFAULTS = Array.isArray(cfg.defaults) ? cfg.defaults.slice() : [];
+  var dataMin = String(cfg.dataMin || "").slice(0, 10);
+  var dataMax = String(cfg.dataMax || "").slice(0, 10);
   var CATEGORY_LABELS = cfg.categories || {
     gold: "Altın",
     silver: "Gümüş",
@@ -110,20 +112,106 @@
     return s.slice(0, 12) + "…";
   }
 
-  function applyPreset() {
-    var today = new Date();
-    today.setHours(0, 0, 0, 0);
-    var end = today;
-    var start;
-    var p = el.preset ? el.preset.value : "90";
-    if (p === "since2025") {
-      start = new Date(2025, 0, 1);
-    } else {
-      var days = parseInt(p, 10) || 90;
-      start = addDays(end, -(days - 1));
+  function syncDateBoundsAttrs() {
+    if (el.start) {
+      if (dataMin) el.start.setAttribute("data-min", dataMin);
+      if (dataMax) el.start.setAttribute("data-max", dataMax);
+      if (dataMin) el.start.min = dataMin;
+      if (dataMax) el.start.max = dataMax;
     }
-    if (el.start) el.start.value = iso(start);
-    if (el.end) el.end.value = iso(end);
+    if (el.end) {
+      if (dataMin) el.end.setAttribute("data-min", dataMin);
+      if (dataMax) el.end.setAttribute("data-max", dataMax);
+      if (dataMin) el.end.min = dataMin;
+      if (dataMax) el.end.max = dataMax;
+    }
+  }
+
+  function rememberDataRange(payload) {
+    var dr = payload && payload.data_range;
+    if (!dr) return;
+    if (dr.min) dataMin = String(dr.min).slice(0, 10);
+    if (dr.max) dataMax = String(dr.max).slice(0, 10);
+    syncDateBoundsAttrs();
+  }
+
+  function applyPreset(opts) {
+    opts = opts || {};
+    var p = el.preset ? el.preset.value : "30d";
+    if (p === "custom") return;
+    var today = new Date();
+    today.setHours(12, 0, 0, 0);
+    var anchor = dataMax ? (parseIso(dataMax) || today) : today;
+    if (anchor > today) anchor = today;
+    var startD;
+    var endD = new Date(anchor.getTime());
+
+    if (p === "all") {
+      if (el.start) el.start.value = dataMin || "";
+      if (el.end) el.end.value = dataMax || iso(today);
+      if (!opts.skipRun) run();
+      return;
+    }
+    if (p === "today") {
+      var day = iso(today);
+      if (el.start) el.start.value = day;
+      if (el.end) el.end.value = day;
+      if (!opts.skipRun) run();
+      return;
+    }
+    if (p === "yesterday") {
+      var y = addDays(today, -1);
+      var yIso = iso(y);
+      if (el.start) el.start.value = yIso;
+      if (el.end) el.end.value = yIso;
+      if (!opts.skipRun) run();
+      return;
+    }
+    if (p === "this_month") {
+      startD = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+      endD = new Date(anchor.getTime());
+    } else if (p === "last_month") {
+      startD = new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1);
+      endD = new Date(anchor.getFullYear(), anchor.getMonth(), 0);
+    } else if (p === "ytd") {
+      startD = new Date(anchor.getFullYear(), 0, 1);
+      endD = new Date(anchor.getTime());
+    } else if (p === "last_year") {
+      var ly = anchor.getFullYear() - 1;
+      startD = new Date(ly, 0, 1);
+      endD = new Date(ly, 11, 31);
+    } else if (p === "last_year_h1") {
+      var ly1 = anchor.getFullYear() - 1;
+      startD = new Date(ly1, 0, 1);
+      endD = new Date(ly1, 5, 30);
+    } else if (p === "last_year_h2") {
+      var ly2 = anchor.getFullYear() - 1;
+      startD = new Date(ly2, 6, 1);
+      endD = new Date(ly2, 11, 31);
+    } else if (p === "1y") {
+      endD = new Date(anchor.getTime());
+      startD = addDays(endD, -364);
+    } else {
+      var daysMap = { "7d": 7, "14d": 14, "30d": 30, "60d": 60, "90d": 90, "180d": 180, "6m": 180 };
+      var days = daysMap[p] || parseInt(p, 10) || 30;
+      endD = new Date(anchor.getTime());
+      startD = addDays(endD, -(days - 1));
+    }
+
+    // Depo sınırları içinde tut
+    if (dataMin) {
+      var lo = parseIso(dataMin);
+      if (lo && startD < lo) startD = lo;
+    }
+    if (dataMax) {
+      var hi = parseIso(dataMax);
+      if (hi && endD > hi) endD = hi;
+    }
+    if (startD > endD) startD = new Date(endD.getTime());
+
+    if (el.start) el.start.value = iso(startD);
+    if (el.end) el.end.value = iso(endD);
+    if (!opts.skipRun) run();
   }
 
   function setLoading(on) {
@@ -942,6 +1030,8 @@
     Promise.all([main, side]).then(function (pair) {
       lastPayload = pair[0];
       lastComparePayload = pair[1];
+      rememberDataRange(lastPayload);
+      if (lastComparePayload) rememberDataRange(lastComparePayload);
       if (el.sync && lastPayload && lastPayload.synced_at) {
         el.sync.textContent = "Last sync · " + String(lastPayload.synced_at).replace("T", " ").slice(0, 19);
       }
@@ -956,7 +1046,17 @@
   }
 
   // Events
-  if (el.preset) el.preset.addEventListener("change", applyPreset);
+  if (el.preset) el.preset.addEventListener("change", function () { applyPreset(); });
+  if (el.start) {
+    el.start.addEventListener("change", function () {
+      if (el.preset) el.preset.value = "custom";
+    });
+  }
+  if (el.end) {
+    el.end.addEventListener("change", function () {
+      if (el.preset) el.preset.value = "custom";
+    });
+  }
   if (el.run) el.run.addEventListener("click", run);
   if (el.breakdown) el.breakdown.addEventListener("change", refreshViews);
   if (el.compare) el.compare.addEventListener("change", run);
@@ -1037,8 +1137,9 @@
     }
   });
 
+  syncDateBoundsAttrs();
   syncChartStyleButtons();
-  applyPreset();
+  applyPreset({ skipRun: true });
   updateMetricTrigger();
   run();
 })();

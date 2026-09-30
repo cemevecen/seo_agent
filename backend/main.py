@@ -18837,6 +18837,10 @@ def assets_market_page(request: Request):
     """doviz.com piyasa varlıkları — Metrics-benzeri KPI + grafik."""
     import json
 
+    from sqlalchemy import func
+
+    from backend.database import SessionLocal
+    from backend.models import MarketDailyQuote
     from backend.services.market_sheets_config import (
         DEFAULT_ASSET_KEYS,
         MARKET_SHEET_SERIES,
@@ -18854,6 +18858,17 @@ def assets_market_page(request: Request):
         "equity": "Hisse",
         "other": "Diğer",
     }
+    data_min = data_max = None
+    db = SessionLocal()
+    try:
+        row = db.query(
+            func.min(MarketDailyQuote.report_date),
+            func.max(MarketDailyQuote.report_date),
+        ).one()
+        data_min = row[0].isoformat() if row and row[0] else None
+        data_max = row[1].isoformat() if row and row[1] else None
+    finally:
+        db.close()
     return templates.TemplateResponse(
         request,
         "assets.html",
@@ -18862,6 +18877,8 @@ def assets_market_page(request: Request):
             "asset_series_json": json.dumps(series, ensure_ascii=False),
             "asset_defaults_json": json.dumps(list(DEFAULT_ASSET_KEYS), ensure_ascii=False),
             "asset_categories_json": json.dumps(categories, ensure_ascii=False),
+            "asset_data_min": data_min or "",
+            "asset_data_max": data_max or "",
         },
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )

@@ -105,7 +105,15 @@ def get_market_quotes_overlay(
 
 
 @router.get("/market-quotes/meta")
-def get_market_quotes_meta():
+def get_market_quotes_meta(db: Session = Depends(get_db)):
+    from sqlalchemy import func
+
+    from backend.models import MarketDailyQuote
+
+    data_min, data_max = db.query(
+        func.min(MarketDailyQuote.report_date),
+        func.max(MarketDailyQuote.report_date),
+    ).one()
     return {
         "series": [
             {
@@ -117,4 +125,9 @@ def get_market_quotes_meta():
             for s in MARKET_SHEET_SERIES
         ],
         "source": "tarama",
+        "data_range": {
+            "min": data_min.isoformat() if data_min else None,
+            "max": data_max.isoformat() if data_max else None,
+        },
+        "tarama_start": "2010-01-01",
     }

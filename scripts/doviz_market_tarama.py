@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """doviz.com tarihsel tablo taraması → Project Control ingest.
 
-Tablo görünümü + 01.01.2025 … bugün → Verileri Getir.
+Tablo görünümü + TARAMA_START_DATE (varsayılan 2010-01-01) … bugün → Verileri Getir.
 Playwright ile sayfayı açar, arşiv yanıtını veya tablo satırlarını okur.
 
 Örnek:

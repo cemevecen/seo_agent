@@ -358,7 +358,8 @@ DEFAULT_ASSET_KEYS: tuple[str, ...] = (
 )
 
 TARAMA_SOURCE_ID = "doviz.com"
-TARAMA_START_DATE = "2025-01-01"
+# En erken makul başlangıç — API/site ne dönerse o alınır (2025 kesmesi yok).
+TARAMA_START_DATE = "2010-01-01"
 
 # doviz.com CDN — bayrak / coin / emtia / hisse ikonları (hotlink, public).
 _CDN_IMG = "https://cdn.doviz.com/images"
