@@ -85,20 +85,24 @@ def page_context(request: Request, *, active: str) -> dict:
     info = locale_info(locale)
     catalog = get_catalog(locale)
     identity = _site_identity()
-        # Allow env overrides for publisher display while keeping catalog defaults.
-        # Never allow a personal legal name to leak onto the public site.
-        publisher = identity["publisher_name"]
-        if "evecen" in publisher.lower() or "cem gürsoy" in publisher.lower() or "cem gursoy" in publisher.lower():
-            publisher = "TAMPIQ"
-        if catalog.get("support"):
-            catalog = {
-                **catalog,
-                "support": {
-                    **catalog["support"],
-                    "developer_name": publisher,
-                    "country_value": identity["publisher_country"],
-                },
-            }
+    # Allow env overrides for publisher display while keeping catalog defaults.
+    # Never allow a personal legal name to leak onto the public site.
+    publisher = identity["publisher_name"]
+    if (
+        "evecen" in publisher.lower()
+        or "cem gürsoy" in publisher.lower()
+        or "cem gursoy" in publisher.lower()
+    ):
+        publisher = "TAMPIQ"
+    if catalog.get("support"):
+        catalog = {
+            **catalog,
+            "support": {
+                **catalog["support"],
+                "developer_name": publisher,
+                "country_value": identity["publisher_country"],
+            },
+        }
     return {
         "request": request,
         "active": active,
