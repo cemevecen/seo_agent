@@ -422,6 +422,79 @@
   }
   .metric-kpi-info:hover { color: #059669; border-color: #059669; }
 
+  .metric-kpi-ss2-expand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 0.15rem;
+    padding: 0.2rem 0 0;
+    border: 0;
+    border-top: 1px solid transparent;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    order: 6;
+  }
+  .metric-kpi-ss2-expand:hover { color: #0f172a; }
+  html.dark .metric-kpi-ss2-expand,
+  html.charcoal .metric-kpi-ss2-expand {
+    color: #71717a;
+  }
+  html.dark .metric-kpi-ss2-expand:hover,
+  html.charcoal .metric-kpi-ss2-expand:hover { color: #e2e8f0; }
+  .metric-kpi-ss2-panel {
+    display: none;
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 0.65rem;
+    order: 5;
+  }
+  html.dark .metric-kpi-ss2-panel,
+  html.charcoal .metric-kpi-ss2-panel {
+    border-top-color: rgba(148, 163, 184, 0.16);
+  }
+  .metric-kpi-ss2.is-open .metric-kpi-ss2-panel { display: grid; }
+  .metric-kpi-ss2.is-open .metric-kpi-ss2-expand {
+    border-top-color: rgba(148, 163, 184, 0.28);
+    margin-top: 0.28rem;
+  }
+  .metric-kpi-ss2.is-open .metric-kpi-ss2-expand .metric-kpi-chev { transform: rotate(180deg); }
+  .metric-kpi-kicker {
+    margin: 0;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    line-height: 1.2;
+  }
+  .metric-kpi-ss2-panel .metric-kpi-kicker { color: #94a3b8; }
+  html.dark .metric-kpi-ss2-panel .metric-kpi-kicker,
+  html.charcoal .metric-kpi-ss2-panel .metric-kpi-kicker { color: #64748b; }
+  .metric-kpi-ss2-panel strong {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+  }
+  html.dark .metric-kpi-ss2-panel strong,
+  html.charcoal .metric-kpi-ss2-panel strong { color: #f8fafc; }
+
+  /* Dark: yatay kılavuz + plot çerçeve gizle (veri çizgilerini bastırmasın) */
+  html.dark #as-chart line.pa-grid,
+  html.charcoal #as-chart line.pa-grid {
+    display: none;
+  }
+  html.dark #as-chart .pa-plot-frame,
+  html.charcoal #as-chart .pa-plot-frame {
+    stroke: transparent;
+  }
+
   #as-table-shell {
     background: #fff;
   }
@@ -574,5 +647,5 @@
 <script src="/static/js/metric_table_ux.js?v=21"></script>
 <script src="/static/js/resizable_data_list.js?v=7"></script>
 <script src="/static/js/pa_chart_height.js?v=13"></script>
-<script src="/static/js/assets_page.js?v=6"></script>
+<script src="/static/js/assets_page.js?v=7"></script>
 {% endblock %}

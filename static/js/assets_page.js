@@ -424,6 +424,35 @@
     });
   }
 
+  function seriesStats(series) {
+    var vals = [];
+    (series || []).forEach(function (r) {
+      if (!r || r.value == null) return;
+      var n = Number(r.value);
+      if (!Number.isFinite(n)) return;
+      vals.push(n);
+    });
+    if (!vals.length) {
+      return { n: 0, avg: null, sum: null, min: null, max: null, last: null };
+    }
+    var sum = 0;
+    var min = vals[0];
+    var max = vals[0];
+    for (var i = 0; i < vals.length; i++) {
+      sum += vals[i];
+      if (vals[i] < min) min = vals[i];
+      if (vals[i] > max) max = vals[i];
+    }
+    return {
+      n: vals.length,
+      avg: sum / vals.length,
+      sum: sum,
+      min: min,
+      max: max,
+      last: vals[vals.length - 1],
+    };
+  }
+
   function buildComparePack(curPts, prevPts, mode, win) {
     if (!mode || !win || !window.SeoPeriodCompare) return null;
     var curPack = {
@@ -503,8 +532,12 @@
         '<a class="metric-kpi-info" href="' + esc(src) + '" target="_blank" rel="noopener" title="Kaynak" aria-label="' +
         esc(label) + ' kaynak" onclick="event.stopPropagation()">i</a>';
       var chipInner = iconHtml(spec, "as-icon") + esc(label);
+      var st = seriesStats(daily);
+      // Fiyat serisi: Total = son kapanış (Android market total_mode=last ile aynı)
+      var totalTxt = fmtNum(st.last);
+      var openCls = focusSeriesKey === key ? " is-chart-focus is-open" : " is-open";
       return (
-        '<article class="metric-kpi-ss2' + (focusSeriesKey === key ? " is-chart-focus" : "") +
+        '<article class="metric-kpi-ss2' + openCls +
           '" style="--kpi-color:' + color + '" data-metric-kpi-card data-metric="' + esc(key) + '">' +
           '<div class="metric-kpi-ss2-head">' +
             '<span class="metric-kpi-chip" title="' + esc(label) + '">' + chipInner + "</span>" +
@@ -517,6 +550,17 @@
             "</div>" +
             '<div class="metric-kpi-ss2-spark">' + spark + "</div>" +
           "</div>" +
+          '<div class="metric-kpi-ss2-panel">' +
+            '<div><p class="metric-kpi-kicker">Total</p><strong>' + esc(totalTxt) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Ortalama</p><strong>' + esc(fmtNum(st.avg)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Min</p><strong>' + esc(fmtNum(st.min)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Max</p><strong>' + esc(fmtNum(st.max)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Last</p><strong>' + esc(fmtNum(st.last)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Nokta</p><strong>' + esc(String(st.n || 0)) + "</strong></div>" +
+          "</div>" +
+          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="true" aria-label="Close details">' +
+            '<svg class="metric-kpi-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          "</button>" +
         "</article>"
       );
     }).join("");
@@ -643,7 +687,7 @@
     var defs = '<defs><clipPath id="' + clipId + '">' +
       '<rect x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH + '"/>' +
       "</clipPath></defs>";
-    var plotFrame = '<rect x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH +
+    var plotFrame = '<rect class="pa-plot-frame" x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH +
       '" fill="none" stroke="#e2e8f0" stroke-width="1" rx="2"/>';
 
     el.chart.setAttribute("viewBox", "0 0 " + W + " " + H);
@@ -961,6 +1005,17 @@
   if (el.kpiGrid) {
     el.kpiGrid.addEventListener("click", function (ev) {
       if (ev.target.closest && ev.target.closest("a.metric-kpi-info")) return;
+      var expand = ev.target.closest ? ev.target.closest("[data-metric-kpi-expand]") : null;
+      if (expand) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var expCard = expand.closest("[data-metric-kpi-card]");
+        if (!expCard || !el.kpiGrid.contains(expCard)) return;
+        var open = expCard.classList.toggle("is-open");
+        expand.setAttribute("aria-expanded", open ? "true" : "false");
+        expand.setAttribute("aria-label", open ? "Close details" : "Open details");
+        return;
+      }
       var card = ev.target.closest ? ev.target.closest("[data-metric-kpi-card]") : null;
       if (!card) return;
       var key = card.getAttribute("data-metric");
