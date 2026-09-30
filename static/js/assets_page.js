@@ -94,13 +94,15 @@
       .replace(/"/g, "&quot;");
   }
   function fmtNum(v) {
-    if (v == null || !Number.isFinite(v)) return "—";
-    var abs = Math.abs(v);
+    if (v == null || v === "") return "—";
+    var n = typeof v === "number" ? v : Number(v);
+    if (!Number.isFinite(n)) return "—";
+    var abs = Math.abs(n);
     var opts;
     if (abs >= 1000) opts = { maximumFractionDigits: 2 };
     else if (abs >= 1) opts = { maximumFractionDigits: 4 };
     else opts = { maximumFractionDigits: 8 };
-    return v.toLocaleString("tr-TR", opts);
+    return n.toLocaleString("tr-TR", opts);
   }
   function colorFor(key, idx) {
     var i = typeof idx === "number" ? idx : selected.indexOf(key);
@@ -402,31 +404,37 @@
   }
 
   function seriesSparkSvg(series, color, w, h) {
-    var vals = [];
+    var ptsMeta = [];
     (series || []).forEach(function (r) {
       var n = Number(r && r.value);
-      if (Number.isFinite(n)) vals.push(n);
+      if (!Number.isFinite(n)) return;
+      ptsMeta.push({ key: r.key, value: n });
     });
-    if (vals.length < 2) {
+    if (ptsMeta.length < 2) {
       return '<div class="metric-kpi-spark" style="opacity:.35" aria-hidden="true"></div>';
     }
+    var vals = ptsMeta.map(function (p) { return p.value; });
     var min = Math.min.apply(null, vals);
     var max = Math.max.apply(null, vals);
     var span = (max - min) || 1;
-    var pts = vals.map(function (v, i) {
+    var coords = vals.map(function (v, i) {
       var x = (i / (vals.length - 1)) * w;
       var y = h - ((v - min) / span) * (h - 4) - 2;
       return [x, y];
     });
-    var line = pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+    var line = coords.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
     var area =
-      "M" + pts[0][0].toFixed(1) + " " + h.toFixed(1) +
-      " L" + pts.map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L") +
-      " L" + pts[pts.length - 1][0].toFixed(1) + " " + h.toFixed(1) + " Z";
+      "M" + coords[0][0].toFixed(1) + " " + h.toFixed(1) +
+      " L" + coords.map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L") +
+      " L" + coords[coords.length - 1][0].toFixed(1) + " " + h.toFixed(1) + " Z";
     _kpiSparkGradSeq += 1;
     var gid = "as-kpi-spark-grad-" + _kpiSparkGradSeq;
+    var metaJson = esc(JSON.stringify(ptsMeta.map(function (p) {
+      return { k: p.key, v: p.value };
+    })));
     return (
-      '<svg class="metric-kpi-spark" viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="none" aria-hidden="true">' +
+      '<svg class="metric-kpi-spark" viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="none" ' +
+        'data-as-spark="1" data-as-spark-pts="' + metaJson + '" data-as-spark-w="' + w + '" role="img" aria-label="Sparkline">' +
         "<defs>" +
           '<linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">' +
             '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.38"></stop>' +
@@ -437,6 +445,8 @@
         '<path d="' + area + '" fill="url(#' + gid + ')"></path>' +
         '<polyline points="' + line + '" fill="none" stroke="' + color +
           '" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>' +
+        '<line class="as-spark-cursor" x1="0" y1="0" x2="0" y2="' + h +
+          '" stroke="' + color + '" stroke-width="1" stroke-opacity="0" vector-effect="non-scaling-stroke"></line>' +
       "</svg>"
     );
   }
@@ -659,6 +669,88 @@
       );
     }).join("");
     bindMetricKpiFit(el.kpiGrid);
+    bindSparkHovers(el.kpiGrid);
+  }
+
+  var _sparkTipEl = null;
+  function ensureSparkTip() {
+    if (_sparkTipEl && _sparkTipEl.isConnected) return _sparkTipEl;
+    _sparkTipEl = document.createElement("div");
+    _sparkTipEl.id = "as-spark-tip";
+    _sparkTipEl.className = "as-spark-tip hidden";
+    _sparkTipEl.setAttribute("role", "tooltip");
+    document.body.appendChild(_sparkTipEl);
+    return _sparkTipEl;
+  }
+  function hideSparkTip() {
+    var tip = _sparkTipEl;
+    if (!tip) return;
+    tip.classList.add("hidden");
+    tip.innerHTML = "";
+  }
+  function showSparkTip(ev, svg, pts, idx) {
+    if (!pts || !pts.length || idx < 0 || idx >= pts.length) return;
+    var tip = ensureSparkTip();
+    var pt = pts[idx];
+    var dateLabel = pt.k || "";
+    if (window.SeoMetricTableUx && SeoMetricTableUx.formatTableDateKey) {
+      dateLabel = SeoMetricTableUx.formatTableDateKey(pt.k) || pt.k;
+    }
+    tip.innerHTML =
+      '<p class="as-spark-tip__d">' + esc(dateLabel) + "</p>" +
+      '<p class="as-spark-tip__v">' + esc(fmtNum(pt.v)) + "</p>";
+    tip.classList.remove("hidden");
+    var pad = 10;
+    var tw = tip.offsetWidth || 96;
+    var th = tip.offsetHeight || 44;
+    var left = ev.clientX - tw / 2;
+    var top = ev.clientY - th - 14;
+    if (top < pad) top = ev.clientY + 16;
+    left = Math.max(pad, Math.min(window.innerWidth - tw - pad, left));
+    top = Math.max(pad, Math.min(window.innerHeight - th - pad, top));
+    tip.style.left = left + "px";
+    tip.style.top = top + "px";
+    var cursor = svg.querySelector(".as-spark-cursor");
+    var w = Number(svg.getAttribute("data-as-spark-w")) || 220;
+    if (cursor && pts.length > 1) {
+      var x = (idx / (pts.length - 1)) * w;
+      cursor.setAttribute("x1", String(x));
+      cursor.setAttribute("x2", String(x));
+      cursor.setAttribute("stroke-opacity", "0.55");
+    }
+  }
+  function bindSparkHovers(root) {
+    if (!root || root._asSparkBound) return;
+    root._asSparkBound = true;
+    function clearCursors() {
+      root.querySelectorAll(".as-spark-cursor").forEach(function (ln) {
+        ln.setAttribute("stroke-opacity", "0");
+      });
+    }
+    root.addEventListener("mousemove", function (ev) {
+      var svg = ev.target && ev.target.closest ? ev.target.closest("svg[data-as-spark]") : null;
+      if (!svg || !root.contains(svg)) {
+        hideSparkTip();
+        clearCursors();
+        return;
+      }
+      var raw = svg.getAttribute("data-as-spark-pts") || "[]";
+      var pts;
+      try { pts = JSON.parse(raw); } catch (e) { pts = []; }
+      if (!pts.length) return;
+      var rect = svg.getBoundingClientRect();
+      if (!(rect.width > 1)) return;
+      var ratio = (ev.clientX - rect.left) / rect.width;
+      var idx = Math.round(Math.max(0, Math.min(1, ratio)) * (pts.length - 1));
+      root.querySelectorAll("svg[data-as-spark] .as-spark-cursor").forEach(function (ln) {
+        if (!svg.contains(ln)) ln.setAttribute("stroke-opacity", "0");
+      });
+      showSparkTip(ev, svg, pts, idx);
+    });
+    root.addEventListener("mouseleave", function () {
+      hideSparkTip();
+      clearCursors();
+    });
   }
 
   function unionKeys(seriesMap) {
@@ -885,7 +977,12 @@
       var spec = seriesByKey[key] || { label: key };
       var pts = seriesMap[key] || [];
       var map = {};
-      pts.forEach(function (p) { map[p.key] = p.value; });
+      pts.forEach(function (p) {
+        if (!p || p.key == null) return;
+        var nv = Number(p.value);
+        if (!Number.isFinite(nv)) return;
+        map[String(p.key)] = nv;
+      });
       var prevPts = comparePayload ? aggregate(pointsOf(comparePayload, key), breakdown) : [];
       var compare = mode && window.SeoPeriodCompare
         ? buildComparePack(pts, prevPts, mode, win)
@@ -897,7 +994,9 @@
         color: colorFor(key, idx),
         metric: "market:" + key,
         map: map,
-        series: pts,
+        series: pts.map(function (p) {
+          return { key: String(p.key), value: Number(p.value) };
+        }),
         compare: compare,
         assetKey: key,
       };
@@ -905,8 +1004,15 @@
 
     if (ux) {
       var preferred = ux.readJson("as-table-col-order", []);
+      // Eski / bozuk order kayıtlarını m: prefix ile hizala
+      preferred = (preferred || []).map(function (k) {
+        var s = String(k || "");
+        if (!s) return s;
+        if (s.indexOf("m:") === 0 || s.indexOf("o:") === 0 || s.indexOf(":dlt") >= 0) return s;
+        return "m:" + s;
+      });
       var orderedKeys = ux.orderKeys(preferred, colItems.map(function (c) { return c.key; }));
-      var byKey = {};
+      var byKey = Object.create(null);
       colItems.forEach(function (c) { byKey[c.key] = c; });
       colItems = orderedKeys.map(function (k) { return byKey[k]; }).filter(Boolean);
     }
@@ -915,6 +1021,18 @@
     if (mode && window.SeoPeriodCompare && (!ux || ux.isCompareColsEnabled())) {
       gridCols = SeoPeriodCompare.appendDeltaColumns(gridCols);
     }
+    // Render öncesi map'leri series'ten yeniden kur (kolon sırası / stale map)
+    gridCols.forEach(function (col) {
+      if (!col || col.isDelta) return;
+      var m = {};
+      (col.series || []).forEach(function (p) {
+        if (!p || p.key == null) return;
+        var nv = Number(p.value);
+        if (!Number.isFinite(nv)) return;
+        m[String(p.key)] = nv;
+      });
+      col.map = m;
+    });
     if (ux && ux.attachWeekendCarry) ux.attachWeekendCarry(gridCols, keys);
 
     var thRemoveCls =

@@ -363,6 +363,38 @@
   html.charcoal .metric-kpi-ss2-cmp.is-down { color: #fb7185; }
   html.dark .metric-kpi-ss2-cmp.is-flat,
   html.charcoal .metric-kpi-ss2-cmp.is-flat { color: #94a3b8; }
+  .as-spark-tip {
+    position: fixed;
+    z-index: 12050;
+    pointer-events: none;
+    box-sizing: border-box;
+    min-width: 4.5rem;
+    max-width: min(14rem, calc(100vw - 1.25rem));
+    padding: 0.4rem 0.55rem;
+    border-radius: 0.65rem;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    background: rgba(15, 23, 42, 0.94);
+    color: #f8fafc;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
+    backdrop-filter: blur(6px);
+  }
+  .as-spark-tip.hidden { display: none; }
+  .as-spark-tip__d {
+    margin: 0;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .as-spark-tip__v {
+    margin: 0.15rem 0 0;
+    font-size: 0.8rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #f8fafc;
+  }
+  .metric-kpi-ss2-spark { cursor: crosshair; }
   .metric-kpi-ss2-spark {
     flex: 0 0 70%;
     width: 70%;
@@ -682,8 +714,8 @@
   };
 </script>
 <script src="/static/js/metric_period_compare.js?v=2"></script>
-<script src="/static/js/metric_table_ux.js?v=21"></script>
+<script src="/static/js/metric_table_ux.js?v=22"></script>
 <script src="/static/js/resizable_data_list.js?v=7"></script>
 <script src="/static/js/pa_chart_height.js?v=13"></script>
-<script src="/static/js/assets_page.js?v=9"></script>
+<script src="/static/js/assets_page.js?v=10"></script>
 {% endblock %}

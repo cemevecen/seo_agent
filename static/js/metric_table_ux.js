@@ -41,7 +41,7 @@
       "html.dark .mtux-opt-toggle[aria-pressed='true']{background:rgba(14,165,233,0.18);color:#7dd3fc;border-color:#0284c7;}" +
       "html.dark .mtux-heat-toggle[aria-pressed='true']{background:rgba(63,63,70,0.55);color:#e4e4e7;}" +
       "table.mtux-grid-table{border-collapse:separate;border-spacing:0;width:100%;min-width:100%;height:100%;" +
-      "table-layout:fixed;"
+      "table-layout:fixed;" +
       "font-variant-numeric:tabular-nums;}" +
       "table.mtux-grid-table th,table.mtux-grid-table td{" +
       "border-right:1px solid rgba(148,163,184,0.14);border-bottom:1px solid rgba(148,163,184,0.14);}" +
@@ -376,14 +376,35 @@
     return legend;
   }
 
+  // Hafta sonu / resmi tatil kapanışı olan piyasalar (kripto hariç).
   var WEEKEND_CLOSED_MARKET = {
     gram_altin: 1,
+    harem_gram_altin: 1,
+    altinkaynak_gram_altin: 1,
+    ons_altin: 1,
+    ceyrek_altin: 1,
+    ata_altin: 1,
+    cumhuriyet_altini: 1,
+    tam_altin: 1,
+    resat_altin: 1,
+    gram_gumus: 1,
+    harem_gram_gumus: 1,
+    brent: 1,
+    gumus_ons: 1,
+    altin_gumus: 1,
+    aluminyum: 1,
     usd_try: 1,
     eur_try: 1,
+    gbp_try: 1,
+    chf_try: 1,
+    sar_try: 1,
     bist100: 1,
-    gram_gumus: 1,
-    brent: 1,
-    ceyrek_altin: 1,
+    asels: 1,
+    thyao: 1,
+    sasa: 1,
+    akbnk: 1,
+    tuprs: 1,
+    tralt: 1,
   };
 
   function marketSeriesKey(metric) {
@@ -480,6 +501,46 @@
       if (carried) col.carried = carried;
     });
     return cols;
+  }
+
+  /** map + series senkronu — kolon sürükleme / stale map sonrası boş hücreleri önler. */
+  function rebuildColMap(col) {
+    if (!col || col.isDelta) return col;
+    var m = {};
+    (col.series || []).forEach(function (r) {
+      if (!r || r.key == null) return;
+      var nv = Number(r.value);
+      if (!Number.isFinite(nv)) return;
+      m[String(r.key)] = nv;
+    });
+    if (col.map && typeof col.map === "object") {
+      Object.keys(col.map).forEach(function (k) {
+        if (Object.prototype.hasOwnProperty.call(m, String(k))) return;
+        var nv = Number(col.map[k]);
+        if (Number.isFinite(nv)) m[String(k)] = nv;
+      });
+    }
+    col.map = m;
+    return col;
+  }
+
+  function colValueAt(col, dateKey) {
+    if (!col) return null;
+    var k = String(dateKey);
+    var map = col.map || {};
+    var v = map[k];
+    if (v == null && Object.prototype.hasOwnProperty.call(map, dateKey)) v = map[dateKey];
+    if ((v == null || !Number.isFinite(Number(v))) && col.series && col.series.length) {
+      for (var i = 0; i < col.series.length; i++) {
+        var r = col.series[i];
+        if (!r || r.key == null) continue;
+        if (String(r.key) !== k) continue;
+        v = r.value;
+        break;
+      }
+    }
+    var n = Number(v);
+    return Number.isFinite(n) ? n : null;
   }
 
   function heatCellHtml(v, color, st, esc, fmtVal, title, col, extraClass, rowKey) {
@@ -588,9 +649,11 @@
       return { rowCount: 0 };
     }
 
+    colItems.forEach(rebuildColMap);
+
     if (!transposed) {
       var stats = colItems.map(function (col) {
-        return colMinMax(keys.map(function (k) { return col.map[k]; }));
+        return colMinMax(keys.map(function (k) { return colValueAt(col, k); }));
       });
       var cornerCls = stickyClasses(pin, true, true, true);
       theadRow.innerHTML =
@@ -614,7 +677,7 @@
             esc(fmtKey(key)) +
           "</td>";
         colItems.forEach(function (col, i) {
-          cells += heatCellHtml(col.map[key], col.color, stats[i], esc, fmtVal, null, col, "", key);
+          cells += heatCellHtml(colValueAt(col, key), col.color, stats[i], esc, fmtVal, null, col, "", key);
         });
         return "<tr>" + cells + "</tr>";
       }).join("");
@@ -643,7 +706,7 @@
       }
     } else {
       var rowStats = colItems.map(function (col) {
-        return colMinMax(keys.map(function (k) { return col.map[k]; }));
+        return colMinMax(keys.map(function (k) { return colValueAt(col, k); }));
       });
 
       var head =
@@ -684,7 +747,7 @@
             labelInner +
           "</td>";
         keys.forEach(function (key, ki) {
-          cells += heatCellHtml(col.map[key], col.color, st, esc, fmtVal, null, col, "", key);
+          cells += heatCellHtml(colValueAt(col, key), col.color, st, esc, fmtVal, null, col, "", key);
         });
         var avg = rowAverage(col.map, keys);
         cells += '<td class="mtux-avg-gap" aria-hidden="true"></td>';
