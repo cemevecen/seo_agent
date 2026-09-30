@@ -29,6 +29,11 @@ _ROOT = Path(__file__).resolve().parent.parent
 _TEMPLATES = Jinja2Templates(directory=str(_ROOT / "templates" / "tampiq"))
 
 _TRUE = {"1", "true", "yes", "on"}
+_DEFAULT_PUBLIC_EMAIL = "netbaboli@gmail.com"
+_BLOCKED_PUBLIC_EMAILS = {
+    "cemevecen@gmail.com",
+    "support@tampiq.app",
+}
 
 
 def _env(name: str, default: str = "") -> str:
@@ -39,16 +44,26 @@ def _truthy(name: str) -> bool:
     return _env(name).lower() in _TRUE
 
 
+def _public_email(name: str) -> str:
+    """Public Help Center contact — never expose personal/legacy mailboxes."""
+    raw = _env(name, _DEFAULT_PUBLIC_EMAIL)
+    if not raw or raw.lower() in _BLOCKED_PUBLIC_EMAILS:
+        return _DEFAULT_PUBLIC_EMAIL
+    return raw
+
+
 def _site_identity() -> dict[str, str]:
-    support_email = _env("TAMPIQ_SUPPORT_EMAIL", "netbaboli@gmail.com")
-    privacy_email = _env("TAMPIQ_PRIVACY_EMAIL", support_email)
+    support_email = _public_email("TAMPIQ_SUPPORT_EMAIL")
+    privacy_email = _public_email("TAMPIQ_PRIVACY_EMAIL")
+    if privacy_email.lower() in _BLOCKED_PUBLIC_EMAILS:
+        privacy_email = support_email
     return {
         "app_name": _env("TAMPIQ_APP_NAME", "TAMPIQ"),
         "company_name": _env("TAMPIQ_COMPANY_NAME", "TAMPIQ"),
         "support_email": support_email,
         "privacy_email": privacy_email,
         "site_url": _env("TAMPIQ_PUBLIC_BASE_URL", "").rstrip("/"),
-        "publisher_name": _env("TAMPIQ_PUBLISHER_NAME", "TAMPIQ"),
+        "publisher_name": _env("TAMPIQ_PUBLISHER_NAME", "TAMPIQ") or "TAMPIQ",
         "publisher_country": _env("TAMPIQ_PUBLISHER_COUNTRY", "Türkiye"),
     }
 
@@ -70,16 +85,20 @@ def page_context(request: Request, *, active: str) -> dict:
     info = locale_info(locale)
     catalog = get_catalog(locale)
     identity = _site_identity()
-    # Allow env overrides for publisher display while keeping catalog defaults.
-    if catalog.get("support"):
-        catalog = {
-            **catalog,
-            "support": {
-                **catalog["support"],
-                "developer_name": identity["publisher_name"],
-                "country_value": identity["publisher_country"],
-            },
-        }
+        # Allow env overrides for publisher display while keeping catalog defaults.
+        # Never allow a personal legal name to leak onto the public site.
+        publisher = identity["publisher_name"]
+        if "evecen" in publisher.lower() or "cem gürsoy" in publisher.lower() or "cem gursoy" in publisher.lower():
+            publisher = "TAMPIQ"
+        if catalog.get("support"):
+            catalog = {
+                **catalog,
+                "support": {
+                    **catalog["support"],
+                    "developer_name": publisher,
+                    "country_value": identity["publisher_country"],
+                },
+            }
     return {
         "request": request,
         "active": active,
