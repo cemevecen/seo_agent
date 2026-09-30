@@ -1,0 +1,412 @@
+{
+  "meta": {
+    "home_title": "TAMPIQ Yardım Merkezi",
+    "support_title": "TAMPIQ Destek",
+    "privacy_title": "TAMPIQ Gizlilik Politikası",
+    "home_description": "TAMPIQ için yardım, gizlilik ve ürün bilgileri.",
+    "support_description": "TAMPIQ koruma oturumları, izinler ve sorun giderme hakkında yardım alın.",
+    "privacy_description": "TAMPIQ’in bilgileri cihazınızda nasıl işlediği ve sakladığı."
+  },
+  "nav": {
+    "support": "Destek",
+    "privacy": "Gizlilik Politikası",
+    "contact": "İletişim",
+    "language": "Dil",
+    "home_aria": "TAMPIQ ana sayfa",
+    "lang_aria": "Dil seçin"
+  },
+  "footer": {
+    "copyright": "© 2026 TAMPIQ",
+    "support": "Destek",
+    "privacy": "Gizlilik Politikası",
+    "contact": "İletişim"
+  },
+  "home": {
+    "eyebrow": "TAMPIQ Yardım Merkezi",
+    "headline": "Yardım, gizlilik ve ürün bilgileri",
+    "body": "TAMPIQ hakkında yanıtlar bulun; koruma oturumlarının ve izinlerin nasıl çalıştığını öğrenin; destekle iletişime geçin veya gizlilik uygulamalarımızı inceleyin.",
+    "cta_support": "Destek Alın",
+    "cta_privacy": "Gizlilik Politikası",
+    "topics_title": "Keşfedin",
+    "topics": [
+      {"href": "/support#getting-started", "title": "Destek", "text": "Yanıtlar, iletişim bilgileri ve sorun giderme."},
+      {"href": "/privacy", "title": "Gizlilik", "text": "Bilgilerin cihazınızda nasıl işlendiği ve saklandığı."},
+      {"href": "/support#permissions", "title": "İzinler", "text": "TAMPIQ’in neden hareket, konum, bildirim ve Ekran Süresi yetkisi isteyebileceği."},
+      {"href": "/support#protection-sessions", "title": "Koruma Oturumları", "text": "Oturumların nasıl başladığı, bittiği ve etkinliği nasıl düzenlediği."},
+      {"href": "/support#app-usage", "title": "Uygulama Kullanımı", "text": "Ekran Süresi yetenekleri, sınırlamalar ve zaman dilimleri."},
+      {"href": "/support#location-records", "title": "Konum Kayıtları", "text": "İzin verdiğinizde isteğe bağlı konum anlık görüntüleri."},
+      {"href": "/support#app-lock", "title": "Uygulama Kilidi", "text": "Sahip kimlik doğrulaması ve uygulama kilitliyken gizlilik kapağı."},
+      {"href": "/support#notifications", "title": "Bildirimler ve Canlı Etkinlikler", "text": "Kilit Ekranı’nda ve bildirimlerde oturum durumu."}
+    ]
+  },
+  "support": {
+    "title": "TAMPIQ Destek",
+    "intro": "TAMPIQ ile ilgili yardıma mı ihtiyacınız var? Aşağıdaki yanıtlara bakın veya doğrudan bizimle iletişime geçin.",
+    "contact_title": "İletişim",
+    "support_email_label": "Destek e-postası",
+    "privacy_email_label": "Gizlilik e-postası",
+    "developer_label": "Geliştirici / Yayımcı",
+    "developer_name": "Cem Gürsoy EVECEN",
+    "country_label": "Ülke",
+    "country_value": "Türkiye",
+    "response_note": "Destek taleplerini 2 iş günü içinde incelemeyi hedefliyoruz.",
+    "toc_title": "Bu sayfada",
+    "sections": [
+      {
+        "id": "getting-started",
+        "title": "Başlarken",
+        "items": [
+          {
+            "q": "TAMPIQ nedir?",
+            "a": "TAMPIQ, iPhone’unuzda koruma oturumları çalıştırmanıza ve bu oturumlarla ilgili cihaz etkinliğini incelemenize yardımcı olur. Oturum etkinken cihazınızda neler olduğuna dair kişisel farkındalık için tasarlanmıştır. Hırsızlık önleme garantisi, casus yazılım dedektörü, takipçi dedektörü, acil hizmet veya yasal süreçler için delil hizmeti değildir."
+          },
+          {
+            "q": "Koruma oturumunu nasıl başlatırım?",
+            "a": "TAMPIQ’i açın ve ana akıştan yeni bir koruma oturumu başlatın. Verdiğiniz izinlere bağlı olarak, başlamadan önce veya başlarken isteğe bağlı kayıt seçeneklerini (örneğin konum) seçebilirsiniz."
+          },
+          {
+            "q": "TAMPIQ ne kaydeder?",
+            "a": "Etkin bir oturum sırasında TAMPIQ, oturum zamanlaması, hareketle ilgili olaylar, şarj değişiklikleri, uygulama yaşam döngüsü sinyalleri, kilitle ilgili korumalı veri sinyalleri ve—etkinleştirilmiş ve izin verilmişse—konum anlık görüntüleri gibi cihaz içi kayıtlar saklayabilir. Uygulama kullanımı özetleri Apple Ekran Süresi / DeviceActivity yetkilendirmesine bağlıdır ve Apple’ın zaman dilimleriyle gösterilebilir. Herhangi bir kaydın kullanılabilirliği iOS izinlerine ve sistem koşullarına bağlıdır."
+          },
+          {
+            "q": "Koruma oturumunu nasıl bitiririm?",
+            "a": "Oturumu TAMPIQ içinden sonlandırın. Uygulama Kilidi açıksa, korumayı bitirmeden önce uygulama sizden cihaz sahibi olarak kimlik doğrulaması isteyebilir."
+          },
+          {
+            "q": "Otomatik bitiş zamanı ayarlayabilir miyim?",
+            "a": "Evet. Bir oturum için otomatik bitiş zamanı seçebilirsiniz. Bu bitişin gerçekleşmesi iOS yürütmesine ve sistem davranışına bağlıdır; bazı koşullarda oturum planlanan zamandan sonra bitebilir veya uygulamanın ya da sistemin işlemeyi sürdürmesi gerekebilir."
+          }
+        ]
+      },
+      {
+        "id": "protection-sessions",
+        "title": "Koruma Oturumları",
+        "paragraphs": [
+          "Her koruma oturumu ayrı tutulur; böylece etkinliği yalnızca o oturum bağlamında inceleyebilirsiniz.",
+          "İşletim sistemi sınırlamaları hangi kayıtların mevcut olabileceğini etkileyebilir. TAMPIQ, mümkün olan her cihaz olayının yakalanacağını iddia etmez.",
+          "Otomatik bitiş, iOS arka plan yürütmesine, Canlı Etkinlik zamanlamasına ve diğer sistem davranışına bağlı olabilir."
+        ]
+      },
+      {
+        "id": "device-activity",
+        "title": "Cihaz Etkinliği",
+        "paragraphs": [
+          "Oturum sırasında TAMPIQ; ekran/kilitle ilgili korumalı veri olayları, hareket patlamaları, şarj değişiklikleri ve uygulamanın gözlemlemek üzere tasarlandığı diğer cihaz olayları gibi desteklenen sinyallerin bir zaman çizelgesini düzenleyebilir.",
+          "Bu olaylar garanti edilmez. iOS; güç, izinler ve sistem durumuna bağlı olarak sinyalleri geciktirebilir, birleştirebilir veya atlayabilir."
+        ]
+      },
+      {
+        "id": "app-usage",
+        "title": "Uygulama Kullanımı",
+        "paragraphs": [
+          "Uygulama kullanımı bilgisi, iOS Ekran Süresi / DeviceActivity yeteneklerine ve verdiğiniz Aile Kontrolleri yetkilendirmesine bağlıdır.",
+          "Bazı özetler Apple zaman dilimlerini kullanır. Aynı saat içindeki atıf sınırlı kesinliğe sahip olabilir.",
+          "TAMPIQ, uygulama kullanımı için saniye düzeyinde yanlış bir kesinliği iddia etmez."
+        ]
+      },
+      {
+        "id": "location-records",
+        "title": "Konum Kayıtları",
+        "paragraphs": [
+          "Konum kayıtları yalnızca konum izni verdiğinizde ve koruma için konum kaydını etkinleştirdiğinizde kullanılabilir.",
+          "Doğruluk ve kullanılabilirlik iOS ve sistem koşullarına bağlıdır. Konum kullanılabilirliği garanti edilmez.",
+          "TAMPIQ sürekli GPS takibi değildir. İsteğe bağlı modlar, gelişmiş kayıt etkinleştirildiğinde ve Her Zaman yetkisi verildiğinde başlangıç/bitiş anlık görüntüleri veya anlamlı konum değişiklikleri yakalayabilir."
+        ]
+      },
+      {
+        "id": "app-lock",
+        "title": "Uygulama Kilidi ve Gizlilik",
+        "paragraphs": [
+          "Uygulama Kilidi, cihaz sahibi kimlik doğrulaması (Face ID, Touch ID veya sistem üzerinden cihaz parolası) isteyerek TAMPIQ arayüzünün gizli kalmasına yardımcı olur.",
+          "TAMPIQ yalnızca kimlik doğrulamanın başarı veya başarısızlığını alır. Face ID biyometrik şablonlarını veya görüntülerini almaz.",
+          "Gizlilik kapağı, uygulama değiştiricide uygulama içeriğini gizleyebilir. Arka planda kilitleme davranışı, yapılandırdığınız seçeneklere ve iOS kurallarına uyar."
+        ]
+      },
+      {
+        "id": "notifications",
+        "title": "Bildirimler ve Canlı Etkinlikler",
+        "paragraphs": [
+          "Etkin bir koruma oturumu, oturum durumunu bir bakışta görmeniz için bir Canlı Etkinlik gösterebilir.",
+          "Yerel bildirimler otomatik bitiş veya oturum durumu hakkında sizi hatırlatabilir. Bu oturum güncellemeleri için uzak anlık bildirim (push) kullanılmaz.",
+          "Bildirimler ve Canlı Etkinlikler sistem izni gerektirir; sizin tarafınızdan kapatılabilir veya iOS tarafından sınırlandırılabilir.",
+          "Bir Canlı Etkinliği kapatmak tek başına koruma oturumunu durdurmaz."
+        ]
+      },
+      {
+        "id": "themes-language",
+        "title": "Temalar ve Dil",
+        "paragraphs": [
+          "TAMPIQ; Açık, Koyu, Lacivert ve Renkli temaları içerir.",
+          "Uygulama dilini TAMPIQ ayarlarından seçebilirsiniz. Bu Yardım Merkezi, dil seçicide listelenen herkese açık yerel ayarları destekler: Türkçe, İngilizce (ABD), Arapça, Geleneksel Çince, Fransızca, Almanca, Hintçe, Japonca, Portekizce (Brezilya), İspanyolca (İspanya) ve Urduca."
+        ]
+      },
+      {
+        "id": "permissions",
+        "title": "İzinler",
+        "paragraphs": [
+          "TAMPIQ, üretim uygulamasında bulunan şu izinleri isteyebilir:"
+        ],
+        "bullets": [
+          "Hareket — koruma sırasında cihaz hareketini algılamak için.",
+          "Konum (Kullanımdayken ve gelişmiş kaydı etkinleştirirseniz Her Zaman) — koruma oturumlarıyla ilgili konum kayıtlarını kaydetmek için.",
+          "Bildirimler — yerel oturum hatırlatıcıları ve durum uyarıları için.",
+          "Ekran Süresi / Aile Kontrolleri yetkilendirmesi — DeviceActivity / uygulama kullanımı özetlerini göstermek için.",
+          "Face ID / cihaz kimlik doğrulaması — Uygulama Kilidi açıkken uygulamayı açmak ve korumayı bitirmeyi onaylamak için (yalnızca sistem kimlik doğrulaması)."
+        ]
+      },
+      {
+        "id": "troubleshooting",
+        "title": "Sorun Giderme",
+        "items": [
+          {
+            "q": "Kayıtlar eksik görünüyor",
+            "a": "Koruma oturumunun etkin olduğunu doğrulayın, ilgili izinlerin verildiğini kontrol edin ve iOS düşük güç veya arka plan sınırlarının uygulanıp uygulanmadığını gözden geçirin. Her sinyal garanti edilmez."
+          },
+          {
+            "q": "Uygulama kullanımı kullanılamıyor",
+            "a": "Ekran Süresi / Aile Kontrolleri yetkilendirmesini verin ve ilgili rapor görünümlerini yeniden açın. Neyin gösterilebileceğini Apple çerçeveleri kontrol eder."
+          },
+          {
+            "q": "Konum kullanılamıyor",
+            "a": "Konum kaydını etkinleştirin, gerekli konum iznini verin ve iOS Ayarları’nda Konum Servisleri’nin açık olduğundan emin olun. Doğruluk yine de sistem koşullarına bağlıdır."
+          },
+          {
+            "q": "Bildirim görünmüyor",
+            "a": "iOS Ayarları’nda TAMPIQ için bildirimlere izin verin. Odak modları ve sistem sınırları uyarıları bastırabilir."
+          },
+          {
+            "q": "Canlı Etkinlik görünmüyor",
+            "a": "TAMPIQ için Canlı Etkinliklere izin verildiğini, bir oturumun etkin olduğunu ve iOS’un etkinliği kapatmadığını veya sınırlandırmadığını doğrulayın."
+          },
+          {
+            "q": "Oturum otomatik sona erdi",
+            "a": "Otomatik bitiş zamanı ayarlayıp ayarlamadığınızı kontrol edin. Sistem zamanlaması ve yürütme sınırları kesin zamanlamayı etkileyebilir."
+          },
+          {
+            "q": "Uygulama Kilidi sorunu",
+            "a": "Biyometrik kilit açma başarısız olursa cihaz parolanızı kullanın. TAMPIQ cihaz parolanızı veya Face ID verilerinizi okuyamaz ya da sıfırlayamaz."
+          }
+        ]
+      },
+      {
+        "id": "bug-report",
+        "title": "Hata Bildirimi",
+        "paragraphs": [
+          "Bir hata hakkında destek ekibine e-posta gönderirken lütfen şunları ekleyin:"
+        ],
+        "bullets": [
+          "iPhone modeli",
+          "iOS sürümü",
+          "TAMPIQ sürümü",
+          "Sorunun yaklaşık zamanı",
+          "Yeniden üretme adımları",
+          "Uygunsa ekran görüntüsü"
+        ],
+        "closing": "Apple ID parolanızı, cihaz parolanızı, TAMPIQ PIN’inizi veya diğer hassas kimlik doğrulama sırlarını asla göndermeyin."
+      },
+      {
+        "id": "feature-request",
+        "title": "Özellik İsteği",
+        "paragraphs": [
+          "Düşünülmüş ürün fikirlerini memnuniyetle karşılarız. Konu satırında “Feature request” veya “Özellik isteği” yazarak ve istediğiniz iş akışının kısa bir açıklamasıyla destek ekibine e-posta gönderin. Her fikri hayata geçiremeysek de her mesajı okuyoruz."
+        ]
+      }
+    ]
+  },
+  "privacy": {
+    "title": "Gizlilik Politikası",
+    "effective_label": "Yürürlük tarihi",
+    "effective_date": "30 Eylül 2026",
+    "intro": "Bu Gizlilik Politikası, Cem Gürsoy EVECEN tarafından yayımlanan TAMPIQ (“biz”, “bize”) iPhone uygulamasını kullandığınızda bilgilerin nasıl işlendiğini açıklar. Uygulamanın üretim davranışını yansıtır: koruma kayıtlarının cihazınızda kalması tasarlanmıştır ve TAMPIQ; hesap sistemi veya oturum telemetrisi için bir TAMPIQ bulut arka ucu işletmez.",
+    "sections": [
+      {
+        "id": "introduction",
+        "title": "1. Giriş",
+        "paragraphs": [
+          "TAMPIQ, iPhone için kişisel bir koruma oturumu uygulamasıdır. Koruma oturumlarını başlatıp bitirmenize ve ilgili cihaz içi etkinliği incelemenize yardımcı olur.",
+          "Bu politikayı genel bir şablon olarak değil, yayınlanan uygulamanın çalışma şekline uygun olacak şekilde yazdık."
+        ]
+      },
+      {
+        "id": "scope",
+        "title": "2. Kapsam",
+        "paragraphs": [
+          "Bu politika, TAMPIQ iOS uygulamasını ve bu herkese açık Yardım Merkezi / Gizlilik Merkezi web sitesini kapsar.",
+          "TAMPIQ dışından açabileceğiniz ilgisiz web sitelerini veya hizmetleri kapsamaz; örneğin bir konumu görüntülemeyi seçtiğinizde Apple Haritalar."
+        ]
+      },
+      {
+        "id": "information",
+        "title": "3. TAMPIQ’in İşlediği Bilgiler",
+        "paragraphs": [
+          "Seçtiğiniz izinlere ve ayarlara bağlı olarak TAMPIQ cihazınızda şu kategorileri işleyebilir:"
+        ],
+        "bullets": [
+          "Koruma oturumu meta verileri (oturum tanımlayıcıları, başlangıç/bitiş zamanları, etiketler, yapılandırma anlık görüntüleri).",
+          "Bir oturumla ilgili cihaz etkinliği (örneğin hareketle ilgili olaylar, şarj değişiklikleri, uygulama ön plan/arka plan sinyalleri ve kilitle ilgili korumalı veri sinyalleri).",
+          "Yetkilendirildiğinde Apple Ekran Süresi çerçeveleri üzerinden gösterilen uygulama kullanımı / DeviceActivity özetleri (görüntüleme Apple zaman dilimlerini kullanabilir; Tampiq, Ekran Süresi satırlarını bir Tampiq sunucusuna yüklemez).",
+          "Konum kaydını etkinleştirip izin verdiğinizde isteğe bağlı konum kayıtları.",
+          "Tercihler ve ayarlar (tema, dil, saklama süresi, özellik anahtarları).",
+          "Uygulama Kilidi kimlik doğrulama sonuçları (yalnızca başarı/başarısızlık).",
+          "Bize e-posta gönderirseniz destek yazışmaları (uygulama dışında, e-postada işlenir)."
+        ]
+      },
+      {
+        "id": "on-device",
+        "title": "4. Cihaz İçi İşleme ve Depolama",
+        "paragraphs": [
+          "Oturum günlükleri, kanıt dosyaları, izleme geri çağrıları, tercihler ve ilgili önbellekler iPhone’unuzda yerel olarak saklanır; işlevsellik için gerektiğinde TAMPIQ eklentileriyle (Activity Monitor, Activity Report, Widget’lar) paylaşılan bir App Group dahil.",
+          "TAMPIQ bir Tampiq hesap girişi tutmaz ve koruma oturumu telemetrisini bir Tampiq uygulama sunucusuna göndermez.",
+          "İçeriği başka bir uygulamayla dışa aktarır, paylaşıır veya açarsanız (örneğin bir dosya paylaşmak veya Haritalar’ı açmak), bu işlem sizin başlatmanızla olur ve seçtiğiniz hedefe göre ilerler."
+        ]
+      },
+      {
+        "id": "location",
+        "title": "5. Konum Verileri",
+        "paragraphs": [
+          "Konum kaydı isteğe bağlıdır; siz etkinleştirip izin vermedikçe kapalıdır.",
+          "Etkinleştirildiğinde TAMPIQ, koruma başlangıç/bitişiyle ilgili konum anlık görüntülerini ve—gelişmiş kaydı etkinleştirip Her Zaman yetkisi verirseniz—oturum etkinken anlamlı konum değişikliklerini saklayabilir. Sürekli yüksek frekanslı GPS takibi değildir.",
+          "Doğruluk ve kullanılabilirlik iOS Konum Servisleri’ne ve cihaz koşullarına bağlıdır. Ters coğrafi kodlanmış yer etiketleri Apple’ın coğrafi kodlama hizmetlerini kullanabilir."
+        ]
+      },
+      {
+        "id": "app-usage",
+        "title": "6. Uygulama Kullanımı / Ekran Süresi Verileri",
+        "paragraphs": [
+          "Uygulama kullanımı görünümleri, yetkilendirdikten sonra Apple’ın Aile Kontrolleri / DeviceActivity / Ekran Süresi teknolojilerine dayanır.",
+          "Neyin gösterilebileceği Apple çerçeveleri ve yetkiniz tarafından kontrol edilir. Bazı değerler, aynı saat içinde sınırlı kesinliğe sahip Apple zaman dilimlerini kullanır.",
+          "TAMPIQ’in DeviceActivity izleyici eklentisi, oturum korelasyonu için zamanlama geri çağrı olaylarını yerel olarak kalıcı hale getirebilir. Korumalı alan rapor arayüzünde gösterilen uygulama başına Ekran Süresi listeleri cihaz içi görüntüleme içindir ve bir Tampiq sunucusuna yüklenmez."
+        ]
+      },
+      {
+        "id": "permissions-policy",
+        "title": "7. İzinler",
+        "paragraphs": [
+          "TAMPIQ, yalnızca karşılık gelen özellikleri sağlamak için izin ister:"
+        ],
+        "bullets": [
+          "Hareket — koruma sırasında hareket sinyalleri.",
+          "Konum — isteğe bağlı, korumayla ilgili konum kayıtları.",
+          "Bildirimler — oturumlar hakkında yerel uyarılar.",
+          "Aile Kontrolleri / Ekran Süresi — uygulama kullanımı özetleri.",
+          "Face ID / cihaz sahibi kimlik doğrulaması — Uygulama Kilidi ve sistem LocalAuthentication istemi üzerinden hassas eylemleri onaylama."
+        ]
+      },
+      {
+        "id": "notifications-policy",
+        "title": "8. Bildirimler ve Canlı Etkinlikler",
+        "paragraphs": [
+          "TAMPIQ, oturum durumu için yerel bildirimler ve ActivityKit Canlı Etkinlikleri kullanır. Bunlar Tampiq uzak anlık bildirim sunucuları tarafından yönlendirilmez.",
+          "Bildirimleri veya Canlı Etkinlikleri iOS Ayarları’ndan kapatabilirsiniz. Bir Canlı Etkinliği kapatmak, altta yatan koruma oturumunu mutlaka sonlandırmaz."
+        ]
+      },
+      {
+        "id": "app-lock-policy",
+        "title": "9. Uygulama Kilidi / Kimlik Doğrulama",
+        "paragraphs": [
+          "Uygulama Kilidi, Apple’ın LocalAuthentication’ını kullanır. TAMPIQ yalnızca kimlik doğrulamanın başarılı mı yoksa başarısız mı olduğunu öğrenir.",
+          "TAMPIQ, Face ID biyometrik verilerini, parmak izlerini veya cihaz parolanızı almaz."
+        ]
+      },
+      {
+        "id": "server",
+        "title": "10. Sunucu İletimi",
+        "paragraphs": [
+          "Koruma oturumu kayıtları, kanıt günlükleri ve uygulama tercihleri cihazınızda kalacak şekilde tasarlanmıştır.",
+          "TAMPIQ, oturum telemetrinizi, konum geçmişinizi veya Ekran Süresi satırlarınızı alan bir Tampiq bulut API’si işletmez.",
+          "Apple tarafından sağlanan sistem hizmetleri (örneğin coğrafi kodlama veya çerçeve yetkilendirme akışları) Apple’ın koşulları altında Apple altyapısını içerebilir. Bu Yardım Merkezi web sitesini açmak, bu sayfaları sunmak için sıradan web barındırma kullanır."
+        ]
+      },
+      {
+        "id": "third-party",
+        "title": "11. Üçüncü Taraf Hizmetler",
+        "paragraphs": [
+          "Üretim iOS uygulamasının üçüncü taraf SDK bağımlılığı Lottie’dir (cihaz içi animasyonlar). Denetlenen üretim yapılandırmasında TAMPIQ; Firebase, Crashlytics, Sentry, reklam veya analitik SDK’larını entegre etmez.",
+          "Apple sistem çerçeveleri (Core Location, Core Motion, Family Controls, DeviceActivity, ActivityKit, UserNotifications, LocalAuthentication ve ilgili API’ler) iOS tarafından sağlandığı şekilde kullanılır."
+        ]
+      },
+      {
+        "id": "sharing",
+        "title": "12. Veri Paylaşımı",
+        "paragraphs": [
+          "Kişisel bilgilerinizi satmayız.",
+          "Koruma oturumu kayıtlarını üçüncü taraf reklamverenlerle veya veri aracılarıyla paylaşmayız.",
+          "Destekle e-posta yoluyla iletişime geçerseniz mesajınız destek amaçlarıyla ele alınır. İçeriği iOS paylaşım sayfaları veya diğer uygulamalar aracılığıyla kendiniz paylaşırsanız, bu paylaşım sizin kontrolünüzdedir."
+        ]
+      },
+      {
+        "id": "retention",
+        "title": "13. Veri Saklama",
+        "paragraphs": [
+          "Ayarlar’da arşivlenmiş kayıtların ne kadar süre tutulacağını seçebilirsiniz: 7 gün, 30 gün, 90 gün veya siz silene kadar (varsayılan).",
+          "“Silene kadar” dışında bir saklama süresi seçildiğinde, uygulama yüklendiğinde veya devam ettiğinde eski kayıtlar otomatik olarak temizlenebilir."
+        ]
+      },
+      {
+        "id": "deletion",
+        "title": "14. Veri Silme",
+        "paragraphs": [
+          "TAMPIQ içinden tek tek oturumları silebilir veya saklanan kayıtları temizleyebilirsiniz (yıkıcı eylemler için sahip kimlik doğrulaması gerekebilir).",
+          "Uygulamayı silmek, iOS davranışına bağlı olarak uygulamanın yerel konteyner verilerini kaldırır. Kaldırma, desteğe zaten gönderdiğiniz e-postaları silmez."
+        ]
+      },
+      {
+        "id": "support-comms",
+        "title": "15. Destek İletişimi",
+        "paragraphs": [
+          "Destek veya gizlilik iletişimlerine e-posta gönderirseniz, size yanıt vermek için o yazışmanın içeriğini işleriz. Bu e-posta verisi, cihaz içi koruma telemetrisinden ayrıdır.",
+          "Destek e-postalarına parola, cihaz parolası veya TAMPIQ PIN’i eklemeyin."
+        ]
+      },
+      {
+        "id": "children",
+        "title": "16. Çocuklar",
+        "paragraphs": [
+          "TAMPIQ 13 yaşın altındaki çocuklara yönelik değildir. TAMPIQ bir hesap sistemi kullanmadığı için çocuklar adına bilerek hesap oluşturmayız. Bir çocuğun bize e-posta yoluyla kişisel bilgi gönderdiğine inanıyorsanız bizimle iletişime geçin; uygun olduğunda o yazışmayı sileriz."
+        ]
+      },
+      {
+        "id": "international",
+        "title": "17. Uluslararası Kullanıcılar",
+        "paragraphs": [
+          "TAMPIQ, koruma kayıtlarını uygulamanın yüklü olduğu cihazda saklar. Seyahat ederken uygulamayı kullanırsanız, bu cihaz içi kayıtlar siz dışa aktarmadıkça veya paylaşmadıkça o cihazda kalır.",
+          "Bu Yardım Merkezi, istediğiniz sayfaları sunmak için gereken standart teknik günlükleri işleyebilen web altyapısında barındırılır."
+        ]
+      },
+      {
+        "id": "security",
+        "title": "18. Güvenlik",
+        "paragraphs": [
+          "Cihaz içi bir uygulama için uygun makul teknik önlemler kullanırız; bunlar arasında Uygulama Kilidi seçenekleri ve uygulandığı yerde yerel bütünlük korumaları bulunur.",
+          "Hiçbir elektronik depolama yöntemi kusursuz güvenli değildir. Ele geçirilmiş bir cihazda yetkisiz erişimin asla gerçekleşmeyeceğini garanti etmeyiz."
+        ]
+      },
+      {
+        "id": "choices",
+        "title": "19. Kullanıcı Seçimleri ve Kontroller",
+        "paragraphs": [
+          "iOS Ayarları’nda izinleri değiştirebilir veya geri alabilir; saklama süresini ayarlayabilir; kayıtları silebilir; bildirimleri veya Canlı Etkinlikleri kapatabilir; uygulamada tema veya dili değiştirebilirsiniz.",
+          "Ayrıca TAMPIQ’i kullanmayı bırakıp uygulamayı cihazınızdan kaldırabilirsiniz."
+        ]
+      },
+      {
+        "id": "changes",
+        "title": "20. Bu Politikadaki Değişiklikler",
+        "paragraphs": [
+          "Ürün veya yasal değişiklikleri yansıtmak için bu Gizlilik Politikasını güncelleyebiliriz. Bunu yaptığımızda üstteki yürürlük tarihi değişir.",
+          "Önemli değişiklikler bu sayfada yansıtılır. Güncellemeden sonra TAMPIQ’i kullanmaya devam etmeniz, gözden geçirilmiş politikayı kabul ettiğiniz anlamına gelir."
+        ]
+      },
+      {
+        "id": "contact",
+        "title": "21. İletişim",
+        "paragraphs": [
+          "Gizlilik soruları ve destek talepleri aşağıdaki adreslere gönderilebilir.",
+          "Geliştirici / Yayımcı: Cem Gürsoy EVECEN — Türkiye."
+        ]
+      }
+    ],
+    "privacy_email_label": "Gizlilik e-postası",
+    "support_email_label": "Destek e-postası"
+  }
+}

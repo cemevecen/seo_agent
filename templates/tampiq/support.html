@@ -1,31 +1,70 @@
 {% extends "base.html" %}
 {% set active = "support" %}
-{% block title %}{{ app_name }} — Support{% endblock %}
-{% block meta_description %}Get help with {{ app_name }}. Contact support by email.{% endblock %}
+{% block title %}{{ t.meta.support_title }}{% endblock %}
+{% block meta_description %}{{ t.meta.support_description }}{% endblock %}
 {% block content %}
-<article class="doc">
-  <h1>Support</h1>
-  <p class="lede">Need help with {{ app_name }}? Reach us by email. We aim to respond within 2 business days.</p>
+<article class="doc card">
+  <h1>{{ t.support.title }}</h1>
+  <p class="lede">{{ t.support.intro }}</p>
 
-  <section>
-    <h2>Contact</h2>
-    <p>Email: <a class="mail" href="mailto:{{ support_email }}">{{ support_email }}</a></p>
-    <p>Please include your device model, iOS version, and a short description of the issue. Screenshots help when something looks wrong on screen.</p>
+  <section id="contact" class="contact-card">
+    <h2>{{ t.support.contact_title }}</h2>
+    <dl class="contact-grid">
+      <div>
+        <dt>{{ t.support.support_email_label }}</dt>
+        <dd><a class="mail" href="mailto:{{ support_email }}">{{ support_email }}</a></dd>
+      </div>
+      <div>
+        <dt>{{ t.support.privacy_email_label }}</dt>
+        <dd><a class="mail" href="mailto:{{ privacy_email }}">{{ privacy_email }}</a></dd>
+      </div>
+      <div>
+        <dt>{{ t.support.developer_label }}</dt>
+        <dd>{{ t.support.developer_name }}</dd>
+      </div>
+      <div>
+        <dt>{{ t.support.country_label }}</dt>
+        <dd>{{ t.support.country_value }}</dd>
+      </div>
+    </dl>
+    <p class="response-note">{{ t.support.response_note }}</p>
   </section>
 
-  <section>
-    <h2>Common questions</h2>
-    <h3>How do I report a bug?</h3>
-    <p>Send a message to <a href="mailto:{{ support_email }}">{{ support_email }}</a> with steps to reproduce the problem.</p>
-    <h3>How do I request a feature?</h3>
-    <p>Email the same address with “Feature request” in the subject line. We read every message even if we cannot build every idea.</p>
-    <h3>Account or access issues</h3>
-    <p>Describe what you expected to happen and what you saw instead. If the app shows an error message, include the exact text.</p>
-  </section>
+  <nav class="toc" aria-label="{{ t.support.toc_title }}">
+    <p class="toc-title">{{ t.support.toc_title }}</p>
+    <ol>
+      {% for section in t.support.sections %}
+      <li><a href="#{{ section.id }}">{{ section.title }}</a></li>
+      {% endfor %}
+    </ol>
+  </nav>
 
-  <section>
-    <h2>Privacy</h2>
-    <p>How we handle data is described in our <a href="/privacy">Privacy Policy</a>.</p>
+  {% for section in t.support.sections %}
+  <section id="{{ section.id }}" class="doc-section">
+    <h2>{{ section.title }}</h2>
+    {% if section.paragraphs %}
+      {% for p in section.paragraphs %}
+      <p>{{ p }}</p>
+      {% endfor %}
+    {% endif %}
+    {% if section.bullets %}
+    <ul>
+      {% for b in section.bullets %}
+      <li>{{ b }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% set qa_items = section.get('items') %}
+    {% if qa_items %}
+      {% for item in qa_items %}
+      <h3>{{ item.q }}</h3>
+      <p>{{ item.a }}</p>
+      {% endfor %}
+    {% endif %}
+    {% if section.closing %}
+    <p class="closing"><strong>{{ section.closing }}</strong></p>
+    {% endif %}
   </section>
+  {% endfor %}
 </article>
 {% endblock %}

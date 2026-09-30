@@ -1,0 +1,412 @@
+{
+  "meta": {
+    "home_title": "TAMPIQ 說明中心",
+    "support_title": "TAMPIQ 支援",
+    "privacy_title": "TAMPIQ 隱私權政策",
+    "home_description": "TAMPIQ 的說明、隱私與產品資訊。",
+    "support_description": "取得有關 TAMPIQ 保護工作階段、權限與疑難排解的協助。",
+    "privacy_description": "TAMPIQ 如何在您的裝置上處理與儲存資訊。"
+  },
+  "nav": {
+    "support": "支援",
+    "privacy": "隱私權政策",
+    "contact": "聯絡我們",
+    "language": "語言",
+    "home_aria": "TAMPIQ 首頁",
+    "lang_aria": "選擇語言"
+  },
+  "footer": {
+    "copyright": "© 2026 TAMPIQ",
+    "support": "支援",
+    "privacy": "隱私權政策",
+    "contact": "聯絡我們"
+  },
+  "home": {
+    "eyebrow": "TAMPIQ 說明中心",
+    "headline": "說明、隱私與產品資訊",
+    "body": "尋找有關 TAMPIQ 的解答、了解保護工作階段與權限的運作方式、聯絡支援，或檢視我們的隱私做法。",
+    "cta_support": "取得支援",
+    "cta_privacy": "隱私權政策",
+    "topics_title": "探索",
+    "topics": [
+      {"href": "/support#getting-started", "title": "支援", "text": "解答、聯絡資訊與疑難排解。"},
+      {"href": "/privacy", "title": "隱私", "text": "資訊如何在您的裝置上處理與儲存。"},
+      {"href": "/support#permissions", "title": "權限", "text": "為何 TAMPIQ 可能要求動作、定位、通知與螢幕使用時間授權。"},
+      {"href": "/support#protection-sessions", "title": "保護工作階段", "text": "工作階段如何開始、結束，以及如何整理活動。"},
+      {"href": "/support#app-usage", "title": "App 使用狀況", "text": "螢幕使用時間功能、限制與時間區段。"},
+      {"href": "/support#location-records", "title": "定位紀錄", "text": "在您授予權限時的選用定位快照。"},
+      {"href": "/support#app-lock", "title": "App 鎖定", "text": "擁有者驗證，以及 App 鎖定時的隱私遮罩。"},
+      {"href": "/support#notifications", "title": "通知與即時動態", "text": "鎖定畫面與通知中的工作階段狀態。"}
+    ]
+  },
+  "support": {
+    "title": "TAMPIQ 支援",
+    "intro": "需要 TAMPIQ 協助嗎？請查看下方解答，或直接聯絡我們。",
+    "contact_title": "聯絡我們",
+    "support_email_label": "支援電子郵件",
+    "privacy_email_label": "隱私電子郵件",
+    "developer_label": "開發者 / 發行者",
+    "developer_name": "Cem Gürsoy EVECEN",
+    "country_label": "國家",
+    "country_value": "Türkiye",
+    "response_note": "我們目標在 2 個工作天內審閱支援請求。",
+    "toc_title": "本頁內容",
+    "sections": [
+      {
+        "id": "getting-started",
+        "title": "開始使用",
+        "items": [
+          {
+            "q": "什麼是 TAMPIQ？",
+            "a": "TAMPIQ 協助您在 iPhone 上執行保護工作階段，並檢視與這些工作階段相關的裝置活動。它旨在讓您在工作階段進行期間，個人了解裝置上發生的情況。它不是防盜保證、間諜軟體偵測器、跟蹤者偵測器、緊急服務，也不是用於法律程序的證據服務。"
+          },
+          {
+            "q": "如何開始保護工作階段？",
+            "a": "開啟 TAMPIQ，並從主要流程開始新的保護工作階段。您可依已授予的權限，在開始前或開始時選擇選用的記錄選項（例如定位）。"
+          },
+          {
+            "q": "TAMPIQ 會記錄什麼？",
+            "a": "在作用中的工作階段期間，TAMPIQ 可能在裝置上儲存例如工作階段時間、動作相關事件、充電狀態變更、App 生命週期訊號、鎖定相關受保護資料訊號，以及（若已啟用並獲授權）定位快照等紀錄。App 使用狀況摘要取決於 Apple 螢幕使用時間 / DeviceActivity 授權，並可能以 Apple 的時間區段顯示。任何紀錄是否可用，取決於 iOS 權限與系統狀況。"
+          },
+          {
+            "q": "如何結束保護工作階段？",
+            "a": "在 TAMPIQ 內結束工作階段。若已啟用 App 鎖定，App 可能會在結束保護前要求您以裝置擁有者身分驗證。"
+          },
+          {
+            "q": "我可以設定自動結束時間嗎？",
+            "a": "可以。您可為工作階段選擇自動結束時間。該結束的實際執行取決於 iOS 執行與系統行為；在某些狀況下，工作階段可能晚於預定時間結束，或需要 App 或系統恢復處理。"
+          }
+        ]
+      },
+      {
+        "id": "protection-sessions",
+        "title": "保護工作階段",
+        "paragraphs": [
+          "每個保護工作階段彼此分開，因此您可僅在該工作階段的脈絡中檢視活動。",
+          "作業系統限制可能影響哪些紀錄可用。TAMPIQ 並不主張會擷取所有可能的裝置事件。",
+          "自動結束可能取決於 iOS 背景執行、即時動態排程，以及其他系統行為。"
+        ]
+      },
+      {
+        "id": "device-activity",
+        "title": "裝置活動",
+        "paragraphs": [
+          "在工作階段期間，TAMPIQ 可能整理受支援訊號的時間軸，例如螢幕/鎖定相關受保護資料事件、動作突發、充電狀態變更，以及其他 App 設計要觀察的裝置事件。",
+          "這些事件並無保證。iOS 可能因電力、權限與系統狀態而延遲、合併或省略訊號。"
+        ]
+      },
+      {
+        "id": "app-usage",
+        "title": "App 使用狀況",
+        "paragraphs": [
+          "App 使用狀況資訊取決於 iOS 螢幕使用時間 / DeviceActivity 功能，以及您授予的「家人共享控制項目」授權。",
+          "部分摘要使用 Apple 時間區段。同一小時內的歸因精確度可能有限。",
+          "TAMPIQ 不對 App 使用狀況主張錯誤的每秒級精確度。"
+        ]
+      },
+      {
+        "id": "location-records",
+        "title": "定位紀錄",
+        "paragraphs": [
+          "僅在您授予定位權限，並為保護啟用定位記錄時，定位紀錄才可用。",
+          "精確度與可用性取決於 iOS 與系統狀況。定位可用性並無保證。",
+          "TAMPIQ 並非連續 GPS 追蹤。選用模式可能在啟用進階記錄並授予「永遠」授權時，擷取開始/結束快照或有意義的位置變更。"
+        ]
+      },
+      {
+        "id": "app-lock",
+        "title": "App 鎖定與隱私",
+        "paragraphs": [
+          "App 鎖定透過要求裝置擁有者驗證（經系統的 Face ID、Touch ID 或裝置密碼），協助保持 TAMPIQ 介面私密。",
+          "TAMPIQ 僅收到驗證成功或失敗的結果。不會收到 Face ID 生物辨識範本或影像。",
+          "隱私遮罩可在 App 切換器中隱藏 App 內容。背景鎖定行為依您設定的選項與 iOS 規則而定。"
+        ]
+      },
+      {
+        "id": "notifications",
+        "title": "通知與即時動態",
+        "paragraphs": [
+          "作用中的保護工作階段可顯示即時動態，讓您一眼查看工作階段狀態。",
+          "本機通知可能提醒您自動結束或工作階段狀態。這些工作階段更新不使用遠端推播傳送。",
+          "通知與即時動態需要系統權限，且可由您停用或受 iOS 限制。",
+          "關閉即時動態本身並不會停止保護工作階段。"
+        ]
+      },
+      {
+        "id": "themes-language",
+        "title": "主題與語言",
+        "paragraphs": [
+          "TAMPIQ 包含淺色、深色、海軍藍與繽紛主題。",
+          "您可在 TAMPIQ 設定中選擇 App 語言。本說明中心支援語言選擇器中列出的公開地區設定，包括土耳其文、英文（美國）、阿拉伯文、繁體中文、法文、德文、印地文、日文、葡萄牙文（巴西）、西班牙文（西班牙）與烏爾都文。"
+        ]
+      },
+      {
+        "id": "permissions",
+        "title": "權限",
+        "paragraphs": [
+          "TAMPIQ 可能會要求正式版 App 中存在的下列權限："
+        ],
+        "bullets": [
+          "動作 — 在保護期間偵測裝置移動。",
+          "定位（使用 App 期間，以及若您啟用進階記錄則為永遠）— 儲存與保護工作階段相關的定位紀錄。",
+          "通知 — 用於本機工作階段提醒與狀態警示。",
+          "螢幕使用時間 / 家人共享控制項目授權 — 顯示 DeviceActivity / App 使用狀況摘要。",
+          "Face ID / 裝置驗證 — 在啟用 App 鎖定時解鎖 App 並確認結束保護（僅系統驗證）。"
+        ]
+      },
+      {
+        "id": "troubleshooting",
+        "title": "疑難排解",
+        "items": [
+          {
+            "q": "紀錄似乎遺失",
+            "a": "確認保護工作階段曾作用中、相關權限已允許，並檢查是否套用了 iOS 低電量或背景限制。並非每個訊號都有保證。"
+          },
+          {
+            "q": "App 使用狀況無法使用",
+            "a": "授予螢幕使用時間 / 家人共享控制項目授權，並重新開啟相關報表畫面。可顯示的內容由 Apple 架構控制。"
+          },
+          {
+            "q": "定位無法使用",
+            "a": "啟用定位記錄、授予所需定位權限，並確認 iOS 設定中已開啟定位服務。精確度仍取決於系統狀況。"
+          },
+          {
+            "q": "通知未出現",
+            "a": "在 iOS 設定中允許 TAMPIQ 的通知。專注模式與系統限制可能抑制警示。"
+          },
+          {
+            "q": "即時動態未出現",
+            "a": "確認已允許 TAMPIQ 使用即時動態、工作階段為作用中，且 iOS 尚未關閉或限制該動態。"
+          },
+          {
+            "q": "工作階段自動結束",
+            "a": "檢查您是否設定了自動結束時間。系統排程與執行限制可能影響確切時間。"
+          },
+          {
+            "q": "App 鎖定問題",
+            "a": "若生物辨識解鎖失敗，請使用裝置密碼。TAMPIQ 無法讀取或重設您的裝置密碼或 Face ID 資料。"
+          }
+        ]
+      },
+      {
+        "id": "bug-report",
+        "title": "錯誤回報",
+        "paragraphs": [
+          "當您就錯誤以電子郵件聯絡支援時，請包含："
+        ],
+        "bullets": [
+          "iPhone 機型",
+          "iOS 版本",
+          "TAMPIQ 版本",
+          "問題大約發生時間",
+          "重現步驟",
+          "適當情況下附上螢幕截圖"
+        ],
+        "closing": "切勿傳送您的 Apple ID 密碼、裝置密碼、TAMPIQ PIN，或其他敏感驗證密鑰。"
+      },
+      {
+        "id": "feature-request",
+        "title": "功能建議",
+        "paragraphs": [
+          "我們歡迎深思熟慮的產品構想。請以「Feature request」作為主旨寄信至支援，並簡短描述您想要的工作流程。即使無法實作每個構想，我們仍會閱讀每一則訊息。"
+        ]
+      }
+    ]
+  },
+  "privacy": {
+    "title": "隱私權政策",
+    "effective_label": "生效日期",
+    "effective_date": "2026 年 9 月 30 日",
+    "intro": "本隱私權政策說明由 Cem Gürsoy EVECEN 發行的 TAMPIQ（「我們」）在您使用 TAMPIQ iPhone App 時如何處理資訊。它反映正式版 App 的行為：保護紀錄設計為留在您的裝置上，且 TAMPIQ 不營運帳戶系統，也不營運用於工作階段遙測的 TAMPIQ 雲端後端。",
+    "sections": [
+      {
+        "id": "introduction",
+        "title": "1. 簡介",
+        "paragraphs": [
+          "TAMPIQ 是適用於 iPhone 的個人保護工作階段 App。它協助您開始與結束保護工作階段，並檢視相關的裝置端活動。",
+          "我們撰寫本政策以符合正式發行 App 的實際運作，而非一般套用條款。"
+        ]
+      },
+      {
+        "id": "scope",
+        "title": "2. 範圍",
+        "paragraphs": [
+          "本政策涵蓋 TAMPIQ iOS 應用程式，以及此公開說明中心 / 隱私中心網站。",
+          "它不涵蓋您可能從 TAMPIQ 外部開啟的無關網站或服務，例如當您選擇檢視位置時開啟的 Apple 地圖。"
+        ]
+      },
+      {
+        "id": "information",
+        "title": "3. TAMPIQ 處理的資訊",
+        "paragraphs": [
+          "依您選擇的權限與設定，TAMPIQ 可能在您的裝置上處理下列類別："
+        ],
+        "bullets": [
+          "保護工作階段中繼資料（工作階段識別碼、開始/結束時間、標籤、設定快照）。",
+          "與工作階段相關的裝置活動（例如動作相關事件、充電狀態變更、App 前景/背景訊號，以及鎖定相關受保護資料訊號）。",
+          "在授權後透過 Apple 螢幕使用時間架構顯示的 App 使用狀況 / DeviceActivity 摘要（顯示可能使用 Apple 時間區段；Tampiq 不會將螢幕使用時間列上傳至 Tampiq 伺服器）。",
+          "在您啟用定位記錄並授予權限時的選用定位紀錄。",
+          "偏好與設定（主題、語言、保留期限、功能開關）。",
+          "App 鎖定驗證結果（僅成功/失敗）。",
+          "若您以電子郵件聯絡我們的支援往來（在 App 外以電子郵件處理）。"
+        ]
+      },
+      {
+        "id": "on-device",
+        "title": "4. 裝置端處理與儲存",
+        "paragraphs": [
+          "工作階段日誌、證據檔案、監控回呼、偏好設定與相關快取會儲存在您的 iPhone 本機，包括在功能需要時與 TAMPIQ 延伸功能（Activity Monitor、Activity Report、小工具）共用的 App Group。",
+          "TAMPIQ 不維護 Tampiq 帳戶登入，也不會將保護工作階段遙測傳送至 Tampiq 應用程式伺服器。",
+          "若您匯出、分享或以其他 App 開啟內容（例如分享檔案或開啟地圖），該操作由您發起，並遵循您選擇的目的地。"
+        ]
+      },
+      {
+        "id": "location",
+        "title": "5. 定位資料",
+        "paragraphs": [
+          "定位記錄為選用，除非您啟用並授予權限，否則為關閉。",
+          "啟用後，TAMPIQ 可能儲存與保護開始/結束相關的定位快照；若您啟用進階記錄並授予「永遠」授權，也可能在工作階段作用中儲存有意義的位置變更。它並非連續高頻率 GPS 追蹤。",
+          "精確度與可用性取決於 iOS 定位服務與裝置狀況。反向地理編碼的地點標籤可能使用 Apple 的地理編碼服務。"
+        ]
+      },
+      {
+        "id": "app-usage",
+        "title": "6. App 使用狀況 / 螢幕使用時間資料",
+        "paragraphs": [
+          "App 使用狀況畫面在您授權後，依賴 Apple 的家人共享控制項目 / DeviceActivity / 螢幕使用時間技術。",
+          "可顯示的內容由 Apple 架構與您的授權控制。部分數值使用同一小時內精確度有限的 Apple 時間區段。",
+          "TAMPIQ 的 DeviceActivity 監控延伸功能可能在本機保存排程回呼事件，以供工作階段關聯。沙盒報表 UI 中顯示的各 App 螢幕使用時間清單僅供裝置端顯示，不會上傳至 Tampiq 伺服器。"
+        ]
+      },
+      {
+        "id": "permissions-policy",
+        "title": "7. 權限",
+        "paragraphs": [
+          "TAMPIQ 僅為提供對應功能而要求權限："
+        ],
+        "bullets": [
+          "動作 — 保護期間的移動訊號。",
+          "定位 — 選用的保護相關定位紀錄。",
+          "通知 — 有關工作階段的本機警示。",
+          "家人共享控制項目 / 螢幕使用時間 — App 使用狀況摘要。",
+          "Face ID / 裝置擁有者驗證 — App 鎖定，以及透過系統 LocalAuthentication 提示確認敏感操作。"
+        ]
+      },
+      {
+        "id": "notifications-policy",
+        "title": "8. 通知與即時動態",
+        "paragraphs": [
+          "TAMPIQ 使用本機通知與 ActivityKit 即時動態顯示工作階段狀態。這些並非由 Tampiq 遠端推播伺服器驅動。",
+          "您可在 iOS 設定中停用通知或即時動態。關閉即時動態不一定會結束底層的保護工作階段。"
+        ]
+      },
+      {
+        "id": "app-lock-policy",
+        "title": "9. App 鎖定 / 驗證",
+        "paragraphs": [
+          "App 鎖定使用 Apple 的 LocalAuthentication。TAMPIQ 僅得知驗證成功或失敗。",
+          "TAMPIQ 不會收到 Face ID 生物辨識資料、指紋或您的裝置密碼。"
+        ]
+      },
+      {
+        "id": "server",
+        "title": "10. 伺服器傳輸",
+        "paragraphs": [
+          "保護工作階段紀錄、證據日誌與 App 偏好設定設計為留在您的裝置上。",
+          "TAMPIQ 不營運會接收您的工作階段遙測、定位歷程或螢幕使用時間列的 Tampiq 雲端 API。",
+          "Apple 提供的系統服務（例如地理編碼或架構授權流程）可能在 Apple 條款下涉及 Apple 基礎建設。開啟本說明中心網站會使用一般網頁代管來傳送這些頁面。"
+        ]
+      },
+      {
+        "id": "third-party",
+        "title": "11. 第三方服務",
+        "paragraphs": [
+          "正式版 iOS App 的第三方 SDK 相依項目為 Lottie（裝置端動畫）。在已稽核的正式版組態中，TAMPIQ 未整合 Firebase、Crashlytics、Sentry、廣告或分析 SDK。",
+          "Apple 系統架構（Core Location、Core Motion、Family Controls、DeviceActivity、ActivityKit、UserNotifications、LocalAuthentication 與相關 API）依 iOS 提供的方式使用。"
+        ]
+      },
+      {
+        "id": "sharing",
+        "title": "12. 資料分享",
+        "paragraphs": [
+          "我們不會出售您的個人資訊。",
+          "我們不會與第三方廣告商或資料仲介分享保護工作階段紀錄。",
+          "若您以電子郵件聯絡支援，您的訊息會用於支援目的。若您自行透過 iOS 分享表單或其他 App 分享內容，該分享由您控制。"
+        ]
+      },
+      {
+        "id": "retention",
+        "title": "13. 資料保留",
+        "paragraphs": [
+          "您可在設定中選擇封存紀錄的保留時間：7 天、30 天、90 天，或直到您刪除為止（預設）。",
+          "當選擇「直到我刪除」以外的保留期限時，較舊的紀錄可能在 App 載入或恢復時自動清除。"
+        ]
+      },
+      {
+        "id": "deletion",
+        "title": "14. 資料刪除",
+        "paragraphs": [
+          "您可在 TAMPIQ 內刪除個別工作階段或清除已儲存紀錄（破壞性操作可能需要擁有者驗證）。",
+          "刪除 App 會依 iOS 行為移除 App 的本機容器資料。解除安裝不會刪除您已傳送給支援的電子郵件。"
+        ]
+      },
+      {
+        "id": "support-comms",
+        "title": "15. 支援通訊",
+        "paragraphs": [
+          "若您寄信至支援或隱私聯絡地址，我們會處理該通訊內容以回覆您。該電子郵件資料與裝置端保護遙測分開。",
+          "請勿在支援電子郵件中包含密碼、裝置密碼或 TAMPIQ PIN。"
+        ]
+      },
+      {
+        "id": "children",
+        "title": "16. 兒童",
+        "paragraphs": [
+          "TAMPIQ 並非以 13 歲以下兒童為對象。由於 TAMPIQ 不使用帳戶系統，我們不會蓄意為兒童建立帳戶。若您認為兒童已透過電子郵件向我們提交個人資訊，請聯絡我們，我們會在適當情況下刪除該通訊。"
+        ]
+      },
+      {
+        "id": "international",
+        "title": "17. 國際使用者",
+        "paragraphs": [
+          "TAMPIQ 將保護紀錄儲存在安裝 App 的裝置上。若您在旅行時使用 App，除非您匯出或分享，否則這些裝置端紀錄仍留在該裝置上。",
+          "本說明中心託管於可能處理傳送您所請求頁面所需標準技術紀錄的網頁基礎建設上。"
+        ]
+      },
+      {
+        "id": "security",
+        "title": "18. 安全性",
+        "paragraphs": [
+          "我們使用適合裝置端 App 的合理技術措施，包括 App 鎖定選項，以及已實作的本機完整性保護。",
+          "沒有任何電子儲存方法是完全安全的。我們不保證在遭入侵的裝置上絕不會發生未經授權的存取。"
+        ]
+      },
+      {
+        "id": "choices",
+        "title": "19. 使用者選擇與控制",
+        "paragraphs": [
+          "您可在 iOS 設定中變更或撤銷權限、調整保留期限、刪除紀錄、停用通知或即時動態，並在 App 中變更主題或語言。",
+          "您也可以停止使用 TAMPIQ，並從裝置移除 App。"
+        ]
+      },
+      {
+        "id": "changes",
+        "title": "20. 本政策變更",
+        "paragraphs": [
+          "我們可能更新本隱私權政策，以反映產品或法律變更。我們更新時，頁面頂端的生效日期會變更。",
+          "重大變更將反映於本頁。在更新後繼續使用 TAMPIQ，即表示您接受修訂後的政策。"
+        ]
+      },
+      {
+        "id": "contact",
+        "title": "21. 聯絡我們",
+        "paragraphs": [
+          "隱私問題與支援請求可傳送至下方所示地址。",
+          "開發者 / 發行者：Cem Gürsoy EVECEN — Türkiye。"
+        ]
+      }
+    ],
+    "privacy_email_label": "隱私電子郵件",
+    "support_email_label": "支援電子郵件"
+  }
+}

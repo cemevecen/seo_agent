@@ -1,0 +1,412 @@
+{
+  "meta": {
+    "home_title": "TAMPIQ Hilfezentrum",
+    "support_title": "TAMPIQ Support",
+    "privacy_title": "TAMPIQ Datenschutzrichtlinie",
+    "home_description": "Hilfe, Datenschutz und Produktinformationen zu TAMPIQ.",
+    "support_description": "Hilfe zu TAMPIQ-Schutzsitzungen, Berechtigungen und Fehlerbehebung.",
+    "privacy_description": "Wie TAMPIQ Informationen auf Ihrem Gerät verarbeitet und speichert."
+  },
+  "nav": {
+    "support": "Support",
+    "privacy": "Datenschutzrichtlinie",
+    "contact": "Kontakt",
+    "language": "Sprache",
+    "home_aria": "TAMPIQ Startseite",
+    "lang_aria": "Sprache wählen"
+  },
+  "footer": {
+    "copyright": "© 2026 TAMPIQ",
+    "support": "Support",
+    "privacy": "Datenschutzrichtlinie",
+    "contact": "Kontakt"
+  },
+  "home": {
+    "eyebrow": "TAMPIQ Hilfezentrum",
+    "headline": "Hilfe, Datenschutz und Produktinformationen",
+    "body": "Finden Sie Antworten zu TAMPIQ, erfahren Sie, wie Schutzsitzungen und Berechtigungen funktionieren, kontaktieren Sie den Support oder lesen Sie unsere Datenschutzpraktiken.",
+    "cta_support": "Support erhalten",
+    "cta_privacy": "Datenschutzrichtlinie",
+    "topics_title": "Entdecken",
+    "topics": [
+      {"href": "/support#getting-started", "title": "Support", "text": "Antworten, Kontaktdaten und Fehlerbehebung."},
+      {"href": "/privacy", "title": "Datenschutz", "text": "Wie Informationen auf Ihrem Gerät verarbeitet und gespeichert werden."},
+      {"href": "/support#permissions", "title": "Berechtigungen", "text": "Warum TAMPIQ Bewegung, Standort, Mitteilungen und Bildschirmzeit-Autorisierung anfordern kann."},
+      {"href": "/support#protection-sessions", "title": "Schutzsitzungen", "text": "Wie Sitzungen starten, enden und Aktivitäten organisieren."},
+      {"href": "/support#app-usage", "title": "App-Nutzung", "text": "Bildschirmzeit-Funktionen, Grenzen und Zeitfenster."},
+      {"href": "/support#location-records", "title": "Standortdaten", "text": "Optionale Standort-Snapshots, wenn Sie die Berechtigung erteilen."},
+      {"href": "/support#app-lock", "title": "App-Sperre", "text": "Eigentümer-Authentifizierung und Datenschutzabdeckung bei gesperrter App."},
+      {"href": "/support#notifications", "title": "Mitteilungen & Live-Aktivitäten", "text": "Sitzungsstatus auf dem Sperrbildschirm und in Mitteilungen."}
+    ]
+  },
+  "support": {
+    "title": "TAMPIQ Support",
+    "intro": "Brauchen Sie Hilfe mit TAMPIQ? Finden Sie unten Antworten oder kontaktieren Sie uns direkt.",
+    "contact_title": "Kontakt",
+    "support_email_label": "Support-E-Mail",
+    "privacy_email_label": "Datenschutz-E-Mail",
+    "developer_label": "Entwickler / Herausgeber",
+    "developer_name": "Cem Gürsoy EVECEN",
+    "country_label": "Land",
+    "country_value": "Türkiye",
+    "response_note": "Wir bemühen uns, Support-Anfragen innerhalb von 2 Werktagen zu prüfen.",
+    "toc_title": "Auf dieser Seite",
+    "sections": [
+      {
+        "id": "getting-started",
+        "title": "Erste Schritte",
+        "items": [
+          {
+            "q": "Was ist TAMPIQ?",
+            "a": "TAMPIQ hilft Ihnen, Schutzsitzungen auf Ihrem iPhone zu führen und gerätebezogene Aktivitäten im Zusammenhang mit diesen Sitzungen zu prüfen. Es dient dem persönlichen Überblick darüber, was auf Ihrem Gerät während einer aktiven Sitzung geschieht. Es ist keine Diebstahlschutz-Garantie, kein Spyware-Detektor, kein Stalker-Detektor, kein Notdienst und kein Beweisservice für Gerichtsverfahren."
+          },
+          {
+            "q": "Wie starte ich eine Schutzsitzung?",
+            "a": "Öffnen Sie TAMPIQ und starten Sie eine neue Schutzsitzung über den Hauptablauf. Sie können optionale Aufzeichnungsoptionen (z. B. Standort) vor oder beim Start wählen, abhängig von den erteilten Berechtigungen."
+          },
+          {
+            "q": "Was zeichnet TAMPIQ auf?",
+            "a": "Während einer aktiven Sitzung kann TAMPIQ geräteinterne Datensätze speichern, z. B. Sitzungszeit, bewegungsbezogene Ereignisse, Ladeänderungen, App-Lebenszyklus-Signale, sperrbezogene geschützte Datensignale und – falls aktiviert und erlaubt – Standort-Snapshots. App-Nutzungsübersichten hängen von der Apple-Bildschirmzeit-/DeviceActivity-Autorisierung ab und können mit Apples Zeitfenstern angezeigt werden. Die Verfügbarkeit jedes Datensatzes hängt von iOS-Berechtigungen und Systembedingungen ab."
+          },
+          {
+            "q": "Wie beende ich eine Schutzsitzung?",
+            "a": "Beenden Sie die Sitzung in TAMPIQ. Wenn die App-Sperre aktiviert ist, kann die App Sie vor dem Beenden des Schutzes als Geräteinhaber authentifizieren."
+          },
+          {
+            "q": "Kann ich eine automatische Endzeit festlegen?",
+            "a": "Ja. Sie können eine automatische Endzeit für eine Sitzung wählen. Die Ausführung dieses Endes hängt von der iOS-Ausführung und dem Systemverhalten ab; unter bestimmten Bedingungen kann die Sitzung später als geplant enden oder die App bzw. das System muss die Verarbeitung fortsetzen."
+          }
+        ]
+      },
+      {
+        "id": "protection-sessions",
+        "title": "Schutzsitzungen",
+        "paragraphs": [
+          "Jede Schutzsitzung ist getrennt, damit Sie Aktivitäten nur im Kontext dieser Sitzung prüfen können.",
+          "Betriebssystembeschränkungen können beeinflussen, welche Datensätze verfügbar sind. TAMPIQ behauptet nicht, dass jedes mögliche Geräteereignis erfasst wird.",
+          "Ein automatisches Ende kann von der iOS-Hintergrundausführung, der Live-Aktivitäten-Planung und anderem Systemverhalten abhängen."
+        ]
+      },
+      {
+        "id": "device-activity",
+        "title": "Geräteaktivität",
+        "paragraphs": [
+          "Während einer Sitzung kann TAMPIQ eine Zeitleiste unterstützter Signale organisieren, z. B. bildschirm-/sperrbezogene geschützte Datenereignisse, Bewegungsschübe, Ladeänderungen und andere Geräteereignisse, die die App beobachten soll.",
+          "Diese Ereignisse sind nicht garantiert. iOS kann Signale je nach Energie, Berechtigungen und Systemzustand verzögern, zusammenfassen oder weglassen."
+        ]
+      },
+      {
+        "id": "app-usage",
+        "title": "App-Nutzung",
+        "paragraphs": [
+          "App-Nutzungsinformationen hängen von den iOS-Bildschirmzeit-/DeviceActivity-Funktionen und der von Ihnen erteilten Family-Controls-Autorisierung ab.",
+          "Einige Übersichten verwenden Apple-Zeitfenster. Die Zuordnung innerhalb derselben Stunde kann nur begrenzte Genauigkeit haben.",
+          "TAMPIQ beansprucht keine falsche Sekundenpräzision für die App-Nutzung."
+        ]
+      },
+      {
+        "id": "location-records",
+        "title": "Standortdaten",
+        "paragraphs": [
+          "Standortdaten sind nur verfügbar, wenn Sie die Standortberechtigung erteilen und die Standortaufzeichnung für den Schutz aktivieren.",
+          "Genauigkeit und Verfügbarkeit hängen von iOS und Systembedingungen ab. Standortverfügbarkeit ist nicht garantiert.",
+          "TAMPIQ ist keine kontinuierliche GPS-Verfolgung. Optionale Modi können Start-/End-Snapshots oder bedeutsame Standortänderungen erfassen, wenn erweiterte Aufzeichnung aktiviert und die Autorisierung „Immer“ erteilt ist."
+        ]
+      },
+      {
+        "id": "app-lock",
+        "title": "App-Sperre & Datenschutz",
+        "paragraphs": [
+          "Die App-Sperre schützt die TAMPIQ-Oberfläche, indem sie die Authentifizierung des Geräteinhabers verlangt (Face ID, Touch ID oder Gerätecode über das System).",
+          "TAMPIQ erhält nur Erfolg oder Fehlschlag der Authentifizierung. Es erhält keine Face-ID-Biometrievorlagen oder -bilder.",
+          "Eine Datenschutzabdeckung kann App-Inhalte im App-Umschalter ausblenden. Das Sperrverhalten im Hintergrund folgt Ihren Einstellungen und den iOS-Regeln."
+        ]
+      },
+      {
+        "id": "notifications",
+        "title": "Mitteilungen & Live-Aktivitäten",
+        "paragraphs": [
+          "Eine aktive Schutzsitzung kann eine Live-Aktivität anzeigen, damit Sie den Sitzungsstatus auf einen Blick sehen.",
+          "Lokale Mitteilungen können Sie an das automatische Ende oder den Sitzungsstatus erinnern. Für diese Sitzungsaktualisierungen wird keine Remote-Push-Zustellung verwendet.",
+          "Mitteilungen und Live-Aktivitäten erfordern eine Systemberechtigung und können von Ihnen deaktiviert oder von iOS eingeschränkt werden.",
+          "Das Schließen einer Live-Aktivität beendet die Schutzsitzung nicht allein."
+        ]
+      },
+      {
+        "id": "themes-language",
+        "title": "Designs & Sprache",
+        "paragraphs": [
+          "TAMPIQ umfasst die Designs Hell, Dunkel, Navy und Bunt.",
+          "Sie können die App-Sprache in den TAMPIQ-Einstellungen wählen. Dieses Hilfezentrum unterstützt die öffentlichen Gebietsschemata in der Sprachauswahl, darunter Türkisch, Englisch (USA), Arabisch, Traditionelles Chinesisch, Französisch, Deutsch, Hindi, Japanisch, Portugiesisch (Brasilien), Spanisch (Spanien) und Urdu."
+        ]
+      },
+      {
+        "id": "permissions",
+        "title": "Berechtigungen",
+        "paragraphs": [
+          "TAMPIQ kann die folgenden Berechtigungen anfordern, die in der Produktions-App vorhanden sind:"
+        ],
+        "bullets": [
+          "Bewegung — zur Erkennung von Gerätebewegungen während des Schutzes.",
+          "Standort (Bei Verwendung und, wenn Sie erweiterte Aufzeichnung aktivieren, Immer) — zum Speichern von Standortdaten zu Schutzsitzungen.",
+          "Mitteilungen — für lokale Sitzungserinnerungen und Statushinweise.",
+          "Bildschirmzeit-/Family-Controls-Autorisierung — zur Anzeige von DeviceActivity-/App-Nutzungsübersichten.",
+          "Face ID / Geräteauthentifizierung — zum Entsperren der App und Bestätigen des Schutzendes, wenn die App-Sperre aktiviert ist (nur Systemauthentifizierung)."
+        ]
+      },
+      {
+        "id": "troubleshooting",
+        "title": "Fehlerbehebung",
+        "items": [
+          {
+            "q": "Datensätze fehlen",
+            "a": "Bestätigen Sie, dass die Schutzsitzung aktiv war, prüfen Sie die relevanten Berechtigungen und ob iOS-Energiesparmodus oder Hintergrundlimits galten. Nicht jedes Signal ist garantiert."
+          },
+          {
+            "q": "App-Nutzung nicht verfügbar",
+            "a": "Erteilen Sie die Bildschirmzeit-/Family-Controls-Autorisierung und öffnen Sie die entsprechenden Berichtsansichten erneut. Apple-Frameworks steuern, was angezeigt werden kann."
+          },
+          {
+            "q": "Standort nicht verfügbar",
+            "a": "Aktivieren Sie die Standortaufzeichnung, erteilen Sie die erforderliche Standortberechtigung und stellen Sie sicher, dass Ortungsdienste in den iOS-Einstellungen aktiviert sind. Die Genauigkeit hängt weiterhin von Systembedingungen ab."
+          },
+          {
+            "q": "Mitteilung erscheint nicht",
+            "a": "Erlauben Sie Mitteilungen für TAMPIQ in den iOS-Einstellungen. Fokusmodi und Systemlimits können Hinweise unterdrücken."
+          },
+          {
+            "q": "Live-Aktivität erscheint nicht",
+            "a": "Bestätigen Sie, dass Live-Aktivitäten für TAMPIQ erlaubt sind, eine Sitzung aktiv ist und iOS die Aktivität nicht geschlossen oder eingeschränkt hat."
+          },
+          {
+            "q": "Sitzung endete automatisch",
+            "a": "Prüfen Sie, ob Sie eine automatische Endzeit festgelegt haben. Systemplanung und Ausführungsgrenzen können den genauen Zeitpunkt beeinflussen."
+          },
+          {
+            "q": "Problem mit der App-Sperre",
+            "a": "Verwenden Sie Ihren Gerätecode, wenn die biometrische Entsperrung fehlschlägt. TAMPIQ kann Ihren Gerätecode oder Face-ID-Daten weder lesen noch zurücksetzen."
+          }
+        ]
+      },
+      {
+        "id": "bug-report",
+        "title": "Fehlerbericht",
+        "paragraphs": [
+          "Wenn Sie den Support wegen eines Fehlers per E-Mail kontaktieren, geben Sie bitte an:"
+        ],
+        "bullets": [
+          "iPhone-Modell",
+          "iOS-Version",
+          "TAMPIQ-Version",
+          "Ungefähre Uhrzeit des Problems",
+          "Schritte zur Reproduktion",
+          "Screenshot, falls sinnvoll"
+        ],
+        "closing": "Senden Sie niemals Ihr Apple-ID-Passwort, Ihren Gerätecode, Ihre TAMPIQ-PIN oder andere sensible Authentifizierungsgeheimnisse."
+      },
+      {
+        "id": "feature-request",
+        "title": "Funktionswunsch",
+        "paragraphs": [
+          "Wir freuen uns über durchdachte Produktideen. Schreiben Sie dem Support mit „Feature request“ oder „Funktionswunsch“ im Betreff und einer kurzen Beschreibung des gewünschten Ablaufs. Wir lesen jede Nachricht, auch wenn wir nicht jede Idee umsetzen können."
+        ]
+      }
+    ]
+  },
+  "privacy": {
+    "title": "Datenschutzrichtlinie",
+    "effective_label": "Gültig ab",
+    "effective_date": "30. September 2026",
+    "intro": "Diese Datenschutzrichtlinie erläutert, wie TAMPIQ („wir“, „uns“), herausgegeben von Cem Gürsoy EVECEN, Informationen verarbeitet, wenn Sie die TAMPIQ-iPhone-App nutzen. Sie entspricht dem Produktionsverhalten der App: Schutzaufzeichnungen sollen auf Ihrem Gerät bleiben, und TAMPIQ betreibt kein Kontosystem und kein TAMPIQ-Cloud-Backend für Sitzungstelemetrie.",
+    "sections": [
+      {
+        "id": "introduction",
+        "title": "1. Einleitung",
+        "paragraphs": [
+          "TAMPIQ ist eine persönliche Schutzsitzungs-App für das iPhone. Sie hilft Ihnen, Schutzsitzungen zu starten und zu beenden sowie zugehörige geräteinterne Aktivitäten zu prüfen.",
+          "Wir haben diese Richtlinie so verfasst, dass sie der ausgelieferten App entspricht – nicht als generische Standardvorlage."
+        ]
+      },
+      {
+        "id": "scope",
+        "title": "2. Geltungsbereich",
+        "paragraphs": [
+          "Diese Richtlinie gilt für die TAMPIQ-iOS-Anwendung und diese öffentliche Hilfe-/Datenschutzzentrum-Website.",
+          "Sie gilt nicht für unabhängige Websites oder Dienste, die Sie außerhalb von TAMPIQ öffnen, z. B. Apple Maps, wenn Sie einen Standort anzeigen."
+        ]
+      },
+      {
+        "id": "information",
+        "title": "3. Informationen, die TAMPIQ verarbeitet",
+        "paragraphs": [
+          "Je nach den von Ihnen gewählten Berechtigungen und Einstellungen kann TAMPIQ auf Ihrem Gerät die folgenden Kategorien verarbeiten:"
+        ],
+        "bullets": [
+          "Metadaten der Schutzsitzung (Sitzungskennungen, Start-/Endzeiten, Bezeichnungen, Konfigurations-Snapshots).",
+          "Geräteaktivität im Zusammenhang mit einer Sitzung (z. B. bewegungsbezogene Ereignisse, Ladeänderungen, App-Vordergrund-/Hintergrundsignale und sperrbezogene geschützte Datensignale).",
+          "App-Nutzungs-/DeviceActivity-Übersichten über Apple-Bildschirmzeit-Frameworks bei Autorisierung (Anzeige kann Apple-Zeitfenster nutzen; Tampiq lädt Bildschirmzeit-Zeilen nicht auf einen Tampiq-Server hoch).",
+          "Optionale Standortdaten, wenn Sie die Standortaufzeichnung aktivieren und die Berechtigung erteilen.",
+          "Einstellungen und Präferenzen (Design, Sprache, Aufbewahrung, Funktionsumschalter).",
+          "Ergebnisse der App-Sperre-Authentifizierung (nur Erfolg/Fehlschlag).",
+          "Support-Korrespondenz, wenn Sie uns per E-Mail kontaktieren (außerhalb der App, per E-Mail verarbeitet)."
+        ]
+      },
+      {
+        "id": "on-device",
+        "title": "4. Geräteinterne Verarbeitung und Speicherung",
+        "paragraphs": [
+          "Sitzungsjournale, Evidenzdateien, Überwachungs-Callbacks, Einstellungen und zugehörige Caches werden lokal auf Ihrem iPhone gespeichert, einschließlich einer App Group, die bei Bedarf mit TAMPIQ-Erweiterungen (Activity Monitor, Activity Report, Widgets) geteilt wird.",
+          "TAMPIQ unterhält keine Tampiq-Kontoanmeldung und sendet keine Schutzsitzungs-Telemetrie an einen Tampiq-Anwendungsserver.",
+          "Wenn Sie Inhalte exportieren, teilen oder mit einer anderen App öffnen (z. B. eine Datei teilen oder Karten öffnen), wird diese Aktion von Ihnen initiiert und folgt dem von Ihnen gewählten Ziel."
+        ]
+      },
+      {
+        "id": "location",
+        "title": "5. Standortdaten",
+        "paragraphs": [
+          "Die Standortaufzeichnung ist optional und ausgeschaltet, sofern Sie sie nicht aktivieren und die Berechtigung erteilen.",
+          "Wenn aktiviert, kann TAMPIQ Standort-Snapshots im Zusammenhang mit Schutzbeginn/-ende speichern und – wenn Sie erweiterte Aufzeichnung aktivieren und die Autorisierung „Immer“ erteilen – bedeutsame Standortänderungen während einer aktiven Sitzung. Es handelt sich nicht um kontinuierliche hochfrequente GPS-Verfolgung.",
+          "Genauigkeit und Verfügbarkeit hängen von iOS-Ortungsdiensten und Gerätebedingungen ab. Rückgeokodierte Ortsbezeichnungen können Apples Geocoding-Dienste nutzen."
+        ]
+      },
+      {
+        "id": "app-usage",
+        "title": "6. App-Nutzungs-/Bildschirmzeit-Daten",
+        "paragraphs": [
+          "App-Nutzungsansichten stützen sich auf Apples Family Controls / DeviceActivity / Bildschirmzeit-Technologien, nachdem Sie diese autorisiert haben.",
+          "Was angezeigt werden kann, wird von Apples Frameworks und Ihrer Autorisierung gesteuert. Einige Werte nutzen Apple-Zeitfenster mit begrenzter Genauigkeit innerhalb derselben Stunde.",
+          "Die DeviceActivity-Monitor-Erweiterung von TAMPIQ kann Zeitplan-Callback-Ereignisse lokal für die Sitzungskorrelation speichern. Pro-App-Bildschirmzeit-Listen in der sandboxierten Berichts-UI dienen der geräteinternen Anzeige und werden nicht auf einen Tampiq-Server hochgeladen."
+        ]
+      },
+      {
+        "id": "permissions-policy",
+        "title": "7. Berechtigungen",
+        "paragraphs": [
+          "TAMPIQ fordert Berechtigungen nur an, um die entsprechenden Funktionen bereitzustellen:"
+        ],
+        "bullets": [
+          "Bewegung — Bewegungssignale während des Schutzes.",
+          "Standort — optionale schutzbezogene Standortdaten.",
+          "Mitteilungen — lokale Hinweise zu Sitzungen.",
+          "Family Controls / Bildschirmzeit — App-Nutzungsübersichten.",
+          "Face ID / Geräteinhaber-Authentifizierung — App-Sperre und Bestätigung sensibler Aktionen über die System-LocalAuthentication-Aufforderung."
+        ]
+      },
+      {
+        "id": "notifications-policy",
+        "title": "8. Mitteilungen und Live-Aktivitäten",
+        "paragraphs": [
+          "TAMPIQ verwendet lokale Mitteilungen und ActivityKit-Live-Aktivitäten für den Sitzungsstatus. Diese werden nicht von Tampiq-Remote-Push-Servern gesteuert.",
+          "Sie können Mitteilungen oder Live-Aktivitäten in den iOS-Einstellungen deaktivieren. Das Schließen einer Live-Aktivität beendet die zugrunde liegende Schutzsitzung nicht unbedingt."
+        ]
+      },
+      {
+        "id": "app-lock-policy",
+        "title": "9. App-Sperre / Authentifizierung",
+        "paragraphs": [
+          "Die App-Sperre nutzt Apples LocalAuthentication. TAMPIQ erfährt nur, ob die Authentifizierung erfolgreich war oder fehlgeschlagen ist.",
+          "TAMPIQ erhält keine Face-ID-Biometriedaten, Fingerabdrücke oder Ihren Gerätecode."
+        ]
+      },
+      {
+        "id": "server",
+        "title": "10. Serverübertragung",
+        "paragraphs": [
+          "Schutzsitzungsaufzeichnungen, Evidenzjournale und App-Einstellungen sollen auf Ihrem Gerät bleiben.",
+          "TAMPIQ betreibt keine Tampiq-Cloud-API, die Ihre Sitzungstelemetrie, Standortverlauf oder Bildschirmzeit-Zeilen empfängt.",
+          "Von Apple bereitgestellte Systemdienste (z. B. Geocoding oder Framework-Autorisierungsabläufe) können Apples Infrastruktur unter Apples Bedingungen nutzen. Das Öffnen dieser Hilfezentrum-Website nutzt gewöhnliches Webhosting zur Auslieferung dieser Seiten."
+        ]
+      },
+      {
+        "id": "third-party",
+        "title": "11. Drittanbieterdienste",
+        "paragraphs": [
+          "Die Drittanbieter-SDK-Abhängigkeit der Produktions-iOS-App ist Lottie (geräteinterne Animationen). TAMPIQ integriert in der geprüften Produktionskonfiguration keine Firebase-, Crashlytics-, Sentry-, Werbe- oder Analyse-SDKs.",
+          "Apple-System-Frameworks (Core Location, Core Motion, Family Controls, DeviceActivity, ActivityKit, UserNotifications, LocalAuthentication und verwandte APIs) werden wie von iOS bereitgestellt genutzt."
+        ]
+      },
+      {
+        "id": "sharing",
+        "title": "12. Datenweitergabe",
+        "paragraphs": [
+          "Wir verkaufen Ihre personenbezogenen Daten nicht.",
+          "Wir geben Schutzsitzungsaufzeichnungen nicht an Drittanbieter-Werbetreibende oder Datenbroker weiter.",
+          "Wenn Sie den Support per E-Mail kontaktieren, wird Ihre Nachricht zu Supportzwecken bearbeitet. Wenn Sie Inhalte selbst über iOS-Freigabeblätter oder andere Apps teilen, liegt diese Weitergabe in Ihrer Kontrolle."
+        ]
+      },
+      {
+        "id": "retention",
+        "title": "13. Datenspeicherung",
+        "paragraphs": [
+          "In den Einstellungen können Sie wählen, wie lange archivierte Datensätze aufbewahrt werden: 7 Tage, 30 Tage, 90 Tage oder bis Sie sie löschen (Standard).",
+          "Wenn eine andere Aufbewahrungsfrist als „bis ich lösche“ gewählt ist, können ältere Datensätze automatisch gelöscht werden, wenn die App geladen oder fortgesetzt wird."
+        ]
+      },
+      {
+        "id": "deletion",
+        "title": "14. Datenlöschung",
+        "paragraphs": [
+          "Sie können einzelne Sitzungen löschen oder gespeicherte Datensätze in TAMPIQ löschen (für destruktive Aktionen kann eine Eigentümer-Authentifizierung erforderlich sein).",
+          "Das Löschen der App entfernt die lokalen Containerdaten der App vorbehaltlich des iOS-Verhaltens. Die Deinstallation löscht keine E-Mails, die Sie bereits an den Support gesendet haben."
+        ]
+      },
+      {
+        "id": "support-comms",
+        "title": "15. Support-Kommunikation",
+        "paragraphs": [
+          "Wenn Sie Support- oder Datenschutzkontakte per E-Mail erreichen, verarbeiten wir den Inhalt dieser Korrespondenz, um Ihnen zu antworten. Diese E-Mail-Daten sind getrennt von der geräteinternen Schutztelemetrie.",
+          "Nehmen Sie keine Passwörter, Gerätecodes oder TAMPIQ-PINs in Support-E-Mails auf."
+        ]
+      },
+      {
+        "id": "children",
+        "title": "16. Kinder",
+        "paragraphs": [
+          "TAMPIQ richtet sich nicht an Kinder unter 13 Jahren. Wir erstellen wissentlich keine Konten für Kinder, da TAMPIQ kein Kontosystem verwendet. Wenn Sie glauben, dass ein Kind uns per E-Mail personenbezogene Daten übermittelt hat, kontaktieren Sie uns, und wir löschen diese Korrespondenz, soweit angemessen."
+        ]
+      },
+      {
+        "id": "international",
+        "title": "17. Internationale Nutzer",
+        "paragraphs": [
+          "TAMPIQ speichert Schutzaufzeichnungen auf dem Gerät, auf dem die App installiert ist. Wenn Sie die App auf Reisen nutzen, bleiben diese geräteinternen Datensätze auf diesem Gerät, sofern Sie sie nicht exportieren oder teilen.",
+          "Dieses Hilfezentrum wird auf Webinfrastruktur gehostet, die standardmäßige technische Protokolle verarbeiten kann, die zur Auslieferung der von Ihnen angeforderten Seiten erforderlich sind."
+        ]
+      },
+      {
+        "id": "security",
+        "title": "18. Sicherheit",
+        "paragraphs": [
+          "Wir verwenden angemessene technische Maßnahmen für eine geräteinterne App, einschließlich App-Sperre-Optionen und lokaler Integritätsschutzmaßnahmen, soweit implementiert.",
+          "Keine Methode der elektronischen Speicherung ist vollkommen sicher. Wir garantieren nicht, dass unbefugter Zugriff auf einem kompromittierten Gerät nie vorkommen kann."
+        ]
+      },
+      {
+        "id": "choices",
+        "title": "19. Nutzerwahl und Steuerung",
+        "paragraphs": [
+          "Sie können Berechtigungen in den iOS-Einstellungen ändern oder widerrufen, die Aufbewahrung anpassen, Datensätze löschen, Mitteilungen oder Live-Aktivitäten deaktivieren und Design oder Sprache in der App ändern.",
+          "Sie können TAMPIQ auch nicht mehr nutzen und die App von Ihrem Gerät entfernen."
+        ]
+      },
+      {
+        "id": "changes",
+        "title": "20. Änderungen dieser Richtlinie",
+        "paragraphs": [
+          "Wir können diese Datenschutzrichtlinie aktualisieren, um Produkt- oder Rechtsänderungen widerzuspiegeln. Das Gültigkeitsdatum oben ändert sich in diesem Fall.",
+          "Wesentliche Änderungen werden auf dieser Seite veröffentlicht. Die fortgesetzte Nutzung von TAMPIQ nach einer Aktualisierung bedeutet, dass Sie die überarbeitete Richtlinie akzeptieren."
+        ]
+      },
+      {
+        "id": "contact",
+        "title": "21. Kontakt",
+        "paragraphs": [
+          "Datenschutzfragen und Support-Anfragen können an die unten angegebenen Adressen gesendet werden.",
+          "Entwickler / Herausgeber: Cem Gürsoy EVECEN — Türkiye."
+        ]
+      }
+    ],
+    "privacy_email_label": "Datenschutz-E-Mail",
+    "support_email_label": "Support-E-Mail"
+  }
+}

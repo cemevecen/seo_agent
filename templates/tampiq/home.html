@@ -1,15 +1,30 @@
 {% extends "base.html" %}
 {% set active = "home" %}
-{% block title %}{{ app_name }} — Support & Privacy{% endblock %}
-{% block meta_description %}Public support and privacy pages for the {{ app_name }} mobile app.{% endblock %}
+{% block title %}{{ t.meta.home_title }}{% endblock %}
+{% block meta_description %}{{ t.meta.home_description }}{% endblock %}
 {% block content %}
-<section class="hero">
-  <p class="eyebrow">Public help center</p>
-  <h1>{{ app_name }}</h1>
-  <p class="lede">Support and privacy information for App Store users and Apple App Review. These pages are not part of any internal company dashboard.</p>
+<section class="hero card">
+  <p class="eyebrow">{{ t.home.eyebrow }}</p>
+  <h1>{{ t.home.headline }}</h1>
+  <p class="lede">{{ t.home.body }}</p>
   <div class="cta-row">
-    <a class="btn primary" href="/support">Support</a>
-    <a class="btn ghost" href="/privacy">Privacy Policy</a>
+    <a class="btn primary" href="/support?lang={{ locale }}">{{ t.home.cta_support }}</a>
+    <a class="btn ghost" href="/privacy?lang={{ locale }}">{{ t.home.cta_privacy }}</a>
+  </div>
+</section>
+
+<section class="topics" aria-labelledby="topics-title">
+  <h2 id="topics-title" class="section-label">{{ t.home.topics_title }}</h2>
+  <div class="topic-grid">
+    {% for topic in t.home.topics %}
+    {% set _parts = topic.href.split('#') %}
+    {% set _path = _parts[0] %}
+    {% set _hash = _parts[1] if _parts|length > 1 else '' %}
+    <a class="topic-card card" href="{{ _path }}?lang={{ locale }}{% if _hash %}#{{ _hash }}{% endif %}">
+      <h3>{{ topic.title }}</h3>
+      <p>{{ topic.text }}</p>
+    </a>
+    {% endfor %}
   </div>
 </section>
 {% endblock %}

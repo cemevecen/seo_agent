@@ -1,33 +1,51 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ locale }}" dir="{{ text_dir }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="index,follow">
-  <title>{% block title %}{{ app_name }}{% endblock %}</title>
-  <meta name="description" content="{% block meta_description %}{{ app_name }} support and privacy information.{% endblock %}">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>{% block title %}{{ t.meta.home_title }}{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}{{ t.meta.home_description }}{% endblock %}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Sora:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/tampiq/site.css">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/tampiq/site.css?v=2">
 </head>
-<body>
+<body data-locale="{{ locale }}" data-storage-key="tampiq.public.locale">
+  <a class="skip-link" href="#main">Skip to content</a>
   <div class="shell">
     <header class="top">
-      <a class="brand" href="/">{{ app_name }}</a>
-      <nav class="nav" aria-label="Public">
-        <a href="/support"{% if active == 'support' %} aria-current="page"{% endif %}>Support</a>
-        <a href="/privacy"{% if active == 'privacy' %} aria-current="page"{% endif %}>Privacy</a>
-      </nav>
+      <a class="brand" href="/?lang={{ locale }}" aria-label="{{ t.nav.home_aria }}">TAMPIQ</a>
+      <div class="top-actions">
+        <nav class="nav" aria-label="Primary">
+          <a href="/support?lang={{ locale }}"{% if active == 'support' %} aria-current="page"{% endif %}>{{ t.nav.support }}</a>
+          <a href="/privacy?lang={{ locale }}"{% if active == 'privacy' %} aria-current="page"{% endif %}>{{ t.nav.privacy }}</a>
+          <a href="/support?lang={{ locale }}#contact"{% if active == 'contact' %} aria-current="page"{% endif %}>{{ t.nav.contact }}</a>
+        </nav>
+        <div class="lang" data-lang-root>
+          <label class="visually-hidden" for="tampiq-lang">{{ t.nav.lang_aria }}</label>
+          <select id="tampiq-lang" class="lang-select" data-lang-select aria-label="{{ t.nav.lang_aria }}">
+            {% for item in locale_items %}
+            <option value="{{ item.code }}"{% if item.selected %} selected{% endif %} dir="{{ item.dir }}">{{ item.native_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
     </header>
 
-    <main class="main">
+    <main id="main" class="main" data-page-root>
       {% block content %}{% endblock %}
     </main>
 
     <footer class="foot">
-      <p>© {{ company_name }}. Public support pages for App Store listing.</p>
+      <p class="foot-copy">{{ t.footer.copyright }}</p>
+      <nav class="foot-nav" aria-label="Footer">
+        <a href="/support?lang={{ locale }}">{{ t.footer.support }}</a>
+        <a href="/privacy?lang={{ locale }}">{{ t.footer.privacy }}</a>
+        <a href="/support?lang={{ locale }}#contact">{{ t.footer.contact }}</a>
+      </nav>
     </footer>
   </div>
+  <script src="/static/tampiq/locale.js?v=2" defer></script>
 </body>
 </html>
