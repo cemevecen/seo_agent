@@ -29,14 +29,46 @@
     "cta_privacy": "Gizlilik Politikası",
     "topics_title": "Keşfedin",
     "topics": [
-      {"href": "/support#getting-started", "title": "Destek", "text": "Yanıtlar, iletişim bilgileri ve sorun giderme."},
-      {"href": "/privacy", "title": "Gizlilik", "text": "Bilgilerin cihazınızda nasıl işlendiği ve saklandığı."},
-      {"href": "/support#permissions", "title": "İzinler", "text": "TAMPIQ’in neden hareket, konum, bildirim ve Ekran Süresi yetkisi isteyebileceği."},
-      {"href": "/support#protection-sessions", "title": "Koruma Oturumları", "text": "Oturumların nasıl başladığı, bittiği ve etkinliği nasıl düzenlediği."},
-      {"href": "/support#app-usage", "title": "Uygulama Kullanımı", "text": "Ekran Süresi yetenekleri, sınırlamalar ve zaman dilimleri."},
-      {"href": "/support#location-records", "title": "Konum Kayıtları", "text": "İzin verdiğinizde isteğe bağlı konum anlık görüntüleri."},
-      {"href": "/support#app-lock", "title": "Uygulama Kilidi", "text": "Sahip kimlik doğrulaması ve uygulama kilitliyken gizlilik kapağı."},
-      {"href": "/support#notifications", "title": "Bildirimler ve Canlı Etkinlikler", "text": "Kilit Ekranı’nda ve bildirimlerde oturum durumu."}
+      {
+        "href": "/support#getting-started",
+        "title": "Destek",
+        "text": "Yanıtlar, iletişim bilgileri ve sorun giderme."
+      },
+      {
+        "href": "/privacy",
+        "title": "Gizlilik",
+        "text": "Bilgilerin cihazınızda nasıl işlendiği ve saklandığı."
+      },
+      {
+        "href": "/support#permissions",
+        "title": "İzinler",
+        "text": "TAMPIQ’in neden hareket, konum, bildirim ve Ekran Süresi yetkisi isteyebileceği."
+      },
+      {
+        "href": "/support#protection-sessions",
+        "title": "Koruma Oturumları",
+        "text": "Oturumların nasıl başladığı, bittiği ve etkinliği nasıl düzenlediği."
+      },
+      {
+        "href": "/support#app-usage",
+        "title": "Uygulama Kullanımı",
+        "text": "Ekran Süresi yetenekleri, sınırlamalar ve zaman dilimleri."
+      },
+      {
+        "href": "/support#location-records",
+        "title": "Konum Kayıtları",
+        "text": "İzin verdiğinizde isteğe bağlı konum anlık görüntüleri."
+      },
+      {
+        "href": "/support#app-lock",
+        "title": "Uygulama Kilidi",
+        "text": "Sahip kimlik doğrulaması ve uygulama kilitliyken gizlilik kapağı."
+      },
+      {
+        "href": "/support#notifications",
+        "title": "Bildirimler ve Canlı Etkinlikler",
+        "text": "Kilit Ekranı’nda ve bildirimlerde oturum durumu."
+      }
     ]
   },
   "support": {
@@ -46,7 +78,7 @@
     "support_email_label": "Destek e-postası",
     "privacy_email_label": "Gizlilik e-postası",
     "developer_label": "Geliştirici / Yayımcı",
-    "developer_name": "Cem Gürsoy EVECEN",
+    "developer_name": "TAMPIQ",
     "country_label": "Ülke",
     "country_value": "Türkiye",
     "response_note": "Destek taleplerini 2 iş günü içinde incelemeyi hedefliyoruz.",
@@ -217,7 +249,7 @@
     "title": "Gizlilik Politikası",
     "effective_label": "Yürürlük tarihi",
     "effective_date": "30 Eylül 2026",
-    "intro": "Bu Gizlilik Politikası, Cem Gürsoy EVECEN tarafından yayımlanan TAMPIQ (“biz”, “bize”) iPhone uygulamasını kullandığınızda bilgilerin nasıl işlendiğini açıklar. Uygulamanın üretim davranışını yansıtır: koruma kayıtlarının cihazınızda kalması tasarlanmıştır ve TAMPIQ; hesap sistemi veya oturum telemetrisi için bir TAMPIQ bulut arka ucu işletmez.",
+    "intro": "Bu Gizlilik Politikası, TAMPIQ (“biz”, “bize”) iPhone uygulamasını kullandığınızda bilgilerin nasıl işlendiğini açıklar. Uygulamanın üretim davranışını yansıtır: koruma kayıtlarının cihazınızda kalması tasarlanmıştır ve TAMPIQ; hesap sistemi veya oturum telemetrisi için bir TAMPIQ bulut arka ucu işletmez.",
     "sections": [
       {
         "id": "introduction",
@@ -402,7 +434,7 @@
         "title": "21. İletişim",
         "paragraphs": [
           "Gizlilik soruları ve destek talepleri aşağıdaki adreslere gönderilebilir.",
-          "Geliştirici / Yayımcı: Cem Gürsoy EVECEN — Türkiye."
+          "Geliştirici / Yayımcı: TAMPIQ."
         ]
       }
     ],

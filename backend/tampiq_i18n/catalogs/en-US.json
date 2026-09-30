@@ -29,14 +29,46 @@
     "cta_privacy": "Privacy Policy",
     "topics_title": "Explore",
     "topics": [
-      {"href": "/support#getting-started", "title": "Support", "text": "Answers, contact details, and troubleshooting."},
-      {"href": "/privacy", "title": "Privacy", "text": "How information is processed and stored on your device."},
-      {"href": "/support#permissions", "title": "Permissions", "text": "Why TAMPIQ may ask for motion, location, notifications, and Screen Time authorization."},
-      {"href": "/support#protection-sessions", "title": "Protection Sessions", "text": "How sessions start, end, and keep activity organized."},
-      {"href": "/support#app-usage", "title": "App Usage", "text": "Screen Time capabilities, limitations, and time buckets."},
-      {"href": "/support#location-records", "title": "Location Records", "text": "Optional location snapshots when you grant permission."},
-      {"href": "/support#app-lock", "title": "App Lock", "text": "Owner authentication and privacy cover while the app is locked."},
-      {"href": "/support#notifications", "title": "Notifications & Live Activities", "text": "Session status on the Lock Screen and in notifications."}
+      {
+        "href": "/support#getting-started",
+        "title": "Support",
+        "text": "Answers, contact details, and troubleshooting."
+      },
+      {
+        "href": "/privacy",
+        "title": "Privacy",
+        "text": "How information is processed and stored on your device."
+      },
+      {
+        "href": "/support#permissions",
+        "title": "Permissions",
+        "text": "Why TAMPIQ may ask for motion, location, notifications, and Screen Time authorization."
+      },
+      {
+        "href": "/support#protection-sessions",
+        "title": "Protection Sessions",
+        "text": "How sessions start, end, and keep activity organized."
+      },
+      {
+        "href": "/support#app-usage",
+        "title": "App Usage",
+        "text": "Screen Time capabilities, limitations, and time buckets."
+      },
+      {
+        "href": "/support#location-records",
+        "title": "Location Records",
+        "text": "Optional location snapshots when you grant permission."
+      },
+      {
+        "href": "/support#app-lock",
+        "title": "App Lock",
+        "text": "Owner authentication and privacy cover while the app is locked."
+      },
+      {
+        "href": "/support#notifications",
+        "title": "Notifications & Live Activities",
+        "text": "Session status on the Lock Screen and in notifications."
+      }
     ]
   },
   "support": {
@@ -46,7 +78,7 @@
     "support_email_label": "Support email",
     "privacy_email_label": "Privacy email",
     "developer_label": "Developer / Publisher",
-    "developer_name": "Cem Gürsoy EVECEN",
+    "developer_name": "TAMPIQ",
     "country_label": "Country",
     "country_value": "Türkiye",
     "response_note": "We aim to review support requests within 2 business days.",
@@ -217,7 +249,7 @@
     "title": "Privacy Policy",
     "effective_label": "Effective date",
     "effective_date": "30 September 2026",
-    "intro": "This Privacy Policy explains how TAMPIQ (“we”, “us”), published by Cem Gürsoy EVECEN, processes information when you use the TAMPIQ iPhone app. It reflects the production behavior of the app: protection records are designed to stay on your device, and TAMPIQ does not operate an account system or TAMPIQ cloud backend for session telemetry.",
+    "intro": "This Privacy Policy explains how TAMPIQ (“we”, “us”) processes information when you use the TAMPIQ iPhone app. It reflects the production behavior of the app: protection records are designed to stay on your device, and TAMPIQ does not operate an account system or TAMPIQ cloud backend for session telemetry.",
     "sections": [
       {
         "id": "introduction",
@@ -402,7 +434,7 @@
         "title": "21. Contact",
         "paragraphs": [
           "Privacy questions and support requests can be sent to the addresses shown below.",
-          "Developer / Publisher: Cem Gürsoy EVECEN — Türkiye."
+          "Developer / Publisher: TAMPIQ."
         ]
       }
     ],

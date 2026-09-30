@@ -29,14 +29,46 @@
     "cta_privacy": "Política de Privacidade",
     "topics_title": "Explorar",
     "topics": [
-      {"href": "/support#getting-started", "title": "Suporte", "text": "Respostas, dados de contato e solução de problemas."},
-      {"href": "/privacy", "title": "Privacidade", "text": "Como as informações são processadas e armazenadas no seu dispositivo."},
-      {"href": "/support#permissions", "title": "Permissões", "text": "Por que o TAMPIQ pode solicitar movimento, localização, notificações e autorização do Tempo de Uso."},
-      {"href": "/support#protection-sessions", "title": "Sessões de Proteção", "text": "Como as sessões começam, terminam e organizam a atividade."},
-      {"href": "/support#app-usage", "title": "Uso de Apps", "text": "Recursos do Tempo de Uso, limitações e intervalos de tempo."},
-      {"href": "/support#location-records", "title": "Registros de Localização", "text": "Instantâneos de localização opcionais quando você concede permissão."},
-      {"href": "/support#app-lock", "title": "Bloqueio do App", "text": "Autenticação do proprietário e cobertura de privacidade enquanto o app está bloqueado."},
-      {"href": "/support#notifications", "title": "Notificações e Atividades Ao Vivo", "text": "Status da sessão na Tela de Bloqueio e nas notificações."}
+      {
+        "href": "/support#getting-started",
+        "title": "Suporte",
+        "text": "Respostas, dados de contato e solução de problemas."
+      },
+      {
+        "href": "/privacy",
+        "title": "Privacidade",
+        "text": "Como as informações são processadas e armazenadas no seu dispositivo."
+      },
+      {
+        "href": "/support#permissions",
+        "title": "Permissões",
+        "text": "Por que o TAMPIQ pode solicitar movimento, localização, notificações e autorização do Tempo de Uso."
+      },
+      {
+        "href": "/support#protection-sessions",
+        "title": "Sessões de Proteção",
+        "text": "Como as sessões começam, terminam e organizam a atividade."
+      },
+      {
+        "href": "/support#app-usage",
+        "title": "Uso de Apps",
+        "text": "Recursos do Tempo de Uso, limitações e intervalos de tempo."
+      },
+      {
+        "href": "/support#location-records",
+        "title": "Registros de Localização",
+        "text": "Instantâneos de localização opcionais quando você concede permissão."
+      },
+      {
+        "href": "/support#app-lock",
+        "title": "Bloqueio do App",
+        "text": "Autenticação do proprietário e cobertura de privacidade enquanto o app está bloqueado."
+      },
+      {
+        "href": "/support#notifications",
+        "title": "Notificações e Atividades Ao Vivo",
+        "text": "Status da sessão na Tela de Bloqueio e nas notificações."
+      }
     ]
   },
   "support": {
@@ -46,7 +78,7 @@
     "support_email_label": "E-mail de suporte",
     "privacy_email_label": "E-mail de privacidade",
     "developer_label": "Desenvolvedor / Publicador",
-    "developer_name": "Cem Gürsoy EVECEN",
+    "developer_name": "TAMPIQ",
     "country_label": "País",
     "country_value": "Türkiye",
     "response_note": "Nosso objetivo é analisar solicitações de suporte em até 2 dias úteis.",
@@ -217,7 +249,7 @@
     "title": "Política de Privacidade",
     "effective_label": "Data de vigência",
     "effective_date": "30 de setembro de 2026",
-    "intro": "Esta Política de Privacidade explica como o TAMPIQ (“nós”), publicado por Cem Gürsoy EVECEN, processa informações quando você usa o app TAMPIQ para iPhone. Reflete o comportamento de produção do app: os registros de proteção são projetados para permanecer no seu dispositivo, e o TAMPIQ não opera um sistema de contas nem um backend em nuvem do TAMPIQ para telemetria de sessão.",
+    "intro": "Esta Política de Privacidade explica como o TAMPIQ (“nós”) processa informações quando você usa o app TAMPIQ para iPhone. Reflete o comportamento de produção do app: os registros de proteção são projetados para permanecer no seu dispositivo, e o TAMPIQ não opera um sistema de contas nem um backend em nuvem do TAMPIQ para telemetria de sessão.",
     "sections": [
       {
         "id": "introduction",
@@ -402,7 +434,7 @@
         "title": "21. Contato",
         "paragraphs": [
           "Perguntas de privacidade e solicitações de suporte podem ser enviadas aos endereços mostrados abaixo.",
-          "Desenvolvedor / Publicador: Cem Gürsoy EVECEN — Türkiye."
+          "Desenvolvedor / Publicador: TAMPIQ."
         ]
       }
     ],

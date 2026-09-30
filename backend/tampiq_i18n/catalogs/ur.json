@@ -29,14 +29,46 @@
     "cta_privacy": "پرائیویسی پالیسی",
     "topics_title": "دریافت کریں",
     "topics": [
-      {"href": "/support#getting-started", "title": "سپورٹ", "text": "جوابات، رابطے کی تفصیلات اور ٹربل شوٹنگ۔"},
-      {"href": "/privacy", "title": "پرائیویسی", "text": "آپ کے ڈیوائس پر معلومات کیسے پروسیس اور محفوظ ہوتی ہیں۔"},
-      {"href": "/support#permissions", "title": "اجازتیں", "text": "TAMPIQ موشن، لوکیشن، نوٹیفکیشنز اور Screen Time اجازت کیوں مانگ سکتا ہے۔"},
-      {"href": "/support#protection-sessions", "title": "پروٹیکشن سیشنز", "text": "سیشنز کیسے شروع اور ختم ہوتے ہیں، اور سرگرمی کیسے منظم رہتی ہے۔"},
-      {"href": "/support#app-usage", "title": "ایپ استعمال", "text": "Screen Time صلاحیتیں، حدود اور وقت کے بکٹس۔"},
-      {"href": "/support#location-records", "title": "لوکیشن ریکارڈز", "text": "اجازت دینے پر اختیاری لوکیشن اسنیپ شاٹس۔"},
-      {"href": "/support#app-lock", "title": "ایپ لاک", "text": "ایپ لاک ہونے پر مالک کی تصدیق اور پرائیویسی کور۔"},
-      {"href": "/support#notifications", "title": "نوٹیفکیشنز اور Live Activities", "text": "لاک اسکرین اور نوٹیفکیشنز میں سیشن کی حالت۔"}
+      {
+        "href": "/support#getting-started",
+        "title": "سپورٹ",
+        "text": "جوابات، رابطے کی تفصیلات اور ٹربل شوٹنگ۔"
+      },
+      {
+        "href": "/privacy",
+        "title": "پرائیویسی",
+        "text": "آپ کے ڈیوائس پر معلومات کیسے پروسیس اور محفوظ ہوتی ہیں۔"
+      },
+      {
+        "href": "/support#permissions",
+        "title": "اجازتیں",
+        "text": "TAMPIQ موشن، لوکیشن، نوٹیفکیشنز اور Screen Time اجازت کیوں مانگ سکتا ہے۔"
+      },
+      {
+        "href": "/support#protection-sessions",
+        "title": "پروٹیکشن سیشنز",
+        "text": "سیشنز کیسے شروع اور ختم ہوتے ہیں، اور سرگرمی کیسے منظم رہتی ہے۔"
+      },
+      {
+        "href": "/support#app-usage",
+        "title": "ایپ استعمال",
+        "text": "Screen Time صلاحیتیں، حدود اور وقت کے بکٹس۔"
+      },
+      {
+        "href": "/support#location-records",
+        "title": "لوکیشن ریکارڈز",
+        "text": "اجازت دینے پر اختیاری لوکیشن اسنیپ شاٹس۔"
+      },
+      {
+        "href": "/support#app-lock",
+        "title": "ایپ لاک",
+        "text": "ایپ لاک ہونے پر مالک کی تصدیق اور پرائیویسی کور۔"
+      },
+      {
+        "href": "/support#notifications",
+        "title": "نوٹیفکیشنز اور Live Activities",
+        "text": "لاک اسکرین اور نوٹیفکیشنز میں سیشن کی حالت۔"
+      }
     ]
   },
   "support": {
@@ -46,7 +78,7 @@
     "support_email_label": "سپورٹ ای میل",
     "privacy_email_label": "پرائیویسی ای میل",
     "developer_label": "ڈیولپر / پبلیشر",
-    "developer_name": "Cem Gürsoy EVECEN",
+    "developer_name": "TAMPIQ",
     "country_label": "ملک",
     "country_value": "Türkiye",
     "response_note": "ہم سپورٹ درخواستوں کا جائزہ 2 کاروباری دنوں کے اندر لینے کی کوشش کرتے ہیں۔",
@@ -217,7 +249,7 @@
     "title": "پرائیویسی پالیسی",
     "effective_label": "مؤثر تاریخ",
     "effective_date": "30 ستمبر 2026",
-    "intro": "یہ پرائیویسی پالیسی وضاحت کرتی ہے کہ Cem Gürsoy EVECEN کی طرف سے شائع کردہ TAMPIQ (“ہم”، “ہمیں”) آپ کے TAMPIQ iPhone ایپ استعمال کرنے پر معلومات کو کیسے پروسیس کرتا ہے۔ یہ ایپ کے پروڈکشن رویے کی عکاسی کرتی ہے: پروٹیکشن ریکارڈز آپ کے ڈیوائس پر رہنے کے لیے ڈیزائن کیے گئے ہیں، اور TAMPIQ سیشن ٹیلی میٹری کے لیے اکاؤنٹ سسٹم یا TAMPIQ کلاؤڈ بیک اینڈ نہیں چلاتا۔",
+    "intro": "یہ پرائیویسی پالیسی وضاحت کرتی ہے کہ TAMPIQ (“ہم”، “ہمیں”) آپ کے TAMPIQ iPhone ایپ استعمال کرنے پر معلومات کو کیسے پروسیس کرتا ہے۔ یہ ایپ کے پروڈکشن رویے کی عکاسی کرتی ہے: پروٹیکشن ریکارڈز آپ کے ڈیوائس پر رہنے کے لیے ڈیزائن کیے گئے ہیں، اور TAMPIQ سیشن ٹیلی میٹری کے لیے اکاؤنٹ سسٹم یا TAMPIQ کلاؤڈ بیک اینڈ نہیں چلاتا۔",
     "sections": [
       {
         "id": "introduction",
@@ -402,7 +434,7 @@
         "title": "21. رابطہ",
         "paragraphs": [
           "پرائیویسی سوالات اور سپورٹ درخواستیں نیچے دکھائے گئے پتوں پر بھیجی جا سکتی ہیں۔",
-          "ڈیولپر / پبلیشر: Cem Gürsoy EVECEN — Türkiye۔"
+          "ڈیولپر / پبلیشر: TAMPIQ۔"
         ]
       }
     ],

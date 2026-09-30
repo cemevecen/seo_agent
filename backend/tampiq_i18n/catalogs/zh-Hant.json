@@ -29,14 +29,46 @@
     "cta_privacy": "隱私權政策",
     "topics_title": "探索",
     "topics": [
-      {"href": "/support#getting-started", "title": "支援", "text": "解答、聯絡資訊與疑難排解。"},
-      {"href": "/privacy", "title": "隱私", "text": "資訊如何在您的裝置上處理與儲存。"},
-      {"href": "/support#permissions", "title": "權限", "text": "為何 TAMPIQ 可能要求動作、定位、通知與螢幕使用時間授權。"},
-      {"href": "/support#protection-sessions", "title": "保護工作階段", "text": "工作階段如何開始、結束，以及如何整理活動。"},
-      {"href": "/support#app-usage", "title": "App 使用狀況", "text": "螢幕使用時間功能、限制與時間區段。"},
-      {"href": "/support#location-records", "title": "定位紀錄", "text": "在您授予權限時的選用定位快照。"},
-      {"href": "/support#app-lock", "title": "App 鎖定", "text": "擁有者驗證，以及 App 鎖定時的隱私遮罩。"},
-      {"href": "/support#notifications", "title": "通知與即時動態", "text": "鎖定畫面與通知中的工作階段狀態。"}
+      {
+        "href": "/support#getting-started",
+        "title": "支援",
+        "text": "解答、聯絡資訊與疑難排解。"
+      },
+      {
+        "href": "/privacy",
+        "title": "隱私",
+        "text": "資訊如何在您的裝置上處理與儲存。"
+      },
+      {
+        "href": "/support#permissions",
+        "title": "權限",
+        "text": "為何 TAMPIQ 可能要求動作、定位、通知與螢幕使用時間授權。"
+      },
+      {
+        "href": "/support#protection-sessions",
+        "title": "保護工作階段",
+        "text": "工作階段如何開始、結束，以及如何整理活動。"
+      },
+      {
+        "href": "/support#app-usage",
+        "title": "App 使用狀況",
+        "text": "螢幕使用時間功能、限制與時間區段。"
+      },
+      {
+        "href": "/support#location-records",
+        "title": "定位紀錄",
+        "text": "在您授予權限時的選用定位快照。"
+      },
+      {
+        "href": "/support#app-lock",
+        "title": "App 鎖定",
+        "text": "擁有者驗證，以及 App 鎖定時的隱私遮罩。"
+      },
+      {
+        "href": "/support#notifications",
+        "title": "通知與即時動態",
+        "text": "鎖定畫面與通知中的工作階段狀態。"
+      }
     ]
   },
   "support": {
@@ -46,7 +78,7 @@
     "support_email_label": "支援電子郵件",
     "privacy_email_label": "隱私電子郵件",
     "developer_label": "開發者 / 發行者",
-    "developer_name": "Cem Gürsoy EVECEN",
+    "developer_name": "TAMPIQ",
     "country_label": "國家",
     "country_value": "Türkiye",
     "response_note": "我們目標在 2 個工作天內審閱支援請求。",
@@ -217,7 +249,7 @@
     "title": "隱私權政策",
     "effective_label": "生效日期",
     "effective_date": "2026 年 9 月 30 日",
-    "intro": "本隱私權政策說明由 Cem Gürsoy EVECEN 發行的 TAMPIQ（「我們」）在您使用 TAMPIQ iPhone App 時如何處理資訊。它反映正式版 App 的行為：保護紀錄設計為留在您的裝置上，且 TAMPIQ 不營運帳戶系統，也不營運用於工作階段遙測的 TAMPIQ 雲端後端。",
+    "intro": "本隱私權政策說明 TAMPIQ（「我們」）在您使用 TAMPIQ iPhone App 時如何處理資訊。它反映正式版 App 的行為：保護紀錄設計為留在您的裝置上，且 TAMPIQ 不營運帳戶系統，也不營運用於工作階段遙測的 TAMPIQ 雲端後端。",
     "sections": [
       {
         "id": "introduction",
@@ -402,7 +434,7 @@
         "title": "21. 聯絡我們",
         "paragraphs": [
           "隱私問題與支援請求可傳送至下方所示地址。",
-          "開發者 / 發行者：Cem Gürsoy EVECEN — Türkiye。"
+          "開發者 / 發行者：TAMPIQ。"
         ]
       }
     ],

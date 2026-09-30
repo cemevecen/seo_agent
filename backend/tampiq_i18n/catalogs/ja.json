@@ -29,14 +29,46 @@
     "cta_privacy": "プライバシーポリシー",
     "topics_title": "探す",
     "topics": [
-      {"href": "/support#getting-started", "title": "サポート", "text": "よくある質問、連絡先、トラブルシューティング。"},
-      {"href": "/privacy", "title": "プライバシー", "text": "端末上での情報の処理と保存の方法。"},
-      {"href": "/support#permissions", "title": "権限", "text": "動作、位置情報、通知、スクリーンタイムの許可を求める理由。"},
-      {"href": "/support#protection-sessions", "title": "保護セッション", "text": "セッションの開始・終了と、アクティビティの整理の仕組み。"},
-      {"href": "/support#app-usage", "title": "アプリ使用状況", "text": "スクリーンタイムの機能、制限、時間バケット。"},
-      {"href": "/support#location-records", "title": "位置情報レコード", "text": "許可した場合の任意の位置情報スナップショット。"},
-      {"href": "/support#app-lock", "title": "アプリロック", "text": "所有者認証と、ロック中のプライバシーカバー。"},
-      {"href": "/support#notifications", "title": "通知とライブアクティビティ", "text": "ロック画面および通知でのセッション状態。"}
+      {
+        "href": "/support#getting-started",
+        "title": "サポート",
+        "text": "よくある質問、連絡先、トラブルシューティング。"
+      },
+      {
+        "href": "/privacy",
+        "title": "プライバシー",
+        "text": "端末上での情報の処理と保存の方法。"
+      },
+      {
+        "href": "/support#permissions",
+        "title": "権限",
+        "text": "動作、位置情報、通知、スクリーンタイムの許可を求める理由。"
+      },
+      {
+        "href": "/support#protection-sessions",
+        "title": "保護セッション",
+        "text": "セッションの開始・終了と、アクティビティの整理の仕組み。"
+      },
+      {
+        "href": "/support#app-usage",
+        "title": "アプリ使用状況",
+        "text": "スクリーンタイムの機能、制限、時間バケット。"
+      },
+      {
+        "href": "/support#location-records",
+        "title": "位置情報レコード",
+        "text": "許可した場合の任意の位置情報スナップショット。"
+      },
+      {
+        "href": "/support#app-lock",
+        "title": "アプリロック",
+        "text": "所有者認証と、ロック中のプライバシーカバー。"
+      },
+      {
+        "href": "/support#notifications",
+        "title": "通知とライブアクティビティ",
+        "text": "ロック画面および通知でのセッション状態。"
+      }
     ]
   },
   "support": {
@@ -46,7 +78,7 @@
     "support_email_label": "サポート用メール",
     "privacy_email_label": "プライバシー用メール",
     "developer_label": "開発者 / 発行者",
-    "developer_name": "Cem Gürsoy EVECEN",
+    "developer_name": "TAMPIQ",
     "country_label": "国",
     "country_value": "Türkiye",
     "response_note": "サポート依頼は、営業日で2日以内の確認を目指しています。",
@@ -217,7 +249,7 @@
     "title": "プライバシーポリシー",
     "effective_label": "発効日",
     "effective_date": "2026年9月30日",
-    "intro": "本プライバシーポリシーは、Cem Gürsoy EVECEN が発行する TAMPIQ（「当社」）が、TAMPIQ iPhone アプリの利用時に情報をどのように処理するかを説明します。本番アプリの動作を反映しています。保護記録は端末上に留まるよう設計されており、TAMPIQ はアカウントシステムや、セッションテレメトリ用の TAMPIQ クラウドバックエンドを運用していません。",
+    "intro": "本プライバシーポリシーは、TAMPIQ（「当社」）が、TAMPIQ iPhone アプリの利用時に情報をどのように処理するかを説明します。本番アプリの動作を反映しています。保護記録は端末上に留まるよう設計されており、TAMPIQ はアカウントシステムや、セッションテレメトリ用の TAMPIQ クラウドバックエンドを運用していません。",
     "sections": [
       {
         "id": "introduction",
@@ -402,7 +434,7 @@
         "title": "21. お問い合わせ",
         "paragraphs": [
           "プライバシーに関するご質問およびサポート依頼は、下記のアドレスまでお送りください。",
-          "開発者 / 発行者：Cem Gürsoy EVECEN — Türkiye。"
+          "開発者 / 発行者：TAMPIQ。"
         ]
       }
     ],

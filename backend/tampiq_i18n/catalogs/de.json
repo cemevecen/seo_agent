@@ -29,14 +29,46 @@
     "cta_privacy": "Datenschutzrichtlinie",
     "topics_title": "Entdecken",
     "topics": [
-      {"href": "/support#getting-started", "title": "Support", "text": "Antworten, Kontaktdaten und Fehlerbehebung."},
-      {"href": "/privacy", "title": "Datenschutz", "text": "Wie Informationen auf Ihrem Gerät verarbeitet und gespeichert werden."},
-      {"href": "/support#permissions", "title": "Berechtigungen", "text": "Warum TAMPIQ Bewegung, Standort, Mitteilungen und Bildschirmzeit-Autorisierung anfordern kann."},
-      {"href": "/support#protection-sessions", "title": "Schutzsitzungen", "text": "Wie Sitzungen starten, enden und Aktivitäten organisieren."},
-      {"href": "/support#app-usage", "title": "App-Nutzung", "text": "Bildschirmzeit-Funktionen, Grenzen und Zeitfenster."},
-      {"href": "/support#location-records", "title": "Standortdaten", "text": "Optionale Standort-Snapshots, wenn Sie die Berechtigung erteilen."},
-      {"href": "/support#app-lock", "title": "App-Sperre", "text": "Eigentümer-Authentifizierung und Datenschutzabdeckung bei gesperrter App."},
-      {"href": "/support#notifications", "title": "Mitteilungen & Live-Aktivitäten", "text": "Sitzungsstatus auf dem Sperrbildschirm und in Mitteilungen."}
+      {
+        "href": "/support#getting-started",
+        "title": "Support",
+        "text": "Antworten, Kontaktdaten und Fehlerbehebung."
+      },
+      {
+        "href": "/privacy",
+        "title": "Datenschutz",
+        "text": "Wie Informationen auf Ihrem Gerät verarbeitet und gespeichert werden."
+      },
+      {
+        "href": "/support#permissions",
+        "title": "Berechtigungen",
+        "text": "Warum TAMPIQ Bewegung, Standort, Mitteilungen und Bildschirmzeit-Autorisierung anfordern kann."
+      },
+      {
+        "href": "/support#protection-sessions",
+        "title": "Schutzsitzungen",
+        "text": "Wie Sitzungen starten, enden und Aktivitäten organisieren."
+      },
+      {
+        "href": "/support#app-usage",
+        "title": "App-Nutzung",
+        "text": "Bildschirmzeit-Funktionen, Grenzen und Zeitfenster."
+      },
+      {
+        "href": "/support#location-records",
+        "title": "Standortdaten",
+        "text": "Optionale Standort-Snapshots, wenn Sie die Berechtigung erteilen."
+      },
+      {
+        "href": "/support#app-lock",
+        "title": "App-Sperre",
+        "text": "Eigentümer-Authentifizierung und Datenschutzabdeckung bei gesperrter App."
+      },
+      {
+        "href": "/support#notifications",
+        "title": "Mitteilungen & Live-Aktivitäten",
+        "text": "Sitzungsstatus auf dem Sperrbildschirm und in Mitteilungen."
+      }
     ]
   },
   "support": {
@@ -46,7 +78,7 @@
     "support_email_label": "Support-E-Mail",
     "privacy_email_label": "Datenschutz-E-Mail",
     "developer_label": "Entwickler / Herausgeber",
-    "developer_name": "Cem Gürsoy EVECEN",
+    "developer_name": "TAMPIQ",
     "country_label": "Land",
     "country_value": "Türkiye",
     "response_note": "Wir bemühen uns, Support-Anfragen innerhalb von 2 Werktagen zu prüfen.",
@@ -217,7 +249,7 @@
     "title": "Datenschutzrichtlinie",
     "effective_label": "Gültig ab",
     "effective_date": "30. September 2026",
-    "intro": "Diese Datenschutzrichtlinie erläutert, wie TAMPIQ („wir“, „uns“), herausgegeben von Cem Gürsoy EVECEN, Informationen verarbeitet, wenn Sie die TAMPIQ-iPhone-App nutzen. Sie entspricht dem Produktionsverhalten der App: Schutzaufzeichnungen sollen auf Ihrem Gerät bleiben, und TAMPIQ betreibt kein Kontosystem und kein TAMPIQ-Cloud-Backend für Sitzungstelemetrie.",
+    "intro": "Diese Datenschutzrichtlinie erläutert, wie TAMPIQ („wir“, „uns“) Informationen verarbeitet, wenn Sie die TAMPIQ-iPhone-App nutzen. Sie entspricht dem Produktionsverhalten der App: Schutzaufzeichnungen sollen auf Ihrem Gerät bleiben, und TAMPIQ betreibt kein Kontosystem und kein TAMPIQ-Cloud-Backend für Sitzungstelemetrie.",
     "sections": [
       {
         "id": "introduction",
@@ -402,7 +434,7 @@
         "title": "21. Kontakt",
         "paragraphs": [
           "Datenschutzfragen und Support-Anfragen können an die unten angegebenen Adressen gesendet werden.",
-          "Entwickler / Herausgeber: Cem Gürsoy EVECEN — Türkiye."
+          "Entwickler / Herausgeber: TAMPIQ."
         ]
       }
     ],

@@ -29,14 +29,46 @@
     "cta_privacy": "गोपनीयता नीति",
     "topics_title": "अन्वेषण करें",
     "topics": [
-      {"href": "/support#getting-started", "title": "सहायता", "text": "उत्तर, संपर्क विवरण और समस्या निवारण।"},
-      {"href": "/privacy", "title": "गोपनीयता", "text": "आपके डिवाइस पर जानकारी कैसे संसाधित और संग्रहीत होती है।"},
-      {"href": "/support#permissions", "title": "अनुमतियाँ", "text": "TAMPIQ मोशन, स्थान, सूचनाओं और Screen Time प्राधिकरण क्यों माँग सकता है।"},
-      {"href": "/support#protection-sessions", "title": "सुरक्षा सत्र", "text": "सत्र कैसे शुरू और समाप्त होते हैं, और गतिविधि कैसे व्यवस्थित रहती है।"},
-      {"href": "/support#app-usage", "title": "ऐप उपयोग", "text": "Screen Time क्षमताएँ, सीमाएँ और समय बकेट।"},
-      {"href": "/support#location-records", "title": "स्थान रिकॉर्ड", "text": "अनुमति देने पर वैकल्पिक स्थान स्नैपशॉट।"},
-      {"href": "/support#app-lock", "title": "ऐप लॉक", "text": "ऐप लॉक होने पर स्वामी प्रमाणीकरण और गोपनीयता कवर।"},
-      {"href": "/support#notifications", "title": "सूचनाएँ और Live Activities", "text": "लॉक स्क्रीन और सूचनाओं में सत्र स्थिति।"}
+      {
+        "href": "/support#getting-started",
+        "title": "सहायता",
+        "text": "उत्तर, संपर्क विवरण और समस्या निवारण।"
+      },
+      {
+        "href": "/privacy",
+        "title": "गोपनीयता",
+        "text": "आपके डिवाइस पर जानकारी कैसे संसाधित और संग्रहीत होती है।"
+      },
+      {
+        "href": "/support#permissions",
+        "title": "अनुमतियाँ",
+        "text": "TAMPIQ मोशन, स्थान, सूचनाओं और Screen Time प्राधिकरण क्यों माँग सकता है।"
+      },
+      {
+        "href": "/support#protection-sessions",
+        "title": "सुरक्षा सत्र",
+        "text": "सत्र कैसे शुरू और समाप्त होते हैं, और गतिविधि कैसे व्यवस्थित रहती है।"
+      },
+      {
+        "href": "/support#app-usage",
+        "title": "ऐप उपयोग",
+        "text": "Screen Time क्षमताएँ, सीमाएँ और समय बकेट।"
+      },
+      {
+        "href": "/support#location-records",
+        "title": "स्थान रिकॉर्ड",
+        "text": "अनुमति देने पर वैकल्पिक स्थान स्नैपशॉट।"
+      },
+      {
+        "href": "/support#app-lock",
+        "title": "ऐप लॉक",
+        "text": "ऐप लॉक होने पर स्वामी प्रमाणीकरण और गोपनीयता कवर।"
+      },
+      {
+        "href": "/support#notifications",
+        "title": "सूचनाएँ और Live Activities",
+        "text": "लॉक स्क्रीन और सूचनाओं में सत्र स्थिति।"
+      }
     ]
   },
   "support": {
@@ -46,7 +78,7 @@
     "support_email_label": "सहायता ईमेल",
     "privacy_email_label": "गोपनीयता ईमेल",
     "developer_label": "डेवलपर / प्रकाशक",
-    "developer_name": "Cem Gürsoy EVECEN",
+    "developer_name": "TAMPIQ",
     "country_label": "देश",
     "country_value": "Türkiye",
     "response_note": "हम सहायता अनुरोधों की समीक्षा 2 कार्य दिवसों के भीतर करने का लक्ष्य रखते हैं।",
@@ -217,7 +249,7 @@
     "title": "गोपनीयता नीति",
     "effective_label": "प्रभावी तिथि",
     "effective_date": "30 सितंबर 2026",
-    "intro": "यह गोपनीयता नीति बताती है कि Cem Gürsoy EVECEN द्वारा प्रकाशित TAMPIQ (“हम”, “हमें”) आपके द्वारा TAMPIQ iPhone ऐप उपयोग करने पर जानकारी कैसे संसाधित करता है। यह ऐप के प्रोडक्शन व्यवहार को दर्शाती है: सुरक्षा रिकॉर्ड आपके डिवाइस पर रहने के लिए डिज़ाइन किए गए हैं, और TAMPIQ सत्र टेलीमेट्री के लिए अकाउंट सिस्टम या TAMPIQ क्लाउड बैकएंड संचालित नहीं करता।",
+    "intro": "यह गोपनीयता नीति बताती है कि TAMPIQ (“हम”, “हमें”) आपके द्वारा TAMPIQ iPhone ऐप उपयोग करने पर जानकारी कैसे संसाधित करता है। यह ऐप के प्रोडक्शन व्यवहार को दर्शाती है: सुरक्षा रिकॉर्ड आपके डिवाइस पर रहने के लिए डिज़ाइन किए गए हैं, और TAMPIQ सत्र टेलीमेट्री के लिए अकाउंट सिस्टम या TAMPIQ क्लाउड बैकएंड संचालित नहीं करता।",
     "sections": [
       {
         "id": "introduction",
@@ -402,7 +434,7 @@
         "title": "21. संपर्क",
         "paragraphs": [
           "गोपनीयता प्रश्न और सहायता अनुरोध नीचे दिखाए पतों पर भेजे जा सकते हैं।",
-          "डेवलपर / प्रकाशक: Cem Gürsoy EVECEN — Türkiye।"
+          "डेवलपर / प्रकाशक: TAMPIQ।"
         ]
       }
     ],

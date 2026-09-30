@@ -40,7 +40,7 @@ def _truthy(name: str) -> bool:
 
 
 def _site_identity() -> dict[str, str]:
-    support_email = _env("TAMPIQ_SUPPORT_EMAIL", "support@tampiq.app")
+    support_email = _env("TAMPIQ_SUPPORT_EMAIL", "netbaboli@gmail.com")
     privacy_email = _env("TAMPIQ_PRIVACY_EMAIL", support_email)
     return {
         "app_name": _env("TAMPIQ_APP_NAME", "TAMPIQ"),
@@ -48,7 +48,7 @@ def _site_identity() -> dict[str, str]:
         "support_email": support_email,
         "privacy_email": privacy_email,
         "site_url": _env("TAMPIQ_PUBLIC_BASE_URL", "").rstrip("/"),
-        "publisher_name": _env("TAMPIQ_PUBLISHER_NAME", "Cem Gürsoy EVECEN"),
+        "publisher_name": _env("TAMPIQ_PUBLISHER_NAME", "TAMPIQ"),
         "publisher_country": _env("TAMPIQ_PUBLISHER_COUNTRY", "Türkiye"),
     }
 

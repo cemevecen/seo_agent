@@ -74,9 +74,10 @@ services:
     environment:
       PUBLIC_TAMPIQ_SITE: "true"
       TAMPIQ_APP_NAME: ${TAMPIQ_APP_NAME:-TAMPIQ}
-      TAMPIQ_SUPPORT_EMAIL: ${TAMPIQ_SUPPORT_EMAIL:-support@tampiq.app}
-      TAMPIQ_PRIVACY_EMAIL: ${TAMPIQ_PRIVACY_EMAIL:-support@tampiq.app}
+      TAMPIQ_SUPPORT_EMAIL: ${TAMPIQ_SUPPORT_EMAIL:-netbaboli@gmail.com}
+      TAMPIQ_PRIVACY_EMAIL: ${TAMPIQ_PRIVACY_EMAIL:-netbaboli@gmail.com}
       TAMPIQ_COMPANY_NAME: ${TAMPIQ_COMPANY_NAME:-TAMPIQ}
+      TAMPIQ_PUBLISHER_NAME: ${TAMPIQ_PUBLISHER_NAME:-TAMPIQ}
       PORT: "8012"
     command: ["sh", "-c", "exec uvicorn backend.tampiq_public_app:app --host 0.0.0.0 --port 8012"]
 

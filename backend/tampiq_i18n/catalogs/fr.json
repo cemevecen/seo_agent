@@ -29,14 +29,46 @@
     "cta_privacy": "Politique de confidentialité",
     "topics_title": "Explorer",
     "topics": [
-      {"href": "/support#getting-started", "title": "Assistance", "text": "Réponses, coordonnées et dépannage."},
-      {"href": "/privacy", "title": "Confidentialité", "text": "Comment les informations sont traitées et stockées sur votre appareil."},
-      {"href": "/support#permissions", "title": "Autorisations", "text": "Pourquoi TAMPIQ peut demander le mouvement, la localisation, les notifications et l’autorisation Temps d’écran."},
-      {"href": "/support#protection-sessions", "title": "Sessions de protection", "text": "Comment les sessions démarrent, se terminent et organisent l’activité."},
-      {"href": "/support#app-usage", "title": "Utilisation des apps", "text": "Capacités Temps d’écran, limites et créneaux horaires."},
-      {"href": "/support#location-records", "title": "Enregistrements de localisation", "text": "Instantanés de localisation facultatifs lorsque vous accordez l’autorisation."},
-      {"href": "/support#app-lock", "title": "Verrouillage de l’app", "text": "Authentification du propriétaire et couverture de confidentialité lorsque l’app est verrouillée."},
-      {"href": "/support#notifications", "title": "Notifications et Activités en direct", "text": "État de la session sur l’écran de verrouillage et dans les notifications."}
+      {
+        "href": "/support#getting-started",
+        "title": "Assistance",
+        "text": "Réponses, coordonnées et dépannage."
+      },
+      {
+        "href": "/privacy",
+        "title": "Confidentialité",
+        "text": "Comment les informations sont traitées et stockées sur votre appareil."
+      },
+      {
+        "href": "/support#permissions",
+        "title": "Autorisations",
+        "text": "Pourquoi TAMPIQ peut demander le mouvement, la localisation, les notifications et l’autorisation Temps d’écran."
+      },
+      {
+        "href": "/support#protection-sessions",
+        "title": "Sessions de protection",
+        "text": "Comment les sessions démarrent, se terminent et organisent l’activité."
+      },
+      {
+        "href": "/support#app-usage",
+        "title": "Utilisation des apps",
+        "text": "Capacités Temps d’écran, limites et créneaux horaires."
+      },
+      {
+        "href": "/support#location-records",
+        "title": "Enregistrements de localisation",
+        "text": "Instantanés de localisation facultatifs lorsque vous accordez l’autorisation."
+      },
+      {
+        "href": "/support#app-lock",
+        "title": "Verrouillage de l’app",
+        "text": "Authentification du propriétaire et couverture de confidentialité lorsque l’app est verrouillée."
+      },
+      {
+        "href": "/support#notifications",
+        "title": "Notifications et Activités en direct",
+        "text": "État de la session sur l’écran de verrouillage et dans les notifications."
+      }
     ]
   },
   "support": {
@@ -46,7 +78,7 @@
     "support_email_label": "E-mail d’assistance",
     "privacy_email_label": "E-mail confidentialité",
     "developer_label": "Développeur / Éditeur",
-    "developer_name": "Cem Gürsoy EVECEN",
+    "developer_name": "TAMPIQ",
     "country_label": "Pays",
     "country_value": "Türkiye",
     "response_note": "Nous nous efforçons d’examiner les demandes d’assistance sous 2 jours ouvrés.",
@@ -217,7 +249,7 @@
     "title": "Politique de confidentialité",
     "effective_label": "Date d’entrée en vigueur",
     "effective_date": "30 septembre 2026",
-    "intro": "La présente Politique de confidentialité explique comment TAMPIQ (« nous »), publié par Cem Gürsoy EVECEN, traite les informations lorsque vous utilisez l’app TAMPIQ pour iPhone. Elle reflète le comportement de production de l’app : les enregistrements de protection sont conçus pour rester sur votre appareil, et TAMPIQ n’exploite pas de système de compte ni de backend cloud TAMPIQ pour la télémétrie de session.",
+    "intro": "La présente Politique de confidentialité explique comment TAMPIQ (« nous ») traite les informations lorsque vous utilisez l’app TAMPIQ pour iPhone. Elle reflète le comportement de production de l’app : les enregistrements de protection sont conçus pour rester sur votre appareil, et TAMPIQ n’exploite pas de système de compte ni de backend cloud TAMPIQ pour la télémétrie de session.",
     "sections": [
       {
         "id": "introduction",
@@ -402,7 +434,7 @@
         "title": "21. Contact",
         "paragraphs": [
           "Les questions de confidentialité et les demandes d’assistance peuvent être envoyées aux adresses indiquées ci-dessous.",
-          "Développeur / Éditeur : Cem Gürsoy EVECEN — Türkiye."
+          "Développeur / Éditeur : TAMPIQ."
         ]
       }
     ],

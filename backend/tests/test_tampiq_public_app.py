@@ -100,11 +100,22 @@ def test_cookie_locale_used_without_query():
 
 def test_support_contact_card_content():
     html = CLIENT.get("/support", params={"lang": "en-US"}).text
-    assert "Cem Gürsoy EVECEN" in html
-    assert "Türkiye" in html
+    assert "TAMPIQ" in html
+    assert "Cem Gürsoy EVECEN" not in html
+    assert "cemevecen@gmail.com" not in html.lower()
+    assert "netbaboli@gmail.com" in html
     assert "2 business days" in html
     assert "Getting Started" in html
     assert "Bug Report" in html
+
+
+def test_public_identity_has_no_personal_name():
+    for path in ("/", "/support", "/privacy"):
+        for loc in SUPPORTED_LOCALES:
+            html = CLIENT.get(path, params={"lang": loc}).text
+            assert "Cem Gürsoy EVECEN" not in html, (path, loc)
+            assert "cemevecen@gmail.com" not in html.lower(), (path, loc)
+            assert "netbaboli@gmail.com" in html or path == "/"
 
 
 def test_privacy_factual_claims():
