@@ -342,6 +342,27 @@
   html.charcoal .metric-kpi-ss2-delta.is-down { color: #fb7185; }
   html.dark .metric-kpi-ss2-delta.is-flat,
   html.charcoal .metric-kpi-ss2-delta.is-flat { color: #94a3b8; }
+  .metric-kpi-ss2-cmp {
+    margin: 0;
+    font-size: clamp(0.55rem, 4.8cqi, 0.7rem);
+    line-height: 1.1;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    opacity: 0.92;
+  }
+  .metric-kpi-ss2-cmp.is-up { color: #059669; }
+  .metric-kpi-ss2-cmp.is-down { color: #e11d48; }
+  .metric-kpi-ss2-cmp.is-flat { color: #64748b; }
+  html.dark .metric-kpi-ss2-cmp.is-up,
+  html.charcoal .metric-kpi-ss2-cmp.is-up { color: #6f9b86; }
+  html.dark .metric-kpi-ss2-cmp.is-down,
+  html.charcoal .metric-kpi-ss2-cmp.is-down { color: #fb7185; }
+  html.dark .metric-kpi-ss2-cmp.is-flat,
+  html.charcoal .metric-kpi-ss2-cmp.is-flat { color: #94a3b8; }
   .metric-kpi-ss2-spark {
     flex: 0 0 70%;
     width: 70%;
@@ -535,6 +556,11 @@
         <option value="last_month">Last month</option>
         <option value="ytd">This year</option>
         <option value="1y">Last 1 year</option>
+        <option value="2y">Last 2 years</option>
+        <option value="3y">Last 3 years</option>
+        <option value="4y">Last 4 years</option>
+        <option value="5y">Last 5 years</option>
+        <option value="10y">Last 10 years</option>
         <option value="last_year">Last year</option>
         <option value="last_year_h1">Last year first 6 months</option>
         <option value="last_year_h2">Last year last 6 months</option>
@@ -659,5 +685,5 @@
 <script src="/static/js/metric_table_ux.js?v=21"></script>
 <script src="/static/js/resizable_data_list.js?v=7"></script>
 <script src="/static/js/pa_chart_height.js?v=13"></script>
-<script src="/static/js/assets_page.js?v=8"></script>
+<script src="/static/js/assets_page.js?v=9"></script>
 {% endblock %}

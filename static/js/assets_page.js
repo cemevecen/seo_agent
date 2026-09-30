@@ -188,9 +188,11 @@
       var ly2 = anchor.getFullYear() - 1;
       startD = new Date(ly2, 6, 1);
       endD = new Date(ly2, 11, 31);
-    } else if (p === "1y") {
+    } else if (/^\d+y$/.test(p)) {
+      // Last N years (inclusive calendar-day window; 1y ≈ 365 gün)
+      var nYears = parseInt(p, 10) || 1;
       endD = new Date(anchor.getTime());
-      startD = addDays(endD, -364);
+      startD = addDays(endD, -(365 * nYears - 1));
     } else {
       var daysMap = { "7d": 7, "14d": 14, "30d": 30, "60d": 60, "90d": 90, "180d": 180, "6m": 180 };
       var days = daysMap[p] || parseInt(p, 10) || 30;
@@ -478,10 +480,12 @@
       if (w < 8) return;
       var val = card.querySelector(".metric-kpi-ss2-value");
       var dlt = card.querySelector(".metric-kpi-ss2-delta");
+      var cmp = card.querySelector(".metric-kpi-ss2-cmp");
       var metrics = card.querySelector(".metric-kpi-ss2-metrics");
       var availVal = (metrics && metrics.clientWidth) || Math.max(8, w * 0.3);
       fitOneKpiText(val, Math.max(8, w * 0.045), Math.min(11.5, Math.max(9, availVal * 0.17)));
       fitOneKpiText(dlt, Math.max(14, w * 0.056), 18);
+      if (cmp) fitOneKpiText(cmp, Math.max(9, w * 0.04), 12);
     });
   }
   function bindMetricKpiFit(root) {
@@ -594,9 +598,7 @@
     var win = lastCompareWin;
     el.kpiGrid.innerHTML = selected.map(function (key, idx) {
       var spec = seriesByKey[key] || { label: key, unit: "" };
-      // KPI sayı / % her zaman günlük kapanıştan (breakdown yalnızca spark görseli).
-      // Previous year/period: son kapanış vs kıyas penceresi son kapanış (total_mode=last).
-      // Compare kapalı: seçili aralık getirisi (ilk → son). Depoda yoksa SeoPeriodCompare "—".
+      // Ana % = seçili aralık dönem getirisi (ilk → son kapanış). COMPARE açıksa ayrı rozet.
       var daily = pointsOf(payload, key);
       var sparkPts = aggregate(daily, breakdown);
       var cur = lastClose(daily);
@@ -607,13 +609,16 @@
       var dlt = seriesDeltaPct(daily);
       var dltCls = dlt == null ? "is-flat" : (dlt >= 0 ? "is-up" : "is-down");
       var dltTxt = dlt == null ? "—" : ((dlt >= 0 ? "↑ " : "↓ ") + Math.abs(dlt).toFixed(1) + "%");
-      var dltTitle = "Period change (first → last close)";
+      var dltTitle = "Period return (first → last close in selected range)";
+      var cmpHtml = "";
       if (mode && window.SeoPeriodCompare) {
         var cmp = buildComparePack(daily, prevDaily, mode, win);
         var kpiCmp = SeoPeriodCompare.kpiText(cmp);
-        dltTxt = kpiCmp.text;
-        dltCls = kpiCmp.cls;
-        dltTitle = kpiCmp.title || "";
+        var cmpShort = mode === "previous_year" ? "vs LY" : "vs prev";
+        cmpHtml =
+          '<p class="metric-kpi-ss2-cmp ' + kpiCmp.cls + '" title="' + esc(kpiCmp.title || "") + '">' +
+          esc(cmpShort + " " + kpiCmp.text) +
+          "</p>";
       }
       var src = spec.source_url || "#";
       var info =
@@ -635,6 +640,7 @@
             '<div class="metric-kpi-ss2-metrics">' +
               '<p class="metric-kpi-ss2-value" title="' + esc(fmtNum(cur)) + '">' + esc(fmtNum(cur)) + "</p>" +
               '<p class="metric-kpi-ss2-delta ' + dltCls + '" title="' + esc(dltTitle) + '">' + esc(dltTxt) + "</p>" +
+              cmpHtml +
             "</div>" +
             '<div class="metric-kpi-ss2-spark">' + spark + "</div>" +
           "</div>" +
