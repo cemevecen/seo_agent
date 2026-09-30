@@ -1,5 +1,7 @@
 [build]
 # GitHub webhook bu dosyayı okumalı (RAILPACK fallback /health’siz kalır).
+# ProjectControl production — PUBLIC_TAMPIQ_SITE set ETME.
+# Ayrı TAMPIQ Support service: railway.tampiq.toml + uvicorn backend.tampiq_public_app:app
 builder = "nixpacks"
 
 # PostgreSQL volume boyutu (GB) yalnızca Railway arayüzünden ayarlanır:

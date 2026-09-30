@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% set active = "support" %}
+{% block title %}{{ app_name }} — Support{% endblock %}
+{% block meta_description %}Get help with {{ app_name }}. Contact support by email.{% endblock %}
+{% block content %}
+<article class="doc">
+  <h1>Support</h1>
+  <p class="lede">Need help with {{ app_name }}? Reach us by email. We aim to respond within 2 business days.</p>
+
+  <section>
+    <h2>Contact</h2>
+    <p>Email: <a class="mail" href="mailto:{{ support_email }}">{{ support_email }}</a></p>
+    <p>Please include your device model, iOS version, and a short description of the issue. Screenshots help when something looks wrong on screen.</p>
+  </section>
+
+  <section>
+    <h2>Common questions</h2>
+    <h3>How do I report a bug?</h3>
+    <p>Send a message to <a href="mailto:{{ support_email }}">{{ support_email }}</a> with steps to reproduce the problem.</p>
+    <h3>How do I request a feature?</h3>
+    <p>Email the same address with “Feature request” in the subject line. We read every message even if we cannot build every idea.</p>
+    <h3>Account or access issues</h3>
+    <p>Describe what you expected to happen and what you saw instead. If the app shows an error message, include the exact text.</p>
+  </section>
+
+  <section>
+    <h2>Privacy</h2>
+    <p>How we handle data is described in our <a href="/privacy">Privacy Policy</a>.</p>
+  </section>
+</article>
+{% endblock %}

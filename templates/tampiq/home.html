@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% set active = "home" %}
+{% block title %}{{ app_name }} — Support & Privacy{% endblock %}
+{% block meta_description %}Public support and privacy pages for the {{ app_name }} mobile app.{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Public help center</p>
+  <h1>{{ app_name }}</h1>
+  <p class="lede">Support and privacy information for App Store users and Apple App Review. These pages are not part of any internal company dashboard.</p>
+  <div class="cta-row">
+    <a class="btn primary" href="/support">Support</a>
+    <a class="btn ghost" href="/privacy">Privacy Policy</a>
+  </div>
+</section>
+{% endblock %}

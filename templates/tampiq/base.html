@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="index,follow">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}{{ app_name }} support and privacy information.{% endblock %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Sora:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/tampiq/site.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="top">
+      <a class="brand" href="/">{{ app_name }}</a>
+      <nav class="nav" aria-label="Public">
+        <a href="/support"{% if active == 'support' %} aria-current="page"{% endif %}>Support</a>
+        <a href="/privacy"{% if active == 'privacy' %} aria-current="page"{% endif %}>Privacy</a>
+      </nav>
+    </header>
+
+    <main class="main">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="foot">
+      <p>© {{ company_name }}. Public support pages for App Store listing.</p>
+    </footer>
+  </div>
+</body>
+</html>

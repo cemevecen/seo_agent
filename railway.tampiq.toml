@@ -1,0 +1,18 @@
+# TAMPIQ public Support / Privacy — ayrı Railway service
+#
+# Railway UI:
+#   1. Aynı GitHub repo'dan yeni service: tampiq-support
+#   2. Bu dosyayı config olarak kullanın VEYA start command + env aşağıdakilerle eşleştirin
+#   3. Domain: tampiq-support.up.railway.app (veya custom)
+#
+# ProjectControl service'inde PUBLIC_TAMPIQ_SITE ASLA true olmamalı.
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "sh -lc \"export PUBLIC_TAMPIQ_SITE=true; exec uvicorn backend.tampiq_public_app:app --host 0.0.0.0 --port ${PORT:-8012}\""
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
+healthcheckPath = "/health"
+healthcheckTimeout = 60

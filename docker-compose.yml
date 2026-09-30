@@ -60,6 +60,26 @@ services:
       redis:
         condition: service_healthy
 
+  # Apple App Store public Support/Privacy — ProjectControl'dan ayrı host (lokal).
+  # http://127.0.0.1:8013/support  ·  http://127.0.0.1:8013/privacy
+  tampiq-support:
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    container_name: seo_agent_tampiq_support
+    restart: unless-stopped
+    ports:
+      - "8013:8012"
+    environment:
+      PUBLIC_TAMPIQ_SITE: "true"
+      TAMPIQ_APP_NAME: ${TAMPIQ_APP_NAME:-TAMPIQ}
+      TAMPIQ_SUPPORT_EMAIL: ${TAMPIQ_SUPPORT_EMAIL:-support@tampiq.app}
+      TAMPIQ_PRIVACY_EMAIL: ${TAMPIQ_PRIVACY_EMAIL:-support@tampiq.app}
+      TAMPIQ_COMPANY_NAME: ${TAMPIQ_COMPANY_NAME:-TAMPIQ}
+      PORT: "8012"
+    command: ["sh", "-c", "exec uvicorn backend.tampiq_public_app:app --host 0.0.0.0 --port 8012"]
+
 volumes:
   postgres_data:
   redis_data:
