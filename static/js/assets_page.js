@@ -477,18 +477,22 @@
     var win = lastCompareWin;
     el.kpiGrid.innerHTML = selected.map(function (key, idx) {
       var spec = seriesByKey[key] || { label: key, unit: "" };
-      var pts = aggregate(pointsOf(payload, key), breakdown);
-      var cur = lastClose(pts);
-      var prevPts = comparePayload ? aggregate(pointsOf(comparePayload, key), breakdown) : [];
+      // KPI sayı / % her zaman günlük kapanıştan (breakdown yalnızca spark görseli).
+      // Previous year/period: son kapanış vs kıyas penceresi son kapanış (total_mode=last).
+      // Compare kapalı: seçili aralık getirisi (ilk → son). Depoda yoksa SeoPeriodCompare "—".
+      var daily = pointsOf(payload, key);
+      var sparkPts = aggregate(daily, breakdown);
+      var cur = lastClose(daily);
+      var prevDaily = comparePayload ? pointsOf(comparePayload, key) : [];
       var color = colorFor(key, idx);
-      var spark = seriesSparkSvg(pts, color, 220, 56);
+      var spark = seriesSparkSvg(sparkPts, color, 220, 56);
       var label = spec.label || key;
-      var dlt = seriesDeltaPct(pts);
+      var dlt = seriesDeltaPct(daily);
       var dltCls = dlt == null ? "is-flat" : (dlt >= 0 ? "is-up" : "is-down");
       var dltTxt = dlt == null ? "—" : ((dlt >= 0 ? "↑ " : "↓ ") + Math.abs(dlt).toFixed(1) + "%");
-      var dltTitle = "Period change";
+      var dltTitle = "Period change (first → last close)";
       if (mode && window.SeoPeriodCompare) {
-        var cmp = buildComparePack(pts, prevPts, mode, win);
+        var cmp = buildComparePack(daily, prevDaily, mode, win);
         var kpiCmp = SeoPeriodCompare.kpiText(cmp);
         dltTxt = kpiCmp.text;
         dltCls = kpiCmp.cls;
@@ -630,7 +634,7 @@
             inner += '<path d="' + areaD + '" fill="' + color + '" fill-opacity="0.16"/>';
           }
           var linePts = coords.map(function (c) { return c.x.toFixed(1) + "," + c.y.toFixed(1); }).join(" ");
-          inner += '<polyline points="' + linePts + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+          inner += '<polyline points="' + linePts + '" fill="none" stroke="' + color + '" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round"/>';
         }
       }
       paths += '<g class="chart-series-g' + focusCls + '" data-chart-series="' + esc(key) + '">' + inner + "</g>";
