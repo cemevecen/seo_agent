@@ -114,7 +114,7 @@
   </article>
 {% endmacro %}
 
-{% set spark_pd = p.spark_period_days | default(7 if pd == 1 else pd) %}
+{% set spark_pd = p.spark_period_days | default(7 if pd == 1 else (30 if pd == 7 else pd)) %}
 {% set _kpi_ranges = p.ranges | default({}) %}
 <div
   class="w-full min-w-0"

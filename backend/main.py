@@ -3513,8 +3513,9 @@ def _search_console_report_payload(
     periods: dict[str, dict] = {}
     for period_key, pd_days, cur_lbl, prev_lbl, trend_days in (
         # 1g: tablo etiketleri aşağıda range_last/range_prev (kesin tarih) ile doldurulur
+        # 7g: KPI 7 gün; spark/chart trendi 30 gün (genel görünüm)
         ("1", 1, "Son tam gün", "Geçen haftanın aynı günü", 7),
-        ("7", 7, "Son 7 gün", "Önceki 7 gün", 7),
+        ("7", 7, "Son 7 gün", "Önceki 7 gün", 30),
         ("30", 30, "Son 30 gün", "Önceki 30 gün", 30),
         ("60", 60, "Son 60 gün", "Önceki 60 gün", 60),
         ("90", 90, "Son 90 gün", "Önceki 90 gün", 90),
@@ -3566,7 +3567,16 @@ def _search_console_report_payload(
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
                 pages_current = _filter_search_console_rows_by_device(current_pages_7, device_code)
                 pages_previous = _filter_search_console_rows_by_device(previous_pages_7, device_code)
-                chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
+                # Spark/chart: 30g genel görünüm — 12ay serisinden dilim; yoksa 28g
+                base_7_spark = _sanitize_search_console_trend(
+                    trend_12m_by_device.get(device_code)
+                    or {**empty_trend, "mode": "last_12m"}
+                )
+                chart_trend = _slice_search_console_trend_last_days(base_7_spark, trend_days)
+                if not _search_console_trend_has_signal(chart_trend):
+                    chart_trend = _slice_search_console_trend_last_days(
+                        base_trend, min(trend_days, len(base_trend.get("dates") or []) or trend_days)
+                    )
                 range_last = _format_sc_tr_date_range(*range_7_last)
                 range_prev = _format_sc_tr_date_range(*range_7_prev)
             elif period_key == "30":
@@ -3675,7 +3685,7 @@ def _search_console_report_payload(
             _lp = prev_lbl
         periods[period_key] = {
             "period_days": pd_days,
-            "spark_period_days": 7 if pd_days == 1 else pd_days,
+            "spark_period_days": _sc_spark_period_days(pd_days),
             "heading": _heading,
             "subtitle": _subtitle,
             "label_current": _lc,
@@ -15074,11 +15084,23 @@ _GA4_DAILY_TREND_METRICS = (
 )
 
 def _ga4_spark_period_days(period_days: int) -> int:
-    """KPI mini spark çubuk sayısı: 1g KPI kartında da son 7 gün trendi."""
+    """KPI mini spark gün sayısı — KPI döneminden bağımsız daha geniş trend.
+
+    - 1g KPI → son 7 gün spark
+    - 7g KPI → son 30 gün spark (genel görünüm)
+    - diğer → KPI ile aynı uzunluk
+    """
     pd = int(period_days) if int(period_days) > 0 else 7
     if pd == 1:
         return 7
+    if pd == 7:
+        return 30
     return pd
+
+
+def _sc_spark_period_days(period_days: int) -> int:
+    """Search Console KPI spark — GA4 ile aynı kural."""
+    return _ga4_spark_period_days(period_days)
 
 
 def _ga4_empty_daily_trend_dict() -> dict:

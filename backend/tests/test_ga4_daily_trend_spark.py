@@ -50,9 +50,16 @@ def test_ga4_spark_period_days_1d_uses_week():
     from backend.main import _ga4_spark_period_days
 
     assert _ga4_spark_period_days(1) == 7
-    assert _ga4_spark_period_days(7) == 7
+    assert _ga4_spark_period_days(7) == 30
     assert _ga4_spark_period_days(30) == 30
+    assert _ga4_spark_period_days(90) == 90
 
+
+def test_sc_spark_period_days_matches_ga4():
+    from backend.main import _ga4_spark_period_days, _sc_spark_period_days
+
+    for pd in (1, 7, 30, 60, 90):
+        assert _sc_spark_period_days(pd) == _ga4_spark_period_days(pd)
 
 def test_daily_trends_for_ui_spark_window(monkeypatch):
     class _Snap:
@@ -91,8 +98,11 @@ def test_daily_trends_for_ui_spark_window(monkeypatch):
     _daily, spark = _ga4_daily_trends_for_ui(
         None, site_id=1, profile="web", period_daily=period, period_days=7
     )
-    assert len(spark["dates"]) == 7
-    assert spark["newUsers"] == [5.0] * 7
+    # 7g KPI → spark son 30 gün
+    assert len(spark["dates"]) == 30
+    assert spark["newUsers"] == [5.0] * 30
+    # Seçili 7g penceresindeki sessions overlay ile taze
+    assert spark["sessions"][-7:] == [2.0] * 7
 
 
 def test_daily_trends_for_ui_spark_window_1d(monkeypatch):
