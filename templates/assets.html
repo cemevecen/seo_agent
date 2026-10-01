@@ -681,8 +681,8 @@
       </div>
       <div id="as-chart-wrap" class="relative overflow-visible" data-chart-height="2" data-chart-compress="1">
         <svg id="as-chart" viewBox="0 0 720 260" class="block w-full max-w-none select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Assets chart"></svg>
-        <div id="as-tooltip" class="pointer-events-none absolute z-40 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
-          <p id="as-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
+        <div id="as-tooltip" class="absolute z-40 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] overflow-y-auto overscroll-contain rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none;pointer-events:auto">
+          <p id="as-tip-title" class="sticky top-0 z-[1] break-words bg-white/95 pb-0.5 text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:bg-zinc-900/95 dark:text-zinc-300"></p>
           <div id="as-tip-body" class="mt-1.5 space-y-0.5 text-[11px]"></div>
         </div>
       </div>
@@ -717,5 +717,5 @@
 <script src="/static/js/metric_table_ux.js?v=22"></script>
 <script src="/static/js/resizable_data_list.js?v=7"></script>
 <script src="/static/js/pa_chart_height.js?v=13"></script>
-<script src="/static/js/assets_page.js?v=11"></script>
+<script src="/static/js/assets_page.js?v=12"></script>
 {% endblock %}

@@ -894,13 +894,36 @@
         var d = dates[idx];
         showTip(ev, d, seriesMap);
       });
-      hit.addEventListener("mouseleave", hideTip);
+      hit.addEventListener("mouseleave", function (ev) {
+        // Tip pointer-events:auto — imleç tip'e geçerken hemen kapatma
+        if (el.tip && ev.relatedTarget && el.tip.contains(ev.relatedTarget)) return;
+        scheduleHideTip();
+      });
     }
     if (typeof window.paSyncChartLayout === "function") window.paSyncChartLayout();
   }
 
+  var tipHideTimer = null;
+  var tipPointerInside = false;
+
+  function cancelHideTip() {
+    if (tipHideTimer) {
+      clearTimeout(tipHideTimer);
+      tipHideTimer = null;
+    }
+  }
+
+  function scheduleHideTip() {
+    cancelHideTip();
+    tipHideTimer = setTimeout(function () {
+      tipHideTimer = null;
+      if (!tipPointerInside) hideTip();
+    }, 160);
+  }
+
   function showTip(ev, dateKey, seriesMap) {
     if (!el.tip || !el.chartWrap) return;
+    cancelHideTip();
     el.tip.classList.remove("hidden");
     if (el.tipTitle) el.tipTitle.textContent = dateKey;
     var lines = selected.map(function (key, idx) {
@@ -915,7 +938,12 @@
         '<span class="flex-1 truncate">' + esc(spec.label || key) + '</span>' +
         '<span class="tabular-nums font-bold">' + (found ? fmtNum(found.value) : "—") + "</span></div>";
     });
+    var dateChanged = el.tip.getAttribute("data-tip-date") !== String(dateKey);
     if (el.tipBody) el.tipBody.innerHTML = lines.join("");
+    if (dateChanged) {
+      el.tip.setAttribute("data-tip-date", String(dateKey));
+      el.tip.scrollTop = 0;
+    }
 
     // Android ile aynı: ölçüldükten sonra imlecin üstüne / kenarlara yasla;
     // sabit 120px varsayımı uzun listelerde popup'ı grafik altına taşıyordu.
@@ -927,9 +955,15 @@
     el.tip.style.maxWidth = maxTipW + "px";
     el.tip.style.maxHeight = maxTipH + "px";
     el.tip.style.overflowY = "auto";
+    el.tip.style.overscrollBehavior = "contain";
+    el.tip.style.pointerEvents = "auto";
     el.tip.style.transform = "none";
     var tipW = Math.min(maxTipW, Math.max(el.tip.offsetWidth || 0, 140));
     var tipH = Math.min(maxTipH, Math.max(el.tip.offsetHeight || 0, 48));
+    // Tip üzerinde scroll ederken pozisyonu sabitle (mousemove ile zıplamasın)
+    if (tipPointerInside) {
+      return;
+    }
     var x = ev.clientX - wrapRect.left;
     var y = ev.clientY - wrapRect.top;
     var left = x - tipW / 2;
@@ -941,7 +975,12 @@
     el.tip.style.top = top + "px";
   }
   function hideTip() {
-    if (el.tip) el.tip.classList.add("hidden");
+    cancelHideTip();
+    tipPointerInside = false;
+    if (el.tip) {
+      el.tip.classList.add("hidden");
+      el.tip.removeAttribute("data-tip-date");
+    }
   }
 
   function fitDataList(rowCount) {
@@ -1184,6 +1223,39 @@
   if (el.run) el.run.addEventListener("click", run);
   if (el.breakdown) el.breakdown.addEventListener("change", refreshViews);
   if (el.compare) el.compare.addEventListener("change", run);
+  if (el.tip) {
+    el.tip.addEventListener("mouseenter", function () {
+      tipPointerInside = true;
+      cancelHideTip();
+    });
+    el.tip.addEventListener("mouseleave", function (ev) {
+      tipPointerInside = false;
+      // Grafiğe geri dönüyorsa tip açık kalsın; mousemove yeniler
+      if (el.chart && ev.relatedTarget && el.chart.contains(ev.relatedTarget)) {
+        cancelHideTip();
+        return;
+      }
+      scheduleHideTip();
+    });
+    // Popup üzerindeyken tekerlek sayfaya gitmesin — tip scroll
+    el.tip.addEventListener(
+      "wheel",
+      function (ev) {
+        tipPointerInside = true;
+        cancelHideTip();
+        var node = el.tip;
+        var before = node.scrollTop;
+        node.scrollTop += ev.deltaY;
+        // Her durumda sayfa kaymasını engelle (uçta da)
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (node.scrollTop === before && ev.deltaY !== 0) {
+          // Uçta: yine de sayfayı kaydırma (kullanıcı popup'ta)
+        }
+      },
+      { passive: false }
+    );
+  }
   if (el.metricTrigger) {
     el.metricTrigger.addEventListener("click", function (e) {
       e.stopPropagation();
