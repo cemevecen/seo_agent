@@ -1195,7 +1195,10 @@
     el.metricList.addEventListener("click", function (e) {
       var btn = e.target.closest("[data-as-key], [data-as-clear]");
       if (!btn) return;
+      // Liste rebuild e.target'i DOM'dan düşürür; bubble document'e gidince
+      // "dışarı tık" sanılıp dropdown kapanıyordu — çoklu seçim için durdur.
       e.preventDefault();
+      e.stopPropagation();
       if (btn.getAttribute("data-as-clear")) {
         selected = [];
       } else {
@@ -1205,7 +1208,9 @@
         else selected.push(key);
       }
       updateMetricTrigger();
+      var scrollTop = el.metricScroll ? el.metricScroll.scrollTop : 0;
       buildMetricList();
+      if (el.metricScroll) el.metricScroll.scrollTop = scrollTop;
     });
   }
   document.addEventListener("click", function (e) {
