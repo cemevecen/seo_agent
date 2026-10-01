@@ -471,16 +471,13 @@ def run_shots(
     ingest: bool = True,
     headed: bool | None = None,
 ) -> dict[str, Any]:
-    from backend.services.scrape_browser import (
-        acquire_persistent_context,
-        google_profile_dir,
-        release_persistent_context,
-    )
-
     cwv_mod = _load_cwv_scrape()
     PROPERTIES = cwv_mod.PROPERTIES
     GscNeedsSystemLogin = cwv_mod.GscNeedsSystemLogin
     system_firefox_login = cwv_mod._system_firefox_gsc_login
+    ensure_session = cwv_mod._ensure_google_session_before_browser
+    launch_ctx = cwv_mod._launch_context
+    release_ctx = cwv_mod._release_context
 
     sk = (site_filter or "").strip().lower()
     props = PROPERTIES
@@ -492,21 +489,24 @@ def run_shots(
     if headed is None:
         headed = True
 
-    profile = google_profile_dir()
     captures: list[dict[str, Any]] = []
     login_retried = False
 
-    def _launch():
-        return acquire_persistent_context(
-            "gsc-cwv",
-            profile=profile,
-            headed=headed,
-            env_key="GSC_CWV_KEEP_OPEN",
-            label="GSC CWV shots",
-            locale="en-US",
-        )
+    # Nightly hiç açılmasın: oturum yoksa önce gerçek Firefox login
+    pre = ensure_session(headed=headed)
+    if isinstance(pre, dict) and not pre.get("ok"):
+        return {
+            "ok": False,
+            "needs_login": True,
+            "kind": "gsc_cwv_shots",
+            "message": pre.get("message")
+            or "GSC CWV login gerekli — gerçek Firefox.app ile giriş",
+            "results": captures,
+        }
+    if isinstance(pre, dict) and pre.get("ok"):
+        login_retried = True
 
-    pw, ctx, _reused = _launch()
+    pw, ctx, selenium = launch_ctx(headed=headed)
     try:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         prop_i = 0
@@ -514,6 +514,9 @@ def run_shots(
             prop = props[prop_i]
             try:
                 cap = capture_property_shots(page, prop, cwv_mod)
+                paths = cap.get("paths") or {}
+                png_n = sum(1 for p in paths.values() if Path(str(p)).is_file() and Path(str(p)).stat().st_size > 1000)
+                print(f"  · shot files · {cap.get('site_key')}: {png_n}/{len(paths)}", flush=True)
                 if ingest:
                     cap["kpi_ingest"] = post_kpi_snapshot(cap)
                     print(
@@ -541,21 +544,14 @@ def run_shots(
                     )
                     print(f"CWV shots login gerekli: {exc}", flush=True)
                     break
-                print(f"CWV shots → sistem Firefox: {exc}", flush=True)
+                print(f"CWV shots → sistem Firefox login (Nightly yok): {exc}", flush=True)
                 try:
-                    release_persistent_context(
-                        "gsc-cwv",
-                        pw,
-                        ctx,
-                        headed=headed,
-                        env_key="GSC_CWV_KEEP_OPEN",
-                        label="GSC CWV shots",
-                        profile=profile,
-                    )
+                    release_ctx(pw, ctx, headed=headed, selenium=selenium)
                 except Exception:
                     pass
                 pw = ctx = None
                 page = None
+                selenium = False
                 login_res = system_firefox_login()
                 if not login_res.get("ok"):
                     return {
@@ -567,10 +563,9 @@ def run_shots(
                         "results": captures,
                     }
                 login_retried = True
-                pw, ctx, _reused = _launch()
+                pw, ctx, selenium = launch_ctx(headed=headed)
                 page = ctx.pages[0] if ctx.pages else ctx.new_page()
-                print("GSC giriş OK — CWV shot tarama devam ediyor.", flush=True)
-                # Aynı property'yi tekrar dene
+                print("GSC giriş OK — Selenium Firefox ile CWV shot devam.", flush=True)
             except Exception as exc:  # noqa: BLE001
                 captures.append(
                     {
@@ -583,15 +578,7 @@ def run_shots(
                 prop_i += 1
     finally:
         if pw is not None and ctx is not None:
-            release_persistent_context(
-                "gsc-cwv",
-                pw,
-                ctx,
-                headed=headed,
-                env_key="GSC_CWV_KEEP_OPEN",
-                label="GSC CWV shots",
-                profile=profile,
-            )
+            release_ctx(pw, ctx, headed=headed, selenium=selenium)
 
     ok_n = sum(
         1
@@ -604,6 +591,7 @@ def run_shots(
         "captures": len(captures),
         "ok_captures": ok_n,
         "message": f"{ok_n}/{len(captures)} CWV shot set OK",
+        "browser": "system_firefox_selenium" if headed else "playwright",
         "results": captures,
     }
 

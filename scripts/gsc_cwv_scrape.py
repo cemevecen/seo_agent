@@ -439,20 +439,61 @@ def _clear_profile_locks(profile_dir: Path) -> None:
 
 
 def _launch_context(*, headed: bool):
+    """(pw, context, selenium).
+
+    Headed: asla Playwright Nightly — Google reddeder. Gerçek Firefox.app (Selenium).
+    Headless: Playwright (CI).
+    """
+    if headed:
+        from backend.services.scrape_browser import (
+            resolve_system_firefox_executable,
+            warm_session_forget_profile,
+        )
+        from backend.services.selenium_playwright_shim import launch_selenium_context
+
+        if not resolve_system_firefox_executable():
+            raise RuntimeError(
+                "GSC CWV headed için /Applications/Firefox.app gerekli "
+                "(Playwright Nightly Google girişinde reddediliyor)."
+            )
+        try:
+            warm_session_forget_profile(PROFILE_DIR)
+        except Exception:
+            pass
+        # Keep-open ile GSC_CWV_KEEP_OPEN uyumu
+        if (os.environ.get("GSC_CWV_KEEP_OPEN") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ):
+            os.environ.setdefault("SELENIUM_KEEP_OPEN", "1")
+        pw, context, _attached = launch_selenium_context(PROFILE_DIR, headed=True)
+        print(
+            "GSC CWV: sistem Firefox.app (Selenium) · Playwright Nightly YOK",
+            flush=True,
+        )
+        return pw, context, True
+
     from backend.services.scrape_browser import acquire_persistent_context
 
     pw, context, _reused = acquire_persistent_context(
         "gsc-cwv",
         profile=PROFILE_DIR,
-        headed=headed,
+        headed=False,
         env_key="GSC_CWV_KEEP_OPEN",
         label="GSC CWV",
-        locale="en-US"
+        locale="en-US",
     )
-    return pw, context
+    return pw, context, False
 
 
-def _release_context(pw, context, *, headed: bool = True) -> None:
+def _release_context(pw, context, *, headed: bool = True, selenium: bool = False) -> None:
+    if selenium or getattr(context, "_selenium_mode", False):
+        from backend.services.selenium_playwright_shim import release_selenium_context
+
+        release_selenium_context(pw, context)
+        return
     from backend.services.scrape_browser import release_persistent_context
 
     release_persistent_context(
@@ -464,6 +505,26 @@ def _release_context(pw, context, *, headed: bool = True) -> None:
         label="GSC CWV",
         profile=PROFILE_DIR,
     )
+
+
+def _ensure_google_session_before_browser(*, headed: bool) -> dict[str, Any] | None:
+    """Nightly açmadan önce: oturum yoksa doğrudan sistem Firefox login.
+
+    None → oturum var / headed değil, devam.
+    dict → login sonucu (ok False ise çağıran dönmeli).
+    """
+    if not headed:
+        return None
+    from backend.services.system_firefox_driver import google_profile_has_session
+
+    if google_profile_has_session(PROFILE_DIR):
+        print("GSC CWV: profilde Google oturumu var — login atlandı", flush=True)
+        return None
+    print(
+        "GSC CWV: Google oturumu yok — Playwright Nightly açılmadan gerçek Firefox.app",
+        flush=True,
+    )
+    return _system_firefox_gsc_login()
 
 
 def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
@@ -2649,9 +2710,20 @@ def run_sync(
     if not props:
         return {"ok": False, "message": f"site bulunamadı: {site_filter}"}
 
-    pw, context = _launch_context(headed=headed)
+    pre = _ensure_google_session_before_browser(headed=headed)
+    if isinstance(pre, dict) and not pre.get("ok"):
+        return {
+            "ok": False,
+            "needs_login": True,
+            "snapshots": 0,
+            "ok_snapshots": 0,
+            "message": pre.get("message")
+            or "GSC CWV login gerekli — gerçek Firefox.app ile --login",
+        }
+
+    pw, context, selenium = _launch_context(headed=headed)
     snapshots: list[dict[str, Any]] = []
-    login_retried = False
+    login_retried = bool(isinstance(pre, dict) and pre.get("ok"))
     try:
         page = context.pages[0] if context.pages else context.new_page()
         # Tek seferlik oturum kapısı — giriş bitince tüm property'ler taranır
@@ -2675,11 +2747,12 @@ def run_sync(
                 }
             print(f"Login gate → sistem Firefox: {exc}", flush=True)
             try:
-                _release_context(pw, context, headed=headed)
+                _release_context(pw, context, headed=headed, selenium=selenium)
             except Exception:
                 pass
             pw = context = None
             page = None
+            selenium = False
             login_res = _system_firefox_gsc_login()
             if not login_res.get("ok"):
                 return {
@@ -2691,7 +2764,7 @@ def run_sync(
                     or "GSC CWV login gerekli — gerçek Firefox.app ile --login",
                 }
             login_retried = True
-            pw, context = _launch_context(headed=headed)
+            pw, context, selenium = _launch_context(headed=headed)
             page = context.pages[0] if context.pages else context.new_page()
             try:
                 page.goto(_cwv_url(gate["resource_id"]), wait_until="domcontentloaded", timeout=120_000)
@@ -2742,7 +2815,7 @@ def run_sync(
                 )
     finally:
         if pw is not None and context is not None:
-            _release_context(pw, context, headed=headed)
+            _release_context(pw, context, headed=headed, selenium=selenium)
 
     ok_snaps = [s for s in snapshots if isinstance(s, dict) and not s.get("error")]
     payload = {

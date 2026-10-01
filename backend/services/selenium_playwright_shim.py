@@ -141,7 +141,16 @@ class SeleniumLocator:
         return SeleniumLocator(self._page, elements=[])
 
     def locator(self, css: str) -> SeleniumLocator:
-        nested: list[Any] = []
+        raw = (css or "").strip()
+        if raw.startswith("xpath="):
+            nested: list[Any] = []
+            for el in self._resolve():
+                try:
+                    nested.extend(el.find_elements("xpath", raw[6:]))
+                except Exception:
+                    continue
+            return SeleniumLocator(self._page, elements=nested)
+        nested = []
         for el in self._resolve():
             try:
                 nested.extend(el.find_elements("css selector", css))
@@ -163,14 +172,53 @@ class SeleniumLocator:
             return ""
         return (els[0].text or "").strip()
 
-    def is_visible(self) -> bool:
+    def is_visible(self, timeout: int | float | None = None) -> bool:
+        if timeout is not None:
+            deadline = time.time() + _norm_timeout_ms(timeout, default=1500)
+            while time.time() < deadline:
+                if self._visible_now():
+                    return True
+                time.sleep(0.12)
+            return False
+        return self._visible_now()
+
+    def _visible_now(self) -> bool:
         els = self._resolve()
         if not els:
             return False
         try:
-            return els[0].is_displayed()
+            return bool(els[0].is_displayed())
         except Exception:
             return False
+
+    def wait_for(self, *, state: str = "visible", timeout: int | float = 30_000) -> None:
+        deadline = time.time() + _norm_timeout_ms(timeout, default=30_000)
+        while time.time() < deadline:
+            if state == "visible" and self._visible_now():
+                return
+            if state in ("attached", "detached") and self.count() > 0 and state == "attached":
+                return
+            if state == "hidden" and not self._visible_now():
+                return
+            time.sleep(0.12)
+        raise TimeoutError(f"locator.wait_for({state}) timeout")
+
+    def screenshot(
+        self,
+        *,
+        path: str | None = None,
+        type: str = "png",
+        **_: Any,
+    ) -> bytes:
+        _ = type
+        els = self._resolve()
+        if not els:
+            raise RuntimeError("locator.screenshot: element yok")
+        png = els[0].screenshot_as_png
+        if path:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            Path(path).write_bytes(png)
+        return png
 
     def scroll_into_view_if_needed(self, *, timeout: int | float | None = None) -> None:
         _ = timeout
@@ -492,7 +540,36 @@ class SeleniumPage:
             time.sleep(0.2)
         raise TimeoutError(f"wait_for_selector timeout: {selector}")
 
+    def screenshot(
+        self,
+        *,
+        path: str | None = None,
+        full_page: bool = False,
+        type: str = "png",
+        **_: Any,
+    ) -> bytes:
+        """Playwright page.screenshot uyumu — GSC CWV shot ingest için."""
+        _ = full_page, type
+        png = self._driver.get_screenshot_as_png()
+        if path:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            Path(path).write_bytes(png)
+        return png
+
     def locator(self, css: str) -> SeleniumLocator:
+        raw = (css or "").strip()
+        # Playwright text=/xpath= kısayolları
+        if raw.startswith("text="):
+            return self.get_by_text(raw[5:])
+        if raw.startswith("text=/") and raw.endswith("/i"):
+            body = raw[6:-2]
+            return self.get_by_text(re.compile(body, re.I))
+        if raw.startswith("xpath="):
+            try:
+                els = self._driver.find_elements("xpath", raw[6:])
+            except Exception:
+                els = []
+            return SeleniumLocator(self, elements=els)
         return SeleniumLocator(self, css=css)
 
     def get_by_role(
