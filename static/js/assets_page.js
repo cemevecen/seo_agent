@@ -52,6 +52,8 @@
     metricScroll: document.getElementById("as-metric-list-scroll"),
     tip: document.getElementById("as-tooltip"),
     tipTitle: document.getElementById("as-tip-title"),
+    tipDate: document.getElementById("as-tip-date"),
+    tipWeekend: document.getElementById("as-tip-weekend"),
     tipBody: document.getElementById("as-tip-body"),
     chartStyleRoot: document.getElementById("as-chart-style"),
   };
@@ -973,11 +975,24 @@
     }, 160);
   }
 
+  function isWeekendDate(dateKey) {
+    var d = parseIso(dateKey);
+    if (!d) return false;
+    var day = d.getDay();
+    return day === 0 || day === 6;
+  }
+
   function showTip(ev, dateKey, seriesMap) {
     if (!el.tip || !el.chartWrap) return;
     cancelHideTip();
     el.tip.classList.remove("hidden");
-    if (el.tipTitle) el.tipTitle.textContent = dateKey;
+    if (el.tipDate) el.tipDate.textContent = dateKey;
+    else if (el.tipTitle) el.tipTitle.textContent = dateKey;
+    if (el.tipWeekend) {
+      var weekend = isWeekendDate(dateKey);
+      el.tipWeekend.classList.toggle("hidden", !weekend);
+      el.tipWeekend.setAttribute("aria-hidden", weekend ? "false" : "true");
+    }
     var lines = selected.map(function (key, idx) {
       var pts = seriesMap[key] || [];
       var found = null;
