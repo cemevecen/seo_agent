@@ -603,6 +603,95 @@
   html.charcoal #as-table-shell {
     background: #18181b;
   }
+
+  .as-tip-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .as-tip-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .as-tip-val {
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+
+  /* mweb / dar ekran */
+  @media (max-width: 640px) {
+    .as-filters {
+      gap: 0.5rem 0.55rem;
+    }
+    .as-filters > label.as-f--date,
+    .as-filters > label.as-f--sm {
+      flex: 1 1 calc(50% - 0.35rem);
+      min-width: 0;
+    }
+    .as-filters > label.as-f--metric {
+      flex: 1 1 100%;
+    }
+    .as-filters input[type="date"],
+    .as-filters select {
+      font-size: 16px; /* iOS zoom önleme */
+      padding: 0.45rem 0.55rem;
+    }
+    .as-metric-trigger {
+      min-height: 2.5rem;
+      font-size: 13px;
+    }
+    #as-kpi-grid.metric-kpi-grid--ss2 {
+      gap: 0.45rem;
+    }
+    #as-kpi-grid.metric-kpi-grid--ss2[data-kpi-mweb="1"] {
+      grid-template-columns: repeat(var(--kpi-n, 2), minmax(0, 1fr));
+    }
+    #as-chart {
+      touch-action: pan-y;
+    }
+    #as-tooltip {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      max-width: calc(100vw - 1rem) !important;
+      width: calc(100% - 1rem) !important;
+      font-size: 11px;
+    }
+    .as-tip-title {
+      gap: 0.35rem 0.5rem;
+      font-size: 10px;
+    }
+    .as-tip-weekend {
+      font-size: clamp(0.48rem, 3.2vw, 0.58rem);
+      padding: 0.05rem 0.32rem;
+      letter-spacing: 0.03em;
+    }
+    .as-tip-row {
+      gap: 0.35rem;
+    }
+    .as-tip-name {
+      font-size: 10px;
+    }
+    .as-tip-val {
+      font-size: 10px;
+      max-width: 42%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #as-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #as-legend {
+      gap: 0.45rem 0.65rem;
+      max-width: 100%;
+    }
+  }
 </style>
 
 <section class="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-900/50 dark:bg-slate-900">
@@ -728,7 +817,7 @@
         </div>
       </div>
       <div id="as-chart-wrap" class="relative overflow-visible" data-chart-height="2" data-chart-compress="1">
-        <svg id="as-chart" viewBox="0 0 720 260" class="block w-full max-w-none select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Assets chart"></svg>
+        <svg id="as-chart" viewBox="0 0 720 260" class="block w-full max-w-none touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Assets chart"></svg>
         <div id="as-tooltip" class="absolute z-40 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] overflow-y-auto overscroll-contain rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none;pointer-events:auto">
           <p id="as-tip-title" class="as-tip-title sticky top-0 z-[1] flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 bg-white/95 pb-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:bg-zinc-900/95 dark:text-zinc-300">
             <span id="as-tip-date" class="as-tip-date tabular-nums"></span>
@@ -768,5 +857,5 @@
 <script src="/static/js/metric_table_ux.js?v=23"></script>
 <script src="/static/js/resizable_data_list.js?v=7"></script>
 <script src="/static/js/pa_chart_height.js?v=13"></script>
-<script src="/static/js/assets_page.js?v=16"></script>
+<script src="/static/js/assets_page.js?v=17"></script>
 {% endblock %}

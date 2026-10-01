@@ -488,13 +488,28 @@
     );
   }
 
+  function isMwebViewport() {
+    return (window.innerWidth || 0) < 640;
+  }
+
   function applyKpiLayout(n) {
     if (!el.kpiGrid) return;
     el.kpiGrid.className = "metric-kpi-grid metric-kpi-grid--ss2";
     el.kpiGrid.style.removeProperty("grid-template-columns");
-    var cols = n >= 9 ? Math.ceil(n / 2) : Math.max(n, 1);
+    var vw = window.innerWidth || 1200;
+    var mweb = vw < 640;
+    var cols;
+    if (mweb) {
+      // Telefon: en fazla 2 sütun — 15 kart yan yana okunmaz
+      cols = Math.min(2, Math.max(n, 1));
+    } else if (vw < 900) {
+      cols = n >= 6 ? Math.min(4, Math.ceil(n / 2)) : Math.max(n, 1);
+    } else {
+      cols = n >= 9 ? Math.ceil(n / 2) : Math.max(n, 1);
+    }
     el.kpiGrid.style.setProperty("--kpi-n", String(Math.max(cols, 1)));
     el.kpiGrid.setAttribute("data-kpi-count", String(n));
+    el.kpiGrid.setAttribute("data-kpi-mweb", mweb ? "1" : "0");
     var density = n <= 4 ? "roomy" : n <= 8 ? "normal" : n <= 14 ? "dense" : "packed";
     el.kpiGrid.setAttribute("data-kpi-density", density);
   }
@@ -939,20 +954,39 @@
 
     var hit = document.getElementById("as-hit");
     if (hit) {
-      hit.addEventListener("mousemove", function (ev) {
+      function tipFromClient(clientX, clientY) {
         if (!dates.length) return;
         var rect = el.chart.getBoundingClientRect();
-        var mx = ((ev.clientX - rect.left) / rect.width) * W;
+        var mx = ((clientX - rect.left) / rect.width) * W;
         var ratio = (mx - padL) / plotW;
         var idx = Math.round(Math.max(0, Math.min(1, ratio)) * (dates.length - 1));
-        var d = dates[idx];
-        showTip(ev, d, seriesMap);
+        showTip({ clientX: clientX, clientY: clientY }, dates[idx], seriesMap);
+      }
+      hit.addEventListener("mousemove", function (ev) {
+        tipFromClient(ev.clientX, ev.clientY);
       });
       hit.addEventListener("mouseleave", function (ev) {
         // Tip pointer-events:auto — imleç tip'e geçerken hemen kapatma
         if (el.tip && ev.relatedTarget && el.tip.contains(ev.relatedTarget)) return;
         scheduleHideTip();
       });
+      // mweb: parmakla tip + weekend etiketi
+      hit.addEventListener(
+        "touchstart",
+        function (ev) {
+          if (!ev.touches || !ev.touches[0]) return;
+          tipFromClient(ev.touches[0].clientX, ev.touches[0].clientY);
+        },
+        { passive: true }
+      );
+      hit.addEventListener(
+        "touchmove",
+        function (ev) {
+          if (!ev.touches || !ev.touches[0]) return;
+          tipFromClient(ev.touches[0].clientX, ev.touches[0].clientY);
+        },
+        { passive: true }
+      );
     }
     if (typeof window.paSyncChartLayout === "function") window.paSyncChartLayout();
   }
@@ -999,11 +1033,11 @@
       for (var i = 0; i < pts.length; i++) if (pts[i].key === dateKey) { found = pts[i]; break; }
       var spec = seriesByKey[key] || { label: key };
       var c = colorFor(key, idx);
-      return '<div class="flex items-center gap-2">' +
+      return '<div class="as-tip-row">' +
         iconHtml(spec, "as-icon as-icon--xs") +
-        '<span class="h-2 w-2 rounded-full" style="background:' + c + '"></span>' +
-        '<span class="flex-1 truncate">' + esc(spec.label || key) + '</span>' +
-        '<span class="tabular-nums font-bold" title="' +
+        '<span class="h-2 w-2 shrink-0 rounded-full" style="background:' + c + '"></span>' +
+        '<span class="as-tip-name">' + esc(spec.label || key) + '</span>' +
+        '<span class="as-tip-val" title="' +
           esc(found ? fmtNumFull(found.value) : "") + '">' +
           (found ? fmtNum(found.value) : "—") + "</span></div>";
     });
@@ -1015,31 +1049,46 @@
     }
 
     // Android ile aynı: ölçüldükten sonra imlecin üstüne / kenarlara yasla;
-    // sabit 120px varsayımı uzun listelerde popup'ı grafik altına taşıyordu.
+    // mweb'de neredeyse tam genişlik + alt hizalı sheet.
     var wrapRect = el.chartWrap.getBoundingClientRect();
     var pad = 8;
-    var maxTipW = Math.max(160, Math.min(360, wrapRect.width - pad * 2));
-    var maxTipH = Math.max(64, wrapRect.height - pad * 2);
-    el.tip.style.width = "max-content";
+    var mweb = isMwebViewport();
+    var maxTipW = mweb
+      ? Math.max(180, wrapRect.width - pad * 2)
+      : Math.max(160, Math.min(360, wrapRect.width - pad * 2));
+    var maxTipH = mweb
+      ? Math.max(120, Math.min(wrapRect.height * 0.78, (window.innerHeight || 640) * 0.48))
+      : Math.max(64, wrapRect.height - pad * 2);
+    el.tip.style.width = mweb ? maxTipW + "px" : "max-content";
     el.tip.style.maxWidth = maxTipW + "px";
     el.tip.style.maxHeight = maxTipH + "px";
     el.tip.style.overflowY = "auto";
     el.tip.style.overscrollBehavior = "contain";
     el.tip.style.pointerEvents = "auto";
+    el.tip.style.webkitOverflowScrolling = "touch";
     el.tip.style.transform = "none";
-    var tipW = Math.min(maxTipW, Math.max(el.tip.offsetWidth || 0, 140));
+    var tipW = Math.min(maxTipW, Math.max(el.tip.offsetWidth || 0, mweb ? maxTipW : 140));
     var tipH = Math.min(maxTipH, Math.max(el.tip.offsetHeight || 0, 48));
     // Tip üzerinde scroll ederken pozisyonu sabitle (mousemove ile zıplamasın)
     if (tipPointerInside) {
       return;
     }
-    var x = ev.clientX - wrapRect.left;
-    var y = ev.clientY - wrapRect.top;
-    var left = x - tipW / 2;
-    var top = y - tipH - 14;
-    if (top < pad) top = Math.min(wrapRect.height - tipH - pad, y + 18);
-    left = Math.max(pad, Math.min(wrapRect.width - tipW - pad, left));
-    top = Math.max(pad, Math.min(Math.max(pad, wrapRect.height - tipH - pad), top));
+    var left;
+    var top;
+    if (mweb) {
+      left = pad;
+      tipW = maxTipW;
+      el.tip.style.width = tipW + "px";
+      top = Math.max(pad, wrapRect.height - tipH - pad);
+    } else {
+      var x = ev.clientX - wrapRect.left;
+      var y = ev.clientY - wrapRect.top;
+      left = x - tipW / 2;
+      top = y - tipH - 14;
+      if (top < pad) top = Math.min(wrapRect.height - tipH - pad, y + 18);
+      left = Math.max(pad, Math.min(wrapRect.width - tipW - pad, left));
+      top = Math.max(pad, Math.min(Math.max(pad, wrapRect.height - tipH - pad), top));
+    }
     el.tip.style.left = left + "px";
     el.tip.style.top = top + "px";
   }
@@ -1367,6 +1416,14 @@
   });
   window.addEventListener("resize", function () {
     if (el.metricList && !el.metricList.classList.contains("hidden")) positionMetricDropdown();
+    if (selected.length && el.kpiGrid) {
+      applyKpiLayout(selected.length);
+      if (_kpiFitRaf) cancelAnimationFrame(_kpiFitRaf);
+      _kpiFitRaf = requestAnimationFrame(function () {
+        _kpiFitRaf = 0;
+        fitMetricKpiValues(el.kpiGrid);
+      });
+    }
   });
 
   if (el.chartStyleRoot) {
