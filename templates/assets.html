@@ -309,7 +309,7 @@
   }
   .metric-kpi-ss2-value {
     margin: 0;
-    font-size: clamp(0.36rem, 8cqi, 0.725rem);
+    font-size: clamp(0.42rem, 8cqi, 0.725rem);
     font-weight: 800;
     letter-spacing: -0.03em;
     line-height: 1.05;
@@ -324,7 +324,7 @@
   html.charcoal .metric-kpi-ss2-value { color: #fff; }
   .metric-kpi-ss2-delta {
     margin: 0;
-    font-size: clamp(0.875rem, 8.5cqi, 1.125rem);
+    font-size: clamp(0.48rem, 9.5cqi, 1.125rem);
     line-height: 1.05;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -502,8 +502,9 @@
     padding-top: 0.35rem;
     border-top: 1px solid rgba(148, 163, 184, 0.28);
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.4rem 0.65rem;
+    gap: clamp(0.22rem, 3.5cqi, 0.4rem) clamp(0.28rem, 4cqi, 0.65rem);
     order: 5;
+    min-width: 0;
   }
   html.dark .metric-kpi-ss2-panel,
   html.charcoal .metric-kpi-ss2-panel {
@@ -515,25 +516,38 @@
     margin-top: 0.28rem;
   }
   .metric-kpi-ss2.is-open .metric-kpi-ss2-expand .metric-kpi-chev { transform: rotate(180deg); }
+  .metric-kpi-ss2-panel > div {
+    min-width: 0;
+    overflow: hidden;
+  }
   .metric-kpi-kicker {
     margin: 0;
-    font-size: 0.58rem;
+    font-size: clamp(0.36rem, 5.2cqi, 0.58rem);
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: #94a3b8;
-    line-height: 1.2;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
   .metric-kpi-ss2-panel .metric-kpi-kicker { color: #94a3b8; }
   html.dark .metric-kpi-ss2-panel .metric-kpi-kicker,
   html.charcoal .metric-kpi-ss2-panel .metric-kpi-kicker { color: #64748b; }
   .metric-kpi-ss2-panel strong {
     display: block;
-    margin-top: 0.1rem;
-    font-size: 0.78rem;
+    margin-top: 0.08rem;
+    font-size: clamp(0.42rem, 6.8cqi, 0.78rem);
     font-weight: 700;
     color: #0f172a;
     font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
   html.dark .metric-kpi-ss2-panel strong,
   html.charcoal .metric-kpi-ss2-panel strong { color: #f8fafc; }
@@ -717,5 +731,5 @@
 <script src="/static/js/metric_table_ux.js?v=22"></script>
 <script src="/static/js/resizable_data_list.js?v=7"></script>
 <script src="/static/js/pa_chart_height.js?v=13"></script>
-<script src="/static/js/assets_page.js?v=12"></script>
+<script src="/static/js/assets_page.js?v=13"></script>
 {% endblock %}

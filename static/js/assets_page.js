@@ -457,24 +457,31 @@
     el.kpiGrid.style.removeProperty("grid-template-columns");
     var cols = n >= 9 ? Math.ceil(n / 2) : Math.max(n, 1);
     el.kpiGrid.style.setProperty("--kpi-n", String(Math.max(cols, 1)));
+    el.kpiGrid.setAttribute("data-kpi-count", String(n));
+    var density = n <= 4 ? "roomy" : n <= 8 ? "normal" : n <= 14 ? "dense" : "packed";
+    el.kpiGrid.setAttribute("data-kpi-density", density);
   }
 
   var _kpiFitObs = null;
   var _kpiFitRaf = 0;
   function fitOneKpiText(node, minPx, maxPx) {
     if (!node) return;
+    node.style.removeProperty("font-size");
     var avail = node.clientWidth;
-    if (avail < 8) return;
-    var lo = minPx;
-    var hi = Math.max(minPx, maxPx);
-    var best = minPx;
+    if (avail < 4) return;
+    var csMax = parseFloat(window.getComputedStyle(node).fontSize) || 12;
+    var lo = Math.max(5, minPx || 5);
+    var hi = Math.max(lo, maxPx != null ? maxPx : csMax);
+    hi = Math.min(hi, Math.max(lo, csMax));
+    var best = lo;
     node.style.whiteSpace = "nowrap";
     node.style.overflow = "hidden";
     node.style.textOverflow = "ellipsis";
-    for (var i = 0; i < 14; i++) {
+    node.style.maxWidth = "100%";
+    for (var i = 0; i < 16; i++) {
       var mid = (lo + hi) / 2;
       node.style.fontSize = mid + "px";
-      if (node.scrollWidth <= avail + 0.75) {
+      if (node.scrollWidth <= node.clientWidth + 0.75) {
         best = mid;
         lo = mid;
       } else {
@@ -492,10 +499,20 @@
       var dlt = card.querySelector(".metric-kpi-ss2-delta");
       var cmp = card.querySelector(".metric-kpi-ss2-cmp");
       var metrics = card.querySelector(".metric-kpi-ss2-metrics");
+      var chip = card.querySelector(".metric-kpi-ss2-head .metric-kpi-chip");
       var availVal = (metrics && metrics.clientWidth) || Math.max(8, w * 0.3);
-      fitOneKpiText(val, Math.max(8, w * 0.045), Math.min(11.5, Math.max(9, availVal * 0.17)));
-      fitOneKpiText(dlt, Math.max(14, w * 0.056), 18);
-      if (cmp) fitOneKpiText(cmp, Math.max(9, w * 0.04), 12);
+      var scale = Math.min(1, Math.max(0.42, w / 150));
+      fitOneKpiText(val, 5.5, Math.min(14, Math.max(7, availVal * 0.2 * scale + 4)));
+      fitOneKpiText(dlt, 5.5, Math.min(18, Math.max(7.5, availVal * 0.26 * scale + 4)));
+      if (cmp) fitOneKpiText(cmp, 5, Math.min(12, Math.max(6.5, availVal * 0.16 * scale + 3)));
+      if (chip) fitOneKpiText(chip, 5, Math.min(11, Math.max(6, w * 0.075)));
+      card.querySelectorAll(".metric-kpi-ss2-panel > div").forEach(function (cell) {
+        var cellW = cell.clientWidth || Math.max(8, w * 0.45);
+        var kicker = cell.querySelector(".metric-kpi-kicker");
+        var strong = cell.querySelector("strong");
+        fitOneKpiText(kicker, 4.5, Math.min(9, Math.max(5, cellW * 0.13)));
+        fitOneKpiText(strong, 5, Math.min(13, Math.max(6, cellW * 0.19)));
+      });
     });
   }
   function bindMetricKpiFit(root) {
