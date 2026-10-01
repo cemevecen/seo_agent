@@ -177,6 +177,8 @@ def _amp_url(resource_id: str, path: str = "", **params: Any) -> str:
 def _looks_signed_in(page) -> bool:
     try:
         url = (page.url or "").lower()
+        if _google_login_rejected(page):
+            return False
         if "accounts.google.com" in url or "signin" in url or "challenge" in url:
             return False
         body = ""
@@ -211,6 +213,69 @@ def _looks_signed_in(page) -> bool:
         return False
 
 
+def _google_login_rejected(page) -> bool:
+    """Playwright Nightly / insecure browser — Google 'Couldn't sign you in'."""
+    try:
+        url = (page.url or "").lower()
+        if "signin/rejected" in url or "browserorapp" in url:
+            return True
+        body = ""
+        try:
+            body = (page.inner_text("body") or "")[:1600].lower()
+        except Exception:
+            body = ""
+        markers = (
+            "couldn’t sign you in",
+            "couldn't sign you in",
+            "may not be secure",
+            "browser or app may not be secure",
+            "try using a different browser",
+        )
+        return any(m in body for m in markers)
+    except Exception:
+        return False
+
+
+class GscNeedsSystemLogin(RuntimeError):
+    """Playwright Nightly ile Google girişi engellendi — gerçek Firefox.app gerekli."""
+
+
+def _system_firefox_gsc_login(*, timeout_sec: int | None = None) -> dict[str, Any]:
+    """Gerçek Firefox.app ile GSC CWV Google oturumu (Playwright Nightly reddedilir)."""
+    from backend.services.scrape_browser import (
+        LOGIN_WAIT_SEC,
+        launch_system_firefox_login,
+        login_wait_sec,
+        warm_session_forget_profile,
+    )
+
+    timeout_sec = login_wait_sec(env_key="GSC_CWV_LOGIN_WAIT_SEC") if timeout_sec is None else max(
+        LOGIN_WAIT_SEC, int(timeout_sec)
+    )
+    try:
+        warm_session_forget_profile(PROFILE_DIR)
+    except Exception:
+        pass
+    url = _cwv_url("sc-domain:doviz.com")
+    print(
+        "Google Playwright Nightly oturumunu reddediyor — gerçek Firefox.app açılıyor.\n"
+        "Açılan pencerede Google hesabı ile giriş + 2FA yapın.\n"
+        "Search Console / Core Web Vitals görünce Firefox'u KAPATIN "
+        f"(en fazla {timeout_sec // 60} dk; çerezler diske yazılır).",
+        flush=True,
+    )
+    return launch_system_firefox_login(
+        PROFILE_DIR,
+        url,
+        timeout_sec=timeout_sec,
+        success_hint=(
+            "Search Console Core Web Vitals açılsın → Google girişi + 2FA tamam → "
+            "Firefox penceresini KAPAT (profil kaydı için)."
+        ),
+        verify_session=True,
+    )
+
+
 def _login_wait_sec() -> int:
     from backend.services.scrape_browser import login_wait_sec
 
@@ -218,17 +283,25 @@ def _login_wait_sec() -> int:
 
 
 def _wait_until_signed_in(page, *, timeout_sec: int | None = None) -> bool:
-    """Headed sync: tarayıcıyı kapatma — kullanıcı şifre/2FA bitirene kadar bekle.
+    """Headed sync: Nightly'de beklemek — Google reddederse hemen False.
 
     True → aynı page ile kazıma devam eder.
+    False → çağıran sistem Firefox login'e düşmeli.
     """
     from backend.services.scrape_browser import LOGIN_WAIT_SEC
 
     timeout_sec = _login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
+    if _google_login_rejected(page):
+        print(
+            "LOGIN FAIL — Google Playwright Nightly'yi reddetti (browser may not be secure). "
+            "Gerçek Firefox.app ile giriş gerekli.",
+            flush=True,
+        )
+        return False
     print(
         "LOGIN BEKLENIYOR — açık tarayıcıda Google / GSC girişi yapın (şifre/2FA).\n"
         f"Giriş tamamlanınca aynı pencerede tüm siteler taranır (en fazla {timeout_sec // 60} dk).\n"
-        "Pencereyi kapatmayın.",
+        "Pencereyi kapatmayın. (Nightly reddedilirse otomatik Firefox.app açılır.)",
         flush=True,
     )
     deadline = time.time() + timeout_sec
@@ -241,6 +314,12 @@ def _wait_until_signed_in(page, *, timeout_sec: int | None = None) -> bool:
                 print("LOGIN FAIL — tarayıcı kapandı (pencereyi kapatmayın)", flush=True)
                 return False
             page = ctx.pages[0]
+            if _google_login_rejected(page):
+                print(
+                    "LOGIN FAIL — Google bu tarayıcıyı reddetti — sistem Firefox gerekli",
+                    flush=True,
+                )
+                return False
             cur = (page.url or "").lower()
             now = time.time()
             if now - last_status >= 12:
@@ -274,17 +353,21 @@ def _wait_until_signed_in(page, *, timeout_sec: int | None = None) -> bool:
 
 
 def _ensure_signed_in(page, *, headed: bool) -> None:
-    """Kısa kontrol; yoksa headed ise kullanıcıyı bekle, sonra devam."""
+    """Kısa kontrol; Nightly reddedilirse GscNeedsSystemLogin."""
     if _looks_signed_in(page):
         return
     for _ in range(5):
         time.sleep(1.5)
         if _looks_signed_in(page):
             return
+        if _google_login_rejected(page):
+            break
     if not headed:
         raise RuntimeError("GSC oturumu yok — headed sync veya --login gerekli")
-    if not _wait_until_signed_in(page):
-        raise RuntimeError("GSC oturumu yok — Mac köprüde oturum açın")
+    # Playwright Nightly'de beklemek anlamsız — Google 'browser may not be secure' verir.
+    raise GscNeedsSystemLogin(
+        "GSC oturumu yok veya Google bu tarayıcıyı reddetti — gerçek Firefox.app ile giriş gerekli"
+    )
 
 
 def _kill_stale_profile_browsers(profile_dir: Path) -> int:
@@ -384,98 +467,9 @@ def _release_context(pw, context, *, headed: bool = True) -> None:
 
 
 def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
-    """Headed login — şifre/2FA sırasında tarayıcıyı kapatma; profil kilidini önce temizle."""
-    from backend.services.scrape_browser import LOGIN_WAIT_SEC, login_wait_sec
-
-    timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
-    url = _cwv_url("sc-domain:doviz.com")
+    """Headed login — gerçek Firefox.app (Playwright Nightly Google'da engellenir)."""
     print(f"Profil: {PROFILE_DIR}", flush=True)
-    print(
-        "Not: Aynı profilde başka Firefox açıksa kapatılır.",
-        flush=True,
-    )
-    pw, context = _launch_context(headed=True)
-    ok_streak = 0
-    cwv_nav_tried = False
-    last_status = 0.0
-    try:
-        page = context.pages[0] if context.pages else context.new_page()
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=120_000)
-        except Exception as exc:
-            print(f"İlk goto uyarısı (devam): {exc}", flush=True)
-        print(
-            f"Tarayıcıda Google ile GSC girişi yapın (şifre/2FA).\n"
-            f"Search Console açılınca oturum otomatik kaydedilir (en fazla {timeout_sec // 60} dk).\n"
-            f"Takılırsa Ctrl+C ile çıkıp: .venv/bin/python scripts/gsc_cwv_scrape.py --sync --ingest --charts-only",
-            flush=True,
-        )
-        deadline = time.time() + max(120, timeout_sec)
-        while time.time() < deadline:
-            try:
-                if not context.pages:
-                    return {
-                        "ok": False,
-                        "message": (
-                            "Tarayıcı kapandı (profil çakışması veya Chrome çökmesi). "
-                            "Tüm seo-agent Chrome pencerelerini kapatıp tekrar: "
-                            "Mac köprüde GSC oturumunu yenileyin"
-                        ),
-                        "profile": str(PROFILE_DIR),
-                    }
-                page = context.pages[0]
-                cur = (page.url or "").lower()
-                now = time.time()
-                if now - last_status >= 15:
-                    print(f"  · bekleniyor · url={ (page.url or '')[:120] }", flush=True)
-                    last_status = now
-                if "accounts.google.com" in cur or "signin" in cur or "challenge" in cur:
-                    ok_streak = 0
-                    cwv_nav_tried = False
-                    time.sleep(2)
-                    continue
-                if not _looks_signed_in(page):
-                    ok_streak = 0
-                    time.sleep(2)
-                    continue
-                # GSC’ye girdik — CWV URL’sine yönlendir (zorunlu değil ama doğrular)
-                if "core-web-vitals" not in cur and not cwv_nav_tried:
-                    cwv_nav_tried = True
-                    print("  · oturum görüldü → CWV sayfasına gidiliyor…", flush=True)
-                    try:
-                        page.goto(url, wait_until="domcontentloaded", timeout=90_000)
-                        time.sleep(2)
-                    except Exception as exc:
-                        print(f"  · CWV goto uyarısı: {exc}", flush=True)
-                    continue
-                ok_streak += 1
-                if ok_streak >= 2:
-                    time.sleep(4)
-                    print(f"Login OK · {page.url}", flush=True)
-                    return {"ok": True, "url": page.url, "profile": str(PROFILE_DIR)}
-            except Exception as exc:
-                msg = str(exc).lower()
-                if "has been closed" in msg or "target closed" in msg or "crashed" in msg:
-                    return {
-                        "ok": False,
-                        "message": (
-                            "Tarayıcı oturumu kapandı. Profil kilidi için tekrar --login; "
-                            "hâlâ olursa Chrome’daki tüm seo-agent pencerelerini kapatın."
-                        ),
-                        "profile": str(PROFILE_DIR),
-                        "error": str(exc)[:200],
-                    }
-                ok_streak = 0
-            time.sleep(2)
-        return {
-            "ok": False,
-            "message": "Login zaman aşımı — şifre/2FA bitmeden süre doldu; tekrar --login",
-            "url": (context.pages[0].url if context.pages else ""),
-            "profile": str(PROFILE_DIR),
-        }
-    finally:
-        _release_context(pw, context, headed=True)
-        _clear_profile_locks(PROFILE_DIR)
+    return _system_firefox_gsc_login(timeout_sec=timeout_sec)
 
 
 def _scroll_table_fully(page, *, max_rounds: int = 800) -> int:
@@ -2657,6 +2651,7 @@ def run_sync(
 
     pw, context = _launch_context(headed=headed)
     snapshots: list[dict[str, Any]] = []
+    login_retried = False
     try:
         page = context.pages[0] if context.pages else context.new_page()
         # Tek seferlik oturum kapısı — giriş bitince tüm property'ler taranır
@@ -2668,6 +2663,52 @@ def run_sync(
             print(f"Login gate goto uyarısı (devam): {exc}", flush=True)
         try:
             _ensure_signed_in(page, headed=headed)
+        except GscNeedsSystemLogin as exc:
+            if not headed or login_retried:
+                print(f"FAIL login gate: {exc}", flush=True)
+                return {
+                    "ok": False,
+                    "needs_login": True,
+                    "snapshots": 0,
+                    "ok_snapshots": 0,
+                    "message": str(exc),
+                }
+            print(f"Login gate → sistem Firefox: {exc}", flush=True)
+            try:
+                _release_context(pw, context, headed=headed)
+            except Exception:
+                pass
+            pw = context = None
+            page = None
+            login_res = _system_firefox_gsc_login()
+            if not login_res.get("ok"):
+                return {
+                    "ok": False,
+                    "needs_login": True,
+                    "snapshots": 0,
+                    "ok_snapshots": 0,
+                    "message": login_res.get("message")
+                    or "GSC CWV login gerekli — gerçek Firefox.app ile --login",
+                }
+            login_retried = True
+            pw, context = _launch_context(headed=headed)
+            page = context.pages[0] if context.pages else context.new_page()
+            try:
+                page.goto(_cwv_url(gate["resource_id"]), wait_until="domcontentloaded", timeout=120_000)
+            except Exception as goto_exc:
+                print(f"Login sonrası goto uyarısı: {goto_exc}", flush=True)
+            try:
+                _ensure_signed_in(page, headed=headed)
+            except RuntimeError as exc2:
+                print(f"FAIL login gate (Firefox sonrası): {exc2}", flush=True)
+                return {
+                    "ok": False,
+                    "needs_login": True,
+                    "snapshots": 0,
+                    "ok_snapshots": 0,
+                    "message": str(exc2),
+                }
+            print("GSC giriş OK — aynı pencerede CWV tarama devam ediyor.", flush=True)
         except RuntimeError as exc:
             print(f"FAIL login gate: {exc}", flush=True)
             return {
@@ -2700,7 +2741,8 @@ def run_sync(
                     }
                 )
     finally:
-        _release_context(pw, context, headed=headed)
+        if pw is not None and context is not None:
+            _release_context(pw, context, headed=headed)
 
     ok_snaps = [s for s in snapshots if isinstance(s, dict) and not s.get("error")]
     payload = {

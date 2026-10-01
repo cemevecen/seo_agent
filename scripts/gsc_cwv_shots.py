@@ -479,6 +479,8 @@ def run_shots(
 
     cwv_mod = _load_cwv_scrape()
     PROPERTIES = cwv_mod.PROPERTIES
+    GscNeedsSystemLogin = cwv_mod.GscNeedsSystemLogin
+    system_firefox_login = cwv_mod._system_firefox_gsc_login
 
     sk = (site_filter or "").strip().lower()
     props = PROPERTIES
@@ -490,18 +492,26 @@ def run_shots(
     if headed is None:
         headed = True
 
+    profile = google_profile_dir()
     captures: list[dict[str, Any]] = []
-    pw, ctx, _reused = acquire_persistent_context(
-        "gsc-cwv",
-        profile=google_profile_dir(),
-        headed=headed,
-        env_key="GSC_CWV_KEEP_OPEN",
-        label="GSC CWV shots",
-        locale="en-US",
-    )
+    login_retried = False
+
+    def _launch():
+        return acquire_persistent_context(
+            "gsc-cwv",
+            profile=profile,
+            headed=headed,
+            env_key="GSC_CWV_KEEP_OPEN",
+            label="GSC CWV shots",
+            locale="en-US",
+        )
+
+    pw, ctx, _reused = _launch()
     try:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        for prop in props:
+        prop_i = 0
+        while prop_i < len(props):
+            prop = props[prop_i]
             try:
                 cap = capture_property_shots(page, prop, cwv_mod)
                 if ingest:
@@ -518,6 +528,49 @@ def run_shots(
                         flush=True,
                     )
                 captures.append(cap)
+                prop_i += 1
+            except GscNeedsSystemLogin as exc:
+                if not headed or login_retried:
+                    captures.append(
+                        {
+                            "site_key": prop.get("site_key"),
+                            "ok": False,
+                            "error": str(exc)[:300],
+                            "needs_login": True,
+                        }
+                    )
+                    print(f"CWV shots login gerekli: {exc}", flush=True)
+                    break
+                print(f"CWV shots → sistem Firefox: {exc}", flush=True)
+                try:
+                    release_persistent_context(
+                        "gsc-cwv",
+                        pw,
+                        ctx,
+                        headed=headed,
+                        env_key="GSC_CWV_KEEP_OPEN",
+                        label="GSC CWV shots",
+                        profile=profile,
+                    )
+                except Exception:
+                    pass
+                pw = ctx = None
+                page = None
+                login_res = system_firefox_login()
+                if not login_res.get("ok"):
+                    return {
+                        "ok": False,
+                        "needs_login": True,
+                        "kind": "gsc_cwv_shots",
+                        "message": login_res.get("message")
+                        or "GSC CWV login gerekli — gerçek Firefox.app ile giriş",
+                        "results": captures,
+                    }
+                login_retried = True
+                pw, ctx, _reused = _launch()
+                page = ctx.pages[0] if ctx.pages else ctx.new_page()
+                print("GSC giriş OK — CWV shot tarama devam ediyor.", flush=True)
+                # Aynı property'yi tekrar dene
             except Exception as exc:  # noqa: BLE001
                 captures.append(
                     {
@@ -527,16 +580,18 @@ def run_shots(
                     }
                 )
                 print(f"CWV shots hata: {exc}", flush=True)
+                prop_i += 1
     finally:
-        release_persistent_context(
-            "gsc-cwv",
-            pw,
-            ctx,
-            headed=headed,
-            env_key="GSC_CWV_KEEP_OPEN",
-            label="GSC CWV shots",
-            profile=google_profile_dir(),
-        )
+        if pw is not None and ctx is not None:
+            release_persistent_context(
+                "gsc-cwv",
+                pw,
+                ctx,
+                headed=headed,
+                env_key="GSC_CWV_KEEP_OPEN",
+                label="GSC CWV shots",
+                profile=profile,
+            )
 
     ok_n = sum(
         1
