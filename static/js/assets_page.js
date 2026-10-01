@@ -97,12 +97,47 @@
     if (v == null || v === "") return "—";
     var n = typeof v === "number" ? v : Number(v);
     if (!Number.isFinite(n)) return "—";
+    if (n === 0) return "0";
     var abs = Math.abs(n);
-    var opts;
-    if (abs >= 1000) opts = { maximumFractionDigits: 2 };
-    else if (abs >= 1) opts = { maximumFractionDigits: 4 };
-    else opts = { maximumFractionDigits: 8 };
-    return n.toLocaleString("tr-TR", opts);
+    var sign = n < 0 ? "-" : "";
+    // PEPE / SHIB gibi mikro fiyatlar: 0,0000… kesilmesin → 3,42e-6
+    if (abs < 1e-4) {
+      var exp = Math.floor(Math.log10(abs));
+      var mant = abs / Math.pow(10, exp);
+      var mantR = Math.round(mant * 1000) / 1000;
+      if (mantR >= 10) {
+        mantR /= 10;
+        exp += 1;
+      }
+      var mantStr = mantR.toLocaleString("tr-TR", {
+        maximumFractionDigits: 3,
+        minimumFractionDigits: 0,
+      });
+      return sign + mantStr + "e" + exp;
+    }
+    if (abs < 0.01) {
+      return n.toLocaleString("tr-TR", { maximumFractionDigits: 6 });
+    }
+    if (abs < 1) {
+      return n.toLocaleString("tr-TR", { maximumFractionDigits: 4 });
+    }
+    if (abs < 1000) {
+      return n.toLocaleString("tr-TR", { maximumFractionDigits: 4 });
+    }
+    return n.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+  }
+  /** Hücre title / tooltip — tam hassasiyet */
+  function fmtNumFull(v) {
+    if (v == null || v === "") return "—";
+    var n = typeof v === "number" ? v : Number(v);
+    if (!Number.isFinite(n)) return "—";
+    if (n === 0) return "0";
+    var abs = Math.abs(n);
+    var digits = abs >= 1 ? 6 : abs >= 1e-4 ? 8 : 12;
+    return n.toLocaleString("tr-TR", {
+      maximumFractionDigits: digits,
+      maximumSignificantDigits: 10,
+    });
   }
   function colorFor(key, idx) {
     var i = typeof idx === "number" ? idx : selected.indexOf(key);
@@ -715,7 +750,7 @@
     }
     tip.innerHTML =
       '<p class="as-spark-tip__d">' + esc(dateLabel) + "</p>" +
-      '<p class="as-spark-tip__v">' + esc(fmtNum(pt.v)) + "</p>";
+      '<p class="as-spark-tip__v" title="' + esc(fmtNumFull(pt.v)) + '">' + esc(fmtNum(pt.v)) + "</p>";
     tip.classList.remove("hidden");
     var pad = 10;
     var tw = tip.offsetWidth || 96;
@@ -953,7 +988,9 @@
         iconHtml(spec, "as-icon as-icon--xs") +
         '<span class="h-2 w-2 rounded-full" style="background:' + c + '"></span>' +
         '<span class="flex-1 truncate">' + esc(spec.label || key) + '</span>' +
-        '<span class="tabular-nums font-bold">' + (found ? fmtNum(found.value) : "—") + "</span></div>";
+        '<span class="tabular-nums font-bold" title="' +
+          esc(found ? fmtNumFull(found.value) : "") + '">' +
+          (found ? fmtNum(found.value) : "—") + "</span></div>";
     });
     var dateChanged = el.tip.getAttribute("data-tip-date") !== String(dateKey);
     if (el.tipBody) el.tipBody.innerHTML = lines.join("");
@@ -1168,6 +1205,11 @@
       return;
     }
     fitDataList(gridRes.rowCount || keys.length + 1);
+    if (ux && ux.fitTextToWidth && el.table) {
+      requestAnimationFrame(function () {
+        ux.fitTextToWidth(el.table, "td.mtux-heat-cell", { minPx: 7 });
+      });
+    }
   }
 
   function refreshViews() {

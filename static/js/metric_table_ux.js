@@ -555,6 +555,12 @@
     var bg = t == null ? "" : "background:" + heatBackground(color, t) + ";";
     var txt = fmtVal(shown, col);
     var tip = title != null ? title : txt;
+    if (title == null && shown != null && Number.isFinite(Number(shown)) && !(col && col.isDelta)) {
+      tip = Number(shown).toLocaleString("tr-TR", {
+        maximumFractionDigits: 12,
+        maximumSignificantDigits: 10,
+      });
+    }
     if (carriedVal != null) tip = txt + " · son kapanış, piyasa kapalı";
     var cls =
       "mtux-heat-cell tabular-nums text-slate-900 dark:text-zinc-100" +
