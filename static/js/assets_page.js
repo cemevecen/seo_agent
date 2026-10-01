@@ -700,7 +700,7 @@
           "</div>" +
           '<div class="metric-kpi-ss2-main">' +
             '<div class="metric-kpi-ss2-metrics">' +
-              '<p class="metric-kpi-ss2-value" title="' + esc(fmtNum(cur)) + '">' + esc(fmtNum(cur)) + "</p>" +
+              '<p class="metric-kpi-ss2-value" title="' + esc(fmtNumFull(cur)) + '">' + esc(fmtNum(cur)) + "</p>" +
               '<p class="metric-kpi-ss2-delta ' + dltCls + '" title="' + esc(dltTitle) + '">' + esc(dltTxt) + "</p>" +
               cmpHtml +
             "</div>" +
