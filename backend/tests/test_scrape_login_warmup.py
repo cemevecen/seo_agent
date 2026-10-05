@@ -505,7 +505,8 @@ def test_warmup_is_exempt_from_the_shared_lease():
     # kira yalnızca shared işlerde sorulmalı
     body = src.split("def _slot_job(", 1)[1].split("\n        def ", 1)[0]
     assert "if shared:" in body
-    assert body.index("if shared:") < body.index("_auto_lease_state(kind, slot)")
+    assert "_auto_lease_state" in body
+    assert body.index("if shared:") < body.index("_auto_lease_state")
 
 
 # ── Koordinat girişi: varsayılan kapalı (hesap kilitlenme riski) ────────────
@@ -529,8 +530,10 @@ def test_blind_login_is_off_by_default(monkeypatch):
 def test_warmup_reuses_the_open_window():
     """Tarayıcı öldürülürse ASC oturum çerezi kayboluyor — pencere korunmalı."""
     src = (ROOT / "scripts/scrape_login_warmup.py").read_text(encoding="utf-8")
-    block = src.split("def warm_target", 1)[1].split("acquire_persistent_context", 1)[1][:400]
-    assert "kill_existing=False" in block
+    # Playwright fallback yolunda kill_existing=False kalmalı
+    assert "kill_existing=False" in src
+    assert "_launch_warmup_context" in src
+    assert "Playwright Nightly YOK" in src or "system Firefox" in src.lower()
 
 
 # ── Açık pencereyi koru: ASC oturumu süreç yaşadıkça geçerli ────────────────
@@ -545,9 +548,13 @@ def test_foreign_window_is_not_touched(monkeypatch):
     """
     m = _warmup_module()
     monkeypatch.setattr(m, "warm_session_registered_for_profile", lambda p: False)
+    monkeypatch.setattr(m, "_selenium_warm_for_profile", lambda p: False)
     monkeypatch.setattr(m, "list_profile_browser_pids", lambda p: [4242])
-    monkeypatch.setattr(m, "acquire_persistent_context",
-                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("tarayıcı açılmamalı")))
+    monkeypatch.setattr(
+        m,
+        "_launch_warmup_context",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("tarayıcı açılmamalı")),
+    )
 
     r = m.warm_target("asc", check_only=True)
     assert r.needs_action is False
@@ -558,10 +565,15 @@ def test_foreign_window_is_not_touched(monkeypatch):
 def test_takeover_flag_allows_explicit_override(monkeypatch):
     m = _warmup_module()
     monkeypatch.setattr(m, "warm_session_registered_for_profile", lambda p: False)
+    monkeypatch.setattr(m, "_selenium_warm_for_profile", lambda p: False)
     monkeypatch.setattr(m, "list_profile_browser_pids", lambda p: [4242])
     calls = {}
-    monkeypatch.setattr(m, "acquire_persistent_context",
-                        lambda *a, **k: calls.setdefault("n", 1) or (_ for _ in ()).throw(RuntimeError("dur")))
+
+    def _launch(*a, **k):
+        calls["n"] = 1
+        raise RuntimeError("dur")
+
+    monkeypatch.setattr(m, "_launch_warmup_context", _launch)
     m.warm_target("asc", check_only=True, takeover=True)
     assert calls.get("n") == 1
 
@@ -570,12 +582,53 @@ def test_own_warm_session_is_reused_not_skipped(monkeypatch):
     """Köprünün kendi süreci: warm oturum varsa atlamamalı, kullanmalı."""
     m = _warmup_module()
     monkeypatch.setattr(m, "warm_session_registered_for_profile", lambda p: True)
+    monkeypatch.setattr(m, "_selenium_warm_for_profile", lambda p: False)
     monkeypatch.setattr(m, "list_profile_browser_pids", lambda p: [4242])
     calls = {}
-    monkeypatch.setattr(m, "acquire_persistent_context",
-                        lambda *a, **k: calls.setdefault("n", 1) or (_ for _ in ()).throw(RuntimeError("dur")))
+
+    def _launch(*a, **k):
+        calls["n"] = 1
+        raise RuntimeError("dur")
+
+    monkeypatch.setattr(m, "_launch_warmup_context", _launch)
     m.warm_target("asc", check_only=True)
     assert calls.get("n") == 1
+
+
+def test_selenium_warm_session_is_not_treated_as_foreign(monkeypatch):
+    """Selenium KEEP_OPEN penceresi «yabancı süreç» sanılmamalı."""
+    m = _warmup_module()
+    monkeypatch.setattr(m, "warm_session_registered_for_profile", lambda p: False)
+    monkeypatch.setattr(m, "_selenium_warm_for_profile", lambda p: True)
+    monkeypatch.setattr(m, "list_profile_browser_pids", lambda p: [4242])
+    calls = {}
+
+    def _launch(*a, **k):
+        calls["n"] = 1
+        raise RuntimeError("dur")
+
+    monkeypatch.setattr(m, "_launch_warmup_context", _launch)
+    m.warm_target("play", check_only=True)
+    assert calls.get("n") == 1
+
+
+def test_google_warmup_prefers_system_firefox(monkeypatch):
+    m = _warmup_module()
+    monkeypatch.setattr(m, "resolve_system_firefox_executable", lambda: "/Applications/Firefox.app/Contents/MacOS/firefox")
+    monkeypatch.setattr(
+        m,
+        "_asc_use_selenium",
+        lambda: True,
+    )
+    # play_console_use_selenium path: patch via module import used inside helper
+    import backend.services.selenium_playwright_shim as shim
+
+    monkeypatch.setattr(shim, "play_console_use_selenium", lambda: True)
+    assert m._warmup_use_selenium("play", headed=True) is True
+    assert m._warmup_use_selenium("firebase", headed=True) is True
+    assert m._warmup_use_selenium("asc", headed=True) is True
+    assert m._warmup_use_selenium("play", headed=False) is False
+    assert m._warmup_use_selenium("firebase", headed=False) is False
 
 
 # ── Play: hesap seçim ekranına düşmemeli ────────────────────────────────────

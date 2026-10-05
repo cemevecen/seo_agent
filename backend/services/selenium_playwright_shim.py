@@ -881,6 +881,12 @@ def selenium_keep_window_open() -> bool:
     return scrape_keep_window_open(env_key="SELENIUM_KEEP_OPEN")
 
 
+def selenium_warm_registered_for_profile(profile: Path) -> bool:
+    """Bu profil için Selenium sıcak penceresi canlı mı?"""
+    key = _selenium_profile_key(profile)
+    return _selenium_alive(_SELENIUM_WARM.get(key))
+
+
 def launch_selenium_context(
     profile: Path, *, headed: bool, prefs: dict[str, Any] | None = None
 ) -> tuple[None, SeleniumContext, bool]:

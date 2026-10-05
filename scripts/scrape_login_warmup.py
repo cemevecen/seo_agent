@@ -144,11 +144,125 @@ from backend.services.scrape_browser import (  # noqa: E402
     firebase_profile_dir,
     google_profile_dir,
     release_persistent_context,
+    resolve_system_firefox_executable,
+    warm_session_forget_profile,
     warm_session_registered_for_profile,
 )
 from backend.services.scrape_credentials import load_credentials  # noqa: E402
 
 LOGGER = logging.getLogger("scrape-login-warmup")
+
+# Google hedefleri: Playwright Nightly Google'da çöküyor / reddediliyor.
+_GOOGLE_TARGETS = frozenset({"play", "firebase"})
+
+
+def _asc_use_selenium() -> bool:
+    raw = (os.environ.get("ASC_CONSOLE_USE_SELENIUM") or "1").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return resolve_system_firefox_executable() is not None
+
+
+def _warmup_use_selenium(name: str, *, headed: bool) -> bool:
+    """Headed warm-up: Play/Firebase/ASC → sistem Firefox (Selenium), Nightly yok."""
+    if not headed:
+        return False
+    if name in _GOOGLE_TARGETS:
+        from backend.services.selenium_playwright_shim import play_console_use_selenium
+
+        return play_console_use_selenium()
+    if name == "asc":
+        return _asc_use_selenium()
+    return False
+
+
+def _launch_warmup_context(
+    name: str,
+    spec: dict[str, Any],
+    *,
+    headed: bool,
+    profile: Path,
+) -> tuple[Any, Any, bool]:
+    """(pw, context, selenium_mode)."""
+    if _warmup_use_selenium(name, headed=headed):
+        from backend.services.selenium_playwright_shim import launch_selenium_context
+
+        try:
+            warm_session_forget_profile(profile)
+        except Exception:  # noqa: BLE001
+            pass
+        # Keep-open: asıl scrape env_key ile uyumlu
+        env_key = str(spec.get("env_key") or "")
+        if env_key and (os.environ.get(env_key) or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ):
+            os.environ.setdefault("SELENIUM_KEEP_OPEN", "1")
+        prefs = None
+        if name == "asc":
+            prefs = {"dom.serviceWorkers.enabled": False}
+        pw, ctx, reused = launch_selenium_context(profile, headed=True, prefs=prefs)
+        LOGGER.info(
+            "%s warm-up: sistem Firefox.app (Selenium)%s",
+            spec["label"],
+            " · mevcut pencere" if reused else "",
+        )
+        print(
+            f"{spec['label']} warm-up: sistem Firefox.app (Selenium) · Playwright Nightly YOK",
+            flush=True,
+        )
+        return pw, ctx, True
+
+    pw, ctx, reused = acquire_persistent_context(
+        spec["key"],
+        profile=profile,
+        headed=headed,
+        env_key=spec["env_key"],
+        label=f"warmup:{spec['label']}",
+        locale="tr-TR",
+        kill_existing=False,
+    )
+    return pw, ctx, False
+
+
+def _release_warmup_context(
+    name: str,
+    spec: dict[str, Any],
+    pw: Any,
+    ctx: Any,
+    *,
+    headed: bool,
+    profile: Path,
+    selenium: bool,
+) -> None:
+    if selenium or getattr(ctx, "_selenium_mode", False):
+        from backend.services.selenium_playwright_shim import release_selenium_context
+
+        release_selenium_context(pw, ctx)
+        return
+    release_persistent_context(
+        spec["key"],
+        pw,
+        ctx,
+        headed=headed,
+        env_key=spec["env_key"],
+        label=f"warmup:{spec['label']}",
+        profile=profile,
+    )
+
+
+def _selenium_warm_for_profile(profile: Path) -> bool:
+    try:
+        from backend.services.selenium_playwright_shim import (
+            selenium_warm_registered_for_profile,
+        )
+
+        return bool(selenium_warm_registered_for_profile(profile))
+    except Exception:  # noqa: BLE001
+        return False
+
 
 # Oturum doğrulaması için açılacak sayfa ve «giriş gerekiyor» işaretleri
 # `key` ve `env_key` asıl scrape'lerle AYNI olmalı: warm pencere paylaşılsın,
@@ -525,7 +639,11 @@ def warm_target(
     # dönüyor (ölçüldü). Playwright var olan pencereye attach edemediği için
     # başka bir süreçten profile dokunmak = pencereyi öldürmek = oturumu
     # kaybetmek. Bu yüzden köprünün penceresi açıkken buradan el sürülmez.
-    if not takeover and not warm_session_registered_for_profile(profile):
+    # Selenium sıcak penceresi de «kendi penceresi» sayılır — atlama.
+    own_warm = warm_session_registered_for_profile(profile) or _selenium_warm_for_profile(
+        profile
+    )
+    if not takeover and not own_warm:
         others = list_profile_browser_pids(profile)
         if others:
             result.status = "ok"
@@ -538,22 +656,51 @@ def warm_target(
             return result
 
     pw = ctx = None
+    selenium = False
     try:
-        # kill_existing=False kritik: Apple/Google oturum çerezleri tarayıcı
-        # yeniden başlatılınca kayboluyor. Bu kod tabanı oturumu pencereyi açık
-        # tutarak koruyor (KEEP_OPEN); warm-up her koşuda Firefox'u öldürseydi
-        # kendi kurduğu oturumu da düşürürdü — nitekim düşürüyordu.
-        pw, ctx, reused = acquire_persistent_context(
-            spec["key"],
-            profile=profile,
-            headed=headed,
-            env_key=spec["env_key"],
-            label=f"warmup:{spec['label']}",
-            locale="tr-TR",
-            kill_existing=False,
+        # Google: oturum yoksa Nightly'ye hiç girmeden gerçek Firefox login
+        if (
+            headed
+            and name in _GOOGLE_TARGETS
+            and not check_only
+            and _warmup_use_selenium(name, headed=True)
+        ):
+            from backend.services.system_firefox_driver import google_profile_has_session
+
+            if not google_profile_has_session(profile):
+                from backend.services.scrape_browser import launch_system_firefox_login
+
+                print(
+                    f"{spec['label']}: Google oturumu yok — gerçek Firefox.app login "
+                    "(Playwright Nightly açılmayacak)",
+                    flush=True,
+                )
+                login_res = launch_system_firefox_login(
+                    profile,
+                    spec.get("login_url") or spec["url"],
+                    success_hint=(
+                        f"{spec['label']} açılsın → Google + 2FA tamam → "
+                        "Firefox penceresini KAPAT (profil kaydı için)."
+                    ),
+                    verify_session=True,
+                )
+                result.detail["pre_login"] = {
+                    "ok": bool(login_res.get("ok")),
+                    "message": str(login_res.get("message") or "")[:200],
+                }
+                if not login_res.get("ok"):
+                    result.status = "intervention"
+                    result.needs_action = True
+                    result.message = (
+                        f"{spec['label']}: {login_res.get('message') or 'giriş gerekli'}"
+                    )
+                    return result
+
+        pw, ctx, selenium = _launch_warmup_context(
+            name, spec, headed=headed, profile=profile
         )
         result.detail["profile"] = str(profile)
-        result.detail["reused_warm_session"] = bool(reused)
+        result.detail["browser"] = "system_firefox_selenium" if selenium else "playwright"
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         page.goto(spec["url"], wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
         time.sleep(SETTLE_SEC)
@@ -575,20 +722,21 @@ def warm_target(
         result.status = "error"
         result.needs_action = True
         result.message = f"{spec['label']}: warm-up hatası — {str(exc)[:180]}"
+        result.detail["error"] = str(exc)[:300]
         return result
     finally:
         # Pencerenin açık kalması KEEP_OPEN ayarına bağlı (asıl scrape'lerle aynı
         # davranış). Müdahale gerekiyorsa kapatmamak kritik — kullanıcı devralacak.
         if pw is not None and ctx is not None:
             try:
-                release_persistent_context(
-                    spec["key"],
+                _release_warmup_context(
+                    name,
+                    spec,
                     pw,
                     ctx,
                     headed=headed,
-                    env_key=spec["env_key"],
-                    label=f"warmup:{spec['label']}",
                     profile=profile,
+                    selenium=selenium,
                 )
             except Exception as exc:  # noqa: BLE001
                 LOGGER.warning("warm-up context bırakılamadı (%s): %s", name, exc)
