@@ -182,6 +182,7 @@ def _launch_warmup_context(
     *,
     headed: bool,
     profile: Path,
+    keep_open: bool = False,
 ) -> tuple[Any, Any, bool]:
     """(pw, context, selenium_mode)."""
     if _warmup_use_selenium(name, headed=headed):
@@ -191,9 +192,12 @@ def _launch_warmup_context(
             warm_session_forget_profile(profile)
         except Exception:  # noqa: BLE001
             pass
-        # Keep-open: asıl scrape env_key ile uyumlu
         env_key = str(spec.get("env_key") or "")
-        if env_key and (os.environ.get(env_key) or "").strip().lower() in (
+        if keep_open:
+            os.environ["SELENIUM_KEEP_OPEN"] = "1"
+            if env_key:
+                os.environ[env_key] = "1"
+        elif env_key and (os.environ.get(env_key) or "").strip().lower() in (
             "1",
             "true",
             "yes",
@@ -629,6 +633,7 @@ def warm_target(
     check_only: bool = False,
     headed: bool = True,
     takeover: bool = False,
+    keep_open: bool = False,
 ) -> TargetResult:
     spec = TARGETS[name]
     result = TargetResult(target=name, label=spec["label"])
@@ -658,11 +663,15 @@ def warm_target(
     pw = ctx = None
     selenium = False
     try:
-        # Google: oturum yoksa Nightly'ye hiç girmeden gerçek Firefox login
+        # Google: oturum yoksa Nightly'ye hiç girmeden gerçek Firefox login.
+        # Panel Update page: pencereyi KAPATMA — kullanıcı 2FA yapıp aynı
+        # Selenium penceresinde tarama devam etmeli. Kapatmayı beklemek
+        # «Scan lost progress» üretiyordu (kalp atışı warmup bitene kadar yok).
         if (
             headed
             and name in _GOOGLE_TARGETS
             and not check_only
+            and not keep_open
             and _warmup_use_selenium(name, headed=True)
         ):
             from backend.services.system_firefox_driver import google_profile_has_session
@@ -697,7 +706,7 @@ def warm_target(
                     return result
 
         pw, ctx, selenium = _launch_warmup_context(
-            name, spec, headed=headed, profile=profile
+            name, spec, headed=headed, profile=profile, keep_open=keep_open
         )
         result.detail["profile"] = str(profile)
         result.detail["browser"] = "system_firefox_selenium" if selenium else "playwright"
@@ -961,7 +970,8 @@ def warm_for_job(job_id: str, *, headed: bool = True) -> list[TargetResult]:
 
     Panel «yenile / güncelle» düğmeleri de planlı turlarla aynı yoldan geçsin
     diye ayrı tutuldu: oturum geçerliyse hiçbir maliyet yok, düşmüşse Keychain
-    ile giriş denenir ve iş boşa gitmez.
+    ile giriş denenir ve iş boşa gitmez. keep_open: Firefox kapatılmaz — 2FA
+    aynı pencerede biter, tarama devam eder.
     """
     targets = JOB_WARMUP_TARGETS.get((job_id or "").strip().lower(), ())
-    return [warm_target(t, headed=headed) for t in targets]
+    return [warm_target(t, headed=headed, keep_open=True) for t in targets]

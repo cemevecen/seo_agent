@@ -101,6 +101,9 @@ BRIDGE_STALE_SEC = 90.0
 # Claimed/running iş progress göndermezse (daemon çöktü / claim loop kilitli) kuyruk açılsın.
 # Kalp atışı 5 sn'de bir; 7 dk sessizlik = gerçekten ölü. Global tarayıcı slotu daha erken açılsın.
 PROGRESS_STALE_SEC = 420.0
+# Update page: kullanıcı 2FA/şifre için pencerede bekler. Bu fazda 7 dk sessizlik
+# fail etmesin (warmup/login kalp atışı kaçsa bile 15+ dk giriş hakkı kalsın).
+LOGIN_PROGRESS_STALE_SEC = 20 * 60.0
 # Worker kaydı: ping ~30 sn; bu süre sessiz kalan makine offline sayılır.
 WORKER_STALE_SEC = 150.0
 # Hiçbir online worker işi yapamıyorsa (oturum/credential yok) kuyrukta bu kadar bekle, sonra net hata ver.
@@ -988,6 +991,12 @@ def _reap_stale_inflight_locked(now: float) -> None:
                 job["detail"] = "Scan timed out"
                 job["finished_at"] = now
             elif quiet >= PROGRESS_STALE_SEC:
+                phase = str(job.get("phase") or "").lower()
+                waiting_login = phase in ("login", "warmup") or "giriş" in str(
+                    job.get("detail") or ""
+                ).lower() or "login" in str(job.get("detail") or "").lower()
+                if waiting_login and quiet < LOGIN_PROGRESS_STALE_SEC:
+                    continue
                 job["status"] = "fail"
                 job["detail"] = "Scan lost progress — try again"
                 job["finished_at"] = now

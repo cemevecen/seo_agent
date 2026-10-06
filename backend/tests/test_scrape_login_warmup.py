@@ -294,6 +294,9 @@ def test_job_warmup_mapping_covers_manual_buttons():
     m = _warmup_module()
     assert set(m.JOB_WARMUP_TARGETS) == {"asc", "firebase", "play"}
     assert hasattr(m, "warm_for_job")
+    src = (ROOT / "scripts/scrape_login_warmup.py").read_text(encoding="utf-8")
+    assert "keep_open=True" in src.split("def warm_for_job", 1)[1]
+    assert "and not keep_open" in src.split("def warm_target", 1)[1]
 
 
 def test_manual_trigger_runs_warmup_first():
@@ -303,7 +306,9 @@ def test_manual_trigger_runs_warmup_first():
     assert "_WARMUP_JOB_IDS" in src
     # İş başlamadan önce çağrılmalı
     body = src.split("def _run_claimed_job", 1)[1]
+    assert body.index("hb.start()") < body.index("_warmup_before_job(job_id)")
     assert body.index("_warmup_before_job(job_id)") < body.index("meta[\"runner\"]")
+    assert "tarama aynı pencerede girişten sonra devam" in body
 
 
 def test_manual_warmup_only_for_login_kinds():

@@ -231,6 +231,39 @@ def test_stale_inflight_unlocks_queue():
     assert "progress" in (stuck["jobs"][0]["detail"] or "").lower()
 
 
+def test_login_phase_survives_progress_stale():
+    """2FA beklerken 7 dk sessizlik işi öldürmesin."""
+    store.reset_for_tests()
+    run = store.start_run("firebase")
+    claimed = store.claim_next()
+    assert claimed is not None
+    with store._lock:
+        job = store._runs[run["id"]]["jobs"][0]
+        job["status"] = "running"
+        job["phase"] = "login"
+        job["detail"] = "Giriş / 2FA bekleniyor — pencereyi kapatma"
+        job["claimed_at"] = time.time() - store.PROGRESS_STALE_SEC - 5
+        job["progress_at"] = time.time() - store.PROGRESS_STALE_SEC - 5
+    out = store.get_run(run["id"])
+    assert out["jobs"][0]["status"] == "running"
+
+
+def test_login_phase_fails_after_login_stale():
+    store.reset_for_tests()
+    run = store.start_run("firebase")
+    claimed = store.claim_next()
+    assert claimed is not None
+    with store._lock:
+        job = store._runs[run["id"]]["jobs"][0]
+        job["status"] = "running"
+        job["phase"] = "login"
+        job["claimed_at"] = time.time() - store.LOGIN_PROGRESS_STALE_SEC - 5
+        job["progress_at"] = time.time() - store.LOGIN_PROGRESS_STALE_SEC - 5
+    out = store.get_run(run["id"])
+    assert out["jobs"][0]["status"] == "fail"
+    assert "progress" in (out["jobs"][0]["detail"] or "").lower()
+
+
 def test_stale_queue_fails_without_bridge():
     store.reset_for_tests()
     run = store.start_run("news")

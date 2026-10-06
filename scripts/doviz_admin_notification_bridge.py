@@ -5950,7 +5950,7 @@ def _warmup_before_job(job_id: str) -> dict[str, Any] | None:
 
     Oturum geçerliyse maliyeti yok. Düşmüşse Keychain'den giriş denenir; böylece
     panelden «yenile» diyen kişinin Mac'in başına gitmesi gerekmez. 2FA çıkarsa
-    warm-up durur ve iş kendi login penceresiyle devam eder (mevcut davranış).
+    pencere açık kalır; iş fail etmez, tarama aynı Firefox'ta girişten sonra devam eder.
     """
     jid = (job_id or "").strip().lower()
     if jid not in _WARMUP_JOB_IDS:
@@ -6022,66 +6022,6 @@ def _page_tarama_claim_loop() -> None:
             run_id = str(job.get("run_id") or "")
             started_mono = time.time()
             page_key = str(job.get("page") or "")
-            # Planlı turlarla aynı düzen: önce oturum, sonra iş.
-            # Tarayıcı thread'inde koşar: Playwright nesneleri thread'e bağlı ve
-            # sıcak pencere sorgusu yanlış thread'den yapılınca kaydı bozuyor.
-            if _is_browser_scrape_kind(job_id):
-                warm = _call_on_browser_worker(lambda **_: _warmup_before_job(job_id))
-            else:
-                warm = _warmup_before_job(job_id)
-            # Doğrulama bekleniyorsa işi BAŞLATMA. Aksi halde asıl scrape hemen
-            # açılıyor ve (Selenium yolu aynı profildeki Playwright penceresini
-            # kapattığı için) kullanıcı telefonundaki onayı veremeden ekran
-            # kayboluyordu. Pencere açık kalsın, kullanıcı doğrulamayı bitirsin.
-            if warm and not warm.get("ok"):
-                msg = "; ".join(warm.get("messages") or []) or "Giriş doğrulaması bekleniyor"
-                busy = bool(
-                    re.search(
-                        r"Profil me[sş]gul|kill_existing|profile busy|browser lock",
-                        msg,
-                        re.I,
-                    )
-                )
-                if busy:
-                    # Yanlış Mac / meşgul profil — fail etme, kuyruğa iade + bu worker'ı kısa süre hariç tut
-                    print(
-                        f"Uzaktan {meta['name']}: profil meşgul → kuyruğa iade ({msg[:120]})",
-                        flush=True,
-                    )
-                    try:
-                        requests.post(
-                            _page_tarama_api_base() + "/api/page-tarama/requeue",
-                            headers=_page_tarama_auth_headers(),
-                            json={
-                                "run_id": job.get("run_id"),
-                                "job_id": job_id,
-                                "message": f"Waiting · browser profile busy on {_worker_name()}",
-                                "exclude_worker": _worker_name(),
-                            },
-                            timeout=30,
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        print(f"page-tarama requeue: {exc}", flush=True)
-                    _finish_job_progress(
-                        job_id,
-                        {"ok": False, "message": "Requeued · profile busy"},
-                        trigger="page-tarama",
-                        name=str(meta.get("name") or job_id),
-                    )
-                    final_posted = True
-                    return
-                print(f"Uzaktan {meta['name']}: {msg} — iş başlatılmadı", flush=True)
-                _post_page_tarama_result({
-                    "run_id": job.get("run_id"),
-                    "job_id": job_id,
-                    "ok": False,
-                    "worker": _worker_name(),
-                    "message": f"Giriş doğrulaması bekleniyor: {msg}"[:300],
-                })
-                final_posted = True
-                return
-            # Kullanıcı bu Mac'in başında ve oturum yok: gözetimsiz 150 sn yerine
-            # 15 dk beklenir ki açılan pencerede girişi yapabilsin.
             login_ok = bool(job.get("login_ok"))
             if login_ok:
                 os.environ["SCRAPE_LOGIN_WAIT_SEC"] = str(
@@ -6093,12 +6033,22 @@ def _page_tarama_claim_loop() -> None:
                     flush=True,
                 )
 
+            hb_state: dict[str, Any] = {
+                "phase": "login" if login_ok else "warmup",
+                "message": (
+                    f"Bu Mac'te giriş bekleniyor — açılan pencereden {meta['name']} girişini yap"
+                    if login_ok
+                    else "Mac scan claimed · oturum doğrulanıyor"
+                ),
+            }
+
             def _progress_post(info: dict[str, Any] | None = None) -> None:
                 info = info if isinstance(info, dict) else {}
                 elapsed = int(time.time() - started_mono)
                 msg = str(
                     info.get("message")
                     or info.get("sub_label")
+                    or hb_state.get("message")
                     or f"Mac scan running · {elapsed}s"
                 )[:200]
                 payload = {
@@ -6107,7 +6057,7 @@ def _page_tarama_claim_loop() -> None:
                     "running": True,
                     "worker": _worker_name(),
                     "message": msg,
-                    "phase": str(info.get("phase") or "running")[:80],
+                    "phase": str(info.get("phase") or hb_state.get("phase") or "running")[:80],
                     "platform": str(info.get("platform") or "")[:40],
                     "sub_label": str(info.get("sub_label") or "")[:160],
                 }
@@ -6125,12 +6075,8 @@ def _page_tarama_claim_loop() -> None:
 
             _progress_post(
                 {
-                    "message": (
-                        f"Bu Mac'te giriş bekleniyor — açılan pencereden {meta['name']} girişini yap"
-                        if login_ok
-                        else "Mac scan claimed · starting"
-                    ),
-                    "phase": "login" if login_ok else "claimed",
+                    "message": hb_state["message"],
+                    "phase": hb_state["phase"],
                     "step": 0,
                 }
             )
@@ -6182,13 +6128,68 @@ def _page_tarama_claim_loop() -> None:
                     else:
                         _progress_post(
                             {
-                                "phase": "running",
-                                "message": f"{meta['name']} · Mac scan · {int(time.time() - started_mono)}s elapsed",
+                                "phase": hb_state.get("phase") or "running",
+                                "message": hb_state.get("message")
+                                or f"{meta['name']} · Mac scan · {int(time.time() - started_mono)}s elapsed",
                             }
                         )
 
             hb = threading.Thread(target=_heartbeat, name=f"pt-hb-{job_id}", daemon=True)
             hb.start()
+
+            # Kalp atışı warmup'dan ÖNCE: kullanıcı 2FA için 2–15 dk beklerken
+            # Railway «Scan lost progress» kesmesin. 2FA fail etmez — tarama
+            # aynı Firefox penceresinde girişten sonra devam eder.
+            if _is_browser_scrape_kind(job_id):
+                warm = _call_on_browser_worker(lambda **_: _warmup_before_job(job_id))
+            else:
+                warm = _warmup_before_job(job_id)
+            if warm and not warm.get("ok"):
+                msg = "; ".join(warm.get("messages") or []) or "Giriş doğrulaması bekleniyor"
+                busy = bool(
+                    re.search(
+                        r"Profil me[sş]gul|kill_existing|profile busy|browser lock",
+                        msg,
+                        re.I,
+                    )
+                )
+                if busy:
+                    print(
+                        f"Uzaktan {meta['name']}: profil meşgul → kuyruğa iade ({msg[:120]})",
+                        flush=True,
+                    )
+                    try:
+                        requests.post(
+                            _page_tarama_api_base() + "/api/page-tarama/requeue",
+                            headers=_page_tarama_auth_headers(),
+                            json={
+                                "run_id": job.get("run_id"),
+                                "job_id": job_id,
+                                "message": f"Waiting · browser profile busy on {_worker_name()}",
+                                "exclude_worker": _worker_name(),
+                            },
+                            timeout=30,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"page-tarama requeue: {exc}", flush=True)
+                    _finish_job_progress(
+                        job_id,
+                        {"ok": False, "message": "Requeued · profile busy"},
+                        trigger="page-tarama",
+                        name=str(meta.get("name") or job_id),
+                    )
+                    final_posted = True
+                    return
+                hb_state["phase"] = "login"
+                hb_state["message"] = f"Giriş / 2FA bekleniyor — pencereyi kapatma: {msg}"[:200]
+                _progress_post(dict(hb_state))
+                print(
+                    f"Uzaktan {meta['name']}: {msg} — tarama aynı pencerede girişten sonra devam",
+                    flush=True,
+                )
+            else:
+                hb_state["phase"] = "running"
+                hb_state["message"] = f"{meta['name']} · Mac scan · starting"
 
             def _runner():
                 if job_id == "firebase":

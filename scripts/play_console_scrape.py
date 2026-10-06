@@ -5485,6 +5485,20 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 body = ""
             blocked = (not play_console_use_selenium()) and google_blocks_automation_text(body)
             waited = False if blocked else _wait_until_console(page)
+            if (blocked or not waited) and play_console_use_selenium():
+                return {
+                    "ok": False,
+                    "needs_login": True,
+                    "message": (
+                        "Play giriş zaman aşımı — açık Firefox penceresinde dashboard "
+                        "görününce tekrar deneyin (pencereyi kapatmayın)"
+                    ),
+                    "url": url,
+                    "metrics": [],
+                    "reviews": [],
+                    "rating_summary": {},
+                    "raw_network": [],
+                }
             if blocked or not waited:
                 _release_context(pw, context)
                 pw = context = None
