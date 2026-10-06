@@ -108,6 +108,8 @@ def test_non_browser_jobs_do_not_hop():
     m = _bridge()
     assert m._is_browser_scrape_kind("notification") is False
     assert m._is_browser_scrape_kind("asc") is True
+    # Piyasa ayrı Playwright süreci (ephemeral); Play 2FA kuyruğunu beklememeli
+    assert m._is_browser_scrape_kind("market") is False
 
 
 def test_worker_is_reused_across_calls():

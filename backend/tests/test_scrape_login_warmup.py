@@ -309,6 +309,7 @@ def test_manual_trigger_runs_warmup_first():
     assert body.index("hb.start()") < body.index("_warmup_before_job(job_id)")
     assert body.index("_warmup_before_job(job_id)") < body.index("meta[\"runner\"]")
     assert "tarama aynı pencerede girişten sonra devam" in body
+    assert "if job_id in _WARMUP_JOB_IDS" in body
 
 
 def test_manual_warmup_only_for_login_kinds():

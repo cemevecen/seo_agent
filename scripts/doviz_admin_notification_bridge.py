@@ -475,7 +475,6 @@ _BROWSER_SCRAPE_KINDS = frozenset(
         "sinemalar_moderation",
         "seo_audit",
         "gsc_cwv",
-        "market",
         "empower_intel",
         "empower_intel_sinemalar",
         "login_warmup",
@@ -5322,6 +5321,7 @@ def _auto_loop() -> None:
         _slot_job(
             "market", "Piyasa", _market_lock, run_market_tarama_bridge_once,
             "_last_market_auto_slot", MARKET_SLOT_HOURS, MARKET_SLOT_MINUTE,
+            browser=False,
         )
         if "empower_intel" not in _job_retries:
             emp_due, emp_slot = _multi_slot_due(_last_empower_intel_auto_slot, EMPOWER_INTEL_SLOTS)
@@ -6140,10 +6140,14 @@ def _page_tarama_claim_loop() -> None:
             # Kalp atışı warmup'dan ÖNCE: kullanıcı 2FA için 2–15 dk beklerken
             # Railway «Scan lost progress» kesmesin. 2FA fail etmez — tarama
             # aynı Firefox penceresinde girişten sonra devam eder.
-            if _is_browser_scrape_kind(job_id):
-                warm = _call_on_browser_worker(lambda **_: _warmup_before_job(job_id))
-            else:
-                warm = _warmup_before_job(job_id)
+            # Warm-up yalnızca Play/Firebase/ASC — market gibi işler Play'in
+            # tek tarayıcı thread'inde sıraya girip sessiz ölmesin.
+            warm = None
+            if job_id in _WARMUP_JOB_IDS:
+                if _is_browser_scrape_kind(job_id):
+                    warm = _call_on_browser_worker(lambda **_: _warmup_before_job(job_id))
+                else:
+                    warm = _warmup_before_job(job_id)
             if warm and not warm.get("ok"):
                 msg = "; ".join(warm.get("messages") or []) or "Giriş doğrulaması bekleniyor"
                 busy = bool(
