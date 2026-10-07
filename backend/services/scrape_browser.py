@@ -1,7 +1,8 @@
-"""Tarama tarayıcısı — yalnızca Firefox.
+"""Tarama tarayıcısı — yalnızca sistem /Applications/Firefox.app.
 
-Chrome / Chromium / Chrome for Testing açılmaz. Google oturumu
-~/.seo-agent/fx-google altında tutulur (Play, GSC, Firebase, Policy).
+Chrome / Chromium / Chrome for Testing açılmaz.
+Playwright'ın ms-playwright Nightly build'i asla açılmaz.
+Google oturumu ~/.seo-agent/fx-google altında tutulur (Play, GSC, Firebase, Policy).
 
 Profil kuralları:
 - Auth state (cookies.sqlite, storage, sessionstore…) silinmez / recreate edilmez.
@@ -525,32 +526,59 @@ def assert_firefox_only(pw: Any) -> None:
         raise RuntimeError("Playwright Firefox yok — `playwright install firefox`")
 
 
-def resolve_firefox_executable() -> str | None:
-    """Opsiyonel Firefox binary (Playwright).
-
-    PLAYWRIGHT_FIREFOX_EXECUTABLE verilirse onu kullan — ms-playwright/Nightly
-    path'leri reddedilir. Google Sheets scrape için `system_firefox_driver`
-    (Selenium + Firefox.app) kullanın; Playwright Nightly Google'da engellenir.
-    """
-    env = (os.environ.get("PLAYWRIGHT_FIREFOX_EXECUTABLE") or "").strip()
-    if env:
-        p = Path(env).expanduser()
-        if p.is_file() and "ms-playwright" not in str(p) and "Nightly" not in str(p):
-            return str(p)
-    return None
+def _is_banned_firefox_path(path: str | Path | None) -> bool:
+    """Playwright / Firefox Nightly yolları — asla açılmamalı."""
+    low = str(path or "").lower()
+    if not low:
+        return True
+    markers = (
+        "ms-playwright",
+        "nightly.app",
+        "firefox nightly",
+        "/nightly/",
+        "firefox-nightly",
+    )
+    return any(m in low for m in markers)
 
 
 def resolve_system_firefox_executable() -> str | None:
-    """Gerçek Firefox.app — Google login için (Playwright Nightly'yi 'insecure' sayıyor)."""
-    env = (os.environ.get("SYSTEM_FIREFOX_EXECUTABLE") or "").strip()
-    if env:
+    """Gerçek /Applications/Firefox.app — Nightly / ms-playwright yok.
+
+    Tüm scrape / köprü / Playwright launch yolları bunu kullanır.
+    """
+    for key in ("SYSTEM_FIREFOX_EXECUTABLE", "PLAYWRIGHT_FIREFOX_EXECUTABLE"):
+        env = (os.environ.get(key) or "").strip()
+        if not env:
+            continue
         p = Path(env).expanduser()
-        if p.is_file():
+        if p.is_file() and not _is_banned_firefox_path(p):
             return str(p)
     mac = Path("/Applications/Firefox.app/Contents/MacOS/firefox")
-    if mac.is_file():
+    if mac.is_file() and not _is_banned_firefox_path(mac):
         return str(mac)
+    # Developer Edition / Nightly.app asla fallback değil
     return None
+
+
+def resolve_firefox_executable() -> str | None:
+    """Playwright launch için Firefox binary — yalnızca sistem Firefox.app.
+
+    Playwright'ın paketlediği Nightly (ms-playwright/.../Nightly.app) kullanılmaz.
+    Bulunamazsa None; çağıran launch_* hard-fail eder.
+    """
+    return resolve_system_firefox_executable()
+
+
+def require_system_firefox_executable(*, context: str = "") -> str:
+    exe = resolve_system_firefox_executable()
+    if exe and not _is_banned_firefox_path(exe):
+        return exe
+    where = f" ({context})" if context else ""
+    raise RuntimeError(
+        "Sistem Firefox.app gerekli"
+        f"{where} — /Applications/Firefox.app kurulu olmalı. "
+        "Playwright Nightly yasak; SYSTEM_FIREFOX_EXECUTABLE ile yolu verebilirsin."
+    )
 
 
 def launch_system_firefox_login(
@@ -666,15 +694,22 @@ def _persistent_kwargs(
         "locale": locale,
         "accept_downloads": True,
     }
-    exe = resolve_firefox_executable()
-    if exe:
-        kwargs["executable_path"] = exe
+    # Her zaman sistem Firefox.app — Playwright Nightly yok
+    kwargs["executable_path"] = require_system_firefox_executable(
+        context="persistent_kwargs"
+    )
     if extra:
         extra = dict(extra)
         extra.pop("channel", None)
         extra.pop("args", None)
         extra.pop("ignore_default_args", None)
+        # Caller Nightly path enjekte edemesin
+        exe_extra = extra.pop("executable_path", None)
+        if exe_extra and not _is_banned_firefox_path(exe_extra):
+            kwargs["executable_path"] = str(exe_extra)
         kwargs.update(extra)
+    if _is_banned_firefox_path(kwargs.get("executable_path")):
+        raise RuntimeError(f"Nightly yasak: {kwargs.get('executable_path')}")
     return kwargs
 
 
@@ -688,7 +723,7 @@ def launch_persistent(
     extra: dict[str, Any] | None = None,
     kill_existing: bool = True,
 ) -> Any:
-    """Firefox persistent context.
+    """Firefox persistent context (sistem Firefox.app — Nightly yok).
 
     kill_existing=True: soft takeover (bekle → SIGTERM → SIGKILL son çare).
     kill_existing=False: yalnızca stale lock temizliği; canlı browser varsa ProfileBusyError.
@@ -696,6 +731,12 @@ def launch_persistent(
     """
     assert_browser_scrape_allowed(context="launch_persistent")
     assert_firefox_only(pw)
+    try:
+        from backend.services.system_firefox_driver import ban_playwright_nightly_processes
+
+        ban_playwright_nightly_processes(profile)
+    except Exception:
+        pass
     if kill_existing:
         ensure_profile_free_for_launch(
             profile,
@@ -725,15 +766,24 @@ def launch_ephemeral(
     headed: bool = False,
     **context_kwargs: Any,
 ) -> tuple[Any, Any]:
+    """Ephemeral Playwright context — yalnızca sistem Firefox.app (Nightly yok)."""
     assert_browser_scrape_allowed(context="launch_ephemeral")
     assert_firefox_only(pw)
-    launch_kwargs: dict[str, Any] = {"headless": not headed}
-    exe = resolve_firefox_executable()
-    if exe:
-        launch_kwargs["executable_path"] = exe
+    try:
+        from backend.services.system_firefox_driver import ban_playwright_nightly_processes
+
+        ban_playwright_nightly_processes()
+    except Exception:
+        pass
+    exe = require_system_firefox_executable(context="launch_ephemeral")
+    launch_kwargs: dict[str, Any] = {
+        "headless": not headed,
+        "executable_path": exe,
+    }
     browser = pw.firefox.launch(**launch_kwargs)
     context_kwargs.pop("channel", None)
     context_kwargs.pop("args", None)
+    context_kwargs.pop("executable_path", None)
     ctx = browser.new_context(**context_kwargs)
     return browser, ctx
 

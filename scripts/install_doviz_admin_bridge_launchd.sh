@@ -54,25 +54,19 @@ done
 [[ -f "$BRIDGE" ]] || { echo "Yok: $BRIDGE" >&2; exit 1; }
 chmod +x "$BRIDGE" "$0" 2>/dev/null || true
 
-# Playwright Firefox: ASC/CWV/Play/Moderation bu binary olmadan çalışmaz.
+# Sistem Firefox.app zorunlu — Playwright Nightly asla açılmaz.
 if ! "$PY" - <<'PYCHECK'
-import json, sys
+import sys
 from pathlib import Path
-try:
-    import playwright
-except Exception:
-    sys.exit(1)
-meta = Path(playwright.__file__).resolve().parent / "driver" / "package" / "browsers.json"
-rev = ""
-for entry in json.loads(meta.read_text(encoding="utf-8")).get("browsers", []):
-    if entry.get("name") == "firefox":
-        rev = str(entry.get("revision") or "")
-sys.exit(0 if rev and (Path.home() / "Library/Caches/ms-playwright" / f"firefox-{rev}").exists() else 1)
+mac = Path("/Applications/Firefox.app/Contents/MacOS/firefox")
+sys.exit(0 if mac.is_file() else 1)
 PYCHECK
 then
-  echo "Playwright Firefox eksik — kuruluyor (~85 MB)…"
-  "$PY" -m playwright install firefox || echo "Uyarı: playwright install firefox başarısız." >&2
+  echo "HATA: /Applications/Firefox.app yok — App Store / mozilla.org'dan Firefox (release) kur." >&2
+  echo "Firefox Nightly veya Developer Edition kullanılmaz." >&2
+  exit 1
 fi
+echo "Sistem Firefox.app tamam (Nightly yok)."
 
 if [[ -f "$ROOT/.env" ]]; then
   if ! grep -q '^DOVIZ_ADMIN_EMAIL=.\+' "$ROOT/.env" 2>/dev/null; then

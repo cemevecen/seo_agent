@@ -34,13 +34,37 @@ def test_resolve_firefox_executable_prefers_env(monkeypatch, tmp_path):
     fake = tmp_path / "firefox"
     fake.write_text("x", encoding="utf-8")
     monkeypatch.setenv("PLAYWRIGHT_FIREFOX_EXECUTABLE", str(fake))
+    monkeypatch.delenv("SYSTEM_FIREFOX_EXECUTABLE", raising=False)
     assert resolve_firefox_executable() == str(fake)
 
 
-def test_resolve_firefox_executable_default_none_without_env(monkeypatch):
-    monkeypatch.delenv("PLAYWRIGHT_FIREFOX_EXECUTABLE", raising=False)
-    # Default: Playwright'ın kendi binary'si (juggler uyumu)
+def test_resolve_firefox_executable_rejects_nightly(monkeypatch, tmp_path):
+    from backend.services import scrape_browser as sb
+    from backend.services.scrape_browser import _is_banned_firefox_path, require_system_firefox_executable
+
+    nightly = tmp_path / "Nightly.app" / "Contents" / "MacOS" / "firefox"
+    nightly.parent.mkdir(parents=True)
+    nightly.write_text("x", encoding="utf-8")
+    monkeypatch.setenv("PLAYWRIGHT_FIREFOX_EXECUTABLE", str(nightly))
+    monkeypatch.setenv("SYSTEM_FIREFOX_EXECUTABLE", str(nightly))
+    # Gerçek makinedeki /Applications/Firefox.app fallback'ini kapat
+    monkeypatch.setattr(sb.Path, "is_file", lambda self: str(self) == str(nightly) or False)
+    assert _is_banned_firefox_path(nightly) is True
     assert resolve_firefox_executable() is None
+    try:
+        require_system_firefox_executable(context="test")
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "Nightly" in str(exc) or "Firefox.app" in str(exc)
+
+
+def test_resolve_firefox_executable_uses_system_app(monkeypatch, tmp_path):
+    monkeypatch.delenv("PLAYWRIGHT_FIREFOX_EXECUTABLE", raising=False)
+    fake = tmp_path / "Firefox.app" / "Contents" / "MacOS" / "firefox"
+    fake.parent.mkdir(parents=True)
+    fake.write_text("x", encoding="utf-8")
+    monkeypatch.setenv("SYSTEM_FIREFOX_EXECUTABLE", str(fake))
+    assert resolve_firefox_executable() == str(fake)
 
 
 def test_align_firefox_profile_compatibility(tmp_path):

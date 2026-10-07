@@ -30,9 +30,16 @@ from backend.services.scrape_browser import (
 
 _NIGHTLY_MARKERS = (
     "ms-playwright/firefox",
+    "ms-playwright",
     "Nightly.app",
+    "Firefox Nightly",
+    "firefox-nightly",
     "firefox-1471",
+    "firefox-1480",
+    "firefox-1490",
     "firefox-1509",
+    "firefox-1510",
+    "firefox-1520",
 )
 
 

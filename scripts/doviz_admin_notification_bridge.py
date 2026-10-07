@@ -5473,7 +5473,7 @@ def _worker_name() -> str:
 
 
 def _playwright_firefox_ready() -> bool:
-    """Kurulu playwright'ın beklediği Firefox revizyonu gerçekten var mı."""
+    """Sistem Firefox.app var mı — Nightly / ms-playwright sayılmaz."""
     global _playwright_cache
     ts, val = _playwright_cache
     now = time.time()
@@ -5481,18 +5481,10 @@ def _playwright_firefox_ready() -> bool:
         return val
     ok = False
     try:
-        import playwright  # noqa: PLC0415
+        from backend.services.scrape_browser import resolve_system_firefox_executable
 
-        meta = Path(playwright.__file__).resolve().parent / "driver" / "package" / "browsers.json"
-        rev = ""
-        data = json.loads(meta.read_text(encoding="utf-8"))
-        for entry in data.get("browsers") or []:
-            if entry.get("name") == "firefox":
-                rev = str(entry.get("revision") or "")
-                break
-        if rev:
-            base = Path.home() / "Library" / "Caches" / "ms-playwright" / f"firefox-{rev}"
-            ok = (base / "firefox" / "Nightly.app").exists() or (base / "firefox").exists()
+        exe = resolve_system_firefox_executable()
+        ok = bool(exe) and Path(exe).is_file()
     except Exception:  # noqa: BLE001
         ok = False
     _playwright_cache = (now, ok)

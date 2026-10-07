@@ -519,6 +519,8 @@
   function fitOneKpiText(node, minPx, maxPx) {
     if (!node) return;
     node.style.removeProperty("font-size");
+    node.style.transform = "";
+    node.style.transformOrigin = "";
     var avail = node.clientWidth;
     if (avail < 4) return;
     var csMax = parseFloat(window.getComputedStyle(node).fontSize) || 12;
@@ -528,12 +530,12 @@
     var best = lo;
     node.style.whiteSpace = "nowrap";
     node.style.overflow = "hidden";
-    node.style.textOverflow = "ellipsis";
+    node.style.textOverflow = "clip";
     node.style.maxWidth = "100%";
     for (var i = 0; i < 16; i++) {
       var mid = (lo + hi) / 2;
       node.style.fontSize = mid + "px";
-      if (node.scrollWidth <= node.clientWidth + 0.75) {
+      if (node.scrollWidth <= node.clientWidth + 0.5) {
         best = mid;
         lo = mid;
       } else {
@@ -541,6 +543,13 @@
       }
     }
     node.style.fontSize = best + "px";
+    // Hâlâ taşarsa hafif yatay sıkıştır — metin kutunun içinde kalsın
+    var fittedAvail = node.clientWidth || avail;
+    if (node.scrollWidth > fittedAvail + 0.5 && fittedAvail > 4) {
+      var sx = Math.max(0.62, fittedAvail / node.scrollWidth);
+      node.style.transform = "scaleX(" + sx.toFixed(3) + ")";
+      node.style.transformOrigin = "left center";
+    }
   }
   function fitMetricKpiValues(root) {
     if (!root) return;
@@ -693,7 +702,7 @@
       if (mode && window.SeoPeriodCompare) {
         var cmp = buildComparePack(daily, prevDaily, mode, win);
         var kpiCmp = SeoPeriodCompare.kpiText(cmp);
-        var cmpShort = mode === "previous_year" ? "vs LY" : "vs prev";
+        var cmpShort = mode === "previous_year" ? "LY" : "prev";
         cmpHtml =
           '<p class="metric-kpi-ss2-cmp ' + kpiCmp.cls + '" title="' + esc(kpiCmp.title || "") + '">' +
           esc(cmpShort + " " + kpiCmp.text) +
