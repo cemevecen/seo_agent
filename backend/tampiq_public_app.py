@@ -97,7 +97,7 @@ def resolve_platform(request: Request) -> str:
 
 
 def _apply_platform_catalog(catalog: dict, *, locale: str, platform: str) -> dict:
-    """Swap privacy/support bodies for Android when requested.
+    """Swap privacy/support/delete-account bodies for Android when requested.
 
     Incomplete Android locales intentionally use reviewed English Android copy
     (never another language's iOS-specific text).
@@ -109,12 +109,18 @@ def _apply_platform_catalog(catalog: dict, *, locale: str, platform: str) -> dic
     android_catalog = get_catalog(source_locale)
     privacy = android_catalog.get("privacy_android")
     support = android_catalog.get("support_android")
-    if not isinstance(privacy, dict) or not isinstance(support, dict):
+    delete_account = android_catalog.get("delete_account_android")
+    if (
+        not isinstance(privacy, dict)
+        or not isinstance(support, dict)
+        or not isinstance(delete_account, dict)
+    ):
         return catalog
 
     out = dict(catalog)
     out["privacy"] = privacy
     out["support"] = support
+    out["delete_account"] = delete_account
     meta = dict(out.get("meta") or {})
     # Prefer Android-specific titles/descriptions when present.
     en_meta = get_catalog(DEFAULT_LOCALE).get("meta") or {}
@@ -124,6 +130,8 @@ def _apply_platform_catalog(catalog: dict, *, locale: str, platform: str) -> dic
         ("support_title", "support_title_android"),
         ("privacy_description", "privacy_description_android"),
         ("support_description", "support_description_android"),
+        ("delete_account_title", "delete_account_title_android"),
+        ("delete_account_description", "delete_account_description_android"),
     ):
         value = src_meta.get(fallback_key) or en_meta.get(fallback_key)
         if value:
@@ -226,6 +234,11 @@ def privacy(request: Request):
     return _html_response(request, "privacy.html", "privacy")
 
 
+@app.get("/delete-account", response_class=HTMLResponse, include_in_schema=False)
+def delete_account(request: Request):
+    return _html_response(request, "delete_account.html", "delete-account")
+
+
 @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
 def robots() -> str:
     # Public Help Center must remain fetchable for store review (Google Play / App Store).
@@ -235,6 +248,7 @@ def robots() -> str:
         "User-agent: *\n"
         "Allow: /privacy\n"
         "Allow: /support\n"
+        "Allow: /delete-account\n"
         "Allow: /robots.txt\n"
         "Allow: /health\n"
         "Allow: /static/tampiq/\n"

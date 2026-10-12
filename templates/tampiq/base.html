@@ -20,6 +20,7 @@
         <nav class="nav" aria-label="Primary">
           <a href="/support?lang={{ locale }}{{ platform_qs }}"{% if active == 'support' %} aria-current="page"{% endif %}>{{ t.nav.support }}</a>
           <a href="/privacy?lang={{ locale }}{{ platform_qs }}"{% if active == 'privacy' %} aria-current="page"{% endif %}>{{ t.nav.privacy }}</a>
+          <a href="/delete-account?lang={{ locale }}{{ platform_qs }}"{% if active == 'delete-account' %} aria-current="page"{% endif %}>{{ t.nav.delete_account }}</a>
           <a href="/support?lang={{ locale }}{{ platform_qs }}#contact"{% if active == 'contact' %} aria-current="page"{% endif %}>{{ t.nav.contact }}</a>
         </nav>
         <div class="lang" data-lang-root>
@@ -42,6 +43,7 @@
       <nav class="foot-nav" aria-label="Footer">
         <a href="/support?lang={{ locale }}{{ platform_qs }}">{{ t.footer.support }}</a>
         <a href="/privacy?lang={{ locale }}{{ platform_qs }}">{{ t.footer.privacy }}</a>
+        <a href="/delete-account?lang={{ locale }}{{ platform_qs }}">{{ t.footer.delete_account }}</a>
         <a href="/support?lang={{ locale }}{{ platform_qs }}#contact">{{ t.footer.contact }}</a>
       </nav>
     </footer>

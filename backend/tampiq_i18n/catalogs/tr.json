@@ -8,14 +8,19 @@
     "privacy_description": "TAMPIQ’in bilgileri cihazınızda nasıl işlediği ve sakladığı.",
     "privacy_title_android": "TAMPIQ Gizlilik Politikası (Android)",
     "support_title_android": "TAMPIQ Destek (Android)",
+    "delete_account_title": "TAMPIQ — Hesap silme",
+    "delete_account_description": "TAMPIQ hesabının nasıl silineceği ve hangi verilerin kaldırıldığı veya saklandığı.",
+    "delete_account_title_android": "TAMPIQ — Hesap silme (Android)",
+    "delete_account_description_android": "TAMPIQ Android için Google Play hesap silme yönergeleri: uygulama içi adımlar, silinen veriler ve saklama.",
     "privacy_description_android": "TAMPIQ Android koruma uygulaması için gizlilik politikası: cihaz içi kayıtlar, isteğe bağlı e-posta uyarıları ve izinler.",
     "support_description_android": "TAMPIQ Android yardımı: koruma kurulumu, özel erişimler, e-posta uyarıları ve sorun giderme.",
-    "android_locale_notice": "Android’e özel gizlilik ve destek metinleri şu anda Türkçe ve İngilizce olarak yayınlanmıştır. Seçtiğiniz dil için incelenen çeviri hazır olana kadar bu sayfa İngilizce gösterilir."
+    "android_locale_notice": "Android’e özel gizlilik, destek ve hesap silme metinleri şu anda Türkçe ve İngilizce olarak yayınlanmıştır. Seçtiğiniz dil için incelenen çeviri hazır olana kadar bu sayfa İngilizce gösterilir."
   },
   "nav": {
     "support": "Destek",
     "privacy": "Gizlilik Politikası",
     "contact": "İletişim",
+    "delete_account": "Hesap silme",
     "language": "Dil",
     "home_aria": "TAMPIQ ana sayfa",
     "lang_aria": "Dil seçin"
@@ -24,7 +29,8 @@
     "copyright": "© 2026 TAMPIQ",
     "support": "Destek",
     "privacy": "Gizlilik Politikası",
-    "contact": "İletişim"
+    "contact": "İletişim",
+    "delete_account": "Hesap silme"
   },
   "home": {
     "eyebrow": "TAMPIQ Yardım Merkezi",
@@ -805,5 +811,148 @@
         ]
       }
     ]
+  },
+  "delete_account": {
+    "title": "Hesap silme",
+    "effective_label": "Son güncelleme",
+    "effective_date": "12 Ekim 2026",
+    "intro": "iOS’taki TAMPIQ bir TAMPIQ bulut kullanıcı hesabı oluşturmaz. Koruma kayıtları cihazınızda kalır. Yerel veriyi kaldırmak için uygulama içi kayıt silme veya kaldırma kullanın. Android bulut hesabı silme (isteğe bağlı güvenlik e-posta uyarıları için Google ile oturum açma) için bu sayfayı platform=android ile açın.",
+    "sections": [
+      {
+        "id": "ios-no-cloud-account",
+        "title": "iOS’ta TAMPIQ bulut hesabı yok",
+        "paragraphs": [
+          "Yayımlanan iOS uygulaması Google ile oturum açma veya başka bir TAMPIQ bulut hesabı sunmaz.",
+          "TAMPIQ içinde oturumları silebilir veya kayıtları temizleyebilirsiniz. Kaldırma, iOS davranışına göre uygulamanın yerel kapsayıcısını siler.",
+          "Daha önce gönderdiğiniz destek e-postaları kaldırma ile silinmez."
+        ]
+      },
+      {
+        "id": "contact",
+        "title": "İletişim",
+        "paragraphs": [
+          "Geliştirici / Yayımcı: TAMPIQ (Türkiye).",
+          "Sorularınız için aşağıdaki iletişim adreslerini kullanın."
+        ]
+      }
+    ],
+    "privacy_email_label": "Gizlilik e-postası",
+    "support_email_label": "Destek e-postası",
+    "request_cta_label": "Destek e-postası gönder",
+    "request_cta_subject": "TAMPIQ hesap silme sorusu"
+  },
+  "delete_account_android": {
+    "title": "Hesap silme (Android)",
+    "effective_label": "Son güncelleme",
+    "effective_date": "12 Ekim 2026",
+    "intro": "Bu sayfa, güvenlik e-posta uyarıları için kullanılan isteğe bağlı TAMPIQ Android bulut hesabının nasıl silineceğini, nelerin silindiğini ve nelerin kalabileceğini açıklar. Geliştirici / Yayımcı: TAMPIQ (Türkiye). Temel koruma kaydı için bulut hesabı gerekmez.",
+    "sections": [
+      {
+        "id": "what-is-an-account",
+        "title": "1. TAMPIQ hesabı nedir",
+        "paragraphs": [
+          "TAMPIQ’in temel koruma özellikleri bulut hesabı olmadan cihaz üzerinde çalışır.",
+          "İsteğe bağlı bulut hesabı yalnızca güvenlik e-posta uyarıları için Google ile oturum açarsanız (yapılandırıldığında Firebase Authentication / Google Sign-In) oluşur.",
+          "TAMPIQ Android uygulamada e-posta ve parola ile hesap kaydı sunmaz.",
+          "Cihazdaki Tampiq PIN / Uygulama Kilidi, isteğe bağlı Google bulut hesabından ayrıdır ve bulut girişi değildir."
+        ]
+      },
+      {
+        "id": "in-app-deletion",
+        "title": "2. Önerilen yol: Android uygulamada silme",
+        "paragraphs": [
+          "Daha önce e-posta uyarıları için oturum açtıysanız bu kimlik doğrulamalı uygulama içi yolu kullanın. Google ile yeniden doğrulamadan sonra Firebase kimlik jetonu ile TAMPIQ hesap silme API’sini çağırır. İnternet gerekir.",
+          "Yalnızca çıkış yapmak hesabınızı silmez."
+        ],
+        "bullets": [
+          "TAMPIQ’i açın → Ayarlar → İzinler ve erişim → E-posta bildirimleri.",
+          "Oturum açıkken “Hesabımı ve verilerimi sil”e dokunun.",
+          "Açıklamayı okuyun. Bu telefondaki koruma oturumları, olay kayıtları ve konum kanıtlarını da silmek istiyorsanız isteğe bağlı olarak “Bu cihazdaki TAMPIQ kayıtlarını da sil”i açın.",
+          "“Hesabımı kalıcı olarak sil”i onaylayın.",
+          "İstendiğinde aynı Google hesabıyla yeniden kimlik doğrulayın.",
+          "Başarıda TAMPIQ onay gösterir ve oturumu kapatır. Ağ başarısız olur veya Google yeniden doğrulaması iptal edilirse silme anında tamamlanmış sayılmaz—sunucu başarıyı doğrulayana kadar silindi bildirilmez."
+        ]
+      },
+      {
+        "id": "external-request",
+        "title": "3. Uygulamayı kullanamıyorsanız",
+        "paragraphs": [
+          "Cihazınız yoksa veya uygulama içi akışı açamıyorsanız, hesap silme konusunda yardım istemek için bize e-posta gönderin.",
+          "Aşağıdaki iletişim düğmesini kullanın (veya bu sayfadaki destek e-postasına yazın). Mümkünse TAMPIQ’te kullandığınız aynı Google hesap e-postasından gönderin ve TAMPIQ Android bulut hesabınızın silinmesini istediğinizi belirtin.",
+          "2 iş günü içinde yanıtlamayı hedefliyoruz. Yalnızca bir e-posta adresini bilmek hesabı silmek için yeterli değildir; sahiplik doğrulaması gerekir. Bu yol anında, kimlik doğrulamasız bir silme düğmesi değildir."
+        ]
+      },
+      {
+        "id": "deleted-data",
+        "title": "4. Hesap silme başarılı olduğunda silinen veriler",
+        "paragraphs": [
+          "Kimlik doğrulamalı silme API’si başarıyla tamamlandığında TAMPIQ şu hesapla ilişkili sunucu verilerini ve kimliği siler:"
+        ],
+        "bullets": [
+          "O TAMPIQ bulut hesabına ait Firebase Authentication kimliği (TAMPIQ için Google ile oturum).",
+          "Hesaba bağlı sunucu tarafı e-posta uyarı tercihleri.",
+          "Hesaba bağlı sunucu tarafı güvenlik uyarısı iletim kayıtları.",
+          "Hesaba bağlı e-posta hacim pencereleri ve kullanıcı kimliğine bağlı hız sınırı kovaları.",
+          "O destin için bekleyen cihaz içi uyarı işleri iptal edilir; silme yapılan cihazda e-posta uyarısı tercihi kapatılır."
+        ]
+      },
+      {
+        "id": "local-records",
+        "title": "5. Cihazdaki yerel koruma kayıtları",
+        "paragraphs": [
+          "Telefondaki yerel koruma geçmişi, hesap silme sırasında yalnızca onay sayfasında “Bu cihazdaki TAMPIQ kayıtlarını da sil” açıkça seçilirse silinir.",
+          "Bu seçenek kapalıysa bulut hesabı silindikten sonra koruma oturumları, olay kayıtları ve konum kanıtları cihazda kalır.",
+          "Bulut hesaplarından bağımsız olarak Ayarlar’dan (Kayıtları sil) kayıt silebilir veya saklama süresini kısaltabilirsiniz."
+        ]
+      },
+      {
+        "id": "retained-data",
+        "title": "6. Saklanabilecek veriler",
+        "paragraphs": [
+          "Başarılı bulut hesabı silmesi aşağıdakileri kaldırmaz (ayrı bir işlem uygulanmadıkça):"
+        ],
+        "bullets": [
+          "Sunucu silme yaşam döngüsü kaydı (hesap silme durumu / tombstone: yalnızca kullanıcı kimliği ve durum—e-posta gövdesi, olay geçmişi veya konum değil).",
+          "Hesap kullanıcı kimliği kovası olmayan altyapı kötüye kullanım sayaçları (ör. IP veya genel kapsamlı hız sınırı anahtarları).",
+          "E-posta iletim sağlayıcısında halihazırda tutulan güvenlik uyarısı e-posta kopyaları; TAMPIQ hesap API’si sağlayıcı tarafı posta geçmişini silmez.",
+          "Bize daha önce gönderdiğiniz destek veya gizlilik e-postaları.",
+          "Cihazdaki Tampiq PIN / Uygulama Kilidi sırları, dil, görünüm, başlatıcı tercihleri ve kurulum kimliği—uygulama verisini temizlemez veya kaldırmadıkça (Android davranışına bağlı).",
+          "Hesap silmede isteğe bağlı yerel silmeyi seçmediyseniz yerel koruma kayıtları."
+        ]
+      },
+      {
+        "id": "retention-periods",
+        "title": "7. Saklama süreleri",
+        "paragraphs": [
+          "Cihazdaki arşivlenmiş koruma kayıtları Ayarlar’da seçtiğiniz saklama penceresini izler: 1 gün, 3 gün, 7 gün, 14 gün, 30 gün, 90 gün veya siz silene kadar. Sonlu bir pencereden eski bitmiş kayıtlar uygulama bakımı sırasında temizlenebilir. Aktif koruma saklama temizliği ile silinmez.",
+          "Hesaba bağlı sunucu uyarı tercihleri ve iletim kayıtları, kimlik doğrulamalı hesap silme başarıyla tamamlandığında kaldırılır.",
+          "Silme yaşam döngüsü tombstone’u (kullanıcı kimliği + durum) silme bütünlüğü / yeniden oynatma engeli için saklanır. Mevcut üründe bu kaydın kullanıcıya açık zamanlı otomatik temizliği yoktur.",
+          "IP veya genel kapsamlı hız sınırı anahtarları operasyonel sayaç olarak kalabilir; bunlar hesap profilinizin yerine geçmez.",
+          "Zaten gönderilmiş uyarı iletilerinin e-posta sağlayıcısı saklaması o sağlayıcının bağımsız uygulamalarını izler; TAMPIQ hesap silme ile bu kopyaları sildiğini iddia etmez."
+        ]
+      },
+      {
+        "id": "completion",
+        "title": "8. Tamamlanma nasıl işlenir",
+        "paragraphs": [
+          "Android uygulaması silmeyi yalnızca sunucu hem hesap verisi silinmesini hem de kimlik doğrulama kimliğinin silindiğini bildirdiğinde tamamlanmış sayar.",
+          "Sunucu verisi silinmiş ancak kimlik doğrulama kimliğini kapatma hâlâ bekliyorsa uygulama çevrimiçiyken yeniden denemenizi ister; bu bitene kadar hesabın tamamen kapatıldığını iddia etmez.",
+          "Google yeniden doğrulaması başarısız olur veya yanlış Google hesabı seçilirse hiçbir şey silinmez.",
+          "Bu genel Yardım Merkezi sayfası kimlik doğrulamalı silme API’sini kendi çalıştırmaz; yukarıdaki uygulama içi akışı veya e-posta ile yardım talebi yolunu kullanın."
+        ]
+      },
+      {
+        "id": "no-account-users",
+        "title": "9. Hiç oturum açmadıysanız",
+        "paragraphs": [
+          "İsteğe bağlı Google bulut hesabını hiç oluşturmadıysanız silinecek bir TAMPIQ bulut hesabı yoktur.",
+          "Cihaz geçmişi için Ayarlar → saklama kontrolleri ve Kayıtları sil’i kullanın veya yerel uygulama verisini Android’e göre kaldırmak için TAMPIQ’i kaldırın."
+        ]
+      }
+    ],
+    "privacy_email_label": "Gizlilik e-postası",
+    "support_email_label": "Destek e-postası",
+    "request_cta_label": "Silme yardımı için e-posta gönder",
+    "request_cta_subject": "TAMPIQ Android hesap silme talebi"
   }
 }

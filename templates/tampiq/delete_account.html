@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% set active = "delete-account" %}
+{% block title %}{{ t.meta.delete_account_title }}{% endblock %}
+{% block meta_description %}{{ t.meta.delete_account_description }}{% endblock %}
+{% block content %}
+<article class="doc card">
+  <h1>{{ t.delete_account.title }}</h1>
+  <p class="meta-line">{{ t.delete_account.effective_label }}: {{ t.delete_account.effective_date }}</p>
+  {% if android_locale_notice %}
+  <p class="lede" role="note">{{ android_locale_notice }}</p>
+  {% endif %}
+  <p class="lede">{{ t.delete_account.intro }}</p>
+
+  {% for section in t.delete_account.sections %}
+  <section id="{{ section.id }}" class="doc-section">
+    <h2>{{ section.title }}</h2>
+    {% if section.paragraphs %}
+      {% for p in section.paragraphs %}
+      <p>{{ p }}</p>
+      {% endfor %}
+    {% endif %}
+    {% if section.bullets %}
+    <ul>
+      {% for b in section.bullets %}
+      <li>{{ b }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  <section id="delete-account-contact" class="contact-card">
+    <h2>{{ t.nav.contact }}</h2>
+    <dl class="contact-grid">
+      <div>
+        <dt>{{ t.delete_account.support_email_label }}</dt>
+        <dd><a class="mail" href="mailto:{{ support_email }}?subject={{ t.delete_account.request_cta_subject | urlencode }}">{{ support_email }}</a></dd>
+      </div>
+      <div>
+        <dt>{{ t.delete_account.privacy_email_label }}</dt>
+        <dd><a class="mail" href="mailto:{{ privacy_email }}?subject={{ t.delete_account.request_cta_subject | urlencode }}">{{ privacy_email }}</a></dd>
+      </div>
+    </dl>
+    <p class="lede" style="margin-top:1rem">
+      <a class="mail" href="mailto:{{ support_email }}?subject={{ t.delete_account.request_cta_subject | urlencode }}">{{ t.delete_account.request_cta_label }}</a>
+    </p>
+  </section>
+</article>
+{% endblock %}
