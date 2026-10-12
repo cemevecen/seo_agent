@@ -1996,6 +1996,13 @@ def run_sinemalar_moderation_bridge_once(*, incremental_which: str = "yesterday"
     return out
 
 
+def run_asc_api_fill(*, days: int = 20) -> dict[str, Any]:
+    """ASC Sales/Analytics API → overview facts. Oturum gerekmez."""
+    from backend.services.asc_api_backfill import run_asc_api_fill as _fill
+
+    return _fill(days=days)
+
+
 def run_asc_bridge_once() -> dict[str, Any]:
     """App Store Connect analytics scrape → Railway ingest."""
     global _last_asc_result
@@ -2003,6 +2010,15 @@ def run_asc_bridge_once() -> dict[str, Any]:
         err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
         _last_asc_result = err
         return err
+    try:
+        api_fill = run_asc_api_fill(days=20)
+        print(
+            f"ASC API fill · ok={api_fill.get('ok')} · "
+            f"{str(api_fill.get('message') or '')[:160]}",
+            flush=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"ASC API fill atlandı: {exc}", flush=True)
     try:
         import importlib.util
 

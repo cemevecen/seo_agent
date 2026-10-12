@@ -53,27 +53,43 @@ def is_configured() -> bool:
     return bool(_env("GP_SERVICE_ACCOUNT_JSON"))
 
 
+def _parse_service_account_json(raw: str) -> dict[str, Any] | None:
+    """GP_SERVICE_ACCOUNT_JSON — düz, \\n kaçışlı veya .env çift-kaçışlı ({\\\\n \\\\\"type\\\\\":…})."""
+    if not raw:
+        return None
+    attempts: list[str] = [raw]
+    if "\\n" in raw and "\n" not in raw:
+        attempts.append(raw.replace("\\n", "\n").replace('\\"', '"'))
+    # unicode_escape: {\\n  \\"type\\": …} → gerçek JSON (Play bucket SA)
+    try:
+        attempts.append(raw.encode("utf-8").decode("unicode_escape"))
+    except Exception:
+        pass
+    if "\\\\" in raw:
+        try:
+            attempts.append(
+                raw.encode("utf-8").decode("unicode_escape").encode("utf-8").decode("unicode_escape")
+            )
+        except Exception:
+            pass
+    seen: set[str] = set()
+    for candidate in attempts:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            info = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(info, dict) and info.get("type") == "service_account":
+            return info
+    return None
+
+
 def _load_credentials():
     """google.oauth2.service_account.Credentials döndür."""
     raw = _env("GP_SERVICE_ACCOUNT_JSON") or ""
-    # Önce düz JSON. Sonra \\n / \\\" çift kaçış (bazı .env yazımları).
-    info = None
-    attempts = [raw]
-    if "\\n" in raw and "\n" not in raw:
-        attempts.append(raw.replace("\\n", "\n"))
-    if "\\\\" in raw or '\\"' in raw:
-        try:
-            attempts.append(raw.encode("utf-8").decode("unicode_escape"))
-        except Exception:
-            pass
-    for candidate in attempts:
-        if not candidate:
-            continue
-        try:
-            info = json.loads(candidate)
-            break
-        except json.JSONDecodeError:
-            continue
+    info = _parse_service_account_json(raw)
     if info is None:
         logger.error("GP service account JSON parse hatası")
         return None
