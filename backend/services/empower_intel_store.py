@@ -17,6 +17,7 @@ from backend.services.empower_intel_config import (
     XDATA_LAST_KEYS,
     XDATA_SKIP_CHART_KEYS,
     columns_for_platform,
+    metric_label_for_platform,
     xdata_column_key,
     xdata_metric_id,
 )
@@ -426,7 +427,7 @@ def query_series(
     else:
         total = round(sum(vals), 4) if vals else 0.0
         total_mode = "sum"
-    label = METRIC_LABELS.get(col, col)
+    label = metric_label_for_platform(col, plat)
     return {
         "ok": True,
         "has_data": bool(vals),

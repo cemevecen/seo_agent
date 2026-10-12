@@ -184,13 +184,26 @@ def xdata_metric_id(column: str) -> str:
 APP_PAGE_HIDDEN_XDATA: frozenset[str] = frozenset({"rpmTry", "is_holiday"})
 
 
+# Web / mweb: app jargon "DAU" → günlük unique kullanıcı dili
+WEB_METRIC_LABEL_OVERRIDES: dict[str, str] = {
+    "active1DayUsers": "Users (1 Day)",
+}
+
+
+def metric_label_for_platform(column: str, platform: str) -> str:
+    p = (platform or "").strip().lower()
+    if p in ("web", "mweb") and column in WEB_METRIC_LABEL_OVERRIDES:
+        return WEB_METRIC_LABEL_OVERRIDES[column]
+    return METRIC_LABELS.get(column, column)
+
+
 def xdata_dropdown_options(platform: str, *, hide: frozenset[str] | None = None) -> list[dict[str, str]]:
     skip = hide or frozenset()
     out: list[dict[str, str]] = []
     for key in columns_for_platform(platform):
         if key in XDATA_SKIP_CHART_KEYS or key in skip:
             continue
-        label = METRIC_LABELS.get(key, key)
+        label = metric_label_for_platform(key, platform)
         out.append(
             {
                 "value": xdata_metric_id(key),

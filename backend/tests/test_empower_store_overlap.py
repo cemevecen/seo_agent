@@ -110,13 +110,18 @@ def test_xdata_column_key_and_metric_number():
 
 
 def test_xdata_dropdown_web_has_web_columns_not_app_only():
-    web = {o["value"] for o in xdata_dropdown_options("web")}
+    web_opts = xdata_dropdown_options("web")
+    web = {o["value"] for o in web_opts}
     mweb = {o["value"] for o in xdata_dropdown_options("mweb")}
     android = {o["value"] for o in xdata_dropdown_options("android")}
     assert web == mweb
     assert "xdata:organicGoogleSearchClicks" in web
     assert "xdata:screenPageViews" in web
     assert "xdata:appVersion" not in web
+    web_labels = {o["value"]: o["label"] for o in web_opts}
+    assert web_labels.get("xdata:active1DayUsers") == "Users (1 Day)"
+    android_labels = {o["value"]: o["label"] for o in xdata_dropdown_options("android")}
+    assert android_labels.get("xdata:active1DayUsers") == "DAU (1 Day)"
     assert "xdata:crashAffectedUsers" not in web
     assert "xdata:organicGoogleSearchClicks" not in android
     assert "xdata:crashAffectedUsers" in android
