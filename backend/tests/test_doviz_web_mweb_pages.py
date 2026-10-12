@@ -34,12 +34,15 @@ def test_templates_and_partial():
     assert "data-fixed-platform" in partial
     assert "ga4:sessions" in partial
     assert "virgul:net_revenue" in partial
-    assert "sinemalar_datas.js?v=14" in partial
+    assert "sinemalar_datas.js?v=15" in partial
     assert 'data-google-updates="1"' in partial
     assert "sd-google-updates" in partial
     assert "market:gram_altin" in partial
     assert "market:usd_try" not in partial
     assert "market:bitcoin" not in partial
+    assert 'value="180d"' in partial
+    assert 'value="last_year_h1"' in partial
+    assert 'value="all"' in partial
 
 
 def test_datas_js_supports_doviz_project():
@@ -59,6 +62,11 @@ def test_datas_js_supports_doviz_project():
     assert "screenPageViews" in js.split("DEFAULT_METRICS_DOVIZ")[1].split("];")[0]
     assert "engagementRate" in js.split("DEFAULT_METRICS_DOVIZ")[1].split("];")[0]
     assert "virgul:net_revenue" in js
+    # Preset set mirrors /ad-virgul richness
+    assert 'v === "180d"' in js
+    assert 'v === "last_year_h1"' in js
+    assert 'v === "this_month"' in js
+    assert 'applyPreset("30d")' in js
 
 
 def test_overlay_blocks_app_metrics_on_web():

@@ -504,21 +504,75 @@
   }
 
   function applyPreset(preset) {
-    if (preset === "custom") return;
-    var end = today();
+    if (!preset || preset === "custom") return;
+    var sEl = $("sd-start");
+    var eEl = $("sd-end");
+    if (!sEl || !eEl) return;
+
+    var v = String(preset);
+    /* Legacy numeric values from older markup (7 / 14 / 28 / 30 / 90). */
+    if (/^\d+$/.test(v)) v = v + "d";
+
+    var anchor = today();
+    var end = addDays(anchor, -1); /* complete days — align with Android / X-Data */
     var start = end;
-    if (preset === "ytd") {
+
+    if (v === "today") {
+      start = anchor;
+      end = anchor;
+    } else if (v === "yesterday") {
+      start = end;
+    } else if (v === "7d") {
+      start = addDays(end, -6);
+    } else if (v === "14d") {
+      start = addDays(end, -13);
+    } else if (v === "28d") {
+      start = addDays(end, -27);
+    } else if (v === "30d") {
+      start = addDays(end, -29);
+    } else if (v === "60d") {
+      start = addDays(end, -59);
+    } else if (v === "90d") {
+      start = addDays(end, -89);
+    } else if (v === "180d" || v === "6m") {
+      start = addDays(end, -179);
+    } else if (v === "this_month") {
+      start = new Date(end.getFullYear(), end.getMonth(), 1);
+    } else if (v === "last_month") {
+      start = new Date(end.getFullYear(), end.getMonth() - 1, 1);
+      end = new Date(end.getFullYear(), end.getMonth(), 0);
+    } else if (v === "ytd") {
       start = new Date(end.getFullYear(), 0, 1);
+    } else if (v === "1y") {
+      start = addDays(end, -364);
+    } else if (v === "last_year") {
+      var ly = end.getFullYear() - 1;
+      start = new Date(ly, 0, 1);
+      end = new Date(ly, 11, 31);
+    } else if (v === "last_year_h1") {
+      var ly1 = end.getFullYear() - 1;
+      start = new Date(ly1, 0, 1);
+      end = new Date(ly1, 5, 30);
+    } else if (v === "last_year_h2") {
+      var ly2 = end.getFullYear() - 1;
+      start = new Date(ly2, 6, 1);
+      end = new Date(ly2, 11, 31);
+    } else if (v === "all") {
+      var dataMin = (sEl.getAttribute("data-min") || "").slice(0, 10);
+      var dataMax = (eEl.getAttribute("data-max") || "").slice(0, 10);
+      if (dataMin && dataMax) {
+        sEl.value = dataMin;
+        eEl.value = dataMax;
+        return;
+      }
+      start = new Date(end.getFullYear() - 3, end.getMonth(), end.getDate());
     } else {
-      var days = parseInt(preset, 10) || 28;
-      // Complete days: end = yesterday (align with Android)
-      end = addDays(today(), -1);
+      var days = parseInt(String(preset), 10) || 28;
       start = addDays(end, -(days - 1));
     }
-    var s = $("sd-start");
-    var e = $("sd-end");
-    if (s) s.value = iso(start);
-    if (e) e.value = iso(end);
+
+    sEl.value = iso(start);
+    eEl.value = iso(end);
   }
 
   function rangeDays() {
@@ -1826,7 +1880,7 @@
       platToggle.classList.add("hidden");
       platToggle.setAttribute("hidden", "hidden");
     }
-    applyPreset("28");
+    applyPreset("30d");
     buildLabelIndex();
     state.selected = DEFAULT_METRICS.filter(function (k) {
       return !!state.labelByKey[k];
@@ -1850,7 +1904,7 @@
 
     var preset = $("sd-preset");
     if (preset) {
-      if (!preset.value) preset.value = "28";
+      if (!preset.value) preset.value = "30d";
       preset.addEventListener("change", function () {
         if (preset.value === "custom") return;
         applyPreset(preset.value);
