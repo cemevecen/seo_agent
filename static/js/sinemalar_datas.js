@@ -450,6 +450,10 @@
       : DEFAULT_METRICS_SINEMALAR.slice();
   }
 
+  function defaultPresetForProject() {
+    return PROJECT === "doviz" ? "90d" : "30d";
+  }
+
   function clearMetrics() {
     var defaults = defaultMetricsForProject();
     state.selected = defaults.length ? [defaults[0]] : [];
@@ -1879,7 +1883,8 @@
       platToggle.classList.add("hidden");
       platToggle.setAttribute("hidden", "hidden");
     }
-    applyPreset("30d");
+    var defaultPreset = defaultPresetForProject();
+    applyPreset(defaultPreset);
     buildLabelIndex();
     state.selected = DEFAULT_METRICS.filter(function (k) {
       return !!state.labelByKey[k];
@@ -1903,7 +1908,7 @@
 
     var preset = $("sd-preset");
     if (preset) {
-      if (!preset.value) preset.value = "30d";
+      preset.value = defaultPreset;
       preset.addEventListener("change", function () {
         if (preset.value === "custom") return;
         applyPreset(preset.value);
