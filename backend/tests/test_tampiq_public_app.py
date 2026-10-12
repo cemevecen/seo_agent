@@ -26,10 +26,14 @@ def test_http_core_routes_200():
         assert CLIENT.get(path).status_code == 200, path
 
 
-def test_robots_disallow_all():
+def test_robots_allows_public_help_center_paths():
     body = CLIENT.get("/robots.txt").text
-    assert "Disallow: /" in body
     assert "User-agent: *" in body
+    assert "Allow: /privacy" in body
+    assert "Allow: /support" in body
+    assert "Allow: /robots.txt" in body
+    # Still disallow the rest of the tree (no private APIs to expose).
+    assert "Disallow: /" in body
 
 
 def test_pages_are_noindex():

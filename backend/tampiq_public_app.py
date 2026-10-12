@@ -228,7 +228,18 @@ def privacy(request: Request):
 
 @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
 def robots() -> str:
-    return "User-agent: *\nDisallow: /\n"
+    # Public Help Center must remain fetchable for store review (Google Play / App Store).
+    # Historical blanket "Disallow: /" blocked crawlers from reading /privacy and /support.
+    # Keep everything else disallowed; this site has no private API surface beyond catch-all 404.
+    return (
+        "User-agent: *\n"
+        "Allow: /privacy\n"
+        "Allow: /support\n"
+        "Allow: /robots.txt\n"
+        "Allow: /health\n"
+        "Allow: /static/tampiq/\n"
+        "Disallow: /\n"
+    )
 
 
 @app.get("/{path:path}", include_in_schema=False)
