@@ -930,7 +930,7 @@
         "id": "retention-periods",
         "title": "7. Saklama süreleri",
         "paragraphs": [
-          "Cihazdaki arşivlenmiş koruma kayıtları Ayarlar’da seçtiğiniz saklama penceresini izler: 1 gün, 3 gün, 7 gün, 14 gün, 30 gün, 90 gün veya siz silene kadar. Sonlu bir pencereden eski bitmiş kayıtlar uygulama bakımı sırasında temizlenebilir. Aktif koruma saklama temizliği ile silinmez.",
+          "Cihazdaki arşivlenmiş koruma kayıtları Ayarlar’da seçtiğiniz saklama penceresini izler: 7 gün, 30 gün, 90 gün veya siz silene kadar. Sonlu bir pencereden eski bitmiş kayıtlar uygulama bakımı sırasında temizlenebilir. Aktif koruma saklama temizliği ile silinmez.",
           "Hesaba bağlı sunucu uyarı tercihleri ve iletim kayıtları, kimlik doğrulamalı hesap silme başarıyla tamamlandığında kaldırılır.",
           "Silme yaşam döngüsü tombstone’u (kullanıcı kimliği + durum) silme bütünlüğü / yeniden oynatma engeli için saklanır. Mevcut üründe bu kaydın kullanıcıya açık zamanlı otomatik temizliği yoktur.",
           "IP veya genel kapsamlı hız sınırı anahtarları operasyonel sayaç olarak kalabilir; bunlar hesap profilinizin yerine geçmez.",

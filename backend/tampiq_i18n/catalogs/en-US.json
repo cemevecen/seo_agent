@@ -931,7 +931,7 @@
         "id": "retention-periods",
         "title": "7. Retention periods",
         "paragraphs": [
-          "On-device archived protection records follow the retention window you select in Settings: 1 day, 3 days, 7 days, 14 days, 30 days, 90 days, or until you delete them. Finished records older than a finite window may be cleared during app maintenance. Active protection is not deleted by retention cleanup.",
+          "On-device archived protection records follow the retention window you select in Settings: 7 days, 30 days, 90 days, or until you delete them. Finished records older than a finite window may be cleared during app maintenance. Active protection is not deleted by retention cleanup.",
           "Account-linked server alert preferences and delivery records are removed when authenticated account deletion completes successfully.",
           "The deletion-lifecycle tombstone (user id + status) is retained for deletion integrity / anti-replay. There is no user-facing timed auto-purge of that record in the current product.",
           "IP- or global-scoped rate-limit keys may persist as operational counters; they are not a substitute for your account profile.",
