@@ -33,7 +33,25 @@
 
   var PROJECT = "sinemalar";
   var OVERLAY_ID = "sd-cross-metric-overlay-root";
-  var DEFAULT_METRICS = ["xdata:sessions", "xdata:active1DayUsers", "xdata:usdSpent"];
+  /** Sinemalar: kısa set. Döviz web/mweb: en önemli 10 (+ asset olarak yalnız gram altın). */
+  var DEFAULT_METRICS_SINEMALAR = [
+    "xdata:sessions",
+    "xdata:active1DayUsers",
+    "xdata:usdSpent",
+  ];
+  var DEFAULT_METRICS_DOVIZ = [
+    "xdata:sessions",
+    "xdata:active1DayUsers",
+    "xdata:usdSpent",
+    "xdata:usdEcpm",
+    "xdata:newUsers",
+    "xdata:organicGoogleSearchClicks",
+    "xdata:organicGoogleSearchClickThroughRate",
+    "virgul:net_revenue",
+    "virgul:impression",
+    "market:gram_altin",
+  ];
+  var DEFAULT_METRICS = DEFAULT_METRICS_SINEMALAR.slice();
   var COLORS = ["#2563EB", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#EC4899"];
   var OVERLAY_COLORS = ["#F59E0B", "#A855F7", "#14B8A6", "#F43F5E", "#64748B"];
   /** Android/iOS ile aynı sabit SVG koordinat yüksekliği — yükseklik/sıkıştırma pa_chart_height.js ile. */
@@ -426,8 +444,15 @@
     scheduleReload();
   }
 
+  function defaultMetricsForProject() {
+    return PROJECT === "doviz"
+      ? DEFAULT_METRICS_DOVIZ.slice()
+      : DEFAULT_METRICS_SINEMALAR.slice();
+  }
+
   function clearMetrics() {
-    state.selected = [DEFAULT_METRICS[0]];
+    var defaults = defaultMetricsForProject();
+    state.selected = defaults.length ? [defaults[0]] : [];
     Object.keys(state.seriesByMetric || {}).forEach(function (k) {
       if (state.selected.indexOf(k) < 0) delete state.seriesByMetric[k];
     });
@@ -1791,6 +1816,7 @@
 
   function wireUi() {
     PROJECT = readProject();
+    DEFAULT_METRICS = defaultMetricsForProject();
     state.platform = readInitialPlatform();
     var platToggle = $("sd-platform-toggle");
     if (platToggle && isFixedPlatform()) {
@@ -1804,9 +1830,10 @@
     });
     if (!state.selected.length) {
       var cat = $("sd-metric-catalog");
+      var want = DEFAULT_METRICS.length || 3;
       if (cat) {
         Array.prototype.forEach.call(cat.options, function (opt) {
-          if (opt.value && state.selected.length < 3) state.selected.push(opt.value);
+          if (opt.value && state.selected.length < want) state.selected.push(opt.value);
         });
       }
     }

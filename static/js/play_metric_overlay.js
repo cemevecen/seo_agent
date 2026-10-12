@@ -173,6 +173,10 @@
     { key: "market:asels", label: "ASELS close" },
     { key: "market:all_indexed", label: "All (range start=100)" },
   ];
+  /** Web / mweb surfaces: asset correlator is gram gold only. */
+  var MARKET_OVERLAY_ITEMS_WEB = [
+    { key: "market:gram_altin", label: "Gold gram close" },
+  ];
   var METRIC_GROUPS = METRIC_GROUPS_ANDROID;
   var XDATA_SKIP = { appVersion: 1 };
   var APP_PAGE_HIDDEN_XDATA = { rpmTry: 1, is_holiday: 1 };
@@ -333,8 +337,15 @@
     return normalizeOverlayPlatform((root && root.getAttribute("data-overlay-platform")) || "android");
   }
 
+  function marketItemsForPlatform(platform) {
+    var plat = normalizeOverlayPlatform(platform);
+    if (plat === "web" || plat === "mweb") return MARKET_OVERLAY_ITEMS_WEB;
+    return MARKET_OVERLAY_ITEMS;
+  }
+
   function groupsForPlatform(platform) {
     var plat = normalizeOverlayPlatform(platform);
+    var marketItems = marketItemsForPlatform(plat);
     var base = METRIC_GROUPS_ANDROID;
     var xitems = XDATA_ITEMS.android;
     if (plat === "ios") {
@@ -348,7 +359,7 @@
       xitems = XDATA_ITEMS.mweb;
     }
     if (!xitems || !xitems.length) {
-      return base.concat([{ label: "Market", items: MARKET_OVERLAY_ITEMS }]);
+      return base.concat([{ label: "Market", items: marketItems }]);
     }
     var out = [];
     var inserted = false;
@@ -364,7 +375,7 @@
       }
     });
     if (!inserted) out.push({ label: "X-Data", items: xitems });
-    out.push({ label: "Market", items: MARKET_OVERLAY_ITEMS });
+    out.push({ label: "Market", items: marketItems });
     return out;
   }
 

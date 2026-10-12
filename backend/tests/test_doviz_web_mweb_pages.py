@@ -34,9 +34,12 @@ def test_templates_and_partial():
     assert "data-fixed-platform" in partial
     assert "ga4:sessions" in partial
     assert "virgul:net_revenue" in partial
-    assert "sinemalar_datas.js?v=11" in partial
+    assert "sinemalar_datas.js?v=12" in partial
     assert 'data-google-updates="1"' in partial
     assert "sd-google-updates" in partial
+    assert "market:gram_altin" in partial
+    assert "market:usd_try" not in partial
+    assert "market:bitcoin" not in partial
 
 
 def test_datas_js_supports_doviz_project():
@@ -47,12 +50,20 @@ def test_datas_js_supports_doviz_project():
     assert "alignPrevMap" in js
     assert "loadGoogleUpdates" in js
     assert "google-search-status/updates" in js
+    assert "DEFAULT_METRICS_DOVIZ" in js
+    assert "market:gram_altin" in js
+    assert js.count('"market:gram_altin"') >= 1
+    # Top-10 default for doviz open
+    assert "organicGoogleSearchClicks" in js
+    assert "virgul:net_revenue" in js
 
 
 def test_overlay_blocks_app_metrics_on_web():
     js = (ROOT / "static" / "js" / "play_metric_overlay.js").read_text(encoding="utf-8")
     assert "Web/mweb only" in js
     assert "webSurface" in js
+    assert "MARKET_OVERLAY_ITEMS_WEB" in js
+    assert "marketItemsForPlatform" in js
 
 
 def test_page_tarama_web_mweb():
