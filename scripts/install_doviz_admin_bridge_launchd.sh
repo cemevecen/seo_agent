@@ -54,7 +54,7 @@ done
 [[ -f "$BRIDGE" ]] || { echo "Yok: $BRIDGE" >&2; exit 1; }
 chmod +x "$BRIDGE" "$0" 2>/dev/null || true
 
-# Sistem Firefox.app zorunlu — Playwright Nightly asla açılmaz.
+# Sistem Firefox.app: Google giriş / Selenium (Play, ASC, Firebase…).
 if ! "$PY" - <<'PYCHECK'
 import sys
 from pathlib import Path
@@ -63,10 +63,31 @@ sys.exit(0 if mac.is_file() else 1)
 PYCHECK
 then
   echo "HATA: /Applications/Firefox.app yok — App Store / mozilla.org'dan Firefox (release) kur." >&2
-  echo "Firefox Nightly veya Developer Edition kullanılmaz." >&2
+  echo "Google giriş pencereleri yalnız sistem Firefox.app kullanır." >&2
   exit 1
 fi
-echo "Sistem Firefox.app tamam (Nightly yok)."
+echo "Sistem Firefox.app tamam (Google giriş)."
+
+# Playwright Firefox: PageSpeed / market gibi public headless scrape (juggler).
+# Sistem Firefox.app Playwright'a bağlanamaz — ayrı binary gerekir.
+if ! "$PY" - <<'PYCHECK'
+import json, sys
+from pathlib import Path
+try:
+    import playwright
+except Exception:
+    sys.exit(1)
+meta = Path(playwright.__file__).resolve().parent / "driver" / "package" / "browsers.json"
+rev = ""
+for entry in json.loads(meta.read_text(encoding="utf-8")).get("browsers", []):
+    if entry.get("name") == "firefox":
+        rev = str(entry.get("revision") or "")
+sys.exit(0 if rev and (Path.home() / "Library/Caches/ms-playwright" / f"firefox-{rev}").exists() else 1)
+PYCHECK
+then
+  echo "Playwright Firefox eksik — PageSpeed için kuruluyor…"
+  "$PY" -m playwright install firefox || echo "Uyarı: playwright install firefox başarısız." >&2
+fi
 
 if [[ -f "$ROOT/.env" ]]; then
   if ! grep -q '^DOVIZ_ADMIN_EMAIL=.\+' "$ROOT/.env" 2>/dev/null; then

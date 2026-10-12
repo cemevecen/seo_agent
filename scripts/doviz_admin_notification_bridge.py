@@ -2447,8 +2447,28 @@ def run_pagespeed_bridge_once() -> dict[str, Any]:
     if proc.returncode == 0:
         out = {"ok": True, "kind": "pagespeed", "message": "PageSpeed sync OK"}
     else:
-        tail = (combined[-300:] if combined else f"exit {proc.returncode}")[:300]
-        out = {"ok": False, "kind": "pagespeed", "message": tail}
+        # Playwright/Firefox stderr gürültüsünü (juggler / headless) özetle
+        low = combined.lower()
+        if "targetclosederror" in low or "browser has been closed" in low:
+            tip = (
+                "PageSpeed tarayıcı açılamadı. "
+                "`python -m playwright install firefox` çalıştırıp bridge'i yeniden başlat. "
+                "Not: pagespeed.web.dev Google girişi istemez."
+            )
+            out = {"ok": False, "kind": "pagespeed", "message": tip}
+        else:
+            # Son anlamlı satırı bul (launching / You are running atla)
+            lines = [
+                ln.strip()
+                for ln in combined.splitlines()
+                if ln.strip()
+                and "you are running in headless" not in ln.lower()
+                and "<launching>" not in ln.lower()
+                and "<launched>" not in ln.lower()
+                and "juggler-pipe" not in ln.lower()
+            ]
+            tip = (lines[-1] if lines else f"exit {proc.returncode}")[:280]
+            out = {"ok": False, "kind": "pagespeed", "message": tip}
     _last_pagespeed_result = out
     print(f"PageSpeed sync · {out['message']}", flush=True)
     return out

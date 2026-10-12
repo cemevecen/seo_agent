@@ -59,11 +59,32 @@ else
   note_warn "log'da claim loop satırı yok — daemon yeni başladıysa normal"
 fi
 
-echo "-- 4) Sistem Firefox.app (Nightly yasak)"
+echo "-- 4) Sistem Firefox.app (Google giriş / Selenium)"
 if [[ -x "/Applications/Firefox.app/Contents/MacOS/firefox" ]]; then
-  note_ok "sistem Firefox.app yerinde (Nightly kullanılmaz)"
+  note_ok "sistem Firefox.app yerinde"
 else
-  note_bad "Firefox.app yok → /Applications/Firefox.app kur (Nightly değil)"
+  note_bad "Firefox.app yok → /Applications/Firefox.app kur"
+fi
+
+echo "-- 4b) Playwright Firefox (PageSpeed / public scrape)"
+if [[ -x "$PY" ]] && "$PY" - <<'PYCHECK'
+import json, sys
+from pathlib import Path
+try:
+    import playwright
+except Exception:
+    sys.exit(1)
+meta = Path(playwright.__file__).resolve().parent / "driver" / "package" / "browsers.json"
+rev = ""
+for entry in json.loads(meta.read_text(encoding="utf-8")).get("browsers", []):
+    if entry.get("name") == "firefox":
+        rev = str(entry.get("revision") or "")
+sys.exit(0 if rev and (Path.home() / "Library/Caches/ms-playwright" / f"firefox-{rev}").exists() else 1)
+PYCHECK
+then
+  note_ok "playwright firefox yerinde (PageSpeed)"
+else
+  note_bad "playwright firefox eksik → ${PY} -m playwright install firefox"
 fi
 
 echo "-- 5) .env anahtarları (yalnızca var/yok)"

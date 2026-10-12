@@ -1,7 +1,11 @@
-"""Tarama tarayıcısı — yalnızca sistem /Applications/Firefox.app.
+"""Tarama tarayıcısı — Firefox politikası.
 
 Chrome / Chromium / Chrome for Testing açılmaz.
-Playwright'ın ms-playwright Nightly build'i asla açılmaz.
+
+- Google giriş / Selenium: yalnız /Applications/Firefox.app (sistem).
+- PageSpeed / market / public headless: Playwright juggler Firefox
+  (sistem Firefox juggler konuşmaz → TargetClosedError).
+
 Google oturumu ~/.seo-agent/fx-google altında tutulur (Play, GSC, Firebase, Policy).
 
 Profil kuralları:
@@ -560,12 +564,47 @@ def resolve_system_firefox_executable() -> str | None:
     return None
 
 
-def resolve_firefox_executable() -> str | None:
-    """Playwright launch için Firefox binary — yalnızca sistem Firefox.app.
+def resolve_playwright_firefox_executable() -> str | None:
+    """Playwright juggler binary (ms-playwright) — yalnız ephemeral / public scrape.
 
-    Playwright'ın paketlediği Nightly (ms-playwright/.../Nightly.app) kullanılmaz.
-    Bulunamazsa None; çağıran launch_* hard-fail eder.
+    Google giriş pencerelerinde kullanılmaz. Sistem Firefox.app ile karıştırma:
+    release Firefox juggler konuşmaz → TargetClosedError.
     """
+    env = (os.environ.get("PLAYWRIGHT_BUNDLED_FIREFOX_EXECUTABLE") or "").strip()
+    if env:
+        p = Path(env).expanduser()
+        if p.is_file():
+            return str(p)
+    try:
+        import playwright
+
+        meta = Path(playwright.__file__).resolve().parent / "driver" / "package" / "browsers.json"
+        if not meta.is_file():
+            return None
+        import json as _json
+
+        rev = ""
+        for entry in _json.loads(meta.read_text(encoding="utf-8")).get("browsers") or []:
+            if entry.get("name") == "firefox":
+                rev = str(entry.get("revision") or "")
+                break
+        if not rev:
+            return None
+        base = Path.home() / "Library" / "Caches" / "ms-playwright" / f"firefox-{rev}"
+        for cand in (
+            base / "firefox" / "Nightly.app" / "Contents" / "MacOS" / "firefox",
+            base / "firefox" / "Firefox.app" / "Contents" / "MacOS" / "firefox",
+            base / "firefox" / "firefox",
+        ):
+            if cand.is_file():
+                return str(cand)
+    except Exception:
+        return None
+    return None
+
+
+def resolve_firefox_executable() -> str | None:
+    """Geriye uyum: sistem Firefox.app (Selenium / login)."""
     return resolve_system_firefox_executable()
 
 
@@ -577,7 +616,8 @@ def require_system_firefox_executable(*, context: str = "") -> str:
     raise RuntimeError(
         "Sistem Firefox.app gerekli"
         f"{where} — /Applications/Firefox.app kurulu olmalı. "
-        "Playwright Nightly yasak; SYSTEM_FIREFOX_EXECUTABLE ile yolu verebilirsin."
+        "Google giriş / Selenium yolları Nightly açmaz; "
+        "SYSTEM_FIREFOX_EXECUTABLE ile yolu verebilirsin."
     )
 
 
@@ -694,22 +734,20 @@ def _persistent_kwargs(
         "locale": locale,
         "accept_downloads": True,
     }
-    # Her zaman sistem Firefox.app — Playwright Nightly yok
-    kwargs["executable_path"] = require_system_firefox_executable(
-        context="persistent_kwargs"
-    )
+    # Playwright persistent: juggler binary gerekir.
+    # Google oturumlu işler Selenium + sistem Firefox.app kullanmalı (shim).
+    # Buraya sistem Firefox vermek TargetClosedError üretir.
     if extra:
         extra = dict(extra)
         extra.pop("channel", None)
         extra.pop("args", None)
         extra.pop("ignore_default_args", None)
-        # Caller Nightly path enjekte edemesin
         exe_extra = extra.pop("executable_path", None)
+        # Sistem Firefox'u Playwright'a bağlama — juggler konuşmaz
         if exe_extra and not _is_banned_firefox_path(exe_extra):
-            kwargs["executable_path"] = str(exe_extra)
+            # İzin verilmez: sessizce yok say
+            pass
         kwargs.update(extra)
-    if _is_banned_firefox_path(kwargs.get("executable_path")):
-        raise RuntimeError(f"Nightly yasak: {kwargs.get('executable_path')}")
     return kwargs
 
 
@@ -723,20 +761,14 @@ def launch_persistent(
     extra: dict[str, Any] | None = None,
     kill_existing: bool = True,
 ) -> Any:
-    """Firefox persistent context (sistem Firefox.app — Nightly yok).
+    """Playwright persistent context (juggler Firefox).
 
+    Google giriş gerektiren işler için Selenium + sistem Firefox.app kullanın.
     kill_existing=True: soft takeover (bekle → SIGTERM → SIGKILL son çare).
-    kill_existing=False: yalnızca stale lock temizliği; canlı browser varsa ProfileBusyError.
     Auth state (cookies/storage) asla silinmez.
     """
     assert_browser_scrape_allowed(context="launch_persistent")
     assert_firefox_only(pw)
-    try:
-        from backend.services.system_firefox_driver import ban_playwright_nightly_processes
-
-        ban_playwright_nightly_processes(profile)
-    except Exception:
-        pass
     if kill_existing:
         ensure_profile_free_for_launch(
             profile,
@@ -766,24 +798,32 @@ def launch_ephemeral(
     headed: bool = False,
     **context_kwargs: Any,
 ) -> tuple[Any, Any]:
-    """Ephemeral Playwright context — yalnızca sistem Firefox.app (Nightly yok)."""
+    """Ephemeral Playwright context — juggler Firefox (public scrape).
+
+    PageSpeed / market / SEO audit gibi Google girişi istemeyen işler.
+    Sistem /Applications/Firefox.app buraya verilmez (juggler konuşmaz →
+    'You are running in headless mode' + TargetClosedError).
+
+    Google oturumu gereken işler: Selenium + sistem Firefox.app.
+    """
     assert_browser_scrape_allowed(context="launch_ephemeral")
     assert_firefox_only(pw)
-    try:
-        from backend.services.system_firefox_driver import ban_playwright_nightly_processes
-
-        ban_playwright_nightly_processes()
-    except Exception:
-        pass
-    exe = require_system_firefox_executable(context="launch_ephemeral")
-    launch_kwargs: dict[str, Any] = {
-        "headless": not headed,
-        "executable_path": exe,
-    }
-    browser = pw.firefox.launch(**launch_kwargs)
+    launch_kwargs: dict[str, Any] = {"headless": not headed}
+    # Varsayılan: Playwright'ın paketlediği juggler Firefox.
+    # Sistem Firefox.app executable_path olarak ASLA eklenmez.
     context_kwargs.pop("channel", None)
     context_kwargs.pop("args", None)
     context_kwargs.pop("executable_path", None)
+    try:
+        browser = pw.firefox.launch(**launch_kwargs)
+    except Exception as exc:
+        msg = str(exc)
+        hint = (
+            "Playwright Firefox (juggler) açılamadı. "
+            "`python -m playwright install firefox` çalıştır. "
+            "Not: PageSpeed Google girişi istemez; sistem Firefox.app Playwright ile kullanılamaz."
+        )
+        raise RuntimeError(f"{hint} · {msg}") from exc
     ctx = browser.new_context(**context_kwargs)
     return browser, ctx
 
