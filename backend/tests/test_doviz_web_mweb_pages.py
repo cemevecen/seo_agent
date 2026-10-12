@@ -34,7 +34,7 @@ def test_templates_and_partial():
     assert "data-fixed-platform" in partial
     assert "ga4:sessions" in partial
     assert "virgul:net_revenue" in partial
-    assert "sinemalar_datas.js?v=12" in partial
+    assert "sinemalar_datas.js?v=13" in partial
     assert 'data-google-updates="1"' in partial
     assert "sd-google-updates" in partial
     assert "market:gram_altin" in partial

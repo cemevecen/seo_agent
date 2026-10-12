@@ -362,6 +362,15 @@ html.charcoal .pa-chart-compress button.is-active {
   font-size: 10px;
 }
 
+/* Google Core/Spam — ~%60 smaller than prior SVG font-size=8 look; fixed px vs stretch */
+#sd-chart text.sd-update-label {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 4.5px;
+  font-weight: 600;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
 
 /* Mobile: side-margin drag chips cause crushed charts; hide them */
 @media (max-width: 639px) {

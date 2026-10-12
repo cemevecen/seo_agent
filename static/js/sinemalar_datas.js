@@ -1300,7 +1300,8 @@
     }
 
     var xLabels = "";
-    var labelStep = Math.max(1, Math.ceil(dates.length / 6));
+    /* ~10–11 ticks (was /6) — long ranges looked too sparse on the x-axis. */
+    var labelStep = Math.max(1, Math.ceil(dates.length / 10));
     dates.forEach(function (d, i) {
       if (i % labelStep !== 0 && i !== dates.length - 1) return;
       xLabels +=
@@ -1469,8 +1470,9 @@
         var x0 = xAt(i0);
         var x1 = xAt(i1);
         var kind = String(u.kind || "");
-        var fill = kind === "core" ? "rgba(244,63,94,0.12)" : "rgba(245,158,11,0.14)";
-        var stroke = kind === "core" ? "#e11d48" : "#d97706";
+        /* Soft bands + thin dashes so Core/Spam don’t crush the series. */
+        var fill = kind === "core" ? "rgba(244,63,94,0.045)" : "rgba(245,158,11,0.05)";
+        var stroke = kind === "core" ? "rgba(225,29,72,0.55)" : "rgba(217,119,6,0.5)";
         var bandW = Math.max(2, x1 - x0);
         markers +=
           '<rect x="' +
@@ -1495,16 +1497,16 @@
           (padT + plotH) +
           '" stroke="' +
           stroke +
-          '" stroke-width="1.25" stroke-dasharray="3 2" pointer-events="none"/>';
+          '" stroke-width="0.55" stroke-dasharray="2.5 2.5" pointer-events="none"/>';
         var shortLabel = kind === "core" ? "Core" : kind === "spam" ? "Spam" : "Update";
         markers +=
-          '<text x="' +
-          (x0 + 3).toFixed(1) +
+          '<text class="sd-update-label" x="' +
+          (x0 + 2).toFixed(1) +
           '" y="' +
-          (padT + 10) +
+          (padT + 7) +
           '" fill="' +
           stroke +
-          '" font-size="8" font-weight="700" pointer-events="none">' +
+          '" pointer-events="none">' +
           shortLabel +
           "</text>";
       });
