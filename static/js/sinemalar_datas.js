@@ -45,7 +45,6 @@
     "xdata:usdSpent",
     "xdata:usdEcpm",
     "xdata:newUsers",
-    "xdata:organicGoogleSearchClicks",
     "xdata:screenPageViews",
     "xdata:engagementRate",
     "virgul:net_revenue",
