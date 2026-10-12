@@ -22,7 +22,15 @@ CLIENT = TestClient(app)
 
 
 def test_http_core_routes_200():
-    for path in ("/", "/support", "/privacy", "/delete-account", "/health", "/robots.txt"):
+    for path in (
+        "/",
+        "/support",
+        "/privacy",
+        "/delete-account",
+        "/delete-data",
+        "/health",
+        "/robots.txt",
+    ):
         assert CLIENT.get(path).status_code == 200, path
 
 
@@ -32,20 +40,21 @@ def test_robots_allows_public_help_center_paths():
     assert "Allow: /privacy" in body
     assert "Allow: /support" in body
     assert "Allow: /delete-account" in body
+    assert "Allow: /delete-data" in body
     assert "Allow: /robots.txt" in body
     # Still disallow the rest of the tree (no private APIs to expose).
     assert "Disallow: /" in body
 
 
 def test_pages_are_noindex():
-    for path in ("/", "/support", "/privacy", "/delete-account"):
+    for path in ("/", "/support", "/privacy", "/delete-account", "/delete-data"):
         html = CLIENT.get(path).text
         assert "noindex" in html
         assert "nofollow" in html
 
 
 def test_no_auth_and_no_projectcontrol_chrome():
-    for path in ("/", "/support", "/privacy", "/delete-account"):
+    for path in ("/", "/support", "/privacy", "/delete-account", "/delete-data"):
         html = CLIENT.get(path).text.lower()
         assert "projectcontrol" not in html
         assert "admin/login" not in html
@@ -57,7 +66,7 @@ def test_all_locales_query_param():
     assert len(SUPPORTED_LOCALES) == 11
     client = TestClient(app)
     for loc in SUPPORTED_LOCALES:
-        for path in ("/", "/support", "/privacy", "/delete-account"):
+        for path in ("/", "/support", "/privacy", "/delete-account", "/delete-data"):
             res = client.get(path, params={"lang": loc})
             assert res.status_code == 200, (path, loc)
             assert f'lang="{loc}"' in res.text
@@ -115,7 +124,7 @@ def test_support_contact_card_content():
 
 
 def test_public_identity_has_no_personal_name():
-    for path in ("/", "/support", "/privacy", "/delete-account"):
+    for path in ("/", "/support", "/privacy", "/delete-account", "/delete-data"):
         for loc in SUPPORTED_LOCALES:
             html = CLIENT.get(path, params={"lang": loc}).text
             assert "Cem Gürsoy EVECEN" not in html, (path, loc)
@@ -147,6 +156,7 @@ def test_catalogs_exist_for_all_locales():
         assert merged["support"]["title"]
         assert merged["privacy"]["title"]
         assert merged["delete_account"]["title"]
+        assert merged["delete_data"]["title"]
     assert missing == [], f"Missing locale catalogs: {missing}"
 
 
@@ -227,6 +237,50 @@ def test_ios_delete_account_has_no_android_cloud_flow():
     assert "No TAMPIQ cloud account on iOS" in html
     assert "Delete account (Android)" not in html
     assert "Permissions and access" not in html
+
+
+def test_android_delete_data_en_tr():
+    for lang, title, local_marker in (
+        ("en-US", "Delete data (Android)", "Privacy / Data"),
+        ("tr", "Veri silme (Android)", "Gizlilik / Veri"),
+    ):
+        res = CLIENT.get("/delete-data", params={"lang": lang, "platform": "android"})
+        assert res.status_code == 200, lang
+        html = res.text
+        assert 'data-platform="android"' in html
+        assert title in html
+        assert local_marker in html
+        assert "7" in html and "30" in html and "90" in html
+        assert "netbaboli@gmail.com" in html
+        assert "mailto:" in html
+        assert "viewport" in html
+        # Distinct from account deletion page title.
+        assert "Delete account (Android)" not in html
+        assert "Hesap silme (Android)" not in html
+        # No remote wipe of local Room.
+        low = html.lower()
+        assert "cannot remotely" in low or "uzaktan silemez" in low
+        assert "admin/login" not in low
+        assert "Live Activities" not in html
+        assert "Screen Time" not in html
+
+
+def test_ios_delete_data_has_no_android_history_flow():
+    html = CLIENT.get("/delete-data", params={"lang": "en-US"}).text
+    assert 'data-platform="ios"' in html
+    assert "iOS: on-device data" in html
+    assert "Delete data (Android)" not in html
+    assert "Privacy / Data" not in html
+
+
+def test_delete_account_page_still_available_alongside_delete_data():
+    account = CLIENT.get("/delete-account", params={"lang": "en-US", "platform": "android"})
+    data = CLIENT.get("/delete-data", params={"lang": "en-US", "platform": "android"})
+    assert account.status_code == 200
+    assert data.status_code == 200
+    assert "Delete account (Android)" in account.text
+    assert "Delete data (Android)" in data.text
+    assert "/delete-account" in data.text or "Delete account" in data.text
 
 
 def test_invalid_platform_falls_back_to_ios():

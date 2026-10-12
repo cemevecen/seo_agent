@@ -14,7 +14,11 @@
     "delete_account_description_android": "TAMPIQ Android için Google Play hesap silme yönergeleri: uygulama içi adımlar, silinen veriler ve saklama.",
     "privacy_description_android": "TAMPIQ Android koruma uygulaması için gizlilik politikası: cihaz içi kayıtlar, isteğe bağlı e-posta uyarıları ve izinler.",
     "support_description_android": "TAMPIQ Android yardımı: koruma kurulumu, özel erişimler, e-posta uyarıları ve sorun giderme.",
-    "android_locale_notice": "Android’e özel gizlilik, destek ve hesap silme metinleri şu anda Türkçe ve İngilizce olarak yayınlanmıştır. Seçtiğiniz dil için incelenen çeviri hazır olana kadar bu sayfa İngilizce gösterilir."
+    "android_locale_notice": "Android’e özel gizlilik, destek, hesap silme ve veri silme metinleri şu anda Türkçe ve İngilizce olarak yayınlanmıştır. Seçtiğiniz dil için incelenen çeviri hazır olana kadar bu sayfa İngilizce gösterilir.",
+    "delete_data_title": "TAMPIQ — Veri silme",
+    "delete_data_description": "Bulut hesabını silmeden TAMPIQ kullanıcı verilerinin nasıl silineceği.",
+    "delete_data_title_android": "TAMPIQ — Veri silme (Android)",
+    "delete_data_description_android": "Android veri silme yönergeleri: yerel geçmiş, saklama ve bulut uyarı sınırları."
   },
   "nav": {
     "support": "Destek",
@@ -23,14 +27,16 @@
     "delete_account": "Hesap silme",
     "language": "Dil",
     "home_aria": "TAMPIQ ana sayfa",
-    "lang_aria": "Dil seçin"
+    "lang_aria": "Dil seçin",
+    "delete_data": "Veri silme"
   },
   "footer": {
     "copyright": "© 2026 TAMPIQ",
     "support": "Destek",
     "privacy": "Gizlilik Politikası",
     "contact": "İletişim",
-    "delete_account": "Hesap silme"
+    "delete_account": "Hesap silme",
+    "delete_data": "Veri silme"
   },
   "home": {
     "eyebrow": "TAMPIQ Yardım Merkezi",
@@ -954,5 +960,129 @@
     "support_email_label": "Destek e-postası",
     "request_cta_label": "Silme yardımı için e-posta gönder",
     "request_cta_subject": "TAMPIQ Android hesap silme talebi"
+  },
+  "delete_data": {
+    "title": "Veri silme",
+    "effective_label": "Son güncelleme",
+    "effective_date": "12 Ekim 2026",
+    "intro": "iOS’taki TAMPIQ koruma kayıtlarını cihazınızda tutar ve senkron için bir TAMPIQ bulut hesabı oluşturmaz. Yerel veriyi kaldırmak için uygulama içi kayıt silme veya kaldırma kullanın. Android veri silme adımları (yerel geçmişe karşı isteğe bağlı bulut uyarı verisi) için bu sayfayı platform=android ile açın.",
+    "sections": [
+      {
+        "id": "ios-local-only",
+        "title": "iOS: cihaz içi veri",
+        "paragraphs": [
+          "Yayımlanan iOS uygulaması koruma geçmişi senkronu için TAMPIQ bulut hesabı sunmaz.",
+          "TAMPIQ içinde oturumları silebilir veya kayıtları temizleyebilirsiniz. Kaldırma, iOS davranışına göre uygulamanın yerel kapsayıcısını siler.",
+          "Daha önce gönderdiğiniz destek e-postaları kaldırma ile silinmez."
+        ]
+      },
+      {
+        "id": "contact",
+        "title": "İletişim",
+        "paragraphs": [
+          "Geliştirici / Yayımcı: TAMPIQ (Türkiye).",
+          "Sorularınız için aşağıdaki iletişim adreslerini kullanın."
+        ]
+      }
+    ],
+    "privacy_email_label": "Gizlilik e-postası",
+    "support_email_label": "Destek e-postası",
+    "request_cta_label": "Destek e-postası gönder",
+    "request_cta_subject": "TAMPIQ veri silme sorusu"
+  },
+  "delete_data_android": {
+    "title": "Veri silme (Android)",
+    "effective_label": "Son güncelleme",
+    "effective_date": "12 Ekim 2026",
+    "intro": "Bu sayfa, bulut hesabını silmeden TAMPIQ Android kullanıcı verilerinin nasıl silineceğini, cihazda veya sunucularda nelerin kaldığını ve e-posta ile nasıl yardım isteneceğini açıklar. Geliştirici / Yayımcı: TAMPIQ (Türkiye). Bulut hesabını kapatmak için ayrı Hesap silme sayfasını kullanın.",
+    "sections": [
+      {
+        "id": "local-vs-cloud",
+        "title": "1. Yerel veri ile bulut verisi",
+        "paragraphs": [
+          "Temel koruma oturumu geçmişi Android cihazınızda saklanır (yerel Room veritabanı ve ilgili önbellekler). Bu kayıt için bulut hesabı gerekmez.",
+          "İsteğe bağlı güvenlik e-posta uyarıları Google ile oturum açma / Firebase bulut hesabı kullanır. Bu özellikleri kullandığınızda uyarı tercihleri ve iletim kayıtları TAMPIQ uyarı arka ucunda bulunabilir.",
+          "Bu sayfa, bulut hesabını kapatmadan koruma kayıtlarını silmeyi ve uyarı ayarlarını kontrol etmeyi kapsar. Bulut hesabını kapatmak Hesap silme sayfasındaki ayrı bir akıştır."
+        ]
+      },
+      {
+        "id": "in-app-local-delete",
+        "title": "2. Uygulamada yerel koruma kayıtlarını silme",
+        "paragraphs": [
+          "Bitmiş kayıtların silinmesi kalıcıdır. Hassas silme eylemleri cihaz onayı (biyometrik veya kilit ekranı) ister.",
+          "Aktif bir koruma oturumu (kurulum, aktif veya bitiş) bu geçmiş araçlarıyla silinmez."
+        ],
+        "bullets": [
+          "Tüm bitmiş kayıtları sil: Ayarlar → Gizlilik / Veri → Tüm kayıtları sil → Tüm kayıtları sil.",
+          "Son bitmiş oturumu sil: Ayarlar → Gizlilik / Veri → Tüm kayıtları sil → Son oturumu sil.",
+          "Seçili arşiv oturumlarını sil: Kayıtlar → Oturumlar → Seç → bitmiş oturumları seç → Sil → onayla."
+        ]
+      },
+      {
+        "id": "retention",
+        "title": "3. Cihazda otomatik saklama",
+        "paragraphs": [
+          "Ayarlar → Gizlilik / Veri → Kayıt saklama süresi’nde bitmiş kayıtların ne kadar tutulacağını seçebilirsiniz: 7 gün, 30 gün, 90 gün veya siz silene kadar.",
+          "Sonlu bir pencere seçildiğinde daha eski bitmiş kayıtlar uygulama bakımı sırasında temizlenebilir. Aktif koruma saklama temizliği ile silinmez.",
+          "Saklama süresini kısaltmak, onayınızdan sonra yeni pencerenin dışında kalan arşiv oturumlarını kalıcı olarak kaldırabilir."
+        ]
+      },
+      {
+        "id": "what-local-delete-removes",
+        "title": "4. Yerel geçmiş silme neleri kaldırır",
+        "paragraphs": [
+          "Uygulamada bitmiş geçmişi sildiğinizde TAMPIQ, bu oturumlara ait cihaz içi koruma kayıtlarını kaldırır: oturum meta verileri, olay günlükleri, bu oturumlara bağlı konum kanıtları ve ilgili yerel ek açıklamalar."
+        ]
+      },
+      {
+        "id": "what-remains-local",
+        "title": "5. Yerel geçmiş silmeden sonra kalanlar",
+        "paragraphs": [
+          "Yerel geçmiş silme Tampiq PIN / Uygulama Kilidi, dil, görünüm, başlatıcı tercihleri, bildirim tercihleri veya saklama ayarının kendisini sıfırlamaz.",
+          "Devam eden koruma oturumu, korumayı siz durdurana kadar kalır.",
+          "TAMPIQ’i kaldırmak, Android davranışına göre uygulamanın yerel verisini siler; bu, uygulama içi geçmiş silmeden ayrıdır."
+        ]
+      },
+      {
+        "id": "cloud-without-account-delete",
+        "title": "6. Hesabı silmeden bulut uyarı verisi",
+        "paragraphs": [
+          "Ayarlar → İzinler ve erişim → E-posta bildirimleri’nde güvenlik e-posta uyarılarını kapatabilirsiniz (cihaz onayı gerekebilir). Oturum açıkken bu tercih uyarı arka ucuna senkronlanır; yeni uyarılar etkin olmaz.",
+          "Çıkış yapmak oturumu sonlandırır; tek başına bulut hesabını silmez veya sunucu uyarı tercihi / iletim geçmişini temizlemez.",
+          "Hesabı tutarak sunucu uyarı iletim geçmişini silen ayrı bir uygulama içi kontrol yoktur. Bu hesap bağlı sunucu kayıtlarını kaldırmak için hesap silme gerekir (Hesap silme sayfasına bakın)."
+        ]
+      },
+      {
+        "id": "requires-account-deletion",
+        "title": "7. Bunun yerine hesap silme gerektirenler",
+        "paragraphs": [
+          "TAMPIQ e-posta uyarıları için Firebase / Google bulut hesap kimliği.",
+          "Hesaba bağlı sunucu tarafı uyarı tercihleri, iletim kayıtları ve hesap kapsamlı uyarı hacmi / hız sınırı kayıtları.",
+          "Bu adımlar için /delete-account?platform=android kullanın. Hesap silmede isteğe bağlı yerel silme, bu sayfadaki geçmiş araçlarından ayrıdır."
+        ]
+      },
+      {
+        "id": "server-cannot-erase",
+        "title": "8. Sunucunun uzaktan silemeyeceği veriler",
+        "paragraphs": [
+          "TAMPIQ sunucuları yalnızca telefonunuzda saklanan koruma geçmişini, PIN’i veya ayarları uzaktan silemez.",
+          "E-posta iletim sağlayıcısında halihazırda tutulan güvenlik uyarısı e-posta kopyaları, yerel geçmiş araçlarıyla veya uyarıları kapatmakla silinmez.",
+          "Daha önce gönderdiğiniz destek yazışmaları, ayrıca işlenmedikçe e-postada kalır."
+        ]
+      },
+      {
+        "id": "external-request",
+        "title": "9. Uygulamayı yeniden yüklemeden yardım isteme",
+        "paragraphs": [
+          "Yerel veri silme konusunda yönlendirme veya bulut ile yerel kayıtları ayırt etme yardımı için aşağıdaki iletişim düğmesiyle bize e-posta gönderin. Bu talebi göndermek için TAMPIQ’i yeniden yüklemeniz gerekmez.",
+          "Yerel geçmiş yardımı mı yoksa bulut hesabıyla ilgili silme mi istediğinizi belirtin. Bulut hesabı kapatma için Hesap silme’yi izleyin veya e-postanızda bunu açıkça yazın.",
+          "2 iş günü içinde yanıtlamayı hedefliyoruz. Destek adımları açıklayabilir ve doğrulanmış hesap silme taleplerinde hesap silme sürecini izleyebilir. Destek, erişemediği bir cihazdaki Room verisini uzaktan silemez ve yalnızca bir e-posta adresini bulut silme için sahiplik kanıtı saymaz."
+        ]
+      }
+    ],
+    "privacy_email_label": "Gizlilik e-postası",
+    "support_email_label": "Destek e-postası",
+    "request_cta_label": "Veri silme yardımı için e-posta gönder",
+    "request_cta_subject": "TAMPIQ Android veri silme talebi"
   }
 }

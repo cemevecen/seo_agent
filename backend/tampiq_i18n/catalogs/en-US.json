@@ -14,7 +14,11 @@
     "delete_account_description_android": "Google Play account-deletion instructions for TAMPIQ Android: in-app steps, deleted data, and retention.",
     "privacy_description_android": "Android privacy policy for the TAMPIQ protection app: on-device records, optional email alerts, and permissions.",
     "support_description_android": "Android help for TAMPIQ: protection setup, special accesses, email alerts, and troubleshooting.",
-    "android_locale_notice": "Android-specific privacy, support, and account-deletion text is currently published in Turkish and English. This page is shown in English for your selected language until a reviewed translation is available."
+    "android_locale_notice": "Android-specific privacy, support, account-deletion, and data-deletion text is currently published in Turkish and English. This page is shown in English for your selected language until a reviewed translation is available.",
+    "delete_data_title": "TAMPIQ — Delete data",
+    "delete_data_description": "How to delete TAMPIQ user data without deleting a cloud account.",
+    "delete_data_title_android": "TAMPIQ — Delete data (Android)",
+    "delete_data_description_android": "Android data-deletion instructions: local history, retention, and cloud alert limits."
   },
   "nav": {
     "support": "Support",
@@ -23,14 +27,16 @@
     "delete_account": "Delete account",
     "language": "Language",
     "home_aria": "TAMPIQ home",
-    "lang_aria": "Choose language"
+    "lang_aria": "Choose language",
+    "delete_data": "Delete data"
   },
   "footer": {
     "copyright": "© 2026 TAMPIQ",
     "support": "Support",
     "privacy": "Privacy Policy",
     "contact": "Contact",
-    "delete_account": "Delete account"
+    "delete_account": "Delete account",
+    "delete_data": "Delete data"
   },
   "home": {
     "eyebrow": "TAMPIQ Help Center",
@@ -955,5 +961,129 @@
     "support_email_label": "Support email",
     "request_cta_label": "Email a deletion-assistance request",
     "request_cta_subject": "TAMPIQ Android account deletion request"
+  },
+  "delete_data": {
+    "title": "Delete data",
+    "effective_label": "Last updated",
+    "effective_date": "12 October 2026",
+    "intro": "TAMPIQ on iOS keeps protection records on your device and does not create a TAMPIQ cloud account for sync. Use in-app record deletion or uninstall to remove local data. For Android data-deletion steps (local history versus optional cloud alert data), open this page with platform=android.",
+    "sections": [
+      {
+        "id": "ios-local-only",
+        "title": "iOS: on-device data",
+        "paragraphs": [
+          "The published iOS app does not offer a TAMPIQ cloud account for protection history sync.",
+          "You can delete sessions or clear stored records inside TAMPIQ. Uninstalling removes the app’s local container subject to iOS behavior.",
+          "Support emails you already sent are not deleted by uninstalling the app."
+        ]
+      },
+      {
+        "id": "contact",
+        "title": "Contact",
+        "paragraphs": [
+          "Developer / Publisher: TAMPIQ (Türkiye).",
+          "Questions: use the contact addresses below."
+        ]
+      }
+    ],
+    "privacy_email_label": "Privacy email",
+    "support_email_label": "Support email",
+    "request_cta_label": "Email support",
+    "request_cta_subject": "TAMPIQ data deletion question"
+  },
+  "delete_data_android": {
+    "title": "Delete data (Android)",
+    "effective_label": "Last updated",
+    "effective_date": "12 October 2026",
+    "intro": "This page explains how to delete TAMPIQ Android user data without deleting a cloud account, what stays on the device or servers, and how to request help by email. Developer / Publisher: TAMPIQ (Türkiye). For cloud account closure, use the separate Delete account page.",
+    "sections": [
+      {
+        "id": "local-vs-cloud",
+        "title": "1. Local data versus cloud data",
+        "paragraphs": [
+          "Core protection session history is stored on your Android device (local Room database and related caches). TAMPIQ does not require a cloud account for that recording.",
+          "Optional security email alerts use a Google Sign-In / Firebase cloud account. Alert preferences and delivery records for that account may exist on TAMPIQ’s alert backend only when you use those features.",
+          "This page covers deleting protection records and controlling alert settings without closing the cloud account. Closing the cloud account is a different flow documented on Delete account."
+        ]
+      },
+      {
+        "id": "in-app-local-delete",
+        "title": "2. Delete local protection records in the app",
+        "paragraphs": [
+          "Deletion of completed records is permanent. Sensitive delete actions ask for device confirmation (biometrics or lock-screen credential).",
+          "An active protection session (arming, active, or ending) is not deleted by these history tools."
+        ],
+        "bullets": [
+          "Delete all completed records: Settings → Privacy / Data → Delete all records → Delete all records.",
+          "Delete the latest completed session: Settings → Privacy / Data → Delete all records → Delete the last session.",
+          "Delete selected archived sessions: Records → Sessions → Select → choose completed sessions → Delete → confirm."
+        ]
+      },
+      {
+        "id": "retention",
+        "title": "3. Automatic retention on the device",
+        "paragraphs": [
+          "In Settings → Privacy / Data → Record retention you can choose how long finished records are kept: 7 days, 30 days, 90 days, or until you delete them.",
+          "When a finite window is selected, older finished records may be cleaned during app maintenance. Active protection is never deleted by retention cleanup.",
+          "Shortening retention may permanently remove archived sessions that fall outside the new window after you confirm."
+        ]
+      },
+      {
+        "id": "what-local-delete-removes",
+        "title": "4. What local history deletion removes",
+        "paragraphs": [
+          "When you delete completed history in the app, TAMPIQ removes related on-device protection records for those sessions, including session metadata, event logs, location evidence tied to those sessions, and related local annotations."
+        ]
+      },
+      {
+        "id": "what-remains-local",
+        "title": "5. What remains after local history deletion",
+        "paragraphs": [
+          "Local history deletion does not reset your Tampiq PIN / App Lock, language, appearance, launcher preferences, notification preferences, or retention setting itself.",
+          "Any in-progress protection session remains until you stop protection.",
+          "Uninstalling TAMPIQ removes the app’s local data according to Android behavior; that is separate from in-app history delete."
+        ]
+      },
+      {
+        "id": "cloud-without-account-delete",
+        "title": "6. Cloud alert data without deleting the account",
+        "paragraphs": [
+          "You can turn off security email alerts in Settings → Permissions and access → Email notifications (device confirmation may be required). When you are signed in, that preference is synced to the alert backend so new alerts are not enabled.",
+          "Signing out ends the signed-in session and does not delete your cloud account or wipe server alert preference / delivery history by itself.",
+          "There is no separate in-app control that erases server alert delivery history while keeping the account. Removing those account-linked server records requires account deletion (see Delete account)."
+        ]
+      },
+      {
+        "id": "requires-account-deletion",
+        "title": "7. What requires account deletion instead",
+        "paragraphs": [
+          "Firebase / Google cloud account identity for TAMPIQ email alerts.",
+          "Server-side alert preferences, delivery records, and account-scoped alert volume / rate-limit records bound to that account.",
+          "Use /delete-account?platform=android for those steps. Optional local erase during account deletion is separate from the history tools on this page."
+        ]
+      },
+      {
+        "id": "server-cannot-erase",
+        "title": "8. What the server cannot remotely erase",
+        "paragraphs": [
+          "TAMPIQ’s servers cannot remotely wipe protection history, PIN, or settings stored only on your phone.",
+          "Copies of security-alert emails already held by the email delivery provider are not deleted by local history tools or by turning alerts off.",
+          "Support correspondence you already sent remains in email unless separately handled."
+        ]
+      },
+      {
+        "id": "external-request",
+        "title": "9. Request help without reinstalling the app",
+        "paragraphs": [
+          "If you need guidance deleting local data, or help understanding cloud versus local records, email us using the contact button below. You do not need to reinstall TAMPIQ to send this request.",
+          "Prefer describing whether you want local history help or cloud-account-related deletion. For cloud account closure, follow Delete account or say that clearly in your email.",
+          "We aim to respond within 2 business days. Support can explain steps and, for verified account-deletion requests, follow the account-deletion process. Support cannot remotely erase Room data on a device it cannot access, and does not treat an email address alone as proof of ownership for cloud deletion."
+        ]
+      }
+    ],
+    "privacy_email_label": "Privacy email",
+    "support_email_label": "Support email",
+    "request_cta_label": "Email a data-deletion assistance request",
+    "request_cta_subject": "TAMPIQ Android data deletion request"
   }
 }
