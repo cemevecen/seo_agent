@@ -5,6 +5,9 @@
 {% block content %}
 <article class="doc card">
   <h1>{{ t.support.title }}</h1>
+  {% if android_locale_notice %}
+  <p class="lede" role="note">{{ android_locale_notice }}</p>
+  {% endif %}
   <p class="lede">{{ t.support.intro }}</p>
 
   <section id="contact" class="contact-card">

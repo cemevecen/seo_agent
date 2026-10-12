@@ -1,4 +1,4 @@
-"""TAMPIQ public Support / Privacy site (Apple App Store Connect).
+"""TAMPIQ public Support / Privacy site (Apple App Store Connect + Google Play).
 
 Isolated ASGI app — no ProjectControl routes, auth, DB, or navigation.
 
@@ -34,6 +34,9 @@ _BLOCKED_PUBLIC_EMAILS = {
     "cemevecen@gmail.com",
     "support@tampiq.app",
 }
+# Reviewed Android legal/support copy exists only for these locales.
+_ANDROID_LOCALES = frozenset({"en-US", "tr"})
+_SUPPORTED_PLATFORMS = frozenset({"ios", "android"})
 
 
 def _env(name: str, default: str = "") -> str:
@@ -80,10 +83,64 @@ def resolve_request_locale(request: Request) -> str:
     )
 
 
+def resolve_platform(request: Request) -> str:
+    """Platform selector for privacy/support copy.
+
+    Default is ``ios`` so existing `/privacy?lang=…` and `/support?lang=…`
+    URLs keep serving the published iOS Help Center content.
+    Unknown values fall back to ``ios`` (backward compatible, no blank page).
+    """
+    raw = (request.query_params.get("platform") or "").strip().lower()
+    if raw in _SUPPORTED_PLATFORMS:
+        return raw
+    return "ios"
+
+
+def _apply_platform_catalog(catalog: dict, *, locale: str, platform: str) -> dict:
+    """Swap privacy/support bodies for Android when requested.
+
+    Incomplete Android locales intentionally use reviewed English Android copy
+    (never another language's iOS-specific text).
+    """
+    if platform != "android":
+        return catalog
+
+    source_locale = locale if locale in _ANDROID_LOCALES else DEFAULT_LOCALE
+    android_catalog = get_catalog(source_locale)
+    privacy = android_catalog.get("privacy_android")
+    support = android_catalog.get("support_android")
+    if not isinstance(privacy, dict) or not isinstance(support, dict):
+        return catalog
+
+    out = dict(catalog)
+    out["privacy"] = privacy
+    out["support"] = support
+    meta = dict(out.get("meta") or {})
+    # Prefer Android-specific titles/descriptions when present.
+    en_meta = get_catalog(DEFAULT_LOCALE).get("meta") or {}
+    src_meta = android_catalog.get("meta") or {}
+    for key, fallback_key in (
+        ("privacy_title", "privacy_title_android"),
+        ("support_title", "support_title_android"),
+        ("privacy_description", "privacy_description_android"),
+        ("support_description", "support_description_android"),
+    ):
+        value = src_meta.get(fallback_key) or en_meta.get(fallback_key)
+        if value:
+            meta[key] = value
+    notice = None
+    if locale not in _ANDROID_LOCALES:
+        notice = src_meta.get("android_locale_notice") or en_meta.get("android_locale_notice")
+    out["meta"] = meta
+    out["android_locale_notice"] = notice
+    return out
+
+
 def page_context(request: Request, *, active: str) -> dict:
     locale = resolve_request_locale(request)
+    platform = resolve_platform(request)
     info = locale_info(locale)
-    catalog = get_catalog(locale)
+    catalog = _apply_platform_catalog(get_catalog(locale), locale=locale, platform=platform)
     identity = _site_identity()
     # Allow env overrides for publisher display while keeping catalog defaults.
     # Never allow a personal legal name to leak onto the public site.
@@ -103,12 +160,16 @@ def page_context(request: Request, *, active: str) -> dict:
                 "country_value": identity["publisher_country"],
             },
         }
+    platform_qs = f"&platform={platform}" if platform != "ios" else ""
     return {
         "request": request,
         "active": active,
         "locale": info.code,
         "text_dir": info.dir,
         "locale_items": locale_selector_items(info.code),
+        "platform": platform,
+        "platform_qs": platform_qs,
+        "android_locale_notice": catalog.get("android_locale_notice"),
         "t": catalog,
         **identity,
     }

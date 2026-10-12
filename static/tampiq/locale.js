@@ -74,6 +74,16 @@
   function buildUrl(locale) {
     var url = new URL(window.location.href);
     url.searchParams.set("lang", locale);
+    // Preserve platform=android|ios when present so locale switching does not
+    // silently drop Android-specific privacy/support copy.
+    try {
+      var platform =
+        (document.body && document.body.getAttribute("data-platform")) ||
+        url.searchParams.get("platform");
+      if (platform === "android" || platform === "ios") {
+        url.searchParams.set("platform", platform);
+      }
+    } catch (_) {}
     return url.pathname + url.search + url.hash;
   }
 

@@ -164,3 +164,64 @@ def test_main_has_no_tampiq_routes():
     main_src = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
     assert "tampiq" not in main_src.lower()
     assert "TAMPIQ" not in main_src
+
+
+def test_default_privacy_remains_ios_without_platform_param():
+    html = CLIENT.get("/privacy", params={"lang": "en-US"}).text
+    assert "iPhone" in html or "iOS" in html
+    assert "Privacy Policy (Android)" not in html
+    assert 'data-platform="ios"' in html
+
+
+def test_android_privacy_and_support_en_tr():
+    for lang in ("en-US", "tr"):
+        privacy = CLIENT.get("/privacy", params={"lang": lang, "platform": "android"})
+        support = CLIENT.get("/support", params={"lang": lang, "platform": "android"})
+        assert privacy.status_code == 200, lang
+        assert support.status_code == 200, lang
+        assert 'data-platform="android"' in privacy.text
+        assert 'data-platform="android"' in support.text
+        assert "Usage Access" in privacy.text or "Usage Access" in support.text or "Kullanım Erişimi" in support.text
+        assert "Device Admin" in privacy.text or "Cihaz Yöneticisi" in privacy.text
+        assert "Firebase" in privacy.text
+        assert "netbaboli@gmail.com" in privacy.text
+        assert "netbaboli@gmail.com" in support.text
+        # Must not silently keep iOS Screen Time / Live Activities framing as Android body.
+        assert "Live Activities" not in privacy.text
+        assert "Canlı Etkinlik" not in privacy.text
+
+
+def test_invalid_platform_falls_back_to_ios():
+    html = CLIENT.get("/privacy", params={"lang": "en-US", "platform": "windows"}).text
+    assert 'data-platform="ios"' in html
+    assert "Privacy Policy (Android)" not in html
+
+
+def test_android_incomplete_locale_uses_english_android_copy_with_notice():
+    res = CLIENT.get("/privacy", params={"lang": "de", "platform": "android"})
+    assert res.status_code == 200
+    html = res.text
+    assert "Privacy Policy (Android)" in html
+    assert "reviewed translation" in html.lower() or "English" in html
+    assert "Usage Access" in html
+    # Must not show German iOS Screen Time framing as the Android policy body.
+    assert "Bildschirmzeit" not in html
+
+
+def test_platform_query_preserved_in_nav_links_for_android():
+    html = CLIENT.get("/support", params={"lang": "tr", "platform": "android"}).text
+    assert "platform=android" in html
+    assert "/privacy?lang=tr&platform=android" in html or "platform=android" in html
+
+
+def test_unknown_lang_falls_back_default_locale():
+    # Fresh client: shared CLIENT may carry a locale cookie from earlier tests.
+    client = TestClient(app)
+    res = client.get(
+        "/privacy",
+        params={"lang": "xx-QQ", "platform": "android"},
+        headers={"Accept-Language": "en-US"},
+    )
+    assert res.status_code == 200
+    assert f'data-locale="{DEFAULT_LOCALE}"' in res.text
+    assert "Privacy Policy (Android)" in res.text

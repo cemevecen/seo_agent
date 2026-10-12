@@ -6,6 +6,9 @@
 <article class="doc card">
   <h1>{{ t.privacy.title }}</h1>
   <p class="meta-line">{{ t.privacy.effective_label }}: {{ t.privacy.effective_date }}</p>
+  {% if android_locale_notice %}
+  <p class="lede" role="note">{{ android_locale_notice }}</p>
+  {% endif %}
   <p class="lede">{{ t.privacy.intro }}</p>
 
   {% for section in t.privacy.sections %}

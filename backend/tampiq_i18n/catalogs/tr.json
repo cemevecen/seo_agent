@@ -5,7 +5,12 @@
     "privacy_title": "TAMPIQ Gizlilik Politikası",
     "home_description": "TAMPIQ için yardım, gizlilik ve ürün bilgileri.",
     "support_description": "TAMPIQ koruma oturumları, izinler ve sorun giderme hakkında yardım alın.",
-    "privacy_description": "TAMPIQ’in bilgileri cihazınızda nasıl işlediği ve sakladığı."
+    "privacy_description": "TAMPIQ’in bilgileri cihazınızda nasıl işlediği ve sakladığı.",
+    "privacy_title_android": "TAMPIQ Gizlilik Politikası (Android)",
+    "support_title_android": "TAMPIQ Destek (Android)",
+    "privacy_description_android": "TAMPIQ Android koruma uygulaması için gizlilik politikası: cihaz içi kayıtlar, isteğe bağlı e-posta uyarıları ve izinler.",
+    "support_description_android": "TAMPIQ Android yardımı: koruma kurulumu, özel erişimler, e-posta uyarıları ve sorun giderme.",
+    "android_locale_notice": "Android’e özel gizlilik ve destek metinleri şu anda Türkçe ve İngilizce olarak yayınlanmıştır. Seçtiğiniz dil için incelenen çeviri hazır olana kadar bu sayfa İngilizce gösterilir."
   },
   "nav": {
     "support": "Destek",
@@ -440,5 +445,365 @@
     ],
     "privacy_email_label": "Gizlilik e-postası",
     "support_email_label": "Destek e-postası"
+  },
+  "privacy_android": {
+    "title": "Gizlilik Politikası (Android)",
+    "effective_label": "Yürürlük tarihi",
+    "effective_date": "12 Ekim 2026",
+    "intro": "Bu Gizlilik Politikası, TAMPIQ Android uygulamasını kullandığınızda bilgilerin nasıl işlendiğini açıklar. Üretim Android davranışını yansıtır: koruma oturumu kayıtları ve cihaz etkinliği kanıtları yerel depolamada cihazınızda kalacak şekilde tasarlanmıştır; isteğe bağlı güvenlik e-posta uyarılarını etkinleştirip giriş yaparsanız, doğrulanmış hesap adresinize e-posta iletilebilmesi için sınırlı bir uyarı yükü TAMPIQ’in uyarı iletim hizmetine gönderilir.",
+    "sections": [
+      {
+        "id": "introduction",
+        "title": "1. Giriş",
+        "paragraphs": [
+          "TAMPIQ, Android için kişisel bir koruma oturumu uygulamasıdır. Koruma oturumlarını başlatıp bitirmenize ve ilgili cihaz içi etkinliği incelemenize yardımcı olur.",
+          "Bu politika genel bir şablon değil; yayınlanan Android uygulamasının çalışma şekline uygun yazılmıştır."
+        ]
+      },
+      {
+        "id": "scope",
+        "title": "2. Kapsam",
+        "paragraphs": [
+          "Bu politika TAMPIQ Android uygulamasını ve Android’e özel sayfalar açıldığında bu herkese açık Yardım / Gizlilik Merkezi web sitesini kapsar.",
+          "TAMPIQ dışından açtığınız ilgisiz siteleri veya hizmetleri kapsamaz."
+        ]
+      },
+      {
+        "id": "information",
+        "title": "3. TAMPIQ’in İşlediği Bilgiler",
+        "paragraphs": [
+          "Seçtiğiniz izinlere ve ayarlara bağlı olarak TAMPIQ cihazınızda şu kategorileri işleyebilir:"
+        ],
+        "bullets": [
+          "Koruma oturumu meta verileri (oturum tanımlayıcıları, başlangıç/bitiş zamanları, etiketler, yapılandırma anlık görüntüleri).",
+          "Oturumla ilgili cihaz etkinliği (hareket, şarj/güç, Usage Access ile uygulama ön plan/arka plan sinyalleri, Notification Listener ile bildirim etkileşimleri, Device Admin ile kilit/yanlış kilit denemesi sinyalleri—yetkilendirildiğinde).",
+          "Konum kanıtını açıp izin verdiğinizde isteğe bağlı konum anlık görüntüleri.",
+          "Tercihler ve ayarlar (tema, dil, saklama süresi, özellik anahtarları, e-posta uyarı tercihleri).",
+          "Uygulama Kilidi kimlik doğrulama sonuçları (yalnızca başarı/başarısızlık)—biyometrik şablon veya cihaz PIN’i değil.",
+          "Yalnızca isteğe bağlı güvenlik e-posta uyarıları ve hesap yönetimi için bulut hesap tanımlayıcıları (Firebase Authentication kullanıcı kimliği ve doğrulanmış e-posta uygunluğu).",
+          "Bize e-posta gönderirseniz destek yazışmaları."
+        ]
+      },
+      {
+        "id": "on-device",
+        "title": "4. Cihaz İçi İşleme ve Depolama",
+        "paragraphs": [
+          "Oturum günlükleri, zaman çizelgesi olayları, tercihler (DataStore) ve ilgili önbellekler Android cihazınızda yerel olarak saklanır (yerel Room veritabanı dahil).",
+          "Temel koruma kaydı için kullanıcı hesabı zorunlu değildir. Koruma zaman çizelgesi geçmişi cihazınızda kalacak şekilde tasarlanmıştır.",
+          "İçeriği başka bir uygulamayla dışa aktarır veya paylaşırsanız işlem sizin başlatmanızla ilerler."
+        ]
+      },
+      {
+        "id": "permissions-policy",
+        "title": "5. İzinler ve Özel Erişimler",
+        "paragraphs": [
+          "TAMPIQ, yalnızca ilgili özellikleri sağlamak için Android izinleri ve özel erişimler ister:"
+        ],
+        "bullets": [
+          "Usage Access — oturum sırasında desteklenen uygulama kullanımı / etkinlik sinyalleri.",
+          "Notification Listener — oturum sırasında bildirim etkileşim sinyalleri (reklam için kullanılmaz).",
+          "Device Admin — desteklenen cihaz/OS sürümlerinde isteğe bağlı yanlış kilit kodu sinyalleri.",
+          "Konum — konum kanıtı açıkken isteğe bağlı anlık görüntüler.",
+          "Bildirimler — yerel oturum durumu bildirimleri.",
+          "Biyometri / cihaz kimlik bilgisi — Uygulama Kilidi ve hassas eylem onayı.",
+          "Ön plan hizmeti — oturum aktifken Android arka plan kuralları içinde izleme."
+        ]
+      },
+      {
+        "id": "location",
+        "title": "6. Konum Bilgisi",
+        "paragraphs": [
+          "Konum kanıtı isteğe bağlıdır; siz etkinleştirip izin vermedikçe kapalıdır.",
+          "Etkinleştirildiğinde TAMPIQ, koruma ile ilgili konum anlık görüntülerini cihazda saklayabilir. Bu, reklam için sürekli yüksek frekanslı takip değildir.",
+          "Doğruluk Android konum hizmetlerine ve cihaz koşullarına bağlıdır.",
+          "Güvenlik e-posta uyarılarında konum içeren içerik modu seçerseniz, koordinatlar (ve varsa ters coğrafi kod etiketi) o e-posta için uyarı yüküne eklenebilir."
+        ]
+      },
+      {
+        "id": "notifications-policy",
+        "title": "7. Bildirim Erişimi",
+        "paragraphs": [
+          "Notification Listener yetkisiyle TAMPIQ, aktif oturum için bildirim etkileşim sinyallerini cihazda kaydedebilir.",
+          "Bu erişim, seçtiğiniz koruma kanıtı içindir; pazarlama profili oluşturmak için değildir."
+        ]
+      },
+      {
+        "id": "device-admin",
+        "title": "8. Cihaz Yöneticisi",
+        "paragraphs": [
+          "İsteğe bağlı Device Admin, desteklenen Android sürümlerinde belirli kilit ekranı kimlik doğrulama başarısızlığı sinyallerini gözlemlemeye izin verebilir.",
+          "TAMPIQ cihaz PIN’inizi, deseninizi veya parolanızın içeriğini almaz. Gözlemlenebilirlik API ve üreticiye bağlıdır; her cihazda garanti edilmez.",
+          "Device Admin’i Android sistem ayarlarından kapatabilirsiniz."
+        ]
+      },
+      {
+        "id": "foreground",
+        "title": "9. Ön Plan İzleme",
+        "paragraphs": [
+          "Koruma aktifken TAMPIQ, Android arka plan sınırları içinde izlemeyi sürdürmek için bir ön plan hizmeti çalıştırabilir.",
+          "Pil optimizasyonu ve üretici güç politikaları arka plan işlerini geciktirebilir veya durdurabilir. TAMPIQ her OS kısıtını aşamaz."
+        ]
+      },
+      {
+        "id": "email-alerts",
+        "title": "10. İsteğe Bağlı Güvenlik E-posta Uyarıları",
+        "paragraphs": [
+          "Güvenlik e-posta uyarıları isteğe bağlıdır. Kullanmak için desteklenen bulut hesabıyla giriş yapmanız (yapılandırıldıysa Firebase Authentication / Google Sign-In), uygunluğu doğrulamanız ve TAMPIQ ayarlarından katılmanız gerekir.",
+          "Uygun bir uyarı gönderildiğinde Android uygulaması, kısa ömürlü Firebase ID belirteci ile kimlik doğrulayarak HTTPS üzerinden TAMPIQ güvenlik-uyarı uç noktasına sınırlı bir JSON yükü gönderir. Uygulama SMTP kimlik bilgisi veya posta kutusu parolası taşımaz.",
+          "Yük; kurulum ve olay tanımlayıcıları, oturum kimliği, olay türü / tetikleyici, zaman damgası, cihaz adı, isteğe bağlı risk özeti alanları, dil, içerik modu bayrakları, ilgili olay türü etiketleri ve uygunsa konum koordinatlarını içerebilir. Alıcı, kimliği doğrulanmış hesabınızdan çözülür.",
+          "Sunulan yerlerde ayrıntılı veya daha gizli e-posta içerik modlarını seçebilir; uyarıları kapatabilir, çıkış yapabilir veya hesabı silebilirsiniz."
+        ]
+      },
+      {
+        "id": "identifiers",
+        "title": "11. Cihaz ve Kurulum Tanımlayıcıları",
+        "paragraphs": [
+          "İsteğe bağlı e-posta uyarıları için TAMPIQ, teslimatı doğru hesaba bağlamak ve yinelenmeyi azaltmak amacıyla bir kurulum tanımlayıcısı ve bulut hesap kullanıcı kimliği kullanabilir.",
+          "Bu tanımlayıcılar reklam profili satmak için kullanılmaz."
+        ]
+      },
+      {
+        "id": "server",
+        "title": "12. Sunucu İletimi",
+        "paragraphs": [
+          "Temel koruma zaman çizelgesi kayıtları cihazınızda kalacak şekilde tasarlanmıştır.",
+          "TAMPIQ altyapısına ağ iletimi; güvenlik e-posta uyarısı, girişliyken ilgili tercih senkronu ve hesap silme gibi isteğe bağlı özellikler için gerçekleşir.",
+          "Bu Yardım Merkezi sıradan web barındırma kullanır. Tipografi için Google Fonts yüklenebilir."
+        ]
+      },
+      {
+        "id": "third-party",
+        "title": "13. Üçüncü Taraf İşleyiciler",
+        "paragraphs": [
+          "Bulut kimlik doğrulama / e-posta uyarıları yapılandırıldığında TAMPIQ, isteğe bağlı hesabı doğrulamak için Google Firebase Authentication (ve sunuluyorsa Google Sign-In) kullanır.",
+          "Uyarı iletimi kimlik doğrulamasından sonra TAMPIQ’in HTTPS güvenlik-uyarı arka ucu tarafından yapılır.",
+          "Android sistem çerçeveleri Google ve üreticinizin platform koşulları altında çalışır."
+        ]
+      },
+      {
+        "id": "sharing",
+        "title": "14. Veri Paylaşımı",
+        "paragraphs": [
+          "Kişisel bilgilerinizi satmayız.",
+          "Koruma oturumu kayıtlarını üçüncü taraf reklamverenlerle veya veri aracılarıyla pazarlama amacıyla paylaşmayız.",
+          "Destek e-postası gönderirseniz yanıtlamak için yazışmayı işleriz. Android paylaşım sayfalarıyla kendiniz paylaşırsanız kontrol sizdedir."
+        ]
+      },
+      {
+        "id": "retention",
+        "title": "15. Veri Saklama",
+        "paragraphs": [
+          "Ayarlar’da arşivlenmiş koruma kayıtlarının cihazda ne kadar tutulacağını seçebilirsiniz: 7 gün, 30 gün, 90 gün veya siz silene kadar.",
+          "Sonlu bir saklama penceresi seçildiğinde eski yerel kayıtlar uygulama bakımında otomatik temizlenebilir.",
+          "İsteğe bağlı bulut hesap ve uyarı iletim kayıtları ilgili arka uçlara tabidir; uygulama içi hesap silme akışları sunulduğunda kullanılabilir."
+        ]
+      },
+      {
+        "id": "deletion",
+        "title": "16. Veri Silme",
+        "paragraphs": [
+          "TAMPIQ içinden oturumları silebilir veya kayıtları temizleyebilirsiniz (hassas eylemler için sahip doğrulaması gerekebilir).",
+          "Uygulamayı kaldırmak, Android davranışına göre yerel uygulama verilerini siler.",
+          "Kaldırma, daha önce aldığınız veya gönderdiğiniz e-postaları silmez.",
+          "Uygulamada sunulduğunda bulut hesap silme, giriş yapılmış hesabın kaldırılmasını TAMPIQ hesap API’si üzerinden ister."
+        ]
+      },
+      {
+        "id": "launcher",
+        "title": "17. Başlatıcı Simgesi Görünürlüğü",
+        "paragraphs": [
+          "TAMPIQ, Android activity-alias bileşen durumlarıyla başlatıcı simgesini gizleyip gösterebilir.",
+          "Simgeyi gizlemek yerel koruma kayıtlarını silmez. Geri yükleme üretici başlatıcısına bağlıdır; gizlemeden önce geri yükleme yolunu bilinen şekilde saklayın."
+        ]
+      },
+      {
+        "id": "security",
+        "title": "18. Güvenlik",
+        "paragraphs": [
+          "Cihaz içi bir uygulama için uygun makul teknik önlemler kullanırız; Uygulama Kilidi seçenekleri ve hassas uyarıyla ilgili değerler için yerel şifreli depolar buna dahildir.",
+          "Hiçbir elektronik depolama yöntemi kusursuz güvenli değildir."
+        ]
+      },
+      {
+        "id": "choices",
+        "title": "19. Kullanıcı Seçimleri ve Kontroller",
+        "paragraphs": [
+          "Android Ayarları’nda izinleri değiştirebilir veya geri alabilir; saklama süresini ayarlayabilir; kayıtları silebilir; e-posta uyarılarını kapatabilir; çıkış yapabilir; Device Admin’i kapatabilir; tema veya dili değiştirebilir; TAMPIQ’i bırakıp kaldırabilirsiniz."
+        ]
+      },
+      {
+        "id": "children",
+        "title": "20. Çocuklar",
+        "paragraphs": [
+          "TAMPIQ 13 yaşın altındaki çocuklara yönelik değildir. Çocuklar adına bilerek bulut hesabı oluşturmayız. Bir çocuğun e-posta ile kişisel bilgi gönderdiğine inanıyorsanız bizimle iletişime geçin."
+        ]
+      },
+      {
+        "id": "international",
+        "title": "21. Uluslararası Kullanıcılar",
+        "paragraphs": [
+          "Koruma kayıtları uygulamanın yüklü olduğu cihazda saklanır. İsteğe bağlı uyarı kimlik doğrulaması ve iletimi birden fazla bölgede çalışan işleyiciler (ör. Firebase Authentication) içerebilir.",
+          "Bu Yardım Merkezi, sayfaları sunmak için gereken standart teknik günlükleri işleyebilen web altyapısında barındırılır."
+        ]
+      },
+      {
+        "id": "changes",
+        "title": "22. Bu Politikadaki Değişiklikler",
+        "paragraphs": [
+          "Ürün veya yasal değişiklikleri yansıtmak için bu Gizlilik Politikasını güncelleyebiliriz. Bunu yaptığımızda üstteki yürürlük tarihi değişir.",
+          "Önemli değişiklikler bu sayfada yansıtılır. Güncellemeden sonra TAMPIQ’i kullanmaya devam etmeniz gözden geçirilmiş politikayı kabul ettiğiniz anlamına gelir."
+        ]
+      },
+      {
+        "id": "contact",
+        "title": "23. İletişim",
+        "paragraphs": [
+          "Gizlilik soruları ve destek talepleri aşağıdaki adreslere gönderilebilir.",
+          "Geliştirici / Yayımcı: TAMPIQ."
+        ]
+      }
+    ],
+    "privacy_email_label": "Gizlilik e-postası",
+    "support_email_label": "Destek e-postası"
+  },
+  "support_android": {
+    "title": "Destek (Android)",
+    "intro": "Android’de TAMPIQ için yardıma mı ihtiyacınız var? Aşağıdaki yanıtları inceleyin veya doğrudan bize yazın.",
+    "contact_title": "İletişim",
+    "support_email_label": "Destek e-postası",
+    "privacy_email_label": "Gizlilik e-postası",
+    "developer_label": "Geliştirici / Yayımcı",
+    "developer_name": "TAMPIQ",
+    "country_label": "Ülke",
+    "country_value": "Türkiye",
+    "response_note": "2 iş günü içinde yanıtlamayı hedefliyoruz.",
+    "toc_title": "Bu sayfada",
+    "sections": [
+      {
+        "id": "getting-started",
+        "title": "Başlarken",
+        "paragraphs": [
+          "TAMPIQ’i Google Play’den yükleyin, ilk kurulumunu tamamlayın, Tampiq PIN’inizi oluşturun (telefon PIN’i değil) ve hazır olduğunuzda Ana sayfadan korumayı başlatın."
+        ],
+        "bullets": [
+          "Temel koruma kaydı bulut hesabı olmadan cihaz üzerinde çalışır.",
+          "İsteğe bağlı güvenlik e-posta uyarıları için Ayarlar’dan giriş ve katılım gerekir."
+        ]
+      },
+      {
+        "id": "protection-sessions",
+        "title": "Koruma Nasıl Çalışır",
+        "paragraphs": [
+          "Korumayı Ana sayfadaki kaydırma kontrolüyle başlatın. Aktifken desteklenen sinyaller oturum zaman çizelgesine kaydedilir.",
+          "Korumayı Ana sayfadan durdurun (sahip doğrulaması gerekebilir). Olayları Kayıtlar’dan inceleyin."
+        ]
+      },
+      {
+        "id": "usage-access",
+        "title": "Kullanım Erişimi",
+        "paragraphs": [
+          "Usage Access, oturum sırasında desteklenen uygulama kullanımı / etkinlik sinyallerini okumaya izin verir.",
+          "Koruma kurulumundan veya Android Ayarları → Özel uygulama erişimi → Kullanım erişimi yolundan yetkilendirin. Geri almak bu sinyalleri durdurur."
+        ]
+      },
+      {
+        "id": "notification-listener",
+        "title": "Bildirim Dinleyicisi",
+        "paragraphs": [
+          "Bildirim erişimi, aktif oturum için bildirim etkileşim sinyallerini kaydetmeye izin verir.",
+          "Koruma kurulumundan veya Android bildirim erişimi ayarlarından açın; istediğiniz zaman sistem ayarlarından kapatın."
+        ]
+      },
+      {
+        "id": "device-admin",
+        "title": "Cihaz Yöneticisi",
+        "paragraphs": [
+          "İsteğe bağlı Device Admin, desteklenen cihazlarda yanlış kilit kodu ile ilgili sinyalleri açabilir.",
+          "Android Device Admin istemini anlayarak etkinleştirin. Android Cihaz yönetici uygulamaları altından kapatın. Yetenek üreticiye ve sürüme göre değişir."
+        ]
+      },
+      {
+        "id": "location",
+        "title": "Konum İzinleri",
+        "paragraphs": [
+          "Konum kanıtı isteğe bağlıdır. Oturum zaman çizelgesinde (ve e-posta uyarıları konum içeriyorsa onlarda) anlık görüntü istiyorsanız konum izni verin."
+        ]
+      },
+      {
+        "id": "email-alerts",
+        "title": "E-posta Uyarıları",
+        "paragraphs": [
+          "İsteğe bağlı güvenlik e-postaları seçili olaylar hakkında sizi bilgilendirir.",
+          "Giriş yapın, gerektiğinde e-postayı doğrulayın, katılın, tetikleyicileri ve içerik modunu seçin; sunuluyorsa Ayarlar’dan test gönderin.",
+          "Teslimat için ağ ve derlemenizin arka uç yapılandırması gerekir."
+        ]
+      },
+      {
+        "id": "background",
+        "title": "Arka Plan İzleme Sınırları",
+        "paragraphs": [
+          "Android pil tasarrufu ve üretici güç yöneticileri arka plan işlerini geciktirebilir veya durdurabilir. Güvenilir izleme için agresif pil optimizasyonundan muaf tutmayı tercih edin.",
+          "Zorla durdurma, derin uyku veya OS’nin süreci öldürmesi durumunda izleme garanti edilemez."
+        ]
+      },
+      {
+        "id": "battery",
+        "title": "Pil Optimizasyonu Rehberi",
+        "paragraphs": [
+          "Oturumlar beklenmedik şekilde durursa TAMPIQ için Android pil optimizasyonu / otomatik başlatma ayarlarını kontrol edin ve üreticinin sunduğu yerde kısıtlamasız çalışmaya izin verin."
+        ]
+      },
+      {
+        "id": "launcher",
+        "title": "Uygulama Simgesini Gizleme ve Geri Yükleme",
+        "paragraphs": [
+          "Başlatıcı simgesini gizlemeden önce geri yükleme yolunu (uygulama içi, ayar bağlantısı) bilin.",
+          "Üretici başlatıcıları farklıdır; simge hemen görünmezse bileşeni geri yükledikten sonra yeniden başlatın veya başlatıcı önbelleğini temizleyin."
+        ]
+      },
+      {
+        "id": "revocation",
+        "title": "İzinleri Geri Alma",
+        "paragraphs": [
+          "Usage Access, bildirim erişimi, konum, bildirimler veya Device Admin’i Android Ayarları’ndan istediğiniz zaman geri alın. Bu erişimlere bağlı özellikler durur veya zayıflar."
+        ]
+      },
+      {
+        "id": "troubleshooting",
+        "title": "Sorun Giderme",
+        "items": [
+          {
+            "q": "Koruma açık kalmıyor",
+            "a": "Pil optimizasyonu muafiyetlerini, uygulamanın zorla durdurulmadığını ve kurulumunuz için gerekli erişimlerin hâlâ verildiğini kontrol edin."
+          },
+          {
+            "q": "E-posta uyarısı gelmiyor",
+            "a": "Giriş, doğrulanmış e-posta, katılım, ağ ve tetikleyici ayarlarını doğrulayın. Sunuluyorsa Ayarlar’dan test e-postası gönderin."
+          },
+          {
+            "q": "Yanlış kilit olayları yok",
+            "a": "Birçok kilit başarısızlığı sinyali için Device Admin ve OEM/OS desteği gerekir; her cihaz aynı geri çağrıları sunmaz."
+          },
+          {
+            "q": "Başlatıcıda simge yok",
+            "a": "Ayarlar’daki geri yükleme yolunu kullanın veya Tampiq başlatıcı bileşenini yeniden etkinleştirin; üretici başlatıcısının yenilenmesi gerekebilir."
+          }
+        ]
+      },
+      {
+        "id": "bug-report",
+        "title": "Hata Bildirimi",
+        "paragraphs": [
+          "Destek e-postasına Android sürümü, cihaz modeli, TAMPIQ sürümü ve yeniden üretim adımlarını yazın. Tampiq PIN’i, cihaz PIN’i veya parola eklemeyin."
+        ]
+      },
+      {
+        "id": "feature-request",
+        "title": "Özellik İsteği",
+        "paragraphs": [
+          "Özellik fikirlerini destek e-postasına gönderin. Android’de çözmek istediğiniz sorunu anlatın."
+        ]
+      }
+    ]
   }
 }

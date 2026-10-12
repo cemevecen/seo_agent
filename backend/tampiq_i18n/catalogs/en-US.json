@@ -5,7 +5,12 @@
     "privacy_title": "TAMPIQ Privacy Policy",
     "home_description": "Help, privacy, and product information for TAMPIQ.",
     "support_description": "Get help with TAMPIQ protection sessions, permissions, and troubleshooting.",
-    "privacy_description": "How TAMPIQ processes and stores information on your device."
+    "privacy_description": "How TAMPIQ processes and stores information on your device.",
+    "privacy_title_android": "TAMPIQ Privacy Policy (Android)",
+    "support_title_android": "TAMPIQ Support (Android)",
+    "privacy_description_android": "Android privacy policy for the TAMPIQ protection app: on-device records, optional email alerts, and permissions.",
+    "support_description_android": "Android help for TAMPIQ: protection setup, special accesses, email alerts, and troubleshooting.",
+    "android_locale_notice": "Android-specific privacy and support text is currently published in Turkish and English. This page is shown in English for your selected language until a reviewed translation is available."
   },
   "nav": {
     "support": "Support",
@@ -440,5 +445,366 @@
     ],
     "privacy_email_label": "Privacy email",
     "support_email_label": "Support email"
+  },
+  "privacy_android": {
+    "title": "Privacy Policy (Android)",
+    "effective_label": "Effective date",
+    "effective_date": "12 October 2026",
+    "intro": "This Privacy Policy explains how TAMPIQ (“we”, “us”) processes information when you use the TAMPIQ Android app. It reflects production Android behavior: protection session records and device-activity evidence are designed to stay on your device in local storage, while optional security email alerts—if you enable them and sign in—send a limited alert payload to TAMPIQ’s alert delivery service so an email can be delivered to your verified account address.",
+    "sections": [
+      {
+        "id": "introduction",
+        "title": "1. Introduction",
+        "paragraphs": [
+          "TAMPIQ is a personal protection-session app for Android. It helps you start and stop a protection session and review related on-device activity for that session.",
+          "This policy is written to match how the published Android app works—not as a generic template."
+        ]
+      },
+      {
+        "id": "scope",
+        "title": "2. Scope",
+        "paragraphs": [
+          "This policy covers the TAMPIQ Android application and this public Help Center / Privacy Center website when you open Android-specific pages.",
+          "It does not cover unrelated websites or services you may open outside TAMPIQ (for example a maps app you choose after viewing a location)."
+        ]
+      },
+      {
+        "id": "information",
+        "title": "3. Information TAMPIQ Processes",
+        "paragraphs": [
+          "Depending on the permissions and settings you choose, TAMPIQ may process the following categories on your device:"
+        ],
+        "bullets": [
+          "Protection session metadata (session identifiers, start/stop times, labels, configuration snapshots).",
+          "Device activity related to a session (for example motion-related events, charging/power changes, app foreground/background signals from Usage Access when authorized, notification interaction signals when Notification Listener access is authorized, and lock-related signals when Device Admin is active).",
+          "Optional location snapshots when you enable location evidence and grant location permission.",
+          "Preferences and settings (theme, language, history retention, feature toggles, email-alert preferences).",
+          "App Lock authentication outcomes (success/failure only)—not your biometric templates or device PIN.",
+          "Optional cloud account identifiers used only for security email alerts and account management (Firebase Authentication user id and verified email eligibility).",
+          "Support correspondence if you email us (processed outside the app, in email)."
+        ]
+      },
+      {
+        "id": "on-device",
+        "title": "4. On-Device Processing and Storage",
+        "paragraphs": [
+          "Session logs, timeline events, preferences (DataStore), and related caches are stored locally on your Android device (including a local Room database).",
+          "TAMPIQ does not require a user account for core protection recording. Protection timeline history is designed to remain on the device.",
+          "If you export, share, or open content with another app, that action is initiated by you and follows the destination you choose."
+        ]
+      },
+      {
+        "id": "permissions-policy",
+        "title": "5. Permissions and Special Accesses",
+        "paragraphs": [
+          "TAMPIQ requests Android permissions and special accesses only to provide the corresponding features:"
+        ],
+        "bullets": [
+          "Usage Access — supported app-usage / activity signals during a protection session (when you authorize it).",
+          "Notification Listener — notification interaction signals during a protection session (when you authorize it). TAMPIQ does not use this access for advertising.",
+          "Device Admin — optional wrong lock-code / unlock-failure related signals on supported devices and Android versions (when you activate Device Admin). Capabilities vary by OEM and OS version.",
+          "Location — optional evidence snapshots when you enable location evidence and grant permission.",
+          "Notifications — local session-status notifications.",
+          "Biometric / device credential — App Lock and confirming sensitive actions via the system prompt.",
+          "Foreground service — ongoing protection monitoring while a session is active, within Android background-execution rules."
+        ]
+      },
+      {
+        "id": "location",
+        "title": "6. Location Information",
+        "paragraphs": [
+          "Location evidence is optional and off until you enable it and grant permission.",
+          "When enabled, TAMPIQ may store location snapshots related to protection activity on the device. This is not continuous high-frequency tracking for advertising.",
+          "Accuracy and availability depend on Android location services and device conditions.",
+          "If you also enable security email alerts with a content mode that includes location, coordinates (and when available a reverse-geocoded label) may be included in the alert payload sent to TAMPIQ’s alert delivery service for that email."
+        ]
+      },
+      {
+        "id": "notifications-policy",
+        "title": "7. Notification Access",
+        "paragraphs": [
+          "With Notification Listener access authorized, TAMPIQ may record notification-related interaction signals for the active protection session on the device.",
+          "This access is for protection evidence you choose to enable—not for reading your notifications to build marketing profiles."
+        ]
+      },
+      {
+        "id": "device-admin",
+        "title": "8. Device Administration",
+        "paragraphs": [
+          "Optional Device Admin activation may allow TAMPIQ to observe certain lock-screen authentication failure signals on supported Android versions.",
+          "TAMPIQ does not receive your device PIN, pattern, or password content. Observability depends on Android APIs and OEM behavior; it is not guaranteed on every device.",
+          "You can deactivate Device Admin in Android system settings."
+        ]
+      },
+      {
+        "id": "foreground",
+        "title": "9. Foreground Monitoring",
+        "paragraphs": [
+          "While protection is active, TAMPIQ may run a foreground service so monitoring can continue under Android’s background limits.",
+          "Android may still restrict or delay background work depending on battery optimization, OEM power policies, and system settings. TAMPIQ cannot override every OS limitation."
+        ]
+      },
+      {
+        "id": "email-alerts",
+        "title": "10. Optional Security Email Alerts",
+        "paragraphs": [
+          "Security email alerts are optional. To use them you must sign in with a supported cloud account (Firebase Authentication / Google Sign-In where configured), verify eligibility, and opt in inside TAMPIQ settings.",
+          "When an eligible alert is sent, the Android app posts a limited JSON payload over HTTPS to TAMPIQ’s security-alert endpoint, authenticated with a short-lived Firebase ID token. The app does not embed SMTP credentials or your mailbox password.",
+          "The payload may include installation and event identifiers, session id, event type / trigger, timestamp, device name, optional risk summary fields, locale, content-mode flags, related event-type labels, and—when applicable—location coordinates. The backend resolves the recipient from your authenticated account; the device request is not designed to carry arbitrary free-form mailbox content as the transport secret.",
+          "You can choose detailed or more private email content modes where offered. You can disable email alerts, sign out, or delete your cloud account through the in-app flows when available."
+        ]
+      },
+      {
+        "id": "identifiers",
+        "title": "11. Device and Installation Identifiers",
+        "paragraphs": [
+          "For optional email alerts, TAMPIQ may use an installation identifier and your cloud account user id so delivery can be attributed to the correct opted-in account and deduplicated.",
+          "These identifiers are not used to sell advertising profiles."
+        ]
+      },
+      {
+        "id": "server",
+        "title": "12. Server Transmission",
+        "paragraphs": [
+          "Core protection timeline records are designed to remain on your device.",
+          "Network transmission to TAMPIQ infrastructure occurs for optional features such as security email alert delivery, related alert-preference sync when signed in, and account deletion requests—when you use those features.",
+          "Opening this Help Center uses ordinary web hosting. Google Fonts may be loaded by the website for typography."
+        ]
+      },
+      {
+        "id": "third-party",
+        "title": "13. Third-Party Processors",
+        "paragraphs": [
+          "When cloud auth / email alerts are configured in the build you install, TAMPIQ uses Google Firebase Authentication (and Google Sign-In where offered) to authenticate the optional account.",
+          "Alert delivery is performed by TAMPIQ’s HTTPS security-alert backend after authentication.",
+          "Android system frameworks (location, notifications, usage stats, device policy, biometric prompts, and related APIs) operate under Google’s and your OEM’s platform terms.",
+          "Production monitoring/analytics advertising SDKs are not described here as a required part of core local protection recording; optional Google Play services components may be present for authentication."
+        ]
+      },
+      {
+        "id": "sharing",
+        "title": "14. Data Sharing",
+        "paragraphs": [
+          "We do not sell your personal information.",
+          "We do not share protection session records with third-party advertisers or data brokers for marketing.",
+          "If you contact support by email, we process that correspondence to respond. If you share content yourself through Android share sheets or other apps, that sharing is under your control."
+        ]
+      },
+      {
+        "id": "retention",
+        "title": "15. Data Retention",
+        "paragraphs": [
+          "In Settings you can choose how long archived protection records are kept on the device: 7 days, 30 days, 90 days, or until you delete them.",
+          "When a finite retention window is selected, older local records may be cleaned automatically during app maintenance.",
+          "Optional cloud account and alert-delivery records follow the backends that provide authentication and email delivery; you can request account deletion through the in-app account flows when available."
+        ]
+      },
+      {
+        "id": "deletion",
+        "title": "16. Data Deletion",
+        "paragraphs": [
+          "You can delete individual sessions or clear stored records inside TAMPIQ (sensitive actions may require owner authentication).",
+          "Uninstalling the app removes the app’s local data according to Android behavior.",
+          "Uninstalling does not delete emails you already received or support emails you already sent.",
+          "Cloud account deletion, when available in the app, requests removal of the signed-in account via TAMPIQ’s account API."
+        ]
+      },
+      {
+        "id": "launcher",
+        "title": "17. Launcher Icon Visibility",
+        "paragraphs": [
+          "TAMPIQ may offer to hide or restore its launcher icon using Android activity-alias component states.",
+          "Hiding the icon does not erase local protection records. Restoration depends on Android/OEM launcher behavior; keep a recovery path (such as settings deep link or known restore steps) before hiding."
+        ]
+      },
+      {
+        "id": "security",
+        "title": "18. Security",
+        "paragraphs": [
+          "We use reasonable technical measures appropriate for an on-device app, including App Lock options and encrypted local stores where implemented for sensitive alert-related values.",
+          "No electronic storage method is perfectly secure. We do not guarantee that unauthorized access can never occur on a compromised device."
+        ]
+      },
+      {
+        "id": "choices",
+        "title": "19. User Choices and Controls",
+        "paragraphs": [
+          "You can change or revoke permissions in Android Settings; adjust retention; delete records; disable email alerts; sign out; deactivate Device Admin; change theme or language; and stop using or uninstall TAMPIQ."
+        ]
+      },
+      {
+        "id": "children",
+        "title": "20. Children",
+        "paragraphs": [
+          "TAMPIQ is not directed to children under 13. We do not knowingly create cloud accounts for children. If you believe a child sent us personal information by email, contact us so we can delete that correspondence where appropriate."
+        ]
+      },
+      {
+        "id": "international",
+        "title": "21. International Users",
+        "paragraphs": [
+          "Protection records are stored on the device where the app is installed. Optional alert authentication and delivery may involve processors that operate in multiple regions (for example Firebase Authentication).",
+          "This Help Center is hosted on web infrastructure that may process standard technical logs needed to serve the pages you request."
+        ]
+      },
+      {
+        "id": "changes",
+        "title": "22. Changes to This Policy",
+        "paragraphs": [
+          "We may update this Privacy Policy to reflect product or legal changes. When we do, the effective date above changes.",
+          "Material changes are reflected on this page. Continued use of TAMPIQ after an update means you accept the revised policy."
+        ]
+      },
+      {
+        "id": "contact",
+        "title": "23. Contact",
+        "paragraphs": [
+          "Privacy questions and support requests can be sent to the addresses listed below.",
+          "Developer / Publisher: TAMPIQ."
+        ]
+      }
+    ],
+    "privacy_email_label": "Privacy email",
+    "support_email_label": "Support email"
+  },
+  "support_android": {
+    "title": "Support (Android)",
+    "intro": "Need help with TAMPIQ on Android? Find answers below or contact us directly.",
+    "contact_title": "Contact",
+    "support_email_label": "Support email",
+    "privacy_email_label": "Privacy email",
+    "developer_label": "Developer / Publisher",
+    "developer_name": "TAMPIQ",
+    "country_label": "Country",
+    "country_value": "Türkiye",
+    "response_note": "We aim to respond within 2 business days.",
+    "toc_title": "On this page",
+    "sections": [
+      {
+        "id": "getting-started",
+        "title": "Getting Started",
+        "paragraphs": [
+          "Install TAMPIQ from Google Play, complete first-run setup, create your Tampiq PIN (not your phone PIN), and open Home to start a protection session when you are ready."
+        ],
+        "bullets": [
+          "Core protection recording works on-device without a cloud account.",
+          "Optional security email alerts require sign-in and opt-in under Settings."
+        ]
+      },
+      {
+        "id": "protection-sessions",
+        "title": "How Protection Works",
+        "paragraphs": [
+          "Start protection from Home using the under-track control. While active, TAMPIQ records supported signals for that session into the on-device timeline.",
+          "Stop protection from Home (owner authentication may be required). Review events under Records."
+        ]
+      },
+      {
+        "id": "usage-access",
+        "title": "Usage Access",
+        "paragraphs": [
+          "Usage Access lets TAMPIQ read supported app-usage / activity signals during a session.",
+          "Authorize it from Protection setup or Android Settings → Special app access → Usage access. Revoking it stops those signals going forward."
+        ]
+      },
+      {
+        "id": "notification-listener",
+        "title": "Notification Listener",
+        "paragraphs": [
+          "Notification access lets TAMPIQ record notification-related interaction signals for an active session.",
+          "Enable it from Protection setup or Android notification access settings. Revoke anytime in system settings."
+        ]
+      },
+      {
+        "id": "device-admin",
+        "title": "Device Admin",
+        "paragraphs": [
+          "Optional Device Admin may enable wrong lock-code related signals on supported devices.",
+          "Activate only if you understand Android’s Device Admin prompt. Deactivate under Android Device admin apps. Capability varies by OEM and Android version."
+        ]
+      },
+      {
+        "id": "location",
+        "title": "Location Permissions",
+        "paragraphs": [
+          "Location evidence is optional. Grant location permission only if you want location snapshots in the session timeline (and, if email alerts include location, in those alerts)."
+        ]
+      },
+      {
+        "id": "email-alerts",
+        "title": "Email Alerts",
+        "paragraphs": [
+          "Optional security emails notify you about selected incidents while protection is relevant.",
+          "Sign in, verify your account email when required, opt in, choose triggers and content mode, then test from Settings if offered.",
+          "Delivery needs network access and a working backend configuration for your build."
+        ]
+      },
+      {
+        "id": "background",
+        "title": "Background Monitoring Limitations",
+        "paragraphs": [
+          "Android battery savers and OEM power managers can delay or stop background work. Prefer exempting TAMPIQ from aggressive battery optimization when you need reliable monitoring.",
+          "TAMPIQ cannot guarantee monitoring during forced stops, deep sleep modes, or after the OS kills the app process."
+        ]
+      },
+      {
+        "id": "battery",
+        "title": "Battery Optimization Guidance",
+        "paragraphs": [
+          "If sessions stop unexpectedly, check Android battery optimization / autostart settings for TAMPIQ and allow unrestricted or non-optimized operation where your OEM provides that control."
+        ]
+      },
+      {
+        "id": "launcher",
+        "title": "App Icon Hiding and Restoration",
+        "paragraphs": [
+          "If you hide the launcher icon, remember how to restore it (in-app restore, settings deep link, or package settings) before hiding.",
+          "OEM launchers differ; if the icon does not reappear immediately, reboot or clear the launcher cache after restoring the component."
+        ]
+      },
+      {
+        "id": "revocation",
+        "title": "Permission Revocation",
+        "paragraphs": [
+          "Revoke Usage Access, Notification access, location, notifications, or Device Admin in Android Settings at any time. Features that depend on those accesses will stop or degrade accordingly."
+        ]
+      },
+      {
+        "id": "troubleshooting",
+        "title": "Troubleshooting",
+        "items": [
+          {
+            "q": "Protection won’t stay active",
+            "a": "Confirm battery optimization exemptions, that the app was not force-stopped, and that required accesses for your setup are still granted."
+          },
+          {
+            "q": "Email alert not received",
+            "a": "Confirm sign-in, verified email, opt-in, network connectivity, and trigger settings. Send a test email from Settings when available."
+          },
+          {
+            "q": "Wrong unlock events missing",
+            "a": "Device Admin and OEM/OS support are required for many lock-failure signals; not all devices expose the same callbacks."
+          },
+          {
+            "q": "Icon missing from launcher",
+            "a": "Use your restore path from Settings or re-enable the Tampiq launcher component; OEM launchers may need a refresh."
+          }
+        ]
+      },
+      {
+        "id": "bug-report",
+        "title": "Bug Report",
+        "paragraphs": [
+          "Email support with your Android version, device model, TAMPIQ version, and steps to reproduce. Do not include your Tampiq PIN, device PIN, or passwords."
+        ]
+      },
+      {
+        "id": "feature-request",
+        "title": "Feature Request",
+        "paragraphs": [
+          "Send feature ideas to the support email. Describe the problem you want solved on Android."
+        ]
+      }
+    ]
   }
 }
