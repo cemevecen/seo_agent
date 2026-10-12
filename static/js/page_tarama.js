@@ -54,6 +54,8 @@
     home: ["play", "asc", "firebase", "cwv", "notification", "virgul", "market"],
     android: ["play_vitals", "play", "firebase", "market"],
     ios: ["asc", "firebase"],
+    web: ["empower_intel", "market"],
+    mweb: ["empower_intel", "market"],
     news: ["news"],
     virgul: ["virgul", "revenue_targets"],
     notification: ["notification"],

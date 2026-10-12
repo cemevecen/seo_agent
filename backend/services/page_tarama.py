@@ -299,6 +299,50 @@ def quota_status(*, email: str | None = None, unlimited: bool = False) -> dict[s
         return _quota_locked(now, unlimited=exempt)
 
 
+def _enqueue_bridge_run(
+    page: str,
+    *,
+    prefer: str = "",
+    source: str = "manual",
+) -> dict[str, Any] | None:
+    """Köprü işlerini kuyruğa yaz (kota ayrı yönetilir)."""
+    page = (page or "").strip()
+    if page not in PAGES:
+        raise ValueError("unknown_page")
+    specs = [s for s in jobs_for(page) if s.get("kind") == "bridge"]
+    if not specs:
+        return None
+    now = time.time()
+    run_id = uuid.uuid4().hex[:16]
+    jobs = []
+    for spec in specs:
+        jobs.append(
+            {
+                "id": spec["id"],
+                "label": spec["label"],
+                "kind": spec["kind"],
+                "path": spec.get("path") or "",
+                "status": "queued",
+                "detail": "",
+                "claimed_at": None,
+                "queued_at": now,
+                "prefer_worker": _worker_key(prefer),
+                "prefer_until": (now + PREFER_WORKER_SEC) if _worker_key(prefer) else 0.0,
+            }
+        )
+    rec = {
+        "id": run_id,
+        "page": page,
+        "started_at": now,
+        "jobs": jobs,
+        "local_kicked": False,
+        "source": source,
+    }
+    _prune_locked(now)
+    _runs[run_id] = rec
+    return _public_run_locked(rec, now)
+
+
 def begin_manual(
     page: str,
     *,
@@ -313,7 +357,6 @@ def begin_manual(
     page = (page or "").strip()
     if page not in PAGES:
         raise ValueError("unknown_page")
-    specs = [s for s in jobs_for(page) if s.get("kind") == "bridge"]
     exempt = is_manual_limit_exempt(email, unlimited=unlimited)
     now = time.time()
     with _state():
@@ -323,36 +366,20 @@ def begin_manual(
                 raise ManualLimitExceeded(quota)
             _manual_starts.append(now)
             quota = _quota_locked(now, unlimited=False)
-        run = None
-        if specs:
-            run_id = uuid.uuid4().hex[:16]
-            jobs = []
-            for spec in specs:
-                jobs.append(
-                    {
-                        "id": spec["id"],
-                        "label": spec["label"],
-                        "kind": spec["kind"],
-                        "path": spec.get("path") or "",
-                        "status": "queued",
-                        "detail": "",
-                        "claimed_at": None,
-                        "queued_at": now,
-                        "prefer_worker": _worker_key(prefer),
-                        "prefer_until": (now + PREFER_WORKER_SEC) if _worker_key(prefer) else 0.0,
-                    }
-                )
-            rec = {
-                "id": run_id,
-                "page": page,
-                "started_at": now,
-                "jobs": jobs,
-                "local_kicked": False,
-            }
-            _prune_locked(now)
-            _runs[run_id] = rec
-            run = _public_run_locked(rec, now)
+        run = _enqueue_bridge_run(page, prefer=prefer, source="manual")
         return {"quota": quota, "run": run}
+
+
+def begin_scheduled(page: str) -> dict[str, Any]:
+    """Zamanlanmış doldurma — manuel kotadan düşmez; Mac bridge claim eder."""
+    page = (page or "").strip()
+    if page not in PAGES:
+        raise ValueError("unknown_page")
+    now = time.time()
+    with _state():
+        run = _enqueue_bridge_run(page, prefer="", source="scheduled")
+        quota = _quota_locked(now, unlimited=True)
+        return {"quota": quota, "run": run, "page": page, "source": "scheduled"}
 
 
 @contextmanager

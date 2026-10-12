@@ -4742,8 +4742,86 @@ def _run_daily_ga4_refresh_job() -> None:
                 )
 
         LOGGER.info("Daily GA4 refresh completed.")
+        if any_ga4_ok:
+            _schedule_web_mweb_metrics_fill_after_ga4()
     finally:
         DAILY_REFRESH_LOCK.release()
+
+
+def _run_web_mweb_metrics_fill_job() -> None:
+    """GA4 sonrası /web · /mweb sayfa doldurma — Empower X-Data + market (Mac bridge kuyruğu)."""
+    if not bool(getattr(settings, "web_mweb_metrics_fill_after_ga4_enabled", True)):
+        LOGGER.info("Web/mweb metrics fill skipped: disabled.")
+        return
+    try:
+        from backend.services import page_tarama as page_tarama_store
+
+        results = []
+        for page in ("web", "mweb"):
+            try:
+                out = page_tarama_store.begin_scheduled(page)
+                run = out.get("run") or {}
+                results.append(
+                    {
+                        "page": page,
+                        "run_id": run.get("id"),
+                        "jobs": [j.get("id") for j in (run.get("jobs") or [])],
+                    }
+                )
+                LOGGER.info(
+                    "Web/mweb metrics fill queued page=%s run=%s jobs=%s",
+                    page,
+                    run.get("id"),
+                    [j.get("id") for j in (run.get("jobs") or [])],
+                )
+            except Exception:  # noqa: BLE001
+                LOGGER.exception("Web/mweb metrics fill failed to queue page=%s", page)
+        LOGGER.info("Web/mweb metrics fill scheduled: %s", results)
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Web/mweb metrics fill job failed.")
+
+
+def _schedule_web_mweb_metrics_fill_after_ga4() -> None:
+    """GA4 çekimi bittikten N dk sonra /web · /mweb doldurmayı planla."""
+    if not bool(getattr(settings, "web_mweb_metrics_fill_after_ga4_enabled", True)):
+        return
+    delay_min = max(1, int(getattr(settings, "web_mweb_metrics_fill_after_ga4_delay_minutes", 10) or 10))
+    delay_sec = delay_min * 60
+    job_id = "web-mweb-metrics-fill-after-ga4"
+    sched = SCHEDULER
+    if sched is not None:
+        try:
+            from datetime import datetime, timedelta
+
+            from apscheduler.triggers.date import DateTrigger
+
+            tz = getattr(sched, "timezone", None)
+            now = datetime.now(tz) if tz is not None else datetime.now()
+            run_at = now + timedelta(seconds=delay_sec)
+            sched.add_job(
+                _run_web_mweb_metrics_fill_job,
+                trigger=DateTrigger(run_date=run_at, timezone=tz),
+                id=job_id,
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+                misfire_grace_time=3600,
+            )
+            LOGGER.info(
+                "Web/mweb metrics fill scheduled in %s min (at %s).",
+                delay_min,
+                run_at.isoformat(),
+            )
+            return
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("Web/mweb metrics fill APScheduler date job failed; falling back to Timer.")
+    try:
+        timer = threading.Timer(delay_sec, _run_web_mweb_metrics_fill_job)
+        timer.daemon = True
+        timer.start()
+        LOGGER.info("Web/mweb metrics fill Timer started (%s min).", delay_min)
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Web/mweb metrics fill schedule failed.")
 
 
 def _run_scheduled_refresh_monitor_job() -> None:
