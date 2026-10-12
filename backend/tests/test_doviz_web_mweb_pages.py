@@ -13,13 +13,15 @@ def test_routes_registered():
     assert "doviz_mweb_metrics_page" in src
 
 
-def test_header_links_at_end():
+def test_header_links_before_ios_android():
     base = (ROOT / "templates" / "base.html").read_text(encoding="utf-8")
+    console_i = base.find('href="/search-console"')
     web_i = base.find('href="/web"')
     mweb_i = base.find('href="/mweb"')
-    settings_i = base.find('id="header-settings-dropdown"')
-    assert web_i > 0 and mweb_i > web_i
-    assert settings_i > mweb_i
+    ios_i = base.find('href="/ios"')
+    android_i = base.find('href="/android"')
+    assert console_i > 0 and web_i > console_i and mweb_i > web_i
+    assert ios_i > mweb_i and android_i > ios_i
     assert 'data-nav-match="/web"' in base
     assert 'data-nav-match="/mweb"' in base
 
