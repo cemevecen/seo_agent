@@ -34,7 +34,7 @@ def test_templates_and_partial():
     assert "data-fixed-platform" in partial
     assert "ga4:sessions" in partial
     assert "virgul:net_revenue" in partial
-    assert "sinemalar_datas.js?v=13" in partial
+    assert "sinemalar_datas.js?v=14" in partial
     assert 'data-google-updates="1"' in partial
     assert "sd-google-updates" in partial
     assert "market:gram_altin" in partial
@@ -55,6 +55,9 @@ def test_datas_js_supports_doviz_project():
     assert js.count('"market:gram_altin"') >= 1
     # Top-10 default for doviz open
     assert "organicGoogleSearchClicks" in js
+    assert "organicGoogleSearchClickThroughRate" not in js.split("DEFAULT_METRICS_DOVIZ")[1].split("];")[0]
+    assert "screenPageViews" in js.split("DEFAULT_METRICS_DOVIZ")[1].split("];")[0]
+    assert "engagementRate" in js.split("DEFAULT_METRICS_DOVIZ")[1].split("];")[0]
     assert "virgul:net_revenue" in js
 
 
