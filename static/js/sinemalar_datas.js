@@ -58,6 +58,8 @@
     focusedMetric: null,
     /** Legend ile gizlenen seriler (key → true). Legend’da kalır; chart/KPI/table’dan düşer. */
     legendMuted: {},
+    /** Google Search Status core/spam updates overlapping chart range. */
+    googleUpdates: [],
   };
 
   var _kpiSparkGradSeq = 0;
@@ -528,6 +530,12 @@
 
   async function fetchSeries(metric, platform, start, end) {
     var key = String(metric || "");
+    var plat = platform || state.platform;
+    if (isFixedPlatform()) plat = state.platform;
+    // Sabit web/mweb sayfalarında uygulama platformı yasak
+    if ((state.platform === "web" || state.platform === "mweb") && plat !== "web" && plat !== "mweb") {
+      plat = state.platform;
+    }
     if (
       global.PlayMetricOverlay &&
       typeof PlayMetricOverlay.fetchMetricSeries === "function" &&
@@ -540,19 +548,19 @@
         key,
         start || "",
         end || "",
-        platform,
+        plat,
         PROJECT
       );
-      return {
-        label: (pack && pack.label) || metricLabel(key),
-        series: (pack && pack.series) || [],
-        metric: key,
-        platform: platform,
-      };
+    return {
+      label: (pack && pack.label) || metricLabel(key),
+      series: (pack && pack.series) || [],
+      metric: key,
+      platform: plat,
+    };
     }
     var qs = new URLSearchParams({
       project: PROJECT,
-      platform: platform,
+      platform: plat,
       metric: metric,
       start: start || "",
       end: end || "",
@@ -569,7 +577,7 @@
       label: data.label || metricLabel(metric),
       series: data.series || [],
       metric: metric,
-      platform: platform,
+      platform: plat,
     };
   }
 
@@ -583,6 +591,24 @@
     return m;
   }
 
+  /**
+   * Compare previous: prev tarihlerini current x-eksenine hizala (index).
+   * Aksi halde Aug–Sep prev + Sep–Oct current yan yana çizilir (ss2 “gap” bug).
+   */
+  function alignPrevMap(currentMap, prevMap) {
+    var curDates = Object.keys(currentMap || {}).sort();
+    var prevDates = Object.keys(prevMap || {}).sort();
+    var out = {};
+    curDates.forEach(function (d, i) {
+      var pd = prevDates[i];
+      if (pd == null) return;
+      var v = prevMap[pd];
+      if (v == null || !isFinite(Number(v))) return;
+      out[d] = Number(v);
+    });
+    return out;
+  }
+
   function unionDates(maps) {
     var set = {};
     maps.forEach(function (m) {
@@ -591,6 +617,37 @@
       });
     });
     return Object.keys(set).sort();
+  }
+
+  function googleUpdatesEnabled() {
+    var root = rootEl();
+    if (root && root.getAttribute("data-google-updates") === "0") return false;
+    var cb = $("sd-google-updates");
+    if (cb) return !!cb.checked;
+    return !!(root && root.getAttribute("data-google-updates") === "1");
+  }
+
+  async function loadGoogleUpdates(start, end) {
+    state.googleUpdates = [];
+    if (!googleUpdatesEnabled()) return;
+    try {
+      var qs = new URLSearchParams({
+        start: start || "",
+        end: end || "",
+        kinds: "core,spam",
+      });
+      var r = await fetch("/api/google-search-status/updates?" + qs.toString(), {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      var data = await r.json().catch(function () {
+        return {};
+      });
+      if (!r.ok) return;
+      state.googleUpdates = Array.isArray(data.updates) ? data.updates : [];
+    } catch (e) {
+      state.googleUpdates = [];
+    }
   }
 
   function syncChartLayout() {
@@ -1031,10 +1088,11 @@
     selectedMetrics().forEach(function (key, i) {
       var pack = state.seriesByMetric[key];
       if (!pack) return;
+      var curMap = valueMap(pack.series);
       out.push({
         key: key,
         label: pack.label || metricLabel(key),
-        map: valueMap(pack.series),
+        map: curMap,
         color: COLORS[i % COLORS.length],
         overlay: false,
         dashed: false,
@@ -1043,7 +1101,7 @@
         out.push({
           key: key + ":prev",
           label: (pack.label || metricLabel(key)) + " · prev",
-          map: valueMap(state.compareSeries[key].series),
+          map: alignPrevMap(curMap, valueMap(state.compareSeries[key].series)),
           color: COLORS[i % COLORS.length],
           overlay: false,
           dashed: true,
@@ -1051,9 +1109,18 @@
       }
     });
     (state.overlaySeries || []).forEach(function (ov, i) {
+      var ovPlat = ov.platform || peerPlatform(state.platform);
+      // Web yüzeyinde yalnızca web/mweb overlay
+      if (
+        (state.platform === "web" || state.platform === "mweb") &&
+        ovPlat !== "web" &&
+        ovPlat !== "mweb"
+      ) {
+        return;
+      }
       out.push({
         key: "ov:" + (ov.metric || i),
-        label: (ov.label || ov.metric || "Overlay") + " · " + platformLabel(ov.platform || peerPlatform(state.platform)),
+        label: (ov.label || ov.metric || "Overlay") + " · " + platformLabel(ovPlat),
         map: valueMap(ov.series),
         color: OVERLAY_COLORS[i % OVERLAY_COLORS.length],
         overlay: true,
@@ -1337,8 +1404,89 @@
         '" fill="transparent"/>';
     });
 
+    // Google core/spam update bands (Search Status Dashboard)
+    var markers = "";
+    if (googleUpdatesEnabled() && state.googleUpdates && state.googleUpdates.length && dates.length) {
+      var dateIndex = {};
+      dates.forEach(function (d, i) {
+        dateIndex[d] = i;
+      });
+      state.googleUpdates.forEach(function (u) {
+        var us = String(u.start || "").slice(0, 10);
+        var ue = String(u.end || us).slice(0, 10);
+        if (!us) return;
+        var i0 = dateIndex[us];
+        var i1 = dateIndex[ue];
+        if (i0 == null) {
+          for (var di = 0; di < dates.length; di++) {
+            if (dates[di] >= us) {
+              i0 = di;
+              break;
+            }
+          }
+        }
+        if (i1 == null) {
+          for (var dj = dates.length - 1; dj >= 0; dj--) {
+            if (dates[dj] <= ue) {
+              i1 = dj;
+              break;
+            }
+          }
+        }
+        if (i0 == null && i1 == null) return;
+        if (i0 == null) i0 = i1;
+        if (i1 == null) i1 = i0;
+        if (i1 < i0) {
+          var tmp = i0;
+          i0 = i1;
+          i1 = tmp;
+        }
+        var x0 = xAt(i0);
+        var x1 = xAt(i1);
+        var kind = String(u.kind || "");
+        var fill = kind === "core" ? "rgba(244,63,94,0.12)" : "rgba(245,158,11,0.14)";
+        var stroke = kind === "core" ? "#e11d48" : "#d97706";
+        var bandW = Math.max(2, x1 - x0);
+        markers +=
+          '<rect x="' +
+          x0.toFixed(1) +
+          '" y="' +
+          padT +
+          '" width="' +
+          bandW.toFixed(1) +
+          '" height="' +
+          plotH +
+          '" fill="' +
+          fill +
+          '" pointer-events="none"/>';
+        markers +=
+          '<line x1="' +
+          x0.toFixed(1) +
+          '" y1="' +
+          padT +
+          '" x2="' +
+          x0.toFixed(1) +
+          '" y2="' +
+          (padT + plotH) +
+          '" stroke="' +
+          stroke +
+          '" stroke-width="1.25" stroke-dasharray="3 2" pointer-events="none"/>';
+        var shortLabel = kind === "core" ? "Core" : kind === "spam" ? "Spam" : "Update";
+        markers +=
+          '<text x="' +
+          (x0 + 3).toFixed(1) +
+          '" y="' +
+          (padT + 10) +
+          '" fill="' +
+          stroke +
+          '" font-size="8" font-weight="700" pointer-events="none">' +
+          shortLabel +
+          "</text>";
+      });
+    }
+
     svg.innerHTML =
-      (defs ? "<defs>" + defs + "</defs>" : "") + grid + xLabels + paths + hit;
+      (defs ? "<defs>" + defs + "</defs>" : "") + grid + markers + xLabels + paths + hit;
     applyChartSeriesFocus();
     syncChartLayout();
 
@@ -1564,9 +1712,19 @@
     var start = ($("sd-start") || {}).value || "";
     var end = ($("sd-end") || {}).value || "";
     var peer = peerPlatform(state.platform);
+    // Döviz web/mweb: peer yalnızca web↔mweb
+    if (state.platform === "web" || state.platform === "mweb") {
+      peer = peer === "mweb" ? "mweb" : "web";
+    }
     try {
       var rows = await PlayMetricOverlay.fetchSelectedSeries(OVERLAY_ID, start, end, peer);
-      state.overlaySeries = rows || [];
+      state.overlaySeries = (rows || []).filter(function (ov) {
+        var p = (ov && ov.platform) || peer;
+        if (state.platform === "web" || state.platform === "mweb") {
+          return p === "web" || p === "mweb";
+        }
+        return true;
+      });
     } catch (e) {
       state.overlaySeries = [];
     }
@@ -1606,6 +1764,7 @@
         });
       }
       tasks.push(loadOverlay());
+      tasks.push(loadGoogleUpdates(start, end));
       await Promise.all(tasks);
       renderMetricKpis();
       renderChart();
@@ -1739,6 +1898,16 @@
 
     var compare = $("sd-compare");
     if (compare) compare.addEventListener("change", runLoad);
+    var gUpd = $("sd-google-updates");
+    if (gUpd) {
+      gUpd.addEventListener("change", function () {
+        var start = ($("sd-start") || {}).value || "";
+        var end = ($("sd-end") || {}).value || "";
+        loadGoogleUpdates(start, end).then(function () {
+          renderChart();
+        });
+      });
+    }
 
     global.sdOnCrossMetricOverlayChange = function () {
       loadOverlay().then(function () {

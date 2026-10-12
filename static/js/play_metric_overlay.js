@@ -654,15 +654,22 @@
   }
 
   async function fetchMetricSeries(metricKey, startIso, endIso, platform, project) {
-    var ck = cacheKey(metricKey, startIso, endIso, platform, project);
+    var plat = normalizeOverlayPlatform(platform);
+    var ck = cacheKey(metricKey, startIso, endIso, plat, project);
     if (cache[ck]) return cache[ck];
     var p;
+    // Web / mweb yüzeylerinde Play / ASC uygulama metrikleri asla karışmasın.
+    var webSurface = plat === "web" || plat === "mweb";
     if (isMarketKey(metricKey)) p = fetchMarketSeries(metricKey, startIso, endIso);
-    else if (isXdataKey(metricKey)) p = fetchXdataSeries(metricKey, startIso, endIso, platform, project);
-    else if (isGa4Key(metricKey)) p = fetchGa4Series(metricKey, startIso, endIso, platform);
-    else if (isVirgulKey(metricKey)) p = fetchVirgulSeries(metricKey, startIso, endIso, platform);
-    else if (platform === "ios") p = fetchAscSeries(metricKey, startIso, endIso);
-    else if (platform === "android") p = fetchPlaySeries(metricKey, startIso, endIso);
+    else if (isXdataKey(metricKey)) p = fetchXdataSeries(metricKey, startIso, endIso, plat, project);
+    else if (isGa4Key(metricKey)) p = fetchGa4Series(metricKey, startIso, endIso, plat);
+    else if (isVirgulKey(metricKey)) p = fetchVirgulSeries(metricKey, startIso, endIso, plat);
+    else if (webSurface) {
+      p = Promise.reject(
+        new Error("Web/mweb only — app store metrics (Play/ASC) are blocked here")
+      );
+    } else if (plat === "ios") p = fetchAscSeries(metricKey, startIso, endIso);
+    else if (plat === "android") p = fetchPlaySeries(metricKey, startIso, endIso);
     else p = Promise.resolve({ label: metricLabel(metricKey), series: [] });
     cache[ck] = p;
     return p;

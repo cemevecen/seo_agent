@@ -34,7 +34,9 @@ def test_templates_and_partial():
     assert "data-fixed-platform" in partial
     assert "ga4:sessions" in partial
     assert "virgul:net_revenue" in partial
-    assert "sinemalar_datas.js?v=10" in partial
+    assert "sinemalar_datas.js?v=11" in partial
+    assert 'data-google-updates="1"' in partial
+    assert "sd-google-updates" in partial
 
 
 def test_datas_js_supports_doviz_project():
@@ -42,6 +44,15 @@ def test_datas_js_supports_doviz_project():
     assert "readProject" in js
     assert "data-fixed-platform" in js
     assert "fetchMetricSeries" in js
+    assert "alignPrevMap" in js
+    assert "loadGoogleUpdates" in js
+    assert "google-search-status/updates" in js
+
+
+def test_overlay_blocks_app_metrics_on_web():
+    js = (ROOT / "static" / "js" / "play_metric_overlay.js").read_text(encoding="utf-8")
+    assert "Web/mweb only" in js
+    assert "webSurface" in js
 
 
 def test_page_tarama_web_mweb():

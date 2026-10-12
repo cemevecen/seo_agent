@@ -64,6 +64,7 @@ from backend.api.asc_metrics import router as asc_metrics_router
 from backend.api.asc_console import router as asc_console_router
 from backend.api.firebase_console import router as firebase_console_router
 from backend.api.empower_intel import router as empower_intel_router
+from backend.api.google_search_status import router as google_search_status_router
 from backend.api.pagespeed_web import router as pagespeed_web_router
 from backend.api.seo_audit_scrape import router as seo_audit_scrape_router
 from backend.api.gsc_cwv import router as gsc_cwv_router
@@ -1148,6 +1149,7 @@ app.include_router(asc_metrics_router, prefix="/api")
 app.include_router(asc_console_router, prefix="/api")
 app.include_router(firebase_console_router, prefix="/api")
 app.include_router(empower_intel_router, prefix="/api")
+app.include_router(google_search_status_router, prefix="/api")
 app.include_router(market_quotes_router, prefix="/api")
 app.include_router(page_tarama_router, prefix="/api")
 
