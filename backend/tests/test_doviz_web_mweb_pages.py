@@ -36,8 +36,8 @@ def test_templates_and_partial():
     assert "data-fixed-platform" in partial
     assert "ga4:sessions" in partial
     assert "virgul:net_revenue" in partial
-    assert "sinemalar_datas.js?v=17" in partial
-    assert 'value="90d" selected' in partial
+    assert "sinemalar_datas.js?v=18" in partial
+    assert 'value="180d" selected' in partial
     assert 'data-google-updates="1"' in partial
     assert "sd-google-updates" in partial
     assert "market:gram_altin" in partial
@@ -71,7 +71,7 @@ def test_datas_js_supports_doviz_project():
     assert 'v === "last_year_h1"' in js
     assert 'v === "this_month"' in js
     assert "defaultPresetForProject" in js
-    assert 'PROJECT === "doviz" ? "90d"' in js
+    assert 'PROJECT === "doviz" ? "180d"' in js
 
 
 def test_overlay_blocks_app_metrics_on_web():

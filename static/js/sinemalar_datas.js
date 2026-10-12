@@ -451,7 +451,7 @@
   }
 
   function defaultPresetForProject() {
-    return PROJECT === "doviz" ? "90d" : "30d";
+    return PROJECT === "doviz" ? "180d" : "30d";
   }
 
   function clearMetrics() {
