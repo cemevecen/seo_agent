@@ -1,10 +1,35 @@
 /**
- * Sinemalar Datas tab — Empower X-Data (web / mweb), project=sinemalar.
+ * Datas metrics shell — Empower X-Data (web / mweb).
+ * Sinemalar tab + Döviz /web · /mweb (data-project / data-platform on #sd-datas-root).
  * Prefix: sd-
- * KPI cards + heat table mirror Android Metrik UX (without editing android.html).
+ * KPI cards + heat table mirror Android Metrik UX.
  */
 (function (global) {
   "use strict";
+
+  function rootEl() {
+    return document.getElementById("sd-datas-root");
+  }
+
+  function readProject() {
+    var el = rootEl();
+    var p = (el && el.getAttribute("data-project")) || "sinemalar";
+    return String(p).trim() || "sinemalar";
+  }
+
+  function readInitialPlatform() {
+    var el = rootEl();
+    var fixed = el && el.getAttribute("data-fixed-platform");
+    if (fixed === "web" || fixed === "mweb") return fixed;
+    var p = el && el.getAttribute("data-platform");
+    return p === "mweb" ? "mweb" : "web";
+  }
+
+  function isFixedPlatform() {
+    var el = rootEl();
+    var fixed = el && el.getAttribute("data-fixed-platform");
+    return fixed === "web" || fixed === "mweb";
+  }
 
   var PROJECT = "sinemalar";
   var OVERLAY_ID = "sd-cross-metric-overlay-root";
@@ -502,6 +527,29 @@
   }
 
   async function fetchSeries(metric, platform, start, end) {
+    var key = String(metric || "");
+    if (
+      global.PlayMetricOverlay &&
+      typeof PlayMetricOverlay.fetchMetricSeries === "function" &&
+      (key.indexOf("ga4:") === 0 ||
+        key.indexOf("virgul:") === 0 ||
+        key.indexOf("market:") === 0 ||
+        key.indexOf("xdata:") === 0)
+    ) {
+      var pack = await PlayMetricOverlay.fetchMetricSeries(
+        key,
+        start || "",
+        end || "",
+        platform,
+        PROJECT
+      );
+      return {
+        label: (pack && pack.label) || metricLabel(key),
+        series: (pack && pack.series) || [],
+        metric: key,
+        platform: platform,
+      };
+    }
     var qs = new URLSearchParams({
       project: PROJECT,
       platform: platform,
@@ -1583,6 +1631,13 @@
   }
 
   function wireUi() {
+    PROJECT = readProject();
+    state.platform = readInitialPlatform();
+    var platToggle = $("sd-platform-toggle");
+    if (platToggle && isFixedPlatform()) {
+      platToggle.classList.add("hidden");
+      platToggle.setAttribute("hidden", "hidden");
+    }
     applyPreset("28");
     buildLabelIndex();
     state.selected = DEFAULT_METRICS.filter(function (k) {

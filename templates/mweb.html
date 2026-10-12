@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="w-full max-w-none doviz-mweb-page" data-header-title="mWeb · Döviz Mobile Web" data-page-tarama="mweb">
+  {% with dw_platform='mweb' %}
+  {% include "partials/doviz_web_metrics_content.html" %}
+  {% endwith %}
+  {% include "partials/dlab_section.html" %}
+</div>
+{% endblock %}

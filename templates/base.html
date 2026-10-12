@@ -2525,7 +2525,7 @@
   <script src="/static/js/market_quote_series.js?v=2"></script>
   <script src="/static/js/market_chart_overlay.js?v=28" defer></script>
   <script src="/static/js/app_empower_overlay.js?v=10" defer></script>
-  <script src="/static/js/play_metric_overlay.js?v=10" defer></script>
+  <script src="/static/js/play_metric_overlay.js?v=11" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
   <script src="/static/js/analytics_date_compare.js?v=9" defer></script>
 </head>
@@ -2751,6 +2751,8 @@
               {% if is_tmdb_only_member(request) %}
               <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" data-nav-priority class="header-nav-link">movie</a>
               {% endif %}
+              <a href="/web" data-nav-match="/web" data-nav-priority class="header-nav-link">web</a>
+              <a href="/mweb" data-nav-match="/mweb" data-nav-priority class="header-nav-link">mweb</a>
               {% if settings_menu_visible(request) %}
               <div
                 class="header-nav-dropdown"

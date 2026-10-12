@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="w-full max-w-none doviz-web-page" data-header-title="Web · Döviz Desktop" data-page-tarama="web">
+  {% with dw_platform='web' %}
+  {% include "partials/doviz_web_metrics_content.html" %}
+  {% endwith %}
+  {% include "partials/dlab_section.html" %}
+</div>
+{% endblock %}

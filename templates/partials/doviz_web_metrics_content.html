@@ -1,0 +1,766 @@
+{% from 'partials/pa_chart_style_buttons.html' import chart_style_buttons %}
+{% set dw_platform = dw_platform|default('web') %}
+{% set dw_peer = 'mweb' if dw_platform == 'web' else 'web' %}
+{% set dw_title = 'Desktop Web' if dw_platform == 'web' else 'Mobile Web' %}
+{% set dw_peer_label = 'Mobile Web metrics' if dw_platform == 'web' else 'Web metrics' %}
+{% set dw_badge = 'bg-indigo-50 text-indigo-800 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-200 dark:ring-indigo-800' if dw_platform == 'web' else 'bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-200 dark:ring-violet-800' %}
+{% set dw_border = 'border-indigo-200 dark:border-indigo-900/50' if dw_platform == 'web' else 'border-violet-200 dark:border-violet-900/50' %}
+{% set dw_domain = 'www.doviz.com' %}
+<link rel="stylesheet" href="/static/css/pa_chart_height.css?v=12">
+<link rel="stylesheet" href="/static/css/pa_chart_style.css?v=4">
+<script>
+  window.SEO_XDATA_METRIC_OPTIONS = {
+    web: {{ (xdata_metric_options_web or xdata_metric_options or []) | tojson }},
+    mweb: {{ (xdata_metric_options_mweb or xdata_metric_options or []) | tojson }}
+  };
+  window.SD_XDATA_AVG_KEYS = {{ (xdata_avg_keys or []) | tojson }};
+</script>
+
+<section id="sd-datas-root" class="sd-datas-page space-y-5"
+  data-project="doviz"
+  data-platform="{{ dw_platform }}"
+  data-fixed-platform="{{ dw_platform }}">
+
+  <div class="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:px-4">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 {{ dw_badge }}">{{ 'Web' if dw_platform == 'web' else 'mWeb' }}</span>
+          <h1 class="text-lg font-extrabold text-slate-900 dark:text-slate-100 sm:text-xl">{{ dw_title }}</h1>
+          <span class="font-mono text-[11px] text-slate-500 dark:text-zinc-400">{{ dw_domain }} · doviz · {{ dw_platform }}</span>
+        </div>
+        <p id="sd-status-hero" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Empower X-Data · GA4 · Virgül — same Metrics shell as Android / iOS</p>
+      </div>
+      <div class="flex min-w-0 shrink-0 flex-wrap items-center gap-1.5 sm:gap-2">
+        <span data-page-tarama-slot></span>
+        <a href="https://{{ dw_domain }}/" target="_blank" rel="noopener"
+           class="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+          Site ↗
+        </a>
+        <a href="/web-vitals" class="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Vitals</a>
+        <a href="/data-explorer/{{ dw_domain }}" class="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Speed</a>
+        <a href="{{ '/mweb' if dw_platform == 'web' else '/web' }}" class="inline-flex h-8 items-center rounded-lg border border-emerald-500 bg-emerald-50 px-2.5 text-[11px] font-bold text-emerald-900 dark:border-emerald-500/70 dark:bg-emerald-950/30 dark:text-emerald-200">{{ dw_peer_label|replace(' metrics','') }}</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="rounded-2xl border {{ dw_border }} bg-white p-4 shadow-sm dark:bg-slate-900">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Metrics</h2>
+      <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Döviz · {{ dw_title }} · X-Data / GA4 / Virgül / Market</p>
+    </div>
+    <div id="sd-platform-toggle" class="hidden" hidden aria-hidden="true"></div>
+  </div>
+
+  <div class="sd-filters mt-4 text-slate-600 dark:text-zinc-300">
+    <label class="sd-f sd-f--date">Start
+      <input id="sd-start" type="date" />
+    </label>
+    <label class="sd-f sd-f--date">End
+      <input id="sd-end" type="date" />
+    </label>
+    <label class="sd-f sd-f--sm">Preset
+      <select id="sd-preset">
+        <option value="7">Last 7 days</option>
+        <option value="14">Last 14 days</option>
+        <option value="28" selected>Last 28 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="ytd">Year to date</option>
+        <option value="custom">Custom range</option>
+      </select>
+    </label>
+    <label class="sd-f sd-f--sm sd-f--compare">
+      <span class="inline-flex items-center gap-1.5">
+        <input id="sd-compare" type="checkbox" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600" />
+        Compare previous
+      </span>
+    </label>
+    <label class="sd-f sd-f--metric">Metric
+      <div class="sd-metric-dd">
+        <button type="button" id="sd-metric-trigger" class="sd-metric-trigger"
+                aria-haspopup="listbox" aria-expanded="false" aria-controls="sd-metric-list">
+          <span id="sd-metric-label" class="min-w-0 flex-1 truncate">Select</span>
+          <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
+        </button>
+        <div id="sd-metric-list" role="listbox" aria-multiselectable="true"
+             class="fixed z-[220] hidden overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950">
+          <div id="sd-metric-list-scroll" class="max-h-72 overflow-y-auto py-1"></div>
+        </div>
+      </div>
+      <select id="sd-metric-catalog" class="hidden" aria-hidden="true" tabindex="-1">
+        <option value="">Select</option>
+        <optgroup label="X-Data" id="sd-metric-optgroup">
+          {% for opt in (xdata_metric_options or []) %}
+          <option value="{{ opt.value }}">{{ opt.label }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="GA4 ({{ dw_title }})">
+          <option value="ga4:sessions">GA4 · Sessions</option>
+          <option value="ga4:users">GA4 · Users</option>
+          <option value="ga4:engaged_sessions">GA4 · Engaged sessions</option>
+          <option value="ga4:new_users">GA4 · New users</option>
+          <option value="ga4:avg_session">GA4 · Avg. session</option>
+          <option value="ga4:page_views">GA4 · Page views</option>
+        </optgroup>
+        <optgroup label="Virgül ({{ 'desktop' if dw_platform == 'web' else 'mweb' }})">
+          <option value="virgul:net_revenue">Virgül · Net revenue (TL)</option>
+          <option value="virgul:ad_request">Virgül · Ad request</option>
+          <option value="virgul:matched_request">Virgül · Matched request</option>
+          <option value="virgul:impression">Virgül · Impression</option>
+          <option value="virgul:click">Virgül · Click</option>
+          <option value="virgul:ad_request_ecpm">Virgül · Ad request eCPM (TL)</option>
+          <option value="virgul:ad_ecpm">Virgül · Ad impression eCPM (TL)</option>
+          <option value="virgul:viewability_pct">Virgül · Viewability (%)</option>
+          <option value="virgul:ctr_pct">Virgül · CTR (%)</option>
+          <option value="virgul:coverage_pct">Virgül · Coverage (%)</option>
+        </optgroup>
+        <optgroup label="Market">
+          <option value="market:usd_try">USD/TRY close</option>
+          <option value="market:eur_try">EUR/TRY close</option>
+          <option value="market:gram_altin">Gold gram close</option>
+          <option value="market:ceyrek_altin">Quarter gold close</option>
+          <option value="market:gram_gumus">Silver gram close</option>
+          <option value="market:bist100">BIST 100 close</option>
+          <option value="market:brent">Brent close</option>
+          <option value="market:bitcoin">Bitcoin close</option>
+          <option value="market:all_indexed">All (range start=100)</option>
+        </optgroup>
+      </select>
+    </label>
+    <div class="sd-f sd-f--cross-metric">
+      {% with play_metric_overlay_control_id='sd-cross-metric-overlay-root', play_metric_overlay_storage_key='dw-cross-metric-' ~ dw_platform, play_metric_overlay_platform=dw_peer, play_metric_overlay_label_prefix=dw_peer_label, play_metric_overlay_on_change='sdOnCrossMetricOverlayChange', play_metric_overlay_compact=true, play_metric_overlay_persist=false, play_metric_overlay_project='doviz' %}
+      {% include 'partials/play_metric_overlay_select.html' %}
+      {% endwith %}
+    </div>
+    <div class="sd-f-actions">
+      <button id="sd-run" type="button"
+              class="sd-f-btn border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80">
+        <span id="sd-run-label">Apply</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="sd-results" class="relative mt-4 w-full min-w-0">
+    <div id="sd-loading" class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-xl bg-white/55 backdrop-blur-[2px] dark:bg-zinc-950/50" aria-live="polite" aria-busy="false">
+      <div class="flex flex-col items-center gap-3">
+        <div class="sd-orbit" aria-hidden="true">
+          <span class="sd-orbit__ring"></span>
+          <span class="sd-orbit__ring sd-orbit__ring--mid"></span>
+          <span class="sd-orbit__ring sd-orbit__ring--inner"></span>
+          <span class="sd-orbit__core"></span>
+        </div>
+        <p class="text-[11px] font-semibold tracking-wide text-emerald-800 dark:text-emerald-300">Loading data…</p>
+      </div>
+    </div>
+
+    <div id="sd-metric-kpis" class="metric-kpi-grid metric-kpi-grid--ss2" aria-label="Metric KPIs"></div>
+
+    <div id="sd-chart-card" class="pa-chart-card mt-4 overflow-visible rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950/40">
+      <div class="pa-chart-card__toolbar flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
+        <div id="sd-legend" class="sd-legend flex flex-wrap items-center gap-2 text-[10px] font-semibold text-slate-500 dark:text-zinc-400" aria-label="Chart legend"></div>
+        <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div id="sd-chart-height" class="pa-chart-height" role="group" aria-label="Chart height">
+            <button type="button" data-chart-height="1" title="Yüksek grafik" aria-label="Yüksek grafik yüksekliği">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="2" width="10" height="12" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 11 L7 7.5 L9.5 9 L12 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" data-chart-height="2" title="Orta grafik" aria-label="Orta grafik yüksekliği" class="is-active">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="4.5" width="10" height="9.5" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 11.5 L7 8.5 L9.5 10 L12 6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" data-chart-height="3" title="Alçak grafik" aria-label="Alçak grafik yüksekliği">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1" fill="currentColor" fill-opacity="0.32"/><path d="M4.5 12 L7 9.5 L9.5 10.5 L12 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div id="sd-chart-compress" class="pa-chart-compress" role="group" aria-label="Chart vertical compress">
+            <button type="button" data-chart-compress="1" title="Normal sıkıştırma" aria-label="Normal dikey sıkıştırma" class="is-active">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 3.5 L8 1.5 L10.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 12.5 L8 14.5 L10.5 12.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="5.5" width="9" height="5" rx="1" fill="currentColor" fill-opacity="0.28"/></svg>
+            </button>
+            <button type="button" data-chart-compress="2" title="Orta sıkıştırma" aria-label="Orta dikey sıkıştırma">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4 L8 2.5 L10.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 12 L8 13.5 L10.5 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="6.5" width="9" height="3" rx="1" fill="currentColor" fill-opacity="0.28"/></svg>
+            </button>
+            <button type="button" data-chart-compress="3" title="Yoğun sıkıştırma" aria-label="Yoğun dikey sıkıştırma">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4.5 L8 3.5 L10.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 11.5 L8 12.5 L10.5 11.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3.5" y="7.5" width="9" height="1.5" rx="0.6" fill="currentColor" fill-opacity="0.35"/></svg>
+            </button>
+          </div>
+          {{ chart_style_buttons('sd-chart-style', 'data-sd-chart-style', '', 'bar', 'Yığılmış çubuk') }}
+        </div>
+      </div>
+      <div id="sd-chart-wrap" class="relative overflow-visible" data-chart-height="2" data-chart-compress="1">
+        <svg id="sd-chart" viewBox="0 0 720 260" class="block w-full max-w-none touch-pan-y select-none" preserveAspectRatio="none" role="img" aria-label="Döviz {{ dw_title }} metrics chart"></svg>
+        <div id="sd-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0">
+          <p id="sd-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
+          <div id="sd-tip-body" class="mt-1.5 space-y-0.5 text-[11px] text-slate-700 dark:text-zinc-200"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sd-table-shell" class="mt-4 w-full min-w-0 overflow-hidden rounded-xl border border-slate-200 dark:border-zinc-700">
+      <div id="sd-table-wrap" class="max-h-[28rem] w-full min-w-0 overflow-auto">
+        <table class="sd-data-table text-left text-xs">
+          <thead class="sticky top-0 z-[1] bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
+            <tr id="sd-thead-row">
+              <th class="px-2 py-2 font-bold sm:px-3">Date</th>
+            </tr>
+          </thead>
+          <tbody id="sd-table"></tbody>
+        </table>
+      </div>
+    </div>
+    <p id="sd-status" class="mt-2 text-[11px] text-slate-400 dark:text-zinc-500" aria-live="polite"></p>
+  </div>
+  </div>
+</section>
+
+<style>
+  .sd-datas-page .sd-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.65rem 0.75rem;
+    width: 100%;
+    min-width: 0;
+    position: relative;
+    z-index: 60;
+  }
+  .sd-datas-page #sd-results {
+    position: relative;
+    z-index: 1;
+  }
+  .sd-datas-page .sd-f {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1 1 calc(50% - 0.5rem);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: inherit;
+    white-space: nowrap;
+  }
+  .sd-datas-page .sd-f--metric { flex: 1 1 100%; }
+  .sd-datas-page .sd-f--date { flex: 1 1 calc(50% - 0.5rem); min-width: 8.75rem; }
+  .sd-datas-page .sd-f--sm { flex: 1 1 calc(50% - 0.5rem); min-width: 7.5rem; }
+  .sd-datas-page .sd-f--compare {
+    justify-content: flex-end;
+    padding-bottom: 0.45rem;
+  }
+  .sd-datas-page .sd-f--cross-metric {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-width: 9.25rem;
+    max-width: 14.5rem;
+    padding-bottom: 0.15rem;
+  }
+  .sd-datas-page .sd-f--cross-metric [data-play-metric-overlay-trigger] {
+    margin-top: 0.25rem;
+    width: 100%;
+  }
+  .sd-datas-page .sd-filters input[type="date"],
+  .sd-datas-page .sd-filters select {
+    margin-top: 0.25rem;
+    width: 100%;
+    min-width: 0;
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    background: #f4f4f5;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+  }
+  html.dark .sd-datas-page .sd-filters input[type="date"],
+  html.dark .sd-datas-page .sd-filters select,
+  html.charcoal .sd-datas-page .sd-filters input[type="date"],
+  html.charcoal .sd-datas-page .sd-filters select {
+    border-color: #3f3f46;
+    background: #2a2a2e;
+    color: #e4e4e7;
+  }
+  .sd-datas-page .sd-metric-dd { margin-top: 0.25rem; width: 100%; position: relative; }
+  .sd-datas-page .sd-metric-trigger {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    background: #f4f4f5;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-align: left;
+  }
+  html.dark .sd-datas-page .sd-metric-trigger,
+  html.charcoal .sd-datas-page .sd-metric-trigger {
+    border-color: #3f3f46;
+    background: #2a2a2e;
+    color: #e4e4e7;
+  }
+  .sd-datas-page .sd-f-actions {
+    display: flex;
+    align-items: flex-end;
+    flex: 0 0 auto;
+  }
+  .sd-datas-page .sd-f-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .sd-datas-page .sd-plat-btn.is-active {
+    background: #2a2a2e;
+    color: #d4d4d8;
+  }
+  html.dark .sd-datas-page .sd-plat-btn.is-active,
+  html.charcoal .sd-datas-page .sd-plat-btn.is-active {
+    background: #f4f4f5;
+    color: #2a2a2e;
+  }
+  .sd-datas-page #sd-metric-list,
+  #sd-metric-list.sd-metric-list--portal {
+    min-width: min(20rem, 92vw);
+    max-width: min(24rem, 96vw);
+    z-index: 10050 !important;
+    background: #f4f4f5;
+    pointer-events: auto;
+  }
+  html.dark #sd-metric-list.sd-metric-list--portal,
+  html.charcoal #sd-metric-list.sd-metric-list--portal {
+    background: #2a2a2e;
+  }
+  .sd-datas-page #sd-metric-list [data-sd-metric-pick][aria-selected="true"] {
+    background: #ecfdf5;
+    color: #065f46;
+    font-weight: 600;
+  }
+  html.dark .sd-datas-page #sd-metric-list [data-sd-metric-pick][aria-selected="true"],
+  html.charcoal .sd-datas-page #sd-metric-list [data-sd-metric-pick][aria-selected="true"] {
+    background: rgba(6, 78, 59, 0.4);
+    color: #a7f3d0;
+  }
+  .sd-datas-page .sd-metric-swatch {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    flex-shrink: 0;
+  }
+  .sd-datas-page .sd-data-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .sd-datas-page .sd-data-table th,
+  .sd-datas-page .sd-data-table td {
+    white-space: nowrap;
+    padding: 0.4rem 0.65rem;
+    vertical-align: middle;
+  }
+
+  /* KPI ss2 — scoped mirror of Android metric-kpi-ss2 */
+  #sd-metric-kpis.metric-kpi-grid--ss2 {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: clamp(0.28rem, 1.15vw, 0.65rem);
+    align-items: start;
+    grid-template-columns: repeat(var(--kpi-n, 1), minmax(0, 1fr));
+  }
+  #sd-metric-kpis.metric-kpi-grid--ss2 > .metric-kpi-ss2 {
+    align-self: start;
+    height: auto;
+    min-height: 0;
+    min-width: 0;
+  }
+  .sd-datas-page .metric-kpi-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--kpi-color, #4b6a9b);
+    background: color-mix(in srgb, var(--kpi-color, #4b6a9b) 12%, white);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #4b6a9b) 28%, transparent);
+  }
+  html.dark .sd-datas-page .metric-kpi-chip,
+  html.charcoal .sd-datas-page .metric-kpi-chip {
+    background: color-mix(in srgb, var(--kpi-color, #4b6a9b) 18%, #2a2a2e);
+  }
+  .sd-datas-page .metric-kpi-kicker {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .sd-datas-page .metric-kpi-ss2 {
+    position: relative;
+    min-width: 0;
+    height: 100%;
+    align-self: stretch;
+    container-type: inline-size;
+    container-name: kpi-ss2;
+    display: flex;
+    flex-direction: column;
+    border-radius: 1rem;
+    border: 1px solid color-mix(in srgb, var(--kpi-color, #4b6a9b) 26%, #e2e8f0);
+    background: linear-gradient(160deg, #f4f4f5 0%, #ececef 100%);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--kpi-color, #4b6a9b) 5%, transparent),
+      0 8px 20px color-mix(in srgb, var(--kpi-color, #4b6a9b) 6%, rgb(42 42 46 / 0.03));
+    padding: clamp(0.38rem, 4.8cqi, 0.7rem) clamp(0.32rem, 4.2cqi, 0.65rem) clamp(0.28rem, 3.4cqi, 0.45rem);
+    color: #334155;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2,
+  html.charcoal .sd-datas-page .metric-kpi-ss2 {
+    border-color: color-mix(in srgb, var(--kpi-color, #6b8aad) 18%, #3f3f46);
+    background: linear-gradient(160deg, #323238 0%, #2a2a2e 100%);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--kpi-color, #6b8aad) 4%, transparent),
+      0 0 10px color-mix(in srgb, var(--kpi-color, #6b8aad) 4%, transparent);
+    color: #d4d4d8;
+  }
+  .sd-datas-page .metric-kpi-ss2-head {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.18rem, 2.4cqi, 0.35rem);
+    min-width: 0;
+    flex: 0 0 auto;
+    min-height: 1.35rem;
+  }
+  .sd-datas-page .metric-kpi-ss2-head .metric-kpi-chip {
+    display: inline-block;
+    flex: 0 1 auto;
+    width: max-content;
+    max-width: calc(100% - 1.4rem);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.2;
+    font-size: clamp(0.48rem, 7.8cqi, 0.65rem);
+    letter-spacing: clamp(0.01em, 0.35cqi, 0.05em);
+    padding: calc(0.12rem + 1px) clamp(0.28rem, 3.2cqi, 0.55rem);
+    background: color-mix(in srgb, var(--kpi-color, #4b6a9b) 12%, white);
+    color: var(--kpi-color, #4b6a9b);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #4b6a9b) 30%, transparent);
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-head .metric-kpi-chip,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-head .metric-kpi-chip {
+    background: color-mix(in srgb, var(--kpi-color, #6b8aad) 12%, #2a2a2e);
+    color: #d4d4d8;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #6b8aad) 18%, transparent);
+  }
+  .sd-datas-page .metric-kpi-ss2-main {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.22rem, 3.2cqi, 0.55rem);
+    margin-top: clamp(0.22rem, 3.2cqi, 0.45rem);
+    min-height: clamp(2.2rem, 38cqi, 3.25rem);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .sd-datas-page .metric-kpi-ss2-metrics {
+    flex: 0 0 30%;
+    width: 30%;
+    max-width: 30%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.08rem;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+  }
+  .sd-datas-page .metric-kpi-ss2-value {
+    margin: 0;
+    font-size: clamp(0.36rem, 8cqi, 0.725rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-value,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-value { color: #d4d4d8; }
+  .sd-datas-page .metric-kpi-ss2-delta {
+    margin: 0;
+    font-size: clamp(0.26rem, 4.25cqi, 0.36rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .sd-datas-page .metric-kpi-ss2-delta.is-up { color: #059669; }
+  .sd-datas-page .metric-kpi-ss2-delta.is-down { color: #e11d48; }
+  .sd-datas-page .metric-kpi-ss2-delta.is-flat { color: #64748b; }
+  html.dark .sd-datas-page .metric-kpi-ss2-delta.is-up,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-delta.is-up { color: #6f9b86; }
+  html.dark .sd-datas-page .metric-kpi-ss2-delta.is-down,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-delta.is-down { color: #a85a66; }
+  html.dark .sd-datas-page .metric-kpi-ss2-delta.is-flat,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-delta.is-flat { color: #94a3b8; }
+  .sd-datas-page .metric-kpi-ss2-spark {
+    flex: 0 0 70%;
+    width: 70%;
+    max-width: 70%;
+    min-width: 0;
+    height: clamp(1.85rem, 36cqi, 3.15rem);
+    display: flex;
+    align-items: stretch;
+    align-self: stretch;
+    cursor: pointer;
+    position: relative;
+    z-index: 0;
+    overflow: hidden;
+  }
+  .sd-datas-page .metric-kpi-ss2-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem 0.65rem;
+    margin-top: 0.35rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid color-mix(in srgb, var(--kpi-color, #4b6a9b) 16%, #e2e8f0);
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-summary,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-summary {
+    border-top-color: color-mix(in srgb, var(--kpi-color, #6b8aad) 22%, #1e293b);
+  }
+  .sd-datas-page .metric-kpi-ss2-summary .metric-kpi-kicker {
+    margin: 0 0 0.1rem;
+    color: #94a3b8;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-summary .metric-kpi-kicker,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-summary .metric-kpi-kicker {
+    color: #64748b;
+  }
+  .sd-datas-page .metric-kpi-ss2-summary strong {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-summary strong,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-summary strong {
+    color: #d4d4d8;
+  }
+  .sd-datas-page .metric-kpi-ss2.is-chart-focus {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--kpi-color) 22%, transparent);
+  }
+  #sd-chart .chart-series-g { transition: opacity 0.16s ease; }
+  #sd-chart.is-series-focus .chart-series-g { opacity: 0.28; }
+  #sd-chart.is-series-focus .chart-series-g.is-focus { opacity: 1; }
+  /* Android/iOS: ince çizgi — stretch’te kalınlaşmasın */
+  #sd-chart .chart-series-g > path[stroke] {
+    vector-effect: non-scaling-stroke;
+    stroke-width: 1.35px;
+  }
+  .sd-datas-page .metric-kpi-ss2 .metric-kpi-spark {
+    width: 100%;
+    height: 100%;
+    display: block;
+    min-width: 0;
+    min-height: 0;
+  }
+  @container kpi-ss2 (max-width: 12.75rem) {
+    .sd-datas-page .metric-kpi-ss2-main {
+      flex-direction: column;
+      align-items: stretch;
+      min-height: 0;
+      gap: clamp(0.18rem, 3cqi, 0.35rem);
+    }
+    .sd-datas-page .metric-kpi-ss2-metrics {
+      max-width: none;
+      width: 100%;
+      flex: 0 0 auto;
+    }
+    .sd-datas-page .metric-kpi-ss2-spark {
+      width: 100%;
+      max-width: none;
+      min-width: 0;
+      flex: 1 1 auto;
+      height: clamp(1.65rem, 42cqi, 2.7rem);
+    }
+  }
+  @container kpi-ss2 (max-width: 7.5rem) {
+    .sd-datas-page .metric-kpi-ss2-head .metric-kpi-chip {
+      font-size: clamp(0.42rem, 9.2cqi, 0.55rem);
+      padding: calc(0.08rem + 1px) 0.28rem;
+    }
+    .sd-datas-page .metric-kpi-info {
+      width: 0.95rem;
+      height: 0.95rem;
+      font-size: 0.5rem;
+    }
+  }
+  .sd-datas-page .metric-kpi-ss2-expand {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.28rem;
+    padding: 0.1rem 0 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    order: 10;
+  }
+  .sd-datas-page .metric-kpi-ss2-expand:hover { color: #0f172a; }
+  html.dark .sd-datas-page .metric-kpi-ss2-expand,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-expand {
+    border-top-color: rgba(148, 163, 184, 0.18);
+    color: #94a3b8;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-expand:hover,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-expand:hover { color: #e2e8f0; }
+  .sd-datas-page .metric-kpi-ss2-panel {
+    display: none;
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 0.65rem;
+    order: 5;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-panel,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-panel {
+    border-top-color: rgba(148, 163, 184, 0.16);
+  }
+  .sd-datas-page .metric-kpi-ss2.is-open .metric-kpi-ss2-panel { display: grid; }
+  .sd-datas-page .metric-kpi-ss2.is-open .metric-kpi-ss2-expand {
+    border-top-color: rgba(148, 163, 184, 0.28);
+    margin-top: 0.28rem;
+  }
+  .sd-datas-page .metric-kpi-ss2.is-open .metric-kpi-ss2-expand .metric-kpi-chev { transform: rotate(180deg); }
+  .sd-datas-page .metric-kpi-chev { transition: transform 0.15s ease; }
+  .sd-datas-page .metric-kpi-ss2-panel .metric-kpi-kicker { color: #94a3b8; }
+  html.dark .sd-datas-page .metric-kpi-ss2-panel .metric-kpi-kicker,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-panel .metric-kpi-kicker { color: #64748b; }
+  .sd-datas-page .metric-kpi-ss2-panel strong {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+  }
+  html.dark .sd-datas-page .metric-kpi-ss2-panel strong,
+  html.charcoal .sd-datas-page .metric-kpi-ss2-panel strong { color: #d4d4d8; }
+  .sd-datas-page .metric-kpi-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-left: auto;
+    border-radius: 9999px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    color: #94a3b8;
+    font-size: 0.58rem;
+    font-weight: 700;
+    cursor: help;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .sd-datas-page .metric-kpi-info .metric-kpi-tip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.35rem);
+    z-index: 40;
+    width: max-content;
+    max-width: min(16rem, 70vw);
+    padding: 0.45rem 0.55rem;
+    border-radius: 0.55rem;
+    background: #2a2a2e;
+    color: #d4d4d8;
+    border: 1px solid #334155;
+    font-size: 0.65rem;
+    font-weight: 500;
+    line-height: 1.35;
+    text-transform: none;
+    letter-spacing: normal;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .sd-datas-page .metric-kpi-info:hover .metric-kpi-tip,
+  .sd-datas-page .metric-kpi-info:focus-visible .metric-kpi-tip {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .sd-datas-page .sd-orbit {
+    position: relative;
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+  .sd-datas-page .sd-orbit__ring,
+  .sd-datas-page .sd-orbit__core {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+  }
+  .sd-datas-page .sd-orbit__ring {
+    border: 2px solid rgba(16, 185, 129, 0.25);
+    animation: sd-spin 1.1s linear infinite;
+  }
+  .sd-datas-page .sd-orbit__ring--mid { inset: 0.28rem; animation-duration: 0.9s; animation-direction: reverse; }
+  .sd-datas-page .sd-orbit__ring--inner { inset: 0.52rem; border-width: 1.5px; }
+  .sd-datas-page .sd-orbit__core {
+    inset: 0.72rem;
+    background: rgba(16, 185, 129, 0.55);
+  }
+  @keyframes sd-spin { to { transform: rotate(360deg); } }
+  #sd-loading:not(.hidden) { display: flex; }
+  .pa-chart-style button.is-active[data-sd-chart-style="line"] {
+    background: #dbeafe; color: #1d4ed8; border-color: #93c5fd;
+  }
+  .pa-chart-style button.is-active[data-sd-chart-style="area"] {
+    background: #d1fae5; color: #047857; border-color: #6ee7b7;
+  }
+  .pa-chart-style button.is-active[data-sd-chart-style="bar"] {
+    background: #ffedd5; color: #c2410c; border-color: #fdba74;
+  }
+  html.dark .pa-chart-style button.is-active[data-sd-chart-style="line"],
+  html.charcoal .pa-chart-style button.is-active[data-sd-chart-style="line"] {
+    background: #1e3a5f; color: #93c5fd; border-color: #1d4ed8;
+  }
+  html.dark .pa-chart-style button.is-active[data-sd-chart-style="area"],
+  html.charcoal .pa-chart-style button.is-active[data-sd-chart-style="area"] {
+    background: #064e3b; color: #6ee7b7; border-color: #059669;
+  }
+  html.dark .pa-chart-style button.is-active[data-sd-chart-style="bar"],
+  html.charcoal .pa-chart-style button.is-active[data-sd-chart-style="bar"] {
+    background: #7c2d12; color: #fdba74; border-color: #ea580c;
+  }
+  @media (min-width: 768px) {
+    .sd-datas-page .sd-f--metric { flex: 1.45 1 0; }
+    .sd-datas-page .sd-f--date { flex: 0.95 1 0; min-width: 6.5rem; }
+    .sd-datas-page .sd-f--sm { flex: 0.85 1 0; min-width: 0; }
+  }
+</style>
+
+<script src="/static/js/pa_chart_height.js?v=11"></script>
+<script src="/static/js/metric_table_ux.js?v=20"></script>
+<script src="/static/js/sinemalar_datas.js?v=10" defer></script>

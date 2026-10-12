@@ -1122,6 +1122,7 @@
     setPlatform: setPlatform,
     setLabelPrefix: setLabelPrefix,
     fetchSelectedSeries: fetchSelectedSeries,
+    fetchMetricSeries: fetchMetricSeries,
     platformForRoot: platformForRoot,
     normalizeOverlayPlatform: normalizeOverlayPlatform,
   };

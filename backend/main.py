@@ -18932,6 +18932,43 @@ def ios_app_store_connect_page(request: Request):
     )
 
 
+def _doviz_web_metrics_context(platform: str) -> dict:
+    """Döviz /web · /mweb — android/ios ile aynı Metrics kabuğu, web/mweb verisi."""
+    from backend.services.empower_intel_config import (
+        xdata_dropdown_options,
+        xdata_page_context,
+    )
+
+    plat = "mweb" if platform == "mweb" else "web"
+    ctx = dict(xdata_page_context(plat))
+    ctx["xdata_metric_options_web"] = xdata_dropdown_options("web")
+    ctx["xdata_metric_options_mweb"] = xdata_dropdown_options("mweb")
+    ctx["dw_platform"] = plat
+    return ctx
+
+
+@app.get("/web")
+def doviz_web_metrics_page(request: Request):
+    """Döviz Desktop Web — Metrics shell (Empower / GA4 / Virgül)."""
+    return templates.TemplateResponse(
+        request,
+        "web.html",
+        context={"request": request, **_doviz_web_metrics_context("web")},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/mweb")
+def doviz_mweb_metrics_page(request: Request):
+    """Döviz Mobile Web — Metrics shell (Empower / GA4 / Virgül)."""
+    return templates.TemplateResponse(
+        request,
+        "mweb.html",
+        context={"request": request, **_doviz_web_metrics_context("mweb")},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
 @app.get("/x-data")
 def xdata_empower_page(request: Request):
     """X-Data — Empower Intelligence scrape (web/mweb/ios/android). Admin only."""
