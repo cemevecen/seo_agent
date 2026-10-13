@@ -1275,6 +1275,11 @@ def fetch_realtime_top_news_pages(
                 continue
             if profile_key in ("android", "ios") and _dynamic_screen.match(key):
                 continue
+            if profile_key in ("android", "ios"):
+                from backend.services.realtime_news_paths import is_realtime_app_instrumentation_noise
+
+                if is_realtime_app_instrumentation_noise(key):
+                    continue
             if dim_used == "pagePath":
                 if not is_realtime_news_path(key, site_domain=site_domain):
                     continue
