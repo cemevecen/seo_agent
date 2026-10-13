@@ -34,10 +34,17 @@
   var PROJECT = "sinemalar";
   var OVERLAY_ID = "sd-cross-metric-overlay-root";
   /** Sinemalar: kısa set. Döviz web/mweb: en önemli 10 (+ asset olarak yalnız gram altın). */
+  /** Sabit web/mweb kabuğu: Döviz ile aynı 10’lu set; Sinemalar’da market yok. */
   var DEFAULT_METRICS_SINEMALAR = [
     "xdata:sessions",
     "xdata:active1DayUsers",
     "xdata:usdSpent",
+    "xdata:usdEcpm",
+    "xdata:newUsers",
+    "xdata:screenPageViews",
+    "xdata:engagementRate",
+    "virgul:net_revenue",
+    "virgul:impression",
   ];
   var DEFAULT_METRICS_DOVIZ = [
     "xdata:sessions",
@@ -451,7 +458,9 @@
   }
 
   function defaultPresetForProject() {
-    return PROJECT === "doviz" ? "180d" : "30d";
+    // Sabit web/mweb sayfaları (Döviz + Sinemalar) → 180 gün; eski Datas toggle → 30 gün
+    if (isFixedPlatform() || PROJECT === "doviz") return "180d";
+    return "30d";
   }
 
   function clearMetrics() {

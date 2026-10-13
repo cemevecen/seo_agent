@@ -32,11 +32,12 @@ def test_templates_and_partial():
     partial = (ROOT / "templates" / "partials" / "doviz_web_metrics_content.html").read_text(
         encoding="utf-8"
     )
-    assert 'data-project="doviz"' in partial
+    assert 'data-project="{{ dw_project }}"' in partial
     assert "data-fixed-platform" in partial
+    assert "dw_project" in partial
     assert "ga4:sessions" in partial
     assert "virgul:net_revenue" in partial
-    assert "sinemalar_datas.js?v=18" in partial
+    assert "sinemalar_datas.js?v=20" in partial
     assert 'value="180d" selected' in partial
     assert 'data-google-updates="1"' in partial
     assert "sd-google-updates" in partial
@@ -71,7 +72,7 @@ def test_datas_js_supports_doviz_project():
     assert 'v === "last_year_h1"' in js
     assert 'v === "this_month"' in js
     assert "defaultPresetForProject" in js
-    assert 'PROJECT === "doviz" ? "180d"' in js
+    assert "isFixedPlatform() || PROJECT === \"doviz\"" in js
 
 
 def test_overlay_blocks_app_metrics_on_web():
@@ -86,3 +87,27 @@ def test_page_tarama_web_mweb():
     src = (ROOT / "backend" / "services" / "page_tarama.py").read_text(encoding="utf-8")
     assert '"web": ["empower_intel"' in src or '"web": [' in src
     assert "mweb" in src
+    assert '"sinemalar-web"' in src
+    assert '"sinemalar-mweb"' in src
+
+
+def test_sinemalar_web_mweb_mirrors_doviz_shell():
+    main = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
+    assert '@app.get("/sinemalar-web")' in main
+    assert '@app.get("/sinemalar-mweb")' in main
+    partial = (ROOT / "templates" / "partials" / "doviz_web_metrics_content.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'dw_project|default' in partial or "dw_project" in partial
+    assert "sinemalar" in partial
+    web = (ROOT / "templates" / "sinemalar_web.html").read_text(encoding="utf-8")
+    mweb = (ROOT / "templates" / "sinemalar_mweb.html").read_text(encoding="utf-8")
+    assert 'dw_project=\'sinemalar\'' in web or 'dw_project="sinemalar"' in web
+    assert 'dw_project=\'sinemalar\'' in mweb or 'dw_project="sinemalar"' in mweb
+    assert 'data-page-tarama="sinemalar-web"' in web
+    assert 'data-page-tarama="sinemalar-mweb"' in mweb
+    js = (ROOT / "static" / "js" / "sinemalar_datas.js").read_text(encoding="utf-8")
+    assert "isFixedPlatform() || PROJECT === \"doviz\"" in js
+    overlay = (ROOT / "static" / "js" / "play_metric_overlay.js").read_text(encoding="utf-8")
+    assert "fetchGa4Series(metricKey, startIso, endIso, plat, project)" in overlay
+    assert "fetchVirgulSeries(metricKey, startIso, endIso, plat, project)" in overlay

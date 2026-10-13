@@ -1,0 +1,37 @@
+{# Sinemalar alt sekmeler — Moderation / Web / mWeb / Policy / Movie #}
+{% set _tab = sin_tab|default('sinemalar') %}
+{% set _hf = host_filter|default('all') %}
+<div class="sin-tabs mb-3 flex flex-wrap gap-1.5">
+  <a href="/sinemalar"
+    class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'sinemalar' %} is-on{% endif %}">
+    Moderation
+  </a>
+  <a href="/sinemalar-web"
+    class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'web' %} is-on{% endif %}">
+    Web
+  </a>
+  <a href="/sinemalar-mweb"
+    class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'mweb' %} is-on{% endif %}">
+    mWeb
+  </a>
+  <a href="/sinemalar?tab=policy&host={{ _hf }}"
+    class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'policy' %} is-on{% endif %}">
+    Policy
+  </a>
+  <a href="/sinemalar?tab=movie"
+    class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'movie' %} is-on{% endif %}">
+    Movie
+  </a>
+</div>
+<style>
+  .sin-tab { color: #475569; background: #fff; --tw-ring-color: #e2e8f0; }
+  .sin-tab:hover { background: #f8fafc; }
+  .sin-tab.is-on { color: #065f46; background: #ecfdf5; --tw-ring-color: #6ee7b7; }
+  html.dark .sin-tab, html.charcoal .sin-tab {
+    color: #a1a1aa; background: #18181b; --tw-ring-color: #3f3f46;
+  }
+  html.dark .sin-tab:hover, html.charcoal .sin-tab:hover { background: #27272a; }
+  html.dark .sin-tab.is-on, html.charcoal .sin-tab.is-on {
+    color: #6ee7b7; background: rgba(6, 78, 59, 0.35); --tw-ring-color: #059669;
+  }
+</style>

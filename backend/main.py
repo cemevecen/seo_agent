@@ -19012,19 +19012,26 @@ def ios_app_store_connect_page(request: Request):
     )
 
 
-def _doviz_web_metrics_context(platform: str) -> dict:
-    """Döviz /web · /mweb — android/ios ile aynı Metrics kabuğu, web/mweb verisi."""
+def _web_mweb_metrics_context(platform: str, *, project: str = "doviz") -> dict:
+    """ /web · /mweb (Döviz) ve /sinemalar-web · /sinemalar-mweb — aynı Metrics kabuğu."""
     from backend.services.empower_intel_config import (
         xdata_dropdown_options,
         xdata_page_context,
     )
 
     plat = "mweb" if platform == "mweb" else "web"
+    proj = "sinemalar" if (project or "").strip().lower() == "sinemalar" else "doviz"
     ctx = dict(xdata_page_context(plat))
     ctx["xdata_metric_options_web"] = xdata_dropdown_options("web")
     ctx["xdata_metric_options_mweb"] = xdata_dropdown_options("mweb")
     ctx["dw_platform"] = plat
+    ctx["dw_project"] = proj
     return ctx
+
+
+def _doviz_web_metrics_context(platform: str) -> dict:
+    """Geriye dönük: Döviz web/mweb context."""
+    return _web_mweb_metrics_context(platform, project="doviz")
 
 
 @app.get("/web")
@@ -19033,7 +19040,7 @@ def doviz_web_metrics_page(request: Request):
     return templates.TemplateResponse(
         request,
         "web.html",
-        context={"request": request, **_doviz_web_metrics_context("web")},
+        context={"request": request, **_web_mweb_metrics_context("web", project="doviz")},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
@@ -19044,7 +19051,29 @@ def doviz_mweb_metrics_page(request: Request):
     return templates.TemplateResponse(
         request,
         "mweb.html",
-        context={"request": request, **_doviz_web_metrics_context("mweb")},
+        context={"request": request, **_web_mweb_metrics_context("mweb", project="doviz")},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/sinemalar-web")
+def sinemalar_web_metrics_page(request: Request):
+    """Sinemalar Desktop Web — Döviz /web ile aynı Metrics kabuğu."""
+    return templates.TemplateResponse(
+        request,
+        "sinemalar_web.html",
+        context={"request": request, **_web_mweb_metrics_context("web", project="sinemalar")},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/sinemalar-mweb")
+def sinemalar_mweb_metrics_page(request: Request):
+    """Sinemalar Mobile Web — Döviz /mweb ile aynı Metrics kabuğu."""
+    return templates.TemplateResponse(
+        request,
+        "sinemalar_mweb.html",
+        context={"request": request, **_web_mweb_metrics_context("mweb", project="sinemalar")},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
@@ -22861,14 +22890,19 @@ def sinemalar_policy_page(
     host_key = (host or "all").strip().lower()
     if host_key not in ("all", "sinemalar.com", "m.sinemalar.com"):
         host_key = "all"
-    # Varsayılan: Moderation. Policy / Datas / Movie sekmeleri.
+    # Varsayılan: Moderation. Policy / Movie sekmeleri.
+    # Datas → /sinemalar-web · /sinemalar-mweb (Döviz /web · /mweb ile aynı kabuk).
     default_tab = "sinemalar"
     tab_key = (tab or default_tab).strip().lower()
     if tab_key in ("moderation", "mod"):
         tab_key = "sinemalar"
     if tab_key in ("tmdb", "movies"):
         tab_key = "movie"
-    if tab_key not in ("policy", "sinemalar", "datas", "movie"):
+    if tab_key in ("datas", "data", "web"):
+        return RedirectResponse(url="/sinemalar-web", status_code=302)
+    if tab_key == "mweb":
+        return RedirectResponse(url="/sinemalar-mweb", status_code=302)
+    if tab_key not in ("policy", "sinemalar", "movie"):
         tab_key = default_tab
 
     # Movie sekmesi: yalnızca TMDB partial — moderation/policy işleri çalışmasın.

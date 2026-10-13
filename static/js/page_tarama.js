@@ -56,6 +56,8 @@
     ios: ["asc", "firebase"],
     web: ["empower_intel", "market"],
     mweb: ["empower_intel", "market"],
+    "sinemalar-web": ["empower_intel_sinemalar"],
+    "sinemalar-mweb": ["empower_intel_sinemalar"],
     news: ["news"],
     virgul: ["virgul", "revenue_targets"],
     notification: ["notification"],

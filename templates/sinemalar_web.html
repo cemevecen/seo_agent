@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto w-full min-w-0 max-w-[1600px] space-y-4 px-2">
+  {% with sin_tab='web' %}
+  {% include "partials/sinemalar_section_tabs.html" %}
+  {% endwith %}
+  <div class="w-full max-w-none sinemalar-web-page" data-header-title="Web · Sinemalar Desktop" data-page-tarama="sinemalar-web">
+    {% with dw_platform='web', dw_project='sinemalar' %}
+    {% include "partials/doviz_web_metrics_content.html" %}
+    {% endwith %}
+    {% include "partials/dlab_section.html" %}
+  </div>
+</div>
+{% endblock %}

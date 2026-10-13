@@ -7,24 +7,9 @@
   {% set _mp = moderation_panel or {} %}
   {% set _mm = _mp.get("meta") or {} %}
 
-  <div class="sin-tabs flex flex-wrap gap-1.5">
-    <a href="/sinemalar"
-      class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'sinemalar' %} is-on{% endif %}">
-      Moderation
-    </a>
-    <a href="/sinemalar?tab=datas"
-      class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'datas' %} is-on{% endif %}">
-      Datas
-    </a>
-    <a href="/sinemalar?tab=policy&host={{ _hf }}"
-      class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'policy' %} is-on{% endif %}">
-      Policy
-    </a>
-    <a href="/sinemalar?tab=movie"
-      class="sin-tab rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition{% if _tab == 'movie' %} is-on{% endif %}">
-      Movie
-    </a>
-  </div>
+  {% with sin_tab=_tab, host_filter=_hf %}
+  {% include "partials/sinemalar_section_tabs.html" %}
+  {% endwith %}
 
   {% if _tab == 'sinemalar' %}
   <div class="flex flex-col gap-2 rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:flex-row sm:items-center sm:justify-between">
@@ -482,8 +467,6 @@
   })();
   </script>
 
-  {% elif _tab == 'datas' %}
-  {% include "partials/sinemalar_datas_content.html" %}
   {% elif _tab == 'movie' %}
   <div class="min-w-0" data-tmdb-surface="sinemalar">
     {% set tmdb_embed = true %}

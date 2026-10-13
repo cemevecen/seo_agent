@@ -563,12 +563,12 @@
     return { label: label, series: pts || [] };
   }
 
-  async function fetchGa4Series(metricKey, startIso, endIso, platform) {
+  async function fetchGa4Series(metricKey, startIso, endIso, platform, project) {
     var qs = new URLSearchParams({
       start: startIso || "",
       end: endIso || "",
       metric: metricKey,
-      project: "doviz",
+      project: (project || "doviz").trim() || "doviz",
       profile: normalizeOverlayPlatform(platform),
     });
     var r = await fetch("/api/play-analytics/ga4-series?" + qs.toString(), {
@@ -583,14 +583,14 @@
     return { label: data.label || metricLabel(metricKey), series: data.series || [] };
   }
 
-  async function fetchVirgulSeries(metricKey, startIso, endIso, platform) {
+  async function fetchVirgulSeries(metricKey, startIso, endIso, platform, project) {
     var branch = normalizeOverlayPlatform(platform);
     if (branch === "web") branch = "desktop";
     var qs = new URLSearchParams({
       start: startIso || "",
       end: endIso || "",
       metric: metricKey,
-      project: "doviz",
+      project: (project || "doviz").trim() || "doviz",
       branch: branch || "android",
     });
     var r = await fetch("/api/play-analytics/virgul-series?" + qs.toString(), {
@@ -673,8 +673,8 @@
     var webSurface = plat === "web" || plat === "mweb";
     if (isMarketKey(metricKey)) p = fetchMarketSeries(metricKey, startIso, endIso);
     else if (isXdataKey(metricKey)) p = fetchXdataSeries(metricKey, startIso, endIso, plat, project);
-    else if (isGa4Key(metricKey)) p = fetchGa4Series(metricKey, startIso, endIso, plat);
-    else if (isVirgulKey(metricKey)) p = fetchVirgulSeries(metricKey, startIso, endIso, plat);
+    else if (isGa4Key(metricKey)) p = fetchGa4Series(metricKey, startIso, endIso, plat, project);
+    else if (isVirgulKey(metricKey)) p = fetchVirgulSeries(metricKey, startIso, endIso, plat, project);
     else if (webSurface) {
       p = Promise.reject(
         new Error("Web/mweb only — app store metrics (Play/ASC) are blocked here")
