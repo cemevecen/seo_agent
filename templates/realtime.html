@@ -2919,7 +2919,7 @@
               >
                 <h3 class="rt-names-col-title">
                   <span class="rt-names-col-label">Döviz · {{ app_label }} · {{ klabel }}</span>
-                  <span class="rt-names-col-au" data-rt-names-au title="Live active users">—</span>
+                  <span class="rt-names-col-au" data-rt-names-au title="Listed {{ klabel|lower }} active users (sum)">—</span>
                 </h3>
                 <ol class="rt-names-list" data-rt-names-list>
                   <li class="rt-empty text-sm italic text-slate-400">loading…</li>
@@ -6575,17 +6575,27 @@
     return list;
   }
 
-  function _renderNamesCol(colEl, pages, domain, profile) {
-    var listEl = colEl.querySelector('[data-rt-names-list]');
-    if (!listEl) return;
-    if (!pages || !pages.length) {
-      listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">no data</li>';
-      return;
-    }
-    var sorted = pages.slice().sort(function (a, b) {
+  function _sortNamesRows(pages) {
+    return (pages || []).slice().sort(function (a, b) {
       return (Number(b.activeUsers) || 0) - (Number(a.activeUsers) || 0)
         || (Number(b.screenPageViews) || 0) - (Number(a.screenPageViews) || 0);
     }).slice(0, RT_NAMES_LIMIT);
+  }
+
+  function _namesRowsAuSum(pages) {
+    return _sortNamesRows(pages).reduce(function (sum, p) {
+      return sum + (Number(p.activeUsers) || 0);
+    }, 0);
+  }
+
+  function _renderNamesCol(colEl, pages, domain, profile) {
+    var listEl = colEl.querySelector('[data-rt-names-list]');
+    if (!listEl) return 0;
+    if (!pages || !pages.length) {
+      listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">no data</li>';
+      return 0;
+    }
+    var sorted = _sortNamesRows(pages);
     listEl.innerHTML = sorted.map(function (p, i) {
       var titleRaw = String((p && p.page) || '(unknown)').trim() || '(unknown)';
       var href = _rtPageHref(domain, p, profile);
@@ -6604,6 +6614,7 @@
         + '</div>'
         + '</li>';
     }).join('');
+    return _namesRowsAuSum(sorted);
   }
 
   function _fetchNamesCol(colEl) {
@@ -6632,36 +6643,50 @@
     var pagesP = fetch(listUrl, { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.json(); });
 
-    var kpiP = fetch(
-      '/api/ga4/realtime/' + siteId
-        + '?window=' + WINDOW
-        + '&profile=' + encodeURIComponent(profile)
-        + '&persist=0',
-      { credentials: 'same-origin', cache: 'no-store' }
-    ).then(function (r) { return r.json(); }).catch(function () { return null; });
+    /* Web kolonları: profil toplam AU. Assets/News: listedeki satır AU toplamı (app toplamıyla karışmasın). */
+    var useListSum = kind === 'news' || kind === 'assets';
+    var kpiP = useListSum
+      ? Promise.resolve(null)
+      : fetch(
+          '/api/ga4/realtime/' + siteId
+            + '?window=' + WINDOW
+            + '&profile=' + encodeURIComponent(profile)
+            + '&persist=0',
+          { credentials: 'same-origin', cache: 'no-store' }
+        ).then(function (r) { return r.json(); }).catch(function () { return null; });
 
     return Promise.all([pagesP, kpiP])
       .then(function (pair) {
         var d = pair[0];
         var kpi = pair[1];
         var rows = _filterNamesRows(d && Array.isArray(d.pages) ? d.pages : [], kind);
+        var listSum = 0;
         if (d && d.error && !rows.length) {
           listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">no data</li>';
         } else {
-          _renderNamesCol(colEl, rows, domain, profile);
+          listSum = _renderNamesCol(colEl, rows, domain, profile);
         }
         if (auEl) {
-          var au = null;
-          if (kpi && !kpi.error) {
-            if (kpi.total && kpi.total.activeUsers != null) au = Number(kpi.total.activeUsers);
-            else if (kpi.current && kpi.current.activeUsers != null) au = Number(kpi.current.activeUsers);
-          }
-          if (au != null && !isNaN(au)) {
-            auEl.textContent = _fmtExact(au);
-            auEl.setAttribute('title', 'Live active users · ' + _fmtExact(au));
+          if (useListSum) {
+            auEl.textContent = _fmtExact(listSum);
+            auEl.setAttribute(
+              'title',
+              (kind === 'news' ? 'Listed news active users (sum)' : 'Listed assets active users (sum)')
+                + ' · ' + _fmtExact(listSum)
+            );
           } else {
-            auEl.textContent = '—';
-            auEl.setAttribute('title', 'Live active users');
+            var au = null;
+            if (kpi && !kpi.error) {
+              if (kpi.total && kpi.total.activeUsers != null) au = Number(kpi.total.activeUsers);
+              else if (kpi.current && kpi.current.activeUsers != null) au = Number(kpi.current.activeUsers);
+            }
+            if (au != null && !isNaN(au)) {
+              auEl.textContent = _fmtExact(au);
+              auEl.setAttribute('title', 'Live active users · ' + _fmtExact(au));
+            } else {
+              auEl.textContent = '—';
+              auEl.setAttribute('title', 'Live active users');
+            }
           }
         }
         if (tsEl) {
