@@ -1167,7 +1167,7 @@
   .rt-masonry-site-label {
     display: none;
   }
-  /* Linkler görünüm: spark / app yok — 4 kolon yalnızca sayfa adı */
+  /* Linkler görünüm: Web (4 kolon) + Döviz Android/iOS (Assets + News) */
   #rt-names-board-panel {
     display: none;
   }
@@ -1202,6 +1202,51 @@
   html.dark .rt-names-board-head p {
     color: #71717a;
   }
+  .rt-names-board-tabs {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0 0 0.85rem;
+    padding: 0.2rem;
+    border-radius: 0.65rem;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+  html.dark .rt-names-board-tabs {
+    border-color: #3f3f46;
+    background: #18181b;
+  }
+  .rt-names-board-tab {
+    border: 0;
+    border-radius: 0.5rem;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #64748b;
+    background: transparent;
+    cursor: pointer;
+  }
+  .rt-names-board-tab:hover:not(.is-active) {
+    color: #0f172a;
+    background: #e2e8f0;
+  }
+  html.dark .rt-names-board-tab:hover:not(.is-active) {
+    color: #e4e4e7;
+    background: #27272a;
+  }
+  .rt-names-board-tab.is-active {
+    color: #312e81;
+    background: #e0e7ff;
+  }
+  html.dark .rt-names-board-tab.is-active {
+    color: #c7d2fe;
+    background: rgba(67, 56, 202, 0.35);
+  }
+  .rt-names-board-pane[hidden] {
+    display: none !important;
+  }
   .rt-names-board-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -1214,10 +1259,17 @@
     gap: 0.75rem 1rem;
     min-width: 0;
   }
+  .rt-names-board-grid--app {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   @media (max-width: 1100px) {
     .rt-names-board-grid {
       grid-template-columns: repeat(4, minmax(14.5rem, 1fr));
       min-width: 60rem;
+    }
+    .rt-names-board-grid--app {
+      grid-template-columns: repeat(2, minmax(14.5rem, 1fr));
+      min-width: 30rem;
     }
   }
   .rt-names-col {
@@ -2776,7 +2828,7 @@
             aria-checked="false"
             data-rt-view-pill="names"
             onclick="rtSetViewMode('names')"
-            title="Doviz + Sinemalar web/mweb — page names only (top 50, no spark)"
+            title="Live links: Web + Döviz Android/iOS assets &amp; news (top 50, no spark)"
             class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >Linkler</button>
         </div>
@@ -2801,43 +2853,86 @@
     <div class="rt-names-board-head">
       <div>
         <h2>Live links</h2>
-        <p>Last ~15 min · refreshes while this tab is visible (~1 min) · stops when tab is hidden · Doviz &amp; Sinemalar web/mweb · top 50</p>
+        <p>Last ~15 min · refreshes while this tab is visible (~1 min) · Web pages · Döviz Android/iOS assets &amp; news · top 50</p>
       </div>
       <p class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-names-board-ts>—</p>
     </div>
-    <div class="rt-names-board-scroll">
-      <div class="rt-names-board-grid">
-        {% for slug, label_prefix in [('doviz', 'Döviz'), ('sinemalar', 'Sinemalar')] %}
+    <div class="rt-names-board-tabs" role="tablist" aria-label="Live links platform">
+      <button type="button" role="tab" class="rt-names-board-tab is-active" aria-selected="true" data-rt-names-tab="web">Web</button>
+      <button type="button" role="tab" class="rt-names-board-tab" aria-selected="false" data-rt-names-tab="doviz-android">Döviz Android</button>
+      <button type="button" role="tab" class="rt-names-board-tab" aria-selected="false" data-rt-names-tab="doviz-ios">Döviz iOS</button>
+    </div>
+
+    <div class="rt-names-board-pane" data-rt-names-pane="web" role="tabpanel">
+      <div class="rt-names-board-scroll">
+        <div class="rt-names-board-grid">
+          {% for slug, label_prefix in [('doviz', 'Döviz'), ('sinemalar', 'Sinemalar')] %}
+            {% for site in sites %}
+              {% set domain_l = (site.domain or '')|lower %}
+              {% set is_match = (slug == 'doviz' and 'doviz' in domain_l) or (slug == 'sinemalar' and 'sinemalar' in domain_l) %}
+              {% if is_match %}
+                {% for profile, plabel in [('web', 'Web'), ('mweb', 'Mweb')] %}
+                  {% if profile in site.profiles %}
+                  <section
+                    class="rt-names-col"
+                    data-rt-names-col
+                    data-rt-names-kind="pages"
+                    data-rt-names-brand="{{ slug }}"
+                    data-rt-names-site-id="{{ site.id }}"
+                    data-rt-names-profile="{{ profile }}"
+                    data-rt-names-domain="{{ site.domain }}"
+                  >
+                    <h3 class="rt-names-col-title">
+                      <span class="rt-names-col-label">{{ label_prefix }} · {{ plabel }}</span>
+                      <span class="rt-names-col-au" data-rt-names-au title="Live active users">—</span>
+                    </h3>
+                    <ol class="rt-names-list" data-rt-names-list>
+                      <li class="rt-empty text-sm italic text-slate-400">loading…</li>
+                    </ol>
+                    <p class="rt-names-col-ts" data-rt-names-ts></p>
+                  </section>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {% for app_prof, app_tab, app_label in [('android', 'doviz-android', 'Android'), ('ios', 'doviz-ios', 'iOS')] %}
+    <div class="rt-names-board-pane" data-rt-names-pane="{{ app_tab }}" role="tabpanel" hidden>
+      <div class="rt-names-board-scroll">
+        <div class="rt-names-board-grid rt-names-board-grid--app">
           {% for site in sites %}
             {% set domain_l = (site.domain or '')|lower %}
-            {% set is_match = (slug == 'doviz' and 'doviz' in domain_l) or (slug == 'sinemalar' and 'sinemalar' in domain_l) %}
-            {% if is_match %}
-              {% for profile, plabel in [('web', 'Web'), ('mweb', 'Mweb')] %}
-                {% if profile in site.profiles %}
-                <section
-                  class="rt-names-col"
-                  data-rt-names-col
-                  data-rt-names-brand="{{ slug }}"
-                  data-rt-names-site-id="{{ site.id }}"
-                  data-rt-names-profile="{{ profile }}"
-                  data-rt-names-domain="{{ site.domain }}"
-                >
-                  <h3 class="rt-names-col-title">
-                    <span class="rt-names-col-label">{{ label_prefix }} · {{ plabel }}</span>
-                    <span class="rt-names-col-au" data-rt-names-au title="Live active users">—</span>
-                  </h3>
-                  <ol class="rt-names-list" data-rt-names-list>
-                    <li class="rt-empty text-sm italic text-slate-400">loading…</li>
-                  </ol>
-                  <p class="rt-names-col-ts" data-rt-names-ts></p>
-                </section>
-                {% endif %}
+            {% if 'doviz' in domain_l and app_prof in site.profiles %}
+              {% for kind, klabel in [('assets', 'Assets'), ('news', 'News')] %}
+              <section
+                class="rt-names-col"
+                data-rt-names-col
+                data-rt-names-kind="{{ kind }}"
+                data-rt-names-brand="doviz"
+                data-rt-names-site-id="{{ site.id }}"
+                data-rt-names-profile="{{ app_prof }}"
+                data-rt-names-domain="{{ site.domain }}"
+              >
+                <h3 class="rt-names-col-title">
+                  <span class="rt-names-col-label">Döviz · {{ app_label }} · {{ klabel }}</span>
+                  <span class="rt-names-col-au" data-rt-names-au title="Live active users">—</span>
+                </h3>
+                <ol class="rt-names-list" data-rt-names-list>
+                  <li class="rt-empty text-sm italic text-slate-400">loading…</li>
+                </ol>
+                <p class="rt-names-col-ts" data-rt-names-ts></p>
+              </section>
               {% endfor %}
             {% endif %}
           {% endfor %}
-        {% endfor %}
+        </div>
       </div>
     </div>
+    {% endfor %}
   </div>
 
   <div id="rt-compact-masonry-panel">
@@ -6426,6 +6521,48 @@
     rtApplyViewMode(rtGetViewMode());
   }
 
+  var RT_NAMES_TAB_LS = 'rt_names_board_tab';
+  var _rtNamesBoardTab = 'web';
+
+  function _rtLooksLikeAssetTitle(title) {
+    var low = (' ' + String(title || '').trim().toLowerCase() + ' ')
+      .replace(/\s+/g, ' ');
+    if (!low.trim()) return false;
+    return / alt[ıi]n | gram | dolar | euro | sterlin | borsa | kripto | harem | piyasa | [cç]evirici | g[uü]m[uü][sş] | bitcoin | ons | parite | hisse | kur | ceyrek | [cç]eyrek | yar[ıi]m | ata | re[sş]at | cumhuriyet | serbest | usd | try | eur | gbp /.test(low)
+      || /^(canl[ıi]|g[uü]ncel|anl[ıi]k)\b/.test(low.trim());
+  }
+
+  function _rtLooksLikeNewsTitle(title) {
+    var t = String(title || '').trim();
+    if (!t || _isRealtimeNoiseTitle(t)) return false;
+    if (t.charAt(0) === '/') {
+      var low = t.toLowerCase();
+      return low.indexOf('haber') !== -1 || low.indexOf('/news/') === 0 || /\/\d{5,}(?:\/|$)/.test(low);
+    }
+    if (_rtLooksLikeAssetTitle(t)) return false;
+    var words = t.split(/\s+/).filter(Boolean);
+    return t.length >= 36 || words.length >= 5;
+  }
+
+  function _filterNamesRows(rows, kind) {
+    var list = (rows || []).filter(function (p) {
+      return !_isRealtimeNoiseTitle(p && p.page);
+    });
+    if (kind === 'assets') {
+      return list.filter(function (p) {
+        var title = String((p && p.page) || '');
+        return !_rtLooksLikeNewsTitle(title);
+      });
+    }
+    if (kind === 'news') {
+      return list.filter(function (p) {
+        var title = String((p && p.page) || '');
+        return _rtLooksLikeNewsTitle(title) || !!(p && (p.link_url || p.page_path));
+      });
+    }
+    return list;
+  }
+
   function _renderNamesCol(colEl, pages, domain, profile) {
     var listEl = colEl.querySelector('[data-rt-names-list]');
     if (!listEl) return;
@@ -6461,19 +6598,27 @@
     var siteId = parseInt(colEl.getAttribute('data-rt-names-site-id'), 10);
     var profile = colEl.getAttribute('data-rt-names-profile') || 'web';
     var domain = colEl.getAttribute('data-rt-names-domain') || '';
+    var kind = colEl.getAttribute('data-rt-names-kind') || 'pages';
     var listEl = colEl.querySelector('[data-rt-names-list]');
     var tsEl = colEl.querySelector('[data-rt-names-ts]');
     var auEl = colEl.querySelector('[data-rt-names-au]');
     if (isNaN(siteId) || !listEl) return Promise.resolve();
 
-    var pagesP = fetch(
-      '/api/ga4/realtime/' + siteId + '/top-pages'
-        + '?profile=' + encodeURIComponent(profile)
-        + '&range=' + encodeURIComponent(RT_NAMES_RANGE)
-        + '&limit=' + RT_NAMES_LIMIT
-        + '&type=pages',
-      { credentials: 'same-origin', cache: 'no-store' }
-    ).then(function (r) { return r.json(); });
+    var fetchLimit = kind === 'assets' ? Math.max(RT_NAMES_LIMIT * 2, 80) : RT_NAMES_LIMIT;
+    var listUrl = kind === 'news'
+      ? ('/api/ga4/realtime/' + siteId + '/top-news'
+          + '?profile=' + encodeURIComponent(profile)
+          + '&range=' + encodeURIComponent(RT_NAMES_RANGE)
+          + '&limit=' + RT_NAMES_LIMIT
+          + '&type=pages')
+      : ('/api/ga4/realtime/' + siteId + '/top-pages'
+          + '?profile=' + encodeURIComponent(profile)
+          + '&range=' + encodeURIComponent(RT_NAMES_RANGE)
+          + '&limit=' + fetchLimit
+          + '&type=pages');
+
+    var pagesP = fetch(listUrl, { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.json(); });
 
     var kpiP = fetch(
       '/api/ga4/realtime/' + siteId
@@ -6487,9 +6632,7 @@
       .then(function (pair) {
         var d = pair[0];
         var kpi = pair[1];
-        var rows = (d && Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
-          return !_isRealtimeNoiseTitle(p && p.page);
-        });
+        var rows = _filterNamesRows(d && Array.isArray(d.pages) ? d.pages : [], kind);
         if (d && d.error && !rows.length) {
           listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">no data</li>';
         } else {
@@ -6521,12 +6664,55 @@
       });
   }
 
+  function rtSetNamesBoardTab(tab, opts) {
+    var next = tab === 'doviz-android' || tab === 'doviz-ios' ? tab : 'web';
+    var silent = !!(opts && opts.silent);
+    _rtNamesBoardTab = next;
+    try { localStorage.setItem(RT_NAMES_TAB_LS, next); } catch (eTab) {}
+    document.querySelectorAll('[data-rt-names-tab]').forEach(function (btn) {
+      var on = btn.getAttribute('data-rt-names-tab') === next;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-rt-names-pane]').forEach(function (pane) {
+      var on = pane.getAttribute('data-rt-names-pane') === next;
+      if (on) pane.removeAttribute('hidden');
+      else pane.setAttribute('hidden', '');
+    });
+    if (!silent && rtGetViewMode() === 'names' && !document.hidden) rtFetchNamesBoard();
+  }
+  window.rtSetNamesBoardTab = rtSetNamesBoardTab;
+
+  function _initNamesBoardTabs() {
+    var saved = 'web';
+    try { saved = localStorage.getItem(RT_NAMES_TAB_LS) || 'web'; } catch (eGet) {}
+    rtSetNamesBoardTab(saved, { silent: true });
+    var root = document.getElementById('rt-names-board-panel');
+    if (!root || root._rtNamesTabsBound) return;
+    root._rtNamesTabsBound = true;
+    root.addEventListener('click', function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('[data-rt-names-tab]') : null;
+      if (!btn || !root.contains(btn)) return;
+      ev.preventDefault();
+      rtSetNamesBoardTab(btn.getAttribute('data-rt-names-tab'));
+    });
+  }
+
   function rtFetchNamesBoard() {
     /* Arka plan / yanlış sekme: asla çekme */
     if (document.hidden || rtGetViewMode() !== 'names') return;
     var gen = ++_namesFetchGen;
-    var cols = document.querySelectorAll('[data-rt-names-col]');
-    if (!cols.length) return;
+    var pane = document.querySelector('[data-rt-names-pane="' + _rtNamesBoardTab + '"]');
+    var cols = pane
+      ? pane.querySelectorAll('[data-rt-names-col]')
+      : document.querySelectorAll('[data-rt-names-pane="web"] [data-rt-names-col]');
+    if (!cols.length) {
+      var emptyPane = pane && pane.querySelector('.rt-names-board-grid');
+      if (emptyPane && !emptyPane.children.length) {
+        emptyPane.innerHTML = '<p class="rt-empty text-sm italic text-slate-400">No Android/iOS GA4 profile for Döviz.</p>';
+      }
+      return;
+    }
     var boardTs = document.querySelector('[data-rt-names-board-ts]');
     var pending = cols.length;
     var latest = null;
@@ -7158,6 +7344,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
+    _initNamesBoardTabs();
     rtInitViewMode();
     document.querySelectorAll('[data-rt-profile-box]').forEach(function (box) {
       box._rtTrendRange = RT_TREND_RANGE_DEFAULT;
