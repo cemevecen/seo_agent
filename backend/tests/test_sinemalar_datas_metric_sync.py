@@ -68,4 +68,5 @@ def test_legend_toggle_mutes_chart_kpi_and_table():
 def test_datas_partial_legend_host():
     text = PARTIAL.read_text(encoding="utf-8")
     assert 'id="sd-legend"' in text
-    assert "sinemalar_datas.js?v=" in text
+    assert "sinemalar_datas.js?v=19" in text
+    assert "Weekday Avg" in (ROOT / "static" / "js" / "sinemalar_datas.js").read_text(encoding="utf-8")

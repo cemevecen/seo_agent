@@ -775,14 +775,16 @@
     PlayMetricOverlay.setLabelPrefix(OVERLAY_ID, peerLabel(state.platform));
   }
 
-  function seriesStats(series) {
-    var vals = [];
-    (series || []).forEach(function (r) {
-      if (!r || r.value == null) return;
-      var n = Number(r.value);
-      if (!isFinite(n)) return;
-      vals.push(n);
-    });
+  function isWeekendDateKey(key) {
+    var m = String(key || "").match(/^(20\d{2})-(\d{2})-(\d{2})/);
+    if (!m) return false;
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (isNaN(d.getTime())) return false;
+    var wd = d.getDay();
+    return wd === 0 || wd === 6;
+  }
+
+  function statsFromValues(vals) {
     if (!vals.length) {
       return { n: 0, avg: null, sum: null, min: null, max: null, last: null };
     }
@@ -802,6 +804,28 @@
       max: max,
       last: vals[vals.length - 1],
     };
+  }
+
+  function seriesStats(series) {
+    var vals = [];
+    var weekday = [];
+    var weekend = [];
+    (series || []).forEach(function (r) {
+      if (!r || r.value == null) return;
+      var n = Number(r.value);
+      if (!isFinite(n)) return;
+      vals.push(n);
+      var key = r.key != null ? String(r.key) : "";
+      if (!/^(20\d{2})-\d{2}-\d{2}/.test(key)) return;
+      if (isWeekendDateKey(key)) weekend.push(n);
+      else weekday.push(n);
+    });
+    var base = statsFromValues(vals);
+    var wd = statsFromValues(weekday);
+    var we = statsFromValues(weekend);
+    base.weekday = { n: wd.n, avg: wd.avg, min: wd.min, max: wd.max };
+    base.weekend = { n: we.n, avg: we.avg, min: we.min, max: we.max };
+    return base;
   }
 
   function seriesDeltaPct(series) {
@@ -1096,6 +1120,24 @@
           "</strong></div>" +
           '<div><p class="metric-kpi-kicker">Max</p><strong>' +
           esc(fmtNum(st.max, key)) +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Weekday Avg</p><strong>' +
+          esc(st.weekday && st.weekday.avg != null ? fmtNum(st.weekday.avg, key) : "—") +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Weekend Avg</p><strong>' +
+          esc(st.weekend && st.weekend.avg != null ? fmtNum(st.weekend.avg, key) : "—") +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Weekday Min</p><strong>' +
+          esc(st.weekday && st.weekday.min != null ? fmtNum(st.weekday.min, key) : "—") +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Weekend Min</p><strong>' +
+          esc(st.weekend && st.weekend.min != null ? fmtNum(st.weekend.min, key) : "—") +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Weekday Max</p><strong>' +
+          esc(st.weekday && st.weekday.max != null ? fmtNum(st.weekday.max, key) : "—") +
+          "</strong></div>" +
+          '<div><p class="metric-kpi-kicker">Weekend Max</p><strong>' +
+          esc(st.weekend && st.weekend.max != null ? fmtNum(st.weekend.max, key) : "—") +
           "</strong></div>" +
           '<div><p class="metric-kpi-kicker">Last</p><strong>' +
           esc(fmtNum(st.last, key)) +
