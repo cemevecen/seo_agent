@@ -17,6 +17,20 @@ _NEWS_DETAIL_PATH_RE = re.compile(r"/\d+(?:[/?#].*)?$")
 _DUP_START_WORD_RE = re.compile(r"^([a-zçğıöşü]{3,})\s+\1\b", re.I)
 _DUP_START_2WORD_RE = re.compile(r"^([a-zçğıöşü]{3,})\s+([a-zçğıöşü]{3,})\s+\1\s+\2\b", re.I)
 
+# iOS (ve bazen Android) GA4: ekran/event enstrümantasyonu — içerik path'i değil
+_APP_INSTRUMENTATION_TOKEN_RE = re.compile(
+    r"(?i)(?:"
+    r"viewcontroller|uiviewcontroller|appdelegate|"
+    r"load_banner_ad|_ad_v\d+|applovin|_empower|"
+    r"present_asset_|viewdidappear|didselectitem|"
+    r"_init_ad_|firebase_|screen_view\b"
+    r")"
+)
+_APP_PASCAL_CONTROLLER_RE = re.compile(
+    r"(?:ViewController|ViewModel|Interactor|Presenter)\b"
+)
+_APP_VERSIONED_EVENT_RE = re.compile(r"(?i)_v\d+_")
+
 # Sinemalar: ID ile biten ama haber olmayan ürün/içerik path'leri
 _SINEMALAR_CONTENT_SEGMENTS = frozenset(
     {
@@ -181,6 +195,71 @@ def news_screen_exclude_prefixes() -> tuple[str, ...]:
     if raw:
         return tuple(x.strip().lower() for x in raw.split(",") if x.strip())
     return DEFAULT_NEWS_SCREEN_EXCLUDE_PREFIXES
+
+
+def is_realtime_app_instrumentation_noise(name: str | None) -> bool:
+    """iOS/Android unifiedScreen* / event sızıntısı: ViewController, banner ad, present_asset_* vb.
+
+    Android'deki ``asset/gram-altin/general`` gibi içerik path'leri False döner.
+    """
+    n = (name or "").strip()
+    if not n:
+        return True
+    low = n.lower()
+    if low in ("(other)", "(not set)", "(blank)", "not set", "(data not available)"):
+        return True
+
+    # Gerçek URL / makale başlığı (boşluklu) — yalnızca açık enstrümantasyon token'ı varsa gürültü
+    if n.startswith("/") or "://" in n:
+        return bool(_APP_INSTRUMENTATION_TOKEN_RE.search(n))
+    if " " in n:
+        return bool(_APP_INSTRUMENTATION_TOKEN_RE.search(n) or _APP_PASCAL_CONTROLLER_RE.search(n))
+
+    if _APP_INSTRUMENTATION_TOKEN_RE.search(n) or _APP_PASCAL_CONTROLLER_RE.search(n):
+        return True
+    if _APP_VERSIONED_EVENT_RE.search(n):
+        return True
+
+    # İçerik path'i: asset/…, market/…, news/…
+    if "/" in n:
+        return False
+
+    # Çok parçalı snake_case event adı (present_asset_from_home_follow)
+    if n.count("_") >= 3:
+        return True
+
+    return False
+
+
+def is_realtime_app_content_screen(name: str | None) -> bool:
+    """Linkler Assets için tercih edilen ekran: path veya bilinen kısa rota."""
+    n = (name or "").strip()
+    if not n or is_realtime_app_instrumentation_noise(n):
+        return False
+    if n.startswith("/") or "/" in n:
+        return True
+    low = n.lower()
+    if low in {
+        "home",
+        "markets",
+        "converter",
+        "asset_detail",
+        "news_detail",
+        "search",
+        "portfolio",
+        "watchlist",
+        "alarms",
+        "settings",
+        "profile",
+        "news",
+        "analysis",
+        "calendar",
+    }:
+        return True
+    # Android tarzı tek segment slug (gram-altin) — event değil
+    if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)+", low):
+        return True
+    return False
 
 
 def _normalize_path(path: str) -> str:
@@ -414,6 +493,13 @@ def unified_screen_news_article_title(name: str, *, site_domain: str = "") -> bo
         return False
     if n.startswith("/"):
         return is_realtime_news_path(n, site_domain=site_domain)
+
+    # iOS event/ViewController adları uzun olduğu için eski len>=26 kuralına takılıyordu
+    if is_realtime_app_instrumentation_noise(n):
+        return False
+    # Makale başlığı boşluklu metindir; snake_case / PascalCase ekran kodu değildir
+    if " " not in n:
+        return False
 
     low = n.lower()
     if len(low) < 10:

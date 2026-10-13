@@ -6013,8 +6013,18 @@
   }
 
   function _isRealtimeNoiseTitle(title) {
-    var t = String(title || '').trim().toLowerCase();
-    return !t || t === '—' || t === '(other)' || t === '(not set)' || t === '(blank)' || t === 'not set';
+    var t = String(title || '').trim();
+    if (!t) return true;
+    var low = t.toLowerCase();
+    if (low === '—' || low === '(other)' || low === '(not set)' || low === '(blank)' || low === 'not set') return true;
+    /* iOS GA4: ViewController / banner-ad / present_asset_* — Android path'leri değil */
+    if (/(?:viewcontroller|appdelegate|load_banner_ad|_ad_v\d+|applovin|_empower|present_asset_|viewdidappear|didselectitem|_init_ad_)/i.test(t)) {
+      return true;
+    }
+    if (/(?:ViewController|ViewModel)\b/.test(t)) return true;
+    if (/_v\d+_/.test(t)) return true;
+    if (t.indexOf('/') === -1 && t.indexOf(' ') === -1 && (t.match(/_/g) || []).length >= 3) return true;
+    return false;
   }
 
   function _renderEventsCard(box, siteId, profile) {
@@ -6539,9 +6549,11 @@
       var low = t.toLowerCase();
       return low.indexOf('haber') !== -1 || low.indexOf('/news/') === 0 || /\/\d{5,}(?:\/|$)/.test(low);
     }
+    /* Makale başlığı boşluklu metin; snake_case event adı değil */
+    if (t.indexOf(' ') === -1) return false;
     if (_rtLooksLikeAssetTitle(t)) return false;
     var words = t.split(/\s+/).filter(Boolean);
-    return t.length >= 36 || words.length >= 5;
+    return t.length >= 26 || words.length >= 5;
   }
 
   function _filterNamesRows(rows, kind) {

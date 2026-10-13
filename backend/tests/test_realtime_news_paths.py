@@ -1,11 +1,30 @@
 """Realtime haber path filtresi."""
 
 from backend.services.realtime_news_paths import (
+    is_realtime_app_content_screen,
+    is_realtime_app_instrumentation_noise,
     is_realtime_news_path,
     realtime_news_page_link,
     unified_screen_news_article_title,
     unified_screen_news_candidate,
 )
+
+
+def test_ios_instrumentation_noise_vs_android_paths():
+    assert is_realtime_app_instrumentation_noise(
+        "dViewController_load_banner_ad_v60_empower_HomeViewController"
+    )
+    assert is_realtime_app_instrumentation_noise("InitialViewController")
+    assert is_realtime_app_instrumentation_noise("appDelegate_init_ad_v60_empower")
+    assert is_realtime_app_instrumentation_noise("present_asset_gram-altin_from_home_follow")
+    assert is_realtime_app_instrumentation_noise("markets_viewDidAppear_popular")
+    assert not is_realtime_app_instrumentation_noise("asset/gram-altin/general")
+    assert not is_realtime_app_instrumentation_noise("market/popular")
+    assert not is_realtime_app_instrumentation_noise("home")
+    assert not is_realtime_app_instrumentation_noise("converter")
+    assert is_realtime_app_content_screen("asset/gram-altin/general")
+    assert is_realtime_app_content_screen("home")
+    assert not is_realtime_app_content_screen("InitialViewController")
 
 
 def test_haber_doviz_category_and_article():
@@ -53,6 +72,22 @@ def test_news_article_title_includes_trump_headline():
     )
     assert unified_screen_news_article_title(
         "Havalimanlarında ücretsiz içme suyu dönemi",
+        site_domain="www.doviz.com",
+    )
+    assert unified_screen_news_article_title(
+        "Devlet Bahçeli: Türkiye, Suudi Arabistan'a askeri destek sağlamalı",
+        site_domain="www.doviz.com",
+    )
+    assert not unified_screen_news_article_title(
+        "dViewController_load_banner_ad_v60_empower_HomeViewController",
+        site_domain="www.doviz.com",
+    )
+    assert not unified_screen_news_article_title(
+        "appDelegate_init_ad_v60_empower",
+        site_domain="www.doviz.com",
+    )
+    assert not unified_screen_news_article_title(
+        "present_asset_from_home_follow",
         site_domain="www.doviz.com",
     )
     assert not unified_screen_news_article_title(

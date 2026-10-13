@@ -1337,8 +1337,13 @@ def fetch_realtime_top_news_pages(
     }
 
 
-def _realtime_screen_label_quality(pages: list[dict[str, Any]]) -> tuple[int, int]:
-    """(anlamlı etiketli satır, toplam). GA bazen '(not set)' / '(other)' döner — bunlar zayıf sayılır."""
+def _realtime_screen_label_quality(pages: list[dict[str, Any]]) -> tuple[int, int, int]:
+    """(içerik ekranı, anlamlı etiket, toplam). iOS ViewController/event gürültüsü düşük puanlanır."""
+    from backend.services.realtime_news_paths import (
+        is_realtime_app_content_screen,
+        is_realtime_app_instrumentation_noise,
+    )
+
     bare = frozenset(
         {
             "",
@@ -1350,13 +1355,19 @@ def _realtime_screen_label_quality(pages: list[dict[str, Any]]) -> tuple[int, in
         },
     )
     total = len(pages)
-
-    def _ok(page: str | None) -> bool:
-        p = (page or "").strip().lower()
-        return bool(p) and p not in bare
-
-    labeled = sum(1 for p in pages if _ok(p.get("page")))
-    return labeled, total
+    labeled = 0
+    content = 0
+    for p in pages:
+        page = str(p.get("page") or "").strip()
+        low = page.lower()
+        if not page or low in bare:
+            continue
+        if is_realtime_app_instrumentation_noise(page):
+            continue
+        labeled += 1
+        if is_realtime_app_content_screen(page):
+            content += 1
+    return content, labeled, total
 
 
 def _realtime_pages_metric_total(pages: list[dict[str, Any]]) -> float:
@@ -1427,7 +1438,7 @@ def _rescue_app_empty_screen_pages(
 
     fetch_limit = max(limit, 50, 100)
     best: dict[str, Any] | None = None
-    best_key: tuple[int, int, int] = (-1, -1, -1)
+    best_key: tuple[int, int, int, int] = (-1, -1, -1, -1)
 
     for w in windows:
         for dim in _REALTIME_APP_SCREEN_DIMENSIONS:
@@ -1462,15 +1473,15 @@ def _rescue_app_empty_screen_pages(
                     pages = res.get("pages") or []
                     if not pages:
                         continue
-                    labeled, total = _realtime_screen_label_quality(pages)
+                    content, labeled, total = _realtime_screen_label_quality(pages)
                     metrics_total = int(_realtime_pages_metric_total(pages))
-                    key = (labeled, metrics_total, total)
+                    key = (content, labeled, metrics_total, total)
                     if key > best_key:
                         best_key = key
                         best = res
                         best["breakdown"] = dim
                         best["screen_rescue"] = True
-                    if metrics_total > 0 and labeled >= 1:
+                    if metrics_total > 0 and (content >= 1 or labeled >= 1):
                         res["breakdown"] = dim
                         res["screen_rescue"] = True
                         return res
@@ -1489,14 +1500,16 @@ def fetch_realtime_top_pages_pick_best_screen_dimension(
     if client is None:
         client = _build_client()
     best: dict[str, Any] | None = None
-    best_key: tuple[int, int, int] = (-1, -1, -1)
+    best_key: tuple[int, int, int, int] = (-1, -1, -1, -1)
     last_exc: Exception | None = None
+    # İçerik path'i bulmak için biraz fazla çek; gürültü elenince limit dolar
+    fetch_n = max(int(limit), min(250, max(int(limit) * 3, 60)))
     for dim in _REALTIME_APP_SCREEN_DIMENSIONS:
         try:
             res = fetch_realtime_top_pages(
                 property_id,
                 window_minutes=window_minutes,
-                limit=limit,
+                limit=fetch_n,
                 sort_by=sort_by,
                 dimension=dim,
                 include_page_path=False,   # app profillerde pagePath geçersiz
@@ -1514,14 +1527,18 @@ def fetch_realtime_top_pages_pick_best_screen_dimension(
         pages = res.get("pages") or []
         if not pages:
             continue
-        labeled, total = _realtime_screen_label_quality(pages)
+        content, labeled, total = _realtime_screen_label_quality(pages)
         metrics_total = int(_realtime_pages_metric_total(pages))
-        key = (labeled, metrics_total, total)
+        key = (content, labeled, metrics_total, total)
         if key > best_key:
             best_key = key
             best = res
             best["breakdown"] = dim
-        if total > 0 and labeled >= 3 and labeled / total >= 0.45 and metrics_total > 0:
+        # Erken çık: yeterince içerik path'i varsa ViewController boyutuna gerek yok
+        if total > 0 and content >= 3 and labeled / total >= 0.35 and metrics_total > 0:
+            res["breakdown"] = dim
+            return res
+        if total > 0 and labeled >= 3 and labeled / total >= 0.45 and metrics_total > 0 and content >= 1:
             res["breakdown"] = dim
             return res
     if best is not None and (best.get("pages") or []):
@@ -1531,7 +1548,7 @@ def fetch_realtime_top_pages_pick_best_screen_dimension(
     return fetch_realtime_top_pages(
         property_id,
         window_minutes=window_minutes,
-        limit=limit,
+        limit=fetch_n,
         sort_by=sort_by,
         dimension="unifiedScreenName",
         include_page_path=False,
@@ -1810,7 +1827,32 @@ def fetch_realtime_top_pages_with_app_fallback(
             )
 
     # Ekran listesine eventName karıştırma — etkinlikler /top-events endpoint'inde.
+    # iOS ViewController / banner-ad event sızıntısını listeden düş (Android path'leri korunur).
+    base = _filter_app_instrumentation_pages(base, limit=limit)
     return base
+
+
+def _filter_app_instrumentation_pages(
+    payload: dict[str, Any],
+    *,
+    limit: int,
+) -> dict[str, Any]:
+    from backend.services.realtime_news_paths import is_realtime_app_instrumentation_noise
+
+    pages = list(payload.get("pages") or [])
+    if not pages:
+        return payload
+    clean = [
+        p
+        for p in pages
+        if not is_realtime_app_instrumentation_noise(str(p.get("page") or ""))
+    ]
+    if not clean:
+        return payload
+    out = dict(payload)
+    out["pages"] = clean[: max(1, int(limit))]
+    out["instrumentation_filtered"] = len(clean) < len(pages)
+    return out
 
 
 def fetch_realtime_top_events_fallback_active_users(
