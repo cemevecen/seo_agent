@@ -59,8 +59,22 @@
     "market:gram_altin",
   ];
   var DEFAULT_METRICS = DEFAULT_METRICS_SINEMALAR.slice();
-  var COLORS = ["#2563EB", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#EC4899"];
-  var OVERLAY_COLORS = ["#F59E0B", "#A855F7", "#14B8A6", "#F43F5E", "#64748B"];
+  function seriesPalette() {
+    if (window.seoMatteSeriesPalette) return window.seoMatteSeriesPalette();
+    return ["#4b6a9b", "#0f766e", "#6d5b9e", "#b45309", "#9d4d6a", "#4a6f8c", "#b91c3c", "#64748b"];
+  }
+  function overlayPalette() {
+    if (window.seoAppMetricChartColors) return window.seoAppMetricChartColors().cycle.slice(2, 7);
+    return ["#b08940", "#6d5b9e", "#4a6f8c", "#b45309", "#64748b"];
+  }
+  function colorAt(i) {
+    var p = seriesPalette();
+    return p[((i % p.length) + p.length) % p.length];
+  }
+  function overlayColorAt(i) {
+    var p = overlayPalette();
+    return p[((i % p.length) + p.length) % p.length];
+  }
   /** Android/iOS ile aynı sabit SVG koordinat yüksekliği — yükseklik/sıkıştırma pa_chart_height.js ile. */
   var CHART_VIEW_H = 260;
   var AXIS_LABEL_FONT = 10;
@@ -315,7 +329,7 @@
       var swatch =
         on && selIdx >= 0
           ? '<span class="sd-metric-swatch" style="background:' +
-            COLORS[selIdx % COLORS.length] +
+            colorAt(selIdx) +
             '" aria-hidden="true"></span>'
           : '<span class="sd-metric-swatch" style="background:transparent" aria-hidden="true"></span>';
       html +=
@@ -1059,7 +1073,7 @@
     host.innerHTML = keys
       .map(function (key, i) {
         var pack = state.seriesByMetric[key] || { series: [], label: metricLabel(key), metric: key };
-        var color = COLORS[i % COLORS.length];
+        var color = colorAt(i);
         var st = seriesStats(pack.series);
         var avg = st.avg;
         var avgTxt = fmtNum(avg, key);
@@ -1227,7 +1241,7 @@
         key: key,
         label: pack.label || metricLabel(key),
         map: curMap,
-        color: COLORS[i % COLORS.length],
+        color: colorAt(i),
         overlay: false,
         dashed: false,
       });
@@ -1236,7 +1250,7 @@
           key: key + ":prev",
           label: (pack.label || metricLabel(key)) + " · prev",
           map: alignPrevMap(curMap, valueMap(state.compareSeries[key].series)),
-          color: COLORS[i % COLORS.length],
+          color: colorAt(i),
           overlay: false,
           dashed: true,
         });
@@ -1256,7 +1270,7 @@
         key: "ov:" + (ov.metric || i),
         label: (ov.label || ov.metric || "Overlay") + " · " + platformLabel(ovPlat),
         map: valueMap(ov.series),
-        color: OVERLAY_COLORS[i % OVERLAY_COLORS.length],
+        color: overlayColorAt(i),
         overlay: true,
         overlayMetric: ov.metric || "",
         dashed: false,

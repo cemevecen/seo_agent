@@ -382,44 +382,44 @@
   }
 
   /**
-   * Android / iOS çoklu grafik — doygun, birbirinden uzak renkler.
-   * Aynı metrik her iki sayfada da aynı rengi alır.
+   * Android / iOS / Web / mWeb çoklu grafik — mat, birbirinden uzak renkler.
+   * Aynı metrik app sayfalarında aynı rengi alır (neon yok).
    */
   function seoAppMetricChartColors() {
     var dark = isDark();
     return {
       byMetric: dark
         ? {
-            crashes: "#60A5FA",
-            "ga4:sessions": "#F472B6",
-            "market:gram_altin": "#FACC15",
-            "market:usd_try": "#4ADE80",
-            device_acquisition: "#C084FC",
-            total_downloads: "#C084FC",
-            "virgul:impression": "#22D3EE",
-            "virgul:net_revenue": "#FB7185",
-            ar2_visitors: "#A3E635",
-            page_views: "#A3E635",
-            "xdata:active7DayUsers": "#FB923C",
-            "xdata:usdEcpm": "#E879F9",
+            crashes: "#6b8aad",
+            "ga4:sessions": "#a86b7f",
+            "market:gram_altin": "#b87333",
+            "market:usd_try": "#3d8b6e",
+            device_acquisition: "#8b7aa8",
+            total_downloads: "#8b7aa8",
+            "virgul:impression": "#5b7c99",
+            "virgul:net_revenue": "#a85a66",
+            ar2_visitors: "#6f9b5a",
+            page_views: "#6f9b5a",
+            "xdata:active7DayUsers": "#b08968",
+            "xdata:usdEcpm": "#9a8ab6",
           }
         : {
-            crashes: "#3B82F6",
-            "ga4:sessions": "#EC4899",
-            "market:gram_altin": "#EAB308",
-            "market:usd_try": "#22C55E",
-            device_acquisition: "#A855F7",
-            total_downloads: "#A855F7",
-            "virgul:impression": "#06B6D4",
-            "virgul:net_revenue": "#F43F5E",
-            ar2_visitors: "#84CC16",
-            page_views: "#84CC16",
-            "xdata:active7DayUsers": "#F97316",
-            "xdata:usdEcpm": "#D946EF",
+            crashes: "#4b6a9b",
+            "ga4:sessions": "#9d4d6a",
+            "market:gram_altin": "#b08940",
+            "market:usd_try": "#0f766e",
+            device_acquisition: "#6d5b9e",
+            total_downloads: "#6d5b9e",
+            "virgul:impression": "#4a6f8c",
+            "virgul:net_revenue": "#b45309",
+            ar2_visitors: "#5a8a4a",
+            page_views: "#5a8a4a",
+            "xdata:active7DayUsers": "#b87333",
+            "xdata:usdEcpm": "#7a6b9a",
           },
       cycle: dark
-        ? ["#60A5FA", "#F472B6", "#FACC15", "#4ADE80", "#C084FC", "#22D3EE", "#FB7185", "#A3E635", "#FB923C", "#E879F9"]
-        : ["#3B82F6", "#EC4899", "#EAB308", "#22C55E", "#A855F7", "#06B6D4", "#F43F5E", "#84CC16", "#F97316", "#D946EF"],
+        ? ["#6b8aad", "#a86b7f", "#b87333", "#3d8b6e", "#8b7aa8", "#5b7c99", "#a85a66", "#6f9b5a", "#b08968", "#9a8ab6"]
+        : ["#4b6a9b", "#9d4d6a", "#b08940", "#0f766e", "#6d5b9e", "#4a6f8c", "#b45309", "#5a8a4a", "#b87333", "#7a6b9a"],
     };
   }
 
