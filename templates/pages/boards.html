@@ -137,40 +137,40 @@
           <p class="mt-4 text-slate-500 dark:text-slate-400">Fetching data from GitLab...</p>
         </div>
 
-        <div x-show="projectData[activeProject].loaded && !projectData[activeProject].error" class="flex h-full items-start gap-4 overflow-x-auto pb-4" id="lists-wrapper">
+        <div x-show="projectData[activeProject].loaded && !projectData[activeProject].error" class="flex h-full items-start gap-2.5 overflow-x-auto pb-4" id="lists-wrapper">
           <template x-for="(lst, index) in projectData[activeProject].lists" :key="lst.id">
             <div x-data="{ collapsed: getIssuesForList(activeProject, lst).length === 0 }"
                  x-init="$watch('getIssuesForList(activeProject, lst).length', val => { collapsed = (val === 0); })"
-                 class="flex shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 border-t-4 transition-all duration-300 relative overflow-hidden group" 
-                 :class="[getListColor(index, lst.isClosed), lst.isClosed ? 'opacity-75' : '', collapsed ? 'w-12 min-w-[48px] max-w-[48px] cursor-pointer' : 'gl-board-col-expanded p-3']"
+                 class="gl-board-col flex shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 border-t-4 transition-all duration-300 relative overflow-hidden group" 
+                 :class="[getListColor(index, lst.isClosed), lst.isClosed ? 'opacity-75' : '', collapsed ? 'w-10 min-w-[40px] max-w-[40px] cursor-pointer' : 'gl-board-col-expanded p-2']"
                  @click="if(collapsed) collapsed = false">
               
               <!-- Collapsed Vertical Header -->
-              <div x-show="collapsed" class="flex flex-col items-center pt-4 pb-2 w-full select-none text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 absolute inset-0 z-10 pointer-events-none">
-                <span class="mb-4 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-600" x-text="getIssuesForList(activeProject, lst).length"></span>
-                <div style="writing-mode: vertical-rl; transform: rotate(180deg);" class="text-sm font-bold uppercase tracking-widest whitespace-nowrap mt-2" x-text="lst.label.name"></div>
+              <div x-show="collapsed" class="flex flex-col items-center pt-3 pb-2 w-full select-none text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 absolute inset-0 z-10 pointer-events-none">
+                <span class="mb-3 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-600" x-text="getIssuesForList(activeProject, lst).length"></span>
+                <div style="writing-mode: vertical-rl; transform: rotate(180deg);" class="text-xs font-bold uppercase tracking-widest whitespace-nowrap mt-1" x-text="lst.label.name"></div>
               </div>
 
               <!-- Expanded Header -->
-              <h4 x-show="!collapsed" class="mb-3 flex items-center justify-between text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                <div class="flex items-center gap-1 overflow-hidden">
-                  <button @click.stop="collapsed = true" class="shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Collapse column">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+              <h4 x-show="!collapsed" class="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                <div class="flex min-w-0 items-center gap-0.5 overflow-hidden">
+                  <button @click.stop="collapsed = true" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Collapse column">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
                   </button>
                   <span x-text="lst.label.name" class="truncate pr-1"></span>
-                  <button x-show="!lst.isClosed" @click.stop="lst.showNewIssueForm = true" class="ml-1 shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Add new item">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                  <button x-show="!lst.isClosed" @click.stop="lst.showNewIssueForm = true" class="ml-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Add new item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                   </button>
                 </div>
-                <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-600 shrink-0" x-text="getIssuesForList(activeProject, lst).length"></span>
+                <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-600 shrink-0" x-text="getIssuesForList(activeProject, lst).length"></span>
               </h4>
               
               <!-- Yeni Ekleme Formu -->
-              <div x-show="!collapsed && lst.showNewIssueForm" x-transition class="mb-3 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <input type="text" x-model="lst.newIssueTitle" @keydown.enter="createIssue(activeProject, lst)" :disabled="lst.isCreating" placeholder="What needs to be done?" class="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500">
-                <div class="mt-2 flex justify-end gap-2">
-                  <button @click="lst.showNewIssueForm = false; lst.newIssueTitle = ''" class="text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">Cancel</button>
-                  <button @click="createIssue(activeProject, lst)" :disabled="!lst.newIssueTitle || !lst.newIssueTitle.trim() || lst.isCreating" class="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50 transition">
+              <div x-show="!collapsed && lst.showNewIssueForm" x-transition class="mb-1.5 rounded-lg border border-slate-200 bg-white p-1.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <input type="text" x-model="lst.newIssueTitle" @keydown.enter="createIssue(activeProject, lst)" :disabled="lst.isCreating" placeholder="What needs to be done?" class="w-full bg-transparent text-xs font-medium text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500">
+                <div class="mt-1.5 flex justify-end gap-2">
+                  <button @click="lst.showNewIssueForm = false; lst.newIssueTitle = ''" class="text-[11px] font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">Cancel</button>
+                  <button @click="createIssue(activeProject, lst)" :disabled="!lst.newIssueTitle || !lst.newIssueTitle.trim() || lst.isCreating" class="rounded bg-blue-600 px-2.5 py-0.5 text-[11px] font-semibold text-white hover:bg-blue-500 disabled:opacity-50 transition">
                     <span x-show="!lst.isCreating">Add</span>
                     <span x-show="lst.isCreating" class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-solid border-white border-r-transparent"></span>
                   </button>
@@ -178,8 +178,7 @@
               </div>
 
               <div 
-                class="sortable-list flex flex-col gap-2 rounded-lg border-2 border-transparent transition-colors flex-1 w-full" 
-                style="min-height: 300px;"
+                class="sortable-list gl-board-sortable flex flex-col rounded-lg border-2 border-transparent transition-colors flex-1 w-full" 
                 :data-label="lst.label.name"
                 :data-virtual="lst.isVirtual"
                 :data-closed="lst.isClosed"
@@ -189,29 +188,26 @@
               >
                 <template x-for="issue in getIssuesForList(activeProject, lst)" :key="issue.id">
                   <div 
-                    class="group cursor-grab rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500 w-full min-w-0"
+                    class="gl-board-card group cursor-grab w-full min-w-0"
                     :class="collapsed ? 'hidden' : 'block'"
                     :data-id="issue.iid"
                   >
-                    <div class="flex items-start justify-between gap-2 min-w-0 w-full">
-                      <a :href="issue.web_url" target="_blank" class="min-w-0 flex-1 text-sm font-medium leading-relaxed text-slate-900 hover:text-blue-600 dark:text-slate-100 dark:hover:text-blue-400 break-words whitespace-normal" :class="issue.state === 'closed' ? 'line-through text-slate-500 dark:text-slate-500' : ''" x-text="issue.title"></a>
+                    <div class="gl-board-card-row">
+                      <a :href="issue.web_url" target="_blank" class="gl-board-card-title" :class="issue.state === 'closed' ? 'is-closed' : ''" :title="issue.title" x-text="issue.title"></a>
                       <button type="button"
-                              class="shrink-0 rounded-md p-1 transition hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                              :class="isStarred(activeProject, issue.iid) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400 dark:text-slate-600'"
+                              class="gl-board-card-star shrink-0"
+                              :class="isStarred(activeProject, issue.iid) ? 'is-on' : ''"
                               :title="isStarred(activeProject, issue.iid) ? 'Unstar (home)' : 'Star on home'"
                               @click.stop.prevent="toggleStar(activeProject, issue)"
                               :aria-pressed="isStarred(activeProject, issue.iid) ? 'true' : 'false'">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" :fill="isStarred(activeProject, issue.iid) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" :fill="isStarred(activeProject, issue.iid) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.5a.56.56 0 0 1 1.04 0l2.12 5.08a.56.56 0 0 0 .48.35l5.45.4c.5.04.7.67.32 1.01l-4.16 3.55a.56.56 0 0 0-.18.56l1.27 5.3c.12.49-.42.87-.85.61l-4.63-2.82a.56.56 0 0 0-.58 0l-4.63 2.82c-.43.26-.97-.12-.85-.61l1.27-5.3a.56.56 0 0 0-.18-.56L3.11 10.34c-.38-.34-.18-.97.32-1.01l5.45-.4a.56.56 0 0 0 .48-.35L11.48 3.5Z"/>
                         </svg>
                       </button>
-                    </div>
-                    <div class="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium w-full">
-                      <span x-text="'#' + issue.iid"></span>
                       <template x-if="issue.assignee">
-                        <div class="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 ring-2 ring-white dark:bg-blue-900/50 dark:ring-slate-900 shadow-sm overflow-hidden" :title="issue.assignee.name">
-                          <span class="text-[10px] font-bold text-blue-700 dark:text-blue-300" x-text="(issue.assignee.name || '?').charAt(0).toUpperCase()"></span>
-                          <img x-show="issue.assignee.avatar_url" :src="getAvatarUrl(issue.assignee.avatar_url)" @error="$el.style.display='none'" :alt="issue.assignee.name" class="absolute inset-0 h-full w-full bg-white object-cover dark:bg-slate-800">
+                        <div class="gl-board-card-avatar" :title="issue.assignee.name">
+                          <span x-text="(issue.assignee.name || '?').charAt(0).toUpperCase()"></span>
+                          <img x-show="issue.assignee.avatar_url" :src="getAvatarUrl(issue.assignee.avatar_url)" @error="$el.style.display='none'" :alt="issue.assignee.name">
                         </div>
                       </template>
                     </div>
@@ -235,10 +231,100 @@
   .gl-project-tab:not([class*='shadow']) { box-shadow: 0 1px 2px rgba(42, 42, 46, 0.04); }
   .dark .gl-project-tab:not([class*='shadow']) { box-shadow: none; }
   .gl-board-col-expanded {
-    width: min(calc(100vw - 2.5rem), 400px);
-    min-width: min(calc(100vw - 2.5rem), 280px);
-    max-width: 400px;
+    width: min(calc(100vw - 2.5rem), 240px);
+    min-width: min(calc(100vw - 2.5rem), 200px);
+    max-width: 260px;
   }
+  .gl-board-sortable {
+    gap: 0.28rem;
+    min-height: 12rem;
+  }
+  .gl-board-card {
+    border: 1px solid rgb(226 232 240);
+    border-radius: 0.4rem;
+    background: #fff;
+    padding: 0.3rem 0.4rem;
+    box-shadow: 0 1px 2px rgb(42 42 46 / 0.04);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .gl-board-card:hover {
+    border-color: #93c5fd;
+    box-shadow: 0 2px 6px rgb(42 42 46 / 0.08);
+  }
+  .dark .gl-board-card {
+    border-color: #334155;
+    background: #0f172a;
+    box-shadow: none;
+  }
+  .dark .gl-board-card:hover { border-color: #3b82f6; }
+  .gl-board-card-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+  .gl-board-card-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.7rem;
+    font-weight: 500;
+    line-height: 1.25;
+    word-break: break-word;
+    color: #0f172a;
+    text-decoration: none;
+  }
+  .gl-board-card-title:hover { color: #2563eb; }
+  .dark .gl-board-card-title { color: #e2e8f0; }
+  .dark .gl-board-card-title:hover { color: #93c5fd; }
+  .gl-board-card-title.is-closed {
+    text-decoration: line-through;
+    color: #64748b;
+  }
+  .dark .gl-board-card-title.is-closed { color: #64748b; }
+  .gl-board-card-star {
+    margin-top: 0.05rem;
+    border-radius: 0.25rem;
+    padding: 0.1rem;
+    color: #cbd5e1;
+  }
+  .gl-board-card-star:hover { color: #fbbf24; background: rgb(255 251 235 / 0.7); }
+  .gl-board-card-star.is-on { color: #f59e0b; }
+  .dark .gl-board-card-star { color: #475569; }
+  .dark .gl-board-card-star.is-on { color: #f59e0b; }
+  .gl-board-card-avatar {
+    position: relative;
+    flex-shrink: 0;
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-top: 0.05rem;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 0.55rem;
+    font-weight: 700;
+    line-height: 1.15rem;
+    text-align: center;
+    box-shadow: 0 0 0 1px #fff;
+  }
+  .dark .gl-board-card-avatar {
+    background: rgb(30 58 138 / 0.45);
+    color: #93c5fd;
+    box-shadow: 0 0 0 1px #0f172a;
+  }
+  .gl-board-card-avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #fff;
+  }
+  .dark .gl-board-card-avatar img { background: #0f172a; }
   .board-sort-lottie-host {
     display: flex;
     align-items: center;
@@ -247,8 +333,9 @@
   [x-cloak] { display: none !important; }
   @media (min-width: 640px) {
     .gl-board-col-expanded {
-      width: 400px;
-      min-width: 400px;
+      width: 240px;
+      min-width: 220px;
+      max-width: 260px;
     }
   }
 </style>
