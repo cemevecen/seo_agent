@@ -1,6 +1,8 @@
 /**
  * Ana sayfa git.nokta — boards ile aynı kanban.
- * Veri + DnD: tarayıcıdan doğrudan GitLab (VPN); sıra kaydı: /api/boards/order.
+ * Veri + DnD: tarayıcıdan doğrudan GitLab (VPN).
+ * Görünen sıra = GitLab relative_position (git.nokta board ile aynı).
+ * Sürükleme GitLab /issues/:iid/reorder ile kalıcı yazılır.
  * Railway sunucusu GitLab'e ulaşamadığı için project-bundle kullanılmaz.
  */
 (function (global) {
@@ -462,28 +464,18 @@
         }.bind(this));
       },
 
-      sortIssuesForDisplay(path, listKey, issues) {
-        var order = (this.boardOrders[path] && this.boardOrders[path][listKey]) || [];
-        if (!order.length) {
-          return issues.slice().sort(function (a, b) {
-            var pa = a.relative_position != null ? a.relative_position : Number.MAX_SAFE_INTEGER;
-            var pb = b.relative_position != null ? b.relative_position : Number.MAX_SAFE_INTEGER;
-            if (pa !== pb) return pa - pb;
-            return (a.id || 0) - (b.id || 0);
-          });
-        }
-        var rank = {};
-        order.forEach(function (iid, idx) {
-          rank[String(iid)] = idx;
-        });
-        return issues.slice().sort(function (a, b) {
-          var ra = rank[String(a.iid)];
-          var rb = rank[String(b.iid)];
-          if (ra != null && rb != null) return ra - rb;
-          if (ra != null) return -1;
-          if (rb != null) return 1;
+      /** Esas sıra: GitLab board relative_position (yerel /api/boards/order ezmez). */
+      sortIssuesByPosition(issues) {
+        return (issues || []).slice().sort(function (a, b) {
+          var pa = a.relative_position != null ? a.relative_position : Number.MAX_SAFE_INTEGER;
+          var pb = b.relative_position != null ? b.relative_position : Number.MAX_SAFE_INTEGER;
+          if (pa !== pb) return pa - pb;
           return (a.id || 0) - (b.id || 0);
         });
+      },
+
+      sortIssuesForDisplay(path, listKey, issues) {
+        return this.sortIssuesByPosition(issues);
       },
 
       issuesFor(lst) {
@@ -723,20 +715,27 @@
 
       async gitlabReorderIssue(projectPath, issueIid, params) {
         params = params || {};
-        if (!this.token) return null;
+        if (!this.token) throw new Error('GitLab token missing — cannot save board order');
         var enc = encodeURIComponent(projectPath);
         var iid = parseInt(issueIid, 10);
         var qs = new URLSearchParams();
         if (params.move_after_id != null) qs.set('move_after_id', String(params.move_after_id));
         if (params.move_before_id != null) qs.set('move_before_id', String(params.move_before_id));
-        var q = qs.toString();
+        if (!qs.toString()) return null;
         var url =
-          this.baseUrl + '/projects/' + enc + '/issues/' + iid + '/reorder' + (q ? '?' + q : '');
+          this.baseUrl + '/projects/' + enc + '/issues/' + iid + '/reorder?' + qs.toString();
         var res = await fetch(url, {
           method: 'PUT',
           headers: { 'PRIVATE-TOKEN': this.token },
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          var detail = 'GitLab reorder failed (' + res.status + ')';
+          try {
+            var err = await res.json();
+            if (err && (err.message || err.error)) detail = String(err.message || err.error);
+          } catch (eParse) { /* ignore */ }
+          throw new Error(detail);
+        }
         if (res.status === 204) {
           var ref = await fetch(this.baseUrl + '/projects/' + enc + '/issues/' + iid, {
             headers: { 'PRIVATE-TOKEN': this.token },
@@ -753,11 +752,12 @@
       },
 
       applyIssueUpdate(pd, updated) {
-        if (!updated || updated.iid == null) return;
+        if (!updated || updated.iid == null || !pd) return;
         var idx = pd.issues.findIndex(function (i) {
           return String(i.iid) === String(updated.iid);
         });
         if (idx >= 0) pd.issues[idx] = Object.assign({}, pd.issues[idx], updated);
+        pd.issues = this.sortIssuesByPosition(pd.issues);
       },
 
       initSortable(el) {
@@ -848,12 +848,7 @@
                 }
               }
 
-              var toIids = self.iidsFromListEl(toList);
-              await self.saveColumnOrder(projectPath, toListKey, toIids);
-              if (crossColumn && fromListKey) {
-                await self.saveColumnOrder(projectPath, fromListKey, self.iidsFromListEl(fromList));
-              }
-
+              /* Önce GitLab board sırası (relative_position) — git.nokta ile aynı kaynak */
               if (reorderedInColumn || crossColumn) {
                 var params = self.getReorderParamsFromList(toList, issueIid, projectPath);
                 if (params && (params.move_after_id || params.move_before_id)) {
@@ -861,9 +856,17 @@
                   if (reordered) self.applyIssueUpdate(pd, reordered);
                 }
               }
+
+              /* Yerel yedek sıra (görüntüleme artık relative_position kullanır) */
+              var toIids = self.iidsFromListEl(toList);
+              await self.saveColumnOrder(projectPath, toListKey, toIids);
+              if (crossColumn && fromListKey) {
+                await self.saveColumnOrder(projectPath, fromListKey, self.iidsFromListEl(fromList));
+              }
+              self.statusMsg = '';
             } catch (e) {
               console.warn('home board drag failed', e);
-              self.statusMsg = 'Drag-and-drop save failed';
+              self.statusMsg = (e && e.message) ? String(e.message) : 'Drag-and-drop save failed';
               self.fetchProject(projectPath, true);
             }
           },
