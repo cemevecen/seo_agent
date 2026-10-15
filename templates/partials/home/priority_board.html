@@ -153,13 +153,19 @@
       white-space: nowrap;
     }
     .home-gl-board .home-gl-card {
-      padding: clamp(0.45rem, 1.4cqi, 0.75rem);
+      padding: 0.3rem 0.4rem;
       min-width: 0;
       background: #fff;
       border: 1px solid rgb(226 232 240);
-      border-radius: 0.5rem;
+      border-radius: 0.4rem;
       box-shadow: 0 1px 2px rgb(42 42 46 / 0.04);
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .home-gl-board .home-gl-card-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.35rem;
+      min-width: 0;
     }
     .home-gl-board .home-gl-card:hover {
       border-color: #93c5fd;
@@ -179,10 +185,12 @@
     .home-gl-board .home-gl-card-title {
       display: -webkit-box;
       -webkit-box-orient: vertical;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 2;
       overflow: hidden;
-      font-size: clamp(0.7rem, 0.55rem + 1.6cqi, 0.875rem);
-      line-height: 1.35;
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 0.7rem;
+      line-height: 1.25;
       word-break: break-word;
       font-weight: 500;
       color: #0f172a;
@@ -207,26 +215,24 @@
     html.charcoal .home-gl-board .home-gl-card-title.is-closed {
       color: #71717a;
     }
-    .home-gl-board .home-gl-card-meta {
-      font-size: clamp(0.625rem, 0.5rem + 1.1cqi, 0.75rem);
-      color: #64748b;
-    }
-    html.dark .home-gl-board .home-gl-card-meta,
-    html.charcoal .home-gl-board .home-gl-card-meta {
-      color: #71717a;
-    }
-    .home-gl-board .home-gl-card-meta .home-gl-plat {
-      border-radius: 0.25rem;
+    .home-gl-board .home-gl-plat {
+      flex-shrink: 0;
+      margin-top: 0.05rem;
+      border-radius: 0.2rem;
       background: rgb(241 245 249);
-      padding: 0.125rem 0.25rem;
+      padding: 0.05rem 0.28rem;
+      font-size: 0.58rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
       text-transform: uppercase;
-      max-width: 40%;
+      color: #64748b;
+      max-width: 4.5rem;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    html.dark .home-gl-board .home-gl-card-meta .home-gl-plat,
-    html.charcoal .home-gl-board .home-gl-card-meta .home-gl-plat {
+    html.dark .home-gl-board .home-gl-plat,
+    html.charcoal .home-gl-board .home-gl-plat {
       background: #52525b;
       color: #d4d4d8;
     }
@@ -250,9 +256,16 @@
     }
     .home-gl-board .home-gl-drop-toggle--icon {
       justify-content: center;
-      width: 1.55rem;
-      min-width: 1.55rem;
-      padding: 0.15rem;
+      width: 1.25rem;
+      min-width: 1.25rem;
+      height: 1.25rem;
+      padding: 0;
+    }
+    .home-gl-board .home-gl-card-extras {
+      margin-top: 0.25rem;
+    }
+    .home-gl-board .home-gl-card-extras.space-y-1 > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 0.2rem;
     }
     .home-gl-board .home-gl-drop-toggle:hover {
       border-color: #cbd5e1;
@@ -320,21 +333,65 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
-    /* 3 kart görünür; fazlası dikey scroll — altta nefes payı */
+    /* Kompakt: ~9 kart görünür; fazlası scroll. is-expanded → tam liste */
     .home-gl-board .home-gl-sortable {
-      max-height: calc(3 * 5.75rem + 2 * 0.5rem);
-      min-height: 5.75rem;
+      max-height: calc(9 * 2.55rem + 8 * 0.28rem);
+      min-height: 2.55rem;
       overflow-x: hidden;
       overflow-y: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: thin;
       scrollbar-color: rgb(148 163 184 / 0.7) transparent;
-      padding-bottom: 0.35rem;
+      padding-bottom: 0.2rem;
+      gap: 0.28rem;
+    }
+    .home-gl-board .home-gl-sortable.is-expanded {
+      max-height: none;
+      overflow-y: visible;
     }
     .home-gl-board .home-gl-col.is-collapsed .home-gl-sortable {
-      min-height: calc(3 * 5.75rem + 2 * 0.5rem);
+      min-height: calc(9 * 2.55rem + 8 * 0.28rem);
       max-height: none;
+    }
+    .home-gl-board .home-gl-col-expand {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      justify-content: center;
+      margin-top: 0.35rem;
+      padding: 0.2rem 0.35rem;
+      border: 1px solid rgb(226 232 240);
+      border-radius: 0.4rem;
+      background: rgb(248 250 252);
+      color: #64748b;
+      cursor: pointer;
+      transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+    }
+    .home-gl-board .home-gl-col-expand:hover {
+      border-color: #94a3b8;
+      color: #334155;
+      background: #f1f5f9;
+    }
+    html.dark .home-gl-board .home-gl-col-expand,
+    html.charcoal .home-gl-board .home-gl-col-expand {
+      border-color: #52525b;
+      background: #3f3f46;
+      color: #a1a1aa;
+    }
+    html.dark .home-gl-board .home-gl-col-expand:hover,
+    html.charcoal .home-gl-board .home-gl-col-expand:hover {
+      border-color: #71717a;
+      color: #e4e4e7;
+      background: #52525b;
+    }
+    .home-gl-board .home-gl-col-expand-icon {
+      width: 1rem;
+      height: 1rem;
+      transition: transform 0.15s ease;
+    }
+    .home-gl-board .home-gl-col-expand.is-open .home-gl-col-expand-icon {
+      transform: rotate(180deg);
     }
     .home-gl-board .home-gl-sortable::-webkit-scrollbar { width: 6px; }
     .home-gl-board .home-gl-sortable::-webkit-scrollbar-thumb {
@@ -510,8 +567,8 @@
         </div>
         <div x-show="pd().loaded && !pd().error" class="home-gl-lists">
           <template x-for="(lst, index) in pd().lists" :key="lst.id">
-            <div x-data="{ collapsed: issuesFor(lst).length === 0 }"
-                 x-init="$watch('issuesFor(lst).length', val => { collapsed = (val === 0); })"
+            <div x-data="{ collapsed: issuesFor(lst).length === 0, colExpanded: false }"
+                 x-init="$watch('issuesFor(lst).length', val => { collapsed = (val === 0); if (val === 0) colExpanded = false; })"
                  class="home-gl-col shrink-0 border-t-4 shadow-sm ring-1 ring-slate-200 dark:ring-zinc-700"
                  :class="[listColor(index, lst.isClosed), collapsed ? 'is-collapsed' : '']"
                  @click="if (collapsed) collapsed = false">
@@ -540,7 +597,8 @@
                       x-text="issuesFor(lst).length"></span>
               </h4>
 
-              <div class="home-gl-sortable sortable-list flex w-full flex-1 flex-col gap-2 rounded-lg border-2 border-transparent transition-colors"
+              <div class="home-gl-sortable sortable-list flex w-full flex-1 flex-col rounded-lg border-2 border-transparent transition-colors"
+                   :class="colExpanded ? 'is-expanded' : ''"
                    :data-label="lst.label.name"
                    :data-virtual="lst.isVirtual"
                    :data-closed="lst.isClosed"
@@ -552,17 +610,16 @@
                        :class="collapsed ? 'hidden' : 'block'"
                        :data-id="issue.iid"
                        :data-global-id="issue.id">
-                    <a :href="issue.web_url" target="_blank" rel="noopener noreferrer"
-                       class="home-gl-card-title"
-                       :class="issue.state === 'closed' ? 'is-closed' : ''"
-                       :title="issue.title"
-                       x-text="issue.title"></a>
-                    <div class="home-gl-card-meta mt-1.5 flex items-center justify-between gap-1 font-medium">
-                      <span class="tabular-nums" x-text="'#' + issue.iid"></span>
+                    <div class="home-gl-card-row">
+                      <a :href="issue.web_url" target="_blank" rel="noopener noreferrer"
+                         class="home-gl-card-title"
+                         :class="issue.state === 'closed' ? 'is-closed' : ''"
+                         :title="issue.title"
+                         x-text="issue.title"></a>
                       <span class="home-gl-plat" x-text="platformLabel()"></span>
                     </div>
 
-                    <div class="home-gl-card-extras mt-1.5 space-y-1" x-cloak>
+                    <div class="home-gl-card-extras space-y-1" x-cloak>
                       <div x-show="hasDescription(issue)" class="home-gl-drop">
                         <button type="button"
                                 class="home-gl-drop-toggle home-gl-drop-toggle--icon"
@@ -613,6 +670,18 @@
                   </div>
                 </template>
               </div>
+              <button type="button"
+                      class="home-gl-col-expand"
+                      x-show="!collapsed && issuesFor(lst).length > 9"
+                      :class="colExpanded ? 'is-open' : ''"
+                      @click.stop="colExpanded = !colExpanded"
+                      :aria-expanded="colExpanded ? 'true' : 'false'"
+                      :title="colExpanded ? 'Collapse list' : 'Expand full list'"
+                      :aria-label="colExpanded ? 'Collapse list' : 'Expand full list'">
+                <svg class="home-gl-col-expand-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                </svg>
+              </button>
             </div>
           </template>
         </div>
