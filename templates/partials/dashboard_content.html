@@ -399,12 +399,6 @@
     background: rgb(248 250 252);
     overflow: hidden;
   }
-  /* Çift sütun satırında kartın yarısına sıkışmasın — satırın tamamını kapsa */
-  .home-pair-row > .home-drive-preview {
-    grid-column: 1 / -1;
-    width: 100%;
-    min-width: 0;
-  }
   html.dark .home-drive-preview,
   html.charcoal .home-drive-preview {
     border-color: rgb(63 63 70);
@@ -454,8 +448,7 @@
   .home-drive-preview-media {
     position: relative;
     overflow: hidden;
-    min-height: min(18rem, 42vh);
-    max-height: min(40rem, 75vh);
+    max-height: min(28rem, 55vh);
     background: rgb(42 42 46 / 0.04);
     cursor: zoom-in;
   }
@@ -467,8 +460,7 @@
     display: block;
     width: 100%;
     height: auto;
-    min-height: min(16rem, 38vh);
-    max-height: min(40rem, 75vh);
+    max-height: min(28rem, 55vh);
     object-fit: contain;
     margin: 0 auto;
     transition: transform 0.28s ease;
@@ -481,28 +473,22 @@
   .home-drive-preview-media video {
     display: block;
     width: 100%;
-    min-height: min(16rem, 38vh);
-    max-height: min(40rem, 75vh);
+    max-height: min(28rem, 55vh);
     background: #2a2a2e;
   }
   .home-drive-preview-list {
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: 0.4rem;
     padding: 0.65rem 0.75rem 0.8rem;
     border-top: 1px solid rgb(226 232 240);
-  }
-  .home-drive-preview-list.is-single {
-    display: none;
   }
   html.dark .home-drive-preview-list,
   html.charcoal .home-drive-preview-list {
     border-top-color: rgb(63 63 70);
   }
   .home-drive-preview-list-label {
-    flex: 1 0 100%;
-    margin: 0 0 0.1rem;
+    margin: 0 0 0.15rem;
     font-size: 0.62rem;
     font-weight: 700;
     letter-spacing: 0.05em;
@@ -511,15 +497,13 @@
   }
   .home-drive-preview-item {
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    width: auto;
-    max-width: 11rem;
-    gap: 0.35rem;
+    width: 100%;
+    align-items: center;
+    gap: 0.65rem;
     border: 1px solid rgb(226 232 240);
     border-radius: 0.65rem;
     background: #fff;
-    padding: 0.4rem;
+    padding: 0.4rem 0.5rem;
     cursor: pointer;
     text-align: left;
     transition: border-color 0.12s ease, box-shadow 0.12s ease;
@@ -543,8 +527,8 @@
   }
   .home-drive-preview-item-thumb {
     flex-shrink: 0;
-    width: 100%;
-    height: 5.5rem;
+    width: 2.75rem;
+    height: 2.75rem;
     border-radius: 0.4rem;
     overflow: hidden;
     background: #2a2a2e;
@@ -3289,25 +3273,18 @@
 
   function homeDriveMediaHtml(file, title) {
     var safeTitle = String(title || file.name || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-    var fid = String(file.file_id || '').trim();
-    var contentSrc = fid ? ('/api/home/drive/files/' + encodeURIComponent(fid) + '/content') : '';
-    var thumbSrc = String(file.thumb_url || '').trim();
     if ((file.kind || '') === 'video') {
-      var src = contentSrc || thumbSrc;
+      var src = file.thumb_url || ('/api/home/drive/files/' + encodeURIComponent(file.file_id || '') + '/content');
       return (
         '<div class="home-drive-preview-media is-video">' +
           '<video controls playsinline src="' + String(src).replace(/"/g, '') + '"></video>' +
         '</div>'
       );
     }
-    /* Büyük önizleme: tam içerik; thumb yalnızca yedek */
-    var imgSrc = contentSrc || thumbSrc;
-    var fallback = (contentSrc && thumbSrc && thumbSrc !== contentSrc)
-      ? ' onerror="if(this.dataset.fb)return;this.dataset.fb=1;this.src=\'' + thumbSrc.replace(/'/g, "\\'") + '\'"'
-      : '';
+    var imgSrc = file.thumb_url || ('/api/home/drive/files/' + encodeURIComponent(file.file_id || '') + '/content');
     return (
       '<div class="home-drive-preview-media" data-home-drive-zoom>' +
-        '<img src="' + String(imgSrc).replace(/"/g, '') + '" alt="' + safeTitle + '" loading="eager"' + fallback + '>' +
+        '<img src="' + String(imgSrc).replace(/"/g, '') + '" alt="' + safeTitle + '" loading="lazy">' +
       '</div>'
     );
   }
@@ -3372,23 +3349,19 @@
       '<div class="home-drive-preview-head">' +
         '<p class="home-drive-preview-title" data-home-drive-preview-title>' +
           String(info.container_label || key).replace(/</g, '&lt;') +
-          (files.length > 1 ? (' · ' + files.length + ' files') : '') +
-        '</p>' +
+          ' · ' + files.length + ' files — pick one</p>' +
         '<button type="button" class="home-drive-preview-close" data-home-drive-preview-close="' +
           String(key).replace(/"/g, '') + '">&times; close</button>' +
       '</div>' +
-      '<div class="home-drive-preview-stage is-visible" data-home-drive-preview-stage></div>' +
-      '<div class="home-drive-preview-list' + (files.length === 1 ? ' is-single' : '') + '">' +
+      '<div class="home-drive-preview-stage" data-home-drive-preview-stage></div>' +
+      '<div class="home-drive-preview-list">' +
         '<p class="home-drive-preview-list-label">Uploads</p>' +
         listHtml +
       '</div>';
 
-    /* Çift sütun kartın yarısına sıkışmasın — satırın altına tam genişlik */
+    // Grid kardeşi olarak ekleme sol sütuna düşürür — slot içinde kartın altına bağla
     var slot = sec.closest('[data-home-container-slot]');
-    var pair = slot && slot.parentElement;
-    if (pair && pair.classList && pair.classList.contains('home-pair-row')) {
-      pair.appendChild(panel);
-    } else if (slot) {
+    if (slot) {
       sec.insertAdjacentElement('afterend', panel);
     } else {
       sec.appendChild(panel);
@@ -3399,8 +3372,10 @@
       badge.classList.add('is-active');
       badge.setAttribute('aria-expanded', 'true');
     }
-    /* Her zaman büyük önizleme — ilk dosya (veya tek dosya) */
-    selectHomeDrivePreviewFile(panel, info, files[0].file_id);
+    // Tek dosyada direkt göster; birden fazlada önce liste, tıklanınca büyük görüntü
+    if (files.length === 1) {
+      selectHomeDrivePreviewFile(panel, info, files[0].file_id);
+    }
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
