@@ -20,7 +20,13 @@ JOBS: dict[str, dict[str, Any]] = {
     },
     "asc": {"id": "asc", "label": "App Store Connect", "kind": "bridge", "path": "/sync-asc"},
     "firebase": {"id": "firebase", "label": "Firebase Console", "kind": "bridge", "path": "/sync-firebase"},
-    "cwv": {"id": "cwv", "label": "Web Vitals (GSC)", "kind": "bridge", "path": "/sync-gsc-cwv"},
+    "cwv": {
+        "id": "cwv",
+        "label": "Web Vitals (GSC)",
+        "kind": "bridge",
+        # charts → Last crawl + trend; shots yalnız screenshot (tarihi güncellemez)
+        "path": "/sync-gsc-cwv?mode=charts",
+    },
     "notification": {"id": "notification", "label": "Notification", "kind": "bridge", "path": "/sync"},
     "news": {"id": "news", "label": "News", "kind": "bridge", "path": "/sync-news?days=7"},
     "virgul": {"id": "virgul", "label": "Virgül", "kind": "bridge", "path": "/sync-virgul"},

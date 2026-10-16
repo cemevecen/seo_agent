@@ -2714,17 +2714,20 @@ def _set_gsc_cwv_progress(**kwargs: Any) -> None:
 
 
 def _gsc_cwv_mode(explicit: str | None = None) -> str:
-    """shots (varsayılan, manuel+otomatik) | full | charts.
+    """charts (varsayılan, manuel+otomatik) | shots | full.
 
-    charts_only bayrağı artık shots'u ezmez. Eski derin scrape yalnız
-    mode=full / GSC_CWV_MODE=full (veya bilinçli mode=charts) ile.
+    Home / Web Vitals «Last crawl» + trend grafikleri yalnızca chart scrape
+    ingest ile güncellenir. Screenshot yolu (mode=shots) KPI/tarihi ezmez.
+    Eski derin scrape: mode=full / GSC_CWV_MODE=full.
     """
-    raw = (explicit or os.environ.get("GSC_CWV_MODE") or "shots").strip().lower()
+    raw = (explicit or os.environ.get("GSC_CWV_MODE") or "charts").strip().lower()
     if raw in ("full", "scrape", "deep", "amp"):
         return "full"
+    if raw in ("shots", "shot", "screenshot", "screenshots"):
+        return "shots"
     if raw in ("charts", "charts_only", "chart"):
         return "charts"
-    return "shots"
+    return "charts"
 
 
 def run_gsc_cwv_bridge_once(
@@ -2735,8 +2738,9 @@ def run_gsc_cwv_bridge_once(
 ) -> dict[str, Any]:
     """GSC Core Web Vitals → Railway.
 
-    Varsayılan (manuel Scan, Update page, zamanlanmış slot): screenshot yöntemi.
-    Tam scrape (AMP + issue + nokta): GSC_CWV_MODE=full veya mode=full.
+    Varsayılan (manuel Scan, Update page, zamanlanmış slot): charts scrape
+    (Last crawl + trend grafikleri). Screenshot: mode=shots.
+    Tam scrape (AMP + issue): GSC_CWV_MODE=full veya mode=full.
     Bridge sürecinde çalışır — fx-google KEEP_OPEN warm (Play/Firebase ile paylaşılır).
     """
     resolved = _gsc_cwv_mode(mode)
@@ -4491,8 +4495,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             return
         elif path in ("/sync-gsc-cwv", "/gsc-cwv", "/sync-web-vitals", "/web-vitals"):
             site_key = (qs.get("site") or [""])[0].strip().lower() or None
-            # Manuel + otomatik varsayılan: screenshot. full yalnız açık mode=full.
-            mode = (qs.get("mode") or [""])[0].strip().lower() or "shots"
+            # Varsayılan: charts (Last crawl + trend). shots / full açık mode ile.
+            mode = (qs.get("mode") or [""])[0].strip().lower() or "charts"
             length = int(self.headers.get("Content-Length") or 0)
             raw_body = self.rfile.read(length) if length > 0 else b""
             if raw_body:
@@ -4515,8 +4519,20 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                             site_key = "sinemalar"
                 except Exception:
                     pass
-            if mode not in ("full", "scrape", "deep", "amp", "charts", "charts_only", "chart"):
-                mode = "shots"
+            if mode not in (
+                "full",
+                "scrape",
+                "deep",
+                "amp",
+                "charts",
+                "charts_only",
+                "chart",
+                "shots",
+                "shot",
+                "screenshot",
+                "screenshots",
+            ):
+                mode = "charts"
             if not _gsc_cwv_lock.acquire(blocking=False):
                 self._send(
                     409,
@@ -4533,7 +4549,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 running=True,
                 phase="starting",
                 site=site_key or "all",
-                message="GSC CWV screenshot kuyruğa alındı",
+                message=f"GSC CWV ({mode}) kuyruğa alındı",
                 started_at=time.time(),
                 finished_at=0.0,
                 trigger="manual",
