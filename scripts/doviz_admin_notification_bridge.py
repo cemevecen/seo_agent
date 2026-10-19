@@ -4495,16 +4495,69 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
-            def _creative_runner() -> dict[str, Any]:
-                return run_empower_creative_bridge_once(
-                    action=action, keyword=keyword, ids=list(ids)
+            if not _empower_intel_lock.acquire(blocking=False):
+                self._send(
+                    409,
+                    {
+                        "ok": False,
+                        "running": True,
+                        "message": "Empower Creatives zaten çalışıyor, bekleyin.",
+                    },
                 )
-
-            lock, busy, runner = (
-                _empower_intel_lock,
-                "Empower Creatives zaten çalışıyor, bekleyin.",
-                _creative_runner,
+                return
+            _set_job_progress(
+                "empower_creative",
+                running=True,
+                phase="starting",
+                trigger="manual",
+                message=f"Elle · Empower Creatives ({action or 'pending'}) başladı",
             )
+            _job_event(
+                f"Elle tetik · empower_creative · mode={action or 'pending'} "
+                f"keyword={keyword or '-'} ids={len(ids)}"
+            )
+
+            def _bg_creative(
+                *,
+                _action: str | None = action,
+                _keyword: str = keyword,
+                _ids: list[str] = list(ids),
+            ) -> None:
+                try:
+                    out = run_empower_creative_bridge_once(
+                        action=_action, keyword=_keyword, ids=_ids
+                    )
+                    _finish_job_progress(
+                        "empower_creative",
+                        out if isinstance(out, dict) else {"ok": False},
+                        trigger="manual",
+                        name="Empower Creatives",
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    traceback.print_exc()
+                    _finish_job_progress(
+                        "empower_creative",
+                        {"ok": False, "message": str(exc)[:400]},
+                        trigger="manual",
+                        name="Empower Creatives",
+                    )
+                finally:
+                    _empower_intel_lock.release()
+
+            threading.Thread(target=_bg_creative, name="empower-creative", daemon=True).start()
+            self._send(
+                200,
+                {
+                    "ok": True,
+                    "started": True,
+                    "kind": "empower_creative",
+                    "action": action or "pending",
+                    "keyword": keyword,
+                    "ids": ids,
+                    "message": "Empower Creatives arka planda başladı",
+                },
+            )
+            return
         elif path in ("/sync-market", "/market", "/sync-piyasa", "/piyasa"):
             lock, busy, runner = (
                 _market_lock,
