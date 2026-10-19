@@ -543,26 +543,45 @@ def _apply_default_filters(driver: Any) -> dict[str, Any]:
     return result
 
 
-def _goto_next_page(driver: Any) -> bool:
+def _goto_next_page(driver: Any, *, current_page: int = 1) -> bool:
+    """Sonraki sayfa — Next / › / sayfa numarası (current+1)."""
+    nxt = int(current_page) + 1
     try:
         moved = driver.execute_script(
             """
-            var cands = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+            var want = String(arguments[0] || '');
+            var cands = Array.from(document.querySelectorAll('button, a, [role="button"], [role="link"]'));
+            // 1) Next / ok
             for (var i = 0; i < cands.length; i++) {
               var el = cands[i];
               var t = (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim().toLowerCase();
-              var dis = el.disabled || el.getAttribute('aria-disabled') === 'true' || /disabled|opacity-50/.test(el.className||'');
+              var dis = el.disabled || el.getAttribute('aria-disabled') === 'true';
               if (dis) continue;
-              if (t === 'next' || t === '>' || t === '›' || t.indexOf('next page') >= 0) {
-                el.click();
-                return true;
+              if (t === 'next' || t === '>' || t === '›' || t.indexOf('next page') >= 0 || t === 'sonraki') {
+                el.click(); return 'next:' + t;
               }
             }
-            return false;
-            """
+            // 2) Sayfa numarası
+            for (var j = 0; j < cands.length; j++) {
+              var el2 = cands[j];
+              var t2 = (el2.innerText || el2.textContent || '').replace(/\\s+/g, ' ').trim();
+              if (t2 === want) {
+                var aria = (el2.getAttribute('aria-current') || '').toLowerCase();
+                if (aria === 'page' || /selected|active|current/i.test(el2.className || '')) continue;
+                el2.click(); return 'page:' + want;
+              }
+            }
+            return '';
+            """,
+            str(nxt),
         )
-        return bool(moved)
-    except Exception:
+        if moved:
+            print(f"  · sayfa geçiş · {moved}", flush=True)
+            time.sleep(2.0)
+            return True
+        return False
+    except Exception as exc:
+        print(f"  · sayfa geçiş hata: {exc}", flush=True)
         return False
 
 
@@ -743,7 +762,7 @@ def run_scan(
             _enrich_cards_with_ocr(driver, new_cards)
             if page_i + 1 >= max_pages:
                 break
-            if not _goto_next_page(driver):
+            if not _goto_next_page(driver, current_page=pages):
                 break
             time.sleep(1.5)
         matches = [c for c in all_cards.values() if card_matches(c, terms)]
@@ -766,6 +785,7 @@ def run_scan(
         if ingest:
             ing = _post_json(SCAN_INGEST_URL, out)
             out["ingest"] = ing
+            print(f"  · ingest · ok={ing.get('ok')} · {str(ing.get('message') or '')[:160]}", flush=True)
             if not ing.get("ok"):
                 out["ok"] = False
                 out["message"] = f"{out['message']} · ingest hata: {ing.get('message')}"
