@@ -143,18 +143,39 @@ def match_terms(keyword: str) -> list[str]:
     return sorted(t for t in terms if t)
 
 
+def _normalize_ocr_hay(s: str) -> str:
+    """OCR gürültüsünü azalt — boşluk/noktalama sıkıştır."""
+    t = (s or "").lower()
+    t = t.replace("|", " ")
+    t = re.sub(r"[^a-z0-9çğıöşüâîû\s]", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    # bitişik arama için boşluksuz kopya da eklenir
+    return t + " " + re.sub(r"\s+", "", t)
+
+
 def card_matches(card: dict[str, Any], terms: list[str]) -> bool:
-    hay = " ".join(
-        [
-            str(card.get("ocr_text") or ""),
-            str(card.get("alt") or ""),
-            str(card.get("img_src") or ""),
-            str(card.get("text") or ""),
-            str(card.get("ad_type") or ""),
-        ]
-    ).lower()
+    hay = _normalize_ocr_hay(
+        " ".join(
+            [
+                str(card.get("ocr_text") or ""),
+                str(card.get("alt") or ""),
+                str(card.get("img_src") or ""),
+                str(card.get("text") or ""),
+                str(card.get("ad_type") or ""),
+            ]
+        )
+    )
     # ID'yi haystack'e koyma — rastgele hex keyword false-positive üretebilir
-    return any(t in hay for t in terms)
+    for t in terms:
+        tt = (t or "").lower().strip()
+        if not tt:
+            continue
+        if tt in hay:
+            return True
+        # kısa markalar: boşluksuz / harfler arası boşluklu OCR (s u g o)
+        if len(tt) >= 3 and " ".join(tt) in hay:
+            return True
+    return False
 
 
 EXTRACT_CARDS_JS = r"""
@@ -221,12 +242,13 @@ return (function () {
 
 
 def _ocr_image_bytes(data: bytes) -> str:
+    """Banner OCR — birkaç ön işleme + PSM; logo yazıları için agresif büyütme."""
     if not data or len(data) < 80:
         return ""
     try:
         from io import BytesIO
 
-        from PIL import Image, ImageOps
+        from PIL import Image, ImageEnhance, ImageFilter, ImageOps
         import pytesseract
     except Exception:
         return ""
@@ -235,14 +257,44 @@ def _ocr_image_bytes(data: bytes) -> str:
         img = ImageOps.exif_transpose(img)
         if img.mode not in ("RGB", "L"):
             img = img.convert("RGB")
-        # Banner metinleri için büyüt + gri
         w, h = img.size
-        if w < 400:
-            scale = max(2, int(400 / max(w, 1)))
-            img = img.resize((w * scale, h * scale))
-        gray = ImageOps.grayscale(img)
-        text = pytesseract.image_to_string(gray, lang="eng+tur") or ""
-        return re.sub(r"\s+", " ", text).strip()[:1200]
+        # Küçük 264×170 önizlemeyi büyüt (logo/marka için kritik)
+        target_w = 900
+        if w < target_w:
+            scale = max(3, int(target_w / max(w, 1)))
+            img = img.resize((w * scale, h * scale), Image.Resampling.LANCZOS)
+        gray = ImageOps.autocontrast(ImageOps.grayscale(img))
+        try:
+            gray = gray.filter(ImageFilter.SHARPEN)
+        except Exception:
+            pass
+        chunks: list[str] = []
+
+        def _run(im: Any, cfg: str) -> str:
+            try:
+                return pytesseract.image_to_string(im, lang="eng+tur", config=cfg) or ""
+            except Exception:
+                try:
+                    return pytesseract.image_to_string(im, lang="eng", config=cfg) or ""
+                except Exception:
+                    return ""
+
+        for cfg in ("--psm 6", "--psm 11"):
+            t = re.sub(r"\s+", " ", _run(gray, cfg)).strip()
+            if t and t.lower() not in {c.lower() for c in chunks}:
+                chunks.append(t)
+        # Kısa / zayıf sonuçta kontrast + invert dene (koyu logo / açık zemin)
+        joined = " ".join(chunks)
+        if len(joined) < 12:
+            try:
+                inv = ImageOps.invert(gray)
+                inv = ImageEnhance.Contrast(inv).enhance(1.8)
+                t2 = re.sub(r"\s+", " ", _run(inv, "--psm 7")).strip()
+                if t2 and t2.lower() not in {c.lower() for c in chunks}:
+                    chunks.append(t2)
+            except Exception:
+                pass
+        return " | ".join(chunks)[:1600]
     except Exception as exc:
         print(f"  · OCR hata: {exc}", flush=True)
         return ""
@@ -544,41 +596,100 @@ def _apply_default_filters(driver: Any) -> dict[str, Any]:
 
 
 def _goto_next_page(driver: Any, *, current_page: int = 1) -> bool:
-    """Sonraki sayfa — Next / › / sayfa numarası (current+1)."""
+    """Sonraki sayfa — Next / › / chevron / sayfa numarası (current+1)."""
     nxt = int(current_page) + 1
     try:
+        # Pagination genelde altta — önce kaydır
+        try:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(0.4)
+        except Exception:
+            pass
         moved = driver.execute_script(
             """
             var want = String(arguments[0] || '');
-            var cands = Array.from(document.querySelectorAll('button, a, [role="button"], [role="link"]'));
-            // 1) Next / ok
+            function visible(el) {
+              if (!el) return false;
+              var r = el.getBoundingClientRect();
+              return r.width > 0 && r.height > 0;
+            }
+            function disabled(el) {
+              return !!(el.disabled || el.getAttribute('aria-disabled') === 'true'
+                || /disabled|Mui-disabled|opacity-50/i.test(el.className || ''));
+            }
+            var cands = Array.from(document.querySelectorAll(
+              'button, a, [role="button"], [role="link"], [aria-label], li'
+            ));
+            // 1) aria-label / title next
             for (var i = 0; i < cands.length; i++) {
               var el = cands[i];
-              var t = (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim().toLowerCase();
-              var dis = el.disabled || el.getAttribute('aria-disabled') === 'true';
-              if (dis) continue;
-              if (t === 'next' || t === '>' || t === '›' || t.indexOf('next page') >= 0 || t === 'sonraki') {
-                el.click(); return 'next:' + t;
+              if (!visible(el) || disabled(el)) continue;
+              var al = (
+                (el.getAttribute('aria-label') || '') + ' ' +
+                (el.getAttribute('title') || '') + ' ' +
+                (el.getAttribute('data-testid') || '')
+              ).toLowerCase();
+              if (/next|sonraki|go to next|chevron.?right|keyboard.?arrow.?right/.test(al)) {
+                el.click(); return 'aria:' + al.slice(0, 60);
               }
             }
-            // 2) Sayfa numarası
+            // 2) Metin Next / ›
             for (var j = 0; j < cands.length; j++) {
               var el2 = cands[j];
-              var t2 = (el2.innerText || el2.textContent || '').replace(/\\s+/g, ' ').trim();
-              if (t2 === want) {
-                var aria = (el2.getAttribute('aria-current') || '').toLowerCase();
-                if (aria === 'page' || /selected|active|current/i.test(el2.className || '')) continue;
-                el2.click(); return 'page:' + want;
+              if (!visible(el2) || disabled(el2)) continue;
+              var t = (el2.innerText || el2.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+              if (t === 'next' || t === '>' || t === '›' || t === '»' || t === '→'
+                  || t.indexOf('next page') >= 0 || t === 'sonraki') {
+                el2.click(); return 'next:' + t;
               }
             }
-            return '';
+            // 3) Sayfa numarası
+            for (var k = 0; k < cands.length; k++) {
+              var el3 = cands[k];
+              if (!visible(el3) || disabled(el3)) continue;
+              var t3 = (el3.innerText || el3.textContent || '').replace(/\\s+/g, ' ').trim();
+              if (t3 === want) {
+                var aria = (el3.getAttribute('aria-current') || '').toLowerCase();
+                if (aria === 'page' || /selected|active|current|Mui-selected/i.test(el3.className || '')) continue;
+                el3.click(); return 'page:' + want;
+              }
+            }
+            // 4) MUI Pagination / svg chevron (sağ ok)
+            var svgs = Array.from(document.querySelectorAll(
+              'button svg, [role="button"] svg, a svg'
+            ));
+            for (var s = 0; s < svgs.length; s++) {
+              var btn = svgs[s].closest('button, a, [role="button"]');
+              if (!btn || !visible(btn) || disabled(btn)) continue;
+              var path = (svgs[s].innerHTML || '') + (btn.getAttribute('aria-label') || '');
+              var cls = (svgs[s].getAttribute('data-testid') || '') + ' ' + (btn.className || '');
+              if (/NavigateNext|ChevronRight|KeyboardArrowRight|arrow.?right/i.test(path + cls)) {
+                btn.click(); return 'svg-next';
+              }
+            }
+            // Teşhis: sayfalama benzeri kısa metinler
+            var hints = [];
+            for (var h = 0; h < cands.length && hints.length < 12; h++) {
+              var eh = cands[h];
+              if (!visible(eh)) continue;
+              var th = (eh.innerText || eh.textContent || eh.getAttribute('aria-label') || '')
+                .replace(/\\s+/g, ' ').trim();
+              if (/^\\d+$/.test(th) || /page|next|prev|sonraki|önceki/i.test(th)) {
+                hints.push(th.slice(0, 24));
+              }
+            }
+            return hints.length ? ('__none__:' + hints.join('|')) : '';
             """,
             str(nxt),
         )
-        if moved:
+        if moved and not str(moved).startswith("__none__"):
             print(f"  · sayfa geçiş · {moved}", flush=True)
             time.sleep(2.0)
             return True
+        if moved:
+            print(f"  · sayfa geçiş yok · adaylar={str(moved)[9:120]}", flush=True)
+        else:
+            print("  · sayfa geçiş yok · (pagination bulunamadı)", flush=True)
         return False
     except Exception as exc:
         print(f"  · sayfa geçiş hata: {exc}", flush=True)
