@@ -27,9 +27,11 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -596,100 +598,85 @@ def _apply_default_filters(driver: Any) -> dict[str, Any]:
 
 
 def _goto_next_page(driver: Any, *, current_page: int = 1) -> bool:
-    """Sonraki sayfa — Next / › / chevron / sayfa numarası (current+1)."""
+    """Sonraki sayfa — Empower Material icon: chevron_right (1-200 / N creatives)."""
     nxt = int(current_page) + 1
     try:
-        # Pagination genelde altta — önce kaydır
-        try:
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(0.4)
-        except Exception:
-            pass
         moved = driver.execute_script(
             """
             var want = String(arguments[0] || '');
-            function visible(el) {
-              if (!el) return false;
-              var r = el.getBoundingClientRect();
-              return r.width > 0 && r.height > 0;
-            }
             function disabled(el) {
               return !!(el.disabled || el.getAttribute('aria-disabled') === 'true'
                 || /disabled|Mui-disabled|opacity-50/i.test(el.className || ''));
             }
-            var cands = Array.from(document.querySelectorAll(
-              'button, a, [role="button"], [role="link"], [aria-label], li'
-            ));
-            // 1) aria-label / title next
-            for (var i = 0; i < cands.length; i++) {
-              var el = cands[i];
-              if (!visible(el) || disabled(el)) continue;
-              var al = (
-                (el.getAttribute('aria-label') || '') + ' ' +
-                (el.getAttribute('title') || '') + ' ' +
-                (el.getAttribute('data-testid') || '')
-              ).toLowerCase();
-              if (/next|sonraki|go to next|chevron.?right|keyboard.?arrow.?right/.test(al)) {
-                el.click(); return 'aria:' + al.slice(0, 60);
+            // İç scroll (grid) — pagination alta gömülü
+            var scrolls = Array.from(document.querySelectorAll('*')).filter(function (el) {
+              var st = window.getComputedStyle(el);
+              return /(auto|scroll)/.test(st.overflowY) && el.scrollHeight > el.clientHeight + 80;
+            });
+            for (var s = 0; s < scrolls.length; s++) {
+              try { scrolls[s].scrollTop = scrolls[s].scrollHeight; } catch (e) {}
+            }
+            try { window.scrollTo(0, document.body.scrollHeight); } catch (e2) {}
+
+            var rangeBefore = '';
+            var m0 = (document.body.innerText || '').match(/(\\d[\\d,]*)\\s*-\\s*(\\d[\\d,]*)\\s*\\/\\s*([\\d,]+)\\s*creatives/i);
+            if (m0) rangeBefore = m0[0];
+
+            var btns = Array.from(document.querySelectorAll('button, a, [role="button"], span'));
+            // 1) Material Icons ligature: chevron_right (asıl Empower kontrolleri)
+            for (var i = 0; i < btns.length; i++) {
+              var el = btns[i];
+              var t = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+              if (t !== 'chevron_right' && t !== 'navigate_next' && t !== 'keyboard_arrow_right') continue;
+              var clickEl = el.tagName === 'BUTTON' || el.getAttribute('role') === 'button'
+                ? el : (el.closest('button, a, [role="button"]') || el);
+              if (disabled(clickEl)) continue;
+              try { clickEl.scrollIntoView({block: 'center'}); } catch (e3) {}
+              clickEl.click();
+              return 'icon:' + t + (rangeBefore ? (' @' + rangeBefore) : '');
+            }
+            // 2) aria / klasik Next
+            for (var j = 0; j < btns.length; j++) {
+              var el2 = btns[j];
+              if (disabled(el2)) continue;
+              var al = ((el2.getAttribute('aria-label') || '') + ' ' + (el2.getAttribute('title') || '')).toLowerCase();
+              var t2 = (el2.innerText || el2.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+              if (/next|sonraki|go to next/.test(al) || t2 === 'next' || t2 === '>' || t2 === '›') {
+                el2.click(); return 'next:' + (al || t2).slice(0, 40);
               }
             }
-            // 2) Metin Next / ›
-            for (var j = 0; j < cands.length; j++) {
-              var el2 = cands[j];
-              if (!visible(el2) || disabled(el2)) continue;
-              var t = (el2.innerText || el2.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-              if (t === 'next' || t === '>' || t === '›' || t === '»' || t === '→'
-                  || t.indexOf('next page') >= 0 || t === 'sonraki') {
-                el2.click(); return 'next:' + t;
-              }
-            }
-            // 3) Sayfa numarası
-            for (var k = 0; k < cands.length; k++) {
-              var el3 = cands[k];
-              if (!visible(el3) || disabled(el3)) continue;
+            // 3) sayfa numarası
+            for (var k = 0; k < btns.length; k++) {
+              var el3 = btns[k];
+              if (disabled(el3)) continue;
               var t3 = (el3.innerText || el3.textContent || '').replace(/\\s+/g, ' ').trim();
-              if (t3 === want) {
-                var aria = (el3.getAttribute('aria-current') || '').toLowerCase();
-                if (aria === 'page' || /selected|active|current|Mui-selected/i.test(el3.className || '')) continue;
-                el3.click(); return 'page:' + want;
-              }
+              if (t3 === want) { el3.click(); return 'page:' + want; }
             }
-            // 4) MUI Pagination / svg chevron (sağ ok)
-            var svgs = Array.from(document.querySelectorAll(
-              'button svg, [role="button"] svg, a svg'
-            ));
-            for (var s = 0; s < svgs.length; s++) {
-              var btn = svgs[s].closest('button, a, [role="button"]');
-              if (!btn || !visible(btn) || disabled(btn)) continue;
-              var path = (svgs[s].innerHTML || '') + (btn.getAttribute('aria-label') || '');
-              var cls = (svgs[s].getAttribute('data-testid') || '') + ' ' + (btn.className || '');
-              if (/NavigateNext|ChevronRight|KeyboardArrowRight|arrow.?right/i.test(path + cls)) {
-                btn.click(); return 'svg-next';
-              }
-            }
-            // Teşhis: sayfalama benzeri kısa metinler
-            var hints = [];
-            for (var h = 0; h < cands.length && hints.length < 12; h++) {
-              var eh = cands[h];
-              if (!visible(eh)) continue;
-              var th = (eh.innerText || eh.textContent || eh.getAttribute('aria-label') || '')
-                .replace(/\\s+/g, ' ').trim();
-              if (/^\\d+$/.test(th) || /page|next|prev|sonraki|önceki/i.test(th)) {
-                hints.push(th.slice(0, 24));
-              }
-            }
-            return hints.length ? ('__none__:' + hints.join('|')) : '';
+            var hint = rangeBefore || ((document.body.innerText || '').match(/[\\d,]+\\s*\\/\\s*[\\d,]+\\s*creatives/i) || [''])[0];
+            return hint ? ('__none__:' + hint) : '';
             """,
             str(nxt),
         )
         if moved and not str(moved).startswith("__none__"):
             print(f"  · sayfa geçiş · {moved}", flush=True)
-            time.sleep(2.0)
+            time.sleep(2.2)
+            # Aralık değişti mi?
+            try:
+                after = driver.execute_script(
+                    r"""
+                    var m = (document.body.innerText || '').match(/(\d[\d,]*)\s*-\s*(\d[\d,]*)\s*\/\s*([\d,]+)\s*creatives/i);
+                    return m ? m[0] : '';
+                    """
+                )
+                if after:
+                    print(f"  · sayfa aralık · {after}", flush=True)
+            except Exception:
+                pass
             return True
         if moved:
-            print(f"  · sayfa geçiş yok · adaylar={str(moved)[9:120]}", flush=True)
+            print(f"  · sayfa geçiş yok · {str(moved)[9:120]}", flush=True)
         else:
-            print("  · sayfa geçiş yok · (pagination bulunamadı)", flush=True)
+            print("  · sayfa geçiş yok · (chevron_right yok)", flush=True)
         return False
     except Exception as exc:
         print(f"  · sayfa geçiş hata: {exc}", flush=True)
@@ -740,6 +727,186 @@ def _enrich_cards_with_ocr(driver: Any, cards: list[dict[str, Any]]) -> None:
                 f"{(ocr[:60] + '…') if len(ocr) > 60 else (ocr or '(boş)')}",
                 flush=True,
             )
+
+
+def _parse_mdy_token(token: str, *, year_hint: int | None = None) -> str | None:
+    """'Sep 20' veya 'Oct 19, 2026' → YYYY-MM-DD."""
+    t = (token or "").strip()
+    if not t:
+        return None
+    months = {
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+        "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+    }
+    m = re.match(
+        r"(?i)^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:,\s*(\d{4}))?$",
+        t,
+    )
+    if not m:
+        return None
+    month = months[m.group(1).lower()[:3]]
+    day = int(m.group(2))
+    year = int(m.group(3)) if m.group(3) else int(year_hint or date.today().year)
+    try:
+        return date(year, month, day).isoformat()
+    except ValueError:
+        return None
+
+
+def _creative_date_range(driver: Any) -> tuple[str, str]:
+    """Sayfadaki tarih aralığı veya API URL / son 30 gün."""
+    try:
+        from_url = driver.execute_script(
+            """
+            var entries = performance.getEntriesByType('resource').map(function (e) { return e.name; });
+            for (var i = entries.length - 1; i >= 0; i--) {
+              var u = entries[i] || '';
+              if (u.indexOf('/v1/me/creatives') < 0) continue;
+              var sm = u.match(/[?&]start=(\\d{4}-\\d{2}-\\d{2})/);
+              var em = u.match(/[?&]end=(\\d{4}-\\d{2}-\\d{2})/);
+              if (sm && em) return [sm[1], em[1]];
+            }
+            return null;
+            """
+        )
+        if isinstance(from_url, list) and len(from_url) == 2 and from_url[0] and from_url[1]:
+            return str(from_url[0]), str(from_url[1])
+    except Exception:
+        pass
+    try:
+        raw = driver.execute_script(
+            r"""
+            var body = document.body.innerText || '';
+            var m = body.match(/([A-Z][a-z]{2}\s+\d{1,2})\s*[-–]\s*([A-Z][a-z]{2}\s+\d{1,2},\s*\d{4})/);
+            return m ? [m[1], m[2]] : null;
+            """
+        )
+        if isinstance(raw, list) and len(raw) == 2:
+            end_s = _parse_mdy_token(str(raw[1]))
+            year = int(end_s[:4]) if end_s else date.today().year
+            start_s = _parse_mdy_token(str(raw[0]), year_hint=year)
+            if start_s and end_s:
+                return start_s, end_s
+    except Exception:
+        pass
+    end = date.today()
+    start = end - timedelta(days=29)
+    return start.isoformat(), end.isoformat()
+
+
+def _api_fetch_creatives(
+    driver: Any,
+    *,
+    start: str,
+    end: str,
+    offset: int,
+    limit: int = 200,
+) -> dict[str, Any]:
+    """Bearer token ile /v1/me/creatives — oturum Firefox localStorage'dan."""
+    raw = driver.execute_async_script(
+        """
+        const done = arguments[arguments.length - 1];
+        const start = arguments[0];
+        const end = arguments[1];
+        const offset = arguments[2];
+        const limit = arguments[3];
+        const token = localStorage.getItem('accessToken') || '';
+        if (!token) { done({ok:false, message:'accessToken yok'}); return; }
+        const qs = new URLSearchParams({
+          product: 'all', start: start, end: end, status: 'open',
+          view: 'all', adType: '', offset: String(offset), limit: String(limit)
+        });
+        const url = '/v1/me/creatives?' + qs.toString();
+        fetch(url, {
+          headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }
+        })
+          .then(function (r) {
+            return r.text().then(function (t) {
+              done({ ok: r.status >= 200 && r.status < 300, status: r.status, body: t });
+            });
+          })
+          .catch(function (e) { done({ ok: false, message: String(e) }); });
+        """,
+        start,
+        end,
+        int(offset),
+        int(limit),
+    )
+    if not isinstance(raw, dict):
+        return {"ok": False, "message": "api yanıt yok", "list": [], "count": 0}
+    if not raw.get("ok"):
+        return {
+            "ok": False,
+            "message": str(raw.get("message") or f"HTTP {raw.get('status')}"),
+            "list": [],
+            "count": 0,
+        }
+    try:
+        data = json.loads(raw.get("body") or "{}")
+    except Exception as exc:
+        return {"ok": False, "message": f"json: {exc}", "list": [], "count": 0}
+    items = data.get("list") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        items = []
+    return {
+        "ok": True,
+        "list": items,
+        "count": int(data.get("count") or 0) if isinstance(data, dict) else 0,
+        "total": int(data.get("total") or 0) if isinstance(data, dict) else 0,
+        "offset": int(data.get("offset") or offset) if isinstance(data, dict) else offset,
+        "limit": int(data.get("limit") or limit) if isinstance(data, dict) else limit,
+    }
+
+
+def _card_from_api_item(item: dict[str, Any]) -> dict[str, Any]:
+    apps = item.get("apps") if isinstance(item.get("apps"), list) else []
+    app_names = ", ".join(
+        str(a.get("name") or "") for a in apps if isinstance(a, dict) and a.get("name")
+    )
+    return {
+        "id": str(item.get("id") or "").strip().lower(),
+        "cid": str(item.get("cid") or "")[:64],
+        "ad_type": str(item.get("adType") or "")[:32],
+        "impressions": str(item.get("view") or item.get("allTimeView") or "")[:32],
+        "apps": app_names[:120],
+        "text": app_names[:800],
+        "alt": "",
+        "img_src": str(item.get("file") or "")[:800],
+        "box_w": 0,
+        "box_h": 0,
+        "ocr_text": "",
+    }
+
+
+def _ocr_url_worker(url: str) -> str:
+    return _ocr_image_bytes(_fetch_bytes(url))
+
+
+def _enrich_api_cards_parallel(cards: list[dict[str, Any]], *, workers: int = 10) -> None:
+    if not cards:
+        return
+    workers = max(2, min(16, int(workers)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futs = {
+            pool.submit(_ocr_url_worker, str(c.get("img_src") or "")): i
+            for i, c in enumerate(cards)
+            if c.get("img_src")
+        }
+        done = 0
+        total = len(futs)
+        for fut in as_completed(futs):
+            idx = futs[fut]
+            done += 1
+            try:
+                cards[idx]["ocr_text"] = fut.result() or ""
+            except Exception:
+                cards[idx]["ocr_text"] = ""
+            if done % 10 == 0 or done == total or done == 1:
+                snip = (cards[idx].get("ocr_text") or "")[:56] or "(boş)"
+                print(
+                    f"  · OCR {done}/{total} · id={(cards[idx].get('id') or '')[:12]}… · {snip}",
+                    flush=True,
+                )
 
 
 def _block_ids_on_page(driver: Any, ids: set[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -848,48 +1015,122 @@ def run_scan(
     keyword: str,
     ingest: bool = True,
     headed: bool = True,
-    max_pages: int = 25,
+    max_pages: int | None = None,
 ) -> dict[str, Any]:
     terms = match_terms(keyword)
     if not terms:
         return {"ok": False, "message": "keyword boş", "matches": [], "scanned": 0}
-    print(f"Creative Review tarama · keyword={keyword!r} terms={terms}", flush=True)
+    # ~167k open creative — API + paralel OCR; varsayılan 40 sayfa (8000 kart)
+    if max_pages is None:
+        try:
+            max_pages = int(os.environ.get("EMPOWER_CREATIVE_MAX_PAGES") or "40")
+        except ValueError:
+            max_pages = 40
+    max_pages = max(1, min(500, int(max_pages)))
+    page_limit = 200
+    print(
+        f"Creative Review tarama · keyword={keyword!r} terms={terms} · "
+        f"max_pages={max_pages} · mode=api+ocr",
+        flush=True,
+    )
     driver = None
     try:
         driver = open_session(headed=headed)
+        start, end = _creative_date_range(driver)
+        print(f"  · tarih · {start} → {end}", flush=True)
         all_cards: dict[str, dict[str, Any]] = {}
+        matches: list[dict[str, Any]] = []
         pages = 0
-        for page_i in range(max(1, max_pages)):
+        open_total = 0
+        api_ok = True
+        for page_i in range(max_pages):
             pages = page_i + 1
-            time.sleep(1.2)
-            batch = _extract_cards(driver)
-            print(f"  · sayfa {pages}: {len(batch)} kart (200/page)", flush=True)
-            new_cards = []
+            offset = page_i * page_limit
+            api = _api_fetch_creatives(
+                driver, start=start, end=end, offset=offset, limit=page_limit
+            )
+            if not api.get("ok"):
+                api_ok = False
+                print(f"  · API hata · {api.get('message')} — DOM fallback", flush=True)
+                break
+            items = [x for x in (api.get("list") or []) if isinstance(x, dict)]
+            open_total = int(api.get("count") or open_total or 0)
+            print(
+                f"  · API sayfa {pages}: {len(items)} kart · offset={offset} · "
+                f"open≈{open_total}",
+                flush=True,
+            )
+            if not items:
+                break
+            batch = [_card_from_api_item(it) for it in items]
+            batch = [c for c in batch if c.get("id") and c["id"] not in all_cards]
+            _enrich_api_cards_parallel(batch, workers=10)
             for c in batch:
-                if c["id"] not in all_cards:
-                    all_cards[c["id"]] = c
-                    new_cards.append(c)
-            # Önce yalnızca yeni kartlarda OCR — 170px banner görselleri
-            _enrich_cards_with_ocr(driver, new_cards)
-            if page_i + 1 >= max_pages:
+                all_cards[c["id"]] = c
+                if card_matches(c, terms):
+                    matches.append(c)
+            matches.sort(key=lambda x: (-int(re.sub(r"\D", "", str(x.get("impressions") or "0") or "0") or 0), x.get("id") or ""))
+            # Ara ingest — panel canlı görsün
+            if ingest and (matches or pages == 1 or pages % 5 == 0):
+                mid = {
+                    "ok": True,
+                    "keyword": keyword,
+                    "scanned": len(all_cards),
+                    "pages": pages,
+                    "matches": matches[:200],
+                    "scraped_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "source": "empower_creative_bridge",
+                    "message": (
+                        f"Tarama… {len(matches)} eşleşme / {len(all_cards)} kart · "
+                        f"sayfa {pages}/{max_pages} · open≈{open_total} · «{keyword}» · API+OCR"
+                    ),
+                }
+                _post_json(SCAN_INGEST_URL, mid)
+            if len(items) < page_limit:
                 break
-            if not _goto_next_page(driver, current_page=pages):
+            # İlk eşleşmede durma — kullanıcı tüm yüksek-impression setini ister
+            # ama EMPOWER_CREATIVE_STOP_ON_MATCH=1 ise ilk bulunca çık
+            if matches and (os.environ.get("EMPOWER_CREATIVE_STOP_ON_MATCH") or "").strip() in (
+                "1",
+                "true",
+                "yes",
+            ):
+                print("  · stop_on_match · eşleşme bulundu, duruluyor", flush=True)
                 break
-            time.sleep(1.5)
-        matches = [c for c in all_cards.values() if card_matches(c, terms)]
-        matches.sort(key=lambda x: x.get("id") or "")
+
+        # API başarısızsa eski DOM yoluna düş
+        if not api_ok and not all_cards:
+            for page_i in range(max(1, min(max_pages, 25))):
+                pages = page_i + 1
+                time.sleep(1.0)
+                batch = _extract_cards(driver)
+                print(f"  · DOM sayfa {pages}: {len(batch)} kart", flush=True)
+                new_cards = []
+                for c in batch:
+                    if c["id"] not in all_cards:
+                        all_cards[c["id"]] = c
+                        new_cards.append(c)
+                _enrich_cards_with_ocr(driver, new_cards)
+                if page_i + 1 >= min(max_pages, 25):
+                    break
+                if not _goto_next_page(driver, current_page=pages):
+                    break
+            matches = [c for c in all_cards.values() if card_matches(c, terms)]
+            matches.sort(key=lambda x: x.get("id") or "")
+
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        mode = "API+OCR" if api_ok or all_cards else "DOM+OCR"
         out = {
             "ok": True,
             "keyword": keyword,
             "scanned": len(all_cards),
             "pages": pages,
-            "matches": matches,
+            "matches": matches[:200],
             "scraped_at": now,
             "source": "empower_creative_bridge",
             "message": (
                 f"Tarama · {len(matches)} eşleşme / {len(all_cards)} kart · "
-                f"{pages} sayfa · «{keyword}» · OCR=banner"
+                f"{pages} sayfa · open≈{open_total} · «{keyword}» · {mode}"
             ),
         }
         print(out["message"], flush=True)
@@ -956,7 +1197,7 @@ def run_block(
                     remaining.discard(str(row.get("id") or ""))
             if not remaining:
                 break
-            if not _goto_next_page(driver):
+            if not _goto_next_page(driver, current_page=page_i + 1):
                 break
             time.sleep(1.4)
         for cid in sorted(remaining):

@@ -2284,6 +2284,8 @@ def run_empower_creative_bridge_once(
     action: str | None = None,
     keyword: str = "",
     ids: list[str] | None = None,
+    max_pages: int | None = None,
+    stop_on_match: bool = False,
 ) -> dict[str, Any]:
     """Empower Creative Review — keyword tara veya onaylı engelle."""
     import importlib.util
@@ -2304,10 +2306,18 @@ def run_empower_creative_bridge_once(
     act = (action or "").strip().lower()
     kw = (keyword or "").strip()
     id_list = [str(x).strip() for x in (ids or []) if str(x).strip()]
-    print(f"Empower Creatives · action={act or 'pending'} keyword={kw!r} ids={len(id_list)}", flush=True)
+    print(
+        f"Empower Creatives · action={act or 'pending'} keyword={kw!r} ids={len(id_list)} "
+        f"max_pages={max_pages} stop_on_match={stop_on_match}",
+        flush=True,
+    )
     try:
         if act == "scan":
-            out = mod.run_scan(keyword=kw, ingest=True, headed=True)
+            if stop_on_match:
+                os.environ["EMPOWER_CREATIVE_STOP_ON_MATCH"] = "1"
+            out = mod.run_scan(
+                keyword=kw, ingest=True, headed=True, max_pages=max_pages
+            )
         elif act == "block":
             out = mod.run_block(ids=id_list, keyword=kw, ingest=True, headed=True)
         else:
@@ -4479,6 +4489,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             action = (qs.get("action") or [""])[0].strip().lower() or None
             keyword = (qs.get("keyword") or [""])[0].strip()
             ids: list[str] = []
+            max_pages: int | None = None
+            stop_on_match = False
             if raw_body:
                 try:
                     payload = json.loads(raw_body.decode("utf-8", errors="replace"))
@@ -4492,6 +4504,13 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                             ids = [str(x).strip() for x in raw_ids if str(x).strip()]
                         elif isinstance(raw_ids, str) and raw_ids.strip():
                             ids = [x.strip() for x in raw_ids.split(",") if x.strip()]
+                        if payload.get("max_pages") is not None:
+                            try:
+                                max_pages = int(payload.get("max_pages"))
+                            except (TypeError, ValueError):
+                                max_pages = None
+                        som = payload.get("stop_on_match")
+                        stop_on_match = som in (True, 1, "1", "true", "yes")
                 except Exception:
                     pass
 
@@ -4522,10 +4541,16 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 _action: str | None = action,
                 _keyword: str = keyword,
                 _ids: list[str] = list(ids),
+                _max_pages: int | None = max_pages,
+                _stop_on_match: bool = stop_on_match,
             ) -> None:
                 try:
                     out = run_empower_creative_bridge_once(
-                        action=_action, keyword=_keyword, ids=_ids
+                        action=_action,
+                        keyword=_keyword,
+                        ids=_ids,
+                        max_pages=_max_pages,
+                        stop_on_match=_stop_on_match,
                     )
                     _finish_job_progress(
                         "empower_creative",
