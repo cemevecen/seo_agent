@@ -47,10 +47,7 @@
 
 <div class="cr-page" data-header-title="Creatives · Empower Review" data-page-tarama="creative-review">
   <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
-    <div>
-      <div class="cr-title">Creatives</div>
-      <div class="cr-sub">Empower Creative Review — keyword tara, onayla, engelle</div>
-    </div>
+    <div class="cr-title">Creatives</div>
     <div class="flex flex-wrap items-center gap-2">
       <span data-page-tarama-slot></span>
       <a href="https://analytics.empower.net/creative-review" target="_blank" rel="noopener"
@@ -66,7 +63,6 @@
         <button type="button" id="cr-scan" class="cr-btn cr-btn-primary">Tara</button>
         <button type="button" id="cr-refresh" class="cr-btn cr-btn-ghost">Yenile</button>
       </div>
-      <p class="cr-status mt-2">Creative Review sayfası açılır · Open only · API ile 200/page · banner OCR (vw→volkswagen). ~160k+ open; tarama yüksek impression’dan başlar.</p>
     </div>
     <p id="cr-status" class="cr-status">—</p>
   </div>
@@ -75,7 +71,7 @@
     <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
       <div>
         <div class="cr-label">Eşleşmeler</div>
-        <p id="cr-meta" class="cr-status mt-0.5">Henüz tarama yok</p>
+        <p id="cr-meta" class="cr-status mt-0.5 hidden" aria-hidden="true"></p>
       </div>
       <div class="flex flex-wrap gap-2">
         <button type="button" id="cr-select-all" class="cr-btn cr-btn-ghost">Tümünü seç</button>
@@ -123,6 +119,32 @@
   }
   function setStatus(msg) { $("cr-status").textContent = msg || "—"; }
 
+  /** Yalnızca tarama/engelleme sonuç satırı — kuyruk / açıklama metni yok. */
+  function statusLine(d) {
+    d = d || {};
+    var st = String(d.status || "");
+    var scan = d.last_scan || {};
+    var block = d.last_block || {};
+    var msg = String(scan.message || "");
+    if (st.indexOf("block_") === 0 && block.message) {
+      return st + " · " + block.message;
+    }
+    if (st === "queued") return "—";
+    // Ara ingest "Tarama…" — running/scan_done iken göster
+    if (msg.indexOf("Tarama…") === 0) {
+      return (st === "running" ? "running" : (st.indexOf("scan_") === 0 ? st : "scan_done")) + " · " + msg;
+    }
+    if (st === "running") return "—";
+    if (msg) {
+      var label = st.indexOf("scan_") === 0 ? st : "scan_done";
+      return label + " · " + msg;
+    }
+    if (st === "scan_error" || st === "block_error") {
+      return st + (d.message ? (" · " + d.message) : "");
+    }
+    return "—";
+  }
+
   function selectedIds() {
     return Array.from(document.querySelectorAll(".cr-check:checked")).map(function (el) {
       return el.getAttribute("data-id") || "";
@@ -136,9 +158,7 @@
   function renderScan(scan) {
     scan = scan || {};
     var matches = Array.isArray(scan.matches) ? scan.matches : [];
-    $("cr-meta").textContent = scan.scraped_at
-      ? ((scan.message || "") + " · " + (scan.scraped_at || ""))
-      : "Henüz tarama yok";
+    $("cr-meta").textContent = "";
     var tb = $("cr-tbody");
     if (!matches.length) {
       tb.innerHTML = '<tr><td colspan="6" class="cr-status py-6 text-center">Eşleşme yok</td></tr>';
@@ -184,7 +204,7 @@
     var r = await fetch("/api/empower-creative/state", { credentials: "same-origin", headers: { Accept: "application/json" } });
     var d = await r.json();
     state = d;
-    setStatus((d.status || "") + (d.message ? (" · " + d.message) : ""));
+    setStatus(statusLine(d));
     renderScan(d.last_scan || {});
     renderBlock(d.last_block || {});
     var kw = ((d.pending || {}).keyword || (d.last_scan || {}).keyword || "").trim();
@@ -204,7 +224,6 @@
   async function kickBridge(body) {
     var alive = await bridgeAlive();
     if (!alive) {
-      setStatus("Mac köprü yok (127.0.0.1:18765) — Update page ile kuyruğa alındı; ofis Mac’te daemon çalışıyor olmalı.");
       return { ok: false, queued_only: true };
     }
     var r = await fetch(BRIDGE, {
@@ -243,10 +262,10 @@
     });
     var pd = await pr.json().catch(function () { return {}; });
     if (!pr.ok) {
-      setStatus(pd.detail || pd.message || "Kuyruk hatası");
+      setStatus("—");
       return;
     }
-    setStatus("Kuyrukta · köprü Creative Review’ı açıyor…");
+    setStatus("—");
     // Önce lokal köprü (keyword body ile). Bridge yoksa page-tarama claim pending çeker.
     var kicked = await kickBridge(payload);
     if (kicked && kicked.queued_only) {
@@ -265,7 +284,7 @@
   $("cr-scan").addEventListener("click", function () {
     var kw = ($("cr-keyword").value || "").trim();
     if (kw.length < 2) {
-      setStatus("Keyword en az 2 karakter");
+      setStatus("—");
       return;
     }
     queueAndKick("scan");
