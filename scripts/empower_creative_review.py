@@ -145,37 +145,52 @@ def match_terms(keyword: str) -> list[str]:
     return sorted(t for t in terms if t)
 
 
-def _normalize_ocr_hay(s: str) -> str:
-    """OCR gürültüsünü azalt — boşluk/noktalama sıkıştır."""
+def _ocr_tokens(s: str) -> tuple[str, list[str]]:
+    """OCR metnini normalize et → (spaced, tokens).
+
+    Tüm metni boşluksuz birleştirmek kısa alias'larda false-positive üretir
+    (ör. «NOV ww» → novww içinde «vw»).
+    """
     t = (s or "").lower()
     t = t.replace("|", " ")
     t = re.sub(r"[^a-z0-9çğıöşüâîû\s]", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
-    # bitişik arama için boşluksuz kopya da eklenir
-    return t + " " + re.sub(r"\s+", "", t)
+    tokens = [tok for tok in t.split(" ") if tok]
+    return t, tokens
 
 
 def card_matches(card: dict[str, Any], terms: list[str]) -> bool:
-    hay = _normalize_ocr_hay(
+    # ID / uzun URL path haystack'e girmez — kısa alias (vw) gürültüye düşmesin
+    spaced, tokens = _ocr_tokens(
         " ".join(
             [
                 str(card.get("ocr_text") or ""),
                 str(card.get("alt") or ""),
-                str(card.get("img_src") or ""),
                 str(card.get("text") or ""),
                 str(card.get("ad_type") or ""),
+                str(card.get("apps") or ""),
             ]
         )
     )
-    # ID'yi haystack'e koyma — rastgele hex keyword false-positive üretebilir
     for t in terms:
         tt = (t or "").lower().strip()
         if not tt:
             continue
-        if tt in hay:
+        if len(tt) <= 3:
+            # Kısa alias: tam token veya token vw… / volkswagen
+            if any(tok == tt or tok.startswith(tt) for tok in tokens):
+                return True
+            continue
+        if tt in spaced:
             return True
-        # kısa markalar: boşluksuz / harfler arası boşluklu OCR (s u g o)
-        if len(tt) >= 3 and " ".join(tt) in hay:
+        # Kelime içi bitişik (volkswagen tek tokende)
+        if any(tt in tok for tok in tokens):
+            return True
+        # Harfler arası boşluklu OCR: "s u g o"
+        if " ".join(tt) in spaced:
+            return True
+        # Tüm metin kompakt — yalnızca uzun terimler (≥4)
+        if tt in "".join(tokens):
             return True
     return False
 
@@ -1065,11 +1080,18 @@ def run_scan(
             batch = [_card_from_api_item(it) for it in items]
             batch = [c for c in batch if c.get("id") and c["id"] not in all_cards]
             _enrich_api_cards_parallel(batch, workers=10)
-            for c in batch:
+            for idx, c in enumerate(batch):
+                c["page"] = pages
+                c["page_size"] = page_limit
+                c["rank"] = offset + idx + 1  # 1-based sıra (200'lük düzende)
                 all_cards[c["id"]] = c
                 if card_matches(c, terms):
                     matches.append(c)
             matches.sort(key=lambda x: (-int(re.sub(r"\D", "", str(x.get("impressions") or "0") or "0") or 0), x.get("id") or ""))
+            page_hint = ""
+            if matches:
+                pset = sorted({int(m.get("page") or 0) for m in matches if m.get("page")})
+                page_hint = " · bulgu sayfa " + ",".join(str(p) for p in pset if p)
             # Ara ingest — panel canlı görsün
             if ingest and (matches or pages == 1 or pages % 5 == 0):
                 mid = {
@@ -1082,7 +1104,8 @@ def run_scan(
                     "source": "empower_creative_bridge",
                     "message": (
                         f"Tarama… {len(matches)} eşleşme / {len(all_cards)} kart · "
-                        f"sayfa {pages}/{max_pages} · open≈{open_total} · «{keyword}» · API+OCR"
+                        f"tarandı {pages}/{max_pages} sayfa{page_hint} · "
+                        f"open≈{open_total} · «{keyword}» · API+OCR"
                     ),
                 }
                 _post_json(SCAN_INGEST_URL, mid)
@@ -1120,6 +1143,10 @@ def run_scan(
 
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         mode = "API+OCR" if api_ok or all_cards else "DOM+OCR"
+        page_hint = ""
+        if matches:
+            pset = sorted({int(m.get("page") or 0) for m in matches if m.get("page")})
+            page_hint = " · bulgu sayfa " + ",".join(str(p) for p in pset if p)
         out = {
             "ok": True,
             "keyword": keyword,
@@ -1130,7 +1157,7 @@ def run_scan(
             "source": "empower_creative_bridge",
             "message": (
                 f"Tarama · {len(matches)} eşleşme / {len(all_cards)} kart · "
-                f"{pages} sayfa · open≈{open_total} · «{keyword}» · {mode}"
+                f"tarandı {pages} sayfa{page_hint} · open≈{open_total} · «{keyword}» · {mode}"
             ),
         }
         print(out["message"], flush=True)

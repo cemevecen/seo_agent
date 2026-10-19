@@ -88,6 +88,7 @@
           <tr>
             <th style="width:2rem"></th>
             <th>ID</th>
+            <th>Sayfa</th>
             <th>Tip</th>
             <th>Impr</th>
             <th>OCR / özet</th>
@@ -140,15 +141,22 @@
       : "Henüz tarama yok";
     var tb = $("cr-tbody");
     if (!matches.length) {
-      tb.innerHTML = '<tr><td colspan="5" class="cr-status py-6 text-center">Eşleşme yok</td></tr>';
+      tb.innerHTML = '<tr><td colspan="6" class="cr-status py-6 text-center">Eşleşme yok</td></tr>';
       syncBlockBtn();
       return;
     }
     tb.innerHTML = matches.map(function (m) {
       var snip = String(m.ocr_text || m.alt || m.text || "").slice(0, 140);
+      var pageNum = m.page || m.page_num || "";
+      var pageSize = m.page_size || 200;
+      var rank = m.rank || "";
+      var pageLabel = pageNum
+        ? ("S" + pageNum + (rank ? (" · #" + rank) : "") + " /" + pageSize)
+        : "—";
       return "<tr>"
         + '<td><input type="checkbox" class="cr-check" data-id="' + esc(m.id) + '" checked></td>'
         + '<td class="cr-id">' + esc(m.id) + "</td>"
+        + "<td>" + esc(pageLabel) + "</td>"
         + "<td>" + esc(m.ad_type || "—") + "</td>"
         + "<td>" + esc(m.impressions || "—") + "</td>"
         + '<td class="cr-snip">' + esc(snip) + "</td>"

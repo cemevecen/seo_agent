@@ -51,6 +51,33 @@ def test_card_matches_ignores_id_hex_noise():
     assert mod.card_matches(card, terms) is False
 
 
+def test_card_matches_rejects_novww_false_vw():
+    """OCR «NOV ww» → novww içinde vw geçmesin (volkswagen false-positive)."""
+    mod = _load()
+    terms = mod.match_terms("volkswagen")
+    card = {
+        "id": "6ac4dcd91750e0f1330ad8aa",
+        "text": "BANNER",
+        "alt": "",
+        "img_src": "https://static.virgul.com/appcreatives/x/x_1.jpg",
+        "ocr_text": "Buy the Dip with Binance BUY MORE BITCOIN? NOV — ww",
+    }
+    assert mod.card_matches(card, terms) is False
+
+
+def test_card_matches_vw_alias_on_volkswagen_token():
+    mod = _load()
+    terms = mod.match_terms("vw")
+    card = {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbb",
+        "ocr_text": "Volkswagen Golf kampanya",
+        "text": "",
+        "alt": "",
+        "img_src": "",
+    }
+    assert mod.card_matches(card, terms) is True
+
+
 def test_page_tarama_creative_review_job():
     from backend.services import page_tarama as store
 
