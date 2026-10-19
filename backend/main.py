@@ -64,6 +64,7 @@ from backend.api.asc_metrics import router as asc_metrics_router
 from backend.api.asc_console import router as asc_console_router
 from backend.api.firebase_console import router as firebase_console_router
 from backend.api.empower_intel import router as empower_intel_router
+from backend.api.empower_creative import router as empower_creative_router
 from backend.api.google_search_status import router as google_search_status_router
 from backend.api.pagespeed_web import router as pagespeed_web_router
 from backend.api.seo_audit_scrape import router as seo_audit_scrape_router
@@ -1149,6 +1150,7 @@ app.include_router(asc_metrics_router, prefix="/api")
 app.include_router(asc_console_router, prefix="/api")
 app.include_router(firebase_console_router, prefix="/api")
 app.include_router(empower_intel_router, prefix="/api")
+app.include_router(empower_creative_router, prefix="/api")
 app.include_router(google_search_status_router, prefix="/api")
 app.include_router(market_quotes_router, prefix="/api")
 app.include_router(page_tarama_router, prefix="/api")
@@ -2073,6 +2075,10 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/firebase-console/ingest",
         "/api/firebase-console/coverage",
         "/api/empower-intel/ingest",
+        "/api/empower-creative/pending",
+        "/api/empower-creative/ingest-scan",
+        "/api/empower-creative/ingest-block",
+        "/api/empower-creative/status",
         "/api/pagespeed-web/ingest",
         "/api/gsc-links/ingest",
         "/api/policy/ingest",
@@ -19089,6 +19095,17 @@ def xdata_empower_page(request: Request):
     return templates.TemplateResponse(
         request,
         "metrik.html",
+        context={"request": request},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/creative-review")
+def empower_creative_review_page(request: Request):
+    """Empower Creative Review — keyword tara / onaylı engelle."""
+    return templates.TemplateResponse(
+        request,
+        "creative_review.html",
         context={"request": request},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )

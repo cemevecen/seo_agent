@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .cr-page { max-width: 1100px; margin: 0 auto; padding: 0.75rem 0.5rem 2.5rem; }
+  @media (min-width: 640px) { .cr-page { padding: 1rem 0.75rem 3rem; } }
+  .cr-title { font-size: 1.15rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+  html.dark .cr-title, html.charcoal .cr-title { color: #fafafa; }
+  .cr-sub { margin-top: 0.2rem; font-size: 12px; color: #64748b; }
+  html.dark .cr-sub, html.charcoal .cr-sub { color: #a1a1aa; }
+  .cr-card {
+    border: 1px solid #e2e8f0; background: #fff; border-radius: 0.9rem; padding: 0.85rem 1rem;
+  }
+  html.dark .cr-card, html.charcoal .cr-card { border-color: #3f3f46; background: #2a2a2e; }
+  .cr-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b; }
+  .cr-input {
+    width: 100%; border: 1px solid #cbd5e1; border-radius: 0.65rem; padding: 0.55rem 0.75rem;
+    font-size: 14px; font-weight: 600; color: #0f172a; background: #fff;
+  }
+  html.dark .cr-input, html.charcoal .cr-input {
+    border-color: #52525b; background: #18181b; color: #fafafa;
+  }
+  .cr-btn {
+    display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 0.65rem;
+    padding: 0.55rem 0.9rem; font-size: 12px; font-weight: 800; border: 1px solid transparent;
+  }
+  .cr-btn-primary { background: #0284c7; border-color: #0284c7; color: #fff; }
+  .cr-btn-primary:hover { background: #0369a1; }
+  .cr-btn-danger { background: #e11d48; border-color: #e11d48; color: #fff; }
+  .cr-btn-danger:hover { background: #be123c; }
+  .cr-btn-ghost { background: transparent; border-color: #cbd5e1; color: #334155; }
+  html.dark .cr-btn-ghost, html.charcoal .cr-btn-ghost { border-color: #52525b; color: #e4e4e7; }
+  .cr-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .cr-status { font-size: 12px; color: #64748b; }
+  html.dark .cr-status, html.charcoal .cr-status { color: #a1a1aa; }
+  .cr-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .cr-table th, .cr-table td {
+    padding: 0.45rem 0.4rem; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top;
+  }
+  html.dark .cr-table th, html.dark .cr-table td,
+  html.charcoal .cr-table th, html.charcoal .cr-table td { border-color: #3f3f46; }
+  .cr-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
+  .cr-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; word-break: break-all; }
+  .cr-snip { color: #64748b; max-width: 28rem; }
+  html.dark .cr-snip, html.charcoal .cr-snip { color: #a1a1aa; }
+</style>
+
+<div class="cr-page" data-header-title="Creatives · Empower Review" data-page-tarama="creative-review">
+  <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <div class="cr-title">Creatives</div>
+      <div class="cr-sub">Empower Creative Review — keyword tara, onayla, engelle</div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <span data-page-tarama-slot></span>
+      <a href="https://analytics.empower.net/creative-review" target="_blank" rel="noopener"
+         class="cr-btn cr-btn-ghost text-xs">Empower ↗</a>
+    </div>
+  </div>
+
+  <div class="cr-card mb-4 space-y-3">
+    <div>
+      <label class="cr-label" for="cr-keyword">Keyword</label>
+      <div class="mt-1 flex flex-wrap gap-2">
+        <input id="cr-keyword" class="cr-input max-w-md" type="text" placeholder="ör. vw, volkswagen, midas" autocomplete="off" />
+        <button type="button" id="cr-scan" class="cr-btn cr-btn-primary">Tara</button>
+        <button type="button" id="cr-refresh" class="cr-btn cr-btn-ghost">Yenile</button>
+      </div>
+      <p class="cr-status mt-2">~264×170 banner görsellerinde OCR (vw → volkswagen). Filtre: All properties · Open only · All ad types · 200 per page.</p>
+    </div>
+    <p id="cr-status" class="cr-status">—</p>
+  </div>
+
+  <div class="cr-card mb-4">
+    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <div class="cr-label">Eşleşmeler</div>
+        <p id="cr-meta" class="cr-status mt-0.5">Henüz tarama yok</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" id="cr-select-all" class="cr-btn cr-btn-ghost">Tümünü seç</button>
+        <button type="button" id="cr-block" class="cr-btn cr-btn-danger" disabled>Seçilenleri engelle</button>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="cr-table">
+        <thead>
+          <tr>
+            <th style="width:2rem"></th>
+            <th>ID</th>
+            <th>Tip</th>
+            <th>Impr</th>
+            <th>OCR / özet</th>
+          </tr>
+        </thead>
+        <tbody id="cr-tbody">
+          <tr><td colspan="5" class="cr-status py-6 text-center">Tarama sonucu burada</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="cr-card">
+    <div class="cr-label">Son engelleme</div>
+    <p id="cr-block-meta" class="cr-status mt-1">—</p>
+    <ul id="cr-block-list" class="mt-2 space-y-1 text-xs text-slate-600 dark:text-zinc-400"></ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  var BRIDGE = "http://127.0.0.1:18765/sync-empower-creative";
+  var HEALTH = "http://127.0.0.1:18765/health";
+  var state = null;
+  var pollTimer = null;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s || "").replace(/[&<>"']/g, function (c) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+    });
+  }
+  function setStatus(msg) { $("cr-status").textContent = msg || "—"; }
+
+  function selectedIds() {
+    return Array.from(document.querySelectorAll(".cr-check:checked")).map(function (el) {
+      return el.getAttribute("data-id") || "";
+    }).filter(Boolean);
+  }
+
+  function syncBlockBtn() {
+    $("cr-block").disabled = selectedIds().length === 0;
+  }
+
+  function renderScan(scan) {
+    scan = scan || {};
+    var matches = Array.isArray(scan.matches) ? scan.matches : [];
+    $("cr-meta").textContent = scan.scraped_at
+      ? ((scan.message || "") + " · " + (scan.scraped_at || ""))
+      : "Henüz tarama yok";
+    var tb = $("cr-tbody");
+    if (!matches.length) {
+      tb.innerHTML = '<tr><td colspan="5" class="cr-status py-6 text-center">Eşleşme yok</td></tr>';
+      syncBlockBtn();
+      return;
+    }
+    tb.innerHTML = matches.map(function (m) {
+      var snip = String(m.ocr_text || m.alt || m.text || "").slice(0, 140);
+      return "<tr>"
+        + '<td><input type="checkbox" class="cr-check" data-id="' + esc(m.id) + '" checked></td>'
+        + '<td class="cr-id">' + esc(m.id) + "</td>"
+        + "<td>" + esc(m.ad_type || "—") + "</td>"
+        + "<td>" + esc(m.impressions || "—") + "</td>"
+        + '<td class="cr-snip">' + esc(snip) + "</td>"
+        + "</tr>";
+    }).join("");
+    tb.querySelectorAll(".cr-check").forEach(function (el) {
+      el.addEventListener("change", syncBlockBtn);
+    });
+    syncBlockBtn();
+  }
+
+  function renderBlock(block) {
+    block = block || {};
+    $("cr-block-meta").textContent = block.message || (block.scraped_at ? ("Son · " + block.scraped_at) : "—");
+    var ul = $("cr-block-list");
+    var blocked = Array.isArray(block.blocked) ? block.blocked : [];
+    var failed = Array.isArray(block.failed) ? block.failed : [];
+    var rows = [];
+    blocked.forEach(function (b) { rows.push('<li class="text-emerald-700 dark:text-emerald-400">✓ ' + esc(b.id) + "</li>"); });
+    failed.forEach(function (b) { rows.push('<li class="text-rose-600 dark:text-rose-400">✗ ' + esc(b.id) + " · " + esc(b.error || "") + "</li>"); });
+    ul.innerHTML = rows.join("") || "";
+  }
+
+  async function loadState() {
+    var r = await fetch("/api/empower-creative/state", { credentials: "same-origin", headers: { Accept: "application/json" } });
+    var d = await r.json();
+    state = d;
+    setStatus((d.status || "") + (d.message ? (" · " + d.message) : ""));
+    renderScan(d.last_scan || {});
+    renderBlock(d.last_block || {});
+    var kw = ((d.pending || {}).keyword || (d.last_scan || {}).keyword || "").trim();
+    if (kw && !$("cr-keyword").value) $("cr-keyword").value = kw;
+    return d;
+  }
+
+  async function bridgeAlive() {
+    try {
+      var r = await fetch(HEALTH, { method: "GET", mode: "cors" });
+      return r.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function kickBridge(body) {
+    var alive = await bridgeAlive();
+    if (!alive) {
+      setStatus("Mac köprü yok (127.0.0.1:18765) — Update page ile kuyruğa alındı; ofis Mac’te daemon çalışıyor olmalı.");
+      return { ok: false, queued_only: true };
+    }
+    var r = await fetch(BRIDGE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body || {})
+    });
+    var d = await r.json().catch(function () { return {}; });
+    return d;
+  }
+
+  function startPoll() {
+    if (pollTimer) clearInterval(pollTimer);
+    var n = 0;
+    pollTimer = setInterval(async function () {
+      n += 1;
+      try {
+        var d = await loadState();
+        var st = String(d.status || "");
+        if (st.indexOf("done") >= 0 || st.indexOf("error") >= 0 || n > 90) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      } catch (e) {}
+    }, 4000);
+  }
+
+  async function queueAndKick(action, extra) {
+    var keyword = ($("cr-keyword").value || "").trim();
+    var payload = Object.assign({ action: action, keyword: keyword }, extra || {});
+    var pr = await fetch("/api/empower-creative/pending", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload)
+    });
+    var pd = await pr.json().catch(function () { return {}; });
+    if (!pr.ok) {
+      setStatus(pd.detail || pd.message || "Kuyruk hatası");
+      return;
+    }
+    setStatus("Kuyrukta · köprüye iletiliyor…");
+    // page-tarama: Update page ile de çalışsın diye lokal kick + remote claim
+    await kickBridge(payload);
+    try {
+      await fetch("/api/page-tarama/manual", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ page: "creative-review" })
+      });
+    } catch (e) {}
+    startPoll();
+  }
+
+  $("cr-scan").addEventListener("click", function () {
+    var kw = ($("cr-keyword").value || "").trim();
+    if (kw.length < 2) {
+      setStatus("Keyword en az 2 karakter");
+      return;
+    }
+    queueAndKick("scan");
+  });
+
+  $("cr-block").addEventListener("click", function () {
+    var ids = selectedIds();
+    if (!ids.length) return;
+    if (!window.confirm(ids.length + " creative engellenecek. Emin misin?")) return;
+    queueAndKick("block", { ids: ids });
+  });
+
+  $("cr-select-all").addEventListener("click", function () {
+    document.querySelectorAll(".cr-check").forEach(function (el) { el.checked = true; });
+    syncBlockBtn();
+  });
+
+  $("cr-refresh").addEventListener("click", function () { loadState(); });
+  $("cr-keyword").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter") $("cr-scan").click();
+  });
+
+  loadState();
+})();
+</script>
+{% endblock %}

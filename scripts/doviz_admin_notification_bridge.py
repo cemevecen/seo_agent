@@ -27,6 +27,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-seo-audit → SEO meta audit scrape (02:45 + 14:45 TR, GA4 top 500)
   POST /sync-gsc-cwv → GSC CWV screenshot (doviz+sinemalar mobile/desktop; 03:00 + 15:00 TR)
   mode=full → eski derin scrape (AMP + issue drilldown)
+  POST /sync-empower-creative → Creative Review keyword tara / onaylı engelle (200/page)
   POST /sync-market → doviz.com piyasa tablo taraması (00:05 TR)
   GET  /status      → canlı izleme paneli (kuyruk / progress / sonraki slotlar)
   GET  /health      → aynı veri JSON
@@ -477,6 +478,7 @@ _BROWSER_SCRAPE_KINDS = frozenset(
         "gsc_cwv",
         "empower_intel",
         "empower_intel_sinemalar",
+        "empower_creative",
         "login_warmup",
         "app_ranks",
     }
@@ -2275,6 +2277,47 @@ def _empower_window(mode: str, pipeline: str) -> tuple[Any, Any, bool]:
         from backend.services.history_seal import history_seal, history_start
 
         return history_start(), history_seal(), False
+
+
+def run_empower_creative_bridge_once(
+    *,
+    action: str | None = None,
+    keyword: str = "",
+    ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Empower Creative Review — keyword tara veya onaylı engelle."""
+    import importlib.util
+
+    script = ROOT / "scripts" / "empower_creative_review.py"
+    if not script.is_file():
+        return {"ok": False, "kind": "empower_creative", "message": "creative review betiği yok"}
+    try:
+        spec = importlib.util.spec_from_file_location("empower_creative_review_bridge", script)
+        if spec is None or spec.loader is None:
+            return {"ok": False, "kind": "empower_creative", "message": "betik yüklenemedi"}
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = mod
+        spec.loader.exec_module(mod)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "kind": "empower_creative", "message": f"import: {exc}"}
+
+    act = (action or "").strip().lower()
+    kw = (keyword or "").strip()
+    id_list = [str(x).strip() for x in (ids or []) if str(x).strip()]
+    print(f"Empower Creatives · action={act or 'pending'} keyword={kw!r} ids={len(id_list)}", flush=True)
+    try:
+        if act == "scan":
+            out = mod.run_scan(keyword=kw, ingest=True, headed=True)
+        elif act == "block":
+            out = mod.run_block(ids=id_list, keyword=kw, ingest=True, headed=True)
+        else:
+            out = mod.run_from_pending(ingest=True, headed=True)
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "message": str(exc)[:400]}
+    if not isinstance(out, dict):
+        out = {"ok": False, "message": "beklenmeyen sonuç"}
+    out.setdefault("kind", "empower_creative")
+    return out
 
 
 def _run_empower_inprocess(
@@ -4425,6 +4468,43 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "Empower Intel Sinemalar sync zaten çalışıyor, bekleyin.",
                 _empower_sin_runner,
             )
+        elif path in (
+            "/sync-empower-creative",
+            "/empower-creative",
+            "/sync-creatives",
+            "/creatives",
+        ):
+            length = int(self.headers.get("Content-Length") or 0)
+            raw_body = self.rfile.read(length) if length > 0 else b""
+            action = (qs.get("action") or [""])[0].strip().lower() or None
+            keyword = (qs.get("keyword") or [""])[0].strip()
+            ids: list[str] = []
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body.decode("utf-8", errors="replace"))
+                    if isinstance(payload, dict):
+                        if payload.get("action"):
+                            action = str(payload.get("action") or "").strip().lower() or action
+                        if payload.get("keyword"):
+                            keyword = str(payload.get("keyword") or "").strip() or keyword
+                        raw_ids = payload.get("ids")
+                        if isinstance(raw_ids, list):
+                            ids = [str(x).strip() for x in raw_ids if str(x).strip()]
+                        elif isinstance(raw_ids, str) and raw_ids.strip():
+                            ids = [x.strip() for x in raw_ids.split(",") if x.strip()]
+                except Exception:
+                    pass
+
+            def _creative_runner() -> dict[str, Any]:
+                return run_empower_creative_bridge_once(
+                    action=action, keyword=keyword, ids=list(ids)
+                )
+
+            lock, busy, runner = (
+                _empower_intel_lock,
+                "Empower Creatives zaten çalışıyor, bekleyin.",
+                _creative_runner,
+            )
         elif path in ("/sync-market", "/market", "/sync-piyasa", "/piyasa"):
             lock, busy, runner = (
                 _market_lock,
@@ -4697,9 +4777,16 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             .removesuffix("_bridge_once")
             .removesuffix("_once")
         )
-        if job_kind in ("_mod_runner", "_empower_sin_runner", "_empower_runner"):
+        if job_kind in (
+            "_mod_runner",
+            "_empower_sin_runner",
+            "_empower_runner",
+            "_creative_runner",
+        ):
             if "moderation" in path:
                 job_kind = "sinemalar_moderation"
+            elif "creative" in path or "creatives" in path:
+                job_kind = "empower_creative"
             elif "sinemalar" in path:
                 job_kind = "empower_intel_sinemalar"
             elif "empower" in path:
@@ -5831,6 +5918,11 @@ def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
             "name": "EmpowerIntelSinemalar",
             "lock": _empower_intel_sinemalar_lock,
             "runner": run_empower_intel_sinemalar_bridge_once,
+        },
+        "empower_creative": {
+            "name": "EmpowerCreatives",
+            "lock": _empower_intel_lock,
+            "runner": run_empower_creative_bridge_once,
         },
         "links": {"name": "GSC Links", "lock": _gsc_links_lock, "runner": run_gsc_links_bridge_once},
         "policy": {"name": "Policy", "lock": _policy_lock, "runner": run_admanager_policy_bridge_once},

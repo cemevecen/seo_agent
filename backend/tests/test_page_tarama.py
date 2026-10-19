@@ -119,6 +119,7 @@ def test_empower_sinemalar_page_tarama_job():
     assert [j["id"] for j in store.jobs_for("sinemalar-web")] == ["empower_intel_sinemalar"]
     assert [j["id"] for j in store.jobs_for("sinemalar-mweb")] == ["empower_intel_sinemalar"]
     assert [j["id"] for j in store.jobs_for("x-data")] == ["empower_intel"]
+    assert [j["id"] for j in store.jobs_for("creative-review")] == ["empower_creative"]
 
 
 def test_js_uses_railway_queue_on_remote():

@@ -1219,6 +1219,22 @@ class AppEmpowerDailyRow(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class EmpowerCreativeReviewState(Base):
+    """Empower Creative Review — son tarama / bekleyen iş / engelleme özeti (tek satır id=1)."""
+
+    __tablename__ = "empower_creative_review_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pending_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    last_scan_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    last_block_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    message: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
 class EmpowerIntelDailyRow(Base):
     """Empower Intelligence (intelligence.empower.net) günlük satırlar.
 

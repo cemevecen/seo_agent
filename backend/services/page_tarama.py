@@ -58,6 +58,12 @@ JOBS: dict[str, dict[str, Any]] = {
         "kind": "bridge",
         "path": "/sync-empower-intel-sinemalar?mode=yesterday",
     },
+    "empower_creative": {
+        "id": "empower_creative",
+        "label": "Empower Creatives",
+        "kind": "bridge",
+        "path": "/sync-empower-creative",
+    },
     "pagespeed": {
         "id": "pagespeed",
         "label": "PageSpeed (Lighthouse)",
@@ -104,6 +110,7 @@ PAGES: dict[str, list[str]] = {
     "moderation": ["moderation"],
     "empower-sinemalar": ["empower_intel_sinemalar"],
     "x-data": ["empower_intel"],
+    "creative-review": ["empower_creative"],
     "errors": ["errors"],
 }
 
@@ -147,6 +154,7 @@ BROWSER_JOB_IDS = frozenset(
         "moderation",
         "empower_intel",
         "empower_intel_sinemalar",
+        "empower_creative",
     }
 )
 CLAIM_STALE_SEC = 45 * 60
