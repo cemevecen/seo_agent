@@ -304,30 +304,62 @@ def _needs_login(driver: Any) -> bool:
         url = (driver.current_url or "").lower()
     except Exception:
         return True
+    if "creative-review" in url and "login" not in url:
+        return False
+    if "analytics.empower.net" in url and "login" not in url and "cognito" not in url:
+        # Publisher panelindeyiz — giriş formu değil
+        try:
+            body = (driver.page_source or "")[:12000].lower()
+        except Exception:
+            return False
+        if "creative review" in body or "approve" in body or "block" in body:
+            return False
     if "login" in url or "cognito" in url or "amazonaws.com" in url:
         return True
     try:
         body = (driver.page_source or "")[:8000].lower()
     except Exception:
         return True
-    return "sign in" in body and "creative review" not in body
+    if "sign in" in body and "creative review" not in body and "approve" not in body:
+        return True
+    return False
 
 
 def _wait_logged_in(driver: Any, timeout_sec: int | None = None) -> bool:
-    timeout_sec = login_wait_sec() if timeout_sec is None else int(timeout_sec)
+    # Tarama için kısa süreli bekleme — login kilidi tutmadan
+    timeout_sec = 180 if timeout_sec is None else int(timeout_sec)
     deadline = time.time() + max(30, timeout_sec)
     while time.time() < deadline:
-        if not _needs_login(driver) and "creative-review" in (driver.current_url or "").lower():
-            return True
-        if not _needs_login(driver) and "analytics.empower.net" in (driver.current_url or "").lower():
-            # dashboard — creative-review'a geçmeyi dene
-            try:
-                driver.get(CREATIVE_URL)
-                time.sleep(2)
-            except Exception:
-                pass
+        try:
+            url = (driver.current_url or "").lower()
+        except Exception:
+            url = ""
+        if not _needs_login(driver):
+            if "creative-review" in url:
+                return True
+            if "analytics.empower.net" in url:
+                try:
+                    driver.get(CREATIVE_URL)
+                    time.sleep(2.5)
+                except Exception:
+                    pass
+                if "creative-review" in (driver.current_url or "").lower():
+                    return True
         time.sleep(2)
     return not _needs_login(driver)
+
+
+def _goto_creative_review(driver: Any) -> str:
+    """Her zaman Creative Review URL'sine git; mevcut URL'yi döndür."""
+    print(f"  · açılıyor · {CREATIVE_URL}", flush=True)
+    driver.get(CREATIVE_URL)
+    time.sleep(3.0)
+    try:
+        url = driver.current_url or ""
+    except Exception:
+        url = ""
+    print(f"  · sayfa · {url}", flush=True)
+    return url
 
 
 def _click_text(driver: Any, labels: list[str]) -> bool:
@@ -409,28 +441,54 @@ return (function () {
     out.adTypes = 'All ad types (already)';
   }
 
-  // Her zaman 200 per page
-  var pageTrigger = clickLabel(/^\d+\s*per page$/i) || clickLabel(/per page/i);
-  if (pageTrigger) {
-    out.pageSize = pickOption(/^200(\s*per page)?$/i) || pickOption(/^200$/i) || '';
-  } else {
-    // native <select>
-    var sels = Array.from(document.querySelectorAll('select'));
-    for (var s = 0; s < sels.length; s++) {
-      var sel = sels[s];
-      var opts = Array.from(sel.options || []);
-      for (var o = 0; o < opts.length; o++) {
-        if (/^200(\s*per page)?$/i.test(norm(opts[o].text))) {
-          sel.value = opts[o].value;
-          sel.dispatchEvent(new Event('change', { bubbles: true }));
-          out.pageSize = '200';
-          break;
-        }
-      }
-      if (out.pageSize) break;
+  // Sayfa boyutu ayrıca Python tarafında 200'e çekilir
+  out.pageSizeHint = norm(
+    (document.body.innerText.match(/\b(\d+)\s*per page\b/i) || [])[0] || ''
+  );
+  return out;
+})();
+"""
+
+
+SET_PAGE_SIZE_200_JS = r"""
+return (function () {
+  function norm(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
+  // Zaten 200 ise dokunma
+  var shown = Array.from(document.querySelectorAll('button, [role="button"], [role="combobox"], div, span, select'));
+  for (var i = 0; i < shown.length; i++) {
+    var t = norm(shown[i].innerText || shown[i].textContent || '');
+    if (/^200\s*per page$/i.test(t)) return { ok: true, already: true, label: t };
+  }
+  // "100 per page" / "50 per page" tetikleyicisini aç
+  var trigger = null;
+  for (var j = 0; j < shown.length; j++) {
+    var tt = norm(shown[j].innerText || shown[j].textContent || '');
+    if (/^\d+\s*per page$/i.test(tt)) { trigger = shown[j]; break; }
+  }
+  if (trigger) {
+    try { trigger.click(); } catch (e) { return { ok: false, error: String(e) }; }
+  }
+  var opts = Array.from(document.querySelectorAll(
+    '[role="option"], li[role="menuitem"], li, button, div[class*="option"], div[class*="menu"] *'
+  ));
+  for (var k = 0; k < opts.length; k++) {
+    var ot = norm(opts[k].innerText || opts[k].textContent || '');
+    if (/^200(\s*per page)?$/i.test(ot) || ot === '200') {
+      try { opts[k].click(); return { ok: true, picked: ot }; } catch (e) {}
     }
   }
-  return out;
+  var sels = Array.from(document.querySelectorAll('select'));
+  for (var s = 0; s < sels.length; s++) {
+    var sel = sels[s];
+    for (var o = 0; o < (sel.options || []).length; o++) {
+      if (/200/.test(norm(sel.options[o].text))) {
+        sel.selectedIndex = o;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        return { ok: true, picked: 'select:200' };
+      }
+    }
+  }
+  return { ok: false, error: '200 option yok' };
 })();
 """
 
@@ -441,22 +499,47 @@ def _apply_default_filters(driver: Any) -> dict[str, Any]:
         result = driver.execute_script(APPLY_FILTERS_JS)
     except Exception as exc:
         print(f"  · filtre JS hata: {exc}", flush=True)
-        return {}
+        result = {}
     if not isinstance(result, dict):
-        return {}
+        result = {}
+    time.sleep(0.6)
+    # Dropdown aç → bekle → 200 seç (tek JS bazen menü render olmadan bakar)
+    try:
+        driver.execute_script(
+            """
+            var nodes = Array.from(document.querySelectorAll('button, [role="button"], [role="combobox"], div, span'));
+            for (var i = 0; i < nodes.length; i++) {
+              var t = String(nodes[i].innerText || '').replace(/\\s+/g, ' ').trim();
+              if (/^\\d+\\s*per page$/i.test(t) && !/^200\\s*per page$/i.test(t)) {
+                nodes[i].click(); return t;
+              }
+            }
+            return '';
+            """
+        )
+        time.sleep(0.7)
+        page_out = driver.execute_script(SET_PAGE_SIZE_200_JS)
+    except Exception as exc:
+        page_out = {"ok": False, "error": str(exc)[:120]}
+    if isinstance(page_out, dict):
+        result["pageSize"] = (
+            page_out.get("picked")
+            or ("200 (already)" if page_out.get("already") else "")
+            or page_out.get("error")
+            or "?"
+        )
     print(
         "  · filtreler · "
         f"open={result.get('open') or '?'} · page={result.get('pageSize') or '?'} · "
         f"props={result.get('properties') or '?'} · types={result.get('adTypes') or '?'}",
         flush=True,
     )
-    time.sleep(1.2)
-    # Bazı UI'lar menüyü kapatmak için body click ister
+    time.sleep(1.5)
     try:
         driver.execute_script("document.body.click();")
     except Exception:
         pass
-    time.sleep(0.4)
+    time.sleep(0.5)
     return result
 
 
@@ -572,27 +655,61 @@ def _block_ids_on_page(driver: Any, ids: set[str]) -> tuple[list[dict[str, Any]]
 
 def open_session(*, headed: bool = True, login_only: bool = False) -> Any:
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    # Bizim bıraktığımız takılı login kilidini temizle (pid ölüyse)
+    try:
+        from backend.services.scrape_browser import profile_login_lock_path
+
+        lock = profile_login_lock_path(PROFILE_DIR)
+        if lock.is_file():
+            raw = lock.read_text(encoding="utf-8", errors="replace")
+            if "empower-creative" in raw:
+                release_profile_login_lock(PROFILE_DIR)
+                print("  · eski empower-creative login kilidi temizlendi", flush=True)
+    except Exception:
+        pass
+
     driver = launch_system_firefox_driver(PROFILE_DIR, headed=headed, page_load_timeout=120)
-    driver.get(CREATIVE_URL)
-    time.sleep(2.5)
-    if _needs_login(driver):
-        acquire_profile_login_lock(PROFILE_DIR, reason="empower-creative-login")
+    url = _goto_creative_review(driver)
+
+    if _needs_login(driver) or login_only:
+        # Login kilidi ALMA — diğer Empower scrapelerini kilitlemesin.
+        # Yalnızca --login veya gerçek giriş formu için headed bekle.
+        print("  · Empower girişi gerekli — Firefox'ta Sign In + 2FA", flush=True)
+        if login_only:
+            acquire_profile_login_lock(PROFILE_DIR, reason="empower-creative-login")
         try:
             _click_text(driver, ["Sign In", "Sign in", "Giriş"])
             time.sleep(1)
-            if not _wait_logged_in(driver):
-                raise RuntimeError("Empower Creative Review login zaman aşımı — Firefox'ta giriş yapın")
+            if not _wait_logged_in(driver, timeout_sec=login_wait_sec() if login_only else 180):
+                raise RuntimeError(
+                    "Empower Creative Review login zaman aşımı — "
+                    "Firefox'ta analytics.empower.net oturumu açın, sonra tekrar Tara"
+                )
+            url = _goto_creative_review(driver)
         finally:
-            release_profile_login_lock(PROFILE_DIR)
-    else:
-        # creative-review'a zorla
-        if "creative-review" not in (driver.current_url or "").lower():
-            driver.get(CREATIVE_URL)
-            time.sleep(2)
+            if login_only:
+                release_profile_login_lock(PROFILE_DIR)
+
+    if "creative-review" not in (url or "").lower():
+        url = _goto_creative_review(driver)
+    if "creative-review" not in (url or "").lower() and _needs_login(driver):
+        raise RuntimeError(
+            f"Creative Review açılamadı (url={url!r}). "
+            "Önce Empower oturumu gerekli."
+        )
+
     if login_only:
         return driver
     _apply_default_filters(driver)
-    time.sleep(1)
+    time.sleep(1.2)
+    # Filtre sonrası sayfa yenilenebilir — URL'yi doğrula
+    try:
+        if "creative-review" not in (driver.current_url or "").lower():
+            _goto_creative_review(driver)
+            _apply_default_filters(driver)
+    except Exception:
+        pass
+    print(f"  · hazır · {driver.current_url}", flush=True)
     return driver
 
 

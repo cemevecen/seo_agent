@@ -645,14 +645,11 @@ def launch_system_firefox_driver(
     profile = profile.expanduser()
     profile.mkdir(parents=True, exist_ok=True)
 
-    if profile_login_lock_active(profile):
-        raise RuntimeError(f"Login kilidi aktif: {profile}")
-
     dl = download_dir or (STATE_DIR / "cache" / "downloads")
     dl.mkdir(parents=True, exist_ok=True)
 
-    # Sıcak pencere kontrolü, profili boşaltan adımlardan ÖNCE olmalı; aksi
-    # halde korumaya çalıştığımız pencereyi kendimiz kapatırız.
+    # Sıcak / ayrık pencere — login kilidi olsa bile yeniden kullan (sayfa gezilsin).
+    # Yeni Firefox açmak kilidi gerektirir; mevcut oturuma bağlanmak engellenmez.
     warm = _reusable_warm_driver(
         profile,
         headed=headed,
@@ -679,6 +676,9 @@ def launch_system_firefox_driver(
             )
             _WARM_DRIVERS[_driver_profile_key(profile)] = attached
             return attached
+
+    if profile_login_lock_active(profile):
+        raise RuntimeError(f"Login kilidi aktif: {profile}")
 
     ban_playwright_nightly_processes(profile)
 

@@ -238,17 +238,19 @@
       setStatus(pd.detail || pd.message || "Kuyruk hatası");
       return;
     }
-    setStatus("Kuyrukta · köprüye iletiliyor…");
-    // page-tarama: Update page ile de çalışsın diye lokal kick + remote claim
-    await kickBridge(payload);
-    try {
-      await fetch("/api/page-tarama/manual", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ page: "creative-review" })
-      });
-    } catch (e) {}
+    setStatus("Kuyrukta · köprü Creative Review’ı açıyor…");
+    // Önce lokal köprü (keyword body ile). Bridge yoksa page-tarama claim pending çeker.
+    var kicked = await kickBridge(payload);
+    if (kicked && kicked.queued_only) {
+      try {
+        await fetch("/api/page-tarama/manual", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ page: "creative-review" })
+        });
+      } catch (e) {}
+    }
     startPoll();
   }
 
