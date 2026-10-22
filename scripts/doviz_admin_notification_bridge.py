@@ -4763,16 +4763,19 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             )
             return
         elif path in ("/sync-gsc-cwv-shots", "/gsc-cwv-shots", "/sync-cwv-shots"):
-            site_key = (qs.get("site") or [""])[0].strip().lower() or "doviz"
+            # boş / all → her iki property; aksi halde doviz|sinemalar
+            site_key = (qs.get("site") or [""])[0].strip().lower() or ""
             length = int(self.headers.get("Content-Length") or 0)
             raw_body = self.rfile.read(length) if length > 0 else b""
             if raw_body:
                 try:
                     payload = json.loads(raw_body.decode("utf-8", errors="replace"))
-                    if isinstance(payload, dict) and payload.get("site"):
-                        site_key = str(payload.get("site") or "doviz").strip().lower()
+                    if isinstance(payload, dict) and payload.get("site") is not None:
+                        site_key = str(payload.get("site") or "").strip().lower()
                 except Exception:
                     pass
+            if site_key in ("all", "*", "both"):
+                site_key = ""
             if not _gsc_cwv_lock.acquire(blocking=False):
                 self._send(
                     409,
@@ -4786,7 +4789,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
 
             def _bg_shots() -> None:
                 try:
-                    out = run_gsc_cwv_shots_bridge_once(site_key=site_key)
+                    out = run_gsc_cwv_shots_bridge_once(site_key=site_key or None)
                     _finish_job_progress(
                         "gsc_cwv",
                         out if isinstance(out, dict) else {"ok": False},

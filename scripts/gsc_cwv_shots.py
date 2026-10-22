@@ -674,6 +674,8 @@ def run_shots(
     release_ctx = cwv_mod._release_context
 
     sk = (site_filter or "").strip().lower()
+    if sk in ("all", "*", "both"):
+        sk = ""
     props = PROPERTIES
     if sk:
         props = [p for p in PROPERTIES if p["site_key"] == sk or sk in (p["site_domain"] or "")]
