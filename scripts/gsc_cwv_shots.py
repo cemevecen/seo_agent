@@ -142,44 +142,77 @@ def _screenshot_main(page, path: Path) -> bytes:
     return _png_of(page, path)
 
 
+def _clear_shot_marks(page) -> None:
+    try:
+        page.evaluate(
+            """() => {
+  document.querySelectorAll('[data-cwv-shot-target]').forEach((e) => {
+    e.removeAttribute('data-cwv-shot-target');
+  });
+}"""
+        )
+    except Exception:
+        pass
+
+
+def _shot_marked_target(page, path: Path) -> bool:
+    """data-cwv-shot-target=1 işaretli elementi screenshot et (Selenium/Playwright)."""
+    try:
+        loc = page.locator('[data-cwv-shot-target="1"]').first
+        if not loc.count():
+            return False
+        try:
+            loc.scroll_into_view_if_needed(timeout=2500)
+        except Exception:
+            pass
+        time.sleep(0.2)
+        ok = _screenshot_locator(loc, path)
+        return ok
+    except Exception:
+        return False
+    finally:
+        _clear_shot_marks(page)
+
+
 def _shot_first_visible_chart(page, path: Path) -> bool:
     """Sayfadaki ilk anlamlı SVG/canvas grafiğinin kartını yakala."""
+    _clear_shot_marks(page)
     try:
-        handle = page.evaluate_handle(
+        marked = page.evaluate(
             """() => {
+  document.querySelectorAll('[data-cwv-shot-target]').forEach((e) => {
+    e.removeAttribute('data-cwv-shot-target');
+  });
   const charts = Array.from(document.querySelectorAll('svg, canvas')).filter((el) => {
     const r = el.getBoundingClientRect();
     return r.width >= 280 && r.height >= 120 && r.bottom > 0 && r.top < window.innerHeight;
   });
-  if (!charts.length) return null;
+  if (!charts.length) return false;
   charts.sort((a, b) => {
     const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
     return (rb.width * rb.height) - (ra.width * ra.height);
   });
   let node = charts[0];
+  let pick = charts[0];
   for (let i = 0; i < 8 && node; i++) {
     const r = node.getBoundingClientRect();
-    // Kart: grafik + başlık için biraz pay; tüm sayfa değil
     if (r.width >= 320 && r.height >= 160 && r.height <= window.innerHeight * 0.85) {
       const txt = (node.innerText || '').length;
-      if (txt < 4000) return node;
+      if (txt < 4000) { pick = node; break; }
     }
     node = node.parentElement;
   }
-  return charts[0];
+  if (!pick) return false;
+  pick.setAttribute('data-cwv-shot-target', '1');
+  return true;
 }"""
         )
-        el = handle.as_element() if handle else None
-        if el is None:
+        if not marked:
             return False
-        path.parent.mkdir(parents=True, exist_ok=True)
-        el.screenshot(path=str(path))
-        if path.is_file() and path.stat().st_size > 8_000:
-            _trim_png_edges(path)
-            return True
+        return _shot_marked_target(page, path)
     except Exception:
+        _clear_shot_marks(page)
         return False
-    return False
 
 
 def _load_cwv_scrape():
@@ -317,9 +350,13 @@ def _enable_all_status_series(page) -> int:
 def _shot_overview_device_card(page, label: str, path: Path) -> bool:
     """Overview'daki Mobile / Desktop çizgi grafik kartını sıkı kırp."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    _clear_shot_marks(page)
     try:
-        handle = page.evaluate_handle(
+        marked = page.evaluate(
             """(label) => {
+  document.querySelectorAll('[data-cwv-shot-target]').forEach((e) => {
+    e.removeAttribute('data-cwv-shot-target');
+  });
   const norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
   const want = norm(label);
   const nodes = Array.from(document.querySelectorAll('h1,h2,h3,h4,div,span,button'));
@@ -332,8 +369,8 @@ def _shot_overview_device_card(page, label: str, path: Path) -> bool:
       break;
     }
   }
-  if (!heading) return null;
-  // Başlığın altında/yanında svg|canvas ara; kartı o grafiğin makul parent'ı yap
+  if (!heading) return false;
+  let pick = null;
   let root = heading;
   for (let i = 0; i < 10 && root; i++) {
     const chart = root.querySelector && root.querySelector('svg, canvas');
@@ -344,37 +381,35 @@ def _shot_overview_device_card(page, label: str, path: Path) -> bool:
         for (let d = 0; d < 6 && card; d++) {
           const r = card.getBoundingClientRect();
           if (r.width >= 300 && r.height >= 140 && r.height <= 720 && r.width <= 1400) {
-            return card;
+            pick = card;
+            break;
           }
           card = card.parentElement;
         }
-        return chart;
+        if (!pick) pick = chart;
+        break;
       }
     }
     root = root.parentElement;
   }
-  // Fallback: heading'in sıkı ancestor'ı (tüm sayfa değil)
-  let box = heading.parentElement;
-  for (let d = 0; d < 5 && box; d++) {
-    const r = box.getBoundingClientRect();
-    if (r.width >= 300 && r.height >= 160 && r.height <= 640) return box;
-    box = box.parentElement;
+  if (!pick) {
+    let box = heading.parentElement;
+    for (let d = 0; d < 5 && box; d++) {
+      const r = box.getBoundingClientRect();
+      if (r.width >= 300 && r.height >= 160 && r.height <= 640) { pick = box; break; }
+      box = box.parentElement;
+    }
   }
-  return null;
+  if (!pick) return false;
+  pick.setAttribute('data-cwv-shot-target', '1');
+  return true;
 }""",
             label,
         )
-        el = handle.as_element() if handle else None
-        if el is None:
-            return False
-        el.scroll_into_view_if_needed(timeout=3000)
-        time.sleep(0.25)
-        el.screenshot(path=str(path))
-        if path.is_file() and path.stat().st_size > 10_000:
-            _trim_png_edges(path)
-            return path.stat().st_size > 8_000
+        if marked and _shot_marked_target(page, path):
+            return True
     except Exception:
-        pass
+        _clear_shot_marks(page)
     # Eski xpath yolu — son çare, yükseklik sınırıyla
     for sel in (f"text={label}", f"text=/{label}/i"):
         try:
@@ -387,9 +422,12 @@ def _shot_overview_device_card(page, label: str, path: Path) -> bool:
                         f"xpath=ancestor::*[self::div or self::section][{depth}]"
                     )
                     box.wait_for(state="visible", timeout=1500)
-                    box_h = box.bounding_box()
-                    if box_h and box_h.get("height", 0) > 780:
-                        continue
+                    try:
+                        box_h = box.bounding_box()
+                        if box_h and box_h.get("height", 0) > 780:
+                            continue
+                    except Exception:
+                        pass
                     if _screenshot_locator(box, path):
                         return True
                 except Exception:
