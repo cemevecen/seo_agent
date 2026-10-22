@@ -70,12 +70,60 @@ def _token() -> str:
 def _png_of(page, path: Path) -> bytes:
     path.parent.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(path), full_page=False, type="png")
+    _trim_png_edges(path)
     return path.read_bytes()
 
 
-def _screenshot_main(page, path: Path) -> bytes:
-    """Ana içerik alanını yakala; yoksa viewport."""
+def _trim_png_edges(path: Path, *, pad: int = 8) -> None:
+    """Düz gri/beyaz kenar boşluğunu kırp — yamuk letterbox hissini azaltır."""
+    try:
+        from PIL import Image, ImageChops
+    except Exception:
+        return
+    try:
+        im = Image.open(path).convert("RGB")
+    except Exception:
+        return
+    w, h = im.size
+    if w < 80 or h < 80:
+        return
+    bg = Image.new("RGB", im.size, im.getpixel((2, 2)))
+    diff = ImageChops.difference(im, bg)
+    bbox = diff.getbbox()
+    if not bbox:
+        return
+    l, t, r, b = bbox
+    l = max(0, l - pad)
+    t = max(0, t - pad)
+    r = min(w, r + pad)
+    b = min(h, b + pad)
+    # Aşırı kırpma yok — en az %55 alan kalsın
+    if (r - l) < w * 0.55 or (b - t) < h * 0.45:
+        return
+    try:
+        im.crop((l, t, r, b)).save(path, format="PNG", optimize=True)
+    except Exception:
+        pass
+
+
+def _screenshot_locator(loc, path: Path) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        loc.screenshot(path=str(path), type="png")
+    except Exception:
+        return False
+    if not path.is_file() or path.stat().st_size < 8_000:
+        return False
+    _trim_png_edges(path)
+    return path.stat().st_size > 6_000
+
+
+def _screenshot_main(page, path: Path) -> bytes:
+    """Ana içerik — mümkünse grafik/kart bölgesi; GSC chrome'suz."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Önce stacked / line chart (svg|canvas) kartını dene
+    if _shot_first_visible_chart(page, path):
+        return path.read_bytes()
     selectors = (
         "[role='main']",
         "main",
@@ -87,11 +135,51 @@ def _screenshot_main(page, path: Path) -> bytes:
         loc = page.locator(sel).first
         try:
             if loc.count() and loc.is_visible(timeout=1500):
-                loc.screenshot(path=str(path), type="png")
-                return path.read_bytes()
+                if _screenshot_locator(loc, path):
+                    return path.read_bytes()
         except Exception:
             continue
     return _png_of(page, path)
+
+
+def _shot_first_visible_chart(page, path: Path) -> bool:
+    """Sayfadaki ilk anlamlı SVG/canvas grafiğinin kartını yakala."""
+    try:
+        handle = page.evaluate_handle(
+            """() => {
+  const charts = Array.from(document.querySelectorAll('svg, canvas')).filter((el) => {
+    const r = el.getBoundingClientRect();
+    return r.width >= 280 && r.height >= 120 && r.bottom > 0 && r.top < window.innerHeight;
+  });
+  if (!charts.length) return null;
+  charts.sort((a, b) => {
+    const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    return (rb.width * rb.height) - (ra.width * ra.height);
+  });
+  let node = charts[0];
+  for (let i = 0; i < 8 && node; i++) {
+    const r = node.getBoundingClientRect();
+    // Kart: grafik + başlık için biraz pay; tüm sayfa değil
+    if (r.width >= 320 && r.height >= 160 && r.height <= window.innerHeight * 0.85) {
+      const txt = (node.innerText || '').length;
+      if (txt < 4000) return node;
+    }
+    node = node.parentElement;
+  }
+  return charts[0];
+}"""
+        )
+        el = handle.as_element() if handle else None
+        if el is None:
+            return False
+        path.parent.mkdir(parents=True, exist_ok=True)
+        el.screenshot(path=str(path))
+        if path.is_file() and path.stat().st_size > 8_000:
+            _trim_png_edges(path)
+            return True
+    except Exception:
+        return False
+    return False
 
 
 def _load_cwv_scrape():
@@ -227,20 +315,82 @@ def _enable_all_status_series(page) -> int:
 
 
 def _shot_overview_device_card(page, label: str, path: Path) -> bool:
-    """Overview'daki Mobile / Desktop çizgi grafik kartını yakala."""
+    """Overview'daki Mobile / Desktop çizgi grafik kartını sıkı kırp."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        handle = page.evaluate_handle(
+            """(label) => {
+  const norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+  const want = norm(label);
+  const nodes = Array.from(document.querySelectorAll('h1,h2,h3,h4,div,span,button'));
+  let heading = null;
+  for (const el of nodes) {
+    const t = norm(el.innerText || el.textContent || '');
+    if (!t || t.length > 40) continue;
+    if (t === want || t.startsWith(want + ' ') || t === want + ' web') {
+      heading = el;
+      break;
+    }
+  }
+  if (!heading) return null;
+  // Başlığın altında/yanında svg|canvas ara; kartı o grafiğin makul parent'ı yap
+  let root = heading;
+  for (let i = 0; i < 10 && root; i++) {
+    const chart = root.querySelector && root.querySelector('svg, canvas');
+    if (chart) {
+      const cr = chart.getBoundingClientRect();
+      if (cr.width >= 240 && cr.height >= 100) {
+        let card = chart.parentElement;
+        for (let d = 0; d < 6 && card; d++) {
+          const r = card.getBoundingClientRect();
+          if (r.width >= 300 && r.height >= 140 && r.height <= 720 && r.width <= 1400) {
+            return card;
+          }
+          card = card.parentElement;
+        }
+        return chart;
+      }
+    }
+    root = root.parentElement;
+  }
+  // Fallback: heading'in sıkı ancestor'ı (tüm sayfa değil)
+  let box = heading.parentElement;
+  for (let d = 0; d < 5 && box; d++) {
+    const r = box.getBoundingClientRect();
+    if (r.width >= 300 && r.height >= 160 && r.height <= 640) return box;
+    box = box.parentElement;
+  }
+  return null;
+}""",
+            label,
+        )
+        el = handle.as_element() if handle else None
+        if el is None:
+            return False
+        el.scroll_into_view_if_needed(timeout=3000)
+        time.sleep(0.25)
+        el.screenshot(path=str(path))
+        if path.is_file() and path.stat().st_size > 10_000:
+            _trim_png_edges(path)
+            return path.stat().st_size > 8_000
+    except Exception:
+        pass
+    # Eski xpath yolu — son çare, yükseklik sınırıyla
     for sel in (f"text={label}", f"text=/{label}/i"):
         try:
             heading = page.locator(sel).first
             if not heading.count():
                 continue
-            for depth in (3, 4, 5, 6, 2):
+            for depth in (3, 4, 5, 2):
                 try:
                     box = heading.locator(
                         f"xpath=ancestor::*[self::div or self::section][{depth}]"
                     )
-                    box.wait_for(state="visible", timeout=2000)
-                    box.screenshot(path=str(path), type="png")
-                    if path.is_file() and path.stat().st_size > 12_000:
+                    box.wait_for(state="visible", timeout=1500)
+                    box_h = box.bounding_box()
+                    if box_h and box_h.get("height", 0) > 780:
+                        continue
+                    if _screenshot_locator(box, path):
                         return True
                 except Exception:
                     continue
@@ -262,11 +412,15 @@ def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str
     shots: dict[str, Path] = {}
 
     print(f"CWV shots · {prop.get('label') or rid}", flush=True)
+    try:
+        page.set_viewport_size({"width": 1440, "height": 1100})
+    except Exception:
+        pass
     page.goto(_cwv_url(rid), wait_until="domcontentloaded", timeout=120_000)
     _ensure_signed_in(page, headed=True)
     time.sleep(3.5)
     try:
-        page.evaluate("window.scrollTo(0, 120)")
+        page.evaluate("window.scrollTo(0, 80)")
     except Exception:
         pass
     time.sleep(1.0)
@@ -277,10 +431,11 @@ def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str
     last_upd = _last_updated_from_body(body)
 
     shots["full"] = out_dir / "full.png"
-    _screenshot_main(page, shots["full"])
+    # full: viewport (chrome'suz daha tutarlı) — main tüm sayfa yamukluğu üretmesin
+    _png_of(page, shots["full"])
     print(f"  · full overview → {shots['full'].name}", flush=True)
 
-    # Overview çizgi grafikleri (Mobil / Masaüstü kartları) — panel ana görünüm
+    # Overview çizgi grafikleri (Mobil / Masaüstü kartları) — home panel ana görünüm
     for label_en, label_tr, variant in (
         ("Mobile", "Mobil", "mobile"),
         ("Desktop", "Masaüstü", "desktop"),
@@ -309,18 +464,19 @@ def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str
         time.sleep(3.5)
         _enable_all_status_series(page)
         time.sleep(1.0)
-        # Grafik alanına kaydır (üst KPI + stacked chart)
         try:
             page.evaluate("window.scrollTo(0, 0)")
         except Exception:
             pass
         time.sleep(0.8)
-        _screenshot_main(page, path)
+        # Summary: grafik kartı — tüm GSC chrome + uzun tabloyu alma
+        if not _shot_first_visible_chart(page, path):
+            _screenshot_main(page, path)
         shots[f"{variant}_summary"] = path
-        # Overview kartı yoksa summary panel slotuna girer
-        if variant not in shots:
+        # Home slotuna summary tam sayfa yazma — overview yoksa summary grafik kırpığı
+        if variant not in shots and path.is_file() and path.stat().st_size > 8_000:
             shots[variant] = path
-        print(f"  · {label} → {path.name} (all series)", flush=True)
+        print(f"  · {label} → {path.name} (chart crop)", flush=True)
 
     mobile_k = dict(overview.get("mobile") or {})
     desktop_k = dict(overview.get("desktop") or {})
