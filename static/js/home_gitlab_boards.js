@@ -1,9 +1,8 @@
 /**
- * Ana sayfa git.nokta — boards ile aynı kanban.
+ * Ana sayfa git.nokta — boards (/gitlab) ile aynı kanban.
  * Veri + DnD: tarayıcıdan doğrudan GitLab (VPN).
- * Görünen sıra = GitLab relative_position (git.nokta board ile aynı).
- * Sürükleme GitLab /issues/:iid/reorder ile kalıcı yazılır.
- * Railway sunucusu GitLab'e ulaşamadığı için project-bundle kullanılmaz.
+ * Dizilim = /api/boards/sort-settings (gitlab sekmesinde kaydedilen sort_mode).
+ * Sürükleme (manual): GitLab reorder + yerel /api/boards/order.
  */
 (function (global) {
   var GITLAB_API = 'https://git.nokta.com/api/v4';
@@ -18,6 +17,7 @@
       activeProject: '',
       projectData: {},
       boardOrders: {},
+      boardSortSettings: {},
       /**
        * Açılır description/comment — skaler key + cache.
        * Nested issue._ui / cardUi[key] mutasyonları Alpine'da paneli açıp
@@ -464,7 +464,6 @@
         }.bind(this));
       },
 
-      /** Esas sıra: GitLab board relative_position (yerel /api/boards/order ezmez). */
       sortIssuesByPosition(issues) {
         return (issues || []).slice().sort(function (a, b) {
           var pa = a.relative_position != null ? a.relative_position : Number.MAX_SAFE_INTEGER;
@@ -474,8 +473,129 @@
         });
       },
 
+      parseIssueDate(value) {
+        if (!value) return 0;
+        var t = Date.parse(value);
+        return isNaN(t) ? 0 : t;
+      },
+
+      getSortMode(path) {
+        return (this.boardSortSettings[path] || {}).sort_mode || 'manual';
+      },
+
+      setSortMode(path, mode) {
+        if (!this.boardSortSettings[path]) this.boardSortSettings[path] = {};
+        this.boardSortSettings[path].sort_mode = mode || 'manual';
+      },
+
+      gitlabFetchOrderForProject(path) {
+        var mode = this.getSortMode(path);
+        var map = {
+          manual: { order_by: 'relative_position', sort: 'asc' },
+          relative_position: { order_by: 'relative_position', sort: 'asc' },
+          updated_at_desc: { order_by: 'updated_at', sort: 'desc' },
+          updated_at_asc: { order_by: 'updated_at', sort: 'asc' },
+          created_at_desc: { order_by: 'created_at', sort: 'desc' },
+          created_at_asc: { order_by: 'created_at', sort: 'asc' },
+          weight_desc: { order_by: 'weight', sort: 'desc' },
+        };
+        return map[mode] || map.manual;
+      },
+
+      async loadBoardSortSettings(path) {
+        try {
+          var res = await fetch(
+            '/api/boards/sort-settings?project_path=' + encodeURIComponent(path),
+            { credentials: 'same-origin', cache: 'no-store' }
+          );
+          if (!res.ok) return;
+          var data = await res.json();
+          this.setSortMode(path, data.sort_mode || 'manual');
+        } catch (e) {
+          console.warn('home board sort settings load failed', e);
+        }
+      },
+
+      async saveBoardSortSettings(path, mode) {
+        var res = await fetch('/api/boards/sort-settings', {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_path: path, sort_mode: mode }),
+        });
+        if (!res.ok) throw new Error('Could not save sort setting');
+        var data = await res.json();
+        this.setSortMode(path, data.sort_mode || mode);
+      },
+
+      sortIssuesByMode(issues, mode) {
+        var copy = (issues || []).slice();
+        var self = this;
+        if (mode === 'manual') return copy;
+        if (mode === 'relative_position') return this.sortIssuesByPosition(copy);
+        if (mode === 'updated_at_desc') {
+          return copy.sort(function (a, b) {
+            return self.parseIssueDate(b.updated_at) - self.parseIssueDate(a.updated_at);
+          });
+        }
+        if (mode === 'updated_at_asc') {
+          return copy.sort(function (a, b) {
+            return self.parseIssueDate(a.updated_at) - self.parseIssueDate(b.updated_at);
+          });
+        }
+        if (mode === 'created_at_desc') {
+          return copy.sort(function (a, b) {
+            return self.parseIssueDate(b.created_at) - self.parseIssueDate(a.created_at);
+          });
+        }
+        if (mode === 'created_at_asc') {
+          return copy.sort(function (a, b) {
+            return self.parseIssueDate(a.created_at) - self.parseIssueDate(b.created_at);
+          });
+        }
+        if (mode === 'weight_desc') {
+          return copy.sort(function (a, b) {
+            var wa = a.weight != null ? Number(a.weight) : -1;
+            var wb = b.weight != null ? Number(b.weight) : -1;
+            if (wb !== wa) return wb - wa;
+            return self.parseIssueDate(b.updated_at) - self.parseIssueDate(a.updated_at);
+          });
+        }
+        return this.sortIssuesByPosition(copy);
+      },
+
+      sortIssuesWithSavedOrder(path, listKey, issues) {
+        var saved = (this.boardOrders[path] || {})[listKey];
+        if (!saved || !saved.length) {
+          return this.sortIssuesByPosition(issues);
+        }
+        var rank = {};
+        saved.forEach(function (iid, i) {
+          rank[String(iid)] = i;
+        });
+        return (issues || []).slice().sort(function (a, b) {
+          var ra = rank[String(a.iid)];
+          var rb = rank[String(b.iid)];
+          if (ra != null && rb != null) return ra - rb;
+          if (ra != null) return -1;
+          if (rb != null) return 1;
+          var pa = a.relative_position != null ? a.relative_position : Number.MAX_SAFE_INTEGER;
+          var pb = b.relative_position != null ? b.relative_position : Number.MAX_SAFE_INTEGER;
+          if (pa !== pb) return pa - pb;
+          return (a.id || 0) - (b.id || 0);
+        });
+      },
+
+      /** /gitlab sekmesindeki sort_mode ile aynı dizilim. */
       sortIssuesForDisplay(path, listKey, issues) {
-        return this.sortIssuesByPosition(issues);
+        if (listKey === '__closed__') {
+          return this.sortIssuesByMode(issues, 'updated_at_desc');
+        }
+        var mode = this.getSortMode(path);
+        if (mode === 'manual') {
+          return this.sortIssuesWithSavedOrder(path, listKey, issues);
+        }
+        return this.sortIssuesByMode(issues, mode);
       },
 
       issuesFor(lst) {
@@ -521,14 +641,17 @@
         });
       },
 
-      async fetchAllIssues(encodedPath, state) {
+      async fetchAllIssues(encodedPath, state, orderParams) {
         var allIssues = [];
         var page = 1;
         var oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
         var updatedAfter = oneYearAgo.toISOString();
-        var orderBy = state === 'opened' ? 'relative_position' : 'updated_at';
-        var sort = state === 'opened' ? 'asc' : 'desc';
+        var orderBy =
+          (orderParams && orderParams.order_by) ||
+          (state === 'opened' ? 'relative_position' : 'updated_at');
+        var sort =
+          (orderParams && orderParams.sort) || (state === 'opened' ? 'asc' : 'desc');
         var maxPages = state === 'opened' ? MAX_OPENED_PAGES : MAX_CLOSED_PAGES;
         while (page <= maxPages) {
           var url =
@@ -567,6 +690,7 @@
           if (!this.token) {
             throw new Error('No GitLab token — check VPN / the boards page.');
           }
+          await this.loadBoardSortSettings(path);
           await this.loadBoardOrders(path);
           var encodedPath = encodeURIComponent(path);
           var headers = { 'PRIVATE-TOKEN': this.token };
@@ -583,8 +707,12 @@
           if (!boardsData || !boardsData.length) {
             throw new Error('No active board found for this project.');
           }
-          var openedIssues = await this.fetchAllIssues(encodedPath, 'opened');
-          var closedIssues = await this.fetchAllIssues(encodedPath, 'closed');
+          var openOrder = this.gitlabFetchOrderForProject(path);
+          var openedIssues = await this.fetchAllIssues(encodedPath, 'opened', openOrder);
+          var closedIssues = await this.fetchAllIssues(encodedPath, 'closed', {
+            order_by: 'updated_at',
+            sort: 'desc',
+          });
           var board = boardsData[0];
           var actualLists = (board.lists || []).map(function (l) {
             return Object.assign({}, l, {
@@ -612,7 +740,10 @@
           this._clearVpnTimer();
           this.vpnProbing = false;
           this.expandPanel();
-          if (force) this.statusMsg = 'Updated · ' + pd.issues.length + ' items';
+          if (force) {
+            this.statusMsg =
+              'Updated · ' + pd.issues.length + ' items · ' + this.getSortMode(path);
+          }
         } catch (err) {
           console.error(err);
           var msg = (err && err.message) || 'Could not load board';
@@ -857,11 +988,17 @@
                 }
               }
 
-              /* Yerel yedek sıra (görüntüleme artık relative_position kullanır) */
+              /* Yerel yedek sıra — /gitlab ile aynı store */
               var toIids = self.iidsFromListEl(toList);
               await self.saveColumnOrder(projectPath, toListKey, toIids);
               if (crossColumn && fromListKey) {
                 await self.saveColumnOrder(projectPath, fromListKey, self.iidsFromListEl(fromList));
+              }
+              if (
+                self.getSortMode(projectPath) !== 'manual' &&
+                (reorderedInColumn || crossColumn)
+              ) {
+                await self.saveBoardSortSettings(projectPath, 'manual');
               }
               self.statusMsg = '';
             } catch (e) {
