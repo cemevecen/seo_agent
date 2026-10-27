@@ -14,10 +14,84 @@
 {% set good_tot = (mk.good or 0)|int %}
 
 <style>
-  .home-wv .home-wv-body { min-width: 0; }
+  .home-wv.home-wv--fill {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    height: 100%;
+  }
+  .home-wv.home-wv--fill > .home-shell-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .home-wv .home-wv-devices {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 0.75rem;
+    min-height: 0;
+  }
+  .home-wv .home-wv-device {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .home-wv .home-wv-shot-wrap {
+    flex: 1 1 auto;
+    min-height: 9rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .home-wv .home-wv-shot-link {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+  }
+  .home-wv .home-wv-shot-link img {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    object-fit: contain;
+    object-position: top center;
+  }
+  .home-wv .home-wv-good-row {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.9fr) minmax(0, 1.6fr) auto minmax(4.5rem, 0.7fr) auto;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+    margin-top: 0.35rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(209 250 229);
+    background: rgb(236 253 245 / 0.7);
+  }
+  .dark .home-wv .home-wv-good-row {
+    border-color: rgb(6 78 59 / 0.55);
+    background: rgb(2 44 34 / 0.35);
+  }
+  .home-wv .home-wv-good-spark {
+    width: 100%;
+    height: 28px;
+    display: block;
+  }
+  .home-wv .home-wv-good-spark path {
+    fill: none;
+    stroke: #0b8043;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .home-wv .home-wv-good-spark .home-wv-good-fill {
+    stroke: none;
+    fill: rgb(11 128 67 / 0.14);
+  }
 </style>
 
-<div class="home-readable home-wv is-open"
+<div class="home-readable home-wv home-wv--fill is-open"
      data-home-shell-root
      data-home-wv-site="{{ block.site_key if block else '' }}">
   <div class="home-shell-head">
@@ -56,7 +130,7 @@
 
   <div id="home-wv-shell-{{ sid }}" class="home-shell-body home-wv-body" data-home-shell-body>
       {% if block and block.collected_at %}
-      <p class="home-wv-micro home-meta mb-2 text-slate-400 dark:text-zinc-500">Last crawl · {{ block.collected_at }}</p>
+      <p class="home-wv-micro home-meta mb-2 shrink-0 text-slate-400 dark:text-zinc-500">Last crawl · {{ block.collected_at }}</p>
       {% endif %}
 
       {% if not has_data %}
@@ -64,56 +138,86 @@
         No GSC CWV data — run Scan in Web Vitals.
       </p>
       {% else %}
-      <div class="grid min-w-0 gap-3">
-        <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
-          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+      <div class="home-wv-devices">
+        <section class="home-wv-device min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
             <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Mobile</h4>
             {% if gsc.mobile_summary %}
             <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.mobile_summary }}" target="_blank" rel="noopener">Open report ›</a>
             {% endif %}
           </div>
-          <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400">
+          <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400 shrink-0">
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> poor</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> needs work</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> good</span>
           </div>
-          {% if shot_m %}
-          <a href="{{ shot_m }}" target="_blank" rel="noopener" class="seo-matte-shot-wrap block overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <img src="{{ shot_m }}" alt="GSC Mobile" class="seo-matte-shot max-h-[28rem] w-full object-contain object-top" loading="lazy">
-          </a>
-          <p class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500">GSC screenshot · mobile issues</p>
-          {% else %}
-          <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-m-{{ sid }}"></canvas></div>
-          <p id="home-wv-m-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
-          {% endif %}
+          <div class="home-wv-shot-wrap">
+            {% if shot_m %}
+            <a href="{{ shot_m }}" target="_blank" rel="noopener" class="home-wv-shot-link seo-matte-shot-wrap overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+              <img src="{{ shot_m }}" alt="GSC Mobile issues" class="seo-matte-shot" loading="lazy">
+            </a>
+            {% else %}
+            <div class="relative min-h-[9rem] w-full flex-1"><canvas id="home-wv-m-{{ sid }}"></canvas></div>
+            <p id="home-wv-m-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
+            {% endif %}
+            <div class="home-wv-good-row shrink-0" data-home-wv-good="mobile" title="Good URLs trend (GSC chart series)">
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                <span class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white" aria-hidden="true">✓</span>
+                Good
+              </span>
+              <span class="truncate text-[11px] font-medium text-slate-700 dark:text-zinc-200">Good URLs</span>
+              <span class="home-meta text-[10px] text-slate-400 dark:text-zinc-500">trend</span>
+              <svg class="home-wv-good-spark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true">
+                <path class="home-wv-good-fill" d=""></path>
+                <path class="home-wv-good-line" d=""></path>
+              </svg>
+              <span class="tabular-nums text-right text-[12px] font-semibold text-emerald-700 dark:text-emerald-300" data-home-wv-good-count>{{ fmt_int(mk.good) }}</span>
+            </div>
+          </div>
         </section>
-        <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
-          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+        <section class="home-wv-device min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
             <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Desktop</h4>
             {% if gsc.desktop_summary %}
             <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.desktop_summary }}" target="_blank" rel="noopener">Open report ›</a>
             {% endif %}
           </div>
-          <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400">
+          <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400 shrink-0">
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> poor</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> needs work</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> good</span>
           </div>
-          {% if shot_d %}
-          <a href="{{ shot_d }}" target="_blank" rel="noopener" class="seo-matte-shot-wrap block overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <img src="{{ shot_d }}" alt="GSC Desktop" class="seo-matte-shot max-h-[28rem] w-full object-contain object-top" loading="lazy">
-          </a>
-          <p class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500">GSC screenshot · desktop issues</p>
-          {% else %}
-          <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-d-{{ sid }}"></canvas></div>
-          <p id="home-wv-d-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
-          {% endif %}
+          <div class="home-wv-shot-wrap">
+            {% if shot_d %}
+            <a href="{{ shot_d }}" target="_blank" rel="noopener" class="home-wv-shot-link seo-matte-shot-wrap overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+              <img src="{{ shot_d }}" alt="GSC Desktop issues" class="seo-matte-shot" loading="lazy">
+            </a>
+            {% else %}
+            <div class="relative min-h-[9rem] w-full flex-1"><canvas id="home-wv-d-{{ sid }}"></canvas></div>
+            <p id="home-wv-d-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
+            {% endif %}
+            <div class="home-wv-good-row shrink-0" data-home-wv-good="desktop" title="Good URLs trend (GSC chart series)">
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                <span class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white" aria-hidden="true">✓</span>
+                Good
+              </span>
+              <span class="truncate text-[11px] font-medium text-slate-700 dark:text-zinc-200">Good URLs</span>
+              <span class="home-meta text-[10px] text-slate-400 dark:text-zinc-500">trend</span>
+              <svg class="home-wv-good-spark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true">
+                <path class="home-wv-good-fill" d=""></path>
+                <path class="home-wv-good-line" d=""></path>
+              </svg>
+              <span class="tabular-nums text-right text-[12px] font-semibold text-emerald-700 dark:text-emerald-300" data-home-wv-good-count>{{ fmt_int(dk.good) }}</span>
+            </div>
+          </div>
         </section>
       </div>
       <script type="application/json" id="home-wv-data-{{ sid }}">{{ {
         "site_id": sid,
         "chart_series": block.chart_series or {},
-        "history": block.history or []
+        "history": block.history or [],
+        "mobile_kpis": mk,
+        "desktop_kpis": dk
       }|tojson }}</script>
       <script>
       (function(){
@@ -124,22 +228,7 @@
         var payload;
         try { payload = JSON.parse(rawEl.textContent || '{}'); } catch (e) { return; }
         var rendered = false;
-        function ensureChartJs(cb) {
-          if (window.Chart) { cb(); return; }
-          if (window.__homeWvChartLoading) {
-            window.__homeWvChartLoading.push(cb);
-            return;
-          }
-          window.__homeWvChartLoading = [cb];
-          var s = document.createElement('script');
-          s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
-          s.onload = function() {
-            var q = window.__homeWvChartLoading || [];
-            window.__homeWvChartLoading = null;
-            q.forEach(function(fn){ try { fn(); } catch (err) { console.warn(err); } });
-          };
-          document.head.appendChild(s);
-        }
+
         function fmtLabel(iso) {
           if (!iso) return '—';
           var s = String(iso);
@@ -181,6 +270,69 @@
             };
           }
           return fromHistory(deviceKey);
+        }
+        function sparkPaths(values) {
+          var vals = (values || []).map(function(v){ return Number(v); }).filter(function(v){ return isFinite(v); });
+          if (vals.length < 2) {
+            var flat = vals.length === 1 ? vals[0] : 0;
+            vals = [flat, flat];
+          }
+          var min = Math.min.apply(null, vals);
+          var max = Math.max.apply(null, vals);
+          var span = max - min || 1;
+          var w = 120, h = 28, pad = 3;
+          var pts = vals.map(function(v, i) {
+            var x = pad + (i / (vals.length - 1)) * (w - pad * 2);
+            var y = pad + (1 - (v - min) / span) * (h - pad * 2);
+            return [x, y];
+          });
+          var line = pts.map(function(p, i){ return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+          var fill = line + ' L' + pts[pts.length - 1][0].toFixed(1) + ' ' + h + ' L' + pts[0][0].toFixed(1) + ' ' + h + ' Z';
+          return { line: line, fill: fill, last: vals[vals.length - 1] };
+        }
+        function paintGoodRow(deviceKey) {
+          if (!root) return;
+          var row = root.querySelector('[data-home-wv-good="' + deviceKey + '"]');
+          if (!row) return;
+          var ser = resolve(deviceKey);
+          var spark = sparkPaths(ser.good);
+          var fill = row.querySelector('.home-wv-good-fill');
+          var line = row.querySelector('.home-wv-good-line');
+          if (fill) fill.setAttribute('d', spark.fill);
+          if (line) line.setAttribute('d', spark.line);
+          var countEl = row.querySelector('[data-home-wv-good-count]');
+          var kpi = (deviceKey === 'mobile' ? payload.mobile_kpis : payload.desktop_kpis) || {};
+          var n = kpi.good != null ? Number(kpi.good) : spark.last;
+          if (countEl && isFinite(n)) {
+            countEl.textContent = Math.round(n).toLocaleString('tr-TR');
+          }
+          var delta = '';
+          if (ser.good && ser.good.length >= 2) {
+            var a = Number(ser.good[ser.good.length - 2]);
+            var b = Number(ser.good[ser.good.length - 1]);
+            if (isFinite(a) && isFinite(b) && a > 0) {
+              var pct = ((b - a) / a) * 100;
+              delta = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+            }
+          }
+          row.title = 'Good URLs trend · ' + (ser.source === 'gsc' ? 'GSC' : 'crawl history') +
+            (delta ? (' · son adım ' + delta) : '');
+        }
+        function ensureChartJs(cb) {
+          if (window.Chart) { cb(); return; }
+          if (window.__homeWvChartLoading) {
+            window.__homeWvChartLoading.push(cb);
+            return;
+          }
+          window.__homeWvChartLoading = [cb];
+          var s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+          s.onload = function() {
+            var q = window.__homeWvChartLoading || [];
+            window.__homeWvChartLoading = null;
+            q.forEach(function(fn){ try { fn(); } catch (err) { console.warn(err); } });
+          };
+          document.head.appendChild(s);
         }
         function render(canvasId, noteId, deviceKey) {
           var canvas = document.getElementById(canvasId);
@@ -231,6 +383,8 @@
           });
         }
         function paint() {
+          paintGoodRow('mobile');
+          paintGoodRow('desktop');
           if (rendered) {
             ['home-wv-m-' + sid, 'home-wv-d-' + sid].forEach(function(id) {
               var c = document.getElementById(id);

@@ -1582,6 +1582,24 @@
     height: auto;
     box-sizing: border-box;
   }
+  /* Web Vitals: doviz | sinemalar eşit yükseklik (veri object-contain ile kaybolmaz) */
+  .home-pair-row.home-pair-row--equal-h {
+    align-items: stretch;
+  }
+  .home-pair-row.home-pair-row--equal-h > [data-home-container-slot] {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+  }
+  .home-pair-row.home-pair-row--equal-h > [data-home-container-slot] > [data-home-container],
+  .home-pair-row.home-pair-row--equal-h > [data-home-container-slot] > section.home-readable {
+    flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
   /* Başlık satırı yine satır yüksekliğini paylaşabilir */
   .home-project-heads.home-pair-row > [data-home-project] {
     align-self: center;
@@ -2462,9 +2480,9 @@
       </div>
 
       {# Row 5 — Web Vitals (GSC CWV Mobil/Masaüstü) · alert/position altında #}
-      <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+      <div class="home-pair-row home-pair-row--equal-h grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div data-home-container-slot="wv-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/web-vitals?site=doviz&v=18" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=doviz&v=19" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2475,7 +2493,7 @@
         </section>
         </div>
         <div data-home-container-slot="wv-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/web-vitals?site=sinemalar&v=18" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=sinemalar&v=19" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
