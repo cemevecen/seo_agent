@@ -208,6 +208,16 @@ def _boost_trend_sparklines(page) -> None:
       transform: scaleY(1.35) scaleX(1.08);
       transform-origin: center center;
     }
+    /* Başlık / alt metin / filtre — SS'de görünmesin */
+    [data-cwv-hide-chrome="1"] {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      max-height: 0 !important;
+      overflow: hidden !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
   `;
   document.documentElement.appendChild(style);
 }"""
@@ -216,16 +226,110 @@ def _boost_trend_sparklines(page) -> None:
         pass
 
 
+def _hide_issues_table_chrome(page) -> int:
+    """«Why URLs aren't considered good» başlık + alt metin + filtreyi gizle."""
+    try:
+        return int(
+            page.evaluate(
+                """() => {
+  const norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+  const titleRe = /why urls aren|url.?ler neden iyi|iyi olarak değerlendirilmiyor|iyi say[iı]lm[iı]yor/i;
+  const subRe = /urls with these issues|good page experience|iyi bir sayfa deneyimi/i;
+  let n = 0;
+  const hide = (el) => {
+    if (!el || el.getAttribute('data-cwv-hide-chrome') === '1') return;
+    // Tabloyu asla gizleme
+    if (el.matches && (el.matches('table,[role="table"],[role="grid"]') || el.querySelector('table,[role="table"],[role="grid"]'))) {
+      const onlyChrome = !/severity|issue|trend|lcp|cls|inp/i.test(norm(el.innerText || '').slice(0, 200))
+        || titleRe.test(norm(el.innerText || '')) && !el.querySelector('tr td, [role="cell"]');
+      if (!onlyChrome && el.querySelector('tr td, [role="row"] [role="cell"]')) return;
+    }
+    el.setAttribute('data-cwv-hide-chrome', '1');
+    n += 1;
+  };
+
+  // Başlık metnini bul → başlık satırı bloğunu (başlık+filtre) gizle
+  const all = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,div,span,p,button'));
+  let titleEl = null;
+  for (const el of all) {
+    const t = norm(el.innerText || el.textContent || '');
+    if (!t || t.length > 120) continue;
+    if (titleRe.test(t) && t.length < 80) {
+      titleEl = el;
+      break;
+    }
+  }
+  if (titleEl) {
+    // Başlık + kardeş alt metin + filtre ikonunu saran dar satır
+    let row = titleEl;
+    for (let i = 0; i < 6 && row; i++) {
+      const r = row.getBoundingClientRect();
+      const t = norm(row.innerText || '');
+      const hasFilter = !!(row.querySelector && row.querySelector('button, [role="button"], svg'));
+      const looksHeaderRow =
+        r.height > 0 &&
+        r.height <= 120 &&
+        r.width >= 320 &&
+        (titleRe.test(t) || subRe.test(t)) &&
+        !/severity|\\blcp\\b|\\bcls\\b|\\binp\\b/i.test(t);
+      if (looksHeaderRow && (hasFilter || subRe.test(t) || titleRe.test(t))) {
+        // Alt metin ayrı satırdaysa üst blok + alt satırı birlikte gizle
+        hide(row);
+        // Kardeş alt metin satırı
+        let sib = row.nextElementSibling;
+        for (let s = 0; s < 3 && sib; s++) {
+          const st = norm(sib.innerText || '');
+          const sr = sib.getBoundingClientRect();
+          if (sr.height <= 80 && (subRe.test(st) || (st.length < 120 && /page experience|sayfa deneyimi/i.test(st)))) {
+            hide(sib);
+          } else break;
+          sib = sib.nextElementSibling;
+        }
+        break;
+      }
+      row = row.parentElement;
+    }
+    if (!document.querySelector('[data-cwv-hide-chrome="1"]')) {
+      hide(titleEl);
+    }
+  }
+
+  // Kalan alt metin / filtre
+  for (const el of all) {
+    const t = norm(el.innerText || el.textContent || '');
+    if (!t || t.length > 140) continue;
+    if (subRe.test(t) && t.length < 120) {
+      let box = el;
+      for (let i = 0; i < 3 && box; i++) {
+        const r = box.getBoundingClientRect();
+        if (r.height > 0 && r.height <= 70) {
+          hide(box);
+          break;
+        }
+        box = box.parentElement;
+      }
+    }
+  }
+  return n;
+}"""
+            )
+            or 0
+        )
+    except Exception:
+        return 0
+
+
 def _shot_issues_table(page, path: Path) -> bool:
-    """Summary: yalnız «Why URLs aren't considered good» tablo kartı (üst grafik yok)."""
+    """Summary: yalnız issues veri tablosu (başlık/alt metin/filtre ve üst grafik yok)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     _clear_shot_marks(page)
     try:
         marked = page.evaluate(
             """() => {
-  document.querySelectorAll('[data-cwv-shot-target],[data-cwv-issues-table]').forEach((e) => {
+  document.querySelectorAll('[data-cwv-shot-target],[data-cwv-issues-table],[data-cwv-hide-chrome]').forEach((e) => {
     e.removeAttribute('data-cwv-shot-target');
     e.removeAttribute('data-cwv-issues-table');
+    e.removeAttribute('data-cwv-hide-chrome');
   });
   const norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
   const needles = [
@@ -250,63 +354,47 @@ def _shot_issues_table(page, path: Path) -> bool:
       break;
     }
   }
-  if (!heading) {
-    // Tablo başlık satırı: Severity + Issue + Trend + URLs
-    const rows = Array.from(document.querySelectorAll('tr, [role="row"]'));
-    for (const row of rows) {
-      const t = norm(row.innerText || '');
-      if (
-        t.includes('severity') &&
-        t.includes('issue') &&
-        (t.includes('trend') || t.includes('validation')) &&
-        t.includes('url')
-      ) {
-        heading = row;
-        break;
-      }
+  // Tercih: doğrudan Severity/Issue/Trend tablosu
+  let table = null;
+  const rows = Array.from(document.querySelectorAll('tr, [role="row"]'));
+  for (const row of rows) {
+    const t = norm(row.innerText || '');
+    if (
+      t.includes('severity') &&
+      t.includes('issue') &&
+      (t.includes('trend') || t.includes('validation')) &&
+      t.includes('url')
+    ) {
+      table =
+        row.closest('table') ||
+        row.closest('[role="table"]') ||
+        row.closest('[role="grid"]') ||
+        row.parentElement;
+      if (!heading) heading = row;
+      break;
     }
   }
-  if (!heading) return false;
+  if (!heading && !table) return false;
 
-  let pick = null;
-  let node = heading;
-  for (let i = 0; i < 12 && node; i++) {
-    const r = node.getBoundingClientRect();
-    const txt = norm(node.innerText || '');
-    const hasTable =
-      !!(node.querySelector && (
-        node.querySelector('table') ||
-        node.querySelector('[role="table"]') ||
-        node.querySelector('[role="grid"]')
-      ));
-    const looksLikeCard =
-      r.width >= 480 &&
-      r.height >= 120 &&
-      r.height <= 900 &&
-      r.width <= Math.min(window.innerWidth - 8, 1600);
-    const hasIssueRows =
-      /lcp|cls|inp|fid|need improvement|poor|yetersiz|iyileş/i.test(txt);
-    if (looksLikeCard && (hasTable || hasIssueRows) && txt.length < 8000) {
-      // Üst stacked grafiği dahil eden çok yüksek kartları ele
-      const chart = node.querySelector && node.querySelector('svg, canvas');
-      let chartH = 0;
-      if (chart) {
-        const cr = chart.getBoundingClientRect();
-        if (cr.height >= 140 && cr.width >= 280) chartH = cr.height;
-      }
-      // Büyük üst grafik varsa daha sıkı (tablo) çocuğa in
-      if (chartH >= 140 && r.height > chartH + 160) {
-        // continue walking — ama heading'e yakın bir kart tercih et
-      } else {
-        pick = node;
+  let pick = table;
+  if (!pick && heading) {
+    let node = heading;
+    for (let i = 0; i < 12 && node; i++) {
+      const found =
+        (node.querySelector && (
+          node.querySelector('table') ||
+          node.querySelector('[role="table"]') ||
+          node.querySelector('[role="grid"]')
+        )) || null;
+      if (found) {
+        table = found;
+        pick = found;
         break;
       }
+      node = node.parentElement;
     }
-    node = node.parentElement;
   }
-
-  if (!pick) {
-    // Heading + tabloyu saran en dar kutu
+  if (!pick && heading) {
     let box = heading.parentElement;
     for (let d = 0; d < 8 && box; d++) {
       const r = box.getBoundingClientRect();
@@ -319,42 +407,26 @@ def _shot_issues_table(page, path: Path) -> bool:
   }
   if (!pick) return false;
 
-  // Üst grafik hâlâ içerideyse: tabloyu / satırları seç
-  const bigChart = Array.from(pick.querySelectorAll('svg, canvas')).find((el) => {
-    const r = el.getBoundingClientRect();
-    return r.width >= 300 && r.height >= 150;
-  });
-  if (bigChart) {
-    const table =
-      pick.querySelector('table') ||
-      pick.querySelector('[role="table"]') ||
-      pick.querySelector('[role="grid"]');
-    if (table) {
-      let wrap = table;
-      for (let i = 0; i < 5 && wrap.parentElement; i++) {
-        const p = wrap.parentElement;
-        const pr = p.getBoundingClientRect();
-        const tr = table.getBoundingClientRect();
-        if (pr.height <= tr.height + 120 && pr.width >= tr.width * 0.9) {
-          wrap = p;
-        } else break;
-      }
-      // Başlık metni wrap dışında kaldıysa heading'i de kapsayan kardeş üstü
-      const headR = heading.getBoundingClientRect();
-      const wrapR = wrap.getBoundingClientRect();
-      if (headR.top < wrapR.top - 8) {
-        let up = wrap.parentElement;
-        for (let i = 0; i < 4 && up; i++) {
-          const ur = up.getBoundingClientRect();
-          if (ur.top <= headR.top + 4 && ur.height <= 820) {
-            wrap = up;
-            break;
-          }
-          up = up.parentElement;
-        }
-      }
-      pick = wrap;
+  // Mümkünse yalnız tablo (+ pagination) — başlık satırını alma
+  if (table) {
+    let wrap = table;
+    for (let i = 0; i < 5 && wrap.parentElement; i++) {
+      const p = wrap.parentElement;
+      const pr = p.getBoundingClientRect();
+      const tr = table.getBoundingClientRect();
+      const pt = norm(p.innerText || '');
+      const includesTitle = needles.some((n) => pt.includes(n));
+      // Pagination / rows-per-page için biraz üst kutu; başlık metnini içereni alma
+      if (
+        !includesTitle &&
+        pr.height <= tr.height + 100 &&
+        pr.width >= tr.width * 0.9 &&
+        pr.height >= tr.height
+      ) {
+        wrap = p;
+      } else break;
     }
+    pick = wrap;
   }
 
   pick.setAttribute('data-cwv-shot-target', '1');
@@ -368,6 +440,9 @@ def _shot_issues_table(page, path: Path) -> bool:
         if not marked:
             return False
         _boost_trend_sparklines(page)
+        hidden = _hide_issues_table_chrome(page)
+        if hidden:
+            print(f"  · issues chrome hidden · {hidden}", flush=True)
         time.sleep(0.35)
         # Tablo için agresif kenar trim kapalı — kesik satır/spark olmasın
         return _shot_marked_target(page, path, trim=False)
