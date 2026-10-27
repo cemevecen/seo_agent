@@ -75,19 +75,24 @@
   }
   .home-wv .home-wv-good-spark {
     width: 100%;
-    height: 28px;
+    height: 36px;
     display: block;
   }
   .home-wv .home-wv-good-spark path {
     fill: none;
     stroke: #0b8043;
-    stroke-width: 2.4;
+    stroke-width: 2.2;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
   .home-wv .home-wv-good-spark .home-wv-good-fill {
     stroke: none;
-    fill: rgb(11 128 67 / 0.14);
+    fill: rgb(11 128 67 / 0.16);
+  }
+  .home-wv .home-wv-good-src {
+    font-size: 9px;
+    letter-spacing: 0.02em;
+    color: #94a3b8;
   }
 </style>
 
@@ -160,14 +165,14 @@
             <div class="relative min-h-[9rem] w-full flex-1"><canvas id="home-wv-m-{{ sid }}"></canvas></div>
             <p id="home-wv-m-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
             {% endif %}
-            <div class="home-wv-good-row shrink-0" data-home-wv-good="mobile" title="Good URLs trend (GSC chart series)">
+            <div class="home-wv-good-row shrink-0" data-home-wv-good="mobile" title="Good URLs · GSC overview yeşil çizgi">
               <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
                 <span class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white" aria-hidden="true">✓</span>
                 Good
               </span>
               <span class="truncate text-[11px] font-medium text-slate-700 dark:text-zinc-200">Good URLs</span>
-              <span class="home-meta text-[10px] text-slate-400 dark:text-zinc-500">trend</span>
-              <svg class="home-wv-good-spark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true">
+              <span class="home-wv-good-src" data-home-wv-good-src>trend</span>
+              <svg class="home-wv-good-spark" viewBox="0 0 160 36" preserveAspectRatio="none" aria-hidden="true">
                 <path class="home-wv-good-fill" d=""></path>
                 <path class="home-wv-good-line" d=""></path>
               </svg>
@@ -196,14 +201,14 @@
             <div class="relative min-h-[9rem] w-full flex-1"><canvas id="home-wv-d-{{ sid }}"></canvas></div>
             <p id="home-wv-d-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
             {% endif %}
-            <div class="home-wv-good-row shrink-0" data-home-wv-good="desktop" title="Good URLs trend (GSC chart series)">
+            <div class="home-wv-good-row shrink-0" data-home-wv-good="desktop" title="Good URLs · GSC overview yeşil çizgi">
               <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
                 <span class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white" aria-hidden="true">✓</span>
                 Good
               </span>
               <span class="truncate text-[11px] font-medium text-slate-700 dark:text-zinc-200">Good URLs</span>
-              <span class="home-meta text-[10px] text-slate-400 dark:text-zinc-500">trend</span>
-              <svg class="home-wv-good-spark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true">
+              <span class="home-wv-good-src" data-home-wv-good-src>trend</span>
+              <svg class="home-wv-good-spark" viewBox="0 0 160 36" preserveAspectRatio="none" aria-hidden="true">
                 <path class="home-wv-good-fill" d=""></path>
                 <path class="home-wv-good-line" d=""></path>
               </svg>
@@ -238,14 +243,38 @@
           }
           return s.slice(5, 16).replace('T', ' ');
         }
+        function yearFromDate(d) {
+          var s = String(d || '');
+          // ISO 2026-07-29
+          var m = s.match(/^(\d{4})-/);
+          if (m) return parseInt(m[1], 10);
+          // M/D/YY or M/D/YYYY
+          m = s.match(/\/(\d{2,4})$/);
+          if (m) {
+            var y = parseInt(m[1], 10);
+            if (y < 100) y += 2000;
+            return y;
+          }
+          var y2 = parseInt(s.slice(0, 4), 10);
+          return isFinite(y2) ? y2 : NaN;
+        }
         function datesPlausible(dates) {
           var y0 = new Date().getFullYear();
           if (!dates || !dates.length) return false;
+          var ok = 0;
           for (var i = 0; i < dates.length; i++) {
-            var y = parseInt(String(dates[i]).slice(0, 4), 10);
-            if (!(y >= y0 - 3 && y <= y0 + 1)) return false;
+            var y = yearFromDate(dates[i]);
+            if (y >= y0 - 3 && y <= y0 + 1) ok += 1;
           }
-          return true;
+          // Çoğu tarih makulse yeter (tek bozuk etiket tüm seriyi düşürmesin)
+          return ok >= Math.max(3, Math.floor(dates.length * 0.6));
+        }
+        function seriesNonZeroRatio(arr) {
+          var a = arr || [];
+          if (!a.length) return 0;
+          var nz = 0;
+          for (var i = 0; i < a.length; i++) if (Number(a[i]) > 0) nz += 1;
+          return nz / a.length;
         }
         function fromHistory(deviceKey) {
           var dates = [], poor = [], ni = [], good = [];
@@ -258,18 +287,44 @@
           });
           return { dates: dates, poor: poor, needs_improvement: ni, good: good, source: 'panel_history' };
         }
-        function resolve(deviceKey) {
+        function fromChart(deviceKey) {
           var ser = (payload.chart_series && payload.chart_series[deviceKey]) || null;
-          if (ser && ser.dates && ser.dates.length >= 3 && datesPlausible(ser.dates)) {
+          if (!ser || typeof ser !== 'object') return null;
+          var good = ser.good || [];
+          var dates = ser.dates || [];
+          // GSC overview serisi: yeterince nokta + anlamlı good değerleri
+          if (good.length >= 8 && seriesNonZeroRatio(good) >= 0.25) {
             return {
-              dates: (ser.dates || []).map(fmtLabel),
+              dates: dates.length ? dates.map(fmtLabel) : good.map(function(_, i){ return String(i); }),
               poor: ser.poor || [],
               needs_improvement: ser.needs_improvement || [],
-              good: ser.good || [],
+              good: good,
               source: 'gsc'
             };
           }
-          return fromHistory(deviceKey);
+          if (dates.length >= 3 && datesPlausible(dates) && good.length >= 3) {
+            return {
+              dates: dates.map(fmtLabel),
+              poor: ser.poor || [],
+              needs_improvement: ser.needs_improvement || [],
+              good: good,
+              source: 'gsc'
+            };
+          }
+          return null;
+        }
+        function resolve(deviceKey) {
+          // Önce GSC overview chart_series (yeşil çizgi). History seyrek → sahte «sonda spike».
+          var gsc = fromChart(deviceKey);
+          if (gsc) return gsc;
+          var hist = fromHistory(deviceKey);
+          // History ancak yeterince doluysa; aksi halde tek KPI noktası (yanıltıcı spark yok)
+          if (hist.good && hist.good.length >= 8 && seriesNonZeroRatio(hist.good) >= 0.4) {
+            return hist;
+          }
+          var kpi = (deviceKey === 'mobile' ? payload.mobile_kpis : payload.desktop_kpis) || {};
+          var g = Number(kpi.good || 0);
+          return { dates: ['—'], poor: [0], needs_improvement: [0], good: [g, g], source: 'kpi' };
         }
         function sparkPaths(values) {
           var vals = (values || []).map(function(v){ return Number(v); }).filter(function(v){ return isFinite(v); });
@@ -277,10 +332,21 @@
             var flat = vals.length === 1 ? vals[0] : 0;
             vals = [flat, flat];
           }
-          var min = Math.min.apply(null, vals);
+          // Çok uzun seriyi ~90 noktaya indir (şekil korunur) — GSC ~3 ay günlük
+          if (vals.length > 96) {
+            var out = [];
+            var last = vals.length - 1;
+            for (var i = 0; i < 96; i++) {
+              out.push(vals[Math.round(i * last / 95)]);
+            }
+            vals = out;
+          }
+          // GSC grafiği gibi taban 0 — min-max sıkıştırma «sonda spike» abartır
+          var min = 0;
           var max = Math.max.apply(null, vals);
-          var span = max - min || 1;
-          var w = 120, h = 28, pad = 3;
+          if (!(max > 0)) max = 1;
+          var span = max - min;
+          var w = 160, h = 36, pad = 2;
           var pts = vals.map(function(v, i) {
             var x = pad + (i / (vals.length - 1)) * (w - pad * 2);
             var y = pad + (1 - (v - min) / span) * (h - pad * 2);
@@ -288,7 +354,7 @@
           });
           var line = pts.map(function(p, i){ return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
           var fill = line + ' L' + pts[pts.length - 1][0].toFixed(1) + ' ' + h + ' L' + pts[0][0].toFixed(1) + ' ' + h + ' Z';
-          return { line: line, fill: fill, last: vals[vals.length - 1] };
+          return { line: line, fill: fill, last: vals[vals.length - 1], n: vals.length };
         }
         function paintGoodRow(deviceKey) {
           if (!root) return;
@@ -301,22 +367,20 @@
           if (fill) fill.setAttribute('d', spark.fill);
           if (line) line.setAttribute('d', spark.line);
           var countEl = row.querySelector('[data-home-wv-good-count]');
+          var srcEl = row.querySelector('[data-home-wv-good-src]');
           var kpi = (deviceKey === 'mobile' ? payload.mobile_kpis : payload.desktop_kpis) || {};
           var n = kpi.good != null ? Number(kpi.good) : spark.last;
           if (countEl && isFinite(n)) {
             countEl.textContent = Math.round(n).toLocaleString('tr-TR');
           }
-          var delta = '';
-          if (ser.good && ser.good.length >= 2) {
-            var a = Number(ser.good[ser.good.length - 2]);
-            var b = Number(ser.good[ser.good.length - 1]);
-            if (isFinite(a) && isFinite(b) && a > 0) {
-              var pct = ((b - a) / a) * 100;
-              delta = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
-            }
+          if (srcEl) {
+            srcEl.textContent = ser.source === 'gsc'
+              ? ('GSC · ' + spark.n)
+              : (ser.source === 'panel_history' ? ('hist · ' + spark.n) : 'kpi');
           }
-          row.title = 'Good URLs trend · ' + (ser.source === 'gsc' ? 'GSC' : 'crawl history') +
-            (delta ? (' · son adım ' + delta) : '');
+          row.title = 'Good URLs · ' +
+            (ser.source === 'gsc' ? 'GSC overview yeşil çizgi' : ser.source) +
+            ' · ' + spark.n + ' nokta';
         }
         function ensureChartJs(cb) {
           if (window.Chart) { cb(); return; }
