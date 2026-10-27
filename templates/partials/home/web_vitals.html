@@ -184,7 +184,7 @@
             <div class="home-wv-trend-row {{ 'home-wv-trend-row--good' if is_good else 'home-wv-trend-row--ni' }}"
                  data-home-wv-trend
                  data-kind="{{ row.kind }}"
-                 data-values="{{ (row.values or [])|tojson|e }}"
+                 data-values="{{ (row.points or row['values'] or [])|tojson|e }}"
                  data-range-start="{{ row.range_start or '' }}"
                  data-range-end="{{ row.range_end or '' }}"
                  title="{{ row.title }}">

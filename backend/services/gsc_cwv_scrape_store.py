@@ -1109,7 +1109,8 @@ def build_device_trend_rows(
 ) -> list[dict[str, Any]]:
     """Home: en yüksek 2 Need improvement + Good URL — aynı tarih aralığında spark.
 
-    Dönüş: [{kind, title, count, values, dates, range_start, range_end}, ...]
+    Dönüş: [{kind, title, count, points, dates, range_start, range_end}, ...]
+    (points = seri; Jinja'da row.values dict metoduna çakışmasın diye values değil.)
     count = aralığın son günü (seri varsa); /web-vitals KPI / issue ile hizalı.
     """
     dev = device_payload if isinstance(device_payload, dict) else {}
@@ -1215,7 +1216,7 @@ def build_device_trend_rows(
                 "kind": "needs_improvement",
                 "title": c.get("title") or "Need improvement",
                 "count": end_count,
-                "values": values,
+                "points": values,
                 "dates": dates or [],
                 "range_start": range_start,
                 "range_end": range_end,
@@ -1242,7 +1243,7 @@ def build_device_trend_rows(
             "kind": "good",
             "title": "Good URLs",
             "count": good_end,
-            "values": good_vals,
+            "points": good_vals,
             "dates": dates or [],
             "range_start": range_start,
             "range_end": range_end,
