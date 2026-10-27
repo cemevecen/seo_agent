@@ -243,6 +243,31 @@
           }
           return s.slice(5, 16).replace('T', ' ');
         }
+        /** GSC ekseni gibi: 29.07–21.10 */
+        function fmtRangeShort(iso) {
+          if (!iso) return '';
+          var s = String(iso);
+          var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (m) return parseInt(m[3], 10) + '.' + m[2];
+          m = s.match(/^(\d{1,2})[./](\d{1,2})/);
+          if (m) return parseInt(m[1], 10) + '.' + String(m[2]).padStart(2, '0');
+          return '';
+        }
+        function seriesRangeLabel(ser) {
+          if (!ser) return '';
+          var a = ser.range_start || (ser.dates && ser.dates[0]) || '';
+          var b = ser.range_end || (ser.dates && ser.dates[ser.dates.length - 1]) || '';
+          // dates may already be fmtLabel'd
+          var raw = (payload.chart_series && payload.chart_series[ser._device]) || {};
+          if (ser.source === 'gsc' && raw.dates && raw.dates.length) {
+            a = raw.range_start || raw.dates[0];
+            b = raw.range_end || raw.dates[raw.dates.length - 1];
+          }
+          var fa = fmtRangeShort(a) || String(a).slice(0, 5);
+          var fb = fmtRangeShort(b) || String(b).slice(0, 5);
+          if (!fa || !fb) return '';
+          return fa + '–' + fb;
+        }
         function yearFromDate(d) {
           var s = String(d || '');
           // ISO 2026-07-29
@@ -292,6 +317,8 @@
           if (!ser || typeof ser !== 'object') return null;
           var good = ser.good || [];
           var dates = ser.dates || [];
+          var rangeStart = ser.range_start || (dates[0] || '');
+          var rangeEnd = ser.range_end || (dates.length ? dates[dates.length - 1] : '');
           // GSC overview serisi: yeterince nokta + anlamlı good değerleri
           if (good.length >= 8 && seriesNonZeroRatio(good) >= 0.25) {
             return {
@@ -299,7 +326,10 @@
               poor: ser.poor || [],
               needs_improvement: ser.needs_improvement || [],
               good: good,
-              source: 'gsc'
+              source: 'gsc',
+              range_start: rangeStart,
+              range_end: rangeEnd,
+              _device: deviceKey
             };
           }
           if (dates.length >= 3 && datesPlausible(dates) && good.length >= 3) {
@@ -308,7 +338,10 @@
               poor: ser.poor || [],
               needs_improvement: ser.needs_improvement || [],
               good: good,
-              source: 'gsc'
+              source: 'gsc',
+              range_start: rangeStart,
+              range_end: rangeEnd,
+              _device: deviceKey
             };
           }
           return null;
@@ -397,16 +430,24 @@
             countEl.textContent = Math.round(n).toLocaleString('tr-TR');
           }
           if (srcEl) {
-            srcEl.textContent = badSpike
-              ? 'seri bozuk'
-              : (ser.source === 'gsc'
-                ? ('GSC · ' + spark.n)
-                : (ser.source === 'panel_history' ? ('hist · ' + spark.n) : 'kpi'));
+            if (badSpike) {
+              srcEl.textContent = 'seri bozuk';
+            } else if (ser.source === 'gsc') {
+              var rng = seriesRangeLabel(ser);
+              // GSC ile aynı pencere: örn. 29.07–21.10 · 85g
+              srcEl.textContent = rng ? (rng + ' · ' + spark.n + 'g') : ('GSC · ' + spark.n + 'g');
+            } else if (ser.source === 'panel_history') {
+              srcEl.textContent = 'hist · ' + spark.n;
+            } else {
+              srcEl.textContent = 'kpi';
+            }
           }
           row.title = badSpike
             ? 'Good URL spark serisi bozuk (sonda spike) — charts sync gerekli'
             : ('Good URLs · ' +
-              (ser.source === 'gsc' ? 'GSC overview yeşil çizgi' : ser.source) +
+              (ser.source === 'gsc'
+                ? ('GSC overview ' + (seriesRangeLabel(ser) || '') + ' (yeşil çizgi ile aynı pencere)')
+                : ser.source) +
               ' · ' + spark.n + ' nokta');
         }
         function ensureChartJs(cb) {

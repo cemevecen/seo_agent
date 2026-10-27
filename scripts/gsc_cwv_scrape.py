@@ -1434,8 +1434,12 @@ def _series_from_tooltip_samples(
     *,
     start_iso: str = "",
     end_iso: str = "",
+    axis_clamp: bool = False,
 ) -> dict[str, Any] | None:
-    """GSC tooltip noktaları → günlük seri. Eksik günler komşu gerçek değerler arasında doğrusal."""
+    """GSC tooltip noktaları → günlük seri. Eksik günler komşu gerçek değerler arasında doğrusal.
+
+    axis_clamp=True: start/end = overview X ekseni (ör. 29 Tem–21 Eki); last_updated ile uzatma yok.
+    """
     clean: dict[str, dict[str, int]] = {}
     for raw_d, row in (samples or {}).items():
         d = str(raw_d or "")[:10]
@@ -1452,8 +1456,11 @@ def _series_from_tooltip_samples(
     t0 = tip_dates[0]
     t1 = tip_dates[-1]
 
+    def _iso_ok(iso: str) -> bool:
+        return bool(iso and re.match(r"^\d{4}-\d{2}-\d{2}$", iso[:10]))
+
     def _near(iso: str, anchor: str, *, max_days: int = 21) -> bool:
-        if not iso or not re.match(r"^\d{4}-\d{2}-\d{2}$", iso[:10]):
+        if not _iso_ok(iso) or not _iso_ok(anchor):
             return False
         try:
             a = datetime.strptime(iso[:10], "%Y-%m-%d")
@@ -1462,11 +1469,23 @@ def _series_from_tooltip_samples(
             return False
         return abs((a - b).days) <= max_days
 
-    # SVG ekseni 2007 gibi sapıksa yok say — tooltip tarihleri asıl kaynak.
-    if start_iso and _near(start_iso, tip_dates[0]) and start_iso[:10] < t0:
-        t0 = start_iso[:10]
-    if end_iso and _near(end_iso, tip_dates[-1], max_days=45) and end_iso[:10] > t1:
-        t1 = end_iso[:10]
+    if axis_clamp and _iso_ok(start_iso) and _iso_ok(end_iso) and start_iso[:10] <= end_iso[:10]:
+        # GSC grafikte görünen pencere birebir (29 Temmuz → 21 Ekim gibi)
+        t0, t1 = start_iso[:10], end_iso[:10]
+    else:
+        # SVG ekseni 2007 gibi sapıksa yok say — tooltip tarihleri asıl kaynak.
+        # last_updated ile ekseni ileri uzatma: GSC X ekseninden sapar.
+        if start_iso and _near(start_iso, tip_dates[0]) and start_iso[:10] < t0:
+            t0 = start_iso[:10]
+        if end_iso and _near(end_iso, tip_dates[-1], max_days=14) and end_iso[:10] > t1:
+            # En fazla +3 gün (etiket yuvarlaması); «Last updated» ile haftalarca uzatma yok
+            try:
+                tip_end = datetime.strptime(t1, "%Y-%m-%d")
+                want = datetime.strptime(end_iso[:10], "%Y-%m-%d")
+                if (want - tip_end).days <= 3:
+                    t1 = end_iso[:10]
+            except ValueError:
+                pass
     try:
         dates = _daily_iso_range(
             datetime.strptime(t0, "%Y-%m-%d"),
@@ -2185,28 +2204,36 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
                     "needs_improvement": int(ni[i]) if i < len(ni) else 0,
                     "good": int(good[i]) if i < len(good) else 0,
                 }
-        start_iso = ""
-        end_iso_use = end_iso or ""
+        # Kanonik pencere = overview X ekseni (GSC'de görünen 29 Tem–21 Eki gibi).
+        # «Last updated» ile ileri uzatma yok — iki taraf aynı aralıkta kalsın.
+        axis_start = ""
+        axis_end = ""
         if svg_ch and (svg_ch.get("dates") or []):
-            start_iso = str(svg_ch["dates"][0])[:10]
-            if not end_iso_use:
-                end_iso_use = str(svg_ch["dates"][-1])[:10]
+            axis_start = str(svg_ch["dates"][0])[:10]
+            axis_end = str(svg_ch["dates"][-1])[:10]
         elif tip_ch and (tip_ch.get("dates") or []):
-            tds = [str(d)[:10] for d in (tip_ch.get("dates") or [])]
+            tds = [str(d)[:10] for d in (tip_ch.get("dates") or []) if str(d or "")[:10]]
             if tds:
-                if not start_iso:
-                    start_iso = tds[0]
-                if not end_iso_use:
-                    end_iso_use = tds[-1]
+                axis_start, axis_end = tds[0], tds[-1]
         from_tip = _series_from_tooltip_samples(
-            samples, start_iso=start_iso, end_iso=end_iso_use
+            samples,
+            start_iso=axis_start,
+            end_iso=axis_end,
+            axis_clamp=bool(axis_start and axis_end),
         )
         if from_tip:
+            from_tip["range_start"] = axis_start or (from_tip.get("dates") or [""])[0]
+            from_tip["range_end"] = axis_end or (from_tip.get("dates") or [""])[-1]
             return from_tip
         # Yeterli tooltip yoksa SVG — ama SVG son günlerinde 0 uçurumu olabilir; tercih etme.
         if len(samples) >= 8:
             return None
-        return svg_ch or tip_ch
+        fallback = svg_ch or tip_ch
+        if isinstance(fallback, dict) and (fallback.get("dates") or []):
+            fallback = dict(fallback)
+            fallback["range_start"] = str(fallback["dates"][0])[:10]
+            fallback["range_end"] = str(fallback["dates"][-1])[:10]
+        return fallback
 
     merged_m = _merge(
         charts[0] if len(charts) >= 1 else None,
