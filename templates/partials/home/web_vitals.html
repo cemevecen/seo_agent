@@ -6,8 +6,8 @@
 {% set dk = block.desktop_kpis if block else {} %}
 {% set gsc = block.gsc_links if block else {} %}
 {% set shots = block.cwv_shots if block else {} %}
-{% set shot_m = shots.mobile_url if shots else '' %}
-{% set shot_d = shots.desktop_url if shots else '' %}
+{% set shot_m = (shots.mobile_summary_url or shots.extra_url or shots.mobile_url or '') if shots else '' %}
+{% set shot_d = (shots.desktop_summary_url or shots.desktop_url or '') if shots else '' %}
 {% set has_data = block and block.has_data %}
 {% set poor_tot = (mk.poor or 0)|int %}
 {% set ni_tot = (mk.needs_improvement or 0)|int %}
@@ -78,10 +78,10 @@
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> good</span>
           </div>
           {% if shot_m %}
-          <a href="{{ shot_m }}" target="_blank" rel="noopener" class="seo-matte-shot-wrap block aspect-[2.35/1] overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <img src="{{ shot_m }}" alt="GSC Mobile" class="seo-matte-shot h-full w-full object-contain object-top" loading="lazy">
+          <a href="{{ shot_m }}" target="_blank" rel="noopener" class="seo-matte-shot-wrap block overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <img src="{{ shot_m }}" alt="GSC Mobile" class="seo-matte-shot max-h-[28rem] w-full object-contain object-top" loading="lazy">
           </a>
-          <p class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500">GSC screenshot · mobile</p>
+          <p class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500">GSC screenshot · mobile issues</p>
           {% else %}
           <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-m-{{ sid }}"></canvas></div>
           <p id="home-wv-m-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
@@ -100,10 +100,10 @@
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> good</span>
           </div>
           {% if shot_d %}
-          <a href="{{ shot_d }}" target="_blank" rel="noopener" class="seo-matte-shot-wrap block aspect-[2.35/1] overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <img src="{{ shot_d }}" alt="GSC Desktop" class="seo-matte-shot h-full w-full object-contain object-top" loading="lazy">
+          <a href="{{ shot_d }}" target="_blank" rel="noopener" class="seo-matte-shot-wrap block overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <img src="{{ shot_d }}" alt="GSC Desktop" class="seo-matte-shot max-h-[28rem] w-full object-contain object-top" loading="lazy">
           </a>
-          <p class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500">GSC screenshot · desktop</p>
+          <p class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500">GSC screenshot · desktop issues</p>
           {% else %}
           <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-d-{{ sid }}"></canvas></div>
           <p id="home-wv-d-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>

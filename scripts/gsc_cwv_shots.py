@@ -74,8 +74,8 @@ def _png_of(page, path: Path) -> bytes:
     return path.read_bytes()
 
 
-def _trim_png_edges(path: Path, *, pad: int = 8) -> None:
-    """Düz gri/beyaz kenar boşluğunu kırp — yamuk letterbox hissini azaltır."""
+def _trim_png_edges(path: Path, *, pad: int = 12, min_keep_w: float = 0.7, min_keep_h: float = 0.65) -> None:
+    """Düz gri/beyaz kenar boşluğunu hafif kırp — aşırı trim kesik SS üretmesin."""
     try:
         from PIL import Image, ImageChops
     except Exception:
@@ -97,8 +97,11 @@ def _trim_png_edges(path: Path, *, pad: int = 8) -> None:
     t = max(0, t - pad)
     r = min(w, r + pad)
     b = min(h, b + pad)
-    # Aşırı kırpma yok — en az %55 alan kalsın
-    if (r - l) < w * 0.55 or (b - t) < h * 0.45:
+    # Aşırı kırpma yok — tablo/kart kenarları kesilmesin
+    if (r - l) < w * min_keep_w or (b - t) < h * min_keep_h:
+        return
+    # Neredeyse tüm alan zaten doluysa dokunma (gereksiz yeniden encode)
+    if (r - l) >= w * 0.97 and (b - t) >= h * 0.97:
         return
     try:
         im.crop((l, t, r, b)).save(path, format="PNG", optimize=True)
@@ -106,16 +109,17 @@ def _trim_png_edges(path: Path, *, pad: int = 8) -> None:
         pass
 
 
-def _screenshot_locator(loc, path: Path) -> bool:
+def _screenshot_locator(loc, path: Path, *, trim: bool = True) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         loc.screenshot(path=str(path), type="png")
     except Exception:
         return False
-    if not path.is_file() or path.stat().st_size < 8_000:
+    if not path.is_file() or path.stat().st_size < 4_000:
         return False
-    _trim_png_edges(path)
-    return path.stat().st_size > 6_000
+    if trim:
+        _trim_png_edges(path)
+    return path.stat().st_size > 3_000
 
 
 def _screenshot_main(page, path: Path) -> bytes:
@@ -155,7 +159,7 @@ def _clear_shot_marks(page) -> None:
         pass
 
 
-def _shot_marked_target(page, path: Path) -> bool:
+def _shot_marked_target(page, path: Path, *, trim: bool = True) -> bool:
     """data-cwv-shot-target=1 işaretli elementi screenshot et (Selenium/Playwright)."""
     try:
         loc = page.locator('[data-cwv-shot-target="1"]').first
@@ -165,13 +169,211 @@ def _shot_marked_target(page, path: Path) -> bool:
             loc.scroll_into_view_if_needed(timeout=2500)
         except Exception:
             pass
-        time.sleep(0.2)
-        ok = _screenshot_locator(loc, path)
+        time.sleep(0.25)
+        ok = _screenshot_locator(loc, path, trim=trim)
         return ok
     except Exception:
         return False
     finally:
         _clear_shot_marks(page)
+
+
+def _boost_trend_sparklines(page) -> None:
+    """Trend mini-spark çizgilerini SS için kalınlaştır / büyüt."""
+    try:
+        page.evaluate(
+            """() => {
+  if (document.getElementById('cwv-spark-boost')) return;
+  const style = document.createElement('style');
+  style.id = 'cwv-spark-boost';
+  style.textContent = `
+    [data-cwv-shot-target="1"] svg,
+    [data-cwv-issues-table] svg {
+      overflow: visible !important;
+    }
+    [data-cwv-shot-target="1"] svg path,
+    [data-cwv-shot-target="1"] svg polyline,
+    [data-cwv-shot-target="1"] svg line,
+    [data-cwv-issues-table] svg path,
+    [data-cwv-issues-table] svg polyline,
+    [data-cwv-issues-table] svg line {
+      stroke-width: 2.75px !important;
+      stroke-linecap: round !important;
+      stroke-linejoin: round !important;
+    }
+    [data-cwv-shot-target="1"] td svg,
+    [data-cwv-shot-target="1"] [role="cell"] svg,
+    [data-cwv-issues-table] td svg,
+    [data-cwv-issues-table] [role="cell"] svg {
+      transform: scaleY(1.35) scaleX(1.08);
+      transform-origin: center center;
+    }
+  `;
+  document.documentElement.appendChild(style);
+}"""
+        )
+    except Exception:
+        pass
+
+
+def _shot_issues_table(page, path: Path) -> bool:
+    """Summary: yalnız «Why URLs aren't considered good» tablo kartı (üst grafik yok)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _clear_shot_marks(page)
+    try:
+        marked = page.evaluate(
+            """() => {
+  document.querySelectorAll('[data-cwv-shot-target],[data-cwv-issues-table]').forEach((e) => {
+    e.removeAttribute('data-cwv-shot-target');
+    e.removeAttribute('data-cwv-issues-table');
+  });
+  const norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+  const needles = [
+    "why urls aren't considered good",
+    "why urls arent considered good",
+    "urls with these issues don't provide",
+    "url'ler neden iyi",
+    "urller neden iyi",
+    "iyi olarak değerlendirilmiyor",
+    "iyi sayilmiyor",
+    "iyi sayılmıyor",
+  ];
+  const nodes = Array.from(
+    document.querySelectorAll('h1,h2,h3,h4,h5,div,span,section,article')
+  );
+  let heading = null;
+  for (const el of nodes) {
+    const t = norm(el.innerText || el.textContent || '');
+    if (!t || t.length > 160) continue;
+    if (needles.some((n) => t.includes(n))) {
+      heading = el;
+      break;
+    }
+  }
+  if (!heading) {
+    // Tablo başlık satırı: Severity + Issue + Trend + URLs
+    const rows = Array.from(document.querySelectorAll('tr, [role="row"]'));
+    for (const row of rows) {
+      const t = norm(row.innerText || '');
+      if (
+        t.includes('severity') &&
+        t.includes('issue') &&
+        (t.includes('trend') || t.includes('validation')) &&
+        t.includes('url')
+      ) {
+        heading = row;
+        break;
+      }
+    }
+  }
+  if (!heading) return false;
+
+  let pick = null;
+  let node = heading;
+  for (let i = 0; i < 12 && node; i++) {
+    const r = node.getBoundingClientRect();
+    const txt = norm(node.innerText || '');
+    const hasTable =
+      !!(node.querySelector && (
+        node.querySelector('table') ||
+        node.querySelector('[role="table"]') ||
+        node.querySelector('[role="grid"]')
+      ));
+    const looksLikeCard =
+      r.width >= 480 &&
+      r.height >= 120 &&
+      r.height <= 900 &&
+      r.width <= Math.min(window.innerWidth - 8, 1600);
+    const hasIssueRows =
+      /lcp|cls|inp|fid|need improvement|poor|yetersiz|iyileş/i.test(txt);
+    if (looksLikeCard && (hasTable || hasIssueRows) && txt.length < 8000) {
+      // Üst stacked grafiği dahil eden çok yüksek kartları ele
+      const chart = node.querySelector && node.querySelector('svg, canvas');
+      let chartH = 0;
+      if (chart) {
+        const cr = chart.getBoundingClientRect();
+        if (cr.height >= 140 && cr.width >= 280) chartH = cr.height;
+      }
+      // Büyük üst grafik varsa daha sıkı (tablo) çocuğa in
+      if (chartH >= 140 && r.height > chartH + 160) {
+        // continue walking — ama heading'e yakın bir kart tercih et
+      } else {
+        pick = node;
+        break;
+      }
+    }
+    node = node.parentElement;
+  }
+
+  if (!pick) {
+    // Heading + tabloyu saran en dar kutu
+    let box = heading.parentElement;
+    for (let d = 0; d < 8 && box; d++) {
+      const r = box.getBoundingClientRect();
+      if (r.width >= 480 && r.height >= 140 && r.height <= 720) {
+        pick = box;
+        break;
+      }
+      box = box.parentElement;
+    }
+  }
+  if (!pick) return false;
+
+  // Üst grafik hâlâ içerideyse: tabloyu / satırları seç
+  const bigChart = Array.from(pick.querySelectorAll('svg, canvas')).find((el) => {
+    const r = el.getBoundingClientRect();
+    return r.width >= 300 && r.height >= 150;
+  });
+  if (bigChart) {
+    const table =
+      pick.querySelector('table') ||
+      pick.querySelector('[role="table"]') ||
+      pick.querySelector('[role="grid"]');
+    if (table) {
+      let wrap = table;
+      for (let i = 0; i < 5 && wrap.parentElement; i++) {
+        const p = wrap.parentElement;
+        const pr = p.getBoundingClientRect();
+        const tr = table.getBoundingClientRect();
+        if (pr.height <= tr.height + 120 && pr.width >= tr.width * 0.9) {
+          wrap = p;
+        } else break;
+      }
+      // Başlık metni wrap dışında kaldıysa heading'i de kapsayan kardeş üstü
+      const headR = heading.getBoundingClientRect();
+      const wrapR = wrap.getBoundingClientRect();
+      if (headR.top < wrapR.top - 8) {
+        let up = wrap.parentElement;
+        for (let i = 0; i < 4 && up; i++) {
+          const ur = up.getBoundingClientRect();
+          if (ur.top <= headR.top + 4 && ur.height <= 820) {
+            wrap = up;
+            break;
+          }
+          up = up.parentElement;
+        }
+      }
+      pick = wrap;
+    }
+  }
+
+  pick.setAttribute('data-cwv-shot-target', '1');
+  pick.setAttribute('data-cwv-issues-table', '1');
+  try {
+    pick.scrollIntoView({ block: 'center', inline: 'nearest' });
+  } catch (_) {}
+  return true;
+}"""
+        )
+        if not marked:
+            return False
+        _boost_trend_sparklines(page)
+        time.sleep(0.35)
+        # Tablo için agresif kenar trim kapalı — kesik satır/spark olmasın
+        return _shot_marked_target(page, path, trim=False)
+    except Exception:
+        _clear_shot_marks(page)
+        return False
 
 
 def _shot_first_visible_chart(page, path: Path) -> bool:
@@ -488,7 +690,8 @@ def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str
         else:
             print(f"  · {variant} overview card skip", flush=True)
 
-    # Device summary — stacked URL grafiği; Poor/NI/Good kutularının hepsi açık olmalı
+    # Device summary — yalnız «Why URLs aren't considered good» tablo kartı
+    # (üst stacked grafik yok; Trend spark kalınlaştırılır)
     for device, variant, label in (
         (DEVICE_MOBILE, "mobile", "Mobile web summary"),
         (DEVICE_DESKTOP, "desktop", "Desktop web summary"),
@@ -500,21 +703,38 @@ def capture_property_shots(page, prop: dict[str, str], cwv_mod: Any) -> dict[str
             timeout=120_000,
         )
         time.sleep(3.5)
-        _enable_all_status_series(page)
-        time.sleep(1.0)
+        # Tablo görünür olsun diye alta kaydır; status toggle şart değil
         try:
-            page.evaluate("window.scrollTo(0, 0)")
+            page.evaluate(
+                """() => {
+  const t = Array.from(document.querySelectorAll('h1,h2,h3,h4,div,span'))
+    .find((el) => /why urls aren|url.?ler neden iyi|considered good/i.test(el.innerText || ''));
+  if (t) t.scrollIntoView({ block: 'center' });
+  else window.scrollTo(0, Math.min(520, document.body.scrollHeight * 0.35));
+}"""
+            )
         except Exception:
             pass
-        time.sleep(0.8)
-        # Summary: grafik kartı — tüm GSC chrome + uzun tabloyu alma
-        if not _shot_first_visible_chart(page, path):
-            _screenshot_main(page, path)
+        time.sleep(1.0)
+        ok = _shot_issues_table(page, path)
+        if not ok:
+            # Son çare: eski grafik kırpığı (panel boş kalmasın)
+            _enable_all_status_series(page)
+            time.sleep(0.8)
+            if not _shot_first_visible_chart(page, path):
+                _screenshot_main(page, path)
+            print(f"  · {label} → {path.name} (fallback chart)", flush=True)
+        else:
+            print(f"  · {label} → {path.name} (issues table)", flush=True)
         shots[f"{variant}_summary"] = path
-        # Home slotuna summary tam sayfa yazma — overview yoksa summary grafik kırpığı
-        if variant not in shots and path.is_file() and path.stat().st_size > 8_000:
-            shots[variant] = path
-        print(f"  · {label} → {path.name} (chart crop)", flush=True)
+        # Home Mobile/Desktop slotu: issues tablosu (üst overview çizgisi değil)
+        if path.is_file() and path.stat().st_size > 4_000:
+            home_path = out_dir / f"{variant}-overview.png"
+            try:
+                home_path.write_bytes(path.read_bytes())
+            except Exception:
+                home_path = path
+            shots[variant] = home_path
 
     mobile_k = dict(overview.get("mobile") or {})
     desktop_k = dict(overview.get("desktop") or {})
