@@ -326,6 +326,22 @@
           var g = Number(kpi.good || 0);
           return { dates: ['—'], poor: [0], needs_improvement: [0], good: [g, g], source: 'kpi' };
         }
+        function isEndSpikeArtifact(values) {
+          var vals = (values || []).map(function(v){ return Number(v); }).filter(function(v){ return isFinite(v); });
+          var n = vals.length;
+          if (n < 16) return false;
+          var last = vals[n - 1];
+          if (!(last >= 200)) return false;
+          var body = vals.slice(0, Math.max(1, n - 3));
+          var sorted = body.slice().sort(function(a, b){ return a - b; });
+          var med = sorted[Math.floor(sorted.length / 2)] || 0;
+          var p90 = sorted[Math.max(0, Math.floor(sorted.length * 0.9) - 1)] || 0;
+          var bmax = sorted[sorted.length - 1] || 0;
+          if (last < Math.max(p90 * 1.55, med * 2.2, bmax * 1.35)) return false;
+          var jumpFrom = vals[Math.max(0, n - 4)];
+          if (last < jumpFrom * 1.35 && (last - jumpFrom) < Math.max(800, 0.2 * last)) return false;
+          return true;
+        }
         function sparkPaths(values) {
           var vals = (values || []).map(function(v){ return Number(v); }).filter(function(v){ return isFinite(v); });
           if (vals.length < 2) {
@@ -361,7 +377,14 @@
           var row = root.querySelector('[data-home-wv-good="' + deviceKey + '"]');
           if (!row) return;
           var ser = resolve(deviceKey);
-          var spark = sparkPaths(ser.good);
+          var badSpike = ser.source === 'gsc' && isEndSpikeArtifact(ser.good);
+          var sparkVals = badSpike ? [] : ser.good;
+          // Bozuk «sonda spike» serisini çizme — sayı KPI'dan kalsın
+          if (badSpike) {
+            var kpiFlat = Number(((deviceKey === 'mobile' ? payload.mobile_kpis : payload.desktop_kpis) || {}).good || 0);
+            sparkVals = [kpiFlat, kpiFlat];
+          }
+          var spark = sparkPaths(sparkVals);
           var fill = row.querySelector('.home-wv-good-fill');
           var line = row.querySelector('.home-wv-good-line');
           if (fill) fill.setAttribute('d', spark.fill);
@@ -374,13 +397,17 @@
             countEl.textContent = Math.round(n).toLocaleString('tr-TR');
           }
           if (srcEl) {
-            srcEl.textContent = ser.source === 'gsc'
-              ? ('GSC · ' + spark.n)
-              : (ser.source === 'panel_history' ? ('hist · ' + spark.n) : 'kpi');
+            srcEl.textContent = badSpike
+              ? 'seri bozuk'
+              : (ser.source === 'gsc'
+                ? ('GSC · ' + spark.n)
+                : (ser.source === 'panel_history' ? ('hist · ' + spark.n) : 'kpi'));
           }
-          row.title = 'Good URLs · ' +
-            (ser.source === 'gsc' ? 'GSC overview yeşil çizgi' : ser.source) +
-            ' · ' + spark.n + ' nokta';
+          row.title = badSpike
+            ? 'Good URL spark serisi bozuk (sonda spike) — charts sync gerekli'
+            : ('Good URLs · ' +
+              (ser.source === 'gsc' ? 'GSC overview yeşil çizgi' : ser.source) +
+              ' · ' + spark.n + ' nokta');
         }
         function ensureChartJs(cb) {
           if (window.Chart) { cb(); return; }

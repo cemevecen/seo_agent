@@ -183,6 +183,8 @@ def _is_jagged(ser: dict[str, Any] | None) -> bool:
         arr = [int(x or 0) for x in (ser.get(metric) or [])]
         if _is_zero_cross_jagged(arr) or _is_sawtooth(arr):
             return True
+        if metric == "good" and _is_end_spike_artifact(arr):
+            return True
     return False
 
 
@@ -218,6 +220,36 @@ def _is_sawtooth(arr: list[int] | None) -> bool:
             flips += 1
         prev = sign
     return flips >= 8 and big >= 10
+
+
+def _is_end_spike_artifact(arr: list[int] | None) -> bool:
+    """Düz gövde + sonda dik spike — KPI kilidi / bozuk SVG; GSC yeşil çizgi böyle değil.
+
+    Tipik: 90 noktanın çoğu düşük/düz, son 1–3 nokta KPI'ya zıplar.
+    Gerçek GSC good: ortada yükseliş + sağda plato (sonda tek diş değil).
+    """
+    vals = [int(x or 0) for x in (arr or [])]
+    n = len(vals)
+    if n < 16:
+        return False
+    last = vals[-1]
+    if last < 200:
+        return False
+    body = vals[:-3] if n >= 24 else vals[:-1]
+    if not body:
+        return False
+    body_sorted = sorted(body)
+    body_p90 = body_sorted[max(0, int(len(body_sorted) * 0.9) - 1)]
+    body_med = body_sorted[len(body_sorted) // 2]
+    body_max = body_sorted[-1]
+    # Son değer gövde p90'ın belirgin üstünde ve gövde görece düz/düşük
+    if last < max(body_p90 * 1.55, body_med * 2.2, body_max * 1.35):
+        return False
+    # Sıçrama son 1–4 adımda mı?
+    jump_from = vals[-4] if n >= 4 else vals[0]
+    if last < jump_from * 1.35 and last - jump_from < max(800, int(0.2 * last)):
+        return False
+    return True
 
 
 def _desawtooth(arr: list[int]) -> list[int]:
@@ -347,6 +379,9 @@ def _repair_gsc_values(ser: dict[str, Any] | None, kpis: dict[str, Any] | None =
     if _is_zero_cross_jagged(list(out.get("needs_improvement") or [])) or _is_zero_cross_jagged(
         list(out.get("good") or [])
     ):
+        return None
+    # Sonda dik spike = bozuk seri; panelde GSC yeşil çizgi gibi gösterme
+    if _is_end_spike_artifact(list(out.get("good") or [])):
         return None
     return out
 
