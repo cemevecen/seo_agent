@@ -1064,6 +1064,43 @@ def _align_counts_to_dates(
     return out
 
 
+def _looks_not_started(*parts: Any) -> bool:
+    """GSC «Not started» / «Başlamadı» — spark ve NI seçiminde yok say."""
+    blob = " ".join(str(p or "").lower() for p in parts)
+    if not blob.strip():
+        return False
+    needles = (
+        "not started",
+        "not_started",
+        "not-started",
+        "başlamadı",
+        "baslamadi",
+        "başlamamış",
+        "baslamamis",
+        "başlamamis",
+    )
+    return any(n in blob for n in needles)
+
+
+def kpis_at_range_end(
+    chart_ser: dict[str, Any] | None,
+    fallback: dict[str, Any] | None = None,
+) -> dict[str, int]:
+    """Tarih aralığının son günü = /web-vitals KPI (chart son nokta)."""
+    base = fallback if isinstance(fallback, dict) else {}
+    out = {
+        "poor": int(base.get("poor") or 0),
+        "needs_improvement": int(base.get("needs_improvement") or 0),
+        "good": int(base.get("good") or 0),
+    }
+    ser = chart_ser if isinstance(chart_ser, dict) else {}
+    for metric in ("poor", "needs_improvement", "good"):
+        arr = list(ser.get(metric) or [])
+        if arr:
+            out[metric] = int(arr[-1] or 0)
+    return out
+
+
 def build_device_trend_rows(
     device_payload: dict[str, Any] | None,
     chart_ser: dict[str, Any] | None,
@@ -1073,6 +1110,7 @@ def build_device_trend_rows(
     """Home: en yüksek 2 Need improvement + Good URL — aynı tarih aralığında spark.
 
     Dönüş: [{kind, title, count, values, dates, range_start, range_end}, ...]
+    count = aralığın son günü (seri varsa); /web-vitals KPI / issue ile hizalı.
     """
     dev = device_payload if isinstance(device_payload, dict) else {}
     ser = chart_ser if isinstance(chart_ser, dict) else {}
@@ -1089,30 +1127,32 @@ def build_device_trend_rows(
         except ValueError:
             dates = []
 
-    def _is_ni_status(st: str, title: str = "") -> bool:
+    def _is_ni_status(st: str, title: str = "", verification: str = "") -> bool:
+        if _looks_not_started(st, title, verification):
+            return False
         s = (st or "").lower().strip()
         t = (title or "").lower()
-        if s in ("poor", "fail", "error"):
+        if s in ("not_started", "unknown", "good"):
+            return False
+        if s in ("poor", "fail", "error") or "poor" in s:
             return False
         if s in ("needs_improvement", "ni", "warning", "need_improvement", "needs improvement"):
             return True
-        if "poor" in s:
-            return False
         if "need" in s or "iyileş" in s or "improvement" in s:
             return True
         if "need" in t or "iyileş" in t or "improvement" in t:
             return True
-        # status boşsa issue satırı NI kabul (poor ayrı filtrelenir)
-        return s in ("", "unknown")
+        return False
 
-    # Need improvement adayları: issues + drilldowns
+    # Need improvement adayları: issues + drilldowns (Not started hariç)
     candidates: list[dict[str, Any]] = []
     for iss in dev.get("issues") or []:
         if not isinstance(iss, dict):
             continue
         title = str(iss.get("title") or iss.get("metric") or "Need improvement").strip()
         st = str(iss.get("status") or "")
-        if not _is_ni_status(st, title):
+        ver = str(iss.get("verification") or iss.get("validation") or "")
+        if not _is_ni_status(st, title, ver):
             continue
         candidates.append(
             {
@@ -1128,7 +1168,8 @@ def build_device_trend_rows(
             continue
         title = str(d.get("title") or d.get("metric") or "Need improvement").strip()
         st = str(d.get("status") or "")
-        if not _is_ni_status(st, title):
+        ver = str(d.get("verification") or d.get("validation") or "")
+        if not _is_ni_status(st, title, ver):
             continue
         key = str(d.get("item_key") or "")
         drills_by_key[key] = d
@@ -1159,18 +1200,21 @@ def build_device_trend_rows(
         acs = drill.get("affected_chart_series") if isinstance(drill.get("affected_chart_series"), dict) else {}
         src_dates = [str(x)[:10] for x in (acs.get("dates") or [])]
         src_counts = [int(x or 0) for x in (acs.get("counts") or [])]
+        snap_count = int(c.get("count") or 0)
         if dates and src_dates and src_counts:
             values = _align_counts_to_dates(src_dates, src_counts, dates)
         elif dates:
-            # Seri yoksa düz çizgi (güncel sayı) — aynı X aralığı
-            values = [int(c.get("count") or 0)] * len(dates)
+            # Seri yoksa düz çizgi — /web-vitals issue URL sayısı
+            values = [snap_count] * len(dates)
         else:
-            values = [int(c.get("count") or 0), int(c.get("count") or 0)]
+            values = [snap_count, snap_count]
+        # Gösterilen sayı = aralık sonu (seri); yoksa CWV issue url_count
+        end_count = int(values[-1]) if values else snap_count
         rows.append(
             {
                 "kind": "needs_improvement",
                 "title": c.get("title") or "Need improvement",
-                "count": int(c.get("count") or 0),
+                "count": end_count,
                 "values": values,
                 "dates": dates or [],
                 "range_start": range_start,
@@ -1178,6 +1222,8 @@ def build_device_trend_rows(
             }
         )
 
+    range_kpis = kpis_at_range_end(ser, {"good": kpi_good})
+    good_end = int(range_kpis.get("good") or kpi_good or 0)
     good_vals = [int(x or 0) for x in (ser.get("good") or [])]
     if dates and good_vals:
         if len(good_vals) != len(dates):
@@ -1186,16 +1232,16 @@ def build_device_trend_rows(
                 good_vals,
                 dates,
             )
+        good_end = int(good_vals[-1] if good_vals else good_end)
     elif dates:
-        good_vals = [int(kpi_good or 0)] * len(dates)
+        good_vals = [good_end] * len(dates)
     else:
-        g = int(kpi_good or 0)
-        good_vals = [g, g]
+        good_vals = [good_end, good_end]
     rows.append(
         {
             "kind": "good",
             "title": "Good URLs",
-            "count": int(kpi_good or (good_vals[-1] if good_vals else 0)),
+            "count": good_end,
             "values": good_vals,
             "dates": dates or [],
             "range_start": range_start,
@@ -1224,6 +1270,21 @@ def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
         kpis_by_device=_kpis_by_device(payload),
     )
     _sync_kpis_from_chart_last(payload, payload.get("chart_series"))
+    # Home + /web-vitals: KPI = chart tarih aralığının son günü (shots dahil)
+    chart = payload.get("chart_series") if isinstance(payload.get("chart_series"), dict) else {}
+    ov = payload.get("overview") if isinstance(payload.get("overview"), dict) else None
+    for key in ("mobile", "desktop"):
+        ser = chart.get(key) if isinstance(chart.get(key), dict) else {}
+        dev = payload.get(key) if isinstance(payload.get(key), dict) else None
+        if not isinstance(dev, dict):
+            continue
+        base = dev.get("kpis") if isinstance(dev.get("kpis"), dict) else {}
+        if not base and isinstance(ov, dict) and isinstance(ov.get(key), dict):
+            base = ov.get(key) or {}
+        aligned = kpis_at_range_end(ser, base)
+        dev["kpis"] = aligned
+        if isinstance(ov, dict):
+            ov[key] = dict(aligned)
     hist = history_points(db, site.id)
     rid = payload.get("resource_id") or (
         "sc-domain:doviz.com" if "doviz" in (site.domain or "") else f"https://{site.domain}/"

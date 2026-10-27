@@ -5,9 +5,16 @@
 {%- if s == 'poor' -%}Poor
 {%- elif s == 'needs_improvement' -%}Needs improvement
 {%- elif s == 'good' -%}Good
+{%- elif s == 'not_started' -%}Not started
 {%- elif s == 'unknown' -%}Unknown
 {%- else -%}{{ s or '—' }}
 {%- endif -%}
+{%- endmacro %}
+{% macro is_not_started_issue(iss) -%}
+{%- set st = (iss.status or '')|string|lower -%}
+{%- set ver = (iss.verification or iss.validation or '')|string|lower -%}
+{%- set title = (iss.title or '')|string|lower -%}
+{%- if 'not_started' in st or 'not started' in st or 'not started' in ver or 'başlamadı' in ver or 'baslamadi' in ver or 'not started' in title or 'başlamadı' in title -%}1{%- else -%}0{%- endif -%}
 {%- endmacro %}
 {% macro fmt_int(n) -%}{{ '{:,}'.format((n or 0)|int).replace(',', '.') }}{%- endmacro %}
 
@@ -284,22 +291,28 @@
                 <th class="py-1.5 pr-2">Status</th><th class="py-1.5 pr-2">Issue</th><th class="py-1.5 pr-2">Validation</th><th class="py-1.5">URL</th>
               </tr></thead>
               <tbody>
+                {% set ns = namespace(shown=0) %}
                 {% for iss in dev.issues or [] %}
+                {% if not (is_not_started_issue(iss)|int) %}
+                {% set ns.shown = ns.shown + 1 %}
                 <tr class="border-b border-slate-50 dark:border-zinc-800/40">
                   <td class="py-1.5 pr-2 whitespace-nowrap {% if iss.status=='poor' %}text-rose-600{% elif iss.status=='needs_improvement' %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ status_tr(iss.status) }}</td>
                   <td class="py-1.5 pr-2">{{ iss.title }}</td>
                   <td class="py-1.5 pr-2 text-slate-600 dark:text-zinc-400">{{ iss.verification or '—' }}</td>
                   <td class="py-1.5 font-semibold tabular-nums">{{ fmt_int(iss.url_count) }}</td>
                 </tr>
-                {% else %}
-                <tr><td colspan="4" class="py-6 text-center text-slate-400 dark:text-zinc-500">No issue rows</td></tr>
+                {% endif %}
                 {% endfor %}
+                {% if not ns.shown %}
+                <tr><td colspan="4" class="py-6 text-center text-slate-400 dark:text-zinc-500">No issue rows</td></tr>
+                {% endif %}
               </tbody>
             </table>
           </div>
         </section>
 
         {% for d in dev.issue_drilldowns or [] %}
+        {% if not (is_not_started_issue(d)|int) %}
         <section class="min-w-0 rounded-xl border border-slate-100 p-3 sm:p-4 dark:border-zinc-800">
           <div class="flex flex-wrap items-start justify-between gap-2">
             <div class="min-w-0">
@@ -338,6 +351,7 @@
             </table>
           </div>
         </section>
+        {% endif %}
         {% endfor %}
 
         <section class="min-w-0 rounded-xl border border-emerald-100 p-3 sm:p-4 dark:border-emerald-900/40">

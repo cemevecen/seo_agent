@@ -625,6 +625,15 @@ def _status_from_text(text: str) -> str:
     t = (text or "").lower()
     if "yetersiz" in t or "poor" in t or "kötü" in t or t.startswith("error"):
         return "poor"
+    if (
+        "not started" in t
+        or "not_started" in t
+        or "başlamadı" in t
+        or "baslamadi" in t
+        or "başlamamış" in t
+        or "baslamamis" in t
+    ):
+        return "not_started"
     if "iyileştir" in t or "needs" in t or "improvement" in t or "warning" in t:
         return "needs_improvement"
     if "iyi" in t or "good" in t or "check_circle" in t:

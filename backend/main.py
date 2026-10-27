@@ -11707,8 +11707,8 @@ def api_home_web_vitals(request: Request, site: str | None = None):
             ov = payload.get("overview") or {}
             mob = payload.get("mobile") or {}
             desk = payload.get("desktop") or {}
-            mk = mob.get("kpis") or ov.get("mobile") or {}
-            dk = desk.get("kpis") or ov.get("desktop") or {}
+            mk_raw = mob.get("kpis") or ov.get("mobile") or {}
+            dk_raw = desk.get("kpis") or ov.get("desktop") or {}
             chart = payload.get("chart_series") or {}
             hist = ctx.get("history") or []
             shots = ctx.get("cwv_shots") or {}
@@ -11717,9 +11717,12 @@ def api_home_web_vitals(request: Request, site: str | None = None):
                 isinstance(chart.get(k), dict) and (chart.get(k) or {}).get("dates")
                 for k in ("mobile", "desktop")
             )
-            has_kpi = any(int((mk or {}).get(x) or 0) or int((dk or {}).get(x) or 0) for x in ("poor", "needs_improvement", "good"))
             mob_ser = chart.get("mobile") if isinstance(chart.get("mobile"), dict) else {}
             desk_ser = chart.get("desktop") if isinstance(chart.get("desktop"), dict) else {}
+            # KPI = spark ile aynı tarih aralığının son günü (/web-vitals ile hizalı)
+            mk = cwv_store.kpis_at_range_end(mob_ser, mk_raw)
+            dk = cwv_store.kpis_at_range_end(desk_ser, dk_raw)
+            has_kpi = any(int((mk or {}).get(x) or 0) or int((dk or {}).get(x) or 0) for x in ("poor", "needs_improvement", "good"))
             mobile_trends = cwv_store.build_device_trend_rows(
                 mob, mob_ser, kpi_good=int((mk or {}).get("good") or 0)
             )
