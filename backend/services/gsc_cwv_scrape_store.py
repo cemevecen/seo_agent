@@ -6,7 +6,7 @@ import html
 import json
 import logging
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 from urllib.parse import quote
 
@@ -1016,6 +1016,193 @@ def _recent_chart_series(db: Session, site_id: int, *, limit: int = 20) -> list[
         if isinstance(cs, dict):
             out.append(cs)
     return out
+
+
+def _align_counts_to_dates(
+    src_dates: list[str],
+    src_counts: list[int],
+    target_dates: list[str],
+) -> list[int]:
+    """Drilldown/günlük seriyi overview X eksenine (aynı tarih aralığı) oturt."""
+    if not target_dates:
+        return []
+    by: dict[str, int] = {}
+    for i, d in enumerate(src_dates or []):
+        key = str(d or "")[:10]
+        if not key:
+            continue
+        v = int(src_counts[i]) if i < len(src_counts or []) else 0
+        by[key] = v
+    if not by:
+        return [0] * len(target_dates)
+    keys = sorted(by.keys())
+    out: list[int] = []
+    for d in target_dates:
+        dk = str(d)[:10]
+        if dk in by:
+            out.append(by[dk])
+            continue
+        prev = [k for k in keys if k < dk]
+        nxt = [k for k in keys if k > dk]
+        if prev and nxt:
+            a, b = prev[-1], nxt[0]
+            try:
+                da = datetime.fromisoformat(a)
+                db_ = datetime.fromisoformat(b)
+                dd = datetime.fromisoformat(dk)
+                span = max(1, (db_ - da).days)
+                t = (dd - da).days / span
+                out.append(int(round(by[a] + t * (by[b] - by[a]))))
+            except ValueError:
+                out.append(by[prev[-1]])
+        elif prev:
+            out.append(by[prev[-1]])
+        elif nxt:
+            out.append(by[nxt[0]])
+        else:
+            out.append(0)
+    return out
+
+
+def build_device_trend_rows(
+    device_payload: dict[str, Any] | None,
+    chart_ser: dict[str, Any] | None,
+    *,
+    kpi_good: int = 0,
+) -> list[dict[str, Any]]:
+    """Home: en yüksek 2 Need improvement + Good URL — aynı tarih aralığında spark.
+
+    Dönüş: [{kind, title, count, values, dates, range_start, range_end}, ...]
+    """
+    dev = device_payload if isinstance(device_payload, dict) else {}
+    ser = chart_ser if isinstance(chart_ser, dict) else {}
+    dates = [str(d)[:10] for d in (ser.get("dates") or []) if str(d or "")[:10]]
+    range_start = str(ser.get("range_start") or (dates[0] if dates else ""))[:10]
+    range_end = str(ser.get("range_end") or (dates[-1] if dates else ""))[:10]
+    if not dates and range_start and range_end and range_start <= range_end:
+        try:
+            t0 = date.fromisoformat(range_start)
+            t1 = date.fromisoformat(range_end)
+            n = (t1 - t0).days
+            if 0 <= n <= 400:
+                dates = [(t0 + timedelta(days=i)).isoformat() for i in range(n + 1)]
+        except ValueError:
+            dates = []
+
+    def _is_ni_status(st: str, title: str = "") -> bool:
+        s = (st or "").lower().strip()
+        t = (title or "").lower()
+        if s in ("poor", "fail", "error"):
+            return False
+        if s in ("needs_improvement", "ni", "warning", "need_improvement", "needs improvement"):
+            return True
+        if "poor" in s:
+            return False
+        if "need" in s or "iyileş" in s or "improvement" in s:
+            return True
+        if "need" in t or "iyileş" in t or "improvement" in t:
+            return True
+        # status boşsa issue satırı NI kabul (poor ayrı filtrelenir)
+        return s in ("", "unknown")
+
+    # Need improvement adayları: issues + drilldowns
+    candidates: list[dict[str, Any]] = []
+    for iss in dev.get("issues") or []:
+        if not isinstance(iss, dict):
+            continue
+        title = str(iss.get("title") or iss.get("metric") or "Need improvement").strip()
+        st = str(iss.get("status") or "")
+        if not _is_ni_status(st, title):
+            continue
+        candidates.append(
+            {
+                "title": title,
+                "count": int(iss.get("url_count") or iss.get("affected_url_count") or 0),
+                "item_key": str(iss.get("item_key") or ""),
+                "metric": str(iss.get("metric") or ""),
+            }
+        )
+    drills_by_key: dict[str, dict[str, Any]] = {}
+    for d in dev.get("issue_drilldowns") or []:
+        if not isinstance(d, dict):
+            continue
+        title = str(d.get("title") or d.get("metric") or "Need improvement").strip()
+        st = str(d.get("status") or "")
+        if not _is_ni_status(st, title):
+            continue
+        key = str(d.get("item_key") or "")
+        drills_by_key[key] = d
+        cnt = int(d.get("affected_url_count") or d.get("url_count") or 0)
+        # issues listesinde yoksa ekle
+        if not any(
+            (c.get("item_key") and c["item_key"] == key)
+            or (c.get("title") == title)
+            for c in candidates
+        ):
+            candidates.append({"title": title, "count": cnt, "item_key": key, "metric": str(d.get("metric") or "")})
+        else:
+            for c in candidates:
+                if (key and c.get("item_key") == key) or c.get("title") == title:
+                    if cnt > int(c.get("count") or 0):
+                        c["count"] = cnt
+                    if key:
+                        c["item_key"] = key
+                    break
+
+    candidates.sort(key=lambda c: int(c.get("count") or 0), reverse=True)
+    top_ni = candidates[:2]
+
+    rows: list[dict[str, Any]] = []
+    for c in top_ni:
+        key = str(c.get("item_key") or "")
+        drill = drills_by_key.get(key) or {}
+        acs = drill.get("affected_chart_series") if isinstance(drill.get("affected_chart_series"), dict) else {}
+        src_dates = [str(x)[:10] for x in (acs.get("dates") or [])]
+        src_counts = [int(x or 0) for x in (acs.get("counts") or [])]
+        if dates and src_dates and src_counts:
+            values = _align_counts_to_dates(src_dates, src_counts, dates)
+        elif dates:
+            # Seri yoksa düz çizgi (güncel sayı) — aynı X aralığı
+            values = [int(c.get("count") or 0)] * len(dates)
+        else:
+            values = [int(c.get("count") or 0), int(c.get("count") or 0)]
+        rows.append(
+            {
+                "kind": "needs_improvement",
+                "title": c.get("title") or "Need improvement",
+                "count": int(c.get("count") or 0),
+                "values": values,
+                "dates": dates or [],
+                "range_start": range_start,
+                "range_end": range_end,
+            }
+        )
+
+    good_vals = [int(x or 0) for x in (ser.get("good") or [])]
+    if dates and good_vals:
+        if len(good_vals) != len(dates):
+            good_vals = _align_counts_to_dates(
+                [str(d)[:10] for d in (ser.get("dates") or dates)],
+                good_vals,
+                dates,
+            )
+    elif dates:
+        good_vals = [int(kpi_good or 0)] * len(dates)
+    else:
+        g = int(kpi_good or 0)
+        good_vals = [g, g]
+    rows.append(
+        {
+            "kind": "good",
+            "title": "Good URLs",
+            "count": int(kpi_good or (good_vals[-1] if good_vals else 0)),
+            "values": good_vals,
+            "dates": dates or [],
+            "range_start": range_start,
+            "range_end": range_end,
+        }
+    )
+    return rows
 
 
 def build_panel_context(db: Session, site: Site) -> dict[str, Any]:

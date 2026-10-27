@@ -5,9 +5,8 @@
 {% set mk = block.mobile_kpis if block else {} %}
 {% set dk = block.desktop_kpis if block else {} %}
 {% set gsc = block.gsc_links if block else {} %}
-{% set shots = block.cwv_shots if block else {} %}
-{% set shot_m = (shots.mobile_summary_url or shots.extra_url or shots.mobile_url or '') if shots else '' %}
-{% set shot_d = (shots.desktop_summary_url or shots.desktop_url or '') if shots else '' %}
+{% set m_trends = block.mobile_trends if block else [] %}
+{% set d_trends = block.desktop_trends if block else [] %}
 {% set has_data = block and block.has_data %}
 {% set poor_tot = (mk.poor or 0)|int %}
 {% set ni_tot = (mk.needs_improvement or 0)|int %}
@@ -39,61 +38,80 @@
     display: flex;
     flex-direction: column;
   }
-  .home-wv .home-wv-shot-wrap {
-    flex: 1 1 auto;
-    min-height: 9rem;
-    display: flex;
-    flex-direction: column;
-  }
-  .home-wv .home-wv-shot-link {
+  .home-wv .home-wv-trends {
     flex: 1 1 auto;
     min-height: 0;
     display: flex;
-    align-items: stretch;
+    flex-direction: column;
+    gap: 0.35rem;
+    justify-content: flex-start;
   }
-  .home-wv .home-wv-shot-link img {
-    width: 100%;
-    height: 100%;
-    max-height: none;
-    object-fit: contain;
-    object-position: top center;
-  }
-  .home-wv .home-wv-good-row {
+  .home-wv .home-wv-trend-row {
     display: grid;
-    grid-template-columns: minmax(7rem, 0.9fr) minmax(0, 1.6fr) auto minmax(4.5rem, 0.7fr) auto;
-    gap: 0.5rem 0.75rem;
+    grid-template-columns: minmax(5.5rem, 0.85fr) minmax(0, 1.7fr) auto minmax(5rem, 0.85fr) auto;
+    gap: 0.45rem 0.65rem;
     align-items: center;
-    margin-top: 0.35rem;
     padding: 0.45rem 0.55rem;
     border-radius: 0.5rem;
+    flex: 1 1 0;
+    min-height: 2.75rem;
+  }
+  .home-wv .home-wv-trend-row--ni {
+    border: 1px solid rgb(254 243 199);
+    background: rgb(255 251 235 / 0.85);
+  }
+  .dark .home-wv .home-wv-trend-row--ni {
+    border-color: rgb(120 53 15 / 0.45);
+    background: rgb(69 26 3 / 0.28);
+  }
+  .home-wv .home-wv-trend-row--good {
     border: 1px solid rgb(209 250 229);
     background: rgb(236 253 245 / 0.7);
   }
-  .dark .home-wv .home-wv-good-row {
+  .dark .home-wv .home-wv-trend-row--good {
     border-color: rgb(6 78 59 / 0.55);
     background: rgb(2 44 34 / 0.35);
   }
-  .home-wv .home-wv-good-spark {
+  .home-wv .home-wv-trend-spark {
     width: 100%;
     height: 36px;
     display: block;
   }
-  .home-wv .home-wv-good-spark path {
+  .home-wv .home-wv-trend-spark path {
     fill: none;
-    stroke: #0b8043;
     stroke-width: 2.2;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .home-wv .home-wv-good-spark .home-wv-good-fill {
+  .home-wv .home-wv-trend-row--ni .home-wv-trend-spark path.home-wv-trend-line {
+    stroke: #f09300;
+  }
+  .home-wv .home-wv-trend-row--ni .home-wv-trend-spark path.home-wv-trend-fill {
+    stroke: none;
+    fill: rgb(240 147 0 / 0.16);
+  }
+  .home-wv .home-wv-trend-row--good .home-wv-trend-spark path.home-wv-trend-line {
+    stroke: #0b8043;
+  }
+  .home-wv .home-wv-trend-row--good .home-wv-trend-spark path.home-wv-trend-fill {
     stroke: none;
     fill: rgb(11 128 67 / 0.16);
   }
-  .home-wv .home-wv-good-src {
+  .home-wv .home-wv-trend-src {
     font-size: 9px;
     letter-spacing: 0.02em;
     color: #94a3b8;
+    white-space: nowrap;
   }
+  .home-wv .home-wv-trend-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: #334155;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dark .home-wv .home-wv-trend-title { color: #e2e8f0; }
 </style>
 
 <div class="home-readable home-wv home-wv--fill is-open"
@@ -130,7 +148,6 @@
             aria-label="Expand or collapse">
       <span class="home-shell-chevron" aria-hidden="true"></span>
     </button>
-
   </div>
 
   <div id="home-wv-shell-{{ sid }}" class="home-shell-body home-wv-body" data-home-shell-body>
@@ -144,236 +161,68 @@
       </p>
       {% else %}
       <div class="home-wv-devices">
-        <section class="home-wv-device min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+        {% for device_key, kpis, trends, gsc_href, label in [
+          ('mobile', mk, m_trends, gsc.mobile_summary, 'Mobile'),
+          ('desktop', dk, d_trends, gsc.desktop_summary, 'Desktop')
+        ] %}
+        <section class="home-wv-device min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40"
+                 data-home-wv-device="{{ device_key }}">
           <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
-            <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Mobile</h4>
-            {% if gsc.mobile_summary %}
-            <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.mobile_summary }}" target="_blank" rel="noopener">Open report ›</a>
+            <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">{{ label }}</h4>
+            {% if gsc_href %}
+            <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_href }}" target="_blank" rel="noopener">Open report ›</a>
             {% endif %}
           </div>
           <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400 shrink-0">
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> poor</span>
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> needs work</span>
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> good</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(kpis.poor) }}</span> poor</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(kpis.needs_improvement) }}</span> needs work</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(kpis.good) }}</span> good</span>
           </div>
-          <div class="home-wv-shot-wrap">
-            {% if shot_m %}
-            <a href="{{ shot_m }}" target="_blank" rel="noopener" class="home-wv-shot-link seo-matte-shot-wrap overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-              <img src="{{ shot_m }}" alt="GSC Mobile issues" class="seo-matte-shot" loading="lazy">
-            </a>
-            {% else %}
-            <div class="relative min-h-[9rem] w-full flex-1"><canvas id="home-wv-m-{{ sid }}"></canvas></div>
-            <p id="home-wv-m-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
-            {% endif %}
-            <div class="home-wv-good-row shrink-0" data-home-wv-good="mobile" title="Good URLs · GSC overview yeşil çizgi">
-              <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-                <span class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white" aria-hidden="true">✓</span>
+          <div class="home-wv-trends" data-home-wv-trends="{{ device_key }}">
+            {% for row in trends %}
+            {% set is_good = row.kind == 'good' %}
+            <div class="home-wv-trend-row {{ 'home-wv-trend-row--good' if is_good else 'home-wv-trend-row--ni' }}"
+                 data-home-wv-trend
+                 data-kind="{{ row.kind }}"
+                 data-values="{{ (row.values or [])|tojson|e }}"
+                 data-range-start="{{ row.range_start or '' }}"
+                 data-range-end="{{ row.range_end or '' }}"
+                 title="{{ row.title }}">
+              <span class="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-semibold {{ 'text-emerald-700 dark:text-emerald-300' if is_good else 'text-amber-700 dark:text-amber-300' }}">
+                {% if is_good %}
+                <span class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white" aria-hidden="true">✓</span>
                 Good
+                {% else %}
+                <span class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-amber-500" aria-hidden="true">▲</span>
+                Need improvement
+                {% endif %}
               </span>
-              <span class="truncate text-[11px] font-medium text-slate-700 dark:text-zinc-200">Good URLs</span>
-              <span class="home-wv-good-src" data-home-wv-good-src>trend</span>
-              <svg class="home-wv-good-spark" viewBox="0 0 160 36" preserveAspectRatio="none" aria-hidden="true">
-                <path class="home-wv-good-fill" d=""></path>
-                <path class="home-wv-good-line" d=""></path>
+              <span class="home-wv-trend-title" title="{{ row.title }}">{{ row.title }}</span>
+              <span class="home-wv-trend-src" data-home-wv-trend-src></span>
+              <svg class="home-wv-trend-spark" viewBox="0 0 160 36" preserveAspectRatio="none" aria-hidden="true">
+                <path class="home-wv-trend-fill" d=""></path>
+                <path class="home-wv-trend-line" d=""></path>
               </svg>
-              <span class="tabular-nums text-right text-[12px] font-semibold text-emerald-700 dark:text-emerald-300" data-home-wv-good-count>{{ fmt_int(mk.good) }}</span>
+              <span class="tabular-nums text-right text-[12px] font-semibold {{ 'text-emerald-700 dark:text-emerald-300' if is_good else 'text-amber-800 dark:text-amber-200' }}">{{ fmt_int(row.count) }}</span>
             </div>
+            {% else %}
+            <p class="home-meta px-1 py-3 text-center text-slate-400 dark:text-zinc-500">No issue trends yet — full CWV scrape fills top NI + Good.</p>
+            {% endfor %}
           </div>
         </section>
-        <section class="home-wv-device min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
-          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
-            <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Desktop</h4>
-            {% if gsc.desktop_summary %}
-            <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.desktop_summary }}" target="_blank" rel="noopener">Open report ›</a>
-            {% endif %}
-          </div>
-          <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400 shrink-0">
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> poor</span>
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> needs work</span>
-            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> good</span>
-          </div>
-          <div class="home-wv-shot-wrap">
-            {% if shot_d %}
-            <a href="{{ shot_d }}" target="_blank" rel="noopener" class="home-wv-shot-link seo-matte-shot-wrap overflow-hidden rounded-lg border border-slate-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-              <img src="{{ shot_d }}" alt="GSC Desktop issues" class="seo-matte-shot" loading="lazy">
-            </a>
-            {% else %}
-            <div class="relative min-h-[9rem] w-full flex-1"><canvas id="home-wv-d-{{ sid }}"></canvas></div>
-            <p id="home-wv-d-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
-            {% endif %}
-            <div class="home-wv-good-row shrink-0" data-home-wv-good="desktop" title="Good URLs · GSC overview yeşil çizgi">
-              <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-                <span class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white" aria-hidden="true">✓</span>
-                Good
-              </span>
-              <span class="truncate text-[11px] font-medium text-slate-700 dark:text-zinc-200">Good URLs</span>
-              <span class="home-wv-good-src" data-home-wv-good-src>trend</span>
-              <svg class="home-wv-good-spark" viewBox="0 0 160 36" preserveAspectRatio="none" aria-hidden="true">
-                <path class="home-wv-good-fill" d=""></path>
-                <path class="home-wv-good-line" d=""></path>
-              </svg>
-              <span class="tabular-nums text-right text-[12px] font-semibold text-emerald-700 dark:text-emerald-300" data-home-wv-good-count>{{ fmt_int(dk.good) }}</span>
-            </div>
-          </div>
-        </section>
+        {% endfor %}
       </div>
-      <script type="application/json" id="home-wv-data-{{ sid }}">{{ {
-        "site_id": sid,
-        "chart_series": block.chart_series or {},
-        "history": block.history or [],
-        "mobile_kpis": mk,
-        "desktop_kpis": dk
-      }|tojson }}</script>
       <script>
       (function(){
-        var sid = {{ sid|tojson }};
-        var root = (document.currentScript && document.currentScript.closest('.home-wv')) || document.getElementById('home-wv-data-' + sid) && document.getElementById('home-wv-data-' + sid).closest('.home-wv');
-        var rawEl = document.getElementById('home-wv-data-' + sid);
-        if (!rawEl) return;
-        var payload;
-        try { payload = JSON.parse(rawEl.textContent || '{}'); } catch (e) { return; }
-        var rendered = false;
+        var root = document.currentScript && document.currentScript.closest('.home-wv');
+        if (!root) return;
 
-        function fmtLabel(iso) {
-          if (!iso) return '—';
-          var s = String(iso);
-          if (s.length >= 10 && s.indexOf('-') > 0) {
-            var p = s.slice(0, 10).split('-');
-            return parseInt(p[2], 10) + '.' + String(p[1]).padStart(2, '0') + '.' + p[0];
-          }
-          return s.slice(5, 16).replace('T', ' ');
-        }
-        /** GSC ekseni gibi: 29.07–21.10 */
         function fmtRangeShort(iso) {
           if (!iso) return '';
           var s = String(iso);
           var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
           if (m) return parseInt(m[3], 10) + '.' + m[2];
-          m = s.match(/^(\d{1,2})[./](\d{1,2})/);
-          if (m) return parseInt(m[1], 10) + '.' + String(m[2]).padStart(2, '0');
           return '';
-        }
-        function seriesRangeLabel(ser) {
-          if (!ser) return '';
-          var a = ser.range_start || (ser.dates && ser.dates[0]) || '';
-          var b = ser.range_end || (ser.dates && ser.dates[ser.dates.length - 1]) || '';
-          // dates may already be fmtLabel'd
-          var raw = (payload.chart_series && payload.chart_series[ser._device]) || {};
-          if (ser.source === 'gsc' && raw.dates && raw.dates.length) {
-            a = raw.range_start || raw.dates[0];
-            b = raw.range_end || raw.dates[raw.dates.length - 1];
-          }
-          var fa = fmtRangeShort(a) || String(a).slice(0, 5);
-          var fb = fmtRangeShort(b) || String(b).slice(0, 5);
-          if (!fa || !fb) return '';
-          return fa + '–' + fb;
-        }
-        function yearFromDate(d) {
-          var s = String(d || '');
-          // ISO 2026-07-29
-          var m = s.match(/^(\d{4})-/);
-          if (m) return parseInt(m[1], 10);
-          // M/D/YY or M/D/YYYY
-          m = s.match(/\/(\d{2,4})$/);
-          if (m) {
-            var y = parseInt(m[1], 10);
-            if (y < 100) y += 2000;
-            return y;
-          }
-          var y2 = parseInt(s.slice(0, 4), 10);
-          return isFinite(y2) ? y2 : NaN;
-        }
-        function datesPlausible(dates) {
-          var y0 = new Date().getFullYear();
-          if (!dates || !dates.length) return false;
-          var ok = 0;
-          for (var i = 0; i < dates.length; i++) {
-            var y = yearFromDate(dates[i]);
-            if (y >= y0 - 3 && y <= y0 + 1) ok += 1;
-          }
-          // Çoğu tarih makulse yeter (tek bozuk etiket tüm seriyi düşürmesin)
-          return ok >= Math.max(3, Math.floor(dates.length * 0.6));
-        }
-        function seriesNonZeroRatio(arr) {
-          var a = arr || [];
-          if (!a.length) return 0;
-          var nz = 0;
-          for (var i = 0; i < a.length; i++) if (Number(a[i]) > 0) nz += 1;
-          return nz / a.length;
-        }
-        function fromHistory(deviceKey) {
-          var dates = [], poor = [], ni = [], good = [];
-          (payload.history || []).forEach(function(h) {
-            var d = (h && h[deviceKey]) || {};
-            dates.push(fmtLabel(h.collected_at));
-            poor.push(d.poor || 0);
-            ni.push(d.needs_improvement || 0);
-            good.push(d.good || 0);
-          });
-          return { dates: dates, poor: poor, needs_improvement: ni, good: good, source: 'panel_history' };
-        }
-        function fromChart(deviceKey) {
-          var ser = (payload.chart_series && payload.chart_series[deviceKey]) || null;
-          if (!ser || typeof ser !== 'object') return null;
-          var good = ser.good || [];
-          var dates = ser.dates || [];
-          var rangeStart = ser.range_start || (dates[0] || '');
-          var rangeEnd = ser.range_end || (dates.length ? dates[dates.length - 1] : '');
-          // GSC overview serisi: yeterince nokta + anlamlı good değerleri
-          if (good.length >= 8 && seriesNonZeroRatio(good) >= 0.25) {
-            return {
-              dates: dates.length ? dates.map(fmtLabel) : good.map(function(_, i){ return String(i); }),
-              poor: ser.poor || [],
-              needs_improvement: ser.needs_improvement || [],
-              good: good,
-              source: 'gsc',
-              range_start: rangeStart,
-              range_end: rangeEnd,
-              _device: deviceKey
-            };
-          }
-          if (dates.length >= 3 && datesPlausible(dates) && good.length >= 3) {
-            return {
-              dates: dates.map(fmtLabel),
-              poor: ser.poor || [],
-              needs_improvement: ser.needs_improvement || [],
-              good: good,
-              source: 'gsc',
-              range_start: rangeStart,
-              range_end: rangeEnd,
-              _device: deviceKey
-            };
-          }
-          return null;
-        }
-        function resolve(deviceKey) {
-          // Önce GSC overview chart_series (yeşil çizgi). History seyrek → sahte «sonda spike».
-          var gsc = fromChart(deviceKey);
-          if (gsc) return gsc;
-          var hist = fromHistory(deviceKey);
-          // History ancak yeterince doluysa; aksi halde tek KPI noktası (yanıltıcı spark yok)
-          if (hist.good && hist.good.length >= 8 && seriesNonZeroRatio(hist.good) >= 0.4) {
-            return hist;
-          }
-          var kpi = (deviceKey === 'mobile' ? payload.mobile_kpis : payload.desktop_kpis) || {};
-          var g = Number(kpi.good || 0);
-          return { dates: ['—'], poor: [0], needs_improvement: [0], good: [g, g], source: 'kpi' };
-        }
-        function isEndSpikeArtifact(values) {
-          var vals = (values || []).map(function(v){ return Number(v); }).filter(function(v){ return isFinite(v); });
-          var n = vals.length;
-          if (n < 16) return false;
-          var last = vals[n - 1];
-          if (!(last >= 200)) return false;
-          var body = vals.slice(0, Math.max(1, n - 3));
-          var sorted = body.slice().sort(function(a, b){ return a - b; });
-          var med = sorted[Math.floor(sorted.length / 2)] || 0;
-          var p90 = sorted[Math.max(0, Math.floor(sorted.length * 0.9) - 1)] || 0;
-          var bmax = sorted[sorted.length - 1] || 0;
-          if (last < Math.max(p90 * 1.55, med * 2.2, bmax * 1.35)) return false;
-          var jumpFrom = vals[Math.max(0, n - 4)];
-          if (last < jumpFrom * 1.35 && (last - jumpFrom) < Math.max(800, 0.2 * last)) return false;
-          return true;
         }
         function sparkPaths(values) {
           var vals = (values || []).map(function(v){ return Number(v); }).filter(function(v){ return isFinite(v); });
@@ -381,16 +230,11 @@
             var flat = vals.length === 1 ? vals[0] : 0;
             vals = [flat, flat];
           }
-          // Çok uzun seriyi ~90 noktaya indir (şekil korunur) — GSC ~3 ay günlük
           if (vals.length > 96) {
-            var out = [];
-            var last = vals.length - 1;
-            for (var i = 0; i < 96; i++) {
-              out.push(vals[Math.round(i * last / 95)]);
-            }
+            var out = [], last = vals.length - 1;
+            for (var i = 0; i < 96; i++) out.push(vals[Math.round(i * last / 95)]);
             vals = out;
           }
-          // GSC grafiği gibi taban 0 — min-max sıkıştırma «sonda spike» abartır
           var min = 0;
           var max = Math.max.apply(null, vals);
           if (!(max > 0)) max = 1;
@@ -403,149 +247,25 @@
           });
           var line = pts.map(function(p, i){ return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
           var fill = line + ' L' + pts[pts.length - 1][0].toFixed(1) + ' ' + h + ' L' + pts[0][0].toFixed(1) + ' ' + h + ' Z';
-          return { line: line, fill: fill, last: vals[vals.length - 1], n: vals.length };
+          return { line: line, fill: fill, n: vals.length };
         }
-        function paintGoodRow(deviceKey) {
-          if (!root) return;
-          var row = root.querySelector('[data-home-wv-good="' + deviceKey + '"]');
-          if (!row) return;
-          var ser = resolve(deviceKey);
-          var badSpike = ser.source === 'gsc' && isEndSpikeArtifact(ser.good);
-          var sparkVals = badSpike ? [] : ser.good;
-          // Bozuk «sonda spike» serisini çizme — sayı KPI'dan kalsın
-          if (badSpike) {
-            var kpiFlat = Number(((deviceKey === 'mobile' ? payload.mobile_kpis : payload.desktop_kpis) || {}).good || 0);
-            sparkVals = [kpiFlat, kpiFlat];
-          }
-          var spark = sparkPaths(sparkVals);
-          var fill = row.querySelector('.home-wv-good-fill');
-          var line = row.querySelector('.home-wv-good-line');
+        function paintRow(el) {
+          var raw = el.getAttribute('data-values') || '[]';
+          var values;
+          try { values = JSON.parse(raw); } catch (e) { values = []; }
+          var spark = sparkPaths(values);
+          var fill = el.querySelector('.home-wv-trend-fill');
+          var line = el.querySelector('.home-wv-trend-line');
           if (fill) fill.setAttribute('d', spark.fill);
           if (line) line.setAttribute('d', spark.line);
-          var countEl = row.querySelector('[data-home-wv-good-count]');
-          var srcEl = row.querySelector('[data-home-wv-good-src]');
-          var kpi = (deviceKey === 'mobile' ? payload.mobile_kpis : payload.desktop_kpis) || {};
-          var n = kpi.good != null ? Number(kpi.good) : spark.last;
-          if (countEl && isFinite(n)) {
-            countEl.textContent = Math.round(n).toLocaleString('tr-TR');
+          var src = el.querySelector('[data-home-wv-trend-src]');
+          if (src) {
+            var a = fmtRangeShort(el.getAttribute('data-range-start'));
+            var b = fmtRangeShort(el.getAttribute('data-range-end'));
+            src.textContent = (a && b) ? (a + '–' + b + ' · ' + spark.n + 'g') : (spark.n + 'g');
           }
-          if (srcEl) {
-            if (badSpike) {
-              srcEl.textContent = 'seri bozuk';
-            } else if (ser.source === 'gsc') {
-              var rng = seriesRangeLabel(ser);
-              // GSC ile aynı pencere: örn. 29.07–21.10 · 85g
-              srcEl.textContent = rng ? (rng + ' · ' + spark.n + 'g') : ('GSC · ' + spark.n + 'g');
-            } else if (ser.source === 'panel_history') {
-              srcEl.textContent = 'hist · ' + spark.n;
-            } else {
-              srcEl.textContent = 'kpi';
-            }
-          }
-          row.title = badSpike
-            ? 'Good URL spark serisi bozuk (sonda spike) — charts sync gerekli'
-            : ('Good URLs · ' +
-              (ser.source === 'gsc'
-                ? ('GSC overview ' + (seriesRangeLabel(ser) || '') + ' (yeşil çizgi ile aynı pencere)')
-                : ser.source) +
-              ' · ' + spark.n + ' nokta');
         }
-        function ensureChartJs(cb) {
-          if (window.Chart) { cb(); return; }
-          if (window.__homeWvChartLoading) {
-            window.__homeWvChartLoading.push(cb);
-            return;
-          }
-          window.__homeWvChartLoading = [cb];
-          var s = document.createElement('script');
-          s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
-          s.onload = function() {
-            var q = window.__homeWvChartLoading || [];
-            window.__homeWvChartLoading = null;
-            q.forEach(function(fn){ try { fn(); } catch (err) { console.warn(err); } });
-          };
-          document.head.appendChild(s);
-        }
-        function render(canvasId, noteId, deviceKey) {
-          var canvas = document.getElementById(canvasId);
-          var note = document.getElementById(noteId);
-          if (!canvas || !window.Chart) return;
-          if (canvas.__homeWvChart) {
-            try { canvas.__homeWvChart.destroy(); } catch (e) {}
-            canvas.__homeWvChart = null;
-          }
-          var ser = resolve(deviceKey);
-          var labels = ser.dates && ser.dates.length ? ser.dates : ['—'];
-          var has = labels.length > 1 || (ser.poor || []).some(function(v){return v;}) || (ser.needs_improvement || []).some(function(v){return v;}) || (ser.good || []).some(function(v){return v;});
-          if (note) {
-            note.textContent = ser.source === 'gsc'
-              ? ('GSC trend · ' + labels.length + ' points')
-              : (has ? ('Crawl history · ' + labels.length + ' points') : 'No chart data');
-          }
-          canvas.__homeWvChart = new Chart(canvas, {
-            type: 'line',
-            data: {
-              labels: labels,
-              datasets: [
-                { label: 'Poor', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false },
-                { label: 'Needs improvement', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false },
-                { label: 'Good', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0, fill: false }
-              ]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              interaction: { mode: 'index', intersect: false },
-              plugins: {
-                legend: { display: false },
-                tooltip: {
-                  callbacks: {
-                    label: function(ctx) {
-                      var n = ctx.parsed.y;
-                      return ctx.dataset.label + ': ' + (n == null ? '—' : Math.round(Number(n)).toLocaleString('tr-TR'));
-                    }
-                  }
-                }
-              },
-              scales: {
-                x: { ticks: { maxTicksLimit: 8, font: { size: 13 }, color: '#94a3b8' }, grid: { display: false } },
-                y: { beginAtZero: true, ticks: { maxTicksLimit: 4, font: { size: 13 }, color: '#94a3b8', callback: function(v){ return v >= 1000 ? (Math.round(v/1000)+'K') : v; } }, grid: { color: 'rgba(148,163,184,.18)' } }
-              }
-            }
-          });
-        }
-        function paint() {
-          paintGoodRow('mobile');
-          paintGoodRow('desktop');
-          if (rendered) {
-            ['home-wv-m-' + sid, 'home-wv-d-' + sid].forEach(function(id) {
-              var c = document.getElementById(id);
-              if (c && c.__homeWvChart) {
-                try { c.__homeWvChart.resize(); } catch (e) {}
-              }
-            });
-            return;
-          }
-          if (!document.getElementById('home-wv-m-' + sid) && !document.getElementById('home-wv-d-' + sid)) {
-            rendered = true;
-            return;
-          }
-          rendered = true;
-          ensureChartJs(function(){
-            render('home-wv-m-' + sid, 'home-wv-m-note-' + sid, 'mobile');
-            render('home-wv-d-' + sid, 'home-wv-d-note-' + sid, 'desktop');
-          });
-        }
-        if (root) {
-          root.addEventListener('click', function (ev) {
-            if (ev.target.closest('[data-home-shell-toggle]') && root.classList.contains('is-open')) {
-              setTimeout(paint, 40);
-            }
-          });
-          if (root.classList.contains('is-open')) paint();
-        } else {
-          paint();
-        }
+        root.querySelectorAll('[data-home-wv-trend]').forEach(paintRow);
       })();
       </script>
       {% endif %}

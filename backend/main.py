@@ -11718,6 +11718,14 @@ def api_home_web_vitals(request: Request, site: str | None = None):
                 for k in ("mobile", "desktop")
             )
             has_kpi = any(int((mk or {}).get(x) or 0) or int((dk or {}).get(x) or 0) for x in ("poor", "needs_improvement", "good"))
+            mob_ser = chart.get("mobile") if isinstance(chart.get("mobile"), dict) else {}
+            desk_ser = chart.get("desktop") if isinstance(chart.get("desktop"), dict) else {}
+            mobile_trends = cwv_store.build_device_trend_rows(
+                mob, mob_ser, kpi_good=int((mk or {}).get("good") or 0)
+            )
+            desktop_trends = cwv_store.build_device_trend_rows(
+                desk, desk_ser, kpi_good=int((dk or {}).get("good") or 0)
+            )
             sites_out.append({
                 "site_id": site_id,
                 "site_key": site_key_by_id.get(site_id, ""),
@@ -11736,9 +11744,11 @@ def api_home_web_vitals(request: Request, site: str | None = None):
                     "needs_improvement": int((dk or {}).get("needs_improvement") or 0),
                     "good": int((dk or {}).get("good") or 0),
                 },
+                "mobile_trends": mobile_trends,
+                "desktop_trends": desktop_trends,
                 "chart_series": chart,
                 "history": hist,
-                "has_data": bool(has_chart or has_kpi or hist or has_shots),
+                "has_data": bool(has_chart or has_kpi or hist or has_shots or mobile_trends or desktop_trends),
             })
     return templates.TemplateResponse(
         request, "partials/home/web_vitals.html",
