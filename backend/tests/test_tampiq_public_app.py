@@ -38,12 +38,35 @@ def test_robots_allows_public_help_center_paths():
     body = CLIENT.get("/robots.txt").text
     assert "User-agent: *" in body
     assert "Allow: /privacy" in body
+    assert "Allow: /privacy/" in body
     assert "Allow: /support" in body
+    assert "Allow: /support/" in body
     assert "Allow: /delete-account" in body
+    assert "Allow: /delete-account/" in body
     assert "Allow: /delete-data" in body
+    assert "Allow: /delete-data/" in body
     assert "Allow: /robots.txt" in body
     # Still disallow the rest of the tree (no private APIs to expose).
     assert "Disallow: /" in body
+
+
+def test_trailing_slash_redirects_preserve_query():
+    client = TestClient(app, follow_redirects=False)
+    res = client.get(
+        "/delete-account/",
+        params={"platform": "android", "lang": "tr"},
+    )
+    assert res.status_code == 308
+    assert res.headers["location"].startswith("/delete-account?")
+    assert "platform=android" in res.headers["location"]
+    assert "lang=tr" in res.headers["location"]
+
+
+def test_head_delete_account_android_tr():
+    res = CLIENT.head("/delete-account", params={"platform": "android", "lang": "tr"})
+    assert res.status_code == 200
+    assert int(res.headers.get("content-length", "0")) == 0
+    assert res.content == b""
 
 
 def test_pages_are_noindex():

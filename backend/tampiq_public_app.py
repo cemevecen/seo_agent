@@ -15,6 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from backend.tampiq_i18n import get_catalog
 from backend.tampiq_i18n.locales import (
@@ -214,52 +215,137 @@ app = FastAPI(
     openapi_url=None,
 )
 
+# Public HTML/text paths that store crawlers and browsers may request with a
+# trailing slash or via HEAD. Exact paths stay canonical; slash → 308 redirect.
+_PUBLIC_SLASH_REDIRECTS = frozenset(
+    {
+        "/support",
+        "/privacy",
+        "/delete-account",
+        "/delete-data",
+        "/health",
+        "/robots.txt",
+    }
+)
+
+
+class _PublicPathCompatMiddleware:
+    """Trailing-slash redirect + HEAD→GET for public Help Center paths.
+
+    Independent checkers sometimes hit ``/delete-account/`` (404 via catch-all)
+    or probe with HEAD (FastAPI returns 405 when only GET is registered).
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path") or ""
+        method = (scope.get("method") or "GET").upper()
+
+        if path != "/" and path.endswith("/"):
+            bare = path.rstrip("/") or "/"
+            if bare in _PUBLIC_SLASH_REDIRECTS:
+                qs = scope.get("query_string") or b""
+                location = bare.encode("ascii")
+                if qs:
+                    location = location + b"?" + qs
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": 308,
+                        "headers": [
+                            (b"content-length", b"0"),
+                            (b"location", location),
+                        ],
+                    }
+                )
+                await send({"type": "http.response.body", "body": b"", "more_body": False})
+                return
+
+        # Treat HEAD like GET for routing, then drop the body (store probes).
+        if method == "HEAD":
+            scope = dict(scope)
+            scope["method"] = "GET"
+            started: dict | None = None
+
+            async def send_head(message: dict) -> None:
+                nonlocal started
+                if message["type"] == "http.response.start":
+                    headers = [
+                        (k, v)
+                        for k, v in message.get("headers", [])
+                        if k.lower() != b"content-length"
+                    ]
+                    headers.append((b"content-length", b"0"))
+                    started = {"type": "http.response.start", "status": message["status"], "headers": headers}
+                    await send(started)
+                elif message["type"] == "http.response.body":
+                    await send({"type": "http.response.body", "body": b"", "more_body": False})
+
+            await self.app(scope, receive, send_head)
+            return
+
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(_PublicPathCompatMiddleware)
+
 _static_dir = _ROOT / "static" / "tampiq"
 if _static_dir.is_dir():
     app.mount("/static/tampiq", StaticFiles(directory=str(_static_dir)), name="tampiq_static")
 
 
-@app.get("/health", include_in_schema=False)
+@app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
 def health() -> dict[str, str]:
     return {"status": "ok", "site": "tampiq-public"}
 
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
 def home(request: Request):
     return _html_response(request, "home.html", "home")
 
 
-@app.get("/support", response_class=HTMLResponse, include_in_schema=False)
+@app.api_route("/support", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
 def support(request: Request):
     return _html_response(request, "support.html", "support")
 
 
-@app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+@app.api_route("/privacy", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
 def privacy(request: Request):
     return _html_response(request, "privacy.html", "privacy")
 
 
-@app.get("/delete-account", response_class=HTMLResponse, include_in_schema=False)
+@app.api_route("/delete-account", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
 def delete_account(request: Request):
     return _html_response(request, "delete_account.html", "delete-account")
 
 
-@app.get("/delete-data", response_class=HTMLResponse, include_in_schema=False)
+@app.api_route("/delete-data", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
 def delete_data(request: Request):
     return _html_response(request, "delete_data.html", "delete-data")
 
 
-@app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+@app.api_route("/robots.txt", methods=["GET", "HEAD"], response_class=PlainTextResponse, include_in_schema=False)
 def robots() -> str:
     # Public Help Center must remain fetchable for store review (Google Play / App Store).
     # Historical blanket "Disallow: /" blocked crawlers from reading /privacy and /support.
     # Keep everything else disallowed; this site has no private API surface beyond catch-all 404.
+    # Allow both bare and trailing-slash forms so slash redirects remain crawlable.
     return (
         "User-agent: *\n"
         "Allow: /privacy\n"
+        "Allow: /privacy/\n"
         "Allow: /support\n"
+        "Allow: /support/\n"
         "Allow: /delete-account\n"
+        "Allow: /delete-account/\n"
         "Allow: /delete-data\n"
+        "Allow: /delete-data/\n"
         "Allow: /robots.txt\n"
         "Allow: /health\n"
         "Allow: /static/tampiq/\n"
@@ -267,7 +353,7 @@ def robots() -> str:
     )
 
 
-@app.get("/{path:path}", include_in_schema=False)
+@app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
 def catch_all(path: str):
     return PlainTextResponse("Not Found", status_code=404)
 
