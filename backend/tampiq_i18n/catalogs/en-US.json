@@ -851,7 +851,7 @@
   "delete_account_android": {
     "title": "Delete account (Android)",
     "effective_label": "Last updated",
-    "effective_date": "12 October 2026",
+    "effective_date": "29 October 2026",
     "intro": "This page explains how to delete an optional TAMPIQ Android cloud account used for security email alerts, what is deleted, and what may remain. Developer / Publisher: TAMPIQ (Türkiye). Core protection recording does not require a cloud account.",
     "sections": [
       {
@@ -861,7 +861,8 @@
           "TAMPIQ’s core protection features work on-device without a cloud account.",
           "An optional cloud account is created only if you sign in with Google (Firebase Authentication / Google Sign-In where configured) to use security email alerts.",
           "TAMPIQ Android does not offer email-and-password account registration in the app.",
-          "Your on-device Tampiq PIN / App Lock is separate from the optional Google cloud account and is not a cloud login."
+          "Your on-device Tampiq PIN / App Lock is separate from the optional Google cloud account and is not a cloud login.",
+          "Deleting a TAMPIQ cloud account removes only the TAMPIQ Android Firebase Authentication identity used for security alerts. It does not delete your Google Account, Gmail, Google Drive, Play purchases, or any other Google service."
         ]
       },
       {
@@ -896,7 +897,7 @@
           "When the authenticated deletion API completes successfully, TAMPIQ deletes the following account-linked server data and identity:"
         ],
         "bullets": [
-          "Firebase Authentication identity for that TAMPIQ cloud account (Google Sign-In session for TAMPIQ).",
+          "Firebase Authentication identity for that TAMPIQ cloud account (Google Sign-In session for TAMPIQ only).",
           "Server-side email alert preferences bound to that account.",
           "Server-side security alert delivery records bound to that account.",
           "Server-side email volume windows and account-scoped rate-limit buckets bound to that account user id.",
@@ -919,6 +920,7 @@
           "The following are not removed by a successful cloud account deletion (unless a separate action applies):"
         ],
         "bullets": [
+          "Your Google Account and other Google services (Gmail, Drive, Play, etc.)—TAMPIQ cannot and does not delete those.",
           "A server deletion-lifecycle record (account deletion state / tombstone: user id and status only—not email body, event history, or location).",
           "Infrastructure abuse-control counters that are not account user-id buckets (for example IP- or global-scoped rate-limit keys).",
           "Copies of security-alert emails already held by the email delivery provider; TAMPIQ’s account API does not delete provider-side mailbox history.",
@@ -945,7 +947,7 @@
           "The Android app treats deletion as complete only when the server reports both account data erasure and authentication identity deletion.",
           "If server data was erased but closing the authentication identity is still pending, the app asks you to retry while online; it does not claim the account is fully closed until that finishes.",
           "If Google re-authentication fails or the wrong Google account is selected, nothing is deleted.",
-          "This public Help Center page does not itself run the authenticated delete API; use the in-app flow or the assisted email request path above."
+          "This public Help Center page does not itself run the authenticated delete API; use the in-app flow or the assisted email request path above. You can send the email request without reinstalling TAMPIQ."
         ]
       },
       {
