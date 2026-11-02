@@ -11724,10 +11724,18 @@ def api_home_web_vitals(request: Request, site: str | None = None):
             dk = cwv_store.kpis_at_range_end(desk_ser, dk_raw)
             has_kpi = any(int((mk or {}).get(x) or 0) or int((dk or {}).get(x) or 0) for x in ("poor", "needs_improvement", "good"))
             mobile_trends = cwv_store.build_device_trend_rows(
-                mob, mob_ser, kpi_good=int((mk or {}).get("good") or 0)
+                mob,
+                mob_ser,
+                kpi_good=int((mk or {}).get("good") or 0),
+                history=hist,
+                device_key="mobile",
             )
             desktop_trends = cwv_store.build_device_trend_rows(
-                desk, desk_ser, kpi_good=int((dk or {}).get("good") or 0)
+                desk,
+                desk_ser,
+                kpi_good=int((dk or {}).get("good") or 0),
+                history=hist,
+                device_key="desktop",
             )
             sites_out.append({
                 "site_id": site_id,

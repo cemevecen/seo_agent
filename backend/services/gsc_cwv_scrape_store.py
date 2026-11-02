@@ -463,6 +463,11 @@ def _series_quality(ser: Any, year_now: int, *, peer_len: int = 0) -> int:
             return 0
     src = str(ser.get("source") or "")
     bonus = 80 if "tooltip" in src else 0
+    # Düz KPI dolgusu (sabit çizgi) — hareketli eski serinin gerisinde kalsın
+    motion_bonus = 0
+    for metric in ("good", "needs_improvement"):
+        if _series_has_motion([int(x or 0) for x in (ser.get(metric) or [])]):
+            motion_bonus += 120
     dates = [str(d or "")[:10] for d in (ser.get("dates") or [])]
     ok = [d for d in dates if _iso_year_ok(d, year_now)]
     if len(ok) >= 3:
@@ -470,13 +475,13 @@ def _series_quality(ser: Any, year_now: int, *, peer_len: int = 0) -> int:
             span = (date.fromisoformat(ok[-1]) - date.fromisoformat(ok[0])).days
         except ValueError:
             span = len(ok)
-        return max(span, 0) * 20 + len(ok) + bonus
+        return max(span, 0) * 20 + len(ok) + bonus + motion_bonus
     n = _series_value_len(ser)
     if n < 3:
         return 0
     if peer_len >= 3 and abs(n - peer_len) <= max(8, int(0.12 * peer_len)):
-        return 200 + n + bonus
-    return 0
+        return 200 + n + bonus + motion_bonus
+    return motion_bonus
 
 
 def sanitize_chart_series(
@@ -1101,17 +1106,89 @@ def kpis_at_range_end(
     return out
 
 
+def _series_has_motion(arr: list[int] | None) -> bool:
+    """Sabit/düz çizgi mi, yoksa GSC gibi dalgalı mı?"""
+    vals = [int(x or 0) for x in (arr or [])]
+    if len(vals) < 3:
+        return False
+    lo, hi = min(vals), max(vals)
+    span = hi - lo
+    if span <= 0:
+        return False
+    # En az ~2% hareket veya 25 URL farkı
+    return span >= max(25, int(0.02 * max(hi, 1)))
+
+
+def _scale_series_to_end(base: list[int], target_end: int) -> list[int]:
+    """Overview NI/Good şeklini issue son sayısına oranla (GSC eğrisi korunur)."""
+    vals = [max(0, int(x or 0)) for x in (base or [])]
+    if not vals:
+        te = max(0, int(target_end or 0))
+        return [te, te]
+    end = vals[-1]
+    te = max(0, int(target_end or 0))
+    if end <= 0:
+        return [te] * len(vals)
+    ratio = te / float(end)
+    return [max(0, int(round(v * ratio))) for v in vals]
+
+
+def _points_from_history(
+    history: list[dict[str, Any]] | None,
+    *,
+    device: str,
+    metric: str,
+    target_end: int,
+    target_dates: list[str],
+) -> list[int]:
+    """Scrape history KPI'larından kaba spark (chart yok/düzse)."""
+    hist = history if isinstance(history, list) else []
+    src_dates: list[str] = []
+    src_counts: list[int] = []
+    for h in hist:
+        if not isinstance(h, dict):
+            continue
+        ts = str(h.get("collected_at") or "")[:10]
+        if not ts:
+            continue
+        bucket = h.get(device) if isinstance(h.get(device), dict) else {}
+        if metric == "good":
+            v = int((bucket or {}).get("good") or h.get("good") or 0)
+        else:
+            v = int((bucket or {}).get("needs_improvement") or h.get("needs_improvement") or 0)
+        src_dates.append(ts)
+        src_counts.append(v)
+    if len(src_dates) < 3 or not _series_has_motion(src_counts):
+        return []
+    if target_dates:
+        aligned = _align_counts_to_dates(src_dates, src_counts, target_dates)
+    else:
+        aligned = src_counts
+    if not _series_has_motion(aligned):
+        return []
+    if target_end > 0:
+        return _scale_series_to_end(aligned, target_end)
+    return aligned
+
+
 def build_device_trend_rows(
     device_payload: dict[str, Any] | None,
     chart_ser: dict[str, Any] | None,
     *,
     kpi_good: int = 0,
+    history: list[dict[str, Any]] | None = None,
+    device_key: str = "mobile",
 ) -> list[dict[str, Any]]:
     """Home: en yüksek 2 Need improvement + Good URL — aynı tarih aralığında spark.
 
     Dönüş: [{kind, title, count, points, dates, range_start, range_end}, ...]
     (points = seri; Jinja'da row.values dict metoduna çakışmasın diye values değil.)
-    count = aralığın son günü (seri varsa); /web-vitals KPI / issue ile hizalı.
+
+    Spark şekli önceliği:
+      1) Issue drilldown affected_chart_series (hareketliyse)
+      2) Overview chart_series NI/Good (GSC ekranındaki eğri) — issue sayısına ölçek
+      3) Scrape history
+      4) Düz çizgi (son çare)
     """
     dev = device_payload if isinstance(device_payload, dict) else {}
     ser = chart_ser if isinstance(chart_ser, dict) else {}
@@ -1127,6 +1204,21 @@ def build_device_trend_rows(
                 dates = [(t0 + timedelta(days=i)).isoformat() for i in range(n + 1)]
         except ValueError:
             dates = []
+
+    overview_ni = [int(x or 0) for x in (ser.get("needs_improvement") or [])]
+    overview_good = [int(x or 0) for x in (ser.get("good") or [])]
+    if dates and overview_ni and len(overview_ni) != len(dates):
+        overview_ni = _align_counts_to_dates(
+            [str(d)[:10] for d in (ser.get("dates") or dates)],
+            overview_ni,
+            dates,
+        )
+    if dates and overview_good and len(overview_good) != len(dates):
+        overview_good = _align_counts_to_dates(
+            [str(d)[:10] for d in (ser.get("dates") or dates)],
+            overview_good,
+            dates,
+        )
 
     def _is_ni_status(st: str, title: str = "", verification: str = "") -> bool:
         if _looks_not_started(st, title, verification):
@@ -1194,23 +1286,42 @@ def build_device_trend_rows(
     candidates.sort(key=lambda c: int(c.get("count") or 0), reverse=True)
     top_ni = candidates[:2]
 
+    def _ni_points(snap_count: int, drill: dict[str, Any]) -> list[int]:
+        acs = drill.get("affected_chart_series") if isinstance(drill.get("affected_chart_series"), dict) else {}
+        src_dates = [str(x)[:10] for x in (acs.get("dates") or [])]
+        src_counts = [int(x or 0) for x in (acs.get("counts") or [])]
+        if dates and src_dates and src_counts:
+            aligned = _align_counts_to_dates(src_dates, src_counts, dates)
+            if _series_has_motion(aligned):
+                # Son nokta issue URL sayısına kilit
+                if snap_count > 0:
+                    return _scale_series_to_end(aligned, snap_count)
+                return aligned
+        if dates and _series_has_motion(overview_ni):
+            return _scale_series_to_end(overview_ni, snap_count if snap_count > 0 else int(overview_ni[-1]))
+        hist_pts = _points_from_history(
+            history,
+            device=device_key,
+            metric="needs_improvement",
+            target_end=snap_count,
+            target_dates=dates,
+        )
+        if hist_pts:
+            return hist_pts
+        if dates:
+            return [snap_count] * len(dates)
+        return [snap_count, snap_count]
+
     rows: list[dict[str, Any]] = []
     for c in top_ni:
         key = str(c.get("item_key") or "")
         drill = drills_by_key.get(key) or {}
-        acs = drill.get("affected_chart_series") if isinstance(drill.get("affected_chart_series"), dict) else {}
-        src_dates = [str(x)[:10] for x in (acs.get("dates") or [])]
-        src_counts = [int(x or 0) for x in (acs.get("counts") or [])]
         snap_count = int(c.get("count") or 0)
-        if dates and src_dates and src_counts:
-            values = _align_counts_to_dates(src_dates, src_counts, dates)
-        elif dates:
-            # Seri yoksa düz çizgi — /web-vitals issue URL sayısı
-            values = [snap_count] * len(dates)
-        else:
-            values = [snap_count, snap_count]
-        # Gösterilen sayı = aralık sonu (seri); yoksa CWV issue url_count
-        end_count = int(values[-1]) if values else snap_count
+        values = _ni_points(snap_count, drill)
+        end_count = snap_count if snap_count > 0 else (int(values[-1]) if values else 0)
+        if values and snap_count > 0 and values[-1] != snap_count:
+            values = _scale_series_to_end(values, snap_count)
+            end_count = snap_count
         rows.append(
             {
                 "kind": "needs_improvement",
@@ -1225,19 +1336,30 @@ def build_device_trend_rows(
 
     range_kpis = kpis_at_range_end(ser, {"good": kpi_good})
     good_end = int(range_kpis.get("good") or kpi_good or 0)
-    good_vals = [int(x or 0) for x in (ser.get("good") or [])]
-    if dates and good_vals:
-        if len(good_vals) != len(dates):
-            good_vals = _align_counts_to_dates(
-                [str(d)[:10] for d in (ser.get("dates") or dates)],
-                good_vals,
-                dates,
-            )
-        good_end = int(good_vals[-1] if good_vals else good_end)
-    elif dates:
-        good_vals = [good_end] * len(dates)
+    good_vals: list[int] = []
+    if dates and overview_good and _series_has_motion(overview_good):
+        good_vals = list(overview_good)
+        if good_end > 0:
+            good_vals = _scale_series_to_end(good_vals, good_end)
+        else:
+            good_end = int(good_vals[-1])
     else:
-        good_vals = [good_end, good_end]
+        hist_good = _points_from_history(
+            history,
+            device=device_key,
+            metric="good",
+            target_end=good_end,
+            target_dates=dates,
+        )
+        if hist_good:
+            good_vals = hist_good
+            good_end = int(good_vals[-1]) if good_end <= 0 else good_end
+            if good_end > 0:
+                good_vals = _scale_series_to_end(good_vals, good_end)
+        elif dates:
+            good_vals = [good_end] * len(dates)
+        else:
+            good_vals = [good_end, good_end]
     rows.append(
         {
             "kind": "good",
