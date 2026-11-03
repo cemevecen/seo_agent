@@ -46,25 +46,32 @@
     gap: 0.35rem;
     justify-content: flex-start;
   }
+  /* Sabit kolonlar: her satır bağımsız grid; auto/fr içerikle kaymasın (Döviz↔Sinemalar hizası) */
   .home-wv .home-wv-trend-row {
     display: grid;
-    grid-template-columns: minmax(5.5rem, 0.85fr) minmax(0, 1.7fr) auto minmax(5rem, 0.85fr) auto;
-    gap: 0.45rem 0.65rem;
+    grid-template-columns: 8.5rem minmax(0, 1fr) 6.75rem 5.5rem 4.25rem;
+    column-gap: 0.5rem;
     align-items: center;
-    padding: 0.45rem 0.55rem;
-    border-radius: 0.5rem;
+    padding: 0.35rem 0.15rem;
+    border-radius: 0.35rem;
     flex: 1 1 0;
-    min-height: 2.75rem;
+    min-height: 2.5rem;
   }
   .home-wv .home-wv-trend-row--ni,
   .home-wv .home-wv-trend-row--good {
     border: 0;
     background: transparent;
   }
+  .home-wv .home-wv-trend-status {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
   .home-wv .home-wv-trend-spark {
-    width: 100%;
-    height: 36px;
+    width: 5.5rem;
+    height: 28px;
     display: block;
+    justify-self: stretch;
   }
   .home-wv .home-wv-trend-spark path {
     fill: none;
@@ -91,6 +98,10 @@
     letter-spacing: 0.02em;
     color: #94a3b8;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    min-width: 0;
   }
   .home-wv .home-wv-trend-title {
     font-size: 11px;
@@ -99,8 +110,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
   }
   .dark .home-wv .home-wv-trend-title { color: #e2e8f0; }
+  .home-wv .home-wv-trend-count {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
 </style>
 
 <div class="home-readable home-wv home-wv--fill is-open"
@@ -177,7 +194,7 @@
                  data-range-start="{{ row.range_start or '' }}"
                  data-range-end="{{ row.range_end or '' }}"
                  title="{{ row.title }}">
-              <span class="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-semibold {{ 'text-emerald-700 dark:text-emerald-300' if is_good else 'text-amber-700 dark:text-amber-300' }}">
+              <span class="home-wv-trend-status inline-flex items-center gap-1.5 text-[11px] font-semibold {{ 'text-emerald-700 dark:text-emerald-300' if is_good else 'text-amber-700 dark:text-amber-300' }}">
                 {% if is_good %}
                 <span class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white" aria-hidden="true">✓</span>
                 Good
@@ -192,7 +209,7 @@
                 <path class="home-wv-trend-fill" d=""></path>
                 <path class="home-wv-trend-line" d=""></path>
               </svg>
-              <span class="tabular-nums text-right text-[12px] font-semibold {{ 'text-emerald-700 dark:text-emerald-300' if is_good else 'text-amber-800 dark:text-amber-200' }}">{{ fmt_int(row.count) }}</span>
+              <span class="home-wv-trend-count text-[12px] font-semibold {{ 'text-emerald-700 dark:text-emerald-300' if is_good else 'text-amber-800 dark:text-amber-200' }}">{{ fmt_int(row.count) }}</span>
             </div>
             {% else %}
             <p class="home-meta px-1 py-3 text-center text-slate-400 dark:text-zinc-500">No issue trends yet — full CWV scrape fills top NI + Good.</p>
