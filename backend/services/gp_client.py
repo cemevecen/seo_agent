@@ -83,6 +83,48 @@ def _parse_service_account_json(raw: str) -> dict[str, Any] | None:
             continue
         if isinstance(info, dict) and info.get("type") == "service_account":
             return info
+    # .env tek satır: {\n "private_key": "-----BEGIN…\nMII…" }
+    # Tüm \\n → gerçek newline yapıp string içindeki newline'ları tekrar \\n kaçışına
+    # çevirince standart json.loads çalışır (YAML private_key satırlarını boşluğa yığabiliyor).
+    expanded = raw.replace("\\n", "\n").replace("\\t", "\t").replace('\\"', '"')
+    rebuilt: list[str] = []
+    in_str = False
+    esc = False
+    for ch in expanded:
+        if in_str:
+            if esc:
+                rebuilt.append(ch)
+                esc = False
+            elif ch == "\\":
+                rebuilt.append(ch)
+                esc = True
+            elif ch == '"':
+                rebuilt.append(ch)
+                in_str = False
+            elif ch == "\n":
+                rebuilt.append("\\n")
+            elif ch == "\r":
+                rebuilt.append("\\r")
+            else:
+                rebuilt.append(ch)
+        else:
+            if ch == '"':
+                in_str = True
+            rebuilt.append(ch)
+    try:
+        info = json.loads("".join(rebuilt))
+    except json.JSONDecodeError:
+        info = None
+    if isinstance(info, dict) and info.get("type") == "service_account":
+        return info
+    try:
+        import yaml  # type: ignore
+
+        info = yaml.safe_load(expanded)
+    except Exception:
+        info = None
+    if isinstance(info, dict) and info.get("type") == "service_account":
+        return info
     return None
 
 
