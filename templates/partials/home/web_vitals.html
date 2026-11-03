@@ -13,6 +13,17 @@
 {% set good_tot = (mk.good or 0)|int %}
 
 <style>
+  /* Kart içi tipografi %15 küçült */
+  .home-wv {
+    --wv-type-scale: 0.85;
+  }
+  .home-wv .home-label,
+  .home-wv .home-meta,
+  .home-wv .home-card-link,
+  .home-wv .home-wv-kpis,
+  .home-wv .home-wv-kpis :where(*) {
+    font-size: calc(1em * var(--wv-type-scale)) !important;
+  }
   .home-wv.home-wv--fill {
     display: flex;
     flex-direction: column;
@@ -49,7 +60,7 @@
   /* Sabit kolonlar: her satır bağımsız grid; auto/fr içerikle kaymasın (Döviz↔Sinemalar hizası) */
   .home-wv .home-wv-trend-row {
     display: grid;
-    grid-template-columns: 8.5rem minmax(0, 1fr) 6.75rem 5.5rem 4.25rem;
+    grid-template-columns: 7.5rem minmax(0, 1fr) 6rem 5.25rem 3.75rem;
     column-gap: 0.5rem;
     align-items: center;
     padding: 0.35rem 0.15rem;
@@ -66,10 +77,11 @@
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
+    font-size: calc(11px * var(--wv-type-scale));
   }
   .home-wv .home-wv-trend-spark {
-    width: 5.5rem;
-    height: 28px;
+    width: 5.25rem;
+    height: 26px;
     display: block;
     justify-self: stretch;
   }
@@ -94,7 +106,7 @@
     fill: rgb(11 128 67 / 0.1);
   }
   .home-wv .home-wv-trend-src {
-    font-size: 9px;
+    font-size: calc(9px * var(--wv-type-scale));
     letter-spacing: 0.02em;
     color: #94a3b8;
     white-space: nowrap;
@@ -104,7 +116,7 @@
     min-width: 0;
   }
   .home-wv .home-wv-trend-title {
-    font-size: 11px;
+    font-size: calc(11px * var(--wv-type-scale));
     font-weight: 500;
     color: #334155;
     overflow: hidden;
@@ -117,6 +129,10 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+    font-size: calc(12px * var(--wv-type-scale));
+  }
+  .home-wv .home-wv-trend-status .home-wv-trend-ico {
+    font-size: calc(9px * var(--wv-type-scale));
   }
 </style>
 
@@ -194,12 +210,12 @@
                  data-range-start="{{ row.range_start or '' }}"
                  data-range-end="{{ row.range_end or '' }}"
                  title="{{ row.title }}">
-              <span class="home-wv-trend-status inline-flex items-center gap-1.5 text-[11px] font-semibold {{ 'text-emerald-700 dark:text-emerald-300' if is_good else 'text-amber-700 dark:text-amber-300' }}">
+              <span class="home-wv-trend-status inline-flex items-center gap-1.5 font-semibold {{ 'text-emerald-700 dark:text-emerald-300' if is_good else 'text-amber-700 dark:text-amber-300' }}">
                 {% if is_good %}
-                <span class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white" aria-hidden="true">✓</span>
+                <span class="home-wv-trend-ico inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-emerald-600 font-bold text-white" aria-hidden="true">✓</span>
                 Good
                 {% else %}
-                <span class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-amber-500" aria-hidden="true">▲</span>
+                <span class="home-wv-trend-ico inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center text-amber-500" aria-hidden="true">▲</span>
                 Need improvement
                 {% endif %}
               </span>
@@ -209,7 +225,7 @@
                 <path class="home-wv-trend-fill" d=""></path>
                 <path class="home-wv-trend-line" d=""></path>
               </svg>
-              <span class="home-wv-trend-count text-[12px] font-semibold {{ 'text-emerald-700 dark:text-emerald-300' if is_good else 'text-amber-800 dark:text-amber-200' }}">{{ fmt_int(row.count) }}</span>
+              <span class="home-wv-trend-count font-semibold {{ 'text-emerald-700 dark:text-emerald-300' if is_good else 'text-amber-800 dark:text-amber-200' }}">{{ fmt_int(row.count) }}</span>
             </div>
             {% else %}
             <p class="home-meta px-1 py-3 text-center text-slate-400 dark:text-zinc-500">No issue trends yet — full CWV scrape fills top NI + Good.</p>

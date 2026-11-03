@@ -812,17 +812,17 @@
     line-height: 1.25 !important;
     letter-spacing: -0.01em;
   }
-  /* Web Vitals: özet / son tarama / grafik notu — x2 küçült */
+  /* Web Vitals: özet / son tarama / grafik notu — +%15 küçült */
   #home-board .home-readable .home-wv-micro {
-    font-size: calc(var(--home-text) / 2) !important;
+    font-size: calc(var(--home-text) / 2 * 0.85) !important;
     line-height: 1.3 !important;
     font-weight: 400;
     letter-spacing: normal;
     text-transform: none;
   }
-  /* Web Vitals: Raporu aç %30 küçült; kötü/iyileştir/iyi satırı %10 küçült */
+  /* Web Vitals: Raporu aç / KPI satırı — mevcut ölçek × 0.85 */
   #home-board .home-readable .home-wv-report-link {
-    font-size: calc(var(--home-text) * 0.7) !important;
+    font-size: calc(var(--home-text) * 0.595) !important;
     line-height: 1.3 !important;
     font-weight: 400;
     letter-spacing: normal;
@@ -830,7 +830,7 @@
   }
   #home-board .home-readable .home-wv-kpis,
   #home-board .home-readable .home-wv-kpis :where(*) {
-    font-size: calc(var(--home-text) * 0.72) !important;
+    font-size: calc(var(--home-text) * 0.612) !important;
     line-height: 1.35 !important;
     font-weight: 400 !important;
   }
@@ -2482,7 +2482,7 @@
       {# Row 5 — Web Vitals (GSC CWV Mobil/Masaüstü) · alert/position altında #}
       <div class="home-pair-row home-pair-row--equal-h grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div data-home-container-slot="wv-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/web-vitals?site=doviz&v=28" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=doviz&v=29" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2493,7 +2493,7 @@
         </section>
         </div>
         <div data-home-container-slot="wv-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/web-vitals?site=sinemalar&v=28" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=sinemalar&v=29" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
