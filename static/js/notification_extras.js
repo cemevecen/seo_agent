@@ -534,9 +534,100 @@
     });
   }
 
+  function heatmapEsc(s) {
+    if (nt().escapeHtml) return nt().escapeHtml(s);
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function heatmapFmtCount(n) {
+    if (nt().fmtCount) return nt().fmtCount(n);
+    return String(Math.round(Number(n) || 0));
+  }
+
+  function ensureHeatmapTip() {
+    var tip = global.document.getElementById("nt-heatmap-tip");
+    if (tip) return tip;
+    tip = global.document.createElement("div");
+    tip.id = "nt-heatmap-tip";
+    tip.setAttribute("role", "tooltip");
+    tip.className = "nt-heatmap-tip";
+    tip.hidden = true;
+    global.document.body.appendChild(tip);
+    return tip;
+  }
+
+  function hideHeatmapTip() {
+    var tip = global.document.getElementById("nt-heatmap-tip");
+    if (!tip) return;
+    tip.hidden = true;
+    tip.innerHTML = "";
+    tip.style.transform = "";
+  }
+
+  function placeHeatmapTip(tip, clientX, clientY) {
+    tip.hidden = false;
+    tip.style.left = "0px";
+    tip.style.top = "0px";
+    tip.style.transform = "translate(-9999px,-9999px)";
+    var rect = tip.getBoundingClientRect();
+    var vw = global.innerWidth || global.document.documentElement.clientWidth || 0;
+    var vh = global.innerHeight || global.document.documentElement.clientHeight || 0;
+    var pad = 10;
+    var gap = 14;
+    var x = clientX + gap;
+    var y = clientY + gap;
+    if (x + rect.width > vw - pad) x = clientX - rect.width - gap;
+    if (y + rect.height > vh - pad) y = clientY - rect.height - gap;
+    if (x < pad) x = pad;
+    if (y < pad) y = pad;
+    if (x + rect.width > vw - pad) x = Math.max(pad, vw - pad - rect.width);
+    if (y + rect.height > vh - pad) y = Math.max(pad, vh - pad - rect.height);
+    tip.style.left = Math.round(x) + "px";
+    tip.style.top = Math.round(y) + "px";
+    tip.style.transform = "";
+  }
+
+  function buildHeatmapTipHtml(dayLabel, hourLabel, total, items) {
+    var metric = (global.document.getElementById("nt-heatmap-metric") || {}).value || "total";
+    var metricLabel = metric === "total" ? "clicks" : metric + " clicks";
+    var html = '<div class="nt-heatmap-tip__head">'
+      + '<span class="nt-heatmap-tip__when">' + heatmapEsc(dayLabel) + " · " + heatmapEsc(hourLabel) + "</span>"
+      + '<span class="nt-heatmap-tip__total">' + heatmapEsc(heatmapFmtCount(total)) + " " + heatmapEsc(metricLabel) + "</span>"
+      + "</div>";
+    if (!items || !items.length) {
+      html += '<p class="nt-heatmap-tip__empty">Bu saatte bildirim yok.</p>';
+      return html;
+    }
+    var maxShow = 14;
+    var shown = items.slice(0, maxShow);
+    html += '<ul class="nt-heatmap-tip__list">';
+    shown.forEach(function (it) {
+      var title = String(it.text || "").trim() || "(başlıksız)";
+      var meta = [];
+      if (it.dates && it.dates.length) meta.push(it.dates.length === 1 ? it.dates[0] : it.dates.length + " gün");
+      if (it.id) meta.push("ID " + it.id);
+      html += '<li class="nt-heatmap-tip__item">'
+        + '<span class="nt-heatmap-tip__title" title="' + heatmapEsc(title) + '">' + heatmapEsc(title) + "</span>"
+        + '<span class="nt-heatmap-tip__meta">'
+        + '<span class="nt-heatmap-tip__clicks">' + heatmapEsc(heatmapFmtCount(it.clicks)) + "</span>"
+        + (meta.length ? '<span class="nt-heatmap-tip__sub">' + heatmapEsc(meta.join(" · ")) + "</span>" : "")
+        + "</span></li>";
+    });
+    html += "</ul>";
+    if (items.length > maxShow) {
+      html += '<p class="nt-heatmap-tip__more">+' + (items.length - maxShow) + " bildirim daha</p>";
+    }
+    return html;
+  }
+
   function renderHeatmap(rows) {
     var el = global.document.getElementById("nt-heatmap");
     if (!el || !global.Plotly) return;
+    hideHeatmapTip();
     if (!rows || !rows.length) {
       el.innerHTML = '<p class="flex h-full items-center justify-center text-xs text-slate-500">No heatmap data.</p>';
       return;
@@ -545,9 +636,14 @@
     var hStart = HEATMAP_HOUR_START;
     var hEnd = HEATMAP_HOUR_END;
     var grid = {};
+    var cellMap = {};
     for (var d = 0; d < 7; d++) {
       grid[d] = {};
-      for (var h = hStart; h <= hEnd; h++) grid[d][h] = HEATMAP_NO_DATA;
+      cellMap[d] = {};
+      for (var h = hStart; h <= hEnd; h++) {
+        grid[d][h] = HEATMAP_NO_DATA;
+        cellMap[d][h] = {};
+      }
     }
     (rows || []).forEach(function (r) {
       var iso = String(r.date || "");
@@ -565,23 +661,49 @@
         val = pc[metric] || 0;
       }
       grid[dow][hour] += val;
+      var dayKey = nt().dayKey ? nt().dayKey(r.date) : iso.slice(0, 10);
+      var id = nt().idString ? nt().idString(r) : String(r.id || "");
+      var text = String(r.text || "").trim();
+      var key = id || text || (dayKey + "|" + iso);
+      var bucket = cellMap[dow][hour];
+      if (!bucket[key]) {
+        bucket[key] = { text: text, id: id, clicks: 0, dates: {} };
+      }
+      bucket[key].clicks += val;
+      if (dayKey) bucket[key].dates[dayKey] = true;
     });
     var z = [];
     var y = DOW_LABELS.slice();
     var x = [];
     var zFlat = [];
+    var cellItems = [];
     for (var hi = hStart; hi <= hEnd; hi++) {
       x.push((hi < 10 ? "0" : "") + hi + ":00");
     }
     for (var di = 0; di < 7; di++) {
       var row = [];
+      var itemRow = [];
       for (var hj = hStart; hj <= hEnd; hj++) {
         var cell = grid[di][hj];
         row.push(cell);
         if (cell !== HEATMAP_NO_DATA && cell !== null) zFlat.push(cell);
+        var items = Object.keys(cellMap[di][hj]).map(function (k) {
+          var it = cellMap[di][hj][k];
+          return {
+            text: it.text,
+            id: it.id,
+            clicks: it.clicks,
+            dates: Object.keys(it.dates).sort(),
+          };
+        }).sort(function (a, b) { return b.clicks - a.clicks; });
+        itemRow.push(items);
       }
       z.push(row);
+      cellItems.push(itemRow);
     }
+    el._ntHeatmapItems = cellItems;
+    el._ntHeatmapX = x;
+    el._ntHeatmapY = y;
     var zmax = zFlat.length ? Math.max.apply(null, zFlat) : 1;
     if (zmax <= 0) zmax = 1;
     var dark = global.document.documentElement.classList.contains("dark");
@@ -595,6 +717,7 @@
       zmin: 0,
       zmax: zmax,
       hoverongaps: false,
+      hoverinfo: "skip",
       colorbar: { tickfont: { size: 9, color: dark ? "#a1a1aa" : "#475569" } },
     }], {
       margin: { l: 50, r: 10, t: 10, b: 40 },
@@ -603,7 +726,69 @@
       font: { color: dark ? "#a1a1aa" : "#475569", size: 10 },
       xaxis: { title: "Saat (07:00–23:00)", tickangle: -45 },
       yaxis: { title: "Day" },
-    }, { responsive: true, displayModeBar: false });
+    }, { responsive: true, displayModeBar: false }).then(function () {
+      bindHeatmapHover(el);
+    });
+  }
+
+  function bindHeatmapHover(el) {
+    if (!el || el._ntHeatmapHoverBound) return;
+    el._ntHeatmapHoverBound = true;
+    var tip = ensureHeatmapTip();
+    var lastMove = { x: 0, y: 0 };
+
+    el.addEventListener("pointermove", function (ev) {
+      lastMove.x = ev.clientX;
+      lastMove.y = ev.clientY;
+      if (!tip.hidden) placeHeatmapTip(tip, lastMove.x, lastMove.y);
+    });
+    el.addEventListener("pointerleave", function () {
+      hideHeatmapTip();
+    });
+
+    el.on("plotly_hover", function (ev) {
+      var pt = ev && ev.points && ev.points[0];
+      if (!pt) {
+        hideHeatmapTip();
+        return;
+      }
+      var yi = null;
+      var xi = null;
+      if (Array.isArray(pt.pointNumber)) {
+        yi = pt.pointNumber[0];
+        xi = pt.pointNumber[1];
+      }
+      if ((yi == null || yi < 0) && typeof pt.y === "string") {
+        yi = (el._ntHeatmapY || []).indexOf(pt.y);
+      }
+      if ((xi == null || xi < 0) && typeof pt.x === "string") {
+        xi = (el._ntHeatmapX || []).indexOf(pt.x);
+      }
+      if ((yi == null || xi == null) && typeof pt.pointNumber === "number") {
+        var cols = (el._ntHeatmapX || []).length || 1;
+        yi = Math.floor(pt.pointNumber / cols);
+        xi = pt.pointNumber % cols;
+      }
+      if (yi == null || xi == null || yi < 0 || xi < 0) {
+        hideHeatmapTip();
+        return;
+      }
+      var zVal = pt.z;
+      if (zVal === HEATMAP_NO_DATA || zVal === null || zVal === undefined) {
+        hideHeatmapTip();
+        return;
+      }
+      var items = (((el._ntHeatmapItems || [])[yi] || [])[xi]) || [];
+      var dayLabel = (el._ntHeatmapY || [])[yi] || String(pt.y || "");
+      var hourLabel = (el._ntHeatmapX || [])[xi] || String(pt.x || "");
+      tip.innerHTML = buildHeatmapTipHtml(dayLabel, hourLabel, zVal, items);
+      var cx = lastMove.x || (ev.event && ev.event.clientX) || 0;
+      var cy = lastMove.y || (ev.event && ev.event.clientY) || 0;
+      placeHeatmapTip(tip, cx, cy);
+    });
+    el.on("plotly_unhover", function () {
+      hideHeatmapTip();
+    });
   }
 
   function onRedraw(ev) {
