@@ -28,12 +28,30 @@ def _norm_timeout_ms(timeout: int | float | None, default: int = 5000) -> float:
     return max(0.1, float(timeout) / 1000.0)
 
 
+def json_dumps_xpath(text: str) -> str:
+    """XPath string literal — tırnak kaçışlı."""
+    s = str(text or "")
+    if "'" not in s:
+        return f"'{s}'"
+    if '"' not in s:
+        return f'"{s}"'
+    parts = s.split("'")
+    return "concat(" + ", \"'\", ".join(f"'{p}'" for p in parts) + ")"
+
+
 class _DownloadHandle:
     def __init__(self, path: Path) -> None:
-        self._path = path
+        self._path = Path(path)
+
+    def path(self) -> str:
+        return str(self._path)
 
     def save_as(self, dest: str) -> None:
         shutil.move(str(self._path), dest)
+
+    @property
+    def suggested_filename(self) -> str:
+        return self._path.name
 
 
 class SeleniumLocator:
@@ -164,6 +182,60 @@ class SeleniumLocator:
         if not els:
             raise RuntimeError("locator.click: element yok")
         els[0].click()
+
+    def fill(self, value: str, *, timeout: int | float | None = None) -> None:
+        """Playwright fill — clear + send_keys."""
+        _ = timeout
+        els = self._resolve()
+        if not els:
+            raise RuntimeError("locator.fill: element yok")
+        el = els[0]
+        try:
+            el.click()
+        except Exception:
+            pass
+        try:
+            el.clear()
+        except Exception:
+            try:
+                el.send_keys("\u0001")  # select-all fallback (mac)
+                el.send_keys("\ue003")  # DELETE
+            except Exception:
+                pass
+        el.send_keys("" if value is None else str(value))
+
+    def type(self, text: str, *, delay: int | float | None = None, timeout: int | float | None = None) -> None:
+        _ = timeout
+        els = self._resolve()
+        if not els:
+            raise RuntimeError("locator.type: element yok")
+        el = els[0]
+        delay_s = max(0.0, float(delay or 0) / 1000.0)
+        for ch in str(text or ""):
+            el.send_keys(ch)
+            if delay_s:
+                time.sleep(delay_s)
+
+    def press(self, key: str, *, timeout: int | float | None = None) -> None:
+        _ = timeout
+        from selenium.webdriver.common.keys import Keys
+
+        els = self._resolve()
+        if not els:
+            raise RuntimeError("locator.press: element yok")
+        mapping = {
+            "Enter": Keys.ENTER,
+            "Return": Keys.RETURN,
+            "Tab": Keys.TAB,
+            "Escape": Keys.ESCAPE,
+            "Backspace": Keys.BACKSPACE,
+            "Delete": Keys.DELETE,
+            "ArrowDown": Keys.ARROW_DOWN,
+            "ArrowUp": Keys.ARROW_UP,
+            "ArrowLeft": Keys.ARROW_LEFT,
+            "ArrowRight": Keys.ARROW_RIGHT,
+        }
+        els[0].send_keys(mapping.get(key, key))
 
     def inner_text(self, *, timeout: int | float | None = None) -> str:
         _ = timeout
@@ -570,6 +642,115 @@ class SeleniumPage:
             except Exception:
                 els = []
             return SeleniumLocator(self, elements=els)
+        # Virgüllü Playwright selector listesi → birleşik sonuç
+        if "," in raw and (":has-text(" in raw or " i]" in raw.lower()):
+            combined: list[Any] = []
+            # kaba split — tırnak içi virgülü yoksay
+            parts: list[str] = []
+            buf = ""
+            quote = ""
+            for ch in raw:
+                if quote:
+                    buf += ch
+                    if ch == quote:
+                        quote = ""
+                    continue
+                if ch in ("'", '"'):
+                    quote = ch
+                    buf += ch
+                    continue
+                if ch == ",":
+                    if buf.strip():
+                        parts.append(buf.strip())
+                    buf = ""
+                    continue
+                buf += ch
+            if buf.strip():
+                parts.append(buf.strip())
+            for part in parts:
+                try:
+                    loc = self.locator(part)
+                    combined.extend(loc._resolve())
+                except Exception:
+                    continue
+            # dedup by id
+            seen: set[int] = set()
+            uniq: list[Any] = []
+            for el in combined:
+                try:
+                    i = id(el)
+                except Exception:
+                    i = id(el)
+                if i in seen:
+                    continue
+                seen.add(i)
+                uniq.append(el)
+            return SeleniumLocator(self, elements=uniq)
+        # Playwright :has-text('…') / :has-text("…") → XPath contains(., …)
+        m_has = re.search(
+            r"""^(?P<tag>[a-zA-Z0-9*_-]+|\*):has-text\((?P<q>['"])(?P<txt>.*?)(?P=q)\)$""",
+            raw,
+        )
+        if m_has:
+            tag = m_has.group("tag")
+            txt = m_has.group("txt")
+            xp = f"//{tag}[contains(normalize-space(.), {json_dumps_xpath(txt)})]"
+            try:
+                els = self._driver.find_elements("xpath", xp)
+            except Exception:
+                els = []
+            return SeleniumLocator(self, elements=els)
+        # aria-label*='x' i  (Playwright case-insensitive flag) → lowercase filter
+        m_aria = re.search(
+            r"""\[aria-label\*=(?P<q>['"])(?P<txt>.*?)(?P=q)\s+i\]""",
+            raw,
+            flags=re.I,
+        )
+        if m_aria:
+            base = re.sub(
+                r"""\[aria-label\*=(['"]).+?\1\s+i\]""",
+                "[aria-label]",
+                raw,
+                count=1,
+                flags=re.I,
+            )
+            needle = m_aria.group("txt").lower()
+            try:
+                candidates = self._driver.find_elements("css selector", base or "[aria-label]")
+            except Exception:
+                candidates = []
+            matched = []
+            for el in candidates:
+                try:
+                    lab = (el.get_attribute("aria-label") or "").lower()
+                    if needle in lab:
+                        matched.append(el)
+                except Exception:
+                    continue
+            return SeleniumLocator(self, elements=matched)
+        # placeholder*='x' i
+        m_ph = re.search(
+            r"""\[placeholder\*=(?P<q>['"])(?P<txt>.*?)(?P=q)\s+i\]""",
+            raw,
+            flags=re.I,
+        )
+        if m_ph:
+            needle = m_ph.group("txt").lower()
+            try:
+                candidates = self._driver.find_elements(
+                    "css selector", "input[placeholder], textarea[placeholder]"
+                )
+            except Exception:
+                candidates = []
+            matched = []
+            for el in candidates:
+                try:
+                    ph = (el.get_attribute("placeholder") or "").lower()
+                    if needle in ph:
+                        matched.append(el)
+                except Exception:
+                    continue
+            return SeleniumLocator(self, elements=matched)
         return SeleniumLocator(self, css=css)
 
     def get_by_role(

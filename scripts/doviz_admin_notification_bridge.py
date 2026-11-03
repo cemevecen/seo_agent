@@ -4878,6 +4878,55 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             .strip()
             or job_kind
         )
+        # Tarayıcı işleri HTTP'yi kilitlemesin (Play takılınca Policy/Moderation
+        # /sync-* 8sn timeout ile «çekilemedi» sanılıyordu). Play gibi arka plan.
+        if _is_browser_scrape_kind(job_kind):
+            if lock.locked():
+                self._send(409, {"ok": False, "message": busy})
+                return
+
+            def _bg_manual_sync(
+                _name: str = job_name,
+                _lock: threading.Lock = lock,
+                _runner=runner,
+                _kind: str = job_kind,
+            ) -> None:
+                try:
+                    out = _run_locked_job(
+                        name=_name,
+                        lock=_lock,
+                        runner=_runner,
+                        kind=_kind,
+                        notify=False,
+                        trigger="manual",
+                    )
+                    if out is None:
+                        _job_event(f"Elle · {_kind} atlandı (meşgul)")
+                except Exception as exc:  # noqa: BLE001
+                    traceback.print_exc()
+                    _finish_job_progress(
+                        _kind,
+                        {"ok": False, "message": str(exc)},
+                        trigger="manual",
+                        name=_name,
+                    )
+
+            threading.Thread(
+                target=_bg_manual_sync,
+                name=f"manual-{job_kind}",
+                daemon=True,
+            ).start()
+            self._send(
+                200,
+                {
+                    "ok": True,
+                    "started": True,
+                    "kind": job_kind,
+                    "message": f"{job_name} arka planda başladı",
+                },
+            )
+            return
+
         result = _run_locked_job(
             name=job_name,
             lock=lock,

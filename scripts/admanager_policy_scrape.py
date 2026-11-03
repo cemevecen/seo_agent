@@ -93,7 +93,37 @@ def _looks_signed_in(page) -> bool:
         return False
 
 
+def _policy_use_selenium() -> bool:
+    """Headed Google: Playwright Nightly reddedilir — sistem Firefox (Selenium)."""
+    raw = (os.environ.get("ADMANAGER_POLICY_USE_SELENIUM") or "1").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
 def _launch_context(*, headed: bool):
+    """(pw, context, selenium_mode). Headed → Selenium Firefox.app (fx-google)."""
+    if headed and _policy_use_selenium():
+        from backend.services.scrape_browser import (
+            resolve_system_firefox_executable,
+            warm_session_forget_profile,
+        )
+        from backend.services.selenium_playwright_shim import launch_selenium_context
+
+        if not resolve_system_firefox_executable():
+            raise RuntimeError(
+                "Ad Manager Policy headed için /Applications/Firefox.app gerekli "
+                "(Playwright Nightly Google oturumunu reddeder)."
+            )
+        try:
+            warm_session_forget_profile(PROFILE_DIR)
+        except Exception:
+            pass
+        pw, context, _attached = launch_selenium_context(PROFILE_DIR, headed=True)
+        print(
+            "Ad Manager Policy: sistem Firefox.app (Selenium) · Playwright Nightly YOK",
+            flush=True,
+        )
+        return pw, context, True
+
     from backend.services.scrape_browser import acquire_persistent_context
 
     pw, context, _reused = acquire_persistent_context(
@@ -105,10 +135,19 @@ def _launch_context(*, headed: bool):
         locale="tr-TR",
         viewport={"width": 1500, "height": 1100},
     )
-    return pw, context
+    return pw, context, False
 
 
-def _release_context(pw, context, *, headed: bool = True) -> None:
+def _release_context(pw, context, *, headed: bool = True, selenium: bool = False) -> None:
+    if selenium or getattr(context, "_selenium_mode", False):
+        from backend.services.selenium_playwright_shim import release_selenium_context
+
+        release_selenium_context(pw, context)
+        print(
+            "Ad Manager Policy: Selenium turu bitti (pencere yönetimi shim'de)",
+            flush=True,
+        )
+        return
     from backend.services.scrape_browser import release_persistent_context
 
     release_persistent_context(
@@ -123,41 +162,99 @@ def _release_context(pw, context, *, headed: bool = True) -> None:
 
 
 def run_login_interactive(timeout_sec: int | None = None) -> dict[str, Any]:
-    from backend.services.scrape_browser import LOGIN_WAIT_SEC, login_wait_sec
+    """Gerçek Firefox.app ile Google girişi (Selenium warm paylaşımına bağlı kalma).
+
+    Playwright Nightly / paylaşılan warm geckodriver login sürecini düşürüyordu.
+    Kullanıcı Policy Center görününce pencereyi KAPATIR → çerezler diske yazılır.
+    """
+    from backend.services.scrape_browser import (
+        LOGIN_WAIT_SEC,
+        launch_system_firefox_login,
+        login_wait_sec,
+        warm_session_forget_profile,
+    )
 
     timeout_sec = login_wait_sec() if timeout_sec is None else max(LOGIN_WAIT_SEC, int(timeout_sec))
-    pw, context = _launch_context(headed=True)
     try:
-        page = context.pages[0] if context.pages else context.new_page()
-        page.goto(_policy_url(), wait_until="domcontentloaded", timeout=120_000)
-        print(
-            f"Tarayıcıda Ad Manager giriş yap (cemevecen@nokta.com). "
-            f"Policy Center açılınca kaydedilir (en fazla {timeout_sec // 60} dk).",
-            flush=True,
+        warm_session_forget_profile(PROFILE_DIR)
+    except Exception:
+        pass
+    # Warm/detached Selenium penceresini kapat — profili login'e bırak
+    try:
+        from backend.services.system_firefox_driver import shutdown_detached_firefox
+
+        shutdown_detached_firefox(PROFILE_DIR)
+    except Exception:
+        pass
+    try:
+        from backend.services.scrape_browser import ensure_profile_free_for_launch
+
+        ensure_profile_free_for_launch(
+            PROFILE_DIR,
+            takeover=True,
+            busy_wait_sec=1.0,
+            release_wait_sec=3.0,
+            reason="admanager-policy-login",
         )
-        deadline = time.time() + timeout_sec
-        while time.time() < deadline:
-            if _looks_signed_in(page) and (
-                "policy" in (page.url or "").lower()
-                or "sorun" in (page.inner_text("body") or "")[:800].lower()
-                or "issue" in (page.inner_text("body") or "")[:800].lower()
-            ):
-                time.sleep(2)
-                print(f"Login OK · {page.url}", flush=True)
-                return {"ok": True, "url": page.url, "profile": str(PROFILE_DIR)}
-            time.sleep(2)
-        return {
-            "ok": False,
-            "message": "Login zaman aşımı (15 dk) — tekrar --login dene",
-            "url": page.url,
-            "profile": str(PROFILE_DIR),
-        }
-    finally:
-        _release_context(pw, context, headed=True)
+    except Exception as exc:
+        print(f"  · Login öncesi profil uyarısı: {exc}", flush=True)
+
+    return launch_system_firefox_login(
+        PROFILE_DIR,
+        _policy_url(),
+        timeout_sec=timeout_sec,
+        success_hint=(
+            "Açılan Firefox'ta cemevecen@nokta.com ile Google girişi + 2FA yapın. "
+            "Ad Manager Policy Center (sorun listesi) görününce Firefox'u KAPATIN "
+            f"(en fazla {timeout_sec // 60} dk; çerezler diske yazılır)."
+        ),
+        verify_session=True,
+    )
+
+
+def _clear_global_top_search(page) -> None:
+    """GAM üst arama (material 'search') Policy içeriğini boşaltabiliyor — temizle."""
+    try:
+        cleared = page.evaluate(
+            """() => {
+              const inputs = Array.from(document.querySelectorAll(
+                'input[type="search"], input[aria-label*="search" i], input[aria-label*="Ara" i], header input, [role="banner"] input'
+              ));
+              let n = 0;
+              for (const inp of inputs) {
+                if (!inp || inp.offsetParent === null) continue;
+                const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+                const al = (inp.getAttribute('aria-label') || '').toLowerCase();
+                // Policy filtre kutusu değil — üst global arama
+                if (ph.includes('filtre') || ph.includes('filter') || al.includes('filtre') || al.includes('filter')) {
+                  continue;
+                }
+                if ((inp.value || '').trim()) {
+                  inp.focus();
+                  inp.value = '';
+                  inp.dispatchEvent(new Event('input', { bubbles: true }));
+                  inp.dispatchEvent(new Event('change', { bubbles: true }));
+                  n++;
+                }
+              }
+              return n;
+            }"""
+        )
+        if cleared:
+            print(f"  · Üst arama temizlendi ({cleared})", flush=True)
+            time.sleep(1.2)
+            try:
+                page.keyboard.press("Escape")
+            except Exception:
+                pass
+    except Exception as exc:
+        print(f"  · Üst arama temizleme uyarısı: {exc}", flush=True)
 
 
 def _apply_site_filter(page, site: str = SITE_FILTER) -> None:
-    """Filtre çubuğuna Site = sinemalar.com uygula."""
+    """Politika merkezi İÇİ filtre: Site = sinemalar.com (üst GAM aramaya yazma)."""
+    _clear_global_top_search(page)
+
     # Açık chip varsa temizleme — yeniden uygula
     try:
         clear = page.locator(
@@ -170,15 +267,15 @@ def _apply_site_filter(page, site: str = SITE_FILTER) -> None:
     except Exception:
         pass
 
-    # Filtre input
+    # Yalnız Policy filtre — üst search/banner input YOK
     candidates = [
         "input[placeholder*='Filtre' i]",
         "input[placeholder*='Filter' i]",
         "input[aria-label*='Filtre' i]",
         "input[aria-label*='Filter' i]",
-        "[role='searchbox']",
-        "input[type='search']",
-        "input[type='text']",
+        "input[placeholder*='Site' i]",
+        "[aria-label*='Add filter' i]",
+        "[aria-label*='Filtre ekle' i]",
     ]
     box = None
     for sel in candidates:
@@ -190,7 +287,7 @@ def _apply_site_filter(page, site: str = SITE_FILTER) -> None:
         except Exception:
             continue
     if box is None:
-        # Funnel ikonuna tıkla
+        # Funnel / filter chip — üst arama değil
         try:
             page.locator(
                 "button[aria-label*='Filtre' i], button[aria-label*='Filter' i], "
@@ -205,7 +302,47 @@ def _apply_site_filter(page, site: str = SITE_FILTER) -> None:
         except Exception:
             pass
     if box is None:
-        raise RuntimeError("Policy Center filtre kutusu bulunamadı")
+        # Son çare: main içerik alanındaki text input (header hariç)
+        try:
+            found = page.evaluate(
+                """() => {
+                  const main = document.querySelector('main, [role="main"], .main-content') || document.body;
+                  const inputs = Array.from(main.querySelectorAll('input[type="text"], input:not([type])'));
+                  for (const inp of inputs) {
+                    if (!inp.offsetParent) continue;
+                    if (inp.closest('header, [role="banner"]')) continue;
+                    const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+                    const al = (inp.getAttribute('aria-label') || '').toLowerCase();
+                    if (ph.includes('search') || al.includes('search') || al.includes('ara')) continue;
+                    return true;
+                  }
+                  return false;
+                }"""
+            )
+            if found:
+                # click via JS focus first matching
+                page.evaluate(
+                    """() => {
+                      const main = document.querySelector('main, [role="main"], .main-content') || document.body;
+                      const inputs = Array.from(main.querySelectorAll('input[type="text"], input:not([type])'));
+                      for (const inp of inputs) {
+                        if (!inp.offsetParent) continue;
+                        if (inp.closest('header, [role="banner"]')) continue;
+                        const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+                        const al = (inp.getAttribute('aria-label') || '').toLowerCase();
+                        if (ph.includes('search') || al.includes('search') || al.includes('ara')) continue;
+                        inp.focus();
+                        inp.click();
+                        return true;
+                      }
+                      return false;
+                    }"""
+                )
+                box = page.locator("input:focus").first
+        except Exception:
+            pass
+    if box is None:
+        raise RuntimeError("Policy Center filtre kutusu bulunamadı (üst arama atlandı)")
 
     box.click(timeout=5000)
     box.fill("")
@@ -237,7 +374,6 @@ def _apply_site_filter(page, site: str = SITE_FILTER) -> None:
         except Exception:
             pass
     if not option_clicked:
-        # Enter ile dene
         box.press("Enter")
     time.sleep(2.5)
 
@@ -248,14 +384,9 @@ def _download_csv(page) -> bytes | None:
         "button:has-text('CSV dosyasını indir')",
         "button:has-text('Download CSV')",
         "button:has-text('CSV indir')",
-        "button:has-text('Export')",
-        "button:has-text('Dışa aktar')",
         "a:has-text('CSV dosyasını indir')",
         "a:has-text('Download CSV')",
         "[aria-label*='CSV' i]",
-        "[aria-label*='Download' i]",
-        "[aria-label*='Export' i]",
-        "[aria-label*='İndir' i]",
     ]
     btn = None
     for sel in selectors:
@@ -267,22 +398,36 @@ def _download_csv(page) -> bytes | None:
         except Exception:
             continue
     if btn is None:
+        # metin ile
+        try:
+            loc = page.get_by_text(re.compile(r"CSV dosyasını indir|Download CSV", re.I))
+            if loc.count():
+                btn = loc.first
+        except Exception:
+            pass
+    if btn is None:
         return None
     try:
-        with page.expect_download(timeout=90_000) as dl_info:
+        with page.expect_download(timeout=45_000) as dl_info:
             btn.click(timeout=8000)
-            time.sleep(0.5)
+            time.sleep(0.6)
             menu = page.locator(
-                "[role='menuitem']:has-text('CSV'), button:has-text('CSV'), "
-                "text=CSV dosyasını indir, text=Download CSV, text=CSV"
+                "[role='menuitem']:has-text('CSV'), button:has-text('CSV')"
             ).first
             try:
                 if menu.count() and menu.is_visible(timeout=2000):
                     menu.click(timeout=4000)
             except Exception:
                 pass
-        download = dl_info.value
-        path = download.path()
+        download = getattr(dl_info, "value", None)
+        if download is None:
+            print("  · CSV indirme: dosya oluşmadı (timeout)", flush=True)
+            return None
+        path = None
+        try:
+            path = download.path()
+        except Exception:
+            path = None
         if not path:
             tmp = Path("/tmp") / f"admanager-policy-{int(time.time())}.csv"
             download.save_as(str(tmp))
@@ -295,28 +440,213 @@ def _download_csv(page) -> bytes | None:
     return None
 
 
-def _dom_table_stats(page) -> dict[str, int]:
+def _open_policy_center_ui(page) -> None:
+    """Hash URL tek başına boş panel bırakabiliyor — Yönetici → Politika merkezi."""
     try:
-        return page.evaluate(
+        page.goto(
+            f"https://admanager.google.com/{NETWORK_ID}",
+            wait_until="domcontentloaded",
+            timeout=120_000,
+        )
+        time.sleep(2.5)
+    except Exception as exc:
+        print(f"  · Ana sayfa uyarısı: {exc}", flush=True)
+    for label in ("Yönetici", "Admin"):
+        try:
+            loc = page.get_by_text(label, exact=True)
+            if loc.count():
+                loc.first.click(timeout=4000)
+                time.sleep(0.8)
+                break
+        except Exception:
+            continue
+    clicked = False
+    for label in ("Politika merkezi", "Policy center", "Policy Center"):
+        try:
+            locs = page.get_by_text(label)
+            n = locs.count()
+            if n:
+                locs.nth(max(0, n - 1)).click(timeout=5000)
+                clicked = True
+                time.sleep(4.0)
+                break
+        except Exception:
+            continue
+    if not clicked:
+        page.goto(_policy_url(), wait_until="domcontentloaded", timeout=120_000)
+        time.sleep(3.0)
+    else:
+        # issues hash'e otur
+        try:
+            page.goto(_policy_url(), wait_until="domcontentloaded", timeout=120_000)
+            time.sleep(2.0)
+        except Exception:
+            pass
+    try:
+        tab = page.get_by_text(re.compile(r"^Sorunlar$|^Issues$", re.I))
+        if tab.count():
+            tab.first.click(timeout=4000)
+            time.sleep(3.0)
+    except Exception:
+        pass
+    _clear_global_top_search(page)
+    # İçerik paneli (CSV / özet kartları) gelene kadar bekle
+    deadline = time.time() + 50.0
+    while time.time() < deadline:
+        stats = _dom_table_stats(page)
+        if _policy_shell_ready(stats):
+            print(
+                f"  · Policy içerik hazır · role_rows={stats.get('role_rows')} "
+                f"links={stats.get('all_links')}",
+                flush=True,
+            )
+            break
+        time.sleep(1.5)
+    else:
+        print("  · Policy içerik bekleme doldu — devam", flush=True)
+
+
+_DOM_PROBE_JS = """() => {
+  function walk(node, visit) {
+    if (!node) return;
+    visit(node);
+    const kids = node.querySelectorAll ? node.querySelectorAll('*') : [];
+    for (const el of kids) {
+      if (el.shadowRoot) walk(el.shadowRoot, visit);
+    }
+  }
+  let tables = 0, maxRows = 0, links = 0, roleRows = 0;
+  const roots = [document];
+  walk(document, (node) => {
+    if (!node.querySelectorAll) return;
+    const ts = node.querySelectorAll('table');
+    tables += ts.length;
+    for (const t of ts) {
+      maxRows = Math.max(maxRows, t.querySelectorAll('tbody tr, tr').length);
+    }
+    links += node.querySelectorAll('a[href*="sinemalar"]').length;
+    roleRows += node.querySelectorAll('[role="row"]').length;
+  });
+  const body = (document.body && document.body.innerText || '').replace(/\\s+/g, ' ').trim();
+  return {
+    tables,
+    max_rows: maxRows,
+    all_links: links,
+    role_rows: roleRows,
+    url: location.href || '',
+    title: document.title || '',
+    body_snip: body.slice(0, 360),
+  };
+}"""
+
+
+def _dom_table_stats(page) -> dict[str, Any]:
+    try:
+        return page.evaluate(_DOM_PROBE_JS)
+    except Exception:
+        return {
+            "tables": 0,
+            "max_rows": 0,
+            "all_links": 0,
+            "role_rows": 0,
+            "url": "",
+            "title": "",
+            "body_snip": "",
+        }
+
+
+def _policy_shell_ready(stats: dict[str, Any]) -> bool:
+    """Policy UI gerçekten yüklendi mi — nav tek başına yetmez, tablo/CSV şart."""
+    if int(stats.get("all_links") or 0) > 0:
+        return True
+    if int(stats.get("max_rows") or 0) > 0:
+        return True
+    # role_rows nav'da da var; asıl içerik ~15+ satır veya CSV butonu
+    if int(stats.get("role_rows") or 0) >= 12:
+        return True
+    low = f"{stats.get('body_snip') or ''} {stats.get('title') or ''}".lower()
+    content_markers = (
+        "csv dosyasını indir",
+        "download csv",
+        "etkilenen öğeler",
+        "affected items",
+        "sorunun konumu",
+        "issue location",
+        "reklam istekleri",
+        "ad requests",
+    )
+    if any(m in low for m in content_markers):
+        return True
+    empty_ok = (
+        "no issues" in low
+        or "sorun yok" in low
+        or "no results" in low
+        or "sonuç yok" in low
+        or "hiç sorun" in low
+    )
+    return empty_ok
+
+
+def _open_policy_center(page) -> None:
+    """Hash SPA bazen warm pencerede yenilenmiyor — blank → ana → issues."""
+    try:
+        page.goto("about:blank", wait_until="domcontentloaded", timeout=30_000)
+    except Exception:
+        pass
+    time.sleep(0.4)
+    home = f"https://admanager.google.com/{NETWORK_ID}"
+    try:
+        page.goto(home, wait_until="domcontentloaded", timeout=120_000)
+        time.sleep(1.5)
+    except Exception as exc:
+        print(f"  · Ad Manager ana sayfa uyarısı: {exc}", flush=True)
+    page.goto(_policy_url(), wait_until="domcontentloaded", timeout=120_000)
+    time.sleep(2.5)
+    # Hash değişimini zorla (warm reuse)
+    try:
+        page.evaluate(
             """() => {
-              const tables = Array.from(document.querySelectorAll('table'));
-              let maxRows = 0;
-              for (const t of tables) {
-                maxRows = Math.max(maxRows, t.querySelectorAll('tbody tr').length);
+              const want = '#admin/policy_center/issues';
+              if ((location.hash || '') !== want) {
+                location.hash = want;
               }
-              return {
-                tables: tables.length,
-                max_rows: maxRows,
-                all_links: document.querySelectorAll('a[href*=\"sinemalar\"]').length,
-              };
             }"""
         )
+        time.sleep(1.5)
     except Exception:
-        return {"tables": 0, "max_rows": 0, "all_links": 0}
+        pass
+
+
+def _wait_policy_content(page, *, timeout_sec: float = 75.0) -> dict[str, Any]:
+    deadline = time.time() + timeout_sec
+    last: dict[str, Any] = {}
+    while time.time() < deadline:
+        last = _dom_table_stats(page)
+        if _policy_shell_ready(last):
+            return last
+        try:
+            page.mouse.wheel(0, 600)
+        except Exception:
+            pass
+        time.sleep(1.6)
+    return last
+
+
+def _closed_target_error(exc: BaseException) -> bool:
+    msg = str(exc or "").lower()
+    return any(
+        s in msg
+        for s in (
+            "target page, context or browser has been closed",
+            "target closed",
+            "browser has been closed",
+            "connection closed",
+        )
+    )
 
 
 def _scrape_dom_rows(page) -> list[dict[str, Any]]:
-    """Tablo satırlarını DOM'dan oku (CSV yoksa)."""
+    """Tablo satırlarını DOM'dan oku (CSV yoksa) — shadow root dahil."""
     # Scroll to load more (virtualized tables)
     for _ in range(40):
         try:
@@ -332,19 +662,34 @@ def _scrape_dom_rows(page) -> list[dict[str, Any]]:
 
     raw = page.evaluate(
         """() => {
-      const tables = Array.from(document.querySelectorAll('table'));
+      function walk(node, visit) {
+        if (!node) return;
+        visit(node);
+        const kids = node.querySelectorAll ? node.querySelectorAll('*') : [];
+        for (const el of kids) {
+          if (el.shadowRoot) walk(el.shadowRoot, visit);
+        }
+      }
+      const tables = [];
+      const gridRows = [];
+      walk(document, (node) => {
+        if (!node.querySelectorAll) return;
+        for (const t of node.querySelectorAll('table')) tables.push(t);
+        for (const r of node.querySelectorAll('[role="row"]')) {
+          if (r.querySelectorAll('[role="gridcell"], [role="cell"], td').length >= 2) {
+            gridRows.push(r);
+          }
+        }
+      });
       let best = null, bestN = 0;
       for (const t of tables) {
-        const rows = t.querySelectorAll('tbody tr');
+        const rows = t.querySelectorAll('tbody tr, tr');
         if (rows.length > bestN) { best = t; bestN = rows.length; }
       }
-      // Grid / role=row fallback
       if (!best || bestN < 1) {
-        const gridRows = Array.from(document.querySelectorAll('[role=\"row\"]'))
-          .filter(r => r.querySelectorAll('[role=\"gridcell\"], [role=\"cell\"], td').length >= 2);
         if (gridRows.length > bestN) {
           return gridRows.map(tr => {
-            const cells = Array.from(tr.querySelectorAll('[role=\"gridcell\"], [role=\"cell\"], td'));
+            const cells = Array.from(tr.querySelectorAll('[role="gridcell"], [role="cell"], td'));
             const vals = cells.map(td => (td.innerText || '').trim().replace(/\\s+/g, ' '));
             const links = Array.from(tr.querySelectorAll('a[href]'))
               .map(a => a.href)
@@ -357,14 +702,13 @@ def _scrape_dom_rows(page) -> list[dict[str, Any]]:
       const headers = Array.from(best.querySelectorAll('thead th, thead td'))
         .map(el => (el.innerText || '').trim());
       const out = [];
-      for (const tr of best.querySelectorAll('tbody tr')) {
+      for (const tr of best.querySelectorAll('tbody tr, tr')) {
         const cells = Array.from(tr.querySelectorAll('td'));
         if (!cells.length) continue;
         const vals = cells.map(td => (td.innerText || '').trim().replace(/\\s+/g, ' '));
         const links = Array.from(tr.querySelectorAll('a[href]'))
           .map(a => a.href)
           .filter(h => /sinemalar\\.com/i.test(h));
-        // href yoksa hücre metninde sinemalar ara
         if (!links.length) {
           for (const v of vals) {
             const m = String(v || '').match(/https?:\\/\\/[^\\s]*sinemalar\\.com[^\\s]*/i)
@@ -377,8 +721,7 @@ def _scrape_dom_rows(page) -> list[dict[str, Any]]:
             }
           }
         }
-        const row = { cells: vals, headers, links };
-        out.push(row);
+        out.push({ cells: vals, headers, links });
       }
       return out;
     }"""
@@ -446,6 +789,11 @@ def _host_allowed(url: str) -> bool:
 def _normalize_row_dict(r: dict[str, Any]) -> dict[str, Any] | None:
     url = str(r.get("url") or "").strip()
     if not url:
+        # Site sütunu bazen çıplak host (donanimhaber.com / sinemalar.com)
+        site = str(r.get("site_host") or r.get("site") or "").strip()
+        if site and "." in site and " " not in site:
+            url = "https://" + site.lstrip("/")
+    if not url:
         return None
     if not url.startswith(("http://", "https://")):
         url = "https://" + url.lstrip("/")
@@ -453,7 +801,7 @@ def _normalize_row_dict(r: dict[str, Any]) -> dict[str, Any] | None:
         return None
     issue = str(r.get("issue_type") or r.get("sorunlar") or "").strip()
     if not issue:
-        return None
+        issue = "Politika sorunu"
     return {
         "url": url,
         "issue_type": issue,
@@ -466,95 +814,204 @@ def _normalize_row_dict(r: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def scrape_admanager_policy(*, headed: bool = True) -> dict[str, Any]:
-    pw, context = _launch_context(headed=headed)
+def _pull_csv_or_dom(page) -> tuple[list[dict[str, Any]], str, str | None]:
+    """CSV veya DOM → normalize edilmiş sinemalar satırları."""
+    csv_bytes = _download_csv(page)
+    rows: list[dict[str, Any]] = []
+    csv_b64 = None
+    method = "dom"
+
+    if csv_bytes:
+        method = "csv"
+        from backend.services import policy_csv as pcsv
+        import base64
+
+        parsed, _headers, err = pcsv.parse_csv(csv_bytes)
+        if err:
+            print(f"  · CSV parse: {err}", flush=True)
+        for pr in parsed:
+            nr = _normalize_row_dict(
+                {
+                    "url": pr.get("url"),
+                    "issue_type": pr.get("issue_type"),
+                    "enforcement": pr.get("enforcement"),
+                    "ad_requests_7d": pr.get("ad_requests_7d"),
+                    "first_reported": (
+                        pr["first_reported"].isoformat()
+                        if pr.get("first_reported")
+                        else None
+                    ),
+                    "last_reported": (
+                        pr["last_reported"].isoformat()
+                        if pr.get("last_reported")
+                        else None
+                    ),
+                }
+            )
+            if nr:
+                rows.append(nr)
+        csv_b64 = base64.b64encode(csv_bytes).decode("ascii")
+        print(f"  · CSV · {len(csv_bytes)} byte · parse={len(rows)} satır", flush=True)
+    else:
+        print("  · CSV yok — DOM satırları…", flush=True)
+        raw_dom = _scrape_dom_rows(page)
+        print(f"  · DOM ham satır: {len(raw_dom)}", flush=True)
+        for raw in raw_dom:
+            nr = _normalize_row_dict(raw)
+            if nr:
+                rows.append(nr)
+    return rows, method, csv_b64
+
+
+def _collect_rows_from_page(page) -> tuple[list[dict[str, Any]], str, str | None, dict[str, Any]]:
+    """(rows, method, csv_b64, stats) — önce filtresiz (üst arama temiz), gerekirse site filtresi."""
+    _clear_global_top_search(page)
+    time.sleep(1.0)
+    stats_before = _wait_policy_content(page, timeout_sec=45.0)
+    print(
+        f"  · DOM (filtresiz) · tables={stats_before.get('tables')} "
+        f"max_rows={stats_before.get('max_rows')} "
+        f"sinemalar_links={stats_before.get('all_links')} "
+        f"role_rows={stats_before.get('role_rows')} "
+        f"snip={(stats_before.get('body_snip') or '')[:100]!r}",
+        flush=True,
+    )
+
+    rows, method, csv_b64 = _pull_csv_or_dom(page)
+    stats = stats_before
+
+    # Filtresiz boşsa Policy site filtresini dene (üst aramaya değil)
+    if not rows:
+        print(f"  · Site filtresi deneniyor: {SITE_FILTER}", flush=True)
+        try:
+            _apply_site_filter(page, SITE_FILTER)
+            time.sleep(2.0)
+            stats = _wait_policy_content(page, timeout_sec=40.0)
+            print(
+                f"  · DOM (filtreli) · tables={stats.get('tables')} "
+                f"max_rows={stats.get('max_rows')} "
+                f"sinemalar_links={stats.get('all_links')} "
+                f"role_rows={stats.get('role_rows')}",
+                flush=True,
+            )
+            rows, method, csv_b64 = _pull_csv_or_dom(page)
+        except Exception as exc:
+            print(f"  · Filtre uyarısı: {exc}", flush=True)
+
+    return rows, method, csv_b64, stats
+
+
+def _scrape_once(*, headed: bool, force_fresh: bool = False) -> dict[str, Any]:
     scraped_at = datetime.now(timezone.utc).isoformat()
+    if force_fresh:
+        try:
+            from backend.services.scrape_browser import (
+                ensure_profile_free_for_launch,
+                warm_session_forget_profile,
+            )
+
+            warm_session_forget_profile(PROFILE_DIR)
+            ensure_profile_free_for_launch(
+                PROFILE_DIR,
+                takeover=True,
+                busy_wait_sec=2.0,
+                release_wait_sec=4.0,
+                reason="admanager-policy:fresh",
+            )
+            time.sleep(1.5)
+        except Exception as exc:
+            print(f"  · Fresh profil uyarısı: {exc}", flush=True)
+
+    pw, context, selenium = _launch_context(headed=headed)
     try:
         page = context.pages[0] if context.pages else context.new_page()
         print(f"  · Policy Center açılıyor… {NETWORK_ID}", flush=True)
-        page.goto(_policy_url(), wait_until="domcontentloaded", timeout=120_000)
-        time.sleep(3)
-        if not _looks_signed_in(page):
+        # Selenium warm pencerede about:blank oturumu bozabiliyor — yumuşak aç
+        if selenium:
+            # Hash URL bazen boş panel; menü ile aç
+            _open_policy_center_ui(page)
+            # fx-google oturumu düşmüşse günlük Firefox Google çerezlerini dene
+            if not _looks_signed_in(page):
+                try:
+                    from backend.services.system_firefox_driver import (
+                        inject_google_cookies_from_default,
+                    )
+
+                    drv = getattr(context, "_driver", None) or getattr(page, "_driver", None)
+                    if drv is not None:
+                        n = inject_google_cookies_from_default(drv)
+                        print(f"  · Varsayılan Firefox Google çerez enjekte: {n}", flush=True)
+                        if n:
+                            page.goto(
+                                _policy_url(),
+                                wait_until="domcontentloaded",
+                                timeout=120_000,
+                            )
+                            time.sleep(3.0)
+                except Exception as exc:
+                    print(f"  · Çerez enjekte uyarısı: {exc}", flush=True)
+        else:
+            _open_policy_center(page)
+        # Google hesap seçici / yavaş redirect için kısa bekleme
+        signed = _looks_signed_in(page)
+        if not signed:
+            for _ in range(12):
+                time.sleep(1.5)
+                signed = _looks_signed_in(page)
+                if signed:
+                    break
+                try:
+                    u = (page.url or "").lower()
+                    if "admanager.google.com" in u and "accounts.google.com" not in u:
+                        # ara sayfa — hash'e zorla
+                        page.goto(_policy_url(), wait_until="domcontentloaded", timeout=60_000)
+                        time.sleep(1.5)
+                except Exception:
+                    pass
+        if not signed:
             return {
                 "ok": False,
                 "needs_login": True,
                 "message": "Ad Manager oturumu yok — --login ile cemevecen@nokta.com gir",
                 "scraped_at": scraped_at,
                 "rows": [],
+                "url": getattr(page, "url", None),
             }
 
-        # SPA hash route bazen yeniden yüklenmeli
-        if "policy_center" not in (page.url or ""):
-            page.goto(_policy_url(), wait_until="domcontentloaded", timeout=120_000)
-            time.sleep(2)
-
-        print(f"  · Site filtresi: {SITE_FILTER}", flush=True)
-        try:
-            _apply_site_filter(page, SITE_FILTER)
-        except Exception as exc:
-            print(f"  · Filtre uyarısı: {exc}", flush=True)
-
-        # Tablo/filtre yerleşsin
-        time.sleep(2.5)
-        try:
-            page.wait_for_selector("table tbody tr, [role='row']", timeout=25_000)
-        except Exception:
-            pass
-        stats = _dom_table_stats(page)
+        stats0 = _wait_policy_content(page, timeout_sec=75.0)
         print(
-            f"  · DOM öncesi · tables={stats.get('tables')} max_rows={stats.get('max_rows')} "
-            f"sinemalar_links={stats.get('all_links')}",
+            f"  · Shell · url={(stats0.get('url') or '')[:80]} "
+            f"links={stats0.get('all_links')} tables={stats0.get('tables')} "
+            f"ready={_policy_shell_ready(stats0)}",
             flush=True,
         )
+        if not _policy_shell_ready(stats0):
+            print("  · Shell boş — hard reload…", flush=True)
+            try:
+                page.reload(wait_until="domcontentloaded", timeout=120_000)
+            except Exception:
+                _open_policy_center(page)
+            stats0 = _wait_policy_content(page, timeout_sec=60.0)
+            print(
+                f"  · Shell reload · links={stats0.get('all_links')} "
+                f"tables={stats0.get('tables')} snip={(stats0.get('body_snip') or '')[:120]!r}",
+                flush=True,
+            )
+            if not _policy_shell_ready(stats0):
+                return {
+                    "ok": False,
+                    "needs_login": False,
+                    "message": (
+                        "Policy Center UI yüklenmedi (boş shell). "
+                        f"title={stats0.get('title')!r} snip={(stats0.get('body_snip') or '')[:160]!r}"
+                    ),
+                    "scraped_at": scraped_at,
+                    "rows": [],
+                    "stats": stats0,
+                }
 
-        csv_bytes = _download_csv(page)
-        rows: list[dict[str, Any]] = []
-        csv_b64 = None
-        method = "dom"
+        rows, method, csv_b64, stats = _collect_rows_from_page(page)
 
-        if csv_bytes:
-            method = "csv"
-            # Parse later on server — also parse locally for count
-            from backend.services import policy_csv as pcsv
-
-            parsed, _headers, err = pcsv.parse_csv(csv_bytes)
-            if err:
-                print(f"  · CSV parse: {err}", flush=True)
-            for pr in parsed:
-                nr = _normalize_row_dict(
-                    {
-                        "url": pr.get("url"),
-                        "issue_type": pr.get("issue_type"),
-                        "enforcement": pr.get("enforcement"),
-                        "ad_requests_7d": pr.get("ad_requests_7d"),
-                        "first_reported": (
-                            pr["first_reported"].isoformat()
-                            if pr.get("first_reported")
-                            else None
-                        ),
-                        "last_reported": (
-                            pr["last_reported"].isoformat()
-                            if pr.get("last_reported")
-                            else None
-                        ),
-                    }
-                )
-                if nr:
-                    rows.append(nr)
-            import base64
-
-            csv_b64 = base64.b64encode(csv_bytes).decode("ascii")
-            print(f"  · CSV · {len(csv_bytes)} byte · parse={len(rows)} satır", flush=True)
-        else:
-            print("  · CSV yok — DOM satırları…", flush=True)
-            raw_dom = _scrape_dom_rows(page)
-            print(f"  · DOM ham satır: {len(raw_dom)}", flush=True)
-            for raw in raw_dom:
-                nr = _normalize_row_dict(raw)
-                if nr:
-                    rows.append(nr)
-
-        # Dedup
         seen: set[tuple[str, str]] = set()
         uniq: list[dict[str, Any]] = []
         for r in rows:
@@ -566,8 +1023,15 @@ def scrape_admanager_policy(*, headed: bool = True) -> dict[str, Any]:
 
         msg = f"{len(uniq)} sinemalar satır · yöntem={method} · filtre={SITE_FILTER}"
         print(f"  · {msg}", flush=True)
+        # 0 satır = başarısız (auto-retry + panel «çekilemedi» doğru işaretlensin)
+        ok = len(uniq) > 0 or bool(csv_b64)
+        if not ok:
+            msg = (
+                f"0 sinemalar satır · yöntem={method} · filtre={SITE_FILTER} "
+                f"· links={stats.get('all_links')} · snip={(stats.get('body_snip') or '')[:120]!r}"
+            )
         return {
-            "ok": True,
+            "ok": ok,
             "needs_login": False,
             "source": "admanager_policy_scrape",
             "scraped_at": scraped_at,
@@ -578,6 +1042,7 @@ def scrape_admanager_policy(*, headed: bool = True) -> dict[str, Any]:
             "rows": uniq,
             "csv_base64": csv_b64,
             "profile": str(PROFILE_DIR),
+            "stats": stats,
         }
     except Exception as exc:  # noqa: BLE001
         return {
@@ -586,9 +1051,31 @@ def scrape_admanager_policy(*, headed: bool = True) -> dict[str, Any]:
             "message": f"Tarama hatası: {exc}",
             "scraped_at": scraped_at,
             "rows": [],
+            "closed": _closed_target_error(exc),
         }
     finally:
-        _release_context(pw, context, headed=True)
+        _release_context(pw, context, headed=headed, selenium=selenium)
+
+
+def scrape_admanager_policy(*, headed: bool = True) -> dict[str, Any]:
+    """Policy Center → satırlar. Kapalı tarayıcı / boş shell için 1 fresh retry."""
+    result = _scrape_once(headed=headed, force_fresh=False)
+    if result.get("ok") or result.get("needs_login"):
+        return result
+    retry_reason = ""
+    if result.get("closed") or _closed_target_error(
+        Exception(str(result.get("message") or ""))
+    ):
+        retry_reason = "kapalı tarayıcı"
+    elif "yüklenmedi" in str(result.get("message") or "").lower():
+        retry_reason = "boş shell"
+    elif not (result.get("rows") or []):
+        retry_reason = "0 satır"
+    if not retry_reason:
+        return result
+    print(f"  · Policy yeniden deneme (fresh profil) · neden={retry_reason}", flush=True)
+    time.sleep(2.0)
+    return _scrape_once(headed=headed, force_fresh=True)
 
 
 def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
