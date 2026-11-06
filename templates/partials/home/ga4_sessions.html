@@ -16,9 +16,14 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
   }
-  /* Döviz (4 profil): her zaman tek satır — split’te sinemalar yüksekliğiyle eşit */
+  /* Döviz (4 profil): yeterince genişse 4 kolon; dar/mobilde 2×2 (sayılar kesilmesin) */
   .home-ga4-spark-grid:has(> :nth-child(4)) {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @container home-ga4-grid (min-width: 560px) {
+    .home-ga4-spark-grid:has(> :nth-child(4)) {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
   }
   .home-ga4-spark-cell {
     min-width: 0;
@@ -111,9 +116,19 @@
     flex: 1 1 auto;
     min-width: 0;
     text-align: right;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
+    text-overflow: clip;
     color: rgb(100 116 139);
+  }
+  @container home-kpi-cell (max-width: 148px) {
+    .home-kpi-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.12rem;
+    }
+    .home-kpi-row .home-kpi-compare {
+      text-align: left;
+    }
   }
   html.dark .home-kpi-row .home-kpi-compare,
   html.charcoal .home-kpi-row .home-kpi-compare {
