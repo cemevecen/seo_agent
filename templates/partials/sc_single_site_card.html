@@ -598,14 +598,14 @@
                 rel="noopener noreferrer"
                 data-sc-cwv-zoom
                 data-sc-cwv-src="{{ url }}"
-                class="block cursor-zoom-in overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 shadow-sm ring-1 ring-slate-200/60 dark:ring-slate-700/60"
+                class="block cursor-zoom-in overflow-auto overscroll-contain rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 shadow-sm ring-1 ring-slate-200/60 dark:ring-slate-700/60 max-h-[min(70vh,820px)]"
                 title="{{ title }}"
                 aria-label="{{ title }}"
               >
                 <img
                   src="{{ url }}"
                   alt="{{ alt }}"
-                  class="h-auto max-h-[min(80vh,900px)] w-full object-contain"
+                  class="h-auto max-h-none w-full object-contain"
                   loading="lazy"
                 >
               </a>

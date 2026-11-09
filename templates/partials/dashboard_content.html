@@ -447,10 +447,11 @@
   }
   .home-drive-preview-media {
     position: relative;
-    overflow: hidden;
-    max-height: min(28rem, 55vh);
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    max-height: min(32rem, 62vh);
     background: rgb(42 42 46 / 0.04);
-    cursor: zoom-in;
   }
   html.dark .home-drive-preview-media,
   html.charcoal .home-drive-preview-media {
@@ -460,21 +461,125 @@
     display: block;
     width: 100%;
     height: auto;
-    max-height: min(28rem, 55vh);
+    max-height: none;
     object-fit: contain;
     margin: 0 auto;
-    transition: transform 0.28s ease;
-    transform-origin: var(--zoom-x, 50%) var(--zoom-y, 50%);
-    will-change: transform;
-  }
-  .home-drive-preview-media.is-zooming img {
-    transform: scale(2.15);
+    cursor: zoom-in;
   }
   .home-drive-preview-media video {
     display: block;
     width: 100%;
-    max-height: min(28rem, 55vh);
+    max-height: min(32rem, 62vh);
     background: #2a2a2e;
+  }
+  .home-drive-preview-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.45rem 0.75rem 0.55rem;
+    border-top: 1px solid rgb(226 232 240);
+  }
+  html.dark .home-drive-preview-actions,
+  html.charcoal .home-drive-preview-actions {
+    border-top-color: rgb(63 63 70);
+  }
+  .home-drive-preview-full-btn {
+    border: 0;
+    border-radius: 9999px;
+    background: rgb(15 23 42);
+    color: #f8fafc;
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.35rem 0.75rem;
+  }
+  .home-drive-preview-full-btn:hover { background: rgb(30 41 59); }
+  html.dark .home-drive-preview-full-btn,
+  html.charcoal .home-drive-preview-full-btn {
+    background: rgb(228 228 231);
+    color: #18181b;
+  }
+  #home-drive-lightbox {
+    border: 0;
+    padding: 0;
+    max-width: min(98vw, 1600px);
+    max-height: min(96vh, 1200px);
+    width: auto;
+    background: transparent;
+  }
+  #home-drive-lightbox::backdrop {
+    background: rgb(2 6 23 / 0.78);
+    backdrop-filter: blur(4px);
+  }
+  #home-drive-lightbox[open] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .home-drive-lightbox-shell {
+    display: flex;
+    flex-direction: column;
+    max-height: min(96vh, 1200px);
+    border-radius: 1rem;
+    overflow: hidden;
+    background: rgb(15 23 42);
+    color: #e2e8f0;
+    box-shadow: 0 24px 64px rgb(0 0 0 / 0.45);
+    border: 1px solid rgb(255 255 255 / 0.12);
+  }
+  .home-drive-lightbox-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid rgb(255 255 255 / 0.1);
+    flex-shrink: 0;
+  }
+  .home-drive-lightbox-title {
+    margin: 0;
+    min-width: 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .home-drive-lightbox-bar-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 0.4rem;
+  }
+  .home-drive-lightbox-bar-actions a,
+  .home-drive-lightbox-bar-actions button {
+    border: 1px solid rgb(255 255 255 / 0.2);
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.08);
+    color: #f8fafc;
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.3rem 0.7rem;
+    text-decoration: none;
+  }
+  .home-drive-lightbox-bar-actions a:hover,
+  .home-drive-lightbox-bar-actions button:hover {
+    background: rgb(255 255 255 / 0.16);
+  }
+  .home-drive-lightbox-scroll {
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    max-height: calc(min(96vh, 1200px) - 3rem);
+    padding: 0.65rem;
+    background: rgb(2 6 23);
+  }
+  .home-drive-lightbox-scroll img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    margin: 0 auto;
   }
   .home-drive-preview-list {
     display: flex;
@@ -3326,20 +3431,84 @@
     }];
   }
 
+  function homeDriveContentUrl(file) {
+    if (!file) return '';
+    var fid = file.file_id || '';
+    if (fid) return '/api/home/drive/files/' + encodeURIComponent(fid) + '/content';
+    return String(file.thumb_url || '');
+  }
+
+  function ensureHomeDriveLightbox() {
+    var dlg = document.getElementById('home-drive-lightbox');
+    if (dlg) return dlg;
+    dlg = document.createElement('dialog');
+    dlg.id = 'home-drive-lightbox';
+    dlg.setAttribute('aria-labelledby', 'home-drive-lightbox-title');
+    dlg.innerHTML =
+      '<div class="home-drive-lightbox-shell">' +
+        '<div class="home-drive-lightbox-bar">' +
+          '<p class="home-drive-lightbox-title" id="home-drive-lightbox-title"></p>' +
+          '<div class="home-drive-lightbox-bar-actions">' +
+            '<a href="#" target="_blank" rel="noopener noreferrer" data-home-drive-lightbox-open>Open tab</a>' +
+            '<button type="button" data-home-drive-lightbox-close>Close</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="home-drive-lightbox-scroll">' +
+          '<img src="" alt="" data-home-drive-lightbox-img decoding="async">' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(dlg);
+    dlg.addEventListener('click', function (ev) {
+      if (ev.target === dlg) dlg.close();
+    });
+    var closeBtn = dlg.querySelector('[data-home-drive-lightbox-close]');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function () { dlg.close(); });
+    }
+    return dlg;
+  }
+
+  function openHomeDriveLightbox(src, title) {
+    if (!src) return;
+    var dlg = ensureHomeDriveLightbox();
+    var img = dlg.querySelector('[data-home-drive-lightbox-img]');
+    var titleEl = dlg.querySelector('#home-drive-lightbox-title');
+    var openLink = dlg.querySelector('[data-home-drive-lightbox-open]');
+    var label = String(title || 'Upload');
+    if (img) {
+      img.src = src;
+      img.alt = label;
+    }
+    if (titleEl) titleEl.textContent = label;
+    if (openLink) openLink.href = src;
+    var scroll = dlg.querySelector('.home-drive-lightbox-scroll');
+    if (scroll) scroll.scrollTop = 0;
+    if (typeof dlg.showModal === 'function') dlg.showModal();
+    else dlg.setAttribute('open', '');
+  }
+
   function homeDriveMediaHtml(file, title) {
     var safeTitle = String(title || file.name || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    var contentUrl = homeDriveContentUrl(file);
+    var safeSrc = String(contentUrl).replace(/"/g, '');
     if ((file.kind || '') === 'video') {
-      var src = file.thumb_url || ('/api/home/drive/files/' + encodeURIComponent(file.file_id || '') + '/content');
       return (
         '<div class="home-drive-preview-media is-video">' +
-          '<video controls playsinline src="' + String(src).replace(/"/g, '') + '"></video>' +
+          '<video controls playsinline src="' + safeSrc + '"></video>' +
         '</div>'
       );
     }
-    var imgSrc = file.thumb_url || ('/api/home/drive/files/' + encodeURIComponent(file.file_id || '') + '/content');
     return (
-      '<div class="home-drive-preview-media" data-home-drive-zoom>' +
-        '<img src="' + String(imgSrc).replace(/"/g, '') + '" alt="' + safeTitle + '" loading="lazy">' +
+      '<div class="home-drive-preview-media" data-home-drive-full-src="' + safeSrc +
+        '" data-home-drive-full-title="' + safeTitle + '">' +
+        '<img src="' + safeSrc + '" alt="' + safeTitle + '" loading="lazy" data-home-drive-full-open>' +
+      '</div>' +
+      '<div class="home-drive-preview-actions">' +
+        '<button type="button" class="home-drive-preview-full-btn" data-home-drive-full-open ' +
+          'data-home-drive-full-src="' + safeSrc + '" data-home-drive-full-title="' + safeTitle + '">' +
+          'Full view</button>' +
+        '<a class="home-drive-preview-full-btn" style="text-decoration:none;display:inline-flex;align-items:center" ' +
+          'href="' + safeSrc + '" target="_blank" rel="noopener noreferrer">Open tab</a>' +
       '</div>'
     );
   }
@@ -3528,36 +3697,25 @@
     openHomeDrivePreview(sec, key, info2);
   });
 
-  document.body.addEventListener('mousemove', function (ev) {
-    var media = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-zoom]');
-    if (!media) return;
-    var rect = media.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    var x = ((ev.clientX - rect.left) / rect.width) * 100;
-    var y = ((ev.clientY - rect.top) / rect.height) * 100;
-    media.style.setProperty('--zoom-x', Math.max(0, Math.min(100, x)) + '%');
-    media.style.setProperty('--zoom-y', Math.max(0, Math.min(100, y)) + '%');
-  }, { passive: true });
-
-  document.body.addEventListener('mouseover', function (ev) {
-    var media = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-zoom]');
-    if (media) media.classList.add('is-zooming');
-  });
-  document.body.addEventListener('mouseout', function (ev) {
-    var media = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-zoom]');
-    if (!media) return;
-    var to = ev.relatedTarget;
-    if (to && media.contains(to)) return;
-    media.classList.remove('is-zooming');
-  });
-  // Mobil: hover yok — ikinci tap zoom aç/kapa
   document.body.addEventListener('click', function (ev) {
-    var media = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-zoom]');
-    if (!media) return;
-    if (ev.target && ev.target.closest && ev.target.closest('[data-home-drive-pick-file]')) return;
-    if (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    var fullBtn = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-full-open]');
+    if (!fullBtn) return;
+    if (fullBtn.tagName === 'A' && fullBtn.getAttribute('href') && !fullBtn.hasAttribute('data-home-drive-full-open')) return;
+    // Open tab link: leave default
+    if (fullBtn.tagName === 'A' && !fullBtn.hasAttribute('data-home-drive-full-src') && fullBtn.getAttribute('href')) return;
+    var src = fullBtn.getAttribute('data-home-drive-full-src') || '';
+    var title = fullBtn.getAttribute('data-home-drive-full-title') || '';
+    if (!src) {
+      var media = fullBtn.closest('[data-home-drive-full-src]');
+      if (media) {
+        src = media.getAttribute('data-home-drive-full-src') || '';
+        title = media.getAttribute('data-home-drive-full-title') || title;
+      }
+    }
+    if (!src && fullBtn.tagName === 'IMG') src = fullBtn.getAttribute('src') || '';
+    if (!src) return;
     ev.preventDefault();
-    media.classList.toggle('is-zooming');
-  }, true);
+    openHomeDriveLightbox(src, title || (fullBtn.getAttribute('alt') || 'Upload'));
+  });
 })();
 </script>

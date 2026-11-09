@@ -276,12 +276,40 @@
     background: rgba(42, 42, 46, 0.72);
   }
   #sc-cwv-lightbox[open] {
-    max-width: min(96vw, 1400px);
-    max-height: 92vh;
+    max-width: min(98vw, 1600px);
+    max-height: min(96vh, 1200px);
+    width: min(98vw, 1600px);
     margin: auto;
     border: 0;
     padding: 0;
     background: transparent;
+    display: flex;
+    flex-direction: column;
+  }
+  #sc-cwv-lightbox .sc-cwv-lightbox-shell {
+    display: flex;
+    flex-direction: column;
+    max-height: min(96vh, 1200px);
+    overflow: hidden;
+    border-radius: 1rem;
+    background: rgb(15 23 42);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 0.45);
+    border: 1px solid rgb(255 255 255 / 0.12);
+  }
+  #sc-cwv-lightbox .sc-cwv-lightbox-scroll {
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    max-height: calc(min(96vh, 1200px) - 3.25rem);
+    padding: 0.65rem;
+    background: rgb(2 6 23);
+  }
+  #sc-cwv-lightbox .sc-cwv-lightbox-scroll img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    margin: 0 auto;
   }
   .sc-card-filter-bar {
     display: flex;
@@ -569,15 +597,24 @@
 
     {% include "partials/sc_extras_stack.html" %}
 
-    <dialog id="sc-cwv-lightbox" class="rounded-2xl bg-slate-950 p-3 text-slate-100 shadow-2xl ring-1 ring-white/15" aria-labelledby="sc-cwv-lightbox-title">
-      <p id="sc-cwv-lightbox-title" class="sr-only">Core Web Vitals screenshot</p>
-      <form method="dialog" class="mb-2 flex justify-end">
-        <button type="submit" class="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
-          Close
-        </button>
-      </form>
-      <img id="sc-cwv-lightbox-img" src="" alt="" class="mx-auto block max-h-[min(85vh,920px)] max-w-[min(96vw,1400px)] rounded-xl object-contain" width="1200" height="800" decoding="async">
-      <p class="mt-2 text-center text-[11px] text-slate-400">Right-click the link and open it in a new tab for full resolution.</p>
+    <dialog id="sc-cwv-lightbox" aria-labelledby="sc-cwv-lightbox-title">
+      <div class="sc-cwv-lightbox-shell">
+        <div class="mb-0 flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2 text-slate-100">
+          <p id="sc-cwv-lightbox-title" class="m-0 min-w-0 truncate text-xs font-bold">Core Web Vitals screenshot</p>
+          <div class="flex shrink-0 gap-2">
+            <a id="sc-cwv-lightbox-open" href="#" target="_blank" rel="noopener noreferrer"
+               class="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white no-underline hover:bg-white/20">Open tab</a>
+            <form method="dialog">
+              <button type="submit" class="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
+                Close
+              </button>
+            </form>
+          </div>
+        </div>
+        <div class="sc-cwv-lightbox-scroll">
+          <img id="sc-cwv-lightbox-img" src="" alt="" decoding="async">
+        </div>
+      </div>
     </dialog>
   </div>
 </div>
@@ -2292,6 +2329,12 @@
       }
       im.src = src;
       im.alt = a.getAttribute('aria-label') || a.getAttribute('title') || 'CWV screenshot';
+      var titleEl = document.getElementById('sc-cwv-lightbox-title');
+      if (titleEl) titleEl.textContent = im.alt;
+      var openEl = document.getElementById('sc-cwv-lightbox-open');
+      if (openEl) openEl.href = src;
+      var scrollEl = dlg.querySelector('.sc-cwv-lightbox-scroll');
+      if (scrollEl) scrollEl.scrollTop = 0;
       if (typeof dlg.showModal === 'function') {
         dlg.showModal();
       } else {
