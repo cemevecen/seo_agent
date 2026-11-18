@@ -82,6 +82,28 @@ def test_mweb_path_aliases():
     )
 
 
+def test_www_paths_still_match_on_mweb_host():
+    """www.doviz.com/emtia ↔ m.doviz.com/emtia (prefix yok)."""
+    targets = _watch_targets()
+    assert _match_exact_key("m.doviz.com", "/emtia", targets) == "https://www.doviz.com/emtia"
+    assert _match_exact_key("www.doviz.com", "/emtia", targets) == "https://www.doviz.com/emtia"
+    assert "https://www.doviz.com/emtia" in _match_tree_keys(
+        "m.doviz.com", "/emtia/brent-petrol", targets
+    )
+    assert _match_exact_key("m.doviz.com", "/pariteler", targets) == (
+        "https://www.doviz.com/pariteler"
+    )
+    assert _match_exact_key("m.doviz.com", "/kripto-paralar", targets) == (
+        "https://www.doviz.com/kripto-paralar"
+    )
+    assert _match_exact_key("m.doviz.com", "/yakit-sarj", targets) == (
+        "https://www.doviz.com/yakit-sarj"
+    )
+    assert _match_exact_key("m.doviz.com", "/kredi-karsilastirma", targets) == (
+        "https://www.doviz.com/kredi-karsilastirma"
+    )
+
+
 def test_pct_delta_tones():
     fmt, tone, pct = _pct_delta(120, 100)
     assert fmt == "+20.0%"

@@ -85,7 +85,7 @@ WATCH_URLS = WATCH_CATEGORIES
 
 _PERIODS = (1, 7, 30)
 _CACHE_TTL_SEC = 600.0
-_CACHE_VERSION = 5
+_CACHE_VERSION = 6
 _TOP_CHILDREN = 12
 _ROW_LIMIT = 8000
 _PLATFORMS = ("all", "web", "mweb")
@@ -380,17 +380,27 @@ def _build_tree_filter(targets: list[dict[str, Any]]) -> FilterExpression:
     return FilterExpression(or_group=FilterExpressionList(expressions=exprs))
 
 
+def _match_hosts(target: dict[str, Any]) -> set[str]:
+    """Eşlenecek host’lar.
+
+    - www.doviz.com sayfaları: www + m (aynı path)
+    - kur/altın/borsa/haber: desktop host; m.doviz.com ayrı alias path ile
+    """
+    hosts = {str(x).lower() for x in (target.get("hosts") or []) if x}
+    if target.get("mweb_prefix"):
+        hosts.discard(_MWEB_HOST)
+    return hosts
+
+
 def _path_is_exact(target: dict[str, Any], host: str, path: str) -> bool:
     h = (host or "").strip().lower()
     p = _norm_path(path)
-    desktop_hosts = {x for x in (target.get("hosts") or []) if x != _MWEB_HOST}
-    if h in desktop_hosts and p == target["path"]:
+    # Subdomain → m.doviz.com/kur|altin|borsa|haber/...
+    if h == _MWEB_HOST and target.get("mweb_paths"):
+        return any(p == _norm_path(mp) for mp in target["mweb_paths"])
+    # www (+ m) veya desktop subdomain — aynı path
+    if h in _match_hosts(target) and p == target["path"]:
         return True
-    # m.doviz.com /kur/... ↔ kur.doviz.com/...
-    if h == _MWEB_HOST:
-        for mp in target.get("mweb_paths") or []:
-            if p == _norm_path(mp):
-                return True
     return False
 
 
@@ -401,14 +411,8 @@ def _path_belongs_tree(target: dict[str, Any], host: str, path: str) -> bool:
     if target.get("scope") == "exact" and target.get("kind") == "detail":
         return _path_is_exact(target, host, path)
 
-    desktop_hosts = {x for x in (target.get("hosts") or []) if x != _MWEB_HOST}
-    if h in desktop_hosts:
-        if target["is_root"]:
-            return True
-        return p == target["path"] or p.startswith(target["path"] + "/")
-
-    # mweb alias tree
-    if h == _MWEB_HOST:
+    # Subdomain mweb alias tree (m.doviz.com/kur/...)
+    if h == _MWEB_HOST and target.get("mweb_prefix"):
         prefix = str(target.get("mweb_prefix") or "")
         if target["is_root"] and prefix:
             return p == _norm_path(prefix) or p.startswith(prefix + "/")
@@ -416,7 +420,14 @@ def _path_belongs_tree(target: dict[str, Any], host: str, path: str) -> bool:
             mp_n = _norm_path(mp)
             if p == mp_n or p.startswith(mp_n + "/"):
                 return True
-    return False
+        return False
+
+    # www (+ m) veya desktop host
+    if h not in _match_hosts(target):
+        return False
+    if target["is_root"]:
+        return True
+    return p == target["path"] or p.startswith(target["path"] + "/")
 
 
 def _match_exact_key(host: str, path: str, targets: list[dict[str, Any]]) -> str | None:
