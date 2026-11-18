@@ -225,6 +225,7 @@ _PUBLIC_SLASH_REDIRECTS = frozenset(
         "/delete-data",
         "/health",
         "/robots.txt",
+        "/app-ads.txt",
     }
 )
 
@@ -330,14 +331,53 @@ def delete_data(request: Request):
     return _html_response(request, "delete_data.html", "delete-data")
 
 
+# AdMob authorized-seller record. Kept as a single plain-text line so the
+# crawler can match the publisher snippet exactly.
+_APP_ADS_TXT = "google.com, pub-5199100591303558, DIRECT, f08c47fec0942fa0\n"
+
+
+@app.api_route("/app-ads.txt", methods=["GET", "HEAD"], response_class=PlainTextResponse, include_in_schema=False)
+def app_ads() -> PlainTextResponse:
+    return PlainTextResponse(_APP_ADS_TXT, media_type="text/plain")
+
+
 @app.api_route("/robots.txt", methods=["GET", "HEAD"], response_class=PlainTextResponse, include_in_schema=False)
 def robots() -> str:
     # Public Help Center must remain fetchable for store review (Google Play / App Store).
     # Historical blanket "Disallow: /" blocked crawlers from reading /privacy and /support.
     # Keep everything else disallowed; this site has no private API surface beyond catch-all 404.
     # Allow both bare and trailing-slash forms so slash redirects remain crawlable.
+    # Google-adstxt must be able to read /app-ads.txt; the longer Allow wins over Disallow: /.
     return (
+        "User-agent: Google-adstxt\n"
+        "Allow: /app-ads.txt\n"
+        "Allow: /app-ads.txt/\n"
+        "Disallow:\n"
+        "\n"
+        "User-agent: Mediapartners-Google\n"
+        "Allow: /app-ads.txt\n"
+        "Allow: /app-ads.txt/\n"
+        "Disallow:\n"
+        "\n"
+        "User-agent: Googlebot\n"
+        "Allow: /app-ads.txt\n"
+        "Allow: /app-ads.txt/\n"
+        "Allow: /privacy\n"
+        "Allow: /privacy/\n"
+        "Allow: /support\n"
+        "Allow: /support/\n"
+        "Allow: /delete-account\n"
+        "Allow: /delete-account/\n"
+        "Allow: /delete-data\n"
+        "Allow: /delete-data/\n"
+        "Allow: /robots.txt\n"
+        "Allow: /health\n"
+        "Allow: /static/tampiq/\n"
+        "Disallow: /\n"
+        "\n"
         "User-agent: *\n"
+        "Allow: /app-ads.txt\n"
+        "Allow: /app-ads.txt/\n"
         "Allow: /privacy\n"
         "Allow: /privacy/\n"
         "Allow: /support\n"

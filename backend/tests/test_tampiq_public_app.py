@@ -30,13 +30,27 @@ def test_http_core_routes_200():
         "/delete-data",
         "/health",
         "/robots.txt",
+        "/app-ads.txt",
     ):
         assert CLIENT.get(path).status_code == 200, path
+
+
+def test_app_ads_txt_is_public_plain_text():
+    res = CLIENT.get("/app-ads.txt")
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("text/plain")
+    assert "www-authenticate" not in {key.lower() for key in res.headers}
+    body = res.text
+    assert body == "google.com, pub-5199100591303558, DIRECT, f08c47fec0942fa0\n"
+    assert "<html" not in body.lower()
+    assert not body.lstrip().startswith("<")
 
 
 def test_robots_allows_public_help_center_paths():
     body = CLIENT.get("/robots.txt").text
     assert "User-agent: *" in body
+    assert "User-agent: Google-adstxt" in body
+    assert "Allow: /app-ads.txt" in body
     assert "Allow: /privacy" in body
     assert "Allow: /privacy/" in body
     assert "Allow: /support" in body
