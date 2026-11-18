@@ -1,4 +1,4 @@
-{# Ana sayfa — Döviz kategori + önemli alt sayfa trafiği #}
+{# Ana sayfa — Döviz kategori + önemli alt sayfa trafiği · web/mweb #}
 {% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 <style>
   .home-watch-urls {
@@ -7,11 +7,27 @@
     container-type: inline-size;
     container-name: home-watch-urls;
   }
-  .home-watch-mode {
+  .home-watch-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem 1rem;
+    margin-top: 0.7rem;
+    align-items: center;
+  }
+  .home-watch-mode,
+  .home-watch-platform {
     display: inline-flex;
     flex-wrap: wrap;
     gap: 0.3rem;
-    margin-top: 0.7rem;
+  }
+  .home-watch-ctrl-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-right: 0.15rem;
+    align-self: center;
   }
   .home-watch-mode-btn {
     border: 1px solid rgb(203 213 225);
@@ -209,12 +225,25 @@
   }
   html.dark .home-watch-period .prev,
   html.charcoal .home-watch-period .prev { color: #71717a; }
+  .home-watch-plat-block { display: none; }
+  .home-watch-urls[data-watch-platform="all"] .home-watch-plat-block[data-platform="all"],
+  .home-watch-urls[data-watch-platform="web"] .home-watch-plat-block[data-platform="web"],
+  .home-watch-urls[data-watch-platform="mweb"] .home-watch-plat-block[data-platform="mweb"] {
+    display: block;
+  }
   .home-watch-mode-vals[data-mode="exact"],
   .home-watch-mode-vals[data-mode="tree"] { display: none; }
-  .home-watch-urls[data-watch-mode="exact"] .home-watch-mode-vals[data-mode="exact"],
-  .home-watch-urls[data-watch-mode="tree"] .home-watch-mode-vals[data-mode="tree"] {
+  .home-watch-urls[data-watch-mode="exact"] .home-watch-plat-block .home-watch-mode-vals[data-mode="exact"],
+  .home-watch-urls[data-watch-mode="tree"] .home-watch-plat-block .home-watch-mode-vals[data-mode="tree"] {
     display: grid;
   }
+  .home-watch-expand-plat { display: none; }
+  .home-watch-urls[data-watch-platform="all"] .home-watch-expand-plat[data-platform="all"],
+  .home-watch-urls[data-watch-platform="web"] .home-watch-expand-plat[data-platform="web"],
+  .home-watch-urls[data-watch-platform="mweb"] .home-watch-expand-plat[data-platform="mweb"] {
+    display: inline-flex;
+  }
+  .home-watch-urls[data-watch-mode="exact"] .home-watch-expand-plat { display: none !important; }
   .home-watch-child-row { display: none; }
   .home-watch-child-row.is-open { display: table-row; }
   .home-watch-child-row td {
@@ -243,22 +272,38 @@
   }
 </style>
 
+{% macro period_stack(exact_p, tree_p) -%}
+  <div class="home-watch-period home-watch-mode-vals" data-mode="exact"
+       title="{{ exact_p.current_label }} · önceki {{ exact_p.previous_label }}">
+    <span class="cur">{{ exact_p.last_fmt }}</span>
+    <span class="delta{% if exact_p.delta_tone and exact_p.delta_tone != 'flat' %} is-{{ exact_p.delta_tone }}{% endif %}">{{ exact_p.delta_fmt }}</span>
+    <span class="prev">önceki {{ exact_p.prev_fmt }}</span>
+  </div>
+  <div class="home-watch-period home-watch-mode-vals" data-mode="tree"
+       title="{{ tree_p.current_label }} · önceki {{ tree_p.previous_label }}">
+    <span class="cur">{{ tree_p.last_fmt }}</span>
+    <span class="delta{% if tree_p.delta_tone and tree_p.delta_tone != 'flat' %} is-{{ tree_p.delta_tone }}{% endif %}">{{ tree_p.delta_fmt }}</span>
+    <span class="prev">önceki {{ tree_p.prev_fmt }}</span>
+  </div>
+{%- endmacro %}
+
 {% macro watch_period_cells(row) -%}
-  {% for p in row.periods_exact %}
+  {% set plats = row.by_platform if row.by_platform is defined and row.by_platform else none %}
+  {% set exact_all = (plats.all.periods_exact if plats and plats.all is defined else row.periods_exact) %}
+  {% for i in range(exact_all|length) %}
     <td>
-      <div class="home-watch-period home-watch-mode-vals" data-mode="exact"
-           title="{{ p.current_label }} · önceki {{ p.previous_label }}">
-        <span class="cur">{{ p.last_fmt }}</span>
-        <span class="delta{% if p.delta_tone and p.delta_tone != 'flat' %} is-{{ p.delta_tone }}{% endif %}">{{ p.delta_fmt }}</span>
-        <span class="prev">önceki {{ p.prev_fmt }}</span>
-      </div>
-      {% set pt = row.periods_tree[loop.index0] %}
-      <div class="home-watch-period home-watch-mode-vals" data-mode="tree"
-           title="{{ pt.current_label }} · önceki {{ pt.previous_label }}">
-        <span class="cur">{{ pt.last_fmt }}</span>
-        <span class="delta{% if pt.delta_tone and pt.delta_tone != 'flat' %} is-{{ pt.delta_tone }}{% endif %}">{{ pt.delta_fmt }}</span>
-        <span class="prev">önceki {{ pt.prev_fmt }}</span>
-      </div>
+      {% if plats %}
+        {% for plat in ['all', 'web', 'mweb'] %}
+          {% set block = plats[plat] if plats[plat] is defined else none %}
+          {% if block %}
+            <div class="home-watch-plat-block" data-platform="{{ plat }}">
+              {{ period_stack(block.periods_exact[i], block.periods_tree[i]) }}
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        {{ period_stack(row.periods_exact[i], row.periods_tree[i]) }}
+      {% endif %}
     </td>
   {% endfor %}
 {%- endmacro %}
@@ -270,7 +315,8 @@
       <thead>
         <tr>
           <th scope="col">Sayfa</th>
-          {% for p in block_rows[0].periods_exact %}
+          {% set _head = block_rows[0].by_platform.all.periods_exact if block_rows[0].by_platform is defined and block_rows[0].by_platform.all is defined else block_rows[0].periods_exact %}
+          {% for p in _head %}
             <th scope="col" title="{{ p.current_label }} vs {{ p.previous_label }}">{{ p.title }}</th>
           {% endfor %}
         </tr>
@@ -286,7 +332,21 @@
                     <span class="home-watch-group">{{ row.group }}</span>
                   {% endif %}
                   <a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.label }}</a>
-                  {% if row.children_count %}
+                  {% set plats = row.by_platform if row.by_platform is defined else none %}
+                  {% if plats %}
+                    {% for plat in ['all', 'web', 'mweb'] %}
+                      {% set block = plats[plat] if plats[plat] is defined else none %}
+                      {% if block and block.children_count %}
+                        <button type="button"
+                                class="home-watch-expand home-watch-expand-plat"
+                                data-platform="{{ plat }}"
+                                data-home-watch-expand="{{ parent_idx }}"
+                                data-home-watch-expand-plat="{{ plat }}"
+                                aria-expanded="false"
+                                title="En çok trafik alan alt linkler">+{{ block.children_count }}</button>
+                      {% endif %}
+                    {% endfor %}
+                  {% elif row.children_count %}
                     <button type="button"
                             class="home-watch-expand"
                             data-home-watch-expand="{{ parent_idx }}"
@@ -299,25 +359,53 @@
             </td>
             {{ watch_period_cells(row) }}
           </tr>
-          {% for child in row.children %}
-            <tr class="home-watch-child-row" data-parent-idx="{{ parent_idx }}">
-              <td>
-                <div class="home-watch-child-url" style="padding-left:0.85rem">
-                  <a href="{{ child.url }}" target="_blank" rel="noopener noreferrer">{{ child.label }}</a>
-                  <span class="home-watch-child-path">{{ child.path }}</span>
-                </div>
-              </td>
-              {% for p in child.periods %}
+          {% set plats = row.by_platform if row.by_platform is defined else none %}
+          {% if plats %}
+            {% for plat in ['all', 'web', 'mweb'] %}
+              {% set block = plats[plat] if plats[plat] is defined else none %}
+              {% if block and block.children %}
+                {% for child in block.children %}
+                  <tr class="home-watch-child-row" data-parent-idx="{{ parent_idx }}" data-platform="{{ plat }}">
+                    <td>
+                      <div class="home-watch-child-url" style="padding-left:0.85rem">
+                        <a href="{{ child.url }}" target="_blank" rel="noopener noreferrer">{{ child.label }}</a>
+                        <span class="home-watch-child-path">{{ child.path }}</span>
+                      </div>
+                    </td>
+                    {% for p in child.periods %}
+                      <td>
+                        <div class="home-watch-period" title="{{ p.current_label }} · önceki {{ p.previous_label }}">
+                          <span class="cur">{{ p.last_fmt }}</span>
+                          <span class="delta{% if p.delta_tone and p.delta_tone != 'flat' %} is-{{ p.delta_tone }}{% endif %}">{{ p.delta_fmt }}</span>
+                          <span class="prev">önceki {{ p.prev_fmt }}</span>
+                        </div>
+                      </td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            {% for child in row.children %}
+              <tr class="home-watch-child-row" data-parent-idx="{{ parent_idx }}">
                 <td>
-                  <div class="home-watch-period" title="{{ p.current_label }} · önceki {{ p.previous_label }}">
-                    <span class="cur">{{ p.last_fmt }}</span>
-                    <span class="delta{% if p.delta_tone and p.delta_tone != 'flat' %} is-{{ p.delta_tone }}{% endif %}">{{ p.delta_fmt }}</span>
-                    <span class="prev">önceki {{ p.prev_fmt }}</span>
+                  <div class="home-watch-child-url" style="padding-left:0.85rem">
+                    <a href="{{ child.url }}" target="_blank" rel="noopener noreferrer">{{ child.label }}</a>
+                    <span class="home-watch-child-path">{{ child.path }}</span>
                   </div>
                 </td>
-              {% endfor %}
-            </tr>
-          {% endfor %}
+                {% for p in child.periods %}
+                  <td>
+                    <div class="home-watch-period" title="{{ p.current_label }} · önceki {{ p.previous_label }}">
+                      <span class="cur">{{ p.last_fmt }}</span>
+                      <span class="delta{% if p.delta_tone and p.delta_tone != 'flat' %} is-{{ p.delta_tone }}{% endif %}">{{ p.delta_fmt }}</span>
+                      <span class="prev">önceki {{ p.prev_fmt }}</span>
+                    </div>
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          {% endif %}
         {% endfor %}
       </tbody>
     </table>
@@ -325,7 +413,11 @@
   {% endif %}
 {%- endmacro %}
 
-<div class="home-watch-urls home-readable is-open" data-home-shell-root data-watch-mode="exact" data-home-watch-root>
+<div class="home-watch-urls home-readable is-open"
+     data-home-shell-root
+     data-watch-mode="exact"
+     data-watch-platform="all"
+     data-home-watch-root>
   <div class="home-shell-head">
     <button type="button"
             class="home-shell-toggle"
@@ -338,7 +430,7 @@
           {{ brand_icon('doviz', 'sm') }}
         </div>
         <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">
-          Kategoriler + önemli alt sayfalar · 1g / 7g / 30g sessions
+          Kategoriler + önemli alt sayfalar · web / mweb · 1g / 7g / 30g
         </p>
       </div>
     </button>
@@ -356,13 +448,28 @@
     {% if error %}
       <p class="home-meta mt-3 text-rose-600 dark:text-rose-400">{{ error }}</p>
     {% elif category_rows or detail_rows or rows %}
-      <div class="home-watch-mode" role="group" aria-label="Trafik kapsamı">
-        {% for m in modes %}
-          <button type="button"
-                  class="home-watch-mode-btn{% if m.id == default_mode %} is-active{% endif %}"
-                  data-home-watch-mode="{{ m.id }}"
-                  aria-pressed="{{ 'true' if m.id == default_mode else 'false' }}">{{ m.label }}</button>
-        {% endfor %}
+      <div class="home-watch-controls">
+        <div class="home-watch-platform" role="group" aria-label="Platform">
+          <span class="home-watch-ctrl-label">Platform</span>
+          {% set _avail = available_platforms if available_platforms is defined else ['web', 'mweb'] %}
+          {% for m in platforms %}
+            {% if m.id == 'all' or m.id in _avail %}
+              <button type="button"
+                      class="home-watch-mode-btn{% if m.id == default_platform %} is-active{% endif %}"
+                      data-home-watch-platform="{{ m.id }}"
+                      aria-pressed="{{ 'true' if m.id == default_platform else 'false' }}">{{ m.label }}</button>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <div class="home-watch-mode" role="group" aria-label="Trafik kapsamı">
+          <span class="home-watch-ctrl-label">Kapsam</span>
+          {% for m in modes %}
+            <button type="button"
+                    class="home-watch-mode-btn{% if m.id == default_mode %} is-active{% endif %}"
+                    data-home-watch-mode="{{ m.id }}"
+                    aria-pressed="{{ 'true' if m.id == default_mode else 'false' }}">{{ m.label }}</button>
+          {% endfor %}
+        </div>
       </div>
 
       {% set cats = category_rows if category_rows is defined and category_rows else rows %}
@@ -399,7 +506,17 @@
   if (!root || root.__homeWatchBound) return;
   root.__homeWatchBound = true;
 
-  var KEY = 'pc-home-watch-mode';
+  var MODE_KEY = 'pc-home-watch-mode';
+  var PLAT_KEY = 'pc-home-watch-platform';
+
+  function collapseExpands() {
+    root.querySelectorAll('tr.is-expanded').forEach(function (tr) { tr.classList.remove('is-expanded'); });
+    root.querySelectorAll('.home-watch-child-row.is-open').forEach(function (tr) { tr.classList.remove('is-open'); });
+    root.querySelectorAll('[data-home-watch-expand]').forEach(function (btn) {
+      btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+
   function setMode(mode) {
     mode = (mode === 'tree') ? 'tree' : 'exact';
     root.setAttribute('data-watch-mode', mode);
@@ -408,22 +525,38 @@
       btn.classList.toggle('is-active', on);
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    if (mode !== 'tree') {
-      root.querySelectorAll('tr.is-expanded').forEach(function (tr) { tr.classList.remove('is-expanded'); });
-      root.querySelectorAll('.home-watch-child-row.is-open').forEach(function (tr) { tr.classList.remove('is-open'); });
-      root.querySelectorAll('[data-home-watch-expand]').forEach(function (btn) {
-        btn.setAttribute('aria-expanded', 'false');
-      });
-    }
-    try { localStorage.setItem(KEY, mode); } catch (e) {}
+    if (mode !== 'tree') collapseExpands();
+    try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
+  }
+
+  function setPlatform(plat) {
+    plat = (plat === 'web' || plat === 'mweb') ? plat : 'all';
+    root.setAttribute('data-watch-platform', plat);
+    root.querySelectorAll('[data-home-watch-platform]').forEach(function (btn) {
+      var on = btn.getAttribute('data-home-watch-platform') === plat;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    collapseExpands();
+    try { localStorage.setItem(PLAT_KEY, plat); } catch (e) {}
   }
 
   try {
-    var saved = localStorage.getItem(KEY);
-    if (saved === 'tree' || saved === 'exact') setMode(saved);
+    var savedMode = localStorage.getItem(MODE_KEY);
+    if (savedMode === 'tree' || savedMode === 'exact') setMode(savedMode);
+  } catch (e) {}
+  try {
+    var savedPlat = localStorage.getItem(PLAT_KEY);
+    if (savedPlat === 'all' || savedPlat === 'web' || savedPlat === 'mweb') setPlatform(savedPlat);
   } catch (e) {}
 
   root.addEventListener('click', function (ev) {
+    var platBtn = ev.target && ev.target.closest && ev.target.closest('[data-home-watch-platform]');
+    if (platBtn) {
+      ev.preventDefault();
+      setPlatform(platBtn.getAttribute('data-home-watch-platform') || 'all');
+      return;
+    }
     var modeBtn = ev.target && ev.target.closest && ev.target.closest('[data-home-watch-mode]');
     if (modeBtn) {
       ev.preventDefault();
@@ -435,14 +568,27 @@
     ev.preventDefault();
     if (root.getAttribute('data-watch-mode') !== 'tree') setMode('tree');
     var idx = exp.getAttribute('data-home-watch-expand');
+    var plat = exp.getAttribute('data-home-watch-expand-plat') || root.getAttribute('data-watch-platform') || 'all';
     var parent = root.querySelector('tr[data-home-watch-parent="' + idx + '"]');
     if (!parent) return;
     var open = !parent.classList.contains('is-expanded');
+    // close other expands for this parent first
+    root.querySelectorAll('.home-watch-child-row[data-parent-idx="' + idx + '"]').forEach(function (tr) {
+      tr.classList.remove('is-open');
+    });
     parent.classList.toggle('is-expanded', open);
     exp.setAttribute('aria-expanded', open ? 'true' : 'false');
-    root.querySelectorAll('.home-watch-child-row[data-parent-idx="' + idx + '"]').forEach(function (tr) {
-      tr.classList.toggle('is-open', open);
-    });
+    if (open) {
+      root.querySelectorAll('.home-watch-child-row[data-parent-idx="' + idx + '"][data-platform="' + plat + '"]').forEach(function (tr) {
+        tr.classList.add('is-open');
+      });
+      // fallback: children without platform attr
+      if (!root.querySelector('.home-watch-child-row[data-parent-idx="' + idx + '"][data-platform="' + plat + '"]')) {
+        root.querySelectorAll('.home-watch-child-row[data-parent-idx="' + idx + '"]:not([data-platform])').forEach(function (tr) {
+          tr.classList.add('is-open');
+        });
+      }
+    }
   });
 })();
 </script>

@@ -85,9 +85,10 @@ WATCH_URLS = WATCH_CATEGORIES
 
 _PERIODS = (1, 7, 30)
 _CACHE_TTL_SEC = 600.0
-_CACHE_VERSION = 3
+_CACHE_VERSION = 4
 _TOP_CHILDREN = 12
 _ROW_LIMIT = 8000
+_PLATFORMS = ("all", "web", "mweb")
 _cache: dict[str, Any] = {"at": 0.0, "version": 0, "payload": None}
 
 
@@ -396,21 +397,29 @@ def _normalize_property_id(raw: str) -> str:
     return prop
 
 
-def _resolve_web_mweb_properties(db: Session, site_id: int = 1) -> list[str]:
+def _resolve_profile_properties(db: Session, site_id: int = 1) -> list[tuple[str, str]]:
+    """[(profile, property_id), ...] — web / mweb sırası."""
     record = get_ga4_credentials_record(db, site_id)
     props = load_ga4_properties(record) or {}
-    out: list[str] = []
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
     for key in ("web", "mweb"):
         pid = _normalize_property_id(str(props.get(key) or ""))
-        if pid and pid not in out:
-            out.append(pid)
+        if pid and pid not in seen:
+            out.append((key, pid))
+            seen.add(pid)
     if not out:
         for v in props.values():
             pid = _normalize_property_id(str(v or ""))
-            if pid and pid not in out:
-                out.append(pid)
+            if pid and pid not in seen:
+                out.append(("web", pid))
                 break
     return out
+
+
+def _resolve_web_mweb_properties(db: Session, site_id: int = 1) -> list[str]:
+    """Geriye dönük: yalnız property id listesi."""
+    return [pid for _, pid in _resolve_profile_properties(db, site_id)]
 
 
 def _period_cell(last_v: float, prev_v: float, days: int, meta: dict[str, str]) -> dict[str, Any]:
@@ -486,7 +495,7 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
         return dict(_cache["payload"])
 
     targets = _watch_targets()
-    property_ids = _resolve_web_mweb_properties(db, 1)
+    profiles = _resolve_profile_properties(db, 1)
     period_meta: dict[int, dict[str, str]] = {}
     for days in _PERIODS:
         (ls, le), (ps, pe) = _calendar_windows(days)
@@ -495,19 +504,20 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
             "previous_label": _fmt_range(ps, pe),
         }
 
-    exact_by_period: dict[int, dict[str, dict[str, float]]] = {
-        d: _empty_mode_maps(targets) for d in _PERIODS
+    # platform -> days -> url -> {last, prev}
+    exact_maps: dict[str, dict[int, dict[str, dict[str, float]]]] = {
+        p: {d: _empty_mode_maps(targets) for d in _PERIODS} for p in _PLATFORMS
     }
-    tree_by_period: dict[int, dict[str, dict[str, float]]] = {
-        d: _empty_mode_maps(targets) for d in _PERIODS
+    tree_maps: dict[str, dict[int, dict[str, dict[str, float]]]] = {
+        p: {d: _empty_mode_maps(targets) for d in _PERIODS} for p in _PLATFORMS
     }
-    # url -> path -> days -> {last, prev}
-    children: dict[str, dict[str, dict[int, dict[str, float]]]] = {
-        t["url"]: {} for t in targets
+    # platform -> url -> path -> days -> {last, prev}
+    children_maps: dict[str, dict[str, dict[str, dict[int, dict[str, float]]]]] = {
+        p: {t["url"]: {} for t in targets} for p in _PLATFORMS
     }
 
     error = None
-    if not property_ids:
+    if not profiles:
         error = "GA4 web property bulunamadı"
     else:
         try:
@@ -515,75 +525,80 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
             dim_filter = _build_tree_filter(targets)
             for days in _PERIODS:
                 (last_start, last_end), (prev_start, prev_end) = _calendar_windows(days)
-                for pid in property_ids:
+                for profile, pid in profiles:
                     last_rows = _run_range_rows(
                         client, pid, start=last_start, end=last_end, dim_filter=dim_filter
                     )
                     prev_rows = _run_range_rows(
                         client, pid, start=prev_start, end=prev_end, dim_filter=dim_filter
                     )
-                    # children accumulators for this period slot
-                    child_slot_maps: dict[str, dict[str, dict[str, float]]] = {
-                        t["url"]: {} for t in targets
-                    }
-                    _accumulate_rows(
-                        last_rows,
-                        targets=targets,
-                        slot="last",
-                        exact_map=exact_by_period[days],
-                        tree_map=tree_by_period[days],
-                        children=child_slot_maps,
-                    )
-                    _accumulate_rows(
-                        prev_rows,
-                        targets=targets,
-                        slot="prev",
-                        exact_map=exact_by_period[days],
-                        tree_map=tree_by_period[days],
-                        children=child_slot_maps,
-                    )
-                    for url, path_map in child_slot_maps.items():
-                        dest = children.setdefault(url, {})
-                        for path, bucket in path_map.items():
-                            by_days = dest.setdefault(path, {})
-                            cur = by_days.setdefault(days, {"last": 0.0, "prev": 0.0})
-                            cur["last"] += float(bucket.get("last") or 0.0)
-                            cur["prev"] += float(bucket.get("prev") or 0.0)
+                    for plat in (profile, "all"):
+                        child_slot: dict[str, dict[str, dict[str, float]]] = {
+                            t["url"]: {} for t in targets
+                        }
+                        _accumulate_rows(
+                            last_rows,
+                            targets=targets,
+                            slot="last",
+                            exact_map=exact_maps[plat][days],
+                            tree_map=tree_maps[plat][days],
+                            children=child_slot,
+                        )
+                        _accumulate_rows(
+                            prev_rows,
+                            targets=targets,
+                            slot="prev",
+                            exact_map=exact_maps[plat][days],
+                            tree_map=tree_maps[plat][days],
+                            children=child_slot,
+                        )
+                        dest_root = children_maps[plat]
+                        for url, path_map in child_slot.items():
+                            dest = dest_root.setdefault(url, {})
+                            for path, bucket in path_map.items():
+                                by_days = dest.setdefault(path, {})
+                                cur = by_days.setdefault(days, {"last": 0.0, "prev": 0.0})
+                                cur["last"] += float(bucket.get("last") or 0.0)
+                                cur["prev"] += float(bucket.get("prev") or 0.0)
         except Exception as exc:
             LOGGER.exception("home watch-urls fetch failed")
             error = str(exc)
 
+    def _periods_for(maps: dict[str, dict[int, dict[str, dict[str, float]]]], plat: str, url: str) -> list[dict[str, Any]]:
+        out = []
+        for days in _PERIODS:
+            bucket = ((maps.get(plat) or {}).get(days) or {}).get(url) or {}
+            out.append(
+                _period_cell(
+                    float(bucket.get("last") or 0.0),
+                    float(bucket.get("prev") or 0.0),
+                    days,
+                    period_meta[days],
+                )
+            )
+        return out
+
     rows: list[dict[str, Any]] = []
     for t in targets:
         url = t["url"]
-        exact_periods = []
-        tree_periods = []
-        for days in _PERIODS:
-            eb = (exact_by_period.get(days) or {}).get(url) or {}
-            tb = (tree_by_period.get(days) or {}).get(url) or {}
-            exact_periods.append(
-                _period_cell(
-                    float(eb.get("last") or 0.0),
-                    float(eb.get("prev") or 0.0),
-                    days,
-                    period_meta[days],
-                )
-            )
-            tree_periods.append(
-                _period_cell(
-                    float(tb.get("last") or 0.0),
-                    float(tb.get("prev") or 0.0),
-                    days,
-                    period_meta[days],
-                )
-            )
-        # Dinamik alt path listesi: kategoriler + tree scope hub’lar
         want_children = t.get("kind") == "category" or t.get("scope") == "tree"
-        child_rows = (
-            _format_children(t, children.get(url) or {}, period_meta)
-            if want_children
-            else []
-        )
+        by_platform: dict[str, Any] = {}
+        for plat in _PLATFORMS:
+            exact_periods = _periods_for(exact_maps, plat, url)
+            tree_periods = _periods_for(tree_maps, plat, url)
+            child_rows = (
+                _format_children(t, (children_maps.get(plat) or {}).get(url) or {}, period_meta)
+                if want_children
+                else []
+            )
+            by_platform[plat] = {
+                "periods_exact": exact_periods,
+                "periods_tree": tree_periods,
+                "children": child_rows,
+                "children_count": len(child_rows),
+            }
+        # Varsayılan görünüm: all
+        all_block = by_platform["all"]
         rows.append(
             {
                 "url": url,
@@ -594,11 +609,12 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
                 "host": t["host"],
                 "path": t["path"],
                 "is_root": t["is_root"],
-                "periods_exact": exact_periods,
-                "periods_tree": tree_periods,
-                "periods": exact_periods,
-                "children": child_rows,
-                "children_count": len(child_rows),
+                "by_platform": by_platform,
+                "periods_exact": all_block["periods_exact"],
+                "periods_tree": all_block["periods_tree"],
+                "periods": all_block["periods_exact"],
+                "children": all_block["children"],
+                "children_count": all_block["children_count"],
             }
         )
 
@@ -606,7 +622,7 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
     detail_rows = [r for r in rows if r["kind"] == "detail"]
 
     payload = {
-        "rows": category_rows,  # geriye dönük
+        "rows": category_rows,
         "category_rows": category_rows,
         "detail_rows": detail_rows,
         "error": error,
@@ -617,7 +633,14 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
             {"id": "exact", "label": "Sadece ana sayfa"},
             {"id": "tree", "label": "Alt linklerle birlikte"},
         ],
+        "platforms": [
+            {"id": "all", "label": "Tümü"},
+            {"id": "web", "label": "Web"},
+            {"id": "mweb", "label": "MWeb"},
+        ],
         "default_mode": "exact",
+        "default_platform": "all",
+        "available_platforms": [p for p, _ in profiles] or ["web"],
     }
     _cache["at"] = now
     _cache["version"] = _CACHE_VERSION
