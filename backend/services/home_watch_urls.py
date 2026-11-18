@@ -85,10 +85,18 @@ WATCH_URLS = WATCH_CATEGORIES
 
 _PERIODS = (1, 7, 30)
 _CACHE_TTL_SEC = 600.0
-_CACHE_VERSION = 4
+_CACHE_VERSION = 5
 _TOP_CHILDREN = 12
 _ROW_LIMIT = 8000
 _PLATFORMS = ("all", "web", "mweb")
+# Desktop alt alan → m.doviz.com path öneki (realtime canonical ile aynı)
+_MWEB_PREFIX_BY_HOST = {
+    "kur.doviz.com": "/kur",
+    "altin.doviz.com": "/altin",
+    "borsa.doviz.com": "/borsa",
+    "haber.doviz.com": "/haber",
+}
+_MWEB_HOST = "m.doviz.com"
 _cache: dict[str, Any] = {"at": 0.0, "version": 0, "payload": None}
 
 
@@ -190,11 +198,28 @@ def _child_label(path: str) -> str:
     return p.rsplit("/", 1)[-1] or p
 
 
+def _mweb_alias_paths(host: str, path: str) -> list[str]:
+    """Desktop host+path → m.doviz.com üzerinde eşdeğer path’ler."""
+    prefix = _MWEB_PREFIX_BY_HOST.get((host or "").strip().lower())
+    if not prefix:
+        return []
+    p = _norm_path(path)
+    if p == "/":
+        return [prefix]
+    # /kur + /serbest-piyasa/... → /kur/serbest-piyasa/...
+    return [prefix + p]
+
+
 def _target_from_item(item: dict[str, str], *, kind: str) -> dict[str, Any]:
     host, path = _parse_url(item["url"])
     scope = str(item.get("scope") or ("tree" if kind == "category" else "exact")).strip().lower()
     if scope not in ("exact", "tree"):
         scope = "exact"
+    mweb_paths = _mweb_alias_paths(host, path)
+    hosts = _hosts_for(host)
+    # Subdomain kategoriler: m.doviz.com satırlarını da host setine ekle (eşleme için)
+    if mweb_paths and _MWEB_HOST not in hosts:
+        hosts = list(hosts) + [_MWEB_HOST]
     return {
         "url": item["url"],
         "label": item["label"],
@@ -203,9 +228,11 @@ def _target_from_item(item: dict[str, str], *, kind: str) -> dict[str, Any]:
         "scope": scope,
         "host": host,
         "path": path,
-        "hosts": _hosts_for(host),
+        "hosts": hosts,
         "paths": _path_variants(path),
         "is_root": path == "/",
+        "mweb_paths": mweb_paths,
+        "mweb_prefix": _MWEB_PREFIX_BY_HOST.get(host) or "",
     }
 
 
@@ -240,47 +267,106 @@ def _host_group(hosts: list[str]) -> FilterExpression:
     return FilterExpression(or_group=FilterExpressionList(expressions=exprs))
 
 
-def _build_tree_filter(targets: list[dict[str, Any]]) -> FilterExpression:
-    """Ana + alt path’leri kapsayan geniş filtre (tek rapordan exact/tree ayrıştırılır)."""
+def _path_filter_exprs(paths_exact: list[str], *, prefixes: list[str] | None = None) -> list[FilterExpression]:
     exprs: list[FilterExpression] = []
-    # Aynı root host bir kez yeter (kur/altın/borsa/haber).
-    root_hosts_done: set[str] = set()
-    for t in targets:
-        host_g = _host_group(t["hosts"])
-        if t["is_root"]:
-            key = ",".join(t["hosts"])
-            if key in root_hosts_done:
+    seen: set[str] = set()
+    for p in paths_exact:
+        variants = _path_variants(p) if p != "/" else ["/"]
+        # root-like aliases (/kur): both /kur and /kur/
+        if p != "/" and not p.endswith("/"):
+            variants = list(dict.fromkeys(variants + [p, p + "/"]))
+        for v in variants:
+            key = f"exact:{v}"
+            if key in seen:
                 continue
-            root_hosts_done.add(key)
-            exprs.append(host_g)
-            continue
-        path_exprs: list[FilterExpression] = [
-            FilterExpression(
-                filter=Filter(
-                    field_name="pagePath",
-                    string_filter=Filter.StringFilter(
-                        match_type=Filter.StringFilter.MatchType.EXACT,
-                        value=p,
-                        case_sensitive=False,
-                    ),
-                )
-            )
-            for p in t["paths"]
-        ]
-        # Section hub veya kategori: alt path’leri de çek
-        if not (t.get("kind") == "detail" and t.get("scope") == "exact"):
-            path_exprs.append(
+            seen.add(key)
+            exprs.append(
                 FilterExpression(
                     filter=Filter(
                         field_name="pagePath",
                         string_filter=Filter.StringFilter(
-                            match_type=Filter.StringFilter.MatchType.BEGINS_WITH,
-                            value=t["path"] + "/",
+                            match_type=Filter.StringFilter.MatchType.EXACT,
+                            value=v,
                             case_sensitive=False,
                         ),
                     )
                 )
             )
+    for pref in prefixes or []:
+        if not pref or pref == "/":
+            continue
+        key = f"prefix:{pref}/"
+        if key in seen:
+            continue
+        seen.add(key)
+        exprs.append(
+            FilterExpression(
+                filter=Filter(
+                    field_name="pagePath",
+                    string_filter=Filter.StringFilter(
+                        match_type=Filter.StringFilter.MatchType.BEGINS_WITH,
+                        value=pref + "/",
+                        case_sensitive=False,
+                    ),
+                )
+            )
+        )
+    return exprs
+
+
+def _build_tree_filter(targets: list[dict[str, Any]]) -> FilterExpression:
+    """Ana + alt path’leri kapsayan geniş filtre (tek rapordan exact/tree ayrıştırılır)."""
+    exprs: list[FilterExpression] = []
+    root_hosts_done: set[str] = set()
+    mweb_prefixes_done: set[str] = set()
+    www_hosts = ["www.doviz.com", "m.doviz.com"]
+
+    for t in targets:
+        desktop_hosts = [h for h in t["hosts"] if h != _MWEB_HOST]
+
+        # kur/altın/borsa/haber desktop host — tüm path’ler
+        if t["is_root"] and desktop_hosts:
+            key = ",".join(desktop_hosts)
+            if key not in root_hosts_done:
+                root_hosts_done.add(key)
+                exprs.append(_host_group(desktop_hosts))
+
+        # m.doviz.com /kur|/altin|/borsa|/haber (prefix bir kez)
+        mweb_prefix = str(t.get("mweb_prefix") or "")
+        if mweb_prefix and mweb_prefix not in mweb_prefixes_done:
+            mweb_prefixes_done.add(mweb_prefix)
+            path_exprs = _path_filter_exprs([mweb_prefix], prefixes=[mweb_prefix])
+            path_g = (
+                path_exprs[0]
+                if len(path_exprs) == 1
+                else FilterExpression(or_group=FilterExpressionList(expressions=path_exprs))
+            )
+            exprs.append(
+                FilterExpression(
+                    and_group=FilterExpressionList(
+                        expressions=[_host_group([_MWEB_HOST]), path_g]
+                    )
+                )
+            )
+
+        if t["is_root"]:
+            continue
+
+        # www / section path’leri (emtia, pariteler, akaryakit, …)
+        # subdomain detail’ler zaten root host + mweb prefix ile kapsanır
+        if t["host"] in _MWEB_PREFIX_BY_HOST:
+            continue
+
+        hosts = desktop_hosts or list(www_hosts)
+        # www hedeflerinde m. host da olsun
+        if t["host"].startswith("www.") and _MWEB_HOST not in hosts:
+            hosts = list(hosts) + [_MWEB_HOST]
+        host_g = _host_group(hosts)
+        want_tree = not (t.get("kind") == "detail" and t.get("scope") == "exact")
+        prefixes = [t["path"]] if want_tree and t["path"] != "/" else []
+        path_exprs = _path_filter_exprs(t["paths"], prefixes=prefixes)
+        if not path_exprs:
+            continue
         path_g = (
             path_exprs[0]
             if len(path_exprs) == 1
@@ -297,20 +383,40 @@ def _build_tree_filter(targets: list[dict[str, Any]]) -> FilterExpression:
 def _path_is_exact(target: dict[str, Any], host: str, path: str) -> bool:
     h = (host or "").strip().lower()
     p = _norm_path(path)
-    return h in target["hosts"] and p == target["path"]
+    desktop_hosts = {x for x in (target.get("hosts") or []) if x != _MWEB_HOST}
+    if h in desktop_hosts and p == target["path"]:
+        return True
+    # m.doviz.com /kur/... ↔ kur.doviz.com/...
+    if h == _MWEB_HOST:
+        for mp in target.get("mweb_paths") or []:
+            if p == _norm_path(mp):
+                return True
+    return False
 
 
 def _path_belongs_tree(target: dict[str, Any], host: str, path: str) -> bool:
     h = (host or "").strip().lower()
-    if h not in target["hosts"]:
-        return False
-    # Leaf detail: tree == exact (alt path toplama)
+    p = _norm_path(path)
+    # Leaf detail: tree == exact
     if target.get("scope") == "exact" and target.get("kind") == "detail":
         return _path_is_exact(target, host, path)
-    p = _norm_path(path)
-    if target["is_root"]:
-        return True
-    return p == target["path"] or p.startswith(target["path"] + "/")
+
+    desktop_hosts = {x for x in (target.get("hosts") or []) if x != _MWEB_HOST}
+    if h in desktop_hosts:
+        if target["is_root"]:
+            return True
+        return p == target["path"] or p.startswith(target["path"] + "/")
+
+    # mweb alias tree
+    if h == _MWEB_HOST:
+        prefix = str(target.get("mweb_prefix") or "")
+        if target["is_root"] and prefix:
+            return p == _norm_path(prefix) or p.startswith(prefix + "/")
+        for mp in target.get("mweb_paths") or []:
+            mp_n = _norm_path(mp)
+            if p == mp_n or p.startswith(mp_n + "/"):
+                return True
+    return False
 
 
 def _match_exact_key(host: str, path: str, targets: list[dict[str, Any]]) -> str | None:

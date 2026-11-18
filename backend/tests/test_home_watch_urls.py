@@ -55,6 +55,33 @@ def test_exact_vs_tree_matching():
     assert not _path_belongs_tree(usd, "kur.doviz.com", "/serbest-piyasa/amerikan-dolari/extra")
 
 
+def test_mweb_path_aliases():
+    """m.doviz.com/kur|altin|borsa ↔ desktop subdomain."""
+    from backend.services.home_watch_urls import _mweb_alias_paths
+
+    assert _mweb_alias_paths("kur.doviz.com", "/") == ["/kur"]
+    assert _mweb_alias_paths("kur.doviz.com", "/serbest-piyasa/amerikan-dolari") == [
+        "/kur/serbest-piyasa/amerikan-dolari"
+    ]
+    assert _mweb_alias_paths("altin.doviz.com", "/gram-altin") == ["/altin/gram-altin"]
+    assert _mweb_alias_paths("www.doviz.com", "/emtia") == []
+
+    targets = _watch_targets()
+    assert _match_exact_key("m.doviz.com", "/kur", targets) == "https://kur.doviz.com/"
+    assert _match_exact_key("m.doviz.com", "/kur/serbest-piyasa/amerikan-dolari", targets) == (
+        "https://kur.doviz.com/serbest-piyasa/amerikan-dolari"
+    )
+    assert "https://kur.doviz.com/" in _match_tree_keys(
+        "m.doviz.com", "/kur/harem/amerikan-dolari", targets
+    )
+    assert _match_exact_key("m.doviz.com", "/altin/gram-altin", targets) == (
+        "https://altin.doviz.com/gram-altin"
+    )
+    assert "https://borsa.doviz.com/" in _match_tree_keys(
+        "m.doviz.com", "/borsa/hisseler", targets
+    )
+
+
 def test_pct_delta_tones():
     fmt, tone, pct = _pct_delta(120, 100)
     assert fmt == "+20.0%"
