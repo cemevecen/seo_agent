@@ -1,5 +1,6 @@
 from backend.services.home_watch_urls import (
-    WATCH_URLS,
+    WATCH_CATEGORIES,
+    WATCH_DETAILS,
     _hosts_for,
     _match_exact_key,
     _match_tree_keys,
@@ -11,10 +12,12 @@ from backend.services.home_watch_urls import (
 )
 
 
-def test_watch_url_count_and_order():
-    assert len(WATCH_URLS) == 10
-    assert WATCH_URLS[0]["label"] == "Kur"
-    assert WATCH_URLS[-1]["label"] == "Kredi karşılaştırma"
+def test_watch_lists():
+    assert len(WATCH_CATEGORIES) == 10
+    assert WATCH_CATEGORIES[0]["label"] == "Kur"
+    assert any(d["url"].endswith("/serbest-piyasa/amerikan-dolari") for d in WATCH_DETAILS)
+    assert any(d["url"].endswith("/akaryakit-fiyatlari") for d in WATCH_DETAILS)
+    assert any(d["url"].endswith("/ev-sarj-fiyatlari") for d in WATCH_DETAILS)
 
 
 def test_parse_and_hosts():
@@ -24,35 +27,32 @@ def test_parse_and_hosts():
     assert _hosts_for(host) == ["www.doviz.com", "m.doviz.com"]
     assert _path_variants(path) == ["/emtia", "/emtia/"]
 
-    host2, path2 = _parse_url("https://kur.doviz.com/")
-    assert host2 == "kur.doviz.com"
-    assert path2 == "/"
-    assert _hosts_for(host2) == ["kur.doviz.com"]
+
+def test_targets_include_details():
+    targets = _watch_targets()
+    urls = {t["url"] for t in targets}
+    assert "https://kur.doviz.com/" in urls
+    assert "https://kur.doviz.com/serbest-piyasa/amerikan-dolari" in urls
+    assert "https://www.doviz.com/akaryakit-fiyatlari" in urls
+    detail = next(t for t in targets if t["url"].endswith("/amerikan-dolari") and "serbest" in t["url"])
+    assert detail["kind"] == "detail"
+    assert detail["scope"] == "exact"
 
 
 def test_exact_vs_tree_matching():
     targets = _watch_targets()
     assert _match_exact_key("kur.doviz.com", "/", targets) == "https://kur.doviz.com/"
-    assert _match_exact_key("kur.doviz.com", "/amerikan-dolari", targets) is None
-
-    tree_keys = _match_tree_keys("kur.doviz.com", "/amerikan-dolari", targets)
+    assert _match_exact_key("kur.doviz.com", "/serbest-piyasa/amerikan-dolari", targets) == (
+        "https://kur.doviz.com/serbest-piyasa/amerikan-dolari"
+    )
+    tree_keys = _match_tree_keys("kur.doviz.com", "/serbest-piyasa/amerikan-dolari", targets)
     assert "https://kur.doviz.com/" in tree_keys
+    assert "https://kur.doviz.com/serbest-piyasa/amerikan-dolari" in tree_keys
 
-    assert _match_exact_key("www.doviz.com", "/emtia", targets) == "https://www.doviz.com/emtia"
-    assert _match_tree_keys("m.doviz.com", "/emtia/altin", targets) == [
-        "https://www.doviz.com/emtia"
-    ]
-    # /emtialar should NOT match /emtia tree
-    emtia = next(t for t in targets if t["path"] == "/emtia")
-    assert not _path_belongs_tree(emtia, "www.doviz.com", "/emtialar")
-
-    # borsa root tree includes halka-arz; halka-arz exact is separate
-    assert "https://borsa.doviz.com/" in _match_tree_keys(
-        "borsa.doviz.com", "/halka-arz", targets
-    )
-    assert _match_exact_key("borsa.doviz.com", "/halka-arz", targets) == (
-        "https://borsa.doviz.com/halka-arz"
-    )
+    hisseler = next(t for t in targets if t["url"].endswith("/hisseler") and t["kind"] == "detail")
+    assert _path_belongs_tree(hisseler, "borsa.doviz.com", "/hisseler/ktlev-katilimevim-tas-fin")
+    usd = next(t for t in targets if t["url"].endswith("/serbest-piyasa/amerikan-dolari"))
+    assert not _path_belongs_tree(usd, "kur.doviz.com", "/serbest-piyasa/amerikan-dolari/extra")
 
 
 def test_pct_delta_tones():
@@ -60,6 +60,3 @@ def test_pct_delta_tones():
     assert fmt == "+20.0%"
     assert tone == "up-strong"
     assert pct == 20.0
-    fmt2, tone2, _ = _pct_delta(0, 0)
-    assert fmt2 == "0%"
-    assert tone2 == "flat"

@@ -1,4 +1,4 @@
-{# Ana sayfa — izlenen Döviz URL: ana sayfa / alt linklerle · 1g/7g/30g #}
+{# Ana sayfa — Döviz kategori + önemli alt sayfa trafiği #}
 {% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 <style>
   .home-watch-urls {
@@ -41,8 +41,18 @@
     border-color: rgb(228 228 231);
     color: #18181b;
   }
+  .home-watch-block-title {
+    margin: 1rem 0 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+  html.dark .home-watch-block-title,
+  html.charcoal .home-watch-block-title { color: #94a3b8; }
   .home-watch-table-wrap {
-    margin-top: 0.75rem;
+    margin-top: 0.35rem;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: 0.9rem;
@@ -94,7 +104,7 @@
     flex-direction: column;
     gap: 0.12rem;
     min-width: 0;
-    max-width: 16rem;
+    max-width: 18rem;
   }
   .home-watch-url-row {
     display: flex;
@@ -111,6 +121,23 @@
   .home-watch-url a:hover { text-decoration: underline; }
   html.dark .home-watch-url a,
   html.charcoal .home-watch-url a { color: #e2e8f0; }
+  .home-watch-group {
+    display: inline-block;
+    margin-right: 0.25rem;
+    border-radius: 9999px;
+    background: rgb(226 232 240 / 0.9);
+    color: #475569;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 0.08rem 0.4rem;
+    text-transform: uppercase;
+  }
+  html.dark .home-watch-group,
+  html.charcoal .home-watch-group {
+    background: rgb(63 63 70);
+    color: #a1a1aa;
+  }
   .home-watch-host {
     color: #64748b;
     font-size: 0.68rem;
@@ -216,6 +243,88 @@
   }
 </style>
 
+{% macro watch_period_cells(row) -%}
+  {% for p in row.periods_exact %}
+    <td>
+      <div class="home-watch-period home-watch-mode-vals" data-mode="exact"
+           title="{{ p.current_label }} · önceki {{ p.previous_label }}">
+        <span class="cur">{{ p.last_fmt }}</span>
+        <span class="delta{% if p.delta_tone and p.delta_tone != 'flat' %} is-{{ p.delta_tone }}{% endif %}">{{ p.delta_fmt }}</span>
+        <span class="prev">önceki {{ p.prev_fmt }}</span>
+      </div>
+      {% set pt = row.periods_tree[loop.index0] %}
+      <div class="home-watch-period home-watch-mode-vals" data-mode="tree"
+           title="{{ pt.current_label }} · önceki {{ pt.previous_label }}">
+        <span class="cur">{{ pt.last_fmt }}</span>
+        <span class="delta{% if pt.delta_tone and pt.delta_tone != 'flat' %} is-{{ pt.delta_tone }}{% endif %}">{{ pt.delta_fmt }}</span>
+        <span class="prev">önceki {{ pt.prev_fmt }}</span>
+      </div>
+    </td>
+  {% endfor %}
+{%- endmacro %}
+
+{% macro watch_table(block_rows, id_prefix, show_group=false) -%}
+  {% if block_rows %}
+  <div class="home-watch-table-wrap">
+    <table class="home-watch-table">
+      <thead>
+        <tr>
+          <th scope="col">Sayfa</th>
+          {% for p in block_rows[0].periods_exact %}
+            <th scope="col" title="{{ p.current_label }} vs {{ p.previous_label }}">{{ p.title }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in block_rows %}
+          {% set parent_idx = id_prefix ~ '-' ~ loop.index0 %}
+          <tr data-home-watch-parent="{{ parent_idx }}">
+            <td>
+              <div class="home-watch-url">
+                <div class="home-watch-url-row">
+                  {% if show_group and row.group %}
+                    <span class="home-watch-group">{{ row.group }}</span>
+                  {% endif %}
+                  <a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.label }}</a>
+                  {% if row.children_count %}
+                    <button type="button"
+                            class="home-watch-expand"
+                            data-home-watch-expand="{{ parent_idx }}"
+                            aria-expanded="false"
+                            title="En çok trafik alan alt linkler">+{{ row.children_count }}</button>
+                  {% endif %}
+                </div>
+                <span class="home-watch-host" title="{{ row.url }}">{{ row.host }}{{ row.path }}</span>
+              </div>
+            </td>
+            {{ watch_period_cells(row) }}
+          </tr>
+          {% for child in row.children %}
+            <tr class="home-watch-child-row" data-parent-idx="{{ parent_idx }}">
+              <td>
+                <div class="home-watch-child-url" style="padding-left:0.85rem">
+                  <a href="{{ child.url }}" target="_blank" rel="noopener noreferrer">{{ child.label }}</a>
+                  <span class="home-watch-child-path">{{ child.path }}</span>
+                </div>
+              </td>
+              {% for p in child.periods %}
+                <td>
+                  <div class="home-watch-period" title="{{ p.current_label }} · önceki {{ p.previous_label }}">
+                    <span class="cur">{{ p.last_fmt }}</span>
+                    <span class="delta{% if p.delta_tone and p.delta_tone != 'flat' %} is-{{ p.delta_tone }}{% endif %}">{{ p.delta_fmt }}</span>
+                    <span class="prev">önceki {{ p.prev_fmt }}</span>
+                  </div>
+                </td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+{%- endmacro %}
+
 <div class="home-watch-urls home-readable is-open" data-home-shell-root data-watch-mode="exact" data-home-watch-root>
   <div class="home-shell-head">
     <button type="button"
@@ -229,7 +338,7 @@
           {{ brand_icon('doviz', 'sm') }}
         </div>
         <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">
-          Son 1 gün / 1 hafta / 1 ay sessions · önceki dönemle karşılaştırma
+          Kategoriler + önemli alt sayfalar · 1g / 7g / 30g sessions
         </p>
       </div>
     </button>
@@ -246,7 +355,7 @@
   <div id="home-watch-urls-body" class="home-shell-body" data-home-shell-body>
     {% if error %}
       <p class="home-meta mt-3 text-rose-600 dark:text-rose-400">{{ error }}</p>
-    {% elif rows %}
+    {% elif category_rows or detail_rows or rows %}
       <div class="home-watch-mode" role="group" aria-label="Trafik kapsamı">
         {% for m in modes %}
           <button type="button"
@@ -255,78 +364,18 @@
                   aria-pressed="{{ 'true' if m.id == default_mode else 'false' }}">{{ m.label }}</button>
         {% endfor %}
       </div>
-      <div class="home-watch-table-wrap">
-        <table class="home-watch-table">
-          <thead>
-            <tr>
-              <th scope="col">Sayfa</th>
-              {% for p in rows[0].periods_exact %}
-                <th scope="col" title="{{ p.current_label }} vs {{ p.previous_label }}">
-                  {{ p.title }}
-                </th>
-              {% endfor %}
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in rows %}
-              {% set parent_idx = loop.index0 %}
-              <tr data-home-watch-parent="{{ parent_idx }}">
-                <td>
-                  <div class="home-watch-url">
-                    <div class="home-watch-url-row">
-                      <a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.label }}</a>
-                      {% if row.children_count %}
-                        <button type="button"
-                                class="home-watch-expand"
-                                data-home-watch-expand="{{ parent_idx }}"
-                                aria-expanded="false"
-                                title="En çok trafik alan alt linkler">+{{ row.children_count }}</button>
-                      {% endif %}
-                    </div>
-                    <span class="home-watch-host" title="{{ row.url }}">{{ row.host }}{{ row.path }}</span>
-                  </div>
-                </td>
-                {% for p in row.periods_exact %}
-                  <td>
-                    <div class="home-watch-period home-watch-mode-vals" data-mode="exact"
-                         title="{{ p.current_label }} · önceki {{ p.previous_label }}">
-                      <span class="cur">{{ p.last_fmt }}</span>
-                      <span class="delta{% if p.delta_tone and p.delta_tone != 'flat' %} is-{{ p.delta_tone }}{% endif %}">{{ p.delta_fmt }}</span>
-                      <span class="prev">önceki {{ p.prev_fmt }}</span>
-                    </div>
-                    {% set pt = row.periods_tree[loop.index0] %}
-                    <div class="home-watch-period home-watch-mode-vals" data-mode="tree"
-                         title="{{ pt.current_label }} · önceki {{ pt.previous_label }} · alt linkler dahil">
-                      <span class="cur">{{ pt.last_fmt }}</span>
-                      <span class="delta{% if pt.delta_tone and pt.delta_tone != 'flat' %} is-{{ pt.delta_tone }}{% endif %}">{{ pt.delta_fmt }}</span>
-                      <span class="prev">önceki {{ pt.prev_fmt }}</span>
-                    </div>
-                  </td>
-                {% endfor %}
-              </tr>
-              {% for child in row.children %}
-                <tr class="home-watch-child-row" data-parent-idx="{{ parent_idx }}">
-                  <td>
-                    <div class="home-watch-child-url" style="padding-left:0.85rem">
-                      <a href="{{ child.url }}" target="_blank" rel="noopener noreferrer">{{ child.label }}</a>
-                      <span class="home-watch-child-path">{{ child.path }}</span>
-                    </div>
-                  </td>
-                  {% for p in child.periods %}
-                    <td>
-                      <div class="home-watch-period" title="{{ p.current_label }} · önceki {{ p.previous_label }}">
-                        <span class="cur">{{ p.last_fmt }}</span>
-                        <span class="delta{% if p.delta_tone and p.delta_tone != 'flat' %} is-{{ p.delta_tone }}{% endif %}">{{ p.delta_fmt }}</span>
-                        <span class="prev">önceki {{ p.prev_fmt }}</span>
-                      </div>
-                    </td>
-                  {% endfor %}
-                </tr>
-              {% endfor %}
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+
+      {% set cats = category_rows if category_rows is defined and category_rows else rows %}
+      {% set details = detail_rows if detail_rows is defined else [] %}
+
+      <p class="home-watch-block-title">Ana kategoriler</p>
+      {{ watch_table(cats, 'cat', false) }}
+
+      {% if details %}
+        <p class="home-watch-block-title">Önemli alt sayfalar</p>
+        {{ watch_table(details, 'det', true) }}
+      {% endif %}
+
       {% if period_meta %}
         <p class="home-meta mt-2 text-slate-400 dark:text-slate-500">
           {% if period_meta['1'] %}1g {{ period_meta['1'].current_label }} vs {{ period_meta['1'].previous_label }}{% endif %}
@@ -360,12 +409,8 @@
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     if (mode !== 'tree') {
-      root.querySelectorAll('tr.is-expanded').forEach(function (tr) {
-        tr.classList.remove('is-expanded');
-      });
-      root.querySelectorAll('.home-watch-child-row.is-open').forEach(function (tr) {
-        tr.classList.remove('is-open');
-      });
+      root.querySelectorAll('tr.is-expanded').forEach(function (tr) { tr.classList.remove('is-expanded'); });
+      root.querySelectorAll('.home-watch-child-row.is-open').forEach(function (tr) { tr.classList.remove('is-open'); });
       root.querySelectorAll('[data-home-watch-expand]').forEach(function (btn) {
         btn.setAttribute('aria-expanded', 'false');
       });

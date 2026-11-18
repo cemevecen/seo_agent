@@ -30,24 +30,65 @@ from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_prope
 
 LOGGER = logging.getLogger(__name__)
 
-WATCH_URLS: list[dict[str, str]] = [
-    {"url": "https://kur.doviz.com/", "label": "Kur"},
-    {"url": "https://altin.doviz.com/", "label": "Altın"},
-    {"url": "https://www.doviz.com/emtia", "label": "Emtia"},
-    {"url": "https://www.doviz.com/pariteler", "label": "Pariteler"},
-    {"url": "https://www.doviz.com/kripto-paralar", "label": "Kripto"},
-    {"url": "https://borsa.doviz.com/", "label": "Borsa"},
-    {"url": "https://borsa.doviz.com/halka-arz", "label": "Halka arz"},
-    {"url": "https://www.doviz.com/yakit-sarj", "label": "Yakıt / şarj"},
-    {"url": "https://haber.doviz.com/", "label": "Haber"},
-    {"url": "https://www.doviz.com/kredi-karsilastirma", "label": "Kredi karşılaştırma"},
+# Ana kategoriler (hub)
+WATCH_CATEGORIES: list[dict[str, str]] = [
+    {"url": "https://kur.doviz.com/", "label": "Kur", "group": "Kur"},
+    {"url": "https://altin.doviz.com/", "label": "Altın", "group": "Altın"},
+    {"url": "https://www.doviz.com/emtia", "label": "Emtia", "group": "Emtia"},
+    {"url": "https://www.doviz.com/pariteler", "label": "Pariteler", "group": "Pariteler"},
+    {"url": "https://www.doviz.com/kripto-paralar", "label": "Kripto", "group": "Kripto"},
+    {"url": "https://borsa.doviz.com/", "label": "Borsa", "group": "Borsa"},
+    {"url": "https://borsa.doviz.com/halka-arz", "label": "Halka arz", "group": "Halka arz"},
+    {"url": "https://www.doviz.com/yakit-sarj", "label": "Yakıt / şarj", "group": "Yakıt"},
+    {"url": "https://haber.doviz.com/", "label": "Haber", "group": "Haber"},
+    {"url": "https://www.doviz.com/kredi-karsilastirma", "label": "Kredi karşılaştırma", "group": "Kredi"},
 ]
+
+# Sabit önemli alt sayfalar / section hub’ları (kullanıcı örnekleri + aynı tip).
+# scope=exact → yalnız o path; scope=tree → path + alt path’ler.
+WATCH_DETAILS: list[dict[str, str]] = [
+    # Kur
+    {"url": "https://kur.doviz.com/serbest-piyasa/amerikan-dolari", "label": "USD · serbest", "group": "Kur", "scope": "exact"},
+    {"url": "https://kur.doviz.com/serbest-piyasa/euro", "label": "EUR · serbest", "group": "Kur", "scope": "exact"},
+    {"url": "https://kur.doviz.com/serbest-piyasa/sterlin", "label": "GBP · serbest", "group": "Kur", "scope": "exact"},
+    {"url": "https://kur.doviz.com/harem/amerikan-dolari", "label": "USD · harem", "group": "Kur", "scope": "exact"},
+    {"url": "https://kur.doviz.com/harem/euro", "label": "EUR · harem", "group": "Kur", "scope": "exact"},
+    # Altın
+    {"url": "https://altin.doviz.com/gram-altin", "label": "Gram altın", "group": "Altın", "scope": "exact"},
+    {"url": "https://altin.doviz.com/ceyrek-altin", "label": "Çeyrek altın", "group": "Altın", "scope": "exact"},
+    {"url": "https://altin.doviz.com/ata-altin", "label": "Ata altın", "group": "Altın", "scope": "exact"},
+    {"url": "https://altin.doviz.com/gumus", "label": "Gümüş", "group": "Altın", "scope": "exact"},
+    {"url": "https://altin.doviz.com/harem", "label": "Harem · altın", "group": "Altın", "scope": "tree"},
+    {"url": "https://altin.doviz.com/harem/gram-altin", "label": "Gram · harem", "group": "Altın", "scope": "exact"},
+    {"url": "https://altin.doviz.com/akbank/gram-altin", "label": "Gram · akbank", "group": "Altın", "scope": "exact"},
+    # Emtia / parite / kripto
+    {"url": "https://www.doviz.com/emtia/brent-petrol", "label": "Brent petrol", "group": "Emtia", "scope": "exact"},
+    {"url": "https://www.doviz.com/emtia/ons-altin", "label": "Ons altın", "group": "Emtia", "scope": "exact"},
+    {"url": "https://www.doviz.com/pariteler/eur-usd", "label": "EUR/USD", "group": "Pariteler", "scope": "exact"},
+    {"url": "https://www.doviz.com/pariteler/gbp-usd", "label": "GBP/USD", "group": "Pariteler", "scope": "exact"},
+    {"url": "https://www.doviz.com/kripto-paralar/bitcoin", "label": "Bitcoin", "group": "Kripto", "scope": "exact"},
+    {"url": "https://www.doviz.com/kripto-paralar/ethereum", "label": "Ethereum", "group": "Kripto", "scope": "exact"},
+    # Borsa / halka arz
+    {"url": "https://borsa.doviz.com/hisseler", "label": "Hisseler", "group": "Borsa", "scope": "tree"},
+    {"url": "https://borsa.doviz.com/hisseler/ktlev-katilimevim-tas-fin", "label": "KTLEV", "group": "Borsa", "scope": "exact"},
+    {"url": "https://borsa.doviz.com/endeksler", "label": "Endeksler", "group": "Borsa", "scope": "tree"},
+    {"url": "https://borsa.doviz.com/halka-arz/taslak-halka-arzlar", "label": "Taslak halka arz", "group": "Halka arz", "scope": "exact"},
+    # Yakıt / şarj (yakit-sarj hub’ından ayrı path’ler)
+    {"url": "https://www.doviz.com/akaryakit-fiyatlari", "label": "Akaryakıt fiyatları", "group": "Yakıt", "scope": "tree"},
+    {"url": "https://www.doviz.com/ev-sarj-fiyatlari", "label": "Ev şarj fiyatları", "group": "Yakıt", "scope": "tree"},
+    # Haber
+    {"url": "https://haber.doviz.com/yerel-ve-sektorel-haberleri", "label": "Yerel & sektörel", "group": "Haber", "scope": "tree"},
+]
+
+# Geriye dönük alias
+WATCH_URLS = WATCH_CATEGORIES
 
 _PERIODS = (1, 7, 30)
 _CACHE_TTL_SEC = 600.0
+_CACHE_VERSION = 3
 _TOP_CHILDREN = 12
 _ROW_LIMIT = 8000
-_cache: dict[str, Any] = {"at": 0.0, "payload": None}
+_cache: dict[str, Any] = {"at": 0.0, "version": 0, "payload": None}
 
 
 def _parse_url(url: str) -> tuple[str, str]:
@@ -148,21 +189,34 @@ def _child_label(path: str) -> str:
     return p.rsplit("/", 1)[-1] or p
 
 
-def _watch_targets() -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for item in WATCH_URLS:
-        host, path = _parse_url(item["url"])
-        out.append(
-            {
-                "url": item["url"],
-                "label": item["label"],
-                "host": host,
-                "path": path,
-                "hosts": _hosts_for(host),
-                "paths": _path_variants(path),
-                "is_root": path == "/",
-            }
-        )
+def _target_from_item(item: dict[str, str], *, kind: str) -> dict[str, Any]:
+    host, path = _parse_url(item["url"])
+    scope = str(item.get("scope") or ("tree" if kind == "category" else "exact")).strip().lower()
+    if scope not in ("exact", "tree"):
+        scope = "exact"
+    return {
+        "url": item["url"],
+        "label": item["label"],
+        "group": item.get("group") or item.get("label") or "",
+        "kind": kind,
+        "scope": scope,
+        "host": host,
+        "path": path,
+        "hosts": _hosts_for(host),
+        "paths": _path_variants(path),
+        "is_root": path == "/",
+    }
+
+
+def _watch_targets(*, include_details: bool = True) -> list[dict[str, Any]]:
+    out = [_target_from_item(item, kind="category") for item in WATCH_CATEGORIES]
+    if include_details:
+        seen = {t["url"] for t in out}
+        for item in WATCH_DETAILS:
+            if item["url"] in seen:
+                continue
+            out.append(_target_from_item(item, kind="detail"))
+            seen.add(item["url"])
     return out
 
 
@@ -188,9 +242,15 @@ def _host_group(hosts: list[str]) -> FilterExpression:
 def _build_tree_filter(targets: list[dict[str, Any]]) -> FilterExpression:
     """Ana + alt path’leri kapsayan geniş filtre (tek rapordan exact/tree ayrıştırılır)."""
     exprs: list[FilterExpression] = []
+    # Aynı root host bir kez yeter (kur/altın/borsa/haber).
+    root_hosts_done: set[str] = set()
     for t in targets:
         host_g = _host_group(t["hosts"])
         if t["is_root"]:
+            key = ",".join(t["hosts"])
+            if key in root_hosts_done:
+                continue
+            root_hosts_done.add(key)
             exprs.append(host_g)
             continue
         path_exprs: list[FilterExpression] = [
@@ -206,19 +266,25 @@ def _build_tree_filter(targets: list[dict[str, Any]]) -> FilterExpression:
             )
             for p in t["paths"]
         ]
-        path_exprs.append(
-            FilterExpression(
-                filter=Filter(
-                    field_name="pagePath",
-                    string_filter=Filter.StringFilter(
-                        match_type=Filter.StringFilter.MatchType.BEGINS_WITH,
-                        value=t["path"] + "/",
-                        case_sensitive=False,
-                    ),
+        # Section hub veya kategori: alt path’leri de çek
+        if not (t.get("kind") == "detail" and t.get("scope") == "exact"):
+            path_exprs.append(
+                FilterExpression(
+                    filter=Filter(
+                        field_name="pagePath",
+                        string_filter=Filter.StringFilter(
+                            match_type=Filter.StringFilter.MatchType.BEGINS_WITH,
+                            value=t["path"] + "/",
+                            case_sensitive=False,
+                        ),
+                    )
                 )
             )
+        path_g = (
+            path_exprs[0]
+            if len(path_exprs) == 1
+            else FilterExpression(or_group=FilterExpressionList(expressions=path_exprs))
         )
-        path_g = FilterExpression(or_group=FilterExpressionList(expressions=path_exprs))
         exprs.append(
             FilterExpression(and_group=FilterExpressionList(expressions=[host_g, path_g]))
         )
@@ -237,6 +303,9 @@ def _path_belongs_tree(target: dict[str, Any], host: str, path: str) -> bool:
     h = (host or "").strip().lower()
     if h not in target["hosts"]:
         return False
+    # Leaf detail: tree == exact (alt path toplama)
+    if target.get("scope") == "exact" and target.get("kind") == "detail":
+        return _path_is_exact(target, host, path)
     p = _norm_path(path)
     if target["is_root"]:
         return True
@@ -411,6 +480,7 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
     if (
         not force
         and _cache.get("payload") is not None
+        and int(_cache.get("version") or 0) == _CACHE_VERSION
         and (now - float(_cache.get("at") or 0.0)) < _CACHE_TTL_SEC
     ):
         return dict(_cache["payload"])
@@ -507,25 +577,38 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
                     period_meta[days],
                 )
             )
-        child_rows = _format_children(t, children.get(url) or {}, period_meta)
+        # Dinamik alt path listesi: kategoriler + tree scope hub’lar
+        want_children = t.get("kind") == "category" or t.get("scope") == "tree"
+        child_rows = (
+            _format_children(t, children.get(url) or {}, period_meta)
+            if want_children
+            else []
+        )
         rows.append(
             {
                 "url": url,
                 "label": t["label"],
+                "group": t.get("group") or "",
+                "kind": t.get("kind") or "category",
+                "scope": t.get("scope") or "tree",
                 "host": t["host"],
                 "path": t["path"],
                 "is_root": t["is_root"],
                 "periods_exact": exact_periods,
                 "periods_tree": tree_periods,
-                # geriye dönük: varsayılan exact
                 "periods": exact_periods,
                 "children": child_rows,
                 "children_count": len(child_rows),
             }
         )
 
+    category_rows = [r for r in rows if r["kind"] == "category"]
+    detail_rows = [r for r in rows if r["kind"] == "detail"]
+
     payload = {
-        "rows": rows,
+        "rows": category_rows,  # geriye dönük
+        "category_rows": category_rows,
+        "detail_rows": detail_rows,
         "error": error,
         "metric_label": "sessions",
         "synced_at": date.today().isoformat(),
@@ -537,5 +620,6 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
         "default_mode": "exact",
     }
     _cache["at"] = now
+    _cache["version"] = _CACHE_VERSION
     _cache["payload"] = payload
     return dict(payload)
