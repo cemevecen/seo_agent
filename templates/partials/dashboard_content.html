@@ -2225,6 +2225,10 @@
   #home-board[data-home-focus="sinemalar"] [data-home-container-slot="notification-week"] {
     display: none !important;
   }
+  /* İzlenen Döviz URL trafiği — sinemalar odağında gizle */
+  #home-board[data-home-focus="sinemalar"] [data-home-container-slot="watch-urls"] {
+    display: none !important;
+  }
   #home-board:not([data-home-focus="split"]) .home-vg-rev-grid {
     width: 100%;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.5rem), 1fr)) !important;
@@ -2700,6 +2704,16 @@
       <span class="home-container-chip">Drive · upload</span>
       {{ _placeholder_mid | safe }}
     </section>
+
+    <div data-home-container-slot="watch-urls">
+    <section hx-get="/api/home/watch-urls?v=1" hx-trigger="load delay:500ms" hx-swap="innerHTML" hx-timeout="120000"
+             data-home-container="watch-urls"
+             hx-headers='{"Cache-Control": "no-cache"}'
+             class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
+      <span class="home-container-chip">döviz · url</span>
+      {{ _placeholder_mid | safe }}
+    </section>
+    </div>
   </div>
 </div>
 

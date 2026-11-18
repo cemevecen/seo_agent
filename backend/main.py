@@ -12343,6 +12343,21 @@ def api_home_virgul_revenue(request: Request):
     return resp
 
 
+@app.get("/api/home/watch-urls", response_class=HTMLResponse)
+def api_home_watch_urls(request: Request, refresh: int = 0):
+    """Ana sayfa altı: sabit Döviz URL listesi — 1g / 7g / 30g sessions vs önceki dönem."""
+    from backend.services.home_watch_urls import build_home_watch_urls_context
+
+    with SessionLocal() as db:
+        ctx = build_home_watch_urls_context(db, force=bool(refresh))
+    return templates.TemplateResponse(
+        request,
+        "partials/home/watch_urls.html",
+        context={"request": request, **ctx},
+        headers=_HOME_HTML_NO_CACHE_HEADERS,
+    )
+
+
 def _home_parse_iso_date(s: str | datetime | None) -> datetime | None:
     if s is None or s == "":
         return None
