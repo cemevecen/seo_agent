@@ -1,4 +1,9 @@
-"""Ana sayfa — izlenen Döviz URL’lerinin GA4 oturum trafiği (1g / 7g / 30g vs önceki dönem)."""
+"""Ana sayfa — izlenen Döviz URL trafiği (ana sayfa / alt linklerle).
+
+İki agregasyon:
+- exact: yalnız kategori ana path (ör. kur.doviz.com/)
+- tree: ana + tüm alt path’ler (ör. /amerikan-dolari, /euro, …)
+"""
 
 from __future__ import annotations
 
@@ -15,6 +20,7 @@ from google.analytics.data_v1beta.types import (
     FilterExpression,
     FilterExpressionList,
     Metric,
+    OrderBy,
     RunReportRequest,
 )
 from sqlalchemy.orm import Session
@@ -24,7 +30,6 @@ from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_prope
 
 LOGGER = logging.getLogger(__name__)
 
-# Kullanıcının istediği sabit liste (sıra korunur).
 WATCH_URLS: list[dict[str, str]] = [
     {"url": "https://kur.doviz.com/", "label": "Kur"},
     {"url": "https://altin.doviz.com/", "label": "Altın"},
@@ -40,6 +45,8 @@ WATCH_URLS: list[dict[str, str]] = [
 
 _PERIODS = (1, 7, 30)
 _CACHE_TTL_SEC = 600.0
+_TOP_CHILDREN = 12
+_ROW_LIMIT = 8000
 _cache: dict[str, Any] = {"at": 0.0, "payload": None}
 
 
@@ -67,7 +74,6 @@ def _path_variants(path: str) -> list[str]:
 
 
 def _hosts_for(host: str) -> list[str]:
-    """www için m. varyantını da dahil et; alt alan adlarında yalnız o host."""
     h = (host or "").strip().lower()
     if not h:
         return []
@@ -75,6 +81,13 @@ def _hosts_for(host: str) -> list[str]:
         bare = h[4:]
         return [h, f"m.{bare}"]
     return [h]
+
+
+def _norm_path(path: str) -> str:
+    p = (path or "/").strip() or "/"
+    if p != "/" and p.endswith("/"):
+        p = p.rstrip("/")
+    return p
 
 
 def _fmt_range(start: str, end: str) -> str:
@@ -128,6 +141,13 @@ def _fmt_int(n: float) -> str:
     return str(v)
 
 
+def _child_label(path: str) -> str:
+    p = _norm_path(path)
+    if p == "/":
+        return "ana sayfa"
+    return p.rsplit("/", 1)[-1] or p
+
+
 def _watch_targets() -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for item in WATCH_URLS:
@@ -140,28 +160,40 @@ def _watch_targets() -> list[dict[str, Any]]:
                 "path": path,
                 "hosts": _hosts_for(host),
                 "paths": _path_variants(path),
+                "is_root": path == "/",
             }
         )
     return out
 
 
-def _build_url_filter(targets: list[dict[str, Any]]) -> FilterExpression:
+def _host_group(hosts: list[str]) -> FilterExpression:
+    exprs = [
+        FilterExpression(
+            filter=Filter(
+                field_name="hostName",
+                string_filter=Filter.StringFilter(
+                    match_type=Filter.StringFilter.MatchType.EXACT,
+                    value=h,
+                    case_sensitive=False,
+                ),
+            )
+        )
+        for h in hosts
+    ]
+    if len(exprs) == 1:
+        return exprs[0]
+    return FilterExpression(or_group=FilterExpressionList(expressions=exprs))
+
+
+def _build_tree_filter(targets: list[dict[str, Any]]) -> FilterExpression:
+    """Ana + alt path’leri kapsayan geniş filtre (tek rapordan exact/tree ayrıştırılır)."""
     exprs: list[FilterExpression] = []
     for t in targets:
-        host_exprs = [
-            FilterExpression(
-                filter=Filter(
-                    field_name="hostName",
-                    string_filter=Filter.StringFilter(
-                        match_type=Filter.StringFilter.MatchType.EXACT,
-                        value=h,
-                        case_sensitive=False,
-                    ),
-                )
-            )
-            for h in t["hosts"]
-        ]
-        path_exprs = [
+        host_g = _host_group(t["hosts"])
+        if t["is_root"]:
+            exprs.append(host_g)
+            continue
+        path_exprs: list[FilterExpression] = [
             FilterExpression(
                 filter=Filter(
                     field_name="pagePath",
@@ -174,52 +206,66 @@ def _build_url_filter(targets: list[dict[str, Any]]) -> FilterExpression:
             )
             for p in t["paths"]
         ]
-        host_group = (
-            host_exprs[0]
-            if len(host_exprs) == 1
-            else FilterExpression(or_group=FilterExpressionList(expressions=host_exprs))
-        )
-        path_group = (
-            path_exprs[0]
-            if len(path_exprs) == 1
-            else FilterExpression(or_group=FilterExpressionList(expressions=path_exprs))
-        )
-        exprs.append(
+        path_exprs.append(
             FilterExpression(
-                and_group=FilterExpressionList(expressions=[host_group, path_group])
+                filter=Filter(
+                    field_name="pagePath",
+                    string_filter=Filter.StringFilter(
+                        match_type=Filter.StringFilter.MatchType.BEGINS_WITH,
+                        value=t["path"] + "/",
+                        case_sensitive=False,
+                    ),
+                )
             )
+        )
+        path_g = FilterExpression(or_group=FilterExpressionList(expressions=path_exprs))
+        exprs.append(
+            FilterExpression(and_group=FilterExpressionList(expressions=[host_g, path_g]))
         )
     if len(exprs) == 1:
         return exprs[0]
     return FilterExpression(or_group=FilterExpressionList(expressions=exprs))
 
 
-def _norm_path(path: str) -> str:
-    p = (path or "/").strip() or "/"
-    if p != "/" and p.endswith("/"):
-        p = p.rstrip("/")
-    return p
-
-
-def _match_key(host: str, path: str, targets: list[dict[str, Any]]) -> str | None:
+def _path_is_exact(target: dict[str, Any], host: str, path: str) -> bool:
     h = (host or "").strip().lower()
     p = _norm_path(path)
+    return h in target["hosts"] and p == target["path"]
+
+
+def _path_belongs_tree(target: dict[str, Any], host: str, path: str) -> bool:
+    h = (host or "").strip().lower()
+    if h not in target["hosts"]:
+        return False
+    p = _norm_path(path)
+    if target["is_root"]:
+        return True
+    return p == target["path"] or p.startswith(target["path"] + "/")
+
+
+def _match_exact_key(host: str, path: str, targets: list[dict[str, Any]]) -> str | None:
     for t in targets:
-        if h in t["hosts"] and p == t["path"]:
+        if _path_is_exact(t, host, path):
             return t["url"]
     return None
 
 
-def _run_range_map(
+def _match_tree_keys(host: str, path: str, targets: list[dict[str, Any]]) -> list[str]:
+    return [t["url"] for t in targets if _path_belongs_tree(t, host, path)]
+
+
+def _empty_mode_maps(targets: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    return {t["url"]: {"last": 0.0, "prev": 0.0} for t in targets}
+
+
+def _run_range_rows(
     client,
     property_id: str,
     *,
     start: str,
     end: str,
-    targets: list[dict[str, Any]],
     dim_filter: FilterExpression,
-) -> dict[str, float]:
-    """url -> sessions for a single date range."""
+) -> list[tuple[str, str, float]]:
     req = RunReportRequest(
         property=f"properties/{property_id}",
         dimensions=[
@@ -229,62 +275,49 @@ def _run_range_map(
         metrics=[Metric(name="sessions")],
         date_ranges=[DateRange(start_date=start, end_date=end)],
         dimension_filter=dim_filter,
-        limit=max(50, len(targets) * 8),
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
+        limit=_ROW_LIMIT,
     )
     try:
-        resp = client.run_report(req, timeout=90.0)
+        resp = client.run_report(req, timeout=120.0)
     except Exception:
         LOGGER.warning(
             "home watch-urls GA4 range %s..%s failed", start, end, exc_info=True
         )
-        return {}
-    out: dict[str, float] = {t["url"]: 0.0 for t in targets}
+        return []
+    out: list[tuple[str, str, float]] = []
     for row in resp.rows or []:
         if len(row.dimension_values) < 2:
             continue
-        host = str(row.dimension_values[0].value or "")
-        path = str(row.dimension_values[1].value or "")
-        key = _match_key(host, path, targets)
-        if not key:
-            continue
+        host = str(row.dimension_values[0].value or "").strip()
+        path = str(row.dimension_values[1].value or "").strip()
         val = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
-        out[key] = out.get(key, 0.0) + val
+        if not host:
+            continue
+        out.append((host, path, val))
     return out
 
 
-def _run_period(
-    client,
-    property_id: str,
+def _accumulate_rows(
+    rows: list[tuple[str, str, float]],
     *,
-    days: int,
     targets: list[dict[str, Any]],
-    dim_filter: FilterExpression,
-) -> dict[str, dict[str, float]]:
-    """url -> {last, prev} sessions."""
-    (last_start, last_end), (prev_start, prev_end) = _calendar_windows(days)
-    last_map = _run_range_map(
-        client,
-        property_id,
-        start=last_start,
-        end=last_end,
-        targets=targets,
-        dim_filter=dim_filter,
-    )
-    prev_map = _run_range_map(
-        client,
-        property_id,
-        start=prev_start,
-        end=prev_end,
-        targets=targets,
-        dim_filter=dim_filter,
-    )
-    return {
-        t["url"]: {
-            "last": float(last_map.get(t["url"], 0.0)),
-            "prev": float(prev_map.get(t["url"], 0.0)),
-        }
-        for t in targets
-    }
+    slot: str,
+    exact_map: dict[str, dict[str, float]],
+    tree_map: dict[str, dict[str, float]],
+    children: dict[str, dict[str, dict[str, float]]],
+) -> None:
+    for host, path, val in rows:
+        exact_key = _match_exact_key(host, path, targets)
+        if exact_key:
+            exact_map[exact_key][slot] = exact_map[exact_key].get(slot, 0.0) + val
+        tree_keys = _match_tree_keys(host, path, targets)
+        pnorm = _norm_path(path)
+        for key in tree_keys:
+            tree_map[key][slot] = tree_map[key].get(slot, 0.0) + val
+            ch = children.setdefault(key, {})
+            bucket = ch.setdefault(pnorm, {"last": 0.0, "prev": 0.0})
+            bucket[slot] = bucket.get(slot, 0.0) + val
 
 
 def _normalize_property_id(raw: str) -> str:
@@ -295,7 +328,6 @@ def _normalize_property_id(raw: str) -> str:
 
 
 def _resolve_web_mweb_properties(db: Session, site_id: int = 1) -> list[str]:
-    """Döviz web + mweb property id’leri (teksel, sırayla)."""
     record = get_ga4_credentials_record(db, site_id)
     props = load_ga4_properties(record) or {}
     out: list[str] = []
@@ -312,17 +344,65 @@ def _resolve_web_mweb_properties(db: Session, site_id: int = 1) -> list[str]:
     return out
 
 
-def _merge_period_buckets(
-    *maps: dict[str, dict[str, float]],
-    targets: list[dict[str, Any]],
-) -> dict[str, dict[str, float]]:
-    out = {t["url"]: {"last": 0.0, "prev": 0.0} for t in targets}
-    for m in maps:
-        for url, bucket in (m or {}).items():
-            if url not in out:
-                continue
-            out[url]["last"] += float((bucket or {}).get("last") or 0.0)
-            out[url]["prev"] += float((bucket or {}).get("prev") or 0.0)
+def _period_cell(last_v: float, prev_v: float, days: int, meta: dict[str, str]) -> dict[str, Any]:
+    delta_fmt, tone, delta_pct = _pct_delta(last_v, prev_v)
+    return {
+        "days": days,
+        "label": f"{days}g" if days > 1 else "1g",
+        "title": (
+            "Son 1 gün"
+            if days == 1
+            else ("Son 1 hafta" if days == 7 else "Son 1 ay")
+        ),
+        "last": last_v,
+        "prev": prev_v,
+        "last_fmt": _fmt_int(last_v),
+        "prev_fmt": _fmt_int(prev_v),
+        "delta_fmt": delta_fmt,
+        "delta_tone": tone,
+        "delta_pct": delta_pct,
+        "current_label": meta["current_label"],
+        "previous_label": meta["previous_label"],
+        "has_data": (last_v > 0 or prev_v > 0),
+    }
+
+
+def _format_children(
+    target: dict[str, Any],
+    child_paths: dict[str, dict[int, dict[str, float]]],
+    period_meta: dict[int, dict[str, str]],
+) -> list[dict[str, Any]]:
+    """Alt path listesi — 7g last’e göre top N (ana path hariç)."""
+    scored: list[tuple[float, str]] = []
+    for path, by_days in (child_paths or {}).items():
+        if path == target["path"]:
+            continue
+        last7 = float(((by_days or {}).get(7) or {}).get("last") or 0.0)
+        scored.append((last7, path))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    out: list[dict[str, Any]] = []
+    for _, path in scored[:_TOP_CHILDREN]:
+        by_days = child_paths.get(path) or {}
+        periods = []
+        for days in _PERIODS:
+            bucket = by_days.get(days) or {}
+            periods.append(
+                _period_cell(
+                    float(bucket.get("last") or 0.0),
+                    float(bucket.get("prev") or 0.0),
+                    days,
+                    period_meta[days],
+                )
+            )
+        href_path = "/" if path == "/" else path
+        out.append(
+            {
+                "path": path,
+                "label": _child_label(path),
+                "url": f"https://{target['host']}{href_path}",
+                "periods": periods,
+            }
+        )
     return out
 
 
@@ -345,26 +425,60 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
             "previous_label": _fmt_range(ps, pe),
         }
 
-    by_period: dict[int, dict[str, dict[str, float]]] = {d: {} for d in _PERIODS}
+    exact_by_period: dict[int, dict[str, dict[str, float]]] = {
+        d: _empty_mode_maps(targets) for d in _PERIODS
+    }
+    tree_by_period: dict[int, dict[str, dict[str, float]]] = {
+        d: _empty_mode_maps(targets) for d in _PERIODS
+    }
+    # url -> path -> days -> {last, prev}
+    children: dict[str, dict[str, dict[int, dict[str, float]]]] = {
+        t["url"]: {} for t in targets
+    }
+
     error = None
     if not property_ids:
         error = "GA4 web property bulunamadı"
     else:
         try:
             client = _client()
-            dim_filter = _build_url_filter(targets)
+            dim_filter = _build_tree_filter(targets)
             for days in _PERIODS:
-                parts = [
-                    _run_period(
-                        client,
-                        pid,
-                        days=days,
-                        targets=targets,
-                        dim_filter=dim_filter,
+                (last_start, last_end), (prev_start, prev_end) = _calendar_windows(days)
+                for pid in property_ids:
+                    last_rows = _run_range_rows(
+                        client, pid, start=last_start, end=last_end, dim_filter=dim_filter
                     )
-                    for pid in property_ids
-                ]
-                by_period[days] = _merge_period_buckets(*parts, targets=targets)
+                    prev_rows = _run_range_rows(
+                        client, pid, start=prev_start, end=prev_end, dim_filter=dim_filter
+                    )
+                    # children accumulators for this period slot
+                    child_slot_maps: dict[str, dict[str, dict[str, float]]] = {
+                        t["url"]: {} for t in targets
+                    }
+                    _accumulate_rows(
+                        last_rows,
+                        targets=targets,
+                        slot="last",
+                        exact_map=exact_by_period[days],
+                        tree_map=tree_by_period[days],
+                        children=child_slot_maps,
+                    )
+                    _accumulate_rows(
+                        prev_rows,
+                        targets=targets,
+                        slot="prev",
+                        exact_map=exact_by_period[days],
+                        tree_map=tree_by_period[days],
+                        children=child_slot_maps,
+                    )
+                    for url, path_map in child_slot_maps.items():
+                        dest = children.setdefault(url, {})
+                        for path, bucket in path_map.items():
+                            by_days = dest.setdefault(path, {})
+                            cur = by_days.setdefault(days, {"last": 0.0, "prev": 0.0})
+                            cur["last"] += float(bucket.get("last") or 0.0)
+                            cur["prev"] += float(bucket.get("prev") or 0.0)
         except Exception as exc:
             LOGGER.exception("home watch-urls fetch failed")
             error = str(exc)
@@ -372,41 +486,41 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
     rows: list[dict[str, Any]] = []
     for t in targets:
         url = t["url"]
-        periods_out: list[dict[str, Any]] = []
+        exact_periods = []
+        tree_periods = []
         for days in _PERIODS:
-            bucket = (by_period.get(days) or {}).get(url) or {}
-            last_v = float(bucket.get("last") or 0.0)
-            prev_v = float(bucket.get("prev") or 0.0)
-            delta_fmt, tone, delta_pct = _pct_delta(last_v, prev_v)
-            meta = period_meta[days]
-            periods_out.append(
-                {
-                    "days": days,
-                    "label": f"{days}g" if days > 1 else "1g",
-                    "title": (
-                        "Son 1 gün"
-                        if days == 1
-                        else ("Son 1 hafta" if days == 7 else "Son 1 ay")
-                    ),
-                    "last": last_v,
-                    "prev": prev_v,
-                    "last_fmt": _fmt_int(last_v),
-                    "prev_fmt": _fmt_int(prev_v),
-                    "delta_fmt": delta_fmt,
-                    "delta_tone": tone,
-                    "delta_pct": delta_pct,
-                    "current_label": meta["current_label"],
-                    "previous_label": meta["previous_label"],
-                    "has_data": (last_v > 0 or prev_v > 0),
-                }
+            eb = (exact_by_period.get(days) or {}).get(url) or {}
+            tb = (tree_by_period.get(days) or {}).get(url) or {}
+            exact_periods.append(
+                _period_cell(
+                    float(eb.get("last") or 0.0),
+                    float(eb.get("prev") or 0.0),
+                    days,
+                    period_meta[days],
+                )
             )
+            tree_periods.append(
+                _period_cell(
+                    float(tb.get("last") or 0.0),
+                    float(tb.get("prev") or 0.0),
+                    days,
+                    period_meta[days],
+                )
+            )
+        child_rows = _format_children(t, children.get(url) or {}, period_meta)
         rows.append(
             {
                 "url": url,
                 "label": t["label"],
                 "host": t["host"],
                 "path": t["path"],
-                "periods": periods_out,
+                "is_root": t["is_root"],
+                "periods_exact": exact_periods,
+                "periods_tree": tree_periods,
+                # geriye dönük: varsayılan exact
+                "periods": exact_periods,
+                "children": child_rows,
+                "children_count": len(child_rows),
             }
         )
 
@@ -415,9 +529,12 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
         "error": error,
         "metric_label": "sessions",
         "synced_at": date.today().isoformat(),
-        "period_meta": {
-            str(d): period_meta[d] for d in _PERIODS
-        },
+        "period_meta": {str(d): period_meta[d] for d in _PERIODS},
+        "modes": [
+            {"id": "exact", "label": "Sadece ana sayfa"},
+            {"id": "tree", "label": "Alt linklerle birlikte"},
+        ],
+        "default_mode": "exact",
     }
     _cache["at"] = now
     _cache["payload"] = payload

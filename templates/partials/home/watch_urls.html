@@ -1,4 +1,4 @@
-{# Ana sayfa — izlenen Döviz URL oturumları: 1g / 7g / 30g vs önceki dönem #}
+{# Ana sayfa — izlenen Döviz URL: ana sayfa / alt linklerle · 1g/7g/30g #}
 {% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 <style>
   .home-watch-urls {
@@ -7,8 +7,42 @@
     container-type: inline-size;
     container-name: home-watch-urls;
   }
+  .home-watch-mode {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.7rem;
+  }
+  .home-watch-mode-btn {
+    border: 1px solid rgb(203 213 225);
+    border-radius: 9999px;
+    background: rgb(255 255 255);
+    color: #475569;
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.28rem 0.7rem;
+  }
+  .home-watch-mode-btn:hover { background: rgb(241 245 249); }
+  .home-watch-mode-btn.is-active {
+    background: rgb(15 23 42);
+    border-color: rgb(15 23 42);
+    color: #f8fafc;
+  }
+  html.dark .home-watch-mode-btn,
+  html.charcoal .home-watch-mode-btn {
+    background: rgb(39 39 42);
+    border-color: rgb(63 63 70);
+    color: #a1a1aa;
+  }
+  html.dark .home-watch-mode-btn.is-active,
+  html.charcoal .home-watch-mode-btn.is-active {
+    background: rgb(228 228 231);
+    border-color: rgb(228 228 231);
+    color: #18181b;
+  }
   .home-watch-table-wrap {
-    margin-top: 0.85rem;
+    margin-top: 0.75rem;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: 0.9rem;
@@ -22,7 +56,7 @@
   }
   .home-watch-table {
     width: 100%;
-    min-width: 42rem;
+    min-width: 44rem;
     border-collapse: collapse;
     font-variant-numeric: tabular-nums;
   }
@@ -40,9 +74,7 @@
     border-bottom-color: rgb(63 63 70 / 0.9);
   }
   .home-watch-table tr:last-child th,
-  .home-watch-table tr:last-child td {
-    border-bottom: 0;
-  }
+  .home-watch-table tr:last-child td { border-bottom: 0; }
   .home-watch-table thead th {
     font-weight: 600;
     font-size: 0.68rem;
@@ -64,6 +96,12 @@
     min-width: 0;
     max-width: 16rem;
   }
+  .home-watch-url-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+  }
   .home-watch-url a {
     color: #0f172a;
     font-weight: 650;
@@ -83,6 +121,24 @@
   }
   html.dark .home-watch-host,
   html.charcoal .home-watch-host { color: #94a3b8; }
+  .home-watch-expand {
+    flex-shrink: 0;
+    border: 0;
+    border-radius: 9999px;
+    background: rgb(226 232 240);
+    color: #334155;
+    cursor: pointer;
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 0.18rem 0.45rem;
+  }
+  .home-watch-expand:hover { background: rgb(203 213 225); }
+  html.dark .home-watch-expand,
+  html.charcoal .home-watch-expand {
+    background: rgb(63 63 70);
+    color: #d4d4d8;
+  }
+  .home-watch-urls[data-watch-mode="exact"] .home-watch-expand { display: none; }
   .home-watch-period {
     display: grid;
     gap: 0.12rem;
@@ -126,9 +182,41 @@
   }
   html.dark .home-watch-period .prev,
   html.charcoal .home-watch-period .prev { color: #71717a; }
+  .home-watch-mode-vals[data-mode="exact"],
+  .home-watch-mode-vals[data-mode="tree"] { display: none; }
+  .home-watch-urls[data-watch-mode="exact"] .home-watch-mode-vals[data-mode="exact"],
+  .home-watch-urls[data-watch-mode="tree"] .home-watch-mode-vals[data-mode="tree"] {
+    display: grid;
+  }
+  .home-watch-child-row { display: none; }
+  .home-watch-child-row.is-open { display: table-row; }
+  .home-watch-child-row td {
+    background: rgb(241 245 249 / 0.55);
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
+  html.dark .home-watch-child-row td,
+  html.charcoal .home-watch-child-row td {
+    background: rgb(24 24 27 / 0.45);
+  }
+  .home-watch-child-url a {
+    color: #334155;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-decoration: none;
+  }
+  .home-watch-child-url a:hover { text-decoration: underline; }
+  html.dark .home-watch-child-url a,
+  html.charcoal .home-watch-child-url a { color: #d4d4d8; }
+  .home-watch-child-path {
+    display: block;
+    color: #94a3b8;
+    font-size: 0.64rem;
+    margin-top: 0.1rem;
+  }
 </style>
 
-<div class="home-watch-urls home-readable is-open" data-home-shell-root>
+<div class="home-watch-urls home-readable is-open" data-home-shell-root data-watch-mode="exact" data-home-watch-root>
   <div class="home-shell-head">
     <button type="button"
             class="home-shell-toggle"
@@ -159,12 +247,20 @@
     {% if error %}
       <p class="home-meta mt-3 text-rose-600 dark:text-rose-400">{{ error }}</p>
     {% elif rows %}
+      <div class="home-watch-mode" role="group" aria-label="Trafik kapsamı">
+        {% for m in modes %}
+          <button type="button"
+                  class="home-watch-mode-btn{% if m.id == default_mode %} is-active{% endif %}"
+                  data-home-watch-mode="{{ m.id }}"
+                  aria-pressed="{{ 'true' if m.id == default_mode else 'false' }}">{{ m.label }}</button>
+        {% endfor %}
+      </div>
       <div class="home-watch-table-wrap">
         <table class="home-watch-table">
           <thead>
             <tr>
               <th scope="col">Sayfa</th>
-              {% for p in rows[0].periods %}
+              {% for p in rows[0].periods_exact %}
                 <th scope="col" title="{{ p.current_label }} vs {{ p.previous_label }}">
                   {{ p.title }}
                 </th>
@@ -173,23 +269,60 @@
           </thead>
           <tbody>
             {% for row in rows %}
-              <tr>
+              {% set parent_idx = loop.index0 %}
+              <tr data-home-watch-parent="{{ parent_idx }}">
                 <td>
                   <div class="home-watch-url">
-                    <a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.label }}</a>
+                    <div class="home-watch-url-row">
+                      <a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.label }}</a>
+                      {% if row.children_count %}
+                        <button type="button"
+                                class="home-watch-expand"
+                                data-home-watch-expand="{{ parent_idx }}"
+                                aria-expanded="false"
+                                title="En çok trafik alan alt linkler">+{{ row.children_count }}</button>
+                      {% endif %}
+                    </div>
                     <span class="home-watch-host" title="{{ row.url }}">{{ row.host }}{{ row.path }}</span>
                   </div>
                 </td>
-                {% for p in row.periods %}
+                {% for p in row.periods_exact %}
                   <td>
-                    <div class="home-watch-period" title="{{ p.current_label }} · önceki {{ p.previous_label }}">
+                    <div class="home-watch-period home-watch-mode-vals" data-mode="exact"
+                         title="{{ p.current_label }} · önceki {{ p.previous_label }}">
                       <span class="cur">{{ p.last_fmt }}</span>
                       <span class="delta{% if p.delta_tone and p.delta_tone != 'flat' %} is-{{ p.delta_tone }}{% endif %}">{{ p.delta_fmt }}</span>
                       <span class="prev">önceki {{ p.prev_fmt }}</span>
                     </div>
+                    {% set pt = row.periods_tree[loop.index0] %}
+                    <div class="home-watch-period home-watch-mode-vals" data-mode="tree"
+                         title="{{ pt.current_label }} · önceki {{ pt.previous_label }} · alt linkler dahil">
+                      <span class="cur">{{ pt.last_fmt }}</span>
+                      <span class="delta{% if pt.delta_tone and pt.delta_tone != 'flat' %} is-{{ pt.delta_tone }}{% endif %}">{{ pt.delta_fmt }}</span>
+                      <span class="prev">önceki {{ pt.prev_fmt }}</span>
+                    </div>
                   </td>
                 {% endfor %}
               </tr>
+              {% for child in row.children %}
+                <tr class="home-watch-child-row" data-parent-idx="{{ parent_idx }}">
+                  <td>
+                    <div class="home-watch-child-url" style="padding-left:0.85rem">
+                      <a href="{{ child.url }}" target="_blank" rel="noopener noreferrer">{{ child.label }}</a>
+                      <span class="home-watch-child-path">{{ child.path }}</span>
+                    </div>
+                  </td>
+                  {% for p in child.periods %}
+                    <td>
+                      <div class="home-watch-period" title="{{ p.current_label }} · önceki {{ p.previous_label }}">
+                        <span class="cur">{{ p.last_fmt }}</span>
+                        <span class="delta{% if p.delta_tone and p.delta_tone != 'flat' %} is-{{ p.delta_tone }}{% endif %}">{{ p.delta_fmt }}</span>
+                        <span class="prev">önceki {{ p.prev_fmt }}</span>
+                      </div>
+                    </td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
             {% endfor %}
           </tbody>
         </table>
@@ -207,3 +340,64 @@
     {% endif %}
   </div>
 </div>
+
+<script>
+(function () {
+  var root = document.currentScript && document.currentScript.previousElementSibling;
+  if (!root || !root.getAttribute || root.getAttribute('data-home-watch-root') === null) {
+    root = document.querySelector('[data-home-watch-root]');
+  }
+  if (!root || root.__homeWatchBound) return;
+  root.__homeWatchBound = true;
+
+  var KEY = 'pc-home-watch-mode';
+  function setMode(mode) {
+    mode = (mode === 'tree') ? 'tree' : 'exact';
+    root.setAttribute('data-watch-mode', mode);
+    root.querySelectorAll('[data-home-watch-mode]').forEach(function (btn) {
+      var on = btn.getAttribute('data-home-watch-mode') === mode;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    if (mode !== 'tree') {
+      root.querySelectorAll('tr.is-expanded').forEach(function (tr) {
+        tr.classList.remove('is-expanded');
+      });
+      root.querySelectorAll('.home-watch-child-row.is-open').forEach(function (tr) {
+        tr.classList.remove('is-open');
+      });
+      root.querySelectorAll('[data-home-watch-expand]').forEach(function (btn) {
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    }
+    try { localStorage.setItem(KEY, mode); } catch (e) {}
+  }
+
+  try {
+    var saved = localStorage.getItem(KEY);
+    if (saved === 'tree' || saved === 'exact') setMode(saved);
+  } catch (e) {}
+
+  root.addEventListener('click', function (ev) {
+    var modeBtn = ev.target && ev.target.closest && ev.target.closest('[data-home-watch-mode]');
+    if (modeBtn) {
+      ev.preventDefault();
+      setMode(modeBtn.getAttribute('data-home-watch-mode') || 'exact');
+      return;
+    }
+    var exp = ev.target && ev.target.closest && ev.target.closest('[data-home-watch-expand]');
+    if (!exp) return;
+    ev.preventDefault();
+    if (root.getAttribute('data-watch-mode') !== 'tree') setMode('tree');
+    var idx = exp.getAttribute('data-home-watch-expand');
+    var parent = root.querySelector('tr[data-home-watch-parent="' + idx + '"]');
+    if (!parent) return;
+    var open = !parent.classList.contains('is-expanded');
+    parent.classList.toggle('is-expanded', open);
+    exp.setAttribute('aria-expanded', open ? 'true' : 'false');
+    root.querySelectorAll('.home-watch-child-row[data-parent-idx="' + idx + '"]').forEach(function (tr) {
+      tr.classList.toggle('is-open', open);
+    });
+  });
+})();
+</script>
