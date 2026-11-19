@@ -9,6 +9,7 @@ Railway service:
 from __future__ import annotations
 
 import os
+from copy import deepcopy
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -150,11 +151,64 @@ def _apply_platform_catalog(catalog: dict, *, locale: str, platform: str) -> dic
     return out
 
 
-def page_context(request: Request, *, active: str) -> dict:
+def _with_advertising_section(catalog: dict, *, platform: str) -> dict:
+    """Add the English advertising section when a locale has not translated it.
+
+    Reviewed Turkish and English catalogs include the section. Other locales
+    keep their existing policy text; only the missing section falls back to
+    English, inserted after the third-party section when that id exists.
+    """
+    privacy = catalog.get("privacy")
+    if not isinstance(privacy, dict):
+        return catalog
+    sections = privacy.get("sections")
+    if not isinstance(sections, list):
+        return catalog
+    if any(isinstance(item, dict) and item.get("id") == "advertising" for item in sections):
+        return catalog
+
+    english = get_catalog(DEFAULT_LOCALE)
+    source = english.get("privacy_android") if platform == "android" else english.get("privacy")
+    english_sections = source.get("sections") if isinstance(source, dict) else None
+    if not isinstance(english_sections, list):
+        return catalog
+    extra = next(
+        (item for item in english_sections if isinstance(item, dict) and item.get("id") == "advertising"),
+        None,
+    )
+    if extra is None:
+        return catalog
+
+    inserted = deepcopy(extra)
+    updated = list(sections)
+    anchor = next(
+        (index for index, item in enumerate(updated) if isinstance(item, dict) and item.get("id") == "third-party"),
+        None,
+    )
+    if anchor is None:
+        anchor = next(
+            (
+                index - 1
+                for index, item in enumerate(updated)
+                if isinstance(item, dict) and item.get("id") == "sharing"
+            ),
+            len(updated) - 1,
+        )
+    updated.insert(anchor + 1, inserted)
+    out = dict(catalog)
+    out["privacy"] = {**privacy, "sections": updated}
+    return out
+
+
+def page_context(request: Request, *, active: str, platform_override: str | None = None) -> dict:
     locale = resolve_request_locale(request)
-    platform = resolve_platform(request)
+    if platform_override in _SUPPORTED_PLATFORMS:
+        platform = platform_override
+    else:
+        platform = resolve_platform(request)
     info = locale_info(locale)
     catalog = _apply_platform_catalog(get_catalog(locale), locale=locale, platform=platform)
+    catalog = _with_advertising_section(catalog, platform=platform)
     identity = _site_identity()
     # Allow env overrides for publisher display while keeping catalog defaults.
     # Never allow a personal legal name to leak onto the public site.
@@ -189,12 +243,17 @@ def page_context(request: Request, *, active: str) -> dict:
     }
 
 
-def _html_response(request: Request, template: str, active: str) -> Response:
+def _html_response(
+    request: Request,
+    template: str,
+    active: str,
+    platform_override: str | None = None,
+) -> Response:
     locale = resolve_request_locale(request)
     response = _TEMPLATES.TemplateResponse(
         request,
         template,
-        page_context(request, active=active),
+        page_context(request, active=active, platform_override=platform_override),
     )
     # Mirror selected locale for next navigation (localStorage also set client-side).
     response.set_cookie(
@@ -221,6 +280,8 @@ _PUBLIC_SLASH_REDIRECTS = frozenset(
     {
         "/support",
         "/privacy",
+        "/privacy/ios",
+        "/privacy/android",
         "/delete-account",
         "/delete-data",
         "/health",
@@ -321,6 +382,18 @@ def privacy(request: Request):
     return _html_response(request, "privacy.html", "privacy")
 
 
+@app.api_route("/privacy/ios", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
+def privacy_ios(request: Request):
+    """Stable iOS policy URL. Query `platform` cannot switch this page to Android."""
+    return _html_response(request, "privacy.html", "privacy", platform_override="ios")
+
+
+@app.api_route("/privacy/android", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
+def privacy_android(request: Request):
+    """Stable Android policy URL. Existing `/privacy?platform=android` stays valid."""
+    return _html_response(request, "privacy.html", "privacy", platform_override="android")
+
+
 @app.api_route("/delete-account", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
 def delete_account(request: Request):
     return _html_response(request, "delete_account.html", "delete-account")
@@ -364,6 +437,10 @@ def robots() -> str:
         "Allow: /app-ads.txt/\n"
         "Allow: /privacy\n"
         "Allow: /privacy/\n"
+        "Allow: /privacy/ios\n"
+        "Allow: /privacy/ios/\n"
+        "Allow: /privacy/android\n"
+        "Allow: /privacy/android/\n"
         "Allow: /support\n"
         "Allow: /support/\n"
         "Allow: /delete-account\n"
@@ -380,6 +457,10 @@ def robots() -> str:
         "Allow: /app-ads.txt/\n"
         "Allow: /privacy\n"
         "Allow: /privacy/\n"
+        "Allow: /privacy/ios\n"
+        "Allow: /privacy/ios/\n"
+        "Allow: /privacy/android\n"
+        "Allow: /privacy/android/\n"
         "Allow: /support\n"
         "Allow: /support/\n"
         "Allow: /delete-account\n"

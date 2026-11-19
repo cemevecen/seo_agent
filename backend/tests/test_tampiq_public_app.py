@@ -174,7 +174,7 @@ def test_privacy_factual_claims():
     assert "on your device" in html.lower() or "on-device" in html.lower()
     assert "Face ID biometric" in html or "biometric" in html.lower()
     assert "Lottie" in html
-    assert "30 September 2026" in html
+    assert "19 November 2026" in html
 
 
 def test_catalogs_exist_for_all_locales():
@@ -354,3 +354,75 @@ def test_unknown_lang_falls_back_default_locale():
     assert res.status_code == 200
     assert f'data-locale="{DEFAULT_LOCALE}"' in res.text
     assert "Privacy Policy (Android)" in res.text
+
+
+def test_stable_privacy_urls_keep_platforms_apart():
+    ios = CLIENT.get("/privacy/ios", params={"lang": "en-US"})
+    android = CLIENT.get("/privacy/android", params={"lang": "en-US"})
+    assert ios.status_code == 200
+    assert android.status_code == 200
+    assert 'data-platform="ios"' in ios.text
+    assert 'data-platform="android"' in android.text
+    assert "Privacy Policy (Android)" not in ios.text
+    assert "Privacy Policy (Android)" in android.text
+    # Path wins over a conflicting query so the stable URL cannot be switched.
+    forced = CLIENT.get("/privacy/android", params={"lang": "en-US", "platform": "ios"})
+    assert 'data-platform="android"' in forced.text
+    legacy = CLIENT.get("/privacy", params={"lang": "en-US", "platform": "android"})
+    assert 'data-platform="android"' in legacy.text
+    assert "Advertising and consent" in legacy.text
+
+
+def test_privacy_slash_forms_of_stable_urls_redirect():
+    client = TestClient(app, follow_redirects=False)
+    ios = client.get("/privacy/ios/", params={"lang": "tr"})
+    android = client.get("/privacy/android/", params={"lang": "en-US"})
+    assert ios.status_code == 308
+    assert android.status_code == 308
+    assert ios.headers["location"].endswith("/privacy/ios?lang=tr")
+    assert android.headers["location"].endswith("/privacy/android?lang=en-US")
+
+
+def test_advertising_section_is_conditional_and_platform_specific():
+    ios = CLIENT.get("/privacy/ios", params={"lang": "en-US"}).text
+    android = CLIENT.get("/privacy/android", params={"lang": "en-US"}).text
+    ios_tr = CLIENT.get("/privacy/ios", params={"lang": "tr"}).text
+    android_tr = CLIENT.get("/privacy/android", params={"lang": "tr"}).text
+    for html in (ios, android, ios_tr, android_tr):
+        assert "does not include Google Mobile Ads" in html or "Google Mobile Ads veya" in html or "Google Mobile Ads, Google" in html
+        assert "fundingchoices" not in html
+        assert "googletag" not in html
+        assert "pagead2.googlesyndication" not in html
+        assert "gtag(" not in html
+    assert "does not include Google Mobile Ads" in ios
+    assert "Family Controls, DeviceActivity, and Screen Time data are not sent" in ios
+    assert "does not include Google Mobile Ads" in android
+    assert "notification content read through notification access" in android
+    assert "location evidence are not transferred" in android
+    assert "TAMPIQ PIN" in android
+    assert "Screen Time" not in android
+    assert "Family Controls" not in android
+    assert "Live Activities" not in android
+    assert "Family Controls, DeviceActivity ve Screen Time verileri" in ios_tr
+    assert "bildirim erişimiyle okunan bildirim içeriği" in android_tr
+    assert "konum kanıtları" in android_tr
+    assert "Screen Time" not in android_tr
+    assert "Live Activities" not in android_tr
+
+
+def test_untranslated_locale_keeps_its_policy_and_adds_english_ads_section():
+    html = CLIENT.get("/privacy/ios", params={"lang": "de"}).text
+    assert "Datenschutzrichtlinie" in html
+    assert "Advertising and consent" in html
+    assert "Family Controls, DeviceActivity, and Screen Time data are not sent" in html
+    android = CLIENT.get("/privacy/android", params={"lang": "de"}).text
+    assert "Privacy Policy (Android)" in android
+    assert "Advertising and consent" in android
+    assert "Bildschirmzeit" not in android
+
+
+def test_robots_allows_stable_privacy_urls():
+    body = CLIENT.get("/robots.txt").text
+    assert "Allow: /privacy/ios" in body
+    assert "Allow: /privacy/android" in body
+    assert "Disallow: /" in body

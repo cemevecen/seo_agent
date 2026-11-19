@@ -265,7 +265,7 @@
   "privacy": {
     "title": "Gizlilik Politikası",
     "effective_label": "Yürürlük tarihi",
-    "effective_date": "30 Eylül 2026",
+    "effective_date": "19 Kasım 2026",
     "intro": "Bu Gizlilik Politikası, TAMPIQ (“biz”, “bize”) iPhone uygulamasını kullandığınızda bilgilerin nasıl işlendiğini açıklar. Uygulamanın üretim davranışını yansıtır: koruma kayıtlarının cihazınızda kalması tasarlanmıştır ve TAMPIQ; hesap sistemi veya oturum telemetrisi için bir TAMPIQ bulut arka ucu işletmez.",
     "sections": [
       {
@@ -375,6 +375,18 @@
         ]
       },
       {
+        "id": "advertising",
+        "title": "Reklam ve rıza (yalnızca gelecekteki bir sürüm açarsa)",
+        "paragraphs": [
+          "Yayındaki TAMPIQ iOS uygulaması Google Mobile Ads, Google User Messaging Platform (UMP) veya başka bir reklam SDK’sı içermez. Bu bölüm, App Store’daki güncel sürümde bu hizmetlerin çalıştığı anlamına gelmez.",
+          "Yalnızca TAMPIQ’in isteğe bağlı reklamı açtığı sonraki bir sürümü yüklerseniz uygulanır. O güne kadar TAMPIQ reklam istemez, Google rıza mesajı göstermez ve bir reklam SDK’sına bilgi göndermez.",
+          "O sonraki sürüm reklamı açarsa, reklam istemek ve göstermek için Google Mobile Ads’i ve belirli reklam işlemlerinden önce yasanın seçim istediği yerlerde — AEA, Birleşik Krallık ve İsviçre dahil — rızanızı sormak için Google UMP’yi kullanabilir.",
+          "Bu Google hizmetleri gerçekten çalışırken; cihazın sunduğu reklam tanımlayıcısını (Apple reklam tanımlayıcısı, yalnızca siz kısıtlamadıysanız), IP adresini, reklam istemek için gereken genel cihaz ve ağ bilgisini, reklam gösterimi ve ölçüm sinyallerini (örneğin bir reklamın istendiği, gösterildiği veya tıklandığı) ve kaydettiğiniz rıza seçimini işleyebilir. Google ve o reklam isteğine katılan reklam ortakları bu bilgiyi reklamı iletmek, ölçmek ve rıza seçiminizi uygulamak için kullanır. TAMPIQ bu bilgiyle koruma etkinliğinize ait kendi profilini oluşturmaz.",
+          "Rıza mesajı seçenek sunuyorsa rızayı reddedebilir veya yalnızca mesajda sayılan amaçları kabul edebilirsiniz. Uygulama sürümü gizlilik seçenekleri girişi sunuyorsa seçimi daha sonra uygulama içinden geri çekebilir veya değiştirebilirsiniz. iOS Ayarları’nda reklam takibini de sınırlayabilirsiniz. Geri çekme sonraki reklam isteklerine uygulanır. Google’ın kendi koşulları altında daha önce işlemiş olabileceği kopyaları tek başına silmez.",
+          "Family Controls, DeviceActivity ve Screen Time verileri Google Mobile Ads’e, Google UMP’ye, reklam ölçümüne, profillemeye veya herhangi bir üçüncü taraf reklam SDK’sına gönderilmez. Apple bu teknolojileri uygulamanın kendi özellikleri için cihaz içinde kullanımla sınırlar. Koruma oturumu kayıtları, isteğe bağlı konum kayıtları ve App Lock sonuçları reklam, reklam ölçümü veya profilleme için kullanılmaz."
+        ]
+      },
+      {
         "id": "sharing",
         "title": "12. Veri Paylaşımı",
         "paragraphs": [
@@ -461,7 +473,7 @@
   "privacy_android": {
     "title": "Gizlilik Politikası (Android)",
     "effective_label": "Yürürlük tarihi",
-    "effective_date": "12 Ekim 2026",
+    "effective_date": "19 Kasım 2026",
     "intro": "Bu Gizlilik Politikası, TAMPIQ Android uygulamasını kullandığınızda bilgilerin nasıl işlendiğini açıklar. Üretim Android davranışını yansıtır: koruma oturumu kayıtları ve cihaz etkinliği kanıtları yerel depolamada cihazınızda kalacak şekilde tasarlanmıştır; isteğe bağlı güvenlik e-posta uyarılarını etkinleştirip giriş yaparsanız, doğrulanmış hesap adresinize e-posta iletilebilmesi için sınırlı bir uyarı yükü TAMPIQ’in uyarı iletim hizmetine gönderilir.",
     "sections": [
       {
@@ -590,6 +602,18 @@
           "Bulut kimlik doğrulama / e-posta uyarıları yapılandırıldığında TAMPIQ, isteğe bağlı hesabı doğrulamak için Google Firebase Authentication (ve sunuluyorsa Google Sign-In) kullanır.",
           "Uyarı iletimi kimlik doğrulamasından sonra TAMPIQ’in HTTPS güvenlik-uyarı arka ucu tarafından yapılır.",
           "Android sistem çerçeveleri Google ve üreticinizin platform koşulları altında çalışır."
+        ]
+      },
+      {
+        "id": "advertising",
+        "title": "Reklam ve rıza (yalnızca gelecekteki bir sürüm açarsa)",
+        "paragraphs": [
+          "Yayındaki TAMPIQ Android uygulaması Google Mobile Ads veya Google User Messaging Platform (UMP) içermez. Yüklediğiniz yapı güvenlik e-posta uyarıları sunuyorsa isteğe bağlı Google Firebase Authentication bir hesap giriş hizmetidir. Reklam SDK’sı değildir.",
+          "Bu bölüm yalnızca TAMPIQ’in isteğe bağlı reklamı açtığı sonraki bir sürümü yüklerseniz uygulanır. O güne kadar TAMPIQ reklam istemez, Google rıza mesajı göstermez ve bir reklam SDK’sına bilgi göndermez.",
+          "O sonraki sürüm reklamı açarsa, reklam istemek ve göstermek için Google Mobile Ads’i ve belirli reklam işlemlerinden önce yasanın seçim istediği yerlerde — AEA, Birleşik Krallık ve İsviçre dahil — rızanızı sormak için Google UMP’yi kullanabilir.",
+          "Bu Google hizmetleri gerçekten çalışırken; cihazın sunduğu reklam tanımlayıcısını (Google reklam kimliği), IP adresini, reklam istemek için gereken genel cihaz ve ağ bilgisini, reklam gösterimi ve ölçüm sinyallerini (örneğin bir reklamın istendiği, gösterildiği veya tıklandığı) ve kaydettiğiniz rıza seçimini işleyebilir. Google ve o reklam isteğine katılan reklam ortakları bu bilgiyi reklamı iletmek, ölçmek ve rıza seçiminizi uygulamak için kullanır. TAMPIQ bu bilgiyle koruma etkinliğinize ait kendi profilini oluşturmaz.",
+          "Rıza mesajı seçenek sunuyorsa rızayı reddedebilir veya yalnızca mesajda sayılan amaçları kabul edebilirsiniz. Uygulama sürümü gizlilik seçenekleri girişi sunuyorsa seçimi daha sonra uygulama içinden geri çekebilir veya değiştirebilirsiniz. Android ayarlarında reklam kimliğini sıfırlayabilir veya sınırlayabilirsiniz. Geri çekme sonraki reklam isteklerine uygulanır. Google’ın kendi koşulları altında daha önce işlemiş olabileceği kopyaları tek başına silmez.",
+          "Koruma oturumu kayıtları, TAMPIQ PIN’i, bildirim erişimiyle okunan bildirim içeriği ve konum kanıtları Google Mobile Ads’e, Google UMP’ye, reklam hedeflemesine, reklam ölçümüne, profillemeye veya reklam ortaklarına aktarılmaz. TAMPIQ, reklam veya başka bir amaç için PIN ya da cihaz kimlik bilgisi toplamaz. Bildirim içeriği ve konum kanıtları bu politikada anlatılan koruma özellikleriyle sınırlı kalır."
         ]
       },
       {

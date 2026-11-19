@@ -265,7 +265,7 @@
   "privacy": {
     "title": "Privacy Policy",
     "effective_label": "Effective date",
-    "effective_date": "30 September 2026",
+    "effective_date": "19 November 2026",
     "intro": "This Privacy Policy explains how TAMPIQ (“we”, “us”) processes information when you use the TAMPIQ iPhone app. It reflects the production behavior of the app: protection records are designed to stay on your device, and TAMPIQ does not operate an account system or TAMPIQ cloud backend for session telemetry.",
     "sections": [
       {
@@ -375,6 +375,18 @@
         ]
       },
       {
+        "id": "advertising",
+        "title": "Advertising and consent (only if a future version enables it)",
+        "paragraphs": [
+          "The published TAMPIQ iOS app does not include Google Mobile Ads, the Google User Messaging Platform (UMP), or any other advertising SDK. This section does not mean those services are active in the version currently on the App Store.",
+          "It applies only if you install a later version in which TAMPIQ turns optional advertising on. Until that happens, TAMPIQ does not request ads, does not show a Google consent message, and does not send information to an advertising SDK.",
+          "If that later version enables advertising, it may use Google Mobile Ads to request and display ads, and Google UMP to ask for your consent where the law requires a choice before certain ad processing, including in the EEA, the United Kingdom, and Switzerland.",
+          "Only while those Google services are actually running, they may process the advertising identifier the device makes available (such as Apple’s advertising identifier, and only if you have not limited it), IP address, general device and network information needed to request an ad, ad display and measurement signals (for example that an ad was requested, shown, or clicked), and the consent choice you record. Google and the advertising partners that participate in that ad request use this information to deliver and measure the ad and to apply your consent choice. TAMPIQ does not use it to build its own profile of your protection activity.",
+          "Where the consent message offers a choice, you can refuse consent, or agree only to the purposes the message lists. If that app version provides a privacy-options entry, you can withdraw or change the choice later inside the app. You can also limit ad tracking in iOS Settings. Withdrawal applies to later ad requests. It does not by itself delete copies Google may already have processed under Google’s own terms.",
+          "Family Controls, DeviceActivity, and Screen Time data are not sent to Google Mobile Ads, Google UMP, ad measurement, profiling, or any third-party advertising SDK. Apple restricts those technologies to on-device use for the app’s own features. Protection session records, optional location records, and App Lock results are not used for advertising, ad measurement, or profiling."
+        ]
+      },
+      {
         "id": "sharing",
         "title": "12. Data Sharing",
         "paragraphs": [
@@ -461,7 +473,7 @@
   "privacy_android": {
     "title": "Privacy Policy (Android)",
     "effective_label": "Effective date",
-    "effective_date": "12 October 2026",
+    "effective_date": "19 November 2026",
     "intro": "This Privacy Policy explains how TAMPIQ (“we”, “us”) processes information when you use the TAMPIQ Android app. It reflects production Android behavior: protection session records and device-activity evidence are designed to stay on your device in local storage, while optional security email alerts—if you enable them and sign in—send a limited alert payload to TAMPIQ’s alert delivery service so an email can be delivered to your verified account address.",
     "sections": [
       {
@@ -591,6 +603,18 @@
           "Alert delivery is performed by TAMPIQ’s HTTPS security-alert backend after authentication.",
           "Android system frameworks (location, notifications, usage stats, device policy, biometric prompts, and related APIs) operate under Google’s and your OEM’s platform terms.",
           "Production monitoring/analytics advertising SDKs are not described here as a required part of core local protection recording; optional Google Play services components may be present for authentication."
+        ]
+      },
+      {
+        "id": "advertising",
+        "title": "Advertising and consent (only if a future version enables it)",
+        "paragraphs": [
+          "The published TAMPIQ Android app does not include Google Mobile Ads or the Google User Messaging Platform (UMP). Where the build you installed offers security email alerts, optional Google Firebase Authentication is an account sign-in service. It is not an advertising SDK.",
+          "This section applies only if you install a later version in which TAMPIQ turns optional advertising on. Until that happens, TAMPIQ does not request ads, does not show a Google consent message, and does not send information to an advertising SDK.",
+          "If that later version enables advertising, it may use Google Mobile Ads to request and display ads, and Google UMP to ask for your consent where the law requires a choice before certain ad processing, including in the EEA, the United Kingdom, and Switzerland.",
+          "Only while those Google services are actually running, they may process the advertising identifier the device makes available (the Google advertising ID), IP address, general device and network information needed to request an ad, ad display and measurement signals (for example that an ad was requested, shown, or clicked), and the consent choice you record. Google and the advertising partners that participate in that ad request use this information to deliver and measure the ad and to apply your consent choice. TAMPIQ does not use it to build its own profile of your protection activity.",
+          "Where the consent message offers a choice, you can refuse consent, or agree only to the purposes the message lists. If that app version provides a privacy-options entry, you can withdraw or change the choice later inside the app. You can also reset or limit the advertising ID in Android settings. Withdrawal applies to later ad requests. It does not by itself delete copies Google may already have processed under Google’s own terms.",
+          "Protection session records, any TAMPIQ PIN, notification content read through notification access, and location evidence are not transferred to Google Mobile Ads, Google UMP, ad targeting, ad measurement, profiling, or advertising partners. TAMPIQ does not collect a PIN or device credential for advertising or for any other purpose. Notification content and location evidence stay limited to the protection features described in this policy."
         ]
       },
       {
