@@ -29,6 +29,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   mode=full → eski derin scrape (AMP + issue drilldown)
   POST /sync-empower-creative → Creative Review keyword tara / onaylı engelle (200/page)
   POST /sync-market → doviz.com piyasa tablo taraması (00:05 TR)
+  POST /sync-holidays → Investing borsa tatil takvimi (00:01 TR)
   GET  /status      → canlı izleme paneli (kuyruk / progress / sonraki slotlar)
   GET  /health      → aynı veri JSON
   POST /open-noads  → noAds sayfasını aç, textarea'ya URL yaz (policy «Ekle»)
@@ -236,6 +237,9 @@ SEO_AUDIT_SLOT_MINUTE = int(os.environ.get("SEO_AUDIT_BRIDGE_MINUTE") or "38")
   # GSC CWV screenshots — 03:42 + 15:42 TR (mode=full for AMP deep scrape)
 GSC_CWV_SLOT_HOURS = (3, 15)
 GSC_CWV_SLOT_MINUTE = int(os.environ.get("GSC_CWV_BRIDGE_MINUTE") or "42")
+# Investing tatil takvimi — günde bir, 00:01 TR
+HOLIDAY_SLOT_HOURS = (0,)
+HOLIDAY_SLOT_MINUTE = int(os.environ.get("HOLIDAY_CALENDAR_BRIDGE_MINUTE") or "1")
 # Piyasa tablo taraması — günde bir, 00:16 TR
 MARKET_SLOT_HOURS = (0,)
 MARKET_SLOT_MINUTE = int(os.environ.get("MARKET_TARAMA_BRIDGE_MINUTE") or "16")
@@ -371,6 +375,7 @@ _pagespeed_lock = threading.Lock()
 _app_ranks_lock = threading.Lock()
 _seo_audit_lock = threading.Lock()
 _market_lock = threading.Lock()
+_holidays_lock = threading.Lock()
 _noads_open_lock = threading.Lock()
 _revenue_targets_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -400,6 +405,7 @@ _last_empower_intel_sinemalar_result: dict[str, Any] = {"ok": False, "message": 
 _last_seo_audit_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_gsc_cwv_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_market_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_holidays_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_nt_auto_at = 0.0
 _last_news_auto_at = 0.0
 _last_notification_night_seal_slot = ""
@@ -418,6 +424,7 @@ _last_app_ranks_auto_slot = ""
 _last_seo_audit_auto_slot = ""
 _last_gsc_cwv_auto_slot = ""
 _last_market_auto_slot = ""
+_last_holidays_auto_slot = ""
 _last_empower_intel_auto_slot = ""
 _last_empower_intel_sinemalar_auto_slot = ""
 _news_progress: dict[str, Any] = {
@@ -495,6 +502,7 @@ def browser_scrape_slot_defs() -> tuple[tuple[str, tuple[int, ...], int], ...]:
         ("play", PLAY_SLOT_HOURS, PLAY_SLOT_MINUTE),
         *(("asc", (h,), m) for h, m in ASC_SLOTS),
         ("virgul", VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE),
+        ("holidays", HOLIDAY_SLOT_HOURS, HOLIDAY_SLOT_MINUTE),
         ("market", MARKET_SLOT_HOURS, MARKET_SLOT_MINUTE),
         ("gsc_links", GSC_LINKS_SLOT_HOURS, GSC_SLOT_MINUTE),
         ("policy", TWICE_DAILY_HOURS, POLICY_SLOT_MINUTE),
@@ -2625,6 +2633,70 @@ def run_app_ranks_bridge_once() -> dict[str, Any]:
     return out
 
 
+def run_holidays_bridge_once() -> dict[str, Any]:
+    """Investing.com borsa tatil takvimi (Tüm Dünya) → Railway ingest."""
+    global _last_holidays_result
+    if not _ingest_token():
+        err = {"ok": False, "kind": "holidays", "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_holidays_result = err
+        return err
+
+    import subprocess
+
+    script = ROOT / "scripts" / "investing_holiday_scrape.py"
+    if not script.is_file():
+        err = {"ok": False, "kind": "holidays", "message": "Holiday scrape betiği yok"}
+        _last_holidays_result = err
+        return err
+
+    print("Holiday calendar scrape başlıyor…", flush=True)
+    cmd = [sys.executable, str(script), "--headed", "--ingest"]
+    env = os.environ.copy()
+    env.setdefault(
+        "HOLIDAY_CALENDAR_INGEST_URL",
+        (
+            os.environ.get("HOLIDAY_CALENDAR_INGEST_URL")
+            or "https://projectcontrol.up.railway.app/api/holiday-calendar/ingest"
+        ).strip(),
+    )
+    timeout_sec = int(os.environ.get("HOLIDAY_CALENDAR_BRIDGE_TIMEOUT_SEC") or "600")
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=max(120, timeout_sec),
+        )
+    except subprocess.TimeoutExpired:
+        out = {
+            "ok": False,
+            "kind": "holidays",
+            "message": f"Holiday scrape zaman aşımı ({timeout_sec}s)",
+        }
+        _last_holidays_result = out
+        return out
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "holidays", "message": f"Holiday scrape subprocess: {exc}"}
+        _last_holidays_result = out
+        return out
+
+    combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+    if combined:
+        for line in combined.splitlines()[-40:]:
+            print(line, flush=True)
+
+    if proc.returncode == 0:
+        out = {"ok": True, "kind": "holidays", "message": "Holiday scrape OK"}
+    else:
+        tail = (combined[-300:] if combined else f"exit {proc.returncode}")[:300]
+        out = {"ok": False, "kind": "holidays", "message": tail}
+    _last_holidays_result = out
+    print(f"Holiday scrape · {out['message']}", flush=True)
+    return out
+
+
 def run_market_tarama_bridge_once() -> dict[str, Any]:
     """doviz.com piyasa tablo taraması (01.01.2025+) → Railway ingest."""
     global _last_market_result
@@ -3916,6 +3988,7 @@ def _health_payload() -> dict[str, Any]:
         "last_seo_audit": _last_seo_audit_result,
         "last_gsc_cwv": _last_gsc_cwv_result,
         "last_market": _last_market_result,
+        "last_holidays": _last_holidays_result,
         "gsc_cwv_progress": dict(_gsc_cwv_progress),
         "last_gsc_links": _last_gsc_links_result,
         "last_revenue_targets": _last_revenue_targets_result,
@@ -4583,6 +4656,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        elif path in ("/sync-holidays", "/holidays", "/sync-holiday-calendar", "/holiday-calendar"):
+            lock, busy, runner = (
+                _holidays_lock,
+                "Holiday scrape zaten çalışıyor, bekleyin.",
+                run_holidays_bridge_once,
+            )
         elif path in ("/sync-market", "/market", "/sync-piyasa", "/piyasa"):
             lock, busy, runner = (
                 _market_lock,
@@ -5218,6 +5297,11 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
             "lock": _gsc_cwv_lock,
             "runner": run_gsc_cwv_bridge_once,
         },
+        "holidays": {
+            "name": "Holidays",
+            "lock": _holidays_lock,
+            "runner": run_holidays_bridge_once,
+        },
         "market": {
             "name": "Piyasa",
             "lock": _market_lock,
@@ -5320,7 +5404,7 @@ def _auto_loop() -> None:
     global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
     global _last_gsc_links_auto_slot, _last_policy_auto_slot
     global _last_noads_auto_slot, _last_moderation_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
-    global _last_app_ranks_auto_slot, _last_gsc_cwv_auto_slot, _last_market_auto_slot
+    global _last_app_ranks_auto_slot, _last_gsc_cwv_auto_slot, _last_market_auto_slot, _last_holidays_auto_slot
 
     while True:
         _auto_cycle += 1
@@ -5586,6 +5670,10 @@ def _auto_loop() -> None:
         _slot_job(
             "gsc_cwv", "GSC CWV", _gsc_cwv_lock, run_gsc_cwv_bridge_once,
             "_last_gsc_cwv_auto_slot", GSC_CWV_SLOT_HOURS, GSC_CWV_SLOT_MINUTE,
+        )
+        _slot_job(
+            "holidays", "Holidays", _holidays_lock, run_holidays_bridge_once,
+            "_last_holidays_auto_slot", HOLIDAY_SLOT_HOURS, HOLIDAY_SLOT_MINUTE,
         )
         _slot_job(
             "market", "Piyasa", _market_lock, run_market_tarama_bridge_once,
@@ -6038,6 +6126,7 @@ def _remote_claim_job_registry() -> dict[str, dict[str, Any]]:
             "lock": _revenue_targets_lock,
             "runner": run_revenue_targets_bridge_once,
         },
+        "holidays": {"name": "Holidays", "lock": _holidays_lock, "runner": run_holidays_bridge_once},
         "market": {"name": "Piyasa", "lock": _market_lock, "runner": run_market_tarama_bridge_once},
         "empower_intel": {
             "name": "EmpowerIntel",

@@ -75,6 +75,7 @@ from backend.api.policy_ingest import router as policy_ingest_router
 from backend.api.sinemalar_moderation import router as sinemalar_moderation_router
 from backend.api.scrape_telemetry import router as scrape_telemetry_router
 from backend.api.market_quotes import router as market_quotes_router
+from backend.api.holiday_calendar import router as holiday_calendar_router
 from backend.api.page_tarama import router as page_tarama_router
 from backend.api.member_auth import router as member_auth_router
 from backend.collectors.crawler import collect_crawler_metrics
@@ -1153,6 +1154,7 @@ app.include_router(empower_intel_router, prefix="/api")
 app.include_router(empower_creative_router, prefix="/api")
 app.include_router(google_search_status_router, prefix="/api")
 app.include_router(market_quotes_router, prefix="/api")
+app.include_router(holiday_calendar_router, prefix="/api")
 app.include_router(page_tarama_router, prefix="/api")
 
 app.include_router(member_auth_router)
@@ -2094,6 +2096,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/gsc-cwv/ingest",
         "/api/gsc-cwv/shots-ingest",
         "/api/market-quotes/ingest",
+        "/api/holiday-calendar/ingest",
         "/api/app/category-ranks/ingest",
         "/api/page-tarama/claim",
         "/api/page-tarama/result",
@@ -16524,6 +16527,25 @@ def ipo_page(request: Request):
             "request": request,
             "sites": get_sidebar_sites(),
             "site_name": "IPO",
+        },
+    )
+
+
+@app.get("/holidays")
+def holidays_page(request: Request):
+    """Investing.com borsa tatil takvimi — Tüm Dünya."""
+    from backend.services.holiday_calendar import build_holidays_page_context
+
+    with SessionLocal() as db:
+        ctx = build_holidays_page_context(db)
+    return templates.TemplateResponse(
+        request,
+        "holidays.html",
+        context={
+            "request": request,
+            "sites": get_sidebar_sites(),
+            "site_name": "Holidays",
+            **ctx,
         },
     )
 

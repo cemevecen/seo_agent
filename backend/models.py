@@ -1625,3 +1625,13 @@ class IpoHalkarzVisit(Base):
     summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     delta_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     snapshot_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+
+
+class HolidayCalendarCache(Base):
+    """Investing.com borsa tatil takvimi — Mac bridge scrape snapshot."""
+
+    __tablename__ = "holiday_calendar_cache"
+
+    cache_key: Mapped[str] = mapped_column(String(32), primary_key=True, default="current")
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
