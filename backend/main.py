@@ -2510,6 +2510,21 @@ def _run_deferred_startup() -> None:
         daemon=True,
         name="doviz-news-startup",
     ).start()
+
+    def _startup_home_watch_urls_refresh() -> None:
+        import time as _time
+
+        _time.sleep(55)
+        try:
+            _run_home_watch_urls_refresh_job()
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Home watch-urls startup refresh hatası: %s", exc)
+
+    _threading.Thread(
+        target=_startup_home_watch_urls_refresh,
+        daemon=True,
+        name="home-watch-urls-startup",
+    ).start()
     LOGGER.info("Deferred startup: background tasks registered")
 
 
