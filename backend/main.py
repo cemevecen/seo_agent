@@ -4754,6 +4754,26 @@ def _run_daily_ga4_refresh_job() -> None:
         DAILY_REFRESH_LOCK.release()
 
 
+def _run_home_watch_urls_refresh_job() -> None:
+    """Ana sayfa Döviz URL bloğu — her gece 01:00 (TR) GA4 force refresh + DB snapshot."""
+    try:
+        from backend.services.home_watch_urls import build_home_watch_urls_context
+
+        LOGGER.info("Home watch-urls nightly refresh started.")
+        with SessionLocal() as db:
+            ctx = build_home_watch_urls_context(db, force=True)
+        err = (ctx or {}).get("error")
+        if err:
+            LOGGER.warning("Home watch-urls nightly refresh finished with error: %s", err)
+        else:
+            LOGGER.info(
+                "Home watch-urls nightly refresh completed (synced_at=%s).",
+                (ctx or {}).get("synced_at"),
+            )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Home watch-urls nightly refresh failed: %s", exc)
+
+
 def _run_web_mweb_metrics_fill_job() -> None:
     """GA4 sonrası /web · /mweb sayfa doldurma — Empower X-Data + market (Mac bridge kuyruğu)."""
     if not bool(getattr(settings, "web_mweb_metrics_fill_after_ga4_enabled", True)):
@@ -5266,7 +5286,19 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Günlük OMDB zenginleştirme — her gece 02:30'da, max 999 film
+    # Ana sayfa Döviz URL bloğu — her gece 01:00 (TR)
+    scheduler.add_job(
+        _run_home_watch_urls_refresh_job,
+        trigger=CronTrigger(hour=1, minute=0, timezone=timezone),
+        id="daily-home-watch-urls-refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+    job_count += 1
+
+    # Günlük OMDB zenginleştirme — her gece 01:00'da, max 999 film
     if (settings.omdb_api_key or "").strip():
         scheduler.add_job(
             _run_omdb_enrichment_job,

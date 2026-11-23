@@ -109,3 +109,24 @@ def test_pct_delta_tones():
     assert fmt == "+20.0%"
     assert tone == "up-strong"
     assert pct == 20.0
+
+
+def test_period_windows_1g_is_same_weekday_wow():
+    """1g: dün vs 7 gün önceki aynı hafta günü; 7g ardışık kalır."""
+    from datetime import date, timedelta
+
+    from backend.collectors.ga4 import report_calendar_yesterday
+    from backend.services.home_watch_urls import _period_windows
+
+    yesterday = report_calendar_yesterday()
+    (ls, le), (ps, pe) = _period_windows(1)
+    assert ls == le == yesterday.isoformat()
+    assert ps == pe == (yesterday - timedelta(days=7)).isoformat()
+    assert date.fromisoformat(ls).weekday() == date.fromisoformat(ps).weekday()
+
+    (ls7, le7), (ps7, pe7) = _period_windows(7)
+    assert ls7 != ps7
+    assert (
+        date.fromisoformat(le7) - date.fromisoformat(ls7)
+    ).days == 6
+    assert date.fromisoformat(ps7) == date.fromisoformat(ls7) - timedelta(days=7)

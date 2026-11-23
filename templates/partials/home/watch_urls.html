@@ -485,7 +485,7 @@
 
       {% if period_meta %}
         <p class="home-meta mt-2 text-slate-400 dark:text-slate-500">
-          {% if period_meta['1'] %}1g {{ period_meta['1'].current_label }} vs {{ period_meta['1'].previous_label }}{% endif %}
+          {% if period_meta['1'] %}1g {{ period_meta['1'].current_label }} vs {{ period_meta['1'].previous_label }} (önceki haftanın aynı günü){% endif %}
           {% if period_meta['7'] %} · 7g {{ period_meta['7'].current_label }} vs {{ period_meta['7'].previous_label }}{% endif %}
           {% if period_meta['30'] %} · 30g {{ period_meta['30'].current_label }} vs {{ period_meta['30'].previous_label }}{% endif %}
           · GA4 sessions

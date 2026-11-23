@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -25,7 +25,7 @@ from google.analytics.data_v1beta.types import (
 )
 from sqlalchemy.orm import Session
 
-from backend.collectors.ga4 import _calendar_windows, _client
+from backend.collectors.ga4 import _calendar_windows, _client, _same_weekday_day_windows
 from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
 
 LOGGER = logging.getLogger(__name__)
@@ -85,7 +85,17 @@ WATCH_URLS = WATCH_CATEGORIES
 
 _PERIODS = (1, 7, 30)
 _CACHE_TTL_SEC = 600.0
-_CACHE_VERSION = 6
+_CACHE_VERSION = 7
+_SNAP_PROFILE = "watch_urls"
+_SNAP_PERIOD_DAYS = 0
+_SNAP_MAX_AGE_SEC = 26 * 3600.0
+
+
+def _period_windows(days: int) -> tuple[tuple[str, str], tuple[str, str]]:
+    """1g: dün vs 7 gün önceki aynı hafta günü; 7g/30g: ardışık takvim pencereleri."""
+    if int(days) == 1:
+        return _same_weekday_day_windows()
+    return _calendar_windows(days)
 _TOP_CHILDREN = 12
 _ROW_LIMIT = 8000
 _PLATFORMS = ("all", "web", "mweb")
@@ -601,6 +611,94 @@ def _format_children(
     return out
 
 
+def _doviz_site_id(db: Session) -> int | None:
+    from backend.models import Site
+
+    row = (
+        db.query(Site)
+        .filter(Site.domain.ilike("%doviz.com%"))
+        .order_by(Site.id.asc())
+        .first()
+    )
+    if row is not None:
+        return int(row.id)
+    row = db.query(Site).order_by(Site.id.asc()).first()
+    return int(row.id) if row is not None else None
+
+
+def _load_snapshot_payload(db: Session) -> dict[str, Any] | None:
+    from backend.services.warehouse import get_latest_ga4_report_snapshot
+
+    site_id = _doviz_site_id(db)
+    if site_id is None:
+        return None
+    snap = get_latest_ga4_report_snapshot(
+        db, site_id=site_id, profile=_SNAP_PROFILE, period_days=_SNAP_PERIOD_DAYS
+    )
+    if not snap:
+        return None
+    payload = snap.get("payload") or {}
+    if int(payload.get("_cache_version") or 0) != _CACHE_VERSION:
+        return None
+    collected_raw = str(snap.get("collected_at") or "")
+    try:
+        collected = datetime.fromisoformat(collected_raw.replace("Z", "+00:00"))
+        if collected.tzinfo is None:
+            collected = collected.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - collected).total_seconds()
+        if age > _SNAP_MAX_AGE_SEC:
+            return None
+    except Exception:
+        return None
+    out = dict(payload)
+    out.pop("_cache_version", None)
+    out.pop("_windows", None)
+    return out
+
+
+def _persist_snapshot(
+    db: Session,
+    payload: dict[str, Any],
+    *,
+    windows: dict[int, tuple[tuple[str, str], tuple[str, str]]],
+) -> None:
+    from backend.services.warehouse import save_ga4_report_snapshot
+
+    site_id = _doviz_site_id(db)
+    if site_id is None:
+        LOGGER.warning("home watch-urls snapshot skipped: no site")
+        return
+    (ls, le), (ps, pe) = windows.get(1) or (("", ""), ("", ""))
+    body = dict(payload)
+    body["_cache_version"] = _CACHE_VERSION
+    body["_windows"] = {
+        str(d): {
+            "last_start": w[0][0],
+            "last_end": w[0][1],
+            "prev_start": w[1][0],
+            "prev_end": w[1][1],
+        }
+        for d, w in windows.items()
+    }
+    try:
+        save_ga4_report_snapshot(
+            db,
+            site_id=site_id,
+            profile=_SNAP_PROFILE,
+            period_days=_SNAP_PERIOD_DAYS,
+            last_start=ls,
+            last_end=le,
+            prev_start=ps,
+            prev_end=pe,
+            payload=body,
+            collected_at=datetime.utcnow(),
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        LOGGER.exception("home watch-urls snapshot save failed")
+
+
 def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[str, Any]:
     now = time.time()
     if (
@@ -611,11 +709,21 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
     ):
         return dict(_cache["payload"])
 
+    if not force:
+        snap_payload = _load_snapshot_payload(db)
+        if snap_payload is not None:
+            _cache["at"] = now
+            _cache["version"] = _CACHE_VERSION
+            _cache["payload"] = snap_payload
+            return dict(snap_payload)
+
     targets = _watch_targets()
     profiles = _resolve_profile_properties(db, 1)
     period_meta: dict[int, dict[str, str]] = {}
+    windows: dict[int, tuple[tuple[str, str], tuple[str, str]]] = {}
     for days in _PERIODS:
-        (ls, le), (ps, pe) = _calendar_windows(days)
+        (ls, le), (ps, pe) = _period_windows(days)
+        windows[days] = ((ls, le), (ps, pe))
         period_meta[days] = {
             "current_label": _fmt_range(ls, le),
             "previous_label": _fmt_range(ps, pe),
@@ -641,7 +749,7 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
             client = _client()
             dim_filter = _build_tree_filter(targets)
             for days in _PERIODS:
-                (last_start, last_end), (prev_start, prev_end) = _calendar_windows(days)
+                (last_start, last_end), (prev_start, prev_end) = windows[days]
                 for profile, pid in profiles:
                     last_rows = _run_range_rows(
                         client, pid, start=last_start, end=last_end, dim_filter=dim_filter
@@ -746,6 +854,7 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
         "metric_label": "sessions",
         "synced_at": date.today().isoformat(),
         "period_meta": {str(d): period_meta[d] for d in _PERIODS},
+        "compare_note": "1g: önceki haftanın aynı günü (WoW)",
         "modes": [
             {"id": "exact", "label": "Sadece ana sayfa"},
             {"id": "tree", "label": "Alt linklerle birlikte"},
@@ -759,6 +868,8 @@ def build_home_watch_urls_context(db: Session, *, force: bool = False) -> dict[s
         "default_platform": "all",
         "available_platforms": [p for p, _ in profiles] or ["web"],
     }
+    if error is None:
+        _persist_snapshot(db, payload, windows=windows)
     _cache["at"] = now
     _cache["version"] = _CACHE_VERSION
     _cache["payload"] = payload
