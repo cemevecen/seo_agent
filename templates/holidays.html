@@ -29,7 +29,7 @@
             class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs dark:border-transparent dark:bg-zinc-800 dark:text-zinc-300">
       <option value="">Tüm Dünya</option>
       {% for c in countries %}
-      <option value="{{ c }}">{{ c }}</option>
+      <option value="{{ c.name }}">{% if c.flag_emoji %}{{ c.flag_emoji }} {% endif %}{{ c.name }}</option>
       {% endfor %}
     </select>
     <input id="hol-q" type="search" placeholder="Borsa / tatil ara…"
@@ -64,8 +64,10 @@
               </td>
               <td class="px-4 py-2.5 text-slate-800 dark:text-zinc-200">
                 <span class="inline-flex items-center gap-2">
-                  {% if r.country_flag %}
-                  <span class="hol-flag ceFlags {{ r.country_flag }}" aria-hidden="true"></span>
+                  {% if r.flag_img %}
+                  <img class="hol-flag" src="{{ r.flag_img }}" width="16" height="12" alt="" loading="lazy" decoding="async">
+                  {% elif r.flag_emoji %}
+                  <span class="hol-flag-emoji" aria-hidden="true">{{ r.flag_emoji }}</span>
                   {% endif %}
                   {{ r.country }}
                 </span>
@@ -87,11 +89,19 @@
     display: inline-block;
     width: 16px;
     height: 12px;
-    background-image: url("https://i-invdn-com.investing.com/flags_16x12.png");
-    background-repeat: no-repeat;
+    object-fit: cover;
+    border-radius: 1px;
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12);
     vertical-align: middle;
     flex-shrink: 0;
   }
+  .hol-flag-emoji {
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  /* ülke seçicide de bayrak */
+  #hol-country option { padding-inline-start: 4px; }
 </style>
 <script>
 (function () {

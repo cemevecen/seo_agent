@@ -18,6 +18,217 @@ CACHE_KEY = "current"
 SOURCE_URL = "https://tr.investing.com/holiday-calendar/"
 _DATE_TR_RE = re.compile(r"^(\d{2})\.(\d{2})\.(\d{4})$")
 
+# Investing .ceFlags sınıf adı → ISO 3166-1 alpha-2
+_FLAG_CLASS_TO_ISO: dict[str, str] = {
+    "USA": "us",
+    "Germany": "de",
+    "Argentina": "ar",
+    "Australia": "au",
+    "Austria": "at",
+    "Bahrain": "bh",
+    "Bangladesh": "bd",
+    "Belgium": "be",
+    "Bermuda": "bm",
+    "Dubai": "ae",
+    "UAE": "ae",
+    "UK": "gb",
+    "Bosnia": "ba",
+    "Botswana": "bw",
+    "Brazil": "br",
+    "Bulgaria": "bg",
+    "Denmark": "dk",
+    "Ecuador": "ec",
+    "Indonesia": "id",
+    "Estonia": "ee",
+    "Philippines": "ph",
+    "Palestine": "ps",
+    "Finland": "fi",
+    "France": "fr",
+    "South_Africa": "za",
+    "South_Korea": "kr",
+    "India": "in",
+    "Netherlands": "nl",
+    "Hong_Kong": "hk",
+    "Croatia": "hr",
+    "Jamaica": "jm",
+    "Japan": "jp",
+    "Canada": "ca",
+    "Qatar": "qa",
+    "Kazakhstan": "kz",
+    "Kenya": "ke",
+    "Colombia": "co",
+    "Costa_Rica": "cr",
+    "Cyprus": "cy",
+    "Latvia": "lv",
+    "Lithuania": "lt",
+    "Lebanon": "lb",
+    "Luxembourg": "lu",
+    "Hungary": "hu",
+    "Malaysia": "my",
+    "Malta": "mt",
+    "Mexico": "mx",
+    "Mongolia": "mn",
+    "Mauritius": "mu",
+    "Namibia": "na",
+    "Nigeria": "ng",
+    "Norway": "no",
+    "Pakistan": "pk",
+    "Peru": "pe",
+    "Poland": "pl",
+    "Portugal": "pt",
+    "Romania": "ro",
+    "Rwanda": "rw",
+    "Russian_Federation": "ru",
+    "Russia": "ru",
+    "Singapore": "sg",
+    "Slovakia": "sk",
+    "Slovenia": "si",
+    "Sri_Lanka": "lk",
+    "Tanzania": "tz",
+    "Thailand": "th",
+    "Taiwan": "tw",
+    "Tunisia": "tn",
+    "Ukraine": "ua",
+    "Venezuela": "ve",
+    "Vietnam": "vn",
+    "New_Zealand": "nz",
+    "Greece": "gr",
+    "Zimbabwe": "zw",
+    "Czech_Republic": "cz",
+    "Jordan": "jo",
+    "Ireland": "ie",
+    "Spain": "es",
+    "Sweden": "se",
+    "Switzerland": "ch",
+    "Italy": "it",
+    "Iceland": "is",
+    "Chile": "cl",
+    "Turkey": "tr",
+    "China": "cn",
+    "Egypt": "eg",
+    "Israel": "il",
+    "Saudi_Arabia": "sa",
+    "Kuwait": "kw",
+    "Oman": "om",
+    "Morocco": "ma",
+    "Serbia": "rs",
+}
+
+# TR ülke adı → ISO (flag sınıfı yoksa yedek)
+_COUNTRY_TR_TO_ISO: dict[str, str] = {
+    "ABD": "us",
+    "Almanya": "de",
+    "Arjantin": "ar",
+    "Avustralya": "au",
+    "Avusturya": "at",
+    "Bahreyn": "bh",
+    "Bangladeş": "bd",
+    "Belçika": "be",
+    "Bermuda": "bm",
+    "Birleşik Arap Emirlikleri": "ae",
+    "Birleşik Krallık": "gb",
+    "Bosna Hersek": "ba",
+    "Botsvana": "bw",
+    "Brezilya": "br",
+    "Bulgaristan": "bg",
+    "Danimarka": "dk",
+    "Ekvador": "ec",
+    "Endonezya": "id",
+    "Estonya": "ee",
+    "Filipinler": "ph",
+    "Filistin Bölgesi": "ps",
+    "Finlandiya": "fi",
+    "Fransa": "fr",
+    "Güney Afrika": "za",
+    "Güney Kore": "kr",
+    "Hindistan": "in",
+    "Hollanda": "nl",
+    "Hong Kong": "hk",
+    "Hırvatistan": "hr",
+    "Jamaika": "jm",
+    "Japonya": "jp",
+    "Kanada": "ca",
+    "Katar": "qa",
+    "Kazakistan": "kz",
+    "Kenya": "ke",
+    "Kolombiya": "co",
+    "Kosta Rika": "cr",
+    "Kıbrıs": "cy",
+    "Letonya": "lv",
+    "Litvanya": "lt",
+    "Lübnan": "lb",
+    "Lüksemburg": "lu",
+    "Macaristan": "hu",
+    "Malezya": "my",
+    "Malta": "mt",
+    "Meksika": "mx",
+    "Mongolya": "mn",
+    "Morityus": "mu",
+    "Namibya": "na",
+    "Nijerya": "ng",
+    "Norveç": "no",
+    "Pakistan": "pk",
+    "Peru": "pe",
+    "Polonya": "pl",
+    "Portekiz": "pt",
+    "Romanya": "ro",
+    "Ruanda": "rw",
+    "Rusya": "ru",
+    "Singapur": "sg",
+    "Slovakya": "sk",
+    "Slovenya": "si",
+    "Sri Lanka": "lk",
+    "Tanzanya": "tz",
+    "Tayland": "th",
+    "Tayvan": "tw",
+    "Tunus": "tn",
+    "Ukrayna": "ua",
+    "Venezuela": "ve",
+    "Vietnam": "vn",
+    "Yeni Zelanda": "nz",
+    "Yunanistan": "gr",
+    "Zimbabve": "zw",
+    "Çek Cumhuriyeti": "cz",
+    "Ürdün": "jo",
+    "İrlanda": "ie",
+    "İspanya": "es",
+    "İsveç": "se",
+    "İsviçre": "ch",
+    "İtalya": "it",
+    "İzlanda": "is",
+    "Şili": "cl",
+    "Türkiye": "tr",
+}
+
+
+def resolve_country_iso(*, country: str = "", country_flag: str = "") -> str:
+    """Investing flag sınıfı veya TR ülke adından ISO2 (küçük harf)."""
+    flag = (country_flag or "").strip()
+    if flag in _FLAG_CLASS_TO_ISO:
+        return _FLAG_CLASS_TO_ISO[flag]
+    # bazen class "ceFlags USA" gibi gelebilir
+    for part in flag.replace("-", "_").split():
+        if part in _FLAG_CLASS_TO_ISO:
+            return _FLAG_CLASS_TO_ISO[part]
+    name = (country or "").strip()
+    if name in _COUNTRY_TR_TO_ISO:
+        return _COUNTRY_TR_TO_ISO[name]
+    return ""
+
+
+def flag_emoji(iso: str) -> str:
+    cc = (iso or "").upper().strip()
+    if len(cc) != 2 or not cc.isalpha():
+        return ""
+    return chr(0x1F1E6 + ord(cc[0]) - 65) + chr(0x1F1E6 + ord(cc[1]) - 65)
+
+
+def flag_img_url(iso: str) -> str:
+    code = (iso or "").lower().strip()
+    if len(code) != 2 or not code.isalpha():
+        return ""
+    return f"https://flagcdn.com/16x12/{code}.png"
+
 
 def parse_date_tr(value: str | None) -> str | None:
     """dd.mm.YYYY → YYYY-MM-DD."""
@@ -56,13 +267,20 @@ def normalize_rows(raw_rows: list[dict[str, Any]] | None) -> list[dict[str, Any]
         if key in seen:
             continue
         seen.add(key)
+        flag_class = str(item.get("country_flag") or "").strip()
+        country_code = str(item.get("country_code") or "").strip().lower()
+        if len(country_code) != 2:
+            country_code = resolve_country_iso(country=country, country_flag=flag_class)
         out.append(
             {
                 "date_tr": date_tr,
                 "date_iso": iso,
                 "country": country,
-                "country_flag": str(item.get("country_flag") or "").strip(),
+                "country_flag": flag_class,
+                "country_code": country_code,
                 "country_href": str(item.get("country_href") or "").strip(),
+                "flag_emoji": flag_emoji(country_code),
+                "flag_img": flag_img_url(country_code),
                 "exchange": exchange,
                 "holiday": holiday,
             }
@@ -143,11 +361,24 @@ def build_holidays_page_context(db: Session) -> dict[str, Any]:
                 "date_display": r.get("date_tr") if show_date else "",
             }
         )
-    countries = sorted({str(r.get("country") or "") for r in rows if r.get("country")})
+    country_map: dict[str, dict[str, str]] = {}
+    for r in rows:
+        name = str(r.get("country") or "")
+        if not name or name in country_map:
+            continue
+        code = str(r.get("country_code") or "")
+        country_map[name] = {
+            "name": name,
+            "code": code,
+            "flag_emoji": str(r.get("flag_emoji") or flag_emoji(code)),
+            "flag_img": str(r.get("flag_img") or flag_img_url(code)),
+        }
+    countries = sorted(country_map.values(), key=lambda c: c["name"])
     return {
         "rows": display_rows,
         "row_count": len(display_rows),
         "countries": countries,
+        "country_names": [c["name"] for c in countries],
         "country_count": len(countries),
         "fetched_at": payload.get("fetched_at") or payload.get("updated_at") or "",
         "updated_at": payload.get("updated_at") or "",
