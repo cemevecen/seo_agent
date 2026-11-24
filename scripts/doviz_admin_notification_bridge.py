@@ -1153,11 +1153,26 @@ def run_play_bridge_once() -> dict[str, Any]:
 
     Varsayılan: süre sınırı yok (PLAY_BRIDGE_TIMEOUT_SEC=0). Mühürlü gövde yalnız
     dün+bugün. ANR/edinme/ziyaretçi/puan CSV job'undan gelir (oturumdan bağımsız).
+    CSV kırılırsa (JWT vb.) statistics gap_fill + STATS_FULL açılır.
     """
+    csv_ok = False
     try:
-        run_play_reports_fill(months_back=15)
+        csv_res = run_play_reports_fill(months_back=15)
+        meta = csv_res.get("meta") if isinstance(csv_res, dict) else None
+        files_n = int((meta or {}).get("files") or 0) if isinstance(meta, dict) else 0
+        csv_ok = bool(isinstance(csv_res, dict) and csv_res.get("ok") and files_n > 0)
     except Exception as exc:  # noqa: BLE001
         print(f"Play CSV fill atlandı: {exc}", flush=True)
+        csv_res = {"ok": False, "message": str(exc)}
+    if not csv_ok:
+        # GCS SA JWT geçersiz / bucket yok → konsol statistics ile boşluğu kapat
+        os.environ["PLAY_CONSOLE_STATS_FULL"] = "1"
+        os.environ.setdefault("PLAY_CONSOLE_GAP_LOOKBACK_DAYS", "60")
+        print(
+            "Play CSV yok/kırık → STATS_FULL + gap lookback=60 "
+            f"({(csv_res or {}).get('message') if isinstance(csv_res, dict) else 'csv fail'})",
+            flush=True,
+        )
     try:
         from backend.collectors.ga4 import push_profile_daily_trend
         from backend.services.history_seal import calendar_today, history_start
@@ -2006,7 +2021,7 @@ def run_sinemalar_moderation_bridge_once(*, incremental_which: str = "yesterday"
     return out
 
 
-def run_asc_api_fill(*, days: int = 20) -> dict[str, Any]:
+def run_asc_api_fill(*, days: int = 45) -> dict[str, Any]:
     """ASC Sales/Analytics API → overview facts. Oturum gerekmez."""
     from backend.services.asc_api_backfill import run_asc_api_fill as _fill
 
@@ -2021,9 +2036,14 @@ def run_asc_bridge_once() -> dict[str, Any]:
         _last_asc_result = err
         return err
     try:
-        api_fill = run_asc_api_fill(days=20)
+        api_days = 45
+        try:
+            api_days = max(7, int((os.environ.get("ASC_API_FILL_DAYS") or "45").strip() or "45"))
+        except ValueError:
+            api_days = 45
+        api_fill = run_asc_api_fill(days=api_days)
         print(
-            f"ASC API fill · ok={api_fill.get('ok')} · "
+            f"ASC API fill · ok={api_fill.get('ok')} · days={api_days} · "
             f"{str(api_fill.get('message') or '')[:160]}",
             flush=True,
         )

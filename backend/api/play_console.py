@@ -222,8 +222,23 @@ def get_play_console_coverage(
             slot["min"] = day
         if day > slot["max"]:
             slot["max"] = day
+    from backend.services.console_coverage import (
+        PLAY_CRITICAL_OVERVIEW_METRICS,
+        play_critical_coverage_through,
+    )
+    from backend.services.history_seal import calendar_yesterday
+
+    through = play_critical_coverage_through(by_metric)
+    yday = calendar_yesterday()
+    critical_stale = bool(through and through < yday)
     return {
         "ok": True,
         "overview_metrics": by_metric,
-        "explorer_fact_count": panels.get("explorer_fact_count") if isinstance(panels, dict) else None,
+        "explorer_fact_count": panels.get("explorer_fact_count")
+        if isinstance(panels, dict)
+        else None,
+        "critical_metrics": list(PLAY_CRITICAL_OVERVIEW_METRICS),
+        "critical_coverage_through": through.isoformat() if through else None,
+        "critical_stale": critical_stale,
+        "yesterday": yday.isoformat(),
     }

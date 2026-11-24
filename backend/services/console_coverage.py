@@ -161,6 +161,21 @@ COVERAGE_BY_PIPELINE = {
 # değil (o `force_full` işi). Sınır olmazsa mühür aylar öncesine düşebildiği
 # için tek bir eksik gün yüzünden yüzlerce günlük tarama tetiklenebilir.
 DEFAULT_GAP_LOOKBACK_DAYS = 14
+# Play overview kolonları (CSV/stats): revenue lean ile güncel kalabilir; boşluk
+# ölçümü revenue dışındaki kritik metriklerin en eski max'ına bakmalı.
+PLAY_CRITICAL_OVERVIEW_METRICS: tuple[str, ...] = (
+    "crashes",
+    "anrs",
+    "device_acquisition",
+    "user_acquisition",
+    "user_lost",
+    "active_devices",
+    "ar2_acquisitions",
+    "ar2_visitors",
+    "rating",
+    "store_listing_conversion",
+)
+DEFAULT_PLAY_GAP_LOOKBACK_DAYS = 60
 _HTTP_TIMEOUT_SEC = 30
 
 
@@ -253,6 +268,88 @@ def bounded_known_dates(
     return sorted(known)
 
 
+def play_critical_coverage_through(
+    overview_metrics: dict[str, Any] | None,
+) -> date | None:
+    """Kritik overview metriklerinin en eski max tarihi (revenue hariç)."""
+    if not isinstance(overview_metrics, dict):
+        return None
+    maxes: list[date] = []
+    for metric in PLAY_CRITICAL_OVERVIEW_METRICS:
+        slot = overview_metrics.get(metric)
+        if not isinstance(slot, dict):
+            continue
+        parsed = _parse_iso(slot.get("max"))
+        if parsed:
+            maxes.append(parsed)
+    return min(maxes) if maxes else None
+
+
+def play_known_dates_for_scrape(
+    *,
+    lookback_days: int | None = None,
+    base_url: str | None = None,
+) -> list[date] | None:
+    """Play gap_fill için known_dates — revenue-güncel olsa bile CSV kolon boşluğu.
+
+    `/api/play-console/coverage` dates listesi döndürmez; overview_metrics
+    min/max ile kritik metriklerin en eski max'ına kadar «var» sayılır.
+    """
+    import os
+
+    from backend.services.history_seal import (
+        calendar_yesterday,
+        iter_dates_inclusive,
+        pipeline_seal_through,
+    )
+
+    cov = fetch_remote_coverage("play", base_url=base_url)
+    if cov is None:
+        return None
+    through = play_critical_coverage_through(cov.get("overview_metrics"))
+    if through is None:
+        # dates alanı varsa (ileri uyum) klasik yola düş
+        if cov.get("dates"):
+            span = lookback_days
+            if span is None:
+                try:
+                    span = int(
+                        (os.environ.get("PLAY_CONSOLE_GAP_LOOKBACK_DAYS") or "").strip()
+                        or DEFAULT_PLAY_GAP_LOOKBACK_DAYS
+                    )
+                except ValueError:
+                    span = DEFAULT_PLAY_GAP_LOOKBACK_DAYS
+            return bounded_known_dates(
+                cov.get("dates") or [],
+                pipeline="play",
+                lookback_days=max(1, int(span)),
+            )
+        return None
+
+    if lookback_days is None:
+        try:
+            lookback_days = int(
+                (os.environ.get("PLAY_CONSOLE_GAP_LOOKBACK_DAYS") or "").strip()
+                or DEFAULT_PLAY_GAP_LOOKBACK_DAYS
+            )
+        except ValueError:
+            lookback_days = DEFAULT_PLAY_GAP_LOOKBACK_DAYS
+    lookback_days = max(1, int(lookback_days))
+
+    yday = calendar_yesterday()
+    gap_start = pipeline_seal_through("play") + timedelta(days=1)
+    covered_end = min(through, yday)
+    if covered_end < gap_start:
+        stored: list[str] = []
+    else:
+        stored = [
+            d.isoformat() for d in iter_dates_inclusive(gap_start, covered_end)
+        ]
+    return bounded_known_dates(
+        stored, pipeline="play", lookback_days=lookback_days
+    )
+
+
 def known_dates_for_scrape(
     pipeline: str,
     *,
@@ -264,6 +361,11 @@ def known_dates_for_scrape(
     None dönerse çağıran taraf mevcut davranışta kalır (yalnızca dün) — yani
     kapsama ucuna ulaşılamaması asla yanlış/eksik veri üretmez.
     """
+    key = (pipeline or "").strip().lower()
+    if key == "play":
+        return play_known_dates_for_scrape(
+            lookback_days=lookback_days, base_url=base_url
+        )
     cov = fetch_remote_coverage(pipeline, base_url=base_url)
     if cov is None:
         return None

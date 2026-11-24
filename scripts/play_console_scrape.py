@@ -174,7 +174,10 @@ def _stats_history_start() -> "date":
 
 
 def _console_date_range(days: int | None = None) -> str:
-    """Play Console QS dateRange — mühürlüyse yalnız dün; force_full → HISTORY_START→seal."""
+    """Play Console QS dateRange — mühürlüyse yalnız dün; force_full → HISTORY_START→seal.
+
+    `PLAY_CONSOLE_GAP_DAYS` veya kritik overview boşluğu → gap_fill penceresi.
+    """
     from datetime import timedelta
 
     from backend.services.history_seal import (
@@ -184,11 +187,36 @@ def _console_date_range(days: int | None = None) -> str:
     )
 
     end = calendar_yesterday()
+    gap_raw = (os.environ.get("PLAY_CONSOLE_GAP_DAYS") or "").strip()
+    if days is None and gap_raw.isdigit() and int(gap_raw) > 0:
+        days = int(gap_raw)
     if days is not None:
         start = end - timedelta(days=max(1, int(days)) - 1)
+        print(
+            f"Play tarih aralığı · explicit_days · {start} → {end} ({days} gün)",
+            flush=True,
+        )
         return play_qs_date_range(start, end)
 
-    win = scheduled_fetch_window("play")
+    known = None
+    try:
+        from backend.services.console_coverage import known_dates_for_scrape
+
+        lookback = 60
+        try:
+            lookback = int(
+                (os.environ.get("PLAY_CONSOLE_GAP_LOOKBACK_DAYS") or "60").strip() or "60"
+            )
+        except ValueError:
+            lookback = 60
+        known = known_dates_for_scrape("play", lookback_days=max(1, lookback))
+    except Exception as exc:  # noqa: BLE001
+        print(f"  · play kapsama sorgusu atlandı: {exc}", flush=True)
+
+    win = scheduled_fetch_window("play", known_dates=known)
+    if win.get("mode") == "gap_fill":
+        # CSV kolonları boş — lean revenue-only ezmesin
+        os.environ["PLAY_CONSOLE_STATS_FULL"] = "1"
     print(
         f"Play tarih aralığı · {win['mode']} · {win['start']} → {win['end']} ({win['days']} gün)",
         flush=True,
@@ -239,6 +267,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "USER_LOST-ALL-EVENTS-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CTR%2CCY%2CAT%2CDE",
+        "force_table": True,
         "needles": ("Kullanıcı kaybı", "User lost", "Kayıp", "İstatistik", "Veri tablosu"),
     },
     {
@@ -267,6 +296,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "AR2_ACQUISITIONS-ALL-UNIQUE-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CTR%2CDE%2CBG%2CBE",
+        "force_table": True,
         "needles": ("Edinme", "Acquisition", "Mağaza", "İstatistik", "Veri tablosu"),
     },
     {
@@ -323,6 +353,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL",
         "dim_hint": "overview",
+        "force_table": True,
         "needles": ("Puan", "Rating", "Google Play", "İstatistik", "Veri tablosu", "Ortalama"),
     },
     {
@@ -450,6 +481,52 @@ _STATS_PRIORITY_IDS = (
 )
 
 
+def _play_stats_full() -> bool:
+    """CSV kırık / gap_fill — tüm statistics view'ları çek (overview lean kalabilir)."""
+    raw = (os.environ.get("PLAY_CONSOLE_STATS_FULL") or "").strip().lower()
+    return raw in ("1", "true", "yes", "on", "force", "always")
+
+
+def _stale_play_metric_keys(*, lag_days: int = 2) -> set[str] | None:
+    """Coverage'da dünden >lag_days geride kalan kritik metrikler. None = bilinmiyor."""
+    try:
+        from backend.services.console_coverage import (
+            PLAY_CRITICAL_OVERVIEW_METRICS,
+            fetch_remote_coverage,
+        )
+        from backend.services.history_seal import calendar_yesterday
+        from datetime import timedelta
+
+        cov = fetch_remote_coverage("play")
+        if not cov:
+            return None
+        om = cov.get("overview_metrics") or {}
+        if not isinstance(om, dict):
+            return None
+        yday = calendar_yesterday()
+        fresh_after = yday - timedelta(days=max(0, int(lag_days)))
+        stale: set[str] = set()
+        for metric in PLAY_CRITICAL_OVERVIEW_METRICS:
+            slot = om.get(metric)
+            if not isinstance(slot, dict):
+                stale.add(metric)
+                continue
+            mx = str(slot.get("max") or "")[:10]
+            try:
+                from datetime import date as _date
+
+                md = _date.fromisoformat(mx)
+            except ValueError:
+                stale.add(metric)
+                continue
+            if md < fresh_after:
+                stale.add(metric)
+        return stale
+    except Exception as exc:  # noqa: BLE001
+        print(f"  · stale metrik sorgusu atlandı: {exc}", flush=True)
+        return None
+
+
 def _ordered_statistics_views() -> list[dict[str, Any]]:
     """ANR/Crash tarih görünümlerini öne al (uzun sync’te önce panel dolsun)."""
     prio = {vid: i for i, vid in enumerate(_STATS_PRIORITY_IDS)}
@@ -457,7 +534,47 @@ def _ordered_statistics_views() -> list[dict[str, Any]]:
         STATISTICS_VIEWS,
         key=lambda v: prio.get(str(v.get("id") or ""), 1000),
     )
-    if not _play_sealed_lean():
+    if not _play_sealed_lean() or _play_stats_full():
+        # Gap turunda yalnızca geride kalan kolonlar — uzun sync yarıda kesilmesin
+        if _play_stats_full():
+            stale = _stale_play_metric_keys(lag_days=2)
+            if stale is not None:
+                # revenue her zaman dahil (lean günlük dilim)
+                want = set(stale) | {"revenue"}
+                filtered = [
+                    v for v in views if str(v.get("metric_key") or "") in want
+                ]
+                if filtered:
+                    # Önce tarihli ANR/Crash, sonra diğer stale (user_lost/rating/AR2)
+                    stale_prio = {
+                        "anrs": 0,
+                        "crashes": 1,
+                        "user_lost": 2,
+                        "ar2_acquisitions": 3,
+                        "rating": 4,
+                        "user_acquisition": 5,
+                        "device_acquisition": 6,
+                        "active_devices": 7,
+                        "ar2_visitors": 8,
+                        "store_listing_conversion": 9,
+                        "revenue": 50,
+                    }
+                    filtered.sort(
+                        key=lambda v: (
+                            stale_prio.get(str(v.get("metric_key") or ""), 20),
+                            prio.get(str(v.get("id") or ""), 1000),
+                        )
+                    )
+                    print(
+                        f"  · stats gap · {len(filtered)}/{len(views)} view "
+                        f"(stale={','.join(sorted(stale)) or '—'})",
+                        flush=True,
+                    )
+                    return filtered
+            print(
+                f"  · stats full · {len(views)} view (CSV/gap — overview lean)",
+                flush=True,
+            )
         return views
     # Mühürlü lean: installs/crashes/ratings/store CSV'den gelir (play_reports_backfill).
     # Konsol taraması onları ezmesin; günlük konsol yalnızca CSV'si olmayan revenue.
@@ -5720,8 +5837,43 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             facts_i = _explorer_facts_from_view(
                 view, scraped, view_series, page_text=page_text, protobuf_body=proto
             )
+            dated_n = sum(
+                1
+                for f in facts_i
+                if isinstance(f, dict)
+                and re.fullmatch(r"20\d{2}-\d{2}-\d{2}", str(f.get("date") or "")[:10])
+            )
+            # Protobuf satır var ama tarihli fact yok → tablo fallback (user_lost/rating/AR2)
+            if dated_n == 0 and _page_is_alive(page):
+                try:
+                    print(
+                        f"    tarihli fact yok (proto={scraped.get('_protobuf_rows')}) "
+                        "— zorunlu tablo fallback",
+                        flush=True,
+                    )
+                    page_text = _collect_paginated_table_text(page, max_pages=8)
+                    scraped["_page_text_len"] = len(page_text)
+                    _dump_view_debug(view_id, proto, page_text)
+                    facts_i = _explorer_facts_from_view(
+                        view,
+                        scraped,
+                        view_series,
+                        page_text=page_text,
+                        protobuf_body=proto,
+                    )
+                    dated_n = sum(
+                        1
+                        for f in facts_i
+                        if isinstance(f, dict)
+                        and re.fullmatch(
+                            r"20\d{2}-\d{2}-\d{2}", str(f.get("date") or "")[:10]
+                        )
+                    )
+                except Exception as fb_exc:  # noqa: BLE001
+                    print(f"    tablo fallback hata: {fb_exc}", flush=True)
             print(
-                f"    → facts={len(facts_i)} proto_rows={scraped.get('_protobuf_rows')} cards={len(cards_i)}",
+                f"    → facts={len(facts_i)} dated={dated_n} "
+                f"proto_rows={scraped.get('_protobuf_rows')} cards={len(cards_i)}",
                 flush=True,
             )
             explorer_facts.extend(facts_i)
