@@ -303,13 +303,30 @@ def play_known_dates_for_scrape(
         pipeline_seal_through,
     )
 
-    cov = fetch_remote_coverage("play", base_url=base_url)
-    if cov is None:
-        return None
-    through = play_critical_coverage_through(cov.get("overview_metrics"))
+    # Remote + local: en eski kritik max boşluğu belirler (Mac 8012 ayrı DB)
+    throughs: list[date] = []
+    bases: list[str | None]
+    if base_url:
+        bases = [base_url]
+    else:
+        bases = [None, "http://127.0.0.1:8012"]
+    dates_fallback: list[Any] = []
+    for b in bases:
+        cov = fetch_remote_coverage("play", base_url=b)
+        if cov is None:
+            continue
+        t = play_critical_coverage_through(cov.get("overview_metrics"))
+        if t is not None:
+            throughs.append(t)
+        elif cov.get("ok"):
+            # Hedef cevap verdi ama kritik kolon yok (local boş DB) → mühüre kadar
+            # «var» say; lookback içi tamamen gap_fill olsun.
+            throughs.append(pipeline_seal_through("play"))
+        elif cov.get("dates"):
+            dates_fallback = list(cov.get("dates") or [])
+    through = min(throughs) if throughs else None
     if through is None:
-        # dates alanı varsa (ileri uyum) klasik yola düş
-        if cov.get("dates"):
+        if dates_fallback:
             span = lookback_days
             if span is None:
                 try:
@@ -320,7 +337,7 @@ def play_known_dates_for_scrape(
                 except ValueError:
                     span = DEFAULT_PLAY_GAP_LOOKBACK_DAYS
             return bounded_known_dates(
-                cov.get("dates") or [],
+                dates_fallback,
                 pipeline="play",
                 lookback_days=max(1, int(span)),
             )

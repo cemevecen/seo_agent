@@ -118,10 +118,17 @@ def ingest_asc_api_facts(
     token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
     if not token:
         return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN yok"}
-    url = (
+    primary = (
         os.environ.get("ASC_CONSOLE_INGEST_URL")
         or "https://projectcontrol.up.railway.app/api/asc-console/ingest"
-    )
+    ).strip()
+    urls = [primary]
+    dual = (os.environ.get("ASC_CONSOLE_DUAL_INGEST_LOCAL") or "1").strip().lower()
+    if dual not in ("0", "false", "no", "off"):
+        local_u = "http://127.0.0.1:8012/api/asc-console/ingest"
+        if local_u.rstrip("/") not in {u.rstrip("/") for u in urls}:
+            if "127.0.0.1" not in primary and "localhost" not in primary:
+                urls.append(local_u)
     bundle = (meta or {}).get("bundle_id") or _DEFAULT_BUNDLE
     app_id = (
         os.environ.get("ASC_CONSOLE_APP_ID") or os.environ.get("ASC_APP_ID") or _DEFAULT_APP_ID
@@ -140,34 +147,49 @@ def ingest_asc_api_facts(
             "scrape_meta": {"source": "asc_api_fill", **(meta or {})},
         },
     }
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "X-Notification-Ingest-Token": token,
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-            status = getattr(resp, "status", 200)
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")[:300]
-        return {
-            "ok": False,
-            "http_status": exc.code,
-            "message": raw or str(exc),
-            "meta": meta,
-        }
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "message": str(exc)[:200], "meta": meta}
-    out = dict(payload) if isinstance(payload, dict) else {"ok": True, "body": payload}
-    out["http_status"] = status
-    out["meta"] = meta
-    out["kind"] = "asc_api"
-    return out
+    raw_body = json.dumps(body).encode("utf-8")
+    last_out: dict[str, Any] = {"ok": False, "message": "ASC ingest hedef yok", "meta": meta}
+    any_ok = False
+    for url in urls:
+        req = urllib.request.Request(
+            url,
+            data=raw_body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Notification-Ingest-Token": token,
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+                status = getattr(resp, "status", 200)
+            out = dict(payload) if isinstance(payload, dict) else {"ok": True, "body": payload}
+            out["http_status"] = status
+            out["meta"] = meta
+            out["kind"] = "asc_api"
+            out["ingest_url"] = url
+            last_out = out
+            if status < 400 and out.get("ok") is not False:
+                any_ok = True
+        except urllib.error.HTTPError as exc:
+            raw = exc.read().decode("utf-8", errors="replace")[:300]
+            last_out = {
+                "ok": False,
+                "http_status": exc.code,
+                "message": raw or str(exc),
+                "meta": meta,
+                "ingest_url": url,
+            }
+        except Exception as exc:  # noqa: BLE001
+            last_out = {
+                "ok": False,
+                "message": str(exc)[:200],
+                "meta": meta,
+                "ingest_url": url,
+            }
+    last_out["ok"] = any_ok or bool(last_out.get("ok"))
+    return last_out
 
 
 def run_asc_api_fill(*, days: int = 20) -> dict[str, Any]:

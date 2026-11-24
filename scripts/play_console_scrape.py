@@ -488,40 +488,50 @@ def _play_stats_full() -> bool:
 
 
 def _stale_play_metric_keys(*, lag_days: int = 2) -> set[str] | None:
-    """Coverage'da dünden >lag_days geride kalan kritik metrikler. None = bilinmiyor."""
+    """Coverage'da dünden >lag_days geride kalan kritik metrikler. None = bilinmiyor.
+
+    Railway + local 8012 birleşimi — local boşsa tüm kritikler stale sayılır
+    (Mac paneli Railway'den ayrı DB kullanır).
+    """
     try:
         from backend.services.console_coverage import (
             PLAY_CRITICAL_OVERVIEW_METRICS,
             fetch_remote_coverage,
         )
         from backend.services.history_seal import calendar_yesterday
+        from datetime import date as _date
         from datetime import timedelta
 
-        cov = fetch_remote_coverage("play")
-        if not cov:
-            return None
-        om = cov.get("overview_metrics") or {}
-        if not isinstance(om, dict):
-            return None
+        bases = [None, "http://127.0.0.1:8012"]
         yday = calendar_yesterday()
         fresh_after = yday - timedelta(days=max(0, int(lag_days)))
         stale: set[str] = set()
-        for metric in PLAY_CRITICAL_OVERVIEW_METRICS:
-            slot = om.get(metric)
-            if not isinstance(slot, dict):
-                stale.add(metric)
-                continue
-            mx = str(slot.get("max") or "")[:10]
+        saw_any = False
+        for base in bases:
             try:
-                from datetime import date as _date
-
-                md = _date.fromisoformat(mx)
-            except ValueError:
-                stale.add(metric)
+                cov = fetch_remote_coverage("play", base_url=base)
+            except Exception:
+                cov = None
+            if not cov:
                 continue
-            if md < fresh_after:
-                stale.add(metric)
-        return stale
+            om = cov.get("overview_metrics") or {}
+            if not isinstance(om, dict):
+                continue
+            saw_any = True
+            for metric in PLAY_CRITICAL_OVERVIEW_METRICS:
+                slot = om.get(metric)
+                if not isinstance(slot, dict) or not slot.get("max"):
+                    stale.add(metric)
+                    continue
+                mx = str(slot.get("max") or "")[:10]
+                try:
+                    md = _date.fromisoformat(mx)
+                except ValueError:
+                    stale.add(metric)
+                    continue
+                if md < fresh_after:
+                    stale.add(metric)
+        return stale if saw_any else None
     except Exception as exc:  # noqa: BLE001
         print(f"  · stale metrik sorgusu atlandı: {exc}", flush=True)
         return None
@@ -6789,25 +6799,65 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
                 "merge_vitals": False,
                 "merge_reviews": False,
             }
-    resp = requests.post(
-        INGEST_URL,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        data=json.dumps(payload),
-        timeout=120,
-    )
-    try:
-        body = resp.json() if resp.content else {}
-    except Exception:
-        body = {"raw": (resp.text or "")[:400]}
-    if not isinstance(body, dict):
-        body = {"message": str(body)}
-    body["http_status"] = resp.status_code
-    body["ok"] = resp.status_code < 400 and body.get("ok") is not False
-    return body
+    # Mac local panel (8012) + Railway — tek tarama ikisine de yazsın
+    ingest_urls: list[str] = []
+    primary = (os.environ.get("PLAY_CONSOLE_INGEST_URL") or INGEST_URL or "").strip()
+    if primary:
+        ingest_urls.append(primary)
+    dual = (os.environ.get("PLAY_CONSOLE_DUAL_INGEST_LOCAL") or "1").strip().lower()
+    if dual not in ("0", "false", "no", "off"):
+        local_u = "http://127.0.0.1:8012/api/play-console/ingest"
+        if local_u.rstrip("/") not in {u.rstrip("/") for u in ingest_urls}:
+            if "127.0.0.1" not in primary and "localhost" not in primary:
+                ingest_urls.append(local_u)
+    extra = (os.environ.get("PLAY_CONSOLE_INGEST_URLS") or "").strip()
+    for part in extra.split(","):
+        u = part.strip()
+        if u and u.rstrip("/") not in {x.rstrip("/") for x in ingest_urls}:
+            ingest_urls.append(u)
+    if not ingest_urls:
+        ingest_urls = [INGEST_URL]
+
+    bodies: list[dict[str, Any]] = []
+    for url in ingest_urls:
+        try:
+            resp = requests.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                data=json.dumps(payload),
+                timeout=120,
+            )
+            try:
+                body = resp.json() if resp.content else {}
+            except Exception:
+                body = {"raw": (resp.text or "")[:400]}
+            if not isinstance(body, dict):
+                body = {"message": str(body)}
+            body["http_status"] = resp.status_code
+            body["ok"] = resp.status_code < 400 and body.get("ok") is not False
+            body["ingest_url"] = url
+            bodies.append(body)
+            print(
+                f"  · ingest → {url} · "
+                f"{'ok' if body.get('ok') else 'fail'} HTTP {resp.status_code}",
+                flush=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            bodies.append({"ok": False, "message": str(exc)[:200], "ingest_url": url})
+            print(f"  · ingest → {url} · hata: {exc}", flush=True)
+
+    primary_body = next((b for b in bodies if b.get("ok")), bodies[0] if bodies else {})
+    primary_body = dict(primary_body)
+    primary_body["targets"] = [
+        {"url": b.get("ingest_url"), "ok": b.get("ok"), "http_status": b.get("http_status")}
+        for b in bodies
+    ]
+    primary_body["ok"] = any(bool(b.get("ok")) for b in bodies)
+    return primary_body
 
 
 def main(argv: list[str] | None = None) -> int:
