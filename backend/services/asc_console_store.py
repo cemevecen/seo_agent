@@ -170,9 +170,27 @@ def ingest_asc_console_payload(
     # Metrik+tarih upsert — diğer günleri / metrikleri silme (mühürlü gövde korunur)
     _, existing_panels = _unpack_metrics_blob(row.metrics_json or "[]")
     by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
+    def _value_sane(fact: dict[str, Any]) -> bool:
+        try:
+            v = float(fact.get("value"))
+        except (TypeError, ValueError):
+            return False
+        m = str(fact.get("metric") or "").lower()
+        if m in ("conversion_rate",):
+            return 0.0 <= v <= 100.0
+        if v != v:
+            return False
+        if abs(v) > 50_000_000:
+            return False
+        if 1_000_000_000 <= abs(v) <= 2_000_000_000_000:
+            return False
+        return True
+
     for f in existing_panels.get("explorer_facts") or []:
         if not isinstance(f, dict) or not f.get("metric"):
             continue
+        if not _value_sane(f):
+            continue  # çöp epoch/id değerlerini düşür (ör. 27 milyar)
         key = (
             str(f.get("metric")),
             str(f.get("date") or "")[:10],
@@ -188,11 +206,28 @@ def ingest_asc_console_payload(
         if touched_metrics:
             by_key = {k: v for k, v in by_key.items() if k[0] not in touched_metrics}
     for f in facts:
+        if not _value_sane(f):
+            continue
         key = (
             str(f.get("metric")),
             str(f.get("date") or "")[:10],
             str(f.get("dim") or "overview"),
         )
+        prev = by_key.get(key)
+        if prev is not None:
+            try:
+                pv = float(prev.get("value"))
+                nv = float(f.get("value"))
+            except (TypeError, ValueError):
+                pv, nv = 0.0, 0.0
+            # Analytics/API sıfırları sales veya scrape dolu hücreyi ezmesin
+            src = str(f.get("source") or "")
+            if nv == 0.0 and pv > 0 and src in (
+                "asc_analytics_api",
+                "asc_sales_api",
+                "asc_api_fill",
+            ):
+                continue
         by_key[key] = f
     merged_facts = list(by_key.values())
     merged_panels = dict(existing_panels) if isinstance(existing_panels, dict) else {}
@@ -266,6 +301,27 @@ def asc_console_payload(db: Session) -> dict[str, Any]:
     if not isinstance(reviews, list):
         reviews = []
     facts = panels.get("explorer_facts") if isinstance(panels, dict) else []
+    if isinstance(facts, list) and isinstance(panels, dict):
+        def _read_sane(fact: dict[str, Any]) -> bool:
+            try:
+                v = float(fact.get("value"))
+            except (TypeError, ValueError):
+                return False
+            m = str(fact.get("metric") or "").lower()
+            if m in ("conversion_rate",):
+                return 0.0 <= v <= 100.0
+            if v != v or abs(v) > 50_000_000:
+                return False
+            if 1_000_000_000 <= abs(v) <= 2_000_000_000_000:
+                return False
+            return True
+
+        cleaned = [f for f in facts if isinstance(f, dict) and _read_sane(f)]
+        if len(cleaned) != len(facts):
+            panels = dict(panels)
+            panels["explorer_facts"] = cleaned
+            panels["explorer_fact_count"] = len(cleaned)
+            facts = cleaned
     return {
         "ok": bool(row.sync_ok),
         "empty": not facts and not reviews,

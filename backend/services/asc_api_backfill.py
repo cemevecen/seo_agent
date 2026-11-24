@@ -90,18 +90,46 @@ def build_asc_api_facts(*, days: int = 20) -> tuple[list[dict[str, Any]], dict[s
             for ds, val in zip(dates, vals):
                 if val is None:
                     continue
-                facts.append(_fact(metric, ds, float(val), source="asc_analytics_api"))
+                # Analytics bazen 0 basıyor; sales birimlerini ezmesin
+                try:
+                    fv = float(val)
+                except (TypeError, ValueError):
+                    continue
+                if fv == 0.0 and metric in ("units", "total_downloads"):
+                    continue
+                facts.append(_fact(metric, ds, fv, source="asc_analytics_api"))
 
     by: dict[tuple[str, str], dict[str, Any]] = {}
     for f in facts:
         key = (str(f["metric"]), str(f["date"])[:10])
         prev = by.get(key)
-        if (
-            prev
-            and prev.get("source") == "asc_analytics_api"
-            and f.get("source") != "asc_analytics_api"
-        ):
-            continue
+        # Sales doluysa analytics sıfır/eksik ezmesin
+        if prev:
+            try:
+                pv = float(prev.get("value") or 0)
+                nv = float(f.get("value") or 0)
+            except (TypeError, ValueError):
+                pv, nv = 0.0, 0.0
+            if (
+                prev.get("source") == "asc_sales_api"
+                and f.get("source") == "asc_analytics_api"
+                and nv <= 0
+                and pv > 0
+            ):
+                continue
+            if (
+                prev.get("source") == "asc_analytics_api"
+                and f.get("source") == "asc_sales_api"
+                and pv <= 0
+                and nv > 0
+            ):
+                by[key] = f
+                continue
+            if (
+                prev.get("source") == "asc_analytics_api"
+                and f.get("source") != "asc_analytics_api"
+            ):
+                continue
         by[key] = f
     out = list(by.values())
     meta["fact_count"] = len(out)

@@ -74,33 +74,51 @@ def _scrape_window() -> dict:
         scheduled_fetch_window,
     )
 
-    # Explicit day count only when forcing full / unsealed backfill
-    raw = (os.environ.get("ASC_CONSOLE_SCRAPE_DAYS") or "").strip()
-    if raw and (force_full_history("asc") or not is_pipeline_sealed("asc")):
+    # ASC_CONSOLE_SCRAPE_DAYS / ASC_CONSOLE_GAP_DAYS — mühürlüde de gap fill
+    gap_raw = (os.environ.get("ASC_CONSOLE_GAP_DAYS") or "").strip()
+    raw = (os.environ.get("ASC_CONSOLE_SCRAPE_DAYS") or gap_raw or "").strip()
+    force_days = bool(gap_raw) or force_full_history("asc") or not is_pipeline_sealed("asc")
+    if raw and force_days:
         try:
             n = int(raw)
         except ValueError:
-            n = 365
+            n = 60
         n = min(max(n, 1), 400)
         end = calendar_yesterday()
         start = max(history_start(), end - timedelta(days=n - 1))
+        print(
+            f"ASC tarih aralığı · explicit_days · {start} → {end} ({n} gün)",
+            flush=True,
+        )
         return {
             "mode": "explicit_days",
             "start": start,
             "end": end,
             "days": (end - start).days + 1,
         }
-    # Boşluk doldurma: panele "elimde hangi günler var" diye sor. Ulaşılamazsa
-    # known_dates None kalır ve davranış aynen bugünkü gibi (yalnızca dün) olur —
-    # yani kapsama sorgusu başarısız olsa bile yanlış veya eksik veri üretilmez.
+    # Boşluk doldurma: kritik store metrikleri (crash/install/cihaz) sales günlerinden
+    # ayrı — aksi halde API fill «tarih var» sanıp gap'i kapatır.
     known = None
     try:
         from backend.services.console_coverage import known_dates_for_scrape
 
-        known = known_dates_for_scrape("asc")
+        lookback = 60
+        try:
+            lookback = int(
+                (os.environ.get("ASC_CONSOLE_GAP_LOOKBACK_DAYS") or "60").strip() or "60"
+            )
+        except ValueError:
+            lookback = 60
+        known = known_dates_for_scrape("asc", lookback_days=max(1, lookback))
     except Exception as exc:  # noqa: BLE001
         print(f"ASC kapsama sorgusu atlandı: {exc}", flush=True)
-    return scheduled_fetch_window("asc", known_dates=known)
+    win = scheduled_fetch_window("asc", known_dates=known)
+    print(
+        f"ASC tarih aralığı · {win.get('mode')} · {win.get('start')} → {win.get('end')} "
+        f"({win.get('days')} gün)",
+        flush=True,
+    )
+    return win
 
 
 def _scrape_days() -> int:
@@ -614,6 +632,31 @@ def _as_float(v: Any) -> float | None:
         return None
 
 
+def _asc_value_ok(metric: str, value: float) -> bool:
+    """UI XHR walker bazen timestamp/id'yi value sanıyor (ör. 27 milyar) — reddet."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return False
+    if v != v:  # NaN
+        return False
+    m = (metric or "").strip().lower()
+    if m in ("conversion_rate", "conversionrate"):
+        # 0–1 kesir veya 0–100 %
+        return 0.0 <= v <= 100.0
+    if m in ("proceeds", "sales", "revenue"):
+        return -1.0e7 <= v <= 1.0e8
+    # Sayaç metrikleri — App Store günlük üst sınırı cömert tut
+    if v < 0:
+        return False
+    if v > 50_000_000:
+        return False
+    # Unix ms/s aralığı (yanlışlıkla value'ya düşmüş epoch)
+    if 1_000_000_000 <= v <= 2_000_000_000_000:
+        return False
+    return True
+
+
 def _walk_series(obj: Any, out: list[tuple[str, float]], *, depth: int = 0) -> None:
     """JSON ağacından (date, value) çiftlerini topla."""
     if depth > 12 or obj is None:
@@ -685,15 +728,22 @@ def _facts_from_payload(
     _walk_series(payload, pairs)
     by_date: dict[str, float] = {}
     for ds, fv in pairs:
+        if not _asc_value_ok(metric, fv):
+            continue
         by_date[ds] = by_date.get(ds, 0.0) + fv if metric != "conversion_rate" else fv
     # conversion: aynı gün birden fazla gelirse ortalama
     if metric == "conversion_rate" and pairs:
         sums: dict[str, list[float]] = {}
         for ds, fv in pairs:
+            if not _asc_value_ok(metric, fv):
+                continue
             sums.setdefault(ds, []).append(fv)
         by_date = {ds: sum(vs) / len(vs) for ds, vs in sums.items()}
     facts = []
     for ds in sorted(by_date.keys()):
+        val = float(by_date[ds])
+        if not _asc_value_ok(metric, val):
+            continue
         facts.append(
             {
                 "metric": metric,
@@ -701,7 +751,7 @@ def _facts_from_payload(
                 "dim": "overview",
                 "segment": "OVERALL",
                 "date": ds,
-                "value": round(float(by_date[ds]), 4),
+                "value": round(val, 4),
                 "label": f"{metric}:OVERALL",
                 "source": "asc_network",
             }
@@ -750,7 +800,7 @@ def _facts_from_measures_response(payload: dict[str, Any]) -> list[dict[str, Any
                 )
             else:
                 continue
-            if not ds or fv is None:
+            if not ds or fv is None or not _asc_value_ok(metric, fv):
                 continue
             facts.append(
                 {
@@ -1653,6 +1703,26 @@ def scrape_asc_console(
         _release_context(pw, ctx)
 
 
+def _asc_ingest_urls() -> list[str]:
+    """Railway + local 8012 — tek tarama ikisine de yazsın."""
+    urls: list[str] = []
+    primary = (os.environ.get("ASC_CONSOLE_INGEST_URL") or INGEST_URL or "").strip()
+    if primary:
+        urls.append(primary)
+    dual = (os.environ.get("ASC_CONSOLE_DUAL_INGEST_LOCAL") or "1").strip().lower()
+    if dual not in ("0", "false", "no", "off"):
+        local_u = "http://127.0.0.1:8012/api/asc-console/ingest"
+        if local_u.rstrip("/") not in {u.rstrip("/") for u in urls}:
+            if "127.0.0.1" not in primary and "localhost" not in primary:
+                urls.append(local_u)
+    extra = (os.environ.get("ASC_CONSOLE_INGEST_URLS") or "").strip()
+    for part in extra.split(","):
+        u = part.strip()
+        if u and u.rstrip("/") not in {x.rstrip("/") for x in urls}:
+            urls.append(u)
+    return urls or [INGEST_URL]
+
+
 def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
     import requests
 
@@ -1671,31 +1741,58 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
         "sync_message": result.get("message"),
         "sync_mode": result.get("sync_mode") or "analytics_scrape",
     }
-    r = requests.post(
-        INGEST_URL,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        json=payload,
-        timeout=120,
-    )
-    text = r.text or ""
-    if text.lstrip().lower().startswith("<!doctype") or text.lstrip().startswith("<html"):
-        return {
-            "ok": False,
-            "http_status": r.status_code,
-            "message": (
-                "Ingest HTML login sayfası döndü — Railway’de /api/asc-console/ingest "
-                "public allowlist + NOTIFICATION_INGEST_TOKEN kontrol et"
-            ),
-        }
-    try:
-        data = r.json()
-    except Exception:
-        data = {"ok": False, "message": text[:300]}
-    data["http_status"] = r.status_code
-    return data
+    bodies: list[dict[str, Any]] = []
+    any_ok = False
+    for url in _asc_ingest_urls():
+        try:
+            r = requests.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=120,
+            )
+        except Exception as exc:  # noqa: BLE001
+            bodies.append({"ok": False, "message": str(exc)[:200], "ingest_url": url})
+            print(f"ASC ingest hata · {url}: {exc}", flush=True)
+            continue
+        text = r.text or ""
+        if text.lstrip().lower().startswith("<!doctype") or text.lstrip().startswith("<html"):
+            body = {
+                "ok": False,
+                "http_status": r.status_code,
+                "ingest_url": url,
+                "message": (
+                    "Ingest HTML login sayfası döndü — Railway’de /api/asc-console/ingest "
+                    "public allowlist + NOTIFICATION_INGEST_TOKEN kontrol et"
+                ),
+            }
+        else:
+            try:
+                body = r.json()
+            except Exception:
+                body = {"ok": False, "message": text[:300]}
+            if not isinstance(body, dict):
+                body = {"message": str(body)}
+            body["http_status"] = r.status_code
+            body["ingest_url"] = url
+            body["ok"] = r.status_code < 400 and body.get("ok") is not False
+        bodies.append(body)
+        print(
+            f"ASC ingest · {url} · HTTP {body.get('http_status')} · "
+            f"{body.get('message') or body.get('fact_count') or ''}",
+            flush=True,
+        )
+        if body.get("ok"):
+            any_ok = True
+    if not bodies:
+        return {"ok": False, "message": "ASC ingest hedef yok"}
+    out = dict(bodies[0])
+    out["ok"] = any_ok
+    out["ingest_results"] = bodies
+    return out
 
 
 def main() -> int:

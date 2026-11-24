@@ -132,10 +132,42 @@ def asc_coverage(db: Session, *, start: str | None = None, end: str | None = Non
     from backend.models import AscConsoleWorkspace
 
     counts: dict[date, int] = {}
+    overview: dict[str, dict[str, Any]] = {}
     row = db.query(AscConsoleWorkspace).filter(AscConsoleWorkspace.id == 1).first()
     if row is not None:
-        _collect_dates(_load_blob(row.metrics_json), counts)
-    return _coverage_payload("asc", counts, start=start, end=end)
+        blob = _load_blob(row.metrics_json)
+        _collect_dates(blob, counts)
+        panels = blob.get("panels") if isinstance(blob, dict) else {}
+        facts = panels.get("explorer_facts") if isinstance(panels, dict) else []
+        for fact in facts or []:
+            if not isinstance(fact, dict):
+                continue
+            metric = str(fact.get("metric") or "")
+            day = str(fact.get("date") or "")[:10]
+            dim = str(fact.get("dim") or fact.get("dimension") or "overview")
+            if not metric or len(day) != 10 or dim not in ("overview", ""):
+                continue
+            try:
+                val = float(fact.get("value"))
+            except (TypeError, ValueError):
+                continue
+            # çöp epoch değerlerini kapsamadan düş
+            if abs(val) > 50_000_000 or 1_000_000_000 <= abs(val) <= 2_000_000_000_000:
+                continue
+            slot = overview.setdefault(metric, {"count": 0, "min": day, "max": day})
+            slot["count"] = int(slot["count"]) + 1
+            if day < slot["min"]:
+                slot["min"] = day
+            if day > slot["max"]:
+                slot["max"] = day
+    out = _coverage_payload("asc", counts, start=start, end=end)
+    through = asc_critical_coverage_through(overview)
+    out["overview_metrics"] = overview
+    out["critical_metrics"] = list(ASC_CRITICAL_OVERVIEW_METRICS)
+    out["critical_coverage_through"] = through.isoformat() if through else None
+    yday = _parse_iso(out.get("yesterday"))
+    out["critical_stale"] = bool(through and yday and through < yday)
+    return out
 
 
 def firebase_coverage(db: Session, *, start: str | None = None, end: str | None = None) -> dict[str, Any]:
@@ -175,7 +207,21 @@ PLAY_CRITICAL_OVERVIEW_METRICS: tuple[str, ...] = (
     "rating",
     "store_listing_conversion",
 )
+# ASC: sales/API fill redownloads/impressions basar; crash/install/cihaz/abonelik
+# konsol scrape ister. Kritik listede yalnız scrape metrikleri — aksi halde API
+# sıfırları «kapsandı» sanıp 1 günlük gap_fill’e düşer.
+ASC_CRITICAL_OVERVIEW_METRICS: tuple[str, ...] = (
+    "crashes",
+    "installs",
+    "uninstalls",
+    "active_devices",
+    "active_subscriptions",
+    "subscription_renewals",
+    "subscription_churned",
+    "free_trials",
+)
 DEFAULT_PLAY_GAP_LOOKBACK_DAYS = 60
+DEFAULT_ASC_GAP_LOOKBACK_DAYS = 60
 _HTTP_TIMEOUT_SEC = 30
 
 
@@ -367,6 +413,96 @@ def play_known_dates_for_scrape(
     )
 
 
+def asc_critical_coverage_through(
+    overview_metrics: dict[str, Any] | None = None,
+    *,
+    facts: list[dict[str, Any]] | None = None,
+) -> date | None:
+    """Kritik ASC store metriklerinin en eski max tarihi.
+
+    Tüm kritik metrikler yoksa None — kısmi API fill gap’i kapatmaz.
+    """
+    by_max: dict[str, date] = {}
+    if isinstance(overview_metrics, dict) and overview_metrics:
+        for metric in ASC_CRITICAL_OVERVIEW_METRICS:
+            slot = overview_metrics.get(metric)
+            if not isinstance(slot, dict):
+                continue
+            parsed = _parse_iso(slot.get("max"))
+            if parsed:
+                by_max[metric] = parsed
+    if facts:
+        for f in facts:
+            if not isinstance(f, dict):
+                continue
+            metric = str(f.get("metric") or "")
+            if metric not in ASC_CRITICAL_OVERVIEW_METRICS:
+                continue
+            dim = str(f.get("dim") or f.get("dimension") or "overview")
+            if dim not in ("overview", ""):
+                continue
+            parsed = _parse_iso(f.get("date"))
+            if not parsed:
+                continue
+            prev = by_max.get(metric)
+            if prev is None or parsed > prev:
+                by_max[metric] = parsed
+    if len(by_max) < len(ASC_CRITICAL_OVERVIEW_METRICS):
+        return None
+    return min(by_max.values()) if by_max else None
+
+
+def asc_known_dates_for_scrape(
+    *,
+    lookback_days: int | None = None,
+    base_url: str | None = None,
+) -> list[date] | None:
+    """ASC gap_fill — sales tarihleri değil, crash/install/cihaz kapsaması."""
+    import os
+
+    from backend.services.history_seal import (
+        calendar_yesterday,
+        iter_dates_inclusive,
+        pipeline_seal_through,
+    )
+
+    if lookback_days is None:
+        try:
+            lookback_days = int(
+                (os.environ.get("ASC_CONSOLE_GAP_LOOKBACK_DAYS") or "").strip()
+                or DEFAULT_ASC_GAP_LOOKBACK_DAYS
+            )
+        except ValueError:
+            lookback_days = DEFAULT_ASC_GAP_LOOKBACK_DAYS
+    lookback_days = max(1, int(lookback_days))
+
+    bases: list[str | None] = [base_url] if base_url else [None, "http://127.0.0.1:8012"]
+    throughs: list[date] = []
+    for b in bases:
+        cov = fetch_remote_coverage("asc", base_url=b)
+        if cov is None:
+            continue
+        through = asc_critical_coverage_through(cov.get("overview_metrics"))
+        if through is not None:
+            throughs.append(through)
+        elif cov.get("ok"):
+            # Kritik metrik yok (veya eski coverage şekli) → mühür; lookback gap açılsın
+            throughs.append(pipeline_seal_through("asc"))
+    if not throughs:
+        return None
+    through = min(throughs)
+    yday = calendar_yesterday()
+    gap_start = pipeline_seal_through("asc") + timedelta(days=1)
+    covered_end = min(through, yday)
+    if covered_end < gap_start:
+        stored: list[str] = []
+    else:
+        stored = [d.isoformat() for d in iter_dates_inclusive(gap_start, covered_end)]
+    return bounded_known_dates(
+        stored, pipeline="asc", lookback_days=lookback_days
+    )
+
+
 def known_dates_for_scrape(
     pipeline: str,
     *,
@@ -381,6 +517,10 @@ def known_dates_for_scrape(
     key = (pipeline or "").strip().lower()
     if key == "play":
         return play_known_dates_for_scrape(
+            lookback_days=lookback_days, base_url=base_url
+        )
+    if key == "asc":
+        return asc_known_dates_for_scrape(
             lookback_days=lookback_days, base_url=base_url
         )
     cov = fetch_remote_coverage(pipeline, base_url=base_url)
