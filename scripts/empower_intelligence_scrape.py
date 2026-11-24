@@ -1183,30 +1183,62 @@ def post_ingest(payload: dict[str, Any]) -> dict[str, Any]:
     if not token:
         return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN yok"}
 
+    def _ingest_urls() -> list[str]:
+        primary = (os.environ.get("EMPOWER_INTEL_INGEST_URL") or INGEST_URL or "").strip()
+        urls: list[str] = [primary] if primary else []
+        dual = (os.environ.get("EMPOWER_INTEL_DUAL_INGEST_LOCAL") or "1").strip().lower()
+        if dual not in ("0", "false", "no", "off"):
+            local_u = "http://127.0.0.1:8012/api/empower-intel/ingest"
+            if local_u.rstrip("/") not in {u.rstrip("/") for u in urls}:
+                if primary and "127.0.0.1" not in primary and "localhost" not in primary:
+                    urls.append(local_u)
+        return urls or [INGEST_URL]
+
     def _post_one(body: dict[str, Any]) -> dict[str, Any]:
         data = json.dumps(body, ensure_ascii=False, default=str).encode("utf-8")
-        req = urllib.request.Request(
-            INGEST_URL,
-            data=data,
-            method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "X-Notification-Ingest-Token": token,
-                "Authorization": f"Bearer {token}",
-            },
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=180) as resp:
-                raw = resp.read().decode("utf-8", errors="replace")
-                try:
-                    return json.loads(raw)
-                except json.JSONDecodeError:
-                    return {"ok": True, "message": raw[:300]}
-        except urllib.error.HTTPError as exc:
-            err = exc.read().decode("utf-8", errors="replace")[:500]
-            return {"ok": False, "message": f"HTTP {exc.code}: {err}"}
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "message": str(exc)}
+        last: dict[str, Any] = {"ok": False, "message": "ingest hedef yok"}
+        any_ok = False
+        for url in _ingest_urls():
+            req = urllib.request.Request(
+                url,
+                data=data,
+                method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Notification-Ingest-Token": token,
+                    "Authorization": f"Bearer {token}",
+                },
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=180) as resp:
+                    raw = resp.read().decode("utf-8", errors="replace")
+                    try:
+                        out = json.loads(raw)
+                    except json.JSONDecodeError:
+                        out = {"ok": True, "message": raw[:300]}
+                if not isinstance(out, dict):
+                    out = {"ok": True, "message": str(out)[:300]}
+                out["ingest_url"] = url
+                last = out
+                if out.get("ok") is not False:
+                    any_ok = True
+                    print(f"  · empower ingest → {url} · ok", flush=True)
+                else:
+                    print(
+                        f"  · empower ingest → {url} · fail · "
+                        f"{str(out.get('message') or '')[:120]}",
+                        flush=True,
+                    )
+            except urllib.error.HTTPError as exc:
+                err = exc.read().decode("utf-8", errors="replace")[:500]
+                last = {"ok": False, "message": f"HTTP {exc.code}: {err}", "ingest_url": url}
+                print(f"  · empower ingest → {url} · HTTP {exc.code}", flush=True)
+            except Exception as exc:  # noqa: BLE001
+                last = {"ok": False, "message": str(exc), "ingest_url": url}
+                print(f"  · empower ingest → {url} · hata: {exc}", flush=True)
+        last = dict(last)
+        last["ok"] = any_ok or bool(last.get("ok"))
+        return last
 
     platforms = payload.get("platforms") or []
     if isinstance(platforms, list) and len(platforms) > 1:
