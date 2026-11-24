@@ -134,7 +134,6 @@ _ADMIN_PATH_LABELS: list[tuple[str, str]] = [
     ("/seo-audit", "SEO Audit"),
     ("/tmdb-upcoming", "Movie / TMDB"),
     ("/intelligence", "News / Intelligence"),
-    ("/ipo", "IPO / Halka Arz"),
     ("/external-explorer", "External Explorer"),
     ("/public-sites", "Public Sites"),
     ("/realtime", "Realtime"),

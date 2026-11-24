@@ -1987,15 +1987,6 @@ def _template_xdata_menu_visible(request: Request | None) -> bool:
 jinja_env.globals["xdata_menu_visible"] = _template_xdata_menu_visible
 
 
-def _template_ipo_menu_visible(request: Request | None) -> bool:
-    if request is None:
-        return False
-    return bool(getattr(request.state, "ipo_menu_visible", False))
-
-
-jinja_env.globals["ipo_menu_visible"] = _template_ipo_menu_visible
-
-
 def _template_sheet_menu_visible(request: Request | None) -> bool:
     if request is None:
         return False
@@ -2140,11 +2131,6 @@ async def ip_allowlist_middleware(request: Request, call_next):
             is_xdata_page_path,
             resolve_xdata_menu_visible,
         )
-        from backend.services.ipo_page_access import (
-            is_ipo_page_allowed_email,
-            is_ipo_page_path,
-            resolve_ipo_menu_visible,
-        )
         from backend.services.sheet_page_access import (
             is_sheet_page_allowed_email,
             is_sheet_page_path,
@@ -2162,9 +2148,6 @@ async def ip_allowlist_middleware(request: Request, call_next):
             member_email=member.email if member else None,
         )
         request.state.xdata_menu_visible = resolve_xdata_menu_visible(
-            member_email=member.email if member else None,
-        )
-        request.state.ipo_menu_visible = resolve_ipo_menu_visible(
             member_email=member.email if member else None,
         )
         request.state.sheet_menu_visible = resolve_sheet_menu_visible(
@@ -2188,7 +2171,6 @@ async def ip_allowlist_middleware(request: Request, call_next):
                 request.state.settings_menu_visible = False
                 request.state.ad_menu_visible = False
                 request.state.xdata_menu_visible = False
-                request.state.ipo_menu_visible = False
                 request.state.sheet_menu_visible = True
                 request.state.sheet_only_member = True
                 if path.startswith("/api/") and not sheet_only_member_path_allowed(path):
@@ -2211,15 +2193,6 @@ async def ip_allowlist_middleware(request: Request, call_next):
             em = member.email if member else None
             if not is_xdata_page_allowed_email(em or ""):
                 return RedirectResponse(url="/?xdata_denied=1", status_code=303)
-        if is_ipo_page_path(path):
-            em = member.email if member else None
-            if not is_ipo_page_allowed_email(em or ""):
-                if path.startswith("/api/"):
-                    return JSONResponse(
-                        status_code=403,
-                        content={"detail": "IPO bu hesap için kapalı."},
-                    )
-                return RedirectResponse(url="/?ipo_denied=1", status_code=303)
         if is_sheet_page_path(path):
             em = member.email if member else None
             if not is_sheet_page_allowed_email(em or ""):
@@ -16517,39 +16490,6 @@ def api_doviz_asset_monitor_latest():
         return JSONResponse(get_latest_run(db) or {})
 
 
-@app.get("/ipo")
-def ipo_page(request: Request):
-    """halkarz.com × doviz.com halka arz eksik/fazla."""
-    return templates.TemplateResponse(
-        request,
-        "ipo.html",
-        context={
-            "request": request,
-            "sites": get_sidebar_sites(),
-            "site_name": "IPO",
-        },
-    )
-
-
-@app.get("/holidays")
-def holidays_page(request: Request):
-    """Investing.com borsa tatil takvimi — Tüm Dünya."""
-    from backend.services.holiday_calendar import build_holidays_page_context
-
-    with SessionLocal() as db:
-        ctx = build_holidays_page_context(db)
-    return templates.TemplateResponse(
-        request,
-        "holidays.html",
-        context={
-            "request": request,
-            "sites": get_sidebar_sites(),
-            "site_name": "Holidays",
-            **ctx,
-        },
-    )
-
-
 @app.get("/sheet")
 def sheet_page(request: Request):
     """Ayılma hemşireleri aylık çizelge (cemevecen + sheet-only üyeler)."""
@@ -16568,66 +16508,6 @@ def sheet_page(request: Request):
             "sites": get_sidebar_sites(),
             "site_name": "Sheet",
         },
-    )
-
-
-@app.get("/api/ipo/compare")
-def api_ipo_compare(refresh: int = 0):
-    from backend.services.ipo_compare import (
-        fetch_compare,
-        hidden_rows_public,
-        latest_visit_public,
-        next_visit_slot,
-    )
-
-    # fetch_compare cache'lenmiş dict'i döndürür; kopya üzerinde çalış
-    payload = dict(fetch_compare(force=bool(refresh), details=True))
-    payload.pop("halkarz_snapshot", None)
-    with SessionLocal() as db:
-        payload["visit"] = latest_visit_public(db)
-        payload["hidden_rows"] = hidden_rows_public(db)
-    payload["hidden"] = [r["row_key"] for r in payload["hidden_rows"]]
-    payload["next_slot"] = next_visit_slot()
-    return JSONResponse(payload)
-
-
-@app.post("/api/ipo/hidden")
-async def api_ipo_hidden_set(request: Request):
-    """«Bunu bir daha gösterme» / geri getir."""
-    from backend.services.ipo_compare import hidden_rows_public, set_hidden
-
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    key = str((body or {}).get("row_key") or "").strip()
-    if not key:
-        return JSONResponse(status_code=400, content={"detail": "row_key gerekli"})
-    hidden = bool((body or {}).get("hidden", True))
-    member = _app_member_from_request(request)
-    with SessionLocal() as db:
-        set_hidden(
-            db,
-            key=key,
-            hidden=hidden,
-            name=str((body or {}).get("name") or ""),
-            ticker=str((body or {}).get("ticker") or ""),
-            by=(getattr(member, "email", "") or "") if member else "",
-        )
-        rows = hidden_rows_public(db)
-    return JSONResponse(
-        {"ok": True, "hidden": [r["row_key"] for r in rows], "hidden_rows": rows}
-    )
-
-
-@app.get("/api/ipo/hidden")
-def api_ipo_hidden_list():
-    from backend.services.ipo_compare import hidden_rows_public
-
-    with SessionLocal() as db:
-        rows = hidden_rows_public(db)
-    return JSONResponse(
-        {"ok": True, "hidden": [r["row_key"] for r in rows], "hidden_rows": rows}
     )
 
 
@@ -19200,17 +19080,6 @@ def xdata_empower_page(request: Request):
     return templates.TemplateResponse(
         request,
         "metrik.html",
-        context={"request": request},
-        headers=_SC_HTML_NO_CACHE_HEADERS,
-    )
-
-
-@app.get("/creative-review")
-def empower_creative_review_page(request: Request):
-    """Empower Creative Review — keyword tara / onaylı engelle."""
-    return templates.TemplateResponse(
-        request,
-        "creative_review.html",
         context={"request": request},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )

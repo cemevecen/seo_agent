@@ -110,7 +110,6 @@ PAGES: dict[str, list[str]] = {
     "moderation": ["moderation"],
     "empower-sinemalar": ["empower_intel_sinemalar"],
     "x-data": ["empower_intel"],
-    "creative-review": ["empower_creative"],
     "errors": ["errors"],
 }
 

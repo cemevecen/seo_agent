@@ -78,10 +78,8 @@ def test_card_matches_vw_alias_on_volkswagen_token():
     assert mod.card_matches(card, terms) is True
 
 
-def test_page_tarama_creative_review_job():
+def test_page_tarama_creative_review_job_removed():
     from backend.services import page_tarama as store
 
-    jobs = store.jobs_for("creative-review")
-    assert [j["id"] for j in jobs] == ["empower_creative"]
-    assert "mode=charts" not in (jobs[0].get("path") or "")
-    assert "/sync-empower-creative" in (jobs[0].get("path") or "")
+    # Panel /creative-review sekmesi kaldırıldı
+    assert store.jobs_for("creative-review") == []

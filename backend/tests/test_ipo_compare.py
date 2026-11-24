@@ -420,21 +420,12 @@ def test_next_visit_slot_is_0909_or_1414():
     assert evening["at"].startswith("2026-08-20")
 
     root = Path(__file__).resolve().parents[2]
-    base = (root / "templates/base.html").read_text(encoding="utf-8")
     main = (root / "backend/main.py").read_text(encoding="utf-8")
-    html = (root / "templates/ipo.html").read_text(encoding="utf-8")
-    assert 'href="/ipo" data-nav-match="/ipo"' in base
-    assert 'ipo_menu_visible(request)' in base
-    assert '@app.get("/ipo")' in main
-    assert '@app.get("/api/ipo/compare")' in main
+    # Panel /ipo sekmesi kaldırıldı; zamanlı halkarz ziyareti backend'de kalabilir.
     assert 'ipo-halkarz-0909' in main
     assert 'ipo-halkarz-1414' in main
     assert 'hour=9, minute=9' in main
     assert 'hour=14, minute=14' in main
-    assert 'data-header-title="IPO"' in html
-    assert 'data-tab="yeni"' in html
-    log = (root / "backend/services/admin_access_log.py").read_text(encoding="utf-8")
-    assert '("/ipo", "IPO / Halka Arz")' in log
 
 
 def test_hidden_companies_roundtrip():
