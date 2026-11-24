@@ -592,20 +592,32 @@
       { key: "audience", label: "Kitle & cihaz" },
       { key: "app", label: "Uygulama" }
     ];
-    // Tüm gruplar açık gelir (Davranış / Kitle / Uygulama dahil). Veri tek
-    // istekte geldiği için açık olmak ekstra GA4 kotası harcamaz; kullanıcı
-    // elle kapatabilir.
-    var OPEN_BY_DEFAULT = 99;
+    // Gruplar kapalı çizilir; staggerGroups ise sırayla açılır (DOM/paint şoku yok).
+    var staggerGroups = opts.staggerGroups !== false;
 
-    function groupSection(g, cardsHtml, count, index) {
+    function groupSection(g, cardsHtml, count) {
       if (!count) return "";
-      return '<details class="xg-group"' + (index < OPEN_BY_DEFAULT ? " open" : "") + '>' +
+      return '<details class="xg-group">' +
         "<summary>" +
         '<span class="xg-group__title"><span class="xg-group__caret">▶</span>' +
         esc(g.label) + "</span>" +
         '<span class="xg-group__count">' + count + " kart</span>" +
         "</summary>" +
         '<div class="xg-grid">' + cardsHtml + "</div></details>";
+    }
+
+    function revealGroupsSequentially() {
+      var nodes = host.querySelectorAll("details.xg-group");
+      if (!nodes.length) return;
+      if (!staggerGroups) {
+        for (var a = 0; a < nodes.length; a++) nodes[a].open = true;
+        return;
+      }
+      Array.prototype.forEach.call(nodes, function (el, i) {
+        window.setTimeout(function () {
+          el.open = true;
+        }, 60 + i * 140);
+      });
     }
 
     function render(data) {
@@ -646,13 +658,14 @@
         put(BLOCK_GROUP.audience, html);
       });
 
-      var html = groups.map(function (g, i) {
-        return groupSection(g, bucket[g.key].join(""), counts[g.key], i);
+      var html = groups.map(function (g) {
+        return groupSection(g, bucket[g.key].join(""), counts[g.key]);
       }).join("");
       var lead = compareLegend(data.compare);
       host.innerHTML = (lead || "") + (html || empty("Bu yüzey için veri dönmedi."));
       host.classList.add("xg-grid--reveal");
       paintAll();
+      revealGroupsSequentially();
       window.setTimeout(function () {
         host.classList.remove("xg-grid--reveal");
       }, 600);
@@ -684,22 +697,34 @@
           .catch(function () { /* yoklama hatası yüklemeyi bozmasın */ });
       }, 450);
 
-      fetch(url, { headers: { Accept: "application/json" } })
+      var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      var abortTimer = window.setTimeout(function () {
+        try { if (ctrl) ctrl.abort(); } catch (_) { /* ignore */ }
+      }, 120000);
+
+      var fetchOpts = { headers: { Accept: "application/json" } };
+      if (ctrl) fetchOpts.signal = ctrl.signal;
+
+      fetch(url, fetchOpts)
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (d) {
           state.loaded = true;
           stopPoll();
-          var fromCache = !!(d && (d.cached || d.stale));
+          var fromCache = !!(d && (d.cached || d.stale || d.same_day_hold));
           barDone(fromCache ? "Önbellekten açıldı" : "Hazır", fromCache);
           note(statusLine(d));
           render(d);
         })
-        .catch(function () {
+        .catch(function (err) {
           stopPoll();
           barDone("");
-          note("İstek başarısız.");
+          var aborted = err && (err.name === "AbortError" || /abort/i.test(String(err)));
+          note(aborted ? "İstek zaman aşımı — Yenile ile tekrar dene." : "İstek başarısız.");
         })
-        .then(function () { state.loading = false; });
+        .then(function () {
+          window.clearTimeout(abortTimer);
+          state.loading = false;
+        });
     }
 
     // Gün seçici + yenile — android/ios gömülü bölüm kendi toolbar'ını bağlar.

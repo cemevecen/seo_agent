@@ -1,17 +1,15 @@
 {#
-  d-lab'in tek yüzeye indirgenmiş hâli — web/mweb/android/ios sekmelerinin
-  altında. İlk açılışta AÇIK gelir ve GA4 verisi otomatik çekilir; aynı gün
-  aynı sayfada tekrar girilince sunucu önbelleği (force yoksa) aynı veriyi verir.
+  d-lab gömülü bölüm — web/mweb/android/ios.
 
-  Kullanım:
-    {% with lab_profile="android", lab_title="android-lab" %}
-      {% include "partials/dlab_section.html" %}
-    {% endwith %}
+  İlk boyamada KAPALI: üst Metrics yüklemesi ile GA4 lab yarışmasın.
+  Kullanıcı aşağı inince (veya elle açınca) açılır, veri çekilir; kart
+  grupları sırayla açılır. Aynı gün Yenile’siz tekrar girişte sunucu
+  önbelleği kullanılır.
 #}
 {% set lab_profile = lab_profile|default("web", true) %}
 {% set lab_title = lab_title|default(lab_profile ~ "-lab", true) %}
-<link rel="stylesheet" href="/static/css/dlab.css?v=12">
-<details class="xg-lab" id="lab-{{ lab_profile }}" open>
+<link rel="stylesheet" href="/static/css/dlab.css?v=14">
+<details class="xg-lab" id="lab-{{ lab_profile }}">
   <summary>
     <span class="xg-lab__title">
       <span class="xg-lab__caret">▶</span>{{ lab_title }}
@@ -30,7 +28,7 @@
   </div>
 </details>
 
-<script src="/static/js/dlab_cards.js?v=13"></script>
+<script src="/static/js/dlab_cards.js?v=14"></script>
 <script>
 (function () {
   var profile = "{{ lab_profile }}";
@@ -43,13 +41,38 @@
     refresh: document.getElementById("lab-" + profile + "-refresh"),
     profile: profile,
     days: 7,
-    // İlk açılışta açık + otomatik yükle; aynı gün tekrar girişte önbellek
-    autoload: true
+    autoload: false,
+    staggerGroups: true
   });
   if (!lab) return;
-  // Kapalıyken açılırsa (kullanıcı elle kapattıysa) yine yükle
+
+  var armed = false;
+  function startLab() {
+    if (armed) return;
+    armed = true;
+    if (!wrap.open) wrap.open = true;
+    lab.loadOnce();
+  }
+
   wrap.addEventListener("toggle", function () {
     if (wrap.open) lab.loadOnce();
   });
+
+  // Alta inince (veya 200px yakına gelince) aç + yükle — üst Metrics önce bitsin
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(
+      function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].isIntersecting) {
+            startLab();
+            io.disconnect();
+            break;
+          }
+        }
+      },
+      { root: null, rootMargin: "160px 0px", threshold: 0.01 }
+    );
+    io.observe(wrap);
+  }
 })();
 </script>
