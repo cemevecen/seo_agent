@@ -1,17 +1,17 @@
 {#
-  d-lab'in tek yüzeye indirgenmiş hâli — android/ios sekmelerinin en altında
-  kapalı bir dropdown olarak durur.
+  d-lab'in tek yüzeye indirgenmiş hâli — web/mweb/android/ios sekmelerinin
+  altında. İlk açılışta AÇIK gelir ve GA4 verisi otomatik çekilir; aynı gün
+  aynı sayfada tekrar girilince sunucu önbelleği (force yoksa) aynı veriyi verir.
 
   Kullanım:
     {% with lab_profile="android", lab_title="android-lab" %}
       {% include "partials/dlab_section.html" %}
     {% endwith %}
-
-  Kapalıyken hiçbir istek atılmaz; ilk açılışta yüklenir (GA4 kotası boşa
-  gitmesin diye). Veriyi sunucu `profile=` ile zaten daraltıyor.
 #}
-<link rel="stylesheet" href="/static/css/dlab.css?v=11">
-<details class="xg-lab" id="lab-{{ lab_profile }}">
+{% set lab_profile = lab_profile|default("web", true) %}
+{% set lab_title = lab_title|default(lab_profile ~ "-lab", true) %}
+<link rel="stylesheet" href="/static/css/dlab.css?v=12">
+<details class="xg-lab" id="lab-{{ lab_profile }}" open>
   <summary>
     <span class="xg-lab__title">
       <span class="xg-lab__caret">▶</span>{{ lab_title }}
@@ -30,7 +30,7 @@
   </div>
 </details>
 
-<script src="/static/js/dlab_cards.js?v=11"></script>
+<script src="/static/js/dlab_cards.js?v=12"></script>
 <script>
 (function () {
   var profile = "{{ lab_profile }}";
@@ -43,10 +43,13 @@
     refresh: document.getElementById("lab-" + profile + "-refresh"),
     profile: profile,
     days: 7,
-    autoload: false
+    // İlk açılışta açık + otomatik yükle; aynı gün tekrar girişte önbellek
+    autoload: true
   });
   if (!lab) return;
-  wrap.addEventListener("toggle", function () { if (wrap.open) lab.loadOnce(); });
-  if (wrap.open) lab.loadOnce();
+  // Kapalıyken açılırsa (kullanıcı elle kapattıysa) yine yükle
+  wrap.addEventListener("toggle", function () {
+    if (wrap.open) lab.loadOnce();
+  });
 })();
 </script>

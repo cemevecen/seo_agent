@@ -42,9 +42,25 @@ _DEFAULT_SITE_ID = 1
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _CACHE_TTL_SEC = 1800.0  # 30 dk taze
 _CACHE_STALE_SEC = 7200.0  # 2 sa eskiyi anında ver, arka planda yenile
+# Aynı TR takvim gününde Yenile (force) olmadıkça ilk çekimi tekrar kullan —
+# /web · /mweb · /ios · /android her ziyarette GA4'ü yeniden taramasın.
+_CACHE_SAME_DAY_HOLD = True
 _MAX_WORKERS = 10  # property başına GA4 eşzamanlı istek üst sınırı
 _REFRESH_LOCKS: set[str] = set()
 _REFRESH_LOCK = threading.Lock()
+
+
+def _cache_same_tr_day(fetched_epoch: float) -> bool:
+    """Önbellek kaydı İstanbul takvim gününde mi (bugün)?"""
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        tr = ZoneInfo("Europe/Istanbul")
+        fetched = datetime.fromtimestamp(float(fetched_epoch), tz=tr).date()
+        return fetched == datetime.now(tr).date()
+    except Exception:  # noqa: BLE001
+        return False
 
 # ── İlerleme ────────────────────────────────────────────────────────────────
 # Rapor tek bir HTTP isteği ama içeride onlarca GA4 çağrısı var; istemci
@@ -954,6 +970,10 @@ def build_x_ga4_report(
             cached_payload = dict(hit[1])
             cached_payload["cache_age_sec"] = int(age)
             if age < _CACHE_TTL_SEC:
+                return _bail({**cached_payload, "cached": True, "stale": False})
+            # Aynı gün: ilk açılış verisini tut — arka plan yenileme yok (kota)
+            if _CACHE_SAME_DAY_HOLD and _cache_same_tr_day(hit[0]):
+                cached_payload["same_day_hold"] = True
                 return _bail({**cached_payload, "cached": True, "stale": False})
             if age < _CACHE_STALE_SEC:
                 _schedule_background_refresh(

@@ -158,6 +158,7 @@
       var when = formatFetchedAt(data.fetched_at);
       if (when) parts.push("Son çekim: " + when);
       if (data.stale) parts.push("arka planda yenileniyor");
+      else if (data.same_day_hold) parts.push("aynı gün · ilk çekim");
       else if (data.cached) parts.push("önbellek");
       if (data.requests) parts.push(data.requests + " GA4 isteği");
       var cmp = data.compare;

@@ -8,7 +8,9 @@
     {% with dw_platform='web', dw_project='sinemalar' %}
     {% include "partials/doviz_web_metrics_content.html" %}
     {% endwith %}
+    {% with lab_profile="web", lab_title="web-lab" %}
     {% include "partials/dlab_section.html" %}
+    {% endwith %}
   </div>
 </div>
 {% endblock %}
