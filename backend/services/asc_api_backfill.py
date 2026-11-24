@@ -99,6 +99,26 @@ def build_asc_api_facts(*, days: int = 20) -> tuple[list[dict[str, Any]], dict[s
                     continue
                 facts.append(_fact(metric, ds, fv, source="asc_analytics_api"))
 
+    try:
+        subs = asc_client.fetch_subscription_daily_series(days=days)
+    except Exception as exc:  # noqa: BLE001
+        meta["errors"].append(f"subscription: {exc}"[:160])
+        subs = None
+    if subs and subs.get("dates"):
+        meta["subscription_ok"] = True
+        meta["subscription_range"] = [subs["dates"][0], subs["dates"][-1]]
+        for ds, active, trial in zip(
+            subs["dates"],
+            subs.get("active_plans_series") or [],
+            subs.get("free_trials_series") or [],
+        ):
+            facts.append(
+                _fact("active_subscriptions", ds, float(active), source="asc_subscription_api")
+            )
+            facts.append(
+                _fact("free_trials", ds, float(trial), source="asc_subscription_api")
+            )
+
     by: dict[tuple[str, str], dict[str, Any]] = {}
     for f in facts:
         key = (str(f["metric"]), str(f["date"])[:10])

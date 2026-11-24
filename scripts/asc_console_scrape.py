@@ -64,8 +64,15 @@ INGEST_URL = (
 ).strip()
 
 
-def _scrape_window() -> dict:
+_SCRAPE_WINDOW_CACHE: dict[str, Any] | None = None
+
+
+def _scrape_window(*, refresh: bool = False) -> dict:
     """Mühürlü: yalnız dün. FORCE_FULL / unsealed: HISTORY_START → seal."""
+    global _SCRAPE_WINDOW_CACHE
+    if _SCRAPE_WINDOW_CACHE is not None and not refresh:
+        return _SCRAPE_WINDOW_CACHE
+
     from backend.services.history_seal import (
         calendar_yesterday,
         force_full_history,
@@ -90,12 +97,13 @@ def _scrape_window() -> dict:
             f"ASC tarih aralığı · explicit_days · {start} → {end} ({n} gün)",
             flush=True,
         )
-        return {
+        _SCRAPE_WINDOW_CACHE = {
             "mode": "explicit_days",
             "start": start,
             "end": end,
             "days": (end - start).days + 1,
         }
+        return _SCRAPE_WINDOW_CACHE
     # Boşluk doldurma: kritik store metrikleri (crash/install/cihaz) sales günlerinden
     # ayrı — aksi halde API fill «tarih var» sanıp gap'i kapatır.
     known = None
@@ -118,12 +126,23 @@ def _scrape_window() -> dict:
         f"({win.get('days')} gün)",
         flush=True,
     )
+    _SCRAPE_WINDOW_CACHE = win
     return win
 
 
 def _scrape_days() -> int:
     """Geriye uyum — pencere gün sayısı (mühürlüde 1)."""
     return int(_scrape_window().get("days") or 1)
+
+
+def _ui_date_spec_days() -> int:
+    """UI metrics URL dateSpec — 1 günlük gap penceresi UI’da geçmişi kesmesin."""
+    try:
+        floor = int((os.environ.get("ASC_CONSOLE_UI_DAYS") or "45").strip() or "45")
+    except ValueError:
+        floor = 45
+    floor = min(max(floor, 7), 365)
+    return max(int(_scrape_days() or 1), floor)
 
 # ASC web private API measureKey → warehouse metric
 MEASURE_MAP: dict[str, str] = {
@@ -861,7 +880,7 @@ def _unregister_service_workers(page) -> None:
 
 def _metrics_page_url(measure_key: str) -> str:
     base = f"https://appstoreconnect.apple.com/apps/{APP_ID}"
-    days = _scrape_days()
+    days = _ui_date_spec_days()
     q = f"chartType=singleaxis&dateSpec=d{days}&frequency=day&measureKey={measure_key}"
     if measure_key in ("iap", "payingUsers", "proceeds", "sales"):
         return f"{base}/analytics/monetization/sales/metrics?{q}"
@@ -1082,6 +1101,8 @@ def _post_measures_via_requests(ctx, measures: list[str], *, start: date, end: d
         "endTime": f"{end.isoformat()}T00:00:00Z",
         "measures": measures,
         "frequency": "day",
+        "group": None,
+        "dimensionFilters": [],
     }
     referer = f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics"
     try:
@@ -1132,6 +1153,8 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
         "endTime": f"{end.isoformat()}T00:00:00Z",
         "measures": measures,
         "frequency": "day",
+        "group": None,
+        "dimensionFilters": [],
     }
     referer = f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics"
     headers = _analytics_headers(referer)
