@@ -592,9 +592,10 @@
       { key: "audience", label: "Kitle & cihaz" },
       { key: "app", label: "Uygulama" }
     ];
-    // İlk iki grup açık gelir; gerisi kapalı. Veri zaten tek istekte geldiği
-    // için kapalı olmak istek tasarrufu değil, yalnızca göz yorgunluğunu azaltır.
-    var OPEN_BY_DEFAULT = 2;
+    // Tüm gruplar açık gelir (Davranış / Kitle / Uygulama dahil). Veri tek
+    // istekte geldiği için açık olmak ekstra GA4 kotası harcamaz; kullanıcı
+    // elle kapatabilir.
+    var OPEN_BY_DEFAULT = 99;
 
     function groupSection(g, cardsHtml, count, index) {
       if (!count) return "";
