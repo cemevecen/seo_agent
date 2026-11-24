@@ -149,10 +149,46 @@
     return { r: 37, g: 99, b: 235 };
   }
 
-  function heatBackground(color, t) {
-    var rgb = parseColor(color);
-    var a = 0.08 + Math.max(0, Math.min(1, t)) * 0.48;
-    return "rgba(" + rgb.r + "," + rgb.g + "," + rgb.b + "," + a.toFixed(3) + ")";
+  /** Düşük değer = kırmızı, yüksek = yeşil (yalnızca kırmızı/yeşil tonları). */
+  var HEAT_LOWER_BETTER = {
+    crashes: 1,
+    crash: 1,
+    anrs: 1,
+    anr: 1,
+    uninstalls: 1,
+    uninstall: 1,
+    user_lost: 1,
+    subscription_churned: 1,
+    subscription_churn: 1,
+    churn: 1,
+  };
+
+  function isLowerBetterCol(col) {
+    if (!col) return false;
+    if (col.lowerBetter === true || col.invertHeat === true) return true;
+    var k = String(col.key || col.metric || "").toLowerCase();
+    if (HEAT_LOWER_BETTER[k]) return true;
+    if (/churn|crash|anr|uninstall|lost/.test(k)) return true;
+    return false;
+  }
+
+  function heatBackground(_colorIgnored, t) {
+    t = Math.max(0, Math.min(1, Number(t)));
+    if (!Number.isFinite(t)) t = 0.5;
+    var root = typeof document !== "undefined" ? document.documentElement : null;
+    var dark = !!(
+      root &&
+      (root.classList.contains("dark") || root.classList.contains("charcoal"))
+    );
+    // Mid noktada soluk; uçlarda daha doygun — ara renk (sarı/mavi) yok
+    if (t < 0.5) {
+      var u = (0.5 - t) / 0.5;
+      var a = (0.1 + u * 0.52).toFixed(3);
+      return dark ? "rgba(184,106,116," + a + ")" : "rgba(185,28,60," + a + ")";
+    }
+    var v = (t - 0.5) / 0.5;
+    var ag = (0.1 + v * 0.52).toFixed(3);
+    return dark ? "rgba(90,159,131," + ag + ")" : "rgba(4,120,87," + ag + ")";
   }
 
   function colMinMax(values) {
@@ -552,6 +588,8 @@
     var shown = carriedVal != null ? carriedVal : v;
     var heatOn = isHeatEnabled() && carriedVal == null;
     var t = heatOn ? heatT(shown, st.min, st.max) : null;
+    // Crash/uninstall/churn: yüksek değer kötü → kırmızı
+    if (t != null && isLowerBetterCol(col)) t = 1 - t;
     var bg = t == null ? "" : "background:" + heatBackground(color, t) + ";";
     var txt = fmtVal(shown, col);
     var tip = title != null ? title : txt;

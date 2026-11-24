@@ -25,4 +25,4 @@ Metrik KPI kartları ayrı konu; bu liste **veri tablosu** (`#pa-table-shell` / 
 
 - Hangisi seçildi: **#6 Heat** + **#3 Pin** (varsayılan açık) + **eksen değiştir** (Metrics on top ↔ Dates on top) + **#8 Sürükle** + liste kartı seçili sütunlara **eşit en/boy** (sağ boşluk yok) + **#9 Karşılaştır** (önceki eşit aralık veya geçen yıl aynı günler; aralık depoda yoksa Δ yok; tablo Δ sütunları varsayılan **gizli**, Compare ile açılır)
 - Uygulandı: `static/js/metric_table_ux.js` · Android/iOS overview tabloları
-- Not: Izgara heat (köşesiz hücre), zebra satır, legend’da Pin / Metrics on top / Remove colors.
+- Not: Izgara heat (köşesiz hücre) **yalnızca kırmızı↔yeşil** (düşük/düşüş kırmızı, yüksek/çıkış yeşil; crash/uninstall/churn ters); legend’da Pin / Metrics on top / Remove colors.
